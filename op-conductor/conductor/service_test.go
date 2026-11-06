@@ -1198,15 +1198,26 @@ type unsafeHeadMetrics struct {
 func (m *unsafeHeadMetrics) RecordRaftUnsafeHead(num uint64) { m.raftUnsafeHead = num }
 
 func TestHandleHealthUpdateRecordsRaftUnsafeHead(t *testing.T) {
-	cons := &consensusmocks.Consensus{}
-	cons.EXPECT().ServerID().Return("SequencerA")
-	cons.EXPECT().LocalUnsafePayload().Return(&eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 42},
-	})
-	m := &unsafeHeadMetrics{}
-	oc := &OpConductor{log: testlog.Logger(t, log.LevelInfo), metrics: m, cons: cons}
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		payload *eth.ExecutionPayloadEnvelope
+		want    uint64
+	}{
+		{"head", &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 42}}, 42},
+		{"no head yet", nil, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cons := &consensusmocks.Consensus{}
+			cons.EXPECT().ServerID().Return("SequencerA")
+			cons.EXPECT().LocalUnsafePayload().Return(tc.payload)
+			m := &unsafeHeadMetrics{}
+			oc := &OpConductor{log: testlog.Logger(t, log.LevelInfo), metrics: m, cons: cons}
 
-	oc.handleHealthUpdate(nil)
+			oc.handleHealthUpdate(nil)
 
-	require.Equal(t, uint64(42), m.raftUnsafeHead)
+			require.Equal(t, tc.want, m.raftUnsafeHead)
+		})
+	}
 }

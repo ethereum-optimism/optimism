@@ -17,7 +17,8 @@ import (
 
 func TestConductorClientOverrideLeader(t *testing.T) {
 	m := metrics.NewMetrics("", nil)
-	c := NewConductorClient(&config.Config{}, testlog.Logger(t, log.LevelInfo), m)
+	logger, logs := testlog.CaptureLogger(t, log.LevelWarn)
+	c := NewConductorClient(&config.Config{}, logger, m)
 	require.Equal(t, 0.0, gaugeValue(t, m.ConductorOverride))
 
 	require.NoError(t, c.OverrideLeader(context.Background()))
@@ -26,6 +27,7 @@ func TestConductorClientOverrideLeader(t *testing.T) {
 	// With the override set, commits are skipped without dialing the conductor.
 	payload := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 1}}
 	require.NoError(t, c.CommitUnsafePayload(context.Background(), payload))
+	require.NotNil(t, logs.FindLog(testlog.NewMessageContainsFilter("not committing unsafe payload")))
 }
 
 func gaugeValue(t *testing.T, g prometheus.Gauge) float64 {
