@@ -200,3 +200,16 @@ contract DeployCompliance_assertValidInput_Test is DeployCompliance_TestInit {
         deployScript.assertValidInput(input);
     }
 }
+
+/// @title DeployCompliance_assertValidOutput_Test
+contract DeployCompliance_assertValidOutput_Test is DeployCompliance_TestInit {
+    /// @notice Tests that a module proxy whose implementation is not the output's is rejected.
+    function test_assertValidOutput_implementationMismatch_reverts() public {
+        DeployCompliance.Input memory input = _input();
+        DeployCompliance.Output memory output = deployScript.run(input);
+        output.moduleImpl = IComplianceModule(makeAddr("otherModuleImpl"));
+
+        vm.expectRevert("DeployCompliance: module implementation mismatch");
+        deployScript.assertValidOutput(input, output);
+    }
+}

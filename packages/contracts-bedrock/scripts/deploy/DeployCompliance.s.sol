@@ -182,7 +182,10 @@ contract DeployCompliance is Script {
             IProxy(payable(address(_output.module))).admin() == address(_output.custodyProxyAdmin),
             "DeployCompliance: module admin mismatch"
         );
-        DeployUtils.assertERC1967ImplementationSet(address(_output.module));
+        require(
+            DeployUtils.assertERC1967ImplementationSet(address(_output.module)) == address(_output.moduleImpl),
+            "DeployCompliance: module implementation mismatch"
+        );
         DeployUtils.assertInitialized({
             _contractAddress: address(_output.module), _isProxy: true, _slot: 0, _offset: 0
         });
