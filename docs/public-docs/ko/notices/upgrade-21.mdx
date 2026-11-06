@@ -21,7 +21,7 @@ is_imported_content: 'false'
 ---
 
 Upgrade 21은 OP Stack 체인을 위한 L1 스마트 컨트랙트 업그레이드입니다.
-이 업그레이드는 `op-contracts/v9.0.0`에 포함되어 배포되며, 모든 체인에서 `ETHLockbox`를 보관(custody) 및 일시 중지 식별자로 지정하고, 상호운용성(interop)에 필요한 L1 컨트랙트 변경 사항을 포함합니다.
+이 업그레이드는 `op-contracts/v9.0.0`에 포함되어 배포되며, 모든 체인에서 `ETHLockbox`를 보관(custody) 및 일시 중지 식별자로 지정하고, L1 출금 경로를 강화하며, 상호운용성(interop)에 필요한 L1 컨트랙트 변경 사항을 포함합니다.
 L2 하드포크가 없으므로 구성해야 할 활성화 타임스탬프는 없습니다.
 각 네트워크는 온체인 작업을 실행하여 업그레이드됩니다.
 
@@ -30,9 +30,9 @@ L2 하드포크가 없으므로 구성해야 할 활성화 타임스탬프는 �
   아래 날짜는 Optimism Governance 승인에 따라 달라지는 목표이며, 컨트랙트 및 구성 요소 버전은 릴리스 후보가 게시되면 추가됩니다.
 </Info>
 
-## 포함 내용
+## 포함 내용 {#what’s-included}
 
-### 보관 및 일시 중지 식별자로서의 ETHLockbox
+### 보관 및 일시 중지 식별자로서의 ETHLockbox {#ethlockbox-as-the-custody-and-pause-identifier}
 
 Upgrade 21 이후 모든 체인에는 `ETHLockbox`가 있으며, lockbox는 체인별 일시 중지에 사용되는 유일한 식별자가 됩니다.
 `SystemConfig`의 `ETH_LOCKBOX` 기능은 더 이상 비활성화할 수 없습니다.
@@ -47,7 +47,14 @@ Upgrade 21 이후 모든 체인에는 `ETHLockbox`가 있으며, lockbox는 체�
 신뢰할 수 있는 확인 수단은 여전히 `OptimismPortal.paused()`입니다.
 일시 중지 식별자의 작동 방식은 [bridge 일시 중지](/ko/op-stack/security/pause)를 참조하세요.
 
-### Interop 컨트랙트 변경 사항
+### L1 bridge 강화 {#l1-bridge-hardening}
+
+`OptimismPortal2.finalizeWithdrawalTransaction`은 발신자가 `L2CrossDomainMessenger`이고 `L1CrossDomainMessenger` 호출이 실패하면 `OptimismPortal_L1CDMCallFailed`로 revert합니다. 따라서 해당 출금은 실패 상태로 최종 확정되지 않고 재시도 가능한 상태로 유지됩니다.
+`L1CrossDomainMessenger.relayMessage`는 relay 결과를 기록하기 위해 더 많은 gas를 예약합니다. 이 기록 덕분에 실패한 메시지를 다시 재생(replay)할 수 있습니다. 또한 gas 검사 전에 payload를 메모리로 복사하므로, 복사 작업이 더 이상 예약된 gas를 소모하지 않습니다.
+relay gas 상수는 `LOCAL_*`(이 체인의 relay)와 `REMOTE_*`(다른 체인에 대해 부과되는 `baseGas`)로 분리됩니다.
+`RELAY_*` getter는 `IL1CrossDomainMessenger`에서 `REMOTE_*`의 별칭(alias)으로 유지됩니다.
+
+### Interop 컨트랙트 변경 사항 {#interop-contract-changes}
 
 Upgrade 21에는 interop에 필요한 L1 컨트랙트 변경 사항이 포함됩니다.
 이러한 변경 사항은 이후 업그레이드에서 사용되기 전까지는 아무런 동작도 하지 않습니다. Upgrade 21은 마이그레이션을 호출하지 않으며 interop을 활성화하지도 않습니다.
@@ -61,20 +68,20 @@ Upgrade 21에는 interop에 필요한 L1 컨트랙트 변경 사항이 포함됩
 [공유 dispute game 런북](/ko/chain-operators/tutorials/merge-shared-dispute-game)에서 마이그레이션 흐름을 설명하며, 이 런북은 아직 프로덕션 체인에 사용하도록 승인되지 않았습니다.
 interop에 필요한 노드 토폴로지는 [Interop 활성화 준비](/ko/notices/interop-prep)를 참조하세요.
 
-### 출금 증명 정리
+### 출금 증명 정리 {#withdrawal-proof-cleanup}
 
 `OptimismPortal.deleteProvenWithdrawal(bytes32,address)`를 사용하면 누구나 분쟁 게임(dispute game)이 절대 최종 확정으로 이어질 수 없는 출금 증명, 즉 게임이 challenger에게 유리하게 해결되었거나 blacklist에 등록된 출금 증명을 삭제할 수 있습니다.
 이 함수는 `WithdrawalProofDeleted`를 emit합니다.
 유효한 게임에 대한 증명은 영향을 받지 않습니다.
 
-### OPCM 및 StandardValidator 업데이트
+### OPCM 및 StandardValidator 업데이트 {#opcm-and-standardvalidator-updates}
 
 `OPContractsManagerV2`와 `OPContractsManagerStandardValidator`가 위 변경 사항에 맞게 업데이트됩니다.
 validator는 새로운 lockbox 및 일시 중지 구성에 대한 assertion을 추가하고, interop 체인의 공유 `ProxyAdmin`을 처리합니다.
 
-## 필요한 조치
+## 필요한 조치 {#required-actions}
 
-### 체인 운영자
+### 체인 운영자 {#chain-operators}
 
 * Guardian 일시 중지 도구와 런북이 `OptimismPortal`의 `ethLockbox()`에서 읽은 체인의 `ETHLockbox` 주소를 체인별 일시 중지 식별자로 전달하도록 업데이트합니다.
 * `Paused` 및 `Unpaused` 이벤트를 `OptimismPortal` 주소로 필터링하는 모니터링을 업데이트합니다.
@@ -89,7 +96,7 @@ validator는 새로운 lockbox 및 일시 중지 구성에 대한 assertion을 �
   체인별 일시 중지 식별자의 작동 방식과 체인을 일시 중지하는 방법은 [bridge 일시 중지](/ko/op-stack/security/pause)를 참조하세요.
 </Info>
 
-#### absolute prestate 업데이트
+#### absolute prestate 업데이트 {#update-the-absolute-prestate}
 
 Upgrade 21에는 하드포크가 없지만, [`kona-client/v1.9.0`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.9.0)에서 빌드된 새 absolute prestate가 함께 배포됩니다.
 [`op-challenger` v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0)에는 이에 맞는 `kona-host` v1.9.0이 포함되어 있으므로, 오프체인 구성 요소 변경은 `op-challenger` 업데이트뿐입니다.
@@ -170,12 +177,12 @@ prestate를 위해 새 버전이 필요한 다른 OP Stack 구성 요소는 없�
   </Step>
 </Steps>
 
-### 노드 운영자
+### 노드 운영자 {#node-operators}
 
 Upgrade 21에는 L2 하드포크가 없습니다.
 필요한 구성 요소 버전이 있다면 릴리스 후보가 게시될 때 여기에 나열됩니다.
 
-### 앱 개발자 및 인프라 통합 업체
+### 앱 개발자 및 인프라 통합 업체 {#app-developers-and-infrastructure-integrators}
 
 일반적인 L2 컨트랙트와 트랜잭션은 영향을 받지 않습니다.
 통합이 다음 중 하나에 해당하는 경우 업데이트해야 합니다.
@@ -183,16 +190,18 @@ Upgrade 21에는 L2 하드포크가 없습니다.
 * 체인에 보관된 ETH를 측정하기 위해 `OptimismPortal`의 ETH 잔액을 읽는 경우. 업그레이드 이후에는 체인의 `ETHLockbox` 잔액을 읽어야 합니다.
 * `SuperchainConfig`의 `Paused` 이벤트를 `OptimismPortal` 주소로 필터링하는 경우
 * 출금 증명을 추적하며 새로운 `WithdrawalProofDeleted` 이벤트를 처리해야 하는 경우
+* 출금을 최종 확정하거나 relay하는 경우. 이제 `finalizeWithdrawalTransaction`은 L1 messenger 호출이 실패하면 `OptimismPortal_L1CDMCallFailed`로 revert합니다. 이 경우 더 많은 gas로 재시도할 수 있는 것으로 처리해야 합니다. 절대 relay될 수 없는 messenger 출금은 실패 상태로 최종 확정되지 않고, 증명되었지만 최종 확정되지 않은 상태로 유지됩니다.
+* messenger의 relay gas 상수를 읽는 경우. 이 상수는 `LOCAL_*`와 `REMOTE_*`로 분리되며, `RELAY_*` getter는 `REMOTE_*`의 별칭으로 유지됩니다.
 
 <Info>
   체인 잔액과 일시 중지 상태 모니터링에 대한 안내는 [거래소 및 bridge](/ko/op-stack/security/exchanges-and-bridges)를 참조하세요.
 </Info>
 
-### 사용자
+### 사용자 {#users}
 
 별도의 조치는 필요하지 않습니다.
 
-## 업그레이드 일정
+## 업그레이드 일정 {#upgrade-timing}
 
 Upgrade 21은 L1 컨트랙트 업그레이드로 적용되므로, 각 네트워크는 온체인 작업을 실행하여 업그레이드됩니다.
 
@@ -210,7 +219,7 @@ OP Enterprise Self Managed 체인은 지원이 필요한 경우 Optimism 담당�
 Mainnet 실행은 Optimism Governance 승인과 Sepolia 안정화 기간의 정상 진행 여부에 따라 달라지므로, 이 날짜는 변경될 수 있습니다.
 거버넌스 제안과 온체인 투표는 게시되면 여기에 링크됩니다.
 
-## 준비 상태 확인
+## 준비 상태 확인 {#verify-readiness}
 
 Sepolia 실행 후, mainnet 실행 전에 다음을 수행합니다.
 

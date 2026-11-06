@@ -118,7 +118,8 @@ impl InteropFilterClient {
                     invalid += 1;
                     first_invalid.get_or_insert(e);
                 }
-                // Non-response (timeout / transport): does not count toward quorum.
+                // Non-response (timeout, transport, data not yet available): does not count toward
+                // quorum.
                 Err(_) => continue,
             }
             // Quorum reached: stop without awaiting not-yet-responded endpoints. But a failsafe
@@ -596,11 +597,7 @@ impl<'a> IntoFuture for CheckAccessListRequest<'a> {
                 .map_err(|_| InteropTxValidatorError::Timeout(timeout.as_secs()))
                 .and_then(|r| r.map_err(InteropTxValidatorError::from_json_rpc));
 
-            match &verdict {
-                Ok(()) => endpoint_metrics.record_valid(),
-                Err(e) if e.is_definitive_invalid() => endpoint_metrics.record_invalid(),
-                Err(_) => endpoint_metrics.record_unavailable(),
-            }
+            endpoint_metrics.record_verdict(&verdict);
             verdict
         })
     }

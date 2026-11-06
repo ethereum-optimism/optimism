@@ -253,6 +253,11 @@ commands:
                   {
                     echo "export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sccache_gcp_cred.json"
                     echo "export RUSTC_WRAPPER=sccache"
+                    # reth-node-core's build script embeds the build time, so without a
+                    # fixed value it and every crate built on it miss the cache on every
+                    # run. op-reth reports op-version's build info instead, so its version
+                    # output is unchanged.
+                    echo "export SOURCE_DATE_EPOCH=1700000000"
                   } >> "$BASH_ENV"
 
   rust-sccache-stats:
@@ -2167,16 +2172,6 @@ jobs:
           paths:
             - "rust/kona/prestate-artifacts-*/"
 
-  # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
-  rust-binaries-for-sysgo:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small.gen2
-    steps:
-      - run:
-          name: All Rust binaries ready
-          command: echo "All Rust binaries built and persisted to workspace"
-
   # ============================================================================
 
   preimage-reproducibility:
@@ -2615,11 +2610,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
-      - rust-binaries-for-sysgo:
-          requires:
-            - rust-kona-binaries
-            - rust-op-reth-binary
-            - rust-sp1-super-range-executor
       - go-binaries-for-sysgo:
           requires:
             - prep-go-modules
@@ -2643,10 +2633,12 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
             - discord
-          requires:
+          requires: &memory_all_requires
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-binaries-for-sysgo
+            - rust-kona-binaries
+            - rust-op-reth-binary
+            - rust-sp1-super-range-executor
             - go-binaries-for-sysgo
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
@@ -2668,14 +2660,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
             - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-            - rust-binaries-for-sysgo
-            - go-binaries-for-sysgo
-            - prep-go-modules
-            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
-            - prep-superchain
+          requires: *memory_all_requires
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.

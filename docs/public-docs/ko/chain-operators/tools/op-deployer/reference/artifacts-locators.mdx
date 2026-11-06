@@ -8,17 +8,15 @@ OP Deployer는 사전 컴파일된 컨트랙트 artifact를 호출합니다. 이
 컨트랙트 artifact의 위치를 가리킵니다. locator는 URL에 불과하지만, 여기에서 설명하는 몇 가지 추가 동작을
 담고 있습니다.
 
-## Locator 유형
+## Locator 유형 {#locator-types}
 
-locator는 다음 세 가지 유형 중 하나입니다.
+locator는 다음 세 가지 유형 중 하나입니다. 이전 릴리스의 `tag://` locator는 더 이상 허용되지 않습니다.
 
-*   `tag://` locator: 버전이 지정된 컨트랙트 릴리스를 가리킵니다. 이 locator는 알려진 URL로 해석됩니다. 태그된
-    locator로 다운로드한 artifact는 OP Deployer 구현에 하드코딩된 체크섬으로 검증됩니다.
-    이를 통해 태그가 지정된 이후 컨트랙트 artifact가 변조되는 것을 방지합니다. 또한 태그된 locator는 반복적인
-    다운로드를 피하기 위해 디스크에 캐시됩니다.
-    *   예: `tag://op-contracts/v1.8.0-rc.4`
-*   `https://` locator: 웹상의 컨트랙트 artifact tarball을 가리킵니다. HTTP locator는 태그된 locator와 마찬가지로
-    캐시되지만, 체크섬으로 검증되지는 않습니다.
+*   `embedded`(기본값): OP Deployer 바이너리에 컴파일되어 포함된 컨트랙트 artifact를 사용합니다. 각 OP Deployer
+    릴리스는 지원하는 컨트랙트 릴리스의 artifact를 포함하므로, 실행 시점에 아무것도 다운로드하거나 검증하지 않습니다.
+    *   예: `embedded`
+*   `https://` locator: 웹상의 컨트랙트 artifact tarball을 가리킵니다. HTTP locator는 반복적인 다운로드를 피하기 위해
+    디스크에 캐시됩니다.
     *   예: `https://<url-to-remote-forge-artifacts>`
 *   `file://` locator: artifact가 포함된 로컬 디스크의 디렉터리를 가리킵니다.
     *   예: `file://<path-to-repo-root>/packages/contracts-bedrock/forge-artifacts`
