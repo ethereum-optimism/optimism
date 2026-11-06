@@ -88,7 +88,6 @@ func (e *extraHost) Close() error {
 
 func (e *extraHost) initStaticPeers() {
 	for _, addr := range e.staticPeers {
-		e.Peerstore().AddAddrs(addr.ID, addr.Addrs, staticPeerAddrTTL)
 		// We protect the peer, so the connection manager doesn't decide to prune it.
 		// We tag it with "static" so other protects/unprotects with different tags don't affect this protection.
 		e.connMgr.Protect(addr.ID, staticPeerTag)
@@ -105,7 +104,7 @@ func (e *extraHost) initStaticPeers() {
 
 func (e *extraHost) dialStaticPeer(ctx context.Context, addr *peer.AddrInfo) error {
 	e.log.Info("dialing static peer", "peer", addr.ID, "addrs", addr.Addrs)
-	// Re-add the configured addresses on every attempt. Once the TTL set in initStaticPeers runs out,
+	// Add the configured addresses on every attempt, not only the first. Once their TTL ran out,
 	// only addresses learned from the peer (e.g. an old pod IP) would be left to dial, and a /dns4
 	// address would never be resolved again.
 	e.Peerstore().AddAddrs(addr.ID, addr.Addrs, staticPeerAddrTTL)
