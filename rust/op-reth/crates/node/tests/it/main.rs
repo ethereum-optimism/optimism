@@ -24,4 +24,8 @@ mod payload_handoff;
 
 mod payload_during_persistence;
 
+mod engine_driver;
+
+mod get_logs_errors;
+
 const fn main() {}
