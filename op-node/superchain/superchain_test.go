@@ -9,6 +9,7 @@ import (
 
 	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/stretchr/testify/require"
 )
@@ -44,10 +45,14 @@ func fullyPopulatedChainConfig() *registry.ChainConfig {
 			L1:     registry.GenesisRef{Hash: common.HexToHash("0xaa"), Number: 100},
 			L2:     registry.GenesisRef{Hash: common.HexToHash("0xbb")},
 			SystemConfig: registry.SystemConfig{
-				BatcherAddr: common.HexToAddress("0x4444444444444444444444444444444444444444"),
-				Overhead:    common.HexToHash("0xbc"),
-				Scalar:      common.HexToHash("0xa6fe0"),
-				GasLimit:    30_000_000,
+				BatcherAddr:          common.HexToAddress("0x4444444444444444444444444444444444444444"),
+				Overhead:             common.HexToHash("0xbc"),
+				Scalar:               common.HexToHash("0xa6fe0"),
+				GasLimit:             30_000_000,
+				OperatorFeeScalar:    ptr.New(uint32(13)),
+				OperatorFeeConstant:  ptr.New(uint64(14)),
+				MinBaseFee:           ptr.New(uint64(5_000_000_000)),
+				DAFootprintGasScalar: ptr.New(uint16(800)),
 			},
 		},
 		Addresses: registry.AddressesConfig{
@@ -86,6 +91,17 @@ func TestRollupConfigFromRegistry(t *testing.T) {
 	require.Equal(t, uint64(9), *cfg.KarstTime)
 	require.True(t, cfg.KeepKarstUpgradeGas,
 		"keep_karst_upgrade_gas from the registry must be carried into rollup.Config")
+
+	// The post-Isthmus/Jovian genesis system config params decide the L1 attributes deposit and
+	// the block's extraData, so a dropped one derives a different chain than the sequencer built.
+	genesisSysCfg := cfg.Genesis.SystemConfig
+	require.Equal(t, uint64(5_000_000_000), genesisSysCfg.MinBaseFee,
+		"minBaseFee from the registry must reach the genesis system config")
+	require.Equal(t, uint16(800), genesisSysCfg.DAFootprintGasScalar,
+		"daFootprintGasScalar must be carried through as recorded, not replaced by the default")
+	operatorFee := eth.DecodeOperatorFeeParams(genesisSysCfg.OperatorFeeParams)
+	require.Equal(t, uint32(13), operatorFee.Scalar)
+	require.Equal(t, uint64(14), operatorFee.Constant)
 }
 
 // TestRollupConfigFromRegistry_AllFieldsSet feeds a fully-populated chain config through the
