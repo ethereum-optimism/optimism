@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"io"
+	stdlog "log"
 	"log/slog"
 	"testing"
 
@@ -16,9 +17,13 @@ import (
 // override the environment, so an accepted value always stops at the next check, before any RPC.
 func TestReceiptQueryIntervalFlagReachesConfig(t *testing.T) {
 	root, slogDefault := log.Root(), slog.Default()
+	stdOutput, stdFlags := stdlog.Writer(), stdlog.Flags()
 	t.Cleanup(func() {
 		log.SetDefault(root)
 		slog.SetDefault(slogDefault)
+		// slog.SetDefault also redirects the standard logger, and restoring slog does not undo that.
+		stdlog.SetOutput(stdOutput)
+		stdlog.SetFlags(stdFlags)
 	})
 
 	tests := []struct {

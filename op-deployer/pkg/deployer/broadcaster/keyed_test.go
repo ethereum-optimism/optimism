@@ -153,10 +153,10 @@ func TestNewKeyedBroadcasterReceiptQueryInterval(t *testing.T) {
 	}
 }
 
-// The receipt appears on the fifth poll. At the one-second default the tx manager's ticker can't get
-// there before five seconds on any machine, and at 50ms a slow host still has plenty of slack.
+// The receipt appears on the tenth poll. At the one-second default the tx manager's ticker can't get
+// there before ten seconds on any machine, and at 50ms a slow host still has plenty of slack.
 func TestKeyedBroadcasterPollsAtConfiguredInterval(t *testing.T) {
-	const receiptOnPoll = 5
+	const receiptOnPoll = 10
 	var polls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

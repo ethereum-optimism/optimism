@@ -158,7 +158,12 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	}
 	cmd.WaitDelay = 5 * time.Second
 	cmd.Dir = r.workDir
-	cmd.Env = append(cmd.Environ(), "DEPLOYER_RECEIPT_QUERY_INTERVAL="+testReceiptQueryInterval.String())
+	cmd.Env = append(cmd.Environ(),
+		"DEPLOYER_RECEIPT_QUERY_INTERVAL="+testReceiptQueryInterval.String(),
+		// requireFastReceiptPoll reads this log format.
+		"DEPLOYER_LOG_FORMAT=text",
+		"DEPLOYER_LOG_COLOR=false",
+	)
 	for key, value := range env {
 		cmd.Env = append(cmd.Env, key+"="+value)
 	}
