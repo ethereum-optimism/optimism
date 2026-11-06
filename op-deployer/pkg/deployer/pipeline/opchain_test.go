@@ -37,6 +37,7 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 	chainID := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000300")
 	salt := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
 	superchainConfig := common.HexToAddress("0x3333333333333333333333333333333333333333")
+	bridgeHook := common.HexToAddress("0x4444444444444444444444444444444444444444")
 
 	baseIntent := &state.Intent{
 		GlobalDeployOverrides: make(map[string]any),
@@ -52,7 +53,8 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			Proposer:          common.HexToAddress("0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"),
 			Challenger:        common.HexToAddress("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
 		},
-		GasLimit: 60_000_000,
+		GasLimit:   60_000_000,
+		BridgeHook: &bridgeHook,
 	}
 
 	tests := []struct {
@@ -125,6 +127,7 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			require.Equal(t, common.Hash{}, got.CannonAbsolutePrestate)
 			require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 			require.Equal(t, common.Big0, got.StartingAnchorRoot.L2SequenceNumber)
+			require.Equal(t, bridgeHook, got.BridgeHook)
 		})
 	}
 }
@@ -393,9 +396,12 @@ func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			intent, chain, st := continuationDCITestInputs(chainID, tt.gameType)
+			bridgeHook := common.HexToAddress("0x6666666666666666666666666666666666666666")
+			chain.BridgeHook = &bridgeHook
 
 			got, err := BuildContinuationDCI(chainID, st)
 			require.NoError(t, err)
+			require.Equal(t, bridgeHook, got.BridgeHook)
 			require.Equal(t, uint32(tt.gameType), got.DisputeGameType)
 			require.Equal(t, st.Chains[0].Prestate, got.DisputeAbsolutePrestate)
 			require.Equal(t, st.Chains[0].StartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
@@ -1269,6 +1275,7 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(standard.WithdrawalDelaySeconds),
+		BridgeHook:                      common.Address{},
 	}
 	beforeExecution, err := json.Marshal(st)
 	require.NoError(t, err)

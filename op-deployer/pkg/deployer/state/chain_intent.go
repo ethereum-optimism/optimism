@@ -99,6 +99,10 @@ type ChainIntent struct {
 	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
 	DAFootprintGasScalar       uint16                    `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 	CustomGasToken             CustomGasToken            `json:"customGasToken" toml:"customGasToken"`
+	// BridgeHook is the IComplianceModule the portal screens deposits and withdrawals through.
+	// OPCM only accepts a hook with the portal, bridge and messenger getters.
+	// Unset or zero means no hook. A pointer, because omitempty never omits a zero common.Address.
+	BridgeHook *common.Address `json:"bridgeHook,omitempty" toml:"bridgeHook,omitempty"`
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
@@ -169,6 +173,11 @@ func (c *ChainIntent) Check() error {
 		// LiquidityControllerOwner is optional - if not set, L2ProxyAdminOwner will be used as default
 	}
 
+	// Mirrors OPContractsManagerV2_BridgeHookNotSupported, so the user gets a readable error.
+	if c.GetBridgeHook() != emptyAddress && c.IsCustomGasTokenEnabled() {
+		return fmt.Errorf("%w: bridgeHook is not supported with a custom gas token, chainId=%s", ErrIncompatibleValue, c.ID)
+	}
+
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)
 	}
@@ -231,6 +240,14 @@ func (c *ChainIntent) GetLiquidityControllerOwner() common.Address {
 		return c.CustomGasToken.LiquidityControllerOwner
 	}
 	return c.Roles.L2ProxyAdminOwner
+}
+
+// GetBridgeHook returns the configured bridge hook, or the zero address when none is set.
+func (c *ChainIntent) GetBridgeHook() common.Address {
+	if c.BridgeHook == nil {
+		return common.Address{}
+	}
+	return *c.BridgeHook
 }
 
 // IsCustomGasTokenEnabled returns true if custom gas token is enabled.

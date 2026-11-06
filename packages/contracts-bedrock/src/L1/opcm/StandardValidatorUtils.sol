@@ -323,7 +323,8 @@ contract StandardValidatorUtils {
             "PORTAL-100",
             _errors
         );
-        // TODO(optimism-private#744): assert the portal's bridge hook once OPCM configures hooks.
+        // A portal with a bridge hook is always reported as non-standard.
+        _errors = internalRequire(address(_portal.bridgeHook()) == address(0), "PORTAL-110", _errors);
         return _errors;
     }
 

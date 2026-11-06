@@ -12,6 +12,7 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -66,6 +67,7 @@ interface IOPContractsManagerV2 {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 withdrawalDelaySeconds;
+        IBridgeHook bridgeHook;
     }
 
     struct UpgradeInput {
@@ -90,6 +92,8 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
     error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
     error OPContractsManagerV2_InvalidDelayConfig();
+    error OPContractsManagerV2_BridgeHookNotSupported();
+    error OPContractsManagerV2_InvalidBridgeHook();
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();

@@ -24,6 +24,8 @@ import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
+import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -175,7 +177,8 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             useCustomGasToken: useCustomGasToken,
             proofMaturityDelaySeconds: proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
-            withdrawalDelaySeconds: withdrawalDelaySeconds
+            withdrawalDelaySeconds: withdrawalDelaySeconds,
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 
@@ -204,6 +207,43 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Basic non-zero and code checks are covered inside run->checkOutput.
         // Additional targeted assertions added below.
         _checkDeploymentAssertions(doo);
+    }
+
+    /// @notice Tests that a deploy leaves the portal without a bridge hook when the input uses
+    ///         address(0).
+    function test_run_noBridgeHook_succeeds() public {
+        assertEq(address(deployOPChainInput.bridgeHook), address(0), "input carries a hook");
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        assertEq(address(doo.optimismPortalProxy.bridgeHook()), address(0), "portal has a bridge hook");
+    }
+
+    /// @notice Tests that a bridge hook in the input is wired onto the portal by the initial
+    ///         OPCM deploy.
+    function test_run_bridgeHookSet_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        // The OPCM checks the hook against the chain's contracts, so predict them with a deploy
+        // that is then reverted.
+        uint256 snapshot = vm.snapshotState();
+        DeployOPChain.Output memory predicted = deployOPChain.run(deployOPChainInput);
+        vm.revertToState(snapshot);
+
+        address hook = makeAddr("bridgeHook");
+        vm.etch(hook, hex"00");
+        vm.mockCall(hook, abi.encodeCall(IComplianceModule.portal, ()), abi.encode(predicted.optimismPortalProxy));
+        vm.mockCall(hook, abi.encodeCall(IComplianceModule.bridge, ()), abi.encode(predicted.l1StandardBridgeProxy));
+        vm.mockCall(
+            hook,
+            abi.encodeCall(IComplianceModule.l1CrossDomainMessenger, ()),
+            abi.encode(predicted.l1CrossDomainMessengerProxy)
+        );
+        deployOPChainInput.bridgeHook = IBridgeHook(hook);
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        assertEq(address(doo.optimismPortalProxy.bridgeHook()), hook, "portal bridge hook mismatch");
     }
 
     function testFuzz_run_memory_succeeds(bytes32 _seed) public {
