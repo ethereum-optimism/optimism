@@ -178,21 +178,21 @@ run_scenario \
   "Push to a proposal branch → proposal gate only" \
   "webhook" "proposal/op-contracts/v8.0.0" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
-  ci_gate_proposals \
+  release_branch \
   --not main release contracts_feature_tests contracts_feature_tests_short rust_ci rust_e2e_ci rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip circleci_schedule_trigger_check
 
 CIRCLE_PULL_REQUEST="${PR_URL}" BASE_REVISION="proposal/op-contracts/v8.0.0" run_scenario \
   "PR targeting a proposal branch → proposal gate only" \
   "webhook" "feat/backport-fix" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
-  ci_gate_proposals \
+  release_branch \
   --not main release contracts_feature_tests contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip
 
 run_scenario \
   "Merge queue for a proposal branch → proposal gate only" \
   "webhook" "gh-readonly-queue/proposal/op-contracts/v8.0.0/pr-123-abc" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
-  ci_gate_proposals \
+  release_branch \
   --not main release contracts_feature_tests rust_ci rust_e2e_ci ci_gate_skip
 
 CIRCLE_PULL_REQUEST="${PR_URL}" BASE_REVISION="develop" run_scenario \
@@ -200,14 +200,14 @@ CIRCLE_PULL_REQUEST="${PR_URL}" BASE_REVISION="develop" run_scenario \
   "webhook" "proposal/op-contracts/v9.0.0" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": true, "c-docs_changes_detected": false}' \
   main release contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip \
-  --not ci_gate_proposals
+  --not release_branch
 
 CIRCLE_PULL_REQUEST="${PR_URL}" BASE_REVISION="develop" run_scenario \
   "PR targeting develop keeps the develop routing" \
   "webhook" "feat/my-thing" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": true, "c-docs_changes_detected": false}' \
   main release contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip \
-  --not ci_gate_proposals
+  --not release_branch
 
 # Develop runs the full post-merge set unconditionally. The two scenarios below
 # seed opposite change-detection results and assert an identical routing, which
@@ -306,7 +306,7 @@ run_scenario \
   "API: trigger on a proposal branch → proposal gate replaces main" \
   "api" "proposal/op-contracts/v8.0.0" "" "" \
   '{"c-main_dispatch": true}' \
-  release ci_gate_proposals \
+  release release_branch \
   --not main contracts_feature_tests
 
 run_scenario \
@@ -314,7 +314,7 @@ run_scenario \
   "api" "feat/my-thing" "" "" \
   '{"c-main_dispatch": true}' \
   release main contracts_feature_tests \
-  --not ci_gate_proposals
+  --not release_branch
 
 # --- Summary ---
 echo ""

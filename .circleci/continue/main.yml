@@ -114,7 +114,7 @@ parameters:
   c-run_ci_gate_skip:
     type: boolean
     default: false
-  c-run_ci_gate_proposals:
+  c-run_release_branch:
     type: boolean
     default: false
   c-run_circleci_schedule_trigger_check:
@@ -2944,7 +2944,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # The entries below that run on PRs carry YAML anchors so that the
-      # ci-gate-proposals workflow can reuse them unchanged.
+      # release-branch workflow can reuse them unchanged.
       - contracts-bedrock-tests: &contracts_tests_heavy_fuzz_modified
           # Heavily fuzz any fuzz tests within added or modified test files.
           # Diffed against the PR base, so a PR into a release branch fuzzes
@@ -3167,13 +3167,14 @@ workflows:
             - circleci-api-token
 
   # ============================================================================
-  # ci-gate-proposals is the only workflow that runs on a release branch
+  # release-branch is the only workflow that runs on a release branch
   # (proposal/**). It runs the subset of the develop checks that validate
   # op-contracts and op-deployer: the required-contracts-ci jobs, the NUT and
-  # op-deployer forge-version checks, and go-tests.
+  # op-deployer forge-version checks, and go-tests. Its gate job,
+  # ci-gate-proposals, is the GitHub required status for those branches.
   # ============================================================================
-  ci-gate-proposals:
-    when: << pipeline.parameters.c-run_ci_gate_proposals >>
+  release-branch:
+    when: << pipeline.parameters.c-run_release_branch >>
     jobs:
       - prep-go-modules:
           context:

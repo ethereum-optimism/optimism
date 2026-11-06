@@ -72,7 +72,7 @@ case "${TRIGGER_SOURCE}" in
     #    a frozen branch (toolchain drift, new advisories).
     # ---------------------------------------------------------
     elif [[ "${GATE_BRANCH}" =~ ^(gh-readonly-queue/)?proposal/ ]]; then
-      run ci_gate_proposals
+      run release_branch
 
     # 2. PR (feature branch push)
     #    Runs on every push to a feature branch.
@@ -168,7 +168,7 @@ case "${TRIGGER_SOURCE}" in
     # On a release branch the proposal gate replaces main: main_dispatch
     # defaults to true, so a plain "Trigger pipeline" would otherwise run it.
     if [[ "${BRANCH}" =~ ^proposal/ ]]; then
-      run ci_gate_proposals
+      run release_branch
       skip main contracts_feature_tests
     fi
     ;;

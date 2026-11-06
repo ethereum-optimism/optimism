@@ -33,7 +33,7 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   is gated *only* by what they transitively require; anything outside their
   `requires:` chain can fail without blocking merge. Gates use `utils/ci-gate`.
   Release branches (`proposal/**`: their own pushes, PRs that target them, their
-  merge queue and API triggers on them) run only the `ci-gate-proposals`
+  merge queue and API triggers on them) run only the `release-branch`
   workflow and are gated by its one check, `ci-gate-proposals`: the contracts
   jobs `required-contracts-ci` requires, the NUT and op-deployer forge-version
   checks, and `go-tests`. A PR is routed by its base, not its head.

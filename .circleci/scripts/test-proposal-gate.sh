@@ -6,7 +6,7 @@
 # from silently falling behind develop's contracts gate when a job is added or
 # renamed.
 #
-# Also asserts that every job an entry of the ci-gate-proposals workflow
+# Also asserts that every job an entry of the release-branch workflow
 # requires is in that workflow. Those entries are YAML aliases of the entries
 # in `main`, so a dependency added to an entry there is required here too but
 # is not in this workflow unless someone adds it, and a continuation that
@@ -19,7 +19,8 @@
 set -euo pipefail
 
 MAIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/continue/main.yml"
-WORKFLOW="ci-gate-proposals"
+WORKFLOW="release-branch"
+GATE="ci-gate-proposals"
 
 # The jobs the proposal gate keeps from develop's ci-gate; the rest of that
 # gate's list does not run on a release branch.
@@ -56,20 +57,20 @@ expected=$({
   requires_of contracts-feature-tests required-contracts-ci required-contracts-ci
   echo "${CI_GATE_JOBS}"
 } | sort -u)
-actual=$(requires_of "${WORKFLOW}" ci-gate "${WORKFLOW}")
+actual=$(requires_of "${WORKFLOW}" ci-gate "${GATE}")
 
 if [[ -z "${expected}" ]]; then
   echo "ERROR: found no requires on required-contracts-ci in ${MAIN}" >&2
   exit 1
 fi
 if [[ -z "${actual}" ]]; then
-  echo "ERROR: found no requires on ${WORKFLOW} in ${MAIN}" >&2
+  echo "ERROR: found no requires on ${GATE} in ${MAIN}" >&2
   exit 1
 fi
 
 missing=$(comm -23 <(echo "${expected}") <(echo "${actual}"))
 if [[ -n "${missing}" ]]; then
-  fail_with_list "${WORKFLOW} does not require every job it must. Missing:" "${missing}"
+  fail_with_list "${GATE} does not require every job it must. Missing:" "${missing}"
 fi
 
 # Job names in the workflow (matrix names stay unexpanded) and every job the
@@ -87,4 +88,4 @@ if [[ -n "${unmet}" ]]; then
   fail_with_list "${WORKFLOW} entries require jobs that are not in the workflow:" "${unmet}"
 fi
 
-echo "${WORKFLOW} covers required-contracts-ci and its own jobs ($(echo "${actual}" | wc -l | tr -d ' ') requires), all dependencies present."
+echo "${GATE} covers required-contracts-ci and its own jobs ($(echo "${actual}" | wc -l | tr -d ' ') requires); ${WORKFLOW} has every job they depend on."
