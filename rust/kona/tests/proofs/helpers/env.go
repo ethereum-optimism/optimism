@@ -80,12 +80,20 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	// Synthesise a one-chain depset when interop is scheduled; the sequencer's
+	// Synthesise a depset when interop is scheduled; the sequencer's
 	// FetchingAttributesBuilder constructor panics otherwise.
+	require.True(t, len(testCfg.DependencySetPeers) == 0 || sd.RollupCfg.LagoonTime != nil,
+		"DependencySetPeers needs Lagoon to be scheduled")
+	require.True(t, len(testCfg.DependencySetPeers) == 0 || sd.DependencySet == nil,
+		"DependencySetPeers needs the env to build the dependency set")
 	if sd.RollupCfg.LagoonTime != nil && sd.DependencySet == nil {
-		defaultDepSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+		deps := map[eth.ChainID]*depset.StaticConfigDependency{
 			eth.ChainIDFromBig(sd.RollupCfg.L2ChainID): {},
-		})
+		}
+		for _, peer := range testCfg.DependencySetPeers {
+			deps[peer] = &depset.StaticConfigDependency{}
+		}
+		defaultDepSet, err := depset.NewStaticConfigDependencySet(deps)
 		require.NoError(t, err)
 		sd.DependencySet = defaultDepSet
 	}
@@ -201,7 +209,7 @@ func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, f
 // RunFaultProofProgram runs the fault proof program for a single state transition, from the provided l2 block num - 1 to the provided l2 block num.
 func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	defaultParam := WithSuperDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
-	combinedParams := []FixtureInputParam{defaultParam}
+	combinedParams := []FixtureInputParam{defaultParam, WithDependencySet(env.Sd.DependencySet)}
 	combinedParams = append(combinedParams, fixtureInputParams...)
 	RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
 }
@@ -218,6 +226,7 @@ func (env *L2FaultProofEnv) RunSP1SuperRangeProgram(t helpers.Testing, l2ClaimBl
 	combinedParams := []FixtureInputParam{
 		WithSuperDefaults(t, l2ClaimBlockNum, l2, env.Engine),
 		WithSupernode(l2.StartSuperRootHTTPRPC(t)),
+		WithDependencySet(env.Sd.DependencySet),
 	}
 	combinedParams = append(combinedParams, fixtureInputParams...)
 	RunSP1SuperRangeProgram(t, env.log, env.Miner, checkResult, combinedParams...)

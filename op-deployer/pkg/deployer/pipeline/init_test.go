@@ -555,7 +555,8 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 }
 
 // TestInitLiveStrategy_CompletesRecordedOPCM checks that init reads the implementations of a
-// predeployed OPCM when the state records only the OPCM, as an earlier op-deployer left it.
+// predeployed OPCM when the state records them only in part, as an earlier op-deployer left it
+// before or after its first chain.
 func TestInitLiveStrategy_CompletesRecordedOPCM(t *testing.T) {
 	t.Parallel()
 
@@ -587,15 +588,24 @@ func TestInitLiveStrategy_CompletesRecordedOPCM(t *testing.T) {
 		L2ContractsLocator: artifacts.EmbeddedLocator,
 		OPCMAddress:        &opcmAddr,
 	}
-	st := &state.State{
-		Version:                   1,
-		ImplementationsDeployment: &addresses.ImplementationsContracts{OpcmV2Impl: opcmAddr},
-	}
-	require.NoError(t, InitLiveStrategy(ctx, &Env{L1Client: client, Logger: lgr}, intent, st))
-
 	impls, err := opcm.ReadImplementations(ctx, client, opcmAddr)
 	require.NoError(t, err)
-	require.Equal(t, impls, st.ImplementationsDeployment)
+	afterFirstChain := *impls
+	afterFirstChain.OpcmUtilsImpl = common.Address{}
+	afterFirstChain.OpcmMigratorImpl = common.Address{}
+	afterFirstChain.OpcmContainerImpl = common.Address{}
+	afterFirstChain.StorageSetterImpl = common.Address{}
+
+	for name, recorded := range map[string]addresses.ImplementationsContracts{
+		"only the OPCM":         {OpcmV2Impl: opcmAddr},
+		"after the first chain": afterFirstChain,
+	} {
+		t.Run(name, func(t *testing.T) {
+			st := &state.State{Version: 1, ImplementationsDeployment: &recorded}
+			require.NoError(t, InitLiveStrategy(ctx, &Env{L1Client: client, Logger: lgr}, intent, st))
+			require.Equal(t, impls, st.ImplementationsDeployment)
+		})
+	}
 }
 
 // Validates that the correct flow is chosen when

@@ -102,6 +102,13 @@ impl InteropTxValidatorError {
         matches!(self, Self::FailsafeEnabled)
     }
 
+    /// Returns `true` if the endpoint answered that the initiating message's timestamp is newer
+    /// than what it has ingested or cross-validated. A healthy filter answers this for any recent
+    /// message.
+    pub const fn is_message_too_recent(&self) -> bool {
+        matches!(self, Self::DataUnavailable { code: OUT_OF_SCOPE_CODE })
+    }
+
     /// Returns a new instance of [`Other`](Self::Other) error variant.
     pub fn other<E>(err: E) -> Self
     where
