@@ -47,8 +47,11 @@ def value(key):
  for i,s in enumerate(a):
   if s.startswith(key+'='): return s.split('=',1)[1]
   if s == key: return a[i+1]
+# The runner starts one go test per test and checks that it ran and passed.
+name=value('-run').strip('^$'); package=os.environ['FIXTURE_PACKAGE']
 p=Path(value('--jsonfile')); p.parent.mkdir(parents=True,exist_ok=True)
-p.write_text(json.dumps({'Action':'pass','Package':os.environ['FIXTURE_PACKAGE'],'Test':'TestOne'})+'\\n')
+p.write_text(''.join(json.dumps(e,separators=(',',':'))+'\\n' for e in [{'Action':'run','Package':package,'Test':name},
+ {'Action':'output','Package':package,'Test':name,'Output':'--- PASS: '+name+' (0.00s)\\n'},{'Action':'pass','Package':package,'Test':name}]))
 j=Path(value('--junitfile')); j.parent.mkdir(parents=True,exist_ok=True); j.write_text('<testsuite/>')
 Path(os.environ['FIXTURE_ARGS']).write_text(json.dumps(a))
 sys.exit(int(os.environ.get('VERDICT_STATUS','0')))
@@ -117,7 +120,8 @@ sys.exit(int(os.environ.get('VERDICT_STATUS','0')))
         self.assertEqual(selection['assigned_tests'], [{'package': PACKAGE, 'name': 'TestOne'}])
         args = json.loads((self.root / 'args.json').read_text())
         self.assertIn('-count=1', args)
-        self.assertIn('-run=^(TestOne)$', args)
+        self.assertEqual(args[args.index('-run') + 1], '^TestOne$')
+        self.assertIn(PACKAGE, args)
 
     def test_listing_failure_never_runs_verdict(self):
         result = self.run_entrypoint(DISCOVERY_FAIL='1')
@@ -136,7 +140,7 @@ sys.exit(int(os.environ.get('VERDICT_STATUS','0')))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('--hide-summary=output', json.loads((self.root / 'args.json').read_text()))
         self.assertTrue(list((self.root / 'op-acceptance-tests/results').glob('*.xml')))
-        self.assertTrue(list((self.root / 'op-acceptance-tests/logs').glob('*/raw_go_events-0.log')))
+        self.assertTrue(list((self.root / 'op-acceptance-tests/logs').glob('*/raw_go_events-0-*.log')))
 
 
 if __name__ == '__main__': unittest.main()

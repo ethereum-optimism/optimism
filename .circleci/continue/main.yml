@@ -2084,6 +2084,9 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      # op-deployer/pkg/deployer/forge's tests compile a test project with forge. Without
+      # an installed solc, forge downloads the newest matching release on every run.
+      - install-solc-compilers
       - run:
           name: Configure op-reth binary paths
           command: |
@@ -2299,7 +2302,7 @@ jobs:
         type: integer
         default: 1
       acceptance_test_jobs:
-        description: "Override ACCEPTANCE_TEST_JOBS (go test -p) for this run; empty
+        description: "Override ACCEPTANCE_TEST_JOBS (tests run at once) for this run; empty
           leaves the justfile default in place"
         type: string
         default: ""
@@ -2592,6 +2595,13 @@ jobs:
       - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      # The recipe downloads every pinned forge release archive, so skip it on PRs that change
+      # neither the forge package nor the recipe. check-changed also runs it on develop and when
+      # mise.toml or the CI config changes.
+      - check-changed:
+          patterns: op-deployer/pkg/deployer/forge,op-deployer/justfile
+          no_go_deps: "true"
+      - restore-go-mod-cache
       - run:
           command: python3 ops/ci/runtime/main-checks.py op-deployer-forge-version
       - store_artifacts:
@@ -2773,6 +2783,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - op-deployer-forge-version:
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - semgrep-scan:

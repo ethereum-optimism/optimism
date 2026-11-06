@@ -15,8 +15,9 @@ def collect(destination):
     if len(runs) != 1:
         raise ValueError('Expected exactly one acceptance test invocation')
     logs = runs[0]
-    originals = list(logs.glob('raw_go_events*.log'))
-    if len(originals) != 1 or not originals[0].stat().st_size:
+    # The runner starts one go test per top-level test, each with its own events.
+    originals = sorted(logs.glob('raw_go_events-*.log'))
+    if not originals or any(not path.stat().st_size for path in originals):
         raise ValueError('Missing original acceptance JSON')
     destination.mkdir(parents=True, exist_ok=True)
     shutil.copytree(logs, destination / 'logs', dirs_exist_ok=True)
@@ -24,7 +25,9 @@ def collect(destination):
     if not list(results.glob('*.xml')):
         raise ValueError('Missing acceptance JUnit')
     shutil.copytree(results, destination / 'junit', dirs_exist_ok=True)
-    shutil.copyfile(originals[0], destination / 'original.json')
+    # The retained per-test logs stay originals; this stream joins them in name order.
+    with (destination / 'original.json').open('wb') as joined:
+        for path in originals: joined.write(path.read_bytes().rstrip(b'\n') + b'\n')
     dependencies = ROOT / 'tmp/testlogs/dependencies'
     if dependencies.exists():
         shutil.copytree(dependencies, destination / 'dependencies', dirs_exist_ok=True)

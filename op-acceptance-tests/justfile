@@ -75,26 +75,26 @@ acceptance-test:
 
     # Each ParallelT acceptance test spins its own full devstack (L1 geth +
     # op-node + op-reth/op-geth + batcher + proposer + challenger), so the real
-    # cost driver is concurrent ParallelT goroutines, bounded by -p * -parallel.
+    # cost driver is concurrent ParallelT goroutines, bounded by jobs * -parallel.
     # The previous unbounded default (-p = CPU_COUNT ~= 20, -parallel = ~10)
     # saturated CPU+RAM and triggered mass "context deadline exceeded" failures
     # across the runner — see ethereum-optimism/optimism#20966.
     #
-    # Collapse to a single concurrency axis: -parallel=1 disables intra-package
-    # parallelism so each package binary runs one test at a time, and -p directly
-    # caps concurrent test devstacks across the runner. 12 is well under the
-    # observed ~30-effective-devstack crash threshold and lands wall time near
-    # the pre-cap baseline.
-    DEFAULT_JOBS=12
+    # Collapse to a single concurrency axis: each top-level test gets its own
+    # `go test -parallel=1`, and xargs -P directly caps concurrent test devstacks
+    # across the runner. 8 is what CI runs.
+    DEFAULT_JOBS=8
     DEFAULT_TEST_PARALLEL=1
 
     JOBS="${ACCEPTANCE_TEST_JOBS:-$DEFAULT_JOBS}"
+    # xargs -P 0 means no cap, or 100 on BusyBox.
+    [ "$JOBS" -gt 0 ] || { echo "error: ACCEPTANCE_TEST_JOBS must be a positive integer" >&2; exit 1; }
     TEST_PARALLEL="${ACCEPTANCE_TEST_PARALLEL:-$DEFAULT_TEST_PARALLEL}"
     TEST_TIMEOUT="${ACCEPTANCE_TEST_TIMEOUT:-30m}"
     echo "CPU COUNT: $CPU_COUNT"
-    echo "PACKAGE JOBS: $JOBS"
+    echo "TEST JOBS: $JOBS"
     echo "TEST PARALLELISM: $TEST_PARALLEL"
-    echo "PACKAGE TIMEOUT: $TEST_TIMEOUT"
+    echo "TEST TIMEOUT: $TEST_TIMEOUT"
     export ACCEPTANCE_TEST_JOBS="$JOBS" ACCEPTANCE_TEST_PARALLEL="$TEST_PARALLEL"
     export ACCEPTANCE_TEST_TIMEOUT="$TEST_TIMEOUT" LOG_LEVEL
 
@@ -109,7 +109,7 @@ acceptance-test:
     mkdir -p "$LOG_ROOT" "$RESULTS_DIR"
     LOG_DIR="$LOG_ROOT/testrun-$(date -u +%Y%m%d-%H%M%S)"
     mkdir -p "$LOG_DIR/failed"
-    rm -f "$RESULTS_DIR/results.xml"
+    rm -f "$RESULTS_DIR"/results*.xml
 
     FLAKY_REPORT="$LOG_DIR/flaky-tests.txt"
     if command -v rg >/dev/null 2>&1; then
@@ -124,10 +124,7 @@ acceptance-test:
     # split the test set across CIRCLE_NODE_TOTAL nodes using historical timings
     # so each node runs a balanced subset. Falls back to running everything when
     # CIRCLE_NODE_TOTAL is unset (local runs, single-node CI).
-    RUN_FLAG=""
-    JUNIT_FILE="$RESULTS_DIR/results.xml"
-    JSON_FILE="$LOG_DIR/raw_go_events.log"
-    NODE_INDEX=${CI_SHARD_INDEX:-${CIRCLE_NODE_INDEX:-0}}
+    export NODE_INDEX=${CI_SHARD_INDEX:-${CIRCLE_NODE_INDEX:-0}}
     NODE_TOTAL=${CI_SHARD_TOTAL:-${CIRCLE_NODE_TOTAL:-1}}
     DISCOVERY_DIR="$LOG_DIR/discovery"
     mkdir -p "$DISCOVERY_DIR"
@@ -146,47 +143,80 @@ acceptance-test:
     fi
     python3 ops/ci/runtime/acceptance-manifest.py record --directory "$DISCOVERY_DIR" \
         --total "$NODE_TOTAL" --index "$NODE_INDEX" --assigned "$ASSIGNED"
-    if [[ "$NODE_TOTAL" -gt 1 ]]; then
-        SHARD_COUNT=$(wc -l < "$ASSIGNED" | tr -d ' ')
-        echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
-        cat "$ASSIGNED"
-        if [[ "$SHARD_COUNT" -eq 0 ]]; then
-            # Still produce a fresh package report for valid empty shards.
-            RUN_FLAG='-run=a^'
-        else
-            RUN_FLAG="-run=^($(paste -sd '|' "$ASSIGNED"))$"
-        fi
-        JUNIT_FILE="$RESULTS_DIR/results-${NODE_INDEX}.xml"
-        JSON_FILE="$LOG_DIR/raw_go_events-${NODE_INDEX}.log"
+
+    SHARD_COUNT=$(wc -l < "$ASSIGNED" | tr -d ' ')
+    echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
+    cat "$ASSIGNED"
+
+    # There are far more tests than nodes, so an empty shard means the split failed.
+    if [ "$SHARD_COUNT" -eq 0 ]; then
+        echo "error: no tests assigned to this node" >&2
+        exit 1
     fi
 
-    set +e
+    # Pair each test on this node with the package(s) that have it, in shard order.
+    # The pairs come from the recorded selection, which rejects discovery errors.
+    python3 ops/ci/runtime/acceptance-manifest.py pairs --directory "$DISCOVERY_DIR" \
+        --total "$NODE_TOTAL" > "$LOG_DIR/tests_pairs.txt"
+
+    # Runs one test; passing means a clean exit and the test starting and reporting
+    # a pass or skip, since `go test` also passes when -run matches nothing. Exits
+    # are only ever 0 or 1 because xargs stops starting tests if a command exits 255
+    # or dies from a signal. A failed test keeps its own copy of the output, untangled
+    # from the other tests'.
+    run_test() {
+        local id="$NODE_INDEX-${1//\//.}.$2"
+        local failed_log="$LOG_DIR/failed/$id.log"
+        {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
+            --format testname \
+            ${SUMMARY_FLAG:+"$SUMMARY_FLAG"} \
+            --junitfile "$RESULTS_DIR/results-$id.xml" \
+            --jsonfile "$LOG_DIR/raw_go_events-$id.log" \
+            -- \
+            -count=1 \
+            -parallel "$TEST_PARALLEL" \
+            -timeout "$TEST_TIMEOUT" \
+            -run "^$2\$" \
+            "$1" \
+            2>&1 | tee "$failed_log"
+        if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+            return 1
+        fi
+        # test2json leaves its \u0016 marker on a result line that follows unterminated
+        # output at a multiple of 4096 bytes, and drops the test's pass event.
+        local events="$LOG_DIR/raw_go_events-$id.log"
+        if ! grep -qF "\"Action\":\"run\",\"Package\":\"$1\",\"Test\":\"$2\"" "$events" \
+            || ! grep -qE "\"Output\":\"(\\\\u0016)?--- (PASS|SKIP): $2 \(" "$events" \
+            || grep -qF "\"Action\":\"fail\",\"Package\":\"$1\",\"Test\":\"$2\"" "$events"; then
+            echo "FAIL $1.$2 (go test exited 0 but the test did not run and report a pass or skip)" | tee -a "$failed_log"
+            return 1
+        fi
+        rm "$failed_log"
+    }
+    export -f run_test
     SUMMARY_FLAG=""
     if [[ "${ACCEPTANCE_TEST_HIDE_FAILURE_OUTPUT:-false}" == true ]]; then
         SUMMARY_FLAG=--hide-summary=output
     fi
-    LOG_LEVEL="${LOG_LEVEL}" "{{REPO_ROOT}}/ops/scripts/gotestsum-split.sh" \
-        --format testname \
-        ${SUMMARY_FLAG:+"$SUMMARY_FLAG"} \
-        --junitfile "$JUNIT_FILE" \
-        --jsonfile "$JSON_FILE" \
-        -- \
-        -count=1 \
-        -p "${JOBS}" \
-        -parallel "${TEST_PARALLEL}" \
-        -timeout "${TEST_TIMEOUT}" \
-        ${RUN_FLAG:+"$RUN_FLAG"} \
-        "${TEST_PACKAGES[@]}" \
+    export LOG_LEVEL RESULTS_DIR LOG_DIR TEST_PARALLEL TEST_TIMEOUT SUMMARY_FLAG
+
+    set +e
+    xargs -n 2 -P "$JOBS" bash -c 'run_test "$@" </dev/null' _ < "$LOG_DIR/tests_pairs.txt" \
         2>&1 | tee "$LOG_DIR/all.log"
     TEST_STATUS=${PIPESTATUS[0]}
     set -e
 
-    cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
-    if [[ ! -s "$JUNIT_FILE" || ! -s "$JSON_FILE" ]]; then
-        echo "error: acceptance runner did not retain original JSON and JUnit" >&2
-        exit 1
+    RAN=$(( $(find "$LOG_DIR" -maxdepth 1 -name 'raw_go_events-*' | wc -l) ))
+    TOTAL=$(( $(wc -l < "$LOG_DIR/tests_pairs.txt") ))
+    FAILED=$(( $(find "$LOG_DIR/failed" -name '*.log' | wc -l) ))
+    echo "Ran $RAN of $TOTAL tests, $FAILED failed" | tee -a "$LOG_DIR/all.log"
+    ls "$LOG_DIR/failed" | tee -a "$LOG_DIR/all.log"
+    if { [ "$RAN" -ne "$TOTAL" ] || [ "$FAILED" -gt 0 ]; } && [ "$TEST_STATUS" -eq 0 ]; then
+        echo "error: not every test ran and passed" | tee -a "$LOG_DIR/all.log"
+        TEST_STATUS=1
     fi
-    cp "$JUNIT_FILE" "$LOG_DIR/$(basename "$JUNIT_FILE")"
+
+    cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
     exit "$TEST_STATUS"
 
 clean:

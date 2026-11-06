@@ -23,7 +23,8 @@ def sha256(path):
 
 
 def settings():
-    return {'count': 1, 'tags': [], 'package_parallelism': int(os.environ.get('ACCEPTANCE_TEST_JOBS', '12')),
+    # The runner starts one go test per test, ACCEPTANCE_TEST_JOBS at a time.
+    return {'count': 1, 'tags': [], 'test_jobs': int(os.environ.get('ACCEPTANCE_TEST_JOBS', '8')),
             'parallel': int(os.environ.get('ACCEPTANCE_TEST_PARALLEL', '1')),
             'timeout': os.environ.get('ACCEPTANCE_TEST_TIMEOUT', '30m'), 'rerun_fails': 0,
             'l1_fork': os.environ.get('DEVSTACK_L1_FORK', 'fusaka'),
@@ -116,7 +117,7 @@ def select(path, index, total):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['create', 'names', 'select', 'record'])
+    parser.add_argument('command', choices=['create', 'names', 'select', 'record', 'pairs'])
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--total', default='8')
     parser.add_argument('--index', default='0')
@@ -131,7 +132,18 @@ def main():
             print('\n'.join(sorted({t['name'] for t in manifest['tests']})))
     else:
         manifest = validate(json.loads(path.read_text()), args.total)
-        if args.command == 'select':
+        if args.command == 'pairs':
+            # The runner starts one go test per (package, test). A name is in every
+            # package that declares it; keep the recorded shard order of names.
+            record = json.loads((args.directory / 'selection.json').read_text())
+            if {k: v for k, v in record.items() if k not in ('shard_index', 'assigned_names', 'assigned_tests')} != manifest:
+                raise ValueError('Acceptance selection differs from its manifest')
+            pairs = [(t['package'], name) for name in record['assigned_names']
+                     for t in sorted(record['assigned_tests'], key=lambda t: t['package']) if t['name'] == name]
+            if not pairs or len(pairs) != len(record['assigned_tests']):
+                raise ValueError('Empty or incomplete acceptance test pairs')
+            print('\n'.join(package + ' ' + name for package, name in pairs))
+        elif args.command == 'select':
             print('\n'.join(select(path, args.index, args.total)), end='\n' if manifest['shards'][int(args.index)] else '')
         else:
             names = args.assigned.read_text().splitlines() if args.assigned else sorted({t['name'] for t in manifest['tests']})
