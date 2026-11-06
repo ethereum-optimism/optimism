@@ -46,22 +46,34 @@ contract DeployCompliance_TestInit is CommonTest {
     function _run() internal returns (DeployCompliance.Output memory) {
         return deployScript.run(_input());
     }
+
+    /// @notice Asserts that every output field is a deployed contract wired to the default input.
+    /// @param _output The deployed contracts.
+    function _assertDeployment(DeployCompliance.Output memory _output) internal {
+        assertEq(_output.custodyProxyAdmin.owner(), custodyOwner, "custody owner mismatch");
+        assertEq(_output.module.owner(), moduleOwner, "module owner mismatch");
+        assertEq(address(_output.module.portal()), address(optimismPortal2), "portal mismatch");
+        assertEq(address(_output.module.bridge()), address(l1StandardBridge), "bridge mismatch");
+        assertEq(
+            address(_output.module.l1CrossDomainMessenger()), address(l1CrossDomainMessenger), "messenger mismatch"
+        );
+        assertEq(address(_output.module.policy()), address(_output.policy), "module policy mismatch");
+        assertEq(address(_output.policy.module()), address(_output.module), "policy module mismatch");
+        vm.prank(address(0));
+        assertEq(
+            IProxy(payable(address(_output.module))).implementation(),
+            address(_output.moduleImpl),
+            "module implementation mismatch"
+        );
+    }
 }
 
 /// @title DeployCompliance_run_Test
-/// @notice Covers the happy path and the ownership split it has to produce.
+/// @notice Covers the happy path, the ownership split it has to produce, and the input guards.
 contract DeployCompliance_run_Test is DeployCompliance_TestInit {
     /// @notice Tests that the script wires the module, its policy and the custody admin.
     function test_run_succeeds() public {
-        DeployCompliance.Output memory output = _run();
-
-        assertEq(output.custodyProxyAdmin.owner(), custodyOwner, "custody owner mismatch");
-        assertEq(output.module.owner(), moduleOwner, "module owner mismatch");
-        assertEq(address(output.module.portal()), address(optimismPortal2), "portal mismatch");
-        assertEq(address(output.module.bridge()), address(l1StandardBridge), "bridge mismatch");
-        assertEq(address(output.module.l1CrossDomainMessenger()), address(l1CrossDomainMessenger), "messenger mismatch");
-        assertEq(address(output.module.policy()), address(output.policy), "module policy mismatch");
-        assertEq(address(output.policy.module()), address(output.module), "policy module mismatch");
+        _assertDeployment(_run());
     }
 
     /// @notice Tests that the module's upgrade authority is not the chain's.
@@ -132,72 +144,79 @@ contract DeployCompliance_run_Test is DeployCompliance_TestInit {
         assertNotEq(address(first.module), address(second.module), "module proxies collide");
         assertNotEq(address(first.custodyProxyAdmin), address(second.custodyProxyAdmin), "custody admins collide");
     }
-}
 
-/// @title DeployCompliance_assertValidInput_Test
-/// @notice Covers the input guards.
-contract DeployCompliance_assertValidInput_Test is DeployCompliance_TestInit {
     /// @notice Tests that a zero Portal is rejected.
-    function test_assertValidInput_zeroPortal_reverts() public {
+    function test_run_zeroPortal_reverts() public {
         DeployCompliance.Input memory input = _input();
         input.portal = IOptimismPortal2(payable(address(0)));
 
         vm.expectRevert("DeployCompliance: portal not set");
-        deployScript.assertValidInput(input);
+        deployScript.run(input);
     }
 
     /// @notice Tests that a zero bridge is rejected.
-    function test_assertValidInput_zeroBridge_reverts() public {
+    function test_run_zeroBridge_reverts() public {
         DeployCompliance.Input memory input = _input();
         input.bridge = IL1StandardBridge(payable(address(0)));
 
         vm.expectRevert("DeployCompliance: bridge not set");
-        deployScript.assertValidInput(input);
+        deployScript.run(input);
     }
 
     /// @notice Tests that a zero messenger is rejected.
-    function test_assertValidInput_zeroMessenger_reverts() public {
+    function test_run_zeroMessenger_reverts() public {
         DeployCompliance.Input memory input = _input();
         input.l1CrossDomainMessenger = IL1CrossDomainMessenger(address(0));
 
         vm.expectRevert("DeployCompliance: l1CrossDomainMessenger not set");
-        deployScript.assertValidInput(input);
+        deployScript.run(input);
     }
 
     /// @notice Tests that a zero chain ProxyAdmin owner is rejected.
-    function test_assertValidInput_zeroChainProxyAdminOwner_reverts() public {
+    function test_run_zeroChainProxyAdminOwner_reverts() public {
         DeployCompliance.Input memory input = _input();
         input.chainProxyAdminOwner = address(0);
 
         vm.expectRevert("DeployCompliance: chainProxyAdminOwner not set");
-        deployScript.assertValidInput(input);
+        deployScript.run(input);
     }
 
     /// @notice Tests that a zero custody owner is rejected.
-    function test_assertValidInput_zeroCustodyOwner_reverts() public {
+    function test_run_zeroCustodyOwner_reverts() public {
         DeployCompliance.Input memory input = _input();
         input.custodyOwner = address(0);
 
         vm.expectRevert("DeployCompliance: custodyOwner not set");
-        deployScript.assertValidInput(input);
+        deployScript.run(input);
     }
 
     /// @notice Tests that a zero module owner is rejected.
-    function test_assertValidInput_zeroModuleOwner_reverts() public {
+    function test_run_zeroModuleOwner_reverts() public {
         DeployCompliance.Input memory input = _input();
         input.moduleOwner = address(0);
 
         vm.expectRevert("DeployCompliance: moduleOwner not set");
-        deployScript.assertValidInput(input);
+        deployScript.run(input);
     }
 
     /// @notice Tests that the custody owner cannot be the chain's ProxyAdmin owner.
-    function test_assertValidInput_custodyOwnerIsChainPAO_reverts() public {
+    function test_run_custodyOwnerIsChainPAO_reverts() public {
         DeployCompliance.Input memory input = _input();
         input.custodyOwner = input.chainProxyAdminOwner;
 
         vm.expectRevert("DeployCompliance: custodyOwner must not be the chain ProxyAdmin owner");
-        deployScript.assertValidInput(input);
+        deployScript.run(input);
+    }
+}
+
+/// @title DeployCompliance_runWithBytes_Test
+/// @notice Tests the ABI-encoded entry point.
+contract DeployCompliance_runWithBytes_Test is DeployCompliance_TestInit {
+    /// @notice Tests that the encoded input deploys the module and that every field of the decoded
+    ///         output is the deployed contract.
+    function test_runWithBytes_succeeds() public {
+        bytes memory output = deployScript.runWithBytes(abi.encode(_input()));
+        _assertDeployment(abi.decode(output, (DeployCompliance.Output)));
     }
 }
 
