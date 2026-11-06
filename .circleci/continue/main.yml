@@ -3166,16 +3166,10 @@ workflows:
             - circleci-api-token
 
   # ============================================================================
-  # ci-gate-proposals — the only workflow on a release branch (proposal/**):
-  # its own pushes, PRs that target it, its merge queue, and API triggers on
-  # it. It runs the contracts jobs that required-contracts-ci gates on
-  # develop, the NUT and op-deployer forge-version checks, and go-tests, and
-  # nothing else: the Rust, acceptance and misc checks in `main` do not ship
-  # in an op-contracts release and are what rots on a frozen branch (toolchain
-  # drift, new advisories). The job entries are the anchors from `main` and
-  # `contracts-feature-tests`, so a job runs here exactly as it runs on a PR.
-  # scripts/test-proposal-gate.sh fails the setup pipeline if this gate's
-  # requires fall behind required-contracts-ci's or a required job is missing.
+  # ci-gate-proposals is the only workflow that runs on a release branch
+  # (proposal/**). It runs the subset of the develop checks that validate
+  # op-contracts and op-deployer: the required-contracts-ci jobs, the NUT and
+  # op-deployer forge-version checks, and go-tests.
   # ============================================================================
   ci-gate-proposals:
     when: << pipeline.parameters.c-run_ci_gate_proposals >>
