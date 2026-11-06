@@ -68,7 +68,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	if intent.OPCMAddress == nil && !hasSP1VerifierOverride && !env.DeployMockSP1Verifier {
 		// A generated genesis contains no release-approved verifier, so it must be selected explicitly.
 		if env.IsGenesis {
-			return fmt.Errorf("sp1Verifier must be specified for genesis deployments")
+			return fmt.Errorf("sp1Verifier must be specified for genesis deployments; for development, pass --deploy-mock-sp1-verifier")
 		}
 		selectedSP1Verifier, err = standard.SP1VerifierFor(intent.L1ChainID)
 		if err != nil {
