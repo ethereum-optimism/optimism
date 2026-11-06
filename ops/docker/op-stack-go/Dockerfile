@@ -229,7 +229,7 @@ WORKDIR /app/packages/contracts-bedrock
 # The script-cache check of `just forge-build`: op-deployer never compiles.
 RUN forge build --skip "/**/test/**" && forge build scripts && \
   (forge script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" --skip-simulation >/dev/null 2>&1 || true) && \
-  scripts=$(find scripts -name '*.s.sol') && [ -n "$scripts" ] && \
+  scripts=$(grep -l 'function runWithBytes' /dev/null $(find scripts -name '*.s.sol') || true) && { [ -n "$scripts" ] || { echo "found no op-deployer scripts" >&2; exit 1; }; } && \
   for script in $scripts; do \
     out=$(forge script "$script" --sig "idonotexist()" --skip-simulation 2>&1 || true); \
     case "$out" in *"No files changed, compilation skipped"*) ;; *) echo "$out" >&2; echo "the forge script cache of $script is not warm" >&2; exit 1;; esac; \
