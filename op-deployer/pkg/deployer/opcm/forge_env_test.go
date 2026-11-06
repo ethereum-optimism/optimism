@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -246,7 +247,7 @@ func TestBroadcastLiveScriptWaitsForPendingTransactions(t *testing.T) {
 	require.NoError(t, err)
 	from := crypto.PubkeyToAddress(key.PublicKey)
 
-	// Longer than the five reads of two seconds that op-deployer used to allow.
+	// More failed reads than a fixed 10s retry would allow.
 	var mu sync.Mutex
 	pendingReads := 6
 	proxyURL := newRPCProxy(t, liveURL, func(req rpcRequest) (json.RawMessage, bool) {
@@ -272,6 +273,51 @@ func TestBroadcastLiveScriptWaitsForPendingTransactions(t *testing.T) {
 	nonce, err := live.NonceAt(ctx, from, nil)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, nonce)
+}
+
+// TestBroadcastLiveScriptForkRetries checks that a failed run on the fork runs again only when a
+// later run can succeed: an RPC error, but not a compile or a revert.
+func TestBroadcastLiveScriptForkRetries(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	logger := testlog.Logger(t, slog.LevelInfo)
+	liveURL, _ := devnet.DefaultAnvilRPC(t, logger)
+
+	failingCaller := func(runs *int, errs ...error) newScriptCaller[byte, forge.None] {
+		return func(*forge.Client) forge.ScriptCaller[byte, forge.None] {
+			return func(context.Context, byte, ...string) (forge.None, []forge.Transaction, error) {
+				*runs++
+				if *runs <= len(errs) {
+					return forge.None{}, nil, fmt.Errorf("failed to run forge script: %w", errs[*runs-1])
+				}
+				return forge.None{}, nil, nil
+			}
+		}
+	}
+	rpcErr := errors.New("failed to get block number: 500; latest block number: 5")
+	for _, tc := range []struct {
+		name    string
+		errs    []error
+		runs    int
+		wantErr error
+	}{
+		{name: "revert", errs: []error{forge.ErrScriptReverted}, runs: 1, wantErr: forge.ErrScriptReverted},
+		{name: "compile", errs: []error{forge.ErrCompiled}, runs: 1, wantErr: forge.ErrCompiled},
+		{name: "rpc error", errs: []error{rpcErr}, runs: 2},
+		{name: "rpc errors", errs: []error{rpcErr, rpcErr, rpcErr}, runs: forkAttempts, wantErr: rpcErr},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runs := 0
+			env := &ForgeEnv{Context: ctx, L1RPCUrl: liveURL, PrivateKey: testutil.AnvilDefaultPrivateKey, Logger: logger}
+			_, err := broadcastLiveScript(ctx, env, failingCaller(&runs, tc.errs...), byte(0))
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.runs, runs)
+		})
+	}
 }
 
 // TestBroadcastLiveScriptSimulatesAgain checks that a deployer transaction that lands between the

@@ -153,6 +153,15 @@ var ArtifactsReadPermission = FsPermission{Access: "read", Path: "./forge-artifa
 // compileCacheFile is forge's compile cache, relative to the project.
 const compileCacheFile = "cache/solidity-files-cache.json"
 
+var (
+	// ErrCompiled is returned by RunScript when forge starts to compile the project.
+	ErrCompiled = errors.New("forge compiled the project")
+	// ErrScriptReverted is returned by RunScript when the script reverts. An RPC error, such as a
+	// fork block that the RPC does not serve yet, is not a revert, even in a cheatcode, which forge
+	// reports as a failed script.
+	ErrScriptReverted = errors.New("forge script reverted")
+)
+
 // RunScript runs a prebuilt script without a compile. It returns forge's output and the transactions
 // that the script would send, which forge records in the run's private dry-run file. Not --offline:
 // offline, forge requires the solc versions of the cache installed even when it compiles nothing.
@@ -201,7 +210,7 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	watcher := &compileWatcher{cancel: cancel}
-	compileErr := fmt.Errorf("forge compiled the project in %s, so its compile cache is not up to date: build it with `just build-no-tests` in packages/contracts-bedrock, or use the embedded artifacts", c.Wd)
+	compileErr := fmt.Errorf("%w in %s, so its compile cache is not up to date: build it with `just build-no-tests` in packages/contracts-bedrock, or use the embedded artifacts", ErrCompiled, c.Wd)
 	// forge prints the revert reason of a failed script to stderr.
 	errBuf := new(bytes.Buffer)
 	err = run.execWithEnv(ctx, scratch, inheritedEnv(), io.MultiWriter(buf, watcher), errBuf, cliOpts...)
@@ -209,7 +218,12 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 		return "", nil, compileErr
 	}
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to execute forge script: %w\n%s", err, strings.TrimSpace(errBuf.String()))
+		stderr := strings.TrimSpace(errBuf.String())
+		// A cheatcode that gets an error response from the RPC fails the script too.
+		if strings.Contains(stderr, "Error: script failed:") && !strings.Contains(stderr, "server returned an error response") {
+			err = fmt.Errorf("%w: %w", ErrScriptReverted, err)
+		}
+		return "", nil, fmt.Errorf("failed to execute forge script: %w\n%s", err, stderr)
 	}
 	if strings.Contains(buf.String(), "Compiler run successful") {
 		return "", nil, compileErr
@@ -274,6 +288,9 @@ var solcVersionRegexp = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 // ffi off and grants only FsPermissions. It sets root, because forge otherwise takes the root from
 // the config's directory and recompiles; forge warns that root is unknown, but uses it.
 func (c *Client) sandboxConfig(root string, dir string) (string, error) {
+	if err := c.checkFsPermissions(root); err != nil {
+		return "", err
+	}
 	var project struct {
 		Profile map[string]map[string]any `toml:"profile"`
 	}
@@ -309,6 +326,33 @@ func (c *Client) sandboxConfig(root string, dir string) (string, error) {
 		return "", fmt.Errorf("failed to write the forge config: %w", err)
 	}
 	return path, nil
+}
+
+// checkFsPermissions refuses a link at or under a relative FsPermissions path. forge grants access to
+// the target of a link, and when a chain of links resolves to a path longer than PATH_MAX, forge
+// checks the unresolved path instead, so a link in the project could let its scripts read any file.
+// A relative path is a part of the project, which is not trusted; an absolute path is a directory
+// that op-deployer made. The directories above a relative path are not checked: op-deployer grants
+// only forge-artifacts, at the project root.
+func (c *Client) checkFsPermissions(root string) error {
+	for _, p := range c.FsPermissions {
+		if filepath.IsAbs(p.Path) {
+			continue
+		}
+		err := filepath.WalkDir(filepath.Join(root, p.Path), func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.Type()&fs.ModeSymlink != 0 {
+				return fmt.Errorf("%s in the forge project is a link; the scripts may read only files of the project", path)
+			}
+			return nil
+		})
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("failed to check %s in the forge project: %w", p.Path, err)
+		}
+	}
+	return nil
 }
 
 func copyCompileCache(src string, dstDir string) error {

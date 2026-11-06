@@ -38,7 +38,7 @@ const maxSimulations = 3
 
 // forkAttempts bounds the runs of a script on a fork, before anything is sent: a backend of a
 // load-balanced RPC that has not seen the fork block fails the run, and a later run can reach another
-// backend. A script that reverts runs that often too.
+// backend. A compile or a revert is not run again: it fails the same way.
 const forkAttempts = 3
 
 // broadcastLiveScript runs a script with forge on a fork of the L1 head, without a key, and sends
@@ -74,7 +74,7 @@ func broadcastLiveScript[I, O any](ctx context.Context, env *ForgeEnv, newCaller
 		}
 		fork := strconv.FormatUint(bigs.Uint64Strict(head.Number), 10)
 		var transactions []forge.Transaction
-		out, transactions, err = retry.Do2(ctx, forkAttempts, retry.Fixed(l1PollInterval), func() (O, []forge.Transaction, error) {
+		out, transactions, err = runOnFork(ctx, logger, func() (O, []forge.Transaction, error) {
 			return newCaller(env.Client)(ctx, input, "--rpc-url", env.L1RPCUrl, "--sender", from.Hex(),
 				"--fork-block-number", fork, "--skip-simulation")
 		})
@@ -100,6 +100,22 @@ func broadcastLiveScript[I, O any](ctx context.Context, env *ForgeEnv, newCaller
 		sentBlock, err := sendReplay(ctx, logger, client, key, chainID, nonce, bcasts, env.ReceiptQueryInterval)
 		env.sentBlock = max(env.sentBlock, sentBlock)
 		return out, err
+	}
+}
+
+// runOnFork calls run up to forkAttempts times, until it succeeds, compiles or reverts.
+func runOnFork[O any](ctx context.Context, logger log.Logger, run func() (O, []forge.Transaction, error)) (O, []forge.Transaction, error) {
+	for attempt := 1; ; attempt++ {
+		out, transactions, err := run()
+		if err == nil || attempt == forkAttempts || ctx.Err() != nil || errors.Is(err, forge.ErrCompiled) || errors.Is(err, forge.ErrScriptReverted) {
+			return out, transactions, err
+		}
+		logger.Warn("forge run on the L1 fork failed; running it again", "attempt", attempt, "err", err)
+		select {
+		case <-ctx.Done():
+			return out, nil, ctx.Err()
+		case <-time.After(l1PollInterval):
+		}
 	}
 }
 
