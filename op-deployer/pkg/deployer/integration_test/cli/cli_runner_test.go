@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testReceiptQueryInterval = 50 * time.Millisecond
+
 func TestMain(m *testing.M) {
 	os.Exit(runCLITests(m))
 }
@@ -31,6 +33,12 @@ func runCLITests(m *testing.M) int {
 
 	// Anvil 1.8 can strand concurrently broadcast transactions in its pool, hanging Forge.
 	if err := os.Setenv("DEPLOYER_FORGE_SLOW_BROADCAST", "true"); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	// Anvil mines on send, so the default one-second receipt poll is nearly all of a deploy's time.
+	if err := os.Setenv("DEPLOYER_RECEIPT_QUERY_INTERVAL", testReceiptQueryInterval.String()); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

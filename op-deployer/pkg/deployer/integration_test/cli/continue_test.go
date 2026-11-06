@@ -133,6 +133,7 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 		CacheDir:                  setupCacheDir,
 		SuperchainProxyAdminOwner: superchainPAO,
 		Guardian:                  intent.SuperchainRoles.SuperchainGuardian,
+		ReceiptQueryInterval:      testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
 	sp1Verifier := testutil.DeployMockSP1Verifier(t, l1Client, key, afacts)
@@ -161,6 +162,7 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 		FaultGameClockExtension:            standard.DisputeClockExtension,
 		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
 		SP1Verifier:                        sp1Verifier,
+		ReceiptQueryInterval:               testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
 

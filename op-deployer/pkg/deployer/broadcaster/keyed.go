@@ -38,6 +38,9 @@ type KeyedBroadcasterOpts struct {
 
 func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 	receiptQueryInterval := cfg.ReceiptQueryInterval
+	if receiptQueryInterval < 0 {
+		return nil, fmt.Errorf("receipt query interval must not be negative: %s", receiptQueryInterval)
+	}
 	if receiptQueryInterval == 0 {
 		receiptQueryInterval = time.Second
 	}

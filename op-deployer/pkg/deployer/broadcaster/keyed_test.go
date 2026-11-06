@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -102,4 +103,9 @@ func TestKeyedBroadcasterStopsAfterFailure(t *testing.T) {
 	require.Len(t, results, 2)
 	require.Equal(t, 2, calls)
 	require.ErrorIs(t, results[1].Err, sendErr)
+}
+
+func TestNewKeyedBroadcasterRejectsNegativeReceiptQueryInterval(t *testing.T) {
+	_, err := NewKeyedBroadcaster(KeyedBroadcasterOpts{ReceiptQueryInterval: -time.Second})
+	require.ErrorContains(t, err, "receipt query interval must not be negative")
 }

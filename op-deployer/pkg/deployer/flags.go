@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
@@ -33,6 +34,8 @@ const (
 	UseForgeFlagName           = flags.UseForgeFlagName
 	ForgeSlowBroadcastFlagName = flags.ForgeSlowBroadcastFlagName
 	GenesisTimeOffsetFlagName  = flags.GenesisTimeOffsetFlagName
+
+	ReceiptQueryIntervalFlagName = flags.ReceiptQueryIntervalFlagName
 )
 
 var (
@@ -150,6 +153,12 @@ var (
 		EnvVars: PrefixEnvVar("FORGE_SLOW_BROADCAST"),
 		Value:   false,
 	}
+	ReceiptQueryIntervalFlag = &cli.DurationFlag{
+		Name:    ReceiptQueryIntervalFlagName,
+		Usage:   "how often to check whether a broadcast transaction has been mined; ignored with --use-forge",
+		EnvVars: PrefixEnvVar("RECEIPT_QUERY_INTERVAL"),
+		Value:   time.Second,
+	}
 	GenesisTimeOffsetFlag = &cli.Uint64Flag{
 		Name: GenesisTimeOffsetFlagName,
 		Usage: "Offset in seconds added to the L1 anchor block's timestamp to produce the committed L2 genesis " +
@@ -179,6 +188,7 @@ var ContinueFlags = []cli.Flag{
 	WorkdirFlag,
 	PrivateKeyFlag,
 	L1RPCURLFlag,
+	ReceiptQueryIntervalFlag,
 }
 
 var ApplyFlags = []cli.Flag{
@@ -192,6 +202,7 @@ var ApplyFlags = []cli.Flag{
 	VerifierUrlFlag,
 	UseForgeFlag,
 	ForgeSlowBroadcastFlag,
+	ReceiptQueryIntervalFlag,
 }
 
 var PrestateFlags = []cli.Flag{

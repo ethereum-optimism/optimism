@@ -96,6 +96,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			SuperchainProxyAdminOwner: superchainPAO,
 			Guardian:                  common.Address{'G'},
 			Paused:                    false,
+			ReceiptQueryInterval:      testReceiptQueryInterval,
 		})
 		require.NoError(t, err)
 
@@ -124,6 +125,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			FaultGameClockExtension:            standard.DisputeClockExtension,
 			FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
 			SP1Verifier:                        sp1Verifier,
+			ReceiptQueryInterval:               testReceiptQueryInterval,
 		})
 		require.NoError(t, err)
 

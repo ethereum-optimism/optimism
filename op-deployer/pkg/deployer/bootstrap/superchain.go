@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -37,6 +38,8 @@ type SuperchainConfig struct {
 	UseForge         bool
 	// ForgeSlowBroadcast confirms each Forge broadcast transaction before sending the next.
 	ForgeSlowBroadcast bool
+	// ReceiptQueryInterval is how often to poll for each broadcast's receipt. Zero uses the broadcaster's default.
+	ReceiptQueryInterval time.Duration
 
 	privateKeyECDSA *ecdsa.PrivateKey
 
@@ -106,6 +109,7 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		CacheDir:                  cacheDir,
 		UseForge:                  useForge,
 		ForgeSlowBroadcast:        cliCtx.Bool(deployer.ForgeSlowBroadcastFlagName),
+		ReceiptQueryInterval:      cliCtx.Duration(deployer.ReceiptQueryIntervalFlagName),
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		Guardian:                  guardian,
 		Paused:                    paused,
@@ -218,11 +222,12 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 
 		bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-			Logger:  lgr,
-			ChainID: chainID,
-			Client:  l1Client,
-			Signer:  signer,
-			From:    chainDeployer,
+			Logger:               lgr,
+			ChainID:              chainID,
+			Client:               l1Client,
+			Signer:               signer,
+			From:                 chainDeployer,
+			ReceiptQueryInterval: cfg.ReceiptQueryInterval,
 		})
 		if err != nil {
 			return dso, fmt.Errorf("failed to create broadcaster: %w", err)
