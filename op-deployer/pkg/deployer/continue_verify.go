@@ -1,14 +1,12 @@
 package deployer
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -101,34 +99,6 @@ func pinContinuationReads(
 }
 
 var _ continuationReadBackend = (*ethclient.Client)(nil)
-
-type scriptHostReadBackend struct {
-	*opcm.ScriptHostCallBackend
-	host *script.Host
-}
-
-var _ continuationReadBackend = (*scriptHostReadBackend)(nil)
-
-func newScriptHostReadBackend(host *script.Host) *scriptHostReadBackend {
-	return &scriptHostReadBackend{
-		ScriptHostCallBackend: opcm.NewScriptHostCallBackend(host),
-		host:                  host,
-	}
-}
-
-func (b *scriptHostReadBackend) CodeAt(
-	ctx context.Context,
-	contract common.Address,
-	blockNumber *big.Int,
-) ([]byte, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if blockNumber != nil {
-		return nil, fmt.Errorf("script host code reads do not support a block number")
-	}
-	return bytes.Clone(b.host.GetCode(contract)), nil
-}
 
 type continuationGameMode struct {
 	respectedGameType       uint32
