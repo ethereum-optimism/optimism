@@ -35,6 +35,14 @@ type OpRethConfig struct {
 	// ProofsHistoryWindow is the number of blocks the proofs-history store keeps. Zero keeps the
 	// mixed runtime's default window.
 	ProofsHistoryWindow uint64
+	// TxPoolLocalExemptions keeps reth's exemptions for transactions submitted over the node's own
+	// RPC, the way a node runs without --txpool.nolocals. The mixed runtime otherwise passes
+	// --txpool.nolocals, which makes every reth version hold local transactions to the minimum
+	// priority fee.
+	TxPoolLocalExemptions bool
+	// TxPoolMinimumPriorityFee is the priority fee, in wei, a dynamic fee transaction needs to
+	// enter the pool. Zero keeps the mixed runtime's default of 1 wei.
+	TxPoolMinimumPriorityFee uint64
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -119,6 +127,29 @@ func OpRethWithoutProofsHistory() OpRethOption {
 func OpRethWithProofsHistoryWindow(blocks uint64) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.ProofsHistoryWindow = blocks
+	})
+}
+
+// OpRethWithTxConditional enables eth_sendRawTransactionConditional on the node.
+func OpRethWithTxConditional() OpRethOption {
+	return OpRethWithExtraArgs("--rollup.enable-tx-conditional")
+}
+
+// OpRethWithTxPoolLocalExemptions keeps reth's local transaction exemptions, which the mixed
+// runtime otherwise disables with --txpool.nolocals, so the node treats a transaction submitted
+// over its own RPC the way a production node does.
+func OpRethWithTxPoolLocalExemptions() OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.TxPoolLocalExemptions = true
+	})
+}
+
+// OpRethWithTxPoolMinimumPriorityFee sets the priority fee, in wei, a dynamic fee transaction
+// needs to enter the node's pool. The mixed runtime passes --txpool.minimum-priority-fee itself
+// and op-reth rejects a repeated flag, so the minimum cannot be set through OpRethWithExtraArgs.
+func OpRethWithTxPoolMinimumPriorityFee(wei uint64) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.TxPoolMinimumPriorityFee = wei
 	})
 }
 

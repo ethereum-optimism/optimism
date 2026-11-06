@@ -60,6 +60,46 @@ func TestOpRethWithEthProofWindow(t *testing.T) {
 	require.Equal(t, []string{"--rpc.eth-proof-window=1000000"}, cfg.ExtraArgs)
 }
 
+func TestTxPoolNodeArgs(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		cfg      OpRethConfig
+		wantArgs []string
+	}{
+		{name: "defaults hold every origin to 1 wei", cfg: OpRethConfig{}, wantArgs: []string{"--txpool.minimum-priority-fee=1", "--txpool.nolocals"}},
+		{name: "explicit minimum replaces the default", cfg: OpRethConfig{TxPoolMinimumPriorityFee: 1_000_000_000}, wantArgs: []string{"--txpool.minimum-priority-fee=1000000000", "--txpool.nolocals"}},
+		{name: "local exemptions drop nolocals", cfg: OpRethConfig{TxPoolLocalExemptions: true}, wantArgs: []string{"--txpool.minimum-priority-fee=1"}},
+		{name: "explicit minimum with local exemptions", cfg: OpRethConfig{TxPoolLocalExemptions: true, TxPoolMinimumPriorityFee: 25}, wantArgs: []string{"--txpool.minimum-priority-fee=25"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.wantArgs, txPoolNodeArgs(&tc.cfg), "unexpected transaction pool flags")
+		})
+	}
+}
+
+func TestOpRethWithTxPoolMinimumPriorityFee(t *testing.T) {
+	cfg := DefaultOpRethConfig()
+	OpRethWithTxPoolMinimumPriorityFee(25).Apply(nil, ComponentTarget{}, cfg)
+
+	require.Equal(t, uint64(25), cfg.TxPoolMinimumPriorityFee)
+	require.Empty(t, cfg.ExtraArgs, "the minimum is a config field, not an extra arg")
+}
+
+func TestOpRethWithTxPoolLocalExemptions(t *testing.T) {
+	cfg := DefaultOpRethConfig()
+	OpRethWithTxPoolLocalExemptions().Apply(nil, ComponentTarget{}, cfg)
+
+	require.True(t, cfg.TxPoolLocalExemptions)
+	require.Empty(t, cfg.ExtraArgs, "the exemptions are a config field, not an extra arg")
+}
+
+func TestOpRethWithTxConditional(t *testing.T) {
+	cfg := DefaultOpRethConfig()
+	OpRethWithTxConditional().Apply(nil, ComponentTarget{}, cfg)
+
+	require.Equal(t, []string{"--rollup.enable-tx-conditional"}, cfg.ExtraArgs)
+}
+
 func newStoppedOpReth(gt *testing.T, execPath string) *OpReth {
 	return &OpReth{name: "el", execPath: execPath, p: devtest.SerialT(gt)}
 }

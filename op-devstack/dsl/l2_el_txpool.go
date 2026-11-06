@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -48,31 +49,128 @@ func (el *L2ELNode) SendTransactions(txs []*types.Transaction) {
 	el.log.Info("Sent transactions", "node", el, "count", len(txs))
 }
 
+// TransactionSubmission is a node's answer to one transaction submitted over its RPC, for the
+// test to judge: a refusal may be the behavior under test.
+type TransactionSubmission struct {
+	// Err is the node's refusal, nil when it accepted the transaction.
+	Err error
+	// Hash is what the node answered: the transaction's hash when it accepted it.
+	Hash common.Hash
+	// Method is the RPC method the transaction was submitted with.
+	Method string
+	Tx     *types.Transaction
+
+	el *L2ELNode
+}
+
+// SendRawTransaction submits a signed transaction to the node's pool with eth_sendRawTransaction
+// and returns the node's answer. SendTransactions is the variant that requires acceptance.
+func (el *L2ELNode) SendRawTransaction(tx *types.Transaction) *TransactionSubmission {
+	return el.submitRawTransaction(tx, "eth_sendRawTransaction")
+}
+
+// TransactionConditional is the condition eth_sendRawTransactionConditional admits a transaction
+// under: inclusive bounds on the number and timestamp of the block that includes it.
+type TransactionConditional struct {
+	BlockNumberMax *hexutil.Uint64 `json:"blockNumberMax,omitempty"`
+	BlockNumberMin *hexutil.Uint64 `json:"blockNumberMin,omitempty"`
+	TimestampMax   *hexutil.Uint64 `json:"timestampMax,omitempty"`
+	TimestampMin   *hexutil.Uint64 `json:"timestampMin,omitempty"`
+}
+
+// SendRawTransactionConditional submits a signed transaction with eth_sendRawTransactionConditional,
+// which a node admits only while it can still meet the condition, and returns the node's answer.
+func (el *L2ELNode) SendRawTransactionConditional(tx *types.Transaction, condition TransactionConditional) *TransactionSubmission {
+	// The condition's account state part is always sent as an empty object: op-reth refuses a
+	// null where it expects the map.
+	wire := struct {
+		TransactionConditional
+		KnownAccounts struct{} `json:"knownAccounts"`
+	}{TransactionConditional: condition}
+	return el.submitRawTransaction(tx, "eth_sendRawTransactionConditional", wire)
+}
+
+func (el *L2ELNode) submitRawTransaction(tx *types.Transaction, method string, extraArgs ...any) *TransactionSubmission {
+	raw, err := tx.MarshalBinary()
+	el.require.NoError(err, "must encode transaction %s", tx.Hash())
+	el.log.Info("Submitting a transaction", "node", el, "method", method, "tx", tx.Hash(), "tip", tx.GasTipCap(), "fee_cap", tx.GasFeeCap())
+	submission := &TransactionSubmission{Method: method, Tx: tx, el: el}
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+	submission.Err = el.rpc().CallContext(ctx, &submission.Hash, method, append([]any{hexutil.Bytes(raw)}, extraArgs...)...)
+	if submission.Err != nil {
+		el.log.Info("Transaction refused", "node", el, "method", method, "tx", tx.Hash(), "err", submission.Err)
+	} else {
+		el.log.Info("Transaction accepted", "node", el, "method", method, "tx", tx.Hash(), "hash", submission.Hash)
+	}
+	return submission
+}
+
+// IsAccepted requires the node to have taken the transaction, answering with its hash.
+func (s *TransactionSubmission) IsAccepted() *TransactionSubmission {
+	s.el.require.NoErrorf(s.Err, "%s must accept transaction %s on %s", s.Method, s.Tx.Hash(), s.el)
+	s.el.require.Equal(s.Tx.Hash(), s.Hash, "%s must answer with the transaction's hash", s.Method)
+	return s
+}
+
+// IsRejectedWith requires the node to have refused the transaction with the given RPC error code
+// and message.
+func (s *TransactionSubmission) IsRejectedWith(code eth.ErrorCode, message string) *TransactionSubmission {
+	s.el.require.Errorf(s.Err, "%s must refuse transaction %s on %s", s.Method, s.Tx.Hash(), s.el)
+	var rpcErr rpc.Error
+	s.el.require.ErrorAs(s.Err, &rpcErr, "expected an RPC error code from %s, got: %v", s.Method, s.Err)
+	s.el.require.Equal(code, eth.ErrorCode(rpcErr.ErrorCode()), "unexpected error code from %s: %v", s.Method, s.Err)
+	s.el.require.EqualError(rpcErr, message, "unexpected error message from %s", s.Method)
+	return s
+}
+
+// lookupTransaction asks the node for the transaction: whether it knows it at all, and the number
+// of the block holding it once it is in one.
+func (el *L2ELNode) lookupTransaction(hash common.Hash) (known bool, inBlock *hexutil.Big, err error) {
+	var tx *struct {
+		BlockNumber *hexutil.Big `json:"blockNumber"`
+	}
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+	if err := el.rpc().CallContext(ctx, &tx, "eth_getTransactionByHash", hash); err != nil {
+		return false, nil, fmt.Errorf("looking up transaction %s on %s: %w", hash, el, err)
+	}
+	if tx == nil {
+		return false, nil, nil
+	}
+	return true, tx.BlockNumber, nil
+}
+
 // WaitForPooledTransaction waits until the node holds the transaction in its pool: known to the
 // node and not yet in a block. A transaction the node first sees in a block fails the wait.
 func (el *L2ELNode) WaitForPooledTransaction(hash common.Hash) {
 	el.log.Info("Waiting for a transaction to be pooled", "node", el, "tx", hash)
 	var inBlock *hexutil.Big
 	err := retry.Do0(el.ctx, 30, &retry.FixedStrategy{Dur: txPoolPollInterval}, func() error {
-		var tx *struct {
-			BlockNumber *hexutil.Big `json:"blockNumber"`
-		}
-		ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
-		defer cancel()
-		if err := el.rpc().CallContext(ctx, &tx, "eth_getTransactionByHash", hash); err != nil {
+		known, blockNumber, err := el.lookupTransaction(hash)
+		if err != nil {
 			el.log.Warn("Transaction lookup failed; will retry", "node", el, "tx", hash, "err", err)
-			return fmt.Errorf("looking up transaction %s on %s: %w", hash, el, err)
+			return err
 		}
-		if tx == nil {
+		if !known {
 			el.log.Info("Transaction not known yet", "node", el, "tx", hash)
 			return fmt.Errorf("transaction %s is not known to %s yet", hash, el)
 		}
-		inBlock = tx.BlockNumber
+		inBlock = blockNumber
 		return nil
 	})
 	el.require.NoError(err, "transaction %s did not reach the pool of %s", hash, el)
 	el.require.Nilf(inBlock, "transaction %s was first seen in block %s on %s, not in its pool", hash, inBlock, el)
 	el.log.Info("Transaction is pooled", "node", el, "tx", hash)
+}
+
+// VerifyTransactionUnknown requires the node to know nothing of the transaction, pooled or
+// included. A transaction the node refused never becomes known to it, so one look suffices.
+func (el *L2ELNode) VerifyTransactionUnknown(hash common.Hash) {
+	el.log.Info("Expecting a transaction to be unknown", "node", el, "tx", hash)
+	known, inBlock, err := el.lookupTransaction(hash)
+	el.require.NoError(err)
+	el.require.Falsef(known, "transaction %s must be unknown to %s, but it holds it (in block %s)", hash, el, inBlock)
 }
 
 // TxPoolStatus is how many transactions a node's pool holds.
