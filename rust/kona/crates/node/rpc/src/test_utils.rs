@@ -35,54 +35,77 @@ pub(crate) fn recorded_query_client(
 ) -> kona_engine::EngineQueryClient {
     let (engine, _, transport) = kona_engine::test_utils::test_engine_client(config);
     if let (Some(output), Some(record)) = (output, record) {
-        let block = rpc_block(output);
-        let anchor = if record.safe_head.number == output.block.block_info.number {
-            block.clone()
+        let target = rpc_block(output);
+        let target_is_record = record.safe_head.number == output.block.block_info.number;
+        let canonical_at_record = if target_is_record {
+            target.clone()
         } else {
             fixture_rpc_block(record.safe_head.number)
         };
-        let attempts = if anchor.header.hash == record.safe_head.hash { 1 } else { 3 };
+        let record_is_canonical = canonical_at_record.header.hash == record.safe_head.hash;
+        let attempts = if record_is_canonical { 1 } else { 3 };
         for _ in 0..attempts {
-            transport.expect_params(
-                "eth_getBlockByNumber",
-                serde_json::json!([format!("0x{:x}", record.safe_head.number), false]),
-                &anchor,
-            );
-        }
-        if anchor.header.hash == record.safe_head.hash {
-            for number in (output.block.block_info.number..record.safe_head.number).rev() {
-                let parent = fixture_rpc_block(number);
+            if target_is_record {
+                let recorded_block = if record_is_canonical {
+                    target.clone()
+                } else {
+                    fixture_rpc_block(record.safe_head.number)
+                };
                 transport.expect_params(
                     "eth_getBlockByHash",
-                    serde_json::json!([parent.header.hash, false]),
-                    parent,
+                    serde_json::json!([record.safe_head.hash, true]),
+                    &recorded_block,
                 );
+                expect_proof(&transport, &recorded_block, output.output.bridge_storage_root);
+                expect_canonical_check(&transport, &canonical_at_record);
+            } else {
+                expect_canonical_check(&transport, &canonical_at_record);
+                if record_is_canonical {
+                    transport.expect_params(
+                        "eth_getBlockByNumber",
+                        serde_json::json!([
+                            format!("0x{:x}", output.block.block_info.number),
+                            true
+                        ]),
+                        &target,
+                    );
+                    expect_proof(&transport, &target, output.output.bridge_storage_root);
+                    expect_canonical_check(&transport, &canonical_at_record);
+                }
             }
-            transport.expect_params(
-                "eth_getBlockByHash",
-                serde_json::json!([block.header.hash, true]),
-                &block,
-            );
-            transport.expect_params(
-                "eth_getProof",
-                serde_json::json!([
-                    kona_protocol::Predeploys::L2_TO_L1_MESSAGE_PASSER,
-                    [],
-                    block.header.hash
-                ]),
-                alloy_rpc_types_eth::EIP1186AccountProofResponse {
-                    storage_hash: output.output.bridge_storage_root,
-                    ..Default::default()
-                },
-            );
-            transport.expect_params(
-                "eth_getBlockByNumber",
-                serde_json::json!([format!("0x{:x}", record.safe_head.number), false]),
-                anchor,
-            );
         }
     }
     engine.query_client()
+}
+
+fn expect_canonical_check(
+    transport: &kona_engine::test_utils::RpcMock,
+    canonical: &alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction>,
+) {
+    transport.expect_params(
+        "eth_getBlockByNumber",
+        serde_json::json!([format!("0x{:x}", canonical.header.number), false]),
+        canonical,
+    );
+}
+
+fn expect_proof(
+    transport: &kona_engine::test_utils::RpcMock,
+    block: &alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction>,
+    storage_root: B256,
+) {
+    transport.expect_params(
+        "eth_getProof",
+        serde_json::json!([
+            kona_protocol::Predeploys::L2_TO_L1_MESSAGE_PASSER,
+            [],
+            block.header.hash
+        ]),
+        alloy_rpc_types_eth::EIP1186AccountProofResponse {
+            storage_hash: storage_root,
+            ..Default::default()
+        },
+    );
 }
 
 fn fixture_rpc_block(number: u64) -> alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction> {
