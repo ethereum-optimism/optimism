@@ -19,6 +19,7 @@ import (
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
+	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
@@ -156,10 +157,12 @@ type l2ELFrontend struct {
 	lifecycle      stack.Lifecycle
 	control        stack.ControlledLifecycle
 	ungraceful     stack.UngracefulLifecycle
+	logRecorder    stack.LogRecorder
 }
 
 var (
 	_ stack.L2ELNode            = (*l2ELFrontend)(nil)
+	_ stack.LogRecorder         = (*l2ELFrontend)(nil)
 	_ stack.UngracefulLifecycle = (*l2ELFrontend)(nil)
 )
 
@@ -200,6 +203,11 @@ func (r *l2ELFrontend) Stop() {
 func (r *l2ELFrontend) StopUngracefully() {
 	r.require().NotNil(r.ungraceful, "L2EL node %s cannot be stopped ungracefully", r.Name())
 	r.ungraceful.StopUngracefully()
+}
+
+func (r *l2ELFrontend) RecordLogLines(substring string) *logpipe.LogRecord {
+	r.require().NotNil(r.logRecorder, "L2EL node %s does not expose its log", r.Name())
+	return r.logRecorder.RecordLogLines(substring)
 }
 
 func (r *l2ELFrontend) StartControlled(ctx context.Context) error {

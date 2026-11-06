@@ -1,10 +1,13 @@
 package dsl
 
 import (
+	"time"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -81,9 +84,29 @@ func (s *TestSequencer) SequenceBlockWithTxs(t devtest.T, chainID eth.ChainID, p
 	require.NoError(t, ca.Sign(ctx))
 	require.NoError(t, ca.Commit(ctx))
 
-	// Publish is optional - it broadcasts via P2P which may not be enabled in tests.
+	// Publish is optional: it broadcasts the block over P2P, which may not be enabled in tests.
 	// The block is already committed and canonical at this point.
-	_ = ca.Publish(ctx) // ignore publish errors
+	if err := ca.Publish(ctx); err != nil {
+		s.log.Warn("Block committed but not published; its job stays sealed, so no further block can be sequenced on this chain",
+			"chain", chainID, "err", err)
+		return
+	}
+	// Every step of the job is done, so Next only closes it out, which lets the next block on
+	// this chain start.
+	require.NoError(t, ca.Next(ctx), "failed to close out the sequenced block")
+}
+
+// SequenceBlockWithTxsWhenDue is SequenceBlockWithTxs for a chain whose head stands still: it
+// waits until wall-clock time reaches the new block's timestamp, which its height fixes, before
+// building. op-node rejects a gossiped payload more than 5s ahead of wall-clock time, on publish
+// as well as on receipt, so a block built early would never reach the other nodes.
+func (s *TestSequencer) SequenceBlockWithTxsWhenDue(t devtest.T, network *L2Network, parent eth.L2BlockRef, rawTxs [][]byte) {
+	due := time.Unix(int64(network.TimestampForBlockNum(parent.Number+1)), 0)
+	if wait := time.Until(due); wait > 0 {
+		s.log.Info("Waiting for the next block's timestamp before sequencing it", "block", parent.Number+1, "wait", wait)
+		require.NoError(t, clock.SystemClock.SleepCtx(t.Ctx(), wait)) // nosemgrep: flake-sleep-in-test -- the chain stands still; wall-clock time is the only thing to wait on
+	}
+	s.SequenceBlockWithTxs(t, network.ChainID(), parent.Hash, rawTxs)
 }
 
 // SequenceBlockWithPlannedTxs assigns consecutive nonces and includes the planned transactions in one block.
