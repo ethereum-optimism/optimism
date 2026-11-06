@@ -194,7 +194,8 @@ jobs:
       - run:
           name: Test decision tree
           command: .circleci/scripts/test-decision-tree.sh
-      # The proposal/** gate must require every job required-contracts-ci does.
+      # The proposal/** gate must require every job required-contracts-ci does,
+      # and its workflow must contain every job its entries depend on.
       - run:
           name: Test proposal gate coverage
           command: .circleci/scripts/test-proposal-gate.sh

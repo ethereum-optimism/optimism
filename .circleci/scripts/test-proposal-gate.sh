@@ -7,9 +7,10 @@
 # renamed.
 #
 # Also asserts that every job an entry of the ci-gate-proposals workflow
-# requires is in that workflow: the entries alias `main`'s, so a new dependency
-# added there is otherwise missing here, and a continuation that fails to
-# compile produces no checks at all.
+# requires is in that workflow. Those entries are YAML aliases of the entries
+# in `main`, so a dependency added to an entry there is required here too but
+# is not in this workflow unless someone adds it, and a continuation that
+# fails to compile produces no checks at all.
 #
 # Usage:
 #   .circleci/scripts/test-proposal-gate.sh

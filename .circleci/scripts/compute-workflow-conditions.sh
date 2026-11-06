@@ -66,9 +66,10 @@ case "${TRIGGER_SOURCE}" in
 
     # 1. Release branch (proposal/**): its own pushes, PRs that target it
     #    and its merge queue.
-    #    Only the proposal gate runs: the contracts suite, the NUT checks and
-    #    go-tests. The rest of `main` does not ship in an op-contracts release
-    #    and is what rots on a frozen branch (toolchain drift, new advisories).
+    #    Only the proposal gate runs: the required-contracts-ci jobs, the NUT
+    #    and op-deployer forge-version checks, and go-tests. The rest of
+    #    `main` does not ship in an op-contracts release and is what rots on
+    #    a frozen branch (toolchain drift, new advisories).
     # ---------------------------------------------------------
     elif [[ "${GATE_BRANCH}" =~ ^(gh-readonly-queue/)?proposal/ ]]; then
       run ci_gate_proposals

@@ -2943,7 +2943,8 @@ workflows:
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # The PR-path entries below are anchored for reuse by ci-gate-proposals.
+      # The entries below that run on PRs carry YAML anchors so that the
+      # ci-gate-proposals workflow can reuse them unchanged.
       - contracts-bedrock-tests: &contracts_tests_heavy_fuzz_modified
           # Heavily fuzz any fuzz tests within added or modified test files.
           # Diffed against the PR base, so a PR into a release branch fuzzes
@@ -3228,9 +3229,10 @@ workflows:
       - contracts-bedrock-tests-l2-fork: *contracts_tests_l2_fork
       - contracts-bedrock-checks-fast: *contracts_checks_fast
       # The GitHub required status for proposal/** branches. Terminal requires
-      # keep it scheduled when an upstream job fails; the API gate then checks
-      # they all passed. Slack reports a failure on the release branch itself
-      # (a push or an API-triggered run), not on a PR targeting it.
+      # keep this job scheduled even when an upstream job fails; utils/ci-gate
+      # then verifies through the CircleCI API that every upstream job passed.
+      # Slack is notified when the gate fails on the release branch itself (a
+      # push or an API-triggered run), not on a PR targeting it.
       - ci-gate:
           name: ci-gate-proposals
           notify_branch_pattern: proposal/.*
