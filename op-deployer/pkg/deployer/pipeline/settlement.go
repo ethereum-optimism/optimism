@@ -21,7 +21,7 @@ const settlementChainIDKey = "settlementChainId"
 // chain. It is the only reader of the override. A global override is refused, because it would
 // make every other chain of the intent a private chain.
 //
-// TODO(#23953): promote settlementChainId to a typed ChainIntent field when OP_PRIVATE graduates.
+// TODO(#23978): replace this override with a typed intent schema when OP_PRIVATE graduates.
 func SettlementChainIDOverride(intent *state.Intent, chain *state.ChainIntent) (uint64, error) {
 	for key := range intent.GlobalDeployOverrides {
 		if strings.EqualFold(key, settlementChainIDKey) {

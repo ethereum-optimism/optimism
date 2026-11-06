@@ -527,6 +527,7 @@ func checkReservedOverrides(intent *state.Intent, st *state.State) error {
 }
 
 // checkNoPrivateChains refuses OP Private private chains, which prepare does not support yet.
+// TODO(#23980): support private chains in prepare.
 func checkNoPrivateChains(intent *state.Intent) error {
 	for _, chain := range intent.Chains {
 		_, private, err := pipeline.PrivateChainSettlement(intent, chain)
