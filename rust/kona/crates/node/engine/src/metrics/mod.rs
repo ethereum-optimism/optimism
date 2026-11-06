@@ -67,6 +67,10 @@ impl Metrics {
     /// Identifier for the counter that tracks the number of times the engine has been reset.
     pub const ENGINE_RESET_COUNT: &str = "kona_node_engine_reset_count";
 
+    /// Identifier for the counter that tracks the number of L1 reorgs the engine answered by
+    /// keeping a safe head derived from canonical L1 data, instead of a full reset.
+    pub const ENGINE_REORG_RESET_COUNT: &str = "kona_node_engine_reorg_reset_count";
+
     /// Initializes metrics for the engine.
     ///
     /// This does two things:
@@ -99,6 +103,11 @@ impl Metrics {
             metrics::Unit::Count,
             "Engine reset count"
         );
+        metrics::describe_counter!(
+            Self::ENGINE_REORG_RESET_COUNT,
+            metrics::Unit::Count,
+            "L1 reorgs answered without a full engine reset"
+        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
@@ -121,5 +130,6 @@ impl Metrics {
 
         // Engine reset count
         metrics::counter!(Self::ENGINE_RESET_COUNT).absolute(0);
+        metrics::counter!(Self::ENGINE_REORG_RESET_COUNT).absolute(0);
     }
 }
