@@ -111,7 +111,7 @@ func TestRollupConfigFromRegistry(t *testing.T) {
 func TestRollupConfigFromRegistry_AllFieldsSet(t *testing.T) {
 	cfg := rollupConfigFromRegistry(fullyPopulatedChainConfig(), registry.Superchain{L1: registry.L1Config{ChainID: 1}})
 
-	// The registry has no settlement chain ID yet.
+	// TODO(superchain-registry#1401): the registry has no settlement chain ID yet.
 	notFromRegistry := map[string]bool{"SettlementChainID": true}
 
 	v := reflect.ValueOf(*cfg)
