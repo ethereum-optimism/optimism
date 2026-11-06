@@ -14350,6 +14350,7 @@ dependencies = [
  "jsonrpsee",
  "jsonrpsee-server",
  "metrics",
+ "metrics-util",
  "op-alloy-consensus",
  "op-alloy-flz",
  "op-alloy-rpc-types",
