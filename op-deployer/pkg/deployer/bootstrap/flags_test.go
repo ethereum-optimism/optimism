@@ -2,31 +2,48 @@ package bootstrap
 
 import (
 	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
 
 // Runs each command's real action. Every Check() validates the interval first, so an out-of-range
-// value is only rejected if the command copied the flag into its config. Nothing here reaches an RPC.
+// value is only rejected if the command copied the flag into its config. The empty RPC and key flags
+// override the environment, so an accepted value always stops at the next check, before any RPC.
 func TestReceiptQueryIntervalFlagReachesConfig(t *testing.T) {
-	const rejected = "receipt query interval must be"
+	root, slogDefault := log.Root(), slog.Default()
+	t.Cleanup(func() {
+		log.SetDefault(root)
+		slog.SetDefault(slogDefault)
+	})
+
 	tests := []struct {
-		name   string
-		flags  []cli.Flag
-		action cli.ActionFunc
-		args   []string
+		name    string
+		flags   []cli.Flag
+		action  cli.ActionFunc
+		args    []string
+		nextErr string
 	}{
-		{name: "apply", flags: deployer.ApplyFlags, action: deployer.ApplyCLI()},
-		{name: "apply genesis", flags: deployer.ApplyFlags, action: deployer.ApplyCLI(), args: []string{"--deployment-target=genesis"}},
-		{name: "apply forge", flags: deployer.ApplyFlags, action: deployer.ApplyCLI(), args: []string{"--use-forge"}},
-		{name: "continue", flags: deployer.ContinueFlags, action: deployer.ContinueCLI()},
-		{name: "superchain", flags: SuperchainFlags, action: SuperchainCLI},
-		{name: "superchain forge", flags: SuperchainFlags, action: SuperchainCLI, args: []string{"--use-forge"}},
-		{name: "implementations", flags: ImplementationsFlags, action: ImplementationsCLI},
-		{name: "implementations forge", flags: ImplementationsFlags, action: ImplementationsCLI, args: []string{"--use-forge"}},
+		{
+			name:    "apply",
+			flags:   deployer.ApplyFlags,
+			action:  deployer.ApplyCLI(),
+			args:    []string{"--deployment-target=live", "--workdir=" + t.TempDir()},
+			nextErr: "l1 RPC URL must be specified for live deployment",
+		},
+		{
+			name:    "continue",
+			flags:   deployer.ContinueFlags,
+			action:  deployer.ContinueCLI(),
+			args:    []string{"--workdir=" + t.TempDir()},
+			nextErr: "private key must be specified",
+		},
+		{name: "superchain", flags: SuperchainFlags, action: SuperchainCLI, nextErr: "l1RPCUrl must be specified"},
+		{name: "implementations", flags: ImplementationsFlags, action: ImplementationsCLI, nextErr: "l1RPCUrl must be specified"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -37,16 +54,14 @@ func TestReceiptQueryIntervalFlagReachesConfig(t *testing.T) {
 					Flags:     deployer.GlobalFlags,
 					Commands:  []*cli.Command{{Name: "cmd", Flags: tt.flags, Action: tt.action}},
 				}
-				return app.Run(append([]string{"op-deployer", "cmd", "--receipt-query-interval=" + interval}, tt.args...))
+				args := []string{"op-deployer", "cmd", "--l1-rpc-url=", "--private-key=", "--receipt-query-interval=" + interval}
+				return app.RunContext(t.Context(), append(args, tt.args...))
 			}
-			for _, bad := range []string{"9ms", "13s", "-1s"} {
-				require.ErrorContains(t, run(bad), rejected)
+			for _, bad := range []string{"49ms", "2s", "-1s"} {
+				require.ErrorContains(t, run(bad), "receipt query interval must be 0 or between 50ms and 1s")
 			}
-			// These fail on the next check instead, since no other flags are set.
-			for _, good := range []string{"0", "10ms", "12s"} {
-				err := run(good)
-				require.Error(t, err)
-				require.NotContains(t, err.Error(), rejected)
+			for _, good := range []string{"0", "50ms", "1s"} {
+				require.ErrorContains(t, run(good), tt.nextErr)
 			}
 		})
 	}

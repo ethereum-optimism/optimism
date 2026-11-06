@@ -155,7 +155,7 @@ var (
 	}
 	ReceiptQueryIntervalFlag = &cli.DurationFlag{
 		Name:    ReceiptQueryIntervalFlagName,
-		Usage:   "for tests: how often to poll for each broadcast's receipt, from 10ms to 12s; 0 uses the default of 1s. Does not affect transactions sent by Forge",
+		Usage:   "for tests: how often to poll for each broadcast's receipt, from 50ms to 1s; 0 uses the default of 1s. Does not affect transactions sent by Forge",
 		EnvVars: PrefixEnvVar("RECEIPT_QUERY_INTERVAL"),
 		Value:   broadcaster.DefaultReceiptQueryInterval,
 		Hidden:  true,

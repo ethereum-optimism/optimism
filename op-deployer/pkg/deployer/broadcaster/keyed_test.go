@@ -2,11 +2,16 @@ package broadcaster
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -14,8 +19,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -117,11 +124,10 @@ func TestNewKeyedBroadcasterReceiptQueryInterval(t *testing.T) {
 	}{
 		{name: "zero is the one second default", interval: 0},
 		{name: "explicit default", interval: time.Second},
-		{name: "lowest allowed", interval: 10 * time.Millisecond, wantWarn: true},
-		{name: "test value", interval: 50 * time.Millisecond, wantWarn: true},
-		{name: "highest allowed", interval: 12 * time.Second, wantWarn: true},
-		{name: "below minimum", interval: 10*time.Millisecond - 1, wantErr: true},
-		{name: "above maximum", interval: 12*time.Second + 1, wantErr: true},
+		{name: "lowest allowed", interval: 50 * time.Millisecond, wantWarn: true},
+		{name: "faster than the default", interval: time.Second - 1, wantWarn: true},
+		{name: "below minimum", interval: 50*time.Millisecond - 1, wantErr: true},
+		{name: "above maximum", interval: time.Second + 1, wantErr: true},
 		{name: "negative", interval: -time.Second, wantErr: true},
 	}
 	for _, tt := range tests {
@@ -137,7 +143,7 @@ func TestNewKeyedBroadcasterReceiptQueryInterval(t *testing.T) {
 				ReceiptQueryInterval: tt.interval,
 			})
 			if tt.wantErr {
-				require.ErrorContains(t, err, "receipt query interval must be 0 or between 10ms and 12s")
+				require.ErrorContains(t, err, "receipt query interval must be 0 or between 50ms and 1s")
 				return
 			}
 			require.NoError(t, err)
@@ -145,4 +151,65 @@ func TestNewKeyedBroadcasterReceiptQueryInterval(t *testing.T) {
 			require.Equal(t, tt.wantWarn, warned)
 		})
 	}
+}
+
+// The receipt appears on the fifth poll. At the one-second default the tx manager's ticker can't get
+// there before five seconds on any machine, and at 50ms a slow host still has plenty of slack.
+func TestKeyedBroadcasterPollsAtConfiguredInterval(t *testing.T) {
+	const receiptOnPoll = 5
+	var polls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID     json.RawMessage   `json:"id"`
+			Method string            `json:"method"`
+			Params []json.RawMessage `json:"params"`
+		}
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		var result any
+		switch req.Method {
+		case "eth_getBlockByNumber":
+			result = &types.Header{Number: big.NewInt(1), BaseFee: big.NewInt(1), Difficulty: new(big.Int)}
+		case "eth_maxPriorityFeePerGas", "eth_blobBaseFee":
+			result = "0x1"
+		case "eth_estimateGas":
+			result = "0x5208"
+		case "eth_getTransactionCount":
+			result = "0x0"
+		case "eth_sendRawTransaction":
+			result = common.Hash{'T'}
+		case "eth_getTransactionReceipt":
+			if polls.Add(1) >= receiptOnPoll {
+				result = &types.Receipt{
+					Status:      types.ReceiptStatusSuccessful,
+					Logs:        []*types.Log{},
+					BlockNumber: big.NewInt(1),
+					BlockHash:   common.Hash{'B'},
+				}
+			}
+		}
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": result}))
+	}))
+	t.Cleanup(srv.Close)
+	client, err := ethclient.Dial(srv.URL)
+	require.NoError(t, err)
+
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	from := crypto.PubkeyToAddress(key.PublicKey)
+	bcaster, err := NewKeyedBroadcaster(KeyedBroadcasterOpts{
+		Logger:               testlog.Logger(t, log.LevelError),
+		ChainID:              big.NewInt(1),
+		Client:               client,
+		Signer:               opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(key, big.NewInt(1))),
+		From:                 from,
+		ReceiptQueryInterval: 50 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	bcaster.Hook(Broadcast{Type: BroadcastCall, From: from, To: common.Address{'T'}, Value: (*hexutil.U256)(new(uint256.Int))})
+
+	start := time.Now()
+	_, err = bcaster.Broadcast(t.Context())
+	require.NoError(t, err)
+	require.Less(t, time.Since(start), receiptOnPoll*time.Second)
+	require.EqualValues(t, receiptOnPoll, polls.Load())
 }

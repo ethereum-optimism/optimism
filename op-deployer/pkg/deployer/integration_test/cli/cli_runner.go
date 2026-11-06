@@ -31,7 +31,7 @@ var cliTestBinary string
 // dropped field would only make the tests slower.
 func requireFastReceiptPoll(t *testing.T, output string) {
 	t.Helper()
-	require.Contains(t, output, "using non-default receipt query interval")
+	require.Contains(t, output, `using non-default receipt query interval" interval=`+testReceiptQueryInterval.String())
 }
 
 // CLITestRunner provides utilities for running op-deployer CLI commands in tests

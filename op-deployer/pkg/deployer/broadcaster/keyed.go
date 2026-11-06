@@ -23,21 +23,19 @@ import (
 const (
 	// DefaultReceiptQueryInterval is the receipt poll interval when none is set.
 	DefaultReceiptQueryInterval = time.Second
-	// MinReceiptQueryInterval limits RPC load: each rebroadcast of a stuck transaction adds a poller.
-	MinReceiptQueryInterval = 10 * time.Millisecond
-	// MaxReceiptQueryInterval is the rebroadcast interval. Polling slower than this lets rebroadcasts
-	// of a mined transaction hit SafeAbortNonceTooLowCount and abort the send before any receipt check.
-	MaxReceiptQueryInterval = rebroadcastInterval
-
-	rebroadcastInterval = 12 * time.Second
+	// minReceiptQueryInterval limits RPC load: each rebroadcast of a stuck transaction adds a poller.
+	minReceiptQueryInterval = 50 * time.Millisecond
+	// maxReceiptQueryInterval is the default. Slower polling leaves less time to see a mined
+	// transaction's receipt before rebroadcasts hit SafeAbortNonceTooLowCount and abort the send.
+	maxReceiptQueryInterval = DefaultReceiptQueryInterval
 )
 
 // CheckReceiptQueryInterval rejects unsafe intervals. Zero means DefaultReceiptQueryInterval.
 func CheckReceiptQueryInterval(interval time.Duration) error {
-	if interval != 0 && (interval < MinReceiptQueryInterval || interval > MaxReceiptQueryInterval) {
+	if interval != 0 && (interval < minReceiptQueryInterval || interval > maxReceiptQueryInterval) {
 		return fmt.Errorf(
 			"receipt query interval must be 0 or between %s and %s, got %s",
-			MinReceiptQueryInterval, MaxReceiptQueryInterval, interval,
+			minReceiptQueryInterval, maxReceiptQueryInterval, interval,
 		)
 	}
 	return nil
@@ -68,6 +66,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		receiptQueryInterval = DefaultReceiptQueryInterval
 	}
 	if receiptQueryInterval != DefaultReceiptQueryInterval {
+		// apply --use-forge --deployment-target=live also builds this broadcaster, so it warns even though Forge does its own sending.
 		cfg.Logger.Warn(
 			"using non-default receipt query interval",
 			"interval", receiptQueryInterval,
@@ -98,7 +97,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		panic(err)
 	}
 
-	mgrCfg.RebroadcastInterval.Store(int64(rebroadcastInterval))
+	mgrCfg.RebroadcastInterval.Store(int64(12 * time.Second))
 	mgrCfg.ResubmissionTimeout.Store(int64(48 * time.Second))
 	mgrCfg.FeeLimitMultiplier.Store(5)
 	mgrCfg.FeeLimitThreshold.Store(big.NewInt(100))
