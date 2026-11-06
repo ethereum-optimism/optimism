@@ -229,8 +229,11 @@ WORKDIR /app/packages/contracts-bedrock
 # The script-cache check of `just forge-build`: op-deployer never compiles.
 RUN forge build --skip "/**/test/**" && forge build scripts && \
   (forge script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" --skip-simulation >/dev/null 2>&1 || true) && \
-  out=$(forge script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" --skip-simulation 2>&1 || true) && \
-  case "$out" in *"No files changed, compilation skipped"*) ;; *) echo "$out" >&2; echo "the forge script cache is not warm" >&2; exit 1;; esac
+  scripts=$(find scripts -name '*.s.sol') && [ -n "$scripts" ] && \
+  for script in $scripts; do \
+    out=$(forge script "$script" --sig "idonotexist()" --skip-simulation 2>&1 || true); \
+    case "$out" in *"No files changed, compilation skipped"*) ;; *) echo "$out" >&2; echo "the forge script cache of $script is not warm" >&2; exit 1;; esac; \
+  done
 WORKDIR /app
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   go run ./op-deployer/pkg/deployer/artifacts/cmd/mktar \
