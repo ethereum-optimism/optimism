@@ -121,11 +121,10 @@ acceptance-test:
     # CircleCI test-level splitting: when running under `parallelism: N > 1`,
     # split the test set across CIRCLE_NODE_TOTAL nodes using historical timings
     # so each node runs a balanced subset. Falls back to running everything when
-    # CIRCLE_NODE_TOTAL is unset (local runs, single-node CI). `awk 1` ends the last
-    # line with a newline, since `read` and `wc -l` would miss a test without one.
+    # CIRCLE_NODE_TOTAL is unset (local runs, single-node CI).
     export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
     go test -list '^Test' "${TEST_PACKAGES[@]}" | tee "$LOG_DIR/tests_list.txt" \
-        | {{REPO_ROOT}}/ops/scripts/shard-tests.sh | awk 1 > "$LOG_DIR/tests_shard.txt" \
+        | {{REPO_ROOT}}/ops/scripts/shard-tests.sh > "$LOG_DIR/tests_shard.txt" \
         || { grep -v '^Test' "$LOG_DIR/tests_list.txt" >&2; exit 1; }
 
     # `go test -list` prints a package's tests and then its `ok <package>` line.

@@ -37,4 +37,6 @@ fi
 # Canceled runs can leave partial history. CircleCI's tiny default weight for
 # missing timings can put every unknown test on the same otherwise-light shard.
 # Give unknown acceptance tests a realistic setup/runtime budget instead.
-circleci tests split --split-by=timings --timings-type=testname --time-default=1m "$ALL_TESTS_FILE"
+# `awk 1` ends the last line with a newline, since callers' `read` and `wc -l` would
+# miss a test without one.
+circleci tests split --split-by=timings --timings-type=testname --time-default=1m "$ALL_TESTS_FILE" | awk 1
