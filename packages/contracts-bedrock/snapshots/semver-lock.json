@@ -24,8 +24,8 @@
     "sourceCodeHash": "0x30c5b8e606a9c72cc87deecd641acdca020df6dcf5a0fcbb83c41d7de293fe6a"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
-    "initCodeHash": "0x5d70f1150a4eb5a2fd3dbacc71c13100c86721677fdfe56a6530af3595b55847",
-    "sourceCodeHash": "0xc89f27cf448a0f0c689a6fdcc73596f31ad7282cd14e62dc87a31d31b83dab7b"
+    "initCodeHash": "0xb4756f17ee17271307ec7c0beac1cdb7e149f70aaf6f042419b58d8128b2d79d",
+    "sourceCodeHash": "0x891e37ed0bf21322b09e89a1b6cd372c2fbcf1ba82896fc2d82ede8c87505de8"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
     "initCodeHash": "0x54277894f57cf988465a397cda2840e2e70e5e362c146c3b201e366da1390c9f",

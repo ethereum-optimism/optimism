@@ -897,8 +897,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             });
             bytes memory message = _recognize(item);
             if (!bridgeHook.screenDeposit(item)) {
-                emit DepositHeld(BridgeHookHashing.hashItem(item));
-                _commitHold(item, message, heldDeposits);
+                bytes32 id = _commitHold(item, message, heldDeposits);
+                emit DepositHeld(id);
                 bridgeHook.holdDeposit{ value: msg.value }(item);
                 return;
             }
@@ -1001,14 +1001,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _item    Held item.
     /// @param _message The bridge's call, for a token transfer.
     /// @param _held    Held items of the item's direction.
+    /// @return id_ Identifier of the held item.
     function _commitHold(
         BridgeHookTypes.Item memory _item,
         bytes memory _message,
         mapping(bytes32 => bool) storage _held
     )
         internal
+        returns (bytes32 id_)
     {
-        _held[BridgeHookHashing.hashItem(_item)] = true;
+        id_ = BridgeHookHashing.hashItem(_item);
+        _held[id_] = true;
 
         if (_item.asset == BridgeHookTypes.Asset.ERC20) {
             _l1StandardBridge().holdERC20(_item.direction, _message);
