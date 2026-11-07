@@ -15,7 +15,18 @@ diataxis: reference
 
 **op-conductor** manages sequencer high-availability using Raft consensus, coordinating a multi-node sequencer cluster to ensure no unsafe reorgs and continuous uptime with up to one node failure.
 
-<Update label="May 18, 2026" description="v0.9.4" tags={["Latest", "Stable"]}>
+<Update label="October 22, 2026" description="v0.9.6" tags={["Latest", "Stable"]}>
+
+## Overview
+
+> [!IMPORTANT]
+> This is a strongly recommended release for all op-conductor operators. It contains security fixes for the compromised eMudhra certificate authority (CVE-2026-111943), Go and dependency security updates, a move of the image to apko, Raft logs that now follow `--log.level`, and the removal of unused RPC server metrics.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-conductor/v0.9.6)
+
+</Update>
+
+<Update label="May 18, 2026" description="v0.9.4" tags={["Stable"]}>
 
 This release includes bug fixes for cluster stability and leader failover, a new round-robin leadership transfer feature, and
   removal of the deprecated op-supervisor health check integration. It also ensures that the version label is filled with build info from CI.

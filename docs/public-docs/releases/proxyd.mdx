@@ -15,7 +15,18 @@ diataxis: reference
 
 **proxyd** is an RPC request router and proxy with method whitelisting, backend load balancing, automatic retries, and consensus state tracking across multiple backend nodes.
 
-<Update label="September 18, 2026" description="v4.32.2" tags={["Latest", "Stable"]}>
+<Update label="October 21, 2026" description="v4.34.1" tags={["Latest", "Stable"]}>
+
+## Changelog
+* a0201bebab87337b44f70f70fcf921bb2330080c fix(proxyd): reject null elements in batch responses instead of panicking (#775)
+* 043917b3e3efded96e32cbf7e7aa60139cf15e9b Require ca-certificates-bundle 20260909-r3 in all images (#774)
+* bafc7f195485abf3f3dd7836ac99b330cb09a08b fix(proxyd): answer out-of-range state reads and log ranges with errors (#769)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.34.1)
+
+</Update>
+
+<Update label="September 18, 2026" description="v4.32.2" tags={["Stable"]}>
 
 ## Changelog
 * 5fd90249bbdd1122f29a80d7e28af7ec322b2db3 fix(proxyd): expand env vars in consensus_ha_redis.url (#744)
