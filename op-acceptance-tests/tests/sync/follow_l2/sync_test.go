@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -17,18 +16,6 @@ import (
 
 func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with kona-node:
-	//
-	// assertions.go:387:             ERROR[03-31|11:33:11.255]
-	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/sysgo/singlechain_variants.go:143
-	// assertions.go:387:             	            				/optimism/op-devstack/sysgo/singlechain_variants.go:53
-	// assertions.go:387:             	            				/optimism/op-devstack/presets/singlechain_twoverifiers.go:24
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/follow_l2/setup_test.go:24
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/follow_l2/sync_test.go:18
-	// assertions.go:387:             	Error:      	Should be true
-	// assertions.go:387:             	Test:       	TestFollowL2_Safe_Finalized_CurrentL1
-	// assertions.go:387:             	Messages:   	single-chain test sequencer requires an op-node CL node
-	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newSingleChainTwoVerifiersFollowL2(t)
 	logger := t.Logger()
 
@@ -36,9 +23,8 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	attempts := 70
 	target := uint64(3)
 
-	// L2CL is the sequencer with CL follow source, derivation disabled
-	// L2CLB is the verifier without follow source, derivation enabled
-	// L2CLC is the verifier with CL follow source, derivation disabled
+	// L2CL is the sequencer and L2CLB the deriving verifier, both op-node by the preset.
+	// L2CLC follows L2CLB with derivation disabled and runs the CL kind DEVSTACK_L2CL_KIND selects.
 	// All verifiers must eventually advance unsafe, safe, finalized
 	checkMatchedAll := func(lvl safety.Level) {
 		dsl.CheckAll(t,
@@ -71,18 +57,6 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 
 func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with kona-node:
-	//
-	// assertions.go:387:             ERROR[03-31|11:31:11.567]
-	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/sysgo/singlechain_variants.go:143
-	// assertions.go:387:             	            				/optimism/op-devstack/sysgo/singlechain_variants.go:53
-	// assertions.go:387:             	            				/optimism/op-devstack/presets/singlechain_twoverifiers.go:24
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/follow_l2/setup_test.go:24
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/follow_l2/sync_test.go:60
-	// assertions.go:387:             	Error:      	Should be true
-	// assertions.go:387:             	Test:       	TestFollowL2_ReorgRecovery
-	// assertions.go:387:             	Messages:   	single-chain test sequencer requires an op-node CL node
-	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newSingleChainTwoVerifiersFollowL2(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -170,18 +144,6 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 
 func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with kona-node:
-	//
-	// assertions.go:387:             ERROR[03-31|11:27:57.797]
-	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/sysgo/singlechain_variants.go:143
-	// assertions.go:387:             	            				/optimism/op-devstack/sysgo/singlechain_variants.go:53
-	// assertions.go:387:             	            				/optimism/op-devstack/presets/singlechain_twoverifiers.go:24
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/follow_l2/setup_test.go:24
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/follow_l2/sync_test.go:136
-	// assertions.go:387:             	Error:      	Should be true
-	// assertions.go:387:             	Test:       	TestFollowL2_WithoutCLP2P
-	// assertions.go:387:             	Messages:   	single-chain test sequencer requires an op-node CL nod
-	sysgo.SkipOnKonaNode(t, "not supported")
 	// Without CL P2P, L2CLC learns of new blocks only from its follow source, polled every two
 	// L2 blocks. When the source's local-safe head is past L2CLC's unsafe head, op-node has its
 	// EL sync to it, gets SYNCING back and resets local-safe to the finalized head. It recovers
