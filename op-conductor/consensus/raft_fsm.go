@@ -53,12 +53,21 @@ func (t *unsafeHeadTracker) Apply(l *raft.Log) interface{} {
 }
 
 // Restore implements raft.FSM, it restores state from snapshot.
+// An empty snapshot means that no unsafe head had been committed when the snapshot was taken, see snapshot.Persist.
 func (t *unsafeHeadTracker) Restore(snapshot io.ReadCloser) error {
 	var buf bytes.Buffer
 	n, err := io.Copy(&buf, snapshot)
 	snapshot.Close()
 	if err != nil {
 		return fmt.Errorf("error reading snapshot data: %w", err)
+	}
+
+	if n == 0 {
+		t.mtx.Lock()
+		defer t.mtx.Unlock()
+		t.log.Info("restoring empty snapshot, no unsafe head has been committed yet")
+		t.unsafeHead = nil
+		return nil
 	}
 
 	data := &eth.ExecutionPayloadEnvelope{}
@@ -82,6 +91,7 @@ func (t *unsafeHeadTracker) Snapshot() (raft.FSMSnapshot, error) {
 	defer t.mtx.RUnlock()
 
 	return &snapshot{
+		log:        t.log,
 		unsafeHead: t.unsafeHead,
 	}, nil
 }
@@ -102,7 +112,16 @@ type snapshot struct {
 }
 
 // Persist implements raft.FSMSnapshot, it writes the snapshot to the given sink.
+// A nil unsafe head is written as an empty snapshot instead of dereferencing the nil payload. Raft decides to
+// snapshot from log growth, not from FSM content, so a cluster that has not committed any unsafe head yet, e.g. a
+// freshly bootstrapped cluster whose sequencers are still stopped, must be able to snapshot and compact its log
+// too. Restore treats an empty snapshot as "no unsafe head".
 func (s *snapshot) Persist(sink raft.SnapshotSink) error {
+	if s.unsafeHead == nil {
+		s.log.Warn("persisting empty snapshot, no unsafe head has been committed yet")
+		return sink.Close()
+	}
+
 	if _, err := s.unsafeHead.MarshalSSZ(sink); err != nil {
 		if cerr := sink.Cancel(); cerr != nil {
 			s.log.Error("error cancelling snapshot sink", "error", cerr)
