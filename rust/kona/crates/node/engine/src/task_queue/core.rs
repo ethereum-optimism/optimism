@@ -5,7 +5,7 @@ use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
     find_starting_forkchoice,
-    task_queue::{EngineTaskErrors, synchronize},
+    task_queue::{EngineTaskErrors, ForkchoiceDelivery, synchronize},
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -115,7 +115,9 @@ impl Engine {
     ) -> Result<L2BlockInfo, EngineResetError> {
         let start = find_starting_forkchoice(&config, client.as_ref()).await?;
 
-        // One attempt. The actor retains the reset request and retries transient failures.
+        // One attempt. The actor retains the reset request and retries transient failures. The
+        // execution layer may have lost or changed its forkchoice, so the reset sends one even when
+        // the recovered labels equal the current ones.
         synchronize(
             client.as_ref(),
             &mut self.state,
@@ -125,6 +127,7 @@ impl Engine {
                 safe_head: Some(start.safe),
                 finalized_head: Some(start.finalized),
             },
+            ForkchoiceDelivery::Always,
         )
         .await?;
 
@@ -344,5 +347,38 @@ mod recovery_tests {
             state_rx.borrow().sync_state.safe_head().block_info.hash,
             imported.header.hash_slow()
         );
+    }
+
+    // An execution layer that restarted can have lost its forkchoice, so a reset sends the
+    // recovered forkchoice even when the labels already equal it.
+    #[tokio::test]
+    async fn reset_resends_an_unchanged_forkchoice() {
+        let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        let mut config = RollupConfig::default();
+        config.genesis.l2.hash = block.header.inner.hash_slow();
+        let genesis =
+            L2BlockInfo::from_block_and_genesis(&block.clone().into_consensus(), &config.genesis)
+                .unwrap();
+        let config = Arc::new(config);
+        let state = TestEngineStateBuilder::new().with_unsafe_head(genesis).build();
+        let forkchoice = state.sync_state.create_forkchoice_state();
+        let (client, l1, l2) = test_engine_client(config.clone());
+        for tag in ["finalized", "safe", "latest"] {
+            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
+        }
+        l1.expect(
+            "eth_getBlockByHash",
+            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+        );
+        l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+
+        engine.reset(Arc::new(client), config).await.unwrap();
+
+        assert_eq!(engine.state().sync_state, state.sync_state);
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }

@@ -5,6 +5,9 @@ use alloy_json_rpc::{ErrorPayload, RequestPacket, ResponsePacket};
 use alloy_network::Network;
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
+use alloy_rpc_types_engine::{
+    ForkchoiceState, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
+};
 use alloy_transport::{
     TransportError, TransportErrorKind, TransportFut,
     mock::{Asserter, MockResponse, MockTransport},
@@ -53,6 +56,20 @@ impl RpcMock {
             Some(params),
             MockResponse::Success(serde_json::value::to_raw_value(&response).unwrap()),
             Duration::ZERO,
+        );
+    }
+
+    /// Expects an `engine_forkchoiceUpdatedV3` call for `forkchoice` without payload attributes and
+    /// answers it with `status`.
+    pub fn expect_forkchoice_updated(
+        &self,
+        forkchoice: ForkchoiceState,
+        status: PayloadStatusEnum,
+    ) {
+        self.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, null]),
+            ForkchoiceUpdated::new(PayloadStatus::from_status(status)),
         );
     }
 

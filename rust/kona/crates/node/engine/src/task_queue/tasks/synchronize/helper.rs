@@ -4,6 +4,18 @@ use crate::{EngineClient, EngineState, SynchronizeTaskError, state::EngineSyncSt
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
 use op_alloy_provider::ext::engine::OpEngineApi;
 
+/// Whether [`synchronize`] may skip a forkchoice update that leaves the consensus labels unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::task_queue) enum ForkchoiceDelivery {
+    /// Send the update even when it leaves the consensus labels unchanged.
+    ///
+    /// Unchanged labels do not prove that the execution layer holds their forkchoice: a `SYNCING`
+    /// answer moves the labels too, and an execution layer that restarts can lose its forkchoice.
+    Always,
+    /// Skip the update when it leaves the consensus labels unchanged.
+    WhenChanged,
+}
+
 /// Applies `state_update` to the engine's sync state and synchronizes the execution layer's
 /// forkchoice with it, using an `engine_forkchoiceUpdated` call without payload attributes.
 ///
@@ -15,26 +27,31 @@ use op_alloy_provider::ext::engine::OpEngineApi;
     target = "engine",
     level = "info",
     skip_all,
-    fields(?state_update, forkchoice = tracing::field::Empty)
+    fields(?delivery, ?state_update, forkchoice = tracing::field::Empty)
 )]
 pub(in crate::task_queue) async fn synchronize(
     client: &EngineClient,
     state: &mut EngineState,
     state_update: EngineSyncStateUpdate,
+    delivery: ForkchoiceDelivery,
 ) -> Result<(), SynchronizeTaskError> {
     // Apply the sync state update to the engine state.
     let new_sync_state = state.sync_state.apply_update(state_update);
 
     // Check if a forkchoice update is not needed, return early.
     // A forkchoice update is not needed if...
-    // 1. The engine state is not default (initial forkchoice state has been emitted), and
-    // 2. The new sync state is the same as the current sync state (no changes to the sync state).
+    // 1. The caller allows skipping an unchanged forkchoice,
+    // 2. The engine state is not default (initial forkchoice state has been emitted), and
+    // 3. The new sync state is the same as the current sync state (no changes to the sync state).
     //
     // NOTE:
     // We shouldn't retry the synchronization here. Since the `sync_state` is only updated inside
     // `synchronize` (except inside the ConsolidateTask, when the block is not the last in the
     // batch) - the engine would get stuck retrying the synchronization.
-    if state.sync_state != Default::default() && state.sync_state == new_sync_state {
+    if delivery == ForkchoiceDelivery::WhenChanged &&
+        state.sync_state != Default::default() &&
+        state.sync_state == new_sync_state
+    {
         debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
         return Ok(());
     }

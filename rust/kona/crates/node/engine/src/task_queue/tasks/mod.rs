@@ -7,7 +7,7 @@ pub use task::{
 
 mod synchronize;
 pub use synchronize::SynchronizeTaskError;
-pub(super) use synchronize::synchronize;
+pub(super) use synchronize::{ForkchoiceDelivery, synchronize};
 
 mod insert;
 pub(super) use insert::insert_payload;
