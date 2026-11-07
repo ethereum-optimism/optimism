@@ -23,7 +23,8 @@ impl Metrics {
     /// Identifier for the counter of critical derivation errors (strictly for alerting.)
     pub const DERIVATION_CRITICAL_ERROR: &str = "kona_node_derivation_critical_errors";
 
-    /// Gauge of failed attempts of the pipeline reset awaiting a retry, zero when none is.
+    /// Gauge of consecutive failed attempts of the pending pipeline reset, zero when none is
+    /// pending.
     pub const DERIVATION_PENDING_RESET_ATTEMPTS: &str =
         "kona_node_derivation_pending_reset_attempts";
 
@@ -89,7 +90,7 @@ impl Metrics {
         metrics::describe_gauge!(
             Self::DERIVATION_PENDING_RESET_ATTEMPTS,
             metrics::Unit::Count,
-            "Failed attempts of the derivation pipeline reset awaiting a retry, zero when none is pending"
+            "Consecutive failed attempts of the pending derivation pipeline reset, zero when none is pending"
         );
 
         // Sequencer state
