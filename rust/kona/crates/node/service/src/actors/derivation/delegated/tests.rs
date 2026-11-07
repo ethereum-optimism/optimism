@@ -8,7 +8,12 @@ use kona_engine::{ConsolidateInput, EngineSyncState, EngineSyncStateUpdate, Fina
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use rstest::rstest;
 use std::{collections::VecDeque, sync::Mutex};
-use tokio::sync::{mpsc, watch};
+use tokio::{
+    sync::{mpsc, watch},
+    time::{self, Duration, Instant},
+};
+
+const POLL_INTERVAL: Duration = Duration::from_secs(4);
 
 const SAFE_ORIGIN: u64 = 1;
 const FINALIZED_ORIGIN: u64 = 2;
@@ -212,4 +217,83 @@ async fn poll_rejects_status_whose_finality_moves_back(
 
     assert_eq!(harness.forwarded(), forwarded_if(accepted, &next_status));
     assert_eq!(harness.current_l1.has_changed().unwrap(), accepted);
+}
+
+#[derive(Clone, Copy, Debug)]
+enum DelegateReply {
+    CurrentL1NotCanonical,
+    FetchFailed,
+    FinalizedOriginNotCanonical,
+    SafeOriginNotCanonical,
+    Valid,
+}
+
+impl DelegateReply {
+    fn sync_status(self) -> SyncStatusReply {
+        let mut status = delegate_status();
+        match self {
+            Self::CurrentL1NotCanonical => {
+                status.current_l1.hash = non_canonical(status.current_l1.id()).hash
+            }
+            Self::FetchFailed => {
+                return Err(DerivationDelegateClientError::FetchFailed("unreachable".into()));
+            }
+            Self::FinalizedOriginNotCanonical => {
+                status.finalized_l2.l1_origin = non_canonical(status.finalized_l2.l1_origin)
+            }
+            Self::SafeOriginNotCanonical => {
+                status.safe_l2.l1_origin = non_canonical(status.safe_l2.l1_origin)
+            }
+            Self::Valid => {}
+        }
+        Ok(status)
+    }
+}
+
+/// Polling starts only once the engine has finished syncing.
+#[tokio::test(start_paused = true)]
+async fn polls_wait_for_engine_sync_completion() {
+    let mut harness = Harness::new([]);
+
+    assert!(time::timeout(POLL_INTERVAL * 3, harness.actor.step()).await.is_err());
+
+    assert_eq!(harness.forwarded(), Vec::new());
+    assert_eq!(*harness.current_l1.borrow(), None);
+}
+
+/// A valid status forwards the safe head and then the hash-pinned finalized block, and publishes
+/// the delegate's `current_l1`. A failed fetch, or any L1 reference that is not canonical, skips
+/// the poll without forwarding or publishing anything and without stopping the actor.
+#[rstest]
+#[case::valid(DelegateReply::Valid, true)]
+#[case::fetch_failed(DelegateReply::FetchFailed, false)]
+#[case::safe_origin_not_canonical(DelegateReply::SafeOriginNotCanonical, false)]
+#[case::finalized_origin_not_canonical(DelegateReply::FinalizedOriginNotCanonical, false)]
+#[case::current_l1_not_canonical(DelegateReply::CurrentL1NotCanonical, false)]
+#[tokio::test(start_paused = true)]
+async fn poll_forwards_only_canonical_status(#[case] reply: DelegateReply, #[case] accepted: bool) {
+    let mut harness = Harness::new([reply.sync_status()]);
+    harness.complete_engine_sync().await;
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_if(accepted, &delegate_status()));
+    assert_eq!(*harness.current_l1.borrow(), accepted.then(|| delegate_status().current_l1));
+}
+
+/// An unchanged status is forwarded again on every poll, one poll interval apart, so a target
+/// that could not be applied on one poll is offered again on the next.
+#[tokio::test(start_paused = true)]
+async fn unchanged_status_is_resent_on_every_poll() {
+    const POLLS: u32 = 3;
+    let mut harness = Harness::new((0..POLLS).map(|_| DelegateReply::Valid.sync_status()));
+    harness.complete_engine_sync().await;
+    let first_poll = Instant::now();
+
+    for _ in 0..POLLS {
+        harness.actor.step().await.unwrap();
+        assert_eq!(harness.forwarded(), forwarded_for(&delegate_status()));
+    }
+
+    assert_eq!(Instant::now() - first_poll, POLL_INTERVAL * (POLLS - 1));
 }

@@ -8,6 +8,7 @@ use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_engine::{
     ForkchoiceState, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
 };
+use alloy_rpc_types_eth::{Block as EthBlock, Transaction as EthTransaction};
 use alloy_transport::{
     TransportError, TransportErrorKind, TransportFut,
     mock::{Asserter, MockResponse, MockTransport},
@@ -203,4 +204,19 @@ pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock, Rpc
     let l2 = RpcMock::default();
     let client = EngineClient::new(l1.provider(), l2.provider(), cfg);
     (client, l1, l2)
+}
+
+/// Expects the sync start a reset performs: the execution layer answering `block` for its
+/// finalized, safe and latest blocks, the L1 lookup of its origin, and `forkchoice` being sent.
+pub fn expect_sync_start(
+    l1: &RpcMock,
+    l2: &RpcMock,
+    block: &TestRpcBlock,
+    forkchoice: ForkchoiceState,
+) {
+    for label in ["finalized", "safe", "latest"] {
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!([label, true]), block);
+    }
+    l1.expect("eth_getBlockByHash", EthBlock::<EthTransaction>::default());
+    l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
 }

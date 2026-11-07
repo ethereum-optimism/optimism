@@ -205,7 +205,8 @@ mod recovery_tests {
         ConsolidateInput, ConsolidateTask, FinalizeBlockId, FinalizeTask, InsertTask,
         NoopBlockSink,
         test_utils::{
-            TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
+            TestAttributesBuilder, TestEngineStateBuilder, expect_sync_start, test_block_info,
+            test_engine_client,
         },
     };
     use alloy_rpc_types_engine::{
@@ -369,14 +370,7 @@ mod recovery_tests {
         let state = TestEngineStateBuilder::new().with_unsafe_head(genesis).build();
         let forkchoice = state.sync_state.create_forkchoice_state();
         let (client, l1, l2) = test_engine_client(config.clone());
-        for tag in ["finalized", "safe", "latest"] {
-            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
-        }
-        l1.expect(
-            "eth_getBlockByHash",
-            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
-        );
-        l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
+        expect_sync_start(&l1, &l2, &block, forkchoice);
         let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
         let mut engine = Engine::new(state, state_tx);
 

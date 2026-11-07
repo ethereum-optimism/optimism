@@ -22,7 +22,9 @@ pub enum FinalizeTaskError {
     /// The block to finalize was not found.
     #[error("The block to finalize was not found: Number {0}")]
     BlockNotFound(u64),
-    /// The block is not safe, and therefore cannot be finalized.
+    /// The block is not safe yet, and therefore cannot be finalized. A reset can lower the safe
+    /// head below a target that was safe when it was requested, and a delegate can run ahead of
+    /// the local safe head.
     #[error("Attempted to finalize a block that is not yet safe")]
     BlockNotSafe,
     /// The engine returned a block at a different height than the one requested.
@@ -57,6 +59,14 @@ pub enum FinalizeTaskError {
         /// The finalization target.
         target: BlockNumHash,
     },
+    /// The engine has no block at the pinned target's height yet, for example while it catches up.
+    #[error("The engine does not have finalization target {target:?} yet: {engine_answer}")]
+    NotYetAvailable {
+        /// What the engine answered the lookup with: null, or an error response.
+        engine_answer: String,
+        /// The finalization target.
+        target: BlockNumHash,
+    },
     /// A temporary RPC failure.
     #[error(transparent)]
     TransportError(#[from] RpcError<TransportErrorKind>),
@@ -66,12 +76,13 @@ impl EngineTaskError for FinalizeTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::BehindFinalizedHead { .. } |
-            Self::ConflictsWithFinalizedHead { .. } |
-            Self::NotCanonical { .. } => EngineTaskErrorSeverity::Skip,
-            Self::BlockNotFound(_) |
             Self::BlockNotSafe |
-            Self::BlockNumberMismatch { .. } |
-            Self::FromBlock(_) => EngineTaskErrorSeverity::Critical,
+            Self::ConflictsWithFinalizedHead { .. } |
+            Self::NotCanonical { .. } |
+            Self::NotYetAvailable { .. } => EngineTaskErrorSeverity::Skip,
+            Self::BlockNotFound(_) | Self::BlockNumberMismatch { .. } | Self::FromBlock(_) => {
+                EngineTaskErrorSeverity::Critical
+            }
             Self::ForkchoiceUpdateFailed(inner) => inner.severity(),
             Self::TransportError(_) => EngineTaskErrorSeverity::Temporary,
         }
