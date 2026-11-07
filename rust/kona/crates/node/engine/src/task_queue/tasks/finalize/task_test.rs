@@ -1,5 +1,6 @@
 use crate::{
-    EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTaskError, EngineTaskErrorSeverity,
+    EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTaskError,
+    EngineTaskErrorSeverity::{self, Critical, Skip, Temporary},
     ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
     test_utils::{
         RpcMock, TestEngineStateBuilder, TestRpcBlock as RpcBlock, test_block_info,
@@ -117,16 +118,56 @@ const fn is_number_mismatch(err: &FinalizeTaskError) -> bool {
     matches!(err, FinalizeTaskError::BlockNumberMismatch { requested: ADVANCED, .. })
 }
 
+const fn is_not_safe(err: &FinalizeTaskError) -> bool {
+    matches!(err, FinalizeTaskError::BlockNotSafe)
+}
+
+const fn is_not_yet_available(err: &FinalizeTaskError) -> bool {
+    matches!(err, FinalizeTaskError::NotYetAvailable { .. })
+}
+
 const fn is_block_not_found(err: &FinalizeTaskError) -> bool {
     matches!(err, FinalizeTaskError::BlockNotFound(ADVANCED))
 }
 
-/// Targets behind the finalized head, or a pinned hash that conflicts with it, are skipped before
-/// asking the execution layer for the block: the test engine expects no request at all.
+const fn is_transport_error(err: &FinalizeTaskError) -> bool {
+    matches!(err, FinalizeTaskError::TransportError(_))
+}
+
+/// A target above the finalized head, pinned to the engine's canonical block at its height.
+fn pinned_target() -> FinalizeBlockId {
+    by_hash(&canonical(ADVANCED))
+}
+
+/// A target above the finalized head, identified by number only.
+fn numbered_target() -> FinalizeBlockId {
+    by_number(&canonical(ADVANCED))
+}
+
+/// What the engine answers for a block it cannot serve.
+#[derive(Clone, Copy, Debug)]
+enum Unavailable {
+    ErrorResponse,
+    Null,
+}
+
+fn expect_unavailable_block(l2: &RpcMock, number: u64, answer: Unavailable) {
+    match answer {
+        Unavailable::ErrorResponse => l2.expect_error_code("eth_getBlockByNumber", -32000),
+        Unavailable::Null => l2.expect_block_by_number(number, None),
+    }
+}
+
+/// Targets behind the finalized head, a pinned hash that conflicts with it, and targets above the
+/// safe head are skipped before asking the execution layer for the block: the test engine expects
+/// no request at all. A reset can lower the safe head below a target that was safe when it was
+/// requested, and a later request finalizes it.
 #[rstest]
 #[case::stale_by_hash(by_hash(&canonical(STALE)), is_behind)]
 #[case::stale_by_number(by_number(&canonical(STALE)), is_behind)]
 #[case::conflicting_by_hash(by_hash(&conflicting(FINALIZED)), is_conflict)]
+#[case::above_safe_by_hash(by_hash(&canonical(UNSAFE)), is_not_safe)]
+#[case::above_safe_by_number(by_number(&canonical(UNSAFE)), is_not_safe)]
 #[tokio::test]
 async fn finalize_task_skips_target_without_lookup(
     #[case] target: FinalizeBlockId,
@@ -138,7 +179,7 @@ async fn finalize_task_skips_target_without_lookup(
     let err = finalize(target, &mut state, |_| {}).await.unwrap_err();
 
     assert!(is_expected_error(&err), "{err:?}");
-    assert_eq!(err.severity(), EngineTaskErrorSeverity::Skip);
+    assert_eq!(err.severity(), Skip);
     assert_eq!(state, original_state);
 }
 
@@ -164,7 +205,7 @@ async fn finalize_task_skips_target_off_the_canonical_chain(
     .unwrap_err();
 
     assert!(is_expected_error(&err), "{err:?}");
-    assert_eq!(err.severity(), EngineTaskErrorSeverity::Skip);
+    assert_eq!(err.severity(), Skip);
     assert_eq!(state, original_state);
 }
 
@@ -212,38 +253,94 @@ async fn finalize_task_skips_lookup_for_finalized_head() {
     assert_eq!(state, original_state);
 }
 
-/// The engine serving no block, or a block at a height other than the requested one, stops the
-/// node instead of finalizing anything. A misplaced block could otherwise bypass the guards against
-/// moving finality backward.
+/// The engine serving a block at a height other than the requested one stops the node instead of
+/// finalizing anything. A misplaced block could otherwise bypass the guards against moving
+/// finality backward.
 #[rstest]
-#[case::missing_by_number(FinalizeBlockId::ByNumber(ADVANCED), None, is_block_not_found)]
-#[case::missing_by_hash(by_hash(&canonical(ADVANCED)), None, is_block_not_found)]
-#[case::stale_block_by_number(
-    /* target */ FinalizeBlockId::ByNumber(ADVANCED),
-    /* served_block */ Some(canonical(STALE)),
-    /* is_expected_error */ is_number_mismatch
-)]
-#[case::higher_block_by_number(
-    /* target */ FinalizeBlockId::ByNumber(ADVANCED),
-    /* served_block */ Some(canonical(SAFE)),
-    /* is_expected_error */ is_number_mismatch
-)]
-#[case::stale_block_by_hash(by_hash(&canonical(ADVANCED)), Some(canonical(STALE)), is_number_mismatch)]
+#[case::stale_block_by_number(by_number(&canonical(ADVANCED)), canonical(STALE))]
+#[case::higher_block_by_number(by_number(&canonical(ADVANCED)), canonical(SAFE))]
+#[case::stale_block_by_hash(by_hash(&canonical(ADVANCED)), canonical(STALE))]
 #[tokio::test]
-async fn finalize_task_stops_on_unexpected_lookup_result(
+async fn finalize_task_stops_on_block_at_unrequested_height(
     #[case] target: FinalizeBlockId,
-    #[case] served_block: Option<RpcBlock>,
+    #[case] served_block: RpcBlock,
+) {
+    let mut state = engine_state(established());
+    let original_state = state;
+
+    let err = finalize(target, &mut state, |l2| {
+        l2.expect_block_by_number(target.number(), Some(served_block))
+    })
+    .await
+    .unwrap_err();
+
+    assert!(is_number_mismatch(&err), "{err:?}");
+    assert_eq!(err.severity(), Critical);
+    assert_eq!(state, original_state);
+}
+
+/// While the execution layer catches up, it has no block at a pinned target's height yet, and may
+/// answer null or an error. Either way the target is skipped, so it neither stops the node nor
+/// holds the queue until its upstream resubmits it. A by-number target is below the safe head, so
+/// the engine must have it: its absence stops the node and an error response is retried.
+#[rstest]
+#[case::pinned_null(pinned_target(), Unavailable::Null, is_not_yet_available, Skip)]
+#[case::pinned_error_response(
+    pinned_target(),
+    Unavailable::ErrorResponse,
+    is_not_yet_available,
+    Skip
+)]
+#[case::by_number_null(numbered_target(), Unavailable::Null, is_block_not_found, Critical)]
+#[case::by_number_error_response(
+    numbered_target(),
+    Unavailable::ErrorResponse,
+    is_transport_error,
+    Temporary
+)]
+#[tokio::test]
+async fn finalize_task_handles_block_the_engine_cannot_serve(
+    #[case] target: FinalizeBlockId,
+    #[case] answer: Unavailable,
     #[case] is_expected_error: fn(&FinalizeTaskError) -> bool,
+    #[case] severity: EngineTaskErrorSeverity,
 ) {
     let mut state = engine_state(established());
     let original_state = state;
 
     let err =
-        finalize(target, &mut state, |l2| l2.expect_block_by_number(target.number(), served_block))
+        finalize(target, &mut state, |l2| expect_unavailable_block(l2, target.number(), answer))
             .await
             .unwrap_err();
 
     assert!(is_expected_error(&err), "{err:?}");
-    assert_eq!(err.severity(), EngineTaskErrorSeverity::Critical);
+    assert_eq!(err.severity(), severity, "{err:?}");
     assert_eq!(state, original_state);
+}
+
+/// A pinned target skipped while the engine catches up finalizes once its upstream resubmits it
+/// and the engine has the block.
+#[tokio::test]
+async fn resubmitted_pinned_target_finalizes_once_engine_has_it() {
+    let mut state = engine_state(established());
+    let served_block = canonical(ADVANCED);
+    let target = by_hash(&served_block);
+    let expected_sync_state = with_finalized_head(&state, l2_block_info(&served_block));
+
+    let err = finalize(target, &mut state, |l2| l2.expect_block_by_number(ADVANCED, None))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, FinalizeTaskError::NotYetAvailable { .. }), "{err:?}");
+
+    finalize(target, &mut state, |l2| {
+        l2.expect_block_by_number(ADVANCED, Some(served_block));
+        l2.expect_forkchoice_updated(
+            expected_sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Valid,
+        );
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(state.sync_state, expected_sync_state);
 }
