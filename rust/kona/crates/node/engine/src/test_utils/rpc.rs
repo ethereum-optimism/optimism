@@ -1,6 +1,6 @@
 //! Scripted RPC expectations over Alloy's mock transport.
 
-use crate::EngineClient;
+use crate::{EngineClient, test_utils::TestRpcBlock};
 use alloy_json_rpc::{ErrorPayload, RequestPacket, ResponsePacket};
 use alloy_network::Network;
 use alloy_provider::RootProvider;
@@ -56,6 +56,16 @@ impl RpcMock {
             Some(params),
             MockResponse::Success(serde_json::value::to_raw_value(&response).unwrap()),
             Duration::ZERO,
+        );
+    }
+
+    /// Expects a full-block `eth_getBlockByNumber` call for `number` and answers it with `block`,
+    /// or with null for `None`.
+    pub fn expect_block_by_number(&self, number: u64, block: Option<TestRpcBlock>) {
+        self.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([format!("{number:#x}"), true]),
+            block,
         );
     }
 

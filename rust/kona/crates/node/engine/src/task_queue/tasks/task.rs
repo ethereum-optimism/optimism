@@ -32,6 +32,10 @@ pub enum EngineTaskErrorSeverity {
     /// The error indicates that the engine should be flushed.
     #[display("flush")]
     Flush,
+    /// The task no longer applies to the engine state, so it is discarded instead of retried and
+    /// the engine keeps running.
+    #[display("skip")]
+    Skip,
 }
 
 /// The interface for an engine task error.

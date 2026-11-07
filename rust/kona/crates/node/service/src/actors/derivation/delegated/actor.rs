@@ -2,10 +2,11 @@ use crate::{
     DerivationActorRequest, DerivationEngineClient, NodeActor,
     actors::derivation::{DerivationDelegateProvider, DerivationError},
 };
+use alloy_eips::BlockNumHash;
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
 use kona_derive::{ChainProvider, Signal};
-use kona_engine::FinalizeBlockId;
+use kona_engine::{EngineState, FinalizeBlockId};
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use thiserror::Error;
 use tokio::{
@@ -42,6 +43,10 @@ where
     /// Publishes the delegate's `current_l1`: the L1 block that its derivation has reached.
     derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
 
+    /// The engine's state as it publishes it. Delegate statuses are checked against the
+    /// finalized head the engine applied, not the last one forwarded to it, which the engine may
+    /// have skipped.
+    engine_state_rx: watch::Receiver<EngineState>,
     /// The engine's L2 safe head, according to updates from the Engine.
     engine_l2_safe_head: L2BlockInfo,
     /// Whether the engine sync has completed. This will only ever go from false -> true.
@@ -64,6 +69,7 @@ where
         derivation_delegate_provider: DelegateProvider,
         l1_provider: L1Provider,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
+        engine_state_rx: watch::Receiver<EngineState>,
     ) -> Self {
         let mut delegated_derivation_ticker =
             time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
@@ -74,6 +80,7 @@ where
             derivation_delegate_provider,
             l1_provider,
             derivation_origin_tx,
+            engine_state_rx,
             engine_l2_safe_head: L2BlockInfo::default(),
             has_engine_sync_completed: false,
             delegated_derivation_ticker,
@@ -149,9 +156,44 @@ where
         Ok(())
     }
 
-    /// Verifies that the L1 info reported by the derivation delegate
-    /// are consistent with canonical L1 chain.
+    /// The id of an established finalized head. The default head means finality has not been
+    /// established yet, so any finalized block from the delegate may initialize it.
+    fn established_finalized_l2(finalized_head: L2BlockInfo) -> Option<BlockNumHash> {
+        (finalized_head != L2BlockInfo::default()).then(|| finalized_head.block_info.id())
+    }
+
+    /// Rejects a finalized L2 block behind, or at the same height as but different from, the
+    /// engine's. Either means the delegate lags or follows another chain, so none of its status
+    /// applies: its safe head would move the engine back or onto that chain too.
+    fn validate_finalized_l2_progress(
+        &self,
+        reported: BlockNumHash,
+    ) -> Result<(), DerivationDelegationError> {
+        let engine_finalized_head = self.engine_state_rx.borrow().sync_state.finalized_head();
+        let Some(engine) = Self::established_finalized_l2(engine_finalized_head) else {
+            return Ok(());
+        };
+        if reported.number < engine.number {
+            return Err(DerivationDelegationError::FinalizedL2Regressed { engine, reported });
+        }
+        if reported.number == engine.number && reported.hash != engine.hash {
+            return Err(DerivationDelegationError::FinalizedL2Conflict { engine, reported });
+        }
+        Ok(())
+    }
+
+    /// Verifies that the finalized L2 block reported by the derivation delegate does not move back
+    /// from the engine's, and that its L1 info is consistent with the canonical L1 chain.
     async fn validate_sync_status(&mut self, v: &SyncStatus) -> bool {
+        if let Err(err) = self.validate_finalized_l2_progress(v.finalized_l2.block_info.id()) {
+            warn!(
+                target: "derivation",
+                error = %err,
+                "Finalized L2 inconsistency detected at sync status from delegate"
+            );
+            return false;
+        }
+
         let checks = [
             ("L1 Origin of Safe L2", v.safe_l2.l1_origin.number, v.safe_l2.l1_origin.hash),
             (
@@ -227,9 +269,9 @@ where
                 debug!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
                 self.engine_l2_safe_head = *safe_head;
             }
-            DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
+            DerivationActorRequest::ProcessEngineSyncCompletionRequest(sync_state) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
-                self.engine_l2_safe_head = *safe_head;
+                self.engine_l2_safe_head = sync_state.local_safe_head();
                 self.has_engine_sync_completed = true;
             }
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => match *signal {
@@ -249,6 +291,14 @@ where
 
 #[derive(Error, Debug)]
 enum DerivationDelegationError {
+    /// The delegate's finalized L2 block is a different block at the engine's finalized height.
+    #[error("Finalized L2 {reported:?} conflicts with the engine's finalized L2 {engine:?}")]
+    FinalizedL2Conflict { engine: BlockNumHash, reported: BlockNumHash },
+
+    /// The delegate's finalized L2 block is behind the engine's.
+    #[error("Finalized L2 {reported:?} is behind the engine's finalized L2 {engine:?}")]
+    FinalizedL2Regressed { engine: BlockNumHash, reported: BlockNumHash },
+
     /// The L1 provider returned an error (network, RPC, etc.)
     #[error("L1 provider error: {0}")]
     L1Provider(String),
