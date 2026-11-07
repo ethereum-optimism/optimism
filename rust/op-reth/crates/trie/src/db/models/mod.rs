@@ -211,4 +211,13 @@ tables! {
         type Key = SnapshotMetaKey;
         type Value = SnapshotMeta;
     }
+
+    // -------------------- Store metadata --------------------
+
+    /// Versions the store records about itself, such as how far its history-index layout has been
+    /// migrated.
+    table V2StoreMeta {
+        type Key = StoreMetaKey;
+        type Value = u64;
+    }
 }

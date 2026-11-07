@@ -132,10 +132,43 @@ impl Decode for ProofWindowKey {
     }
 }
 
+/// Key of the proofs store's own metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum StoreMetaKey {
+    /// Version of the history-index layout the store has been migrated to. Absent means 0.
+    HistoryLayoutVersion = 0,
+}
+
+impl Encode for StoreMetaKey {
+    type Encoded = [u8; 1];
+
+    fn encode(self) -> Self::Encoded {
+        [self as u8]
+    }
+}
+
+impl Decode for StoreMetaKey {
+    fn decode(value: &[u8]) -> Result<Self, DatabaseError> {
+        match value.first() {
+            Some(&0) => Ok(Self::HistoryLayoutVersion),
+            _ => Err(DatabaseError::Decode),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use reth_trie::Nibbles;
+
+    #[test]
+    fn store_meta_key_roundtrip() {
+        let key = StoreMetaKey::HistoryLayoutVersion;
+        assert_eq!(StoreMetaKey::decode(&key.encode()).unwrap(), key);
+        assert!(StoreMetaKey::decode(&[1]).is_err(), "unknown key byte must not decode");
+        assert!(StoreMetaKey::decode(&[]).is_err(), "empty key must not decode");
+    }
 
     #[test]
     fn test_storage_branch_subkey_encode_decode() {
