@@ -164,6 +164,15 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindProofValidation |
 	optionKindSkipHonestProposer
 
+// The two-verifiers preset starts no proposer or challenger, so it takes no fault-proof options.
+const singleChainTwoVerifiersPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindBatcher |
+	optionKindOpReth |
+	optionKindGlobalL2CL |
+	optionKindL1EL |
+	optionKindTimeTravel |
+	optionKindAfterBuild
+
 // minimalNoFaultProofsPresetSupportedOptionKinds adds alt-DA, which only this preset supports (see WithAltDA).
 const minimalNoFaultProofsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindAltDA

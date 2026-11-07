@@ -32,15 +32,17 @@ func NewSingleChainMultiNodeRuntime(t devtest.T, withP2P bool) *SingleChainRunti
 }
 
 func NewSingleChainMultiNodeRuntimeWithConfig(t devtest.T, withP2P bool, cfg PresetConfig) *SingleChainRuntime {
-	return addSingleChainVerifier(t, NewMinimalRuntimeWithConfig(t, cfg), withP2P, cfg)
+	clKind := ResolveMixedL2CLKind()
+	return addSingleChainVerifier(t, newMinimalRuntime(t, cfg, resolveSequencerCLKind(cfg)), clKind, withP2P, cfg)
 }
 
 func NewSingleChainWithIsolatedVerifierRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
-	return addSingleChainVerifier(t, NewMinimalNoFaultProofsRuntimeWithConfig(t, cfg), false, cfg)
+	clKind := ResolveMixedL2CLKind()
+	return addSingleChainVerifier(t, newMinimalNoFaultProofsRuntime(t, cfg, resolveSequencerCLKind(cfg)), clKind, false, cfg)
 }
 
-func addSingleChainVerifier(t devtest.T, runtime *SingleChainRuntime, withP2P bool, cfg PresetConfig) *SingleChainRuntime {
-	nodeB := addSingleChainOpNode(t, runtime, "b", false, "", cfg.GlobalL2CLOptions...)
+func addSingleChainVerifier(t devtest.T, runtime *SingleChainRuntime, clKind MixedL2CLKind, withP2P bool, cfg PresetConfig) *SingleChainRuntime {
+	nodeB := addSingleChainNode(t, runtime, "b", clKind, false, "", cfg.GlobalL2CLOptions...)
 	if withP2P {
 		connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeB)
 	}
@@ -52,11 +54,22 @@ func NewSingleChainTwoVerifiersRuntime(t devtest.T) *SingleChainRuntime {
 	return NewSingleChainTwoVerifiersRuntimeWithConfig(t, PresetConfig{})
 }
 
+// NewSingleChainTwoVerifiersRuntimeWithConfig adds two verifiers to a minimal runtime without
+// fault proofs: "b" derives from L1, and "c" follows "b" as its follow source. The CL kind of each
+// node comes from newSingleChainTwoVerifiersCLKinds.
 func NewSingleChainTwoVerifiersRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
-	runtime := NewSingleChainMultiNodeRuntimeWithConfig(t, true, cfg)
+	requestedCLKind := ResolveMixedL2CLKind()
+	clKinds := newSingleChainTwoVerifiersCLKinds(requestedCLKind)
+	t.Logger().Info("Pinned the L2 CL kind of the sequencer and verifier b; verifier c uses the requested kind",
+		"requestedKind", requestedCLKind,
+		"b", clKinds.DerivingVerifier,
+		"c", clKinds.FollowSourceVerifier,
+		"sequencer", clKinds.Sequencer,
+	)
+	runtime := addSingleChainVerifier(t, newMinimalNoFaultProofsRuntime(t, cfg, clKinds.Sequencer), clKinds.DerivingVerifier, true, cfg)
 	nodeB := runtime.Nodes["b"]
 	t.Require().NotNil(nodeB, "missing single-chain node b")
-	nodeC := addSingleChainOpNode(t, runtime, "c", false, nodeB.CL.UserRPC(), cfg.GlobalL2CLOptions...)
+	nodeC := addSingleChainNode(t, runtime, "c", clKinds.FollowSourceVerifier, false, nodeB.CL.UserRPC(), cfg.GlobalL2CLOptions...)
 
 	connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeC)
 	connectSingleChainNodes(t, nodeB.EL, nodeB.CL, nodeC)
@@ -64,6 +77,24 @@ func NewSingleChainTwoVerifiersRuntimeWithConfig(t devtest.T, cfg PresetConfig) 
 	// Follow legacy behavior: test-sequencer is wired against node "b".
 	replaceSingleChainTestSequencer(t, runtime, "dev", nodeB)
 	return runtime
+}
+
+type singleChainTwoVerifiersCLKinds struct {
+	DerivingVerifier     MixedL2CLKind
+	FollowSourceVerifier MixedL2CLKind
+	Sequencer            MixedL2CLKind
+}
+
+// newSingleChainTwoVerifiersCLKinds runs the sequencer and the deriving verifier on op-node
+// whatever the requested kind, and only the follow-source verifier on the requested kind, so a
+// kona-node run exercises kona's follow-source mode against an op-node upstream rather than kona
+// sequencing or derivation.
+func newSingleChainTwoVerifiersCLKinds(requested MixedL2CLKind) singleChainTwoVerifiersCLKinds {
+	return singleChainTwoVerifiersCLKinds{
+		DerivingVerifier:     MixedL2CLOpNode,
+		FollowSourceVerifier: requested,
+		Sequencer:            MixedL2CLOpNode,
+	}
 }
 
 func NewSimpleWithSyncTesterRuntime(t devtest.T) *SingleChainRuntime {
@@ -116,6 +147,7 @@ func NewMinimalWithConductorsRuntime(t devtest.T) *SingleChainRuntime {
 }
 
 func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	clKind := ResolveMixedL2CLKind()
 	// The CL and conductor depend on each other's RPC endpoints. Allocate a
 	// stable proxy for each conductor before starting its CL, then attach the
 	// conductor once its dynamically allocated RPC port is known.
@@ -140,22 +172,24 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	// challenger, and rust e2e jobs do not build cannon artifacts.
 	runtime := newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
 		BuildWorld:      newDefaultSingleChainWorld,
+		SequencerCLKind: clKind,
 		StartPrimary:    startStoppedSingleChainPrimary,
+
 		StartBatcher:    true,
-		StartProposer:   true,
 		StartChallenger: false,
+		StartProposer:   true,
 	})
 	// Every conductor member sequences once leadership reaches it, so a binary override has to
 	// apply to all of them or it would silently stop taking effect on transfer. The primary already
 	// received these options from startStoppedSingleChainPrimary.
 	candidateELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
-	nodeB := addStoppedSingleChainSequencerNode(t, runtime, "b", candidateELOpts, cfg.GlobalL2CLOptions...)
-	nodeC := addStoppedSingleChainSequencerNode(t, runtime, "c", candidateELOpts, cfg.GlobalL2CLOptions...)
+	nodeB := addStoppedSingleChainSequencerNode(t, runtime, "b", clKind, candidateELOpts, cfg.GlobalL2CLOptions...)
+	nodeC := addStoppedSingleChainSequencerNode(t, runtime, "c", clKind, candidateELOpts, cfg.GlobalL2CLOptions...)
 
 	// A non-candidate node, always stock: it never sequences, so it independently validates every
 	// block the candidates build. Without it an overridden binary on all three members could accept
 	// its own invalid blocks and the run would still pass.
-	nodeVerifier := addSingleChainOpNode(t, runtime, "verifier", false, "", cfg.GlobalL2CLOptions...)
+	nodeVerifier := addSingleChainNode(t, runtime, "verifier", clKind, false, "", cfg.GlobalL2CLOptions...)
 
 	healthCheck := conductorHealthCheckConfig(cfg.ConductorFastHealthChecks)
 	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, runtime.L2CL, conductorRPCProxies["sequencer"], runtime.L2EL, true, false, healthCheck)
@@ -233,24 +267,26 @@ func replaceSingleChainTestSequencer(t devtest.T, runtime *SingleChainRuntime, n
 	runtime.TestSequencer = newTestSequencerRuntime(testSequencer, name)
 }
 
-func addSingleChainOpNode(
+func addSingleChainNode(
 	t devtest.T,
 	runtime *SingleChainRuntime,
 	name string,
+	clKind MixedL2CLKind,
 	isSequencer bool,
 	followSource string,
 	l2Opts ...L2CLOption,
 ) *SingleChainNodeRuntime {
-	return addSingleChainOpNodeWithELOpts(t, runtime, name, isSequencer, followSource, nil, l2Opts...)
+	return addSingleChainNodeWithELOpts(t, runtime, name, clKind, isSequencer, followSource, nil, l2Opts...)
 }
 
-// addSingleChainOpNodeWithELOpts adds a node whose EL takes op-reth options. Passing none yields a
+// addSingleChainNodeWithELOpts adds a node whose EL takes op-reth options. Passing none yields a
 // stock op-reth, which is what lets a preset keep an independent check on blocks built by an
 // overridden binary.
-func addSingleChainOpNodeWithELOpts(
+func addSingleChainNodeWithELOpts(
 	t devtest.T,
 	runtime *SingleChainRuntime,
 	name string,
+	clKind MixedL2CLKind,
 	isSequencer bool,
 	followSource string,
 	elOpts []OpRethOption,
@@ -259,7 +295,7 @@ func addSingleChainOpNodeWithELOpts(
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
 	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0), elOpts...)
-	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts)
+	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, clKind, name, name, isSequencer, followSource, l2Opts)
 	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, l2CL)
 	runtime.Nodes[name] = node
 	return node
@@ -271,6 +307,7 @@ func addStoppedSingleChainSequencerNode(
 	t devtest.T,
 	runtime *SingleChainRuntime,
 	name string,
+	clKind MixedL2CLKind,
 	elOpts []OpRethOption,
 	l2Opts ...L2CLOption,
 ) *SingleChainNodeRuntime {
@@ -279,7 +316,7 @@ func addStoppedSingleChainSequencerNode(
 	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0), elOpts...)
 	l2CL := startStoppedSequencerCL(
 		t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL,
-		l2EL, jwtSecret, name, l2Opts,
+		l2EL, jwtSecret, clKind, name, l2Opts,
 	)
 	node := newSingleChainNodeRuntime(name, true, l2EL, l2CL)
 	runtime.Nodes[name] = node
