@@ -937,9 +937,19 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 		m.metr.RecordBlobBaseFee(blobFee)
 	}
 
+	// The confirmations are counted from the configured L1 block, which is the tip by default.
+	if label := m.cfg.NumConfirmationsBlockTag; label == eth.Safe || label == eth.Finalized {
+		tip, err = m.backend.HeaderByNumber(ctx, confirmationsBlockNumber(label))
+		if err != nil {
+			m.metr.RPCError()
+			m.l.Error("Unable to fetch confirmations block", "label", label, "err", err)
+			return nil
+		}
+	}
+
 	m.l.Debug("Transaction mined, checking confirmations", "tx", txHash,
 		"block", eth.ReceiptBlockID(receipt), "tip", eth.HeaderBlockID(tip),
-		"numConfirmations", m.cfg.NumConfirmations)
+		"numConfirmations", m.cfg.NumConfirmations, "numConfirmationsBlockTag", m.cfg.NumConfirmationsBlockTag)
 
 	// The transaction is considered confirmed when
 	// txHeight+numConfirmations-1 <= tipHeight. Note that the -1 is
@@ -960,6 +970,14 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	confsRemaining := (txHeight + m.cfg.NumConfirmations) - (tipHeight + 1)
 	m.l.Debug("Transaction not yet confirmed", "tx", txHash, "confsRemaining", confsRemaining)
 	return nil
+}
+
+// confirmationsBlockNumber returns the block number argument that selects the given label.
+func confirmationsBlockNumber(label eth.BlockLabel) *big.Int {
+	if label == eth.Finalized {
+		return big.NewInt(int64(rpc.FinalizedBlockNumber))
+	}
+	return big.NewInt(int64(rpc.SafeBlockNumber))
 }
 
 // increaseGasPrice returns a new transaction that is equivalent to the input transaction but with
