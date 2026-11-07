@@ -100,7 +100,7 @@ func devstackL2CLKind() MixedL2CLKind {
 // ResolveMixedL2CLKind returns the L2 CL kind requested via DEVSTACK_L2CL_KIND,
 // defaulting to op-node when the variable is unset. Tests that build explicit
 // MixedSingleChainNodeSpec lists use this so they honor the same env-driven CL
-// selection as the higher-level single-chain presets (see startL2CLForKey).
+// selection as the higher-level single-chain presets.
 func ResolveMixedL2CLKind() MixedL2CLKind {
 	if kind := devstackL2CLKind(); kind != "" {
 		return kind
