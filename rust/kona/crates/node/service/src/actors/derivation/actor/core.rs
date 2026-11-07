@@ -346,16 +346,21 @@ where
                 // Attempt to finalize the block. If successful, notify engine.
                 if let Some(l2_block_number) = self.finalizer.try_finalize_next(*finalized_l1_block)
                 {
-                    // Local L1-finality: the engine's own canonical chain is the authoritative
-                    // source at this height, so finalize by number.
-                    self.engine_client
-                        .send_finalized_l2_block(FinalizeBlockId::ByNumber(l2_block_number))
-                        .await
-                        .map_err(|e| DerivationError::Sender(Box::new(e)))?;
+                    self.finalize_l2_block_by_number(l2_block_number).await?;
                 }
             }
             DerivationActorRequest::ProcessL1HeadUpdateRequest(l1_head) => {
                 info!(target: "derivation", l1_head = ?*l1_head, "Processing l1 head update");
+
+                // Like op-node's retry when derivation goes idle: a block that became safe after
+                // L1 finality last moved, or whose finalization the engine skipped because a
+                // reset lowered its safe head, is finalized without waiting for L1 finality to
+                // move again. The L1 head cadence batches the blocks confirmed since the last
+                // update, as op-node's finality delay does, instead of finalizing on every
+                // confirmation.
+                if let Some(l2_block_number) = self.finalizer.try_finalize_against_known_l1() {
+                    self.finalize_l2_block_by_number(l2_block_number).await?;
+                }
 
                 self.derivation_state_machine.update(&DerivationStateUpdate::L1DataReceived)?;
 
@@ -461,6 +466,21 @@ where
             info!(target: "derivation", reason, safe_head = resume_head.block_info.number, "Recorded genesis safe head at L1 block zero");
         }
         Ok(())
+    }
+
+    /// Asks the engine to finalize the L2 block at `l2_block_number`, the highest derived block
+    /// whose L1 inputs are finalized.
+    async fn finalize_l2_block_by_number(
+        &self,
+        l2_block_number: u64,
+    ) -> Result<(), DerivationError> {
+        debug!(target: "derivation", l2_block_number, "Sending L2 block to finalize to the engine");
+        // Local L1-finality: the engine's own canonical chain is the authoritative source at this
+        // height, so finalize by number.
+        self.engine_client
+            .send_finalized_l2_block(FinalizeBlockId::ByNumber(l2_block_number))
+            .await
+            .map_err(|e| DerivationError::Sender(Box::new(e)))
     }
 
     /// Attempts to process the next payload attributes.
