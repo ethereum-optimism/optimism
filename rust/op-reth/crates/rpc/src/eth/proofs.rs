@@ -2,7 +2,7 @@
 
 use crate::{
     metrics::EthApiExtMetrics,
-    state::{OpStateProviderFactory, ensure_within_proofs_window},
+    state::{OpProofProviderFactory, ensure_within_proofs_window},
 };
 use alloy_eips::BlockId;
 use alloy_primitives::Address;
@@ -14,7 +14,6 @@ use jsonrpsee_core::RpcResult;
 use jsonrpsee_types::error::ErrorObject;
 use reth_errors::RethError;
 use reth_optimism_trie::{OpProofsStorage, OpProofsStore};
-use reth_provider::StateProofProvider;
 use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_api::FromEthApiError;
 use reth_rpc_eth_types::EthApiError;
@@ -63,11 +62,12 @@ where
     /// UPSTREAM-MIRROR(copy): reth@rev:8d359d0
     /// `reth_rpc_eth_api::helpers::state::EthState::get_proof`
     ///
-    /// Uses the OP proofs-history state provider while preserving upstream permit and blocking-task
-    /// behavior. Upstream's `ensure_within_proof_window` bounds the distance from the tip by
-    /// `max_proof_window`; a proofs-history node instead serves its proofs storage window. Unlike
-    /// upstream, which takes the permit first and then checks its window, this checks the window
-    /// before taking the permit, so out-of-window requests never wait for one.
+    /// Reads account proofs directly from OP proofs storage while preserving upstream permit and
+    /// blocking-task behavior. Upstream's `ensure_within_proof_window` bounds the distance from the
+    /// tip by `max_proof_window`; a proofs-history node instead serves its proofs storage
+    /// window. Unlike upstream, which takes the permit first and then checks its window, this
+    /// checks the window before taking the permit, so out-of-window requests never wait for
+    /// one.
     async fn get_proof_inner(
         &self,
         address: Address,
@@ -90,14 +90,10 @@ where
                 // Hold the proof permit for the full lifetime of the blocking task, including
                 // after the requesting future is cancelled.
                 let _permit = permit;
-                let state_provider_factory = OpStateProviderFactory::new(eth_api, preimage_store);
-                let state = state_provider_factory
-                    .state_provider(block_id)
-                    .await
-                    .map_err(Eth::Error::from_eth_err)?;
+                let proofs = OpProofProviderFactory::new(eth_api.provider(), preimage_store);
                 let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
-                let proof = state
-                    .proof(Default::default(), address, &storage_keys)
+                let proof = proofs
+                    .account_proof(block_id, address, &storage_keys)
                     .map_err(Eth::Error::from_eth_err)?;
                 Ok(proof.into_eip1186_response(keys))
             })
