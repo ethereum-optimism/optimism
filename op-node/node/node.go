@@ -398,17 +398,21 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) er
 	node.runCfg = runCfg
 
 	confDepth := cfg.Driver.VerifierConfDepth
+	confLabel := cfg.Driver.VerifierL1BlockTag
+	if confLabel == "" {
+		confLabel = eth.Unsafe
+	}
 	reload := func(ctx context.Context) (eth.L1BlockRef, error) {
 		fetchCtx, fetchCancel := context.WithTimeout(ctx, time.Second*10)
-		l1Head, err := node.l1Source.L1BlockRefByLabel(fetchCtx, eth.Unsafe)
+		l1Ref, err := node.l1Source.L1BlockRefByLabel(fetchCtx, confLabel)
 		fetchCancel()
 		if err != nil {
-			node.log.Error("failed to fetch L1 head for runtime config initialization", "err", err)
+			node.log.Error("failed to fetch L1 block for runtime config initialization", "label", confLabel, "err", err)
 			return eth.L1BlockRef{}, err
 		}
 
 		// Apply confirmation-distance
-		blNum := l1Head.Number
+		blNum := l1Ref.Number
 		if blNum >= confDepth {
 			blNum -= confDepth
 		}
@@ -425,10 +429,10 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) er
 		fetchCancel()
 		if err != nil {
 			node.log.Error("failed to fetch runtime config data", "err", err)
-			return l1Head, err
+			return l1Ref, err
 		}
 
-		return l1Head, nil
+		return l1Ref, nil
 	}
 
 	// initialize the runtime config before unblocking

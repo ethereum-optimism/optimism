@@ -132,6 +132,9 @@ func (cfg *Config) Check() error {
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)
 	}
+	if err := cfg.Driver.Check(); err != nil {
+		return fmt.Errorf("driver config error: %w", err)
+	}
 	if !cfg.IgnoreMissingPectraBlobSchedule && cfg.Rollup.ProbablyMissingPectraBlobSchedule() {
 		log.Error("Your rollup config seems to be missing the Pectra blob schedule fix. " +
 			"Reach out to your chain operator for the correct Pectra blob schedule configuration. " +

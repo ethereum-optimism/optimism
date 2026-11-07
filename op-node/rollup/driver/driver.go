@@ -58,7 +58,8 @@ func NewDriver(
 	l1Tracker := status.NewL1Tracker(l1)
 
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
-	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
+	verifConfDepth := confdepth.NewConfDepthFromLabel(driverCfg.VerifierConfDepth, driverCfg.VerifierL1BlockTag,
+		statusTracker.L1RefGetter(driverCfg.VerifierL1BlockTag), l1)
 
 	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, l1, sys.Register("engine-controller", nil), superAuthority)
 	// TODO(#17115): Refactor dependency cycles
@@ -108,7 +109,8 @@ func NewDriver(
 	if driverCfg.SequencerEnabled {
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, l2)
-		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
+		sequencerConfDepth := confdepth.NewConfDepthFromLabel(driverCfg.SequencerConfDepth, driverCfg.SequencerL1BlockTag,
+			statusTracker.L1RefGetter(driverCfg.SequencerL1BlockTag), l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
 
