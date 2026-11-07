@@ -2,6 +2,7 @@ use crate::{DerivationActorRequest, DerivationClientError, DerivationClientResul
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_derive::Signal;
+use kona_engine::EngineSyncState;
 use kona_protocol::L2BlockInfo;
 use std::fmt::Debug;
 use tokio::sync::mpsc;
@@ -10,9 +11,13 @@ use tokio::sync::mpsc;
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait EngineDerivationClient: Debug + Send + Sync {
-    /// Notifies the [`crate::DerivationActor`] that engine syncing has completed.
+    /// Notifies the [`crate::DerivationActor`] that engine syncing has completed, with the engine's
+    /// sync state at that point.
     /// Note: Does not wait for the derivation client to process this message.
-    async fn notify_sync_completed(&self, safe_head: L2BlockInfo) -> DerivationClientResult<()>;
+    async fn notify_sync_completed(
+        &self,
+        sync_state: EngineSyncState,
+    ) -> DerivationClientResult<()>;
 
     /// Sends the new engine `safe_head` to the [`crate::DerivationActor`].
     /// Note: Does not wait for the derivation client to process this message.
@@ -33,11 +38,14 @@ pub struct QueuedEngineDerivationClient {
 
 #[async_trait]
 impl EngineDerivationClient for QueuedEngineDerivationClient {
-    async fn notify_sync_completed(&self, safe_head: L2BlockInfo) -> DerivationClientResult<()> {
+    async fn notify_sync_completed(
+        &self,
+        sync_state: EngineSyncState,
+    ) -> DerivationClientResult<()> {
         info!(target: "engine", "Sending sync completed to derivation actor");
 
         self.derivation_actor_request_tx
-            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(safe_head)))
+            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(sync_state)))
             .await
             .map_err(|_| {
                 DerivationClientError::RequestError("request channel closed.".to_string())

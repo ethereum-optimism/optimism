@@ -10,7 +10,7 @@ use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
     Signal, SignalReceiver, StepResult,
 };
-use kona_engine::FinalizeBlockId;
+use kona_engine::{EngineSyncState, EngineSyncStateUpdate, FinalizeBlockId};
 use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use kona_safedb::{SafeDatabase, SafeDb, SafeDbError, SafeHeadRecord};
@@ -41,12 +41,7 @@ async fn reset_adopts_safe_head_and_resumes_atomically(#[case] previous_head: u6
         l1_block(0).id(),
         watch::channel(None).0,
     );
-    request_tx
-        .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(l2_block(
-            previous_head,
-        ))))
-        .await
-        .unwrap();
+    request_tx.send(engine_sync_completed_at(l2_block(previous_head))).await.unwrap();
     actor.step().await.unwrap();
 
     request_tx
@@ -267,10 +262,7 @@ async fn test_origin_is_published(#[case] step_result: StepResult) {
     actor.step().await.unwrap();
     assert_eq!(derivation_origin_rx.borrow().map(|origin| origin.id()), Some(safe_head.l1_origin));
 
-    request_tx
-        .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(safe_head)))
-        .await
-        .unwrap();
+    request_tx.send(engine_sync_completed_at(safe_head)).await.unwrap();
     actor.step().await.unwrap();
     assert_eq!(derivation_origin_rx.borrow().unwrap().number, 11);
 
@@ -465,6 +457,16 @@ fn l1_block(number: u64) -> BlockInfo {
     BlockInfo { hash: B256::with_last_byte(number as u8), number, ..Default::default() }
 }
 
+/// The engine reporting that its sync completed with `safe_head` as its safe heads.
+fn engine_sync_completed_at(safe_head: L2BlockInfo) -> DerivationActorRequest {
+    let sync_state = EngineSyncState::default().apply_update(EngineSyncStateUpdate {
+        local_safe_head: Some(safe_head),
+        safe_head: Some(safe_head),
+        ..Default::default()
+    });
+    DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(sync_state))
+}
+
 fn l2_block(number: u64) -> L2BlockInfo {
     L2BlockInfo {
         block_info: BlockInfo {
@@ -535,10 +537,7 @@ impl RecordingActor {
     }
 
     async fn complete_el_sync_at(&mut self, head: u64) {
-        self.handle(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(
-            l2_block(head),
-        )))
-        .await;
+        self.handle(engine_sync_completed_at(l2_block(head))).await;
     }
 
     async fn confirm_safe_head(&mut self, head: u64) {
