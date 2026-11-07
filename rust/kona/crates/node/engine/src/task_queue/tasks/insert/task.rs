@@ -2,7 +2,8 @@
 
 use crate::{
     EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink, InsertTaskError,
-    state::EngineSyncStateUpdate, task_queue::synchronize,
+    state::EngineSyncStateUpdate,
+    task_queue::{ForkchoiceDelivery, synchronize},
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -125,6 +126,7 @@ pub(in crate::task_queue) async fn insert_payload(
             safe_head: is_payload_safe.then_some(new_unsafe_ref),
             ..Default::default()
         },
+        ForkchoiceDelivery::WhenChanged,
     )
     .await?;
 
