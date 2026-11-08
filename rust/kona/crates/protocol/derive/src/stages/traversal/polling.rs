@@ -147,8 +147,11 @@ impl<F: ChainProvider + Send> Stage for PollingTraversal<F> {
         l1_origin: BlockNumHash,
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
-        let block_info =
-            self.data_source.block_info_by_number(l1_origin.number).await.map_err(Into::into)?;
+        let block_info = self
+            .data_source
+            .block_info_by_number_for_reset(l1_origin.number)
+            .await
+            .map_err(Into::into)?;
         self.update_origin(block_info);
         self.system_config = system_config;
         Ok(())

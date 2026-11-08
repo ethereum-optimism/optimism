@@ -47,7 +47,6 @@ async-trait.workspace = true
 tokio = { workspace = true, features = ["time"] }
 ipnet = { workspace = true }
 enr.workspace = true
-backon = { workspace = true }
 
 # `serde`
 serde = { workspace = true, features = ["std"] }

@@ -133,7 +133,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
@@ -181,7 +181,7 @@ jobs:
     # One test per node via the timing split in test-e2e-sysgo-run.
     parallelism: 3
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
@@ -217,7 +217,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
@@ -255,7 +255,7 @@ jobs:
     # 8 nodes roughly halves per-node test time vs 4.
     parallelism: 8
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
@@ -294,7 +294,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - rust-prepare-and-restore-cache: &sp1-guest-checks-cache-args
@@ -386,7 +386,7 @@ jobs:
     # 32 GB runner instead of competing with parallel acceptance tests.
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - rust-prepare-and-restore-cache:
@@ -475,7 +475,7 @@ jobs:
     # The executor run peaks at ~12.5 GiB RSS (measured locally), too close to xlarge's 16 GB.
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - rust-prepare-and-restore-cache:
@@ -506,7 +506,7 @@ jobs:
     # 32 GB runner.
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:

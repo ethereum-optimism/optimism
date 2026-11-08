@@ -29,12 +29,17 @@ const ENDPOINT_VERDICTS: &str = "optimism_transaction_pool.interop.endpoint.verd
 /// `EndpointMetrics` used to emit, so existing dashboards keep working.
 const ENDPOINT_QUERY_LATENCY: &str = "optimism_transaction_pool.interop.endpoint.query_latency";
 
-/// Fully-qualified name of the per-endpoint health gauge: `1` if the endpoint answered its last
-/// *completed* check (valid or invalid — both mean it responded), `0` if that check was a
-/// non-response. Left untouched when a check is cancelled by fast-accept, so it reflects the last
-/// real outcome. `sum(endpoint.up)` against
-/// [`quorum_min_responses`](InteropMetrics::quorum_min_responses) is the fail-closed headroom: it
-/// drops as endpoints fall away, *before* quorum is lost.
+/// Fully-qualified name of the per-endpoint health gauge: `1` if the endpoint's last completed
+/// check returned a verdict (valid or invalid), `0` if it was a non-response. `sum(endpoint.up)`
+/// against [`quorum_min_responses`](InteropMetrics::quorum_min_responses) is the fail-closed
+/// headroom: it drops as endpoints stop answering, *before* quorum is lost.
+///
+/// A check cancelled by fast-accept and a
+/// [too recent](InteropTxValidatorError::is_message_too_recent) answer leave it unchanged. That
+/// answer still misses quorum, so `rejected_no_quorum` can fire at full headroom, and a filter
+/// whose ingestion stalled keeps its last value; its `verdicts{verdict="valid"}` rate falls
+/// against its peers instead, and the filter's own
+/// `op_interop_filter_default_ingestion_lag_seconds` rises.
 const ENDPOINT_UP: &str = "optimism_transaction_pool.interop.endpoint.up";
 
 /// `result` label values for [`InteropMetrics::record_decision`]. Every transaction that reaches
@@ -107,8 +112,7 @@ pub struct EndpointMetrics {
     invalid: Counter,
     /// Non-responses from this endpoint (timeout, transport error, soft out-of-sync).
     unavailable: Counter,
-    /// `1` if this endpoint's last completed check produced a verdict, `0` if it was a
-    /// non-response. See [`ENDPOINT_UP`].
+    /// Per-endpoint health gauge. See [`ENDPOINT_UP`].
     up: Gauge,
 }
 
@@ -136,26 +140,24 @@ impl EndpointMetrics {
         self.query_latency.record(duration.as_secs_f64());
     }
 
-    /// Records this endpoint's definitive valid verdict (a valid verdict still means it responded).
-    #[inline]
-    pub fn record_valid(&self) {
-        self.valid.increment(1);
-        self.up.set(1.0);
-    }
-
-    /// Records this endpoint's definitive invalid verdict (an invalid verdict still means it
-    /// responded).
-    #[inline]
-    pub fn record_invalid(&self) {
-        self.invalid.increment(1);
-        self.up.set(1.0);
-    }
-
-    /// Records this endpoint's non-response (timeout, transport error, soft out-of-sync).
-    #[inline]
-    pub fn record_unavailable(&self) {
-        self.unavailable.increment(1);
-        self.up.set(0.0);
+    /// Records the outcome of this endpoint's completed check. See `ENDPOINT_UP` for how each
+    /// outcome moves the health gauge.
+    pub fn record_verdict(&self, verdict: &Result<(), InteropTxValidatorError>) {
+        match verdict {
+            Ok(()) => {
+                self.valid.increment(1);
+                self.up.set(1.0);
+            }
+            Err(e) if e.is_definitive_invalid() => {
+                self.invalid.increment(1);
+                self.up.set(1.0);
+            }
+            Err(e) if e.is_message_too_recent() => self.unavailable.increment(1),
+            Err(_) => {
+                self.unavailable.increment(1);
+                self.up.set(0.0);
+            }
+        }
     }
 }
 
@@ -315,7 +317,8 @@ fn describe_metrics() {
     );
     describe_gauge!(
         ENDPOINT_UP,
-        "1 if an interop endpoint answered its last completed check, else 0; sum vs \
+        "1 if an interop endpoint's last completed check returned a verdict, 0 if a non-response; \
+         a too-recent-message answer leaves it unchanged but still misses quorum; sum vs \
          quorum_min_responses is the fail-closed headroom (labels: endpoint)"
     );
 }
@@ -323,9 +326,109 @@ fn describe_metrics() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
+    use rstest::rstest;
 
     fn server_error() -> InteropTxValidatorError {
         InteropTxValidatorError::other(std::io::Error::other("filter unreachable"))
+    }
+
+    fn data_unavailable(code: i32) -> Result<(), InteropTxValidatorError> {
+        Err(InteropTxValidatorError::DataUnavailable { code })
+    }
+
+    #[derive(Debug, Default, PartialEq)]
+    struct EndpointState {
+        up: f64,
+        valid: u64,
+        invalid: u64,
+        unavailable: u64,
+    }
+
+    /// Returns the endpoint's metric values after recording `verdicts` in order.
+    fn endpoint_state(verdicts: &[Result<(), InteropTxValidatorError>]) -> EndpointState {
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            let endpoint = EndpointMetrics::for_endpoint(0);
+            for verdict in verdicts {
+                endpoint.record_verdict(verdict);
+            }
+        });
+
+        let mut state = EndpointState::default();
+        for (key, _, _, value) in snapshotter.snapshot().into_vec() {
+            let key = key.key();
+            match value {
+                DebugValue::Gauge(value) if key.name() == ENDPOINT_UP => {
+                    state.up = value.into_inner();
+                }
+                DebugValue::Counter(value) if key.name() == ENDPOINT_VERDICTS => {
+                    let verdict = key.labels().find(|label| label.key() == "verdict");
+                    match verdict.expect("verdict counter has a verdict label").value() {
+                        VERDICT_VALID => state.valid = value,
+                        VERDICT_INVALID => state.invalid = value,
+                        VERDICT_UNAVAILABLE => state.unavailable = value,
+                        other => panic!("unexpected verdict label {other}"),
+                    }
+                }
+                _ => {}
+            }
+        }
+        state
+    }
+
+    /// A too-recent answer counts as unavailable but must not move the gauge in either direction.
+    #[test]
+    fn out_of_scope_counts_as_unavailable_but_keeps_up() {
+        assert_eq!(
+            endpoint_state(&[data_unavailable(-321100)]),
+            EndpointState { up: 1.0, unavailable: 1, ..Default::default() }
+        );
+        assert_eq!(
+            endpoint_state(&[Ok(()), data_unavailable(-321100)]),
+            EndpointState { up: 1.0, valid: 1, unavailable: 1, ..Default::default() }
+        );
+        assert_eq!(
+            endpoint_state(&[Err(server_error()), data_unavailable(-321100)]),
+            EndpointState { up: 0.0, unavailable: 2, ..Default::default() }
+        );
+    }
+
+    #[rstest]
+    #[case::future_data(data_unavailable(-321401))]
+    #[case::uninitialized(data_unavailable(-320400))]
+    #[case::timeout(Err(InteropTxValidatorError::Timeout(2)))]
+    #[case::transport(Err(server_error()))]
+    #[case::failsafe(Err(InteropTxValidatorError::FailsafeEnabled))]
+    fn non_response_drops_up(#[case] verdict: Result<(), InteropTxValidatorError>) {
+        assert_eq!(
+            endpoint_state(&[Ok(()), verdict]),
+            EndpointState { up: 0.0, valid: 1, unavailable: 1, ..Default::default() }
+        );
+    }
+
+    #[rstest]
+    #[case::valid(Ok(()), 1, 0)]
+    #[case::invalid(
+        Err(InteropTxValidatorError::InvalidEntry(SuperchainDAError::ConflictingData)),
+        0,
+        1
+    )]
+    #[case::rejected(
+        Err(InteropTxValidatorError::Rejected { code: -32602, message: String::new() }),
+        0,
+        1
+    )]
+    fn verdict_restores_up(
+        #[case] verdict: Result<(), InteropTxValidatorError>,
+        #[case] valid: u64,
+        #[case] invalid: u64,
+    ) {
+        assert_eq!(
+            endpoint_state(&[Err(server_error()), verdict]),
+            EndpointState { up: 1.0, valid, invalid, unavailable: 1 }
+        );
     }
 
     #[test]

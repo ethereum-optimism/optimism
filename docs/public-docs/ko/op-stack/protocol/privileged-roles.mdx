@@ -1,0 +1,205 @@
+---
+title: OP Stack 체인의 권한 역할
+description: OP Stack 체인의 권한 역할(privileged roles)에 대해 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="OP Stack의 Stage 1 보안 모델"
+  title="Stage 1 역할 및 요구 사항 사양"
+  href="https://specs.optimism.io/protocol/stage-1.html"
+  note="이 페이지는 각 역할과 그 위험을 설명하며, 사양 내용을 다시 서술하지 않습니다."
+/>
+
+OP Stack에는 특정 주소가 특정 작업을 수행할 수 있도록 하는 몇 가지 권한 역할(privileged roles)이 있습니다.
+이러한 역할은 여러 OP Stack 체인에서 공유되므로, OP Stack 생태계의 구성원과 사용자는 이 역할과 관련 위험을 알고 있어야 합니다.
+이 페이지를 읽고 각 역할이 무엇인지, 왜 존재하는지, 어떤 위험을 수반하는지 이해하십시오.
+
+## L1 Proxy Admin
+
+L1 Proxy Admin은 대부분의 OP Stack 체인 시스템 컨트랙트를 업그레이드하는 데 사용할 수 있는 주소입니다.
+
+### 위험
+
+*   L1 Proxy Admin이 탈취되면 컨트랙트를 악의적인 버전으로 업그레이드할 수 있습니다.
+*   L1 Proxy Admin이 탈취되면 Standard Bridge의 ETH 또는 토큰을 제거하거나 잠글 수 있습니다.
+*   L1 Proxy Admin이 탈취되면 이 페이지에 설명된 위험을 완화하지 못할 수 있습니다.
+
+### 완화 조치
+
+*   L1 Proxy Admin 소유자는 2-of-2 [멀티시그](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A#readProxyContract)입니다. 한 소유자는 Optimism Foundation의 5/7 [멀티시그](https://etherscan.io/address/0x847B5c174615B1B7fDF770882256e2D3E95b9D92#readProxyContract)이고, 다른 소유자는 [Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885) [멀티시그](https://etherscan.io/address/0xc2819DC788505Aac350142A7A707BF9D03E3Bd03#readProxyContract)입니다.
+
+### 주소
+
+*   **Ethereum의 Optimism 거버넌스 체인**: [`0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A`](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A)
+*   **Sepolia의 Optimism 거버넌스 체인:** [`0x1Eb2fFc903729a0F03966B917003800b145F56E2`](https://sepolia.etherscan.io/address/0x1Eb2fFc903729a0F03966B917003800b145F56E2)
+
+## L2 Proxy Admin
+
+L2 Proxy Admin은 L2에서 대부분의 OP Stack 체인 시스템 컨트랙트를 업그레이드하는 데 사용할 수 있는 주소입니다. L2 Proxy Admin 소유자는 L1ProxyAdmin 소유자의 [별칭 주소(aliased address)](/ko/op-stack/protocol/differences#address-aliasing)입니다. 즉, L2 ProxyAdmin Owner는 L1 ProxyAdmin Owner와 동일한 주체이지만, 별칭 처리로 인해 주소가 다릅니다. 작동 방식은 다음과 같습니다.
+
+*   L1 컨트랙트 주소가 주어지면, 별칭 처리된 L2 주소는 `L1_contract_address` + `0x1111000000000000000000000000000000001111`과 같습니다.
+*   `0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b`를 예로 들면, `0x6B` 주소는 별칭 처리된 L2 주소이므로 원래의 L1 주소를 구하려면 `0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b` - `0x1111000000000000000000000000000000001111`을 계산합니다.
+*   그 결과 L1 컨트랙트 주소 `0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A`가 나오며, 이는 L1 ProxyAdmin Owner인 Foundation + Security Council 소유의 2/2 Safe여야 합니다.
+*   OP Stack 체인에서 `0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b`의 개인 키를 가진 사람은 아무도 없습니다. 따라서 L2 ProxyAdmin 소유자가 트랜잭션을 보내는 유일한 방법은 L1의 `0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A` 주소에서 입금(디파짓) 트랜잭션을 보내는 것입니다.
+*   계산에 도움이 필요하면 [`AddressAliasHelper` 라이브러리](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/vendor/AddressAliasHelper.sol)를 참고하십시오.
+
+### 위험
+
+*   L2 Proxy Admin이 탈취되면 컨트랙트를 악의적인 버전으로 업그레이드할 수 있습니다.
+*   L2 Proxy Admin이 탈취되면 Standard Bridge의 ETH 또는 토큰을 제거하거나 잠글 수 있습니다.
+*   L2 Proxy Admin이 탈취되면 이 페이지에 설명된 위험을 완화하지 못할 수 있습니다.
+
+### 완화 조치
+
+*   L2 Proxy Admin은 [L1 Proxy Admin](#l1-proxy-admin)과 동일한 L1 계정이 제어합니다. 이는 [주소 별칭(address aliasing)](/ko/op-stack/reference/glossary#address-aliasing)을 통해 가능합니다.
+
+### 주소
+
+<Info>
+이 주소들은 동일한 L1 Proxy Admin 주소가 제어합니다. 자세한 내용은 위의 설명을 참고하십시오.
+</Info>
+
+*   **Ethereum의 Optimism 거버넌스 체인**: [`0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b`](https://explorer.optimism.io/address/0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b)
+*   **Sepolia의 Optimism 거버넌스 체인:** [`0x2FC3ffc903729a0f03966b917003800B145F67F3`](https://testnet-explorer.optimism.io/address/0x2FC3ffc903729a0f03966b917003800B145F67F3)
+
+## System Config Owner
+
+System Config Owner는 Ethereum의 [`SystemConfig`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/SystemConfig.sol) 컨트랙트 내 값을 변경하는 데 사용할 수 있는 주소입니다.
+
+### 위험
+
+*   System Config Owner가 탈취되면 일시적인 네트워크 중단이 발생할 수 있습니다.
+*   System Config Owner가 탈취되면 사용자에게 트랜잭션 수수료가 과다 청구될 수 있습니다.
+
+### 완화 조치
+
+*   System Config Owner는 5-of-7 [멀티시그](https://etherscan.io/address/0x847B5c174615B1B7fDF770882256e2D3E95b9D92#readProxyContract)입니다.
+*   System Config Owner는 향후 [Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885)이 운영할 수 있습니다.
+*   System Config Owner는 [L1 Proxy Admin](#l1-proxy-admin)이 교체할 수 있습니다.
+
+### 주소
+
+System Config owner는 체인별로 다르며, 어떤 주소가 설정되어 있는지는 [Superchain Registry](/ko/op-stack/protocol/superchain-registry)에서 확인할 수 있습니다.
+
+## Batcher
+
+### 설명
+
+Batcher는 현재 OP Stack 체인의 Sequencer를 대신하여 트랜잭션 배치를 Ethereum에 제출하는 소프트웨어 서비스입니다.
+OP Stack 체인 node는 처리할 새로운 L2 트랜잭션 배치를 찾기 위해 이 주소에서 보낸 트랜잭션을 탐색합니다.
+
+### 위험
+
+*   Batcher 주소는 일반적으로 핫 월렛입니다.
+*   Batcher 주소가 탈취되면 L2 reorg 또는 sequencer 중단이 발생할 수 있습니다.
+
+### 완화 조치
+
+*   Batcher 주소가 탈취되더라도 유효하지 않은 트랜잭션을 게시할 수는 없습니다.
+*   탈취된 batcher 주소는 [L1 Proxy Admin](#l1-proxy-admin)이 교체할 수 있습니다.
+
+### 주소
+
+Batcher 주소는 체인별로 다르며, 어떤 주소가 설정되어 있는지는 [Superchain Registry](/ko/op-stack/protocol/superchain-registry)에서 확인할 수 있습니다.
+
+## Proposer
+
+### 설명
+
+Proposer는 `PermissionedDisputeGame` 분쟁 게임(dispute game) 유형의 인스턴스를 생성할 수 있는 역할입니다.
+`PermissionedDisputeGame`은 `FaultDisputeGame`에 치명적인 보안 취약점이 발견된 경우 대체 분쟁 게임으로 사용할 수 있습니다.
+필요한 경우 인정되는(respected) 분쟁 게임 유형을 변경하는 책임은 Guardian 역할에 있습니다.
+
+### 기능
+
+*   `PermissionedDisputeGame` 분쟁 게임 유형의 인스턴스를 생성할 수 있습니다.
+*   `PermissionedDisputeGame` 분쟁 게임 프로세스에 참여할 수 있습니다.
+
+### 위험
+
+*   Proposer 주소는 일반적으로 핫 월렛입니다.
+*   Proposer 주소가 탈취되면 유효하지 않은 상태 제안을 할 수 있습니다.
+*   유효하지 않은 상태 제안은 7일 후 유효하지 않은 출금을 실행하는 데 사용될 수 있습니다.
+
+### 완화 조치
+
+*   탈취된 proposer 주소는 [L1 Proxy Admin](#l1-proxy-admin)이 교체할 수 있습니다.
+*   유효하지 않은 상태 제안은 7일 이내에 [Challenger](#challenger)가 이의를 제기할 수 있습니다.
+
+### 주소
+
+Proposer 주소는 체인별로 다르며, 어떤 주소가 설정되어 있는지는 [Superchain Registry](/ko/op-stack/protocol/superchain-registry)에서 확인할 수 있습니다.
+
+## Challenger
+
+### 설명
+
+Challenger는 [Proposer](#proposer) 역할이 생성한 `PermissionedDisputeGame` 인스턴스에 참여하고 이의를 제기할 수 있는 주소입니다. 이는 유효하지 않은 output root에 이의를 제기하는 [`op-challenger`](/ko/op-stack/fault-proofs/challenger) 서비스와는 다르다는 점에 유의하십시오.
+
+### 기능
+
+*   `PermissionedDisputeGame` 분쟁 게임 프로세스에 참여할 수 있습니다.
+
+### 위험
+
+*   Challenger가 탈취되면 유효한 상태 제안을 무효화할 수 있습니다.
+*   Challenger가 탈취되면 유효하지 않은 상태 제안에 이의를 제기하지 못할 수 있습니다.
+
+### 완화 조치
+
+*   탈취된 challenger 주소는 [L1 Proxy Admin](#l1-proxy-admin)이 교체할 수 있습니다.
+*   교체된 challenger 주소로 이의 제기를 실행할 수 있습니다.
+
+### 주소
+
+Challenger 주소는 체인별로 다르며, 각 체인의 `PermissionedDisputeGame`에 설정됩니다.
+OP Mainnet, Ink, Soneium, Unichain 및 각각의 Sepolia testnet은 대신 `SuperPermissionedDisputeGame`을 사용하며, 여기에는 Challenger 역할이 없습니다.
+
+## Guardian
+
+### 설명
+
+Guardian은 OP Stack 체인의 여러 시스템 컨트랙트를 일시 중지하는 데 사용할 수 있는 주소입니다.
+이는 보안 우려가 있을 때 특히 출금 로직을 일시적으로 중단할 수 있게 해 주는 백업 안전장치입니다.
+Guardian은 진행 중인 보안 우려에 대응하기 위해 `OptimismPortal` 컨트랙트의 다양한 측면을 관리할 수도 있습니다.
+
+### 기능
+
+*   OP Stack 체인의 여러 시스템 컨트랙트를 일시 중지합니다.
+*   특정 분쟁 게임 유형이 출금 실행에 사용되지 못하도록 비활성화합니다.
+*   특정 분쟁 게임 인스턴스가 출금 실행에 사용되지 못하도록 비활성화합니다.
+
+### 위험
+
+*   Guardian이 탈취되면 출금을 3개월 동안 일시 중지할 수 있으며, 그 이후에는 출금 일시 중지가 자동으로 해제됩니다.
+
+### 완화 조치
+
+*   탈취된 guardian 주소는 [L1 Proxy Admin](#l1-proxy-admin)이 교체할 수 있습니다.
+*   교체된 guardian 주소로 출금 일시 중지를 해제할 수 있습니다.
+
+### 주소
+
+*   **Ethereum의 Optimism 거버넌스 체인**: [`0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2`](https://etherscan.io/address/0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2)
+*   **Sepolia의 Optimism 거버넌스 체인**: [`0xf64bc17485f0B4Ea5F06A96514182FC4cB561977`](https://sepolia.etherscan.io/address/0xf64bc17485f0B4Ea5F06A96514182FC4cB561977)
+
+## Mint Manager Owner
+
+Mint Manager Owner는 OP Stack 체인에서 새로운 OP 토큰을 발행하는 데 사용할 수 있는 [`MintManager`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/governance/MintManager.sol) 컨트랙트를 제어하는 주소입니다.
+
+### 위험
+
+*   Mint Manager Owner가 탈취되면 임의의 양의 OP 토큰을 발행할 수 있습니다.
+*   Mint Manager Owner가 탈취되면 OP 토큰 발행을 막을 수 있습니다.
+
+### 완화 조치
+
+*   Mint Manager Owner는 3-of-5 [멀티시그](https://explorer.optimism.io/address/0x2a82ae142b2e62cb7d10b55e323acb1cab663a26#readProxyContract)입니다.
+
+### 주소
+
+*   **Ethereum**: [`0x2a82ae142b2e62cb7d10b55e323acb1cab663a26`](https://explorer.optimism.io/address/0x2a82ae142b2e62cb7d10b55e323acb1cab663a26)
+*   **Sepolia**: [`0x5c4e7ba1e219e47948e6e3f55019a647ba501005`](https://explorer.optimism.io/address/0x5c4e7ba1e219e47948e6e3f55019a647ba501005)

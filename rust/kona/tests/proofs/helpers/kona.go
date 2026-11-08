@@ -44,22 +44,25 @@ func writeConfig[T any](t helpers.Testing, workDir string, name string, cfg *T, 
 	require.NoError(t, os.WriteFile(cfgPath, ser, fs.ModePerm))
 }
 
-// writeDepset writes a dependency set holding one entry per supplied rollup config, in the JSON
-// shape that both op-node's --interop.dependency-set and kona's --depset-cfg read.
+// writeDepset writes the dependency set ds in the JSON shape that both op-node's
+// --interop.dependency-set and kona's --depset-cfg read. When ds is nil, it writes a dependency
+// set holding one entry per supplied rollup config.
 //
 // kona-host super always needs a dependency set: StatefulAttributesBuilder consults it to decide
 // whether an interop activation block carries the multi-chain wrapper deposits, and the host
-// refuses to run without one once Lagoon is scheduled. Synthesizing it from the rollup configs
-// gives kona the same one-chain set NewL2FaultProofEnv hands the sequencer, so op-node and kona
-// agree on the activation block's contents.
-func writeDepset(t helpers.Testing, path string, rollupCfgs []*rollup.Config) {
-	dependencies := make(map[eth.ChainID]*depset.StaticConfigDependency, len(rollupCfgs))
-	for _, cfg := range rollupCfgs {
-		dependencies[eth.ChainIDFromBig(cfg.L2ChainID)] = &depset.StaticConfigDependency{}
+// refuses to run without one once Lagoon is scheduled. kona must get the same set as the
+// sequencer, so that op-node and kona agree on the activation block's contents.
+func writeDepset(t helpers.Testing, path string, ds depset.DependencySet, rollupCfgs []*rollup.Config) {
+	if ds == nil {
+		dependencies := make(map[eth.ChainID]*depset.StaticConfigDependency, len(rollupCfgs))
+		for _, cfg := range rollupCfgs {
+			dependencies[eth.ChainIDFromBig(cfg.L2ChainID)] = &depset.StaticConfigDependency{}
+		}
+		var err error
+		ds, err = depset.NewStaticConfigDependencySet(dependencies)
+		require.NoError(t, err)
 	}
-	ds, err := depset.NewStaticConfigDependencySet(dependencies)
-	require.NoError(t, err)
-	ser, err := ds.MarshalJSON()
+	ser, err := json.Marshal(ds)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, ser, fs.ModePerm))
 }
@@ -86,7 +89,7 @@ func RunKonaSuperNative(
 	writeConfig(t, workDir, "l1chain", l1chainConfig, l1chainConfigPath)
 
 	depsetPath := filepath.Join(workDir, "depset.json")
-	writeDepset(t, depsetPath, rollupCfgs)
+	writeDepset(t, depsetPath, fixtureInputs.DependencySet, rollupCfgs)
 
 	vmCfg := vm.Config{
 		L1:                l1Rpc,

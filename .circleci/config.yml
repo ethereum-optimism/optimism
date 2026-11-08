@@ -53,9 +53,6 @@ parameters:
   stale_check_dispatch:
     type: boolean
     default: false
-  contracts_coverage_dispatch:
-    type: boolean
-    default: false
   heavy_fuzz_dispatch:
     type: boolean
     default: false
@@ -79,6 +76,70 @@ parameters:
 orbs:
   continuation: circleci/continuation@2.0.1
   utils: ethereum-optimism/circleci-utils@1.0.33
+
+commands:
+  github-checkout:
+    description: "Check out the optimism repo over HTTPS, anonymously."
+    parameters:
+      method:
+        description: "Clone method: full or blobless (blob:none filter)."
+        type: enum
+        enum: ["full", "blobless"]
+        default: "full"
+    steps:
+      - run:
+          name: Check out code
+          environment:
+            CHECKOUT_METHOD: << parameters.method >>
+          command: |
+            set -euo pipefail
+
+            : "${CIRCLE_SHA1:?CIRCLE_SHA1 is not set}"
+
+            repo_url="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+
+            fetch_repo() {
+              if [ "$CHECKOUT_METHOD" = "blobless" ]; then
+                git fetch --filter=blob:none "$@"
+              else
+                git fetch "$@"
+              fi
+            }
+
+            if [ ! -e .git ]; then
+              git init -q
+            fi
+
+            if git remote get-url origin >/dev/null 2>&1; then
+              git remote set-url origin "$repo_url"
+            else
+              git remote add origin "$repo_url"
+            fi
+
+            echo "Checking out anonymously"
+
+            fetch_repo --quiet --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
+            fetch_repo origin "$CIRCLE_SHA1"
+            git branch --force develop refs/remotes/origin/develop
+
+            if [ -n "${CIRCLE_BRANCH:-}" ]; then
+              git checkout -q --force -B "$CIRCLE_BRANCH" "$CIRCLE_SHA1"
+            else
+              git checkout -q --force "$CIRCLE_SHA1"
+            fi
+
+            if [ "$(git rev-parse HEAD)" != "$CIRCLE_SHA1" ]; then
+              echo "HEAD $(git rev-parse HEAD) does not match CIRCLE_SHA1 ${CIRCLE_SHA1}" >&2
+              exit 1
+            fi
+
+            if [ -n "${CIRCLE_TAG:-}" ]; then
+              if ! git rev-parse -q --verify "refs/tags/${CIRCLE_TAG}" >/dev/null; then
+                echo "Tag ${CIRCLE_TAG} not found" >&2
+                exit 1
+              fi
+            fi
+
 
 jobs:
   # --------------------------------------------------------------------------
@@ -104,7 +165,8 @@ jobs:
     environment:
       BASE_REVISION: develop
     steps:
-      - checkout
+      - github-checkout:
+          method: blobless
       # Front-loads the mise toolset for the whole pipeline: this job always
       # completes before the continuation pipeline exists, so on a cold cache
       # (mise.toml change or eviction) it is the only job that cold-installs —
@@ -162,7 +224,6 @@ jobs:
             c-sdk_dispatch: << pipeline.parameters.sdk_dispatch >>
             c-publish_contract_artifacts_dispatch: << pipeline.parameters.publish_contract_artifacts_dispatch >>
             c-stale_check_dispatch: << pipeline.parameters.stale_check_dispatch >>
-            c-contracts_coverage_dispatch: << pipeline.parameters.contracts_coverage_dispatch >>
             c-heavy_fuzz_dispatch: << pipeline.parameters.heavy_fuzz_dispatch >>
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>

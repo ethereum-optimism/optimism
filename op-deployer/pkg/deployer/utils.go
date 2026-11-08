@@ -12,10 +12,8 @@ import (
 type DeploymentTarget string
 
 const (
-	DeploymentTargetLive     DeploymentTarget = "live"
-	DeploymentTargetGenesis  DeploymentTarget = "genesis"
-	DeploymentTargetCalldata DeploymentTarget = "calldata"
-	DeploymentTargetNoop     DeploymentTarget = "noop"
+	DeploymentTargetLive    DeploymentTarget = "live"
+	DeploymentTargetGenesis DeploymentTarget = "genesis"
 )
 
 func NewDeploymentTarget(s string) (DeploymentTarget, error) {
@@ -24,10 +22,6 @@ func NewDeploymentTarget(s string) (DeploymentTarget, error) {
 		return DeploymentTargetLive, nil
 	case string(DeploymentTargetGenesis):
 		return DeploymentTargetGenesis, nil
-	case string(DeploymentTargetCalldata):
-		return DeploymentTargetCalldata, nil
-	case string(DeploymentTargetNoop):
-		return DeploymentTargetNoop, nil
 	default:
 		return "", fmt.Errorf("invalid deployment target: %s", s)
 	}

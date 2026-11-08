@@ -35,9 +35,6 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 # `serde` feature
 serde = { workspace = true, optional = true }
 
-# `tabled` feature
-tabled = { workspace = true, features = ["derive"], optional = true }
-
 # The self dev-dependency below enables this crate's own non-default features for
 # its standalone test build (`cargo test -p kona-genesis`). cargo-udeps reports it
 # unused because it activates features rather than importing symbols, so ignore it.
@@ -55,7 +52,6 @@ alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
 [features]
 default = []
 rollup_config_override = []
-tabled = [ "dep:tabled", "std" ]
 std = [
 	"alloy-chains/std",
 	"alloy-consensus/std",
@@ -65,8 +61,7 @@ std = [
 	"alloy-sol-types/std",
 	"derive_more/std",
 	"serde?/std",
-	"thiserror/std",
-	"tabled?/std"
+	"thiserror/std"
 ]
 arbitrary = [
 	"alloy-chains/arbitrary",

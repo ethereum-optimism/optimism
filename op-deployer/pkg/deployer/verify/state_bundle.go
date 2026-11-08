@@ -7,11 +7,13 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func getContractBundleFromState(filepath string) (map[string]common.Address, error) {
+func getContractBundleFromState(logger log.Logger, filepath string) (map[string]common.Address, error) {
 	_, err := os.Stat(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("input file not found: %s", filepath)
@@ -41,6 +43,19 @@ func getContractBundleFromState(filepath string) (map[string]common.Address, err
 		// Skip chains whose addresses are only predicted and not yet broadcast.
 		if chain.Deployed != nil && !*chain.Deployed {
 			continue
+		}
+		// A private chain's contracts are its settlement chain's, which are verified with it.
+		if st.AppliedIntent != nil {
+			if chainIntent, err := st.AppliedIntent.Chain(chain.ID); err == nil {
+				settlementID, private, err := pipeline.PrivateChainSettlement(st.AppliedIntent, chainIntent)
+				if err != nil {
+					return nil, err
+				}
+				if private {
+					logger.Info("Skipping private chain, it shares the L1 contracts of its settlement chain and is verified with it", "chain", chain.ID.Hex(), "settlement", settlementID.Hex())
+					continue
+				}
+			}
 		}
 		chainPrefix := fmt.Sprintf("opchain_%s", chain.ID.Hex())
 		addContractsFromStruct(chainPrefix, &chain.OpChainContracts, bundle)
@@ -113,9 +128,9 @@ func isStateFile(filepath string) bool {
 	return st.SuperchainDeployment != nil || st.ImplementationsDeployment != nil || len(st.Chains) > 0
 }
 
-func GetBundleFromFile(filepath string) (map[string]common.Address, error) {
+func GetBundleFromFile(logger log.Logger, filepath string) (map[string]common.Address, error) {
 	if isStateFile(filepath) {
-		return getContractBundleFromState(filepath)
+		return getContractBundleFromState(logger, filepath)
 	}
 
 	return getContractBundle(filepath)

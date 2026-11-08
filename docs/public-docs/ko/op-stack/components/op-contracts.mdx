@@ -1,0 +1,72 @@
+---
+title: op-contracts
+description: OP Stack L1 및 L2 스마트 컨트랙트인 op-contracts의 정식 허브입니다. 컨트랙트가 하는 일, 배포 및 업그레이드 방식, 그리고 레퍼런스, 릴리스, 소스, 사양의 위치를 안내합니다.
+diataxis: explanation
+---
+
+op-contracts는 OP Stack의 스마트 컨트랙트 계층입니다. OP Stack 체인을 Ethereum에 고정하는 L1
+컨트랙트와, 모든 OP Stack 체인이 genesis 상태에 포함하는 L2 predeploy 컨트랙트로 구성됩니다. 두 가지
+모두 Optimism 모노레포의 `packages/contracts-bedrock`에 있으며 `op-contracts/vX.Y.Z`로 함께
+릴리스됩니다.
+
+## 개요
+
+Ethereum에 배포되는 L1 컨트랙트는 크로스 도메인 메시지 전달을 지원하고 L2의 유효한 state root를
+유지합니다. 입금(디파짓)은 이 컨트랙트를 통해 체인에 진입하고, 출금은 분쟁 게임(dispute game) 결과를
+기준으로 증명되고 최종 확정되며, 체인의 온체인 구성도 이 컨트랙트에 저장됩니다. L2 predeploy는
+genesis 상태의 사전 지정된 주소에 위치하며, 크로스 도메인 메신저와 브리지부터 수수료 vault와 gas
+가격 oracle까지 체인의 내장 기능을 제공합니다. 두 계층을 컨트랙트별로 살펴보려면
+[스마트 컨트랙트 개요](/ko/op-stack/protocol/smart-contracts)를 참조하십시오.
+
+op-contracts가 존재하는 이유는 OP Stack 체인의 보안이 Ethereum에 고정되어 있기 때문입니다. 브리지,
+분쟁 게임이 검사하는 상태 제안, 그리고 [op-challenger](/ko/op-stack/components/op-challenger)가
+방어하는 출금 경로는 모두 이 컨트랙트에 의해 강제됩니다.
+
+**운영 주체:** op-contracts를 서비스로 운영하는 주체는 없으며, 컨트랙트는 온체인에서 실행됩니다. 체인
+운영자는 [op-deployer](/ko/op-stack/components/op-deployer)로 체인의 L1 컨트랙트를 배포하고,
+[OP Contracts Manager](/ko/chain-operators/reference/opcm)를 통해 업그레이드합니다. OP Contracts
+Manager는 단일 트랜잭션으로 체인의 컨트랙트를 배포하고 업그레이드합니다.
+
+## 시작하기
+
+*   [op-deployer로 L1 컨트랙트 배포](/ko/chain-operators/tutorials/create-l2-rollup/op-deployer-setup):
+    op-deployer를 설치하고, 환경을 준비한 뒤, 새 OP Stack 체인의 L1 컨트랙트를 배포합니다.
+
+## 사용 방법 가이드
+
+*   [superchain-ops를 사용한 업그레이드](/ko/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide):
+    superchain-ops 작업 워크플로로 체인의 L1 컨트랙트를 업그레이드합니다. Security Council 서명이나
+    더 안전한 업그레이드 프로세스가 필요한 체인을 위한 경로입니다.
+*   [op-deployer를 사용한 L1 컨트랙트 업그레이드](/ko/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade):
+    `op-contracts/v5.0.0`까지의 업그레이드만 지원하는 op-deployer의 지원 중단된 `upgrade` 명령에 대한
+    버전 가용성과 마이그레이션 경로를 다룹니다.
+
+## 구성 및 플래그 레퍼런스
+
+op-contracts에는 CLI가 없습니다. 구성 대상은 컨트랙트 배포에 사용되는 배포 구성입니다.
+
+*   [Rollup 배포 구성](/ko/chain-operators/reference/rollup-deployment-configuration):
+    페이지에 명시된 최종 op-deployer 릴리스를 기준으로 소스에서 생성된 모든 배포 구성 필드를
+    다룹니다.
+*   [표준 체인이란 무엇입니까?](/ko/op-stack/protocol/superchain-registry#what-is-a-standard-chain):
+    체인이 준수해야 하는 표준 구성 값을 다룹니다.
+
+## 릴리스
+
+*   [op-contracts 릴리스 이력](/ko/releases/op-contracts). 프로덕션 컨트랙트 릴리스는 항상
+    `op-contracts/vX.Y.Z`로 태그됩니다. 구성 요소 이름 없이 `v<semver>`로 태그된 릴리스에는 스마트
+    컨트랙트가 포함되지 않습니다.
+*   [스마트 컨트랙트 버전 관리 정책](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/versioning.md):
+    릴리스 프로세스에 대한 저장소 내 정의입니다.
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `packages/contracts-bedrock/`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock).
+*   [Contracts book](https://devdocs.optimism.io/contracts-bedrock):
+    인터페이스 문서, 아키텍처, 컨트랙트 정책을 다루는 저장소 내 개발자 문서입니다.
+*   [입금 사양](https://specs.optimism.io/protocol/deposits.html):
+    L1 컨트랙트가 구현하는 입금 경로의 규범적 정의입니다.
+*   [출금 사양](https://specs.optimism.io/protocol/withdrawals.html):
+    출금 경로의 규범적 정의입니다.
+*   [Predeploy 사양](https://specs.optimism.io/protocol/predeploys.html):
+    L2 predeploy 컨트랙트의 규범적 정의입니다.

@@ -1,0 +1,194 @@
+---
+title: 설정
+description: 다운타임 없이 기존 다중 sequencer OP Stack 네트워크에 op-conductor를 추가합니다.
+diataxis: how-to
+---
+
+op-conductor의 동작 방식과 제공하는 보장에 대해서는
+[OP Conductor](/ko/chain-operators/tools/op-conductor)를 참고하십시오. 아래에서 사용하는
+플래그와 RPC 메서드는
+[구성 및 RPC 레퍼런스](/ko/chain-operators/tools/op-conductor/reference)에 정리되어 있습니다.
+
+OP Labs에서는 op-conductor가 raft 로그를 저장할 영구 볼륨을 필요로 하므로
+kubernetes statefulset으로 배포합니다. 이 가이드에서는 다운타임 없이 기존 네트워크에
+conductor를 설정하는 방법을 설명합니다.
+
+각 단계 사이에 [op-conductor-ops](https://github.com/ethereum-optimism/infra/tree/main/op-conductor-ops) 도구를 사용하여 conductor 상태를 확인할 수 있습니다.
+
+## 전제 조건
+
+이 설정 가이드는 다음을 전제로 합니다.
+
+*   3개의 sequencer(sequencer-0, sequencer-1, sequencer-2)가 배포되어 있으며, 모두
+    동기화된 상태이고 동일한 vpc 네트워크에 있습니다
+*   sequencer-0이 현재 활성 sequencer입니다
+*   다운타임이 없는 blue/green 방식의 sequencer 배포 워크플로(아래 설명)를
+    실행할 수 있습니다
+*   conductor와 sequencer는 k8s 또는 기타 컨테이너 오케스트레이터에서 실행됩니다
+    (vm 기반 배포는 약간 다를 수 있으며 여기서는 다루지 않습니다)
+
+## op-conductor 실행
+
+<Steps>
+  <Step title="conductor 배포">
+  sequencer-1을 raft 클러스터 부트스트랩 node로 하여 sequencer마다 conductor 인스턴스를
+    하나씩 배포합니다.
+  
+    *   권장 conductor 구성:
+  
+        ```yaml
+        OP_CONDUCTOR_CONSENSUS_ADDR: '0.0.0.0'
+        OP_CONDUCTOR_CONSENSUS_ADVERTISED: '<raft url or ip>'
+        OP_CONDUCTOR_CONSENSUS_PORT: '50050'
+        OP_CONDUCTOR_EXECUTION_RPC: '<op-geth url or ip>:8545'
+        OP_CONDUCTOR_HEALTHCHECK_INTERVAL: '1'
+        OP_CONDUCTOR_HEALTHCHECK_MIN_PEER_COUNT: '2'  # set based on your internal p2p network peer count
+        OP_CONDUCTOR_HEALTHCHECK_UNSAFE_INTERVAL: '5' # recommend a 2-3x multiple of your network block time to account for temporary performance issues
+        OP_CONDUCTOR_LOG_FORMAT: logfmt
+        OP_CONDUCTOR_LOG_LEVEL: info
+        OP_CONDUCTOR_METRICS_ADDR: 0.0.0.0
+        OP_CONDUCTOR_METRICS_ENABLED: 'true'
+        OP_CONDUCTOR_METRICS_PORT: '7300'
+        OP_CONDUCTOR_NETWORK: '<network>'
+        OP_CONDUCTOR_NODE_RPC: '<op-node url or ip>:8545'
+        OP_CONDUCTOR_RAFT_SERVER_ID: 'unique raft server id'
+        OP_CONDUCTOR_RAFT_STORAGE_DIR: /conductor/raft
+        OP_CONDUCTOR_RPC_ADDR: 0.0.0.0
+        OP_CONDUCTOR_RPC_ENABLE_ADMIN: 'true'
+        OP_CONDUCTOR_RPC_ENABLE_PROXY: 'true'
+        OP_CONDUCTOR_RPC_PORT: '8547'
+        ```
+  
+    *   sequencer-1 op-conductor 추가 구성:
+  
+        ```yaml
+        OP_CONDUCTOR_PAUSED: "true"
+        OP_CONDUCTOR_RAFT_BOOTSTRAP: "true"
+        ```
+
+  </Step>
+  
+    <Step title="두 conductor 일시 정지">
+      [conductor_pause](/ko/chain-operators/tools/op-conductor/reference#conductor_pause) RPC 요청으로 `sequencer-0` 및 `sequencer-2`의 conductor를 일시 정지합니다.
+    </Step>
+  
+    <Step title="op-node 구성 업데이트 및 활성 sequencer 전환">
+        conductor를 활성화하는 `op-node` 구성 업데이트를 모든 sequencer에 배포합니다.
+        활성 sequencer를 `sequencer-1`로 전환하는 blue/green 방식의 배포 워크플로를
+        사용합니다.
+      
+        *   모든 sequencer의 op-node 구성:
+      
+            ```yaml
+            OP_NODE_CONDUCTOR_ENABLED: "true" # this is what commits unsafe blocks to the raft logs
+            OP_NODE_RPC_ADMIN_STATE: "" # this flag can't be used with conductor
+            ```
+    </Step>
+  
+    <Step title="sequencer 전환 성공 확인">
+        `sequencer-1`이 활성 상태이며 unsafe 블록을 정상적으로 생성하고 있는지 확인합니다.
+        `sequencer-1`은 raft 클러스터 부트스트랩 node였으므로 이제 unsafe payload를
+        raft 로그에 커밋하고 있습니다.
+    </Step>
+  
+    <Step title="투표 node 추가">
+      리더 conductor(`sequencer-1`)에 [conductor_AddServerAsVoter](/ko/chain-operators/tools/op-conductor/reference#conductor_addserverasvoter)
+    RPC 요청을 보내 클러스터에 투표 node를 추가합니다.
+
+  
+    </Step>
+  
+    <Step title="상태 확인">
+    클러스터 멤버십과 sequencer 상태를 확인합니다.
+  
+    *   `sequencer-0` 및 `sequencer-2`:
+        1.  raft 클러스터 follower
+        2.  sequencer 중지됨
+        3.  conductor 일시 정지됨
+        4.  op-node 구성에서 conductor 활성화됨
+  
+    *   `sequencer-1`
+        1.  raft 클러스터 leader
+        2.  sequencer 활성 상태
+        3.  conductor 일시 정지됨
+        4.  op-node 구성에서 conductor 활성화됨
+
+  
+    </Step>
+  
+    <Step title="conductor 재개">
+      각 conductor 인스턴스에 [conductor\_resume](/ko/chain-operators/tools/op-conductor/reference#conductor_resume) RPC 요청을 보내
+    모든 conductor를 재개합니다.
+
+  
+    </Step>
+  
+    <Step title="상태 확인">
+      [conductor_paused](/ko/chain-operators/tools/op-conductor/reference#conductor_paused)로 모든 conductor가 정상적으로 재개되었는지 확인합니다.
+    </Step>
+  
+    <Step title="리더십 이전">
+      [conductor_transferLeaderToServer](/ko/chain-operators/tools/op-conductor/reference#conductor_transferleadertoserver)를 사용하여 `sequencer-0`으로의 리더십 이전을 트리거합니다.
+    </Step>
+  
+    <Step title="상태 확인">
+    
+    클러스터 멤버십과 sequencer 상태를 확인합니다.
+
+    **`sequencer-1` 및 `sequencer-2`:**
+    1. raft 클러스터 follower
+    2. sequencer 중지됨
+    3. conductor 활성 상태
+    4. op-node 구성에서 conductor 활성화됨
+
+    **`sequencer-0`:**
+    1. raft 클러스터 leader
+    2. sequencer 활성 상태
+    3. conductor 활성 상태
+    4. op-node 구성에서 conductor 활성화됨
+
+    </Step>
+  
+    <Step title="구성 업데이트">
+     `sequencer-1` conductor에 구성 변경을 배포하여
+    `OP_CONDUCTOR_PAUSED: true` 플래그와 `OP_CONDUCTOR_RAFT_BOOTSTRAP` 플래그를 제거합니다.
+
+    </Step>
+</Steps>
+
+### Blue/green 배포
+
+conductor를 설정할 때 다운타임이 발생하지 않도록 하려면, 네트워크 다운타임 없이
+sequencer를 업데이트할 수 있는 배포 스크립트가 필요합니다.
+
+이 워크플로의 예는 다음과 같습니다.
+
+1.  네트워크의 현재 상태를 조회하여 현재 어떤 sequencer가 활성 상태인지
+    확인합니다(아래에서는 "원본" sequencer라고 합니다).
+    사용 가능한 다른 sequencer 중에서 후보 sequencer를 선택합니다.
+2.  후보 sequencer에 변경 사항을 배포한 다음, 원본 sequencer의 unsafe head까지
+    동기화될 때까지 기다립니다. peer 수와 기타 중요한 상태 메트릭을 확인하는 것이
+    좋습니다.
+3.  마지막으로 삽입된 unsafe 블록 해시를 반환하는 `admin_stopSequencer`를 사용하여
+    원본 sequencer를 중지합니다. 차이가 있을 경우를 대비해 후보 sequencer가 반환된
+    해시까지 동기화될 때까지 기다립니다.
+4.  원본 sequencer가 마지막으로 삽입한 unsafe 블록 해시에서 후보 sequencer를
+    시작합니다.
+    1.  이 단계에서 unsafe head 진행 여부에 대한 추가 검사를 실행하고, 변경 사항을
+        롤백할지 결정할 수도 있습니다(후보 sequencer 중지, 원본 시작, 후보 배포 롤백 등).
+5.  원본 sequencer에 변경 사항을 배포하고, 체인 head까지 동기화될 때까지 기다립니다.
+    상태 검사를 실행합니다.
+
+### conductor 도입 이후의 배포
+
+conductor가 가동된 후에는 배포에 문제가 있을 경우 다운타임을 최소화하기 위해
+유사한 canary 방식의 워크플로를 사용합니다.
+
+1.  raft 클러스터 follower 중에서 후보 sequencer를 선택합니다
+2.  후보 sequencer에 배포합니다. 후보에 대해 상태 검사를 실행합니다.
+3.  `conductor_transferLeaderToServer`를 사용하여 후보 sequencer로 리더십을 이전합니다.
+    후보에 대해 상태 검사를 실행합니다.
+4.  일정한 유예 기간(예: 30초) 후 `conductor_leader`를 사용하여 후보가 여전히
+    리더인지 테스트합니다
+    1.  그렇지 않다면 배포에 문제가 있을 가능성이 높습니다. 롤백하십시오.
+5.  나머지 sequencer를 업그레이드하고 상태 검사를 실행합니다.

@@ -1,0 +1,343 @@
+---
+title: "P2P RPC 메서드"
+diataxis: reference
+---
+
+`p2p` API는 Kona의 P2P 스택과 상호작용하기 위한 메서드를 제공합니다.
+
+## 피어 정보 메서드
+
+### `opp2p_self`
+
+로컬 노드에 대한 정보를 `PeerInfo` 형식으로 반환합니다. [탐색 없이](/ko/node-operators/kona-node/configuration#running-without-discovery) 실행 중인 노드는 `ENR`을 반환하지 않습니다.
+
+| 클라이언트 | 메서드 호출          |
+| ------ | -------------------------- |
+| RPC    | `{"method": "opp2p_self"}` |
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_self","params":[]}
+{"jsonrpc":"2.0","id":1,"result":{"peerID":"16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","nodeID":"0x311d8222ffc44e9c86f403d57f454bd823e7dc9d3c8e97171ddd862910352f31","userAgent":"kona","protocolVersion":"","ENR":"enr:-Jm4QBAdUpUqrpTj6yQor5mwif6RRmY11dlj-Um3TqKmJiYha4SUNqdJr2eM3pRsFVCwVikYcBk__5JVTwngUeimKxcCgmlkgnY0gmlwhC36_pOHb3BzdGFja4Xc76gFAIlzZWNwMjU2azGhA2WTa6OqvnWbRmoeuhRRu-BTPgP8y4_MY6snTsNW0gHBg3RjcIIj5oN1ZHCCn7U","addresses":["/ip4/127.0.0.1/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","/ip4/172.18.0.9/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"],"protocols":["/ipfs/id/push/1.0.0","/meshsub/1.1.0","/ipfs/ping/1.0.0","/meshsub/1.2.0","/ipfs/id/1.0.0","/meshsub/1.0.0","/floodsub/1.0.0"],"connectedness":1,"direction":1,"protected":false,"chainID":11155420,"latency":0,"gossipBlocks":true,"scores":{"gossip":{"total":0.0,"blocks":{"timeInMesh":0.0,"firstMessageDeliveries":0.0,"meshMessageDeliveries":0.0,"invalidMessageDeliveries":0.0},"IPColocationFactor":0.0,"behavioralPenalty":0.0},"reqResp":{"validResponses":0.0,"errorResponses":0.0,"rejectedPayloads":0.0}}}}
+```
+
+### `opp2p_peerCount`
+
+탐색 네트워크와 gossip 네트워크 모두에 대해 연결된 피어 수를 반환합니다. [탐색 없이](/ko/node-operators/kona-node/configuration#running-without-discovery) 실행 중인 노드는 `connectedDiscovery`에 대해 `null`을 반환합니다.
+
+| 클라이언트 | 메서드 호출               |
+| ------ | ------------------------------- |
+| RPC    | `{"method": "opp2p_peerCount"}` |
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_peerCount","params":[]}
+{"jsonrpc":"2.0","id":1,"result":{"connectedDiscovery":15,"connectedGossip":12}}
+```
+
+### `opp2p_peers`
+
+피어에 대한 정보를 반환합니다. `connected` 매개변수가 true이면 연결된 피어만 반환합니다. [탐색 없이](/ko/node-operators/kona-node/configuration#running-without-discovery) 실행 중인 노드는 피어에 대해 `ENR` 없이 `chainID`를 `0`으로 반환합니다.
+
+| 클라이언트 | 메서드 호출                                     |
+| ------ | ----------------------------------------------------- |
+| RPC    | `{"method": "opp2p_peers", "params": [connected]}` |
+
+#### 매개변수
+
+- `connected` (boolean): true이면 연결된 피어만 반환합니다
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_peers","params":[true]}
+{"jsonrpc":"2.0","id":1,"result":{"totalConnected":2,"peers":{"16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x":{"peerID":"16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","nodeID":"0x311d8222ffc44e9c86f403d57f454bd823e7dc9d3c8e97171ddd862910352f31","userAgent":"kona","protocolVersion":"","addresses":["/ip4/127.0.0.1/tcp/9190"],"protocols":["/ipfs/ping/1.0.0","/meshsub/1.1.0"],"connectedness":1,"direction":2,"protected":false,"chainID":11155420,"latency":50000000,"gossipBlocks":true,"scores":{"gossip":{"total":1.5,"blocks":{"timeInMesh":100.0,"firstMessageDeliveries":10.0,"meshMessageDeliveries":5.0,"invalidMessageDeliveries":0.0},"IPColocationFactor":0.0,"behavioralPenalty":0.0},"reqResp":{"validResponses":25.0,"errorResponses":1.0,"rejectedPayloads":0.0}}}},"bannedPeers":[],"bannedIPS":[],"bannedSubnets":[]}}
+```
+
+### `opp2p_peerStats`
+
+연결 수와 토픽 구독을 포함한 피어 통계 정보를 반환합니다. [탐색 없이](/ko/node-operators/kona-node/configuration#running-without-discovery) 실행 중인 노드는 `table` 값으로 `0`을 반환합니다.
+
+| 클라이언트 | 메서드 호출                |
+| ------ | -------------------------------- |
+| RPC    | `{"method": "opp2p_peerStats"}` |
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_peerStats","params":[]}
+{"jsonrpc":"2.0","id":1,"result":{"connected":12,"table":50,"blocksTopic":8,"blocksTopicV2":10,"blocksTopicV3":5,"blocksTopicV4":2,"banned":3,"known":75}}
+```
+
+### `opp2p_discoveryTable`
+
+탐색 테이블 항목을 ENR 문자열 목록으로 반환합니다. [탐색 없이](/ko/node-operators/kona-node/configuration#running-without-discovery) 실행 중인 노드는 op-node와 마찬가지로 `discovery disabled` 오류를 반환합니다.
+
+| 클라이언트 | 메서드 호출                     |
+| ------ | ------------------------------------- |
+| RPC    | `{"method": "opp2p_discoveryTable"}` |
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_discoveryTable","params":[]}
+{"jsonrpc":"2.0","id":1,"result":["enr:-Jm4QBAdUpUqrpTj6yQor5mwif6RRmY11dlj-Um3TqKmJiYha4SUNqdJr2eM3pRsFVCwVikYcBk__5JVTwngUeimKxcCgmlkgnY0gmlwhC36_pOHb3BzdGFja4Xc76gFAIlzZWNwMjU2azGhA2WTa6OqvnWbRmoeuhRRu-BTPgP8y4_MY6snTsNW0gHBg3RjcIIj5oN1ZHCCn7U","enr:-Km4QBqBrKNq7F5L1dSrWW8Y1k8k4V2L2nTsNtGuKPpPwp3L_rBVMaQCQpnc2sBB-c2yV_n4qgM2_2yfcNjVXr4OFgCgmlkgnY0gmlwhH8AAAGHb3BzdGFja4OFAoAE"]}
+```
+
+## 피어 차단 메서드
+
+### `opp2p_blockPeer`
+
+피어 ID로 특정 피어를 차단하여 해당 피어와의 모든 연결을 막습니다. 피어의 열린 연결은 닫히며, [차단이 해제](#opp2p_unblockpeer)되거나 노드가 재시작될 때까지 양방향의 새 연결이 거부됩니다. 차단은 아직 재시작 후에 유지되지 않습니다([#23768](https://github.com/ethereum-optimism/optimism/issues/23768)).
+
+이는 [보호된](#opp2p_protectpeer) 피어와 [정적](/ko/node-operators/kona-node/configuration#static-peers) 피어에도 적용됩니다. 차단된 정적 피어는 차단이 해제되거나, 노드가 재시작되어 구성에 따라 다시 연결을 시도할 때까지 다시 연결되지 않습니다. 반면 op-node는 차단된 피어의 열린 연결을 그대로 유지합니다.
+
+| 클라이언트 | 메서드 호출                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "opp2p_blockPeer", "params": [peerID]}` |
+
+#### 매개변수
+
+- `peerID` (string): 차단할 피어 ID
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_blockPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_unblockPeer`
+
+이전에 차단된 피어를 피어 ID로 차단 해제하며, op-node와 마찬가지로 점수로 인해 ban된 경우 ban도 해제합니다. [정적 피어](/ko/node-operators/kona-node/configuration#static-peers)는 1분 이내에 다시 연결을 시도합니다. 즉시 연결하려면 [`opp2p_connectPeer`](#opp2p_connectpeer)를 호출하십시오.
+
+| 클라이언트 | 메서드 호출                                     |
+| ------ | ----------------------------------------------------- |
+| RPC    | `{"method": "opp2p_unblockPeer", "params": [peerID]}` |
+
+#### 매개변수
+
+- `peerID` (string): 차단 해제할 피어 ID
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_unblockPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_listBlockedPeers`
+
+차단된 모든 피어 ID 목록을 반환합니다. op-node와 마찬가지로 점수로 인해 ban된 피어는 나열되지 않습니다.
+
+| 클라이언트 | 메서드 호출                      |
+| ------ | -------------------------------------- |
+| RPC    | `{"method": "opp2p_listBlockedPeers"}` |
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_listBlockedPeers","params":[]}
+{"jsonrpc":"2.0","id":1,"result":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","16Uiu2HAm7Th3s3C1VHmKrYzA9nPzV4b3vqL8z1x8WZzGk2t9DjRK"]}
+```
+
+## 주소 차단 메서드
+
+### `opp2p_blockAddr`
+
+어느 피어에 속하든 특정 IP 주소와의 연결을 차단합니다. 열린 연결은 닫히며, 주소의 [차단이 해제](#opp2p_unblockaddr)되거나 노드가 재시작될 때까지 양방향의 새 연결이 거부됩니다([#23768](https://github.com/ethereum-optimism/optimism/issues/23768)). 반면 op-node는 열린 연결을 그대로 유지합니다.
+
+| 클라이언트 | 메서드 호출                                  |
+| ------ | -------------------------------------------------- |
+| RPC    | `{"method": "opp2p_blockAddr", "params": [address]}` |
+
+#### 매개변수
+
+- `address` (string): 차단할 IP 주소(IPv4 또는 IPv6)
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_blockAddr","params":["192.168.1.100"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_unblockAddr`
+
+이전에 차단된 IP 주소를 차단 해제합니다.
+
+| 클라이언트 | 메서드 호출                                     |
+| ------ | ----------------------------------------------------- |
+| RPC    | `{"method": "opp2p_unblockAddr", "params": [address]}` |
+
+#### 매개변수
+
+- `address` (string): 차단 해제할 IP 주소(IPv4 또는 IPv6)
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_unblockAddr","params":["192.168.1.100"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_listBlockedAddrs`
+
+차단된 모든 IP 주소 목록을 반환합니다.
+
+| 클라이언트 | 메서드 호출                      |
+| ------ | -------------------------------------- |
+| RPC    | `{"method": "opp2p_listBlockedAddrs"}` |
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_listBlockedAddrs","params":[]}
+{"jsonrpc":"2.0","id":1,"result":["192.168.1.100","10.0.0.50","2001:db8::1"]}
+```
+
+## 서브넷 차단 메서드
+
+### `opp2p_blockSubnet`
+
+어느 피어에 속하든 CIDR 표기법을 사용해 전체 IP 서브넷과의 연결을 차단합니다. 열린 연결은 닫히며, 서브넷의 [차단이 해제](#opp2p_unblocksubnet)되거나 노드가 재시작될 때까지 양방향의 새 연결이 거부됩니다([#23768](https://github.com/ethereum-optimism/optimism/issues/23768)). 반면 op-node는 열린 연결을 그대로 유지합니다.
+
+| 클라이언트 | 메서드 호출                                  |
+| ------ | -------------------------------------------------- |
+| RPC    | `{"method": "opp2p_blockSubnet", "params": [subnet]}` |
+
+#### 매개변수
+
+- `subnet` (string): CIDR 표기법으로 나타낸 차단할 서브넷(예: "192.168.1.0/24")
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_blockSubnet","params":["192.168.1.0/24"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_unblockSubnet`
+
+이전에 차단된 IP 서브넷을 차단 해제합니다.
+
+| 클라이언트 | 메서드 호출                                    |
+| ------ | ---------------------------------------------------- |
+| RPC    | `{"method": "opp2p_unblockSubnet", "params": [subnet]}` |
+
+#### 매개변수
+
+- `subnet` (string): CIDR 표기법으로 나타낸 차단 해제할 서브넷
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_unblockSubnet","params":["192.168.1.0/24"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_listBlockedSubnets`
+
+차단된 모든 IP 서브넷 목록을 반환합니다.
+
+| 클라이언트 | 메서드 호출                        |
+| ------ | ---------------------------------------- |
+| RPC    | `{"method": "opp2p_listBlockedSubnets"}` |
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_listBlockedSubnets","params":[]}
+{"jsonrpc":"2.0","id":1,"result":["192.168.1.0/24","10.0.0.0/16","2001:db8::/32"]}
+```
+
+## 피어 보호 메서드
+
+### `opp2p_protectPeer`
+
+연결 제한이나 기타 자동 정리(pruning) 메커니즘으로 인해 피어의 연결이 끊기지 않도록 보호합니다.
+
+| 클라이언트 | 메서드 호출                                    |
+| ------ | ---------------------------------------------------- |
+| RPC    | `{"method": "opp2p_protectPeer", "params": [peerID]}` |
+
+#### 매개변수
+
+- `peerID` (string): 보호할 피어 ID
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_protectPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+### `opp2p_unprotectPeer`
+
+피어의 보호를 해제하여 자동 정리 메커니즘에 의해 연결이 끊길 수 있도록 합니다. [정적 피어](/ko/node-operators/kona-node/configuration#static-peers)는 보호 상태가 유지됩니다.
+
+| 클라이언트 | 메서드 호출                                      |
+| ------ | ------------------------------------------------------ |
+| RPC    | `{"method": "opp2p_unprotectPeer", "params": [peerID]}` |
+
+#### 매개변수
+
+- `peerID` (string): 보호를 해제할 피어 ID
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_unprotectPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+## 연결 관리 메서드
+
+### `opp2p_connectPeer`
+
+multiaddress를 사용해 특정 피어에 연결하고, 피어가 연결되면 반환합니다.
+
+이 메서드는 차단과 ban을 따릅니다. 피어, 피어의 IP 주소 또는 서브넷이 [차단](#opp2p_blockpeer)되었거나 피어가 점수로 인해 ban된 경우, 호출은 즉시 사유와 함께 실패하며 연결을 시도하지 않습니다. 이러한 피어에 연결하려면 먼저 차단을 해제하십시오. [`opp2p_unblockPeer`](#opp2p_unblockpeer)는 ban도 해제합니다. 피어가 재연결 제한에 도달한 경우에도 호출은 즉시 실패합니다. 예를 들어 해당 주소에서 수신 대기하는 것이 없어 연결 시도가 실패하면 연결 오류를 반환하며, 30초 이내에 완료되지 않은 연결 시도는 타임아웃됩니다.
+
+| 클라이언트 | 메서드 호출                                      |
+| ------ | ------------------------------------------------------ |
+| RPC    | `{"method": "opp2p_connectPeer", "params": [multiaddr]}` |
+
+#### 매개변수
+
+- `multiaddr` (string): 연결할 피어의 multiaddress
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_connectPeer","params":["/ip4/127.0.0.1/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+차단된 피어의 경우:
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_connectPeer","params":["/ip4/127.0.0.1/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Peer is blocked: 16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"}}
+```
+
+### `opp2p_disconnectPeer`
+
+피어 ID로 특정 피어와의 연결을 끊고, 연결이 닫히면 반환합니다. [정적 피어](/ko/node-operators/kona-node/configuration#static-peers)는 약 1초 후에 다시 연결을 시도합니다.
+
+| 클라이언트 | 메서드 호출                                       |
+| ------ | ------------------------------------------------------- |
+| RPC    | `{"method": "opp2p_disconnectPeer", "params": [peerID]}` |
+
+#### 매개변수
+
+- `peerID` (string): 연결을 끊을 피어 ID
+
+#### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_disconnectPeer","params":["16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```

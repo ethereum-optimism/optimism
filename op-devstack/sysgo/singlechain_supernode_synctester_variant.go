@@ -2,7 +2,6 @@ package sysgo
 
 import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -31,7 +30,7 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	interopAtGenesis := delaySeconds == 0
 
 	deployerOpts := []DeployerOption{
-		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+		WithUseInterop(),
 	}
 	if !interopAtGenesis {
 		// Karst at genesis, Lagoon at offset — exercises the activation transition.

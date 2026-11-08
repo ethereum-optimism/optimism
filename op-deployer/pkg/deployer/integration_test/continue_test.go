@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -96,7 +95,7 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 
 func testContinuePermissionless(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeSuperCannonKona)
+	env := newContinuationEnv(t, opcm.GameTypeSuperCannonKona)
 	env.preparedChain.Prestate = common.HexToHash("0x1234")
 	env.preparedChain.StartingAnchorRoot = &state.StartingAnchorProposal{
 		Root:             common.HexToHash("0x5678"),
@@ -123,17 +122,25 @@ func testContinuePermissionless(t *testing.T) {
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.standardValidator, validatorCode)
 
-	// The game mode read is the first call made against the pinned OPCM, so an unusable
+	// The implementations read is the first call made against the pinned OPCM, so an unusable
 	// OPCM stops the run before the fork simulation.
 	opcmCode, err := env.l1Client.CodeAt(env.ctx, env.opcm, nil)
 	require.NoError(t, err)
 	setAnvilCode(t, env.l1Client, env.opcm, []byte{byte(vm.PUSH0), byte(vm.PUSH0), byte(vm.REVERT)})
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	err = deployer.Continue(env.ctx, env.config())
-	require.ErrorContains(t, err, "failed to read the OPCM game mode")
+	require.ErrorContains(t, err, "failed to read implementations from OPCM")
 	require.ErrorContains(t, err, env.opcm.Hex())
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.opcm, opcmCode)
+
+	preparedImpls := *env.prepared.ImplementationsDeployment
+	env.prepared.ImplementationsDeployment.DelayedWethImpl = common.Address{0xff}
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	err = deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "the implementations recorded by prepare do not match")
+	require.Equal(t, nonceBefore, pendingNonce(t, env))
+	*env.prepared.ImplementationsDeployment = preparedImpls
 
 	env.preparedSnapshotChain.SystemConfigProxy = common.Address{0xff}
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
@@ -172,7 +179,7 @@ func testContinuePermissionlessWithCustomRoles(t *testing.T) {
 	customChallenger := common.Address{0xa2}
 	env := newContinuationEnvWithIntentMutator(
 		t,
-		[]embedded.GameType{embedded.GameTypeSuperCannonKona},
+		[]opcm.GameType{opcm.GameTypeSuperCannonKona},
 		common.Hash{},
 		func(intent *state.Intent) {
 			roles := &intent.Chains[0].Roles
@@ -192,7 +199,7 @@ func testContinuePermissionlessWithCustomRoles(t *testing.T) {
 
 func testContinueRejectsPrestateOverrideDrift(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeSuperCannonKona)
+	env := newContinuationEnv(t, opcm.GameTypeSuperCannonKona)
 	prestateA := common.HexToHash("0x1234")
 	env.intent.Chains[0].DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = prestateA
 	require.NoError(t, env.intent.WriteToFile(filepath.Join(env.workdir, "intent.toml")))
@@ -217,7 +224,7 @@ func testContinueRejectsPrestateOverrideDrift(t *testing.T) {
 
 func testContinuePermissioned(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeSuperPermissioned)
+	env := newContinuationEnv(t, opcm.GameTypeSuperPermissioned)
 	require.Zero(t, env.preparedChain.Prestate)
 	elapsedGenesisTime := hexutil.Uint64(1)
 	env.preparedSnapshotChain.GenesisTime = &elapsedGenesisTime
@@ -247,7 +254,7 @@ func testContinuePermissionedSuperRoot(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnvForGameTypesAndFeatures(
 		t,
-		[]embedded.GameType{embedded.GameTypeSuperPermissioned},
+		[]opcm.GameType{opcm.GameTypeSuperPermissioned},
 		devfeatures.SuperRootGamesMigrationFlag,
 	)
 	require.Zero(t, env.preparedChain.Prestate)
@@ -260,7 +267,7 @@ func testContinuePermissionedSuperRoot(t *testing.T) {
 
 func testContinueLiveValidationFailure(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeSuperCannonKona)
+	env := newContinuationEnv(t, opcm.GameTypeSuperCannonKona)
 	env.preparedChain.Prestate = common.HexToHash("0x1234")
 	env.preparedChain.StartingAnchorRoot = &state.StartingAnchorProposal{
 		Root:             common.HexToHash("0x5678"),
@@ -303,7 +310,7 @@ func testContinueLiveValidationFailure(t *testing.T) {
 
 func testContinuePostCheckpointReorg(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeSuperPermissioned)
+	env := newContinuationEnv(t, opcm.GameTypeSuperPermissioned)
 	nonceBefore := pendingNonce(t, env)
 	var snapshotID string
 	require.NoError(t, env.l1Client.Client().Call(&snapshotID, "evm_snapshot"))
@@ -333,7 +340,7 @@ func testContinuePostCheckpointReorg(t *testing.T) {
 
 func testContinuePartialDeployment(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeSuperCannonKona)
+	env := newContinuationEnv(t, opcm.GameTypeSuperCannonKona)
 	env.preparedChain.Prestate = common.HexToHash("0x1234")
 	env.preparedChain.StartingAnchorRoot = &state.StartingAnchorProposal{
 		Root:             common.HexToHash("0x5678"),
@@ -351,9 +358,9 @@ func testContinuePartialDeployment(t *testing.T) {
 
 func testContinueMultiChainGlobalPreflight(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypeSuperPermissioned,
-		embedded.GameTypeSuperCannonKona,
+	env := newContinuationEnvForGameTypes(t, []opcm.GameType{
+		opcm.GameTypeSuperPermissioned,
+		opcm.GameTypeSuperCannonKona,
 	})
 	permissionless := env.preparedChains[1]
 	setPermissionlessContinuationInputs(permissionless, 2)
@@ -394,9 +401,9 @@ func testContinueMultiChainGlobalPreflight(t *testing.T) {
 
 func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypeSuperPermissioned,
-		embedded.GameTypeSuperCannonKona,
+	env := newContinuationEnvForGameTypes(t, []opcm.GameType{
+		opcm.GameTypeSuperPermissioned,
+		opcm.GameTypeSuperCannonKona,
 	})
 	setPermissionlessContinuationInputs(env.preparedChains[1], 2)
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
@@ -436,9 +443,9 @@ func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 
 func testContinueMultiChainSequentialValidation(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypeSuperCannonKona,
-		embedded.GameTypeSuperPermissioned,
+	env := newContinuationEnvForGameTypes(t, []opcm.GameType{
+		opcm.GameTypeSuperCannonKona,
+		opcm.GameTypeSuperPermissioned,
 	})
 	setPermissionlessContinuationInputs(env.preparedChains[0], 1)
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
@@ -475,13 +482,13 @@ func testContinueMultiChainSequentialValidation(t *testing.T) {
 
 func testContinueRejectsMixedPermissionlessFamilies(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypeSuperPermissioned,
-		embedded.GameTypeSuperPermissioned,
+	env := newContinuationEnvForGameTypes(t, []opcm.GameType{
+		opcm.GameTypeSuperPermissioned,
+		opcm.GameTypeSuperPermissioned,
 	})
-	gameTypes := []embedded.GameType{
-		embedded.GameTypeCannonKona,
-		embedded.GameTypeSuperCannonKona,
+	gameTypes := []opcm.GameType{
+		opcm.GameTypeCannonKona,
+		opcm.GameTypeSuperCannonKona,
 	}
 	for i, gameType := range gameTypes {
 		setPermissionlessContinuationInputs(env.preparedChains[i], uint64(i+1))
@@ -507,17 +514,17 @@ func setPermissionlessContinuationInputs(chain *state.ChainState, sequenceNumber
 	}
 }
 
-func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationEnv {
-	return newContinuationEnvForGameTypes(t, []embedded.GameType{gameType})
+func newContinuationEnv(t *testing.T, gameType opcm.GameType) *continuationEnv {
+	return newContinuationEnvForGameTypes(t, []opcm.GameType{gameType})
 }
 
-func newContinuationEnvForGameTypes(t *testing.T, gameTypes []embedded.GameType) *continuationEnv {
+func newContinuationEnvForGameTypes(t *testing.T, gameTypes []opcm.GameType) *continuationEnv {
 	return newContinuationEnvForGameTypesAndFeatures(t, gameTypes, common.Hash{})
 }
 
 func newContinuationEnvForGameTypesAndFeatures(
 	t *testing.T,
-	gameTypes []embedded.GameType,
+	gameTypes []opcm.GameType,
 	devFeatureBitmap common.Hash,
 ) *continuationEnv {
 	return newContinuationEnvWithIntentMutator(t, gameTypes, devFeatureBitmap, nil)
@@ -525,7 +532,7 @@ func newContinuationEnvForGameTypesAndFeatures(
 
 func newContinuationEnvWithIntentMutator(
 	t *testing.T,
-	gameTypes []embedded.GameType,
+	gameTypes []opcm.GameType,
 	devFeatureBitmap common.Hash,
 	mutateIntentAfterBootstrap func(*state.Intent),
 ) *continuationEnv {
@@ -556,6 +563,7 @@ func newContinuationEnvWithIntentMutator(
 		CacheDir:                  cacheDir,
 		SuperchainProxyAdminOwner: superchainPAO,
 		Guardian:                  intent.SuperchainRoles.SuperchainGuardian,
+		ReceiptQueryInterval:      testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
 
@@ -583,6 +591,8 @@ func newContinuationEnvWithIntentMutator(
 		FaultGameSplitDepth:                standard.DisputeSplitDepth,
 		FaultGameClockExtension:            standard.DisputeClockExtension,
 		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
+		SP1Verifier:                        deployMockSP1Verifier(t, l1Client, key),
+		ReceiptQueryInterval:               testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
 
@@ -646,11 +656,12 @@ func newContinuationEnvWithIntentMutator(
 
 func (e *continuationEnv) config() deployer.ContinueConfig {
 	return deployer.ContinueConfig{
-		Workdir:    e.workdir,
-		L1RPCUrl:   e.l1RPC,
-		PrivateKey: e.privateKey,
-		CacheDir:   e.cacheDir,
-		Logger:     e.lgr,
+		Workdir:              e.workdir,
+		L1RPCUrl:             e.l1RPC,
+		PrivateKey:           e.privateKey,
+		CacheDir:             e.cacheDir,
+		Logger:               e.lgr,
+		ReceiptQueryInterval: testReceiptQueryInterval,
 	}
 }
 

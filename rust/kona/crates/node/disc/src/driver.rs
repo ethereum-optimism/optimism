@@ -7,13 +7,37 @@ use enr::NodeId;
 use kona_peers::{
     BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, peer_id_to_node_id,
 };
+use libp2p::{Multiaddr, multiaddr::Protocol};
+use std::pin::Pin;
 use tokio::{
     sync::mpsc::channel,
     task::JoinHandle,
     time::{Duration, sleep},
 };
+use tracing::Instrument;
 
-use crate::{Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
+use crate::{AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
+
+/// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
+/// started in, such as the one each test node runs in.
+fn spawn_in_current_span<F>(future: F) -> JoinHandle<F::Output>
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    tokio::spawn(future.in_current_span())
+}
+
+/// Spawns discv5's own tasks like [`spawn_in_current_span`]. discv5's default executor spawns them
+/// outside any span.
+#[derive(Clone, Debug)]
+pub(crate) struct CurrentSpanExecutor;
+
+impl discv5::Executor for CurrentSpanExecutor {
+    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
+        spawn_in_current_span(future);
+    }
+}
 
 /// The number of times to retry starting the [`Discv5`] service, with exponential backoff.
 const START_MAX_RETRIES: usize = 3;
@@ -176,8 +200,50 @@ impl Discv5Driver {
     /// response receivers return an error. When the task stops, the ENR receiver returns `None`
     /// once drained.
     pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
+        let enr = self.disc.local_enr();
+        if enr.tcp4() == Some(0) || enr.tcp6() == Some(0) {
+            warn!(
+                target: "discovery",
+                "The ENR advertises TCP port 0, which no peer can dial: set its TCP port with \
+                 advertise_gossip_tcp_port before starting discovery"
+            );
+        }
         let (handler, enr_recv, _task) = self.spawn();
         (handler, enr_recv)
+    }
+
+    /// Sets the IPv4 `tcp` and IPv6 `tcp6` ports of the local ENR to the TCP port of
+    /// `gossip_addr`, but only those that are unset, which [`LocalNode::tcp_port`] marks with 0.
+    ///
+    /// A port that is missing from the ENR is not added, and a port that is already set is kept,
+    /// so calling this again with another address has no effect. The IP of `gossip_addr` is never
+    /// used.
+    ///
+    /// Call it once gossip has bound its listen address, and before [`Self::start`], so that no
+    /// peer sees a TCP port of 0.
+    ///
+    /// Fails if a port is unset and `gossip_addr` has no TCP port to set it to.
+    pub fn advertise_gossip_tcp_port(
+        &self,
+        gossip_addr: &Multiaddr,
+    ) -> Result<(), AdvertiseTcpPortError> {
+        let enr = self.disc.local_enr();
+        for (key, port) in [("tcp", enr.tcp4()), ("tcp6", enr.tcp6())] {
+            if port != Some(0) {
+                continue;
+            }
+            let gossip_port = gossip_addr
+                .iter()
+                .find_map(|p| match p {
+                    Protocol::Tcp(port) => Some(port),
+                    _ => None,
+                })
+                .ok_or_else(|| AdvertiseTcpPortError::NoGossipTcpPort(gossip_addr.clone()))?;
+            self.disc
+                .enr_insert(key, &gossip_port)
+                .map_err(AdvertiseTcpPortError::EnrUpdateFailed)?;
+        }
+        Ok(())
     }
 
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
@@ -188,7 +254,7 @@ impl Discv5Driver {
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<Enr>(1024);
 
-        let task = tokio::spawn(async move {
+        let task = spawn_in_current_span(async move {
             let remove = self.remove_interval.is_some();
             let remove_dur = self.remove_interval.unwrap_or(std::time::Duration::from_secs(600));
             let mut removal_interval = tokio::time::interval(remove_dur);
@@ -320,7 +386,7 @@ impl Discv5Driver {
                                 metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "discovered").increment(1);
                                 store.add_enr(enr.clone());
                                 let sender = enr_sender.clone();
-                                tokio::spawn(async move {
+                                spawn_in_current_span(async move {
                                     if let Err(e) = sender.send(enr).await {
                                         debug!(target: "discovery", "Failed to send enr: {:?}", e);
                                     }
@@ -331,7 +397,7 @@ impl Discv5Driver {
                                 metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "session_established").increment(1);
                                 store.add_enr(enr.clone());
                                 let sender = enr_sender.clone();
-                                tokio::spawn(async move {
+                                spawn_in_current_span(async move {
                                     if let Err(e) = sender.send(enr).await {
                                         debug!(target: "discovery", "Failed to send enr: {:?}", e);
                                     }
@@ -342,7 +408,7 @@ impl Discv5Driver {
                                 metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unverifiable_enr").increment(1);
                                 store.add_enr(enr.clone());
                                 let sender = enr_sender.clone();
-                                tokio::spawn(async move {
+                                spawn_in_current_span(async move {
                                     if let Err(e) = sender.send(enr).await {
                                         debug!(target: "discovery", "Failed to send enr: {:?}", e);
                                     }
@@ -357,7 +423,7 @@ impl Discv5Driver {
                         metrics::gauge!(crate::Metrics::FIND_NODE_REQUEST, "find_node" => "find_node").increment(1);
                         let fut = self.disc.find_node(id);
                         let enr_sender = enr_sender.clone();
-                        tokio::spawn(async move {
+                        spawn_in_current_span(async move {
                             match fut.await {
                                 Ok(nodes) => {
                                     let enrs = nodes.into_iter().filter(|node| EnrValidation::validate(node, chain_id).is_valid());
@@ -408,12 +474,13 @@ impl Discv5Driver {
 mod tests {
     use super::*;
     use crate::LocalNode;
-    use discv5::{ConfigBuilder, NodeContact};
+    use discv5::{ConfigBuilder, ListenConfig, NodeContact};
     use enr::{CombinedKey, CombinedPublicKey};
     use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
+    use rstest::rstest;
     use tempfile::tempdir;
 
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
     #[tokio::test]
     async fn test_online_discv5_driver() {
@@ -451,6 +518,55 @@ mod tests {
         .expect("Failed to build discovery service")
     }
 
+    /// Only an unset TCP port of 0 is set to the gossip TCP port, and only once: another port is
+    /// kept, and so is the first gossip port. It fails if the gossip address has no TCP port to set
+    /// it to, as with the memory transport. An IPv6 node's port is `tcp6`.
+    #[rstest]
+    #[case::unset(Ipv4Addr::LOCALHOST.into(), 0, "/ip4/127.0.0.1/tcp/9222", Some(9222))]
+    #[case::unset_ipv6(Ipv6Addr::LOCALHOST.into(), 0, "/ip6/::1/tcp/9222", Some(9222))]
+    #[case::set(Ipv4Addr::LOCALHOST.into(), 30303, "/ip4/127.0.0.1/tcp/9222", Some(30303))]
+    #[case::set_without_gossip_port(Ipv4Addr::LOCALHOST.into(), 30303, "/memory/0", Some(30303))]
+    #[case::unset_without_gossip_port(Ipv4Addr::LOCALHOST.into(), 0, "/memory/0", None)]
+    #[tokio::test]
+    async fn test_advertise_gossip_tcp_port(
+        #[case] ip: IpAddr,
+        #[case] tcp_port: u16,
+        #[case] gossip_addr: Multiaddr,
+        #[case] advertised: Option<u16>,
+    ) {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        // A fixed listen port, so that building binds no socket, which IPv6 would need the host to
+        // support.
+        let driver = Discv5Driver::builder(
+            LocalNode::new(secret_key, ip, tcp_port, 0),
+            0xdead_beef,
+            ConfigBuilder::new(ListenConfig::from_ip(ip, 30303)).build(),
+        )
+        .build()
+        .unwrap();
+        let enr_tcp_port = || {
+            let enr = driver.disc.local_enr();
+            if ip.is_ipv4() { enr.tcp4() } else { enr.tcp6() }
+        };
+
+        let result = driver.advertise_gossip_tcp_port(&gossip_addr);
+
+        match advertised {
+            Some(port) => {
+                result.unwrap();
+                assert_eq!(enr_tcp_port(), Some(port));
+                // A second address changes nothing.
+                driver.advertise_gossip_tcp_port(&"/ip4/127.0.0.1/tcp/1".parse().unwrap()).unwrap();
+                assert_eq!(enr_tcp_port(), Some(port));
+            }
+            None => {
+                assert!(matches!(result, Err(AdvertiseTcpPortError::NoGossipTcpPort(_))));
+            }
+        }
+    }
+
     /// Waits until the driver has finished startup and runs its main loop.
     async fn wait_until_started(handler: &Discv5Handler) {
         // Requests are only answered by the main loop.
@@ -478,10 +594,12 @@ mod tests {
         driver.disc.add_enr(enr.clone()).unwrap();
         let (handler, _enr_recv, _task) = driver.spawn();
         wait_until_started(&handler).await;
-        let table = |handler: &Discv5Handler| {
-            let reply = handler.table_enrs();
-            async move { tokio::time::timeout(Duration::from_secs(5), reply).await.unwrap().unwrap() }
-        };
+        async fn table(handler: &Discv5Handler) -> Vec<Enr> {
+            tokio::time::timeout(Duration::from_secs(5), handler.table_enrs())
+                .await
+                .unwrap()
+                .unwrap()
+        }
         assert!(table(&handler).await.iter().any(|e| e.node_id() == enr.node_id()));
 
         handler
@@ -578,7 +696,9 @@ mod tests {
         // request and stopping would only fail some of the time.
         for _ in 0..20 {
             let (handler, enr_recv, _task) = offline_driver().spawn();
-            let reply = handler.peer_count();
+            // Send through the channel, since a handler's request is only sent once awaited.
+            let (tx, reply) = tokio::sync::oneshot::channel();
+            handler.sender.send(HandlerRequest::PeerCount(tx)).await.unwrap();
             drop(handler);
             drop(enr_recv);
 
