@@ -435,7 +435,7 @@ go-tests-fraud-proofs-ci:
   export OP_E2E_CANNON_ENABLED="true"
   export OP_E2E_USE_HTTP=true
   export ENABLE_ANVIL=true
-  export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  export PARALLEL=${FAULT_PROOF_TEST_PARALLEL:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
   export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
   source ./ops/scripts/source-ci-archive-rpcs.sh
   export NAT_INTEROP_LOADTEST_TARGET=10

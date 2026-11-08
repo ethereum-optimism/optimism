@@ -2791,6 +2791,10 @@ workflows:
           no_output_timeout: 90m
           test_timeout: 480m
           resource_class: 2xlarge.gen2
+          # These tests are mostly idle (16 at once averaged ~3 of 16 cores), so memory sets the
+          # limit: 32 at once peaked at ~23.5 GiB of anonymous memory out of 32 GiB.
+          # OP_E2E_EXECUTOR_LIMIT (default 16) caps the cannon tests and has to rise with it.
+          environment_overrides: export FAULT_PROOF_TEST_PARALLEL=32 OP_E2E_EXECUTOR_LIMIT=32
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
