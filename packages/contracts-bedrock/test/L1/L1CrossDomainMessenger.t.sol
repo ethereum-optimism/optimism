@@ -692,6 +692,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         uint256 value = 100;
+        // The messenger of a forked chain can already hold ETH.
+        uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         vm.expectCall(target, hex"1111");
 
@@ -712,7 +714,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
             hex"1111"
         );
 
-        assertEq(address(l1CrossDomainMessenger).balance, value);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger + value);
         assertEq(address(target).balance, 0);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), false);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -733,7 +735,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
             hex"1111"
         );
 
-        assertEq(address(l1CrossDomainMessenger).balance, 0);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
         assertEq(address(target).balance, value);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -831,6 +833,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         uint256 value = 100;
+        // The messenger of a forked chain can already hold ETH.
+        uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
@@ -868,7 +872,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message failed.
-        assertEq(address(l1CrossDomainMessenger).balance, value);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger + value);
         assertEq(address(target).balance, 0);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), false);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -895,7 +899,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message was successfully relayed.
-        assertEq(address(l1CrossDomainMessenger).balance, 0);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
         assertEq(address(target).balance, value);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -906,6 +910,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         uint256 value = 100;
+        // The messenger of a forked chain can already hold ETH.
+        uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
@@ -941,7 +947,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message was successfully relayed.
-        assertEq(address(l1CrossDomainMessenger).balance, 0);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
         assertEq(address(target).balance, value);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
@@ -966,6 +972,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         uint256 value = 100;
+        // The messenger of a forked chain can already hold ETH.
+        uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
@@ -1000,7 +1008,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message failed.
-        assertEq(address(l1CrossDomainMessenger).balance, value);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger + value);
         assertEq(address(target).balance, 0);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), false);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -1027,7 +1035,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message was successfully relayed.
-        assertEq(address(l1CrossDomainMessenger).balance, 0);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
         assertEq(address(target).balance, value);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
