@@ -2005,7 +2005,7 @@ jobs:
       - run:
           name: Memory summary
           when: always
-          command: grep -H . /sys/fs/cgroup/memory.{peak,events,pressure} || true
+          command: grep -H . /sys/fs/cgroup/memory.{events,pressure} || true
       - go-save-cache:
           namespace: go-tests-with-fault-proof-deps
       - store_test_results:
