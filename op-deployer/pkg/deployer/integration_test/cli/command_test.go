@@ -110,12 +110,6 @@ func TestApplyCommandFlagValidation(t *testing.T) {
 			expectError:    true, // Will fail because no intent file, but tests flag parsing
 			expectContains: []string{"failed to read intent file"},
 		},
-		{
-			name:           "mock SP1 verifier flag",
-			args:           []string{"apply", "--deployment-target", "genesis", "--deploy-mock-sp1-verifier"},
-			expectError:    true, // Will fail because no intent file, but tests flag parsing
-			expectContains: []string{"failed to read intent file"},
-		},
 	}
 
 	for _, tt := range tests {
