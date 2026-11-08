@@ -563,6 +563,7 @@ func newContinuationEnvWithIntentMutator(
 		CacheDir:                  cacheDir,
 		SuperchainProxyAdminOwner: superchainPAO,
 		Guardian:                  intent.SuperchainRoles.SuperchainGuardian,
+		ReceiptQueryInterval:      testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
 
@@ -591,6 +592,7 @@ func newContinuationEnvWithIntentMutator(
 		FaultGameClockExtension:            standard.DisputeClockExtension,
 		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
 		SP1Verifier:                        deployMockSP1Verifier(t, l1Client, key),
+		ReceiptQueryInterval:               testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
 
@@ -654,11 +656,12 @@ func newContinuationEnvWithIntentMutator(
 
 func (e *continuationEnv) config() deployer.ContinueConfig {
 	return deployer.ContinueConfig{
-		Workdir:    e.workdir,
-		L1RPCUrl:   e.l1RPC,
-		PrivateKey: e.privateKey,
-		CacheDir:   e.cacheDir,
-		Logger:     e.lgr,
+		Workdir:              e.workdir,
+		L1RPCUrl:             e.l1RPC,
+		PrivateKey:           e.privateKey,
+		CacheDir:             e.cacheDir,
+		Logger:               e.lgr,
+		ReceiptQueryInterval: testReceiptQueryInterval,
 	}
 }
 
