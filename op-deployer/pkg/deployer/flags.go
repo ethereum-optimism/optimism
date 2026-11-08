@@ -35,7 +35,8 @@ const (
 	ForgeSlowBroadcastFlagName = flags.ForgeSlowBroadcastFlagName
 	GenesisTimeOffsetFlagName  = flags.GenesisTimeOffsetFlagName
 
-	ReceiptQueryIntervalFlagName = flags.ReceiptQueryIntervalFlagName
+	ReceiptQueryIntervalFlagName  = flags.ReceiptQueryIntervalFlagName
+	DeployMockSP1VerifierFlagName = flags.DeployMockSP1VerifierFlagName
 )
 
 var (
@@ -160,6 +161,12 @@ var (
 		Value:   broadcaster.DefaultReceiptQueryInterval,
 		Hidden:  true,
 	}
+	DeployMockSP1VerifierFlag = &cli.BoolFlag{
+		Name:    DeployMockSP1VerifierFlagName,
+		Usage:   "for tests: deploy an accept-all SP1 verifier for the implementations to use. Only valid with --deployment-target genesis; an sp1Verifier deploy override takes precedence",
+		EnvVars: PrefixEnvVar("DEPLOY_MOCK_SP1_VERIFIER"),
+		Hidden:  true,
+	}
 	GenesisTimeOffsetFlag = &cli.Uint64Flag{
 		Name: GenesisTimeOffsetFlagName,
 		Usage: "Offset in seconds added to the L1 anchor block's timestamp to produce the committed L2 genesis " +
@@ -204,6 +211,7 @@ var ApplyFlags = []cli.Flag{
 	UseForgeFlag,
 	ForgeSlowBroadcastFlag,
 	ReceiptQueryIntervalFlag,
+	DeployMockSP1VerifierFlag,
 }
 
 var PrestateFlags = []cli.Flag{
