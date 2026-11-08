@@ -16,9 +16,7 @@ use tokio::{
 };
 use tracing::Instrument;
 
-use crate::{
-    AddrFilter, AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode,
-};
+use crate::{AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
 
 /// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
 /// started in, such as the one each test node runs in.
@@ -49,23 +47,6 @@ const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
 
 /// The delay between attempts to start the [`Discv5`] event stream.
 const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
-
-/// Returns the IP addresses of `bootnode`: those in its record, or in its enode URL.
-fn bootnode_ips(bootnode: &BootNode) -> Vec<IpAddr> {
-    match bootnode {
-        BootNode::Enr(enr) => {
-            enr.ip4().map(IpAddr::V4).into_iter().chain(enr.ip6().map(IpAddr::V6)).collect()
-        }
-        BootNode::Enode(addr) => addr
-            .iter()
-            .filter_map(|protocol| match protocol {
-                Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
-                Protocol::Ip6(ip) => Some(IpAddr::V6(ip)),
-                _ => None,
-            })
-            .collect(),
-    }
-}
 
 /// Returns whether the TCP address gossip dials from `enr`, see [`kona_peers::enr_tcp_socket`], has
 /// `session_ip`, the IP that a session with the node came from. Then the session has confirmed the
@@ -110,9 +91,9 @@ pub struct Discv5Driver {
     pub bootnodes: BootNodes,
     /// The chain ID of the network.
     pub chain_id: u64,
-    /// Which addresses discovery uses in other nodes' records, which saved records and bootnodes
-    /// must pass too. Not public, as discv5's table filter was chosen for it and can't change.
-    pub(crate) addr_filter: AddrFilter,
+    /// discv5's table filter, which saved records must pass too before they are dialed. Not
+    /// public, as it must stay the one discv5 was built with.
+    pub(crate) table_filter: fn(&Enr) -> bool,
     /// The interval to discovery random nodes.
     pub interval: Duration,
     /// Whether to forward ENRs to the enr receiver on startup.
@@ -135,9 +116,11 @@ impl Discv5Driver {
         Discv5Builder::new(local_node, chain_id, discovery_config)
     }
 
-    /// Instantiates a new [`Discv5Driver`].
+    /// Instantiates a new [`Discv5Driver`]. `table_filter` must be the one `disc` was built with,
+    /// as the driver also drops the saved records it rejects.
     pub const fn new(
         disc: Discv5,
+        table_filter: fn(&Enr) -> bool,
         interval: Duration,
         chain_id: u64,
         bootstore: Option<BootStoreFile>,
@@ -146,7 +129,7 @@ impl Discv5Driver {
         Ok(Self {
             disc,
             chain_id,
-            addr_filter: AddrFilter::PublicOnly,
+            table_filter,
             bootnodes,
             interval,
             forward: true,
@@ -232,7 +215,6 @@ impl Discv5Driver {
         bootstore: Option<BootStoreFile>,
         bootnodes: BootNodes,
         chain_id: u64,
-        addr_filter: AddrFilter,
         disc: &Discv5,
     ) -> BootStore {
         // Note: if the bootstore file cannot be created, we use a default bootstore.
@@ -242,20 +224,9 @@ impl Discv5Driver {
         let initial_store_length = store.len();
 
         for bn in bootnodes.0.into_iter().chain(BootNodes::from_chain_id(chain_id).0) {
-            let res = match &bn {
-                BootNode::Enr(enr) => Ok(enr.clone()),
-                BootNode::Enode(enode) => {
-                    // Asking it for its record starts a session, which puts it in discv5's table
-                    // without the table filter, so check its address first.
-                    let rejected = bootnode_ips(&bn)
-                        .into_iter()
-                        .find_map(|ip| addr_filter.check_addr(ip).err());
-                    if let Some(reason) = rejected {
-                        warn!(target: "discovery::bootstrap", %reason, %enode, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
-                        continue;
-                    }
-                    disc.request_enr(enode.clone()).await
-                }
+            let res = match bn {
+                BootNode::Enr(enr) => Ok(enr),
+                BootNode::Enode(enode) => disc.request_enr(enode).await,
             };
 
             let Ok(enr) = res else {
@@ -269,16 +240,12 @@ impl Discv5Driver {
                 continue;
             }
 
-            // discv5's table filter would reject it too, but without saying why. A bootnode given
-            // by enode URL is in the table already, from the session that fetched its record.
-            if let Err(reason) = addr_filter.check_enr(&enr) {
-                warn!(target: "discovery::bootstrap", %reason, ?enr, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
-                disc.remove_node(&enr.node_id());
-                continue;
-            }
-
+            // Fails for a bootnode the table filter rejects, such as one at a private address
+            // without `--p2p.discovery.private`. A bootnode given by enode URL is in the table
+            // already, from the session that fetched its record, which skips the filter.
             if let Err(e) = disc.add_enr(enr.clone()) {
-                debug!(target: "discovery::bootstrap", "Failed to add enr: {:?}", e);
+                warn!(target: "discovery::bootstrap", ?enr, "Failed to add boot node: {e}");
+                disc.remove_node(&enr.node_id());
                 continue;
             }
 
@@ -366,7 +333,7 @@ impl Discv5Driver {
     /// Same as [`Discv5Driver::start`], but also returns the [`JoinHandle`] of the task.
     fn spawn(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>, JoinHandle<()>) {
         let chain_id = self.chain_id;
-        let addr_filter = self.addr_filter;
+        let table_filter = self.table_filter;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<Enr>(1024);
 
@@ -386,22 +353,16 @@ impl Discv5Driver {
             trace!(target: "discovery", "Discv5 Initialized");
 
             // Step 2: Bootstrap the discovery table with bootnodes.
-            let mut store = Self::bootstrap_peers(
-                self.bootstore,
-                self.bootnodes,
-                chain_id,
-                addr_filter,
-                &self.disc,
-            )
-            .await;
+            let mut store =
+                Self::bootstrap_peers(self.bootstore, self.bootnodes, chain_id, &self.disc).await;
 
             let enrs = self.disc.table_entries_enr();
             info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
 
-            // Step 3: Remove the saved records the address filter rejects: the bootstore may hold
+            // Step 3: Remove the saved records the table filter rejects: the bootstore may hold
             // records saved by an earlier version, which didn't check them, or while the filter
             // allowed more. The file changes at the next sync, once the driver has started.
-            let removed = store.retain(|enr| addr_filter.check_enr(enr).is_ok());
+            let removed = store.retain(table_filter);
             if removed > 0 {
                 debug!(target: "discovery", removed, "Removed saved records at addresses discovery doesn't use");
             }
@@ -737,10 +698,11 @@ mod tests {
         );
     }
 
-    /// A public node should dial only the saved records it can reach, as with the records other
-    /// nodes relay to it, so it should leave out a loopback record in its bootstore. Such a record
-    /// may have been saved by a version that didn't check the records it dials, or while the node
-    /// ran on loopback, and nothing says the node it names is on this host.
+    /// A node with a public-only table filter should dial only the saved records it can reach, as
+    /// with the records other nodes relay to it, so it should leave out a loopback record in its
+    /// bootstore. Such a record may have been saved by a version that didn't check the records it
+    /// dials, or while the node ran on loopback, and nothing says the node it names is on this
+    /// host.
     ///
     /// At startup, the driver hands the bootstore's records to gossip one by one, in the order they
     /// were saved, before any record discovery finds: here the loopback record, then the public
@@ -761,7 +723,7 @@ mod tests {
         assert_eq!(first, public, "a public node dialed a saved loopback record");
     }
 
-    /// A public node should also remove the saved records it leaves out from its bootstore, so
+    /// Such a node should also remove the saved records it leaves out from its bootstore, so
     /// that they don't stay there for good. The driver saves the bootstore once it has started, and
     /// then every minute.
     #[tokio::test]
@@ -795,8 +757,8 @@ mod tests {
     /// lookups, which nothing has shown are at the address in them, and the bootstore would dial
     /// them after a restart.
     ///
-    /// The node allows private addresses, and every record is on loopback or a documentation
-    /// address, so it contacts nothing outside this host.
+    /// The node's table filter accepts only loopback records, and every record is on loopback or a
+    /// documentation address, so it contacts nothing outside this host.
     #[tokio::test]
     async fn test_bootstore_saves_only_confirmed_records() {
         // Kept in the bootstore, and the documentation address is removed from it at startup, so
@@ -804,7 +766,7 @@ mod tests {
         let kept = enr_at(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), BOOTSTORE_CHAIN_ID);
         let removed = enr_at(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), BOOTSTORE_CHAIN_ID);
         let (driver, dir) = driver_with_bootstore(
-            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            |enr| enr.ip4().is_some_and(|ip| ip.is_loopback()),
             &[kept.clone(), removed.clone()],
         );
         // As if another node had returned it to one of our lookups.
@@ -833,17 +795,17 @@ mod tests {
     /// The chain ID of the bootstore tests: not in the registry, so it has no bootnodes of its own.
     const BOOTSTORE_CHAIN_ID: u64 = 0xdead_beef;
 
-    /// A driver that advertises a public address, with a bootstore of `records`, see
+    /// A driver with [`crate::public_only`] as its table filter, with a bootstore of `records`, see
     /// [`driver_with_bootstore`].
     fn public_driver_with_bootstore(records: &[Enr]) -> (Discv5Driver, tempfile::TempDir) {
-        driver_with_bootstore(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), records)
+        driver_with_bootstore(crate::public_only, records)
     }
 
-    /// A driver that advertises `advertised`, with a bootstore of `records` in a new temporary
-    /// directory, which is removed when the returned guard drops. The node has no bootnodes, and
-    /// listens on loopback whatever it advertises.
+    /// A driver with `table_filter`, and a bootstore of `records` in a new temporary directory,
+    /// which is removed when the returned guard drops. The node has no bootnodes, and listens on
+    /// loopback.
     fn driver_with_bootstore(
-        advertised: IpAddr,
+        table_filter: fn(&Enr) -> bool,
         records: &[Enr],
     ) -> (Discv5Driver, tempfile::TempDir) {
         let dir = tempdir().unwrap();
@@ -860,9 +822,11 @@ mod tests {
             unreachable!()
         };
         let mut driver = Discv5Driver::builder(
-            LocalNode::new(secret_key, advertised, 0, 0),
+            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
             BOOTSTORE_CHAIN_ID,
-            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into()).build(),
+            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into())
+                .table_filter(table_filter)
+                .build(),
         )
         .build()
         .expect("the driver builds");
@@ -870,12 +834,12 @@ mod tests {
         (driver, dir)
     }
 
-    /// A public node should neither contact nor keep a loopback bootnode given by enode URL, as it
-    /// skips one given by ENR. An enode URL holds only an address, so the node asks that address
-    /// for the bootnode's record, which starts a session and so puts the bootnode in discv5's table
-    /// without the table filter.
+    /// A node with a public-only table filter should not keep a loopback bootnode given by enode
+    /// URL, as discv5 doesn't keep one given by ENR. An enode URL holds only an address, so the
+    /// node asks that address for the bootnode's record, which starts a session and so puts the
+    /// bootnode in discv5's table without the table filter.
     #[tokio::test]
-    async fn test_public_node_skips_loopback_enode_bootnode() {
+    async fn test_public_only_node_drops_loopback_enode_bootnode() {
         let bootnode = offline_driver().init().await.expect("the bootnode starts");
         let bootnode_enr = bootnode.disc.local_enr();
         let peer_id = kona_peers::enr_to_multiaddr(&bootnode_enr)
@@ -890,22 +854,22 @@ mod tests {
             unreachable!()
         };
         let node = Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 0, 0),
+            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
             bootnode.chain_id,
-            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into()).build(),
+            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into())
+                .table_filter(crate::public_only)
+                .build(),
         )
         .build()
         .expect("the node builds")
         .init()
         .await
         .expect("the node starts");
-        assert_eq!(node.addr_filter, AddrFilter::PublicOnly);
 
         Discv5Driver::bootstrap_peers(
             None,
             BootNodes(vec![BootNode::Enode(enode)]),
             node.chain_id,
-            node.addr_filter,
             &node.disc,
         )
         .await;
@@ -916,7 +880,7 @@ mod tests {
                 .table_entries_enr()
                 .iter()
                 .any(|enr| enr.node_id() == bootnode_enr.node_id()),
-            "a public node kept a loopback enode bootnode"
+            "a public-only node kept a loopback enode bootnode"
         );
     }
 
@@ -1157,7 +1121,6 @@ mod tests {
             discovery.bootstore,
             discovery.bootnodes,
             OP_SEPOLIA_CHAIN_ID,
-            discovery.addr_filter,
             &discovery.disc,
         )
         .await;
@@ -1251,7 +1214,6 @@ mod tests {
             discovery.bootstore,
             discovery.bootnodes,
             OP_MAINNET_CHAIN_ID,
-            discovery.addr_filter,
             &discovery.disc,
         )
         .await;

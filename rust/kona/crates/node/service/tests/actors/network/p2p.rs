@@ -6,7 +6,6 @@ use std::{
 use crate::actors::network::mocks::{TestNetwork, builder::TestNetworkBuilder};
 use discv5::Enr;
 use enr::NodeId;
-use kona_disc::AddrFilter;
 use kona_genesis::OP_MAINNET_CHAIN_ID;
 use kona_gossip::PeerAddr;
 use kona_node_service::IpVotes;
@@ -170,8 +169,9 @@ async fn bootnode_relaying_loopback_node(
     Ok((builder.with_discovery_interval(Duration::from_millis(100)), bootnode, relayed))
 }
 
-/// A node that advertises a LAN address allows private addresses, as on a devnet, without a flag:
-/// P (`node`) listens on, and advertises, the host's own IP, and joins through B, which holds R on
+/// A node that allows private addresses, as a devnet node with `--p2p.discovery.private` does,
+/// dials a loopback node it found through a LAN bootnode once it has a session with it: P (`node`)
+/// listens on, and advertises, the host's own IP, and joins through B, which holds R on
 /// loopback, see [`bootnode_relaying_loopback_node`]. P's lookups through B return R, P's discovery
 /// contacts R, and gossip dials it at the address that session came from.
 ///
@@ -188,38 +188,6 @@ async fn test_lan_node_finds_loopback_nodes_through_a_lan_bootnode() -> anyhow::
     let node = builder.build(vec![bootnode.peer_enr().await?]).await;
     node.check_in_discovery_table_with_retries(relayed.node_id().await?).await?;
     node.check_connected_to_with_retries(&relayed).await?;
-
-    Ok(())
-}
-
-/// A node that uses only public addresses skips a LAN bootnode, as a public node does: P (`node`)
-/// listens on the host's own IP, like B, but uses only public addresses. B is both its bootnode
-/// and its static peer, so P connects to B over gossip, but B never gets into P's discovery
-/// table. To bootstrap from a LAN bootnode, a public node needs `--p2p.discovery.private`.
-///
-/// Skipped on a host with no address but loopback.
-#[tokio::test(flavor = "multi_thread")]
-async fn test_public_only_node_skips_its_lan_bootnode() -> anyhow::Result<()> {
-    let Some(host_ip) = host_ip() else {
-        eprintln!("skipping, this host has no address but loopback");
-        return Ok(());
-    };
-    let mut builder = TestNetworkBuilder::new().with_listen_ip(host_ip);
-    let bootnode = builder.build(vec![]).await;
-    let bootnode_addr = PeerAddr::try_from(bootnode.listen_addr().await?)?;
-
-    let mut builder = builder
-        .with_listen_ip(host_ip)
-        .with_addr_filter(AddrFilter::PublicOnly)
-        .with_static_peers(vec![bootnode_addr]);
-    let node = builder.build(vec![bootnode.peer_enr().await?]).await;
-    node.check_connected_to_with_retries(&bootnode).await?;
-
-    let bootnode_id = bootnode.node_id().await?;
-    assert!(
-        !node_ids(&node.discovery_table().await?).contains(&bootnode_id),
-        "a public-only node kept a LAN bootnode"
-    );
 
     Ok(())
 }

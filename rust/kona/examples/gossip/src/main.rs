@@ -115,15 +115,18 @@ impl GossipCommand {
             discovery_address: disc_addr,
             gossip_address: gossip_addr,
             unsafe_block_signer: signer,
-            // As the node configures discovery, without `--p2p.advertise.ip`.
-            discovery_config: NetworkConfig::discv5_config(
-                discv5::ListenConfig::Ipv4 { ip: disc_ip, port: self.disc_port },
-                Some(IpVotes::DEFAULT),
-            ),
+            // As the node configures discovery, without `--p2p.advertise.ip` or
+            // `--p2p.discovery.private`.
+            discovery_config: discv5::Config {
+                table_filter: kona_disc::public_only,
+                ..NetworkConfig::discv5_config(
+                    discv5::ListenConfig::Ipv4 { ip: disc_ip, port: self.disc_port },
+                    Some(IpVotes::DEFAULT),
+                )
+            },
             discovery_interval: Duration::from_secs(self.interval),
             discovery_randomize: None,
             discovery_enabled: true,
-            discovery_addr_filter: None,
             keypair: Keypair::generate_secp256k1(),
             gossip_config: Default::default(),
             scoring: Default::default(),

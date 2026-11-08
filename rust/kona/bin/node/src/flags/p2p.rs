@@ -11,7 +11,7 @@ use anyhow::Result;
 use clap::Parser;
 use enr::k256;
 use kona_derive::ChainProvider;
-use kona_disc::{AddrFilter, LocalNode};
+use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
 use kona_node_service::{IpVotes, NetworkConfig};
@@ -246,13 +246,12 @@ pub struct P2PArgs {
         env = "KONA_NODE_P2P_DISCOVERY_IP_VOTES"
     )]
     pub discovery_ip_votes: IpVotes,
-    /// Lets discovery use private addresses, loopback and LAN, in other nodes' records, as on a
-    /// devnet.
+    /// Lets discovery use non-public addresses, such as loopback and LAN ones, in other nodes'
+    /// records, as on a devnet.
     ///
-    /// Without it, discovery uses them only if the node advertises a loopback or LAN address. So a
-    /// node on a local network that listens on all interfaces, without `p2p.advertise.ip`, needs
-    /// this to bootstrap from local bootnodes. A node on a public network can't reach other
-    /// hosts' private addresses, so leave it off there.
+    /// Without it, discovery uses only public addresses, and doesn't keep a bootnode at another
+    /// address. A node on a public network can't reach other hosts' private addresses, so leave it
+    /// off there.
     #[arg(long = "p2p.discovery.private", env = "KONA_NODE_P2P_DISCOVERY_PRIVATE")]
     pub discovery_private: bool,
     /// The directory to store the bootstore.
@@ -539,8 +538,11 @@ impl P2PArgs {
         });
 
         let discovery_listening_address = SocketAddr::new(self.listen_ip, self.listen_udp_port);
-        let discovery_config =
+        let mut discovery_config =
             NetworkConfig::discv5_config(discovery_listening_address.into(), ip_votes);
+        if !self.discovery_private {
+            discovery_config.table_filter = kona_disc::public_only;
+        }
 
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
@@ -564,7 +566,6 @@ impl P2PArgs {
             discovery_address,
             discovery_randomize: self.discovery_randomize.map(Duration::from_secs),
             discovery_enabled: !self.no_discovery,
-            discovery_addr_filter: self.discovery_private.then_some(AddrFilter::AllowPrivate),
             gossip_address,
             keypair,
             unsafe_block_signer,
@@ -738,15 +739,20 @@ mod tests {
         assert!(!config.discovery_config.enr_update);
     }
 
-    /// `--p2p.discovery.private` allows private addresses. Without it, discovery picks its filter
-    /// from the advertised address.
+    /// Discovery's table filter accepts only public records, unless `--p2p.discovery.private`
+    /// allows private ones.
     #[tokio::test]
     async fn test_discovery_private_reaches_discovery() {
-        let config = network_config(&["--p2p.discovery.private"]).await;
-        assert_eq!(config.discovery_addr_filter, Some(AddrFilter::AllowPrivate));
+        let loopback = discv5::Enr::builder()
+            .ip4(std::net::Ipv4Addr::LOCALHOST)
+            .build(&enr::CombinedKey::generate_secp256k1())
+            .expect("the record builds");
 
         let config = network_config(&[]).await;
-        assert_eq!(config.discovery_addr_filter, None);
+        assert!(!(config.discovery_config.table_filter)(&loopback));
+
+        let config = network_config(&["--p2p.discovery.private"]).await;
+        assert!((config.discovery_config.table_filter)(&loopback));
     }
 
     #[test]
