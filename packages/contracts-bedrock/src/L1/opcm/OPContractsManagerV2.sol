@@ -773,7 +773,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_BridgeHookNotSupported();
             }
 
-            // Interop is only set during migration.
+            // TODO(optimism-private#1114): support bridge hooks on interop chains.
             // During initial deployment systemConfig has not been set yet.
             if (!_isInitialDeployment && _systemConfig.isFeatureEnabled(Features.INTEROP)) {
                 revert OPContractsManagerV2_BridgeHookNotSupported();
