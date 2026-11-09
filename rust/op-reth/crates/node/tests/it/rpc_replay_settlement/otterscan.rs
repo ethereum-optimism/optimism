@@ -1,6 +1,6 @@
 //! `ots_getTransactionError` on an SDM block.
 
-use super::fixture::{REVERT_OUTPUT, SettledBlock};
+use super::fixture::{REVERT_OUTPUT, REVERTING_INDEX, SettledBlock};
 use alloy_primitives::Bytes;
 use jsonrpsee::{core::client::ClientT, rpc_params};
 
@@ -12,7 +12,7 @@ async fn otterscan_returns_revert_output_on_sdm_block() -> eyre::Result<()> {
 
     let revert: Option<Bytes> = fixture
         .client
-        .request("ots_getTransactionError", rpc_params![fixture.transaction_hash(3)])
+        .request("ots_getTransactionError", rpc_params![fixture.transaction_hash(REVERTING_INDEX)])
         .await?;
 
     assert_eq!(

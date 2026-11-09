@@ -7,6 +7,8 @@
 
 use alloy_consensus::{Sealable, proofs::calculate_transaction_root};
 use alloy_rpc_types_engine::{PayloadStatus, PayloadStatusEnum, PayloadValidationError};
+use alloy_rpc_types_eth::TransactionRequest;
+use jsonrpsee::core::ClientError;
 use op_alloy_consensus::{PostExecPayloadValidationError, SDMGasEntry, build_post_exec_tx};
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
 use reth_e2e_test_utils::{NodeHelperType, setup_engine_with_connection, wallet::Wallet};
@@ -16,7 +18,8 @@ use reth_optimism_node::{
     utils::{advance_chain, setup},
 };
 use reth_optimism_primitives::OpTransactionSigned;
-use std::sync::Arc;
+use reth_rpc_api::clients::DebugApiClient;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 /// Creates Lagoon-active nodes without changing the shared Ecotone fixture.
@@ -111,6 +114,7 @@ async fn test_lagoon_new_payload_with_wrong_post_exec_block_number_is_invalid() 
     let payloads = advance_chain(2, &mut node, Arc::new(Mutex::new(wallet))).await?;
     let parent = &payloads[0];
     let (bad_child, reason) = with_mismatched_post_exec_block_number(&payloads[1]);
+    let bad_child_hash = bad_child.payload.block_hash();
     let engine = &node.inner.add_ons_handle.beacon_engine_handle;
 
     let status = engine.new_payload(bad_child.clone()).await.expect("not an internal error");
@@ -121,6 +125,33 @@ async fn test_lagoon_new_payload_with_wrong_post_exec_block_number_is_invalid() 
     assert_invalid(&status, &PayloadValidationError::LinksToRejectedPayload.to_string());
     assert_eq!(status.latest_valid_hash, Some(parent.block().hash()));
 
+    // The rejected block is cached for diagnostics, but tracing it replays through the block
+    // executor, which rejects it for the same reason instead of returning pre-refund traces.
+    let client =
+        node.inner.add_ons_handle.rpc_server_handles().rpc.http_client().expect("HTTP RPC on");
+    let trace_error = loop {
+        match DebugApiClient::<TransactionRequest>::debug_trace_bad_block(
+            &client,
+            bad_child_hash,
+            None,
+        )
+        .await
+        {
+            Ok(traces) => panic!("debug_traceBadBlock must reject the block, got {traces:?}"),
+            Err(ClientError::Call(error)) if error.message().contains("not found in cache") => {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+            Err(error) => break error,
+        }
+    };
+    let ClientError::Call(trace_error) = trace_error else {
+        panic!("debug_traceBadBlock must fail with a call error: {trace_error:?}");
+    };
+    assert!(
+        trace_error.message().contains(&reason),
+        "debug_traceBadBlock error must name the executor's rejection: {}",
+        trace_error.message(),
+    );
     Ok(())
 }
 

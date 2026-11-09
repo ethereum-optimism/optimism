@@ -1,6 +1,6 @@
 //! A sequenced Lagoon block with SDM refunds and the RPC accessors the family tests share.
 
-use crate::lagoon::{self, launch_sdm_node, prestate_tracer};
+use crate::lagoon::{self, TRANSFER_GAS, launch_sdm_node, prestate_tracer};
 use alloy_consensus::{BlockHeader, TxReceipt};
 use alloy_network::eip2718::Encodable2718;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
@@ -21,11 +21,20 @@ use reth_rpc_api::clients::DebugApiClient;
 /// Index of the post-exec transaction in a [`SettledBlock`]; the regular transactions precede it.
 pub(super) const POST_EXEC_INDEX: usize = 4;
 
+/// Index of the plain transfer, the one regular transaction that runs no code and earns no refund.
+pub(super) const TRANSFER_INDEX: usize = 1;
+
+/// Index of the second deployment, a refunded transaction with earlier transactions before it.
+pub(super) const REFUNDED_DEPLOYMENT_INDEX: usize = 2;
+
+/// Index of the deployment whose init code reverts with [`REVERT_OUTPUT`].
+pub(super) const REVERTING_INDEX: usize = 3;
+
 /// Revert data returned by the reverting deployment in a [`SettledBlock`].
 pub(super) const REVERT_OUTPUT: U256 = U256::from_limbs([42, 0, 0, 0]);
 
-/// A Lagoon block sequenced by a node running the fixed test policy, which refunds every regular
-/// transaction one gas: a real, imported block with a 0x7d transaction and a settled state.
+/// A Lagoon block sequenced under the fixed test policy (one gas refunded per transaction above the
+/// EIP-7623 floor): a real, imported block with a 0x7d transaction and a settled state.
 ///
 /// The sender submits four transactions: a deployment of the init code `STOP` (refunded), a plain
 /// transfer (not refunded, since it already sits on the EIP-7623 floor), a second deployment
@@ -58,7 +67,7 @@ impl SettledBlock {
         for (nonce, (to, init_code)) in deployments.into_iter().enumerate() {
             let transaction = TransactionRequest {
                 chain_id: Some(wallet.chain_id),
-                gas: Some(if matches!(to, TxKind::Call(_)) { 21_000 } else { 100_000 }),
+                gas: Some(if matches!(to, TxKind::Call(_)) { TRANSFER_GAS } else { 100_000 }),
                 input: TransactionInput::new(init_code),
                 max_fee_per_gas: Some(20_000_000_000),
                 max_priority_fee_per_gas: Some(1_000_000_000),
@@ -83,11 +92,13 @@ impl SettledBlock {
         };
         let refund_entries = &post_exec.inner().payload.gas_refund_entries;
         assert!(
-            refund_entries.iter().any(|entry| entry.index == 2 && entry.gas_refund > 0),
+            refund_entries.iter().any(
+                |entry| entry.index == REFUNDED_DEPLOYMENT_INDEX as u64 && entry.gas_refund > 0
+            ),
             "the second deployment must be refunded: {refund_entries:?}",
         );
         assert!(
-            !refund_entries.iter().any(|entry| entry.index == 1),
+            !refund_entries.iter().any(|entry| entry.index == TRANSFER_INDEX as u64),
             "the transfer must not be refunded: {refund_entries:?}",
         );
         Ok(fixture)
@@ -176,13 +187,6 @@ impl SettledBlock {
             options,
         )
         .await?)
-    }
-
-    pub(super) async fn default_trace_gas_of(&self, index: usize) -> eyre::Result<u64> {
-        match self.trace_transaction(index, None).await? {
-            GethTrace::Default(frame) => Ok(frame.gas),
-            other => panic!("unexpected default trace of transaction {index}: {other:?}"),
-        }
     }
 
     pub(super) async fn prestate_diff(&self, index: usize) -> eyre::Result<DiffMode> {

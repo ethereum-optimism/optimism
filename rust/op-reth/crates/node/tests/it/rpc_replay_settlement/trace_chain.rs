@@ -1,6 +1,7 @@
 //! `traceChain` over the block, streamed through `debug_subscribe`.
 
 use super::fixture::{POST_EXEC_INDEX, SettledBlock};
+use crate::lagoon::{DEPLOY_GAS, default_trace_gas};
 use alloy_rpc_types_eth::BlockNumberOrTag;
 use alloy_rpc_types_trace::{
     common::TraceResult,
@@ -22,6 +23,12 @@ async fn trace_chain_matches_block_traces() -> eyre::Result<()> {
 
     let traced = trace_chain_over_block(&fixture, GethDebugTracingOptions::default()).await?;
 
+    let first = traced.traces[0].as_ref().expect("traceChain traces the first transaction");
+    assert_eq!(
+        default_trace_gas(first),
+        DEPLOY_GAS - 1,
+        "traceChain gas of the refunded deployment"
+    );
     assert_eq!(
         traced.traces,
         block_traces.into_iter().map(Some).collect::<Vec<_>>(),

@@ -193,14 +193,28 @@ fn canonicalized_result_gas_applies_refund_exactly_once() {
 #[test]
 fn verify_mode_result_is_settled_before_commit_with_inspector() {
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    // The settlement reads the fork from these hardforks at the block timestamp; mainnet's
+    // schedule puts that timestamp at Isthmus, whose operator fee rounds a one-gas saving to zero.
+    let hardforks = OpChainHardforks::new(
+        OpHardfork::op_mainnet()
+            .into_iter()
+            .chain([(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
+    );
     let gas_price = 1u128;
+    let beneficiary = Address::repeat_byte(0xbe);
     let payload = PostExecPayload {
         version: 1,
         block_number: 0,
         gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
     };
-    let priced_tx = legacy_tx_with_price(0, OBSERVER_TEST_CONTRACT, 200_000, gas_price);
+    // Operator fees are only charged on transactions that carry calldata.
+    let priced_tx = recovered_legacy(TxLegacy {
+        gas_limit: 200_000,
+        gas_price,
+        input: Bytes::from_static(&[0x01]),
+        to: TxKind::Call(OBSERVER_TEST_CONTRACT),
+        ..Default::default()
+    });
     let balance_in = |state: &EvmState, address: Address| {
         state.get(&address).map(|account| account.info.balance).unwrap_or_default()
     };
@@ -212,7 +226,7 @@ fn verify_mode_result_is_settled_before_commit_with_inspector() {
             &receipt_builder,
             &hardforks,
             1,
-            Address::ZERO,
+            beneficiary,
             Inspect::Enabled,
         );
         executor.set_post_exec_mode(mode);
@@ -225,10 +239,11 @@ fn verify_mode_result_is_settled_before_commit_with_inspector() {
         uncommitted(PostExecMode::Verify(payload.clone()));
     let (_, _, _, disabled_state) = uncommitted(PostExecMode::Disabled);
 
-    assert_eq!(canonical_gas, evm_gas - 1);
+    assert_eq!(canonical_gas, evm_gas - 1, "the refund entry lowers canonical gas by one");
     assert_eq!(result_gas, canonical_gas, "result gas must be the canonical gas");
     let operator_fee_saved = balance_in(&disabled_state, OPERATOR_FEE_RECIPIENT) -
         balance_in(&verify_state, OPERATOR_FEE_RECIPIENT);
+    assert_eq!(operator_fee_saved, U256::from(500), "1 gas * scalar 5 * Jovian multiplier 100");
     assert_eq!(
         balance_in(&verify_state, Address::ZERO) - balance_in(&disabled_state, Address::ZERO),
         U256::from(gas_price) + operator_fee_saved,
@@ -241,7 +256,7 @@ fn verify_mode_result_is_settled_before_commit_with_inspector() {
         &receipt_builder,
         &hardforks,
         1,
-        Address::ZERO,
+        beneficiary,
         Inspect::Enabled,
     );
     committing.set_post_exec_mode(PostExecMode::Verify(payload));

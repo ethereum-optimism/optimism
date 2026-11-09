@@ -331,7 +331,7 @@ on the next base:
 - **RPC replay through the block executor** (ethereum-optimism/reth#37, a
   backport of paradigmxyz/reth#28266). Op-reth's SDM refund settlement is only
   visible to `debug_*`, `trace_*` and `ots_*` replays through it, and
-  `rust/op-reth/crates/node/tests/it/rpc_replay_settlement.rs` fails without
+  `rust/op-reth/crates/node/tests/it/rpc_replay_settlement/` fails without
   it. On a base that still uses alloy-evm 0.39 (`v2.7.0` through `v2.8.1`),
   cherry-pick the backport and resolve conflicts in `helpers/call.rs`,
   `helpers/trace.rs` and `rpc/src/debug.rs`. On an evm2 base (`v2.9.0` and

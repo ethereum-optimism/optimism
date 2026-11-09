@@ -1,8 +1,8 @@
 //! Synthetic calls on a settled prefix: `debug_traceCall` at an index, `eth_callMany` and
 //! `debug_traceCallMany`.
 
-use super::fixture::{POST_EXEC_INDEX, SettledBlock};
-use crate::lagoon::prestate_tracer;
+use super::fixture::{POST_EXEC_INDEX, REFUNDED_DEPLOYMENT_INDEX, SettledBlock};
+use crate::lagoon::{TRANSFER_GAS, prestate_tracer};
 use alloy_primitives::{Address, Bytes, U256};
 use alloy_rpc_types_eth::{EthCallResponse, TransactionRequest};
 use alloy_rpc_types_trace::geth::{
@@ -45,8 +45,10 @@ async fn debug_trace_call_runs_on_settled_prefix_without_refund() -> eyre::Resul
             .to(Address::repeat_byte(0x55))
             .value(U256::from(1)),
         Some(fixture.block_hash().into()),
+        // At the refunded slot, a refund entry leaking into the synthetic call would show as gas
+        // below the intrinsic cost.
         Some(GethDebugTracingCallOptions {
-            tx_index: Some(POST_EXEC_INDEX as u64),
+            tx_index: Some(REFUNDED_DEPLOYMENT_INDEX as u64),
             ..Default::default()
         }),
     )
@@ -54,7 +56,7 @@ async fn debug_trace_call_runs_on_settled_prefix_without_refund() -> eyre::Resul
     let GethTrace::Default(synthetic_frame) = synthetic_transfer else {
         panic!("unexpected debug_traceCall trace: {synthetic_transfer:?}");
     };
-    assert_eq!(synthetic_frame.gas, 21_000, "debug_traceCall gas of a synthetic transfer");
+    assert_eq!(synthetic_frame.gas, TRANSFER_GAS, "debug_traceCall gas of a synthetic transfer");
     Ok(())
 }
 

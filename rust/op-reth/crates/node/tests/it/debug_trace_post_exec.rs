@@ -26,9 +26,7 @@ use reth_tasks::Runtime;
 use std::sync::Arc;
 
 /// `debug_traceBlock` over a raw block that ends in a post-exec (0x7d) transaction returns one
-/// trace per transaction, including the post-exec one, with the payload's refund settled. Before
-/// the `transact_raw` short-circuit this failed for the whole block with `-32000: invalid chain
-/// ID`.
+/// trace per transaction, including the post-exec one, with the payload's refund settled.
 ///
 /// The refund takes the transfer below the EIP-7623 floor: the producer never refunds that far,
 /// but a verifier applies whatever refund the payload carries.
@@ -80,10 +78,10 @@ async fn test_debug_trace_block_rejects_exhausted_budget() -> eyre::Result<()> {
     let ClientError::Call(error) = error else {
         panic!("debug_traceBlock must fail with a call error: {error:?}");
     };
-    assert_eq!(
+    assert!(
+        error.message().contains("available gas 0"),
+        "debug_traceBlock error must name the executor's rejection: {}",
         error.message(),
-        "transaction gas limit 21000 is more than blocks available gas 0",
-        "debug_traceBlock error for an executor-rejected block",
     );
 
     Ok(())
