@@ -483,9 +483,10 @@ commands:
             - rust-toolchain-v<< parameters.version >>-{{ checksum "mise.toml"
               }}-{{ checksum "rust/rust-toolchain.toml" }}
 
-  # Only full-workspace builds may attach this command: the shared dep-cache
-  # key is immutable (first save after a Cargo.lock change wins), so a job with
-  # an empty or partial registry would poison the cache for every later build.
+  # Only builds that select the whole workspace (or run `cargo fetch`) may attach
+  # this command: the shared dep-cache key is immutable (first save after a
+  # Cargo.lock change wins), so a job with an empty or partial registry would
+  # poison the cache for every later build.
   rust-save-build-cache:
     description: "Save the dependency and toolchain caches for a Rust workspace"
     parameters:
@@ -616,7 +617,15 @@ commands:
         type: string
         default: ""
       binary:
-        description: "Binary name to build. If not specified, all targets will be built."
+        description: "Space-separated binary names to build. If not specified, libraries and binaries will be built. With no package set, every workspace library is built too."
+        type: string
+        default: ""
+      exclude_binary:
+        description: >
+          Space-separated workspace binaries to leave out: builds every library
+          and every other binary instead. Package selection stays the same, so
+          feature unification and the sccache keys match a full build.
+          Workspace builds only: can't be combined with package or binary.
         type: string
         default: ""
       save_cache:
@@ -663,9 +672,9 @@ commands:
             fi
 
             export BINARY=""
-            if [ -n "<< parameters.binary >>" ]; then
-              export BINARY="--bin << parameters.binary >>"
-            fi
+            for bin in << parameters.binary >>; do
+              export BINARY="$BINARY --bin $bin"
+            done
 
             export FEATURES="--features << parameters.features >>"
             if [ "<< parameters.features >>" = "all" ]; then
@@ -673,6 +682,34 @@ commands:
             fi
 
             cd << parameters.directory >>
+            # A workspace build limited to some binaries still builds every
+            # library. Cargo sets CARGO_PRIMARY_PACKAGE only for the packages of
+            # requested targets and sccache hashes it, so workspace crates built
+            # only as dependencies would miss what a full build caches.
+            if [ -z "<< parameters.package >>" ] && [ -n "<< parameters.binary >>" ]; then
+              export BINARY="--lib $BINARY"
+            fi
+            if [ -n "<< parameters.exclude_binary >>" ]; then
+              if [ -n "<< parameters.package >>" ] || [ -n "<< parameters.binary >>" ]; then
+                echo "ERROR: exclude_binary is for whole-workspace builds; don't combine it with package or binary." >&2
+                exit 1
+              fi
+              # Assignments, not a `for ... in $(...)`, so a failure stops the job.
+              METADATA=$(cargo metadata --no-deps --format-version 1 --locked)
+              ALL_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select(.kind | index("bin")) | .name')
+              GATED_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select((.kind | index("bin")) and ((.["required-features"] // []) | length > 0)) | .name')
+              if [ -n "$GATED_BINS" ]; then
+                echo "ERROR: binaries with required-features need their own build here:" $GATED_BINS >&2
+                exit 1
+              fi
+              export BINARY="--lib"
+              for bin in $ALL_BINS; do
+                case " << parameters.exclude_binary >> " in
+                  *" $bin "*) ;;
+                  *) export BINARY="$BINARY --bin $bin" ;;
+                esac
+              done
+            fi
             if [ "<< parameters.fetch_workspace >>" = "true" ]; then
               # Populate the complete workspace crate registry so the shared
               # rust-deps cache this job saves is not partial (a package-scoped
@@ -694,6 +731,11 @@ commands:
                 version: << parameters.version >>
                 profile: << parameters.profile >>
                 features: << parameters.features >>
+      # rust-save-build-cache prints these when the cache is saved.
+      - unless:
+          condition: << parameters.save_cache >>
+          steps:
+            - rust-sccache-stats
 
 jobs:
   ci-gate:
@@ -750,7 +792,11 @@ jobs:
         type: string
         default: ""
       binary:
-        description: "Binary name to build. If not specified, all targets will be built."
+        description: "Space-separated binary names to build. If not specified, libraries and binaries will be built. With no package set, every workspace library is built too."
+        type: string
+        default: ""
+      exclude_binary:
+        description: "Space-separated workspace binaries to leave out; workspace builds only (see rust-build)."
         type: string
         default: ""
       save_cache:
@@ -774,6 +820,7 @@ jobs:
           features: << parameters.features >>
           package: << parameters.package >>
           binary: << parameters.binary >>
+          exclude_binary: << parameters.exclude_binary >>
           save_cache: << parameters.save_cache >>
       - when:
           condition: << parameters.persist_to_workspace >>

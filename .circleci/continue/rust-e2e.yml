@@ -579,16 +579,33 @@ workflows:
       - cannon-prestate: &rust-e2e-job-base
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # rust-workspace-release builds the whole rust workspace (no binary filter),
-      # so it produces kona-host, kona-node, op-reth, and the rest. Downstream
-      # e2e jobs attach the workspace and consume the binaries directly.
+      # The release workspace build is split in two so the e2e jobs below don't
+      # wait for the other binaries' link step. rust-e2e-binaries builds the
+      # binaries they run and persists them; rust-workspace-release builds the
+      # rest. Both select the whole workspace, so features unify as in one
+      # `cargo build --workspace`: together they compile the same units, and
+      # the shared ones hit the same sccache entries.
+      - rust-build-binary:
+          name: rust-e2e-binaries
+          directory: rust
+          profile: release
+          binary: &rust-e2e-binaries "op-reth op-reth-test-engine kona-node kona-host"
+          # rust-workspace-release saves the shared dep cache; one saver is enough.
+          save_cache: false
+          persist_to_workspace: true
+          resource_class: xlarge.gen2
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - rust-build-binary: &rust-workspace-release
           name: rust-workspace-release
           directory: rust
           profile: release
-          persist_to_workspace: true
-          # Release-build linking OOMs xlarge.gen2.
-          resource_class: 2xlarge.gen2
+          exclude_binary: *rust-e2e-binaries
+          # Nothing waits on this build but the gate, so it runs on xlarge.
+          # Without the e2e binaries it peaked at about 11.5 GiB with every crate
+          # missing the cache; the whole build has OOMed xlarge.gen2 before.
+          resource_class: xlarge.gen2
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -603,26 +620,26 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-workspace-release
+            - rust-e2e-binaries
       - op-reth-e2e-sysgo-tests:
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
-            - rust-workspace-release
+            - rust-e2e-binaries
       - rust-restart-sysgo-tests:
           name: rust-e2e-restart
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-workspace-release
+            - rust-e2e-binaries
       # Proof action tests - single-chain only. Interop proof coverage runs
       # under kona-host in op-acceptance-tests, not as action tests.
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
           requires:
-            - rust-workspace-release
+            - rust-e2e-binaries
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -638,6 +655,7 @@ workflows:
             # Gated directly, not just through the e2e jobs below: a failed
             # build leaves them unrun rather than failed, and this workflow is
             # now the only place the release build happens.
+            - rust-e2e-binaries: terminal
             - rust-workspace-release: terminal
             - rust-e2e-simple-kona: terminal
             - rust-e2e-simple-kona-sequencer: terminal
