@@ -2499,9 +2499,35 @@ jobs:
           path: ./op-acceptance-tests/reports
           destination: flaky-test-reports
 
+  # BENCHMARK-ONLY: the kona-node-service node tests, including the slow-call regression test.
+  bench-kona-node-tests:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          profile: debug
+      - run:
+          name: Run the node module tests
+          command: |
+            cd rust
+            CARGO_TARGET_DIR="$PWD/target" cargo test --package kona-node-service --lib service::node::tests -- --nocapture
+      - run:
+          name: The regression test fails against the 2s timeout
+          command: |
+            sed -i 's/Duration::from_secs(30);/Duration::from_secs(2);/' rust/kona/crates/node/service/src/service/node/rollup.rs
+            cd rust
+            if CARGO_TARGET_DIR="$PWD/target" cargo test --package kona-node-service --lib service::node::tests::rpc_server_answers_a_call_slower_than_two_seconds; then
+              echo "expected the test to fail with a 2s timeout" >&2; exit 1
+            fi
+            echo "fails as expected with 2s"
+
 workflows:
   main:
-    when: << pipeline.parameters.c-run_main >>
+    when: false # BENCHMARK-ONLY
     jobs:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
@@ -3187,3 +3213,12 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
+
+  # BENCHMARK-ONLY
+  flake-bench-unit:
+    when: << pipeline.parameters.c-run_main >>
+    jobs:
+      - bench-kona-node-tests:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
