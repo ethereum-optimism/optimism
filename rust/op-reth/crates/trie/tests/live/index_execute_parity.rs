@@ -9,14 +9,14 @@
 //! comparison runs over the persisted history once everything is flushed.
 
 use super::{
-    BlockSpec, TxSpec, block_timestamp, chain_spec_builder,
+    Backend, BlockSpec, FlushCadence, TxSpec, block_timestamp, chain_spec_builder,
     contracts::{
         BLOCK_HASH_RECORDER_RUNTIME, BLOCK_HASH_SLOT, CALLED_SLOT, CREATE_AND_SELFDESTRUCT_SLOTS,
         SLOT_WRITER_SLOTS, block_number_calldata, create_and_selfdestruct_initcode,
         initcode_returning, slot_writer_calldata, slot_writer_runtime,
     },
     create_mdbx_proofs_storage, funded, initialize_storage, public_key_to_address,
-    simulated_reth::{RethPersistence, SimulatedReth, fixed_signer},
+    simulated_reth::{RethPersistence, SimulatedReth, fixed_signer, index_executed_block},
     store_view::{BlockView, ProofTarget, assert_same_view},
 };
 use alloy_eips::{
@@ -242,25 +242,6 @@ impl StateChange {
     }
 }
 
-/// The engine's persistence and backpressure thresholds.
-#[derive(Clone, Copy, Debug)]
-struct FlushCadence {
-    backpressure: u64,
-    persistence: u64,
-}
-
-impl FlushCadence {
-    const EVERY_BLOCK: Self = Self { backpressure: 2, persistence: 1 };
-    const EVERY_FIFTH_BLOCK: Self = Self { backpressure: 10, persistence: 5 };
-}
-
-/// Which store implementation the indexed and executed stores use.
-#[derive(Clone, Copy, Debug)]
-enum Backend {
-    InMemory,
-    Mdbx,
-}
-
 /// How a backfill reads the trie state it rewinds from.
 #[derive(Clone, Copy, Debug)]
 enum BackfillMode {
@@ -408,13 +389,8 @@ where
         reth.spawn_engine(executed.clone(), cadence.persistence, cadence.backpressure);
     for spec in &blocks {
         let reth_block = reth.commit(spec)?;
-        let block = reth_block.recovered_block();
-        indexed_engine.index_block(
-            block.block_with_parent(),
-            (*reth_block.trie_updates()).clone(),
-            (*reth_block.hashed_state()).clone(),
-        )?;
-        executed_engine.execute_block(block)?;
+        index_executed_block(&indexed_engine, &reth_block)?;
+        executed_engine.execute_block(reth_block.recovered_block())?;
     }
     flush_until_persisted(&indexed_engine, &indexed, reth.head())?;
     flush_until_persisted(&executed_engine, &executed, reth.head())?;
@@ -495,8 +471,5 @@ fn index_execute_and_backfill_stores_agree(
     #[values(Backend::InMemory, Backend::Mdbx)] backend: Backend,
     #[case] change: StateChange,
 ) -> eyre::Result<()> {
-    match backend {
-        Backend::InMemory => run_parity_case(InMemoryProofsStorage::new, cadence, change),
-        Backend::Mdbx => run_parity_case(create_mdbx_proofs_storage, cadence, change),
-    }
+    over_backend!(backend, run_parity_case(cadence, change))
 }
