@@ -58,7 +58,7 @@ op_deployer apply --deployment-target genesis --workdir /data
 
 verifier="$(jq -r '.sp1Verifier // empty' "$workdir/state.json")"
 [[ -n "$verifier" ]] || fail "the genesis apply recorded no SP1 verifier"
-code="$(jq -r '.l1StateDump' "$workdir/state.json" | base64 -d | gunzip |
-  jq -r --arg addr "${verifier,,}" '.[$addr].code // empty')"
+code="$(jq -r '.l1StateDump' "$workdir/state.json" | base64 -d | gunzip \
+  | jq -r --arg addr "${verifier,,}" '.[$addr].code // empty')"
 [[ -n "$code" && "$code" != "0x" ]] || fail "the L1 genesis has no code at SP1 verifier $verifier"
 echo "PASS: genesis apply deployed the mock SP1 verifier at $verifier"
