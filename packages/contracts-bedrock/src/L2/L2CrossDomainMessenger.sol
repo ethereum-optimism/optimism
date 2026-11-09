@@ -21,8 +21,8 @@ import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 ///         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
 ///         level message passing contracts.
 contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, ISemver {
-    /// @custom:semver 2.4.0
-    string public constant version = "2.4.0";
+    /// @custom:semver 2.5.0
+    string public constant version = "2.5.0";
 
     /// @notice See `GasConstants.L2_RELAY_RESERVED_GAS`.
     uint64 internal constant LOCAL_RELAY_RESERVED_GAS = GasConstants.L2_RELAY_RESERVED_GAS;

@@ -21,7 +21,7 @@ contract GasConstants_Uncategorized_Test is Test {
     function test_l2RelayGas_values_succeeds() external pure {
         assertEq(GasConstants.L2_RELAY_CONSTANT_OVERHEAD, 200_000);
         assertEq(GasConstants.L2_RELAY_RESERVED_GAS, 40_000);
-        assertEq(GasConstants.L2_RELAY_GAS_CHECK_BUFFER, 5_000);
+        assertEq(GasConstants.L2_RELAY_GAS_CHECK_BUFFER, 7_500);
     }
 
     /// @notice Tests the relay call overhead shared by both chains.
