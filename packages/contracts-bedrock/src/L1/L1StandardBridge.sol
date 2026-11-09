@@ -113,8 +113,8 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     event ERC20Restored(bytes32 indexed id, address indexed l1Token, address indexed l2Token, uint256 amount);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.10.0
-    string public constant version = "2.10.0";
+    /// @custom:semver 3.0.0
+    string public constant version = "3.0.0";
 
     /// @custom:legacy
     /// @custom:spacer superchainConfig
@@ -297,6 +297,11 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @param _message Encoded finalizeBridgeERC20 call.
     function holdERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external {
         (address hook, address l1Token, address l2Token, uint256 amount) = _checkPortalAndDecode(_direction, _message);
+
+        // The Portal gives each item a unique ID and prevents the same item from being held twice.
+        //
+        // OptimismMintableERC20 tokens have no escrow on L1. The bridge burns them on deposit
+        // and mints them on withdrawal, so only their message is held.
         if (_isOptimismMintableERC20(l1Token)) {
             heldTokenKinds[_id] = BridgeHookTypes.TokenKind.Mintable;
             return;
@@ -316,11 +321,13 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     function restoreERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external {
         (address hook, address l1Token, address l2Token, uint256 amount) = _checkPortalAndDecode(_direction, _message);
 
+        // Use the kind recorded by `holdERC20` because the token can change its `supportsInterface` result.
         BridgeHookTypes.TokenKind kind = heldTokenKinds[_id];
         if (kind == BridgeHookTypes.TokenKind.None) revert L1StandardBridge_TransferNotHeld();
         delete heldTokenKinds[_id];
         if (kind == BridgeHookTypes.TokenKind.Mintable) return;
 
+        // The hook must approve this bridge for the amount before it calls the Portal to complete the item.
         IERC20(l1Token).safeTransferFrom(hook, address(this), amount);
         deposits[l1Token][l2Token] += amount;
         emit ERC20Restored(_id, l1Token, l2Token, amount);
