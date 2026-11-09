@@ -41,13 +41,16 @@ const (
 )
 
 // isRethHistoryPrunedError reports whether err is reth refusing a state read below its history
-// prune checkpoint: ProviderError::StateAtBlockPruned ("state at block #N is pruned") or, from
-// reth 2.6, ProviderError::InsufficientChangesets ("insufficient changesets to revert to block
-// #N. ..."). The block the message names is not checked against the read: reth 2.5 names the
-// block above the read, reth 2.6 the read's own.
+// prune checkpoint: ProviderError::StateAtBlockPruned ("state at block #N is pruned"), from
+// reth 2.6 ProviderError::InsufficientChangesets ("insufficient changesets to revert to block
+// #N. ...") or, from reth 2.7, EthApiError::PrunedHistoryUnavailable ("pruned history
+// unavailable: requested N, earliest available M"). The block the message names is not checked
+// against the read: reth 2.5 names the block above the read, reth 2.6 and 2.7 the read's own.
 func isRethHistoryPrunedError(err error) bool {
 	msg := err.Error()
-	return strings.Contains(msg, "is pruned") || strings.Contains(msg, "insufficient changesets")
+	return strings.Contains(msg, "is pruned") ||
+		strings.Contains(msg, "insufficient changesets") ||
+		strings.Contains(msg, "pruned history unavailable")
 }
 
 // rethHistoryPruneConfig writes the config file that makes the follower's reth prune its account
