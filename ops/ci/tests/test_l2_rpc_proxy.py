@@ -61,11 +61,17 @@ class RpcProxyTests(unittest.TestCase):
     def test_parallel_slots_overlap_slow_requests_but_keep_the_start_budget(self):
         # The archive policy allows several requests in flight. Starts still obey
         # the global rate, and the slot count bounds concurrent upstream requests.
-        active=[0];peak=[0];guard=threading.Lock();starts=[]
+        active=[0];peak=[0];guard=threading.Lock();scheduled=[];pause=threading.Event()
+        # The transport waits until each attempt's scheduled start. Record that
+        # schedule: an arrival time at the upstream adds connection and thread
+        # latency, which differs per request and can hide or fake a short gap.
+        def wait(seconds):
+            with guard:scheduled.append(time.monotonic()+seconds)
+            pause.wait(seconds)
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
                 self.rfile.read(int(self.headers['Content-Length']))
-                with guard:active[0]+=1;peak[0]=max(peak[0],active[0]);starts.append(time.monotonic())
+                with guard:active[0]+=1;peak[0]=max(peak[0],active[0])
                 time.sleep(0.4)
                 with guard:active[0]-=1
                 body=b'{"jsonrpc":"2.0","id":1,"result":"0x1"}'
@@ -77,13 +83,15 @@ class RpcProxyTests(unittest.TestCase):
         policy=dict(P.POLICY,requests_per_second=20,max_in_flight=3)
         body=b'{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
         started=time.monotonic()
-        with P.serve(self.directory,'http://127.0.0.1:'+str(server.server_port)+'/',policy=policy) as endpoint,ThreadPoolExecutor(max_workers=6) as workers:
+        with P.serve(self.directory,'http://127.0.0.1:'+str(server.server_port)+'/',policy=policy,wait=wait) as endpoint,ThreadPoolExecutor(max_workers=6) as workers:
             results=list(workers.map(lambda _:self.request(endpoint,body),range(6)))
         self.assertTrue(all(status==200 for status,_ in results))
         self.assertEqual(peak[0],3)
         # Six serial 0.4s requests would take 2.4s; three slots take about 0.8s.
         self.assertLess(time.monotonic()-started,1.8)
-        self.assertTrue(all(b-a>=0.045 for a,b in zip(sorted(starts),sorted(starts)[1:])))
+        # One paced start per request, 1/20 s apart; 1 ms covers the clock reads.
+        self.assertEqual(len(scheduled),6)
+        self.assertTrue(all(b-a>=0.049 for a,b in zip(sorted(scheduled),sorted(scheduled)[1:])))
         self.assertEqual(json.loads((self.directory/'settings.json').read_text())['policy']['max_in_flight'],3)
 
     def test_transient_transport_retries_retain_every_body_and_do_not_rewrite_ids(self):
