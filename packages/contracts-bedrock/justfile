@@ -19,7 +19,7 @@ dep-status:
 #
 # Forge doesn't read or write its compile cache when the deny level includes warnings, which
 # foundry.toml sets. Builds and scripts whose cache is reused later pass `--deny never`. The
-# uncached `forge-build-dev` build in `check-fast` enforces warnings.
+# uncached solc build in `check-fast`'s dev phase enforces warnings.
 forge-build *ARGS:
   forge build --deny never {{ARGS}}
 
@@ -48,11 +48,11 @@ forge-build-dev *ARGS:
 
 # Builds source contracts only. Like forge-build, it keeps the compile cache.
 build-source:
-  forge build --deny never --skip "/**/test/**" --skip "/**/scripts/**"
+  FOUNDRY_PROFILE=default forge build --deny never --skip "/**/test/**" --skip "/**/scripts/**"
 
 # Builds source contracts and scripts, skipping tests. Like forge-build, it keeps the compile cache.
 build-no-tests:
-  forge build --deny never --skip "/**/test/**"
+  FOUNDRY_PROFILE=default forge build --deny never --skip "/**/test/**"
 
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail
@@ -405,13 +405,13 @@ post-fork-ops *ARGS:
 
 # Generates the L2 genesis state.
 genesis:
-  forge script --deny never scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
+  FOUNDRY_PROFILE=default forge script --deny never scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
 
 # Generates the Network Upgrade Transaction (NUT) bundle.
 # NOTE: be very careful about renaming this command, it's used in the CI check-nut-locks job,
 # which expects this command to be available in historical commits.
 generate-nut-bundle: build-no-tests
-  @forge script --deny never scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
+  @FOUNDRY_PROFILE=default forge script --deny never scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
 
 ########################################################
 #                       SNAPSHOTS                      #
@@ -545,7 +545,7 @@ check-kontrol-summaries-unchanged:
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
 # Compiles only what an earlier build left out.
 nut-bundle-check-no-build:
-  @forge script --deny never scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
+  @FOUNDRY_PROFILE=default forge script --deny never scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
   git diff --exit-code snapshots/upgrades/current-upgrade-bundle.json
 
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.

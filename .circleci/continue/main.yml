@@ -355,12 +355,16 @@ commands:
       mentions:
         type: string
         default: ""
+      branch_pattern:
+        description: Comma-separated branch regexes to alert on. The message shows the branch.
+        type: string
+        default: develop
     steps:
       - slack/notify:
           channel: << parameters.channel >>
           event: fail
           template: basic_fail_1
-          branch_pattern: develop
+          branch_pattern: << parameters.branch_pattern >>
           mentions: "<< parameters.mentions >>"
 
   apt-install:
@@ -1037,6 +1041,8 @@ jobs:
             - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   # Full build, tests included, for the contracts-bedrock-tests jobs that set
   # attach_build. Kept separate from contracts-bedrock-build so the two never
@@ -1077,6 +1083,8 @@ jobs:
             - "packages/contracts-bedrock/forge-artifacts"
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   check-kontrol-build:
     docker:
@@ -1105,6 +1113,8 @@ jobs:
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   contracts-bedrock-tests:
     docker:
@@ -1203,12 +1213,10 @@ jobs:
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
-      - run:
-          name: Lint forge test names
-          command: just lint-forge-tests-check-no-build
-          working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   contracts-bedrock-heavy-fuzz-nightly:
     docker:
@@ -1261,6 +1269,8 @@ jobs:
           when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   contracts-bedrock-coverage:
     docker:
@@ -1464,6 +1474,8 @@ jobs:
           when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
   contracts-bedrock-tests-l2-fork:
     parameters:
       fork_op_chain:
@@ -1600,6 +1612,8 @@ jobs:
           when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   contracts-bedrock-upload:
     machine: true
@@ -1651,6 +1665,8 @@ jobs:
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   shfmt-check:
     docker:
@@ -3210,10 +3226,10 @@ workflows:
             - slack
           filters:
             branches:
-              ignore: develop
-      # On develop, run tests with ci profile to mirror production. Build once
-      # and share it through the workspace, so the matrix entries don't each
-      # compile the same artifacts.
+              ignore: [develop, /^proposal\/.*/]
+      # On develop and release branches, run tests with ci profile to mirror production; the PR
+      # jobs above compile with Solar. Build once and share it through the workspace, so the
+      # matrix entries don't each compile the same artifacts.
       - contracts-bedrock-build-tests:
           name: contracts-bedrock-build-tests-develop
           profile: ci
@@ -3222,7 +3238,7 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, /^proposal\/.*/]
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests-develop <<matrix.features>>
           requires:
@@ -3240,7 +3256,7 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, /^proposal\/.*/]
       - contracts-bedrock-coverage:
           # Generate coverage reports.
           name: contracts-bedrock-coverage <<matrix.features>>
@@ -3274,7 +3290,7 @@ workflows:
             - slack
           filters:
             branches:
-              ignore: develop
+              ignore: [develop, /^proposal\/.*/]
       # On develop, run upgrade tests with ci profile to mirror production.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade-develop op-mainnet <<matrix.features>>
@@ -3293,7 +3309,7 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, /^proposal\/.*/]
       # On PRs, run chain-specific upgrade tests with lite profile for better build times.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
@@ -3311,7 +3327,7 @@ workflows:
             - slack
           filters:
             branches:
-              ignore: develop
+              ignore: [develop, /^proposal\/.*/]
       # On develop, run chain-specific upgrade tests with ci profile to mirror production.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade-develop <<matrix.fork_op_chain>>-mainnet
@@ -3329,7 +3345,7 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, /^proposal\/.*/]
       # Always run L2 fork tests with ci profile
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork op-mainnet

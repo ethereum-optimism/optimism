@@ -462,3 +462,48 @@ rules:
     paths:
       exclude:
         - /packages/contracts-bedrock/scripts/libraries/DeployUtils.sol
+
+  - id: sol-safety-test-block-values-via-cheatcodes
+    languages: [solidity]
+    severity: ERROR
+    message: Don't copy a block or tx value into a local in a test. Solar re-reads the value where the local is used, so a later cheatcode such as vm.warp, vm.roll, vm.chainId, vm.fee or a prank silently changes it. Read timestamp, number and chainid with vm.getBlockTimestamp(), vm.getBlockNumber() or vm.getChainId().
+    patterns:
+      - pattern-either:
+          - pattern: $T $X = $SRC.$FIELD;
+          - pattern: $L = (..., $SRC.$FIELD, ...);
+          - patterns:
+              - pattern: $T $X = $CAST($SRC.$FIELD);
+              - metavariable-regex:
+                  metavariable: $CAST
+                  regex: ^(uint\d*|address)$
+          # Reassigning a local. A state variable keeps the value, so it isn't matched.
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      function $FN(...) {
+                        ...
+                        $T $X;
+                        ...
+                      }
+                  - pattern-inside: |
+                      function $FN(...) {
+                        ...
+                        $T $X = $INIT;
+                        ...
+                      }
+              - pattern-either:
+                  - pattern: $X = $SRC.$FIELD;
+                  - patterns:
+                      - pattern: $X = $CAST($SRC.$FIELD);
+                      - metavariable-regex:
+                          metavariable: $CAST
+                          regex: ^(uint\d*|address)$
+      - metavariable-regex:
+          metavariable: $SRC
+          regex: ^(block|tx)$
+      - metavariable-regex:
+          metavariable: $FIELD
+          regex: ^(timestamp|number|chainid|basefee|blobbasefee|prevrandao|difficulty|coinbase|gasprice|origin)$
+    paths:
+      include:
+        - /packages/contracts-bedrock/test

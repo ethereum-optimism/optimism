@@ -228,10 +228,11 @@ contract ContractName is Initializable, ProxyAdminOwnedBase, ReinitializableBase
   `packages/contracts-bedrock/justfile` — never call `forge` directly. The recipes wire up
   go-ffi, profiles, and the script cache for you.
 - `just build` builds the contracts; `just build-dev` is the faster variant
-  (`FOUNDRY_PROFILE=lite`) for local iteration. Builds must produce zero warnings
-  (`deny = "warnings"` in `foundry.toml`). Forge skips its compile cache at that deny level,
-  so `just build`, `just build-no-tests` and `just build-source` pass `--deny never` to keep
-  it, and don't fail on warnings. `just build-dev`, `just test` and `just check-fast` do.
+  (`FOUNDRY_PROFILE=lite`, compiled with Solar into `cache/solar-artifacts`) for local
+  iteration. Builds must produce zero warnings (`deny = "warnings"` in `foundry.toml`). Forge
+  skips its compile cache at that deny level, so `just build`, `just build-no-tests` and
+  `just build-source` pass `--deny never` to keep it, and `lite` and `liteci` set
+  `deny = "never"`. None of them fail on warnings; `just test` and `just check-fast` do.
 - `just test` runs the suite; `just test-dev` is the faster `lite`-profile variant for local
   iteration. Default 64 fuzz runs; CI uses 128.
 - `just lint` formats and checks (`forge fmt` under the hood: 120-char line length, bracket
@@ -415,7 +416,7 @@ function testTransferSucceeds() external { }          // No underscores
 | Profile | Optimizer | Fuzz Runs | Use Case |
 |---------|-----------|-----------|----------|
 | default | 999,999 runs | 64 | Production builds |
-| lite | disabled | 8 | Fast dev iteration |
+| lite | disabled (Solar) | 8 | Fast dev iteration |
 | ci | 999,999 runs | 128 | CI testing |
 | ciheavy | disabled | 20,000 | Stress testing |
 | cicoverage | disabled | 1 | Coverage only |
@@ -442,7 +443,7 @@ mise x -- just pr                 # Full pre-PR suite: build, lint, all checks
 mise x -- just test-upgrade       # Fork tests against mainnet state (needs ETH_RPC_URL)
 mise x -- just semver-lock        # Regenerate semver-lock.json
 mise x -- just snapshots          # Regenerate all snapshots
-mise x -- just semver-lock-no-build  # Regenerate from existing artifacts (faster)
+mise x -- just semver-lock-no-build  # Regenerate from the last solc build (faster)
 ```
 
 `just build` and `just test` run production builds with full optimization — slower. Use
