@@ -1,11 +1,11 @@
-use super::rollup::merge_admin_module;
-use jsonrpsee::RpcModule;
+use super::rollup::{RPC_HTTP_REQUEST_TIMEOUT, merge_admin_module, rpc_http_middleware};
+use jsonrpsee::{RpcModule, core::client::ClientT, http_client::HttpClientBuilder, server::Server};
 use kona_engine::{EngineState, test_utils::test_engine_client};
 use kona_genesis::RollupConfig;
 use kona_rpc::{
     AdminRpc, HealthzApiServer, HealthzResponse, HealthzRpc, RollupNodeApiServer, RollupRpc,
 };
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 
 #[test]
@@ -59,4 +59,33 @@ async fn registered_endpoints_report_the_binary_version() {
             version
         );
     }
+}
+
+/// An admin call waits for the sequencer to finish its current block, which can take a few seconds
+/// with a conductor. The server must answer it rather than drop the connection, as a 2s cap did.
+#[tokio::test]
+async fn rpc_server_answers_a_call_slower_than_two_seconds() {
+    let delay = Duration::from_millis(2500);
+    assert!(delay < RPC_HTTP_REQUEST_TIMEOUT);
+    let mut module = RpcModule::new(());
+    module
+        .register_async_method("admin_slow", move |_, _, _| async move {
+            tokio::time::sleep(delay).await;
+            jsonrpsee::core::RpcResult::Ok(7u64)
+        })
+        .unwrap();
+    let server = Server::builder()
+        .set_http_middleware(rpc_http_middleware())
+        .build("127.0.0.1:0")
+        .await
+        .unwrap();
+    let addr = server.local_addr().unwrap();
+    let handle = server.start(module);
+    let client = HttpClientBuilder::default()
+        .request_timeout(Duration::from_secs(60))
+        .build(format!("http://{addr}"))
+        .unwrap();
+    assert_eq!(client.request::<u64, _>("admin_slow", jsonrpsee::rpc_params![]).await.unwrap(), 7);
+    handle.stop().unwrap();
+    handle.stopped().await;
 }

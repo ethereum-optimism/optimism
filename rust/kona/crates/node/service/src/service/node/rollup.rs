@@ -57,6 +57,29 @@ pub(in crate::service) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
+/// How long one HTTP request to the RPC server may run before its connection is dropped.
+///
+/// Matches op-node, whose RPC server takes its 30s write timeout from geth. An admin call waits
+/// for the sequencer to finish the block it is on, including the conductor commit, so a shorter
+/// cap can drop an `admin_stopSequencer` that the node still carries out: the caller sees EOF for a
+/// stop that happened.
+pub(super) const RPC_HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The HTTP middleware for the RPC server: `/healthz` as a GET endpoint, and the request timeout.
+pub(super) fn rpc_http_middleware() -> tower::ServiceBuilder<
+    tower::layer::util::Stack<
+        tower::timeout::TimeoutLayer,
+        tower::layer::util::Stack<ProxyGetRequestLayer, tower::layer::util::Identity>,
+    >,
+> {
+    tower::ServiceBuilder::new()
+        .layer(
+            ProxyGetRequestLayer::new([("/healthz", "healthz")])
+                .expect("Critical: Failed to build GET method proxy"),
+        )
+        .timeout(RPC_HTTP_REQUEST_TIMEOUT)
+}
+
 /// The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
 pub(super) fn merge_admin_module(
     modules: &mut RpcModule<()>,
@@ -524,12 +547,7 @@ impl RollupNode {
             )
             .map_err(|e| format!("Failed to register superroot module: {e:?}"))?;
 
-        let middleware = tower::ServiceBuilder::new()
-            .layer(
-                ProxyGetRequestLayer::new([("/healthz", "healthz")])
-                    .expect("Critical: Failed to build GET method proxy"),
-            )
-            .timeout(Duration::from_secs(2));
+        let middleware = rpc_http_middleware();
         let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
         let rpc_middleware = RpcServiceBuilder::new()
             .layer(RpcObservabilityLayer::new(modules.method_names(), max_response_body_size));
