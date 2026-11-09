@@ -138,7 +138,6 @@ mod tests {
     use reth_trie_common::HashedPostState;
     use rstest::rstest;
 
-
     #[test]
     fn proof_window_check_rejects_blocks_outside_the_stored_window() {
         let storage = InMemoryProofsStorage::new();
@@ -260,10 +259,8 @@ mod tests {
     ) {
         let factory = factory_over(store_through(STORE_LATEST));
 
-        let state = factory
-            .state_provider((block_id))
-            .await
-            .expect("block inside the window is served");
+        let state =
+            factory.state_provider(block_id).await.expect("block inside the window is served");
 
         assert_eq!(served_height(state.as_ref()), height);
     }
@@ -283,7 +280,7 @@ mod tests {
         let factory = factory_over(store_through(STORE_LATEST));
 
         let err = factory
-            .state_provider((block_id))
+            .state_provider(block_id)
             .await
             .err()
             .expect("block outside the window is refused");
@@ -309,11 +306,11 @@ mod tests {
         let factory = factory_over(store_through(STORE_EARLIEST));
 
         let anchor = factory
-            .state_provider((BlockId::from(STORE_EARLIEST)))
+            .state_provider(BlockId::from(STORE_EARLIEST))
             .await
             .expect("anchor block is served");
         let err = factory
-            .state_provider((BlockId::from(STORE_EARLIEST + 1)))
+            .state_provider(BlockId::from(STORE_EARLIEST + 1))
             .await
             .err()
             .expect("block after the anchor is refused");
@@ -327,11 +324,8 @@ mod tests {
         let factory = factory_over(store_through(STORE_LATEST));
         let unknown_block = BlockId::from(B256::repeat_byte(0xab));
 
-        let err = factory
-            .state_provider((unknown_block))
-            .await
-            .err()
-            .expect("unknown hash is refused");
+        let err =
+            factory.state_provider(unknown_block).await.err().expect("unknown hash is refused");
 
         assert!(
             matches!(
@@ -347,7 +341,7 @@ mod tests {
         let factory = factory_over(InMemoryProofsStorage::new());
 
         let err = factory
-            .state_provider((BlockId::from(STORE_EARLIEST)))
+            .state_provider(BlockId::from(STORE_EARLIEST))
             .await
             .err()
             .expect("empty store serves nothing");
