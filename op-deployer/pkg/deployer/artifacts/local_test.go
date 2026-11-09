@@ -225,7 +225,7 @@ func TestEvictBundles(t *testing.T) {
 	}
 	inUse, err := openFileLock(filepath.Join(root, "in-use") + useLockSuffix)
 	require.NoError(t, err)
-	require.NoError(t, inUse.lock(false))
+	require.NoError(t, inUse.lock(false, time.Second))
 	defer inUse.release()
 
 	evictBundles(root, filepath.Join(root, "keep"))
@@ -390,12 +390,12 @@ func TestOpenLocal_LinksInTheProject(t *testing.T) {
 		require.Contains(t, readArtifact(t, fsys), `"ast"`, "a project that cannot be bundled is used as it is")
 		require.Empty(t, bundlesIn(t, home))
 	})
-	t.Run("linked source", func(t *testing.T) {
+	t.Run("linked source in the project", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
 		project := writeProject(t)
-		source := filepath.Join(t.TempDir(), "A.sol")
-		require.NoError(t, os.Rename(filepath.Join(project, "src", "A.sol"), source))
-		require.NoError(t, os.Symlink(source, filepath.Join(project, "src", "A.sol")))
+		writeFiles(t, project, map[string]string{"other/A.sol": "contract A {}"})
+		require.NoError(t, os.Remove(filepath.Join(project, "src", "A.sol")))
+		require.NoError(t, os.Symlink("../other/A.sol", filepath.Join(project, "src", "A.sol")))
 		fsys := openLocal(project, t.TempDir())
 		require.NotContains(t, readArtifact(t, fsys), `"ast"`)
 		// The bundle has a copy of the linked file.
@@ -403,4 +403,106 @@ func TestOpenLocal_LinksInTheProject(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "contract A {}", string(data))
 	})
+	t.Run("linked source outside the project", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		project := writeProject(t)
+		source := filepath.Join(t.TempDir(), "A.sol")
+		require.NoError(t, os.Rename(filepath.Join(project, "src", "A.sol"), source))
+		require.NoError(t, os.Symlink(source, filepath.Join(project, "src", "A.sol")))
+		fsys := openLocal(project, t.TempDir())
+		require.Contains(t, readArtifact(t, fsys), `"ast"`, "a project that cannot be bundled is used as it is")
+		require.Empty(t, bundlesIn(t, home))
+	})
+}
+
+func TestOpenLocal_RefusesSharedDirectoryOfOthers(t *testing.T) {
+	for name, prepare := range map[string]func(t *testing.T, shared string, key string){
+		"writable by others": func(t *testing.T, shared string, _ string) {
+			require.NoError(t, os.MkdirAll(shared, 0o700))
+			require.NoError(t, os.Chmod(shared, 0o777))
+		},
+		"link": func(t *testing.T, shared string, _ string) {
+			require.NoError(t, os.MkdirAll(filepath.Dir(shared), 0o700))
+			require.NoError(t, os.Symlink(t.TempDir(), shared))
+		},
+		"bundle is a link": func(t *testing.T, shared string, key string) {
+			require.NoError(t, os.MkdirAll(shared, 0o700))
+			planted := t.TempDir()
+			writeFiles(t, planted, map[string]string{"forge-artifacts/A.sol/A.json": `{"abi":["planted"]}`})
+			require.NoError(t, os.Symlink(planted, filepath.Join(shared, key)))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			project := writeProject(t)
+			resolved, err := filepath.EvalSymlinks(project)
+			require.NoError(t, err)
+			key, err := buildKey(resolved)
+			require.NoError(t, err)
+			prepare(t, filepath.Join(home, ".op-deployer", "cache", "bundles"), key)
+
+			targetDir := t.TempDir()
+			fsys := openLocal(project, targetDir)
+			require.NotContains(t, readArtifact(t, fsys), `"ast"`)
+			require.NotContains(t, readArtifact(t, fsys), "planted")
+			private, err := filepath.Glob(filepath.Join(targetDir, "op-deployer-bundles-*"))
+			require.NoError(t, err)
+			require.Len(t, private, 1, "the bundle is in a private directory")
+		})
+	}
+}
+
+func TestLocalBundle_StopsWaitingForAStoppedPacker(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	shared := filepath.Join(home, ".op-deployer", "cache", "bundles")
+	require.NoError(t, os.MkdirAll(shared, 0o700))
+	project := writeProject(t)
+	resolved, err := filepath.EvalSymlinks(project)
+	require.NoError(t, err)
+	key, err := buildKey(resolved)
+	require.NoError(t, err)
+	held, err := openFileLock(filepath.Join(shared, key) + packLockSuffix)
+	require.NoError(t, err)
+	require.NoError(t, held.lock(true, time.Second))
+	defer held.release()
+	lockTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { lockTimeout = 5 * time.Minute })
+
+	_, err = localBundle(resolved, shared, "forge-artifacts")
+	require.ErrorContains(t, err, "held the lock")
+
+	// openLocal copies the build into a directory of its own instead.
+	targetDir := t.TempDir()
+	fsys := openLocal(project, targetDir)
+	require.NotContains(t, readArtifact(t, fsys), `"ast"`)
+	private, err := filepath.Glob(filepath.Join(targetDir, "op-deployer-bundles-*"))
+	require.NoError(t, err)
+	require.Len(t, private, 1)
+}
+
+func TestOpenLocal_RefusesLockThatIsALink(t *testing.T) {
+	for _, suffix := range []string{packLockSuffix, useLockSuffix} {
+		t.Run(suffix, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			shared := filepath.Join(home, ".op-deployer", "cache", "bundles")
+			require.NoError(t, os.MkdirAll(shared, 0o700))
+			project := writeProject(t)
+			resolved, err := filepath.EvalSymlinks(project)
+			require.NoError(t, err)
+			key, err := buildKey(resolved)
+			require.NoError(t, err)
+			require.NoError(t, os.Symlink(filepath.Join(t.TempDir(), "elsewhere"), filepath.Join(shared, key)+suffix))
+
+			targetDir := t.TempDir()
+			fsys := openLocal(project, targetDir)
+			require.NotContains(t, readArtifact(t, fsys), `"ast"`)
+			private, err := filepath.Glob(filepath.Join(targetDir, "op-deployer-bundles-*"))
+			require.NoError(t, err)
+			require.Len(t, private, 1, "the bundle is in a private directory")
+		})
+	}
 }

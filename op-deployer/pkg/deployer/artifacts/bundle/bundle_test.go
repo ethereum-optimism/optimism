@@ -169,3 +169,77 @@ func TestWrite_CleansCachePaths(t *testing.T) {
 	require.NotContains(t, files["forge-artifacts/A.json"], "ast")
 	require.NotContains(t, files, "lib/dep/README.md")
 }
+
+func TestWrite_Links(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "secret")
+	require.NoError(t, os.WriteFile(outside, []byte("secret"), 0o600))
+	tests := []struct {
+		name    string
+		link    string
+		target  string
+		wantErr string
+		// want is the content of the link in the bundle, or "" when the bundle leaves it out.
+		want string
+	}{
+		{name: "artifact to a file outside", link: "forge-artifacts/leak", target: outside, wantErr: "is a link"},
+		{name: "artifact to the environment", link: "forge-artifacts/env", target: "/proc/self/environ", wantErr: "is a link"},
+		{name: "artifacts directory", link: "forge-artifacts", target: t.TempDir(), wantErr: "is a link"},
+		{name: "source outside the project", link: "src/Linked.sol", target: outside, wantErr: "links to no file in the project"},
+		{name: "source in the project", link: "src/Linked.sol", target: "../other/Linked.sol", want: "contract Linked {}"},
+		{name: "artifact directory", link: "forge-artifacts/B.sol", target: t.TempDir(), wantErr: "is a link"},
+		{name: "directory of sources", link: "lib/dep", target: "../other", wantErr: "links to a directory of sources"},
+		{name: "other file", link: "AGENTS.md", target: "CLAUDE.md"},
+		{name: "other file outside", link: "notes.txt", target: outside},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base := t.TempDir()
+			writeFiles(t, base, map[string]string{
+				CompileCacheFile:   `{"paths": {"artifacts": "forge-artifacts", "libraries": ["lib"]}, "files": {"src/Linked.sol": {}, "lib/dep/D.sol": {}}}`,
+				"CLAUDE.md":        "instructions",
+				"other/Linked.sol": "contract Linked {}",
+			})
+			if tt.link != "forge-artifacts" {
+				writeFiles(t, base, map[string]string{"forge-artifacts/A.sol/A.json": `{"abi":[]}`})
+			}
+			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(base, tt.link)), 0o755))
+			require.NoError(t, os.Symlink(tt.target, filepath.Join(base, tt.link)))
+
+			var buf bytes.Buffer
+			err := Write(&buf, base, nil, "")
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			files, _ := readArchive(t, buf.Bytes())
+			if tt.want == "" {
+				require.NotContains(t, files, tt.link)
+			} else {
+				require.Equal(t, tt.want, files[tt.link])
+			}
+			for name, content := range files {
+				require.NotContains(t, content, "secret", name)
+			}
+		})
+	}
+}
+
+func TestWrite_LeavesOutEnvFiles(t *testing.T) {
+	base := t.TempDir()
+	writeFiles(t, base, map[string]string{
+		CompileCacheFile:            testCompileCache,
+		".env":                      "KEY=secret",
+		".envrc":                    "export KEY=secret",
+		"deploy-config/.env.local":  "KEY=secret",
+		".envs/mainnet":             "KEY=secret",
+		"deploy-config/devnet.json": "{}",
+	})
+	var buf bytes.Buffer
+	require.NoError(t, Write(&buf, base, nil, ""))
+	files, _ := readArchive(t, buf.Bytes())
+	require.Contains(t, files, "deploy-config/devnet.json")
+	for _, name := range []string{".env", ".envrc", "deploy-config/.env.local", ".envs/mainnet"} {
+		require.NotContains(t, files, name)
+	}
+}

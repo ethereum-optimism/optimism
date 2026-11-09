@@ -17,17 +17,20 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts/bundle"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const (
 	// bundleFormat names the bundles that bundle.Write writes, so that a change to it repacks.
-	bundleFormat = "op-deployer-bundle-v1"
+	bundleFormat = "op-deployer-bundle-v2"
 	// keptBundles is the number of the most recently used bundles that eviction keeps.
 	keptBundles = 4
 	// packingPrefix starts the name of a bundle that a process is still packing.
 	packingPrefix = "packing-"
 	// staleAfter is the age after which a pack that has not finished has stopped.
 	staleAfter = 24 * time.Hour
+	// lockPollInterval is how often a process that waits for a lock tries it again.
+	lockPollInterval = 100 * time.Millisecond
 	// packLockSuffix and useLockSuffix end the names of the locks of a bundle.
 	packLockSuffix = ".pack.lock"
 	useLockSuffix  = ".use.lock"
@@ -70,35 +73,45 @@ func openProject(dir string, targetDir string, shared bool) fs.FS {
 
 	// The shared directory can fail where a private one works, as without file locks on a network home.
 	if shared {
-		if root := sharedBundlesDir(); root != "" {
-			if bundleDir, err := localBundle(resolved, root, rel); err == nil {
+		root, err := sharedBundlesDir()
+		if err == nil {
+			var bundleDir string
+			if bundleDir, err = localBundle(resolved, root, rel); err == nil {
 				return os.DirFS(filepath.Join(bundleDir, rel))
 			}
 		}
+		log.Warn("Cannot use the shared copy of the contracts build; copying it for this process", "project", resolved, "err", err)
 	}
 	root, err := privateBundlesDir(targetDir)
-	if err != nil {
-		return os.DirFS(artifactsDir)
+	if err == nil {
+		var bundleDir string
+		if bundleDir, err = localBundle(resolved, root, rel); err == nil {
+			return os.DirFS(filepath.Join(bundleDir, rel))
+		}
 	}
-	bundleDir, err := localBundle(resolved, root, rel)
-	if err != nil {
-		return os.DirFS(artifactsDir)
-	}
-	return os.DirFS(filepath.Join(bundleDir, rel))
+	log.Warn("Cannot copy the contracts build without the AST; forge runs on the build and takes several times the memory",
+		"project", resolved, "err", err)
+	return os.DirFS(artifactsDir)
 }
 
 // sharedBundlesDir returns the directory of the bundles that the processes of the user share, in
-// op-deployer's cache directory, or "" when the user has none.
-func sharedBundlesDir() string {
+// op-deployer's cache directory. It must be private: a bundle is code that runs with a deployer key.
+func sharedBundlesDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ""
+		return "", err
 	}
 	dir := filepath.Join(home, ".op-deployer", "cache", "bundles")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return ""
+		return "", err
 	}
-	return dir
+	// Each directory below the home, or another user could replace the ones below it.
+	for _, d := range []string{filepath.Join(home, ".op-deployer"), filepath.Join(home, ".op-deployer", "cache"), dir} {
+		if err := checkPrivateDir(d); err != nil {
+			return "", err
+		}
+	}
+	return dir, nil
 }
 
 // privateBundlesDir returns a new directory for the bundles of this process in targetDir, or in the
@@ -120,6 +133,10 @@ func privateBundlesDir(targetDir string) (string, error) {
 
 // pack writes the bundle of a forge project into a directory. Tests replace it to count the packs.
 var pack = packBundle
+
+// lockTimeout bounds the wait for a lock of a bundle: a pack takes seconds, and a process that hung
+// while it held the lock must not hold up the later ones. Tests shorten it.
+var lockTimeout = 5 * time.Minute
 
 // usedBundles holds the use locks of the bundles that this process uses, by directory.
 var usedBundles = struct {
@@ -149,16 +166,18 @@ func localBundle(project string, root string, artifactsDir string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	if err := use.lock(false); err != nil {
+	if err := use.lock(false, lockTimeout); err != nil {
 		use.release()
 		return "", err
 	}
 	// An eviction can have removed the bundle before this process took the use lock.
-	if _, err := os.Stat(dir); err != nil {
-		if err := packOnce(project, root, key, artifactsDir); err != nil {
-			use.release()
-			return "", err
-		}
+	exists, err := bundleExists(dir)
+	if err == nil && !exists {
+		err = packOnce(project, root, key, artifactsDir)
+	}
+	if err != nil {
+		use.release()
+		return "", err
 	}
 	touchBundle(dir)
 	usedBundles.locks[dir] = use
@@ -174,11 +193,11 @@ func packOnce(project string, root string, key string, artifactsDir string) erro
 		return err
 	}
 	defer packLock.release()
-	if err := packLock.lock(true); err != nil {
+	if err := packLock.lock(true, lockTimeout); err != nil {
 		return err
 	}
-	if _, err := os.Stat(dir); err == nil {
-		return nil
+	if exists, err := bundleExists(dir); err != nil || exists {
+		return err
 	}
 	// The pack goes to a new directory and is renamed into place, so that a pack that stops leaves no
 	// partial bundle.
@@ -202,12 +221,24 @@ func packOnce(project string, root string, key string, artifactsDir string) erro
 	if err := os.Rename(packing, dir); err != nil {
 		_ = os.RemoveAll(packing)
 		// Without file locks, another process can have stored the same bundle first.
-		if _, statErr := os.Stat(dir); statErr != nil {
+		if exists, _ := bundleExists(dir); !exists {
 			return fmt.Errorf("failed to store the bundle: %w", err)
 		}
 	}
 	evictBundles(root, dir)
 	return nil
+}
+
+// bundleExists reports whether there is a bundle at dir, and fails when dir is not a private
+// directory, such as a link.
+func bundleExists(dir string) (bool, error) {
+	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err := checkPrivateDir(dir); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // checkBundle checks that the bundle at dir has the files that forge needs.

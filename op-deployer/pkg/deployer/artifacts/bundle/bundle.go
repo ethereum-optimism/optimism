@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -21,6 +23,10 @@ import (
 // files of the libraries except for license files and forge configs. It keeps the compile cache and
 // the build infos as they are, so that forge does not compile. exclude holds more glob patterns of
 // files to leave out. A commit that is not empty is written to the COMMIT file.
+//
+// A bundle is code and data that scripts with a deployer key read, so Write reads only files of the
+// project: it takes a link only for a source of the build whose target is in the project, and
+// skips every other link. A link in the artifacts directory fails it.
 func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 	for _, pattern := range exclude {
 		if _, err := path.Match(filepath.ToSlash(pattern), ""); err != nil {
@@ -32,24 +38,37 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 		return err
 	}
 
+	root, err := os.OpenRoot(absBase)
+	if err != nil {
+		return fmt.Errorf("open the forge project: %w", err)
+	}
+	defer root.Close()
+
 	tw := tar.NewWriter(w)
-	if err := filepath.WalkDir(absBase, func(path string, d os.DirEntry, walkErr error) error {
+	// The walk lists the project through root too, so that a directory replaced by a link lists
+	// nothing outside it.
+	if err := fs.WalkDir(root.FS(), ".", func(slashRel string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
+		rel := filepath.FromSlash(slashRel)
 
-		rel, err := filepath.Rel(absBase, path)
-		if err != nil {
-			return err
+		// Before the filters: a link that hides artifacts or sources must fail the pack, not drop
+		// them.
+		if d.Type()&fs.ModeSymlink != 0 {
+			if cache.inArtifacts(slashRel) {
+				return fmt.Errorf("%s is a link, which the artifacts of a bundle may not have", slashRel)
+			}
+			if cache.hasSourceUnder(slashRel) {
+				return fmt.Errorf("%s links to a directory of sources, which a bundle does not follow", slashRel)
+			}
 		}
-
 		if shouldExclude(rel, d, exclude) {
 			if d.IsDir() {
-				return filepath.SkipDir
+				return fs.SkipDir
 			}
 			return nil
 		}
-		slashRel := filepath.ToSlash(rel)
 		if d.IsDir() && cache.inLibrary(slashRel) {
 			// Untar creates the directories of the library files that the bundle keeps.
 			return nil
@@ -57,47 +76,47 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 		if !d.IsDir() && !cache.keeps(slashRel) {
 			return nil
 		}
-
-		if rel == "." {
+		if slashRel == "." {
 			return nil
 		}
 
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		// A link becomes a copy of its file, which the extraction of a bundle keeps.
-		if info.Mode()&os.ModeSymlink != 0 {
-			if info, err = os.Stat(path); err != nil {
+		var info fs.FileInfo
+		var content []byte
+		var err error
+		switch {
+		case d.Type()&fs.ModeSymlink != 0:
+			if !cache.isSource(slashRel) {
+				return nil
+			}
+			// forge reads a source through its link, so the bundle needs a copy of its target.
+			if content, info, err = readFile(root, rel, true); err != nil {
+				return fmt.Errorf("the source %s links to no file in the project: %w", slashRel, err)
+			}
+		case d.Type().IsRegular():
+			if content, info, err = readFile(root, rel, false); err != nil {
 				return err
 			}
-			if !info.Mode().IsRegular() {
-				return fmt.Errorf("%s links to a directory, which a bundle does not follow", slashRel)
+			if cache.isArtifact(slashRel) {
+				if content, err = stripAST(content); err != nil {
+					return fmt.Errorf("strip the AST of %s: %w", slashRel, err)
+				}
 			}
+		case d.IsDir():
+			if info, err = d.Info(); err != nil {
+				return err
+			}
+		default:
+			return nil
 		}
 
 		hdr, err := tar.FileInfoHeader(info, "")
 		if err != nil {
 			return err
 		}
-
 		hdr.Name = slashRel
 		hdr.ModTime = info.ModTime()
 		hdr.AccessTime = info.ModTime()
-
-		var content []byte
-		if info.Mode().IsRegular() {
-			content, err = os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			if cache.isArtifact(hdr.Name) {
-				if content, err = stripAST(content); err != nil {
-					return fmt.Errorf("strip the AST of %s: %w", hdr.Name, err)
-				}
-			}
-			hdr.Size = int64(len(content))
-		}
+		hdr.Size = int64(len(content))
 
 		if err := tw.WriteHeader(hdr); err != nil {
 			return err
@@ -166,6 +185,63 @@ func ArtifactsDir(dir string) (string, error) {
 	return cache.Paths.Artifacts, nil
 }
 
+// readFile reads the regular file at name in root, through a link in root when followLink is true,
+// and returns its content and information. os.Root follows a link in the root even with O_NOFOLLOW,
+// so without followLink readFile checks that it opened the file that it found at name, and not a
+// link that replaced it.
+func readFile(root *os.Root, name string, followLink bool) ([]byte, fs.FileInfo, error) {
+	stat := root.Lstat
+	if followLink {
+		stat = root.Stat
+	}
+	// Opening a pipe or a device could block or read without end.
+	found, err := stat(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !found.Mode().IsRegular() {
+		return nil, nil, fmt.Errorf("%s is not a regular file", name)
+	}
+	f, err := root.Open(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, nil, err
+	}
+	if !os.SameFile(found, info) {
+		return nil, nil, fmt.Errorf("%s changed while op-deployer read it", name)
+	}
+	content, err := io.ReadAll(f)
+	if err != nil {
+		return nil, nil, err
+	}
+	return content, info, nil
+}
+
+// inArtifacts reports whether rel is the artifacts directory or in it.
+func (c *compileCache) inArtifacts(rel string) bool {
+	return rel == c.Paths.Artifacts || strings.HasPrefix(rel, c.Paths.Artifacts+"/")
+}
+
+// hasSourceUnder reports whether a source of the build is in the directory rel.
+func (c *compileCache) hasSourceUnder(rel string) bool {
+	for source := range c.Files {
+		if strings.HasPrefix(source, rel+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// isSource reports whether rel is a source of the build.
+func (c *compileCache) isSource(rel string) bool {
+	_, ok := c.Files[rel]
+	return ok
+}
+
 // isArtifact reports whether the file at rel is an artifact.
 func (c *compileCache) isArtifact(rel string) bool {
 	return strings.HasPrefix(rel, c.Paths.Artifacts+"/") && strings.HasSuffix(rel, ".json")
@@ -184,9 +260,13 @@ func (c *compileCache) inLibrary(rel string) bool {
 // keeps reports whether the bundle keeps the file at rel. It keeps the sources of the build, which
 // include every file that a kept source imports, but no other Solidity file. Of the other files in a
 // library, it keeps the license files and the forge configs, which forge reads for the library's
-// remappings.
+// remappings. It keeps no file named .env* or in a directory named so.
 func (c *compileCache) keeps(rel string) bool {
-	if _, source := c.Files[rel]; source {
+	// A project's environment can hold secrets, and the bundle stays on disk.
+	if slices.ContainsFunc(strings.Split(rel, "/"), func(name string) bool { return strings.HasPrefix(name, ".env") }) {
+		return false
+	}
+	if c.isSource(rel) {
 		return true
 	}
 	if strings.HasSuffix(rel, ".sol") {

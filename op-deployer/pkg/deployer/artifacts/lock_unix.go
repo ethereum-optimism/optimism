@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"time"
 )
 
 // fileLock is a lock on a file. The system frees it when its process exits.
@@ -14,25 +15,35 @@ type fileLock struct {
 	f *os.File
 }
 
-// openFileLock opens the lock of the file at path, which it creates.
+// openFileLock opens the lock of the file at path, which it creates. A link at path fails it.
 func openFileLock(path string) (*fileLock, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the lock %s: %w", path, err)
 	}
 	return &fileLock{f: f}, nil
 }
 
-// lock waits for the lock, exclusive or shared.
-func (l *fileLock) lock(exclusive bool) error {
+// lock waits up to timeout for the lock, exclusive or shared.
+func (l *fileLock) lock(exclusive bool, timeout time.Duration) error {
 	how := syscall.LOCK_SH
 	if exclusive {
 		how = syscall.LOCK_EX
 	}
-	if err := syscall.Flock(int(l.f.Fd()), how); err != nil {
-		return fmt.Errorf("failed to lock %s: %w", l.f.Name(), err)
+	deadline := time.Now().Add(timeout)
+	for {
+		err := syscall.Flock(int(l.f.Fd()), how|syscall.LOCK_NB)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
+			return fmt.Errorf("failed to lock %s: %w", l.f.Name(), err)
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("another process held the lock %s for more than %s", l.f.Name(), timeout)
+		}
+		time.Sleep(lockPollInterval)
 	}
-	return nil
 }
 
 // tryLock takes the lock exclusive without waiting, and returns false when another holder has it.
@@ -47,4 +58,18 @@ func (l *fileLock) tryLock() (bool, error) {
 // release frees the lock.
 func (l *fileLock) release() {
 	_ = l.f.Close()
+}
+
+// checkPrivateDir checks that dir is a directory, not a link, of this user that no other user can
+// write, so that no other user can plant a bundle in it.
+func checkPrivateDir(dir string) error {
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !info.IsDir() || !ok || int(st.Uid) != os.Geteuid() || info.Mode().Perm()&0o022 != 0 {
+		return fmt.Errorf("%s (mode %v) is not a private directory of uid %d", dir, info.Mode(), os.Geteuid())
+	}
+	return nil
 }
