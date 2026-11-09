@@ -20,7 +20,6 @@ import (
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -160,7 +159,7 @@ func generateL2Genesis(t *testing.T, mode allocMode) generatedL2Genesis {
 		State:                 st,
 		Logger:                lgr,
 		StateWriter:           pipeline.NoopStateWriter(),
-		CacheDir:              testutils.IsolatedTestDirWithAutoCleanup(t),
+		CacheDir:              testutil.SharedCacheDir(t),
 		DeployMockSP1Verifier: true,
 	}))
 
