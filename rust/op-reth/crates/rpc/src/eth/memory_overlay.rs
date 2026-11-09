@@ -5,6 +5,8 @@
 //! speculative flashblock still needs it: see `pending_flashblock_state`. The trait impls are
 //! unchanged; the other changes fit it to this crate: import paths, crate-private visibility and
 //! the lints that follow from it, and no default for the primitives type.
+//!
+//! UPSTREAM-MIRROR(port): reth@v2.6.0 `reth_chain_state::memory_overlay`
 
 use alloy_consensus::BlockHeader;
 use alloy_primitives::{

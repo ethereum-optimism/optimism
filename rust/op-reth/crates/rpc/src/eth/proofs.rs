@@ -21,7 +21,7 @@ use reth_rpc_eth_types::EthApiError;
 
 /// The `eth_` proof methods served from the historical proofs storage.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_eth_api::EthApi`
+/// UPSTREAM-MIRROR(set): reth@rev:d7a863a `reth_rpc_eth_api::EthApi`
 ///
 /// Re-declares the proof methods that are answered from historical proofs rather than live state.
 /// A proof method added to upstream's `EthApi` produces no diff here, so diff the two method sets
@@ -60,14 +60,17 @@ where
         Self { eth_api, preimage_store, metrics: EthApiExtMetrics::default() }
     }
 
-    /// UPSTREAM-MIRROR(copy): reth@rev:8d359d0
+    /// UPSTREAM-MIRROR(copy): reth@rev:d7a863a
     /// `reth_rpc_eth_api::helpers::state::EthState::get_proof`
     ///
     /// Uses the OP proofs-history state provider while preserving upstream permit and blocking-task
     /// behavior. Upstream's `ensure_within_proof_window` bounds the distance from the tip by
     /// `max_proof_window`; a proofs-history node instead serves its proofs storage window. Unlike
     /// upstream, which takes the permit first and then checks its window, this checks the window
-    /// before taking the permit, so out-of-window requests never wait for one.
+    /// before taking the permit, so out-of-window requests never wait for one. Upstream also
+    /// resolves the state before taking a blocking thread (`spawn_blocking_io_with_state`), as
+    /// building a pending block may need one itself; this resolves it inside the task, which
+    /// `OpEthApi`'s pending state allows because it does not spawn blocking work.
     async fn get_proof_inner(
         &self,
         address: Address,
