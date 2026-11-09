@@ -10,8 +10,6 @@ mod actions;
 #[path = "live/chain.rs"]
 #[allow(dead_code, reason = "each test target uses part of this module")]
 mod chain;
-#[path = "engine_model/faults.rs"]
-mod faults;
 #[path = "engine_model/harness.rs"]
 mod harness;
 #[path = "engine_model/invariants.rs"]
@@ -21,9 +19,15 @@ mod model;
 #[path = "live/simulated_reth.rs"]
 #[allow(dead_code, reason = "each test target uses part of this module")]
 mod simulated_reth;
+#[path = "live/store_hooks.rs"]
+#[allow(dead_code, reason = "each test target uses part of this module")]
+mod store_hooks;
 #[path = "live/store_view.rs"]
 #[allow(dead_code, reason = "each test target uses part of this module")]
 mod store_view;
+#[path = "live/waits.rs"]
+#[allow(dead_code, reason = "each test target uses part of this module")]
+mod waits;
 
 use actions::{Action, Actions, Config, Rebuild};
 use chain::*;
