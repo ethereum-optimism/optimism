@@ -143,12 +143,24 @@ type OpReth struct {
 	sub *SubProcess
 
 	l2MetricsRegistrar L2MetricsRegistrar
+
+	// logRecords outlives the sub-process so a record registered before a restart keeps
+	// collecting afterwards.
+	logRecords logpipe.LogRecords
 }
 
 var (
 	_ L2ELNode                  = (*OpReth)(nil)
+	_ stack.LogRecorder         = (*OpReth)(nil)
 	_ stack.UngracefulLifecycle = (*OpReth)(nil)
 )
+
+// RecordLogLines returns a record of every line op-reth writes to stdout or stderr from now on,
+// across restarts, whose message, or whose raw text for a line that is not a structured log
+// entry, contains substring. Lines below the level the test log keeps are recorded too.
+func (n *OpReth) RecordLogLines(substring string) *logpipe.LogRecord {
+	return n.logRecords.Record(substring)
+}
 
 func (n *OpReth) Start() {
 	n.mu.Lock()
@@ -224,10 +236,12 @@ func (n *OpReth) Start() {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logOut(e)
 		onLogEntry(e)
+		n.logRecords.Observe(e)
 	})
 	stdErrLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logErr(e)
+		n.logRecords.Observe(e)
 	})
 	n.sub = NewSubProcess(n.p, stdOutLogs, stdErrLogs)
 

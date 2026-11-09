@@ -23,15 +23,32 @@ type StructuredRustLogEntry struct {
 	Target  string
 }
 
+// A line that is not structured JSON, such as a panic hook's output, becomes an entry with this
+// message and the raw line in this field.
+const (
+	unparsedLineField   = "line"
+	unparsedLineMessage = "Invalid JSON"
+)
+
+// UnparsedLine returns the raw text of a line that was not structured JSON, and false for an
+// entry that was.
+func (e StructuredRustLogEntry) UnparsedLine() (string, bool) {
+	if e.Message != unparsedLineMessage {
+		return "", false
+	}
+	line, ok := e.Fields[unparsedLineField].(string)
+	return line, ok
+}
+
 func ParseRustStructuredLogs(line []byte) LogEntry {
 	dec := json.NewDecoder(bytes.NewReader(line))
 	dec.UseNumber() // to preserve number formatting
 	var e rawRustJSONLog
 	if err := dec.Decode(&e); err != nil {
 		return StructuredRustLogEntry{
-			Message: "Invalid JSON",
+			Message: unparsedLineMessage,
 			Level:   slog.LevelWarn,
-			Fields:  map[string]any{"line": string(line)},
+			Fields:  map[string]any{unparsedLineField: string(line)},
 		}
 	}
 	lvl, err := log.LevelFromString(e.Level)
