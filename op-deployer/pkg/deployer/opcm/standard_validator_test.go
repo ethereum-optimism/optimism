@@ -136,6 +136,22 @@ func TestValidateStandardDeployment(t *testing.T) {
 		require.ErrorContains(t, err, "standard validator reported errors")
 	})
 
+	t.Run("configured bridge hook with another error fails", func(t *testing.T) {
+		hookInput := input
+		hookInput.BridgeHookConfigured = true
+		backend := &standardValidatorBackend{
+			t:                t,
+			wantMethod:       standardValidationMethod,
+			wantInput:        wantInput,
+			wantAllowFailure: true,
+			wantOverrides:    wantOverrides,
+			wantValidator:    validator,
+			result:           wantResult + ",PORTAL-110,PORTAL-100",
+		}
+		err := ValidateStandardDeployment(t.Context(), backend, validator, hookInput)
+		require.ErrorContains(t, err, "standard validator reported errors")
+	})
+
 	t.Run("PORTAL-110 without a configured bridge hook fails", func(t *testing.T) {
 		backend := &standardValidatorBackend{
 			t:             t,

@@ -530,6 +530,15 @@ func TestVerifyContinuationDeployment(t *testing.T) {
 		require.Equal(t, 1, fixture.backend.callsTo(fixture.backend.validator))
 	})
 
+	t.Run("custom gas token without a bridge hook", func(t *testing.T) {
+		fixture := newContinuationVerificationFixture(t, opcm.GameTypeSuperCannonKona)
+		fixture.dci.UseCustomGasToken = true
+		fixture.dci.BridgeHook = common.Address{}
+		fixture.seed(t, opcm.GameTypeSuperCannonKona)
+		fixture.backend.validatorResult = "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
+		require.NoError(t, fixture.verify(t))
+	})
+
 	t.Run("permissioned only skips StandardValidator", func(t *testing.T) {
 		fixture := newContinuationVerificationFixture(t, opcm.GameTypeSuperPermissioned)
 		require.NoError(t, fixture.verify(t))

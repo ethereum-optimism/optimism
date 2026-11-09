@@ -1676,6 +1676,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice Default deploy config.
     IOPContractsManagerV2.FullConfig deployConfig;
 
+    /// @notice Emitted by OptimismPortal2 when a bridge hook is set.
+    event BridgeHookSet(IBridgeHook indexed bridgeHook);
+
     /// @notice Sets up the test.
     function setUp() public virtual override {
         super.setUp();
@@ -2157,6 +2160,96 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(address(cts.optimismPortal.bridgeHook()), hook, "bridge hook changed");
     }
 
+    /// @notice Tests that an explicit zero bridge hook override keeps the chain's current hook.
+    function test_upgrade_bridgeHookZeroOverride_succeeds() public {
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = makeAddr("bridgeHook");
+        _forceSetBridgeHook(cts.optimismPortal, hook);
+
+        IOPContractsManagerV2.UpgradeInput memory input = _bridgeHookUpgradeInput(cts, address(0));
+        input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
+        input.extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.bridgeHook", data: abi.encode(IBridgeHook(address(0)))
+        });
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+
+        assertTrue(success, "upgrade failed");
+        assertEq(address(cts.optimismPortal.bridgeHook()), hook, "bridge hook changed");
+    }
+
+    /// @notice Tests that the bridge hook override sent with another permitted instruction sets the
+    ///         hook and applies the other instruction.
+    function test_upgrade_bridgeHookWithOtherInstructions_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        // Move the respected game type to a disabled one, so the upgrade only passes validation if
+        // the startingRespectedGameType override is applied.
+        vm.prank(superchainConfig.guardian());
+        cts.anchorStateRegistry.setRespectedGameType(GameTypes.CANNON);
+
+        address hook = _mockBridgeHook("bridgeHook", cts);
+        IOPContractsManagerV2.UpgradeInput memory input = _bridgeHookUpgradeInput(cts, hook);
+        IOPContractsManagerUtils.ExtraInstruction memory hookInstruction = input.extraInstructions[0];
+        input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](2);
+        input.extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.startingRespectedGameType", data: abi.encode(deployConfig.startingRespectedGameType)
+        });
+        input.extraInstructions[1] = hookInstruction;
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+
+        assertTrue(success, "upgrade failed");
+        assertEq(address(cts.optimismPortal.bridgeHook()), hook, "bridge hook not set");
+        assertEq(
+            cts.anchorStateRegistry.respectedGameType().raw(),
+            deployConfig.startingRespectedGameType.raw(),
+            "respected game type not overridden"
+        );
+    }
+
+    /// @notice Tests that the bridge hook override attaches a hook again after the ProxyAdmin owner
+    ///         removed it.
+    function test_upgrade_bridgeHookReattachAfterRemove_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = _mockBridgeHook("bridgeHook", cts);
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
+        assertTrue(success, "first upgrade failed");
+        assertEq(address(cts.optimismPortal.bridgeHook()), hook, "bridge hook not set");
+
+        vm.prank(cts.proxyAdmin.owner());
+        cts.optimismPortal.removeHook();
+        assertEq(address(cts.optimismPortal.bridgeHook()), address(0), "bridge hook not removed");
+
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
+        assertTrue(success, "second upgrade failed");
+        assertEq(address(cts.optimismPortal.bridgeHook()), hook, "bridge hook not reattached");
+    }
+
+    /// @notice Tests that an upgrade carrying the bridge hook override emits BridgeHookSet from the
+    ///         portal.
+    function test_upgrade_bridgeHookOverrideEmitsEvent_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = _mockBridgeHook("bridgeHook", cts);
+
+        vm.expectEmit(address(cts.optimismPortal));
+        emit BridgeHookSet(IBridgeHook(hook));
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
+
+        assertTrue(success, "upgrade failed");
+    }
+
     /// @notice Tests that the deploy function succeeds and passes standard validation.
     function test_deploy_succeeds() public {
         // Run the deploy and standard validator checks.
@@ -2261,6 +2354,44 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         opcmV2.deploy(deployConfig);
     }
 
+    /// @notice Tests that an upgrade carrying the bridge hook override reverts when BRIDGE_HOOK is
+    ///         disabled.
+    function test_upgrade_bridgeHookDevFeatureDisabled_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = _mockBridgeHook("bridgeHook", cts);
+
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success, bytes memory reason) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
+
+        assertFalse(success, "upgrade should have reverted");
+        // nosemgrep: sol-style-use-abi-encodecall
+        assertEq(
+            reason, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_BridgeHookNotSupported.selector)
+        );
+    }
+
+    /// @notice Tests that an upgrade cannot attach a bridge hook to a custom gas token chain.
+    function test_upgrade_bridgeHookWithCustomGasToken_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        deployConfig.useCustomGasToken = true;
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = _mockBridgeHook("bridgeHook", cts);
+
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success, bytes memory reason) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
+
+        assertFalse(success, "upgrade should have reverted");
+        // nosemgrep: sol-style-use-abi-encodecall
+        assertEq(
+            reason, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_BridgeHookNotSupported.selector)
+        );
+    }
+
     /// @notice Tests that an upgrade is rejected when it would attach a bridge hook to a chain that
     ///         is already in an interop set. The set would need the same hook on every chain and
     ///         nothing enforces that, which is why the Migrator refuses a hooked chain outright.
@@ -2360,6 +2491,40 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         assertEq(address(cts.optimismPortal.bridgeHook()), hook, "portal bridge hook mismatch");
+    }
+
+    /// @notice Tests that configuring a bridge hook does not change the chain contract addresses
+    ///         that a deploy produces.
+    function test_deploy_bridgeHookKeepsAddresses_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory expected = _predictChainContracts();
+        deployConfig.bridgeHook = IBridgeHook(_mockBridgeHook("bridgeHook", expected));
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+
+        assertEq(address(cts.systemConfig), address(expected.systemConfig), "systemConfig mismatch");
+        assertEq(address(cts.proxyAdmin), address(expected.proxyAdmin), "proxyAdmin mismatch");
+        assertEq(address(cts.addressManager), address(expected.addressManager), "addressManager mismatch");
+        assertEq(
+            address(cts.l1CrossDomainMessenger),
+            address(expected.l1CrossDomainMessenger),
+            "l1CrossDomainMessenger mismatch"
+        );
+        assertEq(address(cts.l1ERC721Bridge), address(expected.l1ERC721Bridge), "l1ERC721Bridge mismatch");
+        assertEq(address(cts.l1StandardBridge), address(expected.l1StandardBridge), "l1StandardBridge mismatch");
+        assertEq(address(cts.optimismPortal), address(expected.optimismPortal), "optimismPortal mismatch");
+        assertEq(address(cts.ethLockbox), address(expected.ethLockbox), "ethLockbox mismatch");
+        assertEq(
+            address(cts.optimismMintableERC20Factory),
+            address(expected.optimismMintableERC20Factory),
+            "optimismMintableERC20Factory mismatch"
+        );
+        assertEq(address(cts.disputeGameFactory), address(expected.disputeGameFactory), "disputeGameFactory mismatch");
+        assertEq(
+            address(cts.anchorStateRegistry), address(expected.anchorStateRegistry), "anchorStateRegistry mismatch"
+        );
+        assertEq(address(cts.delayedWETH), address(expected.delayedWETH), "delayedWETH mismatch");
+        assertEq(address(cts.optimismPortal.bridgeHook()), address(deployConfig.bridgeHook), "bridge hook not set");
     }
 
     /// @notice Tests that a zero withdrawal delay is rejected by OPCM's config validation before
