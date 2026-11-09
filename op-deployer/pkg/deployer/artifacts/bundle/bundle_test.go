@@ -176,23 +176,24 @@ func TestWrite_Links(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "secret")
 	require.NoError(t, os.WriteFile(outside, []byte("secret"), 0o600))
 	tests := []struct {
-		name    string
-		link    string
-		target  string
+		name   string
+		link   string
+		target string
+		// wantErr is the error of the pack, or "" when the bundle leaves the link out.
 		wantErr string
-		// want is the content of the link in the bundle, or "" when the bundle leaves it out.
-		want string
 	}{
 		{name: "artifact to a file outside", link: "forge-artifacts/leak", target: outside, wantErr: "is a link"},
 		{name: "artifact to the environment", link: "forge-artifacts/env", target: "/proc/self/environ", wantErr: "is a link"},
 		{name: "artifacts directory", link: "forge-artifacts", target: t.TempDir(), wantErr: "is a link"},
-		{name: "source outside the project", link: "src/Linked.sol", target: outside, wantErr: "is not a source that the bundle keeps"},
-		{name: "source to a file that is not a source", link: "src/Linked.sol", target: "../CLAUDE.md", wantErr: "is not a source that the bundle keeps"},
-		// The compile cache lists .env, which the bundle never keeps.
-		{name: "source to a source that the bundle leaves out", link: "src/Linked.sol", target: "../.env", wantErr: "is not a source that the bundle keeps"},
-		{name: "source in the project", link: "src/Linked.sol", target: "../other/Linked.sol", want: "contract Linked {}"},
+		{name: "source outside the project", link: "src/Linked.sol", target: outside, wantErr: "is a link"},
+		{name: "source in the project", link: "src/Linked.sol", target: "../other/Linked.sol", wantErr: "is a link"},
 		{name: "artifact directory", link: "forge-artifacts/B.sol", target: t.TempDir(), wantErr: "is a link"},
-		{name: "directory of sources", link: "lib/dep", target: "../other", wantErr: "links to a directory of sources"},
+		{name: "directory of sources", link: "lib/dep", target: "../other", wantErr: "is a link"},
+		// On a filesystem that ignores case, forge-artifacts names these directories too.
+		{name: "source in another spelling of the artifacts", link: "Forge-Artifacts/leak", target: "../notes-file", wantErr: "is a link"},
+		{name: "other file in another spelling of the artifacts", link: "FORGE-ARTIFACTS/other", target: "../notes-file", wantErr: "is a link"},
+		{name: "library remappings", link: "lib/dep/remappings.txt", target: "../../notes-file", wantErr: "is a link"},
+		{name: "build infos", link: "artifacts/build-info", target: t.TempDir(), wantErr: "is a link"},
 		{name: "other file", link: "AGENTS.md", target: "CLAUDE.md"},
 		{name: "other file outside", link: "notes.txt", target: outside},
 	}
@@ -200,9 +201,10 @@ func TestWrite_Links(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			base := t.TempDir()
 			writeFiles(t, base, map[string]string{
-				CompileCacheFile:   `{"paths": {"artifacts": "forge-artifacts", "libraries": ["lib"]}, "files": {"src/Linked.sol": {}, "other/Linked.sol": {}, "lib/dep/D.sol": {}, ".env": {}}}`,
+				CompileCacheFile:   `{"paths": {"artifacts": "forge-artifacts", "build_infos": "artifacts/build-info", "libraries": ["lib"]}, "files": {"src/Linked.sol": {}, "other/Linked.sol": {}, "lib/dep/D.sol": {}, "Forge-Artifacts/leak": {}, "notes-file": {}}}`,
 				"CLAUDE.md":        "instructions",
 				"other/Linked.sol": "contract Linked {}",
+				"notes-file":       "notes",
 				".env":             "KEY=secret",
 			})
 			if tt.link != "forge-artifacts" {
@@ -219,11 +221,7 @@ func TestWrite_Links(t *testing.T) {
 			}
 			require.NoError(t, err)
 			files, _ := readArchive(t, buf.Bytes())
-			if tt.want == "" {
-				require.NotContains(t, files, tt.link)
-			} else {
-				require.Equal(t, tt.want, files[tt.link])
-			}
+			require.NotContains(t, files, tt.link)
 			for name, content := range files {
 				require.NotContains(t, content, "secret", name)
 			}
@@ -251,30 +249,32 @@ func TestWrite_LeavesOutEnvFiles(t *testing.T) {
 }
 
 // TestWrite_RefusesLinkWhereScriptsRead checks that a link in the directory that op-deployer lets
-// scripts read fails the pack, also when the compile cache names other artifacts.
+// scripts read fails the pack, as one in the artifacts does, also when the compile cache names other
+// artifacts and lists neither link as a source.
 func TestWrite_RefusesLinkWhereScriptsRead(t *testing.T) {
-	base := t.TempDir()
-	writeFiles(t, base, map[string]string{
-		CompileCacheFile:   `{"paths": {"artifacts": "out", "libraries": ["lib"]}, "files": {"forge-artifacts/x": {}}}`,
-		"out/A.sol/A.json": `{"abi":[]}`,
-		".env":             "KEY=secret",
-	})
-	require.NoError(t, os.MkdirAll(filepath.Join(base, ScriptReadDir), 0o755))
-	require.NoError(t, os.Symlink("../.env", filepath.Join(base, ScriptReadDir, "x")))
-	require.ErrorContains(t, Write(io.Discard, base, nil, ""), "is a link")
+	for _, link := range []string{ScriptReadDir + "/x", "out/A.sol/leak"} {
+		t.Run(link, func(t *testing.T) {
+			base := t.TempDir()
+			writeFiles(t, base, map[string]string{
+				CompileCacheFile:   `{"paths": {"artifacts": "out", "libraries": ["lib"]}, "files": {}}`,
+				"out/A.sol/A.json": `{"abi":[]}`,
+				".env":             "KEY=secret",
+			})
+			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(base, link)), 0o755))
+			require.NoError(t, os.Symlink(filepath.Join(base, ".env"), filepath.Join(base, link)))
+			require.ErrorContains(t, Write(io.Discard, base, nil, ""), "is a link")
+		})
+	}
 }
 
-// TestWrite_ThroughLinkedProject checks that a project at a link packs its linked sources: their
-// targets resolve below the resolved project.
+// TestWrite_ThroughLinkedProject checks that a project at a link packs.
 func TestWrite_ThroughLinkedProject(t *testing.T) {
 	base := t.TempDir()
 	writeFiles(t, base, map[string]string{
-		CompileCacheFile:               `{"paths": {"artifacts": "forge-artifacts", "libraries": ["lib"]}, "files": {"src/A.sol": {}, "other/A.sol": {}}}`,
-		"other/A.sol":                  "contract A {}",
+		CompileCacheFile:               `{"paths": {"artifacts": "forge-artifacts", "libraries": ["lib"]}, "files": {"src/A.sol": {}}}`,
+		"src/A.sol":                    "contract A {}",
 		"forge-artifacts/A.sol/A.json": `{"abi":[]}`,
 	})
-	require.NoError(t, os.MkdirAll(filepath.Join(base, "src"), 0o755))
-	require.NoError(t, os.Symlink("../other/A.sol", filepath.Join(base, "src", "A.sol")))
 	link := filepath.Join(t.TempDir(), "project")
 	require.NoError(t, os.Symlink(base, link))
 

@@ -396,20 +396,15 @@ func TestOpenLocal_LinksInTheProject(t *testing.T) {
 		require.Empty(t, bundlesIn(t, home))
 	})
 	t.Run("linked source in the project", func(t *testing.T) {
-		t.Setenv("HOME", t.TempDir())
+		home := t.TempDir()
+		t.Setenv("HOME", home)
 		project := writeProject(t)
-		writeFiles(t, project, map[string]string{
-			"other/A.sol":           "contract A {}",
-			bundle.CompileCacheFile: `{"paths": {"artifacts": "forge-artifacts", "libraries": ["lib"]}, "files": {"src/A.sol": {}, "other/A.sol": {}}}`,
-		})
+		writeFiles(t, project, map[string]string{"other/A.sol": "contract A {}"})
 		require.NoError(t, os.Remove(filepath.Join(project, "src", "A.sol")))
 		require.NoError(t, os.Symlink("../other/A.sol", filepath.Join(project, "src", "A.sol")))
 		fsys := openLocal(project, t.TempDir())
-		require.NotContains(t, readArtifact(t, fsys), `"ast"`)
-		// The bundle has a copy of the linked file.
-		data, err := os.ReadFile(filepath.Join(fmt.Sprint(fsys), "..", "src", "A.sol"))
-		require.NoError(t, err)
-		require.Equal(t, "contract A {}", string(data))
+		require.Contains(t, readArtifact(t, fsys), `"ast"`, "a bundle copies no link, so the build is used as it is")
+		require.Empty(t, bundlesIn(t, home))
 	})
 	t.Run("linked source outside the project", func(t *testing.T) {
 		home := t.TempDir()

@@ -25,9 +25,8 @@ import (
 // files to leave out. A commit that is not empty is written to the COMMIT file.
 //
 // A bundle is code and data that scripts with a deployer key read, so Write reads only files of the
-// project: it takes a link only for a source of the build whose target is another source of the
-// build, and skips every other link. A link in the artifacts directory, or in ScriptReadDir, fails
-// it.
+// project and never copies a link. It fails on a link that is, is in, or holds a part of the build,
+// and skips every other link.
 func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 	for _, pattern := range exclude {
 		if _, err := path.Match(filepath.ToSlash(pattern), ""); err != nil {
@@ -39,11 +38,6 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 		return err
 	}
 
-	// The targets of links resolve to paths below the resolved project.
-	absBase, err = filepath.EvalSymlinks(absBase)
-	if err != nil {
-		return fmt.Errorf("resolve the forge project: %w", err)
-	}
 	root, err := os.OpenRoot(absBase)
 	if err != nil {
 		return fmt.Errorf("open the forge project: %w", err)
@@ -59,15 +53,13 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 		}
 		rel := filepath.FromSlash(slashRel)
 
-		// Before the filters: a link that hides artifacts or sources must fail the pack, not drop
-		// them.
+		// A link in the build fails the pack, so that op-deployer uses the build as it is. Every other
+		// link is left out.
 		if d.Type()&fs.ModeSymlink != 0 {
-			if cache.inArtifacts(slashRel) || under(slashRel, ScriptReadDir) {
-				return fmt.Errorf("%s is a link, which the artifacts of a bundle may not have", slashRel)
+			if cache.inBuild(slashRel) {
+				return fmt.Errorf("%s is a link, which a bundle does not copy", slashRel)
 			}
-			if cache.hasSourceUnder(slashRel) {
-				return fmt.Errorf("%s links to a directory of sources, which a bundle does not follow", slashRel)
-			}
+			return nil
 		}
 		if shouldExclude(rel, d, exclude) {
 			if d.IsDir() {
@@ -90,19 +82,6 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 		var content []byte
 		var err error
 		switch {
-		case d.Type()&fs.ModeSymlink != 0:
-			if !cache.isSource(slashRel) {
-				return nil
-			}
-			// forge reads a source through its link, so the bundle needs a copy of its target, which
-			// must be a source of the build too.
-			target, err := linkedSource(absBase, rel, cache)
-			if err != nil {
-				return fmt.Errorf("the link of the source %s: %w", slashRel, err)
-			}
-			if content, info, err = readFile(root, target); err != nil {
-				return fmt.Errorf("read the target of the source %s: %w", slashRel, err)
-			}
 		case d.Type().IsRegular():
 			if content, info, err = readFile(root, rel); err != nil {
 				return err
@@ -161,8 +140,9 @@ const ScriptReadDir = "forge-artifacts"
 // are relative to the project and use slashes.
 type compileCache struct {
 	Paths struct {
-		Artifacts string   `json:"artifacts"`
-		Libraries []string `json:"libraries"`
+		Artifacts  string   `json:"artifacts"`
+		BuildInfos string   `json:"build_infos"`
+		Libraries  []string `json:"libraries"`
 	} `json:"paths"`
 	// Files are the sources of the build, keyed by path.
 	Files map[string]json.RawMessage `json:"files"`
@@ -178,6 +158,9 @@ func readCompileCache(absBase string) (*compileCache, error) {
 		return nil, fmt.Errorf("decode the compile cache: %w", err)
 	}
 	cache.Paths.Artifacts = path.Clean(cache.Paths.Artifacts)
+	if cache.Paths.BuildInfos != "" {
+		cache.Paths.BuildInfos = path.Clean(cache.Paths.BuildInfos)
+	}
 	for i, lib := range cache.Paths.Libraries {
 		cache.Paths.Libraries[i] = path.Clean(lib)
 	}
@@ -230,41 +213,37 @@ func readFile(root *os.Root, name string) ([]byte, fs.FileInfo, error) {
 	return content, info, nil
 }
 
-// linkedSource returns the path in the project at absBase of the target of the link at rel, and
-// fails unless that target is a kept source of the build.
-func linkedSource(absBase string, rel string, cache *compileCache) (string, error) {
-	target, err := filepath.EvalSymlinks(filepath.Join(absBase, rel))
-	if err != nil {
-		return "", err
+// inBuild reports whether rel is, is in, or holds a part of the build: the artifacts, the build
+// infos, ScriptReadDir, the compile cache, a forge config or a source. It ignores case, so that its
+// answer does not depend on whether the filesystem does.
+func (c *compileCache) inBuild(rel string) bool {
+	parts := []string{c.Paths.Artifacts, ScriptReadDir, CompileCacheFile, "foundry.toml"}
+	if c.Paths.BuildInfos != "" {
+		parts = append(parts, c.Paths.BuildInfos)
 	}
-	targetRel, err := filepath.Rel(absBase, target)
-	if err != nil {
-		return "", err
-	}
-	if slashTarget := filepath.ToSlash(targetRel); !filepath.IsLocal(targetRel) || !cache.isSource(slashTarget) || !cache.keeps(slashTarget) {
-		return "", fmt.Errorf("its target %s is not a source that the bundle keeps", target)
-	}
-	return targetRel, nil
-}
-
-// under reports whether rel is dir or in it.
-func under(rel string, dir string) bool {
-	return rel == dir || strings.HasPrefix(rel, dir+"/")
-}
-
-// inArtifacts reports whether rel is the artifacts directory or in it.
-func (c *compileCache) inArtifacts(rel string) bool {
-	return under(rel, c.Paths.Artifacts)
-}
-
-// hasSourceUnder reports whether a source of the build is in the directory rel.
-func (c *compileCache) hasSourceUnder(rel string) bool {
 	for source := range c.Files {
-		if strings.HasPrefix(source, rel+"/") {
+		parts = append(parts, source)
+	}
+	for _, part := range parts {
+		if underFold(rel, part) || underFold(part, rel) {
 			return true
 		}
 	}
-	return false
+	return c.inLibrary(rel) && isForgeConfig(strings.ToLower(rel))
+}
+
+// underFold reports whether rel is dir or in it, ignoring case.
+func underFold(rel string, dir string) bool {
+	relNames, dirNames := strings.Split(rel, "/"), strings.Split(dir, "/")
+	if len(relNames) < len(dirNames) {
+		return false
+	}
+	for i, name := range dirNames {
+		if !strings.EqualFold(relNames[i], name) {
+			return false
+		}
+	}
+	return true
 }
 
 // isSource reports whether rel is a source of the build.
