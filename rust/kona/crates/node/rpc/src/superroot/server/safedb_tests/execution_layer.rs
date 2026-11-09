@@ -77,25 +77,21 @@ pub(super) fn rollup_config_with_genesis(genesis: &Block<Transaction>) -> Arc<Ro
 /// A read a super-root query makes of the EL, as told apart on the wire.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Read {
-    BlockWithoutTransactions,
-    BlockWithTransactions,
+    BlockByHash,
+    BlockByNumber(u64),
     Proof,
 }
 
-impl Read {
-    const fn block(full: bool) -> Self {
-        if full { Self::BlockWithTransactions } else { Self::BlockWithoutTransactions }
-    }
-}
-
 /// An EL served from memory. It serves every block it was given by hash and the canonical chain
-/// by number, counts requests by method, and calls `before_read` before serving each read, so a
-/// test can change the canonical chain at a chosen point of a query.
+/// by number, counts requests by method and block reads that asked for transactions, and calls
+/// `before_read` before serving each read, so a test can change the canonical chain at a chosen
+/// point of a query.
 pub(super) struct InMemoryExecutionLayer<BeforeRead> {
     before_read: BeforeRead,
     blocks: BTreeMap<B256, Block<Transaction>>,
     canonical: Chain,
     request_counts: BTreeMap<&'static str, usize>,
+    reads_with_transactions: usize,
 }
 
 impl<BeforeRead> InMemoryExecutionLayer<BeforeRead>
@@ -116,6 +112,7 @@ where
                 .collect(),
             canonical,
             request_counts: BTreeMap::new(),
+            reads_with_transactions: 0,
         }
     }
 
@@ -123,13 +120,18 @@ where
         &self.request_counts
     }
 
+    /// The number of block reads that asked for full transactions rather than only hashes.
+    pub(super) const fn reads_with_transactions(&self) -> usize {
+        self.reads_with_transactions
+    }
+
     fn block_by_number(&mut self, number: u64, full: bool) -> Option<Block<Transaction>> {
-        self.record("eth_getBlockByNumber", Read::block(full));
+        self.record_block_read("eth_getBlockByNumber", Read::BlockByNumber(number), full);
         self.canonical.get(&number).cloned()
     }
 
     fn block_by_hash(&mut self, hash: B256, full: bool) -> Option<Block<Transaction>> {
-        self.record("eth_getBlockByHash", Read::block(full));
+        self.record_block_read("eth_getBlockByHash", Read::BlockByHash, full);
         self.blocks.get(&hash).cloned()
     }
 
@@ -139,6 +141,11 @@ where
             ErrorObjectOwned::owned(-32000, format!("unknown block {hash}"), None::<()>)
         })?;
         Ok(EIP1186AccountProofResponse { storage_hash: storage_root(block), ..Default::default() })
+    }
+
+    fn record_block_read(&mut self, method: &'static str, read: Read, full: bool) {
+        self.reads_with_transactions += usize::from(full);
+        self.record(method, read);
     }
 
     fn record(&mut self, method: &'static str, read: Read) {

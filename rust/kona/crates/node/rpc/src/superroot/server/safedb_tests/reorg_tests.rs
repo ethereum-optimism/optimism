@@ -22,6 +22,17 @@ enum Mutation {
     SwitchAwayAndBackAroundTargetRead,
 }
 
+/// Whether `read` is the read of the target block: by hash when the target is its own record, by
+/// number below it. A record at the target is also checked canonical by number, before and after
+/// its read by hash, so those reads are not the target read.
+const fn is_target_read(read: Read, recorded_head: u64) -> bool {
+    match read {
+        Read::BlockByHash => true,
+        Read::BlockByNumber(number) => number == TARGET && recorded_head != TARGET,
+        Read::Proof => false,
+    }
+}
+
 /// Applies `mutation` to the canonical chain, the safe head database or the engine state, at its
 /// point in the query.
 fn mutate_at_its_read(
@@ -33,6 +44,7 @@ fn mutate_at_its_read(
     recorded_head: u64,
 ) -> impl FnMut(Read, &mut Chain) + Send + 'static {
     move |read, canonical| {
+        let target_read = is_target_read(read, recorded_head);
         mutation = match (mutation, read) {
             (Mutation::DatabaseResetDuringProof, Read::Proof) => {
                 database.clear().unwrap();
@@ -53,16 +65,19 @@ fn mutate_at_its_read(
                 });
                 Mutation::None
             }
-            (Mutation::ReorgAtTargetRead, Read::BlockWithTransactions) |
+            (Mutation::ReorgAtTargetRead, _) if target_read => {
+                canonical.clone_from(&replacement);
+                Mutation::None
+            }
             (Mutation::ReorgDuringProof, Read::Proof) => {
                 canonical.clone_from(&replacement);
                 Mutation::None
             }
-            (Mutation::RewindBelowTargetAtTargetRead, Read::BlockWithTransactions) => {
+            (Mutation::RewindBelowTargetAtTargetRead, _) if target_read => {
                 canonical.retain(|&number, _| number < TARGET);
                 Mutation::None
             }
-            (Mutation::SwitchAwayAndBackAroundTargetRead, Read::BlockWithTransactions) => {
+            (Mutation::SwitchAwayAndBackAroundTargetRead, _) if target_read => {
                 canonical.clone_from(&replacement);
                 Mutation::SwitchAwayAndBackAroundTargetRead
             }
