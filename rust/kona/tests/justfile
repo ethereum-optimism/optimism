@@ -213,18 +213,34 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
 
     # One junit/json file per test: gotestsum truncates (not appends) its
     # output files on every invocation, so a shared filename would keep only
-    # the last test's results.
+    # the last test's results. A failure still runs the steps below, since
+    # store_test_results uploads a failed node's results too.
+    STATUS=0
     xargs -I {} gotestsum --format=testname \
       --junitfile=./tmp/test-results/results-$NODE_INDEX-{}.xml \
       --jsonfile=./tmp/testlogs/log-$NODE_INDEX-{}.json \
       -- -count=1 -parallel=$PARALLEL -timeout=60m -run '^{}$' \
-      < /tmp/tests_shard.txt
+      < /tmp/tests_shard.txt || STATUS=$?
+
+    # Go times a test whose subtests run in parallel as 0s, and the timing
+    # split above would then treat it as free. Each file holds one top-level
+    # test run alone in its own `go test`, so give it the package's run time.
+    while read -r TEST; do
+      JUNIT=./tmp/test-results/results-$NODE_INDEX-$TEST.xml
+      [ -f "$JUNIT" ] || continue
+      awk -v name="$TEST" -v file="$JUNIT" '
+        /<testsuite / { match($0, /time="[^"]*"/); t = substr($0, RSTART, RLENGTH) }
+        t != "" && index($0, "name=\"" name "\" time=") { n += sub(/time="[^"]*"/, t) }
+        { print }
+        END { if (n != 1) print "warning: " file ": set the time of " n + 0 " rows named " name ", expected 1" > "/dev/stderr" }' "$JUNIT" > "$JUNIT.tmp"
+      mv "$JUNIT.tmp" "$JUNIT"
+    done < /tmp/tests_shard.txt
 
     for JSON_LOG in ./tmp/testlogs/log-$NODE_INDEX-*.json; do
       {{SOURCE}}/../../../ops/scripts/split-test-logs.sh "$JSON_LOG"
     done
 
-    exit
+    exit "$STATUS"
   fi
 
   {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \

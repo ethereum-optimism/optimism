@@ -133,7 +133,8 @@ CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Toke
 
     ```bash
     op-deployer apply \
-      --deployment-target genesis
+      --deployment-target genesis \
+      --deploy-mock-sp1-verifier
     ```
 
     genesis 구성은 `intent.toml`을 기반으로 적용됩니다.
