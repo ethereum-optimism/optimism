@@ -14263,7 +14263,7 @@ dependencies = [
  "reth-storage-api",
  "reth-tasks",
  "reth-transaction-pool",
- "reth-trie-common",
+ "reth-trie",
  "revm",
  "rstest",
  "serde",

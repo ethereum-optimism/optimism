@@ -1,6 +1,6 @@
 //! Loads OP pending block for a RPC response.
 
-use crate::{OpEthApi, OpEthApiError};
+use crate::{OpEthApi, OpEthApiError, eth::memory_overlay::MemoryOverlayStateProvider};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use reth_optimism_flashblocks::PendingFlashBlock;
@@ -25,18 +25,43 @@ const fn pending_state_history_lookup_hash<N: NodePrimitives>(
 }
 
 /// Returns the state after `pending_block`: its canonical anchor's state with the block on top.
+///
+/// The sequencer streams flashblocks ahead of block import, so the flashblocks worker can build
+/// several blocks past the canonical head. With canonical head N-1:
+///
+/// - Canonical build: pending N, whose parent is N-1.
+/// - Speculative build: pending N+1 on pending N, then N+2 on N+1, and so on. Each keeps N-1 as its
+///   canonical anchor.
+///
+/// The tip's bundle holds every write since the anchor, so the tip alone on the anchor's state is
+/// the pending state, however many blocks the build is ahead.
+///
+/// reth's `StateProviderFactory::state_with_block_appended(parent_hash, block)` can't open the
+/// state of a speculative tip such as N+1, whose header names N as its parent:
+///
+/// - Passing N fails with `BlockHashNotFound`: N is neither in the database nor in reth's overlay
+///   manager, which only holds blocks the engine has executed.
+/// - Passing the anchor N-1 panics on the `debug_assert` in `OverlayBuilder::with_appended_block`
+///   that the block's header parent is the hash it was given.
+///
+/// <https://github.com/ethereum-optimism/optimism/issues/23998> will make the whole speculative
+/// chain available to the RPC. Appending it from N onwards would need reth to accept the chain:
+/// `state_with_block_appended` takes a single block, and folding
+/// `OverlayBuilder::with_appended_block` over the chain ourselves needs
+/// `ProviderFactory::overlay_manager`, which is crate-private. This overlay does not need the
+/// chain.
 fn pending_flashblock_state<P, N>(
     provider: &P,
     pending_block: PendingFlashBlock<N>,
 ) -> ProviderResult<StateProviderBox>
 where
     N: NodePrimitives,
-    P: StateProviderFactory<Primitives = N>,
+    P: StateProviderFactory,
 {
-    provider.state_with_block_appended(
-        pending_state_history_lookup_hash(&pending_block),
-        pending_block.pending.executed_block,
-    )
+    let anchor_historical =
+        provider.history_by_block_hash(pending_state_history_lookup_hash(&pending_block))?;
+    let in_memory = vec![pending_block.pending.executed_block];
+    Ok(MemoryOverlayStateProvider::new(anchor_historical, in_memory).boxed())
 }
 
 impl<N, Rpc> LoadPendingBlock for OpEthApi<N, Rpc>
@@ -113,8 +138,9 @@ mod tests {
     use reth_provider::{providers::BlockchainProvider, test_utils::create_test_provider_factory};
     use reth_rpc_eth_types::PendingBlock;
     use reth_storage_api::AccountReader;
-    use reth_trie_common::{ComputedTrieData, HashedPostState, KeccakKeyHasher};
+    use reth_trie::{ComputedTrieData, HashedPostState, KeccakKeyHasher};
     use revm::{database::BundleState, state::AccountInfo};
+    use rstest::rstest;
     use std::{sync::Arc, time::Instant};
 
     #[test]
@@ -138,16 +164,13 @@ mod tests {
         assert_eq!(pending_state_history_lookup_hash(&pending_flashblock), canonical_anchor_hash);
     }
 
-    /// Builds pending blocks N and N+1 on the canonical genesis N-1 and reads the tip's state the
-    /// way `local_pending_state` does. Block `n` sets the balance of account `n` to `n`. As in the
-    /// flashblocks worker, the speculative tip's bundle holds every write since the anchor.
-    ///
-    /// Fails for now: `state_with_block_appended` asserts that the tip's header parent (N) is the
-    /// hash it was given (the anchor N-1), so the state cannot be opened at all.
-    #[test]
-    #[should_panic(expected = "assertion `left == right` failed")]
-    fn pending_flashblock_state_includes_every_speculative_block() {
-        let blocks = 2;
+    /// Builds `blocks` pending blocks on the canonical genesis and reads the tip's state the way
+    /// `local_pending_state` does. Block `n` sets the balance of account `n` to `n`. As in the
+    /// flashblocks worker, a speculative tip's bundle holds every write since the anchor.
+    #[rstest]
+    #[case::canonical(1)]
+    #[case::speculative(2)]
+    fn pending_flashblock_state_includes_every_pending_block(#[case] blocks: u64) {
         let factory = create_test_provider_factory();
         let anchor = init_genesis(&factory).unwrap();
         let provider = BlockchainProvider::new(factory).unwrap();

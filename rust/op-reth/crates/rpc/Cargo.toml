@@ -33,6 +33,7 @@ reth-chain-state.workspace = true
 reth-rpc-engine-api.workspace = true
 reth-payload-util.workspace = true
 reth-provider.workspace = true
+reth-trie.workspace = true
 
 # op-reth
 reth-optimism-evm.workspace = true
@@ -104,7 +105,6 @@ reth-db-common.workspace = true
 reth-ethereum-primitives.workspace = true
 reth-execution-types.workspace = true
 reth-provider = { workspace = true, features = ["test-utils"] }
-reth-trie-common.workspace = true
 rstest.workspace = true
 
 [features]
