@@ -194,6 +194,7 @@ func waitForRethHistoryPrunedAt(t devtest.T, node *dsl.L2ELNode, account common.
 // after it must still execute: the proofs store is what serves the window, not reth's history.
 func TestProofsFollowerServesBlocksBelowRethHistoryPruneCheckpoint(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	t.Skip("debug_executionWitness above reth's history prune checkpoint fails on reth 2.6+: the EIP-2935 blockhash call reads pruned history (ethereum-optimism/protocol-team#683)")
 	for _, c := range historyPrunedMatrix() {
 		t.Run(c.name(), func(t devtest.T) {
 			t.Parallel()
