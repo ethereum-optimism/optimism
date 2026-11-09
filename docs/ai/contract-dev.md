@@ -443,7 +443,7 @@ mise x -- just pr                 # Full pre-PR suite: build, lint, all checks
 mise x -- just test-upgrade       # Fork tests against mainnet state (needs ETH_RPC_URL)
 mise x -- just semver-lock        # Regenerate semver-lock.json
 mise x -- just snapshots          # Regenerate all snapshots
-mise x -- just semver-lock-no-build  # Regenerate from existing artifacts (faster)
+mise x -- just semver-lock-no-build  # Regenerate from the last solc build (faster)
 ```
 
 `just build` and `just test` run production builds with full optimization — slower. Use

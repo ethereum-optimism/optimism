@@ -48,11 +48,11 @@ forge-build-dev *ARGS:
 
 # Builds source contracts only. Like forge-build, it keeps the compile cache.
 build-source:
-  forge build --deny never --skip "/**/test/**" --skip "/**/scripts/**"
+  FOUNDRY_PROFILE=default forge build --deny never --skip "/**/test/**" --skip "/**/scripts/**"
 
 # Builds source contracts and scripts, skipping tests. Like forge-build, it keeps the compile cache.
 build-no-tests:
-  forge build --deny never --skip "/**/test/**"
+  FOUNDRY_PROFILE=default forge build --deny never --skip "/**/test/**"
 
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail

@@ -44,7 +44,7 @@ phases:
 
   # Phase 3: Source build checks - production contracts only
   - name: source
-    build: FOUNDRY_PROFILE=default just build-source
+    build: just build-source
     checks:
       - name: snapshots
         description: Check snapshots are up to date

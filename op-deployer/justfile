@@ -6,7 +6,7 @@ test args='./...': build-contracts copy-contract-artifacts
     go test -v {{args}}
 
 build-contracts:
-  FOUNDRY_PROFILE=default just ../packages/contracts-bedrock/build-no-tests
+  just ../packages/contracts-bedrock/build-no-tests
   # In-process devstack genesis tests explicitly opt into this mock verifier.
   FOUNDRY_PROFILE=default just ../packages/contracts-bedrock/forge-build test/dispute/zk/MockSP1Verifier.sol
 

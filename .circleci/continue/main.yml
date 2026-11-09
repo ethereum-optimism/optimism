@@ -3226,7 +3226,7 @@ workflows:
             - slack
           filters:
             branches:
-              ignore: develop
+              ignore: [develop, /^proposal\/.*/]
       # On develop and release branches, run tests with ci profile to mirror production; the PR
       # jobs above compile with Solar. Build once and share it through the workspace, so the
       # matrix entries don't each compile the same artifacts.
@@ -3290,7 +3290,7 @@ workflows:
             - slack
           filters:
             branches:
-              ignore: develop
+              ignore: [develop, /^proposal\/.*/]
       # On develop, run upgrade tests with ci profile to mirror production.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade-develop op-mainnet <<matrix.features>>
@@ -3327,7 +3327,7 @@ workflows:
             - slack
           filters:
             branches:
-              ignore: develop
+              ignore: [develop, /^proposal\/.*/]
       # On develop, run chain-specific upgrade tests with ci profile to mirror production.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade-develop <<matrix.fork_op_chain>>-mainnet
