@@ -18,7 +18,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../../packages/contracts-bedrock"
 # op-deployer's `forge script` runs don't recompile. It fails because the signature doesn't exist.
 out=$("$forge" script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" \
   --skip-simulation 2>&1) || true
-if ! grep -q 'is not implemented in your script' <<<"$out"; then
+if ! grep -q 'is not implemented in your script' <<< "$out"; then
   echo "$out" >&2
   exit 1
 fi
