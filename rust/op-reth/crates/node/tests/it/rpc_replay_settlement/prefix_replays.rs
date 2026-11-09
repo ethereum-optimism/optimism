@@ -19,7 +19,7 @@ async fn debug_trace_call_runs_on_settled_prefix_without_refund() -> eyre::Resul
     let fixture = SettledBlock::sequence().await?;
 
     let prefix_call = DebugApiClient::<TransactionRequest>::debug_trace_call(
-        &fixture.client(),
+        fixture.client(),
         TransactionRequest::default().from(fixture.sender).to(Address::repeat_byte(0x55)),
         Some(fixture.block_hash().into()),
         Some(GethDebugTracingCallOptions {
@@ -39,7 +39,7 @@ async fn debug_trace_call_runs_on_settled_prefix_without_refund() -> eyre::Resul
     );
 
     let synthetic_transfer = DebugApiClient::<TransactionRequest>::debug_trace_call(
-        &fixture.client(),
+        fixture.client(),
         TransactionRequest::default()
             .from(fixture.sender)
             .to(Address::repeat_byte(0x55))

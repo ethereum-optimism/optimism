@@ -45,6 +45,7 @@ pub(super) const REVERT_OUTPUT: U256 = U256::from_limbs([42, 0, 0, 0]);
 /// transfer (not refunded, since it already sits on the EIP-7623 floor), a second deployment
 /// (refunded) and a deployment whose init code reverts with [`REVERT_OUTPUT`].
 pub(super) struct SettledBlock {
+    client: HttpClient,
     pub(super) node: NodeHelperType<OpNode>,
     pub(super) payload: OpBuiltPayload,
     pub(super) sender: Address,
@@ -54,6 +55,7 @@ impl SettledBlock {
     pub(super) async fn sequence() -> eyre::Result<Self> {
         let chain_spec = lagoon::chain_spec()?;
         let mut node = launch_node(&chain_spec, sdm_rollup_args()).await?;
+        let client = http_client(&node);
         let wallet = Wallet::default().with_chain_id(chain_spec.chain_id());
         let sender = wallet.inner.address();
         let deployments = [
@@ -76,7 +78,7 @@ impl SettledBlock {
         }
         let payload = node.advance_block().await?;
 
-        let fixture = Self { node, payload, sender };
+        let fixture = Self { client, node, payload, sender };
         let transactions = fixture.transactions();
         assert_eq!(
             transactions.len(),
@@ -120,8 +122,9 @@ impl SettledBlock {
         self.transactions()[index].tx_hash()
     }
 
-    pub(super) fn client(&self) -> HttpClient {
-        http_client(&self.node)
+    /// The HTTP client, built once at [`SettledBlock::sequence`] and shared by every accessor.
+    pub(super) const fn client(&self) -> &HttpClient {
+        &self.client
     }
 
     pub(super) async fn ws_client(&self) -> WsClient {
@@ -157,7 +160,7 @@ impl SettledBlock {
         address: Address,
     ) -> eyre::Result<U256> {
         let account = DebugApiClient::<TransactionRequest>::debug_account_info_at(
-            &self.client(),
+            self.client(),
             self.block_hash().into(),
             index.into(),
             address,
@@ -169,7 +172,7 @@ impl SettledBlock {
 
     pub(super) async fn block_traces(&self) -> eyre::Result<Vec<TraceResult<GethTrace, String>>> {
         Ok(DebugApiClient::<TransactionRequest>::debug_trace_block_by_hash(
-            &self.client(),
+            self.client(),
             self.block_hash(),
             None,
         )
@@ -182,7 +185,7 @@ impl SettledBlock {
         options: Option<GethDebugTracingOptions>,
     ) -> eyre::Result<GethTrace> {
         Ok(DebugApiClient::<TransactionRequest>::debug_trace_transaction(
-            &self.client(),
+            self.client(),
             self.transaction_hash(index),
             options,
         )
