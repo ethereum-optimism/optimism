@@ -35,7 +35,6 @@ import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsMan
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
-import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -1930,24 +1929,12 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         });
     }
 
-    /// @notice Creates a hook with code whose getters return the given chain's contracts.
+    /// @notice Creates a hook address with code. OPCM only checks that a hook has code.
     /// @param _name The label for the hook address.
-    /// @param _cts The chain to wire the hook to.
     /// @return hook_ The hook address.
-    function _mockBridgeHook(
-        string memory _name,
-        IOPContractsManagerV2.ChainContracts memory _cts
-    )
-        internal
-        returns (address hook_)
-    {
+    function _mockBridgeHook(string memory _name) internal returns (address hook_) {
         hook_ = makeAddr(_name);
         vm.etch(hook_, hex"00");
-        vm.mockCall(hook_, abi.encodeCall(IComplianceModule.portal, ()), abi.encode(_cts.optimismPortal));
-        vm.mockCall(hook_, abi.encodeCall(IComplianceModule.bridge, ()), abi.encode(_cts.l1StandardBridge));
-        vm.mockCall(
-            hook_, abi.encodeCall(IComplianceModule.l1CrossDomainMessenger, ()), abi.encode(_cts.l1CrossDomainMessenger)
-        );
     }
 
     /// @notice Returns the chain contracts a deploy of deployConfig would create, by deploying and
@@ -1980,7 +1967,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
         assertEq(address(cts.optimismPortal.bridgeHook()), address(0), "chain started with a hook");
 
-        address hook = _mockBridgeHook("bridgeHook", cts);
+        address hook = _mockBridgeHook("bridgeHook");
         prankDelegateCall(cts.proxyAdmin.owner());
         (bool success,) = address(opcmV2)
             .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
@@ -1997,7 +1984,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         address oldHook = makeAddr("oldBridgeHook");
         _forceSetBridgeHook(cts.optimismPortal, oldHook);
 
-        address newHook = _mockBridgeHook("newBridgeHook", cts);
+        address newHook = _mockBridgeHook("newBridgeHook");
         prankDelegateCall(cts.proxyAdmin.owner());
         (bool success,) = address(opcmV2)
             .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, newHook))));
@@ -2015,21 +2002,21 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         _assertUpgradeRejectsBridgeHook(cts, makeAddr("bridgeHook"));
     }
 
-    /// @notice Tests that an upgrade rejects a hook that has code but lacks the IComplianceModule
-    ///         getters. The getter call reverts with no data, before OPCM raises its own error.
-    function test_upgrade_bridgeHookWithoutGetters_reverts() public {
+    /// @notice Tests that an upgrade attaches any hook with code, without calling it to check how
+    ///         it is wired.
+    function test_upgrade_bridgeHookNotInspected_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        address hook = address(cts.l1StandardBridge);
+        address hook = _mockBridgeHook("bridgeHook");
 
-        vm.expectCall(hook, abi.encodeCall(IComplianceModule.portal, ()));
+        vm.expectCall(hook, bytes(""), 0);
         prankDelegateCall(cts.proxyAdmin.owner());
-        (bool success, bytes memory reason) = address(opcmV2)
+        (bool success,) = address(opcmV2)
             .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
 
-        assertFalse(success, "upgrade should have reverted");
-        assertEq(reason.length, 0, "unexpected revert data");
+        assertTrue(success, "upgrade failed");
+        assertEq(address(cts.optimismPortal.bridgeHook()), hook, "bridge hook not set");
     }
 
     /// @notice Tests that a bridge hook override shorter than a 32-byte word reverts while being
@@ -2047,41 +2034,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
         assertFalse(success, "upgrade should have reverted");
         assertEq(reason.length, 0, "unexpected revert data");
-    }
-
-    /// @notice Tests that an upgrade rejects a bridge hook built for another portal.
-    function test_upgrade_bridgeHookWrongPortal_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
-
-        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        address hook = _mockBridgeHook("bridgeHook", cts);
-        vm.mockCall(hook, abi.encodeCall(IComplianceModule.portal, ()), abi.encode(makeAddr("otherPortal")));
-
-        _assertUpgradeRejectsBridgeHook(cts, hook);
-    }
-
-    /// @notice Tests that an upgrade rejects a bridge hook built for another L1StandardBridge.
-    function test_upgrade_bridgeHookWrongBridge_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
-
-        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        address hook = _mockBridgeHook("bridgeHook", cts);
-        vm.mockCall(hook, abi.encodeCall(IComplianceModule.bridge, ()), abi.encode(makeAddr("otherBridge")));
-
-        _assertUpgradeRejectsBridgeHook(cts, hook);
-    }
-
-    /// @notice Tests that an upgrade rejects a bridge hook built for another L1CrossDomainMessenger.
-    function test_upgrade_bridgeHookWrongMessenger_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
-
-        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        address hook = _mockBridgeHook("bridgeHook", cts);
-        vm.mockCall(
-            hook, abi.encodeCall(IComplianceModule.l1CrossDomainMessenger, ()), abi.encode(makeAddr("otherMessenger"))
-        );
-
-        _assertUpgradeRejectsBridgeHook(cts, hook);
     }
 
     /// @notice Seeds a held deposit and a held withdrawal on a portal, standing in for items the
@@ -2135,7 +2087,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         bytes32 withdrawalId = keccak256("held withdrawal");
         _forceHoldItems(cts.optimismPortal, depositId, withdrawalId);
 
-        address newHook = _mockBridgeHook("newBridgeHook", cts);
+        address newHook = _mockBridgeHook("newBridgeHook");
         prankDelegateCall(cts.proxyAdmin.owner());
         (bool success,) = address(opcmV2)
             .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, newHook))));
@@ -2189,7 +2141,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         vm.prank(superchainConfig.guardian());
         cts.anchorStateRegistry.setRespectedGameType(GameTypes.CANNON);
 
-        address hook = _mockBridgeHook("bridgeHook", cts);
+        address hook = _mockBridgeHook("bridgeHook");
         IOPContractsManagerV2.UpgradeInput memory input = _bridgeHookUpgradeInput(cts, hook);
         IOPContractsManagerUtils.ExtraInstruction memory hookInstruction = input.extraInstructions[0];
         input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](2);
@@ -2215,7 +2167,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        address hook = _mockBridgeHook("bridgeHook", cts);
+        address hook = _mockBridgeHook("bridgeHook");
         prankDelegateCall(cts.proxyAdmin.owner());
         (bool success,) = address(opcmV2)
             .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
@@ -2239,7 +2191,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        address hook = _mockBridgeHook("bridgeHook", cts);
+        address hook = _mockBridgeHook("bridgeHook");
 
         vm.expectEmit(address(cts.optimismPortal));
         emit BridgeHookSet(IBridgeHook(hook));
@@ -2360,7 +2312,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         skipIfDevFeatureEnabled(DevFeatures.BRIDGE_HOOK);
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        address hook = _mockBridgeHook("bridgeHook", cts);
+        address hook = _mockBridgeHook("bridgeHook");
 
         prankDelegateCall(cts.proxyAdmin.owner());
         (bool success, bytes memory reason) = address(opcmV2)
@@ -2379,7 +2331,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
         deployConfig.useCustomGasToken = true;
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        address hook = _mockBridgeHook("bridgeHook", cts);
+        address hook = _mockBridgeHook("bridgeHook");
 
         prankDelegateCall(cts.proxyAdmin.owner());
         (bool success, bytes memory reason) = address(opcmV2)
@@ -2438,50 +2390,25 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         opcmV2.deploy(deployConfig);
     }
 
-    /// @notice Tests that a deploy rejects a bridge hook built for another portal.
-    function test_deploy_bridgeHookWrongPortal_reverts() public {
+    /// @notice Tests that a deploy accepts any hook with code, without calling it to check how it
+    ///         is wired.
+    function test_deploy_bridgeHookNotInspected_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
-        address hook = _mockBridgeHook("bridgeHook", _predictChainContracts());
-        vm.mockCall(hook, abi.encodeCall(IComplianceModule.portal, ()), abi.encode(makeAddr("otherPortal")));
+        address hook = _mockBridgeHook("bridgeHook");
         deployConfig.bridgeHook = IBridgeHook(hook);
 
-        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_InvalidBridgeHook.selector);
-        opcmV2.deploy(deployConfig);
+        vm.expectCall(hook, bytes(""), 0);
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+
+        assertEq(address(cts.optimismPortal.bridgeHook()), hook, "portal bridge hook mismatch");
     }
 
-    /// @notice Tests that a deploy rejects a bridge hook built for another L1StandardBridge.
-    function test_deploy_bridgeHookWrongBridge_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
-
-        address hook = _mockBridgeHook("bridgeHook", _predictChainContracts());
-        vm.mockCall(hook, abi.encodeCall(IComplianceModule.bridge, ()), abi.encode(makeAddr("otherBridge")));
-        deployConfig.bridgeHook = IBridgeHook(hook);
-
-        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_InvalidBridgeHook.selector);
-        opcmV2.deploy(deployConfig);
-    }
-
-    /// @notice Tests that a deploy rejects a bridge hook built for another L1CrossDomainMessenger.
-    function test_deploy_bridgeHookWrongMessenger_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
-
-        address hook = _mockBridgeHook("bridgeHook", _predictChainContracts());
-        vm.mockCall(
-            hook, abi.encodeCall(IComplianceModule.l1CrossDomainMessenger, ()), abi.encode(makeAddr("otherMessenger"))
-        );
-        deployConfig.bridgeHook = IBridgeHook(hook);
-
-        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_InvalidBridgeHook.selector);
-        opcmV2.deploy(deployConfig);
-    }
-
-    /// @notice Tests that a deploy configuring a bridge hook built for the chain's predicted
-    ///         addresses stores it on the portal.
+    /// @notice Tests that a deploy configuring a bridge hook stores it on the portal.
     function test_deploy_bridgeHookSet_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
-        address hook = _mockBridgeHook("bridgeHook", _predictChainContracts());
+        address hook = _mockBridgeHook("bridgeHook");
         deployConfig.bridgeHook = IBridgeHook(hook);
 
         // The standard validator reports PORTAL-110 for any configured hook, because a chain that
@@ -2499,7 +2426,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
         IOPContractsManagerV2.ChainContracts memory expected = _predictChainContracts();
-        deployConfig.bridgeHook = IBridgeHook(_mockBridgeHook("bridgeHook", expected));
+        deployConfig.bridgeHook = IBridgeHook(_mockBridgeHook("bridgeHook"));
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
 
         assertEq(address(cts.systemConfig), address(expected.systemConfig), "systemConfig mismatch");

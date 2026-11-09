@@ -99,8 +99,7 @@ type ChainIntent struct {
 	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
 	DAFootprintGasScalar       uint16                    `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 	CustomGasToken             CustomGasToken            `json:"customGasToken" toml:"customGasToken"`
-	// BridgeHook is the IComplianceModule the portal screens deposits and withdrawals through.
-	// OPCM only accepts a hook with the portal, bridge and messenger getters.
+	// BridgeHook is the IBridgeHook the portal screens deposits and withdrawals through.
 	// Unset or zero means no hook. A pointer, because omitempty never omits a zero common.Address.
 	BridgeHook *common.Address `json:"bridgeHook,omitempty" toml:"bridgeHook,omitempty"`
 

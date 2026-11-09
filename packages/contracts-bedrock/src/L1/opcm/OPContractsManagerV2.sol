@@ -31,7 +31,6 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
-import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -169,7 +168,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when a bridge hook is configured on a chain that cannot support one.
     error OPContractsManagerV2_BridgeHookNotSupported();
 
-    /// @notice Thrown when a bridge hook has no code or is wired to another chain's contracts.
+    /// @notice Thrown when a bridge hook has no code.
     error OPContractsManagerV2_InvalidBridgeHook();
 
     /// @notice Address of the Standard Validator for this OPCM release.
@@ -755,11 +754,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
-    /// @param _cts The chain contracts.
+    /// @param _systemConfig The chain's SystemConfig.
     /// @param _isInitialDeployment Whether or not this is an initial deployment.
     function _assertValidFullConfig(
         FullConfig memory _cfg,
-        ChainContracts memory _cts,
+        ISystemConfig _systemConfig,
         bool _isInitialDeployment
     )
         internal
@@ -776,18 +775,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // Interop is only set during migration.
             // During initial deployment systemConfig has not been set yet.
-            if (!_isInitialDeployment && _cts.systemConfig.isFeatureEnabled(Features.INTEROP)) {
+            if (!_isInitialDeployment && _systemConfig.isFeatureEnabled(Features.INTEROP)) {
                 revert OPContractsManagerV2_BridgeHookNotSupported();
             }
 
-            // Only an IComplianceModule-shaped hook built for this chain is accepted. A hook
-            // wired to other contracts would reject every call from this portal.
-            IComplianceModule hook = IComplianceModule(address(_cfg.bridgeHook));
-            if (
-                address(hook).code.length == 0 || address(hook.portal()) != address(_cts.optimismPortal)
-                    || address(hook.bridge()) != address(_cts.l1StandardBridge)
-                    || address(hook.l1CrossDomainMessenger()) != address(_cts.l1CrossDomainMessenger)
-            ) {
+            // Any IBridgeHook is accepted, but it must already be deployed.
+            if (address(_cfg.bridgeHook).code.length == 0) {
                 revert OPContractsManagerV2_InvalidBridgeHook();
             }
         }
@@ -911,7 +904,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         returns (ChainContracts memory)
     {
         // Validate the config.
-        _assertValidFullConfig(_cfg, _cts, _isInitialDeployment);
+        _assertValidFullConfig(_cfg, _cts.systemConfig, _isInitialDeployment);
 
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();
