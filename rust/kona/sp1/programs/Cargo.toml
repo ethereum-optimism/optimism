@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "foldhash-seeded",
   "log-commitment",
   "super-range",
   "super-aggregation",
@@ -124,6 +125,7 @@ too_long_first_doc_paragraph = "allow"
 alloy-primitives = { version = "1.6.1", default-features = false, features = ["serde"] }
 kona-preimage = { path = "../../crates/proof/preimage", default-features = false }
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc"] }
+foldhash = { version = "0.2.0", default-features = false }
 # Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
 kona-proof = { path = "../../crates/proof/proof", version = "0.3.0", default-features = false }
 kona-sp1-bls12-381-check = { path = "../crates/bls12-381-check" }
@@ -154,3 +156,5 @@ crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag 
 k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.10.0" }
 p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.10.0" }
 substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.10.0-substrate-bn" }
+# Prover-seeded hashing against HashDoS; see foldhash-seeded/src/lib.rs.
+foldhash = { path = "foldhash-seeded" }

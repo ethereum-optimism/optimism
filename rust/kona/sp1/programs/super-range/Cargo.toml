@@ -13,6 +13,7 @@ test-config-fallback = ["dep:kona-preimage", "dep:serde_json"]
 
 [dependencies]
 anyhow.workspace = true
+foldhash.workspace = true
 serde_json = { workspace = true, optional = true }
 kona-preimage = { workspace = true, optional = true }
 kona-proof.workspace = true

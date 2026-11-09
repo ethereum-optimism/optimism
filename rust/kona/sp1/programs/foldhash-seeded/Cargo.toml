@@ -1,0 +1,17 @@
+[package]
+name = "foldhash"
+version = "0.2.0"
+publish = false
+description = "SP1-guest foldhash 0.2.0 whose RandomState is keyed by a prover-installed seed"
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+# On a foldhash bump: set `version` above and `rev` to `git.sha1` in the release's `.cargo_vcs_info.json`.
+upstream = { package = "foldhash", git = "https://github.com/orlp/foldhash", rev = "8f878c636fda9c9e93384824ea45e06d03f009f5", default-features = false }
+
+[lints]
+workspace = true
