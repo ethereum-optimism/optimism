@@ -2,9 +2,11 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 
 	gosync "sync"
@@ -457,9 +459,11 @@ func (s *Driver) startFollowUpstreamFetch(resultCh chan<- *sources.FollowStatus)
 
 // followUpstream fetches and validates external safe, finalized, and CurrentL1
 // references when derivation is disabled (UnsafeOnly). It returns nil if the
-// fetch fails or the external state is inconsistent; a non-nil status has
-// passed all checks. It performs no engine or event side effects — the driver
-// event loop applies those when it receives the returned status.
+// fetch fails or the external state is inconsistent; the heads of a non-nil
+// status have passed all checks. If our L1 chain does not have the external
+// CurrentL1 yet, it returns the status with CurrentL1 cleared.
+// It performs no engine or event side effects — the driver event loop applies
+// those when it receives the returned status.
 func (s *Driver) followUpstream() *sources.FollowStatus {
 	status, err := s.upstreamFollowSource.GetFollowStatus(s.driverCtx)
 	if err != nil {
@@ -530,22 +534,36 @@ func (s *Driver) followUpstream() *sources.FollowStatus {
 
 	if (status.CurrentL1 == eth.L1BlockRef{}) {
 		s.log.Debug("Follow Upstream: CurrentL1 not available")
-	} else {
-		eCurrentL1, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.CurrentL1.Number)
-		if err != nil {
-			s.log.Warn("Follow Upstream: Failed to look up external currentL1", "err", err)
-			s.metrics.RecordFollowSourceRequest("error_l1_lookup")
-			return nil
-		}
-		if eCurrentL1.Hash != status.CurrentL1.Hash {
-			s.log.Warn(
-				"Follow Upstream: Invalid external CurrentL1: L1 head mismatch",
-				"actual", eCurrentL1,
-				"expected", status.CurrentL1,
-			)
-			s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
-			return nil
-		}
+		return status
+	}
+	eCurrentL1, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.CurrentL1.Number)
+	if errors.Is(err, ethereum.NotFound) {
+		// Our L1 RPC is behind the upstream's: it does not have this block yet, for example
+		// while a load-balanced L1 endpoint serves from a lagging backend. The L1 origins of
+		// the heads are verified, so apply the heads and drop only CurrentL1, which the event
+		// loop then leaves unchanged. The L1 blocks between the local-safe origin and
+		// CurrentL1 stay unverified until a later poll finds a CurrentL1 on our chain; if the
+		// upstream is on an L1 fork, that poll fails with a hash mismatch.
+		s.log.Info("Follow Upstream: External CurrentL1 not found on our L1 chain yet, not updating CurrentL1",
+			"currentL1", status.CurrentL1)
+		s.metrics.RecordFollowSourceCurrentL1NotFound()
+		withoutCurrentL1 := *status
+		withoutCurrentL1.CurrentL1 = eth.L1BlockRef{}
+		return &withoutCurrentL1
+	}
+	if err != nil {
+		s.log.Warn("Follow Upstream: Failed to look up external currentL1", "err", err)
+		s.metrics.RecordFollowSourceRequest("error_l1_lookup")
+		return nil
+	}
+	if eCurrentL1.Hash != status.CurrentL1.Hash {
+		s.log.Warn(
+			"Follow Upstream: Invalid external CurrentL1: L1 head mismatch",
+			"actual", eCurrentL1,
+			"expected", status.CurrentL1,
+		)
+		s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
+		return nil
 	}
 	return status
 }

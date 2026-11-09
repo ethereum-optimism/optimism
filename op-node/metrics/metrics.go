@@ -35,6 +35,7 @@ type Metricer interface {
 	SetSequencerState(active bool)
 	RecordPipelineReset()
 	RecordFollowSourceRequest(result string)
+	RecordFollowSourceCurrentL1NotFound()
 	RecordFollowSourceReorg(action string)
 	RecordSuperAuthorityReorgSignal(reason string)
 	RecordSequencingError()
@@ -92,6 +93,7 @@ type Metrics struct {
 
 	L2FollowSourceCache        *metrics.CacheMetrics
 	FollowSourceRequests       *prometheus.CounterVec
+	FollowSourceCurrentL1Miss  prometheus.Counter
 	FollowSourceReorgs         *prometheus.CounterVec
 	SuperAuthorityReorgSignals *prometheus.CounterVec
 
@@ -222,6 +224,7 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Name:      "follow_source_requests_total",
 			Help:      "Count of follow source requests by result",
 		}, []string{"result"}),
+		FollowSourceCurrentL1Miss:  factory.NewCounter(prometheus.CounterOpts{Namespace: ns, Name: "follow_source_current_l1_not_found_total", Help: "Count of follow source polls whose upstream CurrentL1 was not found on our L1 chain and was dropped"}),
 		FollowSourceReorgs:         factory.NewCounterVec(prometheus.CounterOpts{Namespace: ns, Name: "follow_source_reorgs_total", Help: "Count of follow source reorg decisions by action"}, []string{"action"}),
 		SuperAuthorityReorgSignals: factory.NewCounterVec(prometheus.CounterOpts{Namespace: ns, Name: "super_authority_reorg_signals_total", Help: "Count of super authority reorg signals by reason"}, []string{"reason"}),
 
@@ -580,6 +583,10 @@ func (m *Metrics) RecordFollowSourceRequest(result string) {
 	m.FollowSourceRequests.WithLabelValues(result).Inc()
 }
 
+func (m *Metrics) RecordFollowSourceCurrentL1NotFound() {
+	m.FollowSourceCurrentL1Miss.Inc()
+}
+
 func (m *Metrics) RecordFollowSourceReorg(action string) {
 	m.FollowSourceReorgs.WithLabelValues(action).Inc()
 }
@@ -734,6 +741,9 @@ func (n *noopMetricer) RecordPipelineReset() {
 }
 
 func (n *noopMetricer) RecordFollowSourceRequest(result string) {
+}
+
+func (n *noopMetricer) RecordFollowSourceCurrentL1NotFound() {
 }
 
 func (n *noopMetricer) RecordFollowSourceReorg(action string) {
