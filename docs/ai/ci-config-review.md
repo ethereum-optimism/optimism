@@ -32,6 +32,14 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   `required-rust-e2e`. These are fan-in jobs (no work, just `requires:`). A merge
   is gated *only* by what they transitively require; anything outside their
   `requires:` chain can fail without blocking merge. Gates use `utils/ci-gate`.
+  Release branches (`proposal/**`: their own pushes, PRs that target them, their
+  merge queue and API triggers on them) run only the `release-branch`
+  workflow and are gated by its one check, `ci-gate-proposals`: the contracts
+  jobs `required-contracts-ci` requires, the NUT and op-deployer forge-version
+  checks, and `go-tests`. A PR is routed by its base, not its head.
+  `test-proposal-gate.sh` fails the setup pipeline if that gate's `requires:`
+  falls behind `required-contracts-ci`'s or a required job is missing from the
+  workflow.
 - **Continuation limits**: a setup pipeline continues exactly once, within 6h, no
   setup→setup. A param declared in both `config.yml` and a fragment with
   different defaults fails with "Conflicting pipeline parameters".
