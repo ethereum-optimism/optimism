@@ -2,9 +2,10 @@
 
 use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumHash;
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
 use derive_more::Constructor;
 use reth_chainspec::ChainSpec;
+use reth_db::Database;
 use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::{Block, BlockBody, Receipt};
 use reth_evm::{ConfigureEvm, execute::Executor};
@@ -14,6 +15,7 @@ use reth_optimism_trie::{
     MdbxProofsStorage, OpProofStoragePruner, OpProofsProviderRO, OpProofsStorage, OpProofsStore,
     RethTrieStorageLayout,
     engine::{EngineError, EngineHandle},
+    initialize::InitializationJob,
 };
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
