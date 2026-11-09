@@ -142,12 +142,14 @@ func sharedBundlesDir(cacheDir string) (string, error) {
 // predictable, so that no other user can plant a bundle in it.
 func privateBundlesDir(cacheDir string) (string, error) {
 	if cacheDir != "" {
-		if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		if err := os.MkdirAll(cacheDir, 0o700); err != nil {
 			return "", fmt.Errorf("failed to create the artifacts directory: %w", err)
 		}
-		if resolved, err := filepath.EvalSymlinks(cacheDir); err != nil || checkPrivateDir(resolved) != nil {
-			cacheDir = ""
+		resolved, err := filepath.EvalSymlinks(cacheDir)
+		if err != nil || checkPrivateDir(resolved) != nil {
+			resolved = ""
 		}
+		cacheDir = resolved
 	}
 	dir, err := os.MkdirTemp(cacheDir, "op-deployer-bundles-*")
 	if err != nil {
