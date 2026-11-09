@@ -525,7 +525,9 @@ func startConductorCluster(
 	//
 	// This is a work-around for the following issue to prevent flakes:
 	// https://github.com/ethereum-optimism/core-team/issues/2938.
+	benchStopStart := time.Now()
 	seedHash, err := rollupClient.StopSequencer(ctx)
+	t.Logger().Info("BENCH stopSequencer", "took_ms", time.Since(benchStopStart).Milliseconds(), "err", err)
 	require.NoError(err, "failed to stop bootstrap sequencer after seeding")
 	var seedStatus *eth.SyncStatus
 	err = retry.Do0(ctx, 90, retry.Fixed(500*time.Millisecond), func() error {

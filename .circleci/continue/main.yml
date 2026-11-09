@@ -2499,9 +2499,111 @@ jobs:
           path: ./op-acceptance-tests/reports
           destination: flaky-test-reports
 
+  # BENCHMARK-ONLY: kona-node as on develop (2s RPC timeout), to compare with the fix.
+  bench-kona-node-2s:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          profile: release
+      - run:
+          name: Build kona-node with the 2s RPC timeout
+          command: |
+            sed -i 's/Duration::from_secs(30);/Duration::from_secs(2);/' rust/kona/crates/node/service/src/service/node/rollup.rs
+            grep -n "RPC_HTTP_REQUEST_TIMEOUT: Duration" rust/kona/crates/node/service/src/service/node/rollup.rs
+            grep -q "RPC_HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);" rust/kona/crates/node/service/src/service/node/rollup.rs
+            cd rust
+            CARGO_TARGET_DIR="$PWD/target" cargo build --profile release --package kona-node --bin kona-node
+            cp target/release/kona-node target/release/kona-node-2s
+      - persist_to_workspace:
+          root: "."
+          paths:
+            - "rust/target/release/kona-node-2s"
+
+  # BENCHMARK-ONLY: runs the kona conductor tests REPEAT times each, 8 at a time, against kona_bin.
+  bench-kona-conductor:
+    parameters:
+      kona_bin:
+        type: string
+      repeat:
+        type: integer
+        default: 8
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: 2xlarge.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: Install eatmydata
+          command: |
+            if command -v apt-get >/dev/null 2>&1; then
+              bash .circleci/scripts/apt-install.sh --no-install-recommends eatmydata
+            fi
+      - run:
+          name: Disable fsync for all subprocesses
+          command: |
+            if [ -f /usr/lib/x86_64-linux-gnu/libeatmydata.so ]; then
+              echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
+            fi
+      - attach_workspace:
+          at: .
+      - run:
+          name: Configure binaries and devstack
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/<<parameters.kona_bin>>" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_ZK_PROPOSER=$ROOT_DIR/rust/target/release/op-zk-proposer" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
+            echo "export DEVSTACK_L1_FORK=fusaka DEVSTACK_L2CL_KIND=kona-node DEVSTACK_L2EL_KIND=op-reth" >> "$BASH_ENV"
+            test -x "$ROOT_DIR/rust/target/release/<<parameters.kona_bin>>"
+      - go-restore-cache:
+          namespace: op-acceptance-tests
+      - run:
+          name: Run the conductor tests repeatedly
+          no_output_timeout: 60m
+          command: |
+            set -uo pipefail
+            mkdir -p bench/results bench/logs
+            PKG=./op-acceptance-tests/tests/base/conductor/
+            go test -list '^Test' "$PKG" | grep '^Test' > bench/tests.txt
+            cat bench/tests.txt
+            for i in $(seq 1 <<parameters.repeat>>); do sed "s/$/ $i/" bench/tests.txt; done > bench/runs.txt
+            run_one() {
+              local id="$1-$2"
+              go test -count=1 -parallel 1 -timeout 20m -run "^$1\$" "$PKG" -json > "bench/logs/$id.json" 2>&1
+              local rc=$?
+              echo "$1 $2 rc=$rc"
+            }
+            export -f run_one; export PKG
+            LOG_LEVEL=info xargs -n 2 -P 8 bash -c 'run_one "$@" </dev/null' _ < bench/runs.txt | tee bench/summary.txt
+      - run:
+          name: Summarize
+          when: always
+          command: |
+            echo "runs: $(wc -l < bench/summary.txt)  failed: $(grep -vc 'rc=0' bench/summary.txt)"
+            grep -v 'rc=0' bench/summary.txt || true
+            echo "runs with an RPC EOF: $(grep -l 'Post ."http://127.0.0.1:[0-9]*.": EOF' bench/logs/*.json | wc -l)"
+            grep -ho 'BENCH stopSequencer[^"]*took_ms=[0-9]*' bench/logs/*.json | grep -o 'took_ms=[0-9]*' | cut -d= -f2 | sort -n > bench/stop_ms.txt || true
+            n=$(wc -l < bench/stop_ms.txt)
+            echo "stopSequencer calls: $n"
+            if [ "$n" -gt 0 ]; then
+              echo "  p50 $(sed -n "$(( (n+1)/2 ))p" bench/stop_ms.txt)ms  p90 $(sed -n "$(( (n*9+9)/10 ))p" bench/stop_ms.txt)ms  max $(tail -1 bench/stop_ms.txt)ms"
+              echo "  over 1s: $(awk '$1>1000' bench/stop_ms.txt | wc -l)  over 2s: $(awk '$1>2000' bench/stop_ms.txt | wc -l)"
+            fi
+      - store_artifacts:
+          path: bench
+
 workflows:
   main:
-    when: << pipeline.parameters.c-run_main >>
+    when: false # BENCHMARK-ONLY
     jobs:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
@@ -3187,3 +3289,73 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
+
+  # BENCHMARK-ONLY: the kona conductor tests against develop's kona-node and the fix.
+  flake-bench:
+    when: << pipeline.parameters.c-run_main >>
+    jobs:
+      - contracts-bedrock-build:
+          name: contracts-bedrock-build
+          build_args: --deny-warnings --skip test
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - prep-superchain:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-kona-binaries:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - bench-kona-node-2s:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - rust-op-reth-binary:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - rust-build-sp1-super-range-executor:
+          name: rust-sp1-super-range-executor
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - go-binaries-for-sysgo:
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - bench-kona-conductor:
+          matrix:
+            parameters:
+              kona_bin: [kona-node, kona-node-2s]
+            alias: bench-a
+          name: bench-a-<<matrix.kona_bin>>
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires: &bench_requires
+            - contracts-bedrock-build
+            - cannon-prestate
+            - rust-kona-binaries
+            - bench-kona-node-2s
+            - rust-op-reth-binary
+            - rust-sp1-super-range-executor
+            - go-binaries-for-sysgo
+            - prep-go-modules
+            - prep-superchain
+      - bench-kona-conductor:
+          matrix:
+            parameters:
+              kona_bin: [kona-node, kona-node-2s]
+            alias: bench-b
+          name: bench-b-<<matrix.kona_bin>>
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires: *bench_requires

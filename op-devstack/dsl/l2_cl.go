@@ -126,7 +126,9 @@ loop:
 }
 
 func (cl *L2CLNode) StopSequencer() common.Hash {
+	benchStopStart := time.Now()
 	unsafeHead, err := cl.inner.RollupAPI().StopSequencer(cl.ctx)
+	cl.log.Info("BENCH stopSequencer", "took_ms", time.Since(benchStopStart).Milliseconds(), "err", err)
 	cl.require.NoError(err, "Expected to be able to call StopSequencer API, but got error")
 
 	// wait for the sequencer to become inactive
