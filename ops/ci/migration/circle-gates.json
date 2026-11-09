@@ -19,6 +19,6 @@
     "gate": "required-rust-e2e",
     "circle_config": ".circleci/continue/rust-e2e.yml",
     "workflow": "rust-e2e-ci",
-    "release_job": "rust-workspace-release"
+    "release_jobs": ["rust-e2e-binaries", "rust-workspace-release"]
   }
 }

@@ -73,9 +73,10 @@ matches. After a CircleCI gate change, update `pr-gates.json`.
 
 `required-rust-e2e` is shadowed by `.rwx/rust-e2e.yml`, whose job list lives in
 `JOBS` in `ops/ci/runtime/rust-e2e.py`. The same alignment check fails when
-CircleCI's `required-rust-e2e` stops requiring exactly the release build
-(`e2e_gate` in `ops/ci/migration/circle-gates.json`) and the `circle_job` of
-each `JOBS` entry. After a CircleCI E2E change, update `JOBS` and
+CircleCI's `required-rust-e2e` stops requiring exactly its release builds
+(`release_jobs` of `e2e_gate` in `ops/ci/migration/circle-gates.json`) and the
+`circle_job` of each `JOBS` entry. CircleCI splits the release workspace build
+across two jobs; RWX builds the whole workspace in one task. After a CircleCI E2E change, update `JOBS` and
 `.rwx/rust-e2e.yml`.
 
 The RWX checks (`optimism-rwx-pr-coordinator` and the `optimism-*-shadow`

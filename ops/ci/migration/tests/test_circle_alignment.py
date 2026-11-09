@@ -33,7 +33,8 @@ class AlignmentTests(unittest.TestCase):
         fixtures.G.configuration('required-rust-ci')
 
     def test_e2e_alignment_rejects_added_removed_renamed_and_nonterminal_jobs(self):
-        self.assertIn('kona-proof-action-single',A.e2e_configuration())
+        native=A.e2e_configuration()
+        for job in ('kona-proof-action-single','rust-e2e-binaries','rust-workspace-release'):self.assertIn(job,native)
         path=self.root/'.circleci/continue/rust-e2e.yml';source=path.read_text()
         line='            - rust-e2e-restart: terminal\n'
         self.assertIn(line,source)

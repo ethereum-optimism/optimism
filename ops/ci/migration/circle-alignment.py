@@ -38,11 +38,12 @@ def configuration(gate=None):
 def e2e_configuration():
     """Compare the RWX Rust E2E jobs with Circle's required-rust-e2e prerequisites.
 
-    The RWX E2E gate requires the release build and one verdict per E2E.JOBS
-    entry. Circle's gate must require exactly those jobs, each as terminal.
+    The RWX E2E gate requires one full-workspace release build and one verdict
+    per E2E.JOBS entry. Circle splits that build across `release_jobs`. Circle's
+    gate must require exactly those jobs and the E2E jobs, each as terminal.
     """
     row=G.read(MAPPING)['e2e_gate']
-    native=[row['release_job'],*(job['circle_job'] for job in E2E.JOBS.values())]
+    native=[*row['release_jobs'],*(job['circle_job'] for job in E2E.JOBS.values())]
     circle=gate_requires(row,row['gate'])
     if len(native)!=len(set(native)) or sorted(circle,key=str)!=sorted(({n:'terminal'} for n in native),key=str):
         raise ValueError('Missing, duplicate, renamed or changed Circle E2E gate dependency')
