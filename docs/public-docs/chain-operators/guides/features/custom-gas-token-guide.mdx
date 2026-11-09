@@ -133,10 +133,12 @@ Deploying a CGT chain follows the standard OP Stack deployment process with addi
 
     ```bash
     op-deployer apply \
-      --deployment-target genesis
+      --deployment-target genesis \
+      --deploy-mock-sp1-verifier
     ```
 
-    The genesis configuration is applied based on your `intent.toml`.
+    The genesis configuration is applied based on your `intent.toml`. The generated genesis contains no SP1 verifier,
+    so `--deploy-mock-sp1-verifier` deploys a mock that accepts every proof. Use it for development only.
   </Step>
 
   <Step title="Start your chain services">
