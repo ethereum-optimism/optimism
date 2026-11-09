@@ -10,17 +10,21 @@ CircleCI runs.
 
 | Trigger | Definition | Condition |
 | --- | --- | --- |
-| GitHub push | `.rwx/pr-gates.yml`, `.rwx/rust-e2e.yml`, `.rwx/selector-upload.yml` | Branch is `develop`, or the branch name starts with `rwx/` |
+| GitHub push | `.rwx/pr-gates.yml`, `.rwx/rust-e2e.yml`, `.rwx/selector-upload.yml` | Any branch push to this repository; tag pushes start no run |
 | Cache rebuild | Every definition with `on.cache-rebuild` | Branch is `develop`; RWX starts these to re-warm caches |
 | CLI | Every definition | An operator runs `rwx run` |
 
-Contributor PRs never start a run. Fork PRs cannot push to this repository, and
-only people with write access can push an `rwx/*` branch. To try your own change
-in RWX before it merges, push it to a branch named `rwx/<topic>`. RWX then posts
-its optional checks on that commit, including on any PR that shows it.
+Like CircleCI, RWX runs on every branch push, so a PR from a branch of this
+repository gets RWX's optional checks next to CircleCI's. RWX routes each push
+with CircleCI's own routing scripts, so it selects the same workloads. A new push
+to a branch cancels the older RWX run on that branch; `develop` runs every
+commit.
 
-Never push a commit you have not reviewed, such as a fork PR's head, to an
-`rwx/*` branch: RWX runs it with the branch's vault access.
+Fork PRs cannot push to this repository, so they never start a run. CircleCI
+runs them only after a maintainer comments `/ci authorize`; RWX has no
+equivalent, so fork PRs get no RWX checks. Never push a commit you have not
+reviewed, such as a fork PR's head, to a branch of this repository: RWX runs it
+with that branch's vault access.
 
 RWX reads the definitions from the pushed commit. A trigger change therefore
 takes effect for the next push that contains it.
@@ -28,8 +32,9 @@ takes effect for the next push that contains it.
 ## Turning RWX off
 
 - **From the repository:** set the `if:` of the three `on.github.push` triggers
-  to `false`, or delete the `github:` blocks, and merge. Later `develop` pushes
-  start no runs. The `cache-rebuild` triggers stop being useful without pushes;
+  to `false`, or delete the `github:` blocks, and merge. Later pushes of branches
+  that contain the change start no runs; older branches keep their old
+  triggers until they merge develop. The `cache-rebuild` triggers stop being useful without pushes;
   delete them too for a full stop.
 - **Immediately, without a merge:** a GitHub organization owner suspends the RWX
   GitHub App installation, or removes this repository from its access list.
@@ -82,8 +87,8 @@ checks) are not required by any ruleset.
   `refs/heads/develop` may write. Other branches restore the `develop` baseline
   read-only and compile their own changes.
 - Go and contract fork tests read archive RPC URLs from the test-only
-  `optimism-go-tests-rpc-shadow` vault. An `rwx/*` branch needs a grant on this
-  vault for those tasks to run.
+  `optimism-go-tests-rpc-shadow` vault. A branch needs a grant on this vault
+  (`refs/heads/*` covers every branch) for those tasks to run.
 - RWX holds no production publishing credentials. The selector-upload workload
   publishes to a private registry that the run starts itself.
 
@@ -160,5 +165,4 @@ its workload's `helper-tests`. Tests that need a live toolchain
 (`RWX_LIVE_*_FIXTURE=1`) skip locally unless you set the variable.
 
 A hosted run costs money. An authenticated operator can start one from a pushed
-commit with `rwx run .rwx/pr-gates.yml --wait`, or push the commit to an `rwx/*`
-branch.
+commit with `rwx run .rwx/pr-gates.yml --wait`; a branch push also starts one.

@@ -1,5 +1,5 @@
 # Optional shadow checks. CircleCI remains responsible for the required gates.
-# pr-gates.yml calls this definition for develop and opt-in rwx/* pushes.
+# pr-gates.yml calls this definition for every branch push.
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}

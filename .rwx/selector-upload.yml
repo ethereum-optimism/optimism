@@ -11,8 +11,8 @@ on:
       cache-epoch: v1
   github:
     push:
-      # Never on contributor PRs: develop and opt-in rwx/* branches only.
-      if: ${{ event.git.branch == 'develop' || starts-with(event.git.branch, 'rwx/') }}
+      # Every branch push to this repository, like CircleCI. Fork PRs cannot push here.
+      if: ${{ event.git.branch != '' }}
       init:
         commit-sha: ${{ event.git.sha }}
         branch: ${{ event.git.branch }}
@@ -39,6 +39,13 @@ base:
 
 defaults:
   runner: {cpus: 2, memory: 8gb}
+
+# A new push to a branch cancels the older run on that branch. develop runs every commit.
+concurrency-pools:
+  - id: ethereum-optimism/optimism:selector-upload:${{ init.branch }}
+    if: ${{ init.branch != 'develop' }}
+    capacity: 1
+    on-overflow: cancel-running
 
 tasks:
   - key: code

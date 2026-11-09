@@ -1,9 +1,9 @@
-# Optional shadow gates; CircleCI owns every required gate. GitHub pushes start
-# this run only on develop and on opt-in rwx/* branches, never on contributor PRs.
+# Optional shadow gates; CircleCI owns every required gate. Like CircleCI, every
+# branch push to this repository starts this run. Fork PRs cannot push here.
 on:
   github:
     push:
-      if: ${{ event.git.branch == 'develop' || starts-with(event.git.branch, 'rwx/') }}
+      if: ${{ event.git.branch != '' }}
       init:
         commit-sha: ${{ event.git.sha }}
         branch: ${{ event.git.branch }}
@@ -61,6 +61,13 @@ defaults:
   runner:
     cpus: 2
     memory: 8gb
+
+# A new push to a branch cancels the older run on that branch. develop runs every commit.
+concurrency-pools:
+  - id: ethereum-optimism/optimism:pr-gates:${{ init.branch }}
+    if: ${{ init.branch != 'develop' }}
+    capacity: 1
+    on-overflow: cancel-running
 
 tasks:
   - key: code
