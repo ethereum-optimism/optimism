@@ -27,6 +27,11 @@ impl Metrics {
     pub const DERIVATION_PENDING_RESET_ATTEMPTS: &str =
         "kona_node_derivation_pending_reset_attempts";
 
+    /// Delegate sync statuses whose `current_l1` was not found on our L1 chain, so the
+    /// heads were applied without moving the derivation origin.
+    pub const DERIVATION_DELEGATE_CURRENT_L1_NOT_FOUND: &str =
+        "kona_node_derivation_delegate_current_l1_not_found_total";
+
     /// Identifier for the counter that tracks sequencer state flags.
     pub const SEQUENCER_STATE: &str = "kona_node_sequencer_state";
 
@@ -92,6 +97,13 @@ impl Metrics {
             "Failed attempts of the derivation pipeline reset awaiting a retry, zero when none is pending"
         );
 
+        // Derivation delegation: current L1 not found on our L1 chain
+        metrics::describe_counter!(
+            Self::DERIVATION_DELEGATE_CURRENT_L1_NOT_FOUND,
+            metrics::Unit::Count,
+            "Delegate sync statuses whose current L1 was not found on our L1 chain; heads applied without updating the derivation origin"
+        );
+
         // Sequencer state
         metrics::describe_counter!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
 
@@ -144,6 +156,9 @@ impl Metrics {
 
         // Derivation pending reset attempts
         metrics::gauge!(Self::DERIVATION_PENDING_RESET_ATTEMPTS).set(0.0);
+
+        // Derivation delegation: current L1 not found
+        metrics::counter!(Self::DERIVATION_DELEGATE_CURRENT_L1_NOT_FOUND).absolute(0);
 
         // Sequencer: reset total transactions sequenced
         metrics::counter!(Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED).absolute(0);

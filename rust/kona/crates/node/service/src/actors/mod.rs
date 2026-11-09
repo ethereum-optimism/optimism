@@ -25,7 +25,7 @@ mod derivation;
 pub use derivation::{
     DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
     DerivationClientResult, DerivationEngineClient, DerivationError, DerivationState,
-    DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate,
+    DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate, L1LookupError,
     QueuedDerivationEngineClient, SyncStatusSource,
 };
 
