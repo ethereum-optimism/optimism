@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 )
 
 const testCompileCache = `{
@@ -184,7 +186,10 @@ func TestWrite_Links(t *testing.T) {
 		{name: "artifact to a file outside", link: "forge-artifacts/leak", target: outside, wantErr: "is a link"},
 		{name: "artifact to the environment", link: "forge-artifacts/env", target: "/proc/self/environ", wantErr: "is a link"},
 		{name: "artifacts directory", link: "forge-artifacts", target: t.TempDir(), wantErr: "is a link"},
-		{name: "source outside the project", link: "src/Linked.sol", target: outside, wantErr: "links to no file in the project"},
+		{name: "source outside the project", link: "src/Linked.sol", target: outside, wantErr: "is not a source that the bundle keeps"},
+		{name: "source to a file that is not a source", link: "src/Linked.sol", target: "../CLAUDE.md", wantErr: "is not a source that the bundle keeps"},
+		// The compile cache lists .env, which the bundle never keeps.
+		{name: "source to a source that the bundle leaves out", link: "src/Linked.sol", target: "../.env", wantErr: "is not a source that the bundle keeps"},
 		{name: "source in the project", link: "src/Linked.sol", target: "../other/Linked.sol", want: "contract Linked {}"},
 		{name: "artifact directory", link: "forge-artifacts/B.sol", target: t.TempDir(), wantErr: "is a link"},
 		{name: "directory of sources", link: "lib/dep", target: "../other", wantErr: "links to a directory of sources"},
@@ -195,9 +200,10 @@ func TestWrite_Links(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			base := t.TempDir()
 			writeFiles(t, base, map[string]string{
-				CompileCacheFile:   `{"paths": {"artifacts": "forge-artifacts", "libraries": ["lib"]}, "files": {"src/Linked.sol": {}, "lib/dep/D.sol": {}}}`,
+				CompileCacheFile:   `{"paths": {"artifacts": "forge-artifacts", "libraries": ["lib"]}, "files": {"src/Linked.sol": {}, "other/Linked.sol": {}, "lib/dep/D.sol": {}, ".env": {}}}`,
 				"CLAUDE.md":        "instructions",
 				"other/Linked.sol": "contract Linked {}",
+				".env":             "KEY=secret",
 			})
 			if tt.link != "forge-artifacts" {
 				writeFiles(t, base, map[string]string{"forge-artifacts/A.sol/A.json": `{"abi":[]}`})
@@ -242,4 +248,44 @@ func TestWrite_LeavesOutEnvFiles(t *testing.T) {
 	for _, name := range []string{".env", ".envrc", "deploy-config/.env.local", ".envs/mainnet"} {
 		require.NotContains(t, files, name)
 	}
+}
+
+// TestWrite_RefusesLinkWhereScriptsRead checks that a link in the directory that op-deployer lets
+// scripts read fails the pack, also when the compile cache names other artifacts.
+func TestWrite_RefusesLinkWhereScriptsRead(t *testing.T) {
+	base := t.TempDir()
+	writeFiles(t, base, map[string]string{
+		CompileCacheFile:   `{"paths": {"artifacts": "out", "libraries": ["lib"]}, "files": {"forge-artifacts/x": {}}}`,
+		"out/A.sol/A.json": `{"abi":[]}`,
+		".env":             "KEY=secret",
+	})
+	require.NoError(t, os.MkdirAll(filepath.Join(base, ScriptReadDir), 0o755))
+	require.NoError(t, os.Symlink("../.env", filepath.Join(base, ScriptReadDir, "x")))
+	require.ErrorContains(t, Write(io.Discard, base, nil, ""), "is a link")
+}
+
+// TestWrite_ThroughLinkedProject checks that a project at a link packs its linked sources: their
+// targets resolve below the resolved project.
+func TestWrite_ThroughLinkedProject(t *testing.T) {
+	base := t.TempDir()
+	writeFiles(t, base, map[string]string{
+		CompileCacheFile:               `{"paths": {"artifacts": "forge-artifacts", "libraries": ["lib"]}, "files": {"src/A.sol": {}, "other/A.sol": {}}}`,
+		"other/A.sol":                  "contract A {}",
+		"forge-artifacts/A.sol/A.json": `{"abi":[]}`,
+	})
+	require.NoError(t, os.MkdirAll(filepath.Join(base, "src"), 0o755))
+	require.NoError(t, os.Symlink("../other/A.sol", filepath.Join(base, "src", "A.sol")))
+	link := filepath.Join(t.TempDir(), "project")
+	require.NoError(t, os.Symlink(base, link))
+
+	var buf bytes.Buffer
+	require.NoError(t, Write(&buf, link, nil, ""))
+	files, _ := readArchive(t, buf.Bytes())
+	require.Equal(t, "contract A {}", files["src/A.sol"])
+}
+
+// TestScriptReadDir_IsWhatScriptsMayRead ties ScriptReadDir, which the link check guards, to the
+// directory that op-deployer lets scripts read.
+func TestScriptReadDir_IsWhatScriptsMayRead(t *testing.T) {
+	require.Equal(t, "./"+ScriptReadDir+"/", forge.ArtifactsReadPermission.Path)
 }

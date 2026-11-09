@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestReadFile_RefusesLinkUnlessFollowed(t *testing.T) {
+func TestReadFile_RefusesLinksAndPipes(t *testing.T) {
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{".env": "KEY=secret"})
 	require.NoError(t, os.Symlink(".env", filepath.Join(dir, "foo.txt")))
@@ -20,11 +20,11 @@ func TestReadFile_RefusesLinkUnlessFollowed(t *testing.T) {
 	require.NoError(t, err)
 	defer root.Close()
 
-	_, _, err = readFile(root, "foo.txt", false)
-	require.ErrorContains(t, err, "not a regular file")
-	content, _, err := readFile(root, "foo.txt", true)
+	for _, name := range []string{"foo.txt", "pipe"} {
+		_, _, err = readFile(root, name)
+		require.ErrorContains(t, err, "not a regular file", name)
+	}
+	content, _, err := readFile(root, ".env")
 	require.NoError(t, err)
 	require.Equal(t, "KEY=secret", string(content))
-	_, _, err = readFile(root, "pipe", true)
-	require.ErrorContains(t, err, "not a regular file")
 }

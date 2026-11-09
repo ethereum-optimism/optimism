@@ -254,6 +254,11 @@ func TestOpenLocal_UsesOtherDirectoryAsItIs(t *testing.T) {
 			dir:   "forge-artifacts",
 		},
 		{
+			name:  "artifacts that scripts may not read",
+			files: map[string]string{"foundry.toml": "", bundle.CompileCacheFile: `{"paths": {"artifacts": "out", "libraries": ["lib"]}, "files": {}}`, "out/A.sol/A.json": testArtifact},
+			dir:   "out",
+		},
+		{
 			name:  "not the artifacts directory of the build",
 			files: map[string]string{bundle.CompileCacheFile: testCompileCache, "out/A.sol/A.json": testArtifact},
 			dir:   "out",
@@ -393,7 +398,10 @@ func TestOpenLocal_LinksInTheProject(t *testing.T) {
 	t.Run("linked source in the project", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
 		project := writeProject(t)
-		writeFiles(t, project, map[string]string{"other/A.sol": "contract A {}"})
+		writeFiles(t, project, map[string]string{
+			"other/A.sol":           "contract A {}",
+			bundle.CompileCacheFile: `{"paths": {"artifacts": "forge-artifacts", "libraries": ["lib"]}, "files": {"src/A.sol": {}, "other/A.sol": {}}}`,
+		})
 		require.NoError(t, os.Remove(filepath.Join(project, "src", "A.sol")))
 		require.NoError(t, os.Symlink("../other/A.sol", filepath.Join(project, "src", "A.sol")))
 		fsys := openLocal(project, t.TempDir())

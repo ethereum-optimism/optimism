@@ -22,7 +22,7 @@ import (
 
 const (
 	// bundleFormat names the bundles that bundle.Write writes, so that a change to it repacks.
-	bundleFormat = "op-deployer-bundle-v2"
+	bundleFormat = "op-deployer-bundle-v3"
 	// keptBundles is the number of the most recently used bundles that eviction keeps.
 	keptBundles = 4
 	// packingPrefix starts the name of a bundle that a process is still packing.
@@ -50,7 +50,7 @@ func openLocal(dir string, targetDir string) fs.FS {
 // a new directory in targetDir, not in the shared one.
 func openProject(dir string, targetDir string, shared bool) fs.FS {
 	dir = filepath.Clean(dir)
-	project, artifactsDir := dir, filepath.Join(dir, "forge-artifacts")
+	project, artifactsDir := dir, filepath.Join(dir, bundle.ScriptReadDir)
 	if _, err := os.Stat(artifactsDir); err != nil {
 		// TODO(#18346): Accept this for now but in the future we should error
 		project, artifactsDir = filepath.Dir(dir), dir
@@ -58,16 +58,23 @@ func openProject(dir string, targetDir string, shared bool) fs.FS {
 	// A bundle is keyed by the project's path, and its pack walks the project.
 	resolved, err := filepath.EvalSymlinks(project)
 	if err != nil {
+		log.Debug("Using the local artifacts as they are", "dir", dir, "err", err)
 		return os.DirFS(artifactsDir)
 	}
 	rel, err := filepath.Rel(project, artifactsDir)
 	if err != nil {
+		log.Debug("Using the local artifacts as they are", "dir", dir, "err", err)
 		return os.DirFS(artifactsDir)
 	}
-	if buildArtifactsDir, err := bundle.ArtifactsDir(resolved); err != nil || filepath.ToSlash(rel) != buildArtifactsDir {
+	// op-deployer lets scripts read only bundle.ScriptReadDir, so a build with other artifacts is not
+	// one that it runs.
+	if buildArtifactsDir, err := bundle.ArtifactsDir(resolved); err != nil || buildArtifactsDir != bundle.ScriptReadDir || filepath.ToSlash(rel) != buildArtifactsDir {
+		log.Debug("Using the local artifacts as they are: not a forge build that op-deployer copies",
+			"dir", dir, "artifacts", buildArtifactsDir, "err", err)
 		return os.DirFS(artifactsDir)
 	}
 	if _, err := os.Stat(filepath.Join(resolved, "foundry.toml")); err != nil {
+		log.Debug("Using the local artifacts as they are: not a forge project", "dir", dir, "err", err)
 		return os.DirFS(artifactsDir)
 	}
 

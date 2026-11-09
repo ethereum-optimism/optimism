@@ -25,8 +25,9 @@ import (
 // files to leave out. A commit that is not empty is written to the COMMIT file.
 //
 // A bundle is code and data that scripts with a deployer key read, so Write reads only files of the
-// project: it takes a link only for a source of the build whose target is in the project, and
-// skips every other link. A link in the artifacts directory fails it.
+// project: it takes a link only for a source of the build whose target is another source of the
+// build, and skips every other link. A link in the artifacts directory, or in ScriptReadDir, fails
+// it.
 func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 	for _, pattern := range exclude {
 		if _, err := path.Match(filepath.ToSlash(pattern), ""); err != nil {
@@ -38,6 +39,11 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 		return err
 	}
 
+	// The targets of links resolve to paths below the resolved project.
+	absBase, err = filepath.EvalSymlinks(absBase)
+	if err != nil {
+		return fmt.Errorf("resolve the forge project: %w", err)
+	}
 	root, err := os.OpenRoot(absBase)
 	if err != nil {
 		return fmt.Errorf("open the forge project: %w", err)
@@ -56,7 +62,7 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 		// Before the filters: a link that hides artifacts or sources must fail the pack, not drop
 		// them.
 		if d.Type()&fs.ModeSymlink != 0 {
-			if cache.inArtifacts(slashRel) {
+			if cache.inArtifacts(slashRel) || under(slashRel, ScriptReadDir) {
 				return fmt.Errorf("%s is a link, which the artifacts of a bundle may not have", slashRel)
 			}
 			if cache.hasSourceUnder(slashRel) {
@@ -88,12 +94,17 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 			if !cache.isSource(slashRel) {
 				return nil
 			}
-			// forge reads a source through its link, so the bundle needs a copy of its target.
-			if content, info, err = readFile(root, rel, true); err != nil {
-				return fmt.Errorf("the source %s links to no file in the project: %w", slashRel, err)
+			// forge reads a source through its link, so the bundle needs a copy of its target, which
+			// must be a source of the build too.
+			target, err := linkedSource(absBase, rel, cache)
+			if err != nil {
+				return fmt.Errorf("the link of the source %s: %w", slashRel, err)
+			}
+			if content, info, err = readFile(root, target); err != nil {
+				return fmt.Errorf("read the target of the source %s: %w", slashRel, err)
 			}
 		case d.Type().IsRegular():
-			if content, info, err = readFile(root, rel, false); err != nil {
+			if content, info, err = readFile(root, rel); err != nil {
 				return err
 			}
 			if cache.isArtifact(slashRel) {
@@ -142,6 +153,10 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 // CompileCacheFile is forge's compile cache, relative to the project.
 const CompileCacheFile = "cache/solidity-files-cache.json"
 
+// ScriptReadDir is the directory of a bundle that op-deployer lets scripts read, whatever the compile
+// cache names as the artifacts directory.
+const ScriptReadDir = "forge-artifacts"
+
 // compileCache is the part of forge's compile cache that decides what the bundle keeps. Its paths
 // are relative to the project and use slashes.
 type compileCache struct {
@@ -185,17 +200,11 @@ func ArtifactsDir(dir string) (string, error) {
 	return cache.Paths.Artifacts, nil
 }
 
-// readFile reads the regular file at name in root, through a link in root when followLink is true,
-// and returns its content and information. os.Root follows a link in the root even with O_NOFOLLOW,
-// so without followLink readFile checks that it opened the file that it found at name, and not a
-// link that replaced it.
-func readFile(root *os.Root, name string, followLink bool) ([]byte, fs.FileInfo, error) {
-	stat := root.Lstat
-	if followLink {
-		stat = root.Stat
-	}
+// readFile reads the regular file at name in root, and refuses a link, or a file that changed while
+// it read it: os.Root follows a link in the root even with O_NOFOLLOW.
+func readFile(root *os.Root, name string) ([]byte, fs.FileInfo, error) {
 	// Opening a pipe or a device could block or read without end.
-	found, err := stat(name)
+	found, err := root.Lstat(name)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -221,9 +230,31 @@ func readFile(root *os.Root, name string, followLink bool) ([]byte, fs.FileInfo,
 	return content, info, nil
 }
 
+// linkedSource returns the path in the project at absBase of the target of the link at rel, and
+// fails unless that target is a kept source of the build.
+func linkedSource(absBase string, rel string, cache *compileCache) (string, error) {
+	target, err := filepath.EvalSymlinks(filepath.Join(absBase, rel))
+	if err != nil {
+		return "", err
+	}
+	targetRel, err := filepath.Rel(absBase, target)
+	if err != nil {
+		return "", err
+	}
+	if slashTarget := filepath.ToSlash(targetRel); !filepath.IsLocal(targetRel) || !cache.isSource(slashTarget) || !cache.keeps(slashTarget) {
+		return "", fmt.Errorf("its target %s is not a source that the bundle keeps", target)
+	}
+	return targetRel, nil
+}
+
+// under reports whether rel is dir or in it.
+func under(rel string, dir string) bool {
+	return rel == dir || strings.HasPrefix(rel, dir+"/")
+}
+
 // inArtifacts reports whether rel is the artifacts directory or in it.
 func (c *compileCache) inArtifacts(rel string) bool {
-	return rel == c.Paths.Artifacts || strings.HasPrefix(rel, c.Paths.Artifacts+"/")
+	return under(rel, c.Paths.Artifacts)
 }
 
 // hasSourceUnder reports whether a source of the build is in the directory rel.
