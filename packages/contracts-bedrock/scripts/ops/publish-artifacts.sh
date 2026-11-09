@@ -76,6 +76,12 @@ if [ "$CHECK" = true ]; then
   exit 1
 fi
 
+# check-fast rejects compiler warnings on every PR. Repeat that on the exact code being
+# published, with the profile op-deployer builds it with. Forge compiles from scratch when it
+# denies warnings, so a warm cache can't hide one.
+echoerr "> Checking for compiler warnings..."
+(cd "$CONTRACTS_DIR" && FOUNDRY_PROFILE=default forge build --deny warnings --skip "/**/test/**")
+
 echoerr "> Building contracts and creating artifacts..."
 
 cd "$OP_DEPLOYER_DIR"
