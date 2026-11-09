@@ -9,7 +9,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod validator;
-pub use validator::{OpL1BlockInfo, OpTransactionValidator};
+pub use validator::{OpGasLimitConfig, OpL1BlockInfo, OpTransactionValidator};
 
 pub mod conditional;
 mod pool;

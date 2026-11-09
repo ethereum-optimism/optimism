@@ -1159,12 +1159,10 @@ where
         <<Builder::Executor as BlockExecutor>::Evm as AlloyEvm>::DB: Database,
         <Builder::Executor as BlockExecutor>::Result: PreRefundGasUsed,
     {
-        let mut block_gas_limit = builder.evm_mut().block().gas_limit();
-        if let Some(gas_limit_config) = self.builder_config.gas_limit_config.gas_limit() {
-            // If a gas limit is configured, use that limit as target if it's smaller, otherwise use
-            // the block's actual gas limit.
-            block_gas_limit = gas_limit_config.min(block_gas_limit);
-        };
+        // If a gas limit is configured, use that limit as target if it's smaller, otherwise use the
+        // block's actual gas limit.
+        let mut block_gas_limit =
+            self.builder_config.gas_limit_config.cap(builder.evm_mut().block().gas_limit());
         if let Some(gas_limit_cap) = gas_limit_cap {
             // If a gas limit cap is provided, use that limit as target if it's smaller, otherwise
             // use the block's actual gas limit.
@@ -1296,5 +1294,7 @@ where
     }
 }
 
+#[cfg(test)]
+mod admission_tests;
 #[cfg(test)]
 mod tests;

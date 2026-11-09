@@ -14122,6 +14122,7 @@ dependencies = [
  "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "op-revm",
+ "proptest",
  "reth-basic-payload-builder",
  "reth-chainspec",
  "reth-evm",
@@ -14138,6 +14139,7 @@ dependencies = [
  "reth-payload-util",
  "reth-payload-validator",
  "reth-primitives-traits",
+ "reth-provider",
  "reth-revm",
  "reth-storage-api",
  "reth-transaction-pool",
@@ -14146,6 +14148,7 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
 ]
 
@@ -14356,6 +14359,7 @@ dependencies = [
  "op-alloy-rpc-types",
  "op-revm",
  "parking_lot",
+ "proptest",
  "reth-chain-state",
  "reth-chainspec",
  "reth-eth-wire-types",

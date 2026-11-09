@@ -2001,6 +2001,11 @@ jobs:
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just go-tests-fraud-proofs-ci
+      # memory.events counts OOM kills, which can otherwise look like flaky tests.
+      - run:
+          name: Memory summary
+          when: always
+          command: grep -H . /sys/fs/cgroup/memory.{events,pressure} || true
       - go-save-cache:
           namespace: go-tests-with-fault-proof-deps
       - store_test_results:
@@ -2791,6 +2796,10 @@ workflows:
           no_output_timeout: 90m
           test_timeout: 480m
           resource_class: 2xlarge.gen2
+          # The tests mostly wait, so memory is the limit: 32 at once peaked at about 23.5 of 32 GiB.
+          # Lower this if the memory summary shows OOM kills. OP_E2E_EXECUTOR_LIMIT has to match, or
+          # the cannon tests stay capped at 16.
+          environment_overrides: export FAULT_PROOF_TEST_PARALLEL=32 OP_E2E_EXECUTOR_LIMIT=32
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
