@@ -542,8 +542,9 @@ func (s *Driver) followUpstream() *sources.FollowStatus {
 		// while a load-balanced L1 endpoint serves from a lagging backend. The L1 origins of
 		// the heads are verified, so apply the heads and drop only CurrentL1, which the event
 		// loop then leaves unchanged. The L1 blocks between the local-safe origin and
-		// CurrentL1 stay unverified until a later poll finds a CurrentL1 on our chain; if the
-		// upstream is on an L1 fork, that poll fails with a hash mismatch.
+		// CurrentL1 stay unverified until a later poll finds a CurrentL1 on our chain. If the
+		// upstream is on an L1 fork, that poll fails with a hash mismatch, but heads already
+		// applied are not reverted.
 		s.log.Info("Follow Upstream: External CurrentL1 not found on our L1 chain yet, not updating CurrentL1",
 			"currentL1", status.CurrentL1)
 		s.metrics.RecordFollowSourceCurrentL1NotFound()
