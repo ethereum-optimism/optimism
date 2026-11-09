@@ -90,7 +90,7 @@ contract DeployUtils_AssertUniqueAddresses_Test is DeployUtils_TestInit {
 
 /// @title DeployUtils_GetCode_Test
 /// @notice Artifact lookup must follow the active compiler even when both outputs exist.
-contract DeployUtils_GetCode_Test is Test {
+contract DeployUtils_GetCode_Test is DeployUtils_TestInit {
     function test_getCode_activeCompiler_succeeds() public view {
         // getCode falls back to a name-only lookup, so also check the path it tries first exists.
         assertTrue(vm.exists(string.concat(Config.artifactDirectory(), "Proxy.sol/Proxy.json")));
@@ -100,7 +100,7 @@ contract DeployUtils_GetCode_Test is Test {
 
 /// @title DeployUtils_GetDeployedCode_Test
 /// @notice Runtime artifacts must also follow the active compiler.
-contract DeployUtils_GetDeployedCode_Test is Test {
+contract DeployUtils_GetDeployedCode_Test is DeployUtils_TestInit {
     function test_getDeployedCode_activeCompiler_succeeds() public view {
         assertEq(DeployUtils.getDeployedCode("Proxy"), type(Proxy).runtimeCode);
     }

@@ -29,15 +29,17 @@ forge-build-dev *ARGS:
 
 # Builds source contracts only.
 build-source:
-  forge build --skip "/**/test/**" --skip "/**/scripts/**"
+  @# Always solc: snapshots, semver-lock, the reinitializer check and the NUT bundle read this
+  @# build, also when a developer exports a Solar profile.
+  FOUNDRY_PROFILE=default forge build --skip "/**/test/**" --skip "/**/scripts/**"
 
 # Builds source contracts and scripts, skipping tests.
 build-no-tests:
   @# The skip leaves out the test/mocks that the scripts import, so compile the scripts too, and
-  @# warm the script cache: op-deployer never compiles.
-  forge build --skip "/**/test/**"
-  forge build scripts
-  just forge-build --skip "/**/test/**"
+  @# warm the script cache: op-deployer never compiles. Always solc, as for build-source.
+  FOUNDRY_PROFILE=default forge build --skip "/**/test/**"
+  FOUNDRY_PROFILE=default forge build scripts
+  FOUNDRY_PROFILE=default just forge-build --skip "/**/test/**"
 
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail
