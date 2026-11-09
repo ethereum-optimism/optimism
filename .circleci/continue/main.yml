@@ -355,12 +355,16 @@ commands:
       mentions:
         type: string
         default: ""
+      branch_pattern:
+        description: Comma-separated branch regexes to alert on. The message shows the branch.
+        type: string
+        default: develop
     steps:
       - slack/notify:
           channel: << parameters.channel >>
           event: fail
           template: basic_fail_1
-          branch_pattern: develop
+          branch_pattern: << parameters.branch_pattern >>
           mentions: "<< parameters.mentions >>"
 
   apt-install:
@@ -1037,6 +1041,8 @@ jobs:
             - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   # Full build, tests included, for the contracts-bedrock-tests jobs that set
   # attach_build. Kept separate from contracts-bedrock-build so the two never
@@ -1077,6 +1083,8 @@ jobs:
             - "packages/contracts-bedrock/forge-artifacts"
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   check-kontrol-build:
     docker:
@@ -1105,6 +1113,8 @@ jobs:
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   contracts-bedrock-tests:
     docker:
@@ -1205,6 +1215,8 @@ jobs:
           when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   contracts-bedrock-heavy-fuzz-nightly:
     docker:
@@ -1257,6 +1269,8 @@ jobs:
           when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   contracts-bedrock-coverage:
     docker:
@@ -1460,6 +1474,8 @@ jobs:
           when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
   contracts-bedrock-tests-l2-fork:
     parameters:
       fork_op_chain:
@@ -1596,6 +1612,8 @@ jobs:
           when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   contracts-bedrock-upload:
     machine: true
@@ -1647,6 +1665,8 @@ jobs:
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
+          # Release branches run these jobs too, and their failures matter as much.
+          branch_pattern: develop,proposal/.+
 
   shfmt-check:
     docker:
