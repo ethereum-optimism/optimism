@@ -48,7 +48,7 @@ async fn intermediate_roots_follow_each_boundary() -> eyre::Result<()> {
     let fixture = SettledBlock::sequence().await?;
 
     let roots = DebugApiClient::<TransactionRequest>::debug_intermediate_roots(
-        &fixture.client,
+        &fixture.client(),
         fixture.block_hash(),
         None,
     )

@@ -1,7 +1,7 @@
 //! A later transaction that is only affordable because of an earlier refund.
 
 use crate::lagoon::{
-    self, DEPLOY_GAS, default_trace_gas, http_client, launch_sdm_node_with_attributes,
+    self, DEPLOY_GAS, default_trace_gas, http_client, launch_node_with_attributes, sdm_rollup_args,
     signed_transaction,
 };
 use alloy_consensus::BlockHeader;
@@ -44,7 +44,7 @@ async fn later_transaction_affordability_depends_on_prior_refund() -> eyre::Resu
         .await;
         forced_transactions.push(signed);
     }
-    let mut node = launch_sdm_node_with_attributes(&chain_spec, move |timestamp| {
+    let mut node = launch_node_with_attributes(&chain_spec, sdm_rollup_args(), move |timestamp| {
         let mut attributes = lagoon::payload_attributes(timestamp);
         // The transactions are forced through attributes because the pool's balance check does
         // not know about refunds and would reject the second one. Local sequencing (the default

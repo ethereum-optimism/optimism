@@ -193,19 +193,14 @@ fn canonicalized_result_gas_applies_refund_exactly_once() {
 #[test]
 fn verify_mode_result_is_settled_before_commit_with_inspector() {
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    // The settlement reads the fork from these hardforks at the block timestamp; mainnet's
-    // schedule puts that timestamp at Isthmus, whose operator fee rounds a one-gas saving to zero.
-    let hardforks = OpChainHardforks::new(
-        OpHardfork::op_mainnet()
-            .into_iter()
-            .chain([(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-    );
+    // The settlement reads the fork from these hardforks at the block timestamp.
+    let hardforks = jovian_hardforks(JOVIAN_TIMESTAMP);
     let gas_price = 1u128;
     let beneficiary = Address::repeat_byte(0xbe);
     let payload = PostExecPayload {
-        version: 1,
         block_number: 0,
         gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+        version: 1,
     };
     // Operator fees are only charged on transactions that carry calldata.
     let priced_tx = recovered_legacy(TxLegacy {

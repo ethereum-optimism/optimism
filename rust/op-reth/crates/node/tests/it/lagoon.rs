@@ -18,10 +18,7 @@ use reth_e2e_test_utils::{
     NodeHelperType, node::NodeTestContext, transaction::TransactionTestContext, wallet::Wallet,
 };
 use reth_node_builder::{NodeBuilder, NodeHandle};
-use reth_node_core::{
-    args::{NetworkArgs, RpcServerArgs},
-    node_config::NodeConfig,
-};
+use reth_node_core::{args::RpcServerArgs, node_config::NodeConfig};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_node::{OpNode, args::RollupArgs, utils::optimism_payload_attributes};
 use reth_optimism_payload_builder::OpPayloadAttrs;
@@ -64,8 +61,7 @@ pub(crate) const fn payload_attributes(timestamp: u64) -> OpPayloadAttrs {
 
 /// Returns a test node config serving every RPC module over HTTP and `WebSocket` on unused ports.
 pub(crate) fn rpc_node_config(chain_spec: &Arc<OpChainSpec>) -> NodeConfig<OpChainSpec> {
-    let network_args = NetworkArgs::default().with_unused_ports();
-    NodeConfig::test().map_chain(chain_spec.clone()).with_network(network_args).with_rpc(
+    NodeConfig::test().map_chain(chain_spec.clone()).with_rpc(
         RpcServerArgs::default()
             .with_unused_ports()
             .with_http()
@@ -77,7 +73,7 @@ pub(crate) fn rpc_node_config(chain_spec: &Arc<OpChainSpec>) -> NodeConfig<OpCha
     )
 }
 
-/// Launches a node on `chain_spec` with [`rpc_node_config`]; it shuts down when the handle drops.
+/// Launches a node on `chain_spec` with [`rpc_node_config`].
 pub(crate) async fn launch_node(
     chain_spec: &Arc<OpChainSpec>,
     rollup_args: RollupArgs,
@@ -106,21 +102,6 @@ pub(crate) fn sdm_rollup_args() -> RollupArgs {
         testing_sdm_fixed_policy: Some(None),
         ..Default::default()
     }
-}
-
-/// Launches a Lagoon node that opts into SDM and sequences one refund per regular transaction.
-pub(crate) async fn launch_sdm_node(
-    chain_spec: &Arc<OpChainSpec>,
-) -> eyre::Result<NodeHelperType<OpNode>> {
-    launch_node(chain_spec, sdm_rollup_args()).await
-}
-
-/// Like [`launch_sdm_node`], with the payload attributes supplied per block timestamp.
-pub(crate) async fn launch_sdm_node_with_attributes(
-    chain_spec: &Arc<OpChainSpec>,
-    attributes: impl Fn(u64) -> OpPayloadAttrs + Send + Sync + 'static,
-) -> eyre::Result<NodeHelperType<OpNode>> {
-    launch_node_with_attributes(chain_spec, sdm_rollup_args(), attributes).await
 }
 
 /// The HTTP client of a node launched with [`rpc_node_config`].

@@ -11,7 +11,7 @@ async fn otterscan_returns_revert_output_on_sdm_block() -> eyre::Result<()> {
     let fixture = SettledBlock::sequence().await?;
 
     let revert: Option<Bytes> = fixture
-        .client
+        .client()
         .request("ots_getTransactionError", rpc_params![fixture.transaction_hash(REVERTING_INDEX)])
         .await?;
 

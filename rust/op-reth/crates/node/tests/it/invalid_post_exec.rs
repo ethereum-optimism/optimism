@@ -128,8 +128,7 @@ async fn test_lagoon_new_payload_with_wrong_post_exec_block_number_is_invalid() 
 
     // The rejected block is cached for diagnostics, but tracing it replays through the block
     // executor, which rejects it for the same reason instead of returning pre-refund traces.
-    let client =
-        node.inner.add_ons_handle.rpc_server_handles().rpc.http_client().expect("HTTP RPC on");
+    let client = crate::lagoon::http_client(&node);
     let trace_rejected_block = async {
         loop {
             match DebugApiClient::<TransactionRequest>::debug_trace_bad_block(

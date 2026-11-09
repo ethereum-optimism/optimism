@@ -116,9 +116,7 @@ type TestNode = FullNode<
 >;
 
 async fn launch(chain_spec: Arc<OpChainSpec>) -> eyre::Result<TestNode> {
-    let mut config = NodeConfig::test().map_chain(chain_spec).with_unused_ports();
-    config.network.discovery.discv5_port = Some(0);
-    config.network.discovery.discv5_port_ipv6 = Some(0);
+    let config = NodeConfig::test().map_chain(chain_spec).with_unused_ports();
     let op_node = OpNode::default();
     Ok(NodeBuilder::new(config)
         .testing_node(Runtime::test())

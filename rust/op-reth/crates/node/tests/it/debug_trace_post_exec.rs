@@ -18,6 +18,7 @@ use alloy_rpc_types_trace::{common::TraceResult, geth::GethDebugTracingOptions};
 use jsonrpsee::core::ClientError;
 use op_alloy_consensus::{OpTxEnvelope, SDMGasEntry, TxDeposit, build_post_exec_tx};
 use reth_chainspec::EthChainSpec;
+use reth_evm::execute::BlockValidationError;
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_node::args::RollupArgs;
 use reth_rpc_api::clients::DebugApiClient;
@@ -78,10 +79,14 @@ async fn test_debug_trace_block_rejects_exhausted_budget() -> eyre::Result<()> {
     let ClientError::Call(error) = error else {
         panic!("debug_traceBlock must fail with a call error: {error:?}");
     };
-    assert!(
-        error.message().contains("available gas 0"),
-        "debug_traceBlock error must name the executor's rejection: {}",
+    let rejection = BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+        transaction_gas_limit: TRANSFER_GAS,
+        block_available_gas: 0,
+    };
+    assert_eq!(
         error.message(),
+        rejection.to_string(),
+        "debug_traceBlock error must be the executor's rejection",
     );
 
     Ok(())

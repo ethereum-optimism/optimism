@@ -19,7 +19,7 @@ async fn parity_replays_report_settled_state_diffs() -> eyre::Result<()> {
 
     for index in 0..POST_EXEC_INDEX {
         let replay = TraceApiClient::<TransactionRequest>::replay_transaction(
-            &fixture.client,
+            &fixture.client(),
             fixture.transaction_hash(index),
             HashSet::from_iter([TraceType::StateDiff, TraceType::Trace]),
         )
@@ -32,7 +32,7 @@ async fn parity_replays_report_settled_state_diffs() -> eyre::Result<()> {
     }
 
     let replays = TraceApiClient::<TransactionRequest>::replay_block_transactions(
-        &fixture.client,
+        &fixture.client(),
         fixture.block_hash().into(),
         HashSet::from_iter([TraceType::StateDiff]),
     )
@@ -56,7 +56,7 @@ async fn trace_filter_covers_every_transaction() -> eyre::Result<()> {
     let fixture = SettledBlock::sequence().await?;
 
     let filtered = TraceApiClient::<TransactionRequest>::trace_filter(
-        &fixture.client,
+        &fixture.client(),
         TraceFilter {
             from_block: Some(fixture.block_number()),
             to_block: Some(fixture.block_number()),

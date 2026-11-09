@@ -1,7 +1,8 @@
 //! A sequenced Lagoon block with SDM refunds and the RPC accessors the family tests share.
 
 use crate::lagoon::{
-    self, TRANSFER_GAS, http_client, launch_sdm_node, prestate_tracer, signed_transaction,
+    self, TRANSFER_GAS, http_client, launch_node, prestate_tracer, sdm_rollup_args,
+    signed_transaction,
 };
 use alloy_consensus::{BlockHeader, TxReceipt};
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
@@ -44,7 +45,6 @@ pub(super) const REVERT_OUTPUT: U256 = U256::from_limbs([42, 0, 0, 0]);
 /// transfer (not refunded, since it already sits on the EIP-7623 floor), a second deployment
 /// (refunded) and a deployment whose init code reverts with [`REVERT_OUTPUT`].
 pub(super) struct SettledBlock {
-    pub(super) client: HttpClient,
     pub(super) node: NodeHelperType<OpNode>,
     pub(super) payload: OpBuiltPayload,
     pub(super) sender: Address,
@@ -53,8 +53,7 @@ pub(super) struct SettledBlock {
 impl SettledBlock {
     pub(super) async fn sequence() -> eyre::Result<Self> {
         let chain_spec = lagoon::chain_spec()?;
-        let mut node = launch_sdm_node(&chain_spec).await?;
-        let client = http_client(&node);
+        let mut node = launch_node(&chain_spec, sdm_rollup_args()).await?;
         let wallet = Wallet::default().with_chain_id(chain_spec.chain_id());
         let sender = wallet.inner.address();
         let deployments = [
@@ -77,7 +76,7 @@ impl SettledBlock {
         }
         let payload = node.advance_block().await?;
 
-        let fixture = Self { client, node, payload, sender };
+        let fixture = Self { node, payload, sender };
         let transactions = fixture.transactions();
         assert_eq!(
             transactions.len(),
@@ -121,6 +120,10 @@ impl SettledBlock {
         self.transactions()[index].tx_hash()
     }
 
+    pub(super) fn client(&self) -> HttpClient {
+        http_client(&self.node)
+    }
+
     pub(super) async fn ws_client(&self) -> WsClient {
         self.node.inner.add_ons_handle.rpc_server_handles().rpc.ws_client().await.unwrap()
     }
@@ -154,7 +157,7 @@ impl SettledBlock {
         address: Address,
     ) -> eyre::Result<U256> {
         let account = DebugApiClient::<TransactionRequest>::debug_account_info_at(
-            &self.client,
+            &self.client(),
             self.block_hash().into(),
             index.into(),
             address,
@@ -166,7 +169,7 @@ impl SettledBlock {
 
     pub(super) async fn block_traces(&self) -> eyre::Result<Vec<TraceResult<GethTrace, String>>> {
         Ok(DebugApiClient::<TransactionRequest>::debug_trace_block_by_hash(
-            &self.client,
+            &self.client(),
             self.block_hash(),
             None,
         )
@@ -179,7 +182,7 @@ impl SettledBlock {
         options: Option<GethDebugTracingOptions>,
     ) -> eyre::Result<GethTrace> {
         Ok(DebugApiClient::<TransactionRequest>::debug_trace_transaction(
-            &self.client,
+            &self.client(),
             self.transaction_hash(index),
             options,
         )
