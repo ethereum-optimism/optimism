@@ -196,9 +196,12 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to resolve the forge project: %w", err)
 	}
-	configPath, err := c.sandboxConfig(root, scratch)
+	configPath, built, err := c.sandboxConfig(root, scratch)
 	if err != nil {
 		return "", nil, err
+	}
+	if built != "" {
+		built = " (it matches " + built + ")"
 	}
 
 	// forge runs in the scratch directory, so it does not load a .env file of the project. A target
@@ -224,7 +227,7 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	watcher := &compileWatcher{cancel: cancel}
-	compileErr := fmt.Errorf("%w in %s, so its compile cache is not up to date: build it with `just build-no-tests` in packages/contracts-bedrock, or use the embedded artifacts", ErrCompiled, c.Wd)
+	compileErr := fmt.Errorf("%w in %s, so its compile cache is not up to date%s: build it with `just build-no-tests` in packages/contracts-bedrock, or use the embedded artifacts", ErrCompiled, c.Wd, built)
 	// forge prints the revert reason of a failed script to stderr.
 	errBuf := new(bytes.Buffer)
 	err = run.execWithEnv(ctx, scratch, inheritedEnv(), io.MultiWriter(buf, watcher), errBuf, cliOpts...)
@@ -297,30 +300,33 @@ var solcVersionRegexp = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 // sandboxConfig writes the forge config of a script run into dir: a contracts bundle is a forge
 // project, so its config is not trusted. It keeps only the sandboxKeys and a pinned compiler version
-// of the project's default profile, so no other profile, extends, RPC URL or sender, and it turns
-// ffi off and grants only FsPermissions. It sets root, because forge otherwise takes the root from
-// the config's directory and recompiles; forge warns that root is unknown, but uses it.
-func (c *Client) sandboxConfig(root string, dir string) (string, error) {
+// of the project's default profile, with the compile settings of the profile that the compile cache
+// was built with, so no extends, RPC URL or sender, and it turns ffi off and grants only
+// FsPermissions. It sets root, because forge otherwise takes the root from the config's directory and
+// recompiles; forge warns that root is unknown, but uses it. It also returns which profile the
+// compile cache matches, if it can tell.
+func (c *Client) sandboxConfig(root string, dir string) (string, string, error) {
 	if err := c.checkFsPermissions(root); err != nil {
-		return "", err
+		return "", "", err
 	}
 	var project struct {
 		Profile map[string]map[string]any `toml:"profile"`
 	}
 	if _, err := toml.DecodeFile(filepath.Join(root, "foundry.toml"), &project); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return "", fmt.Errorf("failed to read the forge config of the project: %w", err)
+		return "", "", fmt.Errorf("failed to read the forge config of the project: %w", err)
 	}
+	// The copy of the compile cache that forge reads; an unreadable one matches no profile.
+	cache, _ := os.ReadFile(filepath.Join(dir, compileCacheFile))
+	settings, built := compileProfile(project.Profile, cache)
 	profile := map[string]any{
 		"root":           root,
 		"ffi":            false,
 		"fs_permissions": append([]FsPermission{}, c.FsPermissions...),
 	}
-	for key, value := range project.Profile["default"] {
-		// forge reads a kebab-case key as its snake-case name.
-		key = strings.ReplaceAll(key, "-", "_")
+	for key, value := range settings {
 		if slices.Contains(solcVersionKeys, key) {
 			if version, ok := value.(string); !ok || !solcVersionRegexp.MatchString(version) {
-				return "", fmt.Errorf("the forge config of the project sets %s to %v; only a compiler version such as 0.8.15 is allowed", key, value)
+				return "", "", fmt.Errorf("the forge config of the project sets %s to %v; only a compiler version such as 0.8.15 is allowed", key, value)
 			}
 		} else if !slices.Contains(sandboxKeys, key) {
 			continue
@@ -331,14 +337,14 @@ func (c *Client) sandboxConfig(root string, dir string) (string, error) {
 	path := filepath.Join(dir, "foundry.toml")
 	f, err := os.Create(path)
 	if err != nil {
-		return "", fmt.Errorf("failed to create the forge config: %w", err)
+		return "", "", fmt.Errorf("failed to create the forge config: %w", err)
 	}
 	defer f.Close()
 	config := map[string]any{"profile": map[string]any{"default": profile}}
 	if err := toml.NewEncoder(f).Encode(config); err != nil {
-		return "", fmt.Errorf("failed to write the forge config: %w", err)
+		return "", "", fmt.Errorf("failed to write the forge config: %w", err)
 	}
-	return path, nil
+	return path, built, nil
 }
 
 // checkFsPermissions refuses a link at or under a relative FsPermissions path. forge grants access to

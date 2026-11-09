@@ -24,9 +24,9 @@ forge-build *ARGS:
   @# graph. op-deployer never compiles, so its bundles need this step.
   @./scripts/ops/warm-script-cache.sh
 
-# Developer build command (faster).
+# Developer build command (faster). Goes through forge-build, so that it warms the script cache too.
 forge-build-dev *ARGS:
-  FOUNDRY_PROFILE=lite forge build {{ARGS}}
+  FOUNDRY_PROFILE=lite just forge-build {{ARGS}}
 
 # Builds source contracts only.
 build-source:
