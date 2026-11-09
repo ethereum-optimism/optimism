@@ -163,14 +163,7 @@ where
 
     /// Fetches the L2 to L1 message passer account from the cache or underlying trie.
     fn message_passer_account(&mut self) -> Result<B256, TrieDBError> {
-        match self.trie_db.storage_roots().get(&Predeploys::L2_TO_L1_MESSAGE_PASSER) {
-            Some(storage_root) => Ok(storage_root.blind()),
-            None => Ok(self
-                .trie_db
-                .get_trie_account(&Predeploys::L2_TO_L1_MESSAGE_PASSER)?
-                .ok_or(TrieDBError::MissingAccountInfo)?
-                .storage_root),
-        }
+        self.trie_db.account_storage_root(&Predeploys::L2_TO_L1_MESSAGE_PASSER)
     }
 }
 

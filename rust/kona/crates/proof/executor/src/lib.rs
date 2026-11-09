@@ -14,6 +14,8 @@ extern crate tracing;
 
 mod db;
 pub use db::{NoopTrieDBProvider, TrieDB, TrieDBProvider};
+#[cfg(feature = "sparse-trie")]
+pub use db::{SparseTrieDB, SparseTrieStats};
 
 mod builder;
 pub use builder::{BlockBuildingOutcome, StatelessL2Builder, compute_receipts_root};

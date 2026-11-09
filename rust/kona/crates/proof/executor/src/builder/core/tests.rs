@@ -418,3 +418,137 @@ async fn post_exec_payload_rejects_refund_exceeding_gas_used() {
     let err = execute_loaded_fixture(loaded, Some(true)).unwrap_err();
     assert_post_exec_validation_failure(err, "exceeds evm_gas_used");
 }
+
+/// Trie backend cost comparison (experiment). Run once per backend:
+///
+/// ```sh
+/// cargo test -p kona-executor --release [--features sparse-trie] measure_trie_backend -- \
+///     --ignored --nocapture
+/// ```
+///
+/// `MEASURE_ITERS` sets how many times each block is built (default 1) and `MEASURE_FIXTURE`
+/// selects fixtures by name. For instruction counts, run the test binary of the `profiling`
+/// profile under `valgrind --tool=callgrind` and read the inclusive cost of the trie database's
+/// `state_root`, `basic` and `storage` with `callgrind_annotate --inclusive=yes`.
+mod measure {
+    use crate::{
+        StatelessL2Builder, TrieDBProvider,
+        test_utils::{TestTrieNodeProviderError, load_test_fixture},
+    };
+    use alloy_consensus::Header;
+    use alloy_op_evm::OpEvmFactory;
+    use alloy_primitives::{B256, Bytes, Sealable};
+    use alloy_rlp::Decodable;
+    use kona_mpt::{NoopTrieHinter, TrieNode, TrieProvider};
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::{
+            Arc,
+            atomic::{AtomicU64, Ordering},
+        },
+        time::Instant,
+    };
+
+    /// An in-memory copy of a fixture's preimages that counts trie node fetches.
+    #[derive(Debug, Clone)]
+    struct MemProvider {
+        kv: Arc<HashMap<B256, Bytes>>,
+        node_fetches: Arc<AtomicU64>,
+    }
+
+    impl MemProvider {
+        fn get(&self, key: B256) -> Result<&Bytes, TestTrieNodeProviderError> {
+            self.kv.get(&key).ok_or(TestTrieNodeProviderError::PreimageNotFound)
+        }
+    }
+
+    impl TrieProvider for MemProvider {
+        type Error = TestTrieNodeProviderError;
+
+        fn trie_node_by_hash(&self, key: B256) -> Result<TrieNode, Self::Error> {
+            self.node_fetches.fetch_add(1, Ordering::Relaxed);
+            TrieNode::decode(&mut self.get(key)?.as_ref()).map_err(TestTrieNodeProviderError::Rlp)
+        }
+    }
+
+    impl TrieDBProvider for MemProvider {
+        fn trie_node_rlp_by_hash(&self, key: B256) -> Result<Bytes, Self::Error> {
+            self.node_fetches.fetch_add(1, Ordering::Relaxed);
+            self.get(key).cloned()
+        }
+
+        fn bytecode_by_hash(&self, code_hash: B256) -> Result<Bytes, Self::Error> {
+            self.get(code_hash).cloned()
+        }
+
+        fn header_by_hash(&self, hash: B256) -> Result<Header, Self::Error> {
+            Header::decode(&mut self.get(hash)?.as_ref()).map_err(TestTrieNodeProviderError::Rlp)
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "experiment: trie backend cost comparison"]
+    async fn measure_trie_backend() {
+        let backend = if cfg!(feature = "sparse-trie") { "sparse-trie" } else { "kona-mpt" };
+        let iters: u32 =
+            std::env::var("MEASURE_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(1);
+        let mut paths =
+            std::fs::read_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata"))
+                .unwrap()
+                .map(|e| e.unwrap().path())
+                .filter(|p| p.to_string_lossy().ends_with(".tar.gz"))
+                .collect::<Vec<_>>();
+        paths.sort();
+        if let Ok(only) = std::env::var("MEASURE_FIXTURE") {
+            paths.retain(|p| p.to_string_lossy().contains(&only));
+        }
+
+        for path in paths {
+            let loaded = load_test_fixture(path.clone()).await;
+            let kv = loaded
+                .provider
+                .iter_entries()
+                .into_iter()
+                .map(|(k, v)| (B256::from_slice(&k), Bytes::from(v)))
+                .collect::<HashMap<_, _>>();
+            let provider = MemProvider { kv: Arc::new(kv), node_fetches: Default::default() };
+            let fixture = loaded.fixture;
+            let name = path.file_name().unwrap().to_string_lossy().replace(".tar.gz", "");
+
+            let mut elapsed = Vec::new();
+            let mut result = String::from("ok");
+            for _ in 0..iters {
+                provider.node_fetches.store(0, Ordering::Relaxed);
+                let mut builder = StatelessL2Builder::new(
+                    &fixture.rollup_config,
+                    OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+                    alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
+                    provider.clone(),
+                    NoopTrieHinter,
+                    fixture.parent_header.clone().seal_slow(),
+                );
+                let start = Instant::now();
+                let outcome = builder.build_block(fixture.executing_payload.clone());
+                elapsed.push(start.elapsed().as_micros());
+                match outcome {
+                    Ok(o) if o.header.hash() == fixture.expected_block_hash => {}
+                    Ok(_) => result = String::from("WRONG_HASH"),
+                    Err(e) => result = format!("ERR({e})"),
+                }
+                #[cfg(feature = "sparse-trie")]
+                if elapsed.len() == 1 {
+                    println!("SPARSE_STATS {name} {:?}", builder.trie_db.stats());
+                }
+            }
+            elapsed.sort_unstable();
+            println!(
+                "MEASURE backend={backend} block={name} result={result} node_fetches={} \
+                 median_us={} min_us={}",
+                provider.node_fetches.load(Ordering::Relaxed),
+                elapsed[elapsed.len() / 2],
+                elapsed[0],
+            );
+        }
+    }
+}

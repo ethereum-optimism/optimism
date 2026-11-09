@@ -18,6 +18,18 @@ use revm::{
 mod traits;
 pub use traits::{NoopTrieDBProvider, TrieDBProvider};
 
+#[cfg(feature = "sparse-trie")]
+mod sparse;
+#[cfg(feature = "sparse-trie")]
+pub use sparse::{SparseTrieDB, SparseTrieStats};
+
+/// The trie database the block builder executes with.
+#[cfg(not(feature = "sparse-trie"))]
+pub(crate) type BuilderTrieDB<F, H> = TrieDB<F, H>;
+/// The trie database the block builder executes with.
+#[cfg(feature = "sparse-trie")]
+pub(crate) type BuilderTrieDB<F, H> = SparseTrieDB<F, H>;
+
 /// A Trie DB that caches open state in-memory.
 ///
 /// When accounts that don't already exist within the cached [`TrieNode`] are queried, the database
@@ -148,6 +160,8 @@ where
     /// ## Returns
     /// - `Ok(B256)`: The new state root hash of the trie DB.
     /// - `Err(_)`: If the state root hash could not be computed.
+    // Experiment: kept out of line so callgrind attributes trie cost to this function.
+    #[inline(never)]
     pub fn state_root(&mut self, bundle: &BundleState) -> TrieDBResult<B256> {
         debug!(target: "client_executor", "Recomputing state root");
 
@@ -193,6 +207,17 @@ where
             .map_err(TrieNodeError::RLPError)
             .map_err(Into::into)
             .map(Some)
+    }
+
+    /// Returns the current storage root of an account.
+    pub fn account_storage_root(&mut self, address: &Address) -> TrieDBResult<B256> {
+        match self.storage_roots.get(address) {
+            Some(storage_root) => Ok(storage_root.blind()),
+            None => Ok(self
+                .get_trie_account(address)?
+                .ok_or(TrieDBError::MissingAccountInfo)?
+                .storage_root),
+        }
     }
 
     /// Modifies the accounts in the storage trie with the given [`BundleState`] changeset.
@@ -330,6 +355,8 @@ where
 {
     type Error = TrieDBError;
 
+    // Experiment: kept out of line so callgrind attributes trie cost to this function.
+    #[inline(never)]
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         // Fetch the account from the trie.
         let Some(trie_account) = self.get_trie_account(&address)? else {
@@ -358,6 +385,8 @@ where
             .map_err(|e| TrieDBError::Provider(e.to_string()))
     }
 
+    // Experiment: kept out of line so callgrind attributes trie cost to this function.
+    #[inline(never)]
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         // Send a hint to the host to fetch the storage proof.
         self.hinter

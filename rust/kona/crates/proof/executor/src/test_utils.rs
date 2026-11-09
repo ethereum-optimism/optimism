@@ -339,6 +339,9 @@ impl TrieDBProvider for ExecutorTestFixtureCreator {
     }
 }
 
+/// A raw key-value entry of a [`DiskTrieNodeProvider`].
+pub type KvEntry = (Box<[u8]>, Box<[u8]>);
+
 /// A simple [`TrieDBProvider`] that reads data from a disk-based key-value store.
 #[derive(Debug)]
 pub struct DiskTrieNodeProvider {
@@ -349,6 +352,14 @@ impl DiskTrieNodeProvider {
     /// Creates a new [`DiskTrieNodeProvider`] with the given [`rocksdb`] K/V store.
     pub const fn new(kv_store: DB) -> Self {
         Self { kv_store }
+    }
+
+    /// Returns every key-value entry in the store.
+    pub fn iter_entries(&self) -> Vec<KvEntry> {
+        self.kv_store
+            .iterator(rocksdb::IteratorMode::Start)
+            .map(|e| e.expect("rocksdb read"))
+            .collect()
     }
 }
 
@@ -369,6 +380,14 @@ impl TrieProvider for DiskTrieNodeProvider {
 }
 
 impl TrieDBProvider for DiskTrieNodeProvider {
+    fn trie_node_rlp_by_hash(&self, hash: B256) -> Result<Bytes, Self::Error> {
+        self.kv_store
+            .get(hash)
+            .map_err(|_| TestTrieNodeProviderError::PreimageNotFound)?
+            .map(Bytes::from)
+            .ok_or(TestTrieNodeProviderError::PreimageNotFound)
+    }
+
     fn bytecode_by_hash(&self, code_hash: B256) -> Result<Bytes, Self::Error> {
         self.kv_store
             .get(code_hash)

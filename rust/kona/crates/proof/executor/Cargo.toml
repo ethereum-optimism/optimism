@@ -37,6 +37,10 @@ revm.workspace = true
 alloy-op-evm.workspace = true
 alloy-evm = { workspace = true }
 
+# Reth (experimental `sparse-trie` backend)
+reth-trie-common = { workspace = true, optional = true }
+reth-trie-sparse = { workspace = true, optional = true }
+
 # General
 thiserror.workspace = true
 tracing.workspace = true
@@ -74,6 +78,8 @@ tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
 [features]
+# Experimental: execute with reth's sparse trie instead of `kona-mpt`.
+sparse-trie = ["dep:reth-trie-common", "dep:reth-trie-sparse"]
 test-utils = [
 	"dep:alloy-provider",
 	"dep:alloy-rpc-client",

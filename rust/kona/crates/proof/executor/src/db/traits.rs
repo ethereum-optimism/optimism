@@ -1,9 +1,10 @@
 //! Contains the [`TrieDBProvider`] trait for fetching EVM bytecode hash preimages as well as
 //! [Header] preimages.
 
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
 use alloy_consensus::Header;
 use alloy_primitives::{B256, Bytes};
+use alloy_rlp::Encodable;
 use kona_mpt::{TrieNode, TrieProvider};
 
 /// The [`TrieDBProvider`] trait defines the synchronous interface for fetching EVM bytecode hash
@@ -32,6 +33,18 @@ pub trait TrieDBProvider: TrieProvider {
     ///
     /// [TrieDB]: crate::TrieDB
     fn header_by_hash(&self, hash: B256) -> Result<Header, Self::Error>;
+
+    /// Fetches the RLP-encoded trie node with the given hash.
+    ///
+    /// The default implementation re-encodes the node returned by
+    /// [`TrieProvider::trie_node_by_hash`]. Providers that hold raw preimages should override it
+    /// to skip the decode and re-encode.
+    fn trie_node_rlp_by_hash(&self, hash: B256) -> Result<Bytes, Self::Error> {
+        let node = self.trie_node_by_hash(hash)?;
+        let mut buf = Vec::with_capacity(node.length());
+        node.encode(&mut buf);
+        Ok(buf.into())
+    }
 }
 
 /// The default, no-op implementation of the [`TrieDBProvider`] trait, used for testing.

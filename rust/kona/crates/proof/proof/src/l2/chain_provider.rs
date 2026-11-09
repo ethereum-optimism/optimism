@@ -258,6 +258,17 @@ impl<T: CommsClient> TrieProvider for OracleL2ChainProvider<T> {
 }
 
 impl<T: CommsClient> TrieDBProvider for OracleL2ChainProvider<T> {
+    fn trie_node_rlp_by_hash(&self, hash: B256) -> Result<Bytes, OracleProviderError> {
+        // Trie node preimages are keccak preimages, hinted before this call (see above).
+        crate::block_on(async move {
+            self.oracle
+                .get(PreimageKey::new(*hash, PreimageKeyType::Keccak256))
+                .await
+                .map(Bytes::from)
+                .map_err(OracleProviderError::Preimage)
+        })
+    }
+
     fn bytecode_by_hash(&self, hash: B256) -> Result<Bytes, OracleProviderError> {
         // Fetch the bytecode preimage from the caching oracle.
         crate::block_on(async move {

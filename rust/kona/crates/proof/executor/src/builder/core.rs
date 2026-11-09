@@ -2,9 +2,9 @@
 //!
 //! The [`StatelessL2Builder`] provides a complete block building and execution engine
 //! for OP Stack L2 chains that operates in a stateless manner, pulling required state
-//! data from a [`TrieDB`] during execution rather than maintaining full state.
+//! data from a [`TrieDB`](crate::TrieDB) during execution rather than maintaining full state.
 
-use crate::{ExecutorError, ExecutorResult, TrieDB, TrieDBError, TrieDBProvider};
+use crate::{ExecutorError, ExecutorResult, TrieDBError, TrieDBProvider, db::BuilderTrieDB};
 use alloc::{string::ToString, vec::Vec};
 use alloy_consensus::{Header, Sealed, crypto::RecoveryError};
 use alloy_eips::Encodable2718;
@@ -34,12 +34,12 @@ use revm::{
 ///
 /// The [`StatelessL2Builder`] is a specialized block execution engine designed for fault proof
 /// systems and stateless verification. Instead of maintaining full L2 state, it dynamically
-/// retrieves required state data from a [`TrieDB`] backed by Merkle proofs and witnesses.
+/// retrieves required state data from a [`TrieDB`](crate::TrieDB) backed by Merkle proofs and witnesses.
 ///
 /// # Architecture
 ///
 /// The builder operates in a stateless manner by:
-/// 1. **Trie Database**: Uses [`TrieDB`] to access state via Merkle proofs
+/// 1. **Trie Database**: Uses [`TrieDB`](crate::TrieDB) to access state via Merkle proofs
 /// 2. **EVM Factory**: Creates execution environments with proof-backed state
 /// 3. **Block Executor**: Executes transactions using witness-provided state
 /// 4. **Receipt Generation**: Produces execution receipts and state commitments
@@ -94,10 +94,10 @@ where
     pub(crate) config: &'a RollupConfig,
     /// The trie database providing stateless access to L2 state via Merkle proofs.
     ///
-    /// The [`TrieDB`] serves as the primary interface for state access during
+    /// The [`TrieDB`](crate::TrieDB) serves as the primary interface for state access during
     /// execution, resolving account and storage queries using witness data
     /// and cryptographic proofs rather than a traditional state database.
-    pub(crate) trie_db: TrieDB<P, H>,
+    pub(crate) trie_db: BuilderTrieDB<P, H>,
     /// The block executor factory for creating OP Stack execution environments.
     ///
     /// This factory creates specialized OP Stack execution environments that
@@ -160,7 +160,7 @@ where
         hinter: H,
         parent_header: Sealed<Header>,
     ) -> Self {
-        let trie_db = TrieDB::new(parent_header, provider, hinter);
+        let trie_db = BuilderTrieDB::new(parent_header, provider, hinter);
         let factory = OpBlockExecutorFactory::new(receipt_builder, config.clone(), evm_factory);
         Self {
             config,
