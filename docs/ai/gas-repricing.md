@@ -13,7 +13,20 @@ you remove or move a listed case, update or remove its entry.
 ## How to use this list
 
 Each entry gives a file, the symbol, the chain whose gas schedule applies, and the risk. The
-entries use symbol names, not line numbers, because line numbers change often.
+entries use symbol names, not line numbers, because line numbers change often. All paths start
+at the repository root.
+
+The chain values are:
+
+- **L1:** an L1 repricing affects the entry.
+- **L2:** an L2 repricing affects the entry.
+- **Both:** a repricing on either chain affects the entry.
+
+The list can miss cases. Before you plan a repricing, also search the code:
+
+- Every contract try/catch in `packages/contracts-bedrock/src` has an `eip150-safe` or
+  `nosemgrep: sol-safety-trycatch-eip150` marker. Search for these markers.
+- Search for `gasleft()`, `gas()`, `WithGasLimit(`, `GasLimit:`, and `Gas:`.
 
 The kinds of risk are:
 
@@ -39,36 +52,40 @@ The sections are:
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
 | `SafeCall.hasMinGas`, `SafeCall.callWithMinGas` (`packages/contracts-bedrock/src/libraries/SafeCall.sol`) | Both | Copied schedule | The check assumes that the CALL overhead is at most 40000 gas and uses the 63/64 rule. If CALL or cold access costs more, the target gets less than the minimum gas. |
-| `CrossDomainMessenger.relayMessage` (`src/universal/CrossDomainMessenger.sol`) | Both | Fixed gas | The relay reserves `RELAY_RESERVED_GAS` (40000) after the call and `RELAY_GAS_CHECK_BUFFER` (5000) before the call. If the code after the call costs more, the whole relay reverts. The message is then not in `failedMessages`, so nobody can replay a message that a deposit relayed. |
-| `CrossDomainMessenger.baseGas` and its constants (`RELAY_*`, `MIN_GAS_*`, `TX_BASE_GAS`, `FLOOR_CALLDATA_OVERHEAD`, `ENCODING_OVERHEAD`) | Both | Copied schedule | The constants copy the intrinsic gas, the calldata price, and the EIP-7623 floor. A change to these makes the gas limit on the other chain too low. |
-| `OptimismPortal2.finalizeWithdrawalTransaction` (`src/L1/OptimismPortal2.sol`) | L1 | Fixed gas | A withdrawal runs one time with `callWithMinGas(_tx.gasLimit)`. If L1 costs increase, a withdrawal can fail, and the user cannot replay it. |
-| `OptimismPortal2.minimumGasLimit` | L2 | Limit bound | The minimum deposit gas is `bytes * 40 + 21000`, which copies the L2 calldata floor. Deposits that pass this check can fail on L2 after a repricing. |
-| `RECEIVE_DEFAULT_GAS_LIMIT` in `OptimismPortal2` (100000), `L2ToL1MessagePasser` (100000), and `StandardBridge` (200000) | Destination chain | Fixed gas | These are the gas limits for a plain ETH send when the user does not give one. They can become too low. |
-| `L1CrossDomainMessenger.EXPIRE_MESSAGE_GAS_LIMIT` (100000) and `SET_ETH_LIQUIDITY_PAUSED_GAS_LIMIT` (200000) | L2 | Fixed gas | These admin messages fail if their L2 handlers cost more than the limit. |
-| `FeeVault._WITHDRAWAL_MIN_GAS` (400000) (`src/L2/FeeVault.sol`) | L1 | Fixed gas | This is the L1 gas limit for fee vault withdrawals. |
+| `CrossDomainMessenger.relayMessage` (`packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol`) | Both | Fixed gas | The relay reserves `RELAY_RESERVED_GAS` (40000) after the call and `RELAY_GAS_CHECK_BUFFER` (5000) before the call. If the code after the call costs more, the whole relay reverts. The message is then not in `failedMessages`, so nobody can replay a message that a deposit relayed. |
+| `CrossDomainMessenger.baseGas` and its constants (`RELAY_*`, `MIN_GAS_*`, `TX_BASE_GAS`, `FLOOR_CALLDATA_OVERHEAD`, `ENCODING_OVERHEAD`) (`packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol`) | Both | Copied schedule | The constants copy the intrinsic gas, the calldata price, and the EIP-7623 floor. A change to these makes the gas limit on the other chain too low. |
+| `OptimismPortal2.finalizeWithdrawalTransaction` (`packages/contracts-bedrock/src/L1/OptimismPortal2.sol`) | L1 | Fixed gas | A withdrawal runs one time with `callWithMinGas(_tx.gasLimit)`. The portal sets `finalizedWithdrawals` before the call. If L1 costs increase, a withdrawal can fail, and the user cannot replay it. This includes a relay through `L1CrossDomainMessenger` that reverts because the code after the call costs more than `RELAY_RESERVED_GAS`. |
+| `OptimismPortal2.minimumGasLimit` (`packages/contracts-bedrock/src/L1/OptimismPortal2.sol`) | L2 | Limit bound | The minimum deposit gas is `bytes * 40 + 21000`, which copies the L2 calldata floor. Deposits that pass this check can fail on L2 after a repricing. |
+| `OptimismPortal2.RECEIVE_DEFAULT_GAS_LIMIT` (100000) (`packages/contracts-bedrock/src/L1/OptimismPortal2.sol`) | L2 | Fixed gas | This is the deposit gas limit for a plain ETH send to the portal. It can become too low. |
+| `L2ToL1MessagePasser.RECEIVE_DEFAULT_GAS_LIMIT` (100000) (`packages/contracts-bedrock/src/L2/L2ToL1MessagePasser.sol`) | L1 | Fixed gas | This is the withdrawal gas limit for a plain ETH send to the message passer. It can become too low. |
+| `StandardBridge.RECEIVE_DEFAULT_GAS_LIMIT` (200000) (`packages/contracts-bedrock/src/universal/StandardBridge.sol`) | Both | Fixed gas | This is the minimum gas limit of the message for a plain ETH send. The message runs on the other chain. It can become too low. |
+| `StandardBridge._isOptimismMintableERC20`, `StandardBridge._isCorrectTokenPair` (`packages/contracts-bedrock/src/universal/StandardBridge.sol`), and `L2ERC721Bridge._isOptimismMintableERC721` (`packages/contracts-bedrock/src/L2/L2ERC721Bridge.sol`) | Both | Fixed gas | OpenZeppelin `ERC165Checker` calls the token with 30000 gas and returns false if the call fails. More transaction gas does not help. An ERC-20 then uses the escrow branch, not the mint and burn branch. An ERC-721 finalization reverts. |
+| `L1CrossDomainMessenger.EXPIRE_MESSAGE_GAS_LIMIT` (100000) and `SET_ETH_LIQUIDITY_PAUSED_GAS_LIMIT` (200000) (`packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol`) | L2 | Fixed gas | These admin messages fail if their L2 handlers cost more than the limit. |
+| `FeeVault._WITHDRAWAL_MIN_GAS` (400000) (`packages/contracts-bedrock/src/L2/FeeVault.sol`) | L1 | Fixed gas | This is the L1 gas limit for fee vault withdrawals. |
 
 ### Contracts: introspection and other fixed gas
 
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
-| `CrossL2Inbox._isWarm` (`src/L2/CrossL2Inbox.sol`) | L2 | Introspection | It measures one `SLOAD` and compares the cost with `_WARM_READ_THRESHOLD` (1000). A change to warm or cold read prices gives the wrong result, and message validation breaks. |
-| `CrossL2Inbox` deposit check | L2 | Introspection | It finds deposits with `block.basefee > 0 && tx.gasprice == 0`. A change to fee rules can break this check. |
-| `Burn.gas` (`src/libraries/Burn.sol`) | L1 | Introspection | The loop checks `gasleft()`. Opcode prices set the step size and the overshoot. |
-| `WETH98.withdraw` (`src/universal/WETH98.sol`), also called by `DelayedWETH.withdraw` (`src/dispute/DelayedWETH.sol`) | Both | Fixed gas | `transfer` gives a 2300 gas stipend. On L1, `DelayedWETH` sends ETH to the dispute game this way. A receiver can fail if its opcodes cost more. |
-| `FaultDisputeGame.closeGame`, `SuperFaultDisputeGame.closeGame` | L1 | Introspection | The 63/64 rule applies to the `setAnchorState` call. The game catches and ignores an out-of-gas failure of this call. If the registry costs more, a caller can make the update fail on purpose. |
-| `Faucet.drip` (`src/periphery/faucet/Faucet.sol`) | Both | Fixed gas | It calls the recipient with a gas limit that the caller gives. |
+| `CrossL2Inbox._isWarm` (`packages/contracts-bedrock/src/L2/CrossL2Inbox.sol`) | L2 | Introspection | It measures one `SLOAD` and compares the cost with `_WARM_READ_THRESHOLD` (1000). A change to warm or cold read prices gives the wrong result, and message validation breaks. |
+| `CrossL2Inbox.validateMessage` deposit check (`packages/contracts-bedrock/src/L2/CrossL2Inbox.sol`) | L2 | Introspection | It finds deposits with `block.basefee > 0 && tx.gasprice == 0`. A change to fee rules can break this check. |
+| `Burn.gas` (`packages/contracts-bedrock/src/libraries/Burn.sol`) | L1 | Introspection | The loop checks `gasleft()`. Opcode prices set the step size and the overshoot. |
+| `ResourceMetering._metered` (`packages/contracts-bedrock/src/L1/ResourceMetering.sol`) | Both | Introspection | Every `OptimismPortal2.depositTransaction` runs through it. It converts the bought L2 gas to L1 gas, subtracts `_initialGas - gasleft()`, and burns the rest with `Burn.gas`. An L1 repricing changes the measured gas and the burn. It also enforces `maxResourceLimit` (20M, which the StandardValidator checks) for each L1 block. An L2 repricing changes how much work this limit buys. |
+| `WETH98.withdraw` (`packages/contracts-bedrock/src/universal/WETH98.sol`), also called by `DelayedWETH.withdraw` (`packages/contracts-bedrock/src/dispute/DelayedWETH.sol`) | Both | Fixed gas | `transfer` gives a 2300 gas stipend. On L1, `DelayedWETH` sends ETH to the dispute game this way. A receiver can fail if its opcodes cost more. |
+| `FaultDisputeGame.closeGame` (`packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol`), `SuperFaultDisputeGame.closeGame` (`packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol`), `ZKDisputeGame.closeGame` (`packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol`) | L1 | Introspection | The 63/64 rule applies to the `setAnchorState` call. The game catches and ignores an out-of-gas failure of this call. If the registry costs more, a caller can make the update fail on purpose. |
+| `Faucet.drip` (`packages/contracts-bedrock/src/periphery/faucet/Faucet.sol`) | Both | Fixed gas | It calls the recipient with a gas limit that the caller gives. |
 
 ### Contracts: limits and gas-scaled formulas
 
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
-| `SystemConfig` gas limit bounds (`MAX_GAS_LIMIT`, `minimumGasLimit`) (`src/L1/SystemConfig.sol`) | L2 | Limit bound | The maximum is 500M. The minimum is `maxResourceLimit + systemTxMaxGas`. A repricing changes how much work these limits allow. |
-| `GasPriceOracle` L1 fee functions (`src/L2/GasPriceOracle.sol`) | L1 | Copied schedule | The functions use 4 and 16 gas for each calldata byte, a 68-byte signature allowance, and `* 16` in the Ecotone and Fjord formulas. A change to L1 calldata pricing makes them disagree with the real L1 cost. They must also match the client formulas in `op-core/fees` and `op-revm`. |
-| `GasPriceOracle.getOperatorFee` | L2 | Gas-scaled formula | The operator fee scales with gas used. |
-| `DataAvailabilityChallenge` resolution cost (`fixedResolutionCost`, `variableResolutionCost`) | L1 | Copied schedule | The values come from measured gas. They set the refund and the burn of bonds. |
-| `FaultDisputeGame.getRequiredBond`, `SuperFaultDisputeGame.getRequiredBond` | L1 | Copied schedule | The bond uses an assumed base fee of 200 gwei and gas values of 400k and 300M. If move or step costs change, the bonds do not cover the cost to respond. |
-| `PreimageOracle.MIN_BOND_SIZE` and `addLeavesLPP` (`src/cannon/PreimageOracle.sol`) | L1 | Copied schedule | The bond must cover the cost of a challenge. A change to calldata, memory, or LOG costs changes the cost of large preimages against the bond. |
-| `PreimageOracle.loadPrecompilePreimagePart` | L1 | Introspection | It requires `gas * 63 >= requiredGas * 64 + 100000 * 63`, and `requiredGas` is part of the preimage key. A precompile repricing on L1 can make the oracle and the fault proof program disagree. |
+| `SystemConfig` gas limit bounds (`MAX_GAS_LIMIT`, `minimumGasLimit`) (`packages/contracts-bedrock/src/L1/SystemConfig.sol`) | L2 | Limit bound | The maximum is 500M. The minimum is `maxResourceLimit + systemTxMaxGas`. A repricing changes how much work these limits allow. |
+| `GasPriceOracle` L1 fee functions (`packages/contracts-bedrock/src/L2/GasPriceOracle.sol`) | L1 | Copied schedule | The functions use 4 and 16 gas for each calldata byte, a 68-byte signature allowance, and `* 16` in the Ecotone and Fjord formulas. A change to L1 calldata pricing makes them disagree with the real L1 cost. They must also match the client formulas in `op-core/fees` and `op-revm`. |
+| `GasPriceOracle.getOperatorFee` (`packages/contracts-bedrock/src/L2/GasPriceOracle.sol`) | L2 | Gas-scaled formula | The operator fee scales with gas used. |
+| `DataAvailabilityChallenge` resolution cost (`fixedResolutionCost`, `variableResolutionCost`) (`packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol`) | L1 | Copied schedule | The values come from measured gas. They set the refund and the burn of bonds. |
+| `FaultDisputeGame.getRequiredBond`, `SuperFaultDisputeGame.getRequiredBond` (`packages/contracts-bedrock/src/dispute/`) | L1 | Copied schedule | The bond uses an assumed base fee of 200 gwei and gas values of 400k and 300M. If move or step costs change, the bonds do not cover the cost to respond. |
+| `PreimageOracle.MIN_BOND_SIZE` and `addLeavesLPP` (`packages/contracts-bedrock/src/cannon/PreimageOracle.sol`) | L1 | Copied schedule | The bond must cover the cost of a challenge. A change to calldata, memory, or LOG costs changes the cost of large preimages against the bond. |
+| `PreimageOracle.loadPrecompilePreimagePart` (`packages/contracts-bedrock/src/cannon/PreimageOracle.sol`) | L1 | Introspection | It requires `gas * 63 >= requiredGas * 64 + 100000 * 63`, and `requiredGas` is part of the preimage key. It then forwards all remaining gas to the precompile, so the call can succeed above `requiredGas`. A precompile repricing on L1 can make the oracle and the fault proof program disagree. |
 
 ### op-node and kona: deposits and the block gas limit
 
@@ -79,8 +96,8 @@ op-node and kona must agree on each item in this section.
 | `RegolithSystemTxGas` (`op-node/rollup/derive/l1_block_info.go`) and the gas of the L1 info deposit (`rust/kona/crates/protocol/protocol/src/info/variant.rs`) | L2 | Fixed gas | The L1 info deposit has 1,000,000 gas. If `L1Block` storage writes cost more, the deposit can fail in every block. |
 | Gas limits of the Ecotone, Fjord, Isthmus, and Jovian upgrade deposits (`op-node/rollup/derive/*_upgrade_transactions.go`, `rust/kona/crates/protocol/hardforks/src/`) | L2 | Fixed gas | These forks are active, so a future repricing does not change them. A new fork that copies this pattern must measure its limits under the new costs. |
 | Gas limits in the NUT bundles (`op-core/nuts/bundles/*_nut_bundle.json`), read by `op-node/rollup/derive/upgrade_transaction.go`, `rust/kona/crates/protocol/hardforks/build.rs`, and `rust/op-alloy/crates/consensus/src/nuts/` | L2 | Fixed gas | Each upgrade deployment has a fixed gas limit. If CREATE, code deposit, SSTORE, or calldata costs increase in the same fork, a deployment can fail in the activation block. |
-| Lagoon activation deposits (`op-node/rollup/derive/lagoon_activation_transactions.go`, `rust/kona/crates/protocol/hardforks/src/lagoon.rs`) | L2 | Fixed gas | `setFeature` has 100000 gas and the liquidity funding has 50000 gas. |
-| Gas limit of the upgrade block (`op-node/rollup/derive/attributes.go`, `rust/kona/crates/protocol/derive/src/attributes/stateful.rs`) | L2 | Limit bound | The activation block gas limit is the system config gas limit plus the bundle gas total. The bundle limits therefore also set the block size. |
+| Lagoon activation deposits (`op-node/rollup/derive/lagoon_activation_transactions.go`, `rust/kona/crates/protocol/hardforks/src/lagoon.rs`) | L2 | Fixed gas | `setFeature` has 100000 gas and the liquidity funding has 50000 gas. The Lagoon upgrade gas always includes this wrapper gas, also when the interop contracts are not activated. A change to these limits changes the activation block gas and the upgrade gas removal. |
+| Gas limit of the upgrade block (`op-node/rollup/derive/attributes.go`, `op-node/rollup/derive/upgrade_transaction.go`, `rust/kona/crates/protocol/derive/src/attributes/stateful.rs`) | L2 | Limit bound | The activation block gas limit is the system config gas limit plus the bundle gas total. The bundle limits therefore also set the block size. |
 | Upgrade gas removal (`op-node/rollup/derive/payload_util.go`, `rust/kona/crates/protocol/protocol/src/utils.rs`) | L2 | Limit bound | The node subtracts the upgrade gas to rebuild the system config from an L2 block. If the bundle gas changes after activation, the rebuild gives a wrong value. |
 | `L2ContractsManager` and `L2ContractsManagerUtils` try/catch reads (`packages/contracts-bedrock/src/L2/`, `packages/contracts-bedrock/src/libraries/`) | L2 | Introspection | These run in upgrade deposits with a fixed gas limit. An out-of-gas failure in the try call makes the catch use a default value. |
 
@@ -89,8 +106,9 @@ op-node and kona must agree on each item in this section.
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
 | OP fork to L1 fork mapping (`rust/op-revm/src/spec.rs`, `rust/alloy-op-hardforks/src/lib.rs`, `rust/alloy-op-evm/src/env.rs`) | L2 | Copied schedule | Each OP fork takes the gas schedule of its mapped L1 fork. An L1 repricing reaches L2 only through this mapping. |
+| Go OP fork to L1 fork mapping (`ChainConfig.GethChainConfig` in `op-core/params/geth.go`, `checkEthereumSchedule` in `op-core/params/chain_config_json.go`) | L2 | Copied schedule | The Go code has its own copy of the mapping. The chain config JSON contains it, and `op-core/genesis`, op-e2e, op-devstack, and op-wheel use it. It must change together with the Rust mapping, or generated genesis and chain configs keep the old gas schedule. |
 | Precompile sets and input limits (`rust/op-revm/src/precompiles.rs`) | Both | Limit bound | The bn254 and BLS12-381 input limits exist so that L1 can prove a maximum-size input through `PreimageOracle`. A change to L1 calldata or precompile prices can make a maximum-size input too expensive to prove. The pairing variants also hard-code the Istanbul pairing gas. |
-| Deposit validation in `rust/op-revm/src/handler.rs` | L2 | Limit bound | Deposits get the intrinsic gas and EIP-7623 floor checks. Deposits do not get the EIP-7825 transaction gas cap. A failed deposit uses all its gas limit. |
+| Deposit validation in `rust/op-revm/src/handler.rs` | L2 | Limit bound | Deposits get the intrinsic gas and EIP-7623 floor checks. The EIP-7825 transaction gas cap does not apply to the deposit gas limit. When EIP-8037 is enabled, revm still checks the intrinsic gas and the floor gas against the cap. A deposit above the cap then fails. A failed deposit uses all its gas limit. |
 | State gas refund in `rust/op-revm/src/handler.rs` | L2 | Copied schedule | The handler refunds the EIP-2780 and EIP-8037 state gas on the first frame. New state gas prices change this refund. |
 | L1 fee formulas (`rust/op-revm/src/l1block.rs`, `rust/op-revm/src/constants.rs`) | L1 | Copied schedule | `NON_ZERO_BYTE_COST` is 16. The Ecotone and Fjord fees use 16 gas for each L1 calldata byte and ignore the L1 calldata floor. |
 | Operator fee (`rust/op-revm/src/l1block.rs`) | L2 | Gas-scaled formula | The operator fee and its refund scale with gas used. |
@@ -106,10 +124,11 @@ op-node and kona must agree on each item in this section.
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
 | Accelerated precompiles (`rust/kona/bin/client/src/fpvm_evm/precompiles/`) | Both | Copied schedule | Some L2 charges are local constants, for example ECRECOVER 3000 and KZG point evaluation 50000. The L1 oracle gas values are also fixed. Examples are KZG 89363, bn254 pairing 34103 for each pair, and BLS12-381 G1 and G2 add 643 and 765. A repricing on either chain causes a mismatch. |
-| BLS12-381 MSM, pairing, and map precompiles in the same directory | L1 | Copied schedule | The L1 oracle gas is the L2 required gas. If L1 costs more, the L1 staticcall fails. |
+| BLS12-381 MSM, pairing, and map precompiles in the same directory | L1 | Copied schedule | The L1 oracle gas is the L2 required gas. `PreimageOracle` forwards all remaining gas, so the L1 call can succeed when L1 costs more. The host runs with exactly the required gas and returns a failure. The trace and the oracle then disagree. |
 | Precompile input limits in the same directory | L2 | Limit bound | The limits copy `rust/op-revm/src/precompiles.rs`. Both places must change together. |
 | Precompile set selection (`rust/kona/bin/client/src/fpvm_evm/precompiles/provider.rs`) | L2 | Copied schedule | A new L2 precompile price needs a new accelerated variant here. |
 | Host precompile execution (`rust/kona/bin/host/src/eth/precompiles.rs`) | L1 | Fixed gas | The host runs the precompile with the gas that the client gives. If that gas is too low, the host returns a failure. |
+| `ACCELERATED_PRECOMPILES` (`rust/kona/bin/host/src/eth/precompiles.rs`) | L1 | Copied schedule | The host uses the revm mainnet precompiles, not the live L1 prices. Examples are `bn254::pair::ISTANBUL` and `POINT_EVALUATION`. Some client precompiles send fixed oracle gas, for example KZG, bn254 pairing, and BLS12-381 G1 and G2 add. If a revm upgrade changes these prices, the host returns a failure and the L1 `PreimageOracle` can return success. The pinned precompiles must change together with the L1 fork. |
 | `requiredGas` in the precompile preimage upload (`op-challenger/game/fault/contracts/oracle.go`) | L1 | Fixed gas | The value comes from the oracle data. An L1 precompile repricing can make it differ from the real cost. |
 | `MaxBlocksPerChunk` (300) (`op-challenger/game/fault/preimages/large.go`) | L1 | Limit bound | Each large preimage chunk is about 40 KB. Higher calldata or memory costs, or the EIP-7825 cap, can make one chunk transaction too large. |
 | Receipt gas bound (`rust/kona/sp1/crates/proposer/src/log_proofs/scan.rs`) | L2 | Copied schedule | The proposer multiplies receipt gas by 5/4. This assumes that refunds are at most 1/5 of gas used. |
@@ -128,7 +147,7 @@ op-node and kona must agree on each item in this section.
 
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
-| `txmgr` gas estimation (`op-service/txmgr/txmgr.go`) | Both | Fixed gas | A candidate with a gas limit gets no estimation. A gas bump estimates again but never lowers the limit. op-challenger, op-proposer, op-dispute-mon, op-conductor, and op-supernode use estimation and set no fixed gas. |
+| `txmgr` gas estimation (`op-service/txmgr/txmgr.go`) | Both | Fixed gas | A candidate with a gas limit gets no estimation. A gas bump estimates again but never lowers the limit. op-challenger, op-proposer, op-dripper (`op-dripper/dripper/driver.go`), and op-faucet (`op-faucet/faucet/backend/faucet.go`) use estimation and set no fixed gas. |
 | Blob base fee (`op-service/eth/block_info.go`) | L1 | Copied schedule | The fee uses `eip4844.CalcBlobFee` and the chain config. An old blob schedule gives a wrong fee. |
 | L1 cost formulas (`op-core/fees/fees.go`) | L1 | Copied schedule | The formulas use 4 and 16 gas for each calldata byte and ignore the L1 calldata floor. They must match `op-revm` and `GasPriceOracle`. |
 | Operator fee and DA footprint (`op-core/fees/fees.go`, `op-core/fees/dafootprint.go`) | L2 | Gas-scaled formula | The operator fee scales with gas used. The DA footprint competes with the block gas limit. |
@@ -139,15 +158,15 @@ op-node and kona must agree on each item in this section.
 
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
-| `deployGasLimit` for each predeploy (`src/libraries/Predeploys.sol`) | L2 | Fixed gas | These limits go into the NUT bundles. If deployment costs increase, the upgrade deposits can run out of gas. |
-| `OPContractsManagerUtils` try/catch reads (`src/L1/opcm/OPContractsManagerUtils.sol`) | L1 | Introspection | An out-of-gas failure in the try call makes the catch use a default value. |
-| `OPContractsManagerStandardValidator` checks (`src/L1/OPContractsManagerStandardValidator.sol`) | L1 | Limit bound | It requires `gasLimit <= 500M` and `systemTxMaxGas == 1_000_000`. |
-| `Constants.DEFAULT_RESOURCE_CONFIG` (`src/libraries/Constants.sol`) | L2 | Fixed gas | `systemTxMaxGas` is 1,000,000. The L1Block system transaction must fit in this gas. |
-| `GenerateNUTBundle` limits (`scripts/upgrade/GenerateNUTBundle.s.sol`) | L2 | Limit bound | Each gas limit must be between the EIP-7623 floor and the 2^24 cap. |
-| `UpgradeUtils` gas values (`scripts/libraries/UpgradeUtils.sol`) | L2 | Copied schedule | It has fixed limits of 8.9M and 4M. It also computes intrinsic gas and the floor with copies of the geth formulas and a 1.5x margin. |
-| `ExecuteNUTBundle` (`scripts/upgrade/ExecuteNUTBundle.s.sol`) | L2 | Copied schedule | It calls with `gasLimit - intrinsicGas` and adds EIP-8037 state gas. The intrinsic gas formula must match the client. |
-| `DeployUtils` (`scripts/libraries/DeployUtils.sol`) | Both | Introspection | It requires `gasleft() > 200_000` before a try/catch call. |
-| `DeployConfig` defaults (`scripts/deploy/DeployConfig.s.sol`) | L2 | Fixed gas | The default genesis gas limit is 25M. |
+| `deployGasLimit` for each predeploy (`packages/contracts-bedrock/src/libraries/Predeploys.sol`) | L2 | Fixed gas | These limits go into the NUT bundles. If deployment costs increase, the upgrade deposits can run out of gas. |
+| `OPContractsManagerUtils` try/catch reads (`packages/contracts-bedrock/src/L1/opcm/OPContractsManagerUtils.sol`) | L1 | Introspection | An out-of-gas failure in the try call makes the catch use a default value. |
+| `OPContractsManagerStandardValidator` checks (`packages/contracts-bedrock/src/L1/OPContractsManagerStandardValidator.sol`) | L1 | Limit bound | It requires `gasLimit <= 500M` and `systemTxMaxGas == 1_000_000`. |
+| `Constants.DEFAULT_RESOURCE_CONFIG` (`packages/contracts-bedrock/src/libraries/Constants.sol`) | L2 | Fixed gas | `systemTxMaxGas` is 1,000,000. The L1Block system transaction must fit in this gas. |
+| `GenerateNUTBundle` limits (`packages/contracts-bedrock/scripts/upgrade/GenerateNUTBundle.s.sol`) | L2 | Limit bound | Each gas limit must be between the EIP-7623 floor and the 2^24 cap. |
+| `UpgradeUtils` gas values (`packages/contracts-bedrock/scripts/libraries/UpgradeUtils.sol`) | L2 | Copied schedule | It has fixed limits of 8.9M and 4M. It also computes intrinsic gas and the floor with copies of the geth formulas and a 1.5x margin. |
+| `ExecuteNUTBundle` (`packages/contracts-bedrock/scripts/upgrade/ExecuteNUTBundle.s.sol`) | L2 | Copied schedule | It calls with `gasLimit - intrinsicGas` and adds EIP-8037 state gas. The intrinsic gas formula must match the client. |
+| `DeployUtils` (`packages/contracts-bedrock/scripts/libraries/DeployUtils.sol`) | Both | Introspection | It requires `gasleft() > 200_000` before a try/catch call. |
+| `DeployConfig` defaults (`packages/contracts-bedrock/scripts/deploy/DeployConfig.s.sol`) | L2 | Fixed gas | The default genesis gas limit is 25M. |
 
 ### op-deployer and op-chain-ops
 
@@ -157,16 +176,16 @@ op-node and kona must agree on each item in this section.
 | Standard gas limit (60M) (`op-deployer/pkg/deployer/standard/standard.go`) | L2 | Limit bound | Standard chains must use this value. |
 | Genesis gas limit check (`op-chain-ops/genesis/config.go`) | L2 | Limit bound | The genesis gas limit must be at least `MaxResourceLimit` plus `SystemTxMaxGas`. |
 | Default gas limits of genesis blocks (`op-chain-ops/genesis/genesis.go`, `op-chain-ops/interopgen/recipe.go`) | Both | Fixed gas | The defaults are 30M and 60M. |
-| Script host gas (`op-chain-ops/script/`, `op-deployer/pkg/deployer/opcm/standard_validator.go`) | In-process EVM | Fixed gas | Script calls use `int64.max` gas. A repricing changes the reported gas used only. |
+| Script host gas (`op-chain-ops/script/`, `op-deployer/pkg/deployer/opcm/standard_validator.go`) | Both | Fixed gas | Script calls run in an in-process EVM with `int64.max` gas. A repricing changes the reported gas used only. |
 | `check-karst` probes (`op-chain-ops/cmd/check-karst/karsttest/checks.go`) | Both | Fixed gas | The probes use exact gas budgets around precompile costs. Some assume 21000 intrinsic gas. |
-| `check-lagoon` checks (`op-chain-ops/cmd/check-lagoon/`) | L2 | Fixed gas | The relay check uses 300000 gas. The SDM check uses 21000 and 2,000,000 gas. |
+| `check-lagoon` checks (`op-chain-ops/cmd/check-lagoon/`) | L2 | Fixed gas | The relay check uses 300000 gas. The SDM check (`op-chain-ops/cmd/check-lagoon/sdmcheck/check.go`) uses 21000 gas, 1,000,000 gas for workload transactions, and 2,000,000 gas for deployment. The workload transactions write many storage slots, so an SSTORE or state gas repricing affects them most. |
 | `check-jovian` and SDM conformance (`op-chain-ops/cmd/check-jovian/main.go`, `op-chain-ops/pkg/sdm/conformance.go`) | L2 | Introspection | They assert exact gas used and DA footprint totals. |
-| SDM workload sender (`op-chain-ops/pkg/sdm/workload.go`, `op-chain-ops/cmd/sdm-workload/main.go`) | Both | Fixed gas | The sender uses the caller's gas and does not estimate. The command uses fixed 21000, 200000, and 2,000,000 gas. |
+| SDM workload sender (`op-chain-ops/pkg/sdm/workload.go`, `op-chain-ops/cmd/sdm-workload/main.go`) | Both | Fixed gas | The sender uses the caller's gas and does not estimate. The command uses a fixed 21000 gas for the L2 deposit. The flag defaults are 1,000,000 gas for workload transactions, 2,000,000 gas for deployment, and 200000 gas for funding. |
 
 ### op-service transaction tools
 
-`op-deployer`, the `op-chain-ops` check tools, and the test frameworks use these packages. No
-live service uses them.
+No live service uses these packages. `op-deployer`, the `op-chain-ops` check tools, and the
+test frameworks use `txplan`. Only op-acceptance-tests and op-devstack use `txinclude`.
 
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
@@ -177,7 +196,12 @@ live service uses them.
 ## Test and dev code
 
 Many tests use a fixed gas limit or expect an exact gas result. A repricing makes these tests
-fail. Search for them when you implement a repricing.
+fail. The lists below are examples and are not complete. When you implement a repricing,
+search for these patterns:
+
+- Go: `params.TxGas`, `21_?000`, `WithGasLimit(`, `Gas: `
+- Solidity: `vm.lastFrameGas`, `assertEq(.*gas`, `21_?000`
+- Rust: `gas_used, 21_000`, `21_?000`
 
 ### Contracts (`packages/contracts-bedrock/test`)
 
