@@ -5,6 +5,7 @@ members = [
   "super-range",
   "super-aggregation",
   "tests/bls12-381-check",
+  "tests/hashdos-check",
 ]
 resolver = "2"
 

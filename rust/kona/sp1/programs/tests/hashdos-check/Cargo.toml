@@ -1,0 +1,21 @@
+[package]
+name = "kona-sp1-hashdos-check-guest"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Feature anchor only: revm's maps hash with foldhash, as in the super-range guest.
+alloy-primitives = { workspace = true, features = ["map-foldhash"] }
+foldhash.workspace = true
+kona-sp1-build-info.workspace = true
+op-revm = { path = "../../../../../op-revm", default-features = false }
+revm.workspace = true
+sp1-zkvm.workspace = true
+
+[lints]
+workspace = true

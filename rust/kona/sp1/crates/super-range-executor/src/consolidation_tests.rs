@@ -920,6 +920,22 @@ async fn elf_matches_native_without_entries() {
     assert_eq!(execute_consolidation(&dir, stdin, true).await.0, native);
 }
 
+/// Spot-checks that consolidation outputs do not depend on the prover-chosen hash seed. This
+/// covers one fixture only; the invariant itself is upheld by review (see the README's guest hash
+/// seeding section).
+#[tokio::test(flavor = "multi_thread")]
+async fn elf_outputs_do_not_depend_on_hash_seed() {
+    let Some(dir) = elf_dir() else { return };
+    let fixture = small_fixture();
+    let native =
+        fixture.run_native(fixture.full_witness(), LogCommitmentInputs::default(), |_, _| {});
+    for seed in [1u64, 2] {
+        let mut stdin = fixture.stdin(fixture.full_witness(), &LogCommitmentInputs::default());
+        stdin.buffer[0] = seed.to_le_bytes().to_vec();
+        assert_eq!(execute_consolidation(&dir, stdin, true).await.0, native, "seed {seed}");
+    }
+}
+
 /// Pins the ELF's outputs through entries from the log-commitment ELF to the native outputs.
 #[tokio::test(flavor = "multi_thread")]
 async fn elf_matches_native_with_entries() {

@@ -27,6 +27,8 @@ zkVM programs that execute inside the SP1 prover:
   contiguous run of its chains, in chain-ID order.
 - **`tests/bls12-381-check`** (test-only): Differential check of `CustomCrypto`'s EIP-2537
   operations against revm's arkworks backend inside the zkVM; not part of `build-elfs`.
+- **`tests/hashdos-check`** (test-only): TSTORE HashDoS regression check of the guest hash seed
+  inside the zkVM (`just check-hashdos-zkvm`); not part of `build-elfs`.
 
 ### Crates (`crates/`)
 
@@ -244,6 +246,29 @@ backend for EIP-196/197 bn128 precompiles. The EIP-2537 BLS12-381 precompiles ru
 through `CustomCrypto` on `sp1_bls12_381`, which uses SP1's BLS12-381 field, G1 point, and
 bigint syscalls. `just check-bls12-381-zkvm` (scheduled in CI) checks them inside the zkVM
 against revm's arkworks backend and prints per-operation cycle counts.
+
+## Guest hash seeding (HashDoS)
+
+The guest workspace also patches `foldhash` to `programs/foldhash-seeded`. Inside the zkVM a
+hasher's seed is otherwise a constant of the ELF, so attacker-chosen keys could be made to collide,
+and the quadratic cost of hash-map operations on colliding keys would make a block unprovable. The
+host draws a fresh `u64` seed for every super-range and log-commitment proof and writes it as
+stdin item 0, and those guests install it before creating any hash map; creating one earlier
+panics. `super-aggregation` and `tests/bls12-381-check` build no hash map and install no seed, so a
+hash map added there panics until the guest installs a seed first in `main` and its host writes
+`guest_hash_seed()` as the first stdin item.
+
+The prover chooses the seed, so **no committed output, error class or control-flow decision of any
+guest may depend on hash-map iteration order or hash values**, including through data built by
+iterating a map. Sort before such a use, or use an ordered collection. A witness read that depends
+on them can make an honest proof fail, because the host collects the witness under another seed.
+A hash map on a guest path must not be std's `HashMap`/`HashSet` unless its keys are trusted and
+bounded: its SipHash keys come from SP1's fixed `sys_rand` seed, which is not seeded by the prover.
+
+`just check-sp1-guest-hashers` (part of `just lint-sp1-guest`) fails if a guest links an
+unseeded foldhash or a listed hasher crate, or builds alloy-primitives without `map-foldhash`
+(which `rust/Cargo.toml` enables for every in-tree crate). `just check-hashdos-zkvm` (scheduled in
+CI as `sp1-hashdos-zkvm-check`) checks inside the zkVM that the seed reaches revm's maps.
 
 ## Usage
 
