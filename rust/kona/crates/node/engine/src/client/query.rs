@@ -47,7 +47,7 @@ impl EngineQueryClient {
     ) -> Result<Option<(L2BlockInfo, OutputRoot)>, EngineClientError> {
         trace!(?recorded_head, "Reading output of the recorded head");
         let Some(output) = self.output_at_id(BlockId::hash(recorded_head.hash)).await? else {
-            debug!(?recorded_head, "EL does not have the recorded head");
+            warn!(?recorded_head, "EL does not have the recorded head");
             return Ok(None);
         };
         trace!(?recorded_head, "Read output of the recorded head");
@@ -64,7 +64,10 @@ impl EngineQueryClient {
 
     /// A block below the recorded head is read by number, between two checks that the recorded
     /// head is canonical. Unlike a walk of parent hashes, those checks cannot tell a chain that
-    /// switched away and back between them from one that never switched.
+    /// switched away and back between them from one that never switched. While the local-safe
+    /// head at or above `recorded_head` stays the same, such a switch would need the rollup node
+    /// to rewind and re-derive every block back up to it within this one read, so in practice it
+    /// does not happen.
     async fn output_below_recorded_head(
         &self,
         block_number: u64,
@@ -75,7 +78,11 @@ impl EngineQueryClient {
         }
         trace!(block_number, "Reading output of the canonical block at this height");
         let Some(output) = self.output_at_id(BlockId::number(block_number)).await? else {
-            debug!(block_number, ?recorded_head, "EL has no canonical block at this height");
+            warn!(
+                block_number,
+                ?recorded_head,
+                "EL has no block at this height below the canonical recorded head"
+            );
             return Ok(None);
         };
         trace!(block = ?output.0.block_info.id(), "Read output of the canonical block");

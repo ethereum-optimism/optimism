@@ -170,3 +170,20 @@ async fn a_record_canonical_at_the_end_of_the_query_returns_the_recorded_chain_o
     );
     assert_eq!(response.data.unwrap().verified_required_l1, l1_block(110).id());
 }
+
+/// A known limit: a target below its record is read by number, so an EL that switches away and
+/// back around that read returns the replacement block's output when neither the local-safe
+/// head nor the record changes, as here.
+#[tokio::test]
+async fn a_switch_away_and_back_below_the_record_returns_the_replacement_output() {
+    let fixture = fixture(LOCAL_SAFE, Mutation::SwitchAwayAndBackAroundTargetRead).await;
+
+    let response =
+        fixture.rpc.superroot_at_timestamp(U64::from(timestamp_of(TARGET))).await.unwrap();
+
+    let replacement = chain(LOCAL_SAFE + 2, TARGET);
+    assert_eq!(
+        response.optimistic_at_timestamp[&DecimalChainId(CHAIN_ID)].output_root,
+        output_root(&replacement[&TARGET])
+    );
+}

@@ -118,7 +118,11 @@ impl SuperRootRpc {
                 let within_safe_head = block.block_info.number <
                     sync.local_safe_head().block_info.number ||
                     block.block_info.id() == sync.local_safe_head().block_info.id();
-                if history_unchanged && safe_head_unchanged && within_safe_head {
+                if history_unchanged &&
+                    safe_head_unchanged &&
+                    within_safe_head &&
+                    block.block_info.number == block_number
+                {
                     return Ok(Some((output, record.l1, current_sync)));
                 }
             }
