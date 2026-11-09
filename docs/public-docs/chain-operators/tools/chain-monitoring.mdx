@@ -4,16 +4,20 @@ description: Learn about onchain and offchain monitoring options for your OP Sta
 diataxis: explanation
 ---
 
+import OpEnterpriseFeature from '/snippets/op-enterprise-feature.mdx';
+
 This explainer covers the basics of onchain and offchain monitoring options for your OP Stack chain. Onchain monitoring services allow chain operators to monitor the overall system and onchain events.
 Offchain monitoring lets chain operators to monitor the operation and behavior of nodes and other offchain components.
 
 ## Onchain monitoring services
 
-Onchain monitoring services provide insights into the overall system, helping chain operators track and monitor on-chain events. Some examples of onchain monitoring services include `monitorism` and `dispute-mon`.
+Onchain monitoring services provide insights into the overall system, helping chain operators track and monitor onchain events. `dispute-mon` is the open source onchain monitor in the OP Stack. `monitorism`, OP Labs' suite of onchain security monitors, is available to OP Enterprise customers.
 
 ### `monitorism`
 
-Monitorism is a tooling suite that supports monitoring and active remediation actions for the OP Stack chain. Monitorism uses monitors as passive security providing automated monitoring for the OP Stack. They are used to monitor the OP stack and alert on specific events that could be a sign of a security incident.
+<OpEnterpriseFeature />
+
+Monitorism is OP Labs' suite of onchain security monitors. It monitors the OP Stack and alerts on specific events that could be a sign of a security incident.
 
 Currently, the list of monitors includes:
 
@@ -34,11 +38,13 @@ Security monitors: Those tools monitor other aspects of several contracts used i
 *   Drippie Monitor: tracks the execution and executability of drips within a Drippie contract.
 *   Secrets Monitor: takes a Drippie contract as a parameter and monitors for any drips within that contract that use the `CheckSecrets` dripcheck contract. `CheckSecrets` is a dripcheck that allows a drip to begin once a specific secret has been revealed (after a delay period) and cancels the drip if a second secret is revealed. Monitoring these secrets is important, as their revelation may indicate that the secret storage platform has been compromised and someone is attempting to exfiltrate the ETH controlled by the drip.
 
-For more information on these monitors and how to use them, [check out the repo](https://github.com/ethereum-optimism/monitorism?tab=readme-ov-file#monitorism).
+If you operate a chain without OP Enterprise, run [`dispute-mon`](#dispute-mon) and build or source your own monitors. Use the conditions above as a starting point, not a complete list: what your chain needs to monitor depends on its configuration and changes as the protocol evolves.
 
 ### `dispute-mon`
 
-Chain operators should consider running `op-dispute-mon`. It's an essential security monitoring service that tracks game statuses, providing visibility over the last 28 days.
+Every chain operator must run `op-dispute-mon`. It's an essential security monitoring service that tracks game statuses, providing visibility over the last 28 days.
+
+`dispute-mon` watches the proof system: it compares each game's root claim with the output roots from your trusted rollup nodes, and reports games that are forecast to resolve, or have resolved, incorrectly. It does not check whether a proven withdrawal was actually initiated on L2. If a withdrawal is proven against a game whose root is valid, for example through a bug in proof verification, `dispute-mon` does not alert. Cover that case with [`monitorism`](#monitorism) or your own monitor that checks every withdrawal proven to the `OptimismPortal` contract against the `L2ToL1MessagePasser` contract on L2.
 
 `dispute-mon` is set up and built the same way as `op-challenger`. This means that you can run it the same way (run `make op-dispute-mon` in the directory).
 

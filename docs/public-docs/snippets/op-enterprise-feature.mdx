@@ -1,0 +1,42 @@
+{/*
+  Standing "Available with OP Enterprise" marker: the shared availability line
+  for a feature, tool, or section that only OP Enterprise customers get.
+  It states a fact, not a pitch. It is not the steering callout
+  (op-enterprise-callout.mdx), which belongs at chain-operator decision
+  moments and never in reference content.
+
+  Usage:
+    import OpEnterpriseFeature from "/snippets/op-enterprise-feature.mdx"
+
+    ### `gated-feature`
+
+    <OpEnterpriseFeature />
+
+  Consumers:
+    - chain-operators/tools/chain-monitoring.mdx (under the `monitorism` heading)
+
+  Placement rules: directly under the heading of the gated section, or at the
+  top of a page that is gated as a whole, so a reader arriving from a deep
+  link sees it before the body. One marker per gated section. Mark only what
+  is gated; a page that mixes open and gated content marks the gated
+  sections, not the page.
+
+  Copy rules: keep this exact wording on every page; change it here, not at
+  the call site. No product digits (uptime, response times, support hours,
+  tier names, prices). The surrounding page describes what the feature does
+  and why; setup steps and internals stay in customer documentation. Give
+  open source readers their alternative in the page body. Link to the same
+  UTM-tagged OP Enterprise URL as the other OP Enterprise snippets.
+
+  Design rules: a quiet metadata line, not a callout. Gray chip at sm size
+  with no icon, so it is not mistaken for an Info note (blue), an error (red),
+  or the soft card's CTA (building icon). The only brand color is the small
+  square Optimism Red marker drawn by styles/op-enterprise.css, which also
+  raises the chip's dark-mode text contrast to WCAG AA. Keep the badge out
+  of the heading itself: badge text can change the heading's anchor.
+*/}
+
+<div className="op-ent-marker">
+  <Badge color="gray" size="sm" className="op-ent-badge">OP Enterprise</Badge>
+  <span>Available to <a href="https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise">OP Enterprise</a> customers.</span>
+</div>
