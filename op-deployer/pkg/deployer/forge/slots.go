@@ -10,15 +10,16 @@ import (
 	"time"
 )
 
-// slotPool limits forge runs host-wide: a script loads every artifact, about 1.3 GB for
-// contracts-bedrock. A slot is a file lock, freed by the system when its holder exits.
+// slotPool limits forge runs host-wide: at the start of a run, forge parses every artifact of the
+// script's build, which takes much memory and CPU. A slot is a file lock, freed by the system when
+// its holder exits.
 type slotPool struct {
 	// dir holds the slots. Empty means slotDir.
 	dir  string
 	size int
 }
 
-// runSlots allows one forge run per two CPUs, within the memory limit of the process's container.
+// runSlots allows as many forge runs as the memory of the process holds.
 var runSlots = &slotPool{
 	size: slotCount(runtime.GOMAXPROCS(0), memoryLimit()),
 }
@@ -36,17 +37,20 @@ func slotDir() string {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("op-deployer-forge-slots-%d", os.Getuid()))
 }
 
-// forgeRunMemory is about the memory that a forge run on contracts-bedrock takes.
+// forgeRunMemory is about the peak memory of a forge run on a contracts bundle whose artifacts have
+// an AST. The artifacts package packs the bundles of built projects without it, and a run then takes
+// a quarter of this or less; sizing for the AST keeps a run safe on any bundle.
 const forgeRunMemory = 1536 << 20
 
-// slotCount returns the number of forge runs that cpus and memLimit allow, at least one: one run
-// per two CPUs and per forgeRunMemory. A memLimit of zero means no limit.
+// slotCount returns the number of forge runs that three quarters of memLimit hold, at least one: one
+// run per forgeRunMemory, and a quarter for the rest of the host. Runs beyond the CPUs only take
+// longer, but runs beyond the memory get killed. Where the memory is unknown, memLimit is 0, and it
+// allows one run per CPU.
 func slotCount(cpus int, memLimit uint64) int {
-	n := cpus / 2
-	if memLimit > 0 {
-		n = min(n, int(memLimit/forgeRunMemory))
+	if memLimit == 0 {
+		return max(1, cpus)
 	}
-	return max(1, n)
+	return max(1, int(memLimit/4*3/forgeRunMemory))
 }
 
 // acquire waits for a free slot and returns its release function.
