@@ -71,5 +71,7 @@ async fn the_el_requests_for_a_target_do_not_grow_with_its_distance_below_the_re
     let optimistic = &response.optimistic_at_timestamp[&DecimalChainId(CHAIN_ID)];
     assert_eq!(optimistic.output_root, output_root(&canonical[&TARGET]));
     assert_eq!(response.data.unwrap().verified_required_l1, l1_block(110).id());
-    assert_eq!(*execution_layer.lock().unwrap().request_counts(), expected_requests);
+    let execution_layer = execution_layer.lock().unwrap();
+    assert_eq!(*execution_layer.request_counts(), expected_requests);
+    assert_eq!(execution_layer.reads_with_transactions(), 0, "only headers are needed");
 }

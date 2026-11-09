@@ -115,9 +115,8 @@ impl SuperRootRpc {
             let history_unchanged = self.safe_head_record(block_number)? == record;
             let safe_head_unchanged = current_sync.local_safe_head() == sync.local_safe_head();
             if let Some((block, output)) = output {
-                let within_safe_head = block.block_info.number <
-                    sync.local_safe_head().block_info.number ||
-                    block.block_info.id() == sync.local_safe_head().block_info.id();
+                let within_safe_head = block.number < sync.local_safe_head().block_info.number ||
+                    block == sync.local_safe_head().block_info.id();
                 if history_unchanged && safe_head_unchanged && within_safe_head {
                     return Ok(Some((output, record.l1, current_sync)));
                 }

@@ -159,6 +159,15 @@ pub enum EngineClientError {
     /// The block has no withdrawals root while Isthmus is active.
     #[error("No block withdrawals root while Isthmus is active")]
     NoWithdrawalsRoot,
+
+    /// The EL reported a block hash that is not the hash of the header it returned.
+    #[error("EL reported block hash {reported}, but the header hashes to {computed}")]
+    BlockHashMismatch {
+        /// The hash in the EL's response.
+        reported: alloy_primitives::B256,
+        /// The hash computed from the returned header.
+        computed: alloy_primitives::B256,
+    },
 }
 /// Client for L1 reads and L2 Engine API calls. Providers erase their transport type, so tests
 /// use the same client with a mock transport. Task helpers select the Engine API version.
@@ -618,5 +627,33 @@ mod provider_tests {
             l1.assert_finished();
             l2.assert_finished();
         }
+    }
+
+    #[tokio::test]
+    async fn super_root_read_rejects_a_misreported_block_hash() {
+        let mut recorded_head = Block::<Transaction>::default();
+        recorded_head.header.inner.number = 1;
+        recorded_head.header.hash = recorded_head.header.inner.hash_slow();
+        let mut target = Block::<Transaction>::default();
+        target.header.hash = B256::repeat_byte(9);
+        let (client, _, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        l2.expect_params("eth_getBlockByNumber", json!(["0x1", false]), &recorded_head);
+        l2.expect_params("eth_getBlockByNumber", json!(["0x0", false]), &target);
+
+        let error = client
+            .query_client()
+            .output_at_ancestor(0, alloy_eips::BlockNumHash::new(1, recorded_head.header.hash))
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                EngineClientError::BlockHashMismatch { reported, computed }
+                    if reported == target.header.hash && computed == target.header.inner.hash_slow()
+            ),
+            "{error}"
+        );
+        l2.assert_finished();
     }
 }
