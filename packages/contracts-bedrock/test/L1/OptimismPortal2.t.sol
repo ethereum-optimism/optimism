@@ -1048,9 +1048,9 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         }
     }
 
-    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target.
-    function test_proveWithdrawalTransaction_standardBridgeTarget_reverts() external {
-        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target while a hook is set.
+    function test_proveWithdrawalTransaction_standardBridgeTargetWithHook_reverts() external {
+        forceSetBridgeHook(hook);
 
         _defaultTx.target = address(l1StandardBridge);
         vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
@@ -1499,13 +1499,60 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         }
     }
 
-    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target.
-    function test_finalizeWithdrawalTransaction_standardBridgeTarget_reverts() external {
-        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target while a hook is set.
+    function test_finalizeWithdrawalTransaction_standardBridgeTargetWithHook_reverts() external {
+        forceSetBridgeHook(hook);
 
         _defaultTx.target = address(l1StandardBridge);
         vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+    }
+
+    /// @notice Tests that a withdrawal can call the L1StandardBridge while no hook is set, by
+    ///         finalizing one that bridges its ETH back to L2.
+    function test_finalizeWithdrawalTransaction_standardBridgeTargetWithNoHook_succeeds() external {
+        skipIfForkTest("Skipping because of the L2ToL1MessagePasser call below");
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        uint256 value = 1 ether;
+        vm.deal(address(optimismPortal2), value);
+        if (isUsingLockbox()) {
+            vm.deal(address(ethLockbox), value);
+        }
+
+        Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
+            nonce: l2ToL1MessagePasser.messageNonce(),
+            sender: alice,
+            target: address(l1StandardBridge),
+            value: value,
+            gasLimit: 500_000,
+            data: abi.encodeCall(IL1StandardBridge.depositETHTo, (alice, 200_000, hex""))
+        });
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes[] memory withdrawalProof
+        ) = ffi.getProveWithdrawalTransactionInputs(_tx);
+        Types.OutputRootProof memory proof = Types.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: stateRoot,
+            messagePasserStorageRoot: storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+        });
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
+
+        optimismPortal2.proveWithdrawalTransaction(_tx, _proposedGameIndex, proof, withdrawalProof);
+        game.resolveClaim(0, 0);
+        game.resolve();
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+
+        vm.expectCall(address(l1StandardBridge), value, _tx.data);
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalFinalized(withdrawalHash, true);
+        optimismPortal2.finalizeWithdrawalTransaction(_tx);
     }
 
     /// @notice Tests that a configured hook is an unsafe withdrawal target.

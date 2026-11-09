@@ -324,9 +324,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.7.0
+    /// @custom:semver 7.8.0
     function version() public pure virtual returns (string memory) {
-        return "7.7.0";
+        return "7.8.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -1200,13 +1200,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit ProofMaturityDelaySecondsSet(_proofMaturityDelaySeconds);
     }
 
-    /// @notice Checks if a target address is unsafe. The L1StandardBridge is always unsafe, and
-    ///         the bridge hook is unsafe while it is set.
+    /// @notice Checks if a target address is unsafe. The L1StandardBridge and the bridge hook are
+    ///         unsafe only while a hook is set.
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
         if (_target == address(this) || _target == address(ethLockbox)) return true;
-        if (_target == address(_l1StandardBridge())) return true;
-        return _isUsingBridgeHook() && _target == address(bridgeHook);
+        if (!_isUsingBridgeHook()) return false;
+        return _target == address(_l1StandardBridge()) || _target == address(bridgeHook);
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.
