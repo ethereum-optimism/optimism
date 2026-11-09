@@ -34,7 +34,8 @@ use revm::{
 ///
 /// The [`StatelessL2Builder`] is a specialized block execution engine designed for fault proof
 /// systems and stateless verification. Instead of maintaining full L2 state, it dynamically
-/// retrieves required state data from a [`TrieDB`](crate::TrieDB) backed by Merkle proofs and witnesses.
+/// retrieves required state data from a [`TrieDB`](crate::TrieDB) backed by Merkle proofs and
+/// witnesses.
 ///
 /// # Architecture
 ///

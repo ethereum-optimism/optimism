@@ -160,8 +160,7 @@ where
     /// ## Returns
     /// - `Ok(B256)`: The new state root hash of the trie DB.
     /// - `Err(_)`: If the state root hash could not be computed.
-    // Experiment: kept out of line so callgrind attributes trie cost to this function.
-    #[inline(never)]
+    #[cfg_attr(feature = "trie-profiling", inline(never))]
     pub fn state_root(&mut self, bundle: &BundleState) -> TrieDBResult<B256> {
         debug!(target: "client_executor", "Recomputing state root");
 
@@ -355,8 +354,7 @@ where
 {
     type Error = TrieDBError;
 
-    // Experiment: kept out of line so callgrind attributes trie cost to this function.
-    #[inline(never)]
+    #[cfg_attr(feature = "trie-profiling", inline(never))]
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         // Fetch the account from the trie.
         let Some(trie_account) = self.get_trie_account(&address)? else {
@@ -385,8 +383,7 @@ where
             .map_err(|e| TrieDBError::Provider(e.to_string()))
     }
 
-    // Experiment: kept out of line so callgrind attributes trie cost to this function.
-    #[inline(never)]
+    #[cfg_attr(feature = "trie-profiling", inline(never))]
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         // Send a hint to the host to fetch the storage proof.
         self.hinter

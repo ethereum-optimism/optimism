@@ -111,8 +111,7 @@ where
     }
 
     /// Applies a [`BundleState`] changeset to the tries and returns the new state root.
-    // Experiment: kept out of line so callgrind attributes trie cost to this function.
-    #[inline(never)]
+    #[cfg_attr(feature = "trie-profiling", inline(never))]
     pub fn state_root(&mut self, bundle: &BundleState) -> TrieDBResult<B256> {
         self.epoch += 1;
         let epoch = TrieNodeEpoch::new(self.epoch);
@@ -134,7 +133,11 @@ where
                     .insert_storage_trie(hashed_address, RevealableSparseTrie::revealed_empty());
                 self.storage_roots.insert(*address, EMPTY_ROOT_HASH);
                 if bundle_account.account_info().is_none() {
-                    account_updates.insert(hashed_address, LeafUpdate::Changed(Vec::new()));
+                    // An account created and destroyed within the block was never in the trie.
+                    // Removing it would make the sparse trie fetch nodes `kona-mpt` does not.
+                    if bundle_account.original_info.is_some() {
+                        account_updates.insert(hashed_address, LeafUpdate::Changed(Vec::new()));
+                    }
                     continue;
                 }
             }
@@ -166,13 +169,8 @@ where
                     .unwrap_or(parent_storage_root)
             } else {
                 let trie = self.trie.get_or_create_storage_trie_mut(hashed_address);
-                apply_updates(
-                    trie,
-                    parent_storage_root,
-                    storage_updates,
-                    &self.fetcher,
-                    &mut self.stats,
-                )?;
+                NodeSource { fetcher: &self.fetcher, hinter: &self.hinter, stats: &mut self.stats }
+                    .apply_updates(trie, parent_storage_root, storage_updates)?;
                 trie.root(epoch).ok_or_else(|| sparse_err("storage trie is blind after update"))?
             };
             self.storage_roots.insert(*address, storage_root);
@@ -187,13 +185,12 @@ where
                 .insert(hashed_address, LeafUpdate::Changed(alloy_rlp::encode(trie_account)));
         }
 
-        apply_updates(
-            self.trie.trie_mut(),
-            self.parent_block_header.state_root,
-            account_updates,
-            &self.fetcher,
-            &mut self.stats,
-        )?;
+        NodeSource { fetcher: &self.fetcher, hinter: &self.hinter, stats: &mut self.stats }
+            .apply_updates(
+                self.trie.trie_mut(),
+                self.parent_block_header.state_root,
+                account_updates,
+            )?;
         let root = self.trie.root(epoch).map_err(sparse_err)?;
         debug!(target: "client_executor", "Recomputed state root (sparse trie): {root}");
         Ok(root)
@@ -206,13 +203,12 @@ where
             .map_err(|e| TrieDBError::Provider(e.to_string()))?;
 
         let hashed_address = keccak256(address);
-        reveal_until_resolved(
-            self.trie.trie_mut(),
-            self.parent_block_header.state_root,
-            &Nibbles::unpack(hashed_address),
-            &self.fetcher,
-            &mut self.stats,
-        )?;
+        NodeSource { fetcher: &self.fetcher, hinter: &self.hinter, stats: &mut self.stats }
+            .reveal_until_resolved(
+                self.trie.trie_mut(),
+                self.parent_block_header.state_root,
+                &Nibbles::unpack(hashed_address),
+            )?;
 
         self.trie
             .get_account_value(&hashed_address)
@@ -239,8 +235,7 @@ where
 {
     type Error = TrieDBError;
 
-    // Experiment: kept out of line so callgrind attributes trie cost to this function.
-    #[inline(never)]
+    #[cfg_attr(feature = "trie-profiling", inline(never))]
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let Some(trie_account) = self.get_trie_account(&address)? else {
             return Ok(None);
@@ -263,8 +258,7 @@ where
             .map_err(|e| TrieDBError::Provider(e.to_string()))
     }
 
-    // Experiment: kept out of line so callgrind attributes trie cost to this function.
-    #[inline(never)]
+    #[cfg_attr(feature = "trie-profiling", inline(never))]
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         self.hinter
             .hint_storage_proof(address, index, self.parent_block_header.hash())
@@ -277,13 +271,12 @@ where
 
         let hashed_address = keccak256(address);
         let hashed_slot = keccak256(index.to_be_bytes::<32>());
-        reveal_until_resolved(
-            self.trie.get_or_create_storage_trie_mut(hashed_address),
-            storage_root,
-            &Nibbles::unpack(hashed_slot),
-            &self.fetcher,
-            &mut self.stats,
-        )?;
+        NodeSource { fetcher: &self.fetcher, hinter: &self.hinter, stats: &mut self.stats }
+            .reveal_until_resolved(
+                self.trie.get_or_create_storage_trie_mut(hashed_address),
+                storage_root,
+                &Nibbles::unpack(hashed_slot),
+            )?;
 
         self.trie
             .get_storage_slot_value(&hashed_address, &hashed_slot)
@@ -311,55 +304,7 @@ fn sparse_err(e: impl Display) -> TrieDBError {
     TrieDBError::Provider(format!("sparse trie: {e}"))
 }
 
-/// Applies `updates` to `trie`, revealing the nodes the trie asks for until every update applies.
-///
-/// `root` is the trie's root hash, used if the trie is still blind.
-fn apply_updates<F: TrieDBProvider>(
-    trie: &mut RevealableSparseTrie,
-    root: B256,
-    mut updates: B256Map<LeafUpdate>,
-    fetcher: &F,
-    stats: &mut SparseTrieStats,
-) -> TrieDBResult<()> {
-    let update_keys = updates.keys().copied().collect::<Vec<_>>();
-    for _ in 0..MAX_REVEAL_ROUNDS {
-        let mut targets = Vec::new();
-        trie.update_leaves(&mut updates, |key, _| targets.push(key)).map_err(sparse_err)?;
-        if updates.is_empty() {
-            return Ok(());
-        }
-        stats.update_rounds += 1;
-
-        targets.sort_unstable();
-        targets.dedup();
-        for key in targets {
-            // A target that is one of the updated keys needs its whole path revealed. Any other
-            // target is the blinded sibling a removal collapses onto, which needs only that node.
-            let walk = if update_keys.contains(&key) { Walk::Update } else { Walk::Node };
-            reveal(trie, root, &Nibbles::unpack(key), walk, fetcher, stats)?;
-        }
-    }
-    Err(sparse_err("leaf updates did not converge"))
-}
-
-/// Reveals nodes on the path to `key` until the trie can tell whether the leaf exists.
-fn reveal_until_resolved<F: TrieDBProvider>(
-    trie: &mut RevealableSparseTrie,
-    root: B256,
-    key: &Nibbles,
-    fetcher: &F,
-    stats: &mut SparseTrieStats,
-) -> TrieDBResult<()> {
-    for _ in 0..MAX_REVEAL_ROUNDS {
-        match reveal(trie, root, key, Walk::Read, fetcher, stats)? {
-            Revealed::Nothing | Revealed::AbsentAtExtension => return Ok(()),
-            Revealed::Nodes => {}
-        }
-    }
-    Err(sparse_err("lookup did not converge"))
-}
-
-/// How far [`reveal`] walks from the first blinded node.
+/// How far [`NodeSource::reveal`] walks from the first blinded node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Walk {
     /// Down to the leaf at `key` for a read. An extension the key leaves proves the key absent.
@@ -371,7 +316,7 @@ enum Walk {
     Node,
 }
 
-/// What [`reveal`] did.
+/// What [`NodeSource::reveal`] did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Revealed {
     /// Nothing on the path to `key` was blinded.
@@ -383,119 +328,197 @@ enum Revealed {
     AbsentAtExtension,
 }
 
-/// Reveals the first blinded node on the path to `key`, and the nodes below it as `walk` says.
-fn reveal<F: TrieDBProvider>(
-    trie: &mut RevealableSparseTrie,
-    root: B256,
-    key: &Nibbles,
-    walk: Walk,
-    fetcher: &F,
-    stats: &mut SparseTrieStats,
-) -> TrieDBResult<Revealed> {
-    let (hash, path) = match trie.as_revealed_ref() {
-        None if root == EMPTY_ROOT_HASH => {
-            let mut nodes = vec![ProofTrieNodeV2::empty()];
-            trie.reveal_v2_proof_nodes(&mut nodes, false).map_err(sparse_err)?;
-            return Ok(Revealed::Nodes);
-        }
-        None => (root, Nibbles::default()),
-        Some(revealed) => match revealed.find_leaf(key, None) {
-            Ok(_) => return Ok(Revealed::Nothing),
-            Err(LeafLookupError::BlindedNode { path, hash }) => (hash, path),
-            Err(e) => return Err(sparse_err(format!("{e:?}"))),
-        },
-    };
-
-    let (mut nodes, absent) = fetch_proof_nodes(fetcher, hash, path, key, walk, stats)?;
-    if !nodes.is_empty() {
-        trie.reveal_v2_proof_nodes(&mut nodes, false).map_err(sparse_err)?;
-    }
-    if absent {
-        stats.absent_at_extension += 1;
-        return Ok(Revealed::AbsentAtExtension);
-    }
-    Ok(Revealed::Nodes)
+/// The nodes fetched by one [`NodeSource::fetch_proof_nodes`] call.
+#[derive(Debug)]
+struct FetchedNodes {
+    /// The fetched nodes, ready to reveal.
+    nodes: Vec<ProofTrieNodeV2>,
+    /// The key leaves the path of the last (unrevealed) extension, so it is absent.
+    absent_at_extension: bool,
 }
 
-/// Fetches the node `hash` at `path` and the nodes below it towards `key`, as `walk` says. An
-/// extension is fetched with its child branch, because the sparse trie stores the two as one node,
-/// except on a read whose key leaves the extension's path: then the extension is left out and the
-/// second return value is `true`, meaning the key is absent.
-fn fetch_proof_nodes<F: TrieDBProvider>(
-    fetcher: &F,
-    mut hash: B256,
-    mut path: Nibbles,
-    key: &Nibbles,
-    walk: Walk,
-    stats: &mut SparseTrieStats,
-) -> TrieDBResult<(Vec<ProofTrieNodeV2>, bool)> {
-    let whole_path = walk != Walk::Node;
-    let mut absent = false;
-    let mut nodes = Vec::new();
-    loop {
-        let node = fetch_node(fetcher, hash, stats)?;
-        // `next` continues the walk; `merge_child` is an extension child fetched only to merge.
-        let (next, merge_child) = match &node {
-            TrieNode::Branch(branch) if whole_path && path.len() < key.len() => {
-                let nibble = key.get_unchecked(path.len());
-                let next = branch.as_ref().children().find(|(i, _)| *i == nibble).and_then(
-                    |(_, child)| {
-                        child.and_then(|c| c.as_hash()).map(|h| {
-                            let mut child_path = path;
-                            child_path.push_unchecked(nibble);
-                            (h, child_path)
-                        })
-                    },
-                );
-                (next, None)
+/// Fetches trie nodes by hash and reveals them into a sparse trie.
+struct NodeSource<'a, F, H> {
+    fetcher: &'a F,
+    hinter: &'a H,
+    stats: &'a mut SparseTrieStats,
+}
+
+impl<F: TrieDBProvider, H: TrieHinter> NodeSource<'_, F, H> {
+    /// Applies `updates` to `trie`, revealing the nodes the trie asks for until every update
+    /// applies.
+    ///
+    /// `root` is the trie's root hash, used if the trie is still blind.
+    fn apply_updates(
+        &mut self,
+        trie: &mut RevealableSparseTrie,
+        root: B256,
+        mut updates: B256Map<LeafUpdate>,
+    ) -> TrieDBResult<()> {
+        for _ in 0..MAX_REVEAL_ROUNDS {
+            let mut targets = Vec::new();
+            trie.update_leaves(&mut updates, |key, _| targets.push(key)).map_err(sparse_err)?;
+            if updates.is_empty() {
+                return Ok(());
             }
-            TrieNode::Extension(ext) => {
-                let child = ext
-                    .child
-                    .as_hash()
-                    .ok_or_else(|| sparse_err("extension with an inline child"))?;
-                let child_path = path.join(&ext.key);
-                let on_key_path = key.len() >= child_path.len() &&
-                    key.slice(path.len()..child_path.len()) == ext.key;
-                if whole_path && on_key_path {
-                    (Some((child, child_path)), None)
-                } else if walk == Walk::Read {
-                    absent = true;
-                    break;
-                } else {
-                    (None, Some((child, child_path)))
-                }
+            self.stats.update_rounds += 1;
+
+            targets.sort_unstable();
+            targets.dedup();
+            for key in targets {
+                // `updates` now holds the updates that did not apply. A target among them needs
+                // its whole path revealed. Any other target is the blinded sibling a removal
+                // collapses onto (a zero-padded path), which needs only that node.
+                let walk = if updates.contains_key(&key) { Walk::Update } else { Walk::Node };
+                self.reveal(trie, root, &Nibbles::unpack(key), walk)?;
             }
-            _ => (None, None),
+        }
+        Err(sparse_err("leaf updates did not converge"))
+    }
+
+    /// Reveals nodes on the path to `key` until the trie can tell whether the leaf exists.
+    fn reveal_until_resolved(
+        &mut self,
+        trie: &mut RevealableSparseTrie,
+        root: B256,
+        key: &Nibbles,
+    ) -> TrieDBResult<()> {
+        for _ in 0..MAX_REVEAL_ROUNDS {
+            match self.reveal(trie, root, key, Walk::Read)? {
+                Revealed::Nothing | Revealed::AbsentAtExtension => return Ok(()),
+                Revealed::Nodes => {}
+            }
+        }
+        Err(sparse_err("lookup did not converge"))
+    }
+
+    /// Reveals the first blinded node on the path to `key`, and the nodes below it as `walk`
+    /// says.
+    fn reveal(
+        &mut self,
+        trie: &mut RevealableSparseTrie,
+        root: B256,
+        key: &Nibbles,
+        walk: Walk,
+    ) -> TrieDBResult<Revealed> {
+        let (hash, path) = match trie.as_revealed_ref() {
+            None if root == EMPTY_ROOT_HASH => {
+                let mut nodes = vec![ProofTrieNodeV2::empty()];
+                trie.reveal_v2_proof_nodes(&mut nodes, false).map_err(sparse_err)?;
+                return Ok(Revealed::Nodes);
+            }
+            None => (root, Nibbles::default()),
+            Some(revealed) => match revealed.find_leaf(key, None) {
+                Ok(_) => return Ok(Revealed::Nothing),
+                Err(LeafLookupError::BlindedNode { path, hash }) => (hash, path),
+                Err(e) => return Err(sparse_err(format!("{e:?}"))),
+            },
         };
-        nodes.push((path, node, None));
 
-        if let Some((child, child_path)) = merge_child {
-            stats.extension_child_fetches += 1;
-            let branch = fetch_node(fetcher, child, stats).map_err(|e| {
-                sparse_err(format!("extension child at {child_path:?} ({walk:?}): {e}"))
-            })?;
-            nodes.push((child_path, branch, None));
-            break;
+        let FetchedNodes { mut nodes, absent_at_extension } =
+            self.fetch_proof_nodes(hash, path, key, walk)?;
+        if !nodes.is_empty() {
+            trie.reveal_v2_proof_nodes(&mut nodes, false).map_err(sparse_err)?;
         }
-        let Some((next_hash, next_path)) = next else { break };
-        hash = next_hash;
-        path = next_path;
+        if absent_at_extension {
+            self.stats.absent_at_extension += 1;
+            return Ok(Revealed::AbsentAtExtension);
+        }
+        Ok(Revealed::Nodes)
     }
 
-    // `from_sorted_trie_nodes` expects children before parents.
-    nodes.sort_by(|(a, _, _), (b, _, _)| b.cmp(a));
-    Ok((ProofTrieNodeV2::from_sorted_trie_nodes(nodes), absent))
-}
+    /// Fetches the node `hash` at `path` and the nodes below it towards `key`, as `walk` says. An
+    /// extension is fetched with its child branch, because the sparse trie stores the two as one
+    /// node, except on a read whose key leaves the extension's path: then the extension is left
+    /// out and the key is absent.
+    fn fetch_proof_nodes(
+        &mut self,
+        mut hash: B256,
+        mut path: Nibbles,
+        key: &Nibbles,
+        walk: Walk,
+    ) -> TrieDBResult<FetchedNodes> {
+        let whole_path = walk != Walk::Node;
+        let mut absent_at_extension = false;
+        let mut nodes = Vec::new();
 
-fn fetch_node<F: TrieDBProvider>(
-    fetcher: &F,
-    hash: B256,
-    stats: &mut SparseTrieStats,
-) -> TrieDBResult<TrieNode> {
-    stats.node_fetches += 1;
-    let rlp = fetcher
-        .trie_node_rlp_by_hash(hash)
-        .map_err(|e| TrieDBError::Provider(format!("trie node {hash}: {e}")))?;
-    TrieNode::decode(&mut rlp.as_ref()).map_err(sparse_err)
+        // A collapse sibling lies outside the paths the account and storage proof hints covered,
+        // so hint it first, as `kona-mpt` does.
+        if walk == Walk::Node {
+            self.hint(hash)?;
+        }
+        loop {
+            let node = self.fetch_node(hash)?;
+            // `next` continues the walk; `merge_child` is an extension child fetched only to
+            // merge.
+            let (next, merge_child) = match &node {
+                TrieNode::Branch(branch) if whole_path && path.len() < key.len() => {
+                    let nibble = key.get_unchecked(path.len());
+                    let next = branch.as_ref().children().find(|(i, _)| *i == nibble).and_then(
+                        |(_, child)| {
+                            child.and_then(|c| c.as_hash()).map(|h| {
+                                let mut child_path = path;
+                                child_path.push_unchecked(nibble);
+                                (h, child_path)
+                            })
+                        },
+                    );
+                    (next, None)
+                }
+                TrieNode::Extension(ext) => {
+                    let child = ext
+                        .child
+                        .as_hash()
+                        .ok_or_else(|| sparse_err("extension with an inline child"))?;
+                    let child_path = path.join(&ext.key);
+                    let on_key_path = key.len() >= child_path.len() &&
+                        key.slice(path.len()..child_path.len()) == ext.key;
+                    if whole_path && on_key_path {
+                        (Some((child, child_path)), None)
+                    } else if walk == Walk::Read {
+                        absent_at_extension = true;
+                        break;
+                    } else {
+                        (None, Some((child, child_path)))
+                    }
+                }
+                _ => (None, None),
+            };
+            nodes.push((path, node, None));
+
+            if let Some((child, child_path)) = merge_child {
+                // `kona-mpt` never needs this node, so no proof hint covered it.
+                self.stats.extension_child_fetches += 1;
+                self.hint(child)?;
+                let branch = self.fetch_node(child).map_err(|e| {
+                    sparse_err(format!("extension child at {child_path:?} ({walk:?}): {e}"))
+                })?;
+                nodes.push((child_path, branch, None));
+                break;
+            }
+            let Some((next_hash, next_path)) = next else { break };
+            hash = next_hash;
+            path = next_path;
+        }
+
+        // `from_sorted_trie_nodes` expects children before parents.
+        nodes.sort_by(|(a, _, _), (b, _, _)| b.cmp(a));
+        Ok(FetchedNodes {
+            nodes: ProofTrieNodeV2::from_sorted_trie_nodes(nodes),
+            absent_at_extension,
+        })
+    }
+
+    fn hint(&self, hash: B256) -> TrieDBResult<()> {
+        self.hinter.hint_trie_node(hash).map_err(|e| TrieDBError::Provider(e.to_string()))
+    }
+
+    fn fetch_node(&mut self, hash: B256) -> TrieDBResult<TrieNode> {
+        self.stats.node_fetches += 1;
+        let rlp = self
+            .fetcher
+            .trie_node_rlp_by_hash(hash)
+            .map_err(|e| TrieDBError::Provider(format!("trie node {hash}: {e}")))?;
+        TrieNode::decode(&mut rlp.as_ref()).map_err(sparse_err)
+    }
 }

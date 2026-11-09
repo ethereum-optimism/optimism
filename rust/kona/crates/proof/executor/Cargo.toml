@@ -80,6 +80,8 @@ tokio = { workspace = true, features = ["full"] }
 [features]
 # Experimental: execute with reth's sparse trie instead of `kona-mpt`.
 sparse-trie = ["dep:reth-trie-common", "dep:reth-trie-sparse"]
+# Keeps the trie database's entry points out of line, so a profiler attributes trie cost to them.
+trie-profiling = []
 test-utils = [
 	"dep:alloy-provider",
 	"dep:alloy-rpc-client",
@@ -95,4 +97,6 @@ test-utils = [
 	"dep:tempfile",
 	"dep:tokio",
 	"kona-protocol/test-utils",
+	"reth-trie-common?/test-utils",
+	"reth-trie-sparse?/test-utils",
 ]
