@@ -3,8 +3,8 @@
 use crate::{OpEthApi, OpEthApiError};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
-use reth_chain_state::BlockState;
 use reth_optimism_flashblocks::PendingFlashBlock;
+use reth_primitives_traits::NodePrimitives;
 use reth_rpc_eth_api::{
     FromEvmError, RpcConvert, RpcNodeCore, RpcNodeCoreExt,
     helpers::{LoadPendingBlock, SpawnBlocking, pending_block::PendingEnvBuilder},
@@ -13,13 +13,30 @@ use reth_rpc_eth_types::{
     EthApiError, PendingBlock, block::BlockAndReceipts, builder::config::PendingBlockKind,
     error::FromEthApiError,
 };
-use reth_storage_api::{BlockReaderIdExt, StateProviderBox, StateProviderFactory};
+use reth_storage_api::{
+    BlockReaderIdExt, StateProviderBox, StateProviderFactory, errors::ProviderResult,
+};
 
 #[inline]
-const fn pending_state_history_lookup_hash<N: reth_primitives_traits::NodePrimitives>(
+const fn pending_state_history_lookup_hash<N: NodePrimitives>(
     pending_block: &PendingFlashBlock<N>,
 ) -> B256 {
     pending_block.canonical_anchor_hash
+}
+
+/// Returns the state after `pending_block`: its canonical anchor's state with the block on top.
+fn pending_flashblock_state<P, N>(
+    provider: &P,
+    pending_block: PendingFlashBlock<N>,
+) -> ProviderResult<StateProviderBox>
+where
+    N: NodePrimitives,
+    P: StateProviderFactory<Primitives = N>,
+{
+    provider.state_with_block_appended(
+        pending_state_history_lookup_hash(&pending_block),
+        pending_block.pending.executed_block,
+    )
 }
 
 impl<N, Rpc> LoadPendingBlock for OpEthApi<N, Rpc>
@@ -51,15 +68,10 @@ where
         let Ok(Some(pending_block)) = self.pending_flashblock().await else {
             return Ok(None);
         };
-        let canonical_anchor_hash = pending_state_history_lookup_hash(&pending_block);
-        let state = BlockState::from(pending_block.pending);
-
-        let anchor_historical = self
-            .provider()
-            .history_by_block_hash(canonical_anchor_hash)
+        let state = pending_flashblock_state(self.provider(), pending_block)
             .map_err(Self::Error::from_eth_err)?;
 
-        Ok(Some(Box::new(state.state_provider(anchor_historical)) as StateProviderBox))
+        Ok(Some(state))
     }
 
     /// Returns the locally built pending block
@@ -81,7 +93,7 @@ where
             .get_block_and_receipts(latest.hash())
             .await
             .map_err(Self::Error::from_eth_err)?
-            .map(|(block, receipts)| BlockAndReceipts { block, receipts });
+            .map(|(block, receipts)| BlockAndReceipts::new(block, receipts));
         Ok(latest)
     }
 }

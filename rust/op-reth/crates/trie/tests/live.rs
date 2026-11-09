@@ -20,7 +20,7 @@ use reth_optimism_trie::{
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateRootProvider, StorageSettingsCache,
+    ProviderFactory, StateProvider, StateRootProvider, StorageSettingsCache,
     providers::{BlockchainProvider, ProviderNodeTypes},
     test_utils::create_test_provider_factory_with_chain_spec,
 };
@@ -182,7 +182,9 @@ where
         > + NodeTypesWithDB,
 {
     let provider = provider_factory.provider()?;
-    let db = StateProviderDatabase::new(LatestStateProviderRef::new(&provider));
+    let db = StateProviderDatabase::new(
+        LatestStateProviderRef::new(&provider).into_evm_state_provider(),
+    );
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let block_executor = evm_config.batch_executor(db);
 

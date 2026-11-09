@@ -24,6 +24,7 @@ reth-payload-builder-primitives.workspace = true
 reth-payload-util.workspace = true
 reth-payload-primitives.workspace = true
 reth-basic-payload-builder.workspace = true
+reth-tasks.workspace = true
 reth-payload-validator.workspace = true
 reth-metrics.workspace = true
 

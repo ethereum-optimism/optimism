@@ -14,7 +14,7 @@ use op_alloy_consensus::{
 };
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
 use reth_chainspec::BaseFeeParams;
-use reth_e2e_test_utils::{NodeHelperType, setup_engine_with_connection, wallet::Wallet};
+use reth_e2e_test_utils::{E2ETestSetupBuilder, NodeHelperType, wallet::Wallet};
 use reth_optimism_chainspec::OpChainSpecBuilder;
 use reth_optimism_node::{
     OpBuiltPayload, OpNode,
@@ -34,21 +34,17 @@ async fn setup_lagoon(num_nodes: usize) -> eyre::Result<(Vec<NodeHelperType<OpNo
     let chain_spec = Arc::new(
         OpChainSpecBuilder::optimism_sepolia().genesis(genesis).lagoon_activated().build(),
     );
-    setup_engine_with_connection(
-        num_nodes,
-        chain_spec,
-        false,
-        Default::default(),
-        |timestamp| {
+    E2ETestSetupBuilder::new(num_nodes, chain_spec)
+        .with_attributes_generator(|timestamp| {
             let mut attributes = optimism_payload_attributes(timestamp);
             attributes.0.eip_1559_params = Some(B64::ZERO);
             attributes.0.min_base_fee = Some(0);
             attributes
-        },
+        })
         // The buffered-child test must learn the parent only through its explicit newPayload.
-        false,
-    )
-    .await
+        .with_connect_nodes(false)
+        .build()
+        .await
 }
 
 /// Adds a decodable `PostExec` with a wrong anchor, so rejection reaches executor validation
