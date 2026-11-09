@@ -66,6 +66,7 @@ reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-transaction-pool = { workspace = true, features = ["test-utils"] }
 metrics-util = { workspace = true, features = ["debugging"] }
+proptest.workspace = true
 rstest.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 # Mock JSON-RPC server for interop filter client tests. jsonrpsee-server is already a workspace
