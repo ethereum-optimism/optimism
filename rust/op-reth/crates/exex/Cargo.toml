@@ -25,6 +25,7 @@ reth-optimism-trie = { workspace = true, features = ["serde-bincode-compat"] }
 
 # alloy
 alloy-consensus.workspace = true
+alloy-eips.workspace = true
 
 # misc
 eyre.workspace = true
@@ -32,7 +33,6 @@ futures-util.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-alloy-eips.workspace = true
 futures.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-optimism-trie = { workspace = true, features = ["test-utils"] }

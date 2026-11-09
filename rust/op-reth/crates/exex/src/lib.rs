@@ -21,10 +21,7 @@ use reth_optimism_trie::{
     proof::DatabaseStateRoot,
 };
 use reth_provider::{BlockHashReader, BlockNumReader, HeaderProvider};
-use reth_trie::{
-    ComputedTrieData, HashedPostState, HashedPostStateSorted, LazyTrieData, SortedTrieData,
-    StateRoot, updates::TrieUpdatesSorted,
-};
+use reth_trie::{ComputedTrieData, HashedPostState, LazyTrieData, SortedTrieData, StateRoot};
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
@@ -1385,7 +1382,7 @@ mod tests {
     }
 
     /// Makes `block` reth's canonical block at its height.
-    fn make_canonical(
+    fn make_canonical_block(
         handle: &reth_exex_test_utils::TestExExHandle,
         provider: &impl reth_provider::CanonChainTracker<Header = alloy_consensus::Header>,
         block: &RecoveredBlock<Block>,
@@ -1432,7 +1429,7 @@ mod tests {
         // reth's canonical block 1 has the state root execution produces, standing in for the
         // block that replaced the notification's block in a reorg.
         let canonical = block_one_with_state_root(current_state_hash);
-        make_canonical(&handle, &provider, &canonical);
+        make_canonical_block(&handle, &provider, &canonical);
 
         let notif =
             ExExNotification::ChainCommitted { new: Arc::new(mk_chain_without_updates(1, 1)) };
@@ -1494,7 +1491,7 @@ mod tests {
         // the one execution produces. Executing it again would fail the same way, so the failure
         // stops the ExEx.
         let block = mk_block(1);
-        make_canonical(&handle, &provider, &block);
+        make_canonical_block(&handle, &provider, &block);
         let chain = if with_trie_data {
             mk_chain_with_updates(1, 1, None)
         } else {
