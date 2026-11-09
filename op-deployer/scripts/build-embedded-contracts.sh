@@ -10,5 +10,6 @@ set -euo pipefail
 
 forge="${FORGE:-forge}"
 cd "$(dirname "${BASH_SOURCE[0]}")/../../packages/contracts-bedrock"
+# Same as contracts-bedrock's `build-no-tests` recipe; the Docker contracts stage has no just.
 "$forge" build --skip "/**/test/**"
 "$forge" build test/dispute/zk/MockSP1Verifier.sol
