@@ -12,11 +12,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,6 +53,7 @@ type generatedL2Genesis struct {
 	mode        allocMode
 	allocs      types.GenesisAlloc
 	cfg         genesis.DeployConfig
+	rollupCfg   *rollup.Config
 	chainIntent *state.ChainIntent
 }
 
@@ -169,11 +172,14 @@ func generateL2Genesis(t *testing.T, mode allocMode) generatedL2Genesis {
 
 	cfg, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
 	require.NoError(t, err)
+	_, rollupCfg, err := inspect.GenesisAndRollup(st, chainIntent.ID)
+	require.NoError(t, err)
 
 	return generatedL2Genesis{
 		mode:        mode,
 		allocs:      chainState.Allocs.Data.Accounts,
 		cfg:         cfg,
+		rollupCfg:   rollupCfg,
 		chainIntent: chainIntent,
 	}
 }
@@ -348,6 +354,7 @@ func assertProxyConfig(t *testing.T, gen generatedL2Genesis) {
 		assertUintSlot(t, gen, predeploys.ChainConfigAddr, settlementChainIDSlot,
 			new(big.Int).SetUint64(gen.mode.settlementChainID))
 	}
+	require.Equal(t, gen.mode.settlementChainID, gen.rollupCfg.SettlementChainID, "rollup config settlement chain ID")
 
 	if gen.mode.customGasToken {
 		assertAddressSlot(t, gen, predeploys.LiquidityControllerAddr, slot(51), gasToken.LiquidityControllerOwner)

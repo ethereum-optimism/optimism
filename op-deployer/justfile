@@ -6,9 +6,7 @@ test args='./...': build-contracts copy-contract-artifacts
     go test -v {{args}}
 
 build-contracts:
-  just ../packages/contracts-bedrock/build-no-tests
-  # Test and devstack deployments pass this mock as the SP1 verifier.
-  just ../packages/contracts-bedrock/forge-build test/dispute/zk/MockSP1Verifier.sol
+  ./scripts/build-embedded-contracts.sh
 
 copy-contract-artifacts:
     #!/bin/bash
