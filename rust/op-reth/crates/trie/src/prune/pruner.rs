@@ -651,8 +651,11 @@ mod tests {
             OpProofsProviderRw::commit(provider_rw).expect("commit");
         }
 
-        let mut block_hash_reader = MockBlockHashReader::new();
+        let mut block_hash_reader = MockChainReader::new();
         block_hash_reader.expect_block_hash().returning(|_| Ok(None));
+        block_hash_reader
+            .expect_get_stage_checkpoint()
+            .returning(|_| Ok(Some(StageCheckpoint::new(5))));
         let pruner = OpProofStoragePruner::new(store.clone(), block_hash_reader, 2);
 
         let err = pruner.try_run().expect_err("a block reth does not hold must stop the pruner");
@@ -786,7 +789,7 @@ mod tests {
     // The proofs storage indexes blocks reth still holds in memory only. The earliest block must
     // stay at or below reth's persisted head, since reth may drop the blocks above it.
     #[tokio::test]
-    async fn run_inner_keeps_earliest_at_or_below_persisted_head() {
+    async fn try_run_keeps_earliest_at_or_below_persisted_head() {
         let (_dir, store) = store_with_blocks(10);
 
         let mut reader = MockChainReader::new();
@@ -794,7 +797,7 @@ mod tests {
         reader.expect_get_stage_checkpoint().returning(|_| Ok(Some(StageCheckpoint::new(4))));
 
         let pruner = OpProofStoragePruner::new(store.clone(), reader, 2);
-        let out = pruner.run_inner().expect("pruner ok");
+        let out = pruner.try_run().expect("pruner ok");
         assert_eq!((out.start_block, out.end_block), (0, 4));
 
         let provider = store.provider_ro().expect("provider_ro");
@@ -806,7 +809,7 @@ mod tests {
     // after an unclean shutdown, unwinds to it at startup. The earliest block must stay at or
     // below that frontier.
     #[tokio::test]
-    async fn run_inner_caps_at_partial_state_trie_frontier() {
+    async fn try_run_caps_at_partial_state_trie_frontier() {
         let (_dir, store) = store_with_blocks(10);
 
         let mut reader = MockChainReader::new();
@@ -819,7 +822,7 @@ mod tests {
         });
 
         let pruner = OpProofStoragePruner::new(store.clone(), reader, 2);
-        let out = pruner.run_inner().expect("pruner ok");
+        let out = pruner.try_run().expect("pruner ok");
         assert_eq!((out.start_block, out.end_block), (0, 4));
         assert_eq!(
             store.provider_ro().unwrap().get_earliest_block().unwrap(),
@@ -831,7 +834,7 @@ mod tests {
     // headers above the `Finish` checkpoint. The earliest block must stay at or below the
     // checkpoint.
     #[tokio::test]
-    async fn run_inner_caps_at_finish_checkpoint_behind_static_file_headers() {
+    async fn try_run_caps_at_finish_checkpoint_behind_static_file_headers() {
         use alloy_consensus::Header;
         use reth_provider::{
             BlockNumReader, StageCheckpointWriter, StaticFileProviderFactory, StaticFileSegment,
@@ -854,7 +857,7 @@ mod tests {
         assert_eq!(factory.last_block_number().unwrap(), 10);
 
         let pruner = OpProofStoragePruner::new(store.clone(), factory, 2);
-        let out = pruner.run_inner().expect("pruner ok");
+        let out = pruner.try_run().expect("pruner ok");
         assert_eq!((out.start_block, out.end_block), (0, 4));
         assert_eq!(
             store.provider_ro().unwrap().get_earliest_block().unwrap(),
@@ -864,14 +867,14 @@ mod tests {
 
     // Nothing is pruned while reth's persisted head is at or below the earliest block.
     #[tokio::test]
-    async fn run_inner_skips_when_persisted_head_at_earliest() {
+    async fn try_run_skips_when_persisted_head_at_earliest() {
         let (_dir, store) = store_with_blocks(10);
 
         let mut reader = MockChainReader::new();
         reader.expect_get_stage_checkpoint().returning(|_| Ok(Some(StageCheckpoint::new(0))));
 
         let pruner = OpProofStoragePruner::new(store.clone(), reader, 2);
-        let out = pruner.run_inner().expect("pruner ok");
+        let out = pruner.try_run().expect("pruner ok");
         assert_eq!(out, PrunerOutput::default());
         assert_eq!(store.provider_ro().unwrap().get_earliest_block().unwrap().number, 0);
     }
