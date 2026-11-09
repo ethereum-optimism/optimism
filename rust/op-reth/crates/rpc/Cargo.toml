@@ -100,6 +100,11 @@ alloy-op-hardforks.workspace = true
 alloy-genesis.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-optimism-evm = { workspace = true, features = ["rpc"] }
+reth-db-common.workspace = true
+reth-ethereum-primitives.workspace = true
+reth-execution-types.workspace = true
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-trie-common.workspace = true
 rstest.workspace = true
 
 [features]
