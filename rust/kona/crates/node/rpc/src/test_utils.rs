@@ -53,7 +53,7 @@ pub(crate) fn recorded_query_client(
                 };
                 transport.expect_params(
                     "eth_getBlockByHash",
-                    serde_json::json!([record.safe_head.hash, true]),
+                    serde_json::json!([record.safe_head.hash, false]),
                     &recorded_block,
                 );
                 expect_proof(&transport, &recorded_block, output.output.bridge_storage_root);
@@ -65,7 +65,7 @@ pub(crate) fn recorded_query_client(
                         "eth_getBlockByNumber",
                         serde_json::json!([
                             format!("0x{:x}", output.block.block_info.number),
-                            true
+                            false
                         ]),
                         &target,
                     );
