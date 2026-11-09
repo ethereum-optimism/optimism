@@ -2572,7 +2572,8 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         _defaultTx.nonce = Encoding.encodeVersionedNonce(1, 1);
         // _prepareWithdrawalForFinalization proves and resolves the game at this time.
         uint256 finalizableAt = block.timestamp
-            + Math.max(optimismPortal2.proofMaturityDelaySeconds(), optimismPortal2.disputeGameFinalityDelaySeconds());
+            + Math.max(optimismPortal2.proofMaturityDelaySeconds(), optimismPortal2.disputeGameFinalityDelaySeconds())
+            + 1;
         bytes32 withdrawalHash = _prepareWithdrawalForFinalization(_defaultTx);
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
@@ -2598,7 +2599,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 
-    /// @notice Tests that each submitter's proof gives the hook its own finalizable time.
+    /// @notice Tests that each submitter's proof finalizes at its own finalizable time and not before.
     function test_finalizeWithdrawalTransaction_finalizableAtFromChosenProof_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
@@ -2613,7 +2614,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         vm.prank(depositor);
         optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
         uint256 maturity = optimismPortal2.proofMaturityDelaySeconds();
-        vm.warp(block.timestamp + maturity + 1);
+        vm.warp(provenAt + maturity + 1);
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
             asset: BridgeHookTypes.Asset.ETH,
@@ -2630,15 +2631,20 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenWithdrawal.selector), abi.encode(true));
         uint256 snapshot = vm.snapshotState();
 
-        vm.expectCall(hook, abi.encodeCall(IBridgeHook.screenWithdrawal, (item, provenAt + maturity)));
+        vm.expectCall(hook, abi.encodeCall(IBridgeHook.screenWithdrawal, (item, provenAt + maturity + 1)));
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
         vm.revertToState(snapshot);
-        vm.expectCall(hook, abi.encodeCall(IBridgeHook.screenWithdrawal, (item, provenAt + 1 + maturity)));
+        // The second proof is one second before its finalizable time.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ProofNotOldEnough.selector);
+        optimismPortal2.finalizeWithdrawalTransactionExternalProof(_defaultTx, depositor);
+
+        vm.warp(provenAt + maturity + 2);
+        vm.expectCall(hook, abi.encodeCall(IBridgeHook.screenWithdrawal, (item, provenAt + maturity + 2)));
         optimismPortal2.finalizeWithdrawalTransactionExternalProof(_defaultTx, depositor);
     }
 
-    /// @notice Tests that the game's delay sets the finalizable time when it ends last.
+    /// @notice Tests that the game's delay sets the finalizable time when it ends last, and not before.
     function test_finalizeWithdrawalTransaction_finalizableAtFromGameFinality_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
@@ -2646,8 +2652,8 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
         game.resolveClaim(0, 0);
         game.resolve();
-        uint256 settledAt = block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds();
-        vm.warp(settledAt + 1);
+        uint256 finalizableAt = block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1;
+        vm.warp(finalizableAt - 1);
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
             asset: BridgeHookTypes.Asset.ETH,
@@ -2662,8 +2668,11 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
             nonce: 0
         });
         vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenWithdrawal.selector), abi.encode(true));
-        vm.expectCall(hook, abi.encodeCall(IBridgeHook.screenWithdrawal, (item, settledAt)));
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidRootClaim.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
+        vm.warp(finalizableAt);
+        vm.expectCall(hook, abi.encodeCall(IBridgeHook.screenWithdrawal, (item, finalizableAt)));
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 

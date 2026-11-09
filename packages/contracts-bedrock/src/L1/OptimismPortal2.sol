@@ -726,9 +726,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             uint256 maturedAt = proven.timestamp + proofMaturityDelaySeconds;
             uint256 settledAt =
                 proven.disputeGameProxy.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds();
-            // The withdrawal waits for both its proof delay and its game delay. This is the later of
-            // their end times, and the withdrawal can finalize one second after it.
-            uint256 finalizableAt = maturedAt > settledAt ? maturedAt : settledAt;
+            // The withdrawal waits for both its proof delay and its game delay. It can first finalize
+            // one second after the later of their end times.
+            uint256 finalizableAt = (maturedAt > settledAt ? maturedAt : settledAt) + 1;
 
             BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
                 direction: BridgeHookTypes.Direction.Withdrawal,
@@ -743,6 +743,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
                 data: _tx.data,
                 nonce: _tx.nonce
             });
+            // Sets the item's asset to ERC20 if the item is a token transfer.
             bytes memory message = _recognize(item);
             if (!bridgeHook.screenWithdrawal(item, finalizableAt)) {
                 bytes32 id = _commitHold(item, message, heldWithdrawals);
@@ -938,6 +939,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
                 data: _data,
                 nonce: depositNonce++
             });
+            // Sets the item's asset to ERC20 if the item is a token transfer.
             bytes memory message = _recognize(item);
             if (!bridgeHook.screenDeposit(item)) {
                 bytes32 id = _commitHold(item, message, heldDeposits);
@@ -1053,7 +1055,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return _game.createdAt().raw();
     }
 
-    /// @notice Marks the item as a token transfer if it is one.
+    /// @notice Sets the item's asset to ERC20 if the item is a token transfer.
     /// @param _item Item to recognize.
     /// @return message_ The bridge's call, or empty if not a token transfer.
     function _recognize(BridgeHookTypes.Item memory _item) internal view returns (bytes memory message_) {
