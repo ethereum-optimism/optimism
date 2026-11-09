@@ -166,36 +166,6 @@ async fn a_block_beyond_local_safe_is_omitted() {
     assert_eq!(response.current_l1, l1_block(CURRENT_L1).id());
 }
 
-/// The engine can reset between the two reads: the local-safe head then names a different
-/// block at the same height, and the output just fetched belongs to neither record.
-#[tokio::test]
-async fn a_local_safe_head_replaced_between_reads_is_rejected() {
-    let (_dir, db) = recorded();
-    let mut replacement = l2_block(LOCAL_SAFE);
-    replacement.block_info.parent_hash = B256::repeat_byte(0xee);
-    let config = rollup_config();
-    let (_, state) = tokio::sync::watch::channel(engine_state());
-    let rpc = SuperRootRpc::new(
-        recorded_query_client(
-            config.clone(),
-            Some(BlockOutput { block: replacement, output: output(LOCAL_SAFE) }),
-            Some(SafeHeadRecord {
-                l1: l1_block(120).id(),
-                safe_head: l2_block(LOCAL_SAFE).block_info.id(),
-            }),
-        ),
-        state,
-        l1_watcher_at(Some(l1_block(CURRENT_L1))),
-        config,
-        db,
-    );
-
-    let error = rpc.superroot_at_timestamp(U64::from(timestamp_of(LOCAL_SAFE))).await.unwrap_err();
-
-    assert_eq!(error.code(), -32000);
-    assert!(error.message().contains("changed"));
-}
-
 #[tokio::test]
 async fn a_timestamp_before_genesis_is_rejected() {
     let (_dir, db) = recorded();

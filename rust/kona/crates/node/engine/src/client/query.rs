@@ -36,7 +36,14 @@ impl EngineQueryClient {
         match block_number.cmp(&recorded_head.number) {
             Ordering::Equal => self.output_at_recorded_head(recorded_head).await,
             Ordering::Less => self.output_below_recorded_head(block_number, recorded_head).await,
-            Ordering::Greater => Ok(None),
+            Ordering::Greater => {
+                warn!(
+                    block_number,
+                    ?recorded_head,
+                    "Recorded head is below the block it is recorded to have made safe"
+                );
+                Ok(None)
+            }
         }
     }
 
@@ -64,10 +71,7 @@ impl EngineQueryClient {
 
     /// A block below the recorded head is read by number, between two checks that the recorded
     /// head is canonical. Unlike a walk of parent hashes, those checks cannot tell a chain that
-    /// switched away and back between them from one that never switched. While the local-safe
-    /// head at or above `recorded_head` stays the same, such a switch would need the rollup node
-    /// to rewind and re-derive every block back up to it within this one read, so in practice it
-    /// does not happen.
+    /// switched away and back between them from one that never switched.
     async fn output_below_recorded_head(
         &self,
         block_number: u64,

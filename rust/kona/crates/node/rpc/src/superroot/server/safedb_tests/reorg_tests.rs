@@ -13,6 +13,7 @@ const TARGET: u64 = 3;
 #[derive(Clone, Copy, Debug)]
 enum Mutation {
     DatabaseResetDuringProof,
+    LocalSafeReplacedDuringProof,
     None,
     ReorgAtTargetRead,
     ReorgBeforeQuery,
@@ -22,13 +23,14 @@ enum Mutation {
     SwitchAwayAndBackAroundTargetRead,
 }
 
-/// Applies `mutation` to the canonical chain, or to the safe head database, at its point in the
-/// query.
+/// Applies `mutation` to the canonical chain, the safe head database or the engine state, at its
+/// point in the query.
 fn mutate_at_its_read(
     mut mutation: Mutation,
     original: Chain,
     replacement: Chain,
     database: Arc<SafeDatabase>,
+    engine_state: tokio::sync::watch::Sender<EngineState>,
     recorded_head: u64,
 ) -> impl FnMut(Read, &mut Chain) + Send + 'static {
     move |read, canonical| {
@@ -40,6 +42,16 @@ fn mutate_at_its_read(
                         .safe_head_updated(block_info(&replacement[&height]), l1_block(l1).id())
                         .unwrap();
                 }
+                Mutation::None
+            }
+            (Mutation::LocalSafeReplacedDuringProof, Read::Proof) => {
+                let replaced_local_safe = block_info(&replacement[&LOCAL_SAFE]);
+                engine_state.send_modify(|state| {
+                    state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+                        local_safe_head: Some(replaced_local_safe),
+                        ..Default::default()
+                    });
+                });
                 Mutation::None
             }
             (Mutation::ReorgAtTargetRead, Read::BlockWithTransactions) |
@@ -85,6 +97,14 @@ async fn fixture(recorded_head: u64, mutation: Mutation) -> ReorgFixture {
     for (height, l1) in [(1, 100), (recorded_head, 110)] {
         database.safe_head_updated(block_info(&original[&height]), l1_block(l1).id()).unwrap();
     }
+    let sync_state = EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
+        finalized_head: Some(block_info(&original[&FINALIZED])),
+        local_safe_head: Some(block_info(&original[&LOCAL_SAFE])),
+        safe_head: Some(block_info(&original[&SAFE])),
+        unsafe_head: Some(block_info(&original[&(LOCAL_SAFE + 2)])),
+    });
+    let (engine_state_sender, engine_state) =
+        tokio::sync::watch::channel(EngineState { sync_state, ..Default::default() });
     let canonical = if matches!(mutation, Mutation::ReorgBeforeQuery) {
         replacement.clone()
     } else {
@@ -98,20 +118,13 @@ async fn fixture(recorded_head: u64, mutation: Mutation) -> ReorgFixture {
             original.clone(),
             replacement.clone(),
             database.clone(),
+            engine_state_sender,
             recorded_head,
         ),
     );
     let config = rollup_config_with_genesis(&original[&0]);
     let (server, query_client) =
         serve_execution_layer(Arc::new(Mutex::new(execution_layer)), config.clone()).await;
-    let sync_state = EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
-        finalized_head: Some(block_info(&original[&FINALIZED])),
-        local_safe_head: Some(block_info(&original[&LOCAL_SAFE])),
-        safe_head: Some(block_info(&original[&SAFE])),
-        unsafe_head: Some(block_info(&original[&(LOCAL_SAFE + 2)])),
-    });
-    let (_, engine_state) =
-        tokio::sync::watch::channel(EngineState { sync_state, ..Default::default() });
     let rpc = SuperRootRpc::new(
         query_client,
         engine_state,
@@ -186,4 +199,17 @@ async fn a_switch_away_and_back_below_the_record_returns_the_replacement_output(
         response.optimistic_at_timestamp[&DecimalChainId(CHAIN_ID)].output_root,
         output_root(&replacement[&TARGET])
     );
+}
+
+/// The engine can replace the local-safe head while its output is read, so the output just read
+/// no longer belongs to the local-safe chain.
+#[tokio::test]
+async fn a_local_safe_head_replaced_during_the_read_is_rejected() {
+    let fixture = fixture(LOCAL_SAFE, Mutation::LocalSafeReplacedDuringProof).await;
+
+    let error =
+        fixture.rpc.superroot_at_timestamp(U64::from(timestamp_of(LOCAL_SAFE))).await.unwrap_err();
+
+    assert_eq!(error.code(), -32000);
+    assert!(error.message().contains("changed"), "{error}");
 }

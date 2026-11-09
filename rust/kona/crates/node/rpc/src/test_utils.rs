@@ -28,6 +28,8 @@ pub(crate) fn query_client(config: Arc<RollupConfig>) -> kona_engine::EngineQuer
     kona_engine::test_utils::test_engine_client(config).0.query_client()
 }
 
+/// A query client whose EL serves `output`'s block on the chain through `record`'s safe head,
+/// for one successful read.
 pub(crate) fn recorded_query_client(
     config: Arc<RollupConfig>,
     output: Option<BlockOutput>,
@@ -36,43 +38,24 @@ pub(crate) fn recorded_query_client(
     let (engine, _, transport) = kona_engine::test_utils::test_engine_client(config);
     if let (Some(output), Some(record)) = (output, record) {
         let target = rpc_block(output);
-        let target_is_record = record.safe_head.number == output.block.block_info.number;
-        let canonical_at_record = if target_is_record {
-            target.clone()
+        if record.safe_head.number == output.block.block_info.number {
+            transport.expect_params(
+                "eth_getBlockByHash",
+                serde_json::json!([record.safe_head.hash, true]),
+                &target,
+            );
+            expect_proof(&transport, &target, output.output.bridge_storage_root);
+            expect_canonical_check(&transport, &target);
         } else {
-            fixture_rpc_block(record.safe_head.number)
-        };
-        let record_is_canonical = canonical_at_record.header.hash == record.safe_head.hash;
-        let attempts = if record_is_canonical { 1 } else { 3 };
-        for _ in 0..attempts {
-            if target_is_record {
-                let recorded_block = if record_is_canonical {
-                    target.clone()
-                } else {
-                    fixture_rpc_block(record.safe_head.number)
-                };
-                transport.expect_params(
-                    "eth_getBlockByHash",
-                    serde_json::json!([record.safe_head.hash, true]),
-                    &recorded_block,
-                );
-                expect_proof(&transport, &recorded_block, output.output.bridge_storage_root);
-                expect_canonical_check(&transport, &canonical_at_record);
-            } else {
-                expect_canonical_check(&transport, &canonical_at_record);
-                if record_is_canonical {
-                    transport.expect_params(
-                        "eth_getBlockByNumber",
-                        serde_json::json!([
-                            format!("0x{:x}", output.block.block_info.number),
-                            true
-                        ]),
-                        &target,
-                    );
-                    expect_proof(&transport, &target, output.output.bridge_storage_root);
-                    expect_canonical_check(&transport, &canonical_at_record);
-                }
-            }
+            let recorded_head = fixture_rpc_block(record.safe_head.number);
+            expect_canonical_check(&transport, &recorded_head);
+            transport.expect_params(
+                "eth_getBlockByNumber",
+                serde_json::json!([format!("0x{:x}", output.block.block_info.number), true]),
+                &target,
+            );
+            expect_proof(&transport, &target, output.output.bridge_storage_root);
+            expect_canonical_check(&transport, &recorded_head);
         }
     }
     engine.query_client()

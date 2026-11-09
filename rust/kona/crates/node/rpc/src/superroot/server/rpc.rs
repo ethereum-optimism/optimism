@@ -113,6 +113,10 @@ impl SuperRootRpc {
                 })?;
             let current_sync = self.engine_state.borrow().sync_state;
             let history_unchanged = self.safe_head_record(block_number)? == record;
+            // An unchanged local-safe head also rules out, in practice, the EL switching away
+            // from the recorded head and back during the read: as long as this node alone drives
+            // the EL's forkchoice, restoring the same local-safe head takes rewinding and
+            // re-deriving every block up to it within that read.
             let safe_head_unchanged = current_sync.local_safe_head() == sync.local_safe_head();
             if let Some((block, output)) = output {
                 let within_safe_head = block.block_info.number <
