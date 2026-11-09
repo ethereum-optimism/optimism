@@ -129,26 +129,15 @@ pub struct RollupNode {
 /// It is not intended to be generic or reusable outside the
 /// `RollupNode` wiring logic.
 enum ConfiguredDerivationActor {
-    Delegate(
-        Box<
-            DelegateDerivationActor<
-                QueuedDerivationEngineClient,
-                DerivationDelegateClient,
-                AlloyChainProvider,
-            >,
-        >,
-    ),
+    Delegate(Box<DelegateDerivationActor<QueuedDerivationEngineClient, DerivationDelegateClient>>),
     Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>>),
 }
 
 #[async_trait::async_trait]
 impl NodeActor for ConfiguredDerivationActor
 where
-    DelegateDerivationActor<
-        QueuedDerivationEngineClient,
-        DerivationDelegateClient,
-        AlloyChainProvider,
-    >: NodeActor<Error = DerivationError>,
+    DelegateDerivationActor<QueuedDerivationEngineClient, DerivationDelegateClient>:
+        NodeActor<Error = DerivationError>,
     DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
         NodeActor<Error = DerivationError>,
 {
