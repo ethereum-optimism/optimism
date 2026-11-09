@@ -36,6 +36,7 @@ use reth_provider::{
     test_utils::{MockNodeTypesWithDB, create_test_provider_factory_with_chain_spec},
 };
 use reth_revm::database::StateProviderDatabase;
+use reth_storage_overlay::OverlayManager;
 use reth_trie_common::{ComputedTrieData, HashedPostState};
 use rstest::rstest;
 use secp256k1::{Keypair, Secp256k1};
@@ -239,6 +240,7 @@ struct SimulatedReth {
     /// Newest block in the database.
     last_persisted: BlockNumHash,
     nonce: u64,
+    overlay_manager: OverlayManager,
     persistence: RethPersistence,
     provider: BlockchainProvider<MockNodeTypesWithDB>,
 }
@@ -249,7 +251,9 @@ impl SimulatedReth {
         key_pair: Keypair,
         persistence: RethPersistence,
     ) -> eyre::Result<Self> {
-        let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+        let overlay_manager = OverlayManager::default();
+        let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone())
+            .with_overlay_manager(overlay_manager.clone());
         init_genesis(&factory)?;
         let provider = BlockchainProvider::new(factory.clone())?;
         let genesis = BlockNumHash::new(0, chain_spec.genesis_hash());
@@ -263,6 +267,7 @@ impl SimulatedReth {
             last_evicted: genesis,
             last_persisted: genesis,
             nonce: 0,
+            overlay_manager,
             persistence,
             provider,
         })
@@ -336,8 +341,15 @@ impl SimulatedReth {
 
     fn make_canonical(&mut self, update: NewCanonicalChain) {
         let tip = update.tip().clone_sealed_header();
+        if let NewCanonicalChain::Reorg { old, .. } = &update {
+            self.overlay_manager
+                .remove_blocks(old.iter().map(|block| block.recovered_block().hash()));
+        }
         match &update {
             NewCanonicalChain::Commit { new } | NewCanonicalChain::Reorg { new, .. } => {
+                for block in new {
+                    self.overlay_manager.insert_block(block.clone());
+                }
                 self.canonical.extend(new.iter().cloned());
             }
         }
@@ -415,6 +427,11 @@ impl SimulatedReth {
     fn evict_through(&mut self, number: u64) {
         assert!(number <= self.last_persisted.number, "only persisted blocks leave memory");
         self.in_memory.remove_persisted_blocks_until(self.last_persisted, number);
+        let evicted = self.canonical[self.last_evicted.number as usize..number as usize]
+            .iter()
+            .map(|block| block.recovered_block().hash())
+            .collect::<Vec<_>>();
+        self.overlay_manager.remove_blocks(evicted);
         self.last_evicted = self.num_hash(number);
     }
 }
@@ -737,7 +754,6 @@ fn run_parent_state_case(
 #[case::in_memory(ParentState::InMemory, Outcome::Stored)]
 #[case::persisted_and_evicted(ParentState::PersistedAndEvicted, Outcome::Stored)]
 #[case::evicted_while_executing(ParentState::EvictedWhileExecuting, Outcome::Stored)]
-#[ignore = "passes on #23046; develop skips a parent reth no longer holds (StateForHashNotFound) and stores nothing"]
 #[case::abandoned_fork(ParentState::AbandonedFork, Outcome::StateRootMismatch)]
 #[serial]
 fn execute_block_across_reth_parent_states(
