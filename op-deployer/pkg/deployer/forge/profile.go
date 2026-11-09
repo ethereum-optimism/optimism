@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
@@ -47,30 +48,25 @@ func knownEqual[T comparable](a, b *T) bool {
 // override sets the settings of a forge profile, or of one of its additional_compiler_profiles,
 // that it names. It returns false if a value has the wrong type.
 func (s *compilerSettings) override(settings map[string]any) bool {
-	for key, value := range settings {
-		var ok bool
-		switch key {
-		case "optimizer":
-			s.Optimizer.Enabled, ok = valuePtr[bool](value)
-		case "optimizer_runs":
-			s.Optimizer.Runs, ok = valuePtr[int64](value)
-		case "via_ir":
-			s.ViaIR, ok = valuePtr[bool](value)
-		case "evm_version":
-			s.EvmVersion, ok = valuePtr[string](value)
-		default:
-			ok = true
-		}
-		if !ok {
-			return false
-		}
-	}
-	return true
+	return setting(settings, "optimizer", &s.Optimizer.Enabled) &&
+		setting(settings, "optimizer_runs", &s.Optimizer.Runs) &&
+		setting(settings, "via_ir", &s.ViaIR) &&
+		setting(settings, "evm_version", &s.EvmVersion)
 }
 
-func valuePtr[T any](value any) (*T, bool) {
+// setting sets *dst to the value of key in settings, if settings has it. It returns false if the
+// value has the wrong type. forge reads kebab-case keys only at the top level of a profile, so the
+// keys of an additional_compiler_profiles entry are taken as they are.
+func setting[T any](settings map[string]any, key string, dst **T) bool {
+	value, ok := settings[key]
+	if !ok {
+		return true
+	}
 	v, ok := value.(T)
-	return ptr.New(v), ok
+	if ok {
+		*dst = ptr.New(v)
+	}
+	return ok
 }
 
 // snakeKeys returns settings with their keys in snake case: forge reads a kebab-case key as its
@@ -83,6 +79,11 @@ func snakeKeys(settings map[string]any) map[string]any {
 	return out
 }
 
+// maxCompilerProfiles bounds the additional compiler profiles of a forge profile that compilers
+// reads, so that the cost of matching many forge profiles stays linear in the size of the project
+// config.
+const maxCompilerProfiles = 64
+
 // compilers returns the compiler profiles that forge compiles with under a forge profile's
 // settings, by name: the base compiler profile and its additional_compiler_profiles, which inherit
 // the base's settings.
@@ -93,25 +94,30 @@ func compilers(settings map[string]any) (map[string]compilerSettings, bool) {
 	if !base.override(settings) {
 		return nil, false
 	}
-	profiles := map[string]compilerSettings{"default": base}
 	var additional []map[string]any
 	switch list := settings["additional_compiler_profiles"].(type) {
 	case nil:
 	case []map[string]any:
 		additional = list
 	case []any:
-		for _, entry := range list {
-			profile, ok := entry.(map[string]any)
+		if len(list) > maxCompilerProfiles {
+			return nil, false
+		}
+		for _, item := range list {
+			entry, ok := item.(map[string]any)
 			if !ok {
 				return nil, false
 			}
-			additional = append(additional, profile)
+			additional = append(additional, entry)
 		}
 	default:
 		return nil, false
 	}
+	if len(additional) > maxCompilerProfiles {
+		return nil, false
+	}
+	profiles := map[string]compilerSettings{"default": base}
 	for _, entry := range additional {
-		entry = snakeKeys(entry)
 		name, ok := entry["name"].(string)
 		if !ok {
 			return nil, false
@@ -122,10 +128,9 @@ func compilers(settings map[string]any) (map[string]compilerSettings, bool) {
 		}
 		// forge turns the optimizer on for an additional profile that sets runs above 0 but not the
 		// optimizer, even when the base has it off.
-		if runs, ok := entry["optimizer_runs"].(int64); ok && runs > 0 {
-			if _, set := entry["optimizer"]; !set {
-				profile.Optimizer.Enabled = ptr.New(true)
-			}
+		_, optimizerSet := entry["optimizer"]
+		if runs, ok := entry["optimizer_runs"].(int64); ok && runs > 0 && !optimizerSet {
+			profile.Optimizer.Enabled = ptr.New(true)
 		}
 		profiles[name] = profile
 	}
@@ -147,18 +152,14 @@ func matchesCache(settings map[string]any, cached map[string]compilerSettings) b
 	return true
 }
 
-// compileProfile returns the settings of the project's default profile, with the compile settings
-// of the profile that its compile cache was built with, so that a project built with another
-// profile, such as a lite build without the optimizer, runs its scripts without a compile. When the
-// cache matches no profile, or several profiles with different compile settings, the settings are
-// the default profile's, and a script run compiles, which RunScript refuses. It also returns what
-// the cache matches, such as "the lite profile", or nothing when it cannot tell.
-func compileProfile(profiles map[string]map[string]any, cache []byte) (map[string]any, string) {
-	normalized := make(map[string]map[string]any, len(profiles))
-	for name, profile := range profiles {
-		normalized[name] = snakeKeys(profile)
-	}
-	base := normalized["default"]
+// compileProfile returns the settings of the project's default profile and what its compile cache
+// matches, such as "the lite profile", or nothing when it cannot tell. With anyCacheProfile, the
+// settings take the compile settings of the profile that the cache was built with, so that a project
+// built with another profile, such as a lite build without the optimizer, runs its scripts without a
+// compile. When the cache matches no profile, or several profiles with different compile settings,
+// the settings stay the default profile's, and a script run compiles, which RunScript refuses.
+func compileProfile(profiles map[string]map[string]any, cache []byte, anyCacheProfile bool) (map[string]any, string) {
+	base := snakeKeys(profiles["default"])
 
 	var parsed struct {
 		Profiles map[string]struct {
@@ -175,53 +176,89 @@ func compileProfile(profiles map[string]map[string]any, cache []byte) (map[strin
 		}
 		cached[name] = *profile.Solc
 	}
-	if matchesCache(base, cached) {
+	baseCompile := compileSettingsOf(base)
+	if matchesCache(baseCompile, cached) {
 		return base, "the default profile"
 	}
 
+	// Each candidate holds only the compile settings, so that many profiles cost little memory. A
+	// key replaces the default's value whole, also a table such as optimizer_details, which forge
+	// merges: the cache does not record those, so a difference fails as a compile.
+	candidate := func(name string) map[string]any {
+		settings := maps.Clone(baseCompile)
+		maps.Copy(settings, compileSettingsOf(profiles[name]))
+		return settings
+	}
 	var names []string
-	var matched []map[string]any
-	for _, name := range slices.Sorted(maps.Keys(normalized)) {
+	var first map[string]any
+	differ := false
+	for _, name := range slices.Sorted(maps.Keys(profiles)) {
 		if name == "default" {
 			continue
 		}
-		// A key replaces the default's value whole, also a table such as optimizer_details, which
-		// forge merges: the cache does not record those, so a difference fails as a compile.
-		settings := maps.Clone(base)
-		if settings == nil {
-			settings = make(map[string]any)
+		settings := candidate(name)
+		if !matchesCache(settings, cached) {
+			continue
 		}
-		maps.Copy(settings, compileSettingsOf(normalized[name]))
-		if matchesCache(settings, cached) {
-			names = append(names, name)
-			matched = append(matched, settings)
+		names = append(names, name)
+		if first == nil {
+			first = settings
+		} else if !reflect.DeepEqual(settings, first) {
+			differ = true
 		}
 	}
 	switch {
-	case len(matched) == 0:
+	case len(names) == 0:
 		return base, "no profile of foundry.toml"
-	case len(matched) == 1:
-		return matched[0], fmt.Sprintf("the %s profile", names[0])
+	case differ:
+		return base, describeProfiles(names) + ", which differ in their compile settings"
+	case !anyCacheProfile:
+		return base, describeProfiles(names)
 	}
-	for _, settings := range matched[1:] {
-		if !reflect.DeepEqual(compileSettingsOf(settings), compileSettingsOf(matched[0])) {
-			return base, fmt.Sprintf("the %s profiles, which differ in their compile settings", joinNames(names))
-		}
-	}
-	return matched[0], fmt.Sprintf("the %s profiles", joinNames(names))
+	settings := maps.Clone(base)
+	maps.Copy(settings, first)
+	return settings, describeProfiles(names)
 }
 
+// compileSettingsOf returns the profileCompileKeys of settings, with their keys in snake case.
 func compileSettingsOf(settings map[string]any) map[string]any {
 	out := make(map[string]any)
-	for _, key := range profileCompileKeys {
-		if value, ok := settings[key]; ok {
+	for key, value := range settings {
+		key = strings.ReplaceAll(key, "-", "_")
+		if slices.Contains(profileCompileKeys, key) {
 			out[key] = value
 		}
 	}
 	return out
 }
 
-// joinNames joins two or more names as "a, b and c".
-func joinNames(names []string) string {
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+// maxListedProfiles is how many profile names a description lists.
+const maxListedProfiles = 3
+
+// maxProfileNameLen is the length in runes at which a description cuts a profile name.
+const maxProfileNameLen = 40
+
+// describeProfiles describes the named profiles, such as "the lite and liteci profiles". The names
+// come from the project, so it drops unprintable characters and lists only a few short names.
+func describeProfiles(names []string) string {
+	listed := make([]string, 0, min(len(names), maxListedProfiles))
+	for _, name := range names[:min(len(names), maxListedProfiles)] {
+		name = strings.Map(func(r rune) rune {
+			if !unicode.IsPrint(r) {
+				return -1
+			}
+			return r
+		}, name)
+		if runes := []rune(name); len(runes) > maxProfileNameLen {
+			name = string(runes[:maxProfileNameLen]) + "..."
+		}
+		listed = append(listed, name)
+	}
+	if more := len(names) - len(listed); more > 0 {
+		listed = append(listed, fmt.Sprintf("%d more", more))
+	}
+	if len(listed) == 1 {
+		return "the " + listed[0] + " profile"
+	}
+	return "the " + strings.Join(listed[:len(listed)-1], ", ") + " and " + listed[len(listed)-1] + " profiles"
 }

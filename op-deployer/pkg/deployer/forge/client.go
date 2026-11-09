@@ -48,6 +48,11 @@ type Client struct {
 	Timeout time.Duration
 	// Env holds KEY=VALUE variables for each forge command, on top of the inherited environment.
 	Env []string
+	// AnyCacheProfile lets a script run take the compile settings of the project profile that the
+	// compile cache was built with, such as a lite build's, instead of only the default profile's.
+	// Such a build can hold contracts above the EIP-170 code size limit, so set it only for runs
+	// that deploy no contract to a chain, such as an L2 genesis without a code size limit.
+	AnyCacheProfile bool
 }
 
 func NewStandardClient(workdir string, binOpts ...StandardBinOpt) (*Client, error) {
@@ -300,11 +305,11 @@ var solcVersionRegexp = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 // sandboxConfig writes the forge config of a script run into dir: a contracts bundle is a forge
 // project, so its config is not trusted. It keeps only the sandboxKeys and a pinned compiler version
-// of the project's default profile, with the compile settings of the profile that the compile cache
-// was built with, so no extends, RPC URL or sender, and it turns ffi off and grants only
-// FsPermissions. It sets root, because forge otherwise takes the root from the config's directory and
-// recompiles; forge warns that root is unknown, but uses it. It also returns which profile the
-// compile cache matches, if it can tell.
+// of the project's default profile, with AnyCacheProfile the compile settings of the profile that
+// the compile cache was built with, so no extends, RPC URL or sender, and it turns ffi off and
+// grants only FsPermissions. It sets root, because forge otherwise takes the root from the config's
+// directory and recompiles; forge warns that root is unknown, but uses it. It also returns which
+// profile the compile cache matches, if it can tell.
 func (c *Client) sandboxConfig(root string, dir string) (string, string, error) {
 	if err := c.checkFsPermissions(root); err != nil {
 		return "", "", err
@@ -317,7 +322,7 @@ func (c *Client) sandboxConfig(root string, dir string) (string, string, error) 
 	}
 	// The copy of the compile cache that forge reads; an unreadable one matches no profile.
 	cache, _ := os.ReadFile(filepath.Join(dir, compileCacheFile))
-	settings, built := compileProfile(project.Profile, cache)
+	settings, built := compileProfile(project.Profile, cache, c.AnyCacheProfile)
 	profile := map[string]any{
 		"root":           root,
 		"ffi":            false,
