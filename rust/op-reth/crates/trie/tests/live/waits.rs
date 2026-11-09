@@ -45,11 +45,11 @@ impl<T: Send + 'static> PendingCall<T> {
     pub(super) fn ensure_blocked_for(&self, probe: Duration) -> eyre::Result<()> {
         match self.reply.recv_timeout(probe) {
             Err(mpsc::RecvTimeoutError::Timeout) => Ok(()),
-            Ok(_) => eyre::bail!(
+            Ok(_) => Err(eyre::eyre!(
                 "{} returned after {:?} while it had to stay blocked",
                 self.call_name,
                 self.started.elapsed()
-            ),
+            )),
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 Err(CallError::Panicked { call_name: self.call_name }.into())
             }

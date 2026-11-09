@@ -380,7 +380,11 @@ fn a_dead_persistence_service_reaches_callers_as_engine_died(
                 "the engine kept taking blocks for {CALL_TIMEOUT:?} after the panic was armed in \
                  its persistence service"
             ),
-            Err(err) => eyre::bail!("the engine refused a block with {err} instead of EngineDied"),
+            Err(err) => {
+                return Err(eyre::eyre!(
+                    "the engine refused a block with {err} instead of EngineDied"
+                ));
+            }
         }
     }
 }
