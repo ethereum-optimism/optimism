@@ -94,7 +94,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
-| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs. A bootnode ENR at a non-public address needs `--p2p.discovery.private`, see [discovered addresses](#discovered-addresses) | - |
+| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs. A bootnode at a non-public address needs `--p2p.discovery.private`, see [discovered addresses](#discovered-addresses) | - |
 | `--p2p.static-peers <MULTIADDR,...>` | `KONA_NODE_P2P_STATIC_PEERS` | Peers to dial at startup and keep connected, see [static peers](#static-peers). Alias: `--p2p.static` | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
@@ -138,10 +138,10 @@ op-node never advertises its listen IP: without `--p2p.advertise.ip`, it learns 
 
 Other nodes hand the node records that can name an address it can't reach, such as another host's `127.0.0.1`, or a host that isn't a node at all. So the node follows two rules:
 
-- **It dials only nodes discovery has had a session with, and only if the TCP address in their record has the IP the session came from.** It saves only such records in its bootstore. A record that names another host is dropped. Static peers and [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer) are dialed as given.
-- **Discovery uses only public addresses, unless `--p2p.discovery.private` is set.** A record with a loopback, private, link-local, shared (`100.64.0.0/10`), multicast, broadcast or documentation address isn't contacted or kept in the discovery table, and isn't dialed from the bootstore, which drops it at startup. This applies to bootnodes too, so a devnet that uses loopback or LAN bootnodes needs the flag. A bootnode given as an enode URL is still asked for its record, but isn't kept if the record fails.
+- **Apart from its bootnodes, it dials only nodes discovery has had a session with, and only if the TCP address in their record has the IP the session came from.** It saves the bootnodes and such records in its bootstore, and hands them to gossip at startup and every minute after, so that it redials the peers it lost. A record that names another host is dropped. Static peers and [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer) are dialed as given.
+- **Discovery uses only public addresses, unless `--p2p.discovery.private` is set.** A record with a loopback, private, link-local, shared (`100.64.0.0/10`), multicast, broadcast or documentation address isn't contacted, kept in the discovery table, or saved, and the bootstore drops it at startup. This applies to bootnodes, given as ENRs or enode URLs, so a devnet that uses loopback or LAN bootnodes needs the flag. The other special-purpose ranges, such as `198.18.0.0/15` and `240.0.0.0/4`, count as public.
 
-Discovery keeps a node it has a session with in its table whatever its address, and passes its record on to nodes that look it up, as it can't check a record against the node asking for it. Nodes that follow these rules drop such a record.
+A node that starts a session from a private address has shown that it is reachable, so it is dialed, but not saved. Discovery keeps it in its table, and passes its record on to nodes that look it up, as it can't check a record against the node asking for it. Nodes that follow these rules drop such a record.
 
 Like Lighthouse, kona-node uses a fixed rule. op-node instead checks each record against the node that returned it, so it accepts a LAN record from a LAN neighbour without a flag.
 

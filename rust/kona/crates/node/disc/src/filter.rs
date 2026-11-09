@@ -40,8 +40,10 @@ const fn is_public_v4(ip: Ipv4Addr) -> bool {
 }
 
 const fn is_public_v6(ip: Ipv6Addr) -> bool {
-    // `Ipv6Addr::is_documentation` isn't stable yet: `2001:db8::/32`.
-    let is_documentation = ip.segments()[0] == 0x2001 && ip.segments()[1] == 0x0db8;
+    // `Ipv6Addr::is_documentation` isn't stable yet: `2001:db8::/32` and `3fff::/20`.
+    let [first, second, ..] = ip.segments();
+    let is_documentation =
+        (first == 0x2001 && second == 0x0db8) || (first == 0x3fff && second < 0x1000);
     !(ip.is_unspecified() ||
         ip.is_loopback() ||
         ip.is_unique_local() ||
@@ -78,6 +80,8 @@ mod tests {
     #[case::link_local_v6("fe80::f4a1:8eff:fec5:9d9d", false)]
     #[case::multicast_v6("ff05::1:3", false)]
     #[case::documentation_v6("2001:db8:85a3:8d3:1319:8a2e:370:7348", false)]
+    #[case::documentation_v6_new("3fff:fff::1", false)]
+    #[case::past_documentation_v6_new("3fff:1000::1", true)]
     #[case::mapped_loopback("::ffff:127.0.0.1", false)]
     #[case::mapped_private("::ffff:10.10.0.2", false)]
     fn test_is_public(#[case] ip: IpAddr, #[case] expected: bool) {

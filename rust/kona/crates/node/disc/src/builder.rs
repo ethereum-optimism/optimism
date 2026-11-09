@@ -179,7 +179,7 @@ pub struct Discv5Builder {
     bootnodes: BootNodes,
     /// The interval to store the bootnodes to disk.
     store_interval: Option<Duration>,
-    /// Whether or not to forward the initial set of valid ENRs to the gossip layer.
+    /// Whether to hand the saved records to the gossip layer, see [`Discv5Driver::forward`].
     forward: bool,
 }
 
@@ -248,7 +248,7 @@ impl Discv5Builder {
         self
     }
 
-    /// Disables forwarding of the initial set of valid ENRs to the gossip layer.
+    /// Disables handing the saved records to the gossip layer, see [`Discv5Driver::forward`].
     pub const fn disable_forward(mut self) -> Self {
         self.forward = false;
         self

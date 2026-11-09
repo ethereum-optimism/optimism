@@ -249,9 +249,8 @@ pub struct P2PArgs {
     /// Lets discovery use non-public addresses, such as loopback and LAN ones, in other nodes'
     /// records, as on a devnet.
     ///
-    /// Without it, discovery uses only public addresses, and doesn't keep a bootnode at another
-    /// address. A node on a public network can't reach other hosts' private addresses, so leave it
-    /// off there.
+    /// Without it, discovery uses only public addresses, and skips bootnodes at other addresses. A
+    /// node on a public network can't reach other hosts' private addresses, so leave it off there.
     #[arg(long = "p2p.discovery.private", env = "KONA_NODE_P2P_DISCOVERY_PRIVATE")]
     pub discovery_private: bool,
     /// The directory to store the bootstore.
