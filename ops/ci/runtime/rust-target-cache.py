@@ -252,10 +252,16 @@ def manage(phase, root, target):
                           'recorded_generated_files': recorded_generated}))
     elif phase == 'commit':
         if not pending.exists():
-            raise ValueError('Rust source changed during build or preparation is missing')
+            raise ValueError('Rust source preparation is missing')
         prepared = json.loads(pending.read_text())
         if prepared.get('source_sha256') != digest:
-            raise ValueError('Rust source changed during build or preparation is missing')
+            # Name the files, so that a recipe output in the source tree is visible.
+            before = {name: row['sha256'] for name, row in prepared.get('files', {}).items()}
+            after = {name: row['sha256'] for name, row in entries.items()}
+            changed = sorted(name for name in before.keys() | after.keys()
+                             if before.get(name) != after.get(name))
+            more = f' (+{len(changed) - 10} more)' if len(changed) > 10 else ''
+            raise ValueError('Rust source changed during build: ' + ' '.join(changed[:10]) + more)
         for name, entry in prepared.get('generated_files', {}).items():
             if generated.get(name, {}).get('sha256') != entry['sha256']:
                 raise ValueError('Generated Rust input changed during build: ' + name)

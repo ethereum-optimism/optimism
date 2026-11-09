@@ -131,9 +131,11 @@ case "$job" in
     # Never accept a restored state as evidence of this invocation's guest exit.
     rm -f rust/kona/state.bin.gz rust/kona/out.bin.gz rust/kona/meta.json
     stage_at rust/kona/bin/client offline just run-client-cannon-offline "${config[@]}"
-    cp rust/kona/out.bin.gz "$report/out.bin.gz"
+    # Cannon writes the final state into rust/kona, and git does not ignore it
+    # there. Move it out, or the Rust target cache commit sees a source change.
+    mv rust/kona/out.bin.gz "$report/out.bin.gz"
     python3 "$HELPERS/rust-workspace-report.py" json-stage "$report" guest \
-      "$ROOT/cannon/bin/cannon" witness --input "$ROOT/rust/kona/out.bin.gz"
+      "$ROOT/cannon/bin/cannon" witness --input "$report/out.bin.gz"
     capture_elfs
     python3 "$HELPERS/rust-cannon-report.py" image "$report"
     ;;

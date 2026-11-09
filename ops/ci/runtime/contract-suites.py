@@ -41,6 +41,9 @@ PREPARED = {'settings.json', 'files.log', 'files.stage.json', 'file-selection.js
             'foundry-config.stage.json', 'go-ffi.stage.json', 'contracts-build.stage.json', 'discovery.json',
             'discovery.stage.json', 'selection.json', 'signature-bindings.json', 'compiled.json', 'submodules.txt',
             'compile-only.json', 'source-after-preparation.json', 'submodules-sync.stage.json', 'submodules-init.stage.json'}
+# An empty original selection ends the preparation before submodules and compilation.
+EMPTY_PREPARED = {'settings.json', 'files.log', 'files.stage.json', 'file-selection.json', 'coverage.json',
+                  'source-after-preparation.json'}
 
 
 def inputs():
@@ -254,7 +257,10 @@ def prepare(directory, suite, feature):
 
 
 def restore(directory, prepared, suite, feature):
-    UP.originals(prepared, PREPARED, 'rwx/contract-suites-prepare')
+    # Circle's job halts with success when its test list is empty. The verdict
+    # does the same, after it proves that the selection is still empty.
+    compiled = bool(json.loads((prepared / 'file-selection.json').read_text())['files'])
+    UP.originals(prepared, PREPARED if compiled else EMPTY_PREPARED, 'rwx/contract-suites-prepare')
     old = json.loads((prepared / 'settings.json').read_text()); branch, profile = configure(suite, feature)
     chosen = json.loads((prepared / 'file-selection.json').read_text())
     if old.get('runtime_output_paths') != runtime_outputs(chosen['files']):
@@ -264,11 +270,12 @@ def restore(directory, prepared, suite, feature):
         raise ValueError('Stale contract compilation source or effective settings')
     for key, argv in [('forge', ['forge', '--version']), ('go', ['go', 'version']), ('just', ['just', '--version'])]:
         if old[key] != UP.command(*argv): raise ValueError('Contract runtime toolchain differs from compilation')
-    if UP.SUBMODULES.revisions((prepared / 'submodules.txt').read_text()) != UP.SUBMODULES.revisions(UP.command('git', 'submodule', 'status', '--recursive')):
-        raise ValueError('Contract runtime submodules differ from compilation')
-    for name, value in json.loads((prepared / 'compiled.json').read_text()).items():
-        if not name.startswith('packages/contracts-bedrock/') or '..' in Path(name).parts or UP.digest(ROOT / name) != value:
-            raise ValueError('Missing or corrupt contract compiled output')
+    if compiled:
+        if UP.SUBMODULES.revisions((prepared / 'submodules.txt').read_text()) != UP.SUBMODULES.revisions(UP.command('git', 'submodule', 'status', '--recursive')):
+            raise ValueError('Contract runtime submodules differ from compilation')
+        for name, value in json.loads((prepared / 'compiled.json').read_text()).items():
+            if not name.startswith('packages/contracts-bedrock/') or '..' in Path(name).parts or UP.digest(ROOT / name) != value:
+                raise ValueError('Missing or corrupt contract compiled output')
     for p in prepared.iterdir():
         if p.is_file() and p.name != 'final.json': shutil.copy2(p, directory / p.name)
         elif p.is_dir(): shutil.copytree(p, directory / p.name, dirs_exist_ok=True)
@@ -276,9 +283,9 @@ def restore(directory, prepared, suite, feature):
     shutil.copy2(prepared / 'settings.json', directory / 'preparation-settings.json')
     old.update(rwx_run_id=os.environ.get('RWX_RUN_ID'), rwx_task_attempt=os.environ.get('RWX_TASK_ATTEMPT_NUMBER'))
     UP.write(directory / 'settings.json', old)
-    if UP.stage(directory, 'runtime-config', ['forge', 'config', '--json'], json_output=True):
+    if compiled and UP.stage(directory, 'runtime-config', ['forge', 'config', '--json'], json_output=True):
         raise ValueError('Runtime Foundry configuration unavailable')
-    if json.loads((directory / 'runtime-config.json').read_text()) != json.loads((directory / 'foundry-config.json').read_text()):
+    if compiled and json.loads((directory / 'runtime-config.json').read_text()) != json.loads((directory / 'foundry-config.json').read_text()):
         raise ValueError('Runtime Foundry settings differ from compilation')
     target = pinned_target(suite)
     if old.get('target_binding') == 'run-pinned':
@@ -347,9 +354,6 @@ def main():
         settings = json.loads((directory / 'settings.json').read_text())
         verify_inputs(directory, settings['input_sha256'], 'verdict' if a.mode == 'run' else 'preparation',
                       settings.get('runtime_output_paths', []) if a.mode == 'run' else [])
-        if a.mode == 'prepare' and status == 0 and os.environ.get('RWX_VALUES'):
-            chosen = json.loads((directory / 'file-selection.json').read_text())
-            (Path(os.environ['RWX_VALUES']) / 'eligible').write_text('true\n' if chosen['files'] else 'false\n')
     except (OSError, ValueError, KeyError, UP.ET.ParseError, subprocess.CalledProcessError) as error:
         errors.append(str(error)); print(error, file=sys.stderr)
         if status == 0: status = 1

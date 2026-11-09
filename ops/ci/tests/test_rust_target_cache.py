@@ -230,6 +230,18 @@ class RustTargetCacheTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Generated Rust input changed'):
             self.run_phase('commit')
 
+    def test_commit_names_source_files_that_changed_during_the_build(self):
+        with self.assertRaisesRegex(ValueError, 'Rust source preparation is missing'):
+            self.run_phase('commit')
+        self.run_phase('prepare')
+        output = self.root / 'rust/kona/out.bin.gz'
+        output.parent.mkdir(parents=True)
+        output.write_bytes(b'recipe output that git does not ignore')
+        with self.assertRaisesRegex(ValueError, 'Rust source changed during build: rust/kona/out.bin.gz$'):
+            self.run_phase('commit')
+        output.unlink()
+        self.run_phase('commit')
+
     def test_cold_build_records_newly_materialized_generated_input(self):
         name = CACHE.GENERATED_SOURCES[0]
         with (self.root / '.git/info/exclude').open('a') as f: f.write(name + '\n')

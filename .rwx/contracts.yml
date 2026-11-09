@@ -183,7 +183,7 @@ tasks:
 
   - key: verdict-standard-main
     use: [source, go-tools, contract-tools, go-modules, compile-standard-main]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-main.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
@@ -207,7 +207,7 @@ tasks:
 
   - key: verdict-standard-CUSTOM_GAS_TOKEN
     use: [source, go-tools, contract-tools, go-modules, compile-standard-CUSTOM_GAS_TOKEN]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-CUSTOM_GAS_TOKEN.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
@@ -231,7 +231,7 @@ tasks:
 
   - key: verdict-standard-INTEROP
     use: [source, go-tools, contract-tools, go-modules, compile-standard-INTEROP]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-INTEROP.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
@@ -267,7 +267,7 @@ tasks:
 
   - key: verdict-standard-BRIDGE_HOOK
     use: [source, go-tools, contract-tools, go-modules, compile-standard-BRIDGE_HOOK]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-BRIDGE_HOOK.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
@@ -279,7 +279,7 @@ tasks:
 
   - key: verdict-standard-OP_PRIVATE
     use: [source, go-tools, contract-tools, go-modules, compile-standard-OP_PRIVATE]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-OP_PRIVATE.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
@@ -304,7 +304,7 @@ tasks:
 
   - key: verdict-modified-main
     use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-main]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-main.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
@@ -330,7 +330,7 @@ tasks:
 
   - key: verdict-modified-CUSTOM_GAS_TOKEN
     use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-CUSTOM_GAS_TOKEN]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-CUSTOM_GAS_TOKEN.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
@@ -356,7 +356,7 @@ tasks:
 
   - key: verdict-modified-INTEROP
     use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-INTEROP]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-INTEROP.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
@@ -395,7 +395,7 @@ tasks:
 
   - key: verdict-modified-BRIDGE_HOOK
     use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-BRIDGE_HOOK]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-BRIDGE_HOOK.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
@@ -408,7 +408,7 @@ tasks:
 
   - key: verdict-modified-OP_PRIVATE
     use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-OP_PRIVATE]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-OP_PRIVATE.tasks.build.values.eligible == 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contracts-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}

@@ -197,7 +197,8 @@ class RunnerTests(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory(); self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
-        for name in REPORT.INPUTS:
+        # The witness archive's ignore file keeps it out of the Rust source check.
+        for name in REPORT.INPUTS + ['rust/kona/bin/client/testdata/.gitignore']:
             target = self.root / name; target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO / name, target)
         for tree in ('op-service', 'op-preimage', 'op-core/nuts/bundles'):
@@ -212,6 +213,9 @@ root=pathlib.Path(os.environ['FIXTURE_ROOT']); tool=pathlib.Path(sys.argv[0]).na
 elf=b'\\x7fELF\\x02\\x02\\x01'+b'\\0'*11+b'\\0\\x08'+b'compiled fixture'
 config=json.loads((root/'ops/ci/runtime/cannon-witness.json').read_text())
 if tool in ('rustc','cargo','go'): print(tool+' pinned'); sys.exit(0)
+if tool=='sccache':
+    if '--show-stats' in args: print('{}')
+    sys.exit(0)
 if tool=='curl':
     path=pathlib.Path(args[args.index('-o')+1]); path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(b'fixture witness')
     sys.exit(int(os.environ.get('CURL_EXIT','0')))
@@ -250,7 +254,7 @@ if tool=='cannon':
     print(json.dumps({'exited':True,'exitCode':int(os.environ.get('GUEST_EXIT','0')),'step':12345,'stateVersion':8,'witnessHash':'0x'+'d'*64,'witness':'0x00010203'}))
 ''')
         stub.chmod(0o755)
-        for name in ('just', 'docker', 'rustc', 'cargo', 'go', 'curl'): (stubs / name).symlink_to(stub)
+        for name in ('just', 'docker', 'rustc', 'cargo', 'go', 'curl', 'sccache'): (stubs / name).symlink_to(stub)
         subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
         subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)
         subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture'], cwd=self.root, check=True)
@@ -267,7 +271,8 @@ if tool=='cannon':
         stale = self.root / 'rust/kona/out.bin.gz'; stale.write_bytes(b'stale state')
         run = self.run_offline()
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        self.assertNotEqual(stale.read_bytes(), b'stale state')
+        self.assertFalse(stale.exists())
+        self.assertEqual(gzip.decompress((self.report / 'out.bin.gz').read_bytes()), b'fresh final state')
         args = json.loads((self.root / 'invocations.json').read_text())
         keys = ('block_number', 'l2_claim', 'l2_output_root', 'l2_head', 'l1_head', 'l2_chain_id', 'filename', 'release_url')
         self.assertEqual(args, ['run-client-cannon-offline'] + [CONFIG[k] for k in keys])
@@ -278,6 +283,15 @@ if tool=='cannon':
         self.assertEqual(final['stages']['offline']['exit_code'], 0)
         self.assertEqual(final['stages']['guest']['exit_code'], 0)
         self.assertIsNotNone(ET.parse(self.report / 'checks.junit.xml').find('.//failure'))
+
+    def test_rwx_offline_leaves_no_guest_state_in_the_rust_source_tree(self):
+        # The target cache commit fails if the run adds an unignored file under rust/.
+        run = self.run_offline(CI_RUST_PROVIDER='rwx', RWX_RUN_ID='a' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertFalse((self.root / 'rust/kona/out.bin.gz').exists())
+        self.assertEqual(gzip.decompress((self.report / 'out.bin.gz').read_bytes()), b'fresh final state')
+        self.assertTrue((self.root / 'rust/target/.rwx-source-fingerprint.json').exists())
+        self.assertEqual(REPORT.read(self.report / 'final.json')['exit_code'], 0)
 
     def test_offline_consumes_the_build_image_instead_of_the_initial_environment(self):
         for job, extra in [('env', {}), ('build', {

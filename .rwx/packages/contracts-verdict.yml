@@ -45,7 +45,8 @@ tasks:
           workspace: [.ci/go-cache/contract-suites-runtime/build]
           system: []
       test-results:
-        - path: .ci/contract-suites/${{ params.suite }}-${{ params.feature }}/run/original.junit.xml
+        # One JUnit report per EVM pass: original-amsterdam and original-l2.
+        - path: .ci/contract-suites/${{ params.suite }}-${{ params.feature }}/run/original-*.junit.xml
           options:
             language: Solidity
             framework: Foundry
