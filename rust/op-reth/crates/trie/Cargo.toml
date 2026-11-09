@@ -82,6 +82,7 @@ secp256k1 = { workspace = true, features = ["rand", "std"] }
 mockall.workspace = true
 rstest.workspace = true
 eyre.workspace = true
+proptest.workspace = true
 
 # misc
 serial_test.workspace = true
