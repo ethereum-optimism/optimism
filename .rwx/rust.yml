@@ -37,7 +37,6 @@ defaults:
 
 aliases:
   rust-env: &rust-env
-    CI_RUST_PROVIDER: rwx
     CI_COMMIT_SHA: ${{ init.commit-sha }}
 
 tasks:
@@ -217,7 +216,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py tests-build
     env: &compiler-base-env
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
-      CI_RUST_PROVIDER: rwx
       CI_COMMIT_SHA: ${{ tasks.compiler-base.values.sha }}
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
     timeout: 90m

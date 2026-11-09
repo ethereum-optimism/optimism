@@ -67,8 +67,11 @@ each one. `ops/ci/migration/circle-alignment.py`, which runs in RWX's
 matches. After a CircleCI gate change, update `pr-gates.json`.
 
 `required-rust-e2e` is shadowed by `.rwx/rust-e2e.yml`, whose job list lives in
-`ops/ci/runtime/rust-e2e.py`. No check compares that list with CircleCI's; update
-it by hand when the CircleCI job list changes.
+`JOBS` in `ops/ci/runtime/rust-e2e.py`. The same alignment check fails when
+CircleCI's `required-rust-e2e` stops requiring exactly the release build
+(`e2e_gate` in `ops/ci/migration/circle-gates.json`) and the `circle_job` of
+each `JOBS` entry. After a CircleCI E2E change, update `JOBS` and
+`.rwx/rust-e2e.yml`.
 
 The RWX checks (`optimism-rwx-pr-coordinator` and the `optimism-*-shadow`
 checks) are not required by any ruleset.

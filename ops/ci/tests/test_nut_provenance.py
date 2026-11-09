@@ -62,8 +62,8 @@ class _ProvenanceTestsFixtures:
     def write_locks(self, entries):
         (self.root / N.LOCK).write_text(''.join(('[' + fork + ']\n' + ''.join((k + ' = ' + json.dumps(v) + '\n' for k, v in entry.items())) for fork, entry in entries.items())))
 
-    def executor(self, argv, provider='circleci', **kwargs):
-        selection = N.discover(self.root, True)
+    def executor(self, argv, **kwargs):
+        selection = N.discover(self.root)
         selection[0]['go_argv'] = argv
         command = N.command
 
@@ -73,36 +73,53 @@ class _ProvenanceTestsFixtures:
 
         def run(directory, name, args, **params):
             return 0 if name in ('tool-prepare', 'compiler-prepare') else stage(directory, name, args, **params)
-        with preserve_working_directory(), patch.dict(os.environ, self.env), patch.object(N, 'command', side_effect=call), patch.object(N, 'discover', return_value=selection), patch.object(N, 'prefix', return_value=[]), patch.object(N, 'tool_identity', return_value={}), patch.object(N.S, 'stage', side_effect=run):
-            result = N.execute(provider, True, **kwargs)
+
+        def identity(directory, pins):
+            N.S.write(directory / 'tools.json', {})
+            return {}
+        with preserve_working_directory(), patch.dict(os.environ, self.env), patch.object(N, 'command', side_effect=call), patch.object(N, 'discover', return_value=selection), patch.object(N, 'prefix', return_value=[]), patch.object(N, 'tool_identity', side_effect=identity), patch.object(N.S, 'stage', side_effect=run):
+            result = N.execute(**kwargs)
         directory = self.root / '.ci/nut-provenance' / ('toolchain' if kwargs.get('prepare') else 'run')
         return (result, directory, N.G.read(directory / 'final.json'))
+
+    def verdict(self, argv):
+        # Run the verdict with the producers it requires: the same-run tool
+        # preparation and a module dependency bound to the fixture Go toolchain.
+        result, tools, _ = self.executor(argv, prepare=True)
+        self.assertEqual(result, 0)
+        modules = self.temp / 'go-modules'
+        modules.mkdir(exist_ok=True)
+
+        def restore(kind, artifact):
+            self.assertEqual((kind, artifact), ('go-modules', modules))
+            receipt = self.root / 'tmp/testlogs/dependencies/go-modules.json'
+            receipt.parent.mkdir(parents=True, exist_ok=True)
+            N.S.write(receipt, {'tool_versions': {'go': 'fixture Go'}})
+        with patch.object(N.G.ARTIFACTS, 'restore', side_effect=restore):
+            result, directory, final = self.executor(argv, module_artifact=modules, tool_artifact=tools)
+        self.assertTrue((directory / 'tool-producer/final.json').is_file())
+        return result, directory, final
 
 
 class ProvenanceTests(_ProvenanceTestsFixtures, unittest.TestCase):
 
-    def test_discovery_preserves_changed_policy_and_selects_every_full_fork(self):
-        self.assertEqual(N.discover(self.root, False)[0]['selected_forks'], [])
-        selection = N.discover(self.root, True)[0]
+    def test_discovery_selects_every_locked_fork_whatever_the_base_lock(self):
+        selection = N.discover(self.root)[0]
+        self.assertEqual(selection['mode'], 'full')
         self.assertEqual(selection['selected_forks'], ['karst'])
         self.assertEqual(selection['excluded'], [])
+        self.assertTrue(selection['base_lock_available'])
+        self.assertEqual(selection['base_revision'], self.sha)
         self.assertEqual(selection['entries']['karst']['historical_tools'], {'forge': '1.2.3', 'just': '1.46.0'})
+        # A fork whose bundle hash is unchanged from the base lock is still selected.
         path = self.root / 'op-core/nuts/bundles/jovian_nut_bundle.json'
         path.write_bytes(self.bundle)
         self.write_locks({'karst': self.entry, 'jovian': self.entry | {'bundle': str(path.relative_to(self.root))}})
-        self.assertEqual(N.discover(self.root, False)[0]['selected_forks'], ['jovian'])
-        self.assertEqual(N.discover(self.root, True)[0]['selected_forks'], ['jovian', 'karst'])
-        # A release PR compares against its own target branch, not develop.
-        self.git(self.root, 'add', 'op-core')
-        self.git(self.root, '-c', 'user.name=CI fixture', '-c', 'user.email=ci-fixture@example.invalid', 'commit', '-qm', 'Release lock')
-        self.git(self.root, 'update-ref', 'refs/remotes/origin/proposal/upgrade', 'HEAD')
-        release = N.discover(self.root, False, 'proposal/upgrade')[0]
-        self.assertEqual(release['selected_forks'], [])
-        self.assertEqual(release['base_revision'], self.git(self.root, 'rev-parse', 'HEAD').decode())
-        self.assertEqual(N.discover(self.root, False)[0]['selected_forks'], ['jovian'])
+        self.assertEqual(N.discover(self.root)[0]['selected_forks'], ['jovian', 'karst'])
         self.git(self.root, 'update-ref', '-d', 'refs/remotes/origin/develop')
-        fallback = N.discover(self.root, False)[0]
+        fallback = N.discover(self.root)[0]
         self.assertFalse(fallback['base_lock_available'])
+        self.assertIsNone(fallback['base_revision'])
         self.assertEqual(fallback['selected_forks'], ['jovian', 'karst'])
 
     def test_discovery_rejects_empty_missing_corrupt_and_unpinned_sources(self):
@@ -123,10 +140,10 @@ class ProvenanceTests(_ProvenanceTestsFixtures, unittest.TestCase):
                 entries['jovian'] = dict(entry)
             self.write_locks(entries)
             with self.subTest(change=change), self.assertRaises((ValueError, FileNotFoundError, subprocess.CalledProcessError)):
-                N.discover(self.root, True)
+                N.discover(self.root)
 
     def test_corruption_extra_unsealed_files_duplicate_json_and_failed_receipts_fail(self):
-        result, report, final = self.executor([], provider='rwx', prepare=True)
+        result, report, final = self.executor([], prepare=True)
         self.assertEqual(result, 0)
         path = report / 'selection.json'
         original = path.read_bytes()
@@ -147,7 +164,7 @@ class ProvenanceTests(_ProvenanceTestsFixtures, unittest.TestCase):
 
     def test_native_preparation_retry_retains_attempt_and_runtime_dependencies_still_required(self):
         self.env['RWX_TASK_ATTEMPT_NUMBER'] = '2'
-        result, directory, final = self.executor([], provider='rwx', prepare=True)
+        result, directory, final = self.executor([], prepare=True)
         self.assertEqual(result, 0)
         self.assertEqual(final['exit_code'], 0)
         self.assertEqual(N.G.read(directory / 'settings.json')['rwx_task_attempt'], '2')
@@ -155,17 +172,17 @@ class ProvenanceTests(_ProvenanceTestsFixtures, unittest.TestCase):
         self.assertEqual(N.originals(directory)['tests'], 0)
         for attempt in ('', '0', '01', '-1', 'unbound'):
             self.env['RWX_TASK_ATTEMPT_NUMBER'] = attempt
-            result, directory, final = self.executor([], provider='rwx', prepare=True)
+            result, directory, final = self.executor([], prepare=True)
             self.assertEqual(result, 1)
             self.assertIn('invalid task attempt', final['report_errors'][0])
         self.env['RWX_TASK_ATTEMPT_NUMBER'] = '3'
-        result, directory, final = self.executor([], provider='rwx')
+        result, directory, final = self.executor([])
         self.assertEqual(result, 1)
         self.assertIn('requires verified modules and historical tools', final['report_errors'][0])
 
     def test_actual_successful_process_that_compiled_nothing_returns_failure(self):
         argv = [sys.executable, '-c', "print('actual successful fixture subprocess')"]
-        result, directory, final = self.executor(argv)
+        result, directory, final = self.verdict(argv)
         self.assertEqual(result, 1)
         self.assertEqual(final['exit_code'], 1)
         self.assertEqual(final['report_errors'], ['Original full NUT regeneration compiled no contracts'])
@@ -188,7 +205,7 @@ class ProvenanceTests(_ProvenanceTestsFixtures, unittest.TestCase):
             N.S.stage(directory, 'unsafe', argv, stdout_file='../outside')
 
     def test_actual_failure_and_cancellation_retain_original_status_and_partial_logs(self):
-        result, directory, final = self.executor([sys.executable, '-c', "print('intentional original failure');raise SystemExit(17)"])
+        result, directory, final = self.verdict([sys.executable, '-c', "print('intentional original failure');raise SystemExit(17)"])
         self.assertEqual(result, 17)
         self.assertEqual(final['exit_code'], 17)
         marker = self.temp / 'ready'
@@ -200,7 +217,7 @@ class ProvenanceTests(_ProvenanceTestsFixtures, unittest.TestCase):
             os.kill(os.getpid(), signal.SIGTERM)
         thread = threading.Thread(target=cancel)
         thread.start()
-        result, directory, final = self.executor([sys.executable, '-c', 'import pathlib,time;print("original partial output",flush=True);pathlib.Path(' + repr(str(marker)) + ").write_text('ready');time.sleep(30)"])
+        result, directory, final = self.verdict([sys.executable, '-c', 'import pathlib,time;print("original partial output",flush=True);pathlib.Path(' + repr(str(marker)) + ").write_text('ready');time.sleep(30)"])
         thread.join()
         self.assertEqual(result, 143)
         self.assertEqual(final['exit_code'], 143)

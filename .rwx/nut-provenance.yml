@@ -125,7 +125,7 @@ tasks:
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/nut-provenance/build"
       mkdir -p "$GOCACHE"
-      python3 ops/ci/runtime/nut-provenance.py --provider rwx --full \
+      python3 ops/ci/runtime/nut-provenance.py \
         --module-artifact "$MODULE_ARTIFACT" --tool-artifact "$TOOL_ARTIFACT"
     env:
       CI: "true"

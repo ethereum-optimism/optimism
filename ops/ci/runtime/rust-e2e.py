@@ -181,30 +181,23 @@ def parallel_setting(job, directory):
     return None, defaults['gomaxprocs'], defaults
 
 
-def select(job, directory, reports, index, provider):
+def select(job, directory, reports, index):
     manifest = verify(job, directory)
     total = JOBS[job]['shards']
     if type(index) is not int or not 0 <= index < total: raise ValueError('Invalid E2E shard index')
-    if provider == 'circleci' and total > 1:
-        names_path = reports / 'all-tests.txt'; names_path.write_text('\n'.join(manifest['tests']) + '\n')
-        result = subprocess.run(['circleci', 'tests', 'split', '--split-by=timings', '--timings-type=testname', str(names_path)],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        (reports / 'circle-split.log').write_text(result.stderr)
-        if result.returncode: raise ValueError('Circle E2E timing split failed')
-        selected = result.stdout.splitlines()
-    else: selected = manifest['shards'][index]
+    selected = manifest['shards'][index]
     if len(set(selected)) != len(selected) or not set(selected) <= set(manifest['tests']):
         raise ValueError('Invalid effective E2E selection')
     parallel, effective, defaults = parallel_setting(job, directory)
-    record = {**manifest, 'provider': provider, 'shard_index': index, 'assigned_tests': selected,
+    record = {**manifest, 'provider': 'rwx', 'shard_index': index, 'assigned_tests': selected,
               'compiled_metadata_sha256': GO.digest(directory / 'metadata.json'),
               'binaries_sha256': {name: GO.digest(directory / name) for name in ('suite.test', 'test2json')},
               'environment': environment(job), 'parallel_flag': parallel, 'effective_parallel': effective, 'go_runtime_defaults': defaults,
-              'branch': os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH'),
+              'branch': os.environ.get('CI_BRANCH'),
               'runtime_settings': {k: os.environ.get(k) for k in ('CI', 'GOMAXPROCS', 'GODEBUG', 'FOUNDRY_PROFILE',
                                     'LOG_LEVEL', 'OP_E2E_CANNON_ENABLED', 'ENABLE_ANVIL', 'ENABLE_KURTOSIS')},
               'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER'),
-              'circle_workflow_id': os.environ.get('CIRCLE_WORKFLOW_ID'), 'started_at': time.time()}
+              'started_at': time.time()}
     write(reports / 'selection.json', record)
     return record
 
@@ -327,7 +320,7 @@ def main():
     elif args.command == 'verify': verify(job, directory)
     elif args.command == 'select':
         reports.mkdir(parents=True, exist_ok=True)
-        record = select(job, directory, reports, int(os.environ['CI_SHARD_INDEX']), os.environ['CI_E2E_PROVIDER'])
+        record = select(job, directory, reports, int(os.environ['CI_SHARD_INDEX']))
         (reports / 'assigned.txt').write_text('\n'.join(record['assigned_tests']) + ('\n' if record['assigned_tests'] else ''))
     elif args.command == 'execute':
         signal.signal(signal.SIGINT, GO.cancel); signal.signal(signal.SIGTERM, GO.cancel)

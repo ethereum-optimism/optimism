@@ -270,19 +270,23 @@ class ExtraReportTests(unittest.TestCase):
 
 class FeatureCommandTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('just'), 'requires the pinned just tool')
-    def test_partitions_pass_circle_recipe_arguments_with_one_lockfile_seed(self):
+    def test_partitions_pass_original_recipe_arguments_with_one_lockfile_seed(self):
         """Run the shared shell; Just dry-runs the unchanged recipes, so arity errors fail."""
         repo = Path(__file__).resolve().parents[3]
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             for name in ('ops/ci/runtime/rust-workspace.sh', 'ops/ci/runtime/rust-workspace-report.py',
-                         'ops/ci/runtime/ci-report.py', 'mise.toml', 'rust/justfile',
+                         'ops/ci/runtime/ci-report.py', 'ops/ci/runtime/op-reth-report.py',
+                         'ops/ci/runtime/rust-target-cache.py', 'mise.toml', 'rust/justfile',
                          'rust/.config/nextest.toml', 'rust/.cargo/config.toml'):
                 (root / name).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(repo / name, root / name)
             (root / 'rust/Cargo.lock').write_text('version = 4\n')
             (root / 'superchain-registry').mkdir()
             (root / 'superchain-registry/README').write_text('fixture submodule identity')
+            checksum = root / 'rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256'
+            checksum.parent.mkdir(parents=True)
+            checksum.write_text('0' * 64 + '  superchain-configs.tar\n')
             for args in (['init', '-q'], ['add', '.'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']):
                 subprocess.run(['git', *args], cwd=root, check=True, capture_output=True)
             shims = root / 'bin'
@@ -291,7 +295,8 @@ class FeatureCommandTests(unittest.TestCase):
                                ('cargo', 'true'), ('rustc', 'true'), ('sccache', 'true')):
                 (shims / name).write_text('#!/usr/bin/env bash\n' + body + '\n')
                 (shims / name).chmod(0o755)
-            env = os.environ | {'PATH': str(shims) + os.pathsep + os.environ['PATH'], 'CI_RUST_PROVIDER': 'circleci',
+            env = os.environ | {'PATH': str(shims) + os.pathsep + os.environ['PATH'],
+                                'RWX_RUN_ID': 'a' * 32, 'RWX_TASK_ATTEMPT_NUMBER': '1',
                                 'CI_COMMIT_SHA': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()}
             seed = REPORT.digest(root / 'rust/Cargo.lock')
             for index, total, partition in (('2', '10', '3/10'), ('0', '1', '')):
@@ -307,7 +312,7 @@ class FeatureCommandTests(unittest.TestCase):
 
 
 class HostLinkerReportTests(unittest.TestCase):
-    def test_rwx_wasm_requires_successful_preparation_and_seals_its_original_log(self):
+    def test_wasm_requires_successful_preparation_and_seals_its_original_log(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             REPORT.write(directory / 'settings.json', {'job': 'wasm-unknown', 'provider': 'rwx'})
@@ -324,10 +329,6 @@ class HostLinkerReportTests(unittest.TestCase):
                 final = json.loads((directory / 'final.json').read_text())
                 self.assertEqual(final['original_sha256']['host-linker.log'],
                                  REPORT.digest(directory / 'host-linker.log'))
-                # Circle's command contract does not acquire an RWX-only stage.
-                REPORT.write(directory / 'settings.json', {'job': 'wasm-unknown', 'provider': 'circleci'})
-                (directory / 'host-linker.stage.json').unlink()
-                self.assertEqual(REPORT.finish(directory, 0), 0)
 
 
 class StageTests(unittest.TestCase):
@@ -668,7 +669,7 @@ pub fn compile_only() {}
             for args in (['init', '-q'], ['add', '.'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']):
                 subprocess.run(['git', *args], cwd=root, check=True, capture_output=True)
             sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
-            env = {**os.environ, 'CI_RUST_PROVIDER': 'rwx', 'CI_COMMIT_SHA': sha, 'CI_RUST_INCREMENTAL': '1',
+            env = {**os.environ, 'CI_COMMIT_SHA': sha, 'CI_RUST_INCREMENTAL': '1',
                    'RWX_RUN_ID': 'a' * 32, 'RWX_TASK_ATTEMPT_NUMBER': '1'}
             def run(job, extra=None):
                 result = subprocess.run(['bash', str(helpers / 'rust-workspace.sh'), job], cwd=root,
@@ -782,16 +783,16 @@ pub fn compile_only() {}
             merged_failure = run('tests-merge', aggregate_env)
             self.assertEqual(merged_failure.returncode, failed_unit.returncode)
             self.assertIn('intentional original failure', (root / '.ci/rust-workspace/tests/junit.xml').read_text())
-            circle_cli = subprocess.run(['cargo', 'test', '--locked', '--test', 'cli'],
-                                        cwd=root / 'rust', env=env, capture_output=True, text=True, timeout=180)
-            self.assertEqual(circle_cli.returncode, 0, circle_cli.stdout + circle_cli.stderr)
+            cli = subprocess.run(['cargo', 'test', '--locked', '--test', 'cli'],
+                                 cwd=root / 'rust', env=env, capture_output=True, text=True, timeout=180)
+            self.assertEqual(cli.returncode, 0, cli.stdout + cli.stderr)
             doc = run('doctest')
             self.assertEqual(doc.returncode, 0, doc.stdout + doc.stderr)
             self.assertEqual(json.loads((root / '.ci/rust-workspace/doctest/settings.json').read_text())['incremental'], '0')
-            circle = subprocess.run(['bash', '../ops/ci/runtime/rust-workspace.sh', 'doctest'],
-                                    cwd=root / 'rust', env={**env, 'CI_RUST_PROVIDER': 'circleci'},
-                                    capture_output=True, text=True, timeout=180)
-            self.assertEqual(circle.returncode, 0, circle.stdout + circle.stderr)
+            # The script runs from a subdirectory as well as from the root.
+            nested = subprocess.run(['bash', '../ops/ci/runtime/rust-workspace.sh', 'doctest'],
+                                    cwd=root / 'rust', env=env, capture_output=True, text=True, timeout=180)
+            self.assertEqual(nested.returncode, 0, nested.stdout + nested.stderr)
             self.assertEqual(json.loads((root / '.ci/rust-workspace/doctest/settings.json').read_text())['incremental'], '0')
             subprocess.run(['sccache', '--stop-server'], check=True, capture_output=True)
             for index in ('0', '9'):
@@ -818,7 +819,7 @@ pub fn compile_only() {}
             self.assertNotEqual(failure.returncode, 0)
             self.assertEqual(json.loads((feature_report/'final.json').read_text())['exit_code'], failure.returncode)
             self.assertIn('error', (feature_report/'features.log').read_text())
-            # Restore valid source and commit its new identity before Circle replay.
+            # Restore valid source and commit its new identity before the unpartitioned replay.
             source.write_text(source.read_text().replace('\nthis is an intentional syntax error\n', ''))
             subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
                             'commit', '-am', 'restore feature source', '-q'], cwd=root, check=True, capture_output=True)

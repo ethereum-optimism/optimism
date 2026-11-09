@@ -16,7 +16,7 @@ class AlignmentTests(unittest.TestCase):
         original=fixtures.G.ROOT
         fixtures.GateTests.setUp(self)
         mapping=A.G.read(original/'ops/ci/migration/circle-gates.json')
-        for row in mapping['gates'].values():
+        for row in [*mapping['gates'].values(),mapping['e2e_gate']]:
             target=self.root/row['circle_config'];target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((original/row['circle_config']).read_bytes())
         path=self.root/'circle-gates.json';path.write_text(json.dumps(mapping))
         for obj,name,value in [(A,'G',fixtures.G),(A,'MAPPING',path)]:
@@ -31,3 +31,17 @@ class AlignmentTests(unittest.TestCase):
             fixtures.G.configuration('required-rust-ci')
         path.unlink()
         fixtures.G.configuration('required-rust-ci')
+
+    def test_e2e_alignment_rejects_added_removed_renamed_and_nonterminal_jobs(self):
+        self.assertIn('kona-proof-action-single',A.e2e_configuration())
+        path=self.root/'.circleci/continue/rust-e2e.yml';source=path.read_text()
+        line='            - rust-e2e-restart: terminal\n'
+        self.assertIn(line,source)
+        for changed in [source.replace(line,line+'            - rust-e2e-future: terminal\n',1),
+                        source.replace(line,'',1),
+                        source.replace(line,'            - rust-e2e-restarts: terminal\n',1),
+                        source.replace(line,'            - rust-e2e-restart: success\n',1)]:
+            path.write_text(changed)
+            with self.assertRaisesRegex(ValueError,'Circle E2E gate dependency'):A.e2e_configuration()
+        path.write_text(source)
+        A.e2e_configuration()

@@ -107,7 +107,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
     tool-cache: l2-fork-go-modules-${{ init.cache-epoch }}
     timeout: 30m
     runner:
@@ -147,7 +146,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
     tool-cache: l2-fork-compiled-ci-${{ init.cache-epoch }}
     timeout: 40m
     runner: {cpus: 16, memory: 32gb}
@@ -169,7 +167,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
       COMPILED: ${{ tasks.compile.artifacts.compiled }}
       PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.originals }}/block.json
     cache: false

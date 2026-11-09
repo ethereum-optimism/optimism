@@ -27,12 +27,11 @@ def command(*argv,root=None):return subprocess.check_output(argv,cwd=ROOT if roo
 def seal(path):return {str(p.relative_to(path)):S.digest(p) for p in sorted(path.rglob('*')) if p.is_file()}
 
 
-def discover(root,full,base_branch='develop'):
+def discover(root):
     current=(root/LOCK).read_bytes();locks=tomllib.loads(current.decode())
     if not locks:raise ValueError('Empty complete NUT lock selection')
-    base_result=subprocess.run(['git','show','origin/'+base_branch+':'+LOCK],cwd=root,capture_output=True)
-    base=tomllib.loads(base_result.stdout.decode()) if base_result.returncode==0 else {}
-    base_revision=subprocess.run(['git','rev-parse','origin/'+base_branch],cwd=root,capture_output=True,text=True)
+    base_result=subprocess.run(['git','show','origin/develop:'+LOCK],cwd=root,capture_output=True)
+    base_revision=subprocess.run(['git','rev-parse','origin/develop'],cwd=root,capture_output=True,text=True)
     entries={};selected=[];paths=set();historical={}
     for fork,entry in sorted(locks.items()):
         if (not re.fullmatch('[a-z][a-z0-9-]*',fork) or not isinstance(entry,dict)
@@ -53,10 +52,10 @@ def discover(root,full,base_branch='develop'):
             raise ValueError('Historical NUT generator toolchain is not pinned')
         historical[fork]=raw
         entries[fork]={**entry,'historical_tools':pins,'historical_mise_sha256':hashlib.sha256(raw).hexdigest()}
-        if full or base.get(fork,{}).get('hash','')!=entry['hash']:selected.append(fork)
-    selection={'authority':'fork_lock.toml; original hash-changed policy vs origin/'+base_branch,
-            'mode':'full' if full else 'changed','entries':entries,'selected_forks':selected,
-            'excluded':[{'fork':fork,'reason':'Original unchanged bundle hash'} for fork in entries if fork not in selected],
+        selected.append(fork)
+    # Every locked fork is selected. The base lock is recorded only as evidence.
+    selection={'authority':'fork_lock.toml; every locked fork; base lock from origin/develop',
+            'mode':'full','entries':entries,'selected_forks':selected,'excluded':[],
             'base_revision':base_revision.stdout.strip() if base_revision.returncode==0 else None,
             'base_lock_available':base_result.returncode==0,'base_lock_exit_code':base_result.returncode,
             'generator_argv':['just','generate-nut-bundle'],'go_argv':['go','run','./ops/scripts/nut-provenance-verify'],
@@ -114,39 +113,33 @@ def originals(path):
     return final
 
 
-def execute(provider,full,prepare=False,module_artifact=None,tool_artifact=None):
+def execute(prepare=False,module_artifact=None,tool_artifact=None):
     os.chdir(ROOT);directory=ROOT/'.ci/nut-provenance'/('toolchain' if prepare else 'run')
     shutil.rmtree(directory,ignore_errors=True);directory.mkdir(parents=True)
     status,errors=1,[]
     try:
-        sha=command('git','rev-parse','HEAD');expected=os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1')
+        sha=command('git','rev-parse','HEAD');expected=os.environ.get('CI_COMMIT_SHA')
         if sha!=expected or not re.fullmatch('[0-9a-f]{40}',sha) or subprocess.call(['git','diff','--quiet','HEAD']):
             raise ValueError('Stale or changed NUT provenance source')
-        if provider=='rwx' and not full:raise ValueError('Native NUT verdicts require the complete selection')
-        branch=os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
+        branch=os.environ.get('CI_BRANCH')
         if not branch or os.environ.get('GOFLAGS'):raise ValueError('Missing NUT branch or overridden Go flags')
-        if provider=='rwx' and (not re.fullmatch('[0-9a-f]{32}',os.environ.get('RWX_RUN_ID',''))
+        if (not re.fullmatch('[0-9a-f]{32}',os.environ.get('RWX_RUN_ID',''))
                 or not re.fullmatch('[1-9][0-9]*',os.environ.get('RWX_TASK_ATTEMPT_NUMBER',''))):
             raise ValueError('Missing native NUT run identity or invalid task attempt')
         before=M.inputs()
-        settings={'suite':'nut-provenance','source_sha':sha,'branch':branch,'provider':provider,'prepare_only':prepare,
+        settings={'suite':'nut-provenance','source_sha':sha,'branch':branch,'provider':'rwx','prepare_only':prepare,
             'input_sha256':before,'workspace_root':str(ROOT),'environment':{k:os.environ.get(k) for k in ENVIRONMENT},
             'go_version':command('go','version'),'cpus':os.cpu_count(),'rwx_run_id':os.environ.get('RWX_RUN_ID'),
             'rwx_task_attempt':os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
         S.write(directory/'settings.json',settings)
-        # CircleCI compares against the PR's base and tolerates a failed fetch,
-        # as the original script did. RWX runs the full selection, and a fetch
-        # there could move the base between the tool producer and the verdict.
-        base_branch=os.environ.get('TARGET_BRANCH') or 'develop'
-        if provider=='circleci':
-            S.stage(directory,'fetch-base',['git','fetch','-q','origin',base_branch],cwd=str(ROOT),stdin=subprocess.DEVNULL)
-        selection,current,base,base_error,historical=discover(ROOT,full,base_branch)
+        # Never fetch the base: a fetch could move it between the tool producer and the verdict.
+        selection,current,base,base_error,historical=discover(ROOT)
         S.write(directory/'selection.json',selection)
         (directory/'fork_lock.toml').write_bytes(current);(directory/'base-fork-lock.toml').write_bytes(base)
         (directory/'base-discovery.stderr').write_bytes(base_error)
         for fork,raw in historical.items():
             target=directory/'historical'/fork;target.mkdir(parents=True);(target/'mise.toml').write_bytes(raw)
-        if provider=='rwx' and not prepare and (module_artifact is None or tool_artifact is None):
+        if not prepare and (module_artifact is None or tool_artifact is None):
             raise ValueError('Native NUT runtime requires verified modules and historical tools')
         if module_artifact is not None:
             G.ARTIFACTS.restore('go-modules',module_artifact)
@@ -160,14 +153,14 @@ def execute(provider,full,prepare=False,module_artifact=None,tool_artifact=None)
                     or G.read(tool_artifact/'selection.json')!=selection):
                 raise ValueError('Stale or differently selected historical NUT tool producer')
             shutil.copytree(tool_artifact,directory/'tool-producer')
-        if (prepare or provider=='circleci') and selection['selected_forks']:
+        if prepare and selection['selected_forks']:
             if S.stage(directory,'compiler-prepare',['bash',str(ROOT/'ops/ci/runtime/nut-tools.sh'),'solc'],cwd=str(ROOT)):
                 raise ValueError('Historical NUT compiler preparation failed')
         prepared=set()
         for fork in selection['selected_forks']:
             target=directory/'forks'/fork;target.mkdir(parents=True)
             pins=selection['entries'][fork]['historical_tools'];key=tuple(pins.items())
-            if (prepare or provider=='circleci') and key not in prepared:
+            if prepare and key not in prepared:
                 # Install pinned historical generators explicitly. Native setup
                 # disables mise auto-install; verdicts reuse the verified tools.
                 argv=['bash',str(ROOT/'ops/ci/runtime/nut-tools.sh'),'generators',pins['forge'],pins['just']]
@@ -194,9 +187,7 @@ def execute(provider,full,prepare=False,module_artifact=None,tool_artifact=None)
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--provider',choices=('circleci','rwx'))
-    parser.add_argument('--full',action='store_true');parser.add_argument('--prepare-tools',action='store_true')
+    parser.add_argument('--prepare-tools',action='store_true')
     parser.add_argument('--module-artifact',type=Path);parser.add_argument('--tool-artifact',type=Path)
     args=parser.parse_args()
-    if args.provider is None:parser.error('Execution requires --provider')
-    sys.exit(execute(args.provider,args.full,args.prepare_tools,args.module_artifact,args.tool_artifact))
+    sys.exit(execute(args.prepare_tools,args.module_artifact,args.tool_artifact))

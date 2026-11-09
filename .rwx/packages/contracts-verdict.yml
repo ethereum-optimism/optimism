@@ -24,7 +24,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}
-      CI_CONTRACT_PROVIDER: rwx
       COMPILED: ${{ params.compiled }}
       RWX_RUN_ID:
         cache-key: included

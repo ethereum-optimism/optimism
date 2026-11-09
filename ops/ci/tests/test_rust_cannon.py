@@ -259,8 +259,8 @@ if tool=='cannon':
         subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)
         subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture'], cwd=self.root, check=True)
         sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.root, text=True).strip()
-        self.env = dict(os.environ, PATH=str(stubs) + ':' + os.environ['PATH'], CI_RUST_PROVIDER='circleci',
-                        CI_COMMIT_SHA=sha, CIRCLE_SHA1=sha, FIXTURE_ROOT=str(self.root))
+        self.env = dict(os.environ, PATH=str(stubs) + ':' + os.environ['PATH'], CI_COMMIT_SHA=sha,
+                        RWX_RUN_ID='a' * 32, RWX_TASK_ATTEMPT_NUMBER='1', FIXTURE_ROOT=str(self.root))
         self.report = self.root / '.ci/rust-workspace/cannon-offline'
 
     def run_offline(self, **env):
@@ -284,9 +284,9 @@ if tool=='cannon':
         self.assertEqual(final['stages']['guest']['exit_code'], 0)
         self.assertIsNotNone(ET.parse(self.report / 'checks.junit.xml').find('.//failure'))
 
-    def test_rwx_offline_leaves_no_guest_state_in_the_rust_source_tree(self):
+    def test_offline_leaves_no_guest_state_in_the_rust_source_tree(self):
         # The target cache commit fails if the run adds an unignored file under rust/.
-        run = self.run_offline(CI_RUST_PROVIDER='rwx', RWX_RUN_ID='a' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
+        run = self.run_offline()
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertFalse((self.root / 'rust/kona/out.bin.gz').exists())
         self.assertEqual(gzip.decompress((self.report / 'out.bin.gz').read_bytes()), b'fresh final state')

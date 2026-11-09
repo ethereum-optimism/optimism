@@ -136,7 +136,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
     tool-cache: contract-upgrades-modules-${{ init.cache-epoch }}
     timeout: 30m
     runner:

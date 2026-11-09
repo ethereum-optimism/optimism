@@ -65,15 +65,13 @@ class SuiteTests(unittest.TestCase):
             os.environ['CI_BRANCH'] = 'develop'; self.assertEqual(CS.configure('standard', 'main'), ('develop', 'ci'))
             self.assertNotIn('SYS_FEATURE__CUSTOM_GAS_TOKEN', os.environ)
 
-    def test_pinned_discovery_requires_an_available_full_commit_and_rwx_provider(self):
+    def test_pinned_discovery_requires_an_available_full_commit(self):
         sha = 'a' * 40
         self.assertIn(sha + '...HEAD', CS.file_command('modified', sha)[-1])
         self.assertEqual(CS.file_command('modified'), CS.FILE_COMMANDS['modified'])
         for suite, target in [('standard', sha), ('modified', 'develop'), ('modified', 'a' * 39), ('modified', 'a;false')]:
             with self.subTest(suite=suite, target=target), self.assertRaises(ValueError): CS.file_command(suite, target)
-        with patch.dict(os.environ, {'CI_CONTRACT_TARGET_SHA': sha, 'CI_CONTRACT_PROVIDER': 'circleci'}, clear=True):
-            with self.assertRaisesRegex(ValueError, 'requires RWX'): CS.pinned_target('modified')
-        with patch.dict(os.environ, {'CI_CONTRACT_TARGET_SHA': sha, 'CI_CONTRACT_PROVIDER': 'rwx'}, clear=True), \
+        with patch.dict(os.environ, {'CI_CONTRACT_TARGET_SHA': sha}, clear=True), \
              patch.object(CS.UP, 'command', return_value='b' * 40):
             with self.assertRaisesRegex(ValueError, 'available commit'): CS.pinned_target('modified')
 
@@ -111,7 +109,7 @@ class EmptySelectionTests(unittest.TestCase):
             sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
             # A baseline at HEAD selects no changed test files.
             env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'], CI_BRANCH='feature',
-                       CI_COMMIT_SHA=sha, CI_CONTRACT_PROVIDER='rwx', CI_CONTRACT_TARGET_SHA=sha,
+                       CI_COMMIT_SHA=sha, CI_CONTRACT_TARGET_SHA=sha,
                        RWX_RUN_ID='f' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
 
             def invoke(*args):
@@ -135,9 +133,6 @@ class EmptySelectionTests(unittest.TestCase):
 
 
 class _LiveSuiteTestsFixtures:
-
-    def verify_provider_reports(self, root, directories, sha, suite, tmp):
-        pass
 
     def exercise_original_reports(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -218,21 +213,16 @@ class _LiveSuiteTestsFixtures:
             git('add', '.')
             git('commit', '-qm', 'changed test')
             sha = git('rev-parse', 'HEAD')
-            bin_dir = Path(tmp) / 'bin'
-            bin_dir.mkdir()
-            split = bin_dir / 'circleci'
-            split.write_text('#!/bin/sh\n[ "$*" = "tests split --split-by=timings" ] || exit 17\ncat\n')
-            split.chmod(493)
             marker = Path(tmp) / 'fresh-marker'
-            env = dict(os.environ, CI_BRANCH='pilot', CI_COMMIT_SHA=sha, CI_SUITE_FIXTURE_MARKER=str(marker), GOFLAGS='-mod=readonly', PATH=str(bin_dir) + os.pathsep + os.environ['PATH'])
+            env = dict(os.environ, CI_BRANCH='pilot', CI_COMMIT_SHA=sha, CI_SUITE_FIXTURE_MARKER=str(marker), GOFLAGS='-mod=readonly')
             env.pop('CI_SUITE_FIXTURE_FAIL', None)
 
-            def invoke(mode, suite, provider, prepared=None):
+            def invoke(mode, suite, prepared=None):
                 argv = ['python3', str(root / 'ops/ci/runtime/contract-suites.py'), mode, '--suite', suite, '--feature', 'main']
                 if prepared:
                     argv += ['--prepared', str(prepared)]
-                settings = dict(env, CI_CONTRACT_PROVIDER=provider, RWX_RUN_ID='f' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
-                if suite == 'modified' and provider == 'rwx':
+                settings = dict(env, RWX_RUN_ID='f' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
+                if suite == 'modified':
                     settings['CI_CONTRACT_TARGET_SHA'] = env.get('CI_SUITE_FIXTURE_TARGET', base)
                 child = subprocess.Popen(argv, cwd=root, env=settings, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -247,54 +237,46 @@ class _LiveSuiteTestsFixtures:
                     raise
                 return subprocess.CompletedProcess(argv, child.returncode, stdout, stderr)
             for suite in CS.SUITES:
-                directories = {}
-                for provider in ('circleci', 'rwx'):
-                    if suite == 'standard' and provider == 'circleci':
-                        git('submodule', 'deinit', '-f', 'modules/original')
-                    if provider == 'rwx':
-                        result = invoke('prepare', suite, provider)
-                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                        prepared = root / '.ci/contract-suites' / (suite + '-main') / 'prepare'
-                        self.assertFalse(list(prepared.glob('*.xml')))
-                        self.assertEqual(json.loads((prepared / 'compile-only.json').read_text())['tests'], 0)
-                        if suite == 'modified':
-                            # The branch advances after compilation, but the run's
-                            # immutable baseline and selected test remain valid.
-                            git('push', '-q', 'origin', sha + ':refs/heads/develop')
-                            git('fetch', '-q', 'origin', '+refs/heads/develop:refs/remotes/origin/develop')
-                            env['CI_SUITE_FIXTURE_TARGET'] = sha
-                            mismatch = invoke('run', suite, provider, prepared)
-                            self.assertNotEqual(mismatch.returncode, 0)
-                            self.assertIn('Pinned contract target differs from compilation', mismatch.stderr)
-                            self.assertFalse((root / '.ci/contract-suites/modified-main/run/tests-amsterdam.stage.json').exists())
-                            env.pop('CI_SUITE_FIXTURE_TARGET')
-                    else:
-                        prepared = None
-                    before = len(marker.read_text()) if marker.exists() else 0
-                    unavailable = module.with_name('unavailable-module')
-                    if provider == 'rwx':
-                        module.rename(unavailable)
-                    try:
-                        result = invoke('run', suite, provider, prepared)
-                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                    finally:
-                        if provider == 'rwx':
-                            unavailable.rename(module)
-                    self.assertEqual(len(marker.read_text()), before + 1)
-                    report = root / '.ci/contract-suites' / (suite + '-main') / 'run'
-                    destination = Path(tmp) / (suite + '-' + provider)
-                    shutil.copytree(report, destination)
-                    directories[provider] = destination
-                    coverage = json.loads((report / 'coverage.json').read_text())
-                    self.assertEqual(coverage['outcomes'], {'pass': 3 if suite == 'standard' else 2, 'skip': 1})
-                    self.assertEqual('invariant_runtime_succeeds()' in [row['name'] for row in coverage['cases']], suite == 'standard')
-                    skipped = [row for row in coverage['cases'] if row['outcome'] == 'skip']
-                    self.assertEqual(skipped[0]['skip_reason'], {'attributes': {'message': 'fixture disabled'}, 'text': ''})
-                    self.assertFalse(any((line.startswith('-') for line in (report / 'submodules.txt').read_text().splitlines())))
-                    self.assertIn('All contract test validations passed', (report / 'lint-test-names.log').read_text())
-                    passes = json.loads((report / 'evm-passes.json').read_text())['passes']
-                    self.assertEqual(passes, {'amsterdam': ['test/unit/Fixture.t.sol'], **({'l2': ['test/L2/InvariantFixture.t.sol']} if suite == 'standard' else {})})
-                self.verify_provider_reports(root, directories, sha, suite, tmp)
+                if suite == 'standard':
+                    # Preparation must initialize submodules that the checkout lacks.
+                    git('submodule', 'deinit', '-f', 'modules/original')
+                result = invoke('prepare', suite)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                prepared = root / '.ci/contract-suites' / (suite + '-main') / 'prepare'
+                self.assertFalse(list(prepared.glob('*.xml')))
+                self.assertEqual(json.loads((prepared / 'compile-only.json').read_text())['tests'], 0)
+                if suite == 'modified':
+                    # The branch advances after compilation, but the run's
+                    # immutable baseline and selected test remain valid.
+                    git('push', '-q', 'origin', sha + ':refs/heads/develop')
+                    git('fetch', '-q', 'origin', '+refs/heads/develop:refs/remotes/origin/develop')
+                    env['CI_SUITE_FIXTURE_TARGET'] = sha
+                    mismatch = invoke('run', suite, prepared)
+                    self.assertNotEqual(mismatch.returncode, 0)
+                    self.assertIn('Pinned contract target differs from compilation', mismatch.stderr)
+                    self.assertFalse((root / '.ci/contract-suites/modified-main/run/tests-amsterdam.stage.json').exists())
+                    env.pop('CI_SUITE_FIXTURE_TARGET')
+                before = len(marker.read_text()) if marker.exists() else 0
+                # The verdict reuses the prepared submodules and never fetches them.
+                unavailable = module.with_name('unavailable-module')
+                module.rename(unavailable)
+                try:
+                    result = invoke('run', suite, prepared)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                finally:
+                    unavailable.rename(module)
+                self.assertEqual(len(marker.read_text()), before + 1)
+                report = root / '.ci/contract-suites' / (suite + '-main') / 'run'
+                self.assertEqual(json.loads((report / 'settings.json').read_text())['provider'], 'rwx')
+                coverage = json.loads((report / 'coverage.json').read_text())
+                self.assertEqual(coverage['outcomes'], {'pass': 3 if suite == 'standard' else 2, 'skip': 1})
+                self.assertEqual('invariant_runtime_succeeds()' in [row['name'] for row in coverage['cases']], suite == 'standard')
+                skipped = [row for row in coverage['cases'] if row['outcome'] == 'skip']
+                self.assertEqual(skipped[0]['skip_reason'], {'attributes': {'message': 'fixture disabled'}, 'text': ''})
+                self.assertFalse(any((line.startswith('-') for line in (report / 'submodules.txt').read_text().splitlines())))
+                self.assertIn('All contract test validations passed', (report / 'lint-test-names.log').read_text())
+                passes = json.loads((report / 'evm-passes.json').read_text())['passes']
+                self.assertEqual(passes, {'amsterdam': ['test/unit/Fixture.t.sol'], **({'l2': ['test/L2/InvariantFixture.t.sol']} if suite == 'standard' else {})})
             prepared = root / '.ci/contract-suites/standard-main/prepare'
             settings_path, manifest_path = (prepared / 'settings.json', prepared / 'final.json')
             original_settings, original_manifest = (settings_path.read_bytes(), manifest_path.read_bytes())
@@ -304,7 +286,7 @@ class _LiveSuiteTestsFixtures:
             value = json.loads(original_manifest)
             value['original_sha256']['settings.json'] = CS.UP.digest(settings_path)
             CS.UP.write(manifest_path, value)
-            result = invoke('run', 'standard', 'rwx', prepared)
+            result = invoke('run', 'standard', prepared)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('Unexpected compiled tracked runtime output role', result.stderr)
             self.assertFalse((root / '.ci/contract-suites/standard-main/run/tests-amsterdam.stage.json').exists())
@@ -312,14 +294,14 @@ class _LiveSuiteTestsFixtures:
             manifest_path.write_bytes(original_manifest)
             binary = contracts / 'scripts/go-ffi/go-ffi'
             binary.write_bytes(binary.read_bytes() + b'corrupt')
-            result = invoke('run', 'standard', 'rwx', prepared)
+            result = invoke('run', 'standard', prepared)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('corrupt', result.stderr)
             self.assertFalse((root / '.ci/contract-suites/standard-main/run/tests-amsterdam.stage.json').exists())
-            result = invoke('prepare', 'standard', 'rwx')
+            result = invoke('prepare', 'standard')
             self.assertEqual(result.returncode, 0, result.stderr)
             env['CI_SUITE_FIXTURE_FAIL'] = '1'
-            result = invoke('run', 'standard', 'rwx', prepared)
+            result = invoke('run', 'standard', prepared)
             self.assertNotEqual(result.returncode, 0)
             report = root / '.ci/contract-suites/standard-main/run'
             self.assertIn('<failure', (report / 'original-amsterdam.junit.xml').read_text())
@@ -328,13 +310,13 @@ class _LiveSuiteTestsFixtures:
             env.pop('CI_SUITE_FIXTURE_FAIL')
             # A baseline at HEAD selects no changed test files.
             env['CI_SUITE_FIXTURE_TARGET'] = sha
-            result = invoke('prepare', 'modified', 'rwx')
+            result = invoke('prepare', 'modified')
             self.assertEqual(result.returncode, 0, result.stderr)
             empty = root / '.ci/contract-suites/modified-main/prepare'
             self.assertEqual(json.loads((empty / 'coverage.json').read_text())['tests'], 0)
             self.assertFalse(list(empty.glob('*.xml')))
             # Circle's job halts with success on an empty test list; the verdict also passes.
-            result = invoke('run', 'modified', 'rwx', empty)
+            result = invoke('run', 'modified', empty)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             verdict = root / '.ci/contract-suites/modified-main/run'
             self.assertEqual(json.loads((verdict / 'final.json').read_text())['exit_code'], 0)
@@ -342,7 +324,7 @@ class _LiveSuiteTestsFixtures:
             self.assertFalse((verdict / 'tests-amsterdam.stage.json').exists())
             selection = empty / 'file-selection.json'
             selection.write_text(selection.read_text() + '\n')
-            result = invoke('run', 'modified', 'rwx', empty)
+            result = invoke('run', 'modified', empty)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('Missing or corrupt original report', result.stderr)
 
@@ -352,5 +334,5 @@ if __name__ == '__main__': unittest.main()
 
 @unittest.skipUnless(os.environ.get('RWX_LIVE_CONTRACT_SUITE_FIXTURE') == '1', 'Opt-in original Forge/Go fixture')
 class LiveSuiteTests(_LiveSuiteTestsFixtures, unittest.TestCase):
-    def test_actual_find_changed_files_compilation_fresh_ffi_failures_and_parity(self):
+    def test_actual_find_changed_files_compilation_fresh_ffi_and_failures(self):
         self.exercise_original_reports()

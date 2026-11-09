@@ -57,22 +57,22 @@ def incremental_settings():
 
 def begin(directory, job):
     sha = command('git', 'rev-parse', 'HEAD')
-    expected = os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha
+    expected = os.environ.get('CI_COMMIT_SHA') or sha
     if not re.fullmatch('[0-9a-f]{40}', expected) or sha != expected:
         raise ValueError('Rust source revision differs from expected SHA')
     write(directory / 'settings.json', {
         'suite': 'rust-workspace', 'job': job, 'source_sha': sha,
         'workspace_root': str(Path.cwd()),
         'cargo_home': os.environ.get('CARGO_HOME', str(Path.home() / '.cargo')),
-        'provider': os.environ.get('CI_RUST_PROVIDER', 'circleci'),
+        'provider': 'rwx',
         'rwx_run_id': os.environ.get('RWX_RUN_ID'),
         'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER'),
         'input_sha256': inputs(job), 'rustc': command('rustc', '--version'),
         'cargo': command('cargo', '--version'), 'nextest': command('cargo', 'nextest', '--version'),
         'feature_seed': digest('rust/Cargo.lock'), 'feature_partitions':
-            int(os.environ.get('CI_RUST_PARTITION_TOTAL', os.environ.get('CIRCLE_NODE_TOTAL', '10')))
+            int(os.environ.get('CI_RUST_PARTITION_TOTAL', '10'))
             if job == 'features' else 10,
-        'feature_partition_index': int(os.environ.get('CI_RUST_PARTITION_INDEX', os.environ.get('CIRCLE_NODE_INDEX', '0'))),
+        'feature_partition_index': int(os.environ.get('CI_RUST_PARTITION_INDEX', '0')),
         'test_filter': '!test(test_online)', **incremental_settings(),
         'rustflags': os.environ.get('RUSTFLAGS', ''), 'rustdocflags': os.environ.get('RUSTDOCFLAGS', ''),
         'started_at': time.time(), 'cpus': os.cpu_count(),
@@ -420,7 +420,7 @@ def finish(directory, status, merged=False):
         'registry': ['registry-clean', 'registry', 'registry-diff'],
         'interop': ['superchain-go', 'interop']}
     if status == 0:
-        preparation = ['host-linker'] if job in WASM and settings.get('provider') == 'rwx' else []
+        preparation = ['host-linker'] if job in WASM else []
         for name in ['workspace'] + preparation + ([] if merged else required[job]):
             if stages.get(name, {}).get('exit_code') != 0:
                 errors.append(f'Missing or unsuccessful stage: {name}')

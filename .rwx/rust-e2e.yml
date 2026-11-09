@@ -226,7 +226,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh compile proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_E2E_PROVIDER: rwx
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
     tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
@@ -252,7 +251,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh compile restart
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_E2E_PROVIDER: rwx
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
     tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
@@ -278,7 +276,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh compile simple-kona
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_E2E_PROVIDER: rwx
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
     tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
@@ -304,7 +301,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh compile simple-kona-sequencer
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_E2E_PROVIDER: rwx
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
     tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
@@ -330,7 +326,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh compile op-reth
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_E2E_PROVIDER: rwx
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
     tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
@@ -360,7 +355,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -402,7 +396,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "1"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -444,7 +437,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "2"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -486,7 +478,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "3"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -528,7 +519,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "4"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -570,7 +560,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "5"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -612,7 +601,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "6"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -654,7 +642,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "7"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -697,7 +684,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -741,7 +727,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "1"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -785,7 +770,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "2"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -829,7 +813,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -873,7 +856,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -916,7 +898,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
       RWX_RUN_ID:

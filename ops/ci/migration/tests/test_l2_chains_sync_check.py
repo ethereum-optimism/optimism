@@ -45,7 +45,7 @@ class MainTests(T._MainTestsFixtures, unittest.TestCase):
             sha = self.commit(root)
             for job in ('l2-chains-sync-check', 'op-deployer-forge-version'):
                 if job == 'l2-chains-sync-check':
-                    result = subprocess.run([sys.executable, str(root/'ops/ci/migration/l2-chains-sync-check.py')], cwd=root/'op-deployer', env={**os.environ,'CI_COMMIT_SHA':sha,'CI_BRANCH':'feature/example','CI_CHECK_PROVIDER':'rwx'}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    result = subprocess.run([sys.executable, str(root/'ops/ci/migration/l2-chains-sync-check.py')], cwd=root/'op-deployer', env={**os.environ,'CI_COMMIT_SHA':sha,'CI_BRANCH':'feature/example'}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                     report=root/'.ci/main-checks/l2-chains-sync-check'
                 else:
                     result, report = self.run_adapter(root, job, sha)

@@ -117,7 +117,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
     tool-cache: selector-upload-abi-v2-${{ init.cache-epoch }}
     timeout: 40m
     runner: {cpus: 16, memory: 32gb}
@@ -157,7 +156,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       COMPILED: ${{ tasks.prepare.artifacts.compiled }}
       REGISTRY_IMAGES: ${{ tasks.registry-images.artifacts.images }}
     cache: false

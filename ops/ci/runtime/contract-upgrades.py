@@ -51,7 +51,7 @@ def command(*args, cwd=None):
 
 def revision():
     sha = command('git', 'rev-parse', 'HEAD')
-    expected = os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha
+    expected = os.environ.get('CI_COMMIT_SHA') or sha
     if not re.fullmatch('[0-9a-f]{40}', expected) or sha != expected: raise ValueError('Contract upgrade source revision differs')
     return sha
 
@@ -155,7 +155,7 @@ def configure(variant):
     for name in ('ETH_RPC_URL', 'FORK_RPC_URL', 'FORK_BLOCK_NUMBER', 'L2_FORK_RPC_URL', 'L2_FORK_BLOCK_NUMBER',
                  'ETH_RPC_JWT', 'ETH_RPC_HEADERS', 'ETHERSCAN_API_KEY', 'MAINNET_RPC_URL'):
         os.environ.pop(name, None)
-    branch = os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
+    branch = os.environ.get('CI_BRANCH')
     if not branch: raise ValueError('Missing tested contract branch')
     os.environ.update(FOUNDRY_PROFILE='ci' if branch == 'develop' else 'liteci',
                       FOUNDRY_FUZZ_SEED='42424242', FOUNDRY_FUZZ_RUNS='1', FORK_OP_CHAIN=chain,
@@ -282,7 +282,7 @@ def prepare(directory, variant):
     branch, chain, feature = configure(variant)
     settings = {'source_sha': revision(), 'variant': variant, 'branch': branch, 'chain': chain, 'feature': feature,
                 'profile': os.environ['FOUNDRY_PROFILE'], 'fuzz_seed': '42424242', 'fuzz_runs': 1,
-                'provider': os.environ.get('CI_CONTRACT_PROVIDER', 'circleci'), 'workspace_root': str(ROOT),
+                'provider': 'rwx', 'workspace_root': str(ROOT),
                 'forge': command('forge', '--version'), 'go': command('go', 'version'), 'just': command('just', '--version'),
                 'input_sha256': inputs(), 'rwx_run_id': os.environ.get('RWX_RUN_ID'),
                 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}

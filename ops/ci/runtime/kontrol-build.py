@@ -71,22 +71,22 @@ def select():
         'generated': GENERATED, 'tests': 0}
 
 
-def execute(provider, contract_artifact=None):
+def execute(contract_artifact=None):
     os.chdir(ROOT); directory = ROOT / '.ci/kontrol-build/run'
     shutil.rmtree(directory, ignore_errors=True); directory.mkdir(parents=True)
     status, errors = 1, []
     try:
         sha = command('git', 'rev-parse', 'HEAD')
-        if not re.fullmatch('[0-9a-f]{40}', sha) or sha != (os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha):
+        if not re.fullmatch('[0-9a-f]{40}', sha) or sha != (os.environ.get('CI_COMMIT_SHA') or sha):
             raise ValueError('Wrong Kontrol source revision')
         for argv in (['git', 'diff', '--quiet'], ['git', 'diff', '--cached', '--quiet']):
             if subprocess.call(argv): raise ValueError('Kontrol source differs from its Git revision')
-        before = G.inputs(); branch = os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
+        before = G.inputs(); branch = os.environ.get('CI_BRANCH')
         if not branch or os.environ.get('FOUNDRY_PROFILE') not in (None, 'default') or os.environ.get('KONTROL_FP_DEPLOYMENT') not in (None, 'false'):
             raise ValueError('Missing branch or overridden original Kontrol mode/profile')
         submodules = command('git', 'submodule', 'status', '--recursive')
         (directory / 'submodules.txt').write_text(submodules + '\n')
-        settings = {'suite': 'kontrol-build', 'source_sha': sha, 'branch': branch, 'provider': provider,
+        settings = {'suite': 'kontrol-build', 'source_sha': sha, 'branch': branch, 'provider': 'rwx',
             'workspace_root': str(ROOT), 'input_sha256': before, 'submodules': SUBMODULES.revisions(submodules),
             'profile': 'default', 'environment': {name: os.environ.get(name) for name in ENVIRONMENT},
             'rerun_fails': 0, 'image': IMAGE.selection(), 'kontrol_version': 'Kontrol version: ' + IMAGE.selection()['version'],
@@ -96,7 +96,6 @@ def execute(provider, contract_artifact=None):
             'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
         S.write(directory / 'settings.json', settings)
         image = ROOT / '.ci/kontrol-build/image'
-        if provider == 'circleci': IMAGE.prepare()
         record = IMAGE.verify(image)
         shutil.copytree(image, directory / 'image')
         with (directory / 'runtime-image.json').open('wb') as output:
@@ -154,7 +153,6 @@ def execute(provider, contract_artifact=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--provider', choices=('circleci','rwx'), required=True)
     parser.add_argument('--contract-artifact', type=Path)
     args = parser.parse_args()
-    sys.exit(execute(args.provider,args.contract_artifact))
+    sys.exit(execute(args.contract_artifact))

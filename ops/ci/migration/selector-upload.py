@@ -86,7 +86,7 @@ def identity():
     R.check(not any(key.startswith(('FOUNDRY_', 'DAPP_', 'DEV_FEATURE__', 'SYS_FEATURE__'))
               and key != 'FOUNDRY_PROFILE' for key in os.environ), 'Unexpected selector compiler override')
     sha = UP.revision()
-    branch = os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
+    branch = os.environ.get('CI_BRANCH')
     R.check(branch, 'Missing selector branch metadata')
     tools = {}
     for name in ('forge', 'cast', 'just'):
@@ -98,7 +98,7 @@ def identity():
         path = UP.command('svm', 'which', version)
         compilers[version] = {'version': UP.command(path, '--version'), 'sha256': R.digest(path)}
     return {'version': 1, 'source_sha': sha, 'branch': branch, 'profile': 'default',
-            'provider': os.environ.get('CI_CHECK_PROVIDER', 'circleci'), 'workspace_root': str(ROOT),
+            'provider': 'rwx', 'workspace_root': str(ROOT),
             'tools': tools, 'compilers': compilers, 'command': COMMAND,
             'configuration': configuration(), 'inputs': R.source_inputs(ROOT, sha, True),
             'implementation': {name: R.digest(helper(name[:-3]).__file__) for name in IMPLEMENTATION},

@@ -3,31 +3,27 @@
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
-export CI_COMMIT_SHA="${CI_COMMIT_SHA:-${CIRCLE_SHA1:?Missing source SHA}}"
+export CI_COMMIT_SHA="${CI_COMMIT_SHA:?Missing source SHA}"
 report="$ROOT/.ci/rust-workspace/e2e-release"
 rm -rf "$report"
 mkdir -p "$report"
 mkdir -p .ci/go-tests/dependencies/rust-e2e-release
 export CARGO_INCREMENTAL=0
-if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
-  export CARGO_HOME="$ROOT/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$ROOT/rust/target"
-  export RUSTC_WRAPPER=sccache SCCACHE_DIR="$ROOT/.ci/rust-cache/sccache"
-  export SCCACHE_BASEDIRS="$ROOT" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
-  mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR" "$SCCACHE_DIR"
-  sccache --start-server
-  sccache --zero-stats
-  python3 ops/ci/runtime/op-reth-report.py prepare-superchain "$report"
-  python3 ops/ci/runtime/rust-target-cache.py prepare > "$report/cache-source.json"
-fi
+export CARGO_HOME="$ROOT/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$ROOT/rust/target"
+export RUSTC_WRAPPER=sccache SCCACHE_DIR="$ROOT/.ci/rust-cache/sccache"
+export SCCACHE_BASEDIRS="$ROOT" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
+mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR" "$SCCACHE_DIR"
+sccache --start-server
+sccache --zero-stats
+python3 ops/ci/runtime/op-reth-report.py prepare-superchain "$report"
+python3 ops/ci/runtime/rust-target-cache.py prepare > "$report/cache-source.json"
 python3 ops/ci/runtime/rust-e2e-release-report.py begin "$report"
 finish() {
   local status=$? diagnostics=0
   trap - EXIT
-  if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
-    sccache --show-stats --stats-format json > "$report/sccache.json" || diagnostics=$?
-    sccache --stop-server > "$report/sccache-stop.log" 2>&1 || diagnostics=$?
-    if [[ "$status" == 0 ]]; then python3 ops/ci/runtime/rust-target-cache.py commit || diagnostics=$?; fi
-  fi
+  sccache --show-stats --stats-format json > "$report/sccache.json" || diagnostics=$?
+  sccache --stop-server > "$report/sccache-stop.log" 2>&1 || diagnostics=$?
+  if [[ "$status" == 0 ]]; then python3 ops/ci/runtime/rust-target-cache.py commit || diagnostics=$?; fi
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
   python3 ops/ci/runtime/rust-e2e-release-report.py finish "$report" "$status" || status=$?
   exit "$status"

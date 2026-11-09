@@ -24,7 +24,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}
-      CI_CONTRACT_PROVIDER: rwx
       BUILD_PROBE: ${{ params.build-probe }}
       CI_CONTRACT_TARGET_SHA: ${{ params.target-sha }}
       CI_CONTRACT_SUITE: ${{ params.suite }}

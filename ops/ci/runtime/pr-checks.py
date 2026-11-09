@@ -95,14 +95,14 @@ def check_verdicts(text, configuration):
 
 def begin(directory, job):
     sha = STAGES.command('git', 'rev-parse', 'HEAD')
-    expected = os.environ.get('CI_COMMIT_SHA', os.environ.get('CIRCLE_SHA1', sha))
+    expected = os.environ.get('CI_COMMIT_SHA', sha)
     if not re.fullmatch('[0-9a-f]{40}', expected) or sha != expected: raise ValueError('PR check source revision differs')
     paths = ['go.mod', 'go.sum', 'mise.toml', 'ops/ci/runtime/pr-checks.py', 'ops/ci/runtime/rust-workspace-report.py', 'ops/ci/runtime/ci-report.py']
     if job == 'contracts-fast': paths += ['packages/contracts-bedrock/checks.yaml', 'packages/contracts-bedrock/justfile',
                                         'packages/contracts-bedrock/scripts/check-runner/main.go',
                                         'packages/contracts-bedrock/scripts/ops/get-target-branch.sh']
-    settings = {'source_sha': sha, 'job': job, 'provider': os.environ.get('CI_CHECK_PROVIDER', 'circleci'),
-                'workspace_root': str(ROOT), 'branch': os.environ.get('CI_BRANCH', os.environ.get('CIRCLE_BRANCH')),
+    settings = {'source_sha': sha, 'job': job, 'provider': 'rwx',
+                'workspace_root': str(ROOT), 'branch': os.environ.get('CI_BRANCH'),
                 'go': STAGES.command('go', 'version'), 'just': STAGES.command('just', '--version'),
                 'input_sha256': {name: STAGES.digest(ROOT / name) for name in paths},
                 'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}

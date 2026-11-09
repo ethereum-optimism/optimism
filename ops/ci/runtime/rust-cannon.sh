@@ -18,11 +18,11 @@ python3 "$HELPERS/rust-cannon-report.py" begin "$report" "$job"
 finish() {
   local status=$? diagnostics=0
   trap - EXIT
-  if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && "$job" == offline ]]; then
+  if [[ "$job" == offline ]]; then
     sccache --show-stats --stats-format json > "$report/sccache.json" || diagnostics=$?
     sccache --stop-server > "$report/sccache-stop.log" 2>&1 || diagnostics=$?
   fi
-  if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && ("$job" == env || "$job" == lint || "$job" == build || "$job" == offline) && "$status" == 0 ]]; then
+  if [[ ("$job" == env || "$job" == lint || "$job" == build || "$job" == offline) && "$status" == 0 ]]; then
     python3 "$HELPERS/rust-target-cache.py" commit || diagnostics=$?
   fi
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
@@ -35,22 +35,25 @@ trap 'exit 143' TERM
 stage_at() { python3 "$HELPERS/rust-workspace-report.py" stage-at "$report" "$@"; }
 stage_at rust variants just kona-prestate-variants
 python3 "$HELPERS/rust-cannon-report.py" inventory "$report"
-if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
-  export CARGO_HOME="$ROOT/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$ROOT/rust/target"
-  export GOPATH="$ROOT/.ci/cannon-cache/go/modules" GOCACHE="$ROOT/.ci/cannon-cache/go/build"
-  mkdir -p "$CARGO_HOME" "$GOPATH" "$GOCACHE"
-  if [[ "$job" == env || "$job" == lint || "$job" == build || "$job" == offline ]]; then
-    # Stamp COPY inputs before Docker builds as well as bound runtime sources.
-    # Normalized checkout mtimes must not make old BuildKit Cargo targets fresh.
-    python3 "$HELPERS/rust-target-cache.py" prepare > "$report/cache-source.json"
-  fi
-  if [[ "$job" == offline ]]; then
-    export CARGO_INCREMENTAL=0 RUSTC_WRAPPER=sccache SCCACHE_DIR="$ROOT/.ci/cannon-cache/sccache"
-    export SCCACHE_BASEDIRS="$ROOT" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
-    mkdir -p "$SCCACHE_DIR"
-    sccache --start-server
-    sccache --zero-stats
-  fi
+export CARGO_HOME="$ROOT/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$ROOT/rust/target"
+export GOPATH="$ROOT/.ci/cannon-cache/go/modules" GOCACHE="$ROOT/.ci/cannon-cache/go/build"
+mkdir -p "$CARGO_HOME" "$GOPATH" "$GOCACHE"
+if [[ "$job" == offline ]]; then
+  # Never accept a restored state as evidence of this invocation's guest exit.
+  # Remove it before the source snapshot, so the cache commit sees no change.
+  rm -f rust/kona/state.bin.gz rust/kona/out.bin.gz rust/kona/meta.json
+fi
+if [[ "$job" == env || "$job" == lint || "$job" == build || "$job" == offline ]]; then
+  # Stamp COPY inputs before Docker builds as well as bound runtime sources.
+  # Normalized checkout mtimes must not make old BuildKit Cargo targets fresh.
+  python3 "$HELPERS/rust-target-cache.py" prepare > "$report/cache-source.json"
+fi
+if [[ "$job" == offline ]]; then
+  export CARGO_INCREMENTAL=0 RUSTC_WRAPPER=sccache SCCACHE_DIR="$ROOT/.ci/cannon-cache/sccache"
+  export SCCACHE_BASEDIRS="$ROOT" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
+  mkdir -p "$SCCACHE_DIR"
+  sccache --start-server
+  sccache --zero-stats
 fi
 config=()
 while IFS= read -r value; do config+=("$value"); done < <(python3 "$HELPERS/rust-cannon-report.py" config)
@@ -128,8 +131,6 @@ case "$job" in
     python3 "$HELPERS/rust-cannon-report.py" witness "$report"
     build_go
     prepare_image
-    # Never accept a restored state as evidence of this invocation's guest exit.
-    rm -f rust/kona/state.bin.gz rust/kona/out.bin.gz rust/kona/meta.json
     stage_at rust/kona/bin/client offline just run-client-cannon-offline "${config[@]}"
     # Cannon writes the final state into rust/kona, and git does not ignore it
     # there. Move it out, or the Rust target cache commit sees a source change.

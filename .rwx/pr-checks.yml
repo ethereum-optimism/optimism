@@ -142,7 +142,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
     cache: false
     timeout: 20m
     runner:
@@ -175,7 +174,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
     cache: false
     timeout: 20m
     runner:
@@ -201,7 +199,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
     cache: false
     timeout: 30m
     runner:
@@ -235,7 +232,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
     tool-cache: pr-checks-go-modules-${{ init.cache-epoch }}
     timeout: 30m
     runner:
@@ -262,7 +258,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -321,7 +316,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -347,7 +341,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -373,7 +366,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -401,7 +393,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       SUPERCHAIN_PREPARED: ${{ tasks.main-superchain.artifacts.reports }}
       RWX_RUN_ID:
         cache-key: included
@@ -430,7 +421,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -462,7 +452,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -494,7 +483,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       SUPERCHAIN_PREPARED: ${{ tasks.main-superchain.artifacts.reports }}
       RWX_RUN_ID:
         cache-key: included
@@ -527,7 +515,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_CHECK_PROVIDER: rwx
       SUPERCHAIN_PREPARED: ${{ tasks.main-superchain.artifacts.reports }}
       RWX_RUN_ID:
         cache-key: included

@@ -118,7 +118,7 @@ def tools():
     return result
 
 
-def toolchain(provider):
+def toolchain():
     path = REPORTS / 'toolchain'; shutil.rmtree(path, ignore_errors=True); path.mkdir(parents=True)
     status, errors = 1, []
     try:
@@ -164,18 +164,18 @@ def verify_seals(path, final):
     if seal(path).keys() != hashes.keys() | {'final.json'}: raise ValueError('Extra or unsealed original SP1 files')
 
 
-def binding(provider, phase, features=""):
+def binding(phase, features=""):
     if features not in ("", "test-config-fallback"): raise ValueError("Unsupported SP1 guest features")
     sha = command('git', 'rev-parse', 'HEAD')
-    if sha != (os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha) or not re.fullmatch('[0-9a-f]{40}', sha):
+    if sha != (os.environ.get('CI_COMMIT_SHA') or sha) or not re.fullmatch('[0-9a-f]{40}', sha):
         raise ValueError('Wrong SP1 source revision')
     if subprocess.call(['git', 'diff', '--quiet'], cwd=ROOT) or subprocess.call(['git', 'diff', '--cached', '--quiet'], cwd=ROOT):
         raise ValueError('SP1 tracked source differs from its Git revision')
-    branch = os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
+    branch = os.environ.get('CI_BRANCH')
     if not branch or any(os.environ.get(n) for n in ('KONA_CUSTOM_CONFIGS_DIR', 'KONA_CUSTOM_CONFIGS', 'KONA_SP1_GIT_SHA', 'CARGO_ENCODED_RUSTFLAGS')):
         raise ValueError('Missing SP1 branch or overridden original source/compiler inputs')
     if os.environ.get('CARGO_INCREMENTAL') != '0': raise ValueError('SP1 compiler caching requires the original nonincremental setting')
-    return {'suite':'sp1-guest', 'phase':phase, 'provider':provider, 'source_sha':sha, 'branch':branch,
+    return {'suite':'sp1-guest', 'phase':phase, 'provider':'rwx', 'source_sha':sha, 'branch':branch,
         'features':features, 'elf_source_sha':sha+('-test' if features else ''),
         'workspace_root':str(ROOT), 'cargo_home':os.environ.get('CARGO_HOME', str(Path.home()/'.cargo')),
         'input_sha256':inputs(), 'tools':verified_toolchain(), 'programs':programs(),
@@ -229,8 +229,7 @@ def stage(path, name, argv, cwd=RUST, json_output=False):
     if status: raise StageFailure(name,status)
 
 
-def cache_start(path, provider, phase, features=""):
-    if provider != 'rwx': return False
+def cache_start(path, phase, features=""):
     cache = ROOT / '.ci/sp1-cache'
     target = cache / (phase + '-target')
     cargo_home = cache/'cargo'
@@ -279,16 +278,16 @@ def cache_finish(path, active, status, errors):
     return status
 
 
-def build(provider, features=""):
-    if provider=='rwx' and ROOT!=helper('sp1-guest-native-build').WORKSPACE:
+def build(features=""):
+    if ROOT!=helper('sp1-guest-native-build').WORKSPACE:
         return helper('sp1-guest-native-build').execute(features)
     path = REPORTS/'dependency'; shutil.rmtree(path, ignore_errors=True); path.mkdir(parents=True)
     status, errors, cached = 1, [], False
     try:
         if os.environ.get('RUSTFLAGS'):raise ValueError('Overridden original SP1 build compiler flags')
         os.environ['SP1_PROVER']='cpu'
-        cached = cache_start(path, provider, 'elf', features)
-        settings = binding(provider,'build', features); S.write(path/'settings.json',settings)
+        cached = cache_start(path, 'elf', features)
+        settings = binding('build', features); S.write(path/'settings.json',settings)
         shutil.copytree(REPORTS/'toolchain',path/'toolchain')
         stage(path,'lock-before',['just','check-sp1-guest-lock'])
         stage(path,'guest-workspace',['cargo','metadata','--manifest-path',GUEST,'--locked','--all-features','--format-version','1'],json_output=True)
@@ -325,7 +324,7 @@ def restore_artifact(directory, settings):
     original=read(directory/'settings.json')
     for name in ('source_sha','branch','input_sha256','tools','programs','features','elf_source_sha','build_rustflags','check_rustflags','vkey_prover','incremental','rerun_fails'):
         if original[name] != settings[name]: raise ValueError('Stale SP1 producer revision, source or settings: '+name)
-    if original['provider']=='rwx':helper('sp1-guest-native-build').verify(directory,original,settings['workspace_root'])
+    helper('sp1-guest-native-build').verify(directory,original,settings['workspace_root'])
     if read(directory/'elfs.json') != elf_record(settings,directory/'files'):
         raise ValueError('Wrong or incomplete actual SP1 producer binaries')
     (SP1/'elf').mkdir(exist_ok=True)
@@ -417,12 +416,12 @@ def coverage(path, phase, metadata, settings, emit=True):
     return record
 
 
-def checks(provider, artifact, features=""):
+def checks(artifact, features=""):
     path=REPORTS/'run';shutil.rmtree(path,ignore_errors=True);path.mkdir(parents=True)
     status,errors,cached=1,[],False
     try:
-        cached = cache_start(path, provider, 'checks', features)
-        settings=binding(provider,'checks', features);S.write(path/'settings.json',settings)
+        cached = cache_start(path, 'checks', features)
+        settings=binding('checks', features);S.write(path/'settings.json',settings)
         restore_artifact(artifact,settings);shutil.copytree(artifact,path/'producer')
         shutil.copytree(REPORTS/'toolchain',path/'toolchain')
         os.environ['SP1_PROVER']='cpu'
@@ -462,15 +461,14 @@ def checks(provider, artifact, features=""):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--provider',choices=('circleci','rwx'),required=True)
     parser.add_argument('--phase',choices=('toolchain','build','checks','full'),default='full')
     parser.add_argument('--features',choices=('', 'test-config-fallback'),default='')
     parser.add_argument('--artifact',type=Path,default=REPORTS/'dependency')
     args=parser.parse_args();os.chdir(ROOT)
-    if args.phase=='toolchain':status=toolchain(args.provider)
-    elif args.phase=='build':status=build(args.provider,args.features)
-    elif args.phase=='checks':status=checks(args.provider,args.artifact,args.features)
+    if args.phase=='toolchain':status=toolchain()
+    elif args.phase=='build':status=build(args.features)
+    elif args.phase=='checks':status=checks(args.artifact,args.features)
     else:
-        status=build(args.provider,args.features)
-        if not status:status=checks(args.provider,args.artifact,args.features)
+        status=build(args.features)
+        if not status:status=checks(args.artifact,args.features)
     sys.exit(status)

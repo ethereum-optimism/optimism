@@ -14,5 +14,11 @@
       "circle_config": ".circleci/continue/main.yml",
       "workflow": "contracts-feature-tests"
     }
+  },
+  "e2e_gate": {
+    "gate": "required-rust-e2e",
+    "circle_config": ".circleci/continue/rust-e2e.yml",
+    "workflow": "rust-e2e-ci",
+    "release_job": "rust-workspace-release"
   }
 }

@@ -43,14 +43,13 @@ def boolean(value):
     raise argparse.ArgumentTypeError('Expected true or false')
 
 
-def settings(provider, slow, fresh, cpus):
-    if provider not in ('circleci', 'rwx') or type(slow) is not bool or type(fresh) is not bool:
-        raise ValueError('Invalid Cannon provider, slow-test or freshness setting')
-    if type(cpus) is not int or cpus < 1 or (provider == 'rwx' and not fresh):
-        raise ValueError('Invalid Cannon CPU count or nonfresh RWX verdict')
+def settings(slow, cpus):
+    if type(slow) is not bool: raise ValueError('Invalid Cannon slow-test setting')
+    if type(cpus) is not int or cpus < 1: raise ValueError('Invalid Cannon CPU count')
+    # Every verdict is fresh: -count=1 disables the Go test cache.
     return {'tags': [], 'skip_slow_tests': slow, 'timeout': '10m' if slow else '45m',
             'parallel_rule': 'nproc', 'parallel': cpus, 'package_parallelism': None,
-            'count': 1 if fresh else None, 'short': False, 'rerun_fails': 0,
+            'count': 1, 'short': False, 'rerun_fails': 0,
             'format': 'testname', 'selector': './...', 'working_directory': 'cannon'}
 
 
@@ -116,8 +115,7 @@ def listing(path, selected):
 
 
 def go_flags(effective, *, list_tests=False):
-    args = ['-timeout=' + effective['timeout'], '-parallel=' + str(effective['parallel'])]
-    if effective['count'] is not None: args.append('-count=1')
+    args = ['-timeout=' + effective['timeout'], '-parallel=' + str(effective['parallel']), '-count=1']
     if list_tests: args += ['-list', LIST_PATTERN]
     return args + ['./...']
 
@@ -159,25 +157,25 @@ def observed(directory, selected, tests):
             'package_failures': failures, 'per_test_logs': len(logs)}
 
 
-def execute(provider, slow, fresh, module_artifact=None, contract_artifact=None):
+def execute(slow, module_artifact, contract_artifact):
     os.chdir(ROOT); directory = ROOT / '.ci/cannon-go/run'
     shutil.rmtree(directory, ignore_errors=True); directory.mkdir(parents=True)
     status, errors, before = 1, [], None
     try:
         sha = command('git', 'rev-parse', 'HEAD')
-        if not re.fullmatch('[0-9a-f]{40}', sha) or sha != (os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha):
+        if not re.fullmatch('[0-9a-f]{40}', sha) or sha != (os.environ.get('CI_COMMIT_SHA') or sha):
             raise ValueError('Cannon source differs from expected revision')
         for argv in (['git', 'diff', '--exit-code', '--quiet'], ['git', 'diff', '--cached', '--exit-code', '--quiet']):
             if subprocess.call(argv): raise ValueError('Cannon source differs from its Git revision')
-        branch = os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
+        branch = os.environ.get('CI_BRANCH')
         if not branch: raise ValueError('Missing Cannon tested branch')
         status = S.stage(directory, 'cpus', ['nproc'], stdout_json=True, cwd=str(ROOT / 'cannon'), stdin=subprocess.DEVNULL)
         if status: raise ValueError('Cannon CPU discovery failed')
-        effective = settings(provider, slow, fresh, int((directory / 'cpus.json').read_text().strip()))
+        effective = settings(slow, int((directory / 'cpus.json').read_text().strip()))
         os.environ['SKIP_SLOW_TESTS'] = str(slow).lower()
         before = inputs()
         record = {'version': 1, 'suite': 'cannon-go', 'source_sha': sha, 'branch': branch,
-            'provider': provider, 'workspace_root': str(ROOT), 'settings': effective, 'input_sha256': before,
+            'provider': 'rwx', 'workspace_root': str(ROOT), 'settings': effective, 'input_sha256': before,
             'environment': {name: os.environ.get(name) for name in ('CI', 'SKIP_SLOW_TESTS', 'GOMAXPROCS')},
             'go_environment': json.loads(command('go', 'env', '-json', 'GOOS', 'GOARCH', 'GOAMD64', 'CGO_ENABLED',
                                                  'GOFLAGS', 'GOEXPERIMENT', 'GOTOOLCHAIN', 'GO111MODULE')),
@@ -185,10 +183,9 @@ def execute(provider, slow, fresh, module_artifact=None, contract_artifact=None)
                 ('gotestsum', ['gotestsum', '--version']), ('just', ['just', '--version']), ('forge', ['forge', '--version'])]},
             'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
         S.write(directory / 'settings.json', record)
-        if provider == 'rwx' and (module_artifact is None or contract_artifact is None):
-            raise ValueError('RWX Cannon requires verified module and ci-contract dependencies')
+        if module_artifact is None or contract_artifact is None:
+            raise ValueError('Cannon requires verified module and ci-contract dependencies')
         for kind, artifact in (('go-modules', module_artifact), ('contracts', contract_artifact)):
-            if artifact is None: continue
             ARTIFACTS.restore(kind, artifact)
             target = directory / 'dependencies'; target.mkdir(exist_ok=True)
             shutil.copy2(ROOT / 'tmp/testlogs/dependencies' / (kind + '.json'), target / (kind + '.json'))
@@ -224,9 +221,7 @@ def execute(provider, slow, fresh, module_artifact=None, contract_artifact=None)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--provider', choices=('circleci', 'rwx'), required=True)
     parser.add_argument('--skip-slow-tests', type=boolean, default='true')
-    parser.add_argument('--fresh-tests', type=boolean, required=True)
     parser.add_argument('--module-artifact', type=Path); parser.add_argument('--contract-artifact', type=Path)
     args = parser.parse_args()
-    sys.exit(execute(args.provider, args.skip_slow_tests, args.fresh_tests, args.module_artifact, args.contract_artifact))
+    sys.exit(execute(args.skip_slow_tests, args.module_artifact, args.contract_artifact))

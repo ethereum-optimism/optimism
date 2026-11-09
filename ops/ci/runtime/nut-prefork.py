@@ -53,17 +53,16 @@ def select_states(root):
 
 def verify_bundle(directory, artifact, settings):
     identity = MAIN.superchain()
-    if artifact is not None:
-        final = G.read(artifact / 'final.json')
-        expected = {'bundle.json', 'coverage.json', 'superchain.log', 'superchain.stage.json'}
-        if final.get('exit_code') != 0 or final.get('report_errors') or set(final['original_sha256']) != expected:
-            raise ValueError('Failed or incomplete pre-fork superchain producer')
-        for name, digest in final['original_sha256'].items():
-            if S.digest(artifact / name) != digest: raise ValueError('Corrupt pre-fork superchain producer')
-        if G.read(artifact / 'bundle.json') != identity: raise ValueError('Stale or mismatched pre-fork superchain bundle')
-        target = directory / 'producer'; target.mkdir()
-        for name in expected: shutil.copyfile(artifact / name, target / name)
-        S.write(target / 'manifest.json', final)
+    final = G.read(artifact / 'final.json')
+    expected = {'bundle.json', 'coverage.json', 'superchain.log', 'superchain.stage.json'}
+    if final.get('exit_code') != 0 or final.get('report_errors') or set(final['original_sha256']) != expected:
+        raise ValueError('Failed or incomplete pre-fork superchain producer')
+    for name, digest in final['original_sha256'].items():
+        if S.digest(artifact / name) != digest: raise ValueError('Corrupt pre-fork superchain producer')
+    if G.read(artifact / 'bundle.json') != identity: raise ValueError('Stale or mismatched pre-fork superchain bundle')
+    target = directory / 'producer'; target.mkdir()
+    for name in expected: shutil.copyfile(artifact / name, target / name)
+    S.write(target / 'manifest.json', final)
     if identity['source_sha'] != settings['source_sha']: raise ValueError('Wrong pre-fork bundle revision')
     target = directory / 'dependencies'; target.mkdir(exist_ok=True)
     shutil.copyfile(ROOT / MAIN.BUNDLE, target / 'superchain-configs.zip')
@@ -71,19 +70,19 @@ def verify_bundle(directory, artifact, settings):
     return identity
 
 
-def execute(provider, module_artifact=None, contract_artifact=None, bundle_artifact=None):
+def execute(module_artifact, contract_artifact, bundle_artifact):
     os.chdir(ROOT); directory = ROOT / '.ci/nut-prefork/run'
     shutil.rmtree(directory, ignore_errors=True); directory.mkdir(parents=True)
     status, errors = 1, []
     try:
         sha = command('git', 'rev-parse', 'HEAD')
-        if not re.fullmatch('[0-9a-f]{40}', sha) or sha != (os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha):
+        if not re.fullmatch('[0-9a-f]{40}', sha) or sha != (os.environ.get('CI_COMMIT_SHA') or sha):
             raise ValueError('Wrong pre-fork source revision')
         for argv in (['git', 'diff', '--quiet'], ['git', 'diff', '--cached', '--quiet']):
             if subprocess.call(argv): raise ValueError('Pre-fork source differs from its Git revision')
         before = G.inputs()
-        settings = {'suite': 'nut-prefork', 'source_sha': sha, 'provider': provider, 'workspace_root': str(ROOT),
-            'branch': os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH'), 'input_sha256': before,
+        settings = {'suite': 'nut-prefork', 'source_sha': sha, 'provider': 'rwx', 'workspace_root': str(ROOT),
+            'branch': os.environ.get('CI_BRANCH'), 'input_sha256': before,
             'environment': {name: os.environ.get(name) for name in ('CI', 'GOMAXPROCS', 'FOUNDRY_PROFILE')},
             'go_environment': json.loads(command('go', 'env', '-json', 'GOOS', 'GOARCH', 'GOAMD64', 'CGO_ENABLED', 'GOFLAGS', 'GOEXPERIMENT', 'GOTOOLCHAIN', 'GO111MODULE')),
             'tool_versions': {name: command(*argv) for name, argv in [('go', ['go', 'version']), ('just', ['just', '--version']),
@@ -91,10 +90,9 @@ def execute(provider, module_artifact=None, contract_artifact=None, bundle_artif
             'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
         if not settings['branch'] or settings['go_environment']['GOFLAGS']: raise ValueError('Missing pre-fork branch or overridden Go flags')
         S.write(directory / 'settings.json', settings)
-        if provider == 'rwx' and any(p is None for p in (module_artifact, contract_artifact, bundle_artifact)):
-            raise ValueError('RWX pre-fork requires verified modules, contracts and superchain')
+        if any(p is None for p in (module_artifact, contract_artifact, bundle_artifact)):
+            raise ValueError('Pre-fork requires verified modules, contracts and superchain')
         for kind, artifact in [('go-modules', module_artifact), ('contracts', contract_artifact)]:
-            if artifact is None: continue
             G.ARTIFACTS.restore(kind, artifact)
             target = directory / 'dependencies'; target.mkdir(exist_ok=True)
             shutil.copyfile(ROOT / 'tmp/testlogs/dependencies' / (kind + '.json'), target / (kind + '.json'))
@@ -125,7 +123,6 @@ def execute(provider, module_artifact=None, contract_artifact=None, bundle_artif
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--provider', choices=('circleci', 'rwx'), required=True)
     for name in ('module', 'contract', 'bundle'): parser.add_argument('--' + name + '-artifact', type=Path)
     args = parser.parse_args()
-    sys.exit(execute(args.provider, args.module_artifact, args.contract_artifact, args.bundle_artifact))
+    sys.exit(execute(args.module_artifact, args.contract_artifact, args.bundle_artifact))

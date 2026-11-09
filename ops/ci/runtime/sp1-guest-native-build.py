@@ -51,10 +51,10 @@ def execute(features=""):
             else:target.mkdir(parents=True,exist_ok=True)
         S.write(staging/'settings.json',{'source_sha':sha,'input_sha256':before,'native_workspace_root':str(ROOT),'policy':POLICY})
         env={**os.environ,'SP1_GUEST_NATIVE_CACHE_ROOT':str(cache)}
-        status=S.stage(staging,'toolchain',['python3','ops/ci/runtime/sp1-guest.py','--provider','rwx','--phase','toolchain'],
+        status=S.stage(staging,'toolchain',['python3','ops/ci/runtime/sp1-guest.py','--phase','toolchain'],
                        cwd=str(WORKSPACE),stdin=subprocess.DEVNULL)
         if status:raise ValueError('Native SP1 canonical toolchain verification failed')
-        status=subprocess.call([sys.executable,'ops/ci/runtime/sp1-guest.py','--provider','rwx','--phase','build','--features',features],cwd=WORKSPACE,env=env)
+        status=subprocess.call([sys.executable,'ops/ci/runtime/sp1-guest.py','--phase','build','--features',features],cwd=WORKSPACE,env=env)
         after=M.inputs();S.write(staging/'inputs-after.json',after)
         if before!=after:raise ValueError('Native SP1 workspace preparation changed original sources')
     except Exception as error:
@@ -96,7 +96,7 @@ def verify(directory,settings,native_workspace_root=None):
         'clone':['git','clone','--shared','--no-checkout',root,str(WORKSPACE)],
         'checkout':['git','-C',str(WORKSPACE),'checkout','--detach',settings['source_sha']],
         'trust':['mise','trust','--yes',str(WORKSPACE/'mise.toml')],
-        'toolchain':['python3','ops/ci/runtime/sp1-guest.py','--provider','rwx','--phase','toolchain']}
+        'toolchain':['python3','ops/ci/runtime/sp1-guest.py','--phase','toolchain']}
     if {p.name.removesuffix('.stage.json') for p in native.glob('*.stage.json')}!=expected.keys():
         raise ValueError('Missing or extra native SP1 workspace invocation')
     for name,argv in expected.items():

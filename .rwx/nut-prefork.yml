@@ -183,7 +183,7 @@ tasks:
       python3 ops/ci/runtime/go-artifacts.py restore op-reth "$RETH_ARTIFACT"
       export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$PWD/rust/target/release/op-reth-test-engine"
       test -x "$RUST_BINARY_PATH_OP_RETH_TEST_ENGINE"
-      python3 ops/ci/runtime/nut-prefork.py --provider rwx \
+      python3 ops/ci/runtime/nut-prefork.py \
         --module-artifact "$MODULE_ARTIFACT" --contract-artifact "$CONTRACT_ARTIFACT" \
         --bundle-artifact "$BUNDLE_ARTIFACT"
     env:

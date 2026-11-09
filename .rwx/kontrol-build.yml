@@ -161,7 +161,7 @@ tasks:
   - key: check
     use: [source, go-tools, compiler-set, image]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/runtime/kontrol-build.py --provider rwx --contract-artifact "$CONTRACT_ARTIFACT"
+    run: python3 ops/ci/runtime/kontrol-build.py --contract-artifact "$CONTRACT_ARTIFACT"
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}

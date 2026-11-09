@@ -262,8 +262,8 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
     def test_real_production_guest_artifact_rejects_stale_missing_corrupt_and_foreign_inputs(self):
         original = Path(os.environ['SP1_GUEST_ARTIFACT'])
         settings = G.read(original / 'settings.json')
-        if settings['provider'] == 'rwx':
-            settings = {**settings, 'workspace_root': G.read(original / 'native-workspace/settings.json')['native_workspace_root']}
+        self.assertEqual(settings['provider'], 'rwx')
+        settings = {**settings, 'workspace_root': G.read(original / 'native-workspace/settings.json')['native_workspace_root']}
         artifact = self.root / 'producer'
         shutil.copytree(original, artifact)
         with patch.object(G, 'SP1', self.root):

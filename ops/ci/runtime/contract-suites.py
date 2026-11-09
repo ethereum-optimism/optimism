@@ -6,7 +6,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -31,7 +30,6 @@ FILE_COMMANDS = {
 # `just test` records each EVM pass's failures and JUnit report separately.
 FAILURES = ('cache/test-failures-amsterdam', 'cache/test-failures-l2')
 RESULTS = ('results/results-amsterdam.xml', 'results/results-l2.xml')
-SPLIT_COMMAND = ['bash', '-eo', 'pipefail', '-c', 'circleci tests split --split-by=timings < "$CI_CONTRACT_FILE_LIST"']
 # GenerateNUTBundleTest calls the real script's run() and verifies the JSON it
 # writes at Constants.CURRENT_BUNDLE_PATH. This tracked snapshot is both an
 # initial fixture and an intentional runtime output, never a reusable verdict.
@@ -93,7 +91,7 @@ def verify_inputs(directory, before, phase, outputs=()):
 
 def configure(suite, feature):
     if suite not in SUITES or feature not in FEATURES: raise ValueError('Unknown contract suite or feature')
-    branch = os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
+    branch = os.environ.get('CI_BRANCH')
     if not branch: raise ValueError('Missing tested contract branch')
     for name in list(os.environ):
         if name.startswith(('FOUNDRY_', 'DAPP_', 'DEV_FEATURE__', 'SYS_FEATURE__')): del os.environ[name]
@@ -101,7 +99,6 @@ def configure(suite, feature):
                  'FORK_RPC_URL', 'FORK_BLOCK_NUMBER', 'L2_FORK_RPC_URL', 'L2_FORK_BLOCK_NUMBER'):
         os.environ.pop(name, None)
     profile = 'ciheavy' if suite == 'modified' else 'ci' if branch == 'develop' else 'liteci'
-    if os.environ.get('CI_CONTRACT_PROFILE', profile) != profile: raise ValueError('Circle contract profile differs from suite and branch')
     os.environ.update(FOUNDRY_PROFILE=profile, FORK_TEST='false', L2_FORK_TEST='false', L2CM_ACTIVATION_TEST='false', CI='true')
     if feature != 'main':
         for variable in UP.FEATURES[feature].split(): os.environ[variable] = 'true'
@@ -148,27 +145,17 @@ def pinned_target(suite):
     target = os.environ.get('CI_CONTRACT_TARGET_SHA') or None
     if target is not None:
         file_command(suite, target)
-        if os.environ.get('CI_CONTRACT_PROVIDER') != 'rwx':
-            raise ValueError('Pinned contract target requires RWX provider')
         if UP.command('git', 'rev-parse', '--verify', target + '^{commit}') != target:
             raise ValueError('Pinned contract target is not an available commit')
     return target
 
 
-def selected_files(directory, suite, provider, target=None):
+def selected_files(directory, suite, target=None):
     if UP.stage(directory, 'files', file_command(suite, target)): raise ValueError('Authoritative contract file discovery failed')
     files = file_selection((directory / 'files.log').read_text())
     if any(not (CONTRACTS / name).is_file() for name in files): raise ValueError('Missing discovered contract test file')
-    assignment = files
-    if provider == 'circleci' and files:
-        if (os.environ.get('CIRCLE_NODE_TOTAL', '1'), os.environ.get('CIRCLE_NODE_INDEX', '0')) != ('1', '0'):
-            raise ValueError('Circle contract partition count changed; complete collection is required')
-        os.environ['CI_CONTRACT_FILE_LIST'] = str(directory / 'files.log')
-        if UP.stage(directory, 'split', SPLIT_COMMAND): raise ValueError('Original Circle timing split failed')
-        assignment = file_selection((directory / 'split.log').read_text())
-        if assignment != files: raise ValueError('Circle split omitted or added contract test files')
-    result = {'files': files, 'partitions': [{'index': 0, 'files': assignment}],
-              'match_path': match_path(assignment) if files else None}
+    result = {'files': files, 'partitions': [{'index': 0, 'files': files}],
+              'match_path': match_path(files) if files else None}
     UP.write(directory / 'file-selection.json', result)
     return result
 
@@ -186,11 +173,9 @@ def validate_config(config, suite):
 def begin(directory, suite, feature):
     branch, profile = configure(suite, feature)
     test_list = 'find test -name "*.t.sol"' if suite == 'standard' else FILE_COMMANDS[suite][-1]
-    if shlex.split(os.environ.get('CI_CONTRACT_TEST_LIST', test_list)) != shlex.split(test_list):
-        raise ValueError('Circle test-list parameter differs from authoritative suite discovery')
     settings = {'source_sha': UP.revision(), 'suite': suite, 'feature': feature, 'branch': branch, 'profile': profile,
                 'test_list': test_list,
-                'provider': os.environ.get('CI_CONTRACT_PROVIDER', 'circleci'), 'workspace_root': str(ROOT),
+                'provider': 'rwx', 'workspace_root': str(ROOT),
                 'forge': UP.command('forge', '--version'), 'go': UP.command('go', 'version'), 'just': UP.command('just', '--version'),
                 'input_sha256': inputs(), 'rwx_run_id': os.environ.get('RWX_RUN_ID'),
                 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
@@ -205,7 +190,7 @@ def begin(directory, suite, feature):
             settings['target_binding'] = 'run-pinned'
         settings.update(target_sha=target, merge_base_sha=UP.command('git', 'merge-base', target, 'HEAD'))
         UP.write(directory / 'settings.json', settings)
-    chosen = selected_files(directory, suite, settings['provider'], target if settings.get('target_binding') else None)
+    chosen = selected_files(directory, suite, target if settings.get('target_binding') else None)
     settings['runtime_output_paths'] = runtime_outputs(chosen['files'])
     UP.write(directory / 'settings.json', settings)
     for name in settings['runtime_output_paths']:

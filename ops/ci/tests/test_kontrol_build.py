@@ -81,11 +81,15 @@ class _LiveTestsFixtures:
         self.sha = self.run_command(['git', 'rev-parse', 'HEAD'], self.root)
         self.env['CI_COMMIT_SHA'] = self.sha
 
-    def execute(self, provider='circleci'):
-        argv = [sys.executable, 'ops/ci/runtime/kontrol-build.py', '--provider', provider]
-        if provider == 'rwx':
-            argv += ['--contract-artifact', str(self.artifact)]
-        return subprocess.run(argv, cwd=self.root, env=self.env, capture_output=True, text=True, timeout=240)
+    def argv(self, artifact=True):
+        # The RWX task always passes the producer artifact. Fixtures that change
+        # the committed source run without it, so its revision binding does not
+        # stop them before the original Kontrol commands.
+        argv = [sys.executable, 'ops/ci/runtime/kontrol-build.py']
+        return argv + ['--contract-artifact', str(self.artifact)] if artifact else argv
+
+    def execute(self, artifact=True):
+        return subprocess.run(self.argv(artifact), cwd=self.root, env=self.env, capture_output=True, text=True, timeout=240)
 
     def retain(self, name):
         target = K.ROOT / '.ci/kontrol-build/helper-fixtures' / name
@@ -109,15 +113,12 @@ class _LiveTestsFixtures:
             target = K.ROOT / '.ci/kontrol-build/helper-fixtures' / ('producer-' + label)
             shutil.rmtree(target, ignore_errors=True)
             shutil.copytree(self.artifact, target)
-        pair = self.root / '.ci/paired'
-        for provider, key in [('circleci', 'circle'), ('rwx', 'rwx')]:
-            self.reset_runtime()
-            result = self.execute(provider)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            shutil.copytree(self.report, pair / key)
-            self.retain('complete-' + key)
-        self.assertEqual(self.marker.read_text().splitlines(), ['default', 'fault-proofs'] * 2)
-        return pair
+        self.reset_runtime()
+        result = self.execute()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.retain('complete-rwx')
+        self.assertEqual(self.marker.read_text().splitlines(), ['default', 'fault-proofs'])
+        return self.report
 
     def reset_runtime(self):
         self.run_command(['git', 'restore', '--', *sum(K.GENERATED.values(), [])], self.root)
@@ -130,39 +131,37 @@ class _LiveTestsFixtures:
 class LiveTests(_LiveTestsFixtures, unittest.TestCase):
 
     def test_actual_two_variants_fresh_build_and_future_proof_discovery(self):
-        pair = self.exercise_complete_workloads()
-        for provider, key in [('circleci', 'circle'), ('rwx', 'rwx')]:
-            directory = pair / key
-            with self.subTest(provider=provider):
-                settings = K.G.read(directory / 'settings.json')
-                self.assertEqual(settings['provider'], provider)
-                self.assertEqual(settings['source_sha'], self.sha)
-                selected = K.G.read(directory / 'selection.json')
-                self.assertIn(K.PROOFS + '/FutureProof.sol', selected['proof_sources'])
-                self.assertEqual(selected['variants'], ['default', 'fault-proofs'])
-                coverage = K.G.read(directory / 'coverage.json')
-                self.assertEqual(coverage['tests'], 0)
-                self.assertEqual(coverage['generated_files'], 4)
-                self.assertEqual(set(coverage['tracked_generated_changes']), set(self.placeholders))
-                self.assertTrue(coverage['complete_original_commands'])
-                for name in self.placeholders:
-                    self.assertTrue((directory / 'generated' / name).is_file())
-                for name, argv in K.COMMANDS.items():
-                    stage = K.G.read(directory / (name + '.stage.json'))
-                    self.assertEqual(stage['argv'], argv)
-                    self.assertEqual(stage['exit_code'], 0)
-                final = K.G.read(directory / 'final.json')
-                self.assertEqual(final['exit_code'], 0)
-                self.assertEqual(final['report_errors'], [])
-                hashes = K.seal(directory)
-                hashes.pop('final.json')
-                self.assertEqual(final['original_sha256'], hashes)
+        directory = self.exercise_complete_workloads()
+        settings = K.G.read(directory / 'settings.json')
+        self.assertEqual(settings['provider'], 'rwx')
+        self.assertEqual(settings['source_sha'], self.sha)
+        self.assertTrue((directory / 'dependencies/contracts-kontrol').is_dir())
+        selected = K.G.read(directory / 'selection.json')
+        self.assertIn(K.PROOFS + '/FutureProof.sol', selected['proof_sources'])
+        self.assertEqual(selected['variants'], ['default', 'fault-proofs'])
+        coverage = K.G.read(directory / 'coverage.json')
+        self.assertEqual(coverage['tests'], 0)
+        self.assertEqual(coverage['generated_files'], 4)
+        self.assertEqual(set(coverage['tracked_generated_changes']), set(self.placeholders))
+        self.assertTrue(coverage['complete_original_commands'])
+        for name in self.placeholders:
+            self.assertTrue((directory / 'generated' / name).is_file())
+        for name, argv in K.COMMANDS.items():
+            stage = K.G.read(directory / (name + '.stage.json'))
+            self.assertEqual(stage['argv'], argv)
+            self.assertEqual(stage['exit_code'], 0)
+        final = K.G.read(directory / 'final.json')
+        self.assertEqual(final['exit_code'], 0)
+        self.assertEqual(final['report_errors'], [])
+        hashes = K.seal(directory)
+        hashes.pop('final.json')
+        self.assertEqual(final['original_sha256'], hashes)
 
     def test_real_kontrol_failure_keeps_original_state_and_stops_before_other_variant(self):
         path = self.contracts / 'scripts/deploy/Deploy.s.sol'
         path.write_text(path.read_text().replace('StateDiff.encodeAccountAccesses(accesses)', '\'{"broken":true}\''))
         self.commit()
-        result = self.execute()
+        result = self.execute(artifact=False)
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotEqual(K.G.read(self.report / 'summaries.stage.json')['exit_code'], 0)
         self.assertEqual(self.marker.read_text().splitlines(), ['default'])
@@ -180,7 +179,7 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         text = path.read_text().replace('  forge build {{ARGS}}', '  printf "invalid original proof compiler input" >test/kontrol/proofs/UntrackedBad.sol\n  forge build {{ARGS}}')
         path.write_text(text)
         self.commit()
-        result = self.execute()
+        result = self.execute(artifact=False)
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(K.G.read(self.report / 'summaries.stage.json')['exit_code'], 0)
         self.assertNotEqual(K.G.read(self.report / 'proofs.stage.json')['exit_code'], 0)
@@ -193,7 +192,7 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         text = path.read_text().replace('kontrol-summary-fp:\n', 'kontrol-summary-fp:\n  touch ../../.ci/cancel-ready\n  sleep 30\n')
         path.write_text(text)
         self.commit()
-        process = subprocess.Popen([sys.executable, 'ops/ci/runtime/kontrol-build.py', '--provider', 'circleci'], cwd=self.root, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        process = subprocess.Popen(self.argv(artifact=False), cwd=self.root, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         try:
             deadline = time.monotonic() + 120
             while not (self.root / '.ci/cancel-ready').exists() and process.poll() is None and (time.monotonic() < deadline):
@@ -218,14 +217,14 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         value = K.G.read(path)
         value['commit_sha'] = '0' * 40
         K.S.write(path, value)
-        result = self.execute('rwx')
+        result = self.execute()
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.report / 'summaries.stage.json').exists())
         self.retain('stale-contract-input')
         path.write_bytes(original)
         archive = self.artifact / 'files.tar.gz'
         archive.write_bytes(archive.read_bytes() + b'corrupt original archive')
-        result = self.execute('rwx')
+        result = self.execute()
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.report / 'summaries.stage.json').exists())
         self.retain('corrupt-contract-input')
@@ -233,7 +232,7 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
     def test_corrupt_image_preparation_fails_before_expensive_original_commands(self):
         path = self.image / 'inspect.json'
         path.write_bytes(path.read_bytes() + b'corrupt original image report')
-        result = self.execute('rwx')
+        result = self.execute()
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertFalse((self.report / 'summaries.stage.json').exists())
         self.retain('corrupt-image-input')

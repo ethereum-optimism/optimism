@@ -78,8 +78,8 @@ class _MainTestsFixtures:
         subprocess.run(['git', 'commit', '--allow-empty', '-qm', 'fixture'], cwd=root, check=True)
         return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
 
-    def run_adapter(self, root, job, sha, provider='circleci', prepared=None):
-        env = {**os.environ, 'CI_COMMIT_SHA': sha, 'CI_BRANCH': 'fixture', 'CI_CHECK_PROVIDER': provider, 'RWX_RUN_ID': 'fresh-fixture', 'RWX_TASK_ATTEMPT_NUMBER': '1'}
+    def run_adapter(self, root, job, sha, prepared=None):
+        env = {**os.environ, 'CI_COMMIT_SHA': sha, 'CI_BRANCH': 'fixture', 'RWX_RUN_ID': 'fresh-fixture', 'RWX_TASK_ATTEMPT_NUMBER': '1'}
         env.pop('SUPERCHAIN_PREPARED', None)
         if prepared:
             env['SUPERCHAIN_PREPARED'] = str(prepared)
@@ -114,28 +114,22 @@ class _MainTestsFixtures:
             missing = subprocess.run(['go', 'list', '-tags=generate', '-json', './...'], cwd=component, capture_output=True, text=True)
             self.assertNotEqual(missing.returncode, 0)
             self.assertIn('superchain-configs.zip', missing.stderr)
-            originals = {}
-            for provider in ('circleci', 'rwx'):
-                prepared = None
-                if provider == 'rwx':
-                    result = subprocess.run([sys.executable, 'ops/ci/runtime/main-checks.py', '--prepare-superchain'], cwd=root, env={**os.environ, 'CI_COMMIT_SHA': sha}, capture_output=True, text=True)
-                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                    prepared = root / '.ci/main-checks/prep-superchain'
-                    self.assertFalse(list(prepared.glob('*.xml')))
-                result, report = self.run_adapter(root, 'check-generated-mocks-op-node', sha, provider, prepared)
-                self.assertEqual(result.returncode, 0, result.stdout)
-                self.assertEqual(json.loads((report / 'check.stage.json').read_text())['argv'], MAIN.COMMANDS['check-generated-mocks-op-node'])
-                self.assertGreater(len((root / 'generation-runs').read_bytes()), len(previous))
-                previous = (root / 'generation-runs').read_bytes()
-                selection = json.loads((report / 'selection.json').read_text())
-                self.assertTrue(any((d['file'].endswith('input_test.go') for p in selection['packages'] for d in p['directives'])))
-                key = 'circle' if provider == 'circleci' else 'rwx'
-                originals[key] = root / '.ci/paired' / key
-                shutil.copytree(report, originals[key])
-            self.verify_mock_reports(originals, sha)
+            # The producer regenerates the missing zip; the check reuses it.
+            result = subprocess.run([sys.executable, 'ops/ci/runtime/main-checks.py', '--prepare-superchain'], cwd=root, env={**os.environ, 'CI_COMMIT_SHA': sha}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            prepared = root / '.ci/main-checks/prep-superchain'
+            self.assertFalse(list(prepared.glob('*.xml')))
+            result, report = self.run_adapter(root, 'check-generated-mocks-op-node', sha, prepared)
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(json.loads((report / 'check.stage.json').read_text())['argv'], MAIN.COMMANDS['check-generated-mocks-op-node'])
+            self.assertEqual(json.loads((report / 'settings.json').read_text())['provider'], 'rwx')
+            self.assertTrue((report / 'producer/manifest.json').is_file())
+            self.assertGreater(len((root / 'generation-runs').read_bytes()), len(previous))
+            selection = json.loads((report / 'selection.json').read_text())
+            self.assertTrue(any((d['file'].endswith('input_test.go') for p in selection['packages'] for d in p['directives'])))
             saved = bundle.read_bytes()
             bundle.write_bytes(b'corrupt reusable zip')
-            result, report = self.run_adapter(root, 'check-generated-mocks-op-node', sha, 'rwx', prepared)
+            result, report = self.run_adapter(root, 'check-generated-mocks-op-node', sha, prepared)
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse((report / 'check.stage.json').exists())
             self.assertIn('Superchain bundle differs', result.stdout)
@@ -148,10 +142,6 @@ class _MainTestsFixtures:
             self.assertNotEqual(json.loads((report / 'final.json').read_text())['exit_code'], 0)
             self.assertTrue((report / 'selection.json').exists())
             self.assertNotEqual(json.loads((report / 'settings.json').read_text())['input_sha256'], json.loads((report / 'inputs-after.json').read_text()))
-
-
-    def verify_mock_reports(self, originals, sha):
-        pass
 
 
 class MainTests(_MainTestsFixtures, unittest.TestCase):

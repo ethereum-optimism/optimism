@@ -7,7 +7,6 @@ tasks:
     use: package.use
     run: bash ops/ci/runtime/rust-e2e-release.sh
     env:
-      CI_RUST_PROVIDER: rwx
       CI_COMMIT_SHA: ${{ params.commit-sha }}
     tool-cache: rust-e2e-workspace-release-${{ params.cache-epoch }}
     timeout: 120m

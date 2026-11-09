@@ -24,7 +24,7 @@ def originals(directory):
     return final
 
 
-def validate(release, reports, sha, *, provider='rwx'):
+def validate(release, reports, sha):
     originals(release)
     settings, coverage = E2E.read(release / 'settings.json'), E2E.read(release / 'coverage.json')
     if (settings['source_sha'] != sha or settings['suite'] != 'rust-e2e' or settings['job'] != 'release'
@@ -38,8 +38,8 @@ def validate(release, reports, sha, *, provider='rwx'):
         job = record['settings']['job']
         if job not in grouped or record['settings'] != E2E.settings(job) or record['source_sha'] != sha:
             raise ValueError('E2E source, job or settings mismatch')
-        if record['provider'] != provider: raise ValueError('E2E provider mismatch')
-        if provider == 'rwx' and (not record['rwx_run_id']
+        if record['provider'] != 'rwx': raise ValueError('E2E provider mismatch')
+        if (not record['rwx_run_id']
                 or not isinstance(record['rwx_task_attempt'], str)
                 or not re.fullmatch('[1-9][0-9]*', record['rwx_task_attempt'])):
             raise ValueError('Missing fresh E2E run identity or invalid task attempt')
@@ -59,13 +59,12 @@ def validate(release, reports, sha, *, provider='rwx'):
             raise ValueError('E2E coverage differs from complete original verdicts')
         expected_dependencies = {'go', 'contracts-e2e', 'rust-e2e-release'}
         if job in ('restart', 'simple-kona', 'simple-kona-sequencer'): expected_dependencies.add('prestate')
-        if provider == 'rwx':
-            paths = {p.stem: p for p in (directory / 'dependencies').glob('*.json')}
-            if paths.keys() != expected_dependencies: raise ValueError('Missing or extra E2E dependency inputs')
-            for kind, path in paths.items():
-                dependency = E2E.read(path)
-                if dependency['kind'] != kind or dependency['commit_sha'] != sha or not dependency['files']:
-                    raise ValueError('E2E runtime dependency provenance differs')
+        paths = {p.stem: p for p in (directory / 'dependencies').glob('*.json')}
+        if paths.keys() != expected_dependencies: raise ValueError('Missing or extra E2E dependency inputs')
+        for kind, path in paths.items():
+            dependency = E2E.read(path)
+            if dependency['kind'] != kind or dependency['commit_sha'] != sha or not dependency['files']:
+                raise ValueError('E2E runtime dependency provenance differs')
         grouped[job].append(record)
     for job, rows in grouped.items():
         if sorted(r['shard_index'] for r in rows) != list(range(E2E.JOBS[job]['shards'])):
@@ -74,10 +73,9 @@ def validate(release, reports, sha, *, provider='rwx'):
         if any(r['tests'] != names or r['excluded_listing'] != rows[0]['excluded_listing'] for r in rows):
             raise ValueError('E2E shard discovery differs')
         if assigned != Counter(names): raise ValueError('E2E initial selection is not assigned exactly once')
-        summary[job] = {'top_level_tests': len(names), 'shards': len(rows), 'fresh': True, 'retries': 0}
-        if provider == 'rwx':
-            summary[job]['task_attempts'] = {str(r['shard_index']): r['rwx_task_attempt']
-                                          for r in sorted(rows, key=lambda row: row['shard_index'])}
+        summary[job] = {'top_level_tests': len(names), 'shards': len(rows), 'fresh': True, 'retries': 0,
+                        'task_attempts': {str(r['shard_index']): r['rwx_task_attempt']
+                                          for r in sorted(rows, key=lambda row: row['shard_index'])}}
     return {'source_sha': sha, 'suite': 'rust-e2e', 'jobs': summary,
             'release_packages': len(coverage['packages']), 'release_targets': len(coverage['targets']), 'passed': True}
 

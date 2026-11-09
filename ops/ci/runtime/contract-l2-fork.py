@@ -131,7 +131,7 @@ def configure():
             del os.environ[name]
     for name in ('ETH_RPC_URL', 'ETH_RPC_JWT', 'ETH_RPC_HEADERS', 'ETHERSCAN_API_KEY', 'MAINNET_RPC_URL', 'L2_BLOCK_BEFORE_FORK', 'NUT_BUNDLE_PATH'):
         os.environ.pop(name, None)
-    branch = os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
+    branch = os.environ.get('CI_BRANCH')
     check(branch, 'Missing L2 tested branch')
     os.environ.update(FOUNDRY_PROFILE='ci', FORK_TEST='false', L2_FORK_TEST='true', L2CM_ACTIVATION_TEST='false', CI='true')
     return branch
@@ -145,7 +145,7 @@ def settings():
     sha = UP.revision()
     return {'source_sha': sha, 'branch': configure(), 'profile': 'ci', 'feature': 'main', 'chain': 'op-mainnet',
             'match_path': MATCH, 'runtime': RUNTIME,
-            'provider': os.environ.get('CI_CONTRACT_PROVIDER', 'circleci'), 'workspace_root': str(ROOT),
+            'provider': 'rwx', 'workspace_root': str(ROOT),
             'tools': tools, 'inputs': R.source_inputs(ROOT, sha, True),
             'implementation': {name: digest(Path(__file__).with_name(name)) for name in IMPLEMENTATION},
             'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}

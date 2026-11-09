@@ -148,7 +148,7 @@ tasks:
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/cannon-go/build"
       mkdir -p "$GOCACHE"
-      python3 ops/ci/runtime/cannon-go.py --provider rwx --skip-slow-tests true --fresh-tests true \
+      python3 ops/ci/runtime/cannon-go.py --skip-slow-tests true \
         --module-artifact "$MODULE_ARTIFACT" --contract-artifact "$CONTRACT_ARTIFACT"
     env:
       CI: "true"

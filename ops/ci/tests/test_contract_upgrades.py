@@ -307,7 +307,7 @@ class LiveForgeTests(unittest.TestCase):
             server = ThreadingHTTPServer(('127.0.0.1', 0), Rpc); thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
             self.addCleanup(server.server_close); self.addCleanup(thread.join, 5); self.addCleanup(server.shutdown)
             marker = root / 'fresh-execution.txt'
-            env = {'CI_BRANCH':'pilot', 'CI_COMMIT_SHA':sha, 'CI_CONTRACT_PROVIDER':'rwx', 'RWX_RUN_ID':'f' * 32,
+            env = {'CI_BRANCH':'pilot', 'CI_COMMIT_SHA':sha, 'RWX_RUN_ID':'f' * 32,
                    'RWX_TASK_ATTEMPT_NUMBER':'1', 'CI_UPGRADE_FIXTURE_MARKER':str(marker),
                    'OP_CI_MAINNET_L1_ARCHIVE_RPC_URL':'http://127.0.0.1:' + str(server.server_port)+'/short-token?apikey=abc123'}
             previous = Path.cwd(); self.addCleanup(os.chdir, previous)

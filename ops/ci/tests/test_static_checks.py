@@ -73,9 +73,9 @@ class _LiveToolsFixtures:
         subprocess.run(['git', 'add', '.'], cwd=root, check=True)
         subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'original fixture'], cwd=root, check=True)
 
-    def run_check(self, root, job, provider='rwx', evidence_label=None):
+    def run_check(self, root, job, evidence_label=None):
         sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
-        env = dict(os.environ, CI_BRANCH='feature/example', CI_COMMIT_SHA=sha, CI_CHECK_PROVIDER=provider, RWX_RUN_ID='a' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
+        env = dict(os.environ, CI_BRANCH='feature/example', CI_COMMIT_SHA=sha, RWX_RUN_ID='a' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
         child = subprocess.run(['python3', str(root / 'ops/ci/runtime/static-checks.py'), job], cwd=root, env=env, capture_output=True, text=True, timeout=90)
         d = root / '.ci/static-checks' / job
         if child.returncode and os.environ.get('RWX_STATIC_FIXTURE_RETAIN_DIR'):
@@ -88,7 +88,7 @@ class _LiveToolsFixtures:
 class LiveTools(_LiveToolsFixtures, unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get('RWX_LIVE_SHELL_FIXTURE') == '1', 'Pinned original ShellCheck fixture')
-    def test_original_exclusions_spaces_fresh_failure_and_complete_parity(self):
+    def test_original_exclusions_spaces_and_fresh_failure(self):
         root = self.fixture()
         (root / 'folder with spaces').mkdir()
         for name in ('check.sh', 'folder with spaces/check.sh'):
@@ -101,10 +101,7 @@ class LiveTools(_LiveToolsFixtures, unittest.TestCase):
         self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
         selected = json.loads((d / 'selection.json').read_text())
         self.assertEqual(len(selected['files']), 2)
-        native = root / '.ci/native'
-        shutil.copytree(d, native)
-        second, d, _ = self.run_check(root, 'shell-check', 'circleci')
-        self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
+        self.assertEqual(json.loads((d / 'settings.json').read_text())['provider'], 'rwx')
         (root / 'check.sh').write_text('#!/bin/bash\nvalue="$1"\necho $value\n')
         self.commit(root)
         failed, d, _ = self.run_check(root, 'shell-check', evidence_label='shell-initial-failure')
@@ -139,10 +136,6 @@ class LiveTools(_LiveToolsFixtures, unittest.TestCase):
                 report = json.loads((d / 'coverage.json').read_text())
                 self.assertEqual(report['paths']['scanned'], ['source.py'])
                 self.assertEqual(json.loads((d / 'settings.json').read_text())['baseline']['changed_files'], {'source.py': 'M'})
-            native = root / '.ci' / ('native-' + job)
-            shutil.copytree(d, native)
-            second, d, _ = self.run_check(root, job, 'circleci')
-            self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
         (root / 'source.py').write_text('forbidden(2)\n')
         self.commit(root)
         failed, d, _ = self.run_check(root, 'semgrep-scan-local', evidence_label='semgrep-initial-failure')

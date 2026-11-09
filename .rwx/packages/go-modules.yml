@@ -15,7 +15,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}
-      CI_CHECK_PROVIDER: rwx
     tool-cache: pr-checks-go-modules-${{ params.cache-epoch }}
     timeout: 30m
     runner:

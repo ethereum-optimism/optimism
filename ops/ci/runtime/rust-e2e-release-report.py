@@ -38,7 +38,7 @@ def binding():
 
 def begin(directory):
     write(directory / 'settings.json', binding() | {'suite': 'rust-e2e', 'job': 'release',
-          'provider': os.environ.get('CI_RUST_PROVIDER', 'circleci'), 'workspace_root': str(Path.cwd()),
+          'provider': 'rwx', 'workspace_root': str(Path.cwd()),
           'started_at': time.time(), 'rwx_run_id': os.environ.get('RWX_RUN_ID'),
           'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')})
 

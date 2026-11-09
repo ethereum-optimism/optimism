@@ -196,18 +196,18 @@ def execute(job):
     status, errors, cases, settings = 1, [], [], None
     try:
         sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-        if not re.fullmatch('[0-9a-f]{40}', sha) or sha != (os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha):
+        if not re.fullmatch('[0-9a-f]{40}', sha) or sha != (os.environ.get('CI_COMMIT_SHA') or sha):
             raise ValueError('Wrong static-check source SHA')
         for argv in (['git', 'diff', '--exit-code', '--quiet'], ['git', 'diff', '--cached', '--exit-code', '--quiet']):
             if subprocess.call(argv): raise ValueError('Static-check source differs from its Git revision')
-        branch = os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
+        branch = os.environ.get('CI_BRANCH')
         if not branch: raise ValueError('Missing tested static-check branch')
         before = inputs(); environment = configure(job, branch)
         tool = 'shellcheck' if job == 'shell-check' else 'semgrep'
         version = subprocess.check_output([tool, '--version'], text=True).strip()
         parsed = re.findall(r'^version: (\S+)$', version, re.M) if job == 'shell-check' else [version]
         if parsed != [expected_version(job)]: raise ValueError('Static-check tool differs from the recorded Circle image version')
-        settings = {'source_sha': sha, 'branch': branch, 'job': job, 'provider': os.environ.get('CI_CHECK_PROVIDER', 'circleci'),
+        settings = {'source_sha': sha, 'branch': branch, 'job': job, 'provider': 'rwx',
                     'workspace_root': str(ROOT), 'tool_version': version, 'environment': environment, 'input_sha256': before,
                     'baseline': baseline(branch) if job != 'shell-check' else None,
                     'command': COMMANDS[job], 'rwx_run_id': os.environ.get('RWX_RUN_ID'),

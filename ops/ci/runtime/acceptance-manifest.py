@@ -68,7 +68,7 @@ def create(packages_path, listing_path, total):
         index = min(range(total), key=lambda i: (loads[i], len(groups[i]), i))
         groups[index].append(name)
         loads[index] += weights[name]
-    sha = os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1')
+    sha = os.environ.get('CI_COMMIT_SHA')
     if not sha:
         sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     return {'version': 1, 'suite': 'acceptance', 'commit_sha': sha,
@@ -104,7 +104,7 @@ def select(path, index, total, listed=None):
     index = SHARDS.shard_number(index)
     if index >= manifest['total']:
         raise ValueError('Shard index out of range')
-    sha = os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1')
+    sha = os.environ.get('CI_COMMIT_SHA')
     if manifest.get('commit_sha') != sha or manifest.get('settings') != settings():
         raise ValueError('Acceptance revision or settings differ')
     if manifest.get('go_version') != subprocess.check_output(['go', 'version'], cwd=ROOT, text=True).strip():

@@ -25,7 +25,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}
-      CI_CONTRACT_PROVIDER: rwx
       COMPILED: ${{ params.compiled }}
       PINNED_BLOCK: ${{ params.pinned-block }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}

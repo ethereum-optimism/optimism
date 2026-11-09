@@ -114,8 +114,8 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(bound, {'target_branch': 'develop', 'target_sha': target_sha, 'merge_base_sha': target_sha})
             self.assertEqual(git('show', 'origin/develop:proof.txt', cwd=clone), 'authoritative protected target')
 
-    @unittest.skipUnless(os.environ.get('RWX_LIVE_GO_FIXTURE') == '1', 'Opt-in actual Circle module adapter')
-    def test_relative_circle_adapter_downloads_verifies_and_discovers_actual_modules(self):
+    @unittest.skipUnless(os.environ.get('RWX_LIVE_GO_FIXTURE') == '1', 'Opt-in actual module adapter')
+    def test_relative_adapter_downloads_verifies_and_discovers_actual_modules(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); scripts = root / 'ops/ci/runtime'; scripts.mkdir(parents=True)
             for name in ('pr-checks.py', 'rust-workspace-report.py', 'ci-report.py'): shutil.copyfile(Path(__file__).resolve().parents[1] / 'runtime' / name, scripts / name)
@@ -126,13 +126,14 @@ class CheckTests(unittest.TestCase):
             sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
             nested = root / 'packages/contracts-bedrock'; nested.mkdir(parents=True)
             result = subprocess.run([sys.executable, '../../ops/ci/runtime/pr-checks.py', 'go-modules'], cwd=nested,
-                env={**os.environ, 'CI_COMMIT_SHA': sha, 'CI_CHECK_PROVIDER': 'circleci'}, text=True,
+                env={**os.environ, 'CI_COMMIT_SHA': sha, 'RWX_RUN_ID': 'a' * 32, 'RWX_TASK_ATTEMPT_NUMBER': '1'}, text=True,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             self.assertEqual(result.returncode, 0, result.stdout)
             report = root / '.ci/pr-checks/go-modules'
             self.assertEqual(json.loads((report / 'coverage.json').read_text())['selected'], 1)
             self.assertIn('all modules verified', (report / 'verify.log').read_text())
-            self.assertEqual(json.loads((report / 'settings.json').read_text())['source_sha'], sha)
+            settings = json.loads((report / 'settings.json').read_text())
+            self.assertEqual((settings['source_sha'], settings['provider']), (sha, 'rwx'))
             self.assertEqual(json.loads((report / 'discovery.stage.json').read_text())['cwd'], str(root.resolve()))
 
 

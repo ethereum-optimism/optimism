@@ -232,7 +232,7 @@ def execute(job, *, argv=None, discover=None):
     shutil.rmtree(directory, ignore_errors=True); directory.mkdir(parents=True)
     status, errors, settings = 1, [], None
     try:
-        sha = command('git', 'rev-parse', 'HEAD'); expected = os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha
+        sha = command('git', 'rev-parse', 'HEAD'); expected = os.environ.get('CI_COMMIT_SHA') or sha
         if not re.fullmatch('[0-9a-f]{40}', expected) or sha != expected: raise ValueError('Main check source revision differs')
         tools = {'go': command('go', 'version'), 'just': command('just', '--version'),
                  'jq': command('jq', '--version'), 'yq': command('yq', '--version')}
@@ -241,8 +241,8 @@ def execute(job, *, argv=None, discover=None):
             versions = re.findall(r'^v?\d+\.\d+\.\d+[^\n]*$', command('mockery', '--version'), re.M)
             if len(versions) != 1: raise ValueError('Missing authoritative mockery version')
             tools['mockery'] = versions[0]
-        settings = {'source_sha': sha, 'job': job, 'branch': os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH'),
-                    'provider': os.environ.get('CI_CHECK_PROVIDER', 'circleci'), 'workspace_root': str(ROOT),
+        settings = {'source_sha': sha, 'job': job, 'branch': os.environ.get('CI_BRANCH'),
+                    'provider': 'rwx', 'workspace_root': str(ROOT),
                     'tools': tools, 'input_sha256': inputs(), 'rwx_run_id': os.environ.get('RWX_RUN_ID'),
                     'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
         if job in GO_JOBS:

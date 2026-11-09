@@ -144,7 +144,7 @@ func TestSlow(t *testing.T) { if os.Getenv("E2E_WAIT")=="1" { time.Sleep(time.Mi
         for args in (['init', '-q'], ['config', 'user.email', 'fixture@example.invalid'], ['config', 'user.name', 'CI Fixture'], ['add', '.'], ['commit', '-qm', 'fixture']):
             subprocess.run(['git', *args], cwd=self.root, check=True)
         self.sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.root, text=True).strip()
-        self.env = {**os.environ, 'CI_COMMIT_SHA': self.sha, 'CI_E2E_PROVIDER': 'rwx', 'CI_SHARD_INDEX': '0', 'PARALLEL': '2'}
+        self.env = {**os.environ, 'CI_COMMIT_SHA': self.sha, 'CI_SHARD_INDEX': '0', 'PARALLEL': '2'}
         result = self.run_mode('compile')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

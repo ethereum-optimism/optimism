@@ -59,7 +59,7 @@ def witness_config():
 
 def binding():
     sha = command('git', 'rev-parse', 'HEAD')
-    expected = os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha
+    expected = os.environ.get('CI_COMMIT_SHA') or sha
     if not re.fullmatch('[0-9a-f]{40}', expected) or sha != expected:
         raise ValueError('Cannon source revision mismatch')
     tools = tomllib.loads(Path('mise.toml').read_text())['tools']
@@ -77,7 +77,7 @@ def begin(directory, job):
     if job not in JOBS:
         raise ValueError('Unknown Cannon job')
     write(directory / 'settings.json', binding() | {
-        'suite': 'rust-cannon', 'job': job, 'provider': os.environ.get('CI_RUST_PROVIDER', 'circleci'),
+        'suite': 'rust-cannon', 'job': job, 'provider': 'rwx',
         'workspace_root': str(Path.cwd()), 'started_at': time.time(),
         'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER'),
         'rustc': command('rustc', '--version'), 'cargo': command('cargo', '--version')})

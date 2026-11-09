@@ -47,25 +47,25 @@ class DiscoveryTests(unittest.TestCase):
                 with self.subTest(text=text), self.assertRaises((ValueError, OSError)): G.packages(text, root)
 
     def test_original_settings_are_distinct_from_aggregate_go(self):
-        settings = G.settings('rwx', True, True, 16)
+        settings = G.settings(True, 16)
         self.assertEqual(G.go_flags(settings), ['-timeout=10m', '-parallel=16', '-count=1', './...'])
-        scheduled = G.settings('circleci', False, False, 8)
-        self.assertEqual(G.go_flags(scheduled), ['-timeout=45m', '-parallel=8', './...'])
+        slow = G.settings(False, 8)
+        self.assertEqual(G.go_flags(slow), ['-timeout=45m', '-parallel=8', '-count=1', './...'])
         self.assertEqual(settings['tags'], [])
         self.assertEqual(settings['rerun_fails'], 0)
         self.assertIsNone(settings['package_parallelism'])
-        with self.assertRaises(ValueError): G.settings('rwx', True, False, 16)
+        for slow, cpus in (('true', 16), (True, 0), (True, '16')):
+            with self.subTest(slow=slow, cpus=cpus), self.assertRaises(ValueError): G.settings(slow, cpus)
 
-    def test_freshness_is_an_explicit_literal_flag(self):
+    def test_slow_test_setting_is_an_explicit_literal_flag(self):
         self.assertIs(G.boolean('true'), True)
         self.assertIs(G.boolean('false'), False)
         for value in ('1', '0', 'True', 'unrecognized'):
             with self.subTest(value=value), self.assertRaises(argparse.ArgumentTypeError): G.boolean(value)
-        # Freshness has no environment default; an omitted flag fails before any stage.
-        result = subprocess.run([sys.executable, str(SCRIPTS / 'cannon-go.py'), '--provider', 'rwx'],
-                                env={**os.environ, 'CI_GO_FRESH_TESTS': 'true'}, capture_output=True, text=True, timeout=60)
+        result = subprocess.run([sys.executable, str(SCRIPTS / 'cannon-go.py'), '--skip-slow-tests', 'True'],
+                                capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertIn('--fresh-tests', result.stderr)
+        self.assertIn('--skip-slow-tests', result.stderr)
 
 
 class _LiveTestsFixtures:
@@ -103,14 +103,12 @@ class _LiveTestsFixtures:
             subprocess.run([sys.executable, 'ops/ci/runtime/go-artifacts.py', 'pack', kind, *paths], cwd=self.root, env=self.environment, check=True)
         self.dependencies = self.root / '.ci/go-tests/dependencies'
 
-    def args(self, provider='circleci'):
-        argv = [sys.executable, str(self.root / 'ops/ci/runtime/cannon-go.py'), '--provider', provider, '--fresh-tests', 'true']
-        if provider == 'rwx':
-            argv += ['--module-artifact', str(self.dependencies / 'go-modules'), '--contract-artifact', str(self.dependencies / 'contracts')]
-        return argv
+    def args(self):
+        return [sys.executable, str(self.root / 'ops/ci/runtime/cannon-go.py'),
+                '--module-artifact', str(self.dependencies / 'go-modules'), '--contract-artifact', str(self.dependencies / 'contracts')]
 
-    def run_fixture(self, provider='circleci', **extra):
-        result = subprocess.run(self.args(provider), cwd=self.root, env={**self.environment, **extra, 'RWX_RUN_ID': os.environ.get('RWX_RUN_ID', 'isolated-fixture'), 'RWX_TASK_ATTEMPT_NUMBER': '1'}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)
+    def run_fixture(self, **extra):
+        result = subprocess.run(self.args(), cwd=self.root, env={**self.environment, **extra, 'RWX_RUN_ID': os.environ.get('RWX_RUN_ID', 'isolated-fixture'), 'RWX_TASK_ATTEMPT_NUMBER': '1'}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)
         return result
 
     def retain(self, name):
@@ -122,15 +120,12 @@ class _LiveTestsFixtures:
 @unittest.skipUnless(os.environ.get('RWX_LIVE_CANNON_GO_FIXTURE') == '1', 'Opt-in real Go, gotestsum and Forge fixtures')
 class LiveTests(_LiveTestsFixtures, unittest.TestCase):
 
-    def test_real_fresh_execution_complete_selection_runtime_tools_and_parity(self):
-        evidence = self.root / '.ci/comparison'
-        evidence.mkdir()
-        for provider, destination in [('circleci', 'circle'), ('rwx', 'rwx')]:
-            result = self.run_fixture(provider)
-            self.assertEqual(result.returncode, 0, result.stdout)
-            shutil.copytree(self.report, evidence / destination)
-            self.retain('fresh-' + destination)
-        self.assertEqual((self.root / '.ci/fresh-marker').read_text(), 'fresh\nfresh\n')
+    def test_real_fresh_execution_complete_selection_and_runtime_tools(self):
+        result = self.run_fixture()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(G.read(self.report / 'settings.json')['provider'], 'rwx')
+        self.retain('fresh-rwx')
+        self.assertEqual((self.root / '.ci/fresh-marker').read_text(), 'fresh\n')
 
     def test_real_failure_retains_original_case_logs_and_no_retries(self):
         result = self.run_fixture(CANNON_FIXTURE_FAIL='1')
@@ -176,14 +171,14 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         original = metadata.read_bytes()
         for name, value in [('stale-source', G.read(metadata) | {'commit_sha': 'f' * 40}), ('stale-settings', G.read(metadata) | {'settings': {'profile': 'default'}}), ('stale-toolchain', G.read(metadata) | {'tool_versions': {'go': 'wrong toolchain'}})]:
             G.S.write(metadata, value)
-            result = self.run_fixture('rwx')
+            result = self.run_fixture()
             self.assertEqual(result.returncode, 1, result.stdout)
             self.assertFalse((self.report / 'original.json').exists())
             self.retain(name)
             metadata.write_bytes(original)
         archive = self.dependencies / 'contracts/files.tar.gz'
         archive.write_bytes(archive.read_bytes() + b'corrupt')
-        result = self.run_fixture('rwx')
+        result = self.run_fixture()
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertFalse((self.report / 'original.json').exists())
         self.retain('corrupt-archive')

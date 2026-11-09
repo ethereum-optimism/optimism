@@ -86,14 +86,12 @@ class _LiveTestsFixtures:
         self.report = self.root / '.ci/nut-prefork/run'
         self.marker = self.root / '.ci/fresh-marker'
 
-    def args(self, provider):
-        argv = [sys.executable, 'ops/ci/runtime/nut-prefork.py', '--provider', provider]
-        if provider == 'rwx':
-            argv += ['--module-artifact', str(self.dependencies / 'go-modules'), '--contract-artifact', str(self.dependencies / 'contracts'), '--bundle-artifact', str(self.bundle)]
-        return argv
+    def args(self):
+        return [sys.executable, 'ops/ci/runtime/nut-prefork.py', '--module-artifact', str(self.dependencies / 'go-modules'),
+                '--contract-artifact', str(self.dependencies / 'contracts'), '--bundle-artifact', str(self.bundle)]
 
-    def run_fixture(self, provider='circleci', **extra):
-        return subprocess.run(self.args(provider), cwd=self.root, env={**self.env, **extra}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120)
+    def run_fixture(self, **extra):
+        return subprocess.run(self.args(), cwd=self.root, env={**self.env, **extra}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120)
 
     def retain(self, name):
         target = N.ROOT / '.ci/nut-prefork/helper-fixtures' / name
@@ -105,26 +103,22 @@ class _LiveTestsFixtures:
 class LiveTests(_LiveTestsFixtures, unittest.TestCase):
 
     def test_real_complete_fresh_execution_and_original_selection(self):
-        reports = {}
-        for provider in ('circleci', 'rwx'):
-            result = self.run_fixture(provider)
-            self.assertEqual(result.returncode, 0, result.stdout)
-            self.retain('fresh-' + provider)
-            selection = N.G.read(self.report / 'selection.json')
-            self.assertEqual(N.G.read(self.report / 'settings.json')['provider'], provider)
-            self.assertEqual(selection['forks'], ['karst', 'lagoon', 'new-fork'])
-            self.assertEqual(selection['excluded'][0]['fork'], 'jovian')
-            stage = N.G.read(self.report / 'check.stage.json')
-            self.assertEqual((stage['argv'], stage['exit_code']), (N.CHECK, 0))
-            self.assertEqual(N.G.read(self.report / 'generated.json'), {k: v for k, v in selection.items() if k != 'superchain'})
-            final = N.G.read(self.report / 'final.json')
-            self.assertEqual((final['exit_code'], final['report_errors']), (0, []))
-            self.assertEqual(set(final['original_sha256']), {str(p.relative_to(self.report)) for p in self.report.rglob('*') if p.is_file() and p.name != 'final.json'})
-            reports[provider] = selection
+        result = self.run_fixture()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.retain('fresh-rwx')
+        selection = N.G.read(self.report / 'selection.json')
+        self.assertEqual(N.G.read(self.report / 'settings.json')['provider'], 'rwx')
+        self.assertEqual(selection['forks'], ['karst', 'lagoon', 'new-fork'])
+        self.assertEqual(selection['excluded'][0]['fork'], 'jovian')
+        stage = N.G.read(self.report / 'check.stage.json')
+        self.assertEqual((stage['argv'], stage['exit_code']), (N.CHECK, 0))
+        self.assertEqual(N.G.read(self.report / 'generated.json'), {k: v for k, v in selection.items() if k != 'superchain'})
+        final = N.G.read(self.report / 'final.json')
+        self.assertEqual((final['exit_code'], final['report_errors']), (0, []))
+        self.assertEqual(set(final['original_sha256']), {str(p.relative_to(self.report)) for p in self.report.rglob('*') if p.is_file() and p.name != 'final.json'})
         self.assertTrue((self.report / 'producer/manifest.json').is_file())
         self.assertEqual(set(p.name for p in (self.report / 'dependencies').iterdir()), {'go-modules.json', 'contracts.json', 'superchain-configs.zip', 'superchain-configs.zip.sha256'})
-        self.assertEqual(reports['circleci'], reports['rwx'])
-        self.assertEqual(self.marker.read_text().splitlines(), ['karst', 'lagoon', 'new-fork'] * 2)
+        self.assertEqual(self.marker.read_text().splitlines(), ['karst', 'lagoon', 'new-fork'])
 
     def test_original_git_diff_rejects_state_drift_when_every_generation_passes(self):
         result = self.run_fixture(NUT_FIXTURE_DRIFT='1')
@@ -150,7 +144,7 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
     def test_actual_cancellation_keeps_signal_and_partial_original_log(self):
         log = self.root / '.ci/cancel.log'
         with log.open('w') as output:
-            child = subprocess.Popen(self.args('circleci'), cwd=self.root, env={**self.env, 'NUT_FIXTURE_CANCEL': '1'}, stdout=output, stderr=subprocess.STDOUT)
+            child = subprocess.Popen(self.args(), cwd=self.root, env={**self.env, 'NUT_FIXTURE_CANCEL': '1'}, stdout=output, stderr=subprocess.STDOUT)
             try:
                 deadline = time.monotonic() + 90
                 while time.monotonic() < deadline and child.poll() is None:
@@ -178,7 +172,7 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         original = metadata.read_bytes()
         for name, value in [('stale-source', N.G.read(metadata) | {'commit_sha': 'f' * 40}), ('stale-settings', N.G.read(metadata) | {'settings': {'profile': 'default'}}), ('stale-tools', N.G.read(metadata) | {'tool_versions': {'go': 'wrong actual toolchain'}})]:
             N.S.write(metadata, value)
-            result = self.run_fixture('rwx')
+            result = self.run_fixture()
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertFalse((self.report / 'selection.json').exists())
             self.assertFalse((self.report / 'check.stage.json').exists())
@@ -187,7 +181,7 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         bundle = self.root / N.MAIN.BUNDLE
         saved = bundle.read_bytes()
         bundle.write_bytes(b'corrupt reusable bundle')
-        result = self.run_fixture('rwx')
+        result = self.run_fixture()
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertFalse((self.report / 'check.stage.json').exists())
         self.assertFalse(self.marker.exists())

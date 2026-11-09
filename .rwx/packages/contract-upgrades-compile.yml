@@ -20,7 +20,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}
-      CI_CONTRACT_PROVIDER: rwx
       CI_CONTRACT_VARIANT: ${{ params.variant }}
     tool-cache: ${{ params.cache-key }}
     timeout: 40m
