@@ -75,6 +75,9 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 		if initializer, ok := lifecycle[0].(stack.ProofsHistoryInitializer); ok {
 			l2EL.proofsInit = initializer
 		}
+		if unwinder, ok := lifecycle[0].(stack.ProofsHistoryUnwinder); ok {
+			l2EL.proofsUnwind = unwinder
+		}
 	}
 	return l2EL
 }
