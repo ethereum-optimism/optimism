@@ -156,11 +156,25 @@ const compileCacheFile = "cache/solidity-files-cache.json"
 var (
 	// ErrCompiled is returned by RunScript when forge starts to compile the project.
 	ErrCompiled = errors.New("forge compiled the project")
-	// ErrScriptReverted is returned by RunScript when the script reverts. An RPC error, such as a
-	// fork block that the RPC does not serve yet, is not a revert, even in a cheatcode, which forge
-	// reports as a failed script.
+	// ErrScriptReverted is returned by RunScript when the script itself reverts. Any other failure,
+	// such as an RPC error or a failed cheatcode, may pass when the script runs again.
 	ErrScriptReverted = errors.New("forge script reverted")
 )
+
+// scriptFailed precedes the reason that forge gives for a failed script.
+const scriptFailed = "Error: script failed: "
+
+// scriptReverted reports whether forge's stderr shows that the script itself reverted. forge also
+// reports a failed cheatcode as a failed script, with the reason "vm.<cheatcode>: ...", for example
+// when the RPC refuses the cheatcode's request or answers it with an HTTP error. That is not a revert.
+func scriptReverted(stderr string) bool {
+	for _, line := range strings.Split(stderr, "\n") {
+		if _, reason, ok := strings.Cut(line, scriptFailed); ok {
+			return !strings.HasPrefix(reason, "vm.")
+		}
+	}
+	return false
+}
 
 // RunScript runs a prebuilt script without a compile. It returns forge's output and the transactions
 // that the script would send, which forge records in the run's private dry-run file. Not --offline:
@@ -219,8 +233,7 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	}
 	if err != nil {
 		stderr := strings.TrimSpace(errBuf.String())
-		// A cheatcode that gets an error response from the RPC fails the script too.
-		if strings.Contains(stderr, "Error: script failed:") && !strings.Contains(stderr, "server returned an error response") {
+		if scriptReverted(stderr) {
 			err = fmt.Errorf("%w: %w", ErrScriptReverted, err)
 		}
 		return "", nil, fmt.Errorf("failed to execute forge script: %w\n%s", err, stderr)

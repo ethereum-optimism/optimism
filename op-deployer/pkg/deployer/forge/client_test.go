@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
@@ -277,6 +280,109 @@ func TestClient_RunScriptRPCErrorIsNotRevert(t *testing.T) {
 	}
 }
 
+// failureScript reverts in each way that solidity can, and forks from a URL with a cheatcode, which
+// fails when the RPC request does.
+const failureScript = `// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+interface Vm {
+    function createSelectFork(string calldata urlOrAlias) external returns (uint256 forkId);
+}
+
+contract Failures {
+    Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    error Boom(uint256 x);
+
+    function revertReason(bytes memory) public pure returns (bytes memory) {
+        require(false, "boom");
+        return "";
+    }
+
+    function revertCustom(bytes memory) public pure returns (bytes memory) {
+        revert Boom(7);
+    }
+
+    function revertPanic(bytes memory) public pure returns (bytes memory) {
+        assert(false);
+        return "";
+    }
+
+    function revertEmpty(bytes memory) public pure returns (bytes memory) {
+        revert();
+    }
+
+    function fork(bytes memory url) public returns (bytes memory) {
+        vm.createSelectFork(string(url));
+        return "";
+    }
+}
+`
+
+// TestClient_RunScriptReportsOnlyScriptRevertsAsReverts checks with the pinned forge that RunScript
+// reports a revert of the script as ErrScriptReverted, and an RPC failure in a cheatcode, which
+// forge reports as a failed script too, as an error that the caller may retry. The forge messages
+// it relies on are pinned here, so a forge bump that changes them fails this test.
+func TestClient_RunScriptReportsOnlyScriptRevertsAsReverts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	cl := NewClient(PathBinary())
+	cl.Wd = scriptProject(t, ctx, "Failures.s.sol", failureScript, "")
+	cl.Stdout = io.Discard
+	cl.Stderr = io.Discard
+	cl.FsPermissions = []FsPermission{}
+
+	// The listener stays open and closes each connection, so that no other process can take its port.
+	dropping, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = dropping.Close() })
+	go func() {
+		for {
+			conn, err := dropping.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	badGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "bad gateway", http.StatusBadGateway)
+	}))
+	t.Cleanup(badGateway.Close)
+	rpcError := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"jsonrpc":"2.0","id":0,"error":{"code":-32601,"message":"method not allowed"}}`)
+	}))
+	t.Cleanup(rpcError.Close)
+
+	for _, tc := range []struct {
+		name    string
+		sig     string
+		args    string
+		want    string
+		reverts bool
+	}{
+		{name: "reason", sig: "revertReason(bytes)", want: "boom", reverts: true},
+		{name: "custom error", sig: "revertCustom(bytes)", want: "Boom(7)", reverts: true},
+		{name: "panic", sig: "revertPanic(bytes)", want: "panic: assertion failed", reverts: true},
+		{name: "no data", sig: "revertEmpty(bytes)", want: "EvmError: Revert", reverts: true},
+		{name: "connection dropped", sig: "fork(bytes)", args: "http://" + dropping.Addr().String(), want: "vm.createSelectFork"},
+		{name: "bad gateway", sig: "fork(bytes)", args: badGateway.URL, want: "vm.createSelectFork"},
+		{name: "rpc error", sig: "fork(bytes)", args: rpcError.URL, want: "vm.createSelectFork"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := cl.RunScript(ctx, "script/Failures.s.sol:Failures", tc.sig, []byte(tc.args))
+			require.ErrorContains(t, err, tc.want)
+			require.NotErrorIs(t, err, ErrCompiled)
+			if tc.reverts {
+				require.ErrorIs(t, err, ErrScriptReverted)
+			} else {
+				require.NotErrorIs(t, err, ErrScriptReverted)
+			}
+		})
+	}
+}
+
 // sandboxScript calls the cheatcodes that the sandbox must refuse.
 const sandboxScript = `// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
@@ -314,9 +420,16 @@ contract Sandbox {
 // profile, and returns its directory.
 func sandboxProject(t *testing.T, ctx context.Context, settings string) string {
 	t.Helper()
+	return scriptProject(t, ctx, "Sandbox.s.sol", sandboxScript, settings)
+}
+
+// scriptProject builds a script with the given file name and source in a new project, with settings
+// added to its default profile, and returns its directory.
+func scriptProject(t *testing.T, ctx context.Context, file string, source string, settings string) string {
+	t.Helper()
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "script"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "script", "Sandbox.s.sol"), []byte(sandboxScript), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "script", file), []byte(source), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "foundry.toml"), []byte("[profile.default]\nsrc = \"script\"\nlibs = []\n"+settings), 0o644))
 	cl := NewClient(PathBinary())
 	cl.Wd = dir
