@@ -88,7 +88,10 @@ checks) are not required by any ruleset.
   read-only and compile their own changes.
 - Go and contract fork tests read archive RPC URLs from the test-only
   `optimism-go-tests-rpc-shadow` vault. A branch needs a grant on this vault
-  (`refs/heads/*` covers every branch) for those tasks to run.
+  for those tasks to run. In a grant's branch pattern, `*` matches one path
+  segment and `**` matches nothing, so the vault grants `refs/heads/*`,
+  `refs/heads/*/*` and `refs/heads/*/*/*` (merge-queue branches have two
+  slashes). A branch with more slashes gets no access.
 - RWX holds no production publishing credentials. The selector-upload workload
   publishes to a private registry that the run starts itself.
 
