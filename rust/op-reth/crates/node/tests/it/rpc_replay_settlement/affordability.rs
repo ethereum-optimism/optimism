@@ -1,13 +1,15 @@
 //! A later transaction that is only affordable because of an earlier refund.
 
-use crate::lagoon::{self, DEPLOY_GAS, default_trace_gas, launch_sdm_node_with_attributes};
+use crate::lagoon::{
+    self, DEPLOY_GAS, default_trace_gas, http_client, launch_sdm_node_with_attributes,
+    signed_transaction,
+};
 use alloy_consensus::BlockHeader;
-use alloy_network::eip2718::Encodable2718;
 use alloy_primitives::{Bytes, TxKind, U256};
-use alloy_rpc_types_eth::{BlockNumberOrTag, TransactionInput, TransactionRequest};
+use alloy_rpc_types_eth::{BlockNumberOrTag, TransactionRequest};
 use alloy_rpc_types_trace::geth::GethTrace;
 use reth_chainspec::EthChainSpec;
-use reth_e2e_test_utils::{transaction::TransactionTestContext, wallet::Wallet};
+use reth_e2e_test_utils::wallet::Wallet;
 use reth_rpc_api::clients::DebugApiClient;
 
 /// The sender starts with exactly the settled cost of the first deployment plus the second
@@ -30,18 +32,17 @@ async fn later_transaction_affordability_depends_on_prior_refund() -> eyre::Resu
 
     let mut forced_transactions = Vec::new();
     for nonce in 0..2 {
-        let transaction = TransactionRequest {
-            chain_id: Some(wallet.chain_id),
-            gas: Some(transaction_gas_limit),
-            input: TransactionInput::new(Bytes::from_static(&[0x00])),
-            max_fee_per_gas: Some(gas_price),
-            max_priority_fee_per_gas: Some(gas_price),
-            nonce: Some(nonce),
-            to: Some(TxKind::Create),
-            ..Default::default()
-        };
-        let signed = TransactionTestContext::sign_tx(wallet.inner.clone(), transaction).await;
-        forced_transactions.push(signed.encoded_2718().into());
+        let stop = Bytes::from_static(&[0x00]);
+        let signed = signed_transaction(
+            &wallet,
+            nonce,
+            transaction_gas_limit,
+            gas_price,
+            TxKind::Create,
+            stop,
+        )
+        .await;
+        forced_transactions.push(signed);
     }
     let mut node = launch_sdm_node_with_attributes(&chain_spec, move |timestamp| {
         let mut attributes = lagoon::payload_attributes(timestamp);
@@ -55,7 +56,7 @@ async fn later_transaction_affordability_depends_on_prior_refund() -> eyre::Resu
     let payload = node.advance_block().await?;
     let block = payload.block();
     assert_eq!(block.body().transactions.len(), 3, "two deployments and the post-exec tx");
-    let client = node.inner.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
+    let client = http_client(&node);
 
     let sender_before_second = DebugApiClient::<TransactionRequest>::debug_account_info_at(
         &client,

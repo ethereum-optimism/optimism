@@ -20,7 +20,7 @@ async fn debug_trace_call_runs_on_settled_prefix_without_refund() -> eyre::Resul
 
     let prefix_call = DebugApiClient::<TransactionRequest>::debug_trace_call(
         &fixture.client,
-        TransactionRequest::default().from(fixture.sender).to(Address::with_last_byte(1)),
+        TransactionRequest::default().from(fixture.sender).to(Address::repeat_byte(0x55)),
         Some(fixture.block_hash().into()),
         Some(GethDebugTracingCallOptions {
             tracing_options: prestate_tracer(PreStateConfig::default()),
@@ -33,7 +33,7 @@ async fn debug_trace_call_runs_on_settled_prefix_without_refund() -> eyre::Resul
         panic!("unexpected debug_traceCall prestate: {prefix_call:?}");
     };
     assert_eq!(
-        prestate.0[&fixture.sender].balance,
+        prestate.0.get(&fixture.sender).expect("sender in prestate").balance,
         Some(fixture.replayed_balance(0, fixture.sender).await?),
         "debug_traceCall prestate after the first deployment",
     );

@@ -8,6 +8,7 @@
 use alloy_consensus::{Sealable, proofs::calculate_transaction_root};
 use alloy_rpc_types_engine::{PayloadStatus, PayloadStatusEnum, PayloadValidationError};
 use alloy_rpc_types_eth::TransactionRequest;
+use eyre::WrapErr;
 use jsonrpsee::core::ClientError;
 use op_alloy_consensus::{PostExecPayloadValidationError, SDMGasEntry, build_post_exec_tx};
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
@@ -129,21 +130,26 @@ async fn test_lagoon_new_payload_with_wrong_post_exec_block_number_is_invalid() 
     // executor, which rejects it for the same reason instead of returning pre-refund traces.
     let client =
         node.inner.add_ons_handle.rpc_server_handles().rpc.http_client().expect("HTTP RPC on");
-    let trace_error = loop {
-        match DebugApiClient::<TransactionRequest>::debug_trace_bad_block(
-            &client,
-            bad_child_hash,
-            None,
-        )
-        .await
-        {
-            Ok(traces) => panic!("debug_traceBadBlock must reject the block, got {traces:?}"),
-            Err(ClientError::Call(error)) if error.message().contains("not found in cache") => {
-                tokio::time::sleep(Duration::from_millis(250)).await;
+    let trace_rejected_block = async {
+        loop {
+            match DebugApiClient::<TransactionRequest>::debug_trace_bad_block(
+                &client,
+                bad_child_hash,
+                None,
+            )
+            .await
+            {
+                Ok(traces) => panic!("debug_traceBadBlock must reject the block, got {traces:?}"),
+                Err(ClientError::Call(error)) if error.message().contains("not found in cache") => {
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                }
+                Err(error) => break error,
             }
-            Err(error) => break error,
         }
     };
+    let trace_error = tokio::time::timeout(Duration::from_secs(10), trace_rejected_block)
+        .await
+        .wrap_err("the rejected block never reached the bad-block cache")?;
     let ClientError::Call(trace_error) = trace_error else {
         panic!("debug_traceBadBlock must fail with a call error: {trace_error:?}");
     };

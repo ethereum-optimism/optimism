@@ -1,17 +1,21 @@
 //! A sequenced Lagoon block with SDM refunds and the RPC accessors the family tests share.
 
-use crate::lagoon::{self, TRANSFER_GAS, launch_sdm_node, prestate_tracer};
+use crate::lagoon::{
+    self, TRANSFER_GAS, http_client, launch_sdm_node, prestate_tracer, signed_transaction,
+};
 use alloy_consensus::{BlockHeader, TxReceipt};
-use alloy_network::eip2718::Encodable2718;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
-use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
+use alloy_rpc_types_eth::TransactionRequest;
 use alloy_rpc_types_trace::{
     common::TraceResult,
-    geth::{DiffMode, GethDebugTracingOptions, GethTrace, PreStateConfig, PreStateFrame},
+    geth::{
+        CallFrame, DiffMode, GethDebugBuiltInTracerType, GethDebugTracerType,
+        GethDebugTracingOptions, GethTrace, PreStateConfig, PreStateFrame,
+    },
 };
 use jsonrpsee::{http_client::HttpClient, ws_client::WsClient};
 use reth_chainspec::EthChainSpec;
-use reth_e2e_test_utils::{NodeHelperType, transaction::TransactionTestContext, wallet::Wallet};
+use reth_e2e_test_utils::{NodeHelperType, wallet::Wallet};
 use reth_optimism_node::OpNode;
 use reth_optimism_payload_builder::OpBuiltPayload;
 use reth_optimism_primitives::OpTransactionSigned;
@@ -50,7 +54,7 @@ impl SettledBlock {
     pub(super) async fn sequence() -> eyre::Result<Self> {
         let chain_spec = lagoon::chain_spec()?;
         let mut node = launch_sdm_node(&chain_spec).await?;
-        let client = node.inner.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
+        let client = http_client(&node);
         let wallet = Wallet::default().with_chain_id(chain_spec.chain_id());
         let sender = wallet.inner.address();
         let deployments = [
@@ -64,19 +68,12 @@ impl SettledBlock {
             ),
         ];
         assert_eq!(deployments.len(), POST_EXEC_INDEX, "one regular transaction per row");
-        for (nonce, (to, init_code)) in deployments.into_iter().enumerate() {
-            let transaction = TransactionRequest {
-                chain_id: Some(wallet.chain_id),
-                gas: Some(if matches!(to, TxKind::Call(_)) { TRANSFER_GAS } else { 100_000 }),
-                input: TransactionInput::new(init_code),
-                max_fee_per_gas: Some(20_000_000_000),
-                max_priority_fee_per_gas: Some(1_000_000_000),
-                nonce: Some(nonce as u64),
-                to: Some(to),
-                ..Default::default()
-            };
-            let signed = TransactionTestContext::sign_tx(wallet.inner.clone(), transaction).await;
-            node.rpc.inject_tx(signed.encoded_2718().into()).await?;
+        for (nonce, (to, input)) in deployments.into_iter().enumerate() {
+            let gas_limit = if matches!(to, TxKind::Call(_)) { TRANSFER_GAS } else { 100_000 };
+            let signed =
+                signed_transaction(&wallet, nonce as u64, gas_limit, 20_000_000_000, to, input)
+                    .await;
+            node.rpc.inject_tx(signed).await?;
         }
         let payload = node.advance_block().await?;
 
@@ -187,6 +184,16 @@ impl SettledBlock {
             options,
         )
         .await?)
+    }
+
+    pub(super) async fn call_trace(&self, index: usize) -> eyre::Result<CallFrame> {
+        let options = GethDebugTracingOptions::default().with_tracer(
+            GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer),
+        );
+        match self.trace_transaction(index, Some(options)).await? {
+            GethTrace::CallTracer(frame) => Ok(frame),
+            other => panic!("unexpected call trace of transaction {index}: {other:?}"),
+        }
     }
 
     pub(super) async fn prestate_diff(&self, index: usize) -> eyre::Result<DiffMode> {

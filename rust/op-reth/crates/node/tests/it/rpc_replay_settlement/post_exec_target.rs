@@ -5,12 +5,9 @@ use crate::lagoon::default_trace_gas;
 use alloy_primitives::U256;
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_rpc_types_trace::geth::GethTrace;
-use jsonrpsee::{core::client::ClientT, rpc_params};
 use reth_rpc_api::clients::DebugApiClient;
-use serde_json::json;
 
-/// Every tracer gives the post-exec transaction an empty trace at its receipt gas, and a traced
-/// transfer carries nothing from the replayed prefix.
+/// Every tracer gives the post-exec transaction an empty trace at its receipt gas.
 #[tokio::test]
 async fn post_exec_transaction_traces_as_a_no_op() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
@@ -33,27 +30,13 @@ async fn post_exec_transaction_traces_as_a_no_op() -> eyre::Result<()> {
         receipt_gas[POST_EXEC_INDEX],
         "debug_traceBlockByHash gas of the post-exec tx",
     );
-    let post_exec_call: GethTrace = fixture
-        .client
-        .request(
-            "debug_traceTransaction",
-            rpc_params![fixture.transaction_hash(POST_EXEC_INDEX), json!({"tracer": "callTracer"})],
-        )
-        .await?;
-    let GethTrace::CallTracer(post_exec_call_frame) = post_exec_call else {
-        panic!("unexpected call trace of the post-exec tx: {post_exec_call:?}");
-    };
+    let post_exec_call_frame = fixture.call_trace(POST_EXEC_INDEX).await?;
     assert_eq!(post_exec_call_frame.gas_used, U256::ZERO, "callTracer gas of the post-exec tx");
     let post_exec_diff = fixture.prestate_diff(POST_EXEC_INDEX).await?;
     assert!(
         post_exec_diff.pre.is_empty() && post_exec_diff.post.is_empty(),
         "prestate diff of the post-exec tx must be empty: {post_exec_diff:?}",
     );
-
-    let GethTrace::Default(transfer_frame) = fixture.trace_transaction(1, None).await? else {
-        panic!("unexpected default trace of the transfer");
-    };
-    assert!(transfer_frame.struct_logs.is_empty(), "debug_traceTransaction of the transfer");
     Ok(())
 }
 

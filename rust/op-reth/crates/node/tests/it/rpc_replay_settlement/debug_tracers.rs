@@ -4,8 +4,6 @@ use super::fixture::{POST_EXEC_INDEX, REVERTING_INDEX, SettledBlock, TRANSFER_IN
 use crate::lagoon::{DEPLOY_GAS, default_trace_gas};
 use alloy_primitives::U256;
 use alloy_rpc_types_trace::geth::GethTrace;
-use jsonrpsee::{core::client::ClientT, rpc_params};
-use serde_json::json;
 
 /// The default, call and prestate tracers report each regular transaction's canonical gas and
 /// the balances `debug_accountAt` replays at that index; after the last regular transaction those
@@ -45,16 +43,7 @@ async fn debug_tracers_report_settled_gas_and_balances() -> eyre::Result<()> {
             gas_used,
             "debug_traceBlockByHash gas of transaction {index}",
         );
-        let call: GethTrace = fixture
-            .client
-            .request(
-                "debug_traceTransaction",
-                rpc_params![fixture.transaction_hash(index), json!({"tracer": "callTracer"})],
-            )
-            .await?;
-        let GethTrace::CallTracer(call_frame) = call else {
-            panic!("unexpected call trace of transaction {index}: {call:?}");
-        };
+        let call_frame = fixture.call_trace(index).await?;
         assert_eq!(
             call_frame.gas_used,
             U256::from(gas_used),
@@ -66,8 +55,8 @@ async fn debug_tracers_report_settled_gas_and_balances() -> eyre::Result<()> {
         // index, for the sender as well as the fee vaults.
         let diff = fixture.prestate_diff(index).await?;
         assert!(
-            diff.post.contains_key(&fixture.sender),
-            "prestate diff of transaction {index} lacks the sender",
+            diff.post.get(&fixture.sender).is_some_and(|account| account.balance.is_some()),
+            "prestate diff of transaction {index} lacks the sender's balance: {diff:?}",
         );
         for (address, account) in &diff.post {
             if let Some(balance) = account.balance {
@@ -94,7 +83,12 @@ async fn debug_tracers_report_settled_gas_and_balances() -> eyre::Result<()> {
         committed,
         "debug_accountAt after the post-exec transaction",
     );
-    for (address, account) in &fixture.prestate_diff(last_regular).await?.post {
+    let diff = fixture.prestate_diff(last_regular).await?;
+    assert!(
+        diff.post.get(&fixture.sender).is_some_and(|account| account.balance.is_some()),
+        "prestate diff of transaction {last_regular} lacks the sender's balance: {diff:?}",
+    );
+    for (address, account) in &diff.post {
         if let Some(balance) = account.balance {
             assert_eq!(
                 balance,

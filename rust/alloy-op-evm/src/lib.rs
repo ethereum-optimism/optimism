@@ -391,10 +391,9 @@ where
 
         let tx = OpTx(tx.into());
 
-        // Post-exec transactions never execute: the block executor short-circuits them, and revm
-        // would reject their tx env outright. A caller that transacts a block's transactions on
-        // the bare EVM, such as a replay positioned by a cached BAL, still sends them here, so
-        // synthesize the consensus-defined result.
+        // Post-exec transactions never execute, and revm would reject their tx env outright, so
+        // one that arrives here without the block executor's short-circuit gets the
+        // consensus-defined no-op result.
         if tx.tx_type() == POST_EXEC_TX_TYPE_ID {
             return Ok(post_exec::noop_post_exec_result());
         }

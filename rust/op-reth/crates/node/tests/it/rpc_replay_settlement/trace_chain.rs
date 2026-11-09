@@ -7,6 +7,7 @@ use alloy_rpc_types_trace::{
     common::TraceResult,
     geth::{ChainBlockTraceResult, GethDebugTracingOptions},
 };
+use eyre::WrapErr;
 use jsonrpsee::{
     core::client::{Subscription, SubscriptionClientT},
     rpc_params,
@@ -81,8 +82,11 @@ async fn trace_chain_over_block(
             "debug_unsubscribe",
         )
         .await?;
-    let result =
-        tokio::time::timeout(Duration::from_secs(10), subscription.next()).await?.unwrap()?;
+    let block_number = fixture.block_number();
+    let result = tokio::time::timeout(Duration::from_secs(10), subscription.next())
+        .await
+        .wrap_err_with(|| format!("traceChain yielded no result for block {block_number}"))?
+        .ok_or_else(|| eyre::eyre!("traceChain closed before block {block_number}"))??;
     subscription.unsubscribe().await?;
     Ok(result)
 }

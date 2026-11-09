@@ -8,21 +8,19 @@
 //! [#485]: https://github.com/ethereum-optimism/protocol-team/issues/485
 //! [premium#163]: https://github.com/ethereum-optimism/optimism-premium/issues/163
 
-use crate::lagoon::{TRANSFER_GAS, default_trace_gas, rpc_node_config};
+use crate::lagoon::{TRANSFER_GAS, default_trace_gas, http_client, launch_node};
 use alloy_consensus::{
     Block, BlockBody, EMPTY_ROOT_HASH, Header, Sealable, SignableTransaction, TxEip1559,
 };
 use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256};
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_rpc_types_trace::{common::TraceResult, geth::GethDebugTracingOptions};
-use jsonrpsee::{core::ClientError, http_client::HttpClient};
+use jsonrpsee::core::ClientError;
 use op_alloy_consensus::{OpTxEnvelope, SDMGasEntry, TxDeposit, build_post_exec_tx};
 use reth_chainspec::EthChainSpec;
-use reth_node_builder::{NodeBuilder, NodeHandle};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
-use reth_optimism_node::OpNode;
+use reth_optimism_node::args::RollupArgs;
 use reth_rpc_api::clients::DebugApiClient;
-use reth_tasks::Runtime;
 use std::sync::Arc;
 
 /// `debug_traceBlock` over a raw block that ends in a post-exec (0x7d) transaction returns one
@@ -35,7 +33,8 @@ async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_sepolia().lagoon_activated().build());
-    let (_node, client) = launch_rpc_client(&chain_spec).await?;
+    let node = launch_node(&chain_spec, RollupArgs::default()).await?;
+    let client = http_client(&node);
     let block = raw_sdm_block(&chain_spec, 30_000_000)?;
 
     let traces = DebugApiClient::<TransactionRequest>::debug_trace_block(
@@ -64,7 +63,8 @@ async fn test_debug_trace_block_rejects_exhausted_budget() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_sepolia().lagoon_activated().build());
-    let (_node, client) = launch_rpc_client(&chain_spec).await?;
+    let node = launch_node(&chain_spec, RollupArgs::default()).await?;
+    let client = http_client(&node);
     let block = raw_sdm_block(&chain_spec, TRANSFER_GAS)?;
 
     let error = DebugApiClient::<TransactionRequest>::debug_trace_block(
@@ -85,20 +85,6 @@ async fn test_debug_trace_block_rejects_exhausted_budget() -> eyre::Result<()> {
     );
 
     Ok(())
-}
-
-/// Launches a node on `chain_spec` and returns it with its HTTP RPC client; the node shuts down
-/// when the returned handle drops.
-async fn launch_rpc_client(
-    chain_spec: &Arc<OpChainSpec>,
-) -> eyre::Result<(impl Sized, HttpClient)> {
-    let NodeHandle { node, node_exit_future: _ } = NodeBuilder::new(rpc_node_config(chain_spec))
-        .testing_node(Runtime::test())
-        .node(OpNode::default())
-        .launch()
-        .await?;
-    let client = node.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
-    Ok((node, client))
 }
 
 /// Builds block 1 on genesis state: a funding deposit, a refunded transfer and the post-exec
