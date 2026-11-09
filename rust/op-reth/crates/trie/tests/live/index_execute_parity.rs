@@ -384,7 +384,7 @@ fn flush_until_persisted<S: OpProofsStore>(
             return Ok(());
         }
     }
-    eyre::bail!("the engine did not persist through {tip:?}")
+    Err(eyre::eyre!("the engine did not persist through {tip:?}"))
 }
 
 /// Commits the chain to reth while feeding every block to an indexing engine over one store and
