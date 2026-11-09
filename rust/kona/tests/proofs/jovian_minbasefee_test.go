@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -145,6 +146,7 @@ func TestJovianMinBaseFee(gt *testing.T) {
 
 	for name, tt := range tests {
 		gt.Run(name, func(t *testing.T) {
+			op_e2e.InitParallel(t)
 			matrix := helpers.NewMatrix[any]()
 			matrix.AddDefaultTestCasesWithName(
 				name,

@@ -96,6 +96,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			SuperchainProxyAdminOwner: superchainPAO,
 			Guardian:                  common.Address{'G'},
 			Paused:                    false,
+			ReceiptQueryInterval:      testReceiptQueryInterval,
 		})
 		require.NoError(t, err)
 
@@ -124,6 +125,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			FaultGameClockExtension:            standard.DisputeClockExtension,
 			FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
 			SP1Verifier:                        sp1Verifier,
+			ReceiptQueryInterval:               testReceiptQueryInterval,
 		})
 		require.NoError(t, err)
 
@@ -135,14 +137,15 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
 			deployer.ApplyPipelineOpts{
-				DeploymentTarget:   deployer.DeploymentTargetLive,
-				L1RPCUrl:           l1RPC,
-				DeployerPrivateKey: pk,
-				Intent:             intent,
-				State:              st,
-				Logger:             lgr,
-				StateWriter:        pipeline.NoopStateWriter(),
-				CacheDir:           testCacheDir,
+				DeploymentTarget:     deployer.DeploymentTargetLive,
+				L1RPCUrl:             l1RPC,
+				DeployerPrivateKey:   pk,
+				Intent:               intent,
+				State:                st,
+				Logger:               lgr,
+				StateWriter:          pipeline.NoopStateWriter(),
+				CacheDir:             testCacheDir,
+				ReceiptQueryInterval: testReceiptQueryInterval,
 			},
 		))
 
@@ -187,14 +190,15 @@ func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	intent, st := shared.NewIntent(t, big.NewInt(sepoliaChainID), dk, uint256.NewInt(12345), loc, loc, 30_000_000)
 
 	require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
-		DeploymentTarget:   deployer.DeploymentTargetLive,
-		L1RPCUrl:           l1RPC,
-		DeployerPrivateKey: pk,
-		Intent:             intent,
-		State:              st,
-		Logger:             lgr,
-		StateWriter:        pipeline.NoopStateWriter(),
-		CacheDir:           testCacheDir,
+		DeploymentTarget:     deployer.DeploymentTargetLive,
+		L1RPCUrl:             l1RPC,
+		DeployerPrivateKey:   pk,
+		Intent:               intent,
+		State:                st,
+		Logger:               lgr,
+		StateWriter:          pipeline.NoopStateWriter(),
+		CacheDir:             testCacheDir,
+		ReceiptQueryInterval: testReceiptQueryInterval,
 	}))
 
 	expected, err := standard.SP1VerifierFor(sepoliaChainID)

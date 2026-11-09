@@ -32,6 +32,38 @@ pub(crate) const CHECK_ACCESS_LIST_TIMEOUT_SECS: u64 = 7200;
 /// admit transactions that could never be included.
 pub(crate) const L1_INFO_GAS_OVERHEAD: u64 = 70_000;
 
+/// Contains the Gas Limit configuration for the OP builder (`miner_setGasLimit`).
+///
+/// Cloning shares the value: the miner API writes it, and both the payload builder and the pool's
+/// validator read it.
+#[derive(Debug, Clone, Default)]
+pub struct OpGasLimitConfig {
+    /// The gas budget of the blocks this node builds. 0 means unset.
+    gas_limit: Arc<AtomicU64>,
+}
+
+impl OpGasLimitConfig {
+    /// Creates a new Gas Limit configuration with the given gas budget.
+    pub fn new(max_gas_limit: u64) -> Self {
+        let this = Self::default();
+        this.set_gas_limit(max_gas_limit);
+        this
+    }
+    /// Returns the gas budget, if any.
+    pub fn gas_limit(&self) -> Option<u64> {
+        let val = self.gas_limit.load(Ordering::Relaxed);
+        if val == 0 { None } else { Some(val) }
+    }
+    /// Sets the gas budget. 0 means unset.
+    pub fn set_gas_limit(&self, gas_limit: u64) {
+        self.gas_limit.store(gas_limit, Ordering::Relaxed);
+    }
+    /// Caps `block_gas_limit` at the gas budget, if one is set.
+    pub fn cap(&self, block_gas_limit: u64) -> u64 {
+        self.gas_limit().map_or(block_gas_limit, |limit| limit.min(block_gas_limit))
+    }
+}
+
 /// Tracks additional infos for the current block.
 #[derive(Debug, Default)]
 pub struct OpL1BlockInfo {
@@ -63,6 +95,8 @@ pub struct OpTransactionValidator<Client, Tx, Evm> {
     interop_client: Option<InteropFilterClient>,
     /// tracks activated forks relevant for transaction validation
     fork_tracker: Arc<OpForkTracker>,
+    /// The operator's gas limit, shared with the payload builder.
+    gas_limit_config: OpGasLimitConfig,
 }
 
 impl<Client, Tx, Evm> OpTransactionValidator<Client, Tx, Evm> {
@@ -138,7 +172,20 @@ where
             require_l1_data_gas_fee: true,
             interop_client: None,
             fork_tracker: Arc::new(OpForkTracker { interop: AtomicBool::from(false) }),
+            gas_limit_config: OpGasLimitConfig::default(),
         }
+    }
+
+    /// Shares the operator's gas limit, written by `miner_setGasLimit`, with this validator.
+    pub fn with_gas_limit_config(mut self, gas_limit_config: OpGasLimitConfig) -> Self {
+        self.gas_limit_config = gas_limit_config;
+        self
+    }
+
+    /// The gas budget of the blocks this node builds: the block gas limit, or the operator's limit
+    /// if that is lower. The payload builder applies this to both gas and DA footprint.
+    fn build_gas_limit(&self) -> u64 {
+        self.gas_limit_config.cap(self.inner.block_gas_limit())
     }
 
     /// Sets the interop filter client and safety level.
@@ -225,6 +272,16 @@ where
             );
         }
 
+        // Apply the operator's limit too, if that is lower, as the payload builder does. This limit
+        // is local to this node, so unlike the check above it isn't reported as a bad transaction.
+        let build_gas_limit = self.build_gas_limit().saturating_sub(L1_INFO_GAS_OVERHEAD);
+        if gas_limit > build_gas_limit {
+            return TransactionValidationOutcome::Invalid(
+                transaction,
+                InvalidPoolTransactionError::MaxTxGasLimitExceeded(gas_limit, build_gas_limit),
+            );
+        }
+
         // Interop cross tx validation
         match self.is_valid_cross_tx(&transaction).await {
             Some(Err(err)) => {
@@ -245,8 +302,53 @@ where
         }
 
         let outcome = self.inner.validate_one_with_state(origin, transaction, state);
+        let outcome = self.apply_da_footprint_check(outcome);
 
         self.apply_op_checks(outcome)
+    }
+
+    /// Since Jovian a block's total DA footprint must not exceed its gas limit
+    /// (<https://specs.optimism.io/protocol/jovian/exec-engine.html#da-footprint-block-limit>).
+    /// Apply that limit to a single transaction at admission, as the payload builder does
+    /// (`is_tx_over_limits`). Deposits don't count towards the footprint, so the full block gas
+    /// limit applies. Pre-Jovian L1 info carries no scalar and has no such limit.
+    ///
+    /// The operator's gas limit (`miner_setGasLimit`) applies if it is lower, because the payload
+    /// builder checks the footprint against it too. Batcher throttling (`miner_setMaxDASize`) is
+    /// not enforced here: those limits are dynamic, and transactions over them become includable
+    /// again once throttling eases.
+    ///
+    /// Runs on a `Valid` outcome because the footprint takes a `FastLZ` pass over the encoded
+    /// transaction, and only the inner validator enforces the input size limit. It stays outside
+    /// [`Self::apply_op_checks`], whose early return for `require_l1_data_gas_fee == false` would
+    /// skip it.
+    fn apply_da_footprint_check(
+        &self,
+        outcome: TransactionValidationOutcome<Tx>,
+    ) -> TransactionValidationOutcome<Tx> {
+        if let Some(valid_tx) = outcome.as_valid_transaction() &&
+            let Err(err) = self.check_da_footprint(valid_tx.transaction())
+        {
+            return TransactionValidationOutcome::Invalid(valid_tx.transaction().clone(), err);
+        }
+        outcome
+    }
+
+    /// Rejects `tx` if its DA footprint alone exceeds the gas budget of the blocks this node
+    /// builds.
+    ///
+    /// The verdict depends on this node's view of the limits, so it uses an error that isn't
+    /// reported as a bad transaction.
+    fn check_da_footprint(&self, tx: &Tx) -> Result<(), InvalidPoolTransactionError> {
+        let Some(scalar) = self.block_info.l1_block_info.read().da_footprint_gas_scalar else {
+            return Ok(());
+        };
+        let footprint = tx.estimated_da_size().saturating_mul(u64::from(scalar));
+        let gas_limit = self.build_gas_limit();
+        if footprint > gas_limit {
+            return Err(InvalidPoolTransactionError::MaxTxGasLimitExceeded(footprint, gas_limit));
+        }
+        Ok(())
     }
 
     /// Performs the necessary opstack specific checks based on top of the regular eth outcome.
@@ -604,5 +706,282 @@ mod tests {
             pool.get_queued_transactions_by_sender(signer).iter().map(|tx| tx.nonce()).collect();
         assert_eq!(pending, vec![0], "only nonce 0 is executable");
         assert_eq!(queued, vec![1], "nonce 1 cannot cover its L1 data fee after nonce 0");
+    }
+
+    mod da_footprint {
+        use crate::{
+            OpGasLimitConfig, OpL1BlockInfo, OpPooledTransaction, OpTransactionValidator,
+            estimated_da_size::DataAvailabilitySized,
+        };
+        use alloy_consensus::{
+            SignableTransaction, Transaction, TxEip1559, transaction::Recovered,
+        };
+        use alloy_eips::eip2718::Encodable2718;
+        use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256};
+        use op_revm::L1BlockInfo;
+        use parking_lot::RwLock;
+        use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec};
+        use reth_optimism_evm::OpEvmConfig;
+        use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+        use reth_primitives_traits::transaction::error::InvalidTransactionError;
+        use reth_provider::test_utils::{ExtendedAccount, MockEthProvider};
+        use reth_transaction_pool::{
+            TransactionOrigin, TransactionValidationOutcome,
+            blobstore::InMemoryBlobStore,
+            error::{InvalidPoolTransactionError, PoolError, PoolErrorKind},
+            validate::EthTransactionValidatorBuilder,
+        };
+        use std::sync::{Arc, atomic::AtomicU64};
+
+        /// OP Mainnet's block gas limit.
+        const BLOCK_GAS_LIMIT: u64 = 40_000_000;
+        /// The spec default `daFootprintGasScalar` (op-node substitutes it for a `SystemConfig` 0).
+        const DEFAULT_SCALAR: u16 = 400;
+        /// Under reth's 128 KiB input cap, yet ~100 KB DA-estimated once compressed, so the
+        /// default scalar puts its footprint above [`BLOCK_GAS_LIMIT`].
+        const CALLDATA_LEN: usize = 120_000;
+        /// reth's default `--txpool.max-tx-input-bytes`.
+        const DEFAULT_INPUT_LIMIT: usize = 128 * 1024;
+
+        /// Calldata that doesn't compress, so the DA size estimate tracks its length.
+        fn incompressible(len: usize) -> Bytes {
+            let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+            (0..len)
+                .map(|_| {
+                    state ^= state << 13;
+                    state ^= state >> 7;
+                    state ^= state << 17;
+                    state as u8
+                })
+                .collect()
+        }
+
+        fn large_tx(signer: Address) -> OpPooledTransaction {
+            large_tx_with_input_len(signer, CALLDATA_LEN)
+        }
+
+        fn large_tx_with_input_len(signer: Address, input_len: usize) -> OpPooledTransaction {
+            let tx: OpTransactionSigned = TxEip1559 {
+                chain_id: 10,
+                gas_limit: 5_000_000,
+                max_fee_per_gas: 1_000_000_000,
+                to: TxKind::Call(Address::with_last_byte(0x42)),
+                input: incompressible(input_len),
+                ..Default::default()
+            }
+            .into_signed(Signature::test_signature())
+            .into();
+            let recovered = Recovered::new_unchecked(tx, signer);
+            let len = recovered.encode_2718_len();
+            OpPooledTransaction::new(recovered, len)
+        }
+
+        async fn validate(
+            tx: OpPooledTransaction,
+            da_footprint_gas_scalar: Option<u16>,
+            block_gas_limit: u64,
+        ) -> TransactionValidationOutcome<OpPooledTransaction> {
+            validator(&tx, U256::MAX, da_footprint_gas_scalar, block_gas_limit)
+                .validate_one(TransactionOrigin::External, tx)
+                .await
+        }
+
+        fn validator(
+            tx: &OpPooledTransaction,
+            balance: U256,
+            da_footprint_gas_scalar: Option<u16>,
+            block_gas_limit: u64,
+        ) -> OpTransactionValidator<
+            MockEthProvider<OpPrimitives, Arc<OpChainSpec>>,
+            OpPooledTransaction,
+            OpEvmConfig,
+        > {
+            let signer = tx.transaction().signer();
+            let client = MockEthProvider::<OpPrimitives>::new()
+                .with_chain_spec(OP_MAINNET.clone())
+                .with_genesis_block();
+            client.add_account(signer, ExtendedAccount::new(0, balance));
+            let inner = EthTransactionValidatorBuilder::new(
+                client,
+                OpEvmConfig::optimism(OP_MAINNET.clone()),
+            )
+            .set_block_gas_limit(block_gas_limit)
+            .build(InMemoryBlobStore::default());
+            OpTransactionValidator::with_block_info(
+                inner,
+                OpL1BlockInfo {
+                    l1_block_info: RwLock::new(L1BlockInfo {
+                        da_footprint_gas_scalar,
+                        ..Default::default()
+                    }),
+                    timestamp: AtomicU64::new(0),
+                },
+            )
+        }
+
+        /// The footprint and limit the transaction was rejected with, if any.
+        fn footprint_error(
+            outcome: &TransactionValidationOutcome<OpPooledTransaction>,
+        ) -> Option<(u64, u64)> {
+            match outcome {
+                TransactionValidationOutcome::Invalid(
+                    _,
+                    InvalidPoolTransactionError::MaxTxGasLimitExceeded(footprint, limit),
+                ) => Some((*footprint, *limit)),
+                _ => None,
+            }
+        }
+
+        /// A transaction whose footprint alone exceeds the block gas limit is rejected.
+        #[tokio::test]
+        async fn rejects_footprint_above_block_gas_limit() {
+            let tx = large_tx(Address::with_last_byte(1));
+            let footprint = tx.estimated_da_size() * u64::from(DEFAULT_SCALAR);
+            assert!(footprint > BLOCK_GAS_LIMIT, "fixture must exceed the limit: {footprint}");
+
+            let outcome = validate(tx, Some(DEFAULT_SCALAR), BLOCK_GAS_LIMIT).await;
+
+            assert_eq!(
+                footprint_error(&outcome),
+                Some((footprint, BLOCK_GAS_LIMIT)),
+                "got {outcome:?}"
+            );
+        }
+
+        /// The limit is inclusive and uses the full block gas limit, matching the executor: a
+        /// footprint exactly equal to the block gas limit fits in an otherwise empty block, and
+        /// deposits (including the L1-info deposit) don't count towards it.
+        #[tokio::test]
+        async fn footprint_limit_is_inclusive() {
+            let tx = large_tx(Address::with_last_byte(1));
+            let footprint = tx.estimated_da_size() * u64::from(DEFAULT_SCALAR);
+
+            let at_limit = validate(tx.clone(), Some(DEFAULT_SCALAR), footprint).await;
+            assert!(
+                at_limit.is_valid(),
+                "footprint equal to the limit must be admitted: {at_limit:?}"
+            );
+
+            let over_limit = validate(tx, Some(DEFAULT_SCALAR), footprint - 1).await;
+            assert_eq!(
+                footprint_error(&over_limit),
+                Some((footprint, footprint - 1)),
+                "got {over_limit:?}"
+            );
+        }
+
+        /// Before Jovian the L1-info deposit carries no scalar and there is no DA footprint limit.
+        #[tokio::test]
+        async fn no_footprint_check_before_jovian() {
+            let outcome =
+                validate(large_tx(Address::with_last_byte(1)), None, BLOCK_GAS_LIMIT).await;
+            assert!(outcome.is_valid(), "got {outcome:?}");
+        }
+
+        /// The footprint takes a `FastLZ` pass, so it runs after the inner validator: a sender who
+        /// can't pay is turned away by the cheap balance lookup, whatever the footprint.
+        #[tokio::test]
+        async fn unfunded_sender_is_rejected_before_footprint_check() {
+            let tx = large_tx(Address::with_last_byte(1));
+            let footprint = tx.estimated_da_size() * u64::from(DEFAULT_SCALAR);
+            assert!(footprint > BLOCK_GAS_LIMIT, "fixture must exceed the limit: {footprint}");
+
+            let outcome = validator(&tx, U256::ZERO, Some(DEFAULT_SCALAR), BLOCK_GAS_LIMIT)
+                .validate_one(TransactionOrigin::External, tx)
+                .await;
+
+            assert!(
+                matches!(
+                    outcome,
+                    TransactionValidationOutcome::Invalid(
+                        _,
+                        InvalidPoolTransactionError::Consensus(
+                            InvalidTransactionError::InsufficientFunds(_)
+                        )
+                    )
+                ),
+                "got {outcome:?}"
+            );
+        }
+
+        /// Only the inner validator enforces the input size limit, so the check must not run a
+        /// `FastLZ` pass over input of any size. Whether the footprint fits is irrelevant here.
+        #[tokio::test]
+        async fn oversized_tx_is_rejected_before_footprint_check() {
+            let tx = large_tx_with_input_len(Address::with_last_byte(1), 2 * DEFAULT_INPUT_LIMIT);
+
+            let outcome = validate(tx, Some(DEFAULT_SCALAR), BLOCK_GAS_LIMIT).await;
+
+            assert!(
+                matches!(
+                    outcome,
+                    TransactionValidationOutcome::Invalid(
+                        _,
+                        InvalidPoolTransactionError::OversizedData { .. }
+                    )
+                ),
+                "got {outcome:?}"
+            );
+        }
+
+        /// Whether network gossip would take reputation from a peer that sent this transaction.
+        fn penalizes_peer(err: InvalidPoolTransactionError) -> bool {
+            PoolError::new(B256::ZERO, PoolErrorKind::InvalidTransaction(err)).is_bad_transaction()
+        }
+
+        /// `miner_setGasLimit` only exists on this node, so a peer relaying a transaction above it
+        /// isn't misbehaving and mustn't lose reputation for it.
+        #[tokio::test]
+        async fn gas_above_operator_limit_does_not_penalize_peers() {
+            let tx = large_tx(Address::with_last_byte(1));
+            let gas = tx.gas_limit();
+            let operator_limit = gas - 1;
+
+            let outcome = validator(&tx, U256::MAX, None, BLOCK_GAS_LIMIT)
+                .with_gas_limit_config(OpGasLimitConfig::new(operator_limit))
+                .validate_one(TransactionOrigin::External, tx)
+                .await;
+
+            let TransactionValidationOutcome::Invalid(_, err) = outcome else {
+                panic!("got {outcome:?}");
+            };
+            assert!(!penalizes_peer(err));
+        }
+
+        /// Above the block gas limit every node agrees, so the peer should have known better.
+        #[tokio::test]
+        async fn gas_above_block_limit_still_penalizes_peers() {
+            let tx = large_tx(Address::with_last_byte(1));
+            let block_gas_limit = tx.gas_limit();
+
+            let outcome = validator(&tx, U256::MAX, None, block_gas_limit)
+                .with_gas_limit_config(OpGasLimitConfig::new(1))
+                .validate_one(TransactionOrigin::External, tx)
+                .await;
+
+            let TransactionValidationOutcome::Invalid(_, err) = outcome else {
+                panic!("got {outcome:?}");
+            };
+            assert!(penalizes_peer(err));
+        }
+
+        /// `--dev` turns off the L1 fee requirement. The footprint check must still apply, which
+        /// is why it isn't part of `apply_op_checks`.
+        #[tokio::test]
+        async fn footprint_check_applies_without_l1_fee_requirement() {
+            let tx = large_tx(Address::with_last_byte(1));
+            let footprint = tx.estimated_da_size() * u64::from(DEFAULT_SCALAR);
+
+            let outcome = validator(&tx, U256::MAX, Some(DEFAULT_SCALAR), BLOCK_GAS_LIMIT)
+                .require_l1_data_gas_fee(false)
+                .validate_one(TransactionOrigin::External, tx)
+                .await;
+
+            assert_eq!(
+                footprint_error(&outcome),
+                Some((footprint, BLOCK_GAS_LIMIT)),
+                "got {outcome:?}"
+            );
+        }
     }
 }

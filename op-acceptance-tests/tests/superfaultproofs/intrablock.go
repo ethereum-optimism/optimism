@@ -16,7 +16,6 @@ import (
 
 // IntraBlockTestCase describes a single intra-block scenario.
 type IntraBlockTestCase struct {
-	Name              string
 	ExpectReplacement bool
 	BuildTxs          func(s *intraBlockSetup) (txsA, txsB []*txplan.PlannedTx)
 }
@@ -175,143 +174,154 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 	}, runners...)
 }
 
-// IntraBlockCases returns all intra-block test scenarios.
-// CyclicDependencyInvalid uses a fabricated pending message approach to create a true
-// exec→exec cycle, exercising kona's cycle detection codepath during consolidation.
-func IntraBlockCases() []*IntraBlockTestCase {
-	return []*IntraBlockTestCase{
-		{
-			// Init(A) + valid Exec(B→A) on chain A,
-			// Init(B) + invalid Exec(A→B) on chain B.
-			// Chain B is invalid (bad exec), chain A is transitively invalid.
-			Name:              "CascadeInvalid",
-			ExpectReplacement: true,
-			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
-				pairA := s.prepareInitA(0)
-				pairB := s.prepareInitB(0)
-				return []*txplan.PlannedTx{pairA.SubmitInit(), pairB.SubmitExecTo(s.alice)},
-					[]*txplan.PlannedTx{pairB.SubmitInit(), pairA.SubmitInvalidExecTo(s.bob)}
-			},
-		},
-		{
-			// Same as CascadeInvalid but with chains swapped.
-			// Init(A) + invalid Exec(B→A) on chain A,
-			// Init(B) + valid Exec(A→B) on chain B.
-			Name:              "SwapCascadeInvalid",
-			ExpectReplacement: true,
-			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
-				pairA := s.prepareInitA(0)
-				pairB := s.prepareInitB(0)
-				return []*txplan.PlannedTx{pairA.SubmitInit(), pairB.SubmitInvalidExecTo(s.alice)},
-					[]*txplan.PlannedTx{pairB.SubmitInit(), pairA.SubmitExecTo(s.bob)}
-			},
-		},
-		{
-			// Valid cyclic cross-chain dependency:
-			// Init(A) + Exec(B→A) on chain A,
-			// Init(B) + Exec(A→B) on chain B.
-			// Both blocks survive.
-			Name: "CyclicDependencyValid",
-			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
-				pairA := s.prepareInitA(0)
-				pairB := s.prepareInitB(0)
-				return []*txplan.PlannedTx{pairA.SubmitInit(), pairB.SubmitExecTo(s.alice)},
-					[]*txplan.PlannedTx{pairB.SubmitInit(), pairA.SubmitExecTo(s.bob)}
-			},
-		},
-		{
-			// True exec→exec cycle using fabricated pending messages.
-			// ExecA references a fabricated init at B's position (wrong origin),
-			// ExecB references ExecA's ExecutingMessage event.
-			// Both are invalid: ExecA references wrong origin, ExecB depends on invalid ExecA.
-			Name:              "CyclicDependencyInvalid",
-			ExpectReplacement: true,
-			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
-				// Fabricate a pending init message at ExecB's expected position.
-				// ExecA will reference this, but the actual log at (chainB, blockNumB, logIdx=0)
-				// will be ExecB's ExecutingMessage event (wrong origin), making ExecA invalid.
-				topic := crypto.Keccak256Hash([]byte("DataEmitted(bytes)"))
-				msgHash := crypto.Keccak256Hash([]byte("fabricated cyclic msg"))
-				var fabricatedPayload []byte
-				fabricatedPayload = append(fabricatedPayload, topic.Bytes()...)
-				fabricatedPayload = append(fabricatedPayload, msgHash.Bytes()...)
+// Intra-block scenarios for RunIntraBlockConsolidationTest. Each returns a fresh
+// case and must have a matching TestInteropFaultProofs_IntraBlock_<Case> test in
+// interop/proofs/serial; nothing else runs it.
 
-				fabricatedBMsg := messages.Message{
-					Identifier: messages.Identifier{
-						Origin:      s.eventLoggerB,
-						BlockNumber: s.expectedBlockNumB,
-						LogIndex:    0,
-						Timestamp:   s.nextTimestamp,
-						ChainID:     s.bob.ChainID(),
-					},
-					PayloadHash: crypto.Keccak256Hash(fabricatedPayload),
+// Init(A) + valid Exec(B→A) on chain A,
+// Init(B) + invalid Exec(A→B) on chain B.
+// Chain B is invalid (bad exec), chain A is transitively invalid.
+func IntraBlockCascadeInvalid() *IntraBlockTestCase {
+	return &IntraBlockTestCase{
+		ExpectReplacement: true,
+		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
+			pairA := s.prepareInitA(0)
+			pairB := s.prepareInitB(0)
+			return []*txplan.PlannedTx{pairA.SubmitInit(), pairB.SubmitExecTo(s.alice)},
+				[]*txplan.PlannedTx{pairB.SubmitInit(), pairA.SubmitInvalidExecTo(s.bob)}
+		},
+	}
+}
+
+// Same as CascadeInvalid but with chains swapped.
+// Init(A) + invalid Exec(B→A) on chain A,
+// Init(B) + valid Exec(A→B) on chain B.
+func IntraBlockSwapCascadeInvalid() *IntraBlockTestCase {
+	return &IntraBlockTestCase{
+		ExpectReplacement: true,
+		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
+			pairA := s.prepareInitA(0)
+			pairB := s.prepareInitB(0)
+			return []*txplan.PlannedTx{pairA.SubmitInit(), pairB.SubmitInvalidExecTo(s.alice)},
+				[]*txplan.PlannedTx{pairB.SubmitInit(), pairA.SubmitExecTo(s.bob)}
+		},
+	}
+}
+
+// Valid cyclic cross-chain dependency:
+// Init(A) + Exec(B→A) on chain A,
+// Init(B) + Exec(A→B) on chain B.
+// Both blocks survive.
+func IntraBlockCyclicDependencyValid() *IntraBlockTestCase {
+	return &IntraBlockTestCase{
+		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
+			pairA := s.prepareInitA(0)
+			pairB := s.prepareInitB(0)
+			return []*txplan.PlannedTx{pairA.SubmitInit(), pairB.SubmitExecTo(s.alice)},
+				[]*txplan.PlannedTx{pairB.SubmitInit(), pairA.SubmitExecTo(s.bob)}
+		},
+	}
+}
+
+// True exec→exec cycle using fabricated pending messages.
+// ExecA references a fabricated init at B's position (wrong origin),
+// ExecB references ExecA's ExecutingMessage event.
+// Both are invalid: ExecA references wrong origin, ExecB depends on invalid ExecA.
+// Exercises kona's cycle detection codepath during consolidation.
+func IntraBlockCyclicDependencyInvalid() *IntraBlockTestCase {
+	return &IntraBlockTestCase{
+		ExpectReplacement: true,
+		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
+			// Fabricate a pending init message at ExecB's expected position.
+			// ExecA will reference this, but the actual log at (chainB, blockNumB, logIdx=0)
+			// will be ExecB's ExecutingMessage event (wrong origin), making ExecA invalid.
+			topic := crypto.Keccak256Hash([]byte("DataEmitted(bytes)"))
+			msgHash := crypto.Keccak256Hash([]byte("fabricated cyclic msg"))
+			var fabricatedPayload []byte
+			fabricatedPayload = append(fabricatedPayload, topic.Bytes()...)
+			fabricatedPayload = append(fabricatedPayload, msgHash.Bytes()...)
+
+			fabricatedBMsg := messages.Message{
+				Identifier: messages.Identifier{
+					Origin:      s.eventLoggerB,
+					BlockNumber: s.expectedBlockNumB,
+					LogIndex:    0,
+					Timestamp:   s.nextTimestamp,
+					ChainID:     s.bob.ChainID(),
+				},
+				PayloadHash: crypto.Keccak256Hash(fabricatedPayload),
+			}
+
+			// Precompute ExecA's ExecutingMessage event message
+			execAEventMsg := dsl.PrecomputeExecEventMessage(
+				fabricatedBMsg, s.alice.ChainID(),
+				s.expectedBlockNumA, 0, s.nextTimestamp,
+			)
+
+			// ExecA references fabricated message from B
+			// ExecB references ExecA's event
+			return []*txplan.PlannedTx{dsl.SubmitExecForMessage(fabricatedBMsg, s.alice)},
+				[]*txplan.PlannedTx{dsl.SubmitExecForMessage(execAEventMsg, s.bob)}
+		},
+	}
+}
+
+// Depth-10 exec→exec dependency chain alternating between chains A and B.
+// Starts with an init on chain A, then 10 execs alternating B, A, B, A, ...
+// All valid.
+func IntraBlockLongDependencyChainValid() *IntraBlockTestCase {
+	return &IntraBlockTestCase{
+		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
+			pairA := s.prepareInitA(0)
+
+			var txsA, txsB []*txplan.PlannedTx
+			txsA = append(txsA, pairA.SubmitInit())
+
+			currentMsg := pairA.Message
+			logIdxA := uint32(1) // init occupies logIdx 0
+			logIdxB := uint32(0)
+
+			const depth = 10
+			for i := 0; i < depth; i++ {
+				if i%2 == 0 {
+					// Exec on chain B referencing currentMsg
+					execEventMsg := dsl.PrecomputeExecEventMessage(currentMsg, s.bob.ChainID(), s.expectedBlockNumB, logIdxB, s.nextTimestamp)
+					txsB = append(txsB, dsl.SubmitExecForMessage(currentMsg, s.bob))
+					currentMsg = execEventMsg
+					logIdxB++
+				} else {
+					// Exec on chain A referencing currentMsg
+					execEventMsg := dsl.PrecomputeExecEventMessage(currentMsg, s.alice.ChainID(), s.expectedBlockNumA, logIdxA, s.nextTimestamp)
+					txsA = append(txsA, dsl.SubmitExecForMessage(currentMsg, s.alice))
+					currentMsg = execEventMsg
+					logIdxA++
 				}
+			}
 
-				// Precompute ExecA's ExecutingMessage event message
-				execAEventMsg := dsl.PrecomputeExecEventMessage(
-					fabricatedBMsg, s.alice.ChainID(),
-					s.expectedBlockNumA, 0, s.nextTimestamp,
-				)
-
-				// ExecA references fabricated message from B
-				// ExecB references ExecA's event
-				return []*txplan.PlannedTx{dsl.SubmitExecForMessage(fabricatedBMsg, s.alice)},
-					[]*txplan.PlannedTx{dsl.SubmitExecForMessage(execAEventMsg, s.bob)}
-			},
+			return txsA, txsB
 		},
-		{
-			// Depth-10 exec→exec dependency chain alternating between chains A and B.
-			// Starts with an init on chain A, then 10 execs alternating B, A, B, A, ...
-			// All valid.
-			Name: "LongDependencyChainValid",
-			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
-				pairA := s.prepareInitA(0)
+	}
+}
 
-				var txsA, txsB []*txplan.PlannedTx
-				txsA = append(txsA, pairA.SubmitInit())
-
-				currentMsg := pairA.Message
-				logIdxA := uint32(1) // init occupies logIdx 0
-				logIdxB := uint32(0)
-
-				const depth = 10
-				for i := 0; i < depth; i++ {
-					if i%2 == 0 {
-						// Exec on chain B referencing currentMsg
-						execEventMsg := dsl.PrecomputeExecEventMessage(currentMsg, s.bob.ChainID(), s.expectedBlockNumB, logIdxB, s.nextTimestamp)
-						txsB = append(txsB, dsl.SubmitExecForMessage(currentMsg, s.bob))
-						currentMsg = execEventMsg
-						logIdxB++
-					} else {
-						// Exec on chain A referencing currentMsg
-						execEventMsg := dsl.PrecomputeExecEventMessage(currentMsg, s.alice.ChainID(), s.expectedBlockNumA, logIdxA, s.nextTimestamp)
-						txsA = append(txsA, dsl.SubmitExecForMessage(currentMsg, s.alice))
-						currentMsg = execEventMsg
-						logIdxA++
-					}
-				}
-
-				return txsA, txsB
-			},
+// Same-chain valid: Init + Exec on chain A, empty chain B.
+func IntraBlockSameChainValid() *IntraBlockTestCase {
+	return &IntraBlockTestCase{
+		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
+			pair := s.prepareInitA(0)
+			return []*txplan.PlannedTx{pair.SubmitInit(), pair.SubmitExecTo(s.alice)},
+				nil
 		},
-		{
-			// Same-chain valid: Init + Exec on chain A, empty chain B.
-			Name: "SameChainValid",
-			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
-				pair := s.prepareInitA(0)
-				return []*txplan.PlannedTx{pair.SubmitInit(), pair.SubmitExecTo(s.alice)},
-					nil
-			},
-		},
-		{
-			// Same-chain invalid: Init + invalid Exec on chain A, empty chain B.
-			Name:              "SameChainInvalid",
-			ExpectReplacement: true,
-			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
-				pair := s.prepareInitA(0)
-				return []*txplan.PlannedTx{pair.SubmitInit(), pair.SubmitInvalidExecTo(s.alice)},
-					nil
-			},
+	}
+}
+
+// Same-chain invalid: Init + invalid Exec on chain A, empty chain B.
+func IntraBlockSameChainInvalid() *IntraBlockTestCase {
+	return &IntraBlockTestCase{
+		ExpectReplacement: true,
+		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
+			pair := s.prepareInitA(0)
+			return []*txplan.PlannedTx{pair.SubmitInit(), pair.SubmitInvalidExecTo(s.alice)},
+				nil
 		},
 	}
 }

@@ -64,11 +64,12 @@ func TestCLIEndToEndApply(t *testing.T) {
 		require.NoError(t, intent.WriteToFile(filepath.Join(workDir, "intent.toml")))
 
 		// Apply first chain with live deployment
-		runner.ExpectSuccessWithNetwork(t, []string{
+		output := runner.ExpectSuccessWithNetwork(t, []string{
 			"apply",
 			"--deployment-target", "live",
 			"--workdir", workDir,
 		}, nil)
+		requireFastReceiptPoll(t, output)
 
 		// Add second chain to intent
 		intent, err := pipeline.ReadIntent(workDir)

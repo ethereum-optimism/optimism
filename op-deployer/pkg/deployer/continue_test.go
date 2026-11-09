@@ -95,10 +95,11 @@ func TestContinueFlagsExcludeDeploymentSelectors(t *testing.T) {
 	require.False(t, flagNames[DeploymentTargetFlag.Name])
 	require.False(t, flagNames[GenesisTimeOffsetFlagName])
 	require.Equal(t, map[string]bool{
-		WorkdirFlagName:    true,
-		OutdirFlagName:     true,
-		PrivateKeyFlagName: true,
-		L1RPCURLFlagName:   true,
+		WorkdirFlagName:              true,
+		OutdirFlagName:               true,
+		PrivateKeyFlagName:           true,
+		L1RPCURLFlagName:             true,
+		ReceiptQueryIntervalFlagName: true,
 	}, flagNames)
 }
 
