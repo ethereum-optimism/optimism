@@ -44,9 +44,9 @@ If you operate a chain without OP Enterprise, run [`dispute-mon`](#dispute-mon) 
 
 Every chain operator must run `op-dispute-mon`. It's an essential security monitoring service that tracks game statuses, providing visibility over the last 28 days.
 
-`dispute-mon` watches the proof system: it compares each game's root claim with the output roots from your trusted rollup nodes, and reports games that are forecast to resolve, or have resolved, incorrectly. It does not check whether a proven withdrawal was actually initiated on L2. If a withdrawal is proven against a game whose root is valid, for example through a bug in proof verification, `dispute-mon` does not alert. Cover that case with [`monitorism`](#monitorism) or your own monitor that checks every withdrawal proven to the `OptimismPortal` contract against the `L2ToL1MessagePasser` contract on L2.
+`dispute-mon` watches the proof system: it compares each game's root claim with the root your trusted nodes report (an output root, or a super root for super-root and ZK games), and flags games that are forecast to resolve, or have resolved, incorrectly. It does not check whether a proven withdrawal was actually initiated on L2. If someone proves a withdrawal that was never initiated on L2 against a valid root, for example through a bug in the `OptimismPortal` contract's withdrawal proof verification, `dispute-mon` does not flag it. Cover that case with [`monitorism`](#monitorism) or your own monitor that checks every withdrawal proven to the `OptimismPortal` contract against the `L2ToL1MessagePasser` contract on L2.
 
-`dispute-mon` is set up and built the same way as `op-challenger`. This means that you can run it the same way (run `make op-dispute-mon` in the directory).
+`dispute-mon` is set up and built the same way as `op-challenger`. This means that you can run it the same way (run `just op-dispute-mon` in the `op-dispute-mon` directory).
 
 A basic configuration option would look like this:
 
