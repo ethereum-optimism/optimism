@@ -78,7 +78,7 @@ impl Harness {
             }
             latest = now;
         }
-        eyre::bail!("the store kept changing over {MAX_SETTLE_FLUSHES} flushes")
+        Err(eyre::eyre!("the store kept changing over {MAX_SETTLE_FLUSHES} flushes"))
     }
 
     pub(super) fn check_settled(&mut self) -> eyre::Result<()> {

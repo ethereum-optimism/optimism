@@ -226,10 +226,10 @@ impl Harness {
             Ok(result) => Ok(result),
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 self.engine_hung = true;
-                eyre::bail!("the engine did not reply to {what} within {STEP_TIMEOUT:?}")
+                Err(eyre::eyre!("the engine did not reply to {what} within {STEP_TIMEOUT:?}"))
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
-                eyre::bail!("the engine call {what} panicked")
+                Err(eyre::eyre!("the engine call {what} panicked"))
             }
         }
     }
@@ -295,7 +295,9 @@ impl Harness {
                 ));
                 Reply::Refused { tip_hash: expected_parent_hash }
             }
-            Err(err) => eyre::bail!("the engine refused block {number}: {err}"),
+            Err(err) => {
+                return Err(eyre::eyre!("the engine refused block {number}: {err}"));
+            }
         };
         self.model.deliver_block(num_hash, parent, parent_available, reply)?;
         self.prune_bodies_through(number)
@@ -372,7 +374,9 @@ impl Harness {
                 ));
                 Ok(ControlFlow::Break(()))
             }
-            Err(err) => eyre::bail!("the engine refused a valid {what} from block {first}: {err}"),
+            Err(err) => {
+                Err(eyre::eyre!("the engine refused a valid {what} from block {first}: {err}"))
+            }
         }
     }
 
@@ -507,10 +511,12 @@ impl Harness {
                 );
                 true
             }
-            Err(err) => eyre::bail!(
-                "unexpected reply to a reorg at block {first} not building on the stored block \
-                 {fork}: {err}"
-            ),
+            Err(err) => {
+                return Err(eyre::eyre!(
+                    "unexpected reply to a reorg at block {first} not building on the stored block \
+                     {fork}: {err}"
+                ));
+            }
         };
         self.model.bogus_reorg(first, refused)?;
         self.log(format!(
