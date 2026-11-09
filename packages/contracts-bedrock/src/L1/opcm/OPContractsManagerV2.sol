@@ -106,11 +106,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 withdrawalDelaySeconds;
-        // Bridge hook configuration. Zero means retain whatever hook the portal already has, which
-        // on a new deployment is none. A chain normally attaches its hook on an upgrade, through
-        // the overrides.cfg.bridgeHook instruction. Clearing a hook is OptimismPortal2.removeHook
-        // and never this field. Only a hook exposing IComplianceModule's portal(), bridge() and
-        // l1CrossDomainMessenger() getters is accepted, see _assertValidFullConfig.
+        // Bridge hook to set on the portal, on deploy or upgrade. A nonzero value sets or replaces
+        // the hook, and zero keeps the current one. On upgrade the value comes from the
+        // overrides.cfg.bridgeHook instruction. To clear a hook, use OptimismPortal2.removeHook.
         IBridgeHook bridgeHook;
     }
 
@@ -388,9 +386,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             return true;
         }
 
-        // Allow setting or replacing the portal's bridge hook during upgrades. This is the only
-        // supported way to attach a hook to a live chain, because OptimismPortal2.initialize is
-        // the only setter. Clearing a hook is OptimismPortal2.removeHook, not a zero override.
+        // Allow setting or replacing the bridge hook on upgrade. This is the only way to attach a
+        // hook to a live chain. A zero value keeps the current hook; use removeHook to clear it.
         if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.bridgeHook")) {
             return true;
         }
@@ -783,8 +780,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_BridgeHookNotSupported();
             }
 
-            // The hook must expose IComplianceModule's getters, so any other IBridgeHook reverts
-            // here. Each getter must return this chain's contract, or the hook rejects its calls.
+            // Only an IComplianceModule-shaped hook built for this chain is accepted. A hook
+            // wired to other contracts would reject every call from this portal.
             IComplianceModule hook = IComplianceModule(address(_cfg.bridgeHook));
             if (
                 address(hook).code.length == 0 || address(hook.portal()) != address(_cts.optimismPortal)
@@ -976,8 +973,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Update the OptimismPortal.
-        // NOTE: A zero bridge hook keeps whatever hook the portal already has, so a chain without
-        // one stays without one. Only OptimismPortal2.removeHook can clear a hook.
+        // A zero hook keeps the portal's current one.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.optimismPortal),
