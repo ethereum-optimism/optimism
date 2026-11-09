@@ -1036,8 +1036,8 @@ workflows:
           directory: rust
           context: *rust-ci-context
 
-      # No release build here on purpose: rust-e2e-ci's rust-workspace-release
-      # is the same `rust-build-binary` invocation plus persist_to_workspace,
+      # No release build here on purpose: rust-e2e-ci builds the release
+      # workspace (split across rust-e2e-binaries and rust-workspace-release),
       # and compute-workflow-conditions.sh only ever runs rust_ci and
       # rust_e2e_ci as a pair, so a copy in this workflow is duplicated work.
       # It is gated through required-rust-e2e.
