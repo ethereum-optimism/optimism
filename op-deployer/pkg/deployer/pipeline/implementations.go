@@ -261,37 +261,28 @@ func CheckLiveMockSP1Verifier(l1ChainID uint64) error {
 	return nil
 }
 
-// deployMockSP1Verifier deploys MockSP1Verifier into the L1 script host. On a live L1 it also sends
-// the deployment and waits for its receipt, so that later deploys, including Forge-run ones, find the
-// verifier on chain.
+// deployMockSP1Verifier deploys MockSP1Verifier: into the genesis, or to the live L1 with forge's
+// deployer or the broadcaster of the L1 script host.
 func deployMockSP1Verifier(env *Env) (common.Address, error) {
+	if !env.IsGenesis {
+		env.Logger.Warn("deploying the accept-all mock SP1 verifier to a live L1; development use only")
+		if env.Forge != nil {
+			return opcm.DeployMockSP1VerifierLive(env.Forge)
+		}
+	}
 	host := env.L1ScriptHost
 	if host == nil {
 		return common.Address{}, fmt.Errorf("cannot deploy MockSP1Verifier without an L1 script host")
-	}
-	ctx := env.Context
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if !env.IsGenesis {
-		if env.L1Client == nil {
-			return common.Address{}, fmt.Errorf("cannot deploy MockSP1Verifier to a live L1 without an L1 client")
-		}
-		// Forge-run stages send transactions the forked host never sees, so its deployer nonce can
-		// lag the chain's, and the mock's address is derived from the nonce it is sent with.
-		chainNonce, err := env.L1Client.PendingNonceAt(ctx, env.Deployer)
-		if err != nil {
-			return common.Address{}, fmt.Errorf("failed to read the deployer nonce: %w", err)
-		}
-		host.SetNonce(env.Deployer, chainNonce)
 	}
 	nonce := host.GetNonce(env.Deployer)
 	verifier, initCode, err := opcm.DeployMockSP1Verifier(host, env.Deployer)
 	if err != nil || env.IsGenesis {
 		return verifier, err
 	}
-	env.Logger.Warn("deploying the accept-all mock SP1 verifier to a live L1; development use only", "sp1Verifier", verifier)
-
+	ctx := env.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	env.Broadcaster.Hook(broadcaster.Broadcast{
 		From:  env.Deployer,
 		To:    verifier,

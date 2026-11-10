@@ -1,11 +1,19 @@
 package opcm
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 )
 
 // The MockSP1Verifier contract lives under test/. op-deployer/scripts/build-embedded-contracts.sh
@@ -31,4 +39,54 @@ func DeployMockSP1Verifier(host *script.Host, deployer common.Address) (common.A
 		return common.Address{}, nil, fmt.Errorf("MockSP1Verifier deployment produced no contract address")
 	}
 	return verifier, initCode, nil
+}
+
+// DeployMockSP1VerifierLive sends a deployment of the accept-all MockSP1Verifier from the deployer
+// of env to its live L1, and returns its address. Later scripts of env fork at or after its block.
+func DeployMockSP1VerifierLive(env *ForgeEnv) (common.Address, error) {
+	if env.Artifacts == nil {
+		return common.Address{}, errors.New("cannot deploy MockSP1Verifier without the contract artifacts")
+	}
+	artifact, err := (&foundry.ArtifactsFS{FS: env.Artifacts}).ReadArtifact(MockSP1VerifierArtifact, MockSP1VerifierContract)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to read MockSP1Verifier artifact: %w", err)
+	}
+	ctx := env.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	key, client, chainID, err := dialDeployer(ctx, env)
+	if err != nil {
+		return common.Address{}, err
+	}
+	defer client.Close()
+	from := crypto.PubkeyToAddress(key.PublicKey)
+	logger := env.logger()
+
+	_, nonce, err := waitForSettledNonce(ctx, logger, client, from, env.sentBlock)
+	if err != nil {
+		return common.Address{}, err
+	}
+	deploy := broadcaster.Broadcast{
+		From:  from,
+		Input: hexutil.Bytes(artifact.Bytecode.Object),
+		Value: (*hexutil.U256)(uint256.NewInt(0)),
+		Type:  broadcaster.BroadcastCreate,
+		Nonce: nonce,
+	}
+	sentBlock, err := sendReplay(ctx, logger, client, key, chainID, nonce, []broadcaster.Broadcast{deploy}, env.ReceiptQueryInterval)
+	env.sentBlock = max(env.sentBlock, sentBlock)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to deploy MockSP1Verifier: %w", err)
+	}
+	// The signer of sendReplay only signs at nonce.
+	verifier := crypto.CreateAddress(from, nonce)
+	code, err := client.CodeAt(ctx, verifier, new(big.Int).SetUint64(sentBlock))
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to read MockSP1Verifier code: %w", err)
+	}
+	if len(code) == 0 {
+		return common.Address{}, fmt.Errorf("MockSP1Verifier deployment left no code at %s", verifier)
+	}
+	return verifier, nil
 }

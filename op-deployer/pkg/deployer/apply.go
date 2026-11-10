@@ -431,6 +431,7 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 	}
 	pEnv.Forge = &opcm.ForgeEnv{
 		Client:               forgeClient,
+		Artifacts:            bundle.L1,
 		Context:              ctx,
 		L1RPCUrl:             opts.L1RPCUrl,
 		PrivateKey:           privateKey,
