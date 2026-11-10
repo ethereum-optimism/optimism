@@ -36,6 +36,7 @@ func (revertTracer) TraceTransaction(_ context.Context, _ hexutil.Bytes, _ map[s
 // TestForOPReceiptAttachesTrace checks that a receipt with an unexpected status comes back with
 // the tx's call trace, as ForReceipt does for go-ethereum receipts.
 func TestForOPReceiptAttachesTrace(t *testing.T) {
+	t.Parallel()
 	hash := common.HexToHash("0x01")
 	srv := rpc.NewServer()
 	t.Cleanup(srv.Stop)
@@ -44,6 +45,7 @@ func TestForOPReceiptAttachesTrace(t *testing.T) {
 	cl, err := sources.NewEthClient(client.NewBaseRPCClient(rpc.DialInProc(srv)),
 		testlog.Logger(t, log.LevelError), nil, sources.DefaultEthClientConfig(10))
 	require.NoError(t, err)
+	t.Cleanup(cl.Close)
 
 	receipt, err := ForOPReceiptOK(context.Background(), cl, hash)
 	require.NotNil(t, receipt)

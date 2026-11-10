@@ -79,7 +79,7 @@ func ForOPReceipt(ctx context.Context, client *sources.EthClient, hash common.Ha
 func statusError(ctx context.Context, client rpcCaller, hash common.Hash, status uint64) error {
 	trace, err := DebugTraceTx(ctx, client, hash)
 	if err != nil {
-		return fmt.Errorf("unexpected receipt status %d, error tracing tx: %w", status, err)
+		return fmt.Errorf("unexpected receipt status %d for tx %s, error tracing tx: %w", status, hash, err)
 	}
 	return &ReceiptStatusError{Status: status, TxTrace: trace}
 }

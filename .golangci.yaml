@@ -50,7 +50,7 @@ linters:
         # opgeth-ratchet at the go.mod flip.
         # It matches the receiver's static type only: a call through an interface
         # or a type embedding *ethclient.Client is not seen, so don't wrap an L2
-        # body read in one.
+        # read in one.
         - pattern: ^ethclient\.Client\.(BlockByNumber|BlockByHash|BlockReceipts|TransactionInBlock|TransactionByHash)$
           pkg: ^github\.com/ethereum/go-ethereum/ethclient$
           msg: "L2 deposit and post-exec txs don't decode under upstream go-ethereum: use HeaderBy* or the op-service/sources partitioned accessors; for an L1 read add //nolint:forbidigo // L1: <reason>, and for an L2 read that can only return a user tx add //nolint:forbidigo // L2 user tx: <reason>"
