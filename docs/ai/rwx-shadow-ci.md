@@ -38,8 +38,8 @@ takes effect for the next push that contains it.
   delete them too for a full stop.
 - **Immediately, without a merge:** a GitHub organization owner suspends the RWX
   GitHub App installation, or removes this repository from its access list.
-- **Permanently:** delete `.rwx/`, `ops/ci/`, this guide and the `/.rwx/` and
-  `/ops/ci/` lines in `.github/CODEOWNERS`. Nothing else depends on them.
+- **Permanently:** delete `.rwx/`, `ops/ci/` and this guide, and remove the
+  guide's index line from `AGENTS.md`. Nothing else depends on them.
 
 ## Layout
 
