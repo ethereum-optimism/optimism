@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"strings"
@@ -508,6 +509,50 @@ func TestEndToEndApply(t *testing.T) {
 
 		require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OpcmV2Impl should be set")
 	})
+
+	for _, useScriptHost := range []bool{false, true} {
+		t.Run(fmt.Sprintf("mock SP1 verifier/useScriptHost=%t", useScriptHost), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			lgr := testlog.Logger(t, slog.LevelDebug)
+			l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
+			_, pk, dk := shared.DefaultPrivkey(t)
+			l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
+			loc, _ := testutil.LocalArtifacts(t)
+
+			intent, st := shared.NewIntent(t, l1ChainID, dk, uint256.NewInt(1), loc, loc, testCustomGasLimit)
+
+			require.NoError(t, deployer.ApplyPipeline(
+				ctx,
+				deployer.ApplyPipelineOpts{
+					DeploymentTarget:      deployer.DeploymentTargetLive,
+					L1RPCUrl:              l1RPC,
+					DeployerPrivateKey:    pk,
+					Intent:                intent,
+					State:                 st,
+					Logger:                lgr,
+					StateWriter:           pipeline.NoopStateWriter(),
+					CacheDir:              testutils.IsolatedTestDirWithAutoCleanup(t),
+					ReceiptQueryInterval:  testReceiptQueryInterval,
+					UseScriptHost:         useScriptHost,
+					DeployMockSP1Verifier: true,
+				},
+			))
+
+			require.NotNil(t, st.SP1Verifier)
+			require.NotEmpty(t, ethClientCodeGetter(ctx, l1Client)(t, *st.SP1Verifier), "mock SP1 verifier must be deployed on L1")
+
+			data, err := sp1VerifierMethod.EncodeArgs()
+			require.NoError(t, err)
+			adapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
+			res, err := l1Client.CallContract(ctx, ethereum.CallMsg{To: &adapter, Data: data}, nil)
+			require.NoError(t, err)
+			var wrapped common.Address
+			require.NoError(t, sp1VerifierMethod.DecodeReturns(res, &wrapped))
+			require.Equal(t, *st.SP1Verifier, wrapped, "SP1PlonkAdapter must wrap the mock verifier")
+		})
+	}
 }
 
 func TestGlobalOverrides(t *testing.T) {
@@ -1160,6 +1205,7 @@ var (
 	chugSplashImplementationMethod = w3.MustNewFunc("getImplementation()", "address")
 	addressManagerGetAddressMethod = w3.MustNewFunc("getAddress(string)", "address")
 	gameImplsMethod                = w3.MustNewFunc("gameImpls(uint32)", "address")
+	sp1VerifierMethod              = w3.MustNewFunc("sp1Verifier()", "address")
 )
 
 // requireOPCMImplementations checks that the state records the implementations of its OPCM, and

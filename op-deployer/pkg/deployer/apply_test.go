@@ -2,22 +2,33 @@ package deployer
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func TestApplyPipelineRejectsMockSP1VerifierOutsideGenesis(t *testing.T) {
-	err := ApplyPipeline(context.Background(), ApplyPipelineOpts{
-		DeploymentTarget:      DeploymentTargetLive,
-		DeployMockSP1Verifier: true,
-	})
-	require.EqualError(t, err, "mock SP1 verifier deployment is only supported for genesis")
+// The refusal must come before any stage runs: the L1 RPC URL is unreachable, so reaching the
+// pipeline would fail with a different error.
+func TestApplyPipelineRejectsMockSP1VerifierOnReleaseL1(t *testing.T) {
+	for _, target := range []DeploymentTarget{DeploymentTargetLive, DeploymentTargetGenesis} {
+		for _, l1ChainID := range []uint64{1, 11155111} {
+			err := ApplyPipeline(context.Background(), ApplyPipelineOpts{
+				DeploymentTarget:      target,
+				DeployMockSP1Verifier: true,
+				L1RPCUrl:              "http://127.0.0.1:1",
+				Intent:                &state.Intent{L1ChainID: l1ChainID},
+				State:                 &state.State{},
+			})
+			require.ErrorContains(t, err, fmt.Sprintf("L1 chain ID %d has a release SP1 verifier", l1ChainID), "target %s", target)
+		}
+	}
 }
 
 // TestNewPipelineEnvForgeCacheProfile checks that only the L2 genesis, where contracts may exceed the
