@@ -597,11 +597,11 @@ func TestClient_SandboxRefusesLinksInArtifacts(t *testing.T) {
 	require.NoError(t, os.Symlink(t.TempDir(), filepath.Join(artifacts, "x")))
 	cl := NewClient(nil)
 	cl.FsPermissions = []FsPermission{ArtifactsReadPermission}
-	_, err := cl.sandboxConfig(project, t.TempDir())
+	_, _, err := cl.sandboxConfig(project, t.TempDir())
 	require.ErrorContains(t, err, "is a link")
 
 	cl.FsPermissions = []FsPermission{}
-	_, err = cl.sandboxConfig(project, t.TempDir())
+	_, _, err = cl.sandboxConfig(project, t.TempDir())
 	require.NoError(t, err, "a link outside the granted paths is not read")
 }
 
@@ -708,7 +708,7 @@ func TestClient_SandboxConfigKebabKeys(t *testing.T) {
 optimizer-runs = 5
 eth-rpc-url = "http://127.0.0.1:1"
 `), 0o644))
-	path, err := NewClient(nil).sandboxConfig(project, t.TempDir())
+	path, _, err := NewClient(nil).sandboxConfig(project, t.TempDir())
 	require.NoError(t, err)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
