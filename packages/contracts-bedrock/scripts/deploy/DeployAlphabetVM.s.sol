@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
@@ -23,10 +24,16 @@ contract DeployAlphabetVM is Script {
         Claim absolutePrestate = Claim.wrap(_input.absolutePrestate);
         IPreimageOracle preimageOracle = _input.preimageOracle;
 
-        vm.broadcast(msg.sender);
-        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, preimageOracle);
-
-        output_.alphabetVM = alphabetVM;
+        // CREATE2, so that a rerun finds the VM that an earlier run registered. AlphabetVM is a test
+        // mock without an interface, so abi.encodeCall cannot encode its constructor arguments.
+        output_.alphabetVM = AlphabetVM(
+            // nosemgrep: sol-safety-deployutils-args
+            DeployUtils.createDeterministic({
+                _name: "AlphabetVM",
+                _args: abi.encode(absolutePrestate, preimageOracle),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
     }
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
