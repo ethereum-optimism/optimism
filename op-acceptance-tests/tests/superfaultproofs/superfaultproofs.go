@@ -1193,7 +1193,10 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop, runners ...Pro
 
 	eventLogger := aliceA.DeployEventLogger()
 	initMsg := aliceA.SendRandomInitMessage(rng, eventLogger, 2, 10)
+	// Pause interop below the executing block so the receipt read precedes its replacement.
+	sys.Supernode().EnsureInteropPaused(10, sys.L2CLA, sys.L2CLB)
 	execMsg := aliceB.SendInvalidExecMessage(initMsg)
+	sys.Supernode().ResumeInterop()
 
 	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
 	startTimestamp := endTimestamp - 1
