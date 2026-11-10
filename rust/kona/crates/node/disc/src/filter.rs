@@ -6,7 +6,7 @@ use discv5::Enr;
 
 /// A [`discv5::Config::table_filter`] that accepts a record only if it has an IP address, and all
 /// its IP addresses are public: none is unspecified, loopback, private, link-local, shared
-/// (carrier-grade NAT, RFC 6598), multicast, broadcast or documentation.
+/// (carrier-grade NAT, RFC 6598), benchmarking, reserved, multicast, broadcast or documentation.
 ///
 /// discv5 applies it to the records in other nodes' answers to our lookups, and to those added with
 /// `add_enr`, such as bootnodes. It keeps a record it rejects out of the table, so that it isn't
@@ -27,13 +27,21 @@ const fn is_public(ip: IpAddr) -> bool {
 }
 
 const fn is_public_v4(ip: Ipv4Addr) -> bool {
-    // `Ipv4Addr::is_shared` isn't stable yet.
-    let is_shared = ip.octets()[0] == 100 && ip.octets()[1] & 0b1100_0000 == 0b0100_0000;
+    // `Ipv4Addr::is_shared`, `is_benchmarking` and `is_reserved` aren't stable yet.
+    let [first, second, ..] = ip.octets();
+    // 100.64.0.0/10.
+    let is_shared = first == 100 && second & 0b1100_0000 == 0b0100_0000;
+    // 198.18.0.0/15, which labs and proxy tools use internally.
+    let is_benchmarking = first == 198 && second & 0b1111_1110 == 18;
+    // 240.0.0.0/4, which some clouds use for internal ranges, such as GKE's Class E pod ranges.
+    let is_reserved = first & 0b1111_0000 == 0b1111_0000;
     !(ip.is_unspecified() ||
         ip.is_loopback() ||
         ip.is_private() ||
         ip.is_link_local() ||
         is_shared ||
+        is_benchmarking ||
+        is_reserved ||
         ip.is_multicast() ||
         ip.is_broadcast() ||
         ip.is_documentation())
@@ -95,7 +103,6 @@ mod tests {
     #[case::before_benchmarking("198.17.255.255", true)]
     #[case::past_benchmarking("198.20.0.0", true)]
     fn test_is_public(#[case] ip: IpAddr, #[case] expected: bool) {
-        // TODO(#23766): the reserved and benchmarking cases fail, as they count as public.
         assert_eq!(is_public(ip), expected);
     }
 
