@@ -9,25 +9,11 @@ on:
     types: [created]
   merge_group:
 
-concurrency:
-  group: agent-approval-${{ github.event.pull_request.number || github.event.issue.number || github.event.merge_group.head_ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
   pull-requests: write
   statuses: write
 
 jobs:
-  check:
-    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: ethereum-optimism/factory/actions/agent-approval-check@3b9820b2acad0b7086b401fe4bdc06b24535cabf
-        with:
-          required_approvals: 2
-          agent_emails: noreply@anthropic.com
-          agent_logins: claude[bot],claude-code[bot]
-          excluded_approvers: OptimismBot
-          agent_branch_prefixes: centaur/
+  agent-approval-check:
+    uses: ethereum-optimism/factory/.github/workflows/agent-approval-check.yaml@feec17f6a55c3bd2dd1f0f0459e942688489222f
