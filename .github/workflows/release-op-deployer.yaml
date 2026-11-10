@@ -68,10 +68,9 @@ jobs:
           cache: false
 
       - name: Build contracts
-        working-directory: packages/contracts-bedrock
         env:
           FOUNDRY_PROFILE: ci
-        run: just forge-build --skip test
+        run: op-deployer/scripts/build-embedded-contracts.sh
 
       - name: Pack the embedded contract artifacts
         working-directory: op-deployer

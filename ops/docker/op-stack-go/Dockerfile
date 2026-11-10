@@ -225,7 +225,7 @@ RUN <<-EOF
     done
 EOF
 # Compile contracts and create artifacts tarball
-RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"
+RUN ./op-deployer/scripts/build-embedded-contracts.sh
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   go run ./op-deployer/pkg/deployer/artifacts/cmd/mktar \
     -base ./packages/contracts-bedrock \

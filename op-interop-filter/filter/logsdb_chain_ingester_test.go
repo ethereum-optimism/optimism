@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop"
@@ -57,6 +59,7 @@ func newTestLogsDBChainIngester(t *testing.T, cfg testIngesterConfig) *LogsDBCha
 		pollInterval:     100 * time.Millisecond,
 		rollupCfg:        cfg.rollupCfg,
 		fetchConcurrency: 4,
+		startRetry:       retry.Fixed(time.Millisecond),
 		ctx:              ctx,
 		cancel:           cancel,
 	}
@@ -493,6 +496,60 @@ func TestLogsDBChainIngester_InitIngestion_ErrorGettingHead(t *testing.T) {
 	_, err = ingester.initIngestion()
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+// flakyHeadEthClient fails InfoByLabel for the first failures calls.
+type flakyHeadEthClient struct {
+	*MockEthClient
+
+	failures atomic.Int32
+}
+
+func (m *flakyHeadEthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
+	if m.failures.Add(-1) >= 0 {
+		return nil, context.DeadlineExceeded
+	}
+	return m.MockEthClient.InfoByLabel(ctx, label)
+}
+
+func TestLogsDBChainIngester_Start_FailsWhenRPCStaysDown(t *testing.T) {
+	mockClient := &flakyHeadEthClient{MockEthClient: NewMockEthClient()}
+	mockClient.failures.Store(startAttempts)
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   eth.ChainIDFromUInt64(901),
+		dataDir:   t.TempDir(),
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	t.Cleanup(func() { _ = ingester.Stop() })
+
+	require.ErrorIs(t, ingester.Start(), context.DeadlineExceeded)
+	require.Zero(t, mockClient.failures.Load(), "Start must try exactly startAttempts times")
+}
+
+func TestLogsDBChainIngester_Start_RetriesUntilRPCAvailable(t *testing.T) {
+	mockClient := &flakyHeadEthClient{MockEthClient: NewMockEthClient()}
+	mockClient.failures.Store(startAttempts - 1)
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	mockClient.AddBlock(parentBlock, nil)
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+	mockClient.SetHeadBlock(block100)
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   eth.ChainIDFromUInt64(901),
+		dataDir:   t.TempDir(),
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	ingester.startTimestamp = 1200
+	ingester.pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { _ = ingester.Stop() })
+
+	require.NoError(t, ingester.Start())
+	require.Eventually(t, ingester.Ready, 5*time.Second, 10*time.Millisecond)
 }
 
 // =============================================================================

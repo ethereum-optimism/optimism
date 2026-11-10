@@ -24,6 +24,12 @@ func ValidateInputs(intent *state.Intent, st *state.State) error {
 	if err := intent.Check(); err != nil {
 		return err
 	}
+	if err := checkSettlementGroups(intent); err != nil {
+		return err
+	}
+	if err := checkSettlementChainIDsUnchanged(intent, st); err != nil {
+		return err
+	}
 	if intent.OPCMAddress != nil {
 		if _, ok := intent.GlobalDeployOverrides["sp1Verifier"]; ok {
 			return fmt.Errorf("sp1Verifier must not be specified when using a predeployed OPCM")
