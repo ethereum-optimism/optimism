@@ -463,6 +463,13 @@ func (c *LogsDBChainIngester) runIngestion(nextBlock uint64) {
 
 		nextBlock = c.applyPendingRewind(nextBlock)
 
+		// Recorded before the error-state skip and the head fetch so that the lag
+		// grows while ingestion is halted or the EL is unavailable.
+		chainIDUint64, _ := c.chainID.Uint64()
+		if ts, ok := c.LatestTimestamp(); ok {
+			c.metrics.RecordIngestionLagSeconds(chainIDUint64, clock.SystemClock.Since(time.Unix(int64(ts), 0)).Seconds())
+		}
+
 		// Skip if in error state
 		if c.Error() != nil {
 			continue
@@ -478,8 +485,6 @@ func (c *LogsDBChainIngester) runIngestion(nextBlock uint64) {
 			continue
 		}
 
-		// Record chain tip and lag metrics
-		chainIDUint64, _ := c.chainID.Uint64()
 		c.metrics.RecordChainTip(chainIDUint64, head.NumberU64())
 		if nextBlock > 0 {
 			ingestedHead := nextBlock - 1
@@ -487,9 +492,6 @@ func (c *LogsDBChainIngester) runIngestion(nextBlock uint64) {
 				c.metrics.RecordTipLagBlocks(chainIDUint64, head.NumberU64()-ingestedHead)
 			} else {
 				c.metrics.RecordTipLagBlocks(chainIDUint64, 0)
-			}
-			if ts, ok := c.LatestTimestamp(); ok {
-				c.metrics.RecordIngestionLagSeconds(chainIDUint64, clock.SystemClock.Since(time.Unix(int64(ts), 0)).Seconds())
 			}
 		}
 
