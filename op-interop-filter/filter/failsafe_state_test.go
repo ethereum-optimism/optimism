@@ -27,7 +27,7 @@ func newStatefulTestBackend(t *testing.T, statePath string, manual bool) *Backen
 
 // restartBackend simulates a process restart: the new backend sees only the stored state.
 func restartBackend(t *testing.T, statePath string, flagEnabled bool) *Backend {
-	manual, err := initialManualFailsafe(testlog.Logger(t, log.LevelCrit), statePath, flagEnabled)
+	manual, err := initialManualFailsafe(statePath, flagEnabled)
 	require.NoError(t, err)
 	return newStatefulTestBackend(t, statePath, manual)
 }
@@ -79,7 +79,7 @@ func TestInitialManualFailsafeCorruptFile(t *testing.T) {
 	}
 
 	t.Run("FlagUnset", func(t *testing.T) {
-		_, err := initialManualFailsafe(testlog.Logger(t, log.LevelCrit), corruptStatePath(t), false)
+		_, err := initialManualFailsafe(corruptStatePath(t), false)
 		require.Error(t, err)
 	})
 
