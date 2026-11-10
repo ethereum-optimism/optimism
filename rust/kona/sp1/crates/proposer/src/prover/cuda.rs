@@ -64,12 +64,10 @@ impl std::fmt::Debug for LocalCudaProofProvider {
 }
 
 impl LocalCudaProofProvider {
-    /// Checks the GPU server binary and starts one server per configured device. Each device may
-    /// hold [`QUEUED_STDINS_PER_DEVICE`] stdins of up to `max_stdin_bytes`.
+    /// Checks the GPU server binary and starts one server per configured device.
     pub async fn new(
         config: &LocalCudaConfig,
         provider_config: ProofProviderConfig,
-        max_stdin_bytes: u64,
     ) -> Result<Self> {
         let path = config.server_path.as_path();
         check_gpu_server(path).await?;
@@ -89,10 +87,7 @@ impl LocalCudaProofProvider {
             tracing::info!(device = id, "Started sp1-gpu-server");
             devices.push(Device { id, server, keys: HashMap::new() });
         }
-        let stdin_kib = max_stdin_bytes.div_ceil(1024);
-        let queued_stdin_bytes = QUEUED_STDINS_PER_DEVICE * devices.len() as u64 * stdin_kib * 1024;
-        let core =
-            Core::new(Box::new(verifier.clone()), devices, provider_config, queued_stdin_bytes);
+        let core = Core::new(Box::new(verifier.clone()), devices, provider_config);
         Ok(Self { core, verifier })
     }
 
@@ -512,9 +507,10 @@ enum Failure {
     Fatal(anyhow::Error),
 }
 
-/// Stdins that one device may hold: one in pre-execution and one that waits for or uses the
-/// device. Unlike an SPN upload, a local request keeps its stdin until it finishes.
-const QUEUED_STDINS_PER_DEVICE: u64 = 2;
+/// Unfinished requests per device: one in pre-execution and one that waits for or uses the
+/// device. A local request keeps its stdin until it finishes, unlike an SPN upload, so this bounds
+/// the stdins held, each at most `OP_ZK_PROPOSER_MAX_STDIN_BYTES` but an aggregation's.
+const UNFINISHED_REQUESTS_PER_DEVICE: usize = 2;
 
 /// Pre-execution attempts while the executor's RSS monitor kills the child. One kill acts on a
 /// host-dependent sample, so SP1's own worker retries it too.
@@ -536,14 +532,14 @@ fn is_memory_monitor_kill(err: &anyhow::Error) -> bool {
     matches!(err.downcast_ref::<ExecutionError>(), Some(ExecutionError::KilledByMemoryMonitor(_)))
 }
 
-/// The encoded length of `stdin`, which must fit the server frame (see [`fits_server_frame`]).
-fn frame_checked_len(stdin: &SP1Stdin) -> Result<u64> {
+/// Fails when `stdin` does not fit the server frame (see [`fits_server_frame`]).
+fn check_server_frame(stdin: &SP1Stdin) -> Result<()> {
     let bytes = stdin_encoded_len(stdin)?;
     ensure!(
         fits_server_frame(bytes),
         "the {bytes}-byte stdin exceeds the GPU server's request size limit"
     );
-    Ok(bytes)
+    Ok(())
 }
 
 /// Whether a stdin of `stdin_bytes` fits [`Connection::call`]'s `u32` frame; checked before
@@ -656,9 +652,8 @@ struct Core<S: DeviceServer> {
     devices: DevicePool<S>,
     /// One permit per device, so pre-execution keeps pace with proving without holding a device.
     pre_execution: Semaphore,
-    /// KiB of stdin held by unfinished requests; see [`Core::request`].
-    queued_stdin: Arc<Semaphore>,
-    queued_stdin_kib: u32,
+    /// One permit per unfinished request; see [`UNFINISHED_REQUESTS_PER_DEVICE`].
+    unfinished: Arc<Semaphore>,
     config: ProofProviderConfig,
     /// Outcomes by request; `None` while the request runs.
     outcomes: Mutex<HashMap<ProofId, watch::Receiver<Option<Finished>>>>,
@@ -670,15 +665,12 @@ impl<S: DeviceServer> Core<S> {
         executor: Box<dyn PreExecutor>,
         devices: Vec<Device<S>>,
         config: ProofProviderConfig,
-        queued_stdin_bytes: u64,
     ) -> Arc<Self> {
-        let queued_stdin_kib = u32::try_from(queued_stdin_bytes / 1024).unwrap_or(u32::MAX).max(1);
         let device_ids = devices.iter().map(|device| device.id).collect();
         Arc::new(Self {
             executor,
             pre_execution: Semaphore::new(devices.len()),
-            queued_stdin: Arc::new(Semaphore::new(queued_stdin_kib as usize)),
-            queued_stdin_kib,
+            unfinished: Arc::new(Semaphore::new(UNFINISHED_REQUESTS_PER_DEVICE * devices.len())),
             devices: DevicePool {
                 permits: Semaphore::new(devices.len()),
                 free: Mutex::new(devices),
@@ -694,23 +686,20 @@ impl<S: DeviceServer> Core<S> {
         Duration::from_secs(self.config.timeout)
     }
 
-    /// Starts a request once its stdin fits the queued-stdin budget, so a game that submits many
-    /// requests waits here, as for an SPN upload. A stdin larger than the budget waits for an
-    /// empty queue; one that cannot fit the server frame fails without waiting.
+    /// Starts a request once fewer than [`UNFINISHED_REQUESTS_PER_DEVICE`] per device are
+    /// unfinished, so a game that submits many requests waits here, as for an SPN upload. A stdin
+    /// that cannot fit the server frame fails without waiting.
     async fn request(
         self: &Arc<Self>,
         program: Program,
         keys: PrestateKeys,
         stdin: SP1Stdin,
     ) -> ProofId {
-        let admission = match frame_checked_len(&stdin) {
-            Ok(bytes) => {
-                let kib = u32::try_from(bytes.div_ceil(1024)).unwrap_or(u32::MAX);
-                Ok(Arc::clone(&self.queued_stdin)
-                    .acquire_many_owned(kib.clamp(1, self.queued_stdin_kib))
-                    .await
-                    .expect("the queued-stdin semaphore is never closed"))
-            }
+        let admission = match check_server_frame(&stdin) {
+            Ok(()) => Ok(Arc::clone(&self.unfinished)
+                .acquire_owned()
+                .await
+                .expect("the unfinished-request semaphore is never closed")),
             Err(err) => Err(err),
         };
         self.remove_expired();
@@ -1074,17 +1063,6 @@ mod tests {
             result: ExecuteResult,
             prove_error: Option<fn() -> ServerError>,
         ) -> Self {
-            Self::build(devices, execute, prove, result, prove_error, u64::MAX)
-        }
-
-        fn build(
-            devices: u32,
-            execute: Probe,
-            prove: Probe,
-            result: ExecuteResult,
-            prove_error: Option<fn() -> ServerError>,
-            queued_stdin_bytes: u64,
-        ) -> Self {
             let executor = Arc::new(ScriptedExecutor { probe: execute, result });
             let script = Arc::new(ServerScript {
                 prove,
@@ -1100,8 +1078,7 @@ mod tests {
                     keys: HashMap::new(),
                 })
                 .collect();
-            let core =
-                Core::new(Box::new(Arc::clone(&executor)), devices, config(), queued_stdin_bytes);
+            let core = Core::new(Box::new(Arc::clone(&executor)), devices, config());
             Self { core, executor, script }
         }
 
@@ -1140,59 +1117,31 @@ mod tests {
         assert_eq!(harness.script.prove.calls(), 1);
     }
 
-    /// Pins that a request waits while its stdin would take the queued bytes over the budget.
+    /// Pins that a request waits while two requests per device are unfinished.
     #[tokio::test(start_paused = true)]
-    async fn request_waits_for_the_queued_stdin_budget() {
-        let harness = Harness::build(
-            1,
+    async fn request_waits_while_two_requests_per_device_are_unfinished() {
+        let harness = Harness::with(
+            2,
             Probe::open(),
             Probe::gated(0),
             |_| Ok(ExecutionReport::default()),
             None,
-            4096,
         );
-        let request = || {
-            let mut stdin = SP1Stdin::new();
-            stdin.write_vec(vec![0; 1024]);
-            harness.core.request(Program::Range, prestate_keys(), stdin)
+        let start = async || {
+            tokio::time::timeout(Duration::from_secs(60), harness.request()).await.unwrap()
         };
-        let first = request().await;
-        request().await;
-        let third = request();
-        tokio::pin!(third);
+        let first = start().await;
+        for _ in 0..3 {
+            start().await;
+        }
+        let fifth = harness.request();
+        tokio::pin!(fifth);
 
-        assert!(tokio::time::timeout(Duration::from_secs(60), &mut third).await.is_err());
+        assert!(tokio::time::timeout(Duration::from_secs(60), &mut fifth).await.is_err());
 
         harness.script.prove.gate.add_permits(1);
         harness.finished(first).await;
-        tokio::time::timeout(Duration::from_secs(60), third).await.unwrap();
-    }
-
-    /// Pins that a stdin larger than the whole budget waits for an empty queue, then runs alone.
-    #[tokio::test(start_paused = true)]
-    async fn stdin_over_the_budget_waits_for_an_empty_queue() {
-        let harness = Harness::build(
-            1,
-            Probe::open(),
-            Probe::gated(0),
-            |_| Ok(ExecutionReport::default()),
-            None,
-            1024,
-        );
-        let request = || {
-            let mut stdin = SP1Stdin::new();
-            stdin.write_vec(vec![0; 1024]);
-            harness.core.request(Program::Range, prestate_keys(), stdin)
-        };
-        let first = request().await;
-        let second = request();
-        tokio::pin!(second);
-
-        assert!(tokio::time::timeout(Duration::from_secs(60), &mut second).await.is_err());
-
-        harness.script.prove.gate.add_permits(1);
-        harness.finished(first).await;
-        tokio::time::timeout(Duration::from_secs(60), second).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(60), fifth).await.unwrap();
     }
 
     #[tokio::test(start_paused = true)]

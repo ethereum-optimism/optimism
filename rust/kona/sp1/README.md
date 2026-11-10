@@ -379,14 +379,14 @@ for one pre-execution and one proof, and count it in pod memory; the container d
 GPU per game.
 
 A local request keeps its stdin until it finishes, where SPN uploads a stdin and frees it. So a
-request starts only when the stdin of the unfinished requests leaves room for its own: two
-stdins of up to `OP_ZK_PROPOSER_MAX_STDIN_BYTES` per device, one in pre-execution and one at
-the device. A larger stdin, such as a large aggregation, waits until no other request is
-unfinished. A game that submits many log-commitment batches therefore waits between them, as
-it waits for SPN uploads. Pre-execution makes one more copy of the stdin, and a request sent to
-a server is encoded once more and freed when sent. A caller builds its stdin before it waits,
-so up to `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` ×
-(`OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` + 1) waiting stdins sit outside the budget. Size pod memory for both sets of stdins plus, per
+request starts only while fewer than two requests per device are unfinished, one in
+pre-execution and one at the device, each with a stdin of up to
+`OP_ZK_PROPOSER_MAX_STDIN_BYTES` except an aggregation's. A game that submits many
+log-commitment batches therefore waits between them, as it waits for SPN uploads. Pre-execution
+makes one more copy of the stdin, and a request sent to a server is encoded once more and freed
+when sent. A caller builds its stdin before it waits, so up to
+`OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` × (`OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` +
+1) waiting stdins sit outside that limit. Size pod memory for both sets of stdins plus, per
 concurrent pre-execution, one stdin copy, about 24 GiB, and 4.4 GiB of gas-trace buffers.
 
 ### Restart behavior
