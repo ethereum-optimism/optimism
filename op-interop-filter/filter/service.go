@@ -225,7 +225,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 	)
 
 	failsafeStatePath := FailsafeStatePath(cfg.DataDir)
-	manualFailsafe, err := initialManualFailsafe(failsafeStatePath, cfg.FailsafeEnabled)
+	manualFailsafe, err := initialManualFailsafe(s.log, failsafeStatePath, cfg.FailsafeEnabled)
 	if err != nil {
 		return err
 	}

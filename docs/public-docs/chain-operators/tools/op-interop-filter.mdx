@@ -81,6 +81,7 @@ How failsafe clears depends on why it triggered:
     The filter stores the manual failsafe in `failsafe.json` in `--data-dir`, so it stays on after a restart.
     Without `--data-dir`, a restart clears it.
     `--failsafe-enabled` enables the manual failsafe at every start.
+    If `failsafe.json` is unreadable, the filter does not start. Set `--failsafe-enabled` to ignore the file and start with the manual failsafe on.
 *   A **reorg-triggered** failsafe clears automatically only when `--reorg-recovery-enabled` is set: the filter rewinds each affected chain's logs database to its finalized block and clears the error.
 *   Any failsafe that is neither manual nor auto-resolved — a reorg with `--reorg-recovery-enabled` off, a database conflict, data corruption, an invalid executing message, or a cross-validation failure — has no admin RPC to clear it. Recover by deleting the `chain-*` logs database directories in `--data-dir` and restarting the service.
     Keep `failsafe.json`: if you delete it, a manual failsafe turns off after the restart.

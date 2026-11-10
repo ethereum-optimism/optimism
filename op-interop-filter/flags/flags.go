@@ -117,7 +117,7 @@ var (
 	}
 	FailsafeEnabledFlag = &cli.BoolFlag{
 		Name:    "failsafe-enabled",
-		Usage:   "Enable the manual failsafe at start. The admin RPC can clear it, but the next start enables it again.",
+		Usage:   "Enable the manual failsafe at start and ignore an unreadable failsafe state file. The admin RPC can clear it, but the next start enables it again.",
 		EnvVars: prefixEnvVars("FAILSAFE_ENABLED"),
 	}
 	FailsafeLogIntervalFlag = &cli.DurationFlag{

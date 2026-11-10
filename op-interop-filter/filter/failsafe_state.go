@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const failsafeStateFile = "failsafe.json"
@@ -43,12 +44,20 @@ func readManualFailsafe(path string) (bool, error) {
 }
 
 // initialManualFailsafe returns the manual failsafe state at start: on if the stored state or the start flag says so.
-func initialManualFailsafe(path string, flagEnabled bool) (bool, error) {
-	stored, err := readManualFailsafe(path)
-	if err != nil {
-		return false, err
+// An unreadable state file stops the start unless the flag is set. An active failsafe blocks all interop
+// transactions, so the filter must not enable it on a guess.
+func initialManualFailsafe(logger log.Logger, path string, flagEnabled bool) (bool, error) {
+	if flagEnabled {
+		if _, err := readManualFailsafe(path); err != nil {
+			logger.Error("Ignoring unreadable failsafe state because the failsafe flag is set", "path", path, "err", err)
+		}
+		return true, nil
 	}
-	return stored || flagEnabled, nil
+	enabled, err := readManualFailsafe(path)
+	if err != nil {
+		return false, fmt.Errorf("%w (set --failsafe-enabled to ignore the file and start with the failsafe on)", err)
+	}
+	return enabled, nil
 }
 
 func writeManualFailsafe(path string, enabled bool) error {

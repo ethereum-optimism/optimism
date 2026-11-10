@@ -27,7 +27,7 @@ func newStatefulTestBackend(t *testing.T, statePath string, manual bool) *Backen
 
 // restartBackend simulates a process restart: the new backend sees only the stored state.
 func restartBackend(t *testing.T, statePath string, flagEnabled bool) *Backend {
-	manual, err := initialManualFailsafe(statePath, flagEnabled)
+	manual, err := initialManualFailsafe(testlog.Logger(t, log.LevelCrit), statePath, flagEnabled)
 	require.NoError(t, err)
 	return newStatefulTestBackend(t, statePath, manual)
 }
@@ -69,6 +69,29 @@ func TestReadManualFailsafeCorruptFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(statePath, []byte("not json"), 0o644))
 	_, err := readManualFailsafe(statePath)
 	require.Error(t, err)
+}
+
+func TestInitialManualFailsafeCorruptFile(t *testing.T) {
+	corruptStatePath := func(t *testing.T) string {
+		statePath := FailsafeStatePath(t.TempDir())
+		require.NoError(t, os.WriteFile(statePath, []byte("not json"), 0o644))
+		return statePath
+	}
+
+	t.Run("FlagUnset", func(t *testing.T) {
+		_, err := initialManualFailsafe(testlog.Logger(t, log.LevelCrit), corruptStatePath(t), false)
+		require.Error(t, err)
+	})
+
+	t.Run("FlagSet", func(t *testing.T) {
+		statePath := corruptStatePath(t)
+		b := restartBackend(t, statePath, true)
+		require.True(t, b.FailsafeEnabled())
+
+		// A change through the admin RPC replaces the corrupt file.
+		require.NoError(t, b.SetFailsafeEnabled(false))
+		require.False(t, restartBackend(t, statePath, false).FailsafeEnabled())
+	})
 }
 
 func TestSetFailsafeEnabledWriteError(t *testing.T) {
