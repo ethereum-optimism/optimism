@@ -42,13 +42,7 @@ func NewDeploySuperchainForgeCaller(client *forge.Client) forge.ScriptCaller[Dep
 
 // DeploySuperchainViaForge deploys superchain contracts using Forge
 func DeploySuperchainViaForge(env *ForgeEnv, input DeploySuperchainInput) (DeploySuperchainOutput, error) {
-	var output DeploySuperchainOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeploySuperchainForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+	output, err := broadcastScript(env, NewDeploySuperchainForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy superchain with Forge: %w", err)
 	}

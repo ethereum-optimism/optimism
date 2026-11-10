@@ -22,6 +22,5 @@ func NewForgeClient(t *testing.T, workdir string) *forge.Client {
 	client, err := forge.NewStandardClient(workdir)
 	require.NoError(t, err)
 	client.Timeout = 5 * time.Minute
-	client.SlowBroadcast = true
 	return client
 }

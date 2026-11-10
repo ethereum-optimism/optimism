@@ -364,7 +364,6 @@ FROM dhi.io/alpine-base:3.23 AS op-deployer-target
 USER 0
 COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/
 COPY --from=op-deployer-builder /app/op-deployer/bin/op-deployer /usr/local/bin/
-ENV FORGE_ENV=alpine
 CMD ["op-deployer"]
 
 FROM $TARGET_BASE_IMAGE AS op-dripper-target

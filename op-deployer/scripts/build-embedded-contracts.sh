@@ -13,6 +13,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../../packages/contracts-bedrock"
 # Same as contracts-bedrock's `build-no-tests` recipe; the Docker contracts stage has no just.
 "$forge" build --skip "/**/test/**"
 "$forge" build test/dispute/zk/MockSP1Verifier.sol
+# The skip leaves out the test/mocks that the scripts import, so compile the scripts too.
+"$forge" build scripts
 # `forge script` compiles its own source set, which needs artifacts `forge build` doesn't produce.
 # A compile-only run puts them in the cache, as contracts-bedrock's `forge-build` recipe does, so
 # op-deployer's `forge script` runs don't recompile. It fails because the signature doesn't exist.
@@ -20,5 +22,13 @@ out=$("$forge" script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "id
   --skip-simulation 2>&1) || true
 if ! grep -q 'is not implemented in your script' <<< "$out"; then
   echo "$out" >&2
+  exit 1
+fi
+# op-deployer never compiles, so check that a second run compiles nothing, as `forge-build` does.
+out=$("$forge" script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" \
+  --skip-simulation 2>&1) || true
+if ! grep -q 'No files changed, compilation skipped' <<< "$out"; then
+  echo "$out" >&2
+  echo "the forge script cache is not warm" >&2
   exit 1
 fi
