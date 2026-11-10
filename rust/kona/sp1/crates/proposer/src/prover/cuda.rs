@@ -379,10 +379,7 @@ impl DeviceServer for GpuServer {
 const fn proof_matches_mode(proof: &SP1Proof, mode: ProofMode) -> bool {
     matches!(
         (proof, mode),
-        (SP1Proof::Core(_), ProofMode::Core) |
-            (SP1Proof::Compressed(_), ProofMode::Compressed) |
-            (SP1Proof::Plonk(_), ProofMode::Plonk) |
-            (SP1Proof::Groth16(_), ProofMode::Groth16)
+        (SP1Proof::Compressed(_), ProofMode::Compressed) | (SP1Proof::Plonk(_), ProofMode::Plonk)
     )
 }
 
