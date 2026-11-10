@@ -9,7 +9,8 @@ needs:
     - build-base
     - busybox
     - cargo-auditable
-    - rust
+    # Must match rust/rust-toolchain.toml (ops/scripts/check-rust-toolchain-sync.sh).
+    - rust-1.99
 
 inputs:
   output:

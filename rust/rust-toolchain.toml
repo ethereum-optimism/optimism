@@ -1,3 +1,4 @@
 [toolchain]
-# /ops/docker/op-stack-go/Dockerfile must match this version.
+# /ops/docker/op-stack-go/Dockerfile and the rust-X.Y package in /melange/*.yaml
+# must match this version (just check-toolchain-sync).
 channel = "1.99"

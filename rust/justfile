@@ -126,7 +126,7 @@ test-sp1-guest:
 
 # Run all lints for the outer workspace. SP1 guests require generated vkeys and are linted by CI
 # after their ELFs are built.
-lint: fmt-check lint-clippy lint-docs check-upstream-mirrors
+lint: fmt-check lint-clippy lint-docs check-upstream-mirrors check-toolchain-sync
 
 # List the UPSTREAM-MIRROR tags — OP code that reproduces upstream reth/revm/alloy logic —
 # with each one's last-verified version against what the workspace resolves to today.
@@ -142,6 +142,11 @@ test-upstream-mirrors:
 # their pin. Staleness is a review worklist, not a defect.
 check-upstream-mirrors: test-upstream-mirrors
   scripts/upstream-mirrors.py --check
+
+# Fail if melange or the op-stack-go Dockerfile builds with a different Rust
+# major.minor than rust-toolchain.toml. CI runs it in l2-chains-sync-check.
+check-toolchain-sync:
+  ../ops/scripts/check-rust-toolchain-sync.sh
 
 # Check formatting (requires nightly)
 fmt-check:
