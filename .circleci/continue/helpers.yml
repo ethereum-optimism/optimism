@@ -57,6 +57,34 @@ commands:
           paths:
             - ~/.cache/go-build
 
+  # On develop, saves the timing data CircleCI gave this job's test split (from
+  # develop's last green run of the job) for the shard-timings job. With no data
+  # it halts the job instead, since save_cache would store an empty cache that
+  # hides the last good one. So it must be the job's last step.
+  save-shard-timings:
+    description: "Save this develop job's shard timings for other branches (last step only)"
+    steps:
+      - when:
+          condition:
+            equal: ["develop", << pipeline.git.branch >>]
+          steps:
+            - run:
+                name: Copy shard timings
+                command: |
+                  # Where CircleCI downloads the timing data `circleci tests split` reads.
+                  SRC="$CIRCLE_INTERNAL_TASK_DATA/circle-test-results/results.json"
+                  if [ ! -s "$SRC" ]; then
+                    echo "warning: no timing data at $SRC, so nothing to save" >&2
+                    circleci-agent step halt
+                    exit 0
+                  fi
+                  mkdir -p /tmp/shard-timings
+                  cp "$SRC" "/tmp/shard-timings/$CIRCLE_JOB.json"
+            - save_cache:
+                key: shard-timings-v1-{{ .Environment.CIRCLE_JOB }}-{{ .Revision }}
+                paths:
+                  - /tmp/shard-timings
+
   # Single canonical Rust env/prepare commands. Defined here (helpers is merged
   # first) so there is exactly one of each and the sccache step below cannot be
   # shadowed by a stale duplicate in main.yml / rust-ci.yml.

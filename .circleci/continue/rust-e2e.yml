@@ -278,12 +278,12 @@ jobs:
             just action-tests-<<parameters.kind>>-run
       - go-save-cache:
           namespace: kona-ci
-      - save-shard-timings
       - store_test_results:
           path: rust/kona/tests/proofs/tmp/test-results
       - store_artifacts:
           path: rust/kona/tests/proofs/tmp/testlogs
           when: always
+      - save-shard-timings
 
   # Build SP1 guest ELFs and persist them for future rust-e2e consumers.
   kona-build-sp1-elfs:

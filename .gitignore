@@ -64,3 +64,6 @@ crytic-export
 # The binary archives are gitignored; only their .sha256 (and generated text) are committed.
 op-core/**/superchain-configs.zip
 rust/op-reth/crates/chainspec/res/superchain-configs.tar
+
+# Develop's test timings, restored by the shard-timings CI job
+/shard-timings/
