@@ -1,0 +1,39 @@
+---
+title: node용 blob 데이터 가져오기
+description: beacon 보존 기간보다 오래된 blob을 포함하여 L1 batcher blob 데이터를 가져오도록 op-node를 구성합니다.
+diataxis: how-to
+---
+
+OP Stack rollup은 배치 데이터를 [EIP-4844 blob](https://eips.ethereum.org/EIPS/eip-4844) 형태로 L1에 게시합니다. 이 데이터를 가져오려면 `op-node`가 L1 beacon 엔드포인트에 접근할 수 있어야 합니다. 자체 beacon node([Lighthouse](https://lighthouse-book.sigmaprime.io/run_a_node.html), Lodestar, Nimbus, Prysm 또는 Teku)를 실행하거나 [QuickNode](https://www.quicknode.com/docs/ethereum/eth-v1-beacon-genesis)와 같은 서드파티 서비스를 사용하십시오.
+
+op-node에 beacon 엔드포인트를 전달합니다.
+
+```shell
+--l1.beacon value                                                      ($OP_NODE_L1_BEACON)
+          HTTP endpoint Address of L1 Beacon-node.
+```
+
+## Configuring a blob archiver
+
+표준 beacon node는 18일 후에 blob을 프루닝합니다. node가 최근 18일 이내에 동기화되었고 계속 온라인 상태라면 기본 beacon 엔드포인트로 충분합니다. 다음 중 하나에 해당하면 blob archiver가 필요합니다.
+
+*   18일보다 오래된 스냅샷 또는 genesis에서 새 node를 동기화하는 경우
+*   node가 18일 넘게 오프라인 상태였던 경우
+
+op-node에 하나 이상의 폴백 엔드포인트를 전달합니다.
+
+```shell
+--l1.beacon-fallbacks value                                            ($OP_NODE_L1_BEACON_FALLBACKS)
+          Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars
+          not available at the l1.beacon (e.g. expired blobs).
+```
+
+<Info>
+  `--l1.beacon-fallbacks`의 이전 이름은 `--l1.beacon-archiver`였습니다. 이전 이름은 여전히 별칭으로 작동하며, 레거시 환경 변수 `$OP_NODE_L1_BEACON_ARCHIVER`도 마찬가지입니다.
+</Info>
+
+archiver 엔드포인트로 다음 옵션 중 하나를 선택하십시오.
+
+*   **옵션 1 — blob 프루닝을 비활성화한 beacon node 실행.** Lighthouse의 경우 `--prune-blobs=false`를 설정하고 `--l1.beacon-fallbacks`가 이를 가리키도록 하십시오.
+*   **옵션 2 — 전용 blob archiver 서비스 실행.** [base-org/blob-archiver](https://github.com/base-org/blob-archiver)와 같은 서비스를 실행하고 `--l1.beacon-fallbacks`가 해당 API 엔드포인트를 가리키도록 하십시오. 프루닝하지 않는 전체 beacon node를 실행하는 것보다 가볍습니다.
+*   **옵션 3 — 서드파티 blob archiver 서비스 사용.** beacon 인프라를 직접 운영하고 싶지 않은 경우에 유용합니다.

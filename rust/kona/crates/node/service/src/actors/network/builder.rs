@@ -24,11 +24,6 @@ pub struct NetworkBuilder {
     pub(super) discovery_enabled: bool,
     /// The gossip driver.
     pub(super) gossip: GossipDriverBuilder,
-    /// Whether to update the ENR socket after the libp2p Swarm is started.
-    /// This is set to true by default.
-    /// This may be set to false if the node is configured to use a static advertised address (when
-    /// used with a nat for example).
-    pub(super) enr_update: bool,
 }
 
 impl From<NetworkConfig> for NetworkBuilder {
@@ -41,7 +36,6 @@ impl From<NetworkConfig> for NetworkBuilder {
             config.discovery_address,
             config.discovery_config,
         )
-        .with_enr_update(config.enr_update)
         .with_discovery_enabled(config.discovery_enabled)
         .with_discovery_randomize(config.discovery_randomize)
         .with_bootstore(config.bootstore)
@@ -79,13 +73,7 @@ impl NetworkBuilder {
                 gossip_addr,
                 keypair,
             ),
-            enr_update: true,
         }
-    }
-
-    /// Sets the ENR update flag for the [`NetworkBuilder`].
-    pub fn with_enr_update(self, enr_update: bool) -> Self {
-        Self { enr_update, ..self }
     }
 
     /// Sets whether to build and run discovery. Without it, the node binds no UDP socket, and the
@@ -178,12 +166,12 @@ impl NetworkBuilder {
 
     /// Builds the [`NetworkDriver`].
     pub fn build(self) -> Result<NetworkDriver, NetworkBuilderError> {
-        let Self { discovery, discovery_enabled, gossip, enr_update } = self;
+        let Self { discovery, discovery_enabled, gossip } = self;
         let gossip = gossip.build()?;
         // Not even built when disabled, since building can bind the UDP socket.
         let discovery = discovery_enabled.then(|| discovery.build()).transpose()?;
 
-        Ok(NetworkDriver { gossip, discovery, enr_update })
+        Ok(NetworkDriver { gossip, discovery })
     }
 }
 
@@ -194,6 +182,7 @@ mod tests {
     use discv5::{ConfigBuilder, ListenConfig};
     use enr::CombinedKey;
     use libp2p::gossipsub::IdentTopic;
+    use rstest::rstest;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     #[derive(Debug)]
@@ -263,22 +252,22 @@ mod tests {
 
         // Driver Assertions
         let id = 10;
-        assert_eq!(driver.gossip.addr, gossip_addr);
+        assert_eq!(driver.gossip.addr(), &gossip_addr);
         let discovery = driver.discovery.unwrap();
         assert_eq!(discovery.chain_id, id);
         assert_eq!(discovery.disc.local_enr().tcp4().unwrap(), 9098);
 
         // Block Handler Assertions
-        assert_eq!(driver.gossip.handler.rollup_config.l2_chain_id, id);
+        assert_eq!(driver.gossip.handler().rollup_config.l2_chain_id, id);
         let v1 = IdentTopic::new(format!("/optimism/{id}/0/blocks"));
-        println!("{:?}", driver.gossip.handler.blocks_v1_topic);
-        assert_eq!(driver.gossip.handler.blocks_v1_topic.hash(), v1.hash());
+        println!("{:?}", driver.gossip.handler().blocks_v1_topic);
+        assert_eq!(driver.gossip.handler().blocks_v1_topic.hash(), v1.hash());
         let v2 = IdentTopic::new(format!("/optimism/{id}/1/blocks"));
-        assert_eq!(driver.gossip.handler.blocks_v2_topic.hash(), v2.hash());
+        assert_eq!(driver.gossip.handler().blocks_v2_topic.hash(), v2.hash());
         let v3 = IdentTopic::new(format!("/optimism/{id}/2/blocks"));
-        assert_eq!(driver.gossip.handler.blocks_v3_topic.hash(), v3.hash());
+        assert_eq!(driver.gossip.handler().blocks_v3_topic.hash(), v3.hash());
         let v4 = IdentTopic::new(format!("/optimism/{id}/3/blocks"));
-        assert_eq!(driver.gossip.handler.blocks_v4_topic.hash(), v4.hash());
+        assert_eq!(driver.gossip.handler().blocks_v4_topic.hash(), v4.hash());
     }
 
     #[test]
@@ -338,5 +327,37 @@ mod tests {
             .unwrap();
 
         assert!(handler.discovery.is_none());
+    }
+
+    /// Once a node starts, its ENR advertises the TCP port gossip bound, and keeps the IP it
+    /// listens on, if specific. A node listening on all interfaces doesn't know which of its
+    /// addresses peers can reach, so it advertises no IP.
+    #[rstest]
+    #[case::all_interfaces(Ipv4Addr::UNSPECIFIED, None)]
+    #[case::loopback(Ipv4Addr::LOCALHOST, Some(Ipv4Addr::LOCALHOST))]
+    #[tokio::test]
+    async fn test_start_advertises_only_a_specific_ip(
+        #[case] ip: Ipv4Addr,
+        #[case] advertised: Option<Ipv4Addr>,
+    ) {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let ip = IpAddr::V4(ip);
+        let handler = network_builder(Default::default())
+            .with_gossip_address(Multiaddr::from(ip).with(libp2p::multiaddr::Protocol::Tcp(0)))
+            .with_discovery_address(LocalNode::new(secret_key, ip, 0, 0))
+            .with_discovery_config(ConfigBuilder::new(ListenConfig::from_ip(ip, 0)).build())
+            .build()
+            .unwrap()
+            .start()
+            .await
+            .unwrap();
+
+        let bound_tcp_port = handler.gossip.peer_addr().tcp_port().expect("gossip listens on TCP");
+        let enr = handler.discovery.unwrap().handler.local_enr().await.unwrap();
+
+        assert_eq!(enr.ip4(), advertised);
+        assert_eq!(enr.tcp4(), Some(bound_tcp_port));
     }
 }

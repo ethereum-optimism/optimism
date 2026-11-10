@@ -1,0 +1,127 @@
+---
+title: 네트워크 설계 예시
+description: 이 문서는 OP Stack 체인 배포를 위한 네트워크 구성 예시를 설명합니다.
+diataxis: how-to
+---
+
+이 문서는 OP Stack 네트워크 배포를 위한 구성 예시를 설명하며, 프로덕션 사용에 필요한 네트워크 아키텍처와 node 구성에 중점을 둡니다.
+
+![OP Stack 네트워크 설계 예시 (op-reth)](/public/img/chain-operators/network-design-example-op-reth.png)
+
+## Sequencer
+
+sequencer는 실행 계층 p2p gossip을 통해 Tx Ingress Node로부터 트랜잭션을 수신하고, batcher 및 proposer와 협력하여 새 블록을 생성합니다.
+
+### Node 구성
+
+*   **Sequencer op-reth**는 full 또는 archive 중 하나로 실행할 수 있습니다. op-reth는 기본적으로 아카이브 node로 실행되며, (pruned) full node로 실행하려면 `--full`을 전달합니다. full node는 더 나은 성능을 제공하지만 깊은 L1 reorg로부터 복구할 수 없으므로, 백업으로 최소 하나의 아카이브 sequencer를 실행하세요.
+*   **Sequencer op-node**는 p2p discovery를 비활성화하고 다른 내부 node와만 정적으로 피어링해야 합니다(또는 [peer-management-service](https://github.com/ethereum-optimism/infra/tree/main/peer-mgmt-service)를 사용하여 피어링 네트워크를 정의).
+*   **op-conductor** RPC는 op-batcher를 위한 리더 인식(leader-aware) RPC 프록시 역할을 할 수 있습니다(node가 리더인 경우 필요한 op-reth / op-node RPC 메서드를 프록시).
+*   sequencer는 로컬 트랜잭션 백업(journalling)을 비활성화해야 합니다.
+
+### op-node 구성
+
+```yaml
+OP_NODE_P2P_NO_DISCOVERY: "true"
+OP_NODE_P2P_PEER_BANNING: "false"
+OP_NODE_P2P_STATIC: "<static peer list>"
+```
+
+### op-reth 구성
+
+op-reth는 `GETH_*` 환경 변수가 아닌 CLI 플래그로 구성합니다.
+
+```sh
+# Leave --rollup.disable-tx-pool-gossip unset so transactions are gossiped to the internal network
+--txpool.disable-transactions-backup   # disable local transaction backup/journalling
+--txpool.lifetime 3600                  # 1h, in seconds
+--txpool.nolocals
+--netrestrict "10.0.0.0/8"              # ex: restrict p2p to internal ips
+```
+
+## Tx Ingress Node
+
+이 node들은 외부로부터 `eth_sendRawTransaction` 호출을 받아 내부 실행 계층 네트워크로 트랜잭션을 gossip합니다. 이를 통해 이 node들이 트랜잭션 수신을 처리하는 동안 Sequencer는 블록 생성에 집중할 수 있습니다.
+
+### Node 구성
+
+*   full node 또는 아카이브 node 중 하나로 실행할 수 있습니다.
+*   내부 tx pool p2p 네트워크에 참여하여 트랜잭션을 sequencer로 전달합니다.
+
+### 구성
+
+```sh
+# Leave --rollup.disable-tx-pool-gossip unset so transactions are gossiped to sequencers
+--txpool.disable-transactions-backup
+--txpool.lifetime 3600                  # 1h, in seconds
+--txpool.nolocals
+--netrestrict "10.0.0.0/8"              # ex: restrict p2p to internal ips
+```
+
+## Archive RPC Node
+
+내부 RPC 용도로 아카이브 node를 몇 개 설정하는 것을 권장합니다. 이는 주로 challenger, proposer 및 [monitorism](/ko/chain-operators/tools/chain-monitoring#monitorism)과 같은 보안 모니터링 도구에서 사용됩니다.
+
+### Node 구성
+
+*   아카이브 node는 과거 상태 데이터에 접근하는 데 필수적입니다.
+*   재해 복구를 위한 디스크 스냅샷을 생성하는 데에도 이 node를 사용할 수 있습니다.
+
+### 구성
+
+op-reth는 기본적으로 아카이브 node로 실행되므로 추가 플래그가 필요하지 않습니다. `--full`(pruning을 활성화함)만 전달하지 **않으면** 됩니다. 업스트림 `--minimal` 플래그는 지원되지 않으며 op-reth는 시작 시 이를 거부합니다. op-reth는 상태를 MDBX와 정적 파일에 저장하므로 geth 전용 옵션인 `GETH_DB_ENGINE` 및 `GETH_STATE_SCHEME`에 해당하는 옵션이 없습니다.
+
+```sh
+# op-reth is archive by default; no pruning flags needed.
+```
+
+## Full Node
+
+이 node들은 full (pruned) node로 실행됩니다. op-reth는 geth 스타일의 snap sync를 구현하지 않으며 자체 staged-sync 파이프라인을 사용하여 동기화하므로, geth의 `GETH_SYNCMODE`, `GETH_DB_ENGINE`, `GETH_STATE_SCHEME` 옵션은 적용되지 않습니다.
+
+### 구성
+
+```sh
+--full        # run a pruned full node (--minimal is not supported by op-reth)
+```
+
+## P2P Bootnode (실행 계층)
+
+이 bootnode는 공개 op-reth node의 피어 탐색을 지원합니다.
+
+### Node 구성
+
+*   bootnode는 op-reth 인스턴스 또는 [geth bootnode 도구](https://etclabscore.github.io/core-geth/core/alltools/)일 수 있습니다.
+*   Full Node가 bootnode 역할도 하도록 구성할 수 있습니다.
+
+## P2P Bootnode (합의 계층)
+
+op-node p2p 네트워크의 bootnode입니다. discovery v5를 활성화한 [geth bootnode 도구](https://etclabscore.github.io/core-geth/core/alltools/)를 사용하는 것을 권장합니다.
+
+## 공개 RPC
+
+공개 RPC 설계는 위 다이어그램에 나와 있지 않지만, Tx Ingress Node와 매우 유사하게 구현할 수 있으며 다음과 같은 차이점이 있습니다.
+
+### 구성 차이점
+
+*   공개 RPC는 내부 tx pool p2p 네트워크에 참여해서는 **안 됩니다**.
+    *   Tx Ingress를 처리하고 tx pool gossip에 참여하는 동일한 node에서 공개 RPC를 실행할 수도 있지만, 과거에 읽기 RPC에서 tx pool 세부 정보가 유출되는 실행 클라이언트 버그가 있었으므로 고려해야 할 잠재적 위험입니다.
+*   공개 RPC [proxyd](https://github.com/ethereum-optimism/infra/tree/main/proxyd)는 `consensus_aware` 라우팅 모드로 실행해야 하며, op-reth에서 제공하려는 RPC를 화이트리스트에 등록해야 합니다.
+*   공개 RPC node는 아카이브 node로 실행하는 것이 좋습니다.
+
+### proxyd 소개
+
+Proxyd는 다음 기능을 제공하는 RPC 요청 라우터이자 프록시입니다.
+
+1.  RPC 메서드를 화이트리스트로 관리합니다.
+2.  RPC 메서드를 백엔드 서비스 그룹으로 라우팅합니다.
+3.  실패한 백엔드 요청을 자동으로 재시도합니다.
+4.  백엔드 합의(latest, safe, finalized 블록), 피어 수 및 동기화 상태를 추적합니다.
+5.  합의를 강제하기 위해 요청과 응답을 재작성합니다.
+6.  백엔드 서비스 간에 요청을 로드 밸런싱합니다.
+7.  백엔드의 불변 응답을 캐시합니다.
+8.  요청 지연 시간, 오류율 등을 측정하기 위한 메트릭을 제공합니다.
+
+## 다음 단계
+
+*   네트워크에서 [proxyd](https://github.com/ethereum-optimism/infra/tree/main/proxyd)를 사용하는 방법에 대해 자세히 알아보세요.

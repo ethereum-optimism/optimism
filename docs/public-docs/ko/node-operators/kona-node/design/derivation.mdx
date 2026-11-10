@@ -1,0 +1,195 @@
+---
+title: "Kona Node의 Derivation"
+diataxis: explanation
+---
+
+kona-node의 derivation 시스템은 L1 데이터를 실행 가능한 L2 payload attributes로 변환하여 정규(canonical) L2 블록을 생성하는 역할을 합니다. 이 문서는 [`kona-derive`][kd] crate가 kona-node 아키텍처 내에서 어떻게 통합되고 사용되는지 설명합니다.
+
+## 개요
+
+kona-node의 derivation 하위 시스템은 **DerivationActor**를 중심으로 구성됩니다. DerivationActor는 derivation 파이프라인의 수명 주기를 관리하고 다른 노드 구성 요소와 조율합니다. 이 actor는 trait으로 추상화된 [`kona-derive`][kd] 파이프라인을 사용해 L1 데이터를 지속적으로 처리하고 L2 payload attributes를 생성합니다.
+
+### 주요 구성 요소
+
+- **DerivationActor**: derivation 파이프라인을 실행하는 주 actor
+- **OnlinePipeline**: 온라인 provider를 사용하는 derivation 파이프라인의 구체적인 구현
+- **DerivationStateMachine**: derivation이 허용되는 시점을 관리하고 확인된 safe head를 추적
+- **L2Finalizer**: 최종 확정(finalization)을 기다리는 derive된 L2 블록을 추적
+- **Signal System**: 파이프라인 리셋, 하드포크 활성화, 오류 상황을 처리
+
+## 아키텍처
+
+### DerivationActor
+
+`DerivationActor`는 노드 서비스의 일부로 실행되는 [`NodeActor`][na]입니다. 단일 인바운드 채널을 통해 다른 actor로부터 요청을 받고, derivation 파이프라인을 한 단계씩 진행시켜 새로운 payload attributes를 생성합니다.
+
+```rust
+pub struct DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
+where
+    DerivationEngineClient_: DerivationEngineClient,
+    PipelineSignalReceiver: Pipeline + SignalReceiver,
+{
+    /// The channel on which all inbound requests are received by the actor.
+    inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
+    /// The Engine client used to interact with the engine.
+    engine_client: DerivationEngineClient_,
+    /// The derivation pipeline.
+    pipeline: PipelineSignalReceiver,
+    /// The state machine controlling when derivation can occur.
+    derivation_state_machine: DerivationStateMachine,
+    /// The L2Finalizer tracks derived L2 blocks awaiting finalization.
+    finalizer: L2Finalizer,
+}
+```
+
+인바운드 요청은 `DerivationActorRequest` enum으로 표현됩니다. 여기에는 L1 head 업데이트, 최종 확정된 L1 블록 업데이트, 엔진 safe head 업데이트, 엔진 동기화 완료, 엔진에서 오는 파이프라인 시그널(예: flush 또는 reset)이 포함됩니다.
+
+이 actor는 다른 여러 노드 구성 요소와 조율합니다.
+- **Engine Actor**: 실행할 payload attributes를 받고, safe head 업데이트와 파이프라인 시그널을 다시 보냅니다
+- **L1 Watcher Actor**: L1 체인의 L1 head 및 최종 확정 블록 업데이트를 보냅니다
+
+### 파이프라인 구성
+
+derivation 파이프라인은 `RollupNode` 서비스가 derivation actor를 연결할 때 구성됩니다. 노드는 캐싱 L1/L2 provider를 만든 다음 `OnlinePipeline`을 생성합니다. `OnlinePipeline`은 체인 provider에서 다음 블록을 폴링하여 L1을 순회합니다.
+
+```rust
+OnlinePipeline::new_polled(
+    self.config.clone(),
+    self.l1_config.chain_config.clone(),
+    OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
+    l1_derivation_provider,
+    l2_derivation_provider,
+    self.dependency_set.clone(),
+)
+```
+
+### Provider 구성
+
+노드는 성능 최적화를 위해 캐싱 provider를 사용합니다.
+
+- **AlloyChainProvider**: 캐시 크기를 구성할 수 있는 L1 블록체인 데이터를 제공합니다
+- **AlloyL2ChainProvider**: L2 블록체인 데이터와 시스템 구성을 제공합니다
+- **OnlineBlobProvider**: 4844 이후 트랜잭션을 위해 beacon chain에서 blob 데이터를 가져옵니다
+
+캐시 크기는 기본적으로 1024개 항목으로 설정됩니다.
+
+```rust
+const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
+```
+
+## 파이프라인 동작
+
+### 메인 처리 루프
+
+derivation actor는 다양한 이벤트를 처리하는 연속 루프를 실행합니다.
+
+1. **종료 시그널**: 취소 토큰이 트리거되면 정상 종료(graceful shutdown)합니다
+2. **L1 head 업데이트**: 새 L1 블록을 사용할 수 있게 되면 derivation을 트리거합니다  
+3. **Safe head 업데이트**: L2 safe head가 진행되면 derivation을 트리거합니다
+4. **파이프라인 시그널**: 리셋, 하드포크 활성화, 채널 flush를 처리합니다
+
+### 스테핑 로직
+
+핵심 derivation 로직은 `produce_next_attributes()`에 구현되어 있습니다.
+
+```rust
+async fn produce_next_attributes(
+    &mut self,
+) -> Result<OpAttributesWithParent, DerivationError>
+```
+
+이 메서드는 payload attributes가 생성될 때까지 파이프라인을 계속 진행시킵니다.
+
+1. derivation 상태 머신에서 마지막으로 확인된 L2 safe head로 **파이프라인을 한 단계 진행**합니다
+2. **단계 결과를 처리**합니다.
+   - `PreparedAttributes`: attributes를 소비할 준비가 되었습니다
+   - `AdvancedOrigin`: 파이프라인이 다음 L1 블록으로 진행했습니다
+   - `OriginAdvanceErr`/`StepFailed`: 다양한 오류 상황을 처리합니다
+3. attributes를 사용할 수 있으면 **attributes를 반환**합니다
+
+### 오류 처리
+
+derivation actor는 세 가지 범주의 파이프라인 오류를 처리합니다.
+
+#### 일시적 오류
+- `PipelineError::NotEnoughData`: 더 많은 데이터를 사용할 수 있게 될 수 있으므로 계속 진행합니다
+- `PipelineError::Eof`: 양보(yield)하고 더 많은 L1 데이터를 기다립니다
+
+#### 리셋 오류  
+- `ResetError::HoloceneActivation`: 파이프라인에 `ActivationSignal`을 보내고 계속 진행합니다
+- `ResetError::ReorgDetected`를 포함한 그 밖의 모든 리셋 오류: 엔진에 리셋 요청을 보낸 다음, 계속하기 전에 엔진의 시그널을 기다립니다. `ReorgDetected`는 추가로 `L1_REORG_COUNT` 메트릭을 증가시킵니다.
+
+#### 치명적 오류
+- derivation 프로세스를 종료시키는 복구 불가능한 오류입니다
+- 메트릭 카운터를 증가시키고 오류를 상위로 전파합니다
+
+### 시그널 처리
+
+파이프라인은 조율을 위해 여러 시그널 유형을 지원합니다.
+
+- **ResetSignal**: 새 L1 origin과 시스템 구성으로 파이프라인 상태를 리셋합니다
+- **ActivationSignal**: 하드포크 활성화(예: Holocene)를 처리합니다
+- **FlushChannel**: deposit 전용 블록을 위해 현재 채널 데이터를 무효화합니다
+
+시그널은 payload 실행 중 특정 조건이 감지되면 engine actor가 보냅니다.
+
+## 구성
+
+### Rollup 구성
+
+derivation 파이프라인에는 다음을 정의하는 [`RollupConfig`][rc]가 필요합니다.
+- 체인 매개변수(체인 ID, 블록 시간 등)
+- 하드포크 활성화 높이
+- 시스템 구성 주소
+- 배치 및 채널 매개변수
+
+### 런타임 구성
+
+런타임 구성에는 다음이 포함됩니다.
+- Provider 캐시 크기
+- L1 데이터 폴링 간격
+- 메트릭 수집 설정
+
+## 통합 패턴
+
+### Engine Actor와의 통합
+
+derivation actor는 `OpAttributesWithParent`를 생성하며, 이는 `DerivationEngineClient` 인터페이스를 통해 실행을 위해 engine actor로 전송됩니다.
+
+```rust
+// Send payload attributes out for processing.
+self.engine_client
+    .send_safe_l2_signal(payload_attributes.into())
+    .await
+```
+
+engine actor는 이 attributes를 실행하고 L2 safe head를 업데이트하며, 이것이 다음 derivation 주기를 트리거합니다.
+
+### L1 Watcher와의 통합
+
+derivation actor는 L1 watcher actor로부터 인바운드 요청 채널을 통해 `DerivationActorRequest::ProcessL1HeadUpdateRequest` 메시지 형태로 L1 head 업데이트를 받습니다. 이 메시지는 처리할 새 L1 데이터가 있음을 나타냅니다. 최종 확정된 L1 블록도 같은 방식으로 전달되어 `L2Finalizer`를 구동합니다.
+
+### RPC 계층과의 통합
+
+RPC 계층은 표준 노드 RPC 인터페이스를 통해 derivation 상태를 조회하고, 경우에 따라 파이프라인 작업을 트리거할 수 있습니다.
+
+## 메트릭 및 관측 가능성
+
+derivation actor는 모니터링을 위해 여러 메트릭을 노출합니다.
+
+- `DERIVATION_L1_ORIGIN`: 현재 L1 origin 블록 번호
+- `DERIVATION_CRITICAL_ERROR`: 치명적 derivation 오류 횟수  
+- `L1_REORG_COUNT`: 감지된 L1 재구성(reorg) 횟수
+
+이 메트릭은 운영자가 derivation 프로세스의 상태와 진행 상황을 모니터링하는 데 도움이 됩니다.
+
+## 관련 문서
+
+기반 derivation 파이프라인 구현에 대한 자세한 내용은 다음을 참조하십시오.
+- [`kona-derive` crate 소스](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive)
+- docs.rs의 [`kona-derive` API 문서](https://docs.rs/kona-derive/latest/kona_derive/)
+- [derivation 파이프라인 사양](https://specs.optimism.io/protocol/derivation.html)
+
+[kd]: https://crates.io/crates/kona-derive
+[na]: /ko/node-operators/kona-node/design/intro#actors
+[rc]: https://docs.rs/kona-genesis/latest/kona_genesis/struct.RollupConfig.html

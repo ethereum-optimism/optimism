@@ -1,0 +1,61 @@
+---
+title: op-batcher
+description: OP Stack 배치 제출자인 op-batcher의 정식 허브입니다. op-batcher가 하는 일, 운영 주체, 그리고 가이드, 레퍼런스, 릴리스, 소스, 사양의 위치를 안내합니다.
+diataxis: explanation
+---
+
+op-batcher는 OP Stack의 배치 제출자(batch submitter)입니다. L2 체인의 트랜잭션 데이터를 데이터
+가용성 계층에 게시하여 사용 가능하게 만드는 서비스입니다.
+
+## 개요
+
+op-batcher는 sequencer에서 unsafe 블록을 읽어 채널로 압축하고, 채널을 프레임으로 분할한 뒤, 그
+프레임을 데이터 가용성 계층에 제출합니다. 제출 방식은 Ethereum calldata, blob 트랜잭션, 또는
+[Alt-DA](/ko/op-stack/features/experimental/alt-da-mode) 계층입니다. 현재 L1 가격에 따라 calldata와
+blob 중 하나를 자동으로 선택할 수도 있습니다.
+
+op-batcher가 존재하는 이유는 OP Stack 체인이 데이터 가용성 계층으로부터 *파생*되기 때문입니다.
+op-batcher가 블록의 데이터를 게시하기 전까지 verifier node는 해당 블록을 파생할 수 없고 체인의
+safe head도 진행되지 않습니다. 배치는 체인의 sequencing window 안에 반영되어야 합니다. 정책 제약은
+[batcher 가이드](/ko/chain-operators/guides/configuration/batcher)를 참조하십시오.
+
+**운영 주체:** 체인 운영자가 sequencer 인프라의 일부로 운영하며, 체인의 batch submitter 주소에서
+제출합니다. 데이터 가용성 적체가 발생하는 동안 op-batcher는 블록 빌더에게 새 L2 블록에 포함되는
+DA 소비 데이터의 양을 조절(throttle)하도록 지시할 수도 있습니다.
+
+## 시작하기
+
+*   [batcher 구동](/ko/chain-operators/tutorials/create-l2-rollup/op-batcher-setup)
+    — OP Stack 체인 구축의 일부로 op-batcher를 설정하고 구성합니다.
+
+## 사용 방법 가이드
+
+*   [batcher 구성](/ko/chain-operators/guides/configuration/batcher):
+    batcher 정책, 비용 조정, 다중 blob 트랜잭션, sequencer 조절을 다룹니다.
+*   [배치 데이터를 blob으로 게시](/ko/chain-operators/guides/features/blobs): 체인의 데이터 가용성
+    유형을 blob으로 전환합니다.
+*   [span batch 활성화](/ko/chain-operators/guides/features/enable-span-batches):
+    op-batcher에서 배치 유형을 구성합니다.
+*   [Alt-DA 모드 체인 실행 방법](/ko/chain-operators/guides/features/alt-da-mode-guide):
+    Ethereum 대신 Alt-DA 계층에 데이터를 게시합니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   [Batcher 구성 레퍼런스](/ko/chain-operators/reference/batcher-configuration)
+    — 모든 CLI 플래그와 환경 변수, 그리고 기본값을 다룹니다. 레퍼런스 페이지에는 작성 기준이 된
+    릴리스가 명시되어 있습니다.
+
+## 릴리스
+
+*   [op-batcher 릴리스 이력](/ko/releases/op-batcher)
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `op-batcher/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-batcher)
+    — [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/readme.md)에
+    내부 아키텍처와 설계 원칙이 문서화되어 있습니다.
+*   [DA 조절 심층 설명](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/throttling.md)
+    — 조절 컨트롤러(step, linear, quadratic, PID), 그 구성, RPC를 통한 런타임 관리에 대한 저장소 내
+    문서입니다.
+*   [Batch submitter 사양](https://specs.optimism.io/protocol/batcher.html)
+    — batcher 역할의 규범적 정의입니다.

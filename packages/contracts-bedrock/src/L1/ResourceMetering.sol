@@ -55,11 +55,22 @@ abstract contract ResourceMetering is Initializable {
         uint128 maximumBaseFee;
     }
 
+    /// @notice Represents the gas published to L2 in the last counted block.
+    /// @custom:field prevPublishedGas Gas published to L2 so far in the current block.
+    /// @custom:field prevBlockNum     Last block in which published gas was counted.
+    struct PublishedParams {
+        uint64 prevPublishedGas;
+        uint64 prevBlockNum;
+    }
+
     /// @notice EIP-1559 style gas parameters.
     ResourceParams public params;
 
+    /// @notice Gas published to L2 in the last counted block.
+    PublishedParams internal _publishedParams;
+
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    uint256[48] private __gap;
+    uint256[47] private __gap;
 
     /// @notice Meters access to a function based an amount of a requested resource.
     /// @param _amount Amount of the resource requested.
@@ -72,6 +83,12 @@ abstract contract ResourceMetering is Initializable {
 
         // Run the metering function.
         _metered(_amount, initialGas);
+    }
+
+    /// @notice Getter for the gas published to L2 in the last counted block.
+    /// @return PublishedParams
+    function publishedParams() public view returns (PublishedParams memory) {
+        return _publishedParams;
     }
 
     /// @notice An internal function that holds all of the logic for metering a resource.
@@ -155,6 +172,31 @@ abstract contract ResourceMetering is Initializable {
     /// @param _amount Amount of the L2 gas resource requested.
     function useGas(uint32 _amount) internal {
         params.prevBoughtGas += uint64(_amount);
+    }
+
+    /// @notice Counts gas published through TransactionDeposited events in this block, including
+    ///         held deposit completions. Reverts if the count exceeds the limit.
+    ///         params.prevBoughtGas cannot replace this count, because it includes held deposits
+    ///         and excludes their completions.
+    /// @param _amount Amount of gas published.
+    function _countPublished(uint64 _amount) internal {
+        uint64 used = _amount;
+        if (_publishedParams.prevBlockNum == block.number) used += _publishedParams.prevPublishedGas;
+        if (used > _resourceConfig().maxResourceLimit) revert OutOfGas();
+        _publishedParams = PublishedParams({ prevPublishedGas: used, prevBlockNum: uint64(block.number) });
+    }
+
+    /// @notice Starts this block's published count when a hook is set.
+    function _countAlreadyPublished() internal {
+        // Preserve this block's existing count because it includes completions,
+        // which prevBoughtGas excludes.
+        if (_publishedParams.prevBlockNum == block.number) return;
+        uint64 used;
+        // prevBoughtGas includes held deposits. If the hook is replaced in this block and all
+        // deposits so far were held, this count overestimates published gas. The overestimate
+        // preserves the gas limit but can cause OutOfGas for the rest of the block.
+        if (params.prevBlockNum == block.number) used = params.prevBoughtGas;
+        _publishedParams = PublishedParams({ prevPublishedGas: used, prevBlockNum: uint64(block.number) });
     }
 
     /// @notice Virtual function that returns the resource config.

@@ -20,7 +20,8 @@
 # Output, one row per PR in draft order, tab-separated:
 #   <tag>  #<number>  <author>  <n> files  <title>  <paths>
 #
-#   LINKED  changed a package compiled into one of the component's binaries; <paths> lists
+#   LINKED  changed a package compiled into one of the component's binaries, or a file such
+#           a package embeds (//go:embed); <paths> lists
 #           just those packages — that is the reason the PR may belong in the notes
 #   CONFIG  moved the embedded superchain registry (submodule pin, generated archive
 #           checksum, or kona's registry snapshots); read it by hand, a new activation time
@@ -53,6 +54,7 @@ trap 'rm -rf "$workdir"' EXIT
 : > "$workdir/deps"
 : > "$workdir/pkgmap"
 : > "$workdir/scripts"
+: > "$workdir/embeds"
 have_go=0
 have_rust=0
 contracts=0
@@ -60,13 +62,20 @@ contracts=0
 # --- dependency sets -------------------------------------------------------------------
 # Which units of code end up in the component's binaries. Empty leaves every row tagged '?'.
 
-# The first of <targets> whose dependency set is non-empty.
+# The first of <targets> whose dependency set is non-empty. Also records the files those
+# packages embed (//go:embed) in $workdir/embeds as "<path>\t<package dir>": they ship in
+# the binary without being Go source.
 resolve_go() {
   local out=$1 target
   shift
   for target in "$@"; do
-    if (cd "$root" && go list -deps "$target" 2> /dev/null) \
-      | sed -n "s|^$MODULE/||p" | sort -u > "$out" && [ -s "$out" ]; then
+    if (cd "$root" && go list -deps \
+      -f '{{.ImportPath}}{{range .EmbedFiles}}{{"\n"}}embed {{$.ImportPath}} {{.}}{{end}}' \
+      "$target" 2> /dev/null) > "$workdir/golist" \
+      && sed -n "s|^$MODULE/||p" "$workdir/golist" | sort -u > "$out" && [ -s "$out" ]; then
+      awk -v m="$MODULE/" '$1 == "embed" && index($2, m) == 1 {
+          d = substr($2, length(m) + 1); print d "/" $3 "\t" d
+      }' "$workdir/golist" >> "$workdir/embeds"
       return 0
     fi
   done
@@ -95,11 +104,12 @@ build_pkgmap() {
   [ -s "$workdir/pkgmap" ]
 }
 
-# The shipping units, from the monorepo's own list. `shared` is infrastructure every
-# component links, not an artifact. Empty for a component release-paths does not know.
+# The shipping units, from the monorepo's own list. `shared` (infrastructure every
+# component links) and `linked` (another component's code this one links) are not
+# artifacts. Empty for a component release-paths does not know.
 artifacts_of() {
   (cd "$root" && just release-paths "$1" 2> /dev/null) \
-    | awk -F'\t' '$1 != "shared" && $1 != "" { print $1 }' | awk '!seen[$0]++'
+    | awk -F'\t' '$1 != "shared" && $1 != "linked" && $1 != "" { print $1 }' | awk '!seen[$0]++'
 }
 
 # op-deployer runs contract scripts that its linked Go code names as string literals.
@@ -235,12 +245,16 @@ fi
 xargs -P "$JOBS" -n 2 bash -c 'fetch "$0" "$1"' < "$workdir/work"
 
 for f in "$workdir"/pr-*; do
-  awk -F'\t' -v depfile="$workdir/deps" -v pkgfile="$workdir/pkgmap" \
+  awk -F'\t' -v depfile="$workdir/deps" -v pkgfile="$workdir/pkgmap" -v embedfile="$workdir/embeds" \
     -v scriptfile="$workdir/scripts" -v have_go="$have_go" -v have_rust="$have_rust" \
     -v contracts="$contracts" '
         BEGIN {
             while ((getline dep < depfile) > 0) linked[dep] = 1
             while ((getline line < scriptfile) > 0) scripts[line] = 1
+            while ((getline line < embedfile) > 0) {
+                split(line, kv, "\t")
+                embedded[kv[1]] = kv[2]
+            }
             while ((getline line < pkgfile) > 0) {
                 split(line, kv, "\t")
                 pkgdir[kv[1]] = kv[2]
@@ -284,6 +298,7 @@ for f in "$workdir"/pr-*; do
                 }
             }
             if (have_go == 1) {
+                if (path in embedded) return embedded[path]
                 # Test files are not compiled into the binary, so a PR that only adds
                 # coverage to a linked package does not change what ships.
                 if (path !~ /\.go$/ || path ~ /_test\.go$/) return ""

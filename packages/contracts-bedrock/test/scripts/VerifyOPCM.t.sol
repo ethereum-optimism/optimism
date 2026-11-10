@@ -161,22 +161,15 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         vm.setEnv("EXPECTED_CHALLENGER", vm.toString(validator.challenger()));
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(optimismPortal2.superchainConfig())));
         _setExpectedDelayBoundsEnv();
-        if (zkDisputeGameEnabled()) {
-            ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
-            ISP1Verifier verifier = adapter.sp1Verifier();
-            vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(verifier)));
-            vm.setEnv("EXPECTED_SP1_VERIFIER_HASH", vm.toString(verifier.VERIFIER_HASH()));
-        }
+        ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
+        ISP1Verifier verifier = adapter.sp1Verifier();
+        vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(verifier)));
+        vm.setEnv("EXPECTED_SP1_VERIFIER_HASH", vm.toString(verifier.VERIFIER_HASH()));
     }
 
     function superGamesEnabled() internal view returns (bool) {
         bytes32 bitmap = opcm.devFeatureBitmap();
-        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-    }
-
-    function zkDisputeGameEnabled() internal view returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
 
     /// @notice Points the expected delay bound env vars at the live implementation values so the
@@ -263,11 +256,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
                     continue;
                 }
 
-                // TODO: Remove this skip once ZK dispute game is no longer behind a feature flag
-                if (_isZKDisputeGameContractRef(ref)) {
-                    continue;
-                }
-
                 harness.runSingle(ref.name, ref.addr, true);
             }
         }
@@ -330,11 +318,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
             // Skip super dispute games when feature disabled
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
-                continue;
-            }
-
-            // Skip ZK dispute game when feature disabled
-            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
                 continue;
             }
 
@@ -403,11 +386,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
             // Skip super dispute games when feature disabled
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
-                continue;
-            }
-
-            // Skip ZK dispute game when feature disabled
-            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
                 continue;
             }
 
@@ -624,10 +602,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     function _isSuperDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
         return LibString.eq(ref.name, "SuperFaultDisputeGame") || LibString.eq(ref.name, "SuperPermissionedDisputeGame");
-    }
-
-    function _isZKDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
-        return LibString.eq(ref.name, "ZKDisputeGame") || LibString.eq(ref.name, "SP1PlonkAdapter");
     }
 
     /// @notice Utility function to mock the first OPCM component's contractsContainer address.
@@ -915,7 +889,6 @@ contract VerifyOPCM_verifyPreimageOracle_Test is VerifyOPCM_TestInit {
 ///         `vm.setEnv` is process-global and races with tests running on other threads.
 contract VerifyOPCM_verifySP1Verifier_Test is VerifyOPCM_TestInit {
     function test_verifySP1Verifier_overrideAndMismatch_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
 
         // On Mainnet the network default is Succinct's verifier; the env override must win.
@@ -927,7 +900,6 @@ contract VerifyOPCM_verifySP1Verifier_Test is VerifyOPCM_TestInit {
     }
 
     function test_verifySP1Verifier_hashMismatch_fails() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
         ISP1Verifier verifier = adapter.sp1Verifier();
 

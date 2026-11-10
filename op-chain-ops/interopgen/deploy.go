@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -187,6 +186,11 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)
 	}
 
+	sp1Verifier, err := opcm.DeployMockSP1Verifier(l1Host, superCfg.Deployer)
+	if err != nil {
+		return nil, err
+	}
+
 	implementationsDeployment, err := opcmScripts.DeployImplementations.Run(opcm.DeployImplementationsInput{
 		MinWithdrawalDelaySeconds:          superCfg.Implementations.FaultProof.MinWithdrawalDelaySeconds,
 		MaxWithdrawalDelaySeconds:          superCfg.Implementations.FaultProof.MaxWithdrawalDelaySeconds,
@@ -197,7 +201,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		MinDisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.MinDisputeGameFinalityDelaySeconds,
 		MaxDisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.MaxDisputeGameFinalityDelaySeconds,
 		MipsVersion:                        superCfg.Implementations.FaultProof.MipsVersion,
-		DevFeatureBitmap:                   devfeatures.OptimismPortalInteropFlag,
+		DevFeatureBitmap:                   common.Hash{},
 		FaultGameV2MaxGameDepth:            big.NewInt(73),
 		FaultGameV2SplitDepth:              big.NewInt(30),
 		FaultGameV2ClockExtension:          big.NewInt(10800),
@@ -206,7 +210,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		SuperchainConfigProxy:              superDeployment.SuperchainConfigProxy,
 		L1ProxyAdminOwner:                  superCfg.ProxyAdminOwner,
 		Challenger:                         superCfg.Challenger,
-		SP1Verifier:                        common.Address{},
+		SP1Verifier:                        sp1Verifier,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)
@@ -371,7 +375,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset)),
+		DevFeatureBitmap:                         common.Hash{},
 		UseInterop:                               multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset),
 		L2ToL2MessageExpiryPeriod:                new(big.Int),
 		SettlementChainID:                        new(big.Int),
@@ -386,15 +390,6 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 // Using a nil offset means Lagoon (and thus interop) is not scheduled at all.
 func lagoonAtGenesis(lagoonOffset *hexutil.Uint64) bool {
 	return lagoonOffset != nil && *lagoonOffset == 0
-}
-
-// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the Interop flag.
-func devFeatureBitmapForL2Genesis(enableInterop bool) common.Hash {
-	var bitmap common.Hash
-	if enableInterop {
-		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.OptimismPortalInteropFlag)
-	}
-	return bitmap
 }
 
 func CompleteL1(l1Host *script.Host, cfg *L1Config) (*L1Output, error) {

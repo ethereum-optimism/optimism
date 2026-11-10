@@ -1,0 +1,70 @@
+---
+title: 상호운용성 predeploy
+description: 상호운용성 predeploy의 작동 방식을 알아봅니다.
+diataxis: reference
+---
+
+<Info>OP Stack 상호운용성(interop)은 Lagoon 하드포크와 함께 활성화됩니다.</Info>
+상호운용성(interoperability)을 지원하기 위해 다음 predeploy가 추가되었습니다.
+*사전 배포된 스마트 컨트랙트(predeployed smart contract)*는 genesis 상태에서 비롯된 미리 정해진 주소에 존재합니다.
+[precompile](https://www.evm.codes/precompiled)과 유사하지만, 네이티브 코드로 실행되는 대신 EVM에서 직접 실행됩니다.
+
+## CrossL2Inbox
+
+`CrossL2Inbox`는 크로스체인 메시징을 위한 시스템 predeploy입니다.
+누구나 임의의 사용자를 대신하여 크로스체인 메시지의 실행 또는 검증을 트리거할 수 있습니다.
+
+*   **주소:** `0x4200000000000000000000000000000000000022`
+*   **사양:** [`CrossL2Inbox`](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#crossl2inbox)
+*   **소스 코드:** [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol)
+
+## L2ToL2CrossDomainMessenger
+
+`L2ToL2CrossDomainMessenger`는 `CrossL2Inbox` 위에 구축된 상위 수준의 추상화로, 범용 메시지 전달 기능을 제공합니다.
+L2 체인 간의 안전한 ERC20 토큰 전송에 활용됩니다.
+소스 체인에서 `L2ToL2CrossDomainMessenger`를 통해 전송된 메시지는 재전송 공격 방지(replay protection)와 도메인 바인딩(실행 트랜잭션은 단일 체인에서만 유효할 수 있음)을 모두 적용받습니다.
+
+*   **주소:** `0x4200000000000000000000000000000000000023`
+*   **사양:** [`L2ToL2CrossDomainMessenger`](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#l2tol2crossdomainmessenger)
+*   **소스 코드:** [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol)
+
+## SuperchainETHBridge
+
+`SuperchainETHBridge`는 OP Stack interop 클러스터 내에서 크로스체인 ETH 브리징을 지원하는 predeploy 컨트랙트입니다. 체인 간 네이티브 ETH 전송을 위해 특별히 설계된 `L2ToL2CrossDomainMessenger` 위의 추상화 계층 역할을 합니다. 이 컨트랙트는 `ETHLiquidity` 컨트랙트와 통합되어 체인 전반의 네이티브 ETH 유동성을 관리함으로써 네이티브 ETH의 원활한 크로스체인 전송을 보장합니다.
+
+*   **주소:** `0x4200000000000000000000000000000000000024`
+*   **사양:** [`SuperchainETHBridge`](https://specs.optimism.io/interop/superchain-eth-bridge.html)
+*   **소스 코드:** [`SuperchainETHBridge`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol)
+
+
+## ETHLiquidity
+
+`ETHLiquidity` 컨트랙트는 OP Stack interop 세트 내 크로스체인 전송을 위한 네이티브 ETH 유동성을 관리하는 predeploy입니다. `SuperchainETHBridge`와 함께 작동하여, 새로운 ETH를 생성하기 위해 EVM을 수정하지 않고도 체인 간 ETH 이동을 지원합니다.
+
+이 컨트랙트는 모든 정당한 발행(minting) 작업을 처리할 수 있도록 매우 큰 잔액(type(uint128).max wei)으로 초기화됩니다. 이러한 설계 덕분에 `SuperchainETHBridge`는 각 체인에서 보장된 ETH 유동성 공급원을 확보할 수 있으며, 이는 크로스체인 ETH 전송 메커니즘에 필수적입니다.
+
+*   **주소:** `0x4200000000000000000000000000000000000025`
+*   **사양:** [`ETHLiquidity`](https://specs.optimism.io/interop/eth-liquidity.html)
+*   **소스 코드:** [`ETHLiquidity`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/ETHLiquidity.sol)
+
+
+## UndeliveredMessageExporter
+
+`UndeliveredMessageExporter`는 메시지가 이 체인에서 릴레이되지 않았다는 사실을 L1을 통해 메시지의 소스 체인에 알립니다. 메시지의 만료 기간이 지난 후에 내보내기(export)가 이루어지면, 소스 체인의 `L2ToL2CrossDomainMessenger`가 이를 `expiredMessages`에 보고하므로 애플리케이션은 전송을 취소할 수 있습니다. [메시지 만료](/ko/app-developers/guides/interoperability/message-expiration)를 참조하세요.
+
+*   **주소:** `0x4200000000000000000000000000000000000030`
+*   **사양:** 메시지 만료([ethereum-optimism/specs#960](https://github.com/ethereum-optimism/specs/pull/960)에서 검토 중)
+*   **소스 코드:** [`UndeliveredMessageExporter`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/UndeliveredMessageExporter.sol)
+
+## SuperchainTokenBridge
+
+`SuperchainTokenBridge`는 [토큰 브리징 사양](https://specs.optimism.io/interop/token-bridging.html)에 설명된 대로 interop을 사용한 토큰 브리징을 지원하는 `L2ToL2CrossDomainMessenger` 위의 추상화입니다.
+
+*   **주소:** `0x4200000000000000000000000000000000000028`
+*   **사양:** [`SuperchainTokenBridge`](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#superchaintokenbridge)
+*   **소스 코드:** [`SuperchainTokenBridge`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainTokenBridge.sol)
+
+
+## 다음 단계
+
+*   [메시지가 한 체인에서 다른 체인으로 전달되는 방식](/ko/app-developers/guides/interoperability/message-passing)을 알아보세요

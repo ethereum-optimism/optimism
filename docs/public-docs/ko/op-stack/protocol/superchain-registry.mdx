@@ -1,0 +1,87 @@
+---
+title: superchain-registry
+description: OP Stack 체인 분류, 표준 체인의 조건, superchain-registry에 대해 알아봅니다.
+diataxis: explanation
+---
+
+[superchain-registry](https://github.com/ethereum-optimism/superchain-registry/tree/main)는 OP Stack 체인의 분류와 각 체인이 적용한 수정 사항에 대한 신뢰할 수 있는 기준 정보(source of truth) 역할을 합니다. superchain-registry는 다음을 제공합니다.
+
+*   새 체인이 레지스트리에 합류하기 위해 따를 수 있는 단계별 절차
+*   표준 체인이 Standard Rollup Charter를 준수하고, 비표준 체인이 superchain-registry에 합류하기 전에 기본 검증을 통과하는지 확인하는 검증 검사
+*   레지스트리에 누가 포함되어 있는지와 각 체인의 구성을 보여 주는 저장소
+
+레지스트리 합류의 주요 이점은 실용적인 데 있습니다. 등록된 체인의 제네시스 및 rollup 구성은 op-node와 op-reth를 포함한 정식 OP Stack node 소프트웨어 릴리스에 기본으로 포함됩니다. 운영자와 node 실행자는 구성 파일을 직접 배포할 필요 없이, 클라이언트의 네트워크 플래그에 체인 이름을 전달하는 것만으로 등록된 체인에 대한 node를 시작할 수 있습니다. 정확한 플래그는 아래의 [하드포크 활성화 상속 동작](#hard-fork-activation-inheritance-behavior)을 참고하십시오. 또한 등록하면 체인이 구성과 함께 공개적으로 나열되며, 신뢰성과 OP Stack 생태계와의 정렬을 나타내는 신호가 됩니다.
+
+## 표준 체인이란?
+
+OP Stack의 표준 구성은 OP Stack 생태계에 배포된 체인이 일관된 기술 및 거버넌스 파라미터 세트를 준수하도록 보장합니다.
+이러한 표준화는 OP Stack 상호운용성(interoperability), 네트워크 보안, 체인 업그레이드의 용이성에 매우 중요합니다.
+이 구성은 OP Stack 생태계에서 보안, 가동 시간, 탈중앙화에 대해 가장 높은 기준을 목표로 합니다.
+파라미터 값 자체는 [OP Stack Configurability Specification](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs)을 참고하십시오.
+
+OP Stack의 표준 체인은 다음 원칙을 준수하는 rollup을 의미합니다.
+
+1.  **기술적 적합성:**
+    *   사양에 정의된 합의 파라미터, 정책 파라미터, 관리자 역할, 서비스 역할을 준수합니다.
+        자세한 내용은 [OP Stack Configurability Specification](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs)을 참고하십시오.
+    *   공식적으로 지원되는 OP Stack 기능과 모듈을 사용합니다.
+
+2.  **거버넌스 정렬:**
+    *   [Standard Rollup Charter](/ko/op-stack/protocol/blockspace-charter#the-standard-rollup-charter)를 준수합니다.
+    *   OP Stack 생태계와 정렬된 투명하고 협력적인 의사 결정을 따릅니다.
+
+3.  **상호운용성:**
+    *   표준 체인은 기본적으로 Superchain interop을 사용할 수 있습니다. 즉, 동일한 신뢰 가정 하에서 다른 표준 체인과 크로스체인 메시지와 자산을 교환할 수 있습니다.
+
+지원되지 않는 기능을 도입하는 등 이러한 원칙에서 벗어난 체인은 비표준 구성으로 간주됩니다.
+예를 들어 핵심 시스템 컨트랙트를 변경하면 표준화가 깨지며, 이는 공식 OP Stack 사양에서 지원되지 않습니다.
+표준 구성의 자세한 목록은 [Standard Rollup Charter 문서](/ko/op-stack/protocol/blockspace-charter)를 참고하십시오.
+
+## 표준화가 중요한 이유
+
+표준화는 여러 면에서 OP Stack 생태계에 이점을 제공합니다.
+
+*   **상호운용성:**
+    표준 스택과 보안 모델을 사용하면 체인이 기본적으로 다른 표준 체인과 상호운용할 수 있습니다. 예를 들어 단일 블록 크로스체인 메시징과 토큰 전송을 상호운용하는 모든 체인에서 동일한 신뢰 가정으로 사용할 수 있습니다.
+
+*   **단순화된 업그레이드 경로:**
+    체인을 최신 버전으로 업그레이드하는 복잡성을 줄입니다.
+
+*   **지원 부담 감소:**
+    배포 간 일관성을 보장하여 맞춤형 지원의 필요성을 최소화합니다.
+
+실제로 표준 체인을 정의하는 두 가지 특징은 다음과 같습니다.
+
+*   **기본 시스템 컨트랙트:**
+    핵심 프로토콜 컨트랙트는 보안과 호환성을 제공하기 위해 거버넌스가 승인한 OP Stack 릴리스 구현을 사용해야 합니다.
+
+*   **지정된 sequencer 구성:**
+    Sequencer 설정은 네트워크 안정성을 유지하기 위해 트랜잭션 순서 지정 및 제출에 대해 규정된 파라미터를 따라야 합니다.
+
+## 표준화에서 op-deployer의 역할
+
+[op-deployer](/ko/chain-operators/tools/op-deployer/overview)는 표준 구성을 준수하는 체인의 배포를 자동화하고 간소화하도록 설계된 도구입니다.
+주요 기능은 다음과 같습니다.
+
+*   **기본값:**
+    op-deployer는 표준 사양을 준수하는 기본값을 제공합니다.
+
+*   **표준 범위 내에서의 손쉬운 맞춤 설정:**
+    op-deployer 도구를 사용하면 기본값을 재정의할 수 있습니다. 예를 들어 L2 블록 시간을 표준 값인 1초로 재정의할 수 있습니다. 다만 재정의는 표준 사양을 위반할 수 있으므로, 적용할 때는 무엇을 하고 있는지 반드시 이해하고 있어야 합니다.
+
+op-deployer를 사용하면 체인 운영자는 OP Stack 표준과의 정렬을 보장하면서 체인 배포의 복잡성을 줄일 수 있습니다.
+
+<Info>
+  L1 컨트랙트를 배포하고 [Standard Rollup Charter](/ko/op-stack/protocol/blockspace-charter)에 명시된 구성 요구 사항을 충족하는 L2 제네시스 파일을 생성할 때는 [op-deployer](/ko/chain-operators/tools/op-deployer/overview)를 사용할 것을 **강력히** 권장합니다.
+</Info>
+
+## 레지스트리 합류
+
+레지스트리에 합류하려면 [Superchain Registry 합류 가이드](/ko/chain-operators/guides/join-superchain-registry)에 따라 pull request를 제출하십시오. 이 가이드는 체인 설정, 환경 구성, 체인이 레지스트리에 합류할 준비가 되었는지 확인하는 데 필요한 모든 검증 검사 실행을 안내합니다.
+
+## 하드포크 활성화 상속 동작
+
+superchain-registry에 포함된 후에는 이후의 `op-node` 및 `op-geth` 릴리스에 체인의 제네시스 및 rollup 구성이 기본으로 포함됩니다. 그러면 `--network`(`op-node`) 및 `--op-network`(`op-geth`) 플래그를 사용하여 이 정보로 node를 시작할 수 있습니다. 이 플래그를 사용하면 node가 superchain-registry에서 하드포크 활성화 시간을 자동으로 상속하므로, node 구성에서 이를 수동으로 설정할 필요가 없습니다.
+
+또한 체인은 체인의 TOML 파일에 `superchain_time`을 지정하여 OP Stack 전체의 활성화 타임스탬프를 상속하기 시작하는 방식으로 하드포크 활성화 상속 동작을 선택할 수 있습니다.
+이 메커니즘을 사용하는 네트워크는 `superchain.toml` 파일에 지정된 네트워크 하드포크를 활성화합니다: [Sepolia superchain.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/sepolia/superchain.toml) 및 [Mainnet superchain.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/superchain.toml).

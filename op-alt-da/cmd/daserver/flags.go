@@ -6,6 +6,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-alt-da/store"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
@@ -135,8 +136,8 @@ func (c CLIConfig) S3Enabled() bool {
 	return !(c.S3Bucket == "" && c.S3Endpoint == "" && c.S3AccessKeyID == "" && c.S3AccessKeySecret == "")
 }
 
-func (c CLIConfig) S3Config() S3Config {
-	return S3Config{
+func (c CLIConfig) S3Config() store.S3Config {
+	return store.S3Config{
 		Bucket:          c.S3Bucket,
 		Endpoint:        c.S3Endpoint,
 		AccessKeyID:     c.S3AccessKeyID,

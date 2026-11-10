@@ -1,0 +1,101 @@
+---
+title: Ethereum과의 차이점
+description: Ethereum과 OP Stack 동작 간의 사소한 차이점을 알아봅니다.
+diataxis: reference
+---
+
+<Info>
+  **OP Stack 배우기 — 14개 단계 중 4단계.**
+  지금까지 OP Stack이 무엇이며 그 배경이 되는 원칙을 알아보았습니다. 이 페이지에서는
+  "EVM 동등성"이 실제로 무엇을 의미하는지, 즉 OP Stack 체인이 Ethereum과 다르게
+  동작하는 소수의 동작을 구체적으로 설명합니다. 다 읽은 후에는
+  [OP Stack 구성 요소](/ko/op-stack/protocol/components)로 이어서 진행하십시오.
+</Info>
+
+OP Stack 체인은 [EVM 동등성](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306)을 갖추도록 설계되었으며, Ethereum 프로토콜에 대한 변경을 최소화합니다.
+그러나 개발자가 알아 두어야 할 Ethereum과 OP Stack 체인 간의 사소한 동작 차이가 몇 가지 있습니다.
+
+## Bridge
+
+### Bridge - 입금 트랜잭션
+
+입금(디파짓) 트랜잭션은 L1에는 존재하지 않으며, L1에서 L2 트랜잭션을 시작하는 방법입니다. 중요한 점은 bridge 애플리케이션이 이 방법을 통해 L1 ETH 또는 토큰을 L2 OP Stack 체인으로 가져올 수 있다는 것입니다. 입금 트랜잭션에 대한 자세한 내용은 [여기](/ko/op-stack/bridging/deposit-flow)를 참조하십시오.
+
+### Bridge - 출금 트랜잭션과 결함 증명
+
+출금 트랜잭션은 L2 rollup의 상태를 L1에 증명하는 방법입니다. 대개 사용자가 토큰이나 ETH를 L1으로 출금하는 경우가 이에 해당합니다. 결함 증명(fault proof)은 현재 출금 트랜잭션을 L1에 증명하는 메커니즘입니다. 결함 증명에 대한 자세한 내용은 [여기](/ko/op-stack/fault-proofs/explainer)를 참조하십시오.
+
+## Opcode
+
+| Opcode       | Solidity 대응 항목  | 동작                                                                                                                                                                                                                                                    |
+| ------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COINBASE`   | `block.coinbase`    | 현재 Sequencer의 수수료 지갑 주소를 반환합니다. 사실상 Ethereum과 동일하지만, 일반적으로 블록마다 값이 바뀌지 않는다는 점이 다릅니다.                                                                                                                    |
+| `PREVRANDAO` | `block.prevrandao`  | 현재 L1 origin 블록에서의 L1 PREVRANDAO(가장 최근의 [RANDAO](https://eips.ethereum.org/EIPS/eip-4399)) 값을 반환합니다.                                                                                                                                 |
+| `ORIGIN`     | `tx.origin`         | 트랜잭션이 L1의 스마트 컨트랙트에 의해 트리거된 L1 ⇒ L2 트랜잭션인 경우, `tx.origin`은 L1 ⇒ L2 트랜잭션을 트리거한 주소의 [별칭 주소](#address-aliasing)로 설정됩니다. 그 외의 경우에는 이 opcode가 정상적으로 동작합니다.                                |
+| `CALLER`     | `msg.sender`        | 트랜잭션이 L1의 스마트 컨트랙트에 의해 트리거된 L1 ⇒ L2 트랜잭션이고, 이것이 (한 컨트랙트에서 다른 컨트랙트로의 내부 트랜잭션이 아닌) 첫 번째 호출 프레임인 경우, 동일한 [주소 별칭](#address-aliasing) 동작이 적용됩니다.                              |
+
+### 주소 별칭(Address aliasing)
+
+<Info>
+  주소 별칭은 스마트 컨트랙트가 L1에서 L2로 보내는 트랜잭션의 동작에 영향을 미치는 중요한 보안 기능입니다.
+  크로스체인 트랜잭션을 다루는 경우 이 섹션을 주의 깊게 읽으십시오.
+  `CrossChainMessenger` 컨트랙트는 주소 별칭을 내부적으로 대신 처리합니다.
+</Info>
+
+외부 소유 계정(Externally Owned Account)이 L1에서 L2로 트랜잭션을 보내는 경우, L2에서의 트랜잭션 발신자 주소는 L1에서의 트랜잭션 발신자 주소로 설정됩니다.
+**그러나 L1의 스마트 컨트랙트가 트랜잭션을 트리거한 경우, L2에서의 트랜잭션 발신자 주소는 달라집니다**.
+
+`CREATE` opcode의 동작 때문에 L1과 L2에서 동일한 주소를 공유하지만 bytecode가 다른 컨트랙트를 생성할 수 있습니다.
+이러한 컨트랙트는 주소가 같더라도 근본적으로 서로 다른 두 개의 스마트 컨트랙트이며, 같은 컨트랙트로 취급할 수 없습니다.
+따라서 스마트 컨트랙트가 L1에서 L2로 보낸 트랜잭션의 발신자는 L1 스마트 컨트랙트의 주소가 될 수 없습니다. 그렇지 않으면 (두 컨트랙트가 같은 주소를 공유하므로) L1 스마트 컨트랙트가 L2 스마트 컨트랙트인 것처럼 행동할 수 있기 때문입니다.
+
+이러한 사칭을 방지하기 위해, 스마트 컨트랙트가 `depositTransaction`을 호출하여 L1에서 L2로 트랜잭션을 보낼 때 `OptimismPortal`이 트랜잭션 발신자를 약간 수정합니다.
+이 별칭은 호출자에게 코드가 있고, 그 코드가 유효한 EIP-7702 위임이 아닌 경우에 적용됩니다.
+주소에 코드가 없거나, 주소에 있는 코드가 유효한 EIP-7702 위임인 경우에는 발신자가 수정되지 않습니다.
+임시 컨트랙트(동일한 트랜잭션 내에서 생성되고 self-destruct되는 컨트랙트)는 트랜잭션 실행 시작이나 종료 시점에 코드가 없더라도 별칭이 적용된다는 점에 유의하십시오.
+
+L2 트랜잭션은 실제 L1 컨트랙트 주소에서 보낸 것처럼 보이는 대신, L1 컨트랙트 주소의 "별칭" 버전에서 전송됩니다.
+이 별칭 주소는 주소를 160비트 정수로 취급하여 오버플로를 허용하면서 상수 오프셋을 더한 다음, 결과를 20바이트 주소로 잘라 내어 생성됩니다.
+이 주소 해싱 함수는 별칭 주소가 L2의 다른 어떤 주소와도 충돌하지 않도록 보장합니다.
+단순한 오프셋 방식이므로 별칭 주소에서 원래 L1 주소를 쉽게 복원할 수 있습니다.
+
+`OptimismPortal`은 L1 스마트 컨트랙트가 보낸 L2 트랜잭션에만 이 변경을 적용합니다.
+그 외의 모든 경우에는 Ethereum에서 사용하는 것과 동일한 규칙에 따라 트랜잭션 발신자 주소가 설정됩니다.
+
+| 트랜잭션 출처                                             | 발신자 주소                                                                 |
+| --------------------------------------------------------- | --------------------------------------------------------------------------- |
+| L2 사용자(외부 소유 계정 또는 EIP-7702 위임 계정)         | 사용자의 주소(Ethereum과 동일)                                              |
+| L1 사용자(외부 소유 계정 또는 EIP-7702 위임 계정)         | 사용자의 주소(Ethereum과 동일)                                              |
+| L1 컨트랙트(`OptimismPortal.depositTransaction` 사용)     | `uint160(L1_contract_address) + 0x1111000000000000000000000000000000001111` |
+
+## 트랜잭션
+
+### 트랜잭션 수수료
+
+OP Stack 체인의 트랜잭션은 Ethereum에서 예상되는 표준 [실행 gas 수수료](/ko/op-stack/transactions/fees#execution-gas-fee)에 더해 [L1 데이터 수수료](/ko/op-stack/transactions/fees#the-l1-data-fee)를 지불해야 합니다.
+자세한 내용은 [OP Stack 트랜잭션 수수료](/ko/op-stack/transactions/fees) 가이드를 참조하십시오.
+
+[JS 라이브러리 viem](https://viem.sh/op-stack)을 사용하면 L1 Data Fee를 포함한 전체 트랜잭션 gas 비용을 추정할 수 있습니다.
+
+### EIP-1559 파라미터
+
+OP Stack의 base fee는 Ethereum과 마찬가지로 [EIP-1559](https://notes.ethereum.org/@vbuterin/eip-1559-faq) 메커니즘을 통해 계산됩니다.
+OP Stack에서 사용하는 EIP-1559 파라미터는 체인마다 다릅니다.
+
+### Mempool 규칙
+
+Ethereum과 달리 OP Stack 체인에는 공개 mempool이 없습니다.
+현재 OP Stack mempool은 Sequencer에게만 보입니다.
+Sequencer는 mempool의 트랜잭션을 priority fee 순서(가장 높은 수수료 우선)로 실행합니다.
+
+## 체인 최종성
+
+Ethereum과 같은 L1과 달리 OP Stack 체인에는 Unsafe, Safe, Finalized Head가 있으며, 이는 특정 L2 블록의 최종성 상태를 나타냅니다. 결함 증명은 L2 rollup의 최종 확정에는 영향을 미치지 않으며, L1으로의 출금 트랜잭션 최종 확정에만 영향을 미칩니다. 이에 대한 자세한 내용은 [문서 용어집](/ko/op-stack/reference/glossary#unsafe-l2-block)을 참조하십시오.
+
+## 다음 단계
+
+위에서 다양한 유용한 도구를 소개했습니다. 추가로 살펴볼 만한 도구와 링크는 다음과 같습니다.
+
+*   [OP-viem](https://viem.sh/op-stack): OP 체인의 여러 고유 기능을 처리할 수 있는 JS 프레임워크입니다. OP Stack 체인용 Ethers.js와 유사합니다.
+
+*   [명세](https://specs.optimism.io/root.html?utm_source=op-docs&utm_medium=docs): 보다 심층적인 기술 설명과 예제를 제공합니다.

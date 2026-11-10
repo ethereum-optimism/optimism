@@ -64,9 +64,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     ///         layout from the way that `solc` lays out storage. The `op-node` uses a storage
     ///         proof to fetch this value.
     /// @dev    NOTE: this value will be migrated to another storage slot in a future version.
-    ///         User input should not be placed in storage in this contract until this migration
-    ///         happens. It is unlikely that keccak second preimage resistance will be broken,
-    ///         but it is better to be safe than sorry.
+    ///         Owner-set values in mapping slots (`isFeatureEnabled`, `privateConfig`) cannot
+    ///         reach this slot without a keccak second preimage.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /// @notice Storage slot that the L1CrossDomainMessenger address is stored at.
@@ -159,6 +158,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Bytes32 feature flag name to boolean enabled value.
     mapping(bytes32 => bool) public isFeatureEnabled;
 
+    /// @notice Configuration of the private chains of this chain's settlement group (OP Private),
+    ///         by private chain ID and update type. Each value uses the same encoding as the
+    ///         `ConfigUpdate` data for that update type. See `setPrivateConfig`.
+    mapping(uint256 => mapping(UpdateType => bytes)) public privateConfig;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -170,14 +174,24 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param enabled Whether the feature is enabled.
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
+    /// @notice Emitted when the configuration of a private chain is updated. Same shape as
+    ///         `ConfigUpdate`, plus the private chain's ID.
+    /// @param version    SystemConfig version.
+    /// @param chainId    Chain ID of the private chain.
+    /// @param updateType Type of update.
+    /// @param data       Encoded update data, same encoding as `ConfigUpdate` for `updateType`.
+    event PrivateConfigUpdate(
+        uint256 indexed version, uint256 indexed chainId, UpdateType indexed updateType, bytes data
+    );
+
     /// @notice Thrown when attempting to enable/disable a feature when already enabled/disabled,
     ///         respectively.
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 4.3.0
+    /// @custom:semver 4.4.0
     function version() public pure virtual returns (string memory) {
-        return "4.3.0";
+        return "4.4.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -474,6 +488,21 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         bytes memory data = abi.encode(_dAFootprintGasScalar);
         emit ConfigUpdate(VERSION, UpdateType.DA_FOOTPRINT_GAS_SCALAR, data);
+    }
+
+    /// @notice Updates the configuration of a private chain of this chain's settlement group (OP
+    ///         Private). Can only be called by the owner. Stores `_data` in `privateConfig` and
+    ///         emits `PrivateConfigUpdate`. It does not emit `ConfigUpdate` and does not change
+    ///         this chain's own configuration, so nodes of this chain ignore it.
+    ///         `_data` uses the same encoding as the `ConfigUpdate` data for `_updateType`, e.g.
+    ///         `abi.encode(address)` for `UNSAFE_BLOCK_SIGNER`. The contract does not validate
+    ///         `_chainId`, `_updateType` or `_data`. Nodes of the private chain validate them.
+    /// @param _chainId    Chain ID of the private chain.
+    /// @param _updateType Type of update.
+    /// @param _data       Encoded update data.
+    function setPrivateConfig(uint256 _chainId, UpdateType _updateType, bytes calldata _data) external onlyOwner {
+        privateConfig[_chainId][_updateType] = _data;
+        emit PrivateConfigUpdate(VERSION, _chainId, _updateType, _data);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies

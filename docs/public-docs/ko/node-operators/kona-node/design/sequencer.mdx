@@ -1,0 +1,112 @@
+---
+title: "Sequencer 모드"
+description: "kona-node sequencer actor가 L2 블록을 빌드하는 방식과 sequencer 모드를 뒷받침하는 trait 추상화 및 프로그래밍 방식 구성을 이해합니다."
+diataxis: explanation
+---
+
+Kona node는 **sequencer 모드**로 동작하여 새 L2 블록을 빌드하고 생성할 수 있습니다. 이 모드에서 노드는 OP Stack rollup의 sequencer 역할을 하며, 현재 unsafe head 위에 L2 블록을 빌드하여 L2 체인을 확장합니다.
+
+이 페이지에서는 sequencer 모드의 설계와 Node SDK를 통해 이를 프로그래밍 방식으로 구성하는 방법을 설명합니다. 명령줄에서 `kona-node`를 sequencer로 실행하려면 [sequencer 노드 실행](/ko/node-operators/kona-node/run/sequencer) 가이드를 따르십시오.
+
+## 개요
+
+sequencer 모드로 실행할 때 Kona node는 다음을 수행합니다.
+
+- mempool에서 트랜잭션을 수집하고 새 블록을 구성하여 **L2 블록을 빌드**합니다
+- 최종 확정된 L1 데이터를 기반으로 새 L2 블록의 **L1 origin을 선택**합니다
+- **블록 생성 타이밍을 관리**하고 적절한 sequencing 제약 조건을 보장합니다
+- 다중 sequencer 구성에서 리더 선출을 위해 **conductor 서비스와 연동**합니다
+- sequencer가 L1을 따라잡아야 할 때 **복구 시나리오를 처리**합니다
+
+sequencer는 validator 노드와 동일한 핵심 derivation 파이프라인을 사용하지만 반대 방향으로 동작합니다. 즉, L1 데이터에서 L2 블록을 derive하는 대신, 나중에 L1에서 derive할 수 있는 L2 블록을 생성합니다.
+
+## 핵심 구성 요소
+
+### `NodeMode`
+
+노드의 동작 모드는 노드의 `EngineConfig`에 포함된 `NodeMode` enum으로 표현됩니다.
+
+```rust
+pub enum NodeMode {
+    /// Validator mode.
+    Validator,
+    /// Sequencer mode.
+    Sequencer,
+}
+```
+
+### `SequencerActor`
+
+블록 생성을 담당하는 핵심 actor입니다. 다른 모든 노드 구성 요소와 마찬가지로 `NodeActor` trait을 구현합니다.
+
+- attributes builder를 사용해 L2 블록을 빌드합니다
+- 타이밍과 L1 origin 선택을 관리합니다
+- sequencer 제어를 위한 admin RPC 명령을 처리합니다
+- 리더 선출을 위해 conductor 서비스와 조율합니다
+
+### `SequencerConfig`
+
+sequencer 동작은 `SequencerConfig` 구조체를 통해 구성됩니다.
+
+```rust
+pub struct SequencerConfig {
+    /// Whether or not the sequencer is enabled at startup.
+    pub sequencer_stopped: bool,
+    /// Whether or not the sequencer is in recovery mode.
+    pub sequencer_recovery_mode: bool,
+    /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
+    pub conductor_rpc_url: Option<Url>,
+    /// The confirmation delay for the sequencer.
+    pub l1_conf_delay: u64,
+}
+```
+
+## 프로그래밍 방식 구성
+
+### RollupNodeBuilder 사용
+
+Kona node를 sequencer 모드로 프로그래밍 방식으로 구성하려면 `EngineConfig`에 `NodeMode::Sequencer`를 설정하고 `RollupNodeBuilder`에 `SequencerConfig`를 전달하십시오.
+
+```rust
+use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
+
+// Configure sequencer settings
+let sequencer_config = SequencerConfig {
+    sequencer_stopped: false,           // Start sequencer immediately
+    sequencer_recovery_mode: false,     // Normal operation mode
+    conductor_rpc_url: Some(            // Optional conductor integration
+        Url::parse("http://conductor:8080").unwrap()
+    ),
+    l1_conf_delay: 4,                   // L1 origin confirmation delay
+};
+
+// engine_config carries `mode: NodeMode::Sequencer` along with the
+// L2 engine URL, JWT secret, and L1 RPC URL. A sequencer needs a block
+// signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
+RollupNodeBuilder::new(
+    rollup_config,
+    l1_config_builder,
+    l2_trust_rpc,
+    engine_config,
+    p2p_config,
+    rpc_config,
+)
+.with_sequencer_config(sequencer_config)
+.build()
+.start()
+.await?;
+```
+
+### 구성 옵션
+
+| 필드 | 설명 | 기본값 |
+|-------|-------------|---------|
+| `sequencer_stopped` | sequencer를 중지된 상태로 시작 | `false` |
+| `sequencer_recovery_mode` | 따라잡기를 위한 복구 모드 활성화 | `false` |
+| `conductor_rpc_url` | 리더 선출을 위한 conductor 서비스 엔드포인트 | `None` |
+| `l1_conf_delay` | L1 origin 선택을 위한 확인(confirmation) 지연 | `0` |
+
+## 다음 단계
+
+- 필수 플래그와 예시 구성을 포함해 명령줄에서 sequencer를 실행하려면 [sequencer 노드 실행](/ko/node-operators/kona-node/run/sequencer)을 참조하십시오.
+- 전체 CLI 플래그 목록은 [Kona node CLI 레퍼런스](/ko/node-operators/kona-node/configuration)를 참조하십시오.

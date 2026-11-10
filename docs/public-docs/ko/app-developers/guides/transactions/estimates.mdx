@@ -1,0 +1,102 @@
+---
+title: OP Mainnet에서 트랜잭션 수수료 추정하기
+description: OP Mainnet에서 트랜잭션의 총비용을 올바르게 추정하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+<Info>
+OP Mainnet 트랜잭션 수수료의 작동 방식에 대한 자세한 설명은 [OP Mainnet의 트랜잭션 수수료](/ko/op-stack/transactions/fees) 이해 가이드를 확인하세요.
+</Info>
+
+트랜잭션을 네트워크에 제출하기 전에 OP Mainnet에서의 트랜잭션 비용을 올바르게 추정하는 것이 중요합니다.
+여기에서는 OP Mainnet 트랜잭션의 총비용을 구성하는 두 요소인 [실행 gas 수수료](/ko/op-stack/transactions/fees#execution-gas-fee)와 [L1 데이터 수수료](/ko/op-stack/transactions/fees#l1-data-fee)를 각각 추정하는 방법을 알아봅니다.
+이러한 수수료가 내부적으로 어떻게 작동하는지 자세히 알아보려면 [OP Mainnet의 트랜잭션 수수료](/ko/op-stack/transactions/fees) 가이드를 반드시 읽어 보세요.
+
+## 실행 gas 수수료
+
+<Info>
+OP Mainnet에서 실행 gas 수수료를 추정하는 방법은 Ethereum에서 실행 gas 수수료를 추정하는 방법과 동일합니다.
+참고와 편의를 위해 여기에 단계를 제공하지만, Ethereum에서 트랜잭션의 실행 gas 수수료를 추정할 때 사용하는 도구를 그대로 사용할 수 있습니다.
+</Info>
+
+트랜잭션의 실행 gas 수수료는 Ethereum에서 동일한 트랜잭션에 대해 지불하는 수수료와 정확히 같습니다.
+이 수수료는 트랜잭션이 사용한 gas 양에 트랜잭션에 지정된 gas 가격을 곱한 값과 같습니다.
+실행 gas 수수료에 대한 자세한 내용은 [OP Mainnet의 트랜잭션 수수료](/ko/op-stack/transactions/fees#execution-gas-fee) 가이드를 참조하세요.
+
+트랜잭션의 실행 gas 수수료를 추정할 때는 해당 트랜잭션의 gas 한도와 [gas당 최대 수수료(max fee per gas)](https://ethereum.org/en/developers/docs/gas/#maxfee)를 알아야 합니다.
+트랜잭션 수수료는 이 두 값의 곱이 됩니다.
+트랜잭션에 적합한 gas 한도와 gas당 최대 수수료를 선택하는 방법은 [OP Mainnet에서 트랜잭션 gas 파라미터 설정하기](./parameters) 가이드를 참조하세요.
+
+<Steps>
+  <Step title="gas 한도 추정하기">
+Ethereum에서 트랜잭션의 gas 한도를 추정할 때 사용하는 도구를 그대로 사용하여 OP Mainnet에서 트랜잭션의 gas 한도를 추정합니다.
+  OP Mainnet은 [EVM 동등성(EVM equivalence)](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306)을 갖도록 설계되었으므로, 트랜잭션은 OP Mainnet에서도 Ethereum에서와 같은 양의 gas를 사용합니다.
+  즉, Ethereum에서와 마찬가지로 트랜잭션을 [`eth_estimateGas`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_estimategas) JSON-RPC 메서드에 전달할 수 있습니다. 또는 100% 정확한 gas 추정을 위해 Tenderly의 [`tenderly_estimateGas`](https://docs.tenderly.co/node/rpc-reference/optimism-mainnet/tenderly_estimateGas)를 사용할 수 있습니다.
+
+  </Step>
+  
+  <Step title="gas당 최대 수수료 추정하기">
+Ethereum과 마찬가지로 OP Mainnet은 `EIP-1559` 방식의 수수료 시장을 사용하여 현재 gas당 기본 수수료(base fee)를 결정합니다.
+  여기에 추가로 우선순위 수수료(priority fee, 팁이라고도 함)를 지정하여 Sequencer가 트랜잭션을 더 빨리 포함하도록 유도할 수 있습니다.
+  트랜잭션에 적합한 gas당 최대 수수료를 선택하는 방법에 대한 자세한 내용은 [OP Mainnet에서 트랜잭션 gas 파라미터 설정하기](./parameters) 가이드를 확인하세요.
+
+  
+  </Step></Steps>
+
+## L1 데이터 수수료
+
+<Info>
+Viem 라이브러리는 트랜잭션의 L1 데이터 수수료를 추정하는 편리한 메서드를 제공합니다.
+Viem 라이브러리를 사용하여 트랜잭션의 L1 데이터 수수료를 추정하는 방법은 [OP Mainnet에서 트랜잭션 비용 추정하기](/ko/app-developers/tutorials/transactions/sdk-estimate-costs) 튜토리얼을 확인하세요.
+Viem 라이브러리 없이 L1 데이터 수수료를 추정하는 방법을 알아보려면 계속 읽어 보세요.
+</Info>
+
+L1 데이터 수수료는 트랜잭션을 Ethereum에 게시하는 비용으로 Sequencer에 지불하는 수수료입니다.
+이 수수료는 ETH로 지불되며, 트랜잭션의 바이트 크기와 Ethereum의 현재 gas 가격을 기준으로 계산됩니다.
+L1 데이터 수수료에 대한 자세한 내용은 [OP Mainnet의 트랜잭션 수수료](/ko/op-stack/transactions/fees#l1-data-fee) 가이드를 참조하세요.
+
+실행 gas 수수료와 달리 L1 데이터 수수료는 모든 트랜잭션에 대한 **고유(intrinsic)** 수수료입니다.
+이 수수료는 트랜잭션 크기와 현재 Ethereum gas 가격을 기준으로 자동 부과됩니다.
+현재는 트랜잭션에 대해 사용자 지정 L1 데이터 수수료를 지정할 수 없습니다.
+
+<Info>
+L1 데이터 수수료는 [`GasPriceOracle`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/GasPriceOracle.sol) 스마트 컨트랙트에서 추적하는 현재 Ethereum gas 가격을 기준으로 지불됩니다.
+이 gas 가격은 OP Mainnet 프로토콜에 의해 자동으로 업데이트됩니다.
+트랜잭션에는 해당 트랜잭션이 OP Mainnet 블록에 포함되는 시점에 프로토콜이 확인한 Ethereum gas 가격이 적용됩니다.
+따라서 트랜잭션의 실제 L1 데이터 수수료는 추정한 L1 데이터 수수료와 다를 수 있습니다.
+</Info>
+
+<Steps>
+  <Step title="트랜잭션 직렬화하기">
+L1 데이터 수수료는 직렬화된 트랜잭션의 바이트 크기를 기준으로 계산됩니다.
+  대부분의 Ethereum 도구는 트랜잭션을 직렬화하는 메서드를 제공합니다.
+  예를 들어 Ethers.js는 [`ethers.utils.serializeTransaction`](https://docs.ethers.org/v5/api/utils/transactions/#utils-serializeTransaction) 메서드를 제공합니다.
+
+  </Step>
+  
+  <Step title="L1 데이터 수수료 추정하기">
+트랜잭션을 직렬화한 후에는 OP Mainnet 및 모든 OP Stack 체인에서 사용할 수 있는 [`GasPriceOracle`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/GasPriceOracle.sol) 스마트 컨트랙트의 [`getL1Fee`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/GasPriceOracle.sol#L64-L71) 메서드를 호출하여 L1 데이터 수수료를 추정할 수 있습니다.
+  이 메서드는 직렬화된 트랜잭션을 입력으로 받아 [OP Mainnet의 트랜잭션 수수료](/ko/op-stack/transactions/fees#l1-data-fee) 가이드에 설명된 공식을 사용하여 L1 데이터 수수료를 wei 단위로 반환합니다.
+  
+  <Info>
+  수수료 추정은 일반적으로 트랜잭션에 서명하기 전에 수행됩니다.
+  따라서 `getL1Fee` 메서드는 입력값이 **서명되지 않은** Ethereum 트랜잭션이라고 가정합니다.
+  </Info>
+
+  
+  </Step></Steps>
+
+### 도구
+
+트랜잭션의 L1 데이터 수수료를 추정하는 데 도움이 되는 여러 도구가 있습니다.
+사용 사례에 맞는 도구는 구체적인 요구 사항에 따라 선택하면 됩니다.
+
+*   [Viem](https://viem.sh/op-stack#getting-started-with-op-stack)은 OP Mainnet을 포함한 OP Stack 체인을 정식으로 지원합니다. Viem을 사용하여 gas 비용을 추정하고 크로스체인 트랜잭션(예: Standard Bridge 시스템을 통한 트랜잭션)을 전송할 수 있습니다. 현재 가장 우수한 네이티브 지원을 제공하므로, 가능하다면 Viem을 사용할 것을 강력히 권장합니다.
+
+### 향후 변경에 대비하기
+
+L1 데이터 수수료 공식은 특히 데이터 가용성 환경이 발전함에 따라 향후 변경될 수 있습니다.
+따라서 L1 데이터 수수료 공식이 변경되더라도 계속 올바르게 작동하도록 트랜잭션 수수료 추정 코드를 향후 변경에 대비해 작성하는 것이 중요합니다.
+
+*   가능하다면 기존 [도구](#tooling)를 사용하여 트랜잭션의 L1 데이터 수수료를 추정하세요. 이러한 도구는 L1 데이터 수수료 공식의 변경 사항을 반영하도록 업데이트됩니다. 이렇게 하면 공식이 변경되더라도 코드를 수정할 필요가 없습니다.
+*   기존 도구를 사용할 수 없는 경우 `GasPriceOracle`의 `getL1Fee` 메서드를 사용하세요. `getL1Fee` 메서드는 L1 데이터 수수료 공식의 변경 사항을 반영하도록 업데이트됩니다. L1 데이터 수수료 공식을 직접 구현하지 **않을** 것을 강력히 권장합니다.
