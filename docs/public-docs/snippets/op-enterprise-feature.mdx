@@ -1,19 +1,37 @@
 {/*
-  Standing "Available with OP Enterprise" marker: the shared availability line
-  for a feature, tool, or section that only OP Enterprise customers get.
+  Standing OP Enterprise availability marker: the shared availability line
+  for a feature, tool, or section that open source operators do not get.
   It states a fact, not a pitch. It is not the steering callout
   (op-enterprise-callout.mdx), which belongs at chain-operator decision
   moments and never in reference content.
 
   Usage:
-    import OpEnterpriseFeature from "/snippets/op-enterprise-feature.mdx"
+    import { OpEnterpriseFeature } from "/snippets/op-enterprise-feature.mdx"
 
-    ### `gated-feature`
+    ### Gated feature
 
     <OpEnterpriseFeature />
 
+    ### Feature in some agreements
+
+    <OpEnterpriseFeature availability="by-agreement" />
+
+  Props:
+    availability - optional. A fixed value, never free text, so a call site
+                   cannot write its own entitlement claim. Pick the line that
+                   matches what every OP Enterprise customer is entitled to:
+      (omitted)      "Available to OP Enterprise customers."
+                     Every OP Enterprise customer gets the feature.
+      "by-agreement" "Available with OP Enterprise, depending on your agreement."
+                     The feature is not part of every OP Enterprise agreement,
+                     whether it is included in some packages or sold
+                     separately. The default line would promise it to all
+                     customers.
+                   When unsure, use "by-agreement": it never over-promises.
+
   Consumers:
-    - chain-operators/tools/chain-monitoring.mdx (under the `monitorism` heading)
+    - chain-operators/tools/chain-monitoring.mdx ("by-agreement", under the
+      `OP Enterprise security monitoring` heading)
 
   Placement rules: directly under the heading of the gated section, or at the
   top of a page that is gated as a whole, so a reader arriving from a deep
@@ -21,22 +39,39 @@
   is gated; a page that mixes open and gated content marks the gated
   sections, not the page.
 
-  Copy rules: keep this exact wording on every page; change it here, not at
-  the call site. No product digits (uptime, response times, support hours,
-  tier names, prices). The surrounding page describes what the feature does
-  and why; setup steps and internals stay in customer documentation. Give
-  open source readers their alternative in the page body. Link to the same
-  UTM-tagged OP Enterprise URL as the other OP Enterprise snippets.
+  Copy rules: keep these exact wordings on every page; change them here, not
+  at the call site, and add a prop here rather than free text at a call site
+  when a new entitlement needs its own line. No product digits (uptime,
+  response times, support hours, tier names, prices). The surrounding page
+  describes what the feature does and why, at the level of capability
+  categories; individual components, third-party providers, setup steps, and
+  internals stay in customer documentation. Give open source readers their
+  alternative in the page body. Link to the same UTM-tagged OP Enterprise URL
+  as the other OP Enterprise snippets.
 
   Design rules: a quiet metadata line, not a callout. Gray chip at sm size
   with no icon, so it is not mistaken for an Info note (blue), an error (red),
-  or the soft card's CTA (building icon). The only brand color is the small
-  square Optimism Red marker drawn by styles/op-enterprise.css, which also
-  raises the chip's dark-mode text contrast to WCAG AA. Keep the badge out
-  of the heading itself: badge text can change the heading's anchor.
+  or the soft card's CTA (building icon). The chip reads "OP Enterprise" in
+  every variant; only the line beside it changes. The only brand color is the
+  small square Optimism Red marker drawn by styles/op-enterprise.css, which
+  also raises the chip's dark-mode text contrast to WCAG AA. Keep the badge
+  out of the heading itself: badge text can change the heading's anchor.
 */}
 
-<div className="op-ent-marker">
-  <Badge color="gray" size="sm" className="op-ent-badge">OP Enterprise</Badge>
-  <span>Available to <a href="https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise">OP Enterprise</a> customers.</span>
-</div>
+export const OpEnterpriseFeature = ({ availability }) => {
+  const link = (
+    <a href="https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise">
+      OP Enterprise
+    </a>
+  );
+  return (
+    <div className="op-ent-marker">
+      <Badge color="gray" size="sm" className="op-ent-badge">OP Enterprise</Badge>
+      {availability === "by-agreement" ? (
+        <span>Available with {link}, depending on your agreement.</span>
+      ) : (
+        <span>Available to {link} customers.</span>
+      )}
+    </div>
+  );
+};

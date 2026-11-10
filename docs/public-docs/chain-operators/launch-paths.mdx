@@ -57,13 +57,13 @@ What that ownership includes, stated the way the docs themselves state it:
     [Run a fault-proof challenger](/use-cases/run-a-fault-proof-challenger).
 *   **The monitoring.** Watching the chain is a separate set of services from
     running it. `op-dispute-mon` tracks the status of every dispute game and is
-    how you learn that your challenger is acting; `monitorism`, available to
-    OP Enterprise customers, carries the onchain security monitors, whose
-    security-integrity group exists to check that the bridges between L2 and
-    L1 behave as expected, including the faultproof withdrawal monitor that
-    watches `ProvenWithdrawals` events on the `OptimismPortal` and flags
-    invariant violations. Without OP Enterprise, you build or source these
-    monitors yourself. Your own components
+    how you learn that your challenger is acting. Onchain security monitoring
+    covers the rest of the chain's contracts, starting with checks that the
+    bridges between L2 and L1 behave as expected and that every withdrawal
+    proven on L1 was initiated on L2.
+    [OP Enterprise security monitoring](/chain-operators/tools/chain-monitoring#op-enterprise-security-monitoring)
+    provides these monitors, depending on your agreement; without it, you
+    build or source them yourself. Your own components
     need their metrics endpoints scraped alongside that: `op-node`,
     `op-batcher`, `op-proposer`, and `op-challenger` each expose one. Peer
     count belongs on that list too, because an `op-node` without peers cannot
