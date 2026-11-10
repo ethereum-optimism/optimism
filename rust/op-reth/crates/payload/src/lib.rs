@@ -85,7 +85,7 @@ where
     // `block_to_payload` and `From<OpBuiltPayload<N>> for OpExecData` are
     // separate conversion paths to the same type. OP execution data does not
     // currently carry a BAL, so both paths intentionally discard it.
-    /// UPSTREAM-MIRROR(copy): reth@rev:d7a863a
+    /// UPSTREAM-MIRROR(copy): reth@rev:c65bb32
     /// `reth_ethereum_engine_primitives::EthPayloadTypes::block_to_payload`
     ///
     /// Mirrors the upstream conversion while constructing OP execution data.
