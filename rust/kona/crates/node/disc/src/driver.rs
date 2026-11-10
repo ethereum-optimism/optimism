@@ -205,7 +205,9 @@ impl Discv5Driver {
     /// the IP the session's packets came from, as only that address has shown that the node runs
     /// discovery. The driver then hands it to gossip and saves its record in the bootstore, which
     /// dials the same address after a restart; it doesn't send it to other nodes. Only a record
-    /// valid for `chain_id` is dialed, from these events:
+    /// valid for `chain_id`, and that `table_filter` accepts, is dialed: a node that uses only
+    /// public addresses doesn't dial a private one even after a session with it. The record comes
+    /// from these events:
     ///
     /// - `SessionEstablished`: a session with the node started, in either direction. Our lookups
     ///   start one with each node they contact. discv5 only checked the record's UDP address of the
@@ -225,7 +227,11 @@ impl Discv5Driver {
     /// A `Discovered` record, from another node's answer to one of our lookups, isn't dialed:
     /// discv5 sends it before any check, and nothing shows that the node is at the address in it.
     /// The lookup that found it contacts it, if the table filter lets it, and a session follows.
-    fn record_to_dial(event: discv5::Event, chain_id: u64) -> Option<RecordToDial> {
+    fn record_to_dial(
+        event: discv5::Event,
+        chain_id: u64,
+        table_filter: fn(&Enr) -> bool,
+    ) -> Option<RecordToDial> {
         let (kind, enr, socket) = match event {
             discv5::Event::Discovered(enr) => {
                 if EnrValidation::validate(&enr, chain_id).is_valid() {
@@ -249,6 +255,10 @@ impl Discv5Driver {
         }
         if !holds_session_ip(&enr, socket.ip()) {
             debug!(target: "discovery", event = kind, %socket, "Ignoring a record without a TCP address at the IP its session came from");
+            return None;
+        }
+        if !table_filter(&enr) {
+            debug!(target: "discovery", event = kind, %socket, "Ignoring a session at an address discovery doesn't use; --p2p.discovery.private allows private ones");
             return None;
         }
         Some(RecordToDial { event: kind, enr })
@@ -526,15 +536,11 @@ impl Discv5Driver {
                             return;
                         };
                         if let Some(RecordToDial { event: kind, enr }) =
-                            Self::record_to_dial(event, chain_id)
+                            Self::record_to_dial(event, chain_id, table_filter)
                         {
                             debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
-                            // A session shows that a node at a private address is reachable, so
-                            // it is dialed, but not saved: the next start would remove it.
-                            if table_filter(&enr) {
-                                store.add_enr(enr.clone());
-                            }
+                            store.add_enr(enr.clone());
                             let sender = enr_sender.clone();
                             spawn_in_current_span(async move {
                                 if let Err(e) = sender.send(enr).await {
@@ -652,13 +658,14 @@ mod tests {
     ) {
         let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
         assert_eq!(
-            Discv5Driver::record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID),
+            Discv5Driver::record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID, accept_all),
             expected.map(|event| RecordToDial { event, enr })
         );
         assert_eq!(
             Discv5Driver::record_to_dial(
                 event(localhost_enr(OP_MAINNET_CHAIN_ID)),
-                OP_SEPOLIA_CHAIN_ID
+                OP_SEPOLIA_CHAIN_ID,
+                accept_all
             ),
             None,
             "a record for another chain is never dialed"
@@ -744,8 +751,8 @@ mod tests {
         #[case] record: Enr,
         #[case] tcp_port: Option<u16>,
     ) {
-        let dialed =
-            Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID).map(|record| {
+        let dialed = Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID, accept_all)
+            .map(|record| {
                 let addr = kona_peers::enr_to_multiaddr(&record.enr)
                     .expect("a dialed record has a TCP address");
                 addr.iter().take(2).map(|p| p.acquire()).collect::<Vec<_>>()
@@ -973,6 +980,28 @@ mod tests {
         );
     }
 
+    /// A table filter that accepts every record, for the tests of the other rules.
+    fn accept_all(_: &Enr) -> bool {
+        true
+    }
+
+    /// A session's record is dialed only if the table filter accepts it, as the records discovery
+    /// contacts are.
+    #[rstest]
+    #[case::public_only(crate::public_only, None)]
+    #[case::allowing_private(accept_all, Some("session_established"))]
+    fn test_record_to_dial_applies_the_table_filter(
+        #[case] table_filter: fn(&Enr) -> bool,
+        #[case] expected: Option<&'static str>,
+    ) {
+        let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
+        let event = session_from("127.0.0.1")(enr.clone());
+        assert_eq!(
+            Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, table_filter),
+            expected.map(|event| RecordToDial { event, enr })
+        );
+    }
+
     /// A node with a public-only table filter should use only public addresses: it shouldn't dial
     /// a node at a private address even after a session with it, which only shows that the node is
     /// reachable from here. To peer with private nodes, a node needs `--p2p.discovery.private`, or
@@ -1020,7 +1049,6 @@ mod tests {
             .await
             .expect("the loopback node starts a session with the node");
 
-        // TODO(#23766): fails, as a session's record is dialed whatever its address.
         let dialed = tokio::time::timeout(Duration::from_secs(1), records.recv()).await;
         assert!(dialed.is_err(), "a public-only node dialed a session at a loopback address");
     }
