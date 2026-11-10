@@ -156,8 +156,8 @@ var (
 	}
 	DeployMockSP1VerifierFlag = &cli.BoolFlag{
 		Name: DeployMockSP1VerifierFlagName,
-		Usage: "with --deployment-target genesis, deploy a mock SP1 verifier for the ZK dispute game. " +
-			"Development only: the mock accepts every proof.",
+		Usage: "deploy a mock SP1 verifier for the ZK dispute game, on a genesis or a live L1 without a " +
+			"release verifier. Development only: the mock accepts every proof.",
 		EnvVars: PrefixEnvVar("DEPLOY_MOCK_SP1_VERIFIER"),
 		Value:   false,
 	}

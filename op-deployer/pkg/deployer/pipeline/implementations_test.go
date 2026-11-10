@@ -26,9 +26,10 @@ func TestGenesisMockSP1VerifierArtifactAndDeployment(t *testing.T) {
 	require.NotEmpty(t, artifact.Bytecode.Object, "genesis MockSP1Verifier must have bytecode in op-deployer artifacts")
 
 	host := script.NewHost(testlog.Logger(t, slog.LevelDebug), af, nil, script.DefaultContext)
-	verifier, err := deployGenesisMockSP1Verifier(&Env{
+	verifier, err := deployMockSP1Verifier(&Env{
 		L1ScriptHost: host,
 		Deployer:     common.Address{0xdd},
+		IsGenesis:    true,
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, common.Address{}, verifier)
@@ -97,9 +98,10 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		adapterArtifact, err := af.ReadArtifact("SP1PlonkAdapter.sol", "SP1PlonkAdapter")
 		require.NoError(t, err)
 
-		rawVerifier, err := deployGenesisMockSP1Verifier(&Env{
+		rawVerifier, err := deployMockSP1Verifier(&Env{
 			L1ScriptHost: host,
 			Deployer:     common.Address{0xdd},
+			IsGenesis:    true,
 		})
 		require.NoError(t, err)
 		constructorArgs, err := adapterArtifact.ABI.Pack("", rawVerifier)
@@ -217,6 +219,12 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 		capture, _, err := deploy(t, Env{}, intentFor(900, nil), newSP1VerifierTestState())
 		require.ErrorContains(t, err, "sp1Verifier must be specified")
 		require.ErrorContains(t, err, "900")
+		require.False(t, capture.ran)
+	})
+
+	t.Run("live mock is rejected on a network with a release verifier", func(t *testing.T) {
+		capture, _, err := deploy(t, Env{DeployMockSP1Verifier: true}, intentFor(11155111, nil), newSP1VerifierTestState())
+		require.ErrorContains(t, err, "has a release SP1 verifier")
 		require.False(t, capture.ran)
 	})
 

@@ -7,9 +7,12 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/holiman/uint256"
 	"github.com/lmittmann/w3"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -50,7 +53,9 @@ func ResolveSuperchainProofParams(intent *state.Intent) (state.SuperchainProofPa
 func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
 	if env.DeployMockSP1Verifier && !env.IsGenesis {
-		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
+		if err := CheckLiveMockSP1Verifier(intent.L1ChainID); err != nil {
+			return err
+		}
 	}
 
 	requestedSP1Verifier, hasSP1VerifierOverride, err := parseSP1VerifierOverride(intent.GlobalDeployOverrides)
@@ -73,7 +78,8 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		}
 		selectedSP1Verifier, err = standard.SP1VerifierFor(intent.L1ChainID)
 		if err != nil {
-			return fmt.Errorf("sp1Verifier must be specified on L1 chain ID %d: %w", intent.L1ChainID, err)
+			return fmt.Errorf("sp1Verifier must be specified on L1 chain ID %d (%w); for a development L1, "+
+				"set ApplyPipelineOpts.DeployMockSP1Verifier (CLI: --deploy-mock-sp1-verifier)", intent.L1ChainID, err)
 		}
 	}
 
@@ -129,7 +135,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			"sp1Verifier", requestedSP1Verifier)
 	}
 	if env.DeployMockSP1Verifier && input.SP1Verifier == (common.Address{}) {
-		input.SP1Verifier, err = deployGenesisMockSP1Verifier(env)
+		input.SP1Verifier, err = deployMockSP1Verifier(env)
 		if err != nil {
 			return err
 		}
@@ -247,11 +253,63 @@ func readReusedSP1Verifier(env *Env, adapter common.Address) (common.Address, er
 	return deployed, nil
 }
 
-func deployGenesisMockSP1Verifier(env *Env) (common.Address, error) {
-	if env.L1ScriptHost == nil {
-		return common.Address{}, fmt.Errorf("cannot deploy genesis MockSP1Verifier without an L1 script host")
+// CheckLiveMockSP1Verifier refuses the mock SP1 verifier on a live L1 that has a release verifier.
+func CheckLiveMockSP1Verifier(l1ChainID uint64) error {
+	if _, err := standard.SP1VerifierFor(l1ChainID); err == nil {
+		return fmt.Errorf("L1 chain ID %d has a release SP1 verifier; the mock SP1 verifier is only for development L1s", l1ChainID)
 	}
-	return opcm.DeployMockSP1Verifier(env.L1ScriptHost, env.Deployer)
+	return nil
+}
+
+// deployMockSP1Verifier deploys MockSP1Verifier into the L1 script host. On a live L1 it also sends
+// the deployment and waits for its receipt, so that later deploys, including Forge-run ones, find the
+// verifier on chain.
+func deployMockSP1Verifier(env *Env) (common.Address, error) {
+	host := env.L1ScriptHost
+	if host == nil {
+		return common.Address{}, fmt.Errorf("cannot deploy MockSP1Verifier without an L1 script host")
+	}
+	ctx := env.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !env.IsGenesis {
+		if env.L1Client == nil {
+			return common.Address{}, fmt.Errorf("cannot deploy MockSP1Verifier to a live L1 without an L1 client")
+		}
+		// Forge-run stages send transactions the forked host never sees, so its deployer nonce can
+		// lag the chain's, and the mock's address is derived from the nonce it is sent with.
+		chainNonce, err := env.L1Client.PendingNonceAt(ctx, env.Deployer)
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to read the deployer nonce: %w", err)
+		}
+		host.SetNonce(env.Deployer, chainNonce)
+	}
+	nonce := host.GetNonce(env.Deployer)
+	verifier, initCode, err := opcm.DeployMockSP1Verifier(host, env.Deployer)
+	if err != nil || env.IsGenesis {
+		return verifier, err
+	}
+
+	env.Broadcaster.Hook(broadcaster.Broadcast{
+		From:  env.Deployer,
+		To:    verifier,
+		Input: initCode,
+		Value: (*hexutil.U256)(uint256.NewInt(0)),
+		Type:  broadcaster.BroadcastCreate,
+		Nonce: nonce,
+	})
+	results, err := env.Broadcaster.Broadcast(ctx)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to send MockSP1Verifier deployment: %w", err)
+	}
+	if len(results) == 0 {
+		return common.Address{}, fmt.Errorf("MockSP1Verifier deployment was not sent")
+	}
+	if deployed := results[len(results)-1].Receipt.ContractAddress; deployed != verifier {
+		return common.Address{}, fmt.Errorf("MockSP1Verifier deployed at %s, expected %s", deployed, verifier)
+	}
+	return verifier, nil
 }
 
 func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {

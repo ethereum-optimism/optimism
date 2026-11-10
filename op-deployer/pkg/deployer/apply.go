@@ -43,7 +43,7 @@ type ApplyConfig struct {
 	UseScriptHost bool
 	// ReceiptQueryInterval is how often to poll for each broadcast's receipt. Zero uses the broadcaster's default.
 	ReceiptQueryInterval time.Duration
-	// DeployMockSP1Verifier deploys an accept-all SP1 verifier into a genesis deployment.
+	// DeployMockSP1Verifier deploys an accept-all SP1 verifier on an L1 without a release verifier.
 	DeployMockSP1Verifier bool
 }
 
@@ -226,12 +226,14 @@ func ApplyPipeline(
 	ctx context.Context,
 	opts ApplyPipelineOpts,
 ) error {
-	if opts.DeployMockSP1Verifier && opts.DeploymentTarget != DeploymentTargetGenesis {
-		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
-	}
-
 	intent := opts.Intent
 	st := opts.State
+	// Checked before any stage runs, so that a refused apply sends no transactions.
+	if opts.DeployMockSP1Verifier && opts.DeploymentTarget == DeploymentTargetLive && intent != nil {
+		if err := pipeline.CheckLiveMockSP1Verifier(intent.L1ChainID); err != nil {
+			return err
+		}
+	}
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return err
 	}

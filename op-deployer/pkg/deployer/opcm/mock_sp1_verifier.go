@@ -15,19 +15,20 @@ const (
 	MockSP1VerifierContract = "MockSP1Verifier"
 )
 
-// DeployMockSP1Verifier deploys the accept-all MockSP1Verifier into a script host. Development
-// environments pass it as DeployImplementationsInput.SP1Verifier.
-func DeployMockSP1Verifier(host *script.Host, deployer common.Address) (common.Address, error) {
+// DeployMockSP1Verifier deploys the accept-all MockSP1Verifier into a script host and returns its
+// address and init code. Development environments pass it as DeployImplementationsInput.SP1Verifier.
+func DeployMockSP1Verifier(host *script.Host, deployer common.Address) (common.Address, []byte, error) {
 	artifact, err := host.Artifacts().ReadArtifact(MockSP1VerifierArtifact, MockSP1VerifierContract)
 	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to read MockSP1Verifier artifact: %w", err)
+		return common.Address{}, nil, fmt.Errorf("failed to read MockSP1Verifier artifact: %w", err)
 	}
-	verifier, err := host.Create(deployer, artifact.Bytecode.Object)
+	initCode := artifact.Bytecode.Object
+	verifier, err := host.Create(deployer, initCode)
 	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to deploy MockSP1Verifier: %w", err)
+		return common.Address{}, nil, fmt.Errorf("failed to deploy MockSP1Verifier: %w", err)
 	}
 	if verifier == (common.Address{}) {
-		return common.Address{}, fmt.Errorf("MockSP1Verifier deployment produced no contract address")
+		return common.Address{}, nil, fmt.Errorf("MockSP1Verifier deployment produced no contract address")
 	}
-	return verifier, nil
+	return verifier, initCode, nil
 }
