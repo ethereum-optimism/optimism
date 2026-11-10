@@ -147,8 +147,8 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 		sys.L2BCL.AdvancedFn(safety.CrossSafe, 3, 45),
 	)
 	dsl.CheckAll(t,
-		sys.L2ACL.MatchedFn(sys.L2ASupernodeCL, safety.CrossSafe, 30),
-		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.CrossSafe, 30),
+		sys.L2ACL.InSyncFn(sys.L2ASupernodeCL, safety.CrossSafe, 30),
+		sys.L2BCL.InSyncFn(sys.L2BSupernodeCL, safety.CrossSafe, 30),
 	)
 
 	// The invalid exec-message tx must be gone from the replacement block on BOTH the light
