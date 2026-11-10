@@ -19,9 +19,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
-// genesisChainID is the chain ID that genesis scripts see. Not the L1 chain ID: the Permit2
-// preinstall depends on it, and earlier releases made the L1 dev genesis with 1337.
-const genesisChainID = 1337
+// offlineScriptChainID is the chain ID of the Go script host's default context, so that offline forge
+// runs produce the same state. It matters for the L1 dev genesis, whose Permit2 preinstall has the
+// chain ID built in; L2Genesis sets the L2 chain ID itself.
+const offlineScriptChainID = 1337
 
 // GenesisState is the L1 state of a genesis deployment. Each script runs offline in its own forge
 // process: it loads this state, and the state it leaves replaces it.
@@ -114,7 +115,7 @@ func (g *GenesisState) run(client *forge.Client, fn func(client *forge.Client, f
 	}
 	flags := []string{
 		"--sender", g.Sender.Hex(),
-		"--chain", strconv.Itoa(genesisChainID),
+		"--chain", strconv.Itoa(offlineScriptChainID),
 		"--block-number", "0",
 		"--block-timestamp", "0",
 	}
