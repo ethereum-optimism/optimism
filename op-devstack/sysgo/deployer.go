@@ -69,6 +69,9 @@ var proxyImplementationSlot = common.HexToHash("0x360894a13ba1a3210667c828492db9
 
 type DeployerOption func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder)
 
+// DefaultL1BlockTime is the L1 block time in seconds, unless a test sets it with WithL1BlockTime.
+const DefaultL1BlockTime = 6
+
 func WithForkAtL1Genesis(fork forks.Fork) DeployerOption {
 	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 		builder.L1().WithL1ForkAtGenesis(fork)
@@ -298,6 +301,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 
 		l1StartTimestamp := uint64(time.Now().Unix()) + 1
 		l1Config.WithTimestamp(l1StartTimestamp)
+		l1Config.WithBlockTime(DefaultL1BlockTime)
 		// Amsterdam state gas raises live OPCM deployment above 50 million gas.
 		l1Config.WithGasLimit(60_000_000)
 
@@ -426,6 +430,13 @@ func WithDeployerMatchL1PAO() DeployerPipelineOption {
 		deployerKey, err := wb.keys.Secret(devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID))
 		wb.require.NoError(err)
 		cfg.DeployerPrivateKey = deployerKey
+	}
+}
+
+// WithL1BlockTime sets the L1 block time in seconds.
+func WithL1BlockTime(seconds uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		builder.L1().WithBlockTime(seconds)
 	}
 }
 
@@ -709,9 +720,11 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 	}
 	wb.output = st
 	wb.buildL1Genesis()
+	l1BlockTime := wb.builder.L1().BlockTime()
+	wb.require.NotZero(l1BlockTime, "L1 block time must be set")
 	l1Net := &L1Network{
 		name: "l1", chainID: eth.ChainIDFromUInt64(intent.L1ChainID),
-		genesis: wb.outL1Genesis, blockTime: 6,
+		genesis: wb.outL1Genesis, blockTime: l1BlockTime,
 	}
 	l1EL, l1CL := startL1(l1Net)
 	intent.OPCMAddress = &st.ImplementationsDeployment.OpcmV2Impl
