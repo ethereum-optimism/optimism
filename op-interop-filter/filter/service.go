@@ -246,6 +246,18 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		chains,
 	)
 
+	failsafeStatePath := FailsafeStatePath(cfg.DataDir)
+	manualFailsafe, err := initialManualFailsafe(failsafeStatePath, cfg.FailsafeEnabled)
+	if err != nil {
+		return err
+	}
+	if failsafeStatePath == "" {
+		s.log.Warn("No data directory set, manual failsafe will not survive a restart")
+	}
+	if manualFailsafe {
+		s.log.Warn("Manual failsafe enabled at start", "flag", cfg.FailsafeEnabled)
+	}
+
 	s.backend = NewBackend(ctx, BackendParams{
 		Logger:                      s.log,
 		Metrics:                     s.metrics,
@@ -256,6 +268,9 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 
 		ReorgRecoveryEnabled: cfg.ReorgRecoveryEnabled,
 		FailsafeLogInterval:  cfg.FailsafeLogInterval,
+
+		ManualFailsafe:    manualFailsafe,
+		FailsafeStatePath: failsafeStatePath,
 	})
 
 	s.log.Info("Created backend", "chains", len(chains))
@@ -419,8 +434,8 @@ func (s *Service) Ready() bool {
 
 // SetFailsafeEnabled sets the manual failsafe override on the backend.
 // Used by tests to toggle failsafe mode without admin RPC/JWT.
-func (s *Service) SetFailsafeEnabled(enabled bool) {
-	s.backend.SetFailsafeEnabled(enabled)
+func (s *Service) SetFailsafeEnabled(enabled bool) error {
+	return s.backend.SetFailsafeEnabled(enabled)
 }
 
 // FailsafeEnabled returns whether failsafe is currently active.
