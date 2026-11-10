@@ -229,8 +229,8 @@ func ApplyPipeline(
 	intent := opts.Intent
 	st := opts.State
 	// Checked before any stage runs, so that a refused apply sends no transactions.
-	if opts.DeployMockSP1Verifier && opts.DeploymentTarget == DeploymentTargetLive && intent != nil {
-		if err := pipeline.CheckLiveMockSP1Verifier(intent.L1ChainID); err != nil {
+	if opts.DeployMockSP1Verifier && intent != nil {
+		if err := pipeline.CheckMockSP1Verifier(intent.L1ChainID); err != nil {
 			return err
 		}
 	}

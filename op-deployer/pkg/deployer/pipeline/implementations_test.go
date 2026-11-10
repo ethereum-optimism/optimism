@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -222,11 +223,13 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 		require.False(t, capture.ran)
 	})
 
-	t.Run("live mock is rejected on a network with a release verifier", func(t *testing.T) {
-		capture, _, err := deploy(t, Env{DeployMockSP1Verifier: true}, intentFor(11155111, nil), newSP1VerifierTestState())
-		require.ErrorContains(t, err, "has a release SP1 verifier")
-		require.False(t, capture.ran)
-	})
+	for _, isGenesis := range []bool{false, true} {
+		t.Run(fmt.Sprintf("mock is rejected on a network with a release verifier/isGenesis=%t", isGenesis), func(t *testing.T) {
+			capture, _, err := deploy(t, Env{DeployMockSP1Verifier: true, IsGenesis: isGenesis}, intentFor(11155111, nil), newSP1VerifierTestState())
+			require.ErrorContains(t, err, "has a release SP1 verifier")
+			require.False(t, capture.ran)
+		})
+	}
 
 	t.Run("genesis does not select the release verifier", func(t *testing.T) {
 		capture, _, err := deploy(t, Env{IsGenesis: true}, intentFor(11155111, nil), newSP1VerifierTestState())

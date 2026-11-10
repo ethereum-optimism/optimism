@@ -52,8 +52,8 @@ func ResolveSuperchainProofParams(intent *state.Intent) (state.SuperchainProofPa
 
 func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
-	if env.DeployMockSP1Verifier && !env.IsGenesis {
-		if err := CheckLiveMockSP1Verifier(intent.L1ChainID); err != nil {
+	if env.DeployMockSP1Verifier {
+		if err := CheckMockSP1Verifier(intent.L1ChainID); err != nil {
 			return err
 		}
 	}
@@ -253,8 +253,9 @@ func readReusedSP1Verifier(env *Env, adapter common.Address) (common.Address, er
 	return deployed, nil
 }
 
-// CheckLiveMockSP1Verifier refuses the mock SP1 verifier on a live L1 that has a release verifier.
-func CheckLiveMockSP1Verifier(l1ChainID uint64) error {
+// CheckMockSP1Verifier refuses the mock SP1 verifier on an L1 that has a release verifier, for
+// every deployment target.
+func CheckMockSP1Verifier(l1ChainID uint64) error {
 	if _, err := standard.SP1VerifierFor(l1ChainID); err == nil {
 		return fmt.Errorf("L1 chain ID %d has a release SP1 verifier; the mock SP1 verifier is only for development L1s", l1ChainID)
 	}

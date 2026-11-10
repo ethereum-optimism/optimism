@@ -13,8 +13,7 @@ import (
 // ForgeEnv runs the deploy scripts with forge, against a live L1 or offline on a GenesisState.
 type ForgeEnv struct {
 	Client *forge.Client
-	// Artifacts are the contract artifacts of the bundle that Client runs. Only
-	// DeployMockSP1VerifierLive reads them.
+	// Artifacts are the contract artifacts of the bundle that Client runs.
 	Artifacts            foundry.StatDirFs
 	Context              context.Context
 	L1RPCUrl             string

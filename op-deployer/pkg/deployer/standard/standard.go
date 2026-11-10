@@ -142,7 +142,7 @@ var sp1VerifierHashes = func() map[string]common.Hash {
 // SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
 // chain ID. Both `bootstrap implementations` and live `apply` default to it when the operator did
 // not pin a verifier. Change it together with SP1VerifierHashFor and the sp1-sdk pin in rust/Cargo.toml.
-// pipeline.CheckLiveMockSP1Verifier also uses it to refuse the accept-all mock verifier on every L1
+// pipeline.CheckMockSP1Verifier also uses it to refuse the accept-all mock verifier on every L1
 // chain ID it supports, so removing a chain ID here allows the mock on that L1.
 // DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
 func SP1VerifierFor(chainID uint64) (common.Address, error) {
