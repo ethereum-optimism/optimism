@@ -96,9 +96,9 @@ func TestOpNodeDecodesRethBlocks(t *testing.T) {
 	require.Equal(t, block2, common.Hash(env2.ExecutionPayload.BlockHash))
 	require.Equal(t, block1, common.Hash(env2.ExecutionPayload.ParentHash), "block2 parent is block1")
 
-	// The full transaction bodies decode correctly: the first tx of block 1 is a deposit (type
-	// 0x7E) — proving the deposit-tx JSON round-trips, the highest-risk part of the serialization —
-	// and the other is the user tx.
+	// The full transaction bodies decode correctly. Block 1 holds exactly two txs (env1 above): the
+	// first is a deposit (type 0x7E) — proving the deposit-tx JSON round-trips, the highest-risk
+	// part of the serialization — and the other is the user tx.
 	info, _, err := ethCl.InfoAndFirstDepositByHash(ctx, block1)
 	require.NoError(t, err, "first tx is the L1-info/forced deposit")
 	require.Equal(t, block1, info.Hash())
