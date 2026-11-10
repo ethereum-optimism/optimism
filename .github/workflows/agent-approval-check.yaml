@@ -27,7 +27,7 @@ jobs:
       - uses: ethereum-optimism/factory/actions/agent-approval-check@3b9820b2acad0b7086b401fe4bdc06b24535cabf
         with:
           required_approvals: 2
-          agent_emails: noreply@anthropic.com,centaur-bot@users.noreply.github.com,centaur@oplabs.co
-          agent_logins: claude[bot],claude-code[bot],centaur-bot
+          agent_emails: noreply@anthropic.com
+          agent_logins: claude[bot],claude-code[bot]
           excluded_approvers: OptimismBot
           agent_branch_prefixes: centaur/
