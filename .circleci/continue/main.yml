@@ -105,6 +105,9 @@ parameters:
   c-run_scheduled_daily_tests:
     type: boolean
     default: false
+  c-run_scheduled_shipped_binaries:
+    type: boolean
+    default: false
   c-run_contracts_feature_tests:
     type: boolean
     default: false
@@ -897,6 +900,30 @@ jobs:
           paths:
             - "rust/target/release/op-reth"
             - "rust/target/release/op-reth-test-engine"
+
+  # Stands in for rust-kona-binaries and rust-op-reth-binary with the binaries
+  # from the images published for this commit, so op-acceptance-tests runs what
+  # we ship (maxperf, Wolfi rustc) rather than CI's release build.
+  shipped-rust-binaries:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    # Mostly waits and downloads.
+    resource_class: small.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: Fetch shipped Rust binaries
+          command: bash .circleci/scripts/fetch-shipped-rust-binaries.sh
+      - persist_to_workspace:
+          root: "."
+          paths:
+            - ".circleci-cache/shipped-rust-binaries"
+            - "rust/target/release/op-reth"
+            - "rust/target/release/kona-node"
+            - "rust/target/release/kona-host"
+            - "rust/target/release/op-zk-proposer"
 
   initialize:
     docker:
@@ -2694,7 +2721,7 @@ workflows:
       # OP Node retains 20 vCPU / 40 GiB after a 38.5 GiB observed peak; Kona trials
       # 16 vCPU / 32 GiB after a 21.3 GiB observed peak.
       # IN-MEMORY - op-node/op-reth
-      - op-acceptance-tests:
+      - op-acceptance-tests: &memory_all_opn
           name: memory-all-opn-op-reth-<<matrix.l1_fork>>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
@@ -2720,7 +2747,7 @@ workflows:
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
       # IN-MEMORY - kona/op-reth
-      - op-acceptance-tests:
+      - op-acceptance-tests: &memory_all_kona
           name: memory-all-kona-op-reth-<<matrix.l1_fork>>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
@@ -2974,6 +3001,74 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
+            - slack
+
+  # memory-all against the op-reth and kona binaries we ship, from the images
+  # build-images.apko.yaml publishes for the scheduled develop commit.
+  scheduled-shipped-binaries:
+    when: << pipeline.parameters.c-run_scheduled_shipped_binaries >>
+    jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-build:
+          build_args: --deny-warnings --skip test
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+      - cannon-prestate:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - prep-superchain:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - go-binaries-for-sysgo:
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-sp1-super-range-executor:
+          name: rust-sp1-super-range-executor
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - shipped-rust-binaries:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-acceptance-tests:
+          <<: *memory_all_opn
+          name: shipped-memory-all-opn-op-reth-<<matrix.l1_fork>>
+          requires: &shipped_memory_all_requires
+            - contracts-bedrock-build
+            - cannon-prestate
+            - shipped-rust-binaries
+            - rust-sp1-super-range-executor
+            - go-binaries-for-sysgo
+            - prep-go-modules
+            - prep-superchain
+      - op-acceptance-tests:
+          <<: *memory_all_kona
+          name: shipped-memory-all-kona-op-reth-<<matrix.l1_fork>>
+          requires: *shipped_memory_all_requires
+      # The memory-all jobs alert on their own failures, but don't run at all if
+      # a job they need fails. This alerts then.
+      - ci-gate:
+          name: shipped-memory-all-requires
+          requires:
+            - contracts-bedrock-build: terminal
+            - cannon-prestate: terminal
+            - shipped-rust-binaries: terminal
+            - rust-sp1-super-range-executor: terminal
+            - go-binaries-for-sysgo: terminal
+            - prep-go-modules: terminal
+            - prep-superchain: terminal
+          post-steps:
+            - notify-failures-on-develop:
+                mentions: "@protocol-oncall"
+          context:
+            - circleci-api-token
             - slack
 
   contracts-feature-tests:

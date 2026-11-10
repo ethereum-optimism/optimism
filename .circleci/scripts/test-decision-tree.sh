@@ -215,14 +215,14 @@ run_scenario \
   "Scheduled: build_daily" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
-  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke circleci_schedule_trigger_check
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_shipped_binaries scheduled_sp1_elf_smoke circleci_schedule_trigger_check
 
 REPO="ethereum-optimism/other" run_scenario \
   "Scheduled: build_daily, outside the public repo" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
   scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke \
-  --not circleci_schedule_trigger_check
+  --not circleci_schedule_trigger_check scheduled_shipped_binaries
 
 run_scenario \
   "Scheduled: build_weekly" \
