@@ -1227,6 +1227,12 @@ jobs:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           when: on_fail
+      - run:
+          name: Add test file paths to JUnit
+          # Lets `circleci tests split --split-by=timings` find timing history.
+          command: python3 ../../.circleci/scripts/forge-junit-add-file.py results
+          working_directory: packages/contracts-bedrock
+          when: always
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
