@@ -3052,8 +3052,8 @@ workflows:
           <<: *memory_all_kona
           name: shipped-memory-all-kona-op-reth-<<matrix.l1_fork>>
           requires: *shipped_memory_all_requires
-      # The memory-all jobs alert on their own failures, but don't run at all if
-      # a job they need fails. This alerts then.
+      # Pages on-call once if any job here fails, including a build job that
+      # stops the memory-all jobs from running at all.
       - ci-gate:
           name: shipped-memory-all-requires
           requires:
@@ -3064,9 +3064,11 @@ workflows:
             - go-binaries-for-sysgo: terminal
             - prep-go-modules: terminal
             - prep-superchain: terminal
+            - shipped-memory-all-opn-op-reth-fusaka: terminal
+            - shipped-memory-all-kona-op-reth-fusaka: terminal
           post-steps:
             - notify-failures-on-develop:
-                mentions: "@protocol-oncall"
+                mentions: "<!subteam^S09D13R3HJ7>" # @protocol-oncall
           context:
             - circleci-api-token
             - slack
