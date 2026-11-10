@@ -505,9 +505,15 @@ enum Failure {
 }
 
 /// Unfinished requests per device: one in pre-execution and one that waits for or uses the
-/// device. A local request keeps its stdin until it finishes, unlike an SPN upload, so this bounds
-/// the stdins held, each at most `OP_ZK_PROPOSER_MAX_STDIN_BYTES` but an aggregation's.
+/// device. A local request keeps its stdin until it is sent to a device, unlike an SPN upload, so
+/// this bounds the stdins held, each at most `OP_ZK_PROPOSER_MAX_STDIN_BYTES` but an aggregation's.
 const UNFINISHED_REQUESTS_PER_DEVICE: usize = 2;
+
+/// How long a finished outcome waits for its waiter. A game submits every log batch before it
+/// waits for any, and a retry can come long after a wait timed out, so this is days, not
+/// `SP1_TIMEOUT_SECONDS`. Each unclaimed outcome, for example from an abandoned game, holds one
+/// proof.
+const FINISHED_OUTCOME_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
 /// Pre-execution attempts while the executor's RSS monitor kills the child. One kill acts on a
 /// host-dependent sample, so SP1's own worker retries it too.
@@ -727,11 +733,13 @@ impl<S: DeviceServer> Core<S> {
         proof_id
     }
 
-    /// Removes finished outcomes that no one waited for within the proof timeout.
+    /// Removes finished outcomes that no one waited for within [`FINISHED_OUTCOME_TTL`].
     fn remove_expired(&self) {
-        let timeout = self.timeout();
         self.outcomes.lock().retain(|_, receiver| {
-            receiver.borrow().as_ref().is_none_or(|finished| finished.at.elapsed() <= timeout)
+            receiver
+                .borrow()
+                .as_ref()
+                .is_none_or(|finished| finished.at.elapsed() <= FINISHED_OUTCOME_TTL)
         });
     }
 
@@ -1483,13 +1491,26 @@ mod tests {
         assert_eq!(harness.script.prove.calls(), 1);
     }
 
+    /// Pins that a finished proof is kept past the proof timeout.
+    #[tokio::test(start_paused = true)]
+    async fn finished_proof_outlives_the_proof_timeout() {
+        let harness = Harness::new(1);
+        let proof_id = harness.request().await;
+        harness.finished(proof_id).await;
+
+        tokio::time::advance(harness.core.timeout() * 2).await;
+        harness.request().await;
+
+        harness.core.wait(proof_id).await.unwrap();
+    }
+
     #[tokio::test(start_paused = true)]
     async fn unwaited_finished_entry_expires() {
         let harness = Harness::new(1);
         let proof_id = harness.request().await;
         harness.finished(proof_id).await;
 
-        tokio::time::advance(harness.core.timeout()).await;
+        tokio::time::advance(FINISHED_OUTCOME_TTL).await;
         let kept = harness.request().await;
         assert!(harness.core.outcomes.lock().contains_key(&proof_id));
 

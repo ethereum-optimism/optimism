@@ -341,22 +341,23 @@ that holds `v6.1.0/` with a `.complete` marker, as the image does; otherwise the
 downloads the circuits.
 
 Each request first runs its program on the CPU (pre-execution) with its cycle limit and
-`OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES`, at most one per device at a time. An execution
-error, such as a cycle or memory breach, or a guest exit code other than 0 is `Unexecutable`,
-so the proposer bisects or splits as it does for SPN. A memory-monitor kill counts only after
-3 runs, since one kill reads a host-dependent RSS sample. The request then waits for a free
-device, which proves one request at a time; pre-execution holds no device. Any other failure
-ends the request as `ProverFailed`, logged at error level, and the next attempt submits it
-again until the game deadline. This includes an external kill of the executor and SP1's
-`Other` error, which covers an executor that failed or ended abnormally, such as on a full
-`/dev/shm`, but also some guest faults: such a span is retried, not split. An aggregation
-stdin over 4 GiB, about 3,370 child proofs, is `ProverFailed` without reaching a device: the
-server protocol frames a request with a 32-bit length. A wait
-returns after `SP1_TIMEOUT_SECONDS` while the proof keeps running, and the
-next attempt waits for the same proof. A finished proof that no one waits for is dropped
-after `SP1_TIMEOUT_SECONDS`. Nothing cancels a running proof, so the proof of an abandoned
-game runs to the end. A device sets up a program's proving key when a request first needs it,
-and keeps it until the process exits.
+`OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES`, at most one per device at a time. An execution error,
+such as a cycle or memory breach, or a guest exit code other than 0 is `Unexecutable`, so the
+proposer bisects or splits as it does for SPN. A memory-monitor kill counts only after 3 runs,
+since one kill reads a host-dependent RSS sample. The request then waits for a free device,
+which proves one request at a time; pre-execution holds no device. Any other failure ends the
+request as `ProverFailed`, logged at error level, and the next attempt submits it again until
+the game deadline. This includes an external kill of the executor and SP1's `Other` error, which
+covers an executor that failed or ended abnormally, such as on a full `/dev/shm`, but also some
+guest faults: such a span is retried, not split. An aggregation stdin over 4 GiB, about 3,370
+child proofs, is `ProverFailed` without reaching a device: the server protocol frames a request
+with a 32-bit length. A wait returns after `SP1_TIMEOUT_SECONDS` while the proof keeps running,
+and the next attempt waits for the same proof. A finished proof is kept until it is waited for,
+for up to 7 days: a game submits every log batch before it waits for any, and a retry can come
+long after a wait timed out. Until then, each unclaimed proof, for example from an abandoned
+game, stays in memory. Nothing cancels a running proof, so the proof of an abandoned game runs
+to the end. A device sets up a program's proving key when a request first needs it, and keeps it
+until the process exits.
 
 A broken connection to a GPU server, an unexpected response such as a proof of another kind
 than requested, or a panic while a task holds a device ends the process with an error, which
@@ -378,9 +379,9 @@ for one pre-execution and one proof, and count it in pod memory; the container d
 `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` to the device count: the default `1` uses one
 GPU per game.
 
-A local request keeps its stdin until it finishes, where SPN uploads a stdin and frees it. So a
-request starts only while fewer than two requests per device are unfinished, one in
-pre-execution and one at the device, each with a stdin of up to
+A local request keeps its stdin until it is sent to a device, where SPN uploads a stdin and
+frees it. So a request starts only while fewer than two requests per device are unfinished, one
+in pre-execution and one at the device, each with a stdin of up to
 `OP_ZK_PROPOSER_MAX_STDIN_BYTES` except an aggregation's. A game that submits many
 log-commitment batches therefore waits between them, as it waits for SPN uploads. Pre-execution
 makes one more copy of the stdin, and a request sent to a server is encoded once more and freed
