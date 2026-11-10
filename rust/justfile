@@ -423,6 +423,7 @@ check-no-std:
 
   no_std_packages=(
     # proof crates
+    kona-client
     kona-executor
     kona-mpt
     kona-preimage
