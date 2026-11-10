@@ -80,11 +80,11 @@ abstract contract OptimismPortal2_Reentrancy_TestInit is OptimismPortal2_TestIni
         _reenter();
     }
 
-    function holdERC20(BridgeHookTypes.Direction, bytes calldata) external {
+    function holdERC20(bytes32, BridgeHookTypes.Direction, bytes calldata) external {
         _reenter();
     }
 
-    function restoreERC20(BridgeHookTypes.Direction, bytes calldata) external {
+    function restoreERC20(bytes32, BridgeHookTypes.Direction, bytes calldata) external {
         _reenter();
     }
 
@@ -1483,6 +1483,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
 /// @title OptimismPortal2_FinalizeWithdrawalTransaction_Test
 /// @notice Test contract for OptimismPortal2 `finalizeWithdrawalTransaction` function.
 contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_Reentrancy_TestInit {
+    using stdStorage for StdStorage;
+
     event WithdrawalHeld(bytes32 indexed id, bytes32 indexed withdrawalHash);
 
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the target is the portal
@@ -2743,8 +2745,14 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
         bytes memory message = abi.encodeCall(
-            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+            IStandardBridge.finalizeBridgeERC20, (address(L1Token), address(L2Token), alice, bob, 100, hex"")
         );
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.deposits.selector)
+            .with_key(address(L1Token))
+            .with_key(address(L2Token))
+            .checked_write(100);
+        deal(address(L1Token), address(l1StandardBridge), 100);
         _defaultTx.sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         _defaultTx.target = address(l1CrossDomainMessenger);
         _defaultTx.value = 0;
@@ -2775,8 +2783,10 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
             nonce: 0
         });
         vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenWithdrawal.selector), abi.encode(false));
-        bytes memory holdERC20Call =
-            abi.encodeCall(IL1StandardBridge.holdERC20, (BridgeHookTypes.Direction.Withdrawal, message));
+        bytes memory holdERC20Call = abi.encodeCall(
+            IL1StandardBridge.holdERC20,
+            (BridgeHookHashing.hashItem(item), BridgeHookTypes.Direction.Withdrawal, message)
+        );
         bytes memory holdWithdrawalCall = abi.encodeCall(IBridgeHook.holdWithdrawal, (item));
         vm.expectCall(address(l1StandardBridge), holdERC20Call);
         vm.expectCall(hook, holdWithdrawalCall);
@@ -3304,6 +3314,8 @@ contract OptimismPortal2_DeleteProvenWithdrawal_Test is OptimismPortal2_TestInit
 /// @title OptimismPortal2_DepositTransaction_Test
 /// @notice Test contract for OptimismPortal2 `depositTransaction` function.
 contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_TestInit {
+    using stdStorage for StdStorage;
+
     event DepositHeld(bytes32 indexed id);
 
     /// @notice Tests that `depositTransaction` reverts when the destination address is non-zero
@@ -3842,8 +3854,14 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
         bytes memory message = abi.encodeCall(
-            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+            IStandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
         );
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.deposits.selector)
+            .with_key(address(L1Token))
+            .with_key(address(L2Token))
+            .checked_write(100);
+        deal(address(L1Token), address(l1StandardBridge), 100);
         bytes memory data = abi.encodeCall(
             ICrossDomainMessenger.relayMessage,
             (0, address(l1StandardBridge), Predeploys.L2_STANDARD_BRIDGE, 0, 200_000, message)
@@ -3863,8 +3881,9 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
             nonce: 0
         });
         vm.mockCall(hook, abi.encodeCall(IBridgeHook.screenDeposit, (item)), abi.encode(false));
-        bytes memory holdCall =
-            abi.encodeCall(IL1StandardBridge.holdERC20, (BridgeHookTypes.Direction.Deposit, message));
+        bytes memory holdCall = abi.encodeCall(
+            IL1StandardBridge.holdERC20, (BridgeHookHashing.hashItem(item), BridgeHookTypes.Direction.Deposit, message)
+        );
         vm.expectCall(address(l1StandardBridge), holdCall);
 
         vm.roll(block.number + 1);
@@ -4039,6 +4058,8 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
 /// @title OptimismPortal2_CompleteDepositTransaction_Test
 /// @notice Test contract for OptimismPortal2 `completeDepositTransaction` function.
 contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Reentrancy_TestInit {
+    using stdStorage for StdStorage;
+
     function setUp() public override {
         super.setUp();
         // A bridge hook is not supported alongside a custom gas token.
@@ -4183,8 +4204,14 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Reen
     ///         its tokens.
     function test_completeDepositTransaction_tokenTransfer_succeeds() external {
         bytes memory message = abi.encodeCall(
-            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+            IStandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
         );
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.deposits.selector)
+            .with_key(address(L1Token))
+            .with_key(address(L2Token))
+            .checked_write(100);
+        deal(address(L1Token), address(l1StandardBridge), 100);
         bytes memory data = abi.encodeCall(
             ICrossDomainMessenger.relayMessage,
             (0, address(l1StandardBridge), Predeploys.L2_STANDARD_BRIDGE, 0, 200_000, message)
@@ -4204,8 +4231,12 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Reen
             data: data,
             nonce: 0
         });
-        bytes memory restoreCall =
-            abi.encodeCall(IL1StandardBridge.restoreERC20, (BridgeHookTypes.Direction.Deposit, message));
+        vm.prank(hook);
+        L1Token.approve(address(l1StandardBridge), 100);
+        bytes memory restoreCall = abi.encodeCall(
+            IL1StandardBridge.restoreERC20,
+            (BridgeHookHashing.hashItem(item), BridgeHookTypes.Direction.Deposit, message)
+        );
         vm.expectCall(address(l1StandardBridge), restoreCall);
 
         vm.startStateDiffRecording();
@@ -4237,8 +4268,14 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Reen
     ///         return its tokens.
     function test_completeDepositTransaction_restoreFails_reverts() external {
         bytes memory message = abi.encodeCall(
-            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+            IStandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
         );
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.deposits.selector)
+            .with_key(address(L1Token))
+            .with_key(address(L2Token))
+            .checked_write(100);
+        deal(address(L1Token), address(l1StandardBridge), 100);
         bytes memory data = abi.encodeCall(
             ICrossDomainMessenger.relayMessage,
             (0, address(l1StandardBridge), Predeploys.L2_STANDARD_BRIDGE, 0, 200_000, message)
@@ -4509,7 +4546,7 @@ contract OptimismPortal2_CompleteWithdrawalTransaction_Test is OptimismPortal2_R
     /// @notice Tests that a token completion returns its tokens to the bridge before its call runs.
     function test_completeWithdrawalTransaction_tokenTransfer_succeeds() external {
         bytes memory message = abi.encodeCall(
-            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+            IStandardBridge.finalizeBridgeERC20, (address(L1Token), address(L2Token), alice, bob, 100, hex"")
         );
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
@@ -4538,8 +4575,17 @@ contract OptimismPortal2_CompleteWithdrawalTransaction_Test is OptimismPortal2_R
             .sig(optimismPortal2.heldWithdrawals.selector)
             .with_key(BridgeHookHashing.hashItem(item))
             .checked_write(true);
-        bytes memory restoreCall =
-            abi.encodeCall(IL1StandardBridge.restoreERC20, (BridgeHookTypes.Direction.Withdrawal, message));
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.heldTokenKinds.selector)
+            .with_key(BridgeHookHashing.hashItem(item))
+            .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
+        deal(address(L1Token), hook, 100);
+        vm.prank(hook);
+        L1Token.approve(address(l1StandardBridge), 100);
+        bytes memory restoreCall = abi.encodeCall(
+            IL1StandardBridge.restoreERC20,
+            (BridgeHookHashing.hashItem(item), BridgeHookTypes.Direction.Withdrawal, message)
+        );
         vm.expectCall(address(l1StandardBridge), restoreCall);
 
         vm.startStateDiffRecording();
