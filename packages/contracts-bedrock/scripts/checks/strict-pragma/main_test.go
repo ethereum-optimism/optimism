@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -285,4 +287,85 @@ func Test_removeComments(t *testing.T) {
 			require.Contains(t, result, tt.shouldContain)
 		})
 	}
+}
+
+func Test_rangeErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		pragmas map[string][]string
+		errs    []string
+	}{
+		{
+			name: "ranges that allow a pinned version",
+			pragmas: map[string][]string{
+				"src/Pinned.sol":       {"0.8.15"},
+				"src/PinnedNew.sol":    {"0.8.25"},
+				"src/Caret.sol":        {"^0.8.0"},
+				"src/CaretNewer.sol":   {"^0.8.24"},
+				"src/Bounded.sol":      {">=0.6.2 <0.9.0"},
+				"src/BoundedComma.sol": {">=0.8.13, <0.9.0"},
+			},
+		},
+		{
+			name: "caret above every pinned version",
+			pragmas: map[string][]string{
+				"src/Pinned.sol":    {"0.8.15"},
+				"src/PinnedNew.sol": {"0.8.25"},
+				"src/Float.sol":     {"^0.8.26"},
+			},
+			errs: []string{"src/Float.sol: pragma solidity ^0.8.26 allows none of the pinned compiler versions (0.8.15, 0.8.25)"},
+		},
+		{
+			name: "bound between pinned versions",
+			pragmas: map[string][]string{
+				"src/Pinned.sol":    {"0.8.15"},
+				"src/PinnedNew.sol": {"0.8.25"},
+				"src/Between.sol":   {">=0.8.16 <0.8.25"},
+			},
+			errs: []string{"src/Between.sol: pragma solidity >=0.8.16 <0.8.25 allows none"},
+		},
+		{
+			name: "every pragma of a file",
+			pragmas: map[string][]string{
+				"src/Pinned.sol": {"0.8.15"},
+				"src/Two.sol":    {"^0.8.0", ">=0.8.20"},
+			},
+			errs: []string{"src/Two.sol: pragma solidity >=0.8.20 allows none"},
+		},
+		{
+			name: "unparseable range",
+			pragmas: map[string][]string{
+				"src/Pinned.sol": {"0.8.15"},
+				"src/Bad.sol":    {"^zero"},
+			},
+			errs: []string{"src/Bad.sol: cannot parse pragma solidity ^zero"},
+		},
+		{
+			name: "unparseable pin",
+			pragmas: map[string][]string{
+				"src/Pinned.sol":    {"0.8.15"},
+				"src/BadPinned.sol": {"0.08.15"},
+			},
+			errs: []string{"src/BadPinned.sol: cannot parse pragma solidity 0.08.15"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := rangeErrors(tt.pragmas)
+			require.Len(t, errs, len(tt.errs))
+			for i, want := range tt.errs {
+				require.ErrorContains(t, errs[i], want)
+			}
+		})
+	}
+}
+
+func Test_readPragmas(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "Lib.sol")
+	content := "// pragma solidity ^0.8.30;\npragma solidity ^0.8.0;\n/* pragma solidity 0.7.6; */\npragma  solidity >=0.8.13 <0.9.0 ;\nlibrary Lib {}\n"
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	pragmas, errs := readPragmas(path)
+	require.Empty(t, errs)
+	require.Equal(t, []string{"^0.8.0", ">=0.8.13 <0.9.0"}, pragmas)
 }

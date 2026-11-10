@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -21,7 +23,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testReceiptQueryInterval replaces the default one-second receipt poll, which is nearly all of a
+// deploy's time because Anvil mines on send.
+const testReceiptQueryInterval = 50 * time.Millisecond
+
 var cliTestBinary string
+
+// requireFastReceiptPoll checks that the interval reached the command's broadcaster. Otherwise a
+// dropped field would only make the tests slower.
+func requireFastReceiptPoll(t *testing.T, output string) {
+	t.Helper()
+	reached := strings.Contains(output, "using non-default receipt query interval") &&
+		strings.Contains(output, "interval="+testReceiptQueryInterval.String())
+	require.True(t, reached, "the receipt query interval did not reach the broadcaster")
+}
 
 // CLITestRunner provides utilities for running op-deployer CLI commands in tests
 type CLITestRunner struct {
@@ -135,6 +150,12 @@ func (r *CLITestRunner) DeployMockSP1Verifier(t *testing.T) common.Address {
 
 // Run executes a CLI command and returns the output
 func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]string) (string, error) {
+	output, err := r.command(ctx, args, env).CombinedOutput()
+	return string(output), err
+}
+
+// command builds the CLI command.
+func (r *CLITestRunner) command(ctx context.Context, args []string, env map[string]string) *exec.Cmd {
 	if len(args) > 0 && args[0] == "op-deployer" {
 		args = args[1:]
 	}
@@ -147,12 +168,17 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	}
 	cmd.WaitDelay = 5 * time.Second
 	cmd.Dir = r.workDir
-	cmd.Env = cmd.Environ()
+	cmd.Env = append(cmd.Environ(),
+		"DEPLOYER_RECEIPT_QUERY_INTERVAL="+testReceiptQueryInterval.String(),
+		// requireFastReceiptPoll reads this log output.
+		"DEPLOYER_LOG_FORMAT=text",
+		"DEPLOYER_LOG_COLOR=false",
+		"DEPLOYER_LOG_LEVEL=info",
+	)
 	for key, value := range env {
 		cmd.Env = append(cmd.Env, key+"="+value)
 	}
-	output, err := cmd.CombinedOutput()
-	return string(output), err
+	return cmd
 }
 
 // RunWithNetwork executes a CLI command with network parameters if available
@@ -189,6 +215,19 @@ func (r *CLITestRunner) ExpectSuccessWithNetwork(t *testing.T, args []string, en
 	return output
 }
 
+// ExpectStdoutWithNetwork is ExpectSuccessWithNetwork, but returns only stdout.
+func (r *CLITestRunner) ExpectStdoutWithNetwork(t *testing.T, args []string, env map[string]string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	args = append(args, "--l1-rpc-url", r.l1RPC, "--private-key", r.privateKeyHex)
+	cmd := r.command(ctx, args, env)
+	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	require.NoError(t, cmd.Run(), "Command failed: %s", stderr)
+	return stdout.String()
+}
+
 // ExpectErrorContains runs a command expecting it to fail with specific error text
 func (r *CLITestRunner) ExpectErrorContains(t *testing.T, args []string, env map[string]string, contains string) string {
 	r.lgr.Info("Running cli command, expecting error")
@@ -204,7 +243,7 @@ func (r *CLITestRunner) ExpectErrorContains(t *testing.T, args []string, env map
 // ExpectErrorContainsWithNetwork runs a command with network parameters expecting it to fail with specific error text
 func (r *CLITestRunner) ExpectErrorContainsWithNetwork(t *testing.T, args []string, env map[string]string, contains string) string {
 	r.lgr.Info("Running cli command with network, expecting error")
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	output, err := r.RunWithNetwork(ctx, args, env)

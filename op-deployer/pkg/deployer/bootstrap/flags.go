@@ -204,7 +204,7 @@ var ImplementationsFlags = []cli.Flag{
 	deployer.VerifierUrlFlag,
 	deployer.VerifierAPIKeyFlag,
 	deployer.UseForgeFlag,
-	deployer.ForgeSlowBroadcastFlag,
+	deployer.ReceiptQueryIntervalFlag,
 }
 
 var ProxyFlags = []cli.Flag{
@@ -228,7 +228,7 @@ var SuperchainFlags = []cli.Flag{
 	deployer.VerifierUrlFlag,
 	deployer.VerifierAPIKeyFlag,
 	deployer.UseForgeFlag,
-	deployer.ForgeSlowBroadcastFlag,
+	deployer.ReceiptQueryIntervalFlag,
 }
 
 var ValidatorFlags = []cli.Flag{

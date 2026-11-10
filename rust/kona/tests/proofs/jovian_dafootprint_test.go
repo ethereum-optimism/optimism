@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -225,6 +226,7 @@ func TestJovianDAFootprint(gt *testing.T) {
 
 	for name, tt := range tests {
 		gt.Run(name, func(t *testing.T) {
+			op_e2e.InitParallel(t)
 			matrix := helpers.NewMatrix[helpers.DeployConfigOverride]()
 			matrix.AddDefaultTestCasesWithName(
 				name,

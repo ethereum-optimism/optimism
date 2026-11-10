@@ -20,6 +20,28 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
+const (
+	// DefaultReceiptQueryInterval is the receipt poll interval when none is set.
+	DefaultReceiptQueryInterval = time.Second
+	// minReceiptQueryInterval limits RPC load: each rebroadcast of a stuck transaction adds a poller,
+	// so a send stuck for a minute polls about 100 times a second at this rate.
+	minReceiptQueryInterval = 50 * time.Millisecond
+	// maxReceiptQueryInterval is the default. Slower polling leaves less time to see a mined
+	// transaction's receipt before rebroadcasts hit SafeAbortNonceTooLowCount and abort the send.
+	maxReceiptQueryInterval = DefaultReceiptQueryInterval
+)
+
+// CheckReceiptQueryInterval rejects unsafe intervals. Zero means DefaultReceiptQueryInterval.
+func CheckReceiptQueryInterval(interval time.Duration) error {
+	if interval != 0 && (interval < minReceiptQueryInterval || interval > maxReceiptQueryInterval) {
+		return fmt.Errorf(
+			"receipt query interval must be 0 or between %s and %s, got %s",
+			minReceiptQueryInterval, maxReceiptQueryInterval, interval,
+		)
+	}
+	return nil
+}
+
 type KeyedBroadcaster struct {
 	lgr    log.Logger
 	mgr    txmgr.TxManager
@@ -37,9 +59,19 @@ type KeyedBroadcasterOpts struct {
 }
 
 func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
+	if err := CheckReceiptQueryInterval(cfg.ReceiptQueryInterval); err != nil {
+		return nil, err
+	}
 	receiptQueryInterval := cfg.ReceiptQueryInterval
 	if receiptQueryInterval == 0 {
-		receiptQueryInterval = time.Second
+		receiptQueryInterval = DefaultReceiptQueryInterval
+	}
+	if receiptQueryInterval != DefaultReceiptQueryInterval {
+		cfg.Logger.Warn(
+			"using non-default receipt query interval, which is only meant for tests",
+			"interval", receiptQueryInterval,
+			"default", DefaultReceiptQueryInterval,
+		)
 	}
 
 	mgrCfg := &txmgr.Config{
@@ -175,6 +207,7 @@ func asTxCandidate(bcast Broadcast, gasLimit uint64) txmgr.TxCandidate {
 		candidate = txmgr.TxCandidate{
 			TxData:   bcast.Input,
 			To:       nil,
+			Value:    value,
 			GasLimit: gasLimit,
 		}
 	case BroadcastCreate2:

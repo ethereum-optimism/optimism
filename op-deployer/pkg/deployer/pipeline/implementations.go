@@ -68,7 +68,8 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	if intent.OPCMAddress == nil && !hasSP1VerifierOverride && !env.DeployMockSP1Verifier {
 		// A generated genesis contains no release-approved verifier, so it must be selected explicitly.
 		if env.IsGenesis {
-			return fmt.Errorf("sp1Verifier must be specified for genesis deployments")
+			return fmt.Errorf("sp1Verifier must be specified for genesis deployments; for development, " +
+				"set ApplyPipelineOpts.DeployMockSP1Verifier (CLI: --deploy-mock-sp1-verifier)")
 		}
 		selectedSP1Verifier, err = standard.SP1VerifierFor(intent.L1ChainID)
 		if err != nil {
@@ -123,6 +124,10 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		Challenger:                         st.SuperchainRoles.Challenger,
 		SP1Verifier:                        selectedSP1Verifier,
 	}
+	if env.DeployMockSP1Verifier && hasSP1VerifierOverride {
+		lgr.Warn("not deploying the mock SP1 verifier: the sp1Verifier override takes precedence",
+			"sp1Verifier", requestedSP1Verifier)
+	}
 	if env.DeployMockSP1Verifier && input.SP1Verifier == (common.Address{}) {
 		input.SP1Verifier, err = deployGenesisMockSP1Verifier(env)
 		if err != nil {
@@ -131,15 +136,9 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	}
 	lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
 
-	if env.UseForge {
+	if env.Forge != nil {
 		lgr.Info("using Forge for DeployImplementations")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
+		dio, err = opcm.DeployImplementationsViaForge(env.Forge, input)
 		if err != nil {
 			return err
 		}

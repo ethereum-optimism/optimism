@@ -529,7 +529,7 @@ parsing) is extended to every use:
 
 | Use | Mechanism |
 |---|---|
-| Live deploys (`apply` live, `bootstrap`) | `forge script --broadcast` |
+| Live deploys (`apply` live, `bootstrap`) | keyless `forge script` dry run; op-deployer sends the transactions that forge records through txmgr, which keeps rebroadcasts and fee bumps |
 | Genesis-target L1 (op-e2e, sysgo, `apply --deployment-target genesis`) | offline `forge script`, one process per stage, chained by a state-in/state-out hook (`vm.loadAllocs` / `vm.dumpState`) in the deploy scripts' `runWithBytes`; `SetPreinstalls` runs in forge, while geth-param preinstalls, prefund, mock SP1 verifier and seal stay Go-side alloc edits |
 | L2 genesis | offline `forge script` dump wrapper around `L2Genesis.s.sol` |
 | `prepare` / `continue` | keyless forge dry-run; `continue` preflight on an ephemeral `anvil --fork-url` |
@@ -555,7 +555,7 @@ Invariants:
 - **forge (and anvil, for `continue`) is a runtime dependency.** Shipped in the op-deployer image;
   auto-downloaded (pinned, checksummed) on Linux and macOS; on PATH via mise in CI and devstack.
 - **Per-invocation isolation.** Concurrent forge runs (devstack) get their own `FOUNDRY_BROADCAST`
-  directory, and their own state files inside the bundle's `fs_permissions`.
+  directory, and their own state files in a temp directory that only their `fs_permissions` grant.
 
 **No interim module split.** Splitting op-chain-ops+op-deployer into their own Go module that
 keeps the op-geth replace was considered and rejected: the epic's value only materialises when we

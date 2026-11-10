@@ -17,7 +17,7 @@ Active flags:
 |------|-------|
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
-| `OPPrivate` | The OP Private `ChainConfig` predeploy in L2 genesis, holding the chain's settlement chain ID (op-deployer chain override `settlementChainId`) |
+| `OPPrivate` | The OP Private `ChainConfig` predeploy in L2 genesis, holding the chain's settlement chain ID (op-deployer chain override `settlementChainId`, per chain only). A chain whose `settlementChainId` names an earlier chain of the same intent is a private chain: op-deployer reuses that chain's L1 contracts for it and skips it in `validate` and `verify` |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
 
 
@@ -124,7 +124,7 @@ ZK implementations are not behind a dev feature. Every implementations deploy in
 
 - Selection applies only when implementations are deployed. With a predeployed OPCM (`opcmAddress` set), `ValidateInputs` rejects `sp1Verifier`.
 - An explicit `--sp1-verifier-address` (bootstrap) or `globalDeployOverrides.sp1Verifier` (apply) always wins. Otherwise live deploys on Ethereum mainnet and Sepolia use `standard.SP1VerifierFor` (`op-deployer/pkg/deployer/standard/standard.go`), so bootstrap and apply cannot drift. On any other L1, op-deployer errors and asks for the verifier; `DeployImplementations` itself reverts without a verifier contract.
-- A generated genesis contains no release verifier, so a genesis apply needs `sp1Verifier` unless the caller sets `ApplyPipelineOpts.DeployMockSP1Verifier`: op-deployer then deploys the accept-all `MockSP1Verifier` test artifact into the genesis host (sysgo, op-e2e). Tests on a live L1 deploy it with `testutil.DeployMockSP1Verifier`, script hosts with `opcm.DeployMockSP1Verifier`.
+- A generated genesis contains no release verifier, so a genesis apply needs `sp1Verifier` unless the caller sets `ApplyPipelineOpts.DeployMockSP1Verifier` (CLI: `apply --deploy-mock-sp1-verifier`): op-deployer then deploys the accept-all `MockSP1Verifier` test artifact into the genesis host (sysgo, op-e2e). Tests on a live L1 deploy it with `testutil.DeployMockSP1Verifier`, script hosts with `opcm.DeployMockSP1Verifier`.
 - `op-deployer/pkg/deployer/standard/sp1-verifier.json` records, per chain, the `VERIFIER_HASH()` of that verifier, the PLONK circuit it accepts proofs for; `standard.SP1VerifierHashFor` reads it. `TestApplyDefaultsSP1VerifierOnSepolia` holds it to the chain, `VerifyOPCM` re-checks it at release, and `op-zk-proposer`'s release-pin test holds the linked sp1-sdk to it, so bumping sp1-sdk to a new circuit fails CI until the address and the file move together. The proposer also derives the hash from its SDK at runtime and pauses creation and skips proving for any adapter whose verifier hash differs.
 - A verifier op-deployer passed is recorded in deployment state (`State.SP1Verifier`) and never written back into intent. A resumed deployment reuses the recorded address rather than re-resolving the default, so upgrading op-deployer mid-deployment cannot swap the verifier under a chain.
 

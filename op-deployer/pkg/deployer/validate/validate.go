@@ -83,6 +83,14 @@ func ValidateAuto(cliCtx *cli.Context) error {
 
 	for _, chain := range chainsToValidate {
 		chainID := chain.ID
+		settlementID, private, err := pipeline.PrivateChainSettlement(st.AppliedIntent, chain)
+		if err != nil {
+			return err
+		}
+		if private {
+			logger.Info("Skipping private chain, it shares the L1 contracts of its settlement chain and is validated with it", "chain-id", chainID.Hex(), "settlement-chain-id", settlementID.Hex())
+			continue
+		}
 		logger.Info("Validating chain", "chain-id", chainID.Hex())
 
 		chainState, err := st.Chain(chainID)

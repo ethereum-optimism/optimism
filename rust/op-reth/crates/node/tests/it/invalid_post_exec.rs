@@ -6,41 +6,27 @@
 //! [SDM-M1]: https://github.com/ethereum-optimism/protocol-team/issues/371
 
 use alloy_consensus::{Sealable, proofs::calculate_transaction_root};
-use alloy_genesis::Genesis;
-use alloy_primitives::B64;
 use alloy_rpc_types_engine::{PayloadStatus, PayloadStatusEnum, PayloadValidationError};
-use op_alloy_consensus::{
-    PostExecPayloadValidationError, SDMGasEntry, build_post_exec_tx, encode_jovian_extra_data,
-};
+use alloy_rpc_types_eth::TransactionRequest;
+use eyre::WrapErr;
+use jsonrpsee::core::ClientError;
+use op_alloy_consensus::{PostExecPayloadValidationError, SDMGasEntry, build_post_exec_tx};
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
-use reth_chainspec::BaseFeeParams;
 use reth_e2e_test_utils::{E2ETestSetupBuilder, NodeHelperType, wallet::Wallet};
-use reth_optimism_chainspec::OpChainSpecBuilder;
 use reth_optimism_node::{
     OpBuiltPayload, OpNode,
     payload::OpExecData,
-    utils::{advance_chain, optimism_payload_attributes, setup},
+    utils::{advance_chain, setup},
 };
 use reth_optimism_primitives::OpTransactionSigned;
-use std::sync::Arc;
+use reth_rpc_api::clients::DebugApiClient;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 /// Creates Lagoon-active nodes without changing the shared Ecotone fixture.
 async fn setup_lagoon(num_nodes: usize) -> eyre::Result<(Vec<NodeHelperType<OpNode>>, Wallet)> {
-    let mut genesis: Genesis = serde_json::from_str(include_str!("../assets/genesis.json"))?;
-    // Lagoon is active at genesis, so the first child's base fee uses Jovian extra data.
-    genesis.extra_data = encode_jovian_extra_data(B64::ZERO, BaseFeeParams::optimism(), 0)?;
-    genesis.base_fee_per_gas = Some(1_000_000_000);
-    let chain_spec = Arc::new(
-        OpChainSpecBuilder::optimism_sepolia().genesis(genesis).lagoon_activated().build(),
-    );
-    E2ETestSetupBuilder::new(num_nodes, chain_spec)
-        .with_attributes_generator(|timestamp| {
-            let mut attributes = optimism_payload_attributes(timestamp);
-            attributes.0.eip_1559_params = Some(B64::ZERO);
-            attributes.0.min_base_fee = Some(0);
-            attributes
-        })
+    E2ETestSetupBuilder::new(num_nodes, crate::lagoon::chain_spec()?)
+        .with_attributes_generator(crate::lagoon::payload_attributes)
         // The buffered-child test must learn the parent only through its explicit newPayload.
         .with_connect_nodes(false)
         .build()
@@ -125,6 +111,7 @@ async fn test_lagoon_new_payload_with_wrong_post_exec_block_number_is_invalid() 
     let payloads = advance_chain(2, &mut node, Arc::new(Mutex::new(wallet))).await?;
     let parent = &payloads[0];
     let (bad_child, reason) = with_mismatched_post_exec_block_number(&payloads[1]);
+    let bad_child_hash = bad_child.payload.block_hash();
     let engine = &node.inner.add_ons_handle.beacon_engine_handle;
 
     let status = engine.new_payload(bad_child.clone()).await.expect("not an internal error");
@@ -135,6 +122,37 @@ async fn test_lagoon_new_payload_with_wrong_post_exec_block_number_is_invalid() 
     assert_invalid(&status, &PayloadValidationError::LinksToRejectedPayload.to_string());
     assert_eq!(status.latest_valid_hash, Some(parent.block().hash()));
 
+    // The rejected block is cached for diagnostics, but tracing it replays through the block
+    // executor, which rejects it for the same reason instead of returning pre-refund traces.
+    let client = crate::lagoon::http_client(&node);
+    let trace_rejected_block = async {
+        loop {
+            match DebugApiClient::<TransactionRequest>::debug_trace_bad_block(
+                &client,
+                bad_child_hash,
+                None,
+            )
+            .await
+            {
+                Ok(traces) => panic!("debug_traceBadBlock must reject the block, got {traces:?}"),
+                Err(ClientError::Call(error)) if error.message().contains("not found in cache") => {
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                }
+                Err(error) => break error,
+            }
+        }
+    };
+    let trace_error = tokio::time::timeout(Duration::from_secs(10), trace_rejected_block)
+        .await
+        .wrap_err("the rejected block never reached the bad-block cache")?;
+    let ClientError::Call(trace_error) = trace_error else {
+        panic!("debug_traceBadBlock must fail with a call error: {trace_error:?}");
+    };
+    assert!(
+        trace_error.message().contains(&reason),
+        "debug_traceBadBlock error must name the executor's rejection: {}",
+        trace_error.message(),
+    );
     Ok(())
 }
 

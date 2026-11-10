@@ -68,10 +68,9 @@ jobs:
           cache: false
 
       - name: Build contracts
-        working-directory: packages/contracts-bedrock
         env:
           FOUNDRY_PROFILE: ci
-        run: just forge-build --skip test
+        run: op-deployer/scripts/build-embedded-contracts.sh
 
       - name: Pack the embedded contract artifacts
         working-directory: op-deployer
@@ -93,35 +92,27 @@ jobs:
           ldflags="-X $version_pkg.GitCommit=$commit -X $version_pkg.GitDate=$commit_date -X $version_pkg.Version=$VERSION -X $version_pkg.Meta="
 
           mkdir dist
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os=${target%/*}
             arch=${target#*/}
             name=op-deployer-$VERSION-$os-$arch
-            binary=op-deployer
-            if [ "$os" = windows ]; then
-              binary=op-deployer.exe
-            fi
 
             mkdir "dist/$name"
             CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "$ldflags" \
-              -o "dist/$name/$binary" ./op-deployer/cmd/op-deployer
+              -o "dist/$name/op-deployer" ./op-deployer/cmd/op-deployer
             cp op-deployer/README.md "dist/$name/"
-            chmod 755 "dist/$name/$binary"
+            chmod 755 "dist/$name/op-deployer"
             chmod 644 "dist/$name/README.md"
             touch -d "@$commit_time" "dist/$name"/*
 
-            if [ "$os" = windows ]; then
-              (cd dist && zip -qX "$name.zip" "$name/README.md" "$name/$binary")
-            else
-              tar -C dist --owner=0 --group=0 --numeric-owner -cf - "$name/README.md" "$name/$binary" \
-                | gzip -n > "dist/$name.tar.gz"
-            fi
+            tar -C dist --owner=0 --group=0 --numeric-owner -cf - "$name/README.md" "$name/op-deployer" \
+              | gzip -n > "dist/$name.tar.gz"
           done
 
           "dist/op-deployer-$VERSION-linux-amd64/op-deployer" --version | grep -F "$VERSION-${commit:0:8}-"
 
           rm -r dist/op-deployer-*/
-          (cd dist && sha256sum ./*.tar.gz ./*.zip | sed 's# \./# #' > "op-deployer_${VERSION}_checksums.txt")
+          (cd dist && sha256sum ./*.tar.gz | sed 's# \./# #' > "op-deployer_${VERSION}_checksums.txt")
 
       - name: Upload the release assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

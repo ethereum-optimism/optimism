@@ -171,7 +171,7 @@ fn payload_builder_ctx(
 
 /// Signs `tx` with the test signature and wraps it as an [`OpPooledTransaction`] recovered to
 /// `signer`. Shared tail of every pool-tx helper.
-fn op_pooled_tx_from(signer: Address, tx: TxEip1559) -> OpPooledTransaction {
+pub(super) fn op_pooled_tx_from(signer: Address, tx: TxEip1559) -> OpPooledTransaction {
     let tx: OpTransactionSigned = tx.into_signed(Signature::test_signature()).into();
     let encoded_len = tx.encode_2718_len();
     OpPooledTransaction::new(Recovered::new_unchecked(tx, signer), encoded_len)

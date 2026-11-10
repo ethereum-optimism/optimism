@@ -416,11 +416,57 @@ git push git@github.com:ethereum-optimism/reth.git op-v<version>-<n>
 
 For an update, return to [Procedure](#procedure) step 3 and pin the tag.
 
-Tags are immutable, so a tag pin is as reproducible as a rev pin.
+Tags are immutable, so a tag pin is as reproducible as a rev pin. The org's
+tag ruleset also forbids deleting or re-annotating one, so a tag on the wrong
+commit stays forever with its misleading annotation (`op-v2.6.0-3` is one).
+Tag only after the PR that carries the change is merged, and take the commit
+from the PR, never from the branch tip:
+
+```bash
+gh pr view <pr> --repo ethereum-optimism/reth --json state,mergeCommit \
+  --jq '"\(.state) \(.mergeCommit.oid)"'
+```
+
+Before pushing, compare the commit's subject with the annotation you wrote.
+Do not chain the tag push after a merge command in one script: a failed merge
+must stop the script, not leave the tag pointing at the old tip.
+
+Always use the full 40-character commit id, in `rev = "..."` pins, in
+`git tag -a`, and in `gh` flags such as `--match-head-commit`, which rejects
+abbreviated ids.
 
 **Maintain** the branch until the next update: later backports to the same base
 are PRs into it, tagged when the monorepo pins them. Keep old branches as a
 historical record.
+
+### Carried patches
+
+Patches the current branch carries beyond upstream, and what to do with each
+on the next base:
+
+- **RPC replay through the block executor** (ethereum-optimism/reth#37 on
+  `op-v2.6.0`, ethereum-optimism/reth#41 on `op-v2.7.0`: a backport of
+  `paradigmxyz/reth#28266`). Op-reth's SDM refund settlement is only visible to
+  `debug_*`, `trace_*` and `ots_*` replays through it, and
+  `rust/op-reth/crates/node/tests/it/rpc_replay_settlement/` fails without
+  it. On a base that still uses alloy-evm 0.39 (`v2.7.0` through `v2.8.1`),
+  cherry-pick the backport from the current branch. Onto v2.7.0 it conflicted
+  in the imports of `helpers/call.rs` and in the replay callback of
+  `rpc/src/trace.rs`, which takes the backport's own `TracingCtx`;
+  `Call::block_executor` had to name the database `StateCacheDb` wraps
+  (`StateProviderDatabase<EvmStateProviderAdapter<StateProviderBox>>`), and its
+  e2e test moved to `test_setup_for(EthereumHardfork::Prague)`. On an evm2
+  base (`v2.9.0` and later), drop the backport and cherry-pick
+  `paradigmxyz/reth#28266` itself until a release contains it; there,
+  upstream's `inspect_transaction_without_commit` installs the tracer through
+  the EVM's inspector slot, which op-reth's `PostExecCompositeInspector`
+  occupies, so `OpBlockExecutor` needs an override or composition for it.
+  Upstream's BAL branch skips per-transaction settlement; op-reth rejects
+  computed BALs, keep that invariant under test.
+- **Trie iterator seek boundary** (`paradigmxyz/reth#28264`, carried as
+  ethereum-optimism/reth#32 on `op-v2.6.0` and ethereum-optimism/reth#40 on
+  `op-v2.7.0`, both picked from upstream with `-x`). No release up to v2.9.0
+  contains it, so carry it until one does; the audit in step 2 drops it then.
 
 ### Pinning a fork change
 

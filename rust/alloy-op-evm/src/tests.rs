@@ -210,10 +210,9 @@ fn tracing_inspector_traces_post_exec_tx_as_noop() {
     );
 }
 
-/// The `trace_*` namespace iterates a block's transactions through `TxTracer::try_trace_many`,
-/// which ends the iteration early — without surfacing an error — when a replay fails. A block
-/// carrying a post-exec tx must produce one trace result per transaction, not a silently
-/// truncated list.
+/// `TxTracer::try_trace_many` ends its iteration early, without surfacing an error, when a replay
+/// fails. A consumer iterating a block that carries a post-exec tx through it must get one trace
+/// result per transaction, not a silently truncated list.
 #[test]
 fn try_trace_many_covers_every_tx_in_a_post_exec_block() {
     let mut tracer = OpEvmFactory::<OpTx>::default().create_tracer(

@@ -42,6 +42,18 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
+	settlementID, private, err := PrivateChainSettlement(intent, thisIntent)
+	if err != nil {
+		return err
+	}
+	if private {
+		if err := reuseSettlementContracts(st, chainID, settlementID); err != nil {
+			return err
+		}
+		lgr.Info("opchain deployment not needed, the private chain shares its settlement chain's L1 contracts", "settlement", settlementID.Hex())
+		return nil
+	}
+
 	dci, err := makeDCI(intent, thisIntent, chainID, st)
 	if err != nil {
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
@@ -56,8 +68,8 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 }
 
 // ExecuteOPChainDeployment runs the deployment without recording state. impls are the
-// implementations of the OPCM in dci. Script-host execution queues transactions. Forge broadcasts
-// directly.
+// implementations of the OPCM in dci. Script-host execution queues transactions. The forge path
+// sends them before it returns.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
@@ -93,15 +105,9 @@ func ExecuteOPChainDeployment(
 
 	var dco opcm.DeployOPChainOutput
 	var err error
-	if env.UseForge {
+	if env.Forge != nil {
 		lgr.Info("using Forge for DeployOPChain")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dco, err = opcm.DeployOPChainViaForge(forgeEnv, dci)
+		dco, err = opcm.DeployOPChainViaForge(env.Forge, dci)
 		if err != nil {
 			return result, err
 		}

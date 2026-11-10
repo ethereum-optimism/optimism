@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
@@ -64,11 +65,12 @@ func TestCLIEndToEndApply(t *testing.T) {
 		require.NoError(t, intent.WriteToFile(filepath.Join(workDir, "intent.toml")))
 
 		// Apply first chain with live deployment
-		runner.ExpectSuccessWithNetwork(t, []string{
+		output := runner.ExpectSuccessWithNetwork(t, []string{
 			"apply",
 			"--deployment-target", "live",
 			"--workdir", workDir,
 		}, nil)
+		requireFastReceiptPoll(t, output)
 
 		// Add second chain to intent
 		intent, err := pipeline.ReadIntent(workDir)
@@ -98,4 +100,35 @@ func TestCLIEndToEndApply(t *testing.T) {
 
 		require.NotNil(t, finalState.AppliedIntent)
 	})
+}
+
+// TestCLIApplyGenesisMockSP1Verifier tests that a genesis apply without an SP1 verifier fails,
+// and that --deploy-mock-sp1-verifier provides one.
+func TestCLIApplyGenesisMockSP1Verifier(t *testing.T) {
+	_, _, dk := shared.DefaultPrivkey(t)
+	loc, _ := testutil.LocalArtifacts(t)
+	// A genesis apply cannot resume a failed one, whose L1 contracts existed only in memory, so
+	// each apply gets a fresh workdir.
+	newGenesisApply := func() (*CLITestRunner, []string) {
+		runner := NewCLITestRunner(t)
+		workDir := runner.GetWorkDir()
+		intent, st := shared.NewIntent(t, big.NewInt(devnet.DefaultChainID), dk, uint256.NewInt(1), loc, loc, 60_000_000)
+		require.NoError(t, intent.WriteToFile(filepath.Join(workDir, "intent.toml")))
+		require.NoError(t, pipeline.WriteState(workDir, st))
+		return runner, []string{"apply", "--deployment-target", "genesis", "--workdir", workDir}
+	}
+
+	runner, args := newGenesisApply()
+	runner.ExpectErrorContains(t, args, nil, "sp1Verifier must be specified for genesis deployments")
+
+	runner, args = newGenesisApply()
+	runner.ExpectSuccess(t, append(args, "--deploy-mock-sp1-verifier"), nil)
+
+	finalState, err := pipeline.ReadState(runner.GetWorkDir())
+	require.NoError(t, err)
+	require.NotNil(t, finalState.SP1Verifier)
+	require.NotNil(t, finalState.AppliedIntent)
+	verifier, ok := finalState.L1StateDump.Data.Accounts[*finalState.SP1Verifier]
+	require.True(t, ok, "SP1 verifier %s missing from the L1 genesis", *finalState.SP1Verifier)
+	require.NotEmpty(t, verifier.Code)
 }

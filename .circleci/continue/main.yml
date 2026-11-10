@@ -483,9 +483,10 @@ commands:
             - rust-toolchain-v<< parameters.version >>-{{ checksum "mise.toml"
               }}-{{ checksum "rust/rust-toolchain.toml" }}
 
-  # Only full-workspace builds may attach this command: the shared dep-cache
-  # key is immutable (first save after a Cargo.lock change wins), so a job with
-  # an empty or partial registry would poison the cache for every later build.
+  # Only builds that select the whole workspace (or run `cargo fetch`) may attach
+  # this command: the shared dep-cache key is immutable (first save after a
+  # Cargo.lock change wins), so a job with an empty or partial registry would
+  # poison the cache for every later build.
   rust-save-build-cache:
     description: "Save the dependency and toolchain caches for a Rust workspace"
     parameters:
@@ -616,7 +617,17 @@ commands:
         type: string
         default: ""
       binary:
-        description: "Binary name to build. If not specified, all targets will be built."
+        description: "Space-separated binary names to build. If not specified, libraries and binaries will be built. With no package set, every workspace library is built too."
+        type: string
+        default: ""
+      exclude_binary:
+        description: >
+          Space-separated workspace binaries to leave out: builds every library
+          and every other binary instead. Package selection stays the same, so
+          feature unification and the sccache keys match a full build.
+          Workspace builds only: can't be combined with package or binary.
+          A binary whose required-features are disabled fails the build instead
+          of being skipped; leave it out here.
         type: string
         default: ""
       save_cache:
@@ -663,9 +674,9 @@ commands:
             fi
 
             export BINARY=""
-            if [ -n "<< parameters.binary >>" ]; then
-              export BINARY="--bin << parameters.binary >>"
-            fi
+            for bin in << parameters.binary >>; do
+              export BINARY="$BINARY --bin $bin"
+            done
 
             export FEATURES="--features << parameters.features >>"
             if [ "<< parameters.features >>" = "all" ]; then
@@ -673,6 +684,29 @@ commands:
             fi
 
             cd << parameters.directory >>
+            # A workspace build limited to some binaries still builds every
+            # library. Cargo sets CARGO_PRIMARY_PACKAGE only for the packages of
+            # requested targets and sccache hashes it, so workspace crates built
+            # only as dependencies would miss what a full build caches.
+            if [ -z "<< parameters.package >>" ] && [ -n "<< parameters.binary >>" ]; then
+              export BINARY="--lib $BINARY"
+            fi
+            if [ -n "<< parameters.exclude_binary >>" ]; then
+              if [ -n "<< parameters.package >>" ] || [ -n "<< parameters.binary >>" ]; then
+                echo "ERROR: exclude_binary is for whole-workspace builds; don't combine it with package or binary." >&2
+                exit 1
+              fi
+              # Assignments, not a `for ... in $(...)`, so a failure stops the job.
+              METADATA=$(cargo metadata --no-deps --format-version 1 --locked)
+              ALL_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select(.kind | index("bin")) | .name')
+              export BINARY="--lib"
+              for bin in $ALL_BINS; do
+                case " << parameters.exclude_binary >> " in
+                  *" $bin "*) ;;
+                  *) export BINARY="$BINARY --bin $bin" ;;
+                esac
+              done
+            fi
             if [ "<< parameters.fetch_workspace >>" = "true" ]; then
               # Populate the complete workspace crate registry so the shared
               # rust-deps cache this job saves is not partial (a package-scoped
@@ -694,6 +728,11 @@ commands:
                 version: << parameters.version >>
                 profile: << parameters.profile >>
                 features: << parameters.features >>
+      # rust-save-build-cache prints these when the cache is saved.
+      - unless:
+          condition: << parameters.save_cache >>
+          steps:
+            - rust-sccache-stats
 
 jobs:
   ci-gate:
@@ -750,7 +789,11 @@ jobs:
         type: string
         default: ""
       binary:
-        description: "Binary name to build. If not specified, all targets will be built."
+        description: "Space-separated binary names to build. If not specified, libraries and binaries will be built. With no package set, every workspace library is built too."
+        type: string
+        default: ""
+      exclude_binary:
+        description: "Space-separated workspace binaries to leave out; workspace builds only (see rust-build)."
         type: string
         default: ""
       save_cache:
@@ -774,6 +817,7 @@ jobs:
           features: << parameters.features >>
           package: << parameters.package >>
           binary: << parameters.binary >>
+          exclude_binary: << parameters.exclude_binary >>
           save_cache: << parameters.save_cache >>
       - when:
           condition: << parameters.persist_to_workspace >>
@@ -1567,12 +1611,15 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: go-lint
+      # Scoped by branch like the shared Go caches (see helpers.yml).
       - restore_cache:
           keys:
-            - golangci-v1-{{ checksum ".golangci.yaml" }}
+            - golangci-v1-{{ .Branch }}:{{ checksum ".golangci.yaml" }}
+            - golangci-v1-develop:{{ checksum ".golangci.yaml" }}
             # Fall back to the latest golangci cache so a config change reuses
             # the prior analysis cache instead of a full cold lint.
-            - golangci-v1-
+            - "golangci-v1-{{ .Branch }}:"
+            - "golangci-v1-develop:"
       - run:
           name: run Go linter
           command: |
@@ -1585,7 +1632,7 @@ jobs:
       - save_cache:
           # Warm the analysis cache even when linting fails, so a branch with
           # lint errors doesn't repeatedly cold-start golangci-lint.
-          key: golangci-v1-{{ checksum ".golangci.yaml" }}
+          key: golangci-v1-{{ .Branch }}:{{ checksum ".golangci.yaml" }}
           when: always
           paths:
             - "/home/circleci/.cache/golangci-lint"
@@ -1644,19 +1691,22 @@ jobs:
       # with an empty module cache and compare what it adds to the shared one.
       # The fallback restores the upstream modules across go.mod changes that
       # rarely touch them; an old go-ethereum version then lingers in the cache
-      # until c-go-cache-version is bumped.
+      # until c-go-cache-version is bumped. Scoped by branch like the shared Go
+      # caches (see helpers.yml).
       - restore_cache:
           name: Restore upstream go-ethereum modules
           keys:
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:{{ checksum "go.mod" }}
+            - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:"
+            - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:"
       - run:
           name: Check op-geth-only API uses against the allowlist
           command: |
             just opgeth-ratchet
       - save_cache:
           name: Save upstream go-ethereum modules
-          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
+          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
           paths:
             - ~/go/pkg/mod/cache/download/github.com/ethereum/go-ethereum
             - ~/go/pkg/mod/cache/download/github.com/pion/stun/v2
@@ -1722,6 +1772,13 @@ jobs:
             # (INTERNAL_ERROR). Retry with exponential backoff so a flaky
             # download doesn't fail this shared prep job and everything behind
             # it.
+            # Count before running any go command: a go.mod toolchain bump
+            # makes the first one (even "go env") download the toolchain into
+            # the module cache, and that download must count as new.
+            # restore-go-mod-cache sets GOMODCACHE.
+            dl="${GOMODCACHE:?}/cache/download"
+            count_files() { if [ -d "$dl" ]; then find "$dl" -type f | wc -l; else echo 0; fi; }
+            before=$(count_files)
             n=0
             until go mod download; do
               n=$((n+1))
@@ -1733,6 +1790,15 @@ jobs:
               echo "go mod download failed (attempt $n); retrying in ${backoff}s..." >&2
               sleep "$backoff"
             done
+            # The module cache is saved per branch. If nothing was downloaded,
+            # the restored cache already had every module, and the jobs after
+            # this one restore a cache that has them too. So skip the save
+            # rather than have every branch upload its own copy of develop's.
+            # The halt ends the job, so keep the save as its last step.
+            if (( $(count_files) == before )); then
+              echo "No modules downloaded; nothing new to save"
+              circleci-agent step halt
+            fi
       - save-go-mod-cache
 
   check-nut-locks:
@@ -1765,6 +1831,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: check-nut-prefork-states
       - run:
@@ -1838,6 +1905,10 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
+      # op-deployer/pkg/deployer/forge's tests compile a test project with forge. Without
+      # an installed solc, forge downloads the newest matching release on every run.
+      - install-solc-compilers
       - run:
           name: Configure op-reth binary paths
           command: |
@@ -1914,6 +1985,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-actions-tests
       - run:
@@ -1982,6 +2054,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-tests-with-fault-proof-deps
       # Build the superchain-configs.zip op-e2e/faultproofs //go:embeds (no prep-superchain job here).
@@ -1998,6 +2071,11 @@ jobs:
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just go-tests-fraud-proofs-ci
+      # memory.events counts OOM kills, which can otherwise look like flaky tests.
+      - run:
+          name: Memory summary
+          when: always
+          command: grep -H . /sys/fs/cgroup/memory.{events,pressure} || true
       - go-save-cache:
           namespace: go-tests-with-fault-proof-deps
       - store_test_results:
@@ -2045,7 +2123,7 @@ jobs:
         type: integer
         default: 1
       acceptance_test_jobs:
-        description: "Override ACCEPTANCE_TEST_JOBS (go test -p) for this run; empty
+        description: "Override ACCEPTANCE_TEST_JOBS (tests run at once) for this run; empty
           leaves the justfile default in place"
         type: string
         default: ""
@@ -2073,6 +2151,7 @@ jobs:
             fi
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
@@ -2227,8 +2306,12 @@ jobs:
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
       SEMGREP_BRANCH: << pipeline.git.branch >>
       SEMGREP_COMMIT: << pipeline.git.revision >>
+    # Pinned: semgrep-scan-local and semgrep-test gate ci-gate, so a floating tag
+    # would let an upstream release fail every PR without a change in this repo.
+    # Keep the version in step with "pipx:semgrep" in mise.toml, which local runs
+    # use; a new tag needs its new digest too.
     docker:
-      - image: returntocorp/semgrep
+      - image: returntocorp/semgrep:1.182.1@sha256:451b3d875c00dac7ed5db5293e584a07de11449a409c10b3c2d2652f429630b6
     resource_class: xlarge.gen2
     steps:
       - github-checkout: # no need to use mise here since the docker image contains the only dependency
@@ -2302,6 +2385,13 @@ jobs:
       - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      # The recipe downloads every pinned forge release archive, so skip it on PRs that change
+      # neither the forge package nor the recipe. check-changed also runs it on develop and when
+      # mise.toml or the CI config changes.
+      - check-changed:
+          patterns: op-deployer/pkg/deployer/forge,op-deployer/justfile
+          no_go_deps: "true"
+      - restore-go-mod-cache
       - run:
           command: just check-forge-version
           working_directory: op-deployer
@@ -2469,6 +2559,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - op-deployer-forge-version:
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - semgrep-scan:
@@ -2779,6 +2871,10 @@ workflows:
           no_output_timeout: 90m
           test_timeout: 480m
           resource_class: 2xlarge.gen2
+          # The tests mostly wait, so memory is the limit: 32 at once peaked at about 23.5 of 32 GiB.
+          # Lower this if the memory summary shows OOM kills. OP_E2E_EXECUTOR_LIMIT has to match, or
+          # the cannon tests stay capped at 16.
+          environment_overrides: export FAULT_PROOF_TEST_PARALLEL=32 OP_E2E_EXECUTOR_LIMIT=32
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
