@@ -62,7 +62,7 @@ sha2.workspace = true
 
 [features]
 default = [ "client-tracing", "fpvm" ]
-# kona-std-fpvm requires std, and only the binaries use it.
+# kona-std-fpvm needs std off the FPVM targets (mips64/riscv64); only the binaries use it.
 fpvm = [ "dep:kona-std-fpvm", "dep:kona-std-fpvm-proc" ]
 client-tracing = [ "fpvm", "kona-std-fpvm/tracing" ]
 
