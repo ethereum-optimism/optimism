@@ -206,8 +206,7 @@ where
 {
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {
-        let window = self.ensure_initialized()?;
-        self.reconcile_with_canonical_chain(window)?;
+        self.startup()?;
 
         let pruner = OpProofStoragePruner::new(
             self.storage.clone(),
@@ -229,6 +228,12 @@ where
         }
 
         Ok(())
+    }
+
+    /// Checks that the proofs storage is initialized and unwinds it onto reth's canonical chain.
+    fn startup(&self) -> eyre::Result<()> {
+        let window = self.ensure_initialized()?;
+        self.reconcile_with_canonical_chain(window)
     }
 
     /// Ensure proofs storage is initialized, and return its proof window.
@@ -517,23 +522,26 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_consensus::{Header, private::alloy_primitives::B256};
+    use alloy_consensus::Header;
     use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
+    use alloy_primitives::B256;
     use reth_db::test_utils::tempdir_path;
     use reth_ethereum_primitives::{Block, Receipt};
     use reth_execution_types::{Chain, ExecutionOutcome};
-    use reth_exex_test_utils::{TestExExContext, TestExExHandle};
+    use reth_exex_test_utils::TestExExHandle;
     use reth_optimism_trie::{
         BlockStateDiff, InMemoryProofsStorage, OpProofsInitProvider, OpProofsProviderRO,
         OpProofsProviderRw, OpProofsStore, db::MdbxProofsStorage, engine::EngineHandle,
     };
-    use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock, SealedHeader};
+    use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock};
     use reth_provider::{BlockWriter, CanonChainTracker};
     use reth_trie::{
         ComputedTrieData, HashedPostState, HashedPostStateSorted, LazyTrieData,
         updates::TrieUpdatesSorted,
     };
     use std::{collections::BTreeMap, default::Default, sync::Arc};
+
+    mod startup_reconciliation;
 
     // -------------------------------------------------------------------------
     // Helpers: deterministic blocks and deterministic Chain with precomputed updates
@@ -610,73 +618,19 @@ mod tests {
 
     // Bootstrap storage to the genesis block via the init flow (sets earliest = latest = genesis).
     fn init_storage<S: OpProofsStore>(storage: S) {
-        init_storage_at(storage, NumHash::new(0, b256(0x00)));
+        init_storage_at(storage, NumHash::new(0, b256(0x00)), Vec::new());
     }
 
-    fn init_storage_at<S: OpProofsStore>(storage: S, genesis: NumHash) {
+    fn init_storage_at<S: OpProofsStore>(
+        storage: S,
+        genesis: NumHash,
+        accounts: Vec<(B256, Option<Account>)>,
+    ) {
         let init = storage.initialization_provider().expect("init");
         init.set_initial_state_anchor(genesis).expect("anchor");
+        init.store_hashed_accounts(accounts).expect("initial state");
         init.commit_initial_state().expect("commit init");
         OpProofsInitProvider::commit(init).expect("commit");
-    }
-
-    fn store_block<S: OpProofsStore>(
-        storage: &S,
-        parent: B256,
-        block: NumHash,
-        diff: BlockStateDiff,
-    ) {
-        let rw = storage.provider_rw().expect("provider rw");
-        rw.store_trie_updates(BlockWithParent::new(parent, block), diff).expect("store block");
-        OpProofsProviderRw::commit(rw).expect("commit");
-    }
-
-    // A state diff that makes the block's state root differ from an empty block's.
-    fn diff_with_account() -> BlockStateDiff {
-        let mut post_state = HashedPostState::default();
-        post_state.accounts.insert(b256(0xaa), Some(Account { nonce: 1, ..Default::default() }));
-        BlockStateDiff { sorted_post_state: post_state.into_sorted(), ..Default::default() }
-    }
-
-    // Inserts empty blocks 1..=tip on top of reth's genesis and makes the last one reth's head.
-    // Returns the canonical headers indexed by block number, genesis included.
-    fn insert_canonical_chain<P>(
-        handle: &TestExExHandle,
-        provider: &P,
-        tip: u64,
-    ) -> Vec<SealedHeader>
-    where
-        P: CanonChainTracker<Header = Header>,
-    {
-        let mut headers = vec![handle.genesis.clone_sealed_header()];
-        let rw = handle.provider_factory.provider_rw().expect("provider rw");
-        for number in 1..=tip {
-            let parent_hash = headers.last().expect("genesis").hash();
-            let header = Header { number, parent_hash, ..Default::default() };
-            let block = SealedBlock::seal_slow(Block { header, body: Default::default() })
-                .try_recover()
-                .expect("empty block");
-            rw.insert_block(&block).expect("insert block");
-            headers.push(block.clone_sealed_header());
-        }
-        rw.commit().expect("commit");
-        provider.set_canonical_head(headers.last().expect("genesis").clone());
-        headers
-    }
-
-    /// Waits until the proofs storage's latest block is `expected`.
-    async fn wait_for_latest_block<S: OpProofsStore>(store: &S, expected: NumHash) {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            loop {
-                let provider = store.provider_ro().expect("provider ro");
-                if provider.get_latest_block().expect("get latest block") == expected {
-                    return;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .expect("proofs storage should be unwound to reth's chain within 5s");
     }
 
     // Initialize exex with config
@@ -1010,19 +964,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ensure_initialized_errors_on_storage_not_initialized() {
-        // MDBX proofs storage
-        let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-
-        let (ctx, _handle) =
-            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-
-        let exex = build_test_exex(ctx, store.clone());
-        let _ = exex.ensure_initialized().expect_err("should return error");
-    }
-
-    #[tokio::test]
     async fn ensure_initialized_errors_when_prune_exceeds_threshold() {
         // MDBX proofs storage
         let dir = tempdir_path();
@@ -1265,186 +1206,6 @@ mod tests {
         let latest =
             store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
         assert_eq!(latest, 0);
-    }
-
-    /// Runs each startup reconciliation scenario against both proofs storage backends.
-    macro_rules! reconcile_tests {
-        ($($scenario:ident),* $(,)?) => {
-            mod reconcile_mdbx {
-                use super::*;
-                $(
-                    #[tokio::test]
-                    async fn $scenario() {
-                        let dir = tempdir_path();
-                        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-                        super::$scenario(store).await;
-                    }
-                )*
-            }
-
-            mod reconcile_in_memory {
-                use super::*;
-                $(
-                    #[tokio::test]
-                    async fn $scenario() {
-                        super::$scenario(InMemoryProofsStorage::new()).await;
-                    }
-                )*
-            }
-        };
-    }
-
-    reconcile_tests!(
-        run_unwinds_proofs_storage_ahead_of_reth,
-        run_unwinds_proofs_storage_on_diverged_fork,
-        run_unwinds_proofs_storage_ahead_of_reth_on_another_fork,
-        run_unwinds_proofs_storage_to_its_earliest_block,
-        run_fails_without_canonical_block_in_proofs_window,
-        run_fails_with_proofs_window_above_reth_head,
-    );
-
-    /// Runs the ExEx until the proofs storage's latest block is `expected`.
-    async fn run_until_latest_block<S: OpProofsStore + Clone + 'static>(
-        ctx: TestExExContext,
-        store: S,
-        expected: NumHash,
-    ) {
-        let run = tokio::spawn(build_test_exex(ctx, store.clone()).run());
-        wait_for_latest_block(&store, expected).await;
-        run.abort();
-        let _ = run.await;
-    }
-
-    /// Runs the ExEx and returns its startup error.
-    async fn run_startup_error<S: OpProofsStore + Clone + 'static>(
-        ctx: TestExExContext,
-        store: S,
-    ) -> eyre::Report {
-        tokio::time::timeout(std::time::Duration::from_secs(5), build_test_exex(ctx, store).run())
-            .await
-            .expect("run should fail at startup")
-            .expect_err("run should fail at startup")
-    }
-
-    async fn run_unwinds_proofs_storage_ahead_of_reth<S: OpProofsStore + Clone + 'static>(
-        store: S,
-    ) {
-        let (ctx, handle) =
-            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-
-        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 3);
-        init_storage_at(store.clone(), canonical[0].num_hash());
-        for header in &canonical[1..] {
-            store_block(&store, header.parent_hash, header.num_hash(), Default::default());
-        }
-        // Blocks 4 and 5 were indexed before reth dropped them at restart.
-        let mut parent = canonical[3].hash();
-        for number in 4..=5 {
-            store_block(
-                &store,
-                parent,
-                NumHash::new(number, hash_for_num(number)),
-                diff_with_account(),
-            );
-            parent = hash_for_num(number);
-        }
-
-        run_until_latest_block(ctx, store, canonical[3].num_hash()).await;
-    }
-
-    async fn run_unwinds_proofs_storage_on_diverged_fork<S: OpProofsStore + Clone + 'static>(
-        store: S,
-    ) {
-        let (ctx, handle) =
-            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-
-        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 3);
-        init_storage_at(store.clone(), canonical[0].num_hash());
-        store_block(&store, canonical[0].hash(), canonical[1].num_hash(), Default::default());
-        // The proofs storage followed a fork from block 2 on that reth no longer has. The stored
-        // tip is at reth's height but has another hash.
-        store_block(&store, canonical[1].hash(), NumHash::new(2, b256(0xb2)), diff_with_account());
-        store_block(&store, b256(0xb2), NumHash::new(3, b256(0xb3)), diff_with_account());
-
-        run_until_latest_block(ctx, store, canonical[1].num_hash()).await;
-    }
-
-    async fn run_unwinds_proofs_storage_ahead_of_reth_on_another_fork<
-        S: OpProofsStore + Clone + 'static,
-    >(
-        store: S,
-    ) {
-        let (ctx, handle) =
-            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-
-        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 4);
-        init_storage_at(store.clone(), canonical[0].num_hash());
-        for header in &canonical[1..=2] {
-            store_block(&store, header.parent_hash, header.num_hash(), Default::default());
-        }
-        // The proofs storage followed a fork from block 3 on, past reth's best block 4.
-        let mut parent = canonical[2].hash();
-        for number in 3..=6 {
-            let hash = b256(0xb0 + number as u8);
-            store_block(&store, parent, NumHash::new(number, hash), diff_with_account());
-            parent = hash;
-        }
-
-        run_until_latest_block(ctx, store, canonical[2].num_hash()).await;
-    }
-
-    async fn run_unwinds_proofs_storage_to_its_earliest_block<
-        S: OpProofsStore + Clone + 'static,
-    >(
-        store: S,
-    ) {
-        let (ctx, handle) =
-            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-
-        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 3);
-        init_storage_at(store.clone(), canonical[0].num_hash());
-        // The proofs storage followed a fork from block 1 on, so only its earliest block is
-        // canonical.
-        let mut parent = canonical[0].hash();
-        for number in 1..=3 {
-            let hash = b256(0xb0 + number as u8);
-            store_block(&store, parent, NumHash::new(number, hash), diff_with_account());
-            parent = hash;
-        }
-
-        run_until_latest_block(ctx, store.clone(), canonical[0].num_hash()).await;
-        let provider = store.provider_ro().expect("provider ro");
-        assert_eq!(provider.get_earliest_block().expect("earliest"), canonical[0].num_hash());
-    }
-
-    async fn run_fails_without_canonical_block_in_proofs_window<
-        S: OpProofsStore + Clone + 'static,
-    >(
-        store: S,
-    ) {
-        // The proofs storage is anchored on a genesis that is not reth's.
-        init_storage(store.clone());
-
-        let (ctx, _handle) =
-            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-
-        let err = run_startup_error(ctx, store).await;
-        assert!(err.to_string().contains("shares no block"), "{err:#}");
-        assert!(err.to_string().contains(PROOFS_INIT_COMMAND), "{err:#}");
-    }
-
-    async fn run_fails_with_proofs_window_above_reth_head<S: OpProofsStore + Clone + 'static>(
-        store: S,
-    ) {
-        // reth's best block is its genesis, below the proofs window.
-        init_storage_at(store.clone(), NumHash::new(5, b256(0x05)));
-
-        let (ctx, _handle) =
-            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-
-        let err = run_startup_error(ctx, store).await;
-        assert!(err.to_string().contains("starts at block 5"), "{err:#}");
-        assert!(err.to_string().contains(PROOFS_INIT_COMMAND), "{err:#}");
     }
 
     #[tokio::test]
