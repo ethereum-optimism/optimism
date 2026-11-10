@@ -70,7 +70,8 @@ var proxyImplementationSlot = common.HexToHash("0x360894a13ba1a3210667c828492db9
 type DeployerOption func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder)
 
 // DefaultL1BlockTime is the L1 block time in seconds, unless a test sets it with WithL1BlockTime.
-const DefaultL1BlockTime = 6
+// It is above the default 2s L2 block time, so many L1 epochs still span more than one L2 block.
+const DefaultL1BlockTime = 3
 
 func WithForkAtL1Genesis(fork forks.Fork) DeployerOption {
 	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
