@@ -143,6 +143,14 @@ Other nodes hand the node records that can name an address it can't reach, such 
 
 Public-only means public-only: without `--p2p.discovery.private`, a node at a private address isn't dialed or saved even after a session with it, which only shows that it is reachable from here. To peer with private nodes, such as neighbours in a VPC, set the flag, or list them in `--p2p.static-peers`. Discovery still keeps a node it has a session with in its table, and passes its record on to nodes that look it up, as it can't check a record against the node asking for it. Nodes that follow these rules drop such a record.
 
+<Info>
+
+To keep a node, such as a sequencer, behind public sentry nodes, run it with `--p2p.no-discovery`, list the sentries in its `--p2p.static-peers`, and list it in theirs, see [static peers](#static-peers) and [running without discovery](#running-without-discovery). Static peers are dialed directly, redialed every minute, and never passed on through discovery.
+
+A node that ran discovery against its sentry instead would leak: the sentry keeps it in its table, and passes its record, with its node ID and LAN address, on to every node that looks it up. That is why a public-only node doesn't dial a private node back after a session: doing so would make that leaky setup work without anyone noticing.
+
+</Info>
+
 Like Lighthouse, kona-node uses a fixed rule. op-node instead checks each record against the node that returned it, so it accepts a LAN record from a LAN neighbour without a flag.
 
 ### Static peers
