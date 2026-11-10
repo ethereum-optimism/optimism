@@ -65,6 +65,9 @@ tempfile.workspace = true
 flate2.workspace = true
 jsonrpsee = { workspace = true, features = ["http-client"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
+
 [dev-dependencies]
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
 kona-genesis.workspace = true

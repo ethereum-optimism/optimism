@@ -97,7 +97,8 @@ impl LocalCudaProofProvider {
     }
 
     /// Resolves with the first failure that leaves a GPU server unusable. The caller must return
-    /// from `main`: dropping the runtime kills every server, and `std::process::exit` does not.
+    /// from `main`: dropping the runtime kills every server, and outside Linux
+    /// `std::process::exit` does not.
     pub async fn fatal(&self) -> anyhow::Error {
         self.core.fatal().await
     }
@@ -264,18 +265,36 @@ impl GpuServer {
                 command.env_remove(name);
             }
         }
-        let mut child = command
-            .env("CUDA_VISIBLE_DEVICES", id.to_string())
-            .stdin(Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-            .with_context(|| format!("run {}", path.display()))?;
+        command.env("CUDA_VISIBLE_DEVICES", id.to_string()).stdin(Stdio::null()).kill_on_drop(true);
+        #[cfg(target_os = "linux")]
+        {
+            let proposer = std::process::id();
+            // SAFETY: the hook calls only async-signal-safe functions and does not allocate.
+            unsafe { command.pre_exec(move || kill_with_proposer(proposer)) };
+        }
+        let mut child = command.spawn().with_context(|| format!("run {}", path.display()))?;
         let stream = connect(&socket, &mut child).await?;
         Ok(Self {
             connection: Connection { stream: tokio::sync::Mutex::new(stream) },
             _child: child,
         })
     }
+}
+
+/// Makes the kernel kill the server when the proposer dies, since a signal or a crash ends the
+/// proposer without running `kill_on_drop`. The kernel tracks the spawning thread, so spawn from
+/// a thread that lives as long as the proposer.
+#[cfg(target_os = "linux")]
+fn kill_with_proposer(proposer: u32) -> io::Result<()> {
+    // SAFETY: `prctl` and `getppid` are async-signal-safe.
+    if unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // The proposer can die before `prctl` takes effect.
+    if unsafe { libc::getppid() } as u32 != proposer {
+        return Err(io::Error::from_raw_os_error(libc::ESRCH));
+    }
+    Ok(())
 }
 
 async fn connect(socket: &PathBuf, child: &mut Child) -> Result<UnixStream> {

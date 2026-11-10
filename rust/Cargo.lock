@@ -10068,6 +10068,7 @@ dependencies = [
  "kona-sp1-ethereum-client-utils",
  "kona-sp1-host-utils",
  "kona-sp1-super-range-executor",
+ "libc",
  "metrics",
  "metrics-exporter-prometheus",
  "op-alloy-consensus",
