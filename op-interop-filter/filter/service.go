@@ -218,6 +218,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		ingester, err := NewLogsDBChainIngester(
 			ctx,
 			s.log,
+			clock.SystemClock,
 			s.metrics,
 			chainID,
 			rpcClient,
