@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/gofrs/flock"
 )
 
 // slotPool limits forge runs host-wide: at the start of a run, forge parses every artifact of the
@@ -64,17 +66,15 @@ func (p *slotPool) acquire(ctx context.Context) (func(), error) {
 	}
 	for {
 		for i := range p.size {
-			f, err := os.OpenFile(filepath.Join(dir, strconv.Itoa(i)), os.O_CREATE|os.O_RDWR, 0o600)
-			if err != nil {
-				return nil, fmt.Errorf("failed to open a forge slot: %w", err)
-			}
-			locked, err := tryLock(f)
-			if locked {
-				return func() { _ = f.Close() }, nil
-			}
-			_ = f.Close()
+			slot := flock.New(filepath.Join(dir, strconv.Itoa(i)))
+			// An error other than a busy slot fails: slots on NFS without a lock daemon would
+			// otherwise look busy forever.
+			locked, err := slot.TryLock()
 			if err != nil {
 				return nil, fmt.Errorf("failed to lock a forge slot in %s: %w", dir, err)
+			}
+			if locked {
+				return func() { _ = slot.Close() }, nil
 			}
 		}
 		select {

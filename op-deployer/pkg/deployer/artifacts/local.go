@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"archive/tar"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -14,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gofrs/flock"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts/bundle"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -143,11 +146,28 @@ var pack = packBundle
 // while it held the lock must not hold up the later ones. Tests shorten it.
 var lockTimeout = 5 * time.Minute
 
+// lockWithin takes l, exclusive or shared, and waits up to timeout while another process holds it.
+func lockWithin(l *flock.Flock, exclusive bool, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	try := l.TryRLockContext
+	if exclusive {
+		try = l.TryLockContext
+	}
+	if _, err := try(ctx, lockPollInterval); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("another process held the lock %s for more than %s", l.Path(), timeout)
+		}
+		return fmt.Errorf("failed to lock %s: %w", l.Path(), err)
+	}
+	return nil
+}
+
 // usedBundles holds the use locks of the bundles that this process uses, by directory.
 var usedBundles = struct {
 	sync.Mutex
-	locks map[string]*fileLock
-}{locks: make(map[string]*fileLock)}
+	locks map[string]*flock.Flock
+}{locks: make(map[string]*flock.Flock)}
 
 // localBundle returns the bundle of the build of the forge project at project in root, and packs it
 // when root has none. A bundle has two locks. Its pack lock is exclusive while a process packs it, so
@@ -167,12 +187,8 @@ func localBundle(project string, root string, artifactsDir string) (string, erro
 		touchBundle(dir)
 		return dir, nil
 	}
-	use, err := openFileLock(dir + useLockSuffix)
-	if err != nil {
-		return "", err
-	}
-	if err := use.lock(false, lockTimeout); err != nil {
-		use.release()
+	use := flock.New(dir + useLockSuffix)
+	if err := lockWithin(use, false, lockTimeout); err != nil {
 		return "", err
 	}
 	// An eviction can have removed the bundle before this process took the use lock.
@@ -181,7 +197,7 @@ func localBundle(project string, root string, artifactsDir string) (string, erro
 		err = packOnce(project, root, key, artifactsDir)
 	}
 	if err != nil {
-		use.release()
+		_ = use.Close()
 		return "", err
 	}
 	touchBundle(dir)
@@ -193,12 +209,9 @@ func localBundle(project string, root string, artifactsDir string) (string, erro
 // packed it while this one waited for the pack lock, and then evicts the bundles beyond keptBundles.
 func packOnce(project string, root string, key string, artifactsDir string) error {
 	dir := filepath.Join(root, key)
-	packLock, err := openFileLock(dir + packLockSuffix)
-	if err != nil {
-		return err
-	}
-	defer packLock.release()
-	if err := packLock.lock(true, lockTimeout); err != nil {
+	packLock := flock.New(dir + packLockSuffix)
+	defer packLock.Close()
+	if err := lockWithin(packLock, true, lockTimeout); err != nil {
 		return err
 	}
 	if exists, err := bundleExists(dir); err != nil || exists {
@@ -225,10 +238,7 @@ func packOnce(project string, root string, key string, artifactsDir string) erro
 	}
 	if err := os.Rename(packing, dir); err != nil {
 		_ = os.RemoveAll(packing)
-		// Without file locks, another process can have stored the same bundle first.
-		if exists, _ := bundleExists(dir); !exists {
-			return fmt.Errorf("failed to store the bundle: %w", err)
-		}
+		return fmt.Errorf("failed to store the bundle: %w", err)
 	}
 	evictBundles(root, dir)
 	return nil
@@ -343,12 +353,9 @@ func evictBundles(root string, keep string) {
 // evictBundle removes the bundle at dir unless a process uses it. It moves the bundle out of the way
 // first, so that a removal that stops leaves no partial bundle at dir.
 func evictBundle(dir string) {
-	use, err := openFileLock(dir + useLockSuffix)
-	if err != nil {
-		return
-	}
-	defer use.release()
-	if ok, err := use.tryLock(); err != nil || !ok {
+	use := flock.New(dir + useLockSuffix)
+	defer use.Close()
+	if ok, err := use.TryLock(); err != nil || !ok {
 		return
 	}
 	trash, err := os.MkdirTemp(filepath.Dir(dir), packingPrefix+"evicted-*")

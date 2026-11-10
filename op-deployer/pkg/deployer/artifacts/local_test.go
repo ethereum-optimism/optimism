@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts/bundle"
@@ -210,10 +211,9 @@ func TestEvictBundles(t *testing.T) {
 		require.NoError(t, os.Mkdir(p, 0o700))
 		require.NoError(t, os.Chtimes(p, used, used))
 	}
-	inUse, err := openFileLock(filepath.Join(root, "in-use") + useLockSuffix)
-	require.NoError(t, err)
-	require.NoError(t, inUse.lock(false, time.Second))
-	defer inUse.release()
+	inUse := flock.New(filepath.Join(root, "in-use") + useLockSuffix)
+	require.NoError(t, inUse.RLock())
+	defer inUse.Close()
 
 	evictBundles(root, filepath.Join(root, "keep"))
 	var left []string
@@ -411,10 +411,9 @@ func TestLocalBundle_StopsWaitingForAStoppedPacker(t *testing.T) {
 	project := writeProject(t)
 	key, err := buildKey(project)
 	require.NoError(t, err)
-	held, err := openFileLock(filepath.Join(root, key) + packLockSuffix)
-	require.NoError(t, err)
-	require.NoError(t, held.lock(true, time.Second))
-	defer held.release()
+	held := flock.New(filepath.Join(root, key) + packLockSuffix)
+	require.NoError(t, held.Lock())
+	defer held.Close()
 	lockTimeout = 300 * time.Millisecond
 	t.Cleanup(func() { lockTimeout = 5 * time.Minute })
 
@@ -442,10 +441,9 @@ func TestOpenLocal_FallsBackToProcessDirectory(t *testing.T) {
 		require.NoError(t, err)
 		key, err := buildKey(resolved)
 		require.NoError(t, err)
-		held, err := openFileLock(filepath.Join(shared, key) + packLockSuffix)
-		require.NoError(t, err)
-		require.NoError(t, held.lock(true, time.Second))
-		defer held.release()
+		held := flock.New(filepath.Join(shared, key) + packLockSuffix)
+		require.NoError(t, held.Lock())
+		defer held.Close()
 		lockTimeout = 300 * time.Millisecond
 		t.Cleanup(func() { lockTimeout = 5 * time.Minute })
 
