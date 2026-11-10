@@ -223,9 +223,13 @@ commands:
 
   # The mise/ubi install cache is scoped by branch like the Go caches (see
   # restore-go-mod-cache), so it's restored and saved here rather than by the
-  # orb, whose fallback can't name develop. The setup job in config.yml uses
-  # the same keys. The tools themselves are in the orb's own mise-v8 cache,
-  # which this doesn't cover.
+  # orb, whose fallback can't name develop. mise trusts what's in it (each
+  # tool's bin paths, and the release URLs and digests it downloads from), so
+  # a copy written elsewhere could pick the binaries a job runs. Tag builds
+  # have no branch and don't save it. The setup job in config.yml uses the
+  # same keys. The tools themselves are in the orb's mise-v8 cache, which this
+  # doesn't cover: whichever branch first builds with a new mise.toml writes
+  # the tools develop then uses.
   checkout-with-mise:
     description: "Checkout then initialize the mise environment."
     parameters:
@@ -260,9 +264,14 @@ commands:
                   - << parameters.mise-cache-key-prefix >>-{{ checksum "/tmp/mise-cache-user" }}-develop:<< parameters.mise-cache-checksum >>
                   - '<< parameters.mise-cache-key-prefix >>-{{ checksum "/tmp/mise-cache-user" }}-{{ .Branch }}:'
                   - '<< parameters.mise-cache-key-prefix >>-{{ checksum "/tmp/mise-cache-user" }}-develop:'
-      - utils/install-mise
+      - utils/install-mise:
+          enable_mise_cache: false
       - when:
-          condition: << parameters.enable-mise-cache >>
+          condition:
+            and:
+              - << parameters.enable-mise-cache >>
+              - not:
+                  equal: ["", << pipeline.git.branch >>]
           steps:
             - save_cache:
                 name: Save mise/ubi install cache

@@ -180,8 +180,8 @@ jobs:
       # (e.g. to just yq) would freeze an incomplete toolset for every
       # continuation job and silently force them all to cold-install forever.
       #
-      # The mise/ubi install cache is scoped by branch, with the same keys as
-      # checkout-with-mise in continue/helpers.yml (see there).
+      # The mise/ubi install cache is scoped by branch, with the same keys and
+      # tag-build rule as checkout-with-mise in continue/helpers.yml (see there).
       - run:
           name: Record executor user for the mise cache key
           command: whoami > /tmp/mise-cache-user
@@ -192,14 +192,20 @@ jobs:
             - mise-cache-{{ checksum "/tmp/mise-cache-user" }}-develop:{{ checksum "mise.toml" }}
             - 'mise-cache-{{ checksum "/tmp/mise-cache-user" }}-{{ .Branch }}:'
             - 'mise-cache-{{ checksum "/tmp/mise-cache-user" }}-develop:'
-      - utils/install-mise
-      - save_cache:
-          name: Save mise/ubi install cache
-          key: mise-cache-{{ checksum "/tmp/mise-cache-user" }}-{{ .Branch }}:{{ checksum "mise.toml" }}
-          paths:
-            - ~/.local/share/mise
-            - ~/.cache/mise
-            - ~/.cache/ubi
+      - utils/install-mise:
+          enable_mise_cache: false
+      - when:
+          condition:
+            not:
+              equal: ["", << pipeline.git.branch >>]
+          steps:
+            - save_cache:
+                name: Save mise/ubi install cache
+                key: mise-cache-{{ checksum "/tmp/mise-cache-user" }}-{{ .Branch }}:{{ checksum "mise.toml" }}
+                paths:
+                  - ~/.local/share/mise
+                  - ~/.cache/mise
+                  - ~/.cache/ubi
       # mise shims re-resolve the tool on every invocation, which the yq/jq
       # loops in the routing scripts below pay hundreds of times (~9s of
       # overhead measured). Putting the resolved tool bin directories ahead
