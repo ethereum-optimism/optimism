@@ -209,8 +209,8 @@ Do this step first. Continue only if the diff adds or changes one of these items
   (`rust/kona/sp1/crates/client/src/precompiles/`), or the SP1 crypto patches (`[patch.crates-io]`
   in `rust/kona/sp1/programs/Cargo.toml`).
 - A hash map or hash set on a guest path, a hasher choice, a new hasher crate in the guest tree, or
-  a change to guest hash seeding (`programs/foldhash-seeded`, the seed read at the top of each
-  guest `main`, `guest_hash_seed` in `kona-sp1-super-range-executor`).
+  a change to guest hash seeding (`programs/foldhash-seeded`, `hash_seed` in
+  `programs/super-range/src/main.rs`, or a guest `main` that installs no seed).
 
 Otherwise, report `No guest cost change` and one sentence of reason, and stop. Most diffs stop
 here.
@@ -252,7 +252,7 @@ Do not dismiss a candidate for these reasons:
 - The attacker must pay for the referenced data. Check whether any data in the window, from any
   user, is a valid reference.
 
-## Hash-based collections and HashDoS
+## Hash-based collections and colliding keys
 
 With attacker-chosen keys and a known seed, every insert and lookup in a hash table walks one probe
 chain, so the guest's computation, and the PGU it costs, grows with the square of the key count
@@ -261,9 +261,10 @@ unprovable. The zkVM has no ASLR, clock or OS randomness, so an unseeded hasher'
 constant of the ELF, and the attacker can find colliding keys offline.
 
 The defence: the guest workspace patches `foldhash` to `programs/foldhash-seeded`, whose
-`RandomState` is keyed by a seed that the host draws fresh for every super-range and
-log-commitment proof and writes as stdin item 0. Those guests install it first, and creating a map
-earlier panics. `PreimageStore` is a `BTreeMap`.
+`RandomState` is keyed by a seed that the super-range guest takes from its input before it creates
+any map: the L1 head in range mode, the claimed super root at `span.end` in consolidation mode.
+Creating a map earlier panics. `log-commitment` and `super-aggregation` build no hash map and
+install no seed. `PreimageStore` is a `BTreeMap`.
 `just check-sp1-guest-hashers` fails if a guest links an unseeded foldhash or a listed hasher
 crate, or builds alloy-primitives without `map-foldhash`, and `just check-hashdos-zkvm` checks in
 the zkVM that the seed reaches revm's maps. std's `HashMap` is not used on guest paths, only in
@@ -276,26 +277,31 @@ Rules:
    alloy/hashbrown maps, which hash with the seeded foldhash.
 2. An explicit hasher (`BuildHasherDefault<…>`, Fx, ahash, fnv, `FixedState`, a constant
    `with_hasher`) over attacker-influenced keys is a finding.
-3. **Hash order.** The prover chooses the seed, so a committed output, error class or control-flow
-   decision that depends on hash-map iteration order or hash values is a soundness finding. That
-   includes data built by iterating a map, such as revm's `BundleState::reverts` (built in hash
-   order and unread today, so reading it is a finding), and a map encoded (serde, bincode, rkyv)
-   into committed output. A witness read that depends on hash order is a completeness finding: the
-   host collects the witness natively under another seed, so the guest can request a preimage that
-   the witness lacks, and panic. Canonicalise by sorting, or use an ordered collection. The
-   existing canonicalisations are `TrieDB::update_accounts` and `MessageGraph::resolve`. Tests
-   cannot prove the absence of such a dependency, so check every hash-map iteration that the diff
-   adds or reaches.
+3. **Hash order.** The guest hashes under a different seed from the native host run that produces
+   the claim and the witness, so a committed output, error class or control-flow decision that
+   depends on hash-map iteration order or hash values is a soundness finding. That includes data
+   built by iterating a map, such as revm's `BundleState::reverts` (built in hash order and unread
+   today, so reading it is a finding), and a map encoded (serde, bincode, rkyv) into committed
+   output. A witness read that depends on hash order is a completeness finding: the host collects
+   the witness natively under another seed, so the guest can request a preimage that the witness
+   lacks, and panic. Canonicalise by sorting, or use an ordered collection. The existing
+   canonicalisations are `TrieDB::update_accounts` and `MessageGraph::resolve`. Tests cannot prove
+   the absence of such a dependency, so check every hash-map iteration that the diff adds or
+   reaches.
 4. A dependency bump that changes the foldhash version, or adds a hasher crate listed in
    `check-sp1-guest-hashers` (`rust/justfile`), fails that gate. Seed the hasher; do not bypass the
    gate. The list is not exhaustive, so check any new crate in the guest tree that hashes keys.
 5. Price the amplification by the gas per inserted key: TSTORE 100, access-list storage key 1,900,
    cold SLOAD 2,100, access-list address 2,400, cold account 2,600. `CacheAccount.storage`
    accumulates across a whole block.
-6. Each super-range, consolidation and log-commitment stdin must carry a fresh secret seed from
-   `guest_hash_seed`. Making the seed deterministic, deriving it from the inputs, or caching or
-   reusing it across stdins is a completeness finding, because the attacker can then build keys
-   that collide under it.
+6. A guest's seed must be a hash in its input that no on-chain actor can predict or choose before
+   the guest's keys are fixed, and that no block the proof executes can read (see `hash_seed` in
+   the super-range guest). The prover knowing the seed is not a finding. Seeding from a value known
+   earlier (the previous super root, a pre-state root, an idle chain's head), or from the hash of a
+   block that a later block in the same proof can read through `BLOCKHASH` or the L1 info deposit,
+   is a completeness finding: the attacker can build keys that collide under it, for example in a
+   deposit that the consolidation re-executes. A guest that creates a hash map without installing a
+   seed panics.
 
 ## Known case: interop receipts in consolidation
 

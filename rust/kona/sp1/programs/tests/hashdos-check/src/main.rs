@@ -1,8 +1,9 @@
 //! Test-only SP1 guest: one OP deposit that runs a TSTORE loop until it is out of gas, executed
 //! with the same revm / op-revm / foldhash code that the super-range guest uses for L2 blocks.
 //!
-//! Input: the guest hash seed, then `(gas_limit, top_limb, step_limb)`. The contract stores the
-//! keys `(top_limb << 192) + (i << (64 * step_limb))` for i = 0, 1, ... Output: the gas used.
+//! Input: `(source_hash, gas_limit, top_limb, step_limb)`. Like the super-range guest, it seeds its
+//! hash maps from a hash in its input: the deposit's source hash. The contract stores the keys
+//! `(top_limb << 192) + (i << (64 * step_limb))` for i = 0, 1, ... Output: the gas used.
 
 #![cfg_attr(target_os = "zkvm", no_main)]
 #[cfg(target_os = "zkvm")]
@@ -44,12 +45,15 @@ fn runtime(top_limb: u64, step_limb: u64) -> Vec<u8> {
     code
 }
 
-/// Entrypoint to the hash-flooding check program.
+/// Entrypoint to the hash-collision check program.
 pub fn main() {
     println!("{}", kona_sp1_build_info::BUILD_MARKER);
-    foldhash::install_global_seed(sp1_zkvm::io::read::<u64>());
 
-    let (gas_limit, top_limb, step_limb) = sp1_zkvm::io::read::<(u64, u64, u64)>();
+    let (source_hash, gas_limit, top_limb, step_limb) =
+        sp1_zkvm::io::read::<(B256, u64, u64, u64)>();
+    foldhash::install_global_seed(u64::from_le_bytes(
+        source_hash[..8].try_into().expect("8 bytes"),
+    ));
 
     let mut db = InMemoryDB::default();
     db.insert_account_info(
@@ -60,7 +64,7 @@ pub fn main() {
     // A zero-value deposit, as an ordinary L1 account submits through the OptimismPortal.
     let tx = OpTransaction::builder()
         .base(TxEnv::builder().caller(CALLER).kind(TxKind::Call(TARGET)).gas_limit(gas_limit))
-        .source_hash(B256::with_last_byte(1))
+        .source_hash(source_hash)
         .build_fill();
     let mut evm =
         Context::op().with_cfg(CfgEnv::new_with_spec(OpSpecId::KARST)).with_db(db).build_op();

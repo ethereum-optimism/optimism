@@ -52,21 +52,6 @@ async fn sp1_public_values_match_native() {
     assert_eq!(public_values.as_slice(), native.as_slice());
 }
 
-/// Spot-checks that the public values do not depend on the prover-chosen hash seed.
-#[tokio::test(flavor = "multi_thread")]
-async fn sp1_public_values_do_not_depend_on_hash_seed() {
-    let Some(dir) = elf_dir() else { return };
-    let blocks = mixed_blocks();
-    let (native, _) = native_public_values(&blocks);
-    for seed in [1u64, 2] {
-        let mut stdin = build_log_commitment_stdin_from_receipts(&blocks).unwrap();
-        stdin.buffer[0] = seed.to_le_bytes().to_vec();
-        let (public_values, report) = execute(&dir, stdin).await.unwrap();
-        assert_eq!(report.exit_code, 0);
-        assert_eq!(public_values.as_slice(), native.as_slice(), "seed {seed}");
-    }
-}
-
 /// Pins a halt in the SP1 executor, not `L = 0`, when the witness omits a trie node.
 #[tokio::test(flavor = "multi_thread")]
 async fn sp1_missing_trie_node_halts() {

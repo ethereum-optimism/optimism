@@ -503,7 +503,7 @@ jobs:
 
   # Test-only: builds its own guest ELF and checks, inside SP1's CPU executor, that TSTORE keys
   # built to collide under one guest hash seed cost no more than control keys under another.
-  # Catches the guest hash seed not reaching revm's maps (HashDoS, see rust/kona/sp1/README.md).
+  # Catches the guest hash seed not reaching revm's maps (see rust/kona/sp1/README.md).
   sp1-hashdos-zkvm-check:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
@@ -520,12 +520,12 @@ jobs:
           directory: rust/kona/sp1/programs
       - sp1-toolchain-restore-or-install
       - run:
-          name: Build HashDoS zkVM check ELF
+          name: Build hash-collision zkVM check ELF
           working_directory: rust/kona/sp1
           no_output_timeout: 40m
           command: just build-hashdos-check-elf
       - run:
-          name: Run HashDoS zkVM check
+          name: Run hash-collision zkVM check
           working_directory: rust/kona/sp1
           no_output_timeout: 30m
           command: just run-hashdos-check

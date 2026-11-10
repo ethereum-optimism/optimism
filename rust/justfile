@@ -327,7 +327,7 @@ check-sp1-guest-precompile-patches:
   # The log-commitment guest hashes every log with keccak.
   verify_program_patches kona-sp1-log-commitment "${common_patches[@]}"
 
-# Every guest hash table must hash with the seeded foldhash-seeded crate (HashDoS; see
+# Every guest hash table must hash with the seeded foldhash-seeded crate (see
 # rust/kona/sp1/README.md). Cargo only warns when a [patch] goes unused, and any other hasher
 # bypasses the seed. To allow a new hasher crate: if it is unreachable at runtime, or its keys are
 # trusted and bounded, add it to `restricted_hashers` with the crates allowed to depend on it and
