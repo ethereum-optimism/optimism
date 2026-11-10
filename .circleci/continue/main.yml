@@ -626,6 +626,8 @@ commands:
           and every other binary instead. Package selection stays the same, so
           feature unification and the sccache keys match a full build.
           Workspace builds only: can't be combined with package or binary.
+          A binary whose required-features are disabled fails the build instead
+          of being skipped; leave it out here.
         type: string
         default: ""
       save_cache:
@@ -697,11 +699,6 @@ commands:
               # Assignments, not a `for ... in $(...)`, so a failure stops the job.
               METADATA=$(cargo metadata --no-deps --format-version 1 --locked)
               ALL_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select(.kind | index("bin")) | .name')
-              GATED_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select((.kind | index("bin")) and ((.["required-features"] // []) | length > 0)) | .name')
-              if [ -n "$GATED_BINS" ]; then
-                echo "ERROR: binaries with required-features need their own build here:" $GATED_BINS >&2
-                exit 1
-              fi
               export BINARY="--lib"
               for bin in $ALL_BINS; do
                 case " << parameters.exclude_binary >> " in
@@ -1614,12 +1611,15 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: go-lint
+      # Scoped by branch like the shared Go caches (see helpers.yml).
       - restore_cache:
           keys:
-            - golangci-v1-{{ checksum ".golangci.yaml" }}
+            - golangci-v1-{{ .Branch }}:{{ checksum ".golangci.yaml" }}
+            - golangci-v1-develop:{{ checksum ".golangci.yaml" }}
             # Fall back to the latest golangci cache so a config change reuses
             # the prior analysis cache instead of a full cold lint.
-            - golangci-v1-
+            - "golangci-v1-{{ .Branch }}:"
+            - "golangci-v1-develop:"
       - run:
           name: run Go linter
           command: |
@@ -1632,7 +1632,7 @@ jobs:
       - save_cache:
           # Warm the analysis cache even when linting fails, so a branch with
           # lint errors doesn't repeatedly cold-start golangci-lint.
-          key: golangci-v1-{{ checksum ".golangci.yaml" }}
+          key: golangci-v1-{{ .Branch }}:{{ checksum ".golangci.yaml" }}
           when: always
           paths:
             - "/home/circleci/.cache/golangci-lint"
@@ -1691,19 +1691,22 @@ jobs:
       # with an empty module cache and compare what it adds to the shared one.
       # The fallback restores the upstream modules across go.mod changes that
       # rarely touch them; an old go-ethereum version then lingers in the cache
-      # until c-go-cache-version is bumped.
+      # until c-go-cache-version is bumped. Scoped by branch like the shared Go
+      # caches (see helpers.yml).
       - restore_cache:
           name: Restore upstream go-ethereum modules
           keys:
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:{{ checksum "go.mod" }}
+            - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:"
+            - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:"
       - run:
           name: Check op-geth-only API uses against the allowlist
           command: |
             just opgeth-ratchet
       - save_cache:
           name: Save upstream go-ethereum modules
-          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
+          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
           paths:
             - ~/go/pkg/mod/cache/download/github.com/ethereum/go-ethereum
             - ~/go/pkg/mod/cache/download/github.com/pion/stun/v2
@@ -1769,6 +1772,13 @@ jobs:
             # (INTERNAL_ERROR). Retry with exponential backoff so a flaky
             # download doesn't fail this shared prep job and everything behind
             # it.
+            # Count before running any go command: a go.mod toolchain bump
+            # makes the first one (even "go env") download the toolchain into
+            # the module cache, and that download must count as new.
+            # restore-go-mod-cache sets GOMODCACHE.
+            dl="${GOMODCACHE:?}/cache/download"
+            count_files() { if [ -d "$dl" ]; then find "$dl" -type f | wc -l; else echo 0; fi; }
+            before=$(count_files)
             n=0
             until go mod download; do
               n=$((n+1))
@@ -1780,6 +1790,15 @@ jobs:
               echo "go mod download failed (attempt $n); retrying in ${backoff}s..." >&2
               sleep "$backoff"
             done
+            # The module cache is saved per branch. If nothing was downloaded,
+            # the restored cache already had every module, and the jobs after
+            # this one restore a cache that has them too. So skip the save
+            # rather than have every branch upload its own copy of develop's.
+            # The halt ends the job, so keep the save as its last step.
+            if (( $(count_files) == before )); then
+              echo "No modules downloaded; nothing new to save"
+              circleci-agent step halt
+            fi
       - save-go-mod-cache
 
   check-nut-locks:
@@ -1812,6 +1831,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: check-nut-prefork-states
       - run:
@@ -1885,6 +1905,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       # op-deployer/pkg/deployer/forge's tests compile a test project with forge. Without
       # an installed solc, forge downloads the newest matching release on every run.
       - install-solc-compilers
@@ -1964,6 +1985,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-actions-tests
       - run:
@@ -2032,6 +2054,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-tests-with-fault-proof-deps
       # Build the superchain-configs.zip op-e2e/faultproofs //go:embeds (no prep-superchain job here).
@@ -2128,6 +2151,7 @@ jobs:
             fi
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
@@ -2282,8 +2306,12 @@ jobs:
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
       SEMGREP_BRANCH: << pipeline.git.branch >>
       SEMGREP_COMMIT: << pipeline.git.revision >>
+    # Pinned: semgrep-scan-local and semgrep-test gate ci-gate, so a floating tag
+    # would let an upstream release fail every PR without a change in this repo.
+    # Keep the version in step with "pipx:semgrep" in mise.toml, which local runs
+    # use; a new tag needs its new digest too.
     docker:
-      - image: returntocorp/semgrep
+      - image: returntocorp/semgrep:1.182.1@sha256:451b3d875c00dac7ed5db5293e584a07de11449a409c10b3c2d2652f429630b6
     resource_class: xlarge.gen2
     steps:
       - github-checkout: # no need to use mise here since the docker image contains the only dependency

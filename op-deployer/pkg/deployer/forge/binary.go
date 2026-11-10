@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"runtime"
 
@@ -46,15 +47,18 @@ func init() {
 // maxDownloadSize bounds downloads while accommodating the supported Foundry release archives.
 const maxDownloadSize = 150 * 1024 * 1024
 
+// getOS returns the OS of the forge release archive: alpine on musl libc, or with FORGE_ENV=alpine.
 func getOS() string {
-	if os.Getenv("FORGE_ENV") == "alpine" {
+	if os.Getenv("FORGE_ENV") == "alpine" || (runtime.GOOS == "linux" && isMusl()) {
 		return "alpine"
 	}
-	sysOS := runtime.GOOS
-	if runtime.GOOS == "windows" {
-		sysOS = "win32"
-	}
-	return sysOS
+	return runtime.GOOS
+}
+
+// isMusl reports whether the system has the musl dynamic loader.
+func isMusl() bool {
+	loaders, err := filepath.Glob("/lib/ld-musl-*.so.1")
+	return err == nil && len(loaders) > 0
 }
 
 func binaryURL(sysOS, sysArch string) string {
@@ -214,8 +218,11 @@ func (b *StandardBin) Ensure(ctx context.Context) error {
 	}
 
 	// 4) Download expected version for this OS/arch and verify checksum
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		return fmt.Errorf("could not create forge cache directory %s: %w", binDir, err)
+	}
 	if err := b.downloadBinary(ctx, binDir); err != nil {
-		return fmt.Errorf("could not download binary: %w", err)
+		return fmt.Errorf("could not download forge %s from %s; without network access, put forge %s on PATH: %w", StandardVersion, b.url, StandardVersion, err)
 	}
 	b.path = binPath
 	return nil
@@ -256,7 +263,7 @@ func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
 	if err := ioutil.SafeRename(path.Join(tmpDir, "forge"), path.Join(dest, "forge")); err != nil {
 		return fmt.Errorf("failed to move binary: %w", err)
 	}
-	if err := os.Chmod(path.Join(dest, "forge"), 0o755); err != nil {
+	if err := os.Chmod(path.Join(dest, "forge"), 0o700); err != nil {
 		return fmt.Errorf("failed to set executable bit: %w", err)
 	}
 	return nil

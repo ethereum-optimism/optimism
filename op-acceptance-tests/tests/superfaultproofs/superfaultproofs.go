@@ -1548,7 +1548,10 @@ func RunDepositMessageInvalidExecutionTest(t devtest.T, sys *presets.SimpleInter
 	eventLogger := aliceA.DeployEventLogger()
 	depositEOA := aliceA.ViaDepositTx(aliceL1, sys.L2ELA, sys.L2ChainA)
 	initMsg := depositEOA.SendRandomInitMessage(rng, eventLogger)
+	// Pause interop below the executing block so the receipt read precedes its replacement.
+	sys.Supernode().EnsureInteropPaused(10, sys.L2CLA, sys.L2CLB)
 	execMsg := aliceB.SendInvalidExecMessage(initMsg)
+	sys.Supernode().ResumeInterop()
 
 	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
 	startTimestamp := endTimestamp - 1
