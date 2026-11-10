@@ -12,25 +12,25 @@
 
     <OpEnterpriseFeature />
 
-    ### Feature in some agreements
+    ### Feature not in every tier
 
-    <OpEnterpriseFeature availability="by-agreement" />
+    <OpEnterpriseFeature availability="offered" />
 
   Props:
     availability - optional. A fixed value, never free text, so a call site
                    cannot write its own entitlement claim. Pick the line that
                    matches what every OP Enterprise customer is entitled to:
-      (omitted)      "Available to OP Enterprise customers."
-                     Every OP Enterprise customer gets the feature.
-      "by-agreement" "Available with OP Enterprise, depending on your agreement."
-                     The feature is not part of every OP Enterprise agreement,
-                     whether it is included in some packages or sold
-                     separately. The default line would promise it to all
-                     customers.
-                   When unsure, use "by-agreement": it never over-promises.
+      (omitted)  "Available to OP Enterprise customers."
+                 Every OP Enterprise customer gets the feature.
+      "offered"  "Offered through OP Enterprise."
+                 The feature is not part of every OP Enterprise tier, whether
+                 some tiers include it or it is sold separately. The line says
+                 where the feature comes from without promising it to every
+                 customer or hinting at how it is packaged.
+                 When unsure, use "offered": it never over-promises.
 
   Consumers:
-    - chain-operators/tools/chain-monitoring.mdx ("by-agreement", under the
+    - chain-operators/tools/chain-monitoring.mdx ("offered", under the
       `OP Enterprise security monitoring` heading)
 
   Placement rules: directly under the heading of the gated section, or at the
@@ -67,8 +67,8 @@ export const OpEnterpriseFeature = ({ availability }) => {
   return (
     <div className="op-ent-marker">
       <Badge color="gray" size="sm" className="op-ent-badge">OP Enterprise</Badge>
-      {availability === "by-agreement" ? (
-        <span>Available with {link}, depending on your agreement.</span>
+      {availability === "offered" ? (
+        <span>Offered through {link}.</span>
       ) : (
         <span>Available to {link} customers.</span>
       )}
