@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 
@@ -28,6 +29,14 @@ import (
 
 // progressLogInterval is how often to log ingestion progress.
 const progressLogInterval = 10 * time.Second
+
+// startAttempts and startRetryInterval bound the start-up retries against an L2 EL
+// RPC: the dial, the chain ID query and the ingestion init. If all attempts fail,
+// start-up returns an error so the process exits and the failure is visible.
+const (
+	startAttempts      = 5
+	startRetryInterval = 10 * time.Second
+)
 
 // EthClient defines the interface for fetching block and receipt data.
 // This allows for dependency injection in tests.
@@ -61,6 +70,7 @@ type LogsDBChainIngester struct {
 	pollInterval     time.Duration
 	rollupCfg        *rollup.Config // Rollup config for block number calculation
 	fetchConcurrency int
+	startRetry       retry.Strategy
 
 	stopped atomic.Bool
 
@@ -85,12 +95,13 @@ type LogsDBChainIngester struct {
 // NewLogsDBChainIngester creates a new LogsDBChainIngester for the given chain.
 // startTimestamp is when we report Ready() = true (now minus assume-valid-before).
 // backfillDuration is how far back from startTimestamp to begin ingestion.
+// The ingester takes ownership of rpcClient and closes it on Stop.
 func NewLogsDBChainIngester(
 	parentCtx context.Context,
 	logger log.Logger,
 	m metrics.Metricer,
 	chainID eth.ChainID,
-	rpcURL string,
+	rpcClient client.RPC,
 	dataDir string,
 	startTimestamp uint64,
 	backfillDuration time.Duration,
@@ -102,12 +113,6 @@ func NewLogsDBChainIngester(
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	logger = logger.New("chain", chainID)
-
-	rpcClient, err := client.NewRPC(ctx, logger, rpcURL)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to create RPC client for chain %s: %w", chainID, err)
-	}
 
 	ethClient, err := sources.NewEthClient(
 		rpcClient,
@@ -143,6 +148,7 @@ func NewLogsDBChainIngester(
 		pollInterval:     pollInterval,
 		rollupCfg:        rollupCfg,
 		fetchConcurrency: fetchConcurrency,
+		startRetry:       retry.Fixed(startRetryInterval),
 		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
@@ -156,8 +162,19 @@ func (c *LogsDBChainIngester) Start() error {
 		return fmt.Errorf("failed to init logs DB: %w", err)
 	}
 
+	nextBlock, err := retry.Do(c.ctx, startAttempts, c.startRetry, func() (uint64, error) {
+		nextBlock, err := c.initIngestion()
+		if err != nil {
+			c.log.Warn("Failed to initialize ingestion", "err", err)
+		}
+		return nextBlock, err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize ingestion: %w", err)
+	}
+
 	c.wg.Add(1)
-	go c.runIngestion()
+	go c.runIngestion(nextBlock)
 
 	return nil
 }
@@ -426,20 +443,8 @@ func (c *LogsDBChainIngester) initLogsDB() error {
 	return nil
 }
 
-func (c *LogsDBChainIngester) runIngestion() {
+func (c *LogsDBChainIngester) runIngestion(nextBlock uint64) {
 	defer c.wg.Done()
-
-	// One-time setup: determine starting block and next block to ingest
-	nextBlock, err := c.initIngestion()
-	if err != nil {
-		// Application context was canceled (e.g., during shutdown).
-		if errors.Is(err, context.Canceled) {
-			c.log.Info("Ingestion init canceled")
-			return
-		}
-		c.log.Error("Failed to initialize ingestion", "err", err)
-		return
-	}
 
 	// Track progress for logging
 	lastLogTime := clock.SystemClock.Now()
