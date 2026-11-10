@@ -101,6 +101,9 @@ func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 	prepareGlamsterdamOpReth(t)
 	sys := presets.NewMinimal(t,
 		glamsterdamL1Geth(t),
+		// The blob fee reasoning in withGlamsterdamAutoDABlobFee needs Amsterdam within 20 L1
+		// blocks, and 20 faster blocks leave too little time to start up and submit a batch.
+		presets.WithL1BlockTime(6),
 		presets.WithDeployerOptions(
 			// Activate the stable test blob schedule before setting the large excess blob gas.
 			sysgo.WithForkAtL1Genesis(forks.BPO2),
