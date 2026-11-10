@@ -72,6 +72,29 @@ Periodic verification helps catch data corruption while maintaining good perform
   <Tab title="Default">`0`</Tab>
 </Tabs>
 
+### proofs-history.prune-slack
+
+Extra blocks the proofs window may grow past `--proofs-history.window` before it is pruned back to the window.
+`0` (default) prunes whenever the window is exceeded.
+A larger value retains up to `window + slack` blocks and prunes less often, in bigger runs inside a single persistence transaction.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.prune-slack <BLOCKS>`</Tab>
+  <Tab title="Default">`0`</Tab>
+</Tabs>
+
+### proofs-history.persistence-threshold
+
+Blocks the proofs engine buffers in memory before persisting them in one write transaction.
+Backpressure engages at twice this value.
+Buffered blocks are not yet served by the proofs RPC, so a larger value makes the latest proofs staler.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.persistence-threshold <BLOCKS>`</Tab>
+  <Tab title="Default">`5`</Tab>
+  <Tab title="Accepted values">`1` to `10000`</Tab>
+</Tabs>
+
 
 ## Lifecycle and management commands
 

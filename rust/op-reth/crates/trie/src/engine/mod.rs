@@ -28,10 +28,10 @@ mod service_guard;
 mod state;
 
 /// Default number of blocks to keep in memory before persisting.
-const DEFAULT_PERSISTENCE_THRESHOLD: u64 = 5;
+pub const DEFAULT_PERSISTENCE_THRESHOLD: u64 = 5;
 
 /// Default number of blocks where we block execution to allow persistence to catch up.
-const DEFAULT_BACKPRESSURE_THRESHOLD: u64 = 10;
+const DEFAULT_BACKPRESSURE_THRESHOLD: u64 = 2 * DEFAULT_PERSISTENCE_THRESHOLD;
 
 /// Default timeout for waiting on a persistence save/unwind operation (in seconds).
 const DEFAULT_PERSISTENCE_TIMEOUT_SECS: u64 = 60;

@@ -5,7 +5,7 @@
 use alloy_primitives::Address;
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
-use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
+use reth_optimism_trie::{DEFAULT_BACKFILL_BATCH_SIZE, engine::DEFAULT_PERSISTENCE_THRESHOLD};
 use std::path::PathBuf;
 use url::Url;
 
@@ -312,6 +312,24 @@ pub struct RollupArgs {
         default_value_t = 0
     )]
     pub proofs_history_verification_interval: u64,
+
+    /// Extra blocks the proofs window may grow past `--proofs-history.window` before it is
+    /// pruned back to the window. `0` (default) prunes whenever the window is exceeded. A
+    /// larger value retains up to `window + slack` blocks and prunes less often, in bigger runs
+    /// inside a single persistence transaction.
+    #[arg(long = "proofs-history.prune-slack", value_name = "BLOCKS", default_value_t = 0)]
+    pub proofs_history_prune_slack: u64,
+
+    /// Blocks the proofs engine buffers in memory before persisting them in one write
+    /// transaction (1 to 10000). Backpressure engages at twice this value. Buffered blocks are not
+    /// yet served by the proofs RPC, so a larger value makes the latest proofs staler.
+    #[arg(
+        long = "proofs-history.persistence-threshold",
+        value_name = "BLOCKS",
+        default_value_t = DEFAULT_PERSISTENCE_THRESHOLD,
+        value_parser = clap::value_parser!(u64).range(1..=10_000),
+    )]
+    pub proofs_history_persistence_threshold: u64,
 }
 
 impl Default for RollupArgs {
@@ -338,6 +356,8 @@ impl Default for RollupArgs {
             history: ProofsHistoryStorageArgs { storage_path: None, storage_version: None },
             proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
+            proofs_history_prune_slack: 0,
+            proofs_history_persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
         }
     }
 }
@@ -380,6 +400,29 @@ mod tests {
             .unwrap_or_else(|| panic!("storage version {version} should be rejected"));
             assert!(err.to_string().contains("only `v2` is supported"), "unexpected error: {err}");
         }
+    }
+
+    #[test]
+    fn test_proofs_history_prune_slack_and_persistence_threshold() {
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--proofs-history.prune-slack",
+            "50",
+            "--proofs-history.persistence-threshold",
+            "20",
+        ])
+        .args;
+        assert_eq!(args.proofs_history_prune_slack, 50);
+        assert_eq!(args.proofs_history_persistence_threshold, 20);
+
+        assert!(
+            CommandParser::<RollupArgs>::try_parse_from([
+                "reth",
+                "--proofs-history.persistence-threshold",
+                "0",
+            ])
+            .is_err()
+        );
     }
 
     #[test]

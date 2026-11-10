@@ -429,6 +429,8 @@ pub async fn launch_node(
         let path = node.args.history.resolve_storage_path(builder.config().datadir().as_ref());
         let window = node.args.proofs_history_window.window;
         let verification_interval = node.args.proofs_history_verification_interval;
+        let prune_slack = node.args.proofs_history_prune_slack;
+        let persistence_threshold = node.args.proofs_history_persistence_threshold;
 
         info!(target: "reth::cli", "Using on-disk storage for proofs history");
         let mdbx = Arc::new(
@@ -471,6 +473,8 @@ pub async fn launch_node(
                 Ok(OpProofsExEx::builder(exex_context, storage_exec)
                     .with_proofs_history_window(window)
                     .with_verification_interval(verification_interval)
+                    .with_prune_slack(prune_slack)
+                    .with_persistence_threshold(persistence_threshold)
                     .build()
                     .run()
                     .boxed())

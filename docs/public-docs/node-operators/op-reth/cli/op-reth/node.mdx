@@ -1305,6 +1305,16 @@ Rollup:
 
           [default: 0]
 
+      --proofs-history.prune-slack <BLOCKS>
+          Extra blocks the proofs window may grow past `--proofs-history.window` before it is pruned back to the window. `0` (default) prunes whenever the window is exceeded. A larger value retains up to `window + slack` blocks and prunes less often, in bigger runs inside a single persistence transaction
+
+          [default: 0]
+
+      --proofs-history.persistence-threshold <BLOCKS>
+          Blocks the proofs engine buffers in memory before persisting them in one write transaction (>= 1). Backpressure engages at twice this value. Buffered blocks are not yet served by the proofs RPC, so a larger value makes the latest proofs staler
+
+          [default: 5]
+
 Logging:
       --log.stdout.format <FORMAT>
           The format to use for logs written to stdout

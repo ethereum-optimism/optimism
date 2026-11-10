@@ -26,6 +26,9 @@ pub struct OpProofStoragePruner<S, H> {
     min_block_interval: u64,
     /// Maximum number of blocks to prune in one database transaction
     prune_batch_size: u64,
+    /// Extra blocks the window may exceed `min_block_interval` by before pruning runs. `0`
+    /// prunes as soon as the window is exceeded.
+    prune_slack: u64,
     // TODO: add timeout - Maximum time for one pruner run. If `None`, no timeout.
     #[doc(hidden)]
     #[cfg(feature = "metrics")]
@@ -40,6 +43,7 @@ impl<S, H> OpProofStoragePruner<S, H> {
             block_hash_reader,
             min_block_interval,
             prune_batch_size: DEFAULT_PRUNE_BATCH_SIZE,
+            prune_slack: 0,
             #[cfg(feature = "metrics")]
             metrics: Metrics::default(),
         }
@@ -49,6 +53,14 @@ impl<S, H> OpProofStoragePruner<S, H> {
     /// at most this many blocks in one database transaction.
     pub const fn with_batch_size(mut self, prune_batch_size: u64) -> Self {
         self.prune_batch_size = prune_batch_size;
+        self
+    }
+
+    /// Defer pruning until the window exceeds `min_block_interval` by more than `prune_slack`
+    /// blocks, then prune back to `min_block_interval`. Pruning cost is paid per unique key per
+    /// run, so larger, less frequent runs touch each frequently modified key fewer times.
+    pub const fn with_prune_slack(mut self, prune_slack: u64) -> Self {
+        self.prune_slack = prune_slack;
         self
     }
 }
@@ -153,7 +165,9 @@ where
             Err(err) => return Err(err.into()),
         };
         let (latest_block, earliest_block) = (window.latest.number, window.earliest.number);
-        if latest_block.saturating_sub(earliest_block) <= self.min_block_interval {
+        if latest_block.saturating_sub(earliest_block) <=
+            self.min_block_interval.saturating_add(self.prune_slack)
+        {
             trace!(target: "trie::prune::pruner", "Nothing to prune");
             return Ok(None);
         }
@@ -825,5 +839,32 @@ mod tests {
         let out = pruner.run_inner().expect("pruner ok");
         assert_eq!(out, PrunerOutput::default());
         assert_eq!(store.provider_ro().unwrap().get_earliest_block().unwrap().number, 0);
+    }
+
+    // With slack, pruning waits until the window exceeds `min_block_interval + slack`, then prunes
+    // all the way back to `min_block_interval`.
+    #[tokio::test]
+    async fn run_inner_defers_until_slack_exceeded() {
+        let (_dir, store) = store_with_blocks(10);
+        let reader = || {
+            let mut reader = MockChainReader::new();
+            reader.expect_block_hash().returning(|n| Ok(Some(b256(n))));
+            reader.expect_get_stage_checkpoint().returning(|_| Ok(Some(StageCheckpoint::new(10))));
+            reader
+        };
+
+        // Window spans 10 blocks; 2 + 8 = 10 is not exceeded.
+        let pruner = OpProofStoragePruner::new(store.clone(), reader(), 2).with_prune_slack(8);
+        assert_eq!(pruner.run_inner().expect("pruner ok"), PrunerOutput::default());
+        assert_eq!(store.provider_ro().unwrap().get_earliest_block().unwrap().number, 0);
+
+        // 2 + 7 = 9 is exceeded, so prune to latest - min_block_interval.
+        let pruner = OpProofStoragePruner::new(store.clone(), reader(), 2).with_prune_slack(7);
+        let out = pruner.run_inner().expect("pruner ok");
+        assert_eq!((out.start_block, out.end_block), (0, 8));
+        assert_eq!(
+            store.provider_ro().unwrap().get_earliest_block().unwrap(),
+            NumHash::new(8, b256(8))
+        );
     }
 }

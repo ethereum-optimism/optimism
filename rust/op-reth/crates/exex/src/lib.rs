@@ -16,7 +16,9 @@ use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_api::{FullNodeComponents, NodePrimitives, NodeTypes};
 use reth_optimism_trie::{
     CanonicalInMemoryStateProvider, OpProofStoragePruner, OpProofsProviderRO, OpProofsProviderRw,
-    OpProofsStore, ProofWindowRange, engine::EngineHandle, proof::DatabaseStateRoot,
+    OpProofsStore, ProofWindowRange,
+    engine::{DEFAULT_PERSISTENCE_THRESHOLD, EngineHandle},
+    proof::DatabaseStateRoot,
 };
 use reth_provider::{BlockHashReader, BlockNumReader, HeaderProvider};
 use reth_trie::{
@@ -54,6 +56,8 @@ where
     storage: Storage,
     proofs_history_window: u64,
     verification_interval: u64,
+    prune_slack: u64,
+    persistence_threshold: u64,
 }
 
 impl<Node, Storage> OpProofsExExBuilder<Node, Storage>
@@ -67,6 +71,8 @@ where
             storage,
             proofs_history_window: DEFAULT_PROOFS_HISTORY_WINDOW,
             verification_interval: DEFAULT_VERIFICATION_INTERVAL,
+            prune_slack: 0,
+            persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
         }
     }
 
@@ -86,6 +92,20 @@ where
         self
     }
 
+    /// Sets how many blocks past the window the proofs storage may grow before it is pruned.
+    /// `0` (the default) prunes on every persistence batch.
+    pub const fn with_prune_slack(mut self, prune_slack: u64) -> Self {
+        self.prune_slack = prune_slack;
+        self
+    }
+
+    /// Sets how many blocks the engine buffers in memory before persisting them. Backpressure
+    /// engages at twice this value. Values below `1` are raised to `1`.
+    pub fn with_persistence_threshold(mut self, persistence_threshold: u64) -> Self {
+        self.persistence_threshold = persistence_threshold.max(1);
+        self
+    }
+
     /// Builds the [`OpProofsExEx`].
     pub fn build(self) -> OpProofsExEx<Node, Storage> {
         OpProofsExEx {
@@ -93,6 +113,8 @@ where
             storage: self.storage,
             proofs_history_window: self.proofs_history_window,
             verification_interval: self.verification_interval,
+            prune_slack: self.prune_slack,
+            persistence_threshold: self.persistence_threshold,
         }
     }
 }
@@ -176,6 +198,10 @@ where
     /// How often (in blocks) to re-execute a block for verification even when pre-computed trie
     /// data is available. `0` disables periodic verification.
     verification_interval: u64,
+    /// Blocks past the window the storage may grow before it is pruned.
+    prune_slack: u64,
+    /// Blocks buffered in memory before the engine persists them.
+    persistence_threshold: u64,
 }
 
 impl<Node, Storage> OpProofsExEx<Node, Storage>
@@ -213,13 +239,16 @@ where
             self.storage.clone(),
             self.ctx.provider().clone(),
             self.proofs_history_window,
-        );
+        )
+        .with_prune_slack(self.prune_slack);
 
-        let engine_handle = EngineHandle::spawn(
+        let engine_handle = EngineHandle::spawn_with_thresholds(
             self.ctx.evm_config().clone(),
             self.ctx.provider().clone(),
             self.storage.clone(),
             pruner,
+            self.persistence_threshold,
+            self.persistence_threshold.saturating_mul(2),
         );
 
         engine_handle.sync_to(self.ctx.provider().best_block_number()?)?;
