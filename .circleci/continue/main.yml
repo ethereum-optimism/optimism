@@ -626,6 +626,8 @@ commands:
           and every other binary instead. Package selection stays the same, so
           feature unification and the sccache keys match a full build.
           Workspace builds only: can't be combined with package or binary.
+          A binary whose required-features are disabled fails the build instead
+          of being skipped; leave it out here.
         type: string
         default: ""
       save_cache:
@@ -697,11 +699,6 @@ commands:
               # Assignments, not a `for ... in $(...)`, so a failure stops the job.
               METADATA=$(cargo metadata --no-deps --format-version 1 --locked)
               ALL_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select(.kind | index("bin")) | .name')
-              GATED_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select((.kind | index("bin")) and ((.["required-features"] // []) | length > 0)) | .name')
-              if [ -n "$GATED_BINS" ]; then
-                echo "ERROR: binaries with required-features need their own build here:" $GATED_BINS >&2
-                exit 1
-              fi
               export BINARY="--lib"
               for bin in $ALL_BINS; do
                 case " << parameters.exclude_binary >> " in
