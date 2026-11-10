@@ -120,7 +120,7 @@ var (
 	}
 	SP1VerifierAddressFlag = &cli.StringFlag{
 		Name:    SP1VerifierAddressFlagName,
-		Usage:   "Override the raw SP1 verifier for a ZK-enabled OPCM release. Defaults to Succinct's v6.1.0 PLONK verifier on Ethereum mainnet and Sepolia.",
+		Usage:   "Raw SP1 verifier wrapped by the release's SP1PlonkAdapter. Defaults to Succinct's v6.1.0 PLONK verifier on Ethereum mainnet and Sepolia; required on every other L1.",
 		EnvVars: deployer.PrefixEnvVar("SP1_VERIFIER_ADDRESS"),
 		Value:   common.Address{}.Hex(),
 	}
@@ -204,7 +204,7 @@ var ImplementationsFlags = []cli.Flag{
 	deployer.VerifierUrlFlag,
 	deployer.VerifierAPIKeyFlag,
 	deployer.UseForgeFlag,
-	deployer.ForgeSlowBroadcastFlag,
+	deployer.ReceiptQueryIntervalFlag,
 }
 
 var ProxyFlags = []cli.Flag{
@@ -228,7 +228,7 @@ var SuperchainFlags = []cli.Flag{
 	deployer.VerifierUrlFlag,
 	deployer.VerifierAPIKeyFlag,
 	deployer.UseForgeFlag,
-	deployer.ForgeSlowBroadcastFlag,
+	deployer.ReceiptQueryIntervalFlag,
 }
 
 var ValidatorFlags = []cli.Flag{

@@ -10,7 +10,7 @@ diataxis: how-to
 sequencer 모드는 주로 rollup 운영자가 사용하는 고급 설정입니다. 대부분의 사용자는 기본 validator 모드로 node를 실행합니다.
 </Info>
 
-## 기본 Sequencer 설정
+## 기본 Sequencer 설정 {#basic-sequencer-setup}
 
 Kona node를 sequencer 모드로 실행하려면 다음과 같이 합니다.
 
@@ -25,7 +25,9 @@ kona-node node \
   --chain=123456
 ```
 
-## 필수 인수
+superchain registry에 없는 체인에는 기본 제공 bootnode가 없으므로, 네트워크가 너무 작아 다른 node가 sequencer에 그 주소를 알려주지 못할 수 있습니다. 다른 node가 sequencer에 접근하는 주소로 `--p2p.advertise.ip`를 설정하십시오. 자세한 내용은 [알리는 주소(advertised address)](/ko/node-operators/kona-node/configuration#advertised-address)를 참고하십시오.
+
+## 필수 인수 {#required-arguments}
 
 <Warning>
 **필수 설정**
@@ -43,7 +45,7 @@ sequencer 모드에는 모든 표준 node 인수와 함께 `--mode=Sequencer` �
 | **Chain ID** | `--chain` | `KONA_NODE_L2_CHAIN_ID` | L2 체인 식별자 |
 | **Block Signer** | `--p2p.sequencer.key.path`, `--p2p.sequencer.key` 또는 `--p2p.signer.address`와 함께 `--p2p.signer.endpoint` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH`, `KONA_NODE_P2P_SEQUENCER_KEY`, `KONA_NODE_P2P_SIGNER_ENDPOINT`, `KONA_NODE_P2P_SIGNER_ADDRESS` | sequencer가 gossip하는 블록에 서명합니다. 로컬 키 또는 원격 op-signer를 사용합니다 |
 
-## Sequencer 전용 플래그
+## Sequencer 전용 플래그 {#sequencer-specific-flags}
 
 | 플래그 | 환경 변수 | 기본값 | 설명 |
 |------|---------------------|---------|-------------|
@@ -55,9 +57,9 @@ sequencer 모드에는 모든 표준 node 인수와 함께 `--mode=Sequencer` �
 
 validator 모드와 공유하는 표준 node 인수를 포함한 전체 플래그 목록은 [Kona node CLI 레퍼런스](/ko/node-operators/kona-node/configuration)에 있습니다.
 
-## 예시 설정
+## 예시 설정 {#example-configurations}
 
-### 기본 Sequencer
+### 기본 Sequencer {#basic-sequencer}
 ```bash
 kona-node node \
   --mode=Sequencer \
@@ -68,7 +70,7 @@ kona-node node \
   --chain=42161
 ```
 
-### Conductor를 사용하는 Sequencer
+### Conductor를 사용하는 Sequencer {#sequencer-with-conductor}
 ```bash
 kona-node node \
   --mode=Sequencer \
@@ -82,7 +84,7 @@ kona-node node \
   --chain=123456
 ```
 
-### 복구 모드 Sequencer
+### 복구 모드 Sequencer {#recovery-mode-sequencer}
 ```bash
 kona-node node \
   --mode=Sequencer \
@@ -94,7 +96,7 @@ kona-node node \
   --chain=42161
 ```
 
-## 주요 고려 사항
+## 주요 고려 사항 {#key-considerations}
 
 <Tip>
 **Sequencer 운영**

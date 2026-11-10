@@ -15,6 +15,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
@@ -171,9 +172,10 @@ func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	rng := rand.New(rand.NewSource(0))
 	setcodetx := testutils.RandomSetCodeTx(rng, types.NewPragueSigner(env.Sd.RollupCfg.L2ChainID))
 	batcher.ActL2BatchBuffer(t)
-	batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
+	batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
 		// inject user tx into upgrade batch
-		return block.WithBody(types.Body{Transactions: append(block.Transactions(), setcodetx)})
+		payload.Transactions = append(payload.Transactions, actionsHelpers.EncodeTx(t, setcodetx))
+		return payload
 	}))
 	batcher.ActL2ChannelClose(t)
 	batcher.ActL2BatchSubmit(t)
@@ -266,9 +268,10 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 
 	batcher.ActL2BatchBuffer(
 		t,
-		actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
+		actionsHelpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
 			// inject user tx into upgrade batch
-			return block.WithBody(types.Body{Transactions: append(block.Transactions(), tx, tx2)})
+			payload.Transactions = append(payload.Transactions, actionsHelpers.EncodeTx(t, tx), actionsHelpers.EncodeTx(t, tx2))
+			return payload
 		}),
 		actionsHelpers.WithChannelModifier(
 			derive.TestWithZeroToBitsMod(func(ob *big.Int) *big.Int {

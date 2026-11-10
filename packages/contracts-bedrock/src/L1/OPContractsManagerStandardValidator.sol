@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 5.0.0
-    string public constant version = "5.0.0";
+    /// @custom:semver 6.0.0
+    string public constant version = "6.0.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -149,11 +149,12 @@ contract OPContractsManagerStandardValidator is ISemver {
         address proposer;
     }
 
-    /// @notice Struct containing the input parameters for the validation process when dev features are enabled.
+    /// @notice Validation input carrying the expected Cannon, Cannon-Kona and ZK prestates.
     struct ValidationInputDev {
         ISystemConfig sysCfg;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
+        bytes32 zkPrestate;
         uint256 l2ChainID;
         address proposer;
     }
@@ -471,7 +472,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Asserts that dispute games are correctly configured for super root mode.
-    ///         Checks that legacy game types are disabled and super game types are registered.
+    ///         Checks that legacy game types and SUPER_CANNON are unregistered, SUPER_PERMISSIONED is
+    ///         registered, and SUPER_CANNON_KONA or ZK_DISPUTE_GAME is registered.
     ///         This only validates system shape, not full game configuration. State transition
     ///         checks (e.g., "was this chain already migrated?") belong in Superchain Ops scripts.
     function assertValidSuperRootDisputeGames(
@@ -850,10 +852,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         });
     }
 
-    /// @notice Returns whether the respected game type is one the selected validation branch
-    ///         requires to be registered. The ZK game is a super game type, but it is a per-chain
-    ///         opt-in, so it only counts as validated when its dev feature is enabled and the
-    ///         factory registers an implementation for it.
+    /// @notice Returns whether the selected validation branch validates the respected game type.
+    ///         SUPER_CANNON_KONA and ZK_DISPUTE_GAME count only when the factory registers them;
+    ///         the SHAPE checks require every other accepted type.
     function isRespectedGameTypeValidated(
         GameType _gameType,
         bool _isSuperMode,
@@ -867,26 +868,19 @@ contract OPContractsManagerStandardValidator is ISemver {
         if (!_isSuperMode) {
             return raw == GameTypes.PERMISSIONED_CANNON.raw() || raw == GameTypes.CANNON_KONA.raw();
         }
-        if (raw == GameTypes.SUPER_PERMISSIONED.raw() || raw == GameTypes.SUPER_CANNON_KONA.raw()) {
-            return true;
-        }
-        if (raw != GameTypes.ZK_DISPUTE_GAME.raw()) {
-            return false;
-        }
-        if (!DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            return false;
-        }
-        IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        return address(factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0);
+        if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return true;
+        if (raw != GameTypes.SUPER_CANNON_KONA.raw() && raw != GameTypes.ZK_DISPUTE_GAME.raw()) return false;
+        return address(IDisputeGameFactory(_sysCfg.disputeGameFactory()).gameImpls(_gameType)) != address(0);
     }
 
-    /// @notice Validates the configuration of the L1 contracts.
+    /// @notice Validates the configuration of the L1 contracts. Passes zero Cannon-Kona and ZK
+    ///         prestates, so chains registering those games report their prestate errors.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
         ValidationInputDev memory devInput = _toValidationInputDev(_input);
         return validate(devInput, _allowFailure);
     }
 
-    /// @notice Validates the configuration of the L1 contracts when dev features are enabled.
+    /// @notice Validates the configuration of the L1 contracts against the given prestates.
     function validate(ValidationInputDev memory _input, bool _allowFailure) public view returns (string memory) {
         return validateWithOverrides(
             _input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) })
@@ -894,7 +888,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
-    /// the ValidationOverrides struct.
+    /// the ValidationOverrides struct. Passes zero Cannon-Kona and ZK prestates.
     function validateWithOverrides(
         ValidationInput memory _input,
         bool _allowFailure,
@@ -909,7 +903,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
-    /// the ValidationOverrides struct. Includes validation fields relevant for dev features.
+    /// the ValidationOverrides struct.
     function validateWithOverrides(
         ValidationInputDev memory _input,
         bool _allowFailure,
@@ -966,16 +960,23 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _overrides,
                 "SPDG"
             );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
-                GameTypes.SUPER_CANNON_KONA,
-                _input.cannonKonaPrestate,
-                _input.l2ChainID,
-                _sharedProxyAdmin,
-                _overrides,
-                "SCKDG"
-            );
+            // Optional: DF-60 requires SUPER_CANNON_KONA or ZK_DISPUTE_GAME.
+            if (
+                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.SUPER_CANNON_KONA))
+                    != address(0)
+            ) {
+                _errors = assertValidPermissionlessDisputeGame(
+                    _errors,
+                    _input.sysCfg,
+                    GameTypes.SUPER_CANNON_KONA,
+                    _input.cannonKonaPrestate,
+                    _input.l2ChainID,
+                    _sharedProxyAdmin,
+                    _overrides,
+                    "SCKDG"
+                );
+            }
+            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides, _input.zkPrestate);
         } else {
             // Super game types must not be registered in non-super mode.
             _errors = assertValidNonSuperRootDisputeGames(_errors, _input.sysCfg);
@@ -999,19 +1000,6 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _sharedProxyAdmin,
                 _overrides,
                 "CKDG"
-            );
-        }
-
-        // ZK dispute game validation: gated on the ZK_DISPUTE_GAME dev feature flag.
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
-        } else {
-            // ZK game type must not be registered when the ZK feature is not enabled.
-            _errors = internalRequire(
-                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.ZK_DISPUTE_GAME))
-                    == address(0),
-                "ZKDG-NOSHAPE",
-                _errors
             );
         }
 
@@ -1039,12 +1027,14 @@ contract OPContractsManagerStandardValidator is ISemver {
         return finalErrors;
     }
 
-    /// @notice Transforms current ValidationInput structs into the dev feature format.
+    /// @notice Converts a ValidationInput into a ValidationInputDev with zero Cannon-Kona and ZK
+    ///         prestates.
     function _toValidationInputDev(ValidationInput memory _input) internal pure returns (ValidationInputDev memory) {
         return ValidationInputDev({
             sysCfg: _input.sysCfg,
             cannonPrestate: _input.absolutePrestate,
             cannonKonaPrestate: bytes32(0),
+            zkPrestate: bytes32(0),
             l2ChainID: _input.l2ChainID,
             proposer: _input.proposer
         });
@@ -1081,12 +1071,14 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
     }
 
-    /// @notice Validates the decoded ZK game args against the chain config.
+    /// @notice Validates the decoded ZK game args against the chain config and the expected ZK
+    ///         prestate.
     function _assertValidZKGameArgs(
         string memory _errors,
         ISystemConfig _sysCfg,
         IProxyAdmin _admin,
         ValidationOverrides memory _overrides,
+        bytes32 _zkPrestate,
         string memory _errorPrefix
     )
         private
@@ -1095,7 +1087,11 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-        _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
+        _errors = internalRequire(
+            _zkPrestate != bytes32(0) && args.absolutePrestate == _zkPrestate,
+            string.concat(_errorPrefix, "-70"),
+            _errors
+        );
         _errors = internalRequire(
             args.verifier == sp1PlonkAdapterImpl && sp1PlonkAdapterImpl.code.length > 0,
             string.concat(_errorPrefix, "-80"),
@@ -1142,19 +1138,16 @@ contract OPContractsManagerStandardValidator is ISemver {
         string memory _errors,
         ISystemConfig _sysCfg,
         IProxyAdmin _admin,
-        ValidationOverrides memory _overrides
+        ValidationOverrides memory _overrides,
+        bytes32 _zkPrestate
     )
         internal
         view
         returns (string memory)
     {
-        // If the DisputeGameFactory does not have a ZKDisputeGame implementation registered,
-        // this chain has opted out of ZKDisputeGame. In this case, there is nothing to validate.
-        // Note: Even if the devFeatureBitmap is on for ZK_DISPUTE_GAME, we treat the deployment pipeline and
-        // as extension, the factory as the source of truth for deciding whether to validate the ZK game.
-        // ZK is the only per-chain opt-in game type; mandatory game types fail loud in getGameImplementation()
-        // TODO(#21529): once ZK is mandatory (not opt-in), drop this early return so chains without a ZK game fail
-        // validation. Pairs with the ZKDG-NOSHAPE TODO in StandardValidatorUtils.sol.
+        // ZK_DISPUTE_GAME is optional; there is nothing to validate when it is not registered.
+        // TODO(#21529): once SUPER_CANNON_KONA is removed, drop this early return so chains without a ZK game
+        // fail validation.
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
             return _errors;
@@ -1173,7 +1166,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
         _errors =
             internalRequire(gameImpl.gameAddress == zkDisputeGameImpl, string.concat(errorPrefix, "-150"), _errors);
-        _errors = _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, errorPrefix);
+        _errors = _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, _zkPrestate, errorPrefix);
         // ZK game creation is permissionless, so a zero init bond leaves root claims free to spam.
         return internalRequire(
             _factory.initBonds(GameTypes.ZK_DISPUTE_GAME) > 0, string.concat(errorPrefix, "-160"), _errors

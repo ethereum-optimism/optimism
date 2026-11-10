@@ -494,6 +494,9 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	l1ChainID, err := l1Client.ChainID(ctx)
 	require.NoError(t, err)
 	require.NotEqualValues(t, 1337, bigs.Uint64Strict(l1ChainID))
+	deployerKey, err := crypto.HexToECDSA(privateKey)
+	require.NoError(t, err)
+	sp1Verifier := testutil.DeployMockSP1Verifier(t, l1Client, deployerKey, afacts)
 
 	host, err := opdenv.DefaultScriptHost(
 		broadcaster.NoopBroadcaster(),
@@ -529,16 +532,18 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	superchainState := &state.State{Version: 1}
 
 	pEnv := &pipeline.Env{
-		Logger:       lgr,
-		Scripts:      &opcm.Scripts{},
-		ForgeClient:  forgeClient,
-		UseForge:     true,
+		Logger:  lgr,
+		Scripts: &opcm.Scripts{},
+		Forge: &opcm.ForgeEnv{
+			Client:     forgeClient,
+			Context:    ctx,
+			L1RPCUrl:   l1RPCUrl,
+			PrivateKey: privateKey,
+		},
 		Context:      ctx,
 		Broadcaster:  broadcaster.NoopBroadcaster(),
 		StateWriter:  pipeline.NoopStateWriter(),
 		L1ScriptHost: host,
-		L1RPCUrl:     l1RPCUrl,
-		PrivateKey:   privateKey,
 	}
 
 	require.NoError(t, pipeline.DeploySuperchain(pEnv, superchainIntent, superchainState))
@@ -580,7 +585,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deployIntent := &state.Intent{
-				GlobalDeployOverrides: map[string]any{"devFeatureBitmap": tt.devFeatureBitmap},
+				GlobalDeployOverrides: map[string]any{
+					"devFeatureBitmap": tt.devFeatureBitmap,
+					"sp1Verifier":      sp1Verifier,
+				},
 			}
 			deployState := &state.State{
 				Version:              1,

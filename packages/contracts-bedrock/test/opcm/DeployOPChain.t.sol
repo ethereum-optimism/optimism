@@ -137,9 +137,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
                 l1ProxyAdminOwner: dso.superchainProxyAdmin.owner(),
                 challenger: challenger,
                 devFeatureBitmap: devFeatureBitmap,
-                sp1Verifier: DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
-                    ? sp1Verifier
-                    : ISP1Verifier(address(0))
+                sp1Verifier: sp1Verifier
             })
         );
         opcmAddr = address(dio.opcmV2);
@@ -494,6 +492,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
                 sysCfg: doo.systemConfigProxy,
                 cannonPrestate: cannonAbsolutePrestate.raw(),
                 cannonKonaPrestate: cannonKonaAbsolutePrestate.raw(),
+                zkPrestate: bytes32(0),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),

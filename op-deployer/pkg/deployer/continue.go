@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -34,11 +35,16 @@ type ContinueConfig struct {
 	PrivateKey string
 	CacheDir   string
 	Logger     log.Logger
+	// ReceiptQueryInterval is how often to poll for each broadcast's receipt. Zero uses the broadcaster's default.
+	ReceiptQueryInterval time.Duration
 
 	privateKeyECDSA *ecdsa.PrivateKey
 }
 
 func (c *ContinueConfig) Check() error {
+	if err := broadcaster.CheckReceiptQueryInterval(c.ReceiptQueryInterval); err != nil {
+		return err
+	}
 	if c.Workdir == "" {
 		return fmt.Errorf("workdir must be specified")
 	}
@@ -61,11 +67,12 @@ func (c *ContinueConfig) Check() error {
 
 func newContinueConfig(cliCtx *cli.Context, lgr log.Logger) ContinueConfig {
 	return ContinueConfig{
-		Workdir:    cliCtx.String(WorkdirFlagName),
-		L1RPCUrl:   cliCtx.String(L1RPCURLFlagName),
-		PrivateKey: cliCtx.String(PrivateKeyFlagName),
-		CacheDir:   cliCtx.String(CacheDirFlagName),
-		Logger:     lgr,
+		Workdir:              cliCtx.String(WorkdirFlagName),
+		L1RPCUrl:             cliCtx.String(L1RPCURLFlagName),
+		PrivateKey:           cliCtx.String(PrivateKeyFlagName),
+		CacheDir:             cliCtx.String(CacheDirFlagName),
+		Logger:               lgr,
+		ReceiptQueryInterval: cliCtx.Duration(ReceiptQueryIntervalFlagName),
 	}
 }
 
@@ -181,6 +188,9 @@ func (r *continuationRunner) run() error {
 	r.opcmImpls, err = opcm.ReadImplementations(r.ctx, l1Client, pinnedOPCM)
 	if err != nil {
 		return fmt.Errorf("failed to read implementations from OPCM at %s: %w", pinnedOPCM, err)
+	}
+	if st.ImplementationsDeployment == nil || *st.ImplementationsDeployment != *r.opcmImpls {
+		return fmt.Errorf("the implementations recorded by prepare do not match those of OPCM %s", pinnedOPCM)
 	}
 	startNonce, err := readContinuationStartNonce(r.ctx, l1Client, deployer)
 	if err != nil {
@@ -443,11 +453,12 @@ func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) er
 	chainID := r.state.PreparedDeployment.Intent.L1ChainIDBig()
 	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(r.cfg.privateKeyECDSA, chainID))
 	liveBroadcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-		Logger:  r.cfg.Logger,
-		ChainID: new(big.Int).Set(chainID),
-		Client:  r.l1Client,
-		Signer:  signer,
-		From:    r.deployer,
+		Logger:               r.cfg.Logger,
+		ChainID:              new(big.Int).Set(chainID),
+		Client:               r.l1Client,
+		Signer:               signer,
+		From:                 r.deployer,
+		ReceiptQueryInterval: r.cfg.ReceiptQueryInterval,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create live broadcaster: %w", err)

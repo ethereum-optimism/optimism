@@ -22,7 +22,8 @@ forge-build *ARGS:
 
   @# Forge build compiles only the src/ graph; the scripts/ graph is compiled by `forge script`.
   @# On the first invocation, `forge script` may compile a small set of dependencies.
-  @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here.
+  @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here. op-deployer
+  @# never compiles, so its bundles need this step.
   @#
   @# Notes:
   @# - A single `forge script <any script> --skip-simulation` is sufficient to compile the script
@@ -37,6 +38,15 @@ forge-build *ARGS:
     --sig "idonotexist()" \
     --skip-simulation \
     2>/dev/null || true
+  @# The warm-up always fails (no such function), so check that a second run compiles nothing. Check
+  @# each script that op-deployer can run, the ones with runWithBytes: `forge script` checks the cache
+  @# of src/ and of its target's imports, not of the other scripts. No --skip, as op-deployer runs
+  @# them: a script can import from test/.
+  @scripts=$(grep -l 'function runWithBytes' /dev/null $(find scripts -name '*.s.sol')); [ -n "$scripts" ] || { echo "found no op-deployer scripts" >&2; exit 1; }; \
+  for script in $scripts; do \
+    out=$(forge script "$script" --sig "idonotexist()" --skip-simulation 2>&1 || true); \
+    case "$out" in *"No files changed, compilation skipped"*) ;; *) echo "$out" >&2; echo "the forge script cache of $script is not warm" >&2; exit 1;; esac; \
+  done
 
 # Developer build command (faster).
 forge-build-dev *ARGS:
@@ -48,7 +58,11 @@ build-source:
 
 # Builds source contracts and scripts, skipping tests.
 build-no-tests:
+  @# The skip leaves out the test/mocks that the scripts import, so compile the scripts too, and
+  @# warm the script cache: op-deployer never compiles.
   forge build --skip "/**/test/**"
+  forge build scripts
+  just forge-build --skip "/**/test/**"
 
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail
@@ -210,7 +224,11 @@ test-upgrade *ARGS:
   #!/bin/bash
   export FOUNDRY_HARDFORK=amsterdam
   if [ -n "$JUNIT_TEST_PATH" ]; then
-    just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\"" || exit $?
+    if ! just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\""; then
+      echo "Upgrade tests failed, rerunning failed tests once in 30s in case of a transient fork RPC error" >&2
+      sleep 30
+      just prepare-upgrade-env "forge test {{ARGS}} --rerun --junit > \"$JUNIT_TEST_PATH\"" || exit $?
+    fi
     ./scripts/checks/check-junit-tests-ran.sh "$JUNIT_TEST_PATH"
   else
     just prepare-upgrade-env "forge test {{ARGS}}"

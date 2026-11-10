@@ -35,6 +35,7 @@ func TestCLIPrepareCommitsSuperchainDeployment(t *testing.T) {
 	l1Loc, l2Loc := initIntent.L1ContractsLocator, initIntent.L2ContractsLocator
 
 	applyIntent, applyState := shared.NewIntent(t, l1ChainIDBig, dk, uint256.NewInt(1), l1Loc, l2Loc, standard.GasLimit)
+	setSP1VerifierOverride(applyIntent, runner.DeployMockSP1Verifier(t))
 	writePrepareWorkdir(t, applyDir, applyIntent, applyState)
 
 	runner.ExpectSuccessWithNetwork(t, []string{

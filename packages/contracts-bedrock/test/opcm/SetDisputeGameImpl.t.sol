@@ -19,6 +19,7 @@ import { GameType, Proposal, Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -79,7 +80,6 @@ contract SetDisputeGameImplInput_Test is Test {
 
 contract SetDisputeGameImpl_Test is Test {
     SetDisputeGameImpl script;
-    SetDisputeGameImplInput input;
     IDisputeGameFactory factory;
     IAnchorStateRegistry anchorStateRegistry;
     address mockImpl;
@@ -87,7 +87,6 @@ contract SetDisputeGameImpl_Test is Test {
 
     function setUp() public {
         script = new SetDisputeGameImpl();
-        input = new SetDisputeGameImplInput();
         DisputeGameFactory dgfImpl = new DisputeGameFactory();
         SuperchainConfig supConfigImpl = new SuperchainConfig();
         AnchorStateRegistry anchorStateRegistryImpl = new AnchorStateRegistry(43200, 302400);
@@ -133,33 +132,67 @@ contract SetDisputeGameImpl_Test is Test {
         gameType = 999;
     }
 
-    function test_run_succeeds() public {
-        input.set(input.factory.selector, address(factory));
-        input.set(input.impl.selector, mockImpl);
-        input.set(input.anchorStateRegistry.selector, address(anchorStateRegistry));
-        input.set(input.gameType.selector, gameType);
+    function _input(IAnchorStateRegistry _anchorStateRegistry) internal view returns (SetDisputeGameImpl.Input memory) {
+        return SetDisputeGameImpl.Input({
+            factory: factory,
+            impl: IFaultDisputeGame(mockImpl),
+            anchorStateRegistry: _anchorStateRegistry,
+            gameType: gameType,
+            gameArgs: ""
+        });
+    }
 
+    function test_run_succeeds() public {
+        script.run(_input(anchorStateRegistry));
+    }
+
+    function test_run_factoryNotSet_reverts() public {
+        SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
+        input.factory = IDisputeGameFactory(address(0));
+
+        vm.expectRevert("SetDisputeGameImpl: factory not set");
         script.run(input);
     }
 
-    function test_run_whenImplAlreadySet_reverts() public {
-        input.set(input.factory.selector, address(factory));
-        input.set(input.impl.selector, mockImpl);
-        input.set(input.anchorStateRegistry.selector, address(anchorStateRegistry));
-        input.set(input.gameType.selector, gameType);
+    function test_run_implNotSet_reverts() public {
+        SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
+        input.impl = IFaultDisputeGame(address(0));
 
-        // First run should succeed
+        vm.expectRevert("SetDisputeGameImpl: impl not set");
+        script.run(input);
+    }
+
+    function test_run_whenAlreadySet_succeeds() public {
+        SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
+        input.gameArgs = hex"1234";
         script.run(input);
 
-        // Subsequent runs should revert
+        // A rerun after a partial deployment finds its own registration and changes nothing.
+        vm.recordLogs();
+        script.run(input);
+        assertEq(vm.getRecordedLogs().length, 0);
+    }
+
+    function test_run_whenOtherImplSet_reverts() public {
+        script.run(_input(anchorStateRegistry));
+
+        SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
+        input.impl = IFaultDisputeGame(makeAddr("otherImpl"));
+        vm.expectRevert("SDGI-10");
+        script.run(input);
+    }
+
+    function test_run_whenOtherGameArgsSet_reverts() public {
+        script.run(_input(anchorStateRegistry));
+
+        SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
+        input.gameArgs = hex"1234";
         vm.expectRevert("SDGI-10");
         script.run(input);
     }
 
     function test_assertValid_whenNotValid_reverts() public {
-        input.set(input.factory.selector, address(factory));
-        input.set(input.impl.selector, mockImpl);
-        input.set(input.gameType.selector, gameType);
+        SetDisputeGameImpl.Input memory input = _input(IAnchorStateRegistry(address(0)));
 
         // First run should succeed
         script.run(input);

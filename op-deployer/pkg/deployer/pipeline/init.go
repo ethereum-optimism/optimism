@@ -24,6 +24,12 @@ func ValidateInputs(intent *state.Intent, st *state.State) error {
 	if err := intent.Check(); err != nil {
 		return err
 	}
+	if err := checkSettlementGroups(intent); err != nil {
+		return err
+	}
+	if err := checkSettlementChainIDsUnchanged(intent, st); err != nil {
+		return err
+	}
 	if intent.OPCMAddress != nil {
 		if _, ok := intent.GlobalDeployOverrides["sp1Verifier"]; ok {
 			return fmt.Errorf("sp1Verifier must not be specified when using a predeployed OPCM")
@@ -76,8 +82,9 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		st.SuperchainDeployment = superDeployment
 		st.SuperchainRoles = superRoles
 
-		// An earlier op-deployer recorded only the OPCM here, and the rest after the first chain.
-		if hasPredeployedOPCM && (st.ImplementationsDeployment == nil || st.ImplementationsDeployment.MipsImpl == (common.Address{})) {
+		// An earlier op-deployer recorded only the OPCM here, and most of the rest after the first
+		// chain, but never the OPCM container.
+		if hasPredeployedOPCM && (st.ImplementationsDeployment == nil || st.ImplementationsDeployment.OpcmContainerImpl == (common.Address{})) {
 			if st.ImplementationsDeployment != nil {
 				opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
 			}

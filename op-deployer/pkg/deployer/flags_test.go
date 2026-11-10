@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -15,4 +16,9 @@ func TestVerificationFlagDefaults(t *testing.T) {
 	for _, flag := range ApplyFlags {
 		require.NotContains(t, flag.Names(), "verify")
 	}
+}
+
+func TestReceiptQueryIntervalFlagIsHiddenWithOneSecondDefault(t *testing.T) {
+	require.Equal(t, time.Second, ReceiptQueryIntervalFlag.Value)
+	require.True(t, ReceiptQueryIntervalFlag.Hidden)
 }

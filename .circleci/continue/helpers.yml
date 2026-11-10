@@ -2,6 +2,23 @@
 # .circleci/scripts/merge-configs.sh). Defining them here once avoids
 # duplicating the definitions across main.yml and rust-e2e.yml.
 commands:
+  # forge reads every source, lib/ included, to check the compile cache of the prebuilt artifacts.
+  # Jobs that run op-deployer from the checkout (op-e2e, sysgo, kona proof tests) need these
+  # submodules; the embedded bundle has its own lib/. Top-level submodules only, so no --recursive,
+  # and no history: forge reads only the sources.
+  checkout-contracts-lib:
+    steps:
+      - run:
+          name: Check out the contracts-bedrock lib submodules
+          command: |
+            attempt=1
+            until git submodule update --init --depth 1 --single-branch --force -j 8 -- packages/contracts-bedrock/lib; do
+              [ "$attempt" -ge 3 ] && exit 1
+              attempt=$((attempt+1))
+              echo "submodule update failed; attempt $attempt/3 in 5s" >&2
+              sleep 5
+            done
+
   # Shared Go module cache. There is a single Go module in the repo, so the
   # downloaded module set is identical for every job at a given go.sum. It is
   # populated once by the prep-go-modules job and restored read-only everywhere
@@ -115,3 +132,90 @@ commands:
       # Shared GCS compile cache (op-rust-sccache).
       - rust-sccache-setup:
           enabled: << parameters.enable_sccache >>
+  github-checkout:
+    description: "Check out the optimism repo over HTTPS, anonymously."
+    parameters:
+      method:
+        description: "Clone method: full or blobless (blob:none filter)."
+        type: enum
+        enum: ["full", "blobless"]
+        default: "full"
+    steps:
+      - run:
+          name: Check out code
+          environment:
+            CHECKOUT_METHOD: << parameters.method >>
+          command: |
+            set -euo pipefail
+
+            : "${CIRCLE_SHA1:?CIRCLE_SHA1 is not set}"
+
+            repo_url="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+
+            fetch_repo() {
+              if [ "$CHECKOUT_METHOD" = "blobless" ]; then
+                git fetch --filter=blob:none "$@"
+              else
+                git fetch "$@"
+              fi
+            }
+
+            if [ ! -e .git ]; then
+              git init -q
+            fi
+
+            if git remote get-url origin >/dev/null 2>&1; then
+              git remote set-url origin "$repo_url"
+            else
+              git remote add origin "$repo_url"
+            fi
+
+            echo "Checking out anonymously"
+
+            fetch_repo --quiet --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
+            fetch_repo origin "$CIRCLE_SHA1"
+            git branch --force develop refs/remotes/origin/develop
+
+            if [ -n "${CIRCLE_BRANCH:-}" ]; then
+              git checkout -q --force -B "$CIRCLE_BRANCH" "$CIRCLE_SHA1"
+            else
+              git checkout -q --force "$CIRCLE_SHA1"
+            fi
+
+            if [ "$(git rev-parse HEAD)" != "$CIRCLE_SHA1" ]; then
+              echo "HEAD $(git rev-parse HEAD) does not match CIRCLE_SHA1 ${CIRCLE_SHA1}" >&2
+              exit 1
+            fi
+
+            if [ -n "${CIRCLE_TAG:-}" ]; then
+              if ! git rev-parse -q --verify "refs/tags/${CIRCLE_TAG}" >/dev/null; then
+                echo "Tag ${CIRCLE_TAG} not found" >&2
+                exit 1
+              fi
+            fi
+
+  checkout-with-mise:
+    description: "Checkout then initialize the mise environment."
+    parameters:
+      checkout-method:
+        type: enum
+        enum:
+          - blobless
+          - full
+        default: full
+      enable-mise-cache:
+        type: boolean
+        default: false
+      mise-cache-key-prefix:
+        type: string
+        default: "mise-cache"
+      mise-cache-checksum:
+        type: string
+        default: '{{ checksum "mise.toml" }}'
+    steps:
+      - github-checkout:
+          method: << parameters.checkout-method >>
+      - utils/install-mise:
+          enable_mise_cache: << parameters.enable-mise-cache >>
+          mise_cache_key_prefix: << parameters.mise-cache-key-prefix >>
+          mise_cache_checksum: << parameters.mise-cache-checksum >>

@@ -39,6 +39,13 @@ func DeployAdditionalDisputeGames(
 		return fmt.Errorf("cannot deploy additional dispute games when deployer is not L1PAO")
 	}
 
+	// Every game is checked before the first one sends: state is written only after the stage, so a
+	// game that fails after others sent leaves them registered on L1 but not in state.
+	for _, game := range thisIntent.AdditionalDisputeGames {
+		if err := checkDisputeGame(st, game); err != nil {
+			return fmt.Errorf("invalid additional dispute game of type %d: %w", game.DisputeGameType, err)
+		}
+	}
 	for _, game := range thisIntent.AdditionalDisputeGames {
 		if err := deployDisputeGame(env, st, thisIntent, thisState, game); err != nil {
 			return fmt.Errorf("failed to deploy additional dispute game: %w", err)
@@ -46,6 +53,33 @@ func DeployAdditionalDisputeGames(
 	}
 
 	return nil
+}
+
+// checkDisputeGame checks what a game needs from its intent and from the deployed implementations.
+func checkDisputeGame(st *state.State, game state.AdditionalDisputeGame) error {
+	switch game.VMType {
+	case state.VMTypeAlphabet, state.VMTypeCannon, state.VMTypeCannonNext:
+		return nil
+	case state.VMTypeZK:
+		if st.ImplementationsDeployment.ZkDisputeGameImpl == (common.Address{}) {
+			return fmt.Errorf("ZkDisputeGameImpl is not deployed")
+		}
+		if game.ZKDisputeGame == nil {
+			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
+		}
+		if game.DisputeGameType != uint32(opcm.GameTypeZKDisputeGame) {
+			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", opcm.GameTypeZKDisputeGame, game.DisputeGameType)
+		}
+		if st.ImplementationsDeployment.SP1PlonkAdapterImpl == (common.Address{}) {
+			return fmt.Errorf("SP1PlonkAdapterImpl is not deployed")
+		}
+		if bond := game.ZKDisputeGame.ChallengerBond; bond == nil || bond.ToInt().Sign() <= 0 {
+			return fmt.Errorf("ZKDisputeGame.ChallengerBond must be set to a positive value")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported VM type: %v", game.VMType)
+	}
 }
 
 func deployDisputeGame(
@@ -69,15 +103,9 @@ func deployDisputeGame(
 		var out opcm.DeployAlphabetVMOutput
 		var err error
 
-		if env.UseForge {
+		if env.Forge != nil {
 			lgr.Info("using Forge for DeployAlphabetVM")
-			forgeEnv := &opcm.ForgeEnv{
-				Client:     env.ForgeClient,
-				Context:    env.Context,
-				L1RPCUrl:   env.L1RPCUrl,
-				PrivateKey: env.PrivateKey,
-			}
-			out, err = opcm.DeployAlphabetVMViaForge(forgeEnv, input)
+			out, err = opcm.DeployAlphabetVMViaForge(env.Forge, input)
 			if err != nil {
 				return err
 			}
@@ -93,19 +121,13 @@ func deployDisputeGame(
 		}
 		vmAddr = out.AlphabetVM
 	case state.VMTypeCannon, state.VMTypeCannonNext:
-		if env.UseForge {
+		if env.Forge != nil {
 			lgr.Info("using Forge for DeployMIPS")
 			forgeInput := opcm.DeployMIPSInput{
 				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
 				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
 			}
-			forgeEnv := &opcm.ForgeEnv{
-				Client:     env.ForgeClient,
-				Context:    env.Context,
-				L1RPCUrl:   env.L1RPCUrl,
-				PrivateKey: env.PrivateKey,
-			}
-			forgeOut, err := opcm.DeployMIPSViaForge(forgeEnv, forgeInput)
+			forgeOut, err := opcm.DeployMIPSViaForge(env.Forge, forgeInput)
 			if err != nil {
 				return err
 			}
@@ -123,23 +145,8 @@ func deployDisputeGame(
 		}
 	case state.VMTypeZK:
 		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
-		if zkImpl == (common.Address{}) {
-			return fmt.Errorf("ZkDisputeGameImpl is not deployed; ensure ZKDisputeGameFlag is set in devFeatureBitmap")
-		}
-		if game.ZKDisputeGame == nil {
-			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
-		}
-		if game.DisputeGameType != uint32(opcm.GameTypeZKDisputeGame) {
-			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", opcm.GameTypeZKDisputeGame, game.DisputeGameType)
-		}
 		sp1PlonkAdapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
-		if sp1PlonkAdapter == (common.Address{}) {
-			return fmt.Errorf("SP1PlonkAdapterImpl is not deployed; ensure ZKDisputeGameFlag is set in devFeatureBitmap")
-		}
 		zk := game.ZKDisputeGame
-		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {
-			return fmt.Errorf("ZKDisputeGame.ChallengerBond must be set to a positive value")
-		}
 		gameArgs := gameargs.ZKGameArgs{
 			AbsolutePrestate:     zk.AbsolutePrestate,
 			Verifier:             sp1PlonkAdapter,
@@ -159,7 +166,7 @@ func deployDisputeGame(
 		if game.MakeRespected {
 			zkInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 		}
-		if err := opcm.SetDisputeGameImpl(env.L1ScriptHost, zkInput); err != nil {
+		if err := setDisputeGameImpl(env, zkInput); err != nil {
 			return fmt.Errorf("failed to set ZK dispute game impl: %w", err)
 		}
 		thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
@@ -211,15 +218,9 @@ func deployDisputeGame(
 	var out opcm.DeployDisputeGameOutput
 	var err error
 
-	if env.UseForge {
+	if env.Forge != nil {
 		lgr.Info("using Forge for DeployDisputeGame")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		out, err = opcm.DeployDisputeGameViaForge(forgeEnv, input)
+		out, err = opcm.DeployDisputeGameViaForge(env.Forge, input)
 		if err != nil {
 			return err
 		}
@@ -242,10 +243,7 @@ func deployDisputeGame(
 	if game.MakeRespected {
 		sdgiInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 	}
-	if err := opcm.SetDisputeGameImpl(
-		env.L1ScriptHost,
-		sdgiInput,
-	); err != nil {
+	if err := setDisputeGameImpl(env, sdgiInput); err != nil {
 		return fmt.Errorf("failed to set dispute game impl: %w", err)
 	}
 
@@ -258,6 +256,13 @@ func deployDisputeGame(
 	})
 
 	return nil
+}
+
+func setDisputeGameImpl(env *Env, input opcm.SetDisputeGameImplInput) error {
+	if env.Forge != nil {
+		return opcm.SetDisputeGameImplViaForge(env.Forge, input)
+	}
+	return opcm.SetDisputeGameImpl(env.L1ScriptHost, input)
 }
 
 func shouldDeployAdditionalDisputeGames(thisIntent *state.ChainIntent, thisState *state.ChainState) bool {

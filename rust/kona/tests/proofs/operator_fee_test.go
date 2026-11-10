@@ -259,23 +259,24 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 
 			// Instruct the batcher to submit a faulty channel, with Alice's tx re-signed by a new private key.
 			// This key will have 0 balance.
-			env.Batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
-				txs := block.Transactions()
+			env.Batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
+				userTxIndexes := actionsHelpers.PayloadUserTxIndexes(payload)
 
 				// Skip over any L2 blocks that don't contain user-space txs.
-				if len(txs) == 1 {
-					return block
+				if len(userTxIndexes) == 0 {
+					return payload
 				}
 
 				// Re-sign Alice's tx with a random key.
 				require.NoError(t, err, "error generating random private key")
 				signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
-				newSignedTx, err := types.SignTx(txs[1], signer, pkey)
+				i := userTxIndexes[0]
+				newSignedTx, err := types.SignTx(actionsHelpers.DecodePayloadTx(t, payload, i), signer, pkey)
 				require.NoError(t, err, "error re-signing Alice's transaction")
 
 				// Replace Alice's tx with the re-signed one.
-				txs[1] = newSignedTx
-				return block
+				payload.Transactions[i] = actionsHelpers.EncodeTx(t, newSignedTx)
+				return payload
 			}))
 			env.Batcher.ActL2ChannelClose(t)
 			env.Batcher.ActL2BatchSubmit(t)

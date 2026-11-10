@@ -22,6 +22,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 
 abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     address depositor;
+    address hook;
 
     Types.WithdrawalTransaction _defaultTx;
     IFaultDisputeGame game;
@@ -90,6 +91,7 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         }
 
         depositor = makeAddr("depositor");
+        hook = makeAddr("bridgeHook");
         portalProofMaturityDelay = optimismPortal2.proofMaturityDelaySeconds();
 
         setupFaultDisputeGame(Claim.wrap(_outputRoot));
