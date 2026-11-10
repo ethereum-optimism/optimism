@@ -295,5 +295,7 @@ func TestBatchReaderRejectsLargeWindowBrotli(t *testing.T) {
 	reader, err := BatchReader(bytes.NewReader(channel), 120000, true)
 	require.NoError(t, err)
 	_, err = reader()
+	// Match the decoder's error. The plaintext is not a batch, so reader() also fails, with
+	// "unrecognized batch type", if brotli accepts the stream.
 	require.ErrorContains(t, err, "WINDOW_BITS")
 }

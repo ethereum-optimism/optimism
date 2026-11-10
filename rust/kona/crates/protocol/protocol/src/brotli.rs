@@ -308,7 +308,10 @@ mod test {
 
         let result = decompress_brotli(&stream, MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize);
         assert!(
-            matches!(result, Err(BrotliDecompressionError::DecompressionFailed(_))),
+            matches!(
+                result,
+                Err(BrotliDecompressionError::DecompressionFailed(BrotliResult::ResultFailure))
+            ),
             "large-window stream must be rejected, got {result:?}",
         );
     }
