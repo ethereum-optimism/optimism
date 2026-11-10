@@ -55,9 +55,11 @@ fn try_parse_message(bytes: Bytes) -> eyre::Result<Bytes> {
 /// Decompresses a standard (RFC 7932) brotli stream whose output is at most `limit` bytes.
 ///
 /// Returns an error if the stream uses the large-window extension, if decoding fails, or if the
-/// output exceeds `limit` bytes. Reads at most `limit + 1` bytes of output.
+/// output exceeds `limit` bytes. Reads at most `limit + 1` bytes of output. The output buffer can
+/// reserve about twice that, because `read_to_end` grows it by doubling.
 fn decompress_brotli(compressed: &[u8], limit: usize) -> eyre::Result<Vec<u8>> {
-    // `brotli::Decompressor` always enables the large-window extension and has no strict mode.
+    // `brotli::Decompressor` always enables the large-window extension and offers no strict
+    // constructor.
     // Before it writes any output, it can allocate a ring buffer as large as the declared window:
     // at most 16 MiB for a standard stream, but up to 1 GiB for a large-window stream. `limit`
     // bounds neither allocation, so the extension is rejected before decoding.
