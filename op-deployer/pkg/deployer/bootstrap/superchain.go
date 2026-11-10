@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -35,9 +34,8 @@ type SuperchainConfig struct {
 	Logger           log.Logger
 	ArtifactsLocator *artifacts.Locator
 	CacheDir         string
-	UseForge         bool
-	// ForgeSlowBroadcast confirms each Forge broadcast transaction before sending the next.
-	ForgeSlowBroadcast bool
+	// UseScriptHost runs the script on the Go script host instead of forge.
+	UseScriptHost bool
 	// ReceiptQueryInterval is how often to poll for each broadcast's receipt. Zero uses the broadcaster's default.
 	ReceiptQueryInterval time.Duration
 
@@ -103,15 +101,13 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	paused := cliCtx.Bool(PausedFlagName)
 	outfile := cliCtx.String(OutfileFlagName)
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
-	useForge := cliCtx.Bool(deployer.UseForgeFlagName)
 	cfg := SuperchainConfig{
 		L1RPCUrl:                  l1RPCUrl,
 		PrivateKey:                privateKey,
 		Logger:                    l,
 		ArtifactsLocator:          artifactsLocator,
 		CacheDir:                  cacheDir,
-		UseForge:                  useForge,
-		ForgeSlowBroadcast:        cliCtx.Bool(deployer.ForgeSlowBroadcastFlagName),
+		UseScriptHost:             !cliCtx.Bool(deployer.UseForgeFlagName),
 		ReceiptQueryInterval:      cliCtx.Duration(deployer.ReceiptQueryIntervalFlagName),
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		Guardian:                  guardian,
@@ -192,19 +188,20 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		Paused:                    cfg.Paused,
 	}
 
-	if cfg.UseForge {
+	if !cfg.UseScriptHost {
 		lgr.Info("using Forge for DeploySuperchain")
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
+		forgeClient, err := opcm.NewForgeClient(artifactsFS, cfg.CacheDir, []opcm.ForgeScript{opcm.DeploySuperchainForgeScript})
 		if err != nil {
 			return dso, fmt.Errorf("failed to create forge client: %w", err)
 		}
-		forgeClient.SlowBroadcast = cfg.ForgeSlowBroadcast
 
 		forgeEnv := &opcm.ForgeEnv{
-			Client:     forgeClient,
-			Context:    ctx,
-			L1RPCUrl:   cfg.L1RPCUrl,
-			PrivateKey: cfg.PrivateKey,
+			Client:               forgeClient,
+			Context:              ctx,
+			L1RPCUrl:             cfg.L1RPCUrl,
+			PrivateKey:           cfg.PrivateKey,
+			Logger:               lgr,
+			ReceiptQueryInterval: cfg.ReceiptQueryInterval,
 		}
 		dso, err = opcm.DeploySuperchainViaForge(forgeEnv, input)
 		if err != nil {

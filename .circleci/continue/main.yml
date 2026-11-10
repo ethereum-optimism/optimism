@@ -626,6 +626,8 @@ commands:
           and every other binary instead. Package selection stays the same, so
           feature unification and the sccache keys match a full build.
           Workspace builds only: can't be combined with package or binary.
+          A binary whose required-features are disabled fails the build instead
+          of being skipped; leave it out here.
         type: string
         default: ""
       save_cache:
@@ -697,11 +699,6 @@ commands:
               # Assignments, not a `for ... in $(...)`, so a failure stops the job.
               METADATA=$(cargo metadata --no-deps --format-version 1 --locked)
               ALL_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select(.kind | index("bin")) | .name')
-              GATED_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select((.kind | index("bin")) and ((.["required-features"] // []) | length > 0)) | .name')
-              if [ -n "$GATED_BINS" ]; then
-                echo "ERROR: binaries with required-features need their own build here:" $GATED_BINS >&2
-                exit 1
-              fi
               export BINARY="--lib"
               for bin in $ALL_BINS; do
                 case " << parameters.exclude_binary >> " in
@@ -1812,6 +1809,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: check-nut-prefork-states
       - run:
@@ -1885,6 +1883,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       # op-deployer/pkg/deployer/forge's tests compile a test project with forge. Without
       # an installed solc, forge downloads the newest matching release on every run.
       - install-solc-compilers
@@ -1964,6 +1963,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-actions-tests
       - run:
@@ -2032,6 +2032,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-tests-with-fault-proof-deps
       # Build the superchain-configs.zip op-e2e/faultproofs //go:embeds (no prep-superchain job here).
@@ -2128,6 +2129,7 @@ jobs:
             fi
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
@@ -2282,8 +2284,12 @@ jobs:
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
       SEMGREP_BRANCH: << pipeline.git.branch >>
       SEMGREP_COMMIT: << pipeline.git.revision >>
+    # Pinned: semgrep-scan-local and semgrep-test gate ci-gate, so a floating tag
+    # would let an upstream release fail every PR without a change in this repo.
+    # Keep the version in step with "pipx:semgrep" in mise.toml, which local runs
+    # use; a new tag needs its new digest too.
     docker:
-      - image: returntocorp/semgrep
+      - image: returntocorp/semgrep:1.182.1@sha256:451b3d875c00dac7ed5db5293e584a07de11449a409c10b3c2d2652f429630b6
     resource_class: xlarge.gen2
     steps:
       - github-checkout: # no need to use mise here since the docker image contains the only dependency

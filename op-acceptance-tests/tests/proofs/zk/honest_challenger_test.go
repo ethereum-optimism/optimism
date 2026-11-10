@@ -236,6 +236,17 @@ func startInvalidParentWithChild(t devtest.T, sys *presets.SingleChainInterop) (
 	return parent, child, proposer
 }
 
+// finalizeL1Head waits until the current L1 head is finalized. FakePoS finalizes
+// 20 blocks (120s) behind the head; time travel builds those blocks in seconds.
+// Keep the jump under FakePoS's 5 minute skip, which builds only one block.
+func finalizeL1Head(sys *presets.SingleChainInterop) {
+	head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	sys.AdvanceTime(150 * time.Second)
+	sys.L1EL.WaitForLabelRef(eth.Finalized, func(info eth.BlockInfo) (bool, error) {
+		return info.NumberU64() >= head.Number, nil
+	})
+}
+
 // TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins pins bond credits after parent resolution.
 func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) {
 	t := devtest.ParallelT(gt)
@@ -255,12 +266,12 @@ func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) 
 
 	advanceL1To(sys, parent.ClaimData().Deadline+1)
 	parent.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
-	sys.L1EL.WaitForFinalization()
+	finalizeL1Head(sys)
 	child.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	t.Require().Equal(honestChallenger, child.ClaimData().Challenger)
 	t.Require().Equal(child.TotalBonds(), child.Credit(honestChallenger),
 		"honest challenger must receive the child's full bond credit")
-	sys.L1EL.WaitForFinalization()
+	finalizeL1Head(sys)
 	grandchild.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	t.Require().Equal(honestChallenger, grandchild.ClaimData().Challenger)
 	t.Require().Equal(grandchild.TotalBonds(), grandchild.Credit(honestChallenger),
