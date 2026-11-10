@@ -90,21 +90,7 @@ func allocModes(t *testing.T) []allocMode {
 			name:              "op-private",
 			devFeatureBitmap:  devfeatures.OPPrivateFlag,
 			settlementChainID: 2,
-			configure: func(t *testing.T, intent *state.Intent) {
-				intent.GlobalDeployOverrides = map[string]any{
-					"devFeatureBitmap": devfeatures.OPPrivateFlag,
-				}
-				intent.Chains[0].DeployOverrides = map[string]any{
-					"settlementChainId": 2,
-				}
-				// A private chain's settlement chain must come before it in the same intent.
-				_, _, dk := shared.DefaultPrivkey(t)
-				settlement := shared.NewChainIntent(t, dk, big.NewInt(900), uint256.NewInt(2), testCustomGasLimit)
-				settlement.DeployOverrides = map[string]any{
-					"settlementChainId": 2,
-				}
-				intent.Chains = append([]*state.ChainIntent{settlement}, intent.Chains...)
-			},
+			configure:         enableOPPrivate,
 		},
 		{
 			name:             "op-private+public",
@@ -120,6 +106,19 @@ func allocModes(t *testing.T) []allocMode {
 
 func opPrivateEnabled(mode allocMode) bool {
 	return devfeatures.IsDevFeatureEnabled(mode.devFeatureBitmap, devfeatures.OPPrivateFlag)
+}
+
+// enableOPPrivate makes chain 0 a private chain whose settlement chain is a new chain 2.
+func enableOPPrivate(t *testing.T, intent *state.Intent) {
+	t.Helper()
+
+	intent.GlobalDeployOverrides = map[string]any{"devFeatureBitmap": devfeatures.OPPrivateFlag}
+	intent.Chains[0].DeployOverrides = map[string]any{"settlementChainId": 2}
+	// A private chain's settlement chain must come before it in the same intent.
+	_, _, dk := shared.DefaultPrivkey(t)
+	settlement := shared.NewChainIntent(t, dk, intent.L1ChainIDBig(), uint256.NewInt(2), testCustomGasLimit)
+	settlement.DeployOverrides = map[string]any{"settlementChainId": 2}
+	intent.Chains = append([]*state.ChainIntent{settlement}, intent.Chains...)
 }
 
 func enableCustomGasToken(t *testing.T, intent *state.Intent) {
