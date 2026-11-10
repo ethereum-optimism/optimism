@@ -20,7 +20,11 @@ use reth_e2e_test_utils::{
 use reth_node_builder::{NodeBuilder, NodeHandle};
 use reth_node_core::{args::RpcServerArgs, node_config::NodeConfig};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
-use reth_optimism_node::{OpNode, args::RollupArgs, utils::optimism_payload_attributes};
+use reth_optimism_node::{
+    OpNode,
+    args::RollupArgs,
+    utils::{node_config, optimism_payload_attributes},
+};
 use reth_optimism_payload_builder::OpPayloadAttrs;
 use reth_rpc_server_types::RpcModuleSelection;
 use reth_tasks::Runtime;
@@ -61,7 +65,7 @@ pub(crate) const fn payload_attributes(timestamp: u64) -> OpPayloadAttrs {
 
 /// Returns a test node config serving every RPC module over HTTP and `WebSocket` on unused ports.
 pub(crate) fn rpc_node_config(chain_spec: &Arc<OpChainSpec>) -> NodeConfig<OpChainSpec> {
-    NodeConfig::test().map_chain(chain_spec.clone()).with_rpc(
+    node_config(chain_spec.clone()).with_rpc(
         RpcServerArgs::default()
             .with_unused_ports()
             .with_http()

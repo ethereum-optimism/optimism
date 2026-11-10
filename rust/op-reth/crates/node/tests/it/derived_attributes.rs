@@ -17,11 +17,14 @@ use reth_chainspec::EthChainSpec;
 use reth_db_common::init::init_genesis;
 use reth_e2e_test_utils::{Adapter, TmpDB};
 use reth_node_api::NodeTypesWithDBAdapter;
-use reth_node_builder::{FullNode, FullNodeTypesAdapter, Node, NodeBuilder, NodeConfig};
+use reth_node_builder::{FullNode, FullNodeTypesAdapter, Node, NodeBuilder};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::OpEvmConfig;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_node::{OpNode, utils::optimism_payload_attributes};
+use reth_optimism_node::{
+    OpNode,
+    utils::{node_config, optimism_payload_attributes},
+};
 use reth_optimism_payload_builder::{OpPayloadAttrs, OpPayloadBuilder, OpPayloadBuilderAttributes};
 use reth_optimism_primitives::OpTransactionSigned;
 use reth_optimism_txpool::OpPooledTransaction;
@@ -116,7 +119,7 @@ type TestNode = FullNode<
 >;
 
 async fn launch(chain_spec: Arc<OpChainSpec>) -> eyre::Result<TestNode> {
-    let config = NodeConfig::test().map_chain(chain_spec).with_unused_ports();
+    let config = node_config(chain_spec);
     let op_node = OpNode::default();
     Ok(NodeBuilder::new(config)
         .testing_node(Runtime::test())

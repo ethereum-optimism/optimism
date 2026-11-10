@@ -14097,8 +14097,10 @@ dependencies = [
  "reth-trie-common",
  "reth-trie-db",
  "revm",
+ "rstest",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
  "tokio",
  "url",
 ]

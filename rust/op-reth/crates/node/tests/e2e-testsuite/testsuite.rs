@@ -7,7 +7,9 @@ use reth_e2e_test_utils::testsuite::{
     setup::{NetworkSetup, Setup},
 };
 use reth_optimism_chainspec::{OP_MAINNET, OpChainSpecBuilder};
-use reth_optimism_node::{OpEngineTypes, OpNode, payload::OpPayloadAttrs};
+use reth_optimism_node::{
+    OpEngineTypes, OpNode, payload::OpPayloadAttrs, utils::unmasked_tree_config,
+};
 use std::sync::Arc;
 
 #[tokio::test]
@@ -22,7 +24,8 @@ async fn test_testsuite_op_assert_mine_block() -> Result<()> {
                 .build()
                 .into(),
         ))
-        .with_network(NetworkSetup::single_node());
+        .with_network(NetworkSetup::single_node())
+        .with_tree_config(unmasked_tree_config());
 
     let test =
         TestBuilder::new().with_setup(setup).with_action(AssertMineBlock::<OpEngineTypes>::new(
@@ -69,7 +72,8 @@ async fn test_testsuite_op_assert_mine_block_isthmus_activated() -> Result<()> {
                 .build()
                 .into(),
         ))
-        .with_network(NetworkSetup::single_node());
+        .with_network(NetworkSetup::single_node())
+        .with_tree_config(unmasked_tree_config());
 
     let test =
         TestBuilder::new().with_setup(setup).with_action(AssertMineBlock::<OpEngineTypes>::new(

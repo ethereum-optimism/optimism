@@ -14,12 +14,9 @@ use alloy_rpc_types_eth::{
 };
 use op_alloy_consensus::OpTxEnvelope;
 use reth_node_builder::{NodeBuilder, NodeHandle};
-use reth_node_core::{
-    args::{NetworkArgs, RpcServerArgs},
-    node_config::NodeConfig,
-};
+use reth_node_core::args::{NetworkArgs, RpcServerArgs};
 use reth_optimism_chainspec::OpChainSpecBuilder;
-use reth_optimism_node::OpNode;
+use reth_optimism_node::{OpNode, utils::node_config};
 use reth_rpc_api::clients::EthApiClient;
 use reth_tasks::Runtime;
 use revm::primitives::eip7825::TX_GAS_LIMIT_CAP;
@@ -45,8 +42,7 @@ async fn test_estimate_gas_under_karst() -> eyre::Result<()> {
     let mut network_args = NetworkArgs::default().with_unused_ports();
     network_args.discovery.discv5_port = Some(0);
     network_args.discovery.discv5_port_ipv6 = Some(0);
-    let node_config = NodeConfig::test()
-        .map_chain(OpChainSpecBuilder::optimism_sepolia().karst_activated().build())
+    let node_config = node_config(OpChainSpecBuilder::optimism_sepolia().karst_activated().build())
         .with_network(network_args)
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 

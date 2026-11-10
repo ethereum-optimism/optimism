@@ -25,6 +25,7 @@ use reth_optimism_node::{
         OpConsensusBuilder, OpExecutorBuilder, OpNetworkBuilder, OpNodeTypes, OpPayloadBuilder,
         OpPoolBuilder,
     },
+    utils::node_config,
 };
 use reth_optimism_txpool::OpPooledTransaction;
 use reth_tasks::Runtime;
@@ -40,11 +41,10 @@ fn node_test_setup() -> (NodeConfig<OpChainSpec>, Arc<TempDatabase<DatabaseEnv>>
     );
     let chain_id: u64 = chain_spec.chain().into();
 
-    let mut config =
-        NodeConfig::new(chain_spec).with_unused_ports().with_datadir_args(DatadirArgs {
-            datadir: reth_db::test_utils::tempdir_path().into(),
-            ..Default::default()
-        });
+    let mut config = node_config(chain_spec).with_datadir_args(DatadirArgs {
+        datadir: reth_db::test_utils::tempdir_path().into(),
+        ..Default::default()
+    });
     config.network.discovery.discv5_port = Some(0);
     config.network.discovery.discv5_port_ipv6 = Some(0);
     let db = create_test_rw_db_with_path(

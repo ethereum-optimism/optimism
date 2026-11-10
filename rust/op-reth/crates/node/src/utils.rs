@@ -1,20 +1,46 @@
-use crate::{OpBuiltPayload, OpNode as OtherOpNode};
+use crate::{OpBuiltPayload, OpNode as OtherOpNode, init_op_engine_defaults};
 use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use reth_e2e_test_utils::{
     NodeHelperType, TmpDB, transaction::TransactionTestContext, wallet::Wallet,
 };
-use reth_node_api::NodeTypesWithDBAdapter;
-use reth_optimism_chainspec::OpChainSpecBuilder;
+use reth_node_api::{NodeTypesWithDBAdapter, TreeConfig};
+use reth_node_core::node_config::NodeConfig;
+use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_payload_builder::OpPayloadAttrs;
 use reth_provider::providers::BlockchainProvider;
+use reth_tracing::tracing::warn;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// Optimism Node Helper type
 pub(crate) type OpNode =
     NodeHelperType<OtherOpNode, BlockchainProvider<NodeTypesWithDBAdapter<OtherOpNode, TmpDB>>>;
+
+/// Puts the op-reth engine defaults in effect, warning when another `NodeConfig` locked them
+/// masked first.
+fn init_op_engine_defaults_or_warn() {
+    if let Err(err) = init_op_engine_defaults() {
+        warn!(target: "reth::cli", %err, "Engine defaults are masked");
+    }
+}
+
+/// Builds a [`NodeConfig`] for `chain_spec` on unused ports with the op-reth engine defaults in
+/// effect, so a node launched from it passes the state masking guard.
+pub fn node_config(chain_spec: impl Into<Arc<OpChainSpec>>) -> NodeConfig<OpChainSpec> {
+    init_op_engine_defaults_or_warn();
+    NodeConfig::new(chain_spec.into()).with_unused_ports()
+}
+
+/// The default [`TreeConfig`] with state masking off, which the state masking guard accepts.
+///
+/// Also puts the op-reth engine defaults in effect, so a `NodeConfig` built after this call
+/// runs unmasked.
+pub fn unmasked_tree_config() -> TreeConfig {
+    init_op_engine_defaults_or_warn();
+    TreeConfig::default().with_num_state_masking_blocks(0)
+}
 
 /// Creates the initial setup with `num_nodes` of the node config, started and connected.
 pub async fn setup(num_nodes: usize) -> eyre::Result<(Vec<OpNode>, Wallet)> {
@@ -26,7 +52,7 @@ pub async fn setup(num_nodes: usize) -> eyre::Result<(Vec<OpNode>, Wallet)> {
             OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build(),
         ),
         false,
-        Default::default(),
+        unmasked_tree_config(),
         optimism_payload_attributes,
     )
     .await

@@ -11,7 +11,7 @@ use reth_e2e_test_utils::{
 };
 use reth_node_api::FullNodeTypes;
 use reth_node_builder::{
-    EngineNodeLauncher, Node, NodeBuilder, NodeConfig,
+    EngineNodeLauncher, Node, NodeBuilder,
     components::{BasicPayloadServiceBuilder, ComponentsBuilder},
 };
 use reth_node_core::args::DatadirArgs;
@@ -24,7 +24,7 @@ use reth_optimism_node::{
         OpNodeTypes, OpPayloadBuilder, OpPoolBuilder,
     },
     txpool::OpPooledTransaction,
-    utils::optimism_payload_attributes,
+    utils::{node_config, optimism_payload_attributes, unmasked_tree_config},
 };
 use reth_optimism_payload_builder::builder::OpPayloadTransactions;
 use reth_payload_util::{
@@ -121,11 +121,10 @@ async fn test_custom_block_priority_config() {
     let wallet = Arc::new(Mutex::new(Wallet::default().with_chain_id(chain_spec.chain().into())));
 
     // Configure and launch the node.
-    let mut config =
-        NodeConfig::new(chain_spec).with_unused_ports().with_datadir_args(DatadirArgs {
-            datadir: reth_db::test_utils::tempdir_path().into(),
-            ..Default::default()
-        });
+    let mut config = node_config(chain_spec).with_datadir_args(DatadirArgs {
+        datadir: reth_db::test_utils::tempdir_path().into(),
+        ..Default::default()
+    });
     config.network.discovery.discv5_port = Some(0);
     config.network.discovery.discv5_port_ipv6 = Some(0);
     let db = create_test_rw_db_with_path(
@@ -145,7 +144,7 @@ async fn test_custom_block_priority_config() {
             let launcher = EngineNodeLauncher::new(
                 runtime.clone(),
                 builder.config.datadir(),
-                Default::default(),
+                unmasked_tree_config(),
             );
             builder.launch_with(launcher)
         })

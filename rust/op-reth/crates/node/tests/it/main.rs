@@ -28,4 +28,6 @@ mod p2p_version;
 
 mod derived_attributes;
 
+mod state_masking;
+
 const fn main() {}

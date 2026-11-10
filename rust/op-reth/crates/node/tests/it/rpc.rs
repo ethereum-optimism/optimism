@@ -16,12 +16,9 @@ use reth_chainspec::{EthChainSpec, ForkCondition};
 use reth_e2e_test_utils::wallet::Wallet;
 use reth_network::types::NatResolver;
 use reth_node_builder::{NodeBuilder, NodeHandle};
-use reth_node_core::{
-    args::{NetworkArgs, RpcServerArgs, RpcStateCacheArgs},
-    node_config::NodeConfig,
-};
+use reth_node_core::args::{NetworkArgs, RpcServerArgs, RpcStateCacheArgs};
 use reth_optimism_chainspec::{OP_SEPOLIA, OpChainSpecBuilder, OpHardfork};
-use reth_optimism_node::{OpNode, args::RollupArgs};
+use reth_optimism_node::{OpNode, args::RollupArgs, utils::node_config};
 use reth_rpc_api::{EthConfigApiClient, servers::AdminApiServer};
 use reth_rpc_eth_api::helpers::EthTransactions;
 use reth_rpc_server_types::RpcModuleSelection;
@@ -43,8 +40,7 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
         .with_nat_resolver(NatResolver::ExternalIp(external_ip));
     network_args.discovery.discv5_port = Some(0);
     network_args.discovery.discv5_port_ipv6 = Some(0);
-    let node_config = NodeConfig::test()
-        .map_chain(OP_SEPOLIA.clone())
+    let node_config = node_config(OP_SEPOLIA.clone())
         .with_network(network_args)
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
@@ -98,8 +94,7 @@ async fn test_retain_forwarded_txs() -> eyre::Result<()> {
         let mut network_args = NetworkArgs::default().with_unused_ports();
         network_args.discovery.discv5_port = Some(0);
         network_args.discovery.discv5_port_ipv6 = Some(0);
-        let node_config = NodeConfig::test()
-            .map_chain(chain_spec.clone())
+        let node_config = node_config(chain_spec.clone())
             .with_network(network_args)
             .with_rpc(RpcServerArgs::default().with_unused_ports());
         let op_node = OpNode::new(RollupArgs {
@@ -133,8 +128,7 @@ async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
     let mut network_args = NetworkArgs::default().with_unused_ports();
     network_args.discovery.discv5_port = Some(0);
     network_args.discovery.discv5_port_ipv6 = Some(0);
-    let node_config = NodeConfig::test()
-        .map_chain(network.clone())
+    let node_config = node_config(network.clone())
         .with_network(network_args)
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
@@ -164,8 +158,7 @@ async fn test_eth_capabilities_starts_at_bedrock() -> eyre::Result<()> {
     let mut network_args = NetworkArgs::default().with_unused_ports();
     network_args.discovery.discv5_port = Some(0);
     network_args.discovery.discv5_port_ipv6 = Some(0);
-    let node_config = NodeConfig::test()
-        .map_chain(chain_spec)
+    let node_config = node_config(chain_spec)
         .with_network(network_args)
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
@@ -212,13 +205,12 @@ async fn test_block_access_list_methods_unserved() -> eyre::Result<()> {
     let mut network_args = NetworkArgs::default().with_unused_ports();
     network_args.discovery.discv5_port = Some(0);
     network_args.discovery.discv5_port_ipv6 = Some(0);
-    let node_config =
-        NodeConfig::test().map_chain(OP_SEPOLIA.clone()).with_network(network_args).with_rpc(
-            RpcServerArgs::default()
-                .with_unused_ports()
-                .with_http()
-                .with_http_api(RpcModuleSelection::All),
-        );
+    let node_config = node_config(OP_SEPOLIA.clone()).with_network(network_args).with_rpc(
+        RpcServerArgs::default()
+            .with_unused_ports()
+            .with_http()
+            .with_http_api(RpcModuleSelection::All),
+    );
 
     let NodeHandle { node, node_exit_future: _ } =
         NodeBuilder::new(node_config).testing_node(exec).node(OpNode::default()).launch().await?;
@@ -250,10 +242,7 @@ async fn test_computed_bal_cache_options_rejected() -> eyre::Result<()> {
         network_args.discovery.discv5_port_ipv6 = Some(0);
         let mut rpc = RpcServerArgs::default().with_unused_ports().with_http();
         rpc.rpc_state_cache = cache;
-        let node_config = NodeConfig::test()
-            .map_chain(OP_SEPOLIA.clone())
-            .with_network(network_args)
-            .with_rpc(rpc);
+        let node_config = node_config(OP_SEPOLIA.clone()).with_network(network_args).with_rpc(rpc);
 
         let launched = NodeBuilder::new(node_config)
             .testing_node(exec.clone())

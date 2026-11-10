@@ -6,6 +6,7 @@ use crate::{
     derived_payload_service::DerivedPayloadServiceBuilder,
     engine::OpEngineValidator,
     payload_service::OpPayloadServiceBuilder,
+    state_masking::{NoStateMaskingValidatorBuilder, ensure_no_state_masking},
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_consensus::BlockHeader;
@@ -411,17 +412,12 @@ impl OpNode {
 
 /// Launches an OP node, optionally installing proof history, then waits for it to exit.
 ///
-/// Fails if the engine config enables state masking, which op-reth does not support.
+/// Fails before opening the datadir if the engine config enables state masking.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
 ) -> eyre::Result<(), ErrReport> {
-    // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
-    // callers that build a `NodeConfig` without that CLI.
-    eyre::ensure!(
-        builder.config().engine.num_state_masking_blocks() == 0,
-        "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
-    );
+    ensure_no_state_masking(builder.config().engine.num_state_masking_blocks())?;
 
     let builder = if node.args.proofs_history {
         // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
@@ -1082,10 +1078,12 @@ where
     EVB: EngineValidatorBuilder<N>,
     RpcMiddleware: Send,
 {
-    type ValidatorBuilder = EVB;
+    type ValidatorBuilder = NoStateMaskingValidatorBuilder<EVB>;
 
     fn engine_validator_builder(&self) -> Self::ValidatorBuilder {
-        EngineValidatorAddOn::engine_validator_builder(&self.rpc_add_ons)
+        NoStateMaskingValidatorBuilder::new(EngineValidatorAddOn::engine_validator_builder(
+            &self.rpc_add_ons,
+        ))
     }
 }
 
