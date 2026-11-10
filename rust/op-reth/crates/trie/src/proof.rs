@@ -432,3 +432,6 @@ where
             .compute(target)
     }
 }
+
+#[cfg(test)]
+mod tests;

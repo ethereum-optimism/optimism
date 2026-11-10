@@ -323,18 +323,19 @@ mod tests {
     use crate::{
         InMemoryProofsStorage,
         api::OpProofsStore,
-        engine::buffer::state::TrieBufferState,
         test_utils::{
             create_storage,
             destroyed_accounts::{
                 FailingStorageProvider, StorageFailure, assert_injected_error, bundle,
-                created_and_destroyed, destroyed, destroyed_and_recreated, hashed_storage,
-                seed_initial_storage, storage_diff,
+                created_and_destroyed, destroyed, destroyed_and_recreated,
+            },
+            proofs_store::{
+                buffered_state_provider, hashed_storage, seed_initial_storage, state_provider,
+                storage_diff,
             },
         },
     };
     use alloy_eips::NumHash;
-    use reth_provider::noop::NoopProvider;
 
     const DESTROYED: Address = Address::repeat_byte(0x01);
     const UNTOUCHED: Address = Address::repeat_byte(0x02);
@@ -347,10 +348,9 @@ mod tests {
         bundle: &BundleState,
     ) -> ProviderResult<HashedPostState> {
         let block = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::repeat_byte(1)));
-        let buffer = TrieBufferState::new();
-        buffer.insert(block, storage_diff(buffered));
-        let inner = OpProofsStateProviderRef::new(Box::new(NoopProvider::default()), provider, 0);
-        buffer.state_provider(block.block.hash, inner).hashed_post_state(bundle)
+        let provider =
+            buffered_state_provider(state_provider(provider, 0), [(block, storage_diff(buffered))]);
+        provider.hashed_post_state(bundle)
     }
 
     /// A destroyed account's persisted and buffered slots all come back as explicit zeros;
