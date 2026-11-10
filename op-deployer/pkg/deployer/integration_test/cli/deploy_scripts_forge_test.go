@@ -72,7 +72,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -91,7 +90,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
 			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
-			"--use-forge",
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -131,7 +129,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -150,7 +147,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
 			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
-			"--use-forge",
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -189,7 +185,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -208,7 +203,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
 			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
-			"--use-forge",
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
