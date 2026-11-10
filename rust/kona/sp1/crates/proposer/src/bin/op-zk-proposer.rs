@@ -118,6 +118,7 @@ async fn main() -> Result<()> {
             let provider = LocalCudaProofProvider::new(
                 &config.local_cuda,
                 config.proof_provider_config.clone(),
+                config.max_stdin_bytes.get(),
             )
             .await?;
             local_cuda = Some(provider.clone());

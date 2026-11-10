@@ -2,16 +2,10 @@
 //!
 //! The proposer starts each server and speaks its socket protocol (`sp1_cuda::api`) itself, so
 //! the SP1 SDK's CUDA client, which downloads a missing server, never runs. Each request runs in
-//! a spawned task that is never aborted: a future dropped between sending a request and reading
-//! its response would leave the response for the next request on that device.
+//! a spawned task that is never aborted, so it always reads its response (see [`Connection`]).
 
 use std::{
-    collections::HashMap,
-    io,
-    panic::AssertUnwindSafe,
-    path::{Path, PathBuf},
-    process::Stdio,
-    sync::Arc,
+    collections::HashMap, io, panic::AssertUnwindSafe, path::Path, process::Stdio, sync::Arc,
     time::Duration,
 };
 
@@ -29,15 +23,15 @@ use sp1_cuda::{
 use sp1_primitives::SP1_CRATE_VERSION;
 use sp1_prover_types::{SerializableRiscvMachine, network_base_types::ProofMode};
 use sp1_sdk::{
-    Elf, HashableKey, LightProver, Prover, ProvingKey, RiscvAir, SP1ProofWithPublicValues,
-    SP1Stdin, SP1VerifyingKey,
+    Elf, HashableKey, LightProver, Prover, ProvingKey, RiscvAir, SP1Proof,
+    SP1ProofWithPublicValues, SP1Stdin, SP1VerifyingKey,
 };
 use thiserror::Error;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::UnixStream,
     process::{Child, Command},
-    sync::{Semaphore, SemaphorePermit, watch},
+    sync::{OwnedSemaphorePermit, Semaphore, SemaphorePermit, watch},
     time::Instant,
 };
 
@@ -70,10 +64,12 @@ impl std::fmt::Debug for LocalCudaProofProvider {
 }
 
 impl LocalCudaProofProvider {
-    /// Checks the GPU server binary and starts one server per configured device.
+    /// Checks the GPU server binary and starts one server per configured device. Each device may
+    /// hold [`QUEUED_STDINS_PER_DEVICE`] stdins of up to `max_stdin_bytes`.
     pub async fn new(
         config: &LocalCudaConfig,
         provider_config: ProofProviderConfig,
+        max_stdin_bytes: u64,
     ) -> Result<Self> {
         let path = config.server_path.as_path();
         check_gpu_server(path).await?;
@@ -84,15 +80,19 @@ impl LocalCudaProofProvider {
         let opts =
             SP1CoreOpts { memory_limit: config.memory_limit_bytes.get(), ..Default::default() };
         let verifier = LightProver::new_with_opts(opts).await;
+        let memory_limit = config.memory_limit_bytes.get();
         let mut devices = Vec::with_capacity(config.devices.len());
         for &id in &config.devices {
-            let server = GpuServer::start(path, id).await.with_context(|| {
+            let server = GpuServer::start(path, id, memory_limit).await.with_context(|| {
                 format!("start sp1-gpu-server for CUDA device {id}; check the device and the {CUDA_IMAGE} image")
             })?;
             tracing::info!(device = id, "Started sp1-gpu-server");
             devices.push(Device { id, server, keys: HashMap::new() });
         }
-        let core = Core::new(Box::new(verifier.clone()), devices, provider_config);
+        let stdin_kib = max_stdin_bytes.div_ceil(1024);
+        let queued_stdin_bytes = QUEUED_STDINS_PER_DEVICE * devices.len() as u64 * stdin_kib * 1024;
+        let core =
+            Core::new(Box::new(verifier.clone()), devices, provider_config, queued_stdin_bytes);
         Ok(Self { core, verifier })
     }
 
@@ -103,16 +103,20 @@ impl LocalCudaProofProvider {
         self.core.fatal().await
     }
 
-    pub(super) fn request_range_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> ProofId {
-        self.core.request(Program::Range, PrestateKeys::from(keys), stdin)
+    pub(super) async fn request_range_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> ProofId {
+        self.core.request(Program::Range, PrestateKeys::from(keys), stdin).await
     }
 
-    pub(super) fn request_log_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> ProofId {
-        self.core.request(Program::LogCommitment, PrestateKeys::from(keys), stdin)
+    pub(super) async fn request_log_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> ProofId {
+        self.core.request(Program::LogCommitment, PrestateKeys::from(keys), stdin).await
     }
 
-    pub(super) fn request_aggregation_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> ProofId {
-        self.core.request(Program::Aggregation, PrestateKeys::from(keys), stdin)
+    pub(super) async fn request_aggregation_proof(
+        &self,
+        keys: &ProofKeys,
+        stdin: SP1Stdin,
+    ) -> ProofId {
+        self.core.request(Program::Aggregation, PrestateKeys::from(keys), stdin).await
     }
 
     pub(super) async fn wait_for_proof(
@@ -135,7 +139,7 @@ impl LocalCudaProofProvider {
 /// the proposer speaks.
 async fn check_gpu_server(path: &Path) -> Result<()> {
     ensure!(path.is_file(), "{} does not exist; run the {CUDA_IMAGE} image", path.display());
-    let output = Command::new(path).arg("--version").output().await.with_context(|| {
+    let output = server_command(path).arg("--version").output().await.with_context(|| {
         format!("run {} --version; check the {CUDA_IMAGE} image", path.display())
     })?;
     let version = String::from_utf8_lossy(&output.stdout);
@@ -147,6 +151,18 @@ async fn check_gpu_server(path: &Path) -> Result<()> {
         version.trim()
     );
     Ok(())
+}
+
+/// A command for the server binary, without the `OP_ZK_PROPOSER_*` variables that hold the
+/// proposer's keys.
+fn server_command(path: &Path) -> Command {
+    let mut command = Command::new(path);
+    for (name, _) in std::env::vars_os() {
+        if name.to_string_lossy().starts_with(crate::ENV_VAR_PREFIX) {
+            command.env_remove(name);
+        }
+    }
+    command
 }
 
 /// One device's `sp1-gpu-server`.
@@ -179,7 +195,7 @@ enum ServerError {
     Encode(bincode1::Error),
     #[error("decode the response: {0}")]
     Decode(bincode1::Error),
-    #[error("server connection failed: {0}")]
+    #[error("server connection failed")]
     Io(#[from] io::Error),
     #[error("unexpected {0} response")]
     Unexpected(&'static str),
@@ -187,8 +203,8 @@ enum ServerError {
 
 impl ServerError {
     /// A failure before the request was sent, or a rejection, leaves the socket in step. Any other
-    /// failure is fatal: I/O may leave it out of step, and an undecodable or unexpected response
-    /// means the server speaks another protocol.
+    /// failure is fatal: I/O may leave it out of step (see [`Connection`]), and an undecodable or
+    /// unexpected response means the server speaks another protocol.
     fn into_failure(self) -> Failure {
         match self {
             Self::Rejected(_) | Self::TooLarge(_) | Self::Encode(_) => {
@@ -211,18 +227,23 @@ const fn response_name(response: &Response) -> &'static str {
 }
 
 /// A server's socket, framed as `sp1_cuda::client` frames it: a little-endian `u32` length, then
-/// the bincode 1 encoding.
+/// the bincode 1 encoding. A request whose response is not read leaves the socket out of step:
+/// the next request on it would read that response.
 struct Connection {
     stream: tokio::sync::Mutex<UnixStream>,
 }
 
 impl Connection {
-    async fn call(&self, request: &Request) -> Result<Response, ServerError> {
-        let bytes = bincode1::serialize(request).map_err(ServerError::Encode)?;
+    /// Sends `request` and reads its response. The request and its encoding are dropped once
+    /// sent, so a long proof does not hold copies of its stdin.
+    async fn call(&self, request: Request) -> Result<Response, ServerError> {
+        let bytes = bincode1::serialize(&request).map_err(ServerError::Encode)?;
+        drop(request);
         let len = u32::try_from(bytes.len()).map_err(|_| ServerError::TooLarge(bytes.len()))?;
         let mut stream = self.stream.lock().await;
         stream.write_all(&len.to_le_bytes()).await?;
         stream.write_all(&bytes).await?;
+        drop(bytes);
         let mut len = [0; 4];
         stream.read_exact(&mut len).await?;
         let mut response = vec![0; u32::from_le_bytes(len) as usize];
@@ -249,9 +270,9 @@ struct GpuServer {
 }
 
 impl GpuServer {
-    /// Starts the server for device `id` and connects to its socket. The child gets no
-    /// `OP_ZK_PROPOSER_*` variable, since those hold the proposer's keys.
-    async fn start(path: &Path, id: u32) -> Result<Self> {
+    /// Starts the server for device `id` and connects to its socket. The server's executor gets
+    /// the pre-execution memory limit, so both enforce the same one.
+    async fn start(path: &Path, id: u32, memory_limit: u64) -> Result<Self> {
         let socket = socket_path(id);
         // A socket file left by another server could take the connection.
         match std::fs::remove_file(&socket) {
@@ -259,13 +280,12 @@ impl GpuServer {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Err(err) => return Err(err).with_context(|| format!("remove {}", socket.display())),
         }
-        let mut command = Command::new(path);
-        for (name, _) in std::env::vars_os() {
-            if name.to_string_lossy().starts_with(crate::ENV_VAR_PREFIX) {
-                command.env_remove(name);
-            }
-        }
-        command.env("CUDA_VISIBLE_DEVICES", id.to_string()).stdin(Stdio::null()).kill_on_drop(true);
+        let mut command = server_command(path);
+        command
+            .env("CUDA_VISIBLE_DEVICES", id.to_string())
+            .env("MEMORY_LIMIT", memory_limit.to_string())
+            .stdin(Stdio::null())
+            .kill_on_drop(true);
         #[cfg(target_os = "linux")]
         {
             let proposer = std::process::id();
@@ -297,7 +317,7 @@ fn kill_with_proposer(proposer: u32) -> io::Result<()> {
     Ok(())
 }
 
-async fn connect(socket: &PathBuf, child: &mut Child) -> Result<UnixStream> {
+async fn connect(socket: &Path, child: &mut Child) -> Result<UnixStream> {
     let deadline = Instant::now() + SERVER_START_TIMEOUT;
     loop {
         let err = match UnixStream::connect(socket).await {
@@ -327,7 +347,7 @@ impl DeviceServer for GpuServer {
             elf: elf.to_vec(),
             machine: SerializableRiscvMachine::from(RiscvAir::machine()),
         };
-        match self.connection.call(&request).await? {
+        match self.connection.call(request).await? {
             Response::Setup { id, vk } => Ok(ServerKey { id, vk_hash: vk.hash_u32() }),
             response => Err(ServerError::Unexpected(response_name(&response))),
         }
@@ -345,15 +365,34 @@ impl DeviceServer for GpuServer {
     ) -> Result<SP1ProofWithPublicValues, ServerError> {
         // The SDK's CUDA client sends a zero nonce too.
         let request = Request::ProveWithMode { mode, key: key.id, stdin, proof_nonce: [0; 4] };
-        match self.connection.call(&request).await? {
-            Response::Proof { proof } => Ok(proof.into()),
+        match self.connection.call(request).await? {
+            Response::Proof { proof } => {
+                let proof = SP1ProofWithPublicValues::from(proof);
+                if proof_matches_mode(&proof.proof, mode) {
+                    Ok(proof)
+                } else {
+                    Err(ServerError::Unexpected("wrong proof kind"))
+                }
+            }
             response => Err(ServerError::Unexpected(response_name(&response))),
         }
     }
 }
 
-/// Runs a request's program before it reaches a device; the only cycle and memory guard, since
-/// the server enforces neither.
+/// Whether a proof is of the requested kind. A wrong kind would pass verification and then fail
+/// the aggregation that consumes it.
+const fn proof_matches_mode(proof: &SP1Proof, mode: ProofMode) -> bool {
+    matches!(
+        (proof, mode),
+        (SP1Proof::Core(_), ProofMode::Core) |
+            (SP1Proof::Compressed(_), ProofMode::Compressed) |
+            (SP1Proof::Plonk(_), ProofMode::Plonk) |
+            (SP1Proof::Groth16(_), ProofMode::Groth16)
+    )
+}
+
+/// Runs a request's program before it reaches a device; the only cycle guard, since the server
+/// enforces only its memory limit.
 #[async_trait]
 trait PreExecutor: Send + Sync + 'static {
     async fn execute(&self, elf: Elf, stdin: SP1Stdin, cycle_limit: u64)
@@ -379,7 +418,7 @@ impl PreExecutor for LightProver {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Program {
     Range,
     LogCommitment,
@@ -473,12 +512,17 @@ enum Failure {
     Fatal(anyhow::Error),
 }
 
+/// Stdins that one device may hold: one in pre-execution and one that waits for or uses the
+/// device. Unlike an SPN upload, a local request keeps its stdin until it finishes.
+const QUEUED_STDINS_PER_DEVICE: u64 = 2;
+
 /// Pre-execution attempts while the executor's RSS monitor kills the child. One kill acts on a
 /// host-dependent sample, so SP1's own worker retries it too.
 const MEMORY_MONITOR_ATTEMPTS: usize = 3;
 
-/// Execution errors are deterministic for the program and input, as SPN treats them, except an
-/// external kill and `Other` (a failed or abnormally ended child, such as a full `/dev/shm`).
+/// Execution errors are deterministic for the program and input, except an external kill and
+/// `Other`, which also covers a failed or abnormally ended child, such as a full `/dev/shm`. Both
+/// are retried.
 fn classify_execution_error(err: anyhow::Error) -> Failure {
     match err.downcast_ref::<ExecutionError>() {
         None | Some(ExecutionError::ChildKilled() | ExecutionError::Other(_)) => {
@@ -492,31 +536,40 @@ fn is_memory_monitor_kill(err: &anyhow::Error) -> bool {
     matches!(err.downcast_ref::<ExecutionError>(), Some(ExecutionError::KilledByMemoryMonitor(_)))
 }
 
-/// The SDK frames each server request with a `u32` length; a longer request corrupts the socket.
+/// The encoded length of `stdin`, which must fit the server frame (see [`fits_server_frame`]).
+fn frame_checked_len(stdin: &SP1Stdin) -> Result<u64> {
+    let bytes = stdin_encoded_len(stdin)?;
+    ensure!(
+        fits_server_frame(bytes),
+        "the {bytes}-byte stdin exceeds the GPU server's request size limit"
+    );
+    Ok(bytes)
+}
+
+/// Whether a stdin of `stdin_bytes` fits [`Connection::call`]'s `u32` frame; checked before
+/// admission.
 fn fits_server_frame(stdin_bytes: u64) -> bool {
     /// Room for the request's other fields.
     const REQUEST_OVERHEAD: u64 = 1024;
     stdin_bytes.saturating_add(REQUEST_OVERHEAD) <= u64::from(u32::MAX)
 }
 
-/// A device's server and the proving keys it holds, by prestate. Keys are never evicted.
+/// A device's server and the proving keys it holds, by prestate and program. Keys are never
+/// evicted.
 struct Device<S: DeviceServer> {
     id: u32,
     server: S,
-    keys: HashMap<B256, ByProgram<S::Key>>,
+    keys: HashMap<(B256, Program), S::Key>,
 }
 
 impl<S: DeviceServer> Device<S> {
-    async fn ensure_keys(&mut self, keys: &PrestateKeys) -> Result<(), Failure> {
-        if self.keys.contains_key(&keys.prestate) {
-            return Ok(());
+    /// Sets up the key of `program` on first use.
+    async fn ensure_key(&mut self, program: Program, keys: &PrestateKeys) -> Result<(), Failure> {
+        let id = (keys.prestate, program);
+        if !self.keys.contains_key(&id) {
+            let key = self.setup(program, keys).await?;
+            self.keys.insert(id, key);
         }
-        let set = ByProgram {
-            range: self.setup(Program::Range, keys).await?,
-            log_commitment: self.setup(Program::LogCommitment, keys).await?,
-            aggregation: self.setup(Program::Aggregation, keys).await?,
-        };
-        self.keys.insert(keys.prestate, set);
         Ok(())
     }
 
@@ -559,7 +612,8 @@ struct DeviceLease<'a, S: DeviceServer> {
 }
 
 impl<S: DeviceServer> DeviceLease<'_, S> {
-    /// Keeps the device out of the pool for good, since its socket may hold a stale response.
+    /// Keeps the device out of the pool for good; its socket may be out of step (see
+    /// [`Connection`]).
     fn retire(mut self) {
         self.device = None;
         if let Some(permit) = self.permit.take() {
@@ -602,6 +656,9 @@ struct Core<S: DeviceServer> {
     devices: DevicePool<S>,
     /// One permit per device, so pre-execution keeps pace with proving without holding a device.
     pre_execution: Semaphore,
+    /// KiB of stdin held by unfinished requests; see [`Core::request`].
+    queued_stdin: Arc<Semaphore>,
+    queued_stdin_kib: u32,
     config: ProofProviderConfig,
     /// Outcomes by request; `None` while the request runs.
     outcomes: Mutex<HashMap<ProofId, watch::Receiver<Option<Finished>>>>,
@@ -613,11 +670,15 @@ impl<S: DeviceServer> Core<S> {
         executor: Box<dyn PreExecutor>,
         devices: Vec<Device<S>>,
         config: ProofProviderConfig,
+        queued_stdin_bytes: u64,
     ) -> Arc<Self> {
+        let queued_stdin_kib = u32::try_from(queued_stdin_bytes / 1024).unwrap_or(u32::MAX).max(1);
         let device_ids = devices.iter().map(|device| device.id).collect();
         Arc::new(Self {
             executor,
             pre_execution: Semaphore::new(devices.len()),
+            queued_stdin: Arc::new(Semaphore::new(queued_stdin_kib as usize)),
+            queued_stdin_kib,
             devices: DevicePool {
                 permits: Semaphore::new(devices.len()),
                 free: Mutex::new(devices),
@@ -633,13 +694,40 @@ impl<S: DeviceServer> Core<S> {
         Duration::from_secs(self.config.timeout)
     }
 
-    fn request(self: &Arc<Self>, program: Program, keys: PrestateKeys, stdin: SP1Stdin) -> ProofId {
+    /// Starts a request once its stdin fits the queued-stdin budget, so a game that submits many
+    /// requests waits here, as for an SPN upload. A stdin larger than the budget waits for an
+    /// empty queue; one that cannot fit the server frame fails without waiting.
+    async fn request(
+        self: &Arc<Self>,
+        program: Program,
+        keys: PrestateKeys,
+        stdin: SP1Stdin,
+    ) -> ProofId {
+        let admission = match frame_checked_len(&stdin) {
+            Ok(bytes) => {
+                let kib = u32::try_from(bytes.div_ceil(1024)).unwrap_or(u32::MAX);
+                Ok(Arc::clone(&self.queued_stdin)
+                    .acquire_many_owned(kib.clamp(1, self.queued_stdin_kib))
+                    .await
+                    .expect("the queued-stdin semaphore is never closed"))
+            }
+            Err(err) => Err(err),
+        };
         self.remove_expired();
         let proof_id = ProofId::random();
         let (sender, receiver) = watch::channel(None);
         self.outcomes.lock().insert(proof_id, receiver);
+        let admission = match admission {
+            Ok(admission) => admission,
+            Err(err) => {
+                let outcome = self.finish(proof_id, program, Err(Failure::ProverFailed(err)));
+                sender.send_replace(Some(Finished { outcome, at: Instant::now() }));
+                return proof_id;
+            }
+        };
         let core = Arc::clone(self);
         tokio::spawn(async move {
+            let _admission: OwnedSemaphorePermit = admission;
             let result = AssertUnwindSafe(core.prove(program, &keys, stdin))
                 .catch_unwind()
                 .await
@@ -667,12 +755,6 @@ impl<S: DeviceServer> Core<S> {
         keys: &PrestateKeys,
         stdin: SP1Stdin,
     ) -> Result<SP1ProofWithPublicValues, Failure> {
-        let stdin_bytes = stdin_encoded_len(&stdin).map_err(Failure::ProverFailed)?;
-        if !fits_server_frame(stdin_bytes) {
-            return Err(Failure::ProverFailed(anyhow!(
-                "the {stdin_bytes}-byte stdin exceeds the GPU server's request size limit"
-            )));
-        }
         let elf = keys.programs.get(program).elf.clone();
         let cycle_limit = program.cycle_limit(&self.config);
         {
@@ -704,11 +786,14 @@ impl<S: DeviceServer> Core<S> {
         let id = device.id;
         let result = AssertUnwindSafe(Self::prove_on(&mut device, program, keys, stdin))
             .catch_unwind()
-            .await;
-        result.unwrap_or_else(|_| {
+            .await
+            .unwrap_or_else(|_| {
+                Err(Failure::Fatal(anyhow!("a local proving task panicked on CUDA device {id}")))
+            });
+        if matches!(result, Err(Failure::Fatal(_))) {
             device.retire();
-            Err(Failure::Fatal(anyhow!("a local proving task panicked on CUDA device {id}")))
-        })
+        }
+        result
     }
 
     async fn prove_on(
@@ -717,8 +802,8 @@ impl<S: DeviceServer> Core<S> {
         keys: &PrestateKeys,
         stdin: SP1Stdin,
     ) -> Result<SP1ProofWithPublicValues, Failure> {
-        device.ensure_keys(keys).await?;
-        let key = device.keys[&keys.prestate].get(program);
+        device.ensure_key(program, keys).await?;
+        let key = &device.keys[&(keys.prestate, program)];
         tracing::info!(device = device.id, program = program.name(), "Proving on CUDA device");
         device.server.prove(key, stdin, program.mode()).await.map_err(ServerError::into_failure)
     }
@@ -804,11 +889,11 @@ impl<S: DeviceServer> Core<S> {
 mod tests {
     use std::{
         os::unix::fs::PermissionsExt,
-        sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+        sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
     };
 
-    use sp1_sdk::{SP1Proof, SP1PublicValues, network::FulfillmentStrategy};
-    use sp1_verifier::ProofFromNetwork;
+    use sp1_sdk::{SP1PublicValues, network::FulfillmentStrategy};
+    use sp1_verifier::{PlonkBn254Proof, ProofFromNetwork};
 
     use super::*;
 
@@ -881,6 +966,8 @@ mod tests {
         /// The device and verifying-key hash of each setup.
         setups: Mutex<Vec<(u32, [u32; 8])>>,
         wrong_vk: AtomicBool,
+        /// The first ELF byte of the program whose setup the server rejects; 0 for none.
+        rejected_setup: AtomicU8,
         prove_error: Option<fn() -> ServerError>,
     }
 
@@ -897,6 +984,9 @@ mod tests {
             let hash =
                 if self.script.wrong_vk.load(Ordering::SeqCst) { [0; 8] } else { vk_hash(&elf) };
             self.script.setups.lock().push((self.id, hash));
+            if elf[0] == self.script.rejected_setup.load(Ordering::SeqCst) {
+                return Err(ServerError::Rejected("setup".into()));
+            }
             Ok(hash)
         }
 
@@ -984,11 +1074,23 @@ mod tests {
             result: ExecuteResult,
             prove_error: Option<fn() -> ServerError>,
         ) -> Self {
+            Self::build(devices, execute, prove, result, prove_error, u64::MAX)
+        }
+
+        fn build(
+            devices: u32,
+            execute: Probe,
+            prove: Probe,
+            result: ExecuteResult,
+            prove_error: Option<fn() -> ServerError>,
+            queued_stdin_bytes: u64,
+        ) -> Self {
             let executor = Arc::new(ScriptedExecutor { probe: execute, result });
             let script = Arc::new(ServerScript {
                 prove,
                 setups: Mutex::new(Vec::new()),
                 wrong_vk: AtomicBool::new(false),
+                rejected_setup: AtomicU8::new(0),
                 prove_error,
             });
             let devices = (0..devices)
@@ -998,12 +1100,13 @@ mod tests {
                     keys: HashMap::new(),
                 })
                 .collect();
-            let core = Core::new(Box::new(Arc::clone(&executor)), devices, config());
+            let core =
+                Core::new(Box::new(Arc::clone(&executor)), devices, config(), queued_stdin_bytes);
             Self { core, executor, script }
         }
 
-        fn request(&self) -> ProofId {
-            self.core.request(Program::Range, prestate_keys(), SP1Stdin::new())
+        async fn request(&self) -> ProofId {
+            self.core.request(Program::Range, prestate_keys(), SP1Stdin::new()).await
         }
 
         async fn finished(&self, proof_id: ProofId) {
@@ -1014,7 +1117,7 @@ mod tests {
         /// The terminal state of a request whose pre-execution returns `failure`.
         async fn terminal_state(failure: ExecuteResult) -> ProofTerminalState {
             let harness = Self::with(1, Probe::open(), Probe::open(), failure, None);
-            let proof_id = harness.request();
+            let proof_id = harness.request().await;
             let err = harness.core.wait(proof_id).await.unwrap_err();
             assert_eq!(harness.script.prove.calls(), 0);
             let ProofWaitError::Terminal { state, .. } = err else { panic!("{err:?}") };
@@ -1029,12 +1132,67 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn request_then_wait_returns_proof() {
         let harness = Harness::new(1);
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
 
         harness.core.wait(proof_id).await.unwrap();
 
         assert!(harness.core.outcomes.lock().is_empty());
         assert_eq!(harness.script.prove.calls(), 1);
+    }
+
+    /// Pins that a request waits while its stdin would take the queued bytes over the budget.
+    #[tokio::test(start_paused = true)]
+    async fn request_waits_for_the_queued_stdin_budget() {
+        let harness = Harness::build(
+            1,
+            Probe::open(),
+            Probe::gated(0),
+            |_| Ok(ExecutionReport::default()),
+            None,
+            4096,
+        );
+        let request = || {
+            let mut stdin = SP1Stdin::new();
+            stdin.write_vec(vec![0; 1024]);
+            harness.core.request(Program::Range, prestate_keys(), stdin)
+        };
+        let first = request().await;
+        request().await;
+        let third = request();
+        tokio::pin!(third);
+
+        assert!(tokio::time::timeout(Duration::from_secs(60), &mut third).await.is_err());
+
+        harness.script.prove.gate.add_permits(1);
+        harness.finished(first).await;
+        tokio::time::timeout(Duration::from_secs(60), third).await.unwrap();
+    }
+
+    /// Pins that a stdin larger than the whole budget waits for an empty queue, then runs alone.
+    #[tokio::test(start_paused = true)]
+    async fn stdin_over_the_budget_waits_for_an_empty_queue() {
+        let harness = Harness::build(
+            1,
+            Probe::open(),
+            Probe::gated(0),
+            |_| Ok(ExecutionReport::default()),
+            None,
+            1024,
+        );
+        let request = || {
+            let mut stdin = SP1Stdin::new();
+            stdin.write_vec(vec![0; 1024]);
+            harness.core.request(Program::Range, prestate_keys(), stdin)
+        };
+        let first = request().await;
+        let second = request();
+        tokio::pin!(second);
+
+        assert!(tokio::time::timeout(Duration::from_secs(60), &mut second).await.is_err());
+
+        harness.script.prove.gate.add_permits(1);
+        harness.finished(first).await;
+        tokio::time::timeout(Duration::from_secs(60), second).await.unwrap();
     }
 
     #[tokio::test(start_paused = true)]
@@ -1046,7 +1204,7 @@ mod tests {
             |_| Ok(ExecutionReport::default()),
             None,
         );
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
 
         let err = harness.core.wait(proof_id).await.unwrap_err();
         assert!(matches!(err, ProofWaitError::Uncertain(_)), "{err:?}");
@@ -1098,7 +1256,7 @@ mod tests {
     async fn memory_monitor_kill_runs_again_before_unexecutable() {
         let kill = |_| Err(execution_error(ExecutionError::KilledByMemoryMonitor(1)));
         let harness = Harness::with(1, Probe::open(), Probe::open(), kill, None);
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
         harness.core.wait(proof_id).await.unwrap_err();
         assert_eq!(harness.executor.probe.calls(), MEMORY_MONITOR_ATTEMPTS);
 
@@ -1107,7 +1265,7 @@ mod tests {
             _ => Ok(ExecutionReport::default()),
         };
         let harness = Harness::with(1, Probe::open(), Probe::open(), first_kill, None);
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
         harness.core.wait(proof_id).await.unwrap();
         assert_eq!(harness.executor.probe.calls(), 2);
     }
@@ -1148,7 +1306,7 @@ mod tests {
             |_| Ok(ExecutionReport::default()),
             Some(|| panic!("scripted server panic")),
         );
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
 
         let err = harness.core.wait(proof_id).await.unwrap_err();
 
@@ -1170,7 +1328,7 @@ mod tests {
             |_| panic!("scripted executor panic"),
             None,
         );
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
 
         let err = harness.core.wait(proof_id).await.unwrap_err();
 
@@ -1209,7 +1367,7 @@ mod tests {
             |_| Ok(ExecutionReport::default()),
             Some(|| ServerError::Rejected("out of memory".into())),
         );
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
 
         let err = harness.core.wait(proof_id).await.unwrap_err();
 
@@ -1229,7 +1387,7 @@ mod tests {
             |_| Ok(ExecutionReport::default()),
             Some(|| ServerError::Io(io::ErrorKind::BrokenPipe.into())),
         );
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
 
         let err = harness.core.wait(proof_id).await.unwrap_err();
 
@@ -1239,6 +1397,7 @@ mod tests {
         );
         let fatal = harness.core.fatal().await.to_string();
         assert!(fatal.contains("server connection failed"), "{fatal}");
+        assert!(harness.core.devices.free.lock().is_empty());
     }
 
     #[tokio::test(start_paused = true)]
@@ -1250,12 +1409,12 @@ mod tests {
             |_| Ok(ExecutionReport::default()),
             None,
         );
-        let first = harness.request();
+        let first = harness.request().await;
         while harness.script.prove.calls() == 0 {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
-        let second = harness.request();
+        let second = harness.request().await;
         let pre_executed = async {
             while harness.executor.probe.calls() < 2 ||
                 harness.executor.probe.active.load(Ordering::SeqCst) > 0
@@ -1275,7 +1434,10 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn pre_execution_bounded_by_device_count() {
         let harness = Harness::new(2);
-        let proof_ids: Vec<_> = (0..5).map(|_| harness.request()).collect();
+        let mut proof_ids = Vec::new();
+        for _ in 0..5 {
+            proof_ids.push(harness.request().await);
+        }
 
         for proof_id in proof_ids {
             harness.core.wait(proof_id).await.unwrap();
@@ -1288,7 +1450,10 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn requests_never_exceed_device_count() {
         let harness = Harness::new(2);
-        let proof_ids: Vec<_> = (0..5).map(|_| harness.request()).collect();
+        let mut proof_ids = Vec::new();
+        for _ in 0..5 {
+            proof_ids.push(harness.request().await);
+        }
 
         for proof_id in proof_ids {
             harness.core.wait(proof_id).await.unwrap();
@@ -1304,7 +1469,9 @@ mod tests {
         harness.script.wrong_vk.store(true, Ordering::SeqCst);
         let mut device = harness.core.devices.lease().await;
 
-        let Err(Failure::ProverFailed(err)) = device.ensure_keys(&prestate_keys()).await else {
+        let Err(Failure::ProverFailed(err)) =
+            device.ensure_key(Program::Range, &prestate_keys()).await
+        else {
             panic!("expected a prover failure");
         };
 
@@ -1312,23 +1479,40 @@ mod tests {
         assert!(device.keys.is_empty());
     }
 
+    /// Pins that a failing aggregation setup neither blocks range proofs nor repeats their setup.
+    #[tokio::test(start_paused = true)]
+    async fn failed_setup_of_one_program_leaves_the_others_usable() {
+        let harness = Harness::new(1);
+        harness.script.rejected_setup.store(b'a', Ordering::SeqCst);
+        let keys = prestate_keys();
+
+        let aggregation =
+            harness.core.request(Program::Aggregation, keys.clone(), SP1Stdin::new()).await;
+        let err = harness.core.wait(aggregation).await.unwrap_err();
+        assert!(
+            matches!(err, ProofWaitError::Terminal { state: ProofTerminalState::ProverFailed, .. }),
+            "{err:?}"
+        );
+        for _ in 0..2 {
+            let proof_id = harness.request().await;
+            harness.core.wait(proof_id).await.unwrap();
+        }
+
+        let programs = &keys.programs;
+        let expected = [(0, programs.aggregation.vk_hash), (0, programs.range.vk_hash)];
+        assert_eq!(*harness.script.setups.lock(), expected);
+    }
+
     #[tokio::test(start_paused = true)]
     async fn keys_set_up_once_per_device_and_prestate() {
         let harness = Harness::new(1);
 
         for _ in 0..2 {
-            let proof_id = harness.request();
+            let proof_id = harness.request().await;
             harness.core.wait(proof_id).await.unwrap();
         }
 
-        let keys = prestate_keys();
-        let programs = &keys.programs;
-        let expected = [
-            (0, programs.range.vk_hash),
-            (0, programs.log_commitment.vk_hash),
-            (0, programs.aggregation.vk_hash),
-        ];
-        assert_eq!(*harness.script.setups.lock(), expected);
+        assert_eq!(*harness.script.setups.lock(), [(0, prestate_keys().programs.range.vk_hash)]);
     }
 
     #[tokio::test(start_paused = true)]
@@ -1340,7 +1524,7 @@ mod tests {
             |_| Ok(ExecutionReport::default()),
             None,
         );
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
         while harness.script.prove.calls() == 0 {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
@@ -1356,15 +1540,15 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn unwaited_finished_entry_expires() {
         let harness = Harness::new(1);
-        let proof_id = harness.request();
+        let proof_id = harness.request().await;
         harness.finished(proof_id).await;
 
         tokio::time::advance(harness.core.timeout()).await;
-        let kept = harness.request();
+        let kept = harness.request().await;
         assert!(harness.core.outcomes.lock().contains_key(&proof_id));
 
         tokio::time::advance(Duration::from_secs(1)).await;
-        harness.request();
+        harness.request().await;
 
         let outcomes = harness.core.outcomes.lock();
         assert!(!outcomes.contains_key(&proof_id));
@@ -1389,6 +1573,59 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Pins that the `--version` run gets no `OP_ZK_PROPOSER_*` variable.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn version_check_gets_no_proposer_env() {
+        let dir = tempfile::tempdir().unwrap();
+        let server = dir.path().join("sp1-gpu-server");
+        let prefix = crate::ENV_VAR_PREFIX;
+        std::fs::write(
+            &server,
+            format!("#!/bin/sh\nenv | grep -q '^{prefix}' || echo {SP1_CRATE_VERSION}\n"),
+        )
+        .unwrap();
+        std::fs::set_permissions(&server, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let name = format!("{prefix}_TEST_SECRET");
+        // SAFETY: The environment-mutating tests in this crate are serialized.
+        unsafe { std::env::set_var(&name, "secret") };
+
+        let result = check_gpu_server(&server).await;
+
+        // SAFETY: as above.
+        unsafe { std::env::remove_var(&name) };
+        result.unwrap();
+    }
+
+    /// Pins the image's server and circuit downloads to the linked SP1 versions, which the
+    /// startup check and the server require.
+    #[test]
+    fn image_pins_match_the_linked_sp1_versions() {
+        let melange = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../../melange/op-zk-proposer-cuda.yaml");
+        let melange = std::fs::read_to_string(melange).unwrap();
+        let circuits = sp1_sdk::SP1_CIRCUIT_VERSION.trim();
+        for pin in [
+            format!("/v{SP1_CRATE_VERSION}/sp1_gpu_server_v{SP1_CRATE_VERSION}_x86_64.tar.gz"),
+            format!("/{circuits}-plonk.tar.gz"),
+            format!("\"$dir/{circuits}\""),
+        ] {
+            assert!(melange.contains(&pin), "melange/op-zk-proposer-cuda.yaml lacks {pin}");
+        }
+    }
+
+    /// Pins that each program's mode accepts only the proof kind of that mode.
+    #[test]
+    fn proof_kind_must_match_the_program_mode() {
+        let core = SP1Proof::Core(Vec::new());
+        let plonk = SP1Proof::Plonk(PlonkBn254Proof::default());
+
+        assert!(proof_matches_mode(&plonk, Program::Aggregation.mode()));
+        assert!(!proof_matches_mode(&core, Program::Aggregation.mode()));
+        assert!(!proof_matches_mode(&core, Program::Range.mode()));
+        assert!(!proof_matches_mode(&plonk, Program::LogCommitment.mode()));
     }
 
     #[test]
@@ -1459,7 +1696,7 @@ mod tests {
             stdin,
             proof_nonce: [0; 4],
         };
-        let Response::Proof { proof } = gpu.call(&request).await.unwrap() else {
+        let Response::Proof { proof } = gpu.call(request).await.unwrap() else {
             panic!("expected a proof")
         };
 
@@ -1480,10 +1717,11 @@ mod tests {
             vec![Response::InternalError("oom".into()), Response::ProverError("bad".into())],
         );
         let gpu = connection(client);
-        let request = Request::Destroy { key: [0; 32] };
 
         for expected in ["oom", "bad"] {
-            let Err(ServerError::Rejected(message)) = gpu.call(&request).await else {
+            let Err(ServerError::Rejected(message)) =
+                gpu.call(Request::Destroy { key: [0; 32] }).await
+            else {
                 panic!("expected a rejection")
             };
             assert_eq!(message, expected);
@@ -1527,7 +1765,7 @@ mod tests {
         let (client, server) = UnixStream::pair().unwrap();
         drop(server);
 
-        let result = connection(client).call(&Request::Destroy { key: [0; 32] }).await;
+        let result = connection(client).call(Request::Destroy { key: [0; 32] }).await;
 
         assert!(matches!(result, Err(ServerError::Io(_))));
     }

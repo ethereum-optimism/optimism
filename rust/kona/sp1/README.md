@@ -342,23 +342,26 @@ downloads the circuits.
 
 Each request first runs its program on the CPU (pre-execution) with its cycle limit and
 `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES`, at most one per device at a time. An execution
-error (a cycle or memory breach, a guest fault) or a guest exit code other than 0 is
-`Unexecutable`, so the proposer bisects or splits as it does for SPN. A memory-monitor kill
-counts only after 3 runs, since one kill reads a host-dependent RSS sample. The request then
-waits for a free device, which proves one request at a time; pre-execution holds no device.
-Any other failure, including an external kill of the executor, ends the request as
-`ProverFailed`, logged at error level, and the next attempt submits it again until the game
-deadline. An aggregation stdin over 4 GiB, about 3,370 child proofs, is `ProverFailed` without
-reaching a device: the server protocol frames a request with a 32-bit length. A wait
+error, such as a cycle or memory breach, or a guest exit code other than 0 is `Unexecutable`,
+so the proposer bisects or splits as it does for SPN. A memory-monitor kill counts only after
+3 runs, since one kill reads a host-dependent RSS sample. The request then waits for a free
+device, which proves one request at a time; pre-execution holds no device. Any other failure
+ends the request as `ProverFailed`, logged at error level, and the next attempt submits it
+again until the game deadline. This includes an external kill of the executor and SP1's
+`Other` error, which covers an executor that failed or ended abnormally, such as on a full
+`/dev/shm`, but also some guest faults: such a span is retried, not split. An aggregation
+stdin over 4 GiB, about 3,370 child proofs, is `ProverFailed` without reaching a device: the
+server protocol frames a request with a 32-bit length. A wait
 returns after `SP1_TIMEOUT_SECONDS` while the proof keeps running, and the
 next attempt waits for the same proof. A finished proof that no one waits for is dropped
 after `SP1_TIMEOUT_SECONDS`. Nothing cancels a running proof, so the proof of an abandoned
-game runs to the end. Each device keeps the proving keys of every prestate it has proved
-until the process exits.
+game runs to the end. A device sets up a program's proving key when a request first needs it,
+and keeps it until the process exits.
 
-A broken connection to a GPU server, or a panic while a task holds a device, ends the process
-with an error, which stops every server; Kubernetes restarts the pod. Proof progress is in
-memory and is lost, and the proposer rebuilds its state from L1. A server that crashes on one input
+A broken connection to a GPU server, an unexpected response such as a proof of another kind
+than requested, or a panic while a task holds a device ends the process with an error, which
+stops every server; Kubernetes restarts the pod. Proof progress is in memory and is lost, and
+the proposer rebuilds its state from L1. A server that crashes on one input
 therefore restarts the proposer each time it reaches that input. A server that stops
 answering is not detected: its device proves nothing more, and only
 `op_zk_proposer_proving_timeout_error` grows, so alert on it.
@@ -366,23 +369,25 @@ answering is not detected: its device proves nothing more, and only
 Sizing, per GPU: 24 GB of VRAM, compute capability 8.6 or higher, a driver for CUDA 12.8
 (R570 or later), 8 CPU cores, and about 32 GB of host RAM, up to about 96 GB during the
 PLONK wrap, in addition to the pre-execution memory below. For example, `g2-standard-32` with
-one L4. `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` does not reach the server, which inherits the
-proposer's environment; SP1's default executor options read `MEMORY_LIMIT` (default 24 GiB).
-Keep the two equal. The executor keeps guest
-memory and its trace ring in POSIX shared memory, so mount a `medium: Memory` `emptyDir` at
-`/dev/shm` sized for the memory limit of each concurrent pre-execution, and count it in pod
-memory; the container default of 64 MiB fails every pre-execution. Set
+one L4. Each server gets `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` as `MEMORY_LIMIT`, so its
+executor enforces the same limit as pre-execution. The executor keeps guest memory and its
+trace ring in POSIX shared memory, both in pre-execution and in a server while it proves. Mount
+a `medium: Memory` `emptyDir` at `/dev/shm` with room for the memory limit twice per device,
+for one pre-execution and one proof, and count it in pod memory; the container default of
+64 MiB fails every pre-execution. Set
 `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` to the device count: the default `1` uses one
 GPU per game.
 
-The proposer builds each request's stdin before the request waits for a device, and a game
-submits all of its log-commitment batches before it waits for any. Queued requests therefore
-hold their stdin in memory, up to `OP_ZK_PROPOSER_MAX_STDIN_BYTES` each, across
-`OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` games; with SPN each stdin is uploaded and
-freed. Each request also makes up to three short-lived copies of its stdin, during
-pre-execution and when it is sent to the server. Lower both values, and size pod memory for
-the queued stdin plus, per concurrent pre-execution, three stdin copies, about 24 GiB, and
-4.4 GiB of gas-trace buffers.
+A local request keeps its stdin until it finishes, where SPN uploads a stdin and frees it. So a
+request starts only when the stdin of the unfinished requests leaves room for its own: two
+stdins of up to `OP_ZK_PROPOSER_MAX_STDIN_BYTES` per device, one in pre-execution and one at
+the device. A larger stdin, such as a large aggregation, waits until no other request is
+unfinished. A game that submits many log-commitment batches therefore waits between them, as
+it waits for SPN uploads. Pre-execution makes one more copy of the stdin, and a request sent to
+a server is encoded once more and freed when sent. A caller builds its stdin before it waits,
+so up to `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` ×
+(`OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` + 1) waiting stdins sit outside the budget. Size pod memory for both sets of stdins plus, per
+concurrent pre-execution, one stdin copy, about 24 GiB, and 4.4 GiB of gas-trace buffers.
 
 ### Restart behavior
 

@@ -888,14 +888,14 @@ where
     Ok(result)
 }
 
-/// One range request's natively computed outputs and, in network mode, its proof.
+/// One range request's natively computed outputs and, outside mock mode, its proof.
 #[derive(Clone)]
 struct RangeResult {
     outputs: SuperRangeOutputs,
     proof: Option<Arc<SP1ProofWithPublicValues>>,
 }
 
-/// The outputs of one span's range requests and consolidation and, in network mode, their proofs.
+/// The outputs of one span's range requests and consolidation and, outside mock mode, their proofs.
 #[derive(Clone)]
 struct SpanResult {
     /// The range outputs in chain order: one, or several once a single timestamp is split by
@@ -3368,7 +3368,7 @@ mod tests {
     }
 
     #[test]
-    fn network_vkey_change_replaces_progress() {
+    fn sp1_vkey_change_replaces_progress() {
         let start = response_at(100, 0x01, 5);
         let end = response_at(101, 0x02, 5);
         let game = game_for(&start, &end, 10);

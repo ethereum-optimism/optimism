@@ -168,7 +168,7 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.request_range_proof(keys, stdin).await,
             Self::Mock(_) => bail!("mock provider produces no SP1 range proofs"),
-            Self::LocalCuda(provider) => Ok(provider.request_range_proof(keys, stdin)),
+            Self::LocalCuda(provider) => Ok(provider.request_range_proof(keys, stdin).await),
         }
     }
 
@@ -177,7 +177,7 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.request_log_proof(keys, stdin).await,
             Self::Mock(_) => bail!("mock provider produces no SP1 log-commitment proofs"),
-            Self::LocalCuda(provider) => Ok(provider.request_log_proof(keys, stdin)),
+            Self::LocalCuda(provider) => Ok(provider.request_log_proof(keys, stdin).await),
         }
     }
 
@@ -190,7 +190,7 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.request_aggregation_proof(keys, stdin).await,
             Self::Mock(_) => bail!("mock provider produces no SP1 aggregation proofs"),
-            Self::LocalCuda(provider) => Ok(provider.request_aggregation_proof(keys, stdin)),
+            Self::LocalCuda(provider) => Ok(provider.request_aggregation_proof(keys, stdin).await),
         }
     }
 

@@ -134,7 +134,8 @@ pub struct ProposerConfig {
     /// The create path checks artifact availability (creation pauses when
     /// any artifact is missing, since the proposer could not defend such
     /// a game); the defend path loads the ELFs from the same location and,
-    /// in network mode, verifies the vkey chain during proving-key setup.
+    /// in the SP1 modes (network and local-cuda), verifies the vkey chain during proving-key
+    /// setup.
     pub prestates_url: Url,
 
     /// Minimum spacing, in seconds of super-root timestamps, between the
@@ -815,7 +816,7 @@ impl PrestatePrograms {
 /// Fails when any artifact is missing, unreadable, or not valid gzip.
 /// The create path uses a successful load as the proof that games with this
 /// prestate are defendable; the defend path proves with the returned ELFs.
-/// In network mode, `PrestateCache::proof_keys` later verifies the vkeys
+/// In the SP1 modes, `PrestateCache::proof_keys` later verifies the vkeys
 /// during SP1 proving-key setup; mock mode never executes the artifacts and
 /// skips that check.
 pub async fn load_prestate(base: &Url, prestate: B256) -> Result<PrestatePrograms> {
