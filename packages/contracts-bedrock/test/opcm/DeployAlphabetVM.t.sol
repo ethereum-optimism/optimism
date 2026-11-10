@@ -28,6 +28,16 @@ contract DeployAlphabetVM2_Test is Test {
         assertEq(address(output.alphabetVM.oracle()), address(input.preimageOracle), "200");
     }
 
+    /// @notice Tests that a second run finds the VM of the first, so that a deployment that resumes
+    ///         after its dispute game was registered registers the same VM again.
+    function test_run_twice_succeeds() public {
+        DeployAlphabetVM.Input memory input = defaultInput();
+        DeployAlphabetVM.Output memory output1 = deployAlphanetVM.run(input);
+        DeployAlphabetVM.Output memory output2 = deployAlphanetVM.run(input);
+
+        assertEq(address(output1.alphabetVM), address(output2.alphabetVM), "100");
+    }
+
     function test_run_nullInput_reverts() public {
         DeployAlphabetVM.Input memory input;
 
