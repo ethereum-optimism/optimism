@@ -720,7 +720,7 @@ impl<S: DeviceServer> Core<S> {
         let core = Arc::clone(self);
         tokio::spawn(async move {
             let _admission: OwnedSemaphorePermit = admission;
-            let result = AssertUnwindSafe(core.prove(program, &keys, stdin))
+            let result = AssertUnwindSafe(core.prove(proof_id, program, &keys, stdin))
                 .catch_unwind()
                 .await
                 .unwrap_or_else(|_| {
@@ -745,6 +745,7 @@ impl<S: DeviceServer> Core<S> {
 
     async fn prove(
         &self,
+        proof_id: ProofId,
         program: Program,
         keys: &PrestateKeys,
         stdin: SP1Stdin,
@@ -778,7 +779,7 @@ impl<S: DeviceServer> Core<S> {
         }
         let mut device = self.devices.lease().await;
         let id = device.id;
-        let result = AssertUnwindSafe(Self::prove_on(&mut device, program, keys, stdin))
+        let result = AssertUnwindSafe(Self::prove_on(&mut device, proof_id, program, keys, stdin))
             .catch_unwind()
             .await
             .unwrap_or_else(|_| {
@@ -792,13 +793,19 @@ impl<S: DeviceServer> Core<S> {
 
     async fn prove_on(
         device: &mut Device<S>,
+        proof_id: ProofId,
         program: Program,
         keys: &PrestateKeys,
         stdin: SP1Stdin,
     ) -> Result<SP1ProofWithPublicValues, Failure> {
         device.ensure_key(program, keys).await?;
         let key = &device.keys[&(keys.prestate, program)];
-        tracing::info!(device = device.id, program = program.name(), "Proving on CUDA device");
+        tracing::info!(
+            %proof_id,
+            device = device.id,
+            program = program.name(),
+            "Proving on CUDA device"
+        );
         device.server.prove(key, stdin, program.mode()).await.map_err(ServerError::into_failure)
     }
 
