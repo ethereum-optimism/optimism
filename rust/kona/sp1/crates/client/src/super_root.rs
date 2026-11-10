@@ -364,7 +364,9 @@ impl SuperAggregationInputs {
             )?;
         }
 
-        let expected_after_final = self.l2_sequence_number.saturating_add(1);
+        let expected_after_final = self.l2_sequence_number.checked_add(1).ok_or(
+            SuperRootError::AggregationTimestampOverflow { timestamp: self.l2_sequence_number },
+        )?;
         if expected_start != expected_after_final {
             return Err(SuperRootError::ConsolidationSpanStartMismatch {
                 expected: expected_after_final,
@@ -1588,6 +1590,51 @@ mod tests {
         assert_eq!(
             missing_range_timestamp.validate(),
             Err(SuperRootError::MissingRangeTimestamp { timestamp: 101 })
+        );
+    }
+
+    /// Outputs ending at `u64::MAX - 1` bind a claim there. A claim at `u64::MAX` needs an output
+    /// ending at `u64::MAX`, which cannot advance the timestamp, so it is rejected.
+    #[test]
+    fn aggregation_inputs_reject_claim_at_max_timestamp() {
+        let last = u64::MAX - 1;
+        let starting_super_root_proof = SuperRootProof::new(last - 1, vec![output(10, 0x01)]);
+        let starting_root_hash = hash_super_root_proof(&starting_super_root_proof).unwrap();
+        let block = optimistic(10, 0x10, 0x90);
+        let span = TimestampSpan::new(last, last).unwrap();
+        let root_claim = B256::from([0x40; 32]);
+        let mut inputs = SuperAggregationInputs {
+            l1_head: B256::from([0x99; 32]),
+            starting_root_hash,
+            starting_super_root_proof,
+            root_claim,
+            l2_sequence_number: last,
+            prover: Address::ZERO,
+            range_outputs: vec![SuperRangeOutputs {
+                span,
+                l1_head: B256::from([0x99; 32]),
+                previous_super_roots: vec![starting_root_hash],
+                transitions: vec![SuperRangeTransition {
+                    timestamp: last,
+                    optimistic_block: block,
+                }],
+            }],
+            consolidation_outputs: vec![SuperConsolidationOutputs {
+                span,
+                previous_super_root: starting_root_hash,
+                transitions: vec![SuperConsolidationTransition {
+                    timestamp: last,
+                    optimistic_blocks: vec![block],
+                    super_root: root_claim,
+                }],
+            }],
+        };
+        inputs.validate().expect("outputs ending at u64::MAX - 1 bind a claim there");
+
+        inputs.l2_sequence_number = u64::MAX;
+        assert_eq!(
+            inputs.validate(),
+            Err(SuperRootError::AggregationTimestampOverflow { timestamp: u64::MAX })
         );
     }
 

@@ -115,6 +115,9 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return err
 	}
+	if err := checkNoPrivateChains(intent); err != nil {
+		return err
+	}
 
 	// A state produced by the apply pipeline MUST NOT be prepared.
 	if err := st.CheckNotApplied(); err != nil {
@@ -193,6 +196,13 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 	st.ImplementationsDeployment = impls
 
+	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(ctx, l1Client, *intent.SuperchainConfigProxy)
+	if err != nil {
+		return fmt.Errorf("failed to read superchain deployment: %w", err)
+	}
+	st.SuperchainDeployment = superDeployment
+	st.SuperchainRoles = superRoles
+
 	l1Host, err := env.DefaultForkedScriptHost(
 		ctx,
 		broadcaster.NoopBroadcaster(),
@@ -204,17 +214,6 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to create forked L1 script host: %w", err)
 	}
-
-	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
-		&pipeline.Env{Logger: cfg.Logger, L1ScriptHost: l1Host},
-		opcmAddr,
-		*intent.SuperchainConfigProxy,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to read superchain deployment: %w", err)
-	}
-	st.SuperchainDeployment = superDeployment
-	st.SuperchainRoles = superRoles
 
 	deployScript, err := opcm.NewDeployOPChainScript(l1Host)
 	if err != nil {
@@ -522,6 +521,21 @@ func checkReservedOverrides(intent *state.Intent, st *state.State) error {
 				"chain %s: deployOverrides key %q is reserved by the prepare flow: set the anchor block via l1StartBlockHash and the genesis time via --%s",
 				chain.ID.Hex(), key, GenesisTimeOffsetFlagName,
 			)
+		}
+	}
+	return nil
+}
+
+// checkNoPrivateChains refuses OP Private private chains, which prepare does not support yet.
+// TODO(#23980): support private chains in prepare.
+func checkNoPrivateChains(intent *state.Intent) error {
+	for _, chain := range intent.Chains {
+		_, private, err := pipeline.PrivateChainSettlement(intent, chain)
+		if err != nil {
+			return err
+		}
+		if private {
+			return fmt.Errorf("private chain %s: prepare does not support OP Private private chains; use apply", chain.ID.Hex())
 		}
 	}
 	return nil

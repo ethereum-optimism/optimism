@@ -1,0 +1,292 @@
+---
+title: '결함 증명 VM: MIPS64.sol'
+description: Optimism의 Fault Proof Virtual Machine의 일부로 동작하는 `MIPS64.sol` 스마트 컨트랙트에 대해 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="MIPS64.sol이 구현하는 온체인 FPVM 동작"
+  title="멀티스레드 Cannon 결함 증명 VM 명세"
+  href="https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html"
+  note="이 페이지는 컨트랙트 구현을 살펴보며, 명세 내용을 다시 서술하지 않습니다."
+/>
+
+[`MIPS64.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol) 스마트 컨트랙트는 64비트 MIPS64 Release 1(MIPS64r1) 명령어 집합 아키텍처(ISA)를 포괄하고 멀티스레딩 지원으로 확장된 big-endian 가상 머신(VM)의 온체인 구현입니다.
+이는 동일한 ISA의 오프체인 `mipsevm` Go 구현과 짝을 이루며, 온체인과 오프체인 VM 구현이 함께 Optimism의 Fault Proof Virtual Machine(FPVM)인 [Cannon](/ko/op-stack/fault-proofs/cannon)을 구성합니다.
+Cannon은 모든 OP Stack 블록체인의 Dispute Game에서 사용할 수 있는 FPVM의 한 인스턴스입니다.
+Dispute Game 자체는 모듈식이어서 분쟁에 어떤 FPVM이든 사용할 수 있지만, Cannon은 Optimism의 기본 FPVM이며 `MIPS64.sol`은 그 온체인 구성 요소입니다.
+멀티스레드 64비트 세대의 Cannon은 MTCannon이라고도 하며, 그 동작은 [Cannon FPVM 명세](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs)에 정의되어 있습니다.
+
+## 32비트에서 64비트로
+
+Cannon의 온체인 FPVM 컨트랙트는 원래 32비트 MIPS32 ISA의 단일 스레드 구현인 `MIPS.sol`이었습니다
+(`op-contracts/v1.6.0` 기준 [`op-contracts/v1.6.0`](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol) 태그의 버전 참고).
+멀티스레딩은 처음에 32비트 아키텍처의 Cannon에 추가되었습니다.
+[`version.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/versions/version.go)의 `multithreaded` 상태 버전은 64비트 `multithreaded64` 버전보다 앞서며, 이에 대응하는 `MIPS2.sol` 컨트랙트가 있었습니다.
+하지만 이 32비트 멀티스레드 세대는 프로덕션 온체인 FPVM이 되지 못했습니다.
+superchain-registry의 [표준 버전](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml)은
+단일 스레드 32비트 `MIPS.sol`(`op-contracts/v2.x` 릴리스까지 컨트랙트 버전 `1.3.0`으로 마지막 배포)에서
+멀티스레드 64비트 `MIPS64.sol`(`op-contracts/v3.0.0`의 컨트랙트 버전 `1.0.0`. registry에는 "MIPS is now MIPS64"이기 때문에 MIPS semver가 재설정되었다고 기록되어 있음)로 바로 넘어갑니다.
+따라서 배포된 온체인 컨트랙트의 경우, 32비트에서 64비트로의 전환은 멀티스레드 Cannon으로의 전환과 함께 이루어졌습니다.
+이후 `MIPS.sol`과 `MIPS2.sol`은 Optimism 모노레포에서 제거되었으며, `MIPS64.sol`이 현재 유지 관리되는 온체인 FPVM 컨트랙트입니다.
+이 페이지의 나머지 부분에서는 `MIPS64.sol`을 설명합니다.
+
+## 제어 흐름
+
+`FaultDisputeGame.sol` 컨트랙트는 `MIPS64.sol`과 상호작용하고, `MIPS64.sol`은 다시 `PreimageOracle.sol`을 호출합니다. `MIPS64.sol`은 게임의 최대 깊이에서 누군가 [`step`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L362)(`2783f688` 기준)을 호출해야 할 때만 호출됩니다. 분쟁 게임(dispute game)은 범용 `IBigStepper` 인터페이스를 통해 VM에 접근하므로, 이 인터페이스를 구현하는 FPVM이라면 어떤 것이든 분쟁 게임의 기반이 될 수 있습니다.
+`FaultDisputeGame.sol`은 진행 중인 분쟁에 대해 배포된 Fault Dispute Game 인스턴스이며, `PreimageOracle.sol`은 Pre-image를 저장합니다.
+
+*   Pre-image에는 L1과 L2의 데이터가 모두 포함되며, 여기에는 블록 헤더, 트랜잭션, receipt, world state 노드 등의 정보가 들어 있습니다. Pre-image는 실제 L2 상태를 계산하는 derivation 프로세스의 입력으로 사용되며, 이렇게 계산된 실제 L2 상태는 분쟁 게임을 해결하는 데 사용됩니다.
+*   상위 수준에서 보면, Fault Dispute Game은 현재 합의된 L2 상태가 무엇인지 효과적으로 판단하고, 처음으로 합의되지 않은 상태를 찾을 때까지 L2 상태를 따라 이동합니다. Pre-image가 어떻게 결정되고 `PreimageOracle.sol` 컨트랙트에 채워지는지는 `MIPS64.sol` 컨트랙트에 대한 이 레퍼런스 문서의 범위를 벗어납니다. 이 컨트랙트는 오프체인 Cannon 구현이 이미 채워 놓은 Pre-image를 소비하기만 하기 때문입니다.
+
+`MIPS64.sol` 컨트랙트는 실행 중인 분쟁 게임 인스턴스(즉, `FaultDisputeGame.sol` 컨트랙트)에 의해 호출되며, 분쟁 게임이 현재 분쟁 중인 상태 전이 트리의 리프 노드에 도달했을 때만 호출됩니다.
+리프 노드는 온체인에서 실행할 수 있는 단일 MIPS 명령어를 나타냅니다(Cannon을 FPVM으로 사용하는 경우). 이 명령어 직전까지 합의된 L2 상태인 Pre-image와, `MIPS64.sol` 컨트랙트에서 실행할 명령어
+상태가 주어지면, 결함 분쟁 게임은 실제 사후 상태(또는 Post-image)를 결정할 수 있습니다. 이 실제 사후 상태는 리프 노드에서 분쟁 중인 사후 상태와 분쟁 제기자가 제안한 사후 상태를 비교하여
+결함 분쟁 게임의 결과를 결정하는 데 사용됩니다.
+
+## 컨트랙트 상태
+
+`MIPS64.sol` 컨트랙트에는 두 개의 immutable 변수만 있습니다. `PreimageOracle.sol` 컨트랙트의 주소와, 이 컨트랙트가 구현하는 Cannon 상태 버전입니다.
+[생성자](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L94)(`2783f688` 기준)는 상태 버전 `8`만 허용합니다. 이는
+[`version.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/versions/version.go)에 정의된 `multithreaded64-5` 버전으로, 오프체인 Cannon 구현의 현재 기본 상태 버전입니다.
+그 외에는 컨트랙트가 stateless합니다. 즉, 온체인에서 MIPS 명령어를 실행하는 것과 관련된 모든 상태는 `FaultDisputeGame.sol` 인스턴스 또는 `PreimageOracle.sol`에서 옵니다.
+`MIPS64.sol` 컨트랙트가 stateless하므로 Cannon FPVM을 사용하는 모든 결함 분쟁 게임에서 사용할 수 있으며, 결함 분쟁 게임 인스턴스마다 `MIPS64.sol` 컨트랙트를 다시 배포할 필요가 없습니다.
+결과적으로 동일한 `MIPS64.sol` 컨트랙트를 사용하는 모든 결함 분쟁 게임은 동일한 `PreimageOracle.sol` 컨트랙트도 공유합니다.
+`PreimageOracle.sol` 컨트랙트는 stateful하지만, 컨트랙트에 상태가 어떻게 저장되고 서로 다른 결함 분쟁 게임 인스턴스 간에 어떻게 구분되는지는 이 문서의 범위를 벗어납니다.
+
+`MIPS64.sol` 컨트랙트는 stateless하여 컨트랙트에 직접 상태를 저장하지는 않지만, 온체인에서 단일 MIPS 명령어를 수행하려면 최대 4가지 유형의 witness 데이터가 필요합니다.
+
+*   패킹된 VM 실행 상태
+*   스레드 상태 witness
+*   메모리 증명
+*   Pre-image
+
+Pre-image는 위에서 이미 다루었으므로, 여기서는 패킹된 VM 실행 상태, 스레드 상태 witness, 메모리 증명을 다룹니다.
+온체인 실행 중 Pre-image에 관해 마지막으로 덧붙이자면, `MIPS64.sol` 컨트랙트가 `PreimageOracle.sol`에서 읽어야 하는 MIPS 명령어를 온체인에서 한 번도 실행하지 않을 수도 있습니다.
+명령어 실행 중에 `PreimageOracle.sol`에서 반드시 읽어야 하는 것은 아니지만, 그렇다고 `PreimageOracle.sol` 컨트랙트가 사용되지 않는다는 의미는 아닙니다.
+온체인에서 단일 명령어가 실행되기 전까지 이전의 오프체인 명령어에서 읽은 Pre-image 정보는 구성된 VM 메모리에 여전히 남아 있을 수 있습니다.
+따라서 온체인에서 실행되는 명령어가 `PreimageOracle.sol`에서 명시적으로 읽지 않더라도, Pre-image 데이터는 VM 메모리를 나타내는 merkle root에 여전히 영향을 줄 수 있습니다.
+
+### 패킹된 VM 실행 상태
+
+온체인에서 MIPS 명령어를 실행하려면 `MIPS64.sol` 컨트랙트는 메모리 root, Pre-image 읽기 위치, 그리고 아래에서 설명하는 멀티스레딩 관리 정보와 같은 중요한 상태 정보를 알아야 합니다.
+보다 구체적으로, 촘촘하게 패킹된 188바이트 `State` struct에 관련된 모든 전역 VM 상태가 담겨 있습니다. 이 struct는 `FaultDisputeGame.sol` 컨트랙트가 `MIPS64.sol`의 `step` 함수(온체인에서 단일 MIPS 명령어를 실행)를 호출할 때 컨트랙트에 전달됩니다.
+`State` struct에는 다음 정보가 저장됩니다. 자세한 내용은 [코드 레퍼런스](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L50)(`2783f688` 기준)와 [Cannon FPVM 명세](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#state)를 참고하십시오.
+
+1.  `memRoot` - MIPS VM의 단일 64비트 메모리 공간을 나타내는 이진 merkle 트리의 merkle root 해시입니다.
+2.  `preimageKey` - `PreimageOracle.sol` 컨트랙트에서 읽을 Pre-image 데이터(해당하는 경우)를 고유하게 식별하는 키입니다.
+3.  `preimageOffset` - oracle에서 Pre-image를 읽을 때마다 최대 32바이트가 반환되지만, 64비트 MIPS의 word 크기는 8바이트입니다. 따라서 read syscall 중에는 Pre-image에서 최대 8바이트만 읽습니다. `preimageOffset`은 읽고 있는 Pre-image 내의 오프셋 역할을 하여, 명령어가 한 번에 최대 8바이트씩 Pre-image를 계속 읽을 수 있게 합니다.
+4.  `heap` - `mmap` syscall로 반환된 가장 최근 메모리 할당을 가리키는 포인터입니다.
+5.  `llReservationStatus` - 현재 Load Linked / Store Conditional 메모리 예약의 상태입니다. 예약이 없으면 `0`, 32비트(`ll`/`sc`) 예약이면 `1`, 64비트(`lld`/`scd`) 예약이면 `2`입니다.
+6.  `llAddress` - 마지막 `ll` 또는 `lld` 명령어가 예약한 가상 주소이며, 활성 예약이 없으면 `0`입니다.
+7.  `llOwnerThread` - 현재 메모리 예약을 소유한 스레드의 id이며, 활성 예약이 없으면 `0`입니다.
+8.  `exitCode` - VM의 UNIX 종료 상태 코드를 나타내는 `uint8` 값입니다.
+9.  `exited` - VM이 종료되었는지 여부를 나타내는 Boolean입니다.
+10. `step` - 실행된 명령어의 총 개수를 셉니다.
+11. `stepsSinceLastContextSwitch` - 마지막 컨텍스트 전환 이후 현재 스레드에서 실행된 명령어 수를 세며, 스케줄링 quantum 이후 스레드 선점을 강제하는 데 사용됩니다.
+12. `traverseRight` - VM이 현재 오른쪽 스레드 스택을 순회하고 있는지 여부를 나타내는 Boolean입니다(아래 참고).
+13. `leftThreadStack` - 왼쪽 스레드 스택 내용에 대한 해시 커밋먼트입니다.
+14. `rightThreadStack` - 오른쪽 스레드 스택 내용에 대한 해시 커밋먼트입니다.
+15. `nextThreadID` - `clone` syscall로 생성되는 다음 스레드에 할당할 id입니다.
+
+스레드별 실행 상태(`pc`, `nextPC`, `lo`, `hi`, 그리고 32개의 범용 레지스터)는 더 이상 최상위 `State` struct에 포함되지 않습니다. 이 상태는 다음에 설명하는 스레드 상태에 있습니다.
+
+### 스레드 상태와 스레드 스택
+
+`MIPS64.sol`은 멀티스레딩을 지원하므로, VM은 스레드 집합을 추적하고 현재 활성 스레드에서 한 번에 하나의 명령어를 실행합니다.
+각 스레드는 패킹된 298바이트 [`ThreadState`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L28)(`2783f688` 기준) struct로 표현되며, 다음을 포함합니다.
+
+1.  `threadID` - 고유한 스레드 식별자입니다.
+2.  `exitCode` - 스레드의 종료 상태 코드입니다.
+3.  `exited` - 스레드가 종료되었는지 여부를 나타내는 Boolean입니다.
+4.  `pc` - 프로그램 카운터로, 온체인에서 실행할 MIPS 명령어가 들어 있는 메모리 위치를 가리킵니다.
+5.  `nextPC` - 다음 프로그램 카운터입니다. branch 또는 jump 명령어의 경우 다음 명령어가 `pc + 4`가 아닐 수 있습니다. `nextPC`는 사실상 MIPS ISA의 [branch delay slot](https://en.wikipedia.org/wiki/MIPS_architecture#cpu_instructions)을 구현합니다.
+6.  `lo` - 특정 곱셈 및 나눗셈 명령어(또는 이 레지스터에 저장하는 특수 move 명령어)의 하위 비트를 저장하는 특수 목적 레지스터입니다.
+7.  `hi` - 특정 곱셈 및 나눗셈 명령어(또는 이 레지스터에 저장하는 특수 move 명령어)의 상위 비트를 저장하는 특수 목적 레지스터입니다.
+8.  `registers` - MIPS ISA의 범용 레지스터를 나타내는 32개의 64비트 값 배열입니다.
+
+VM은 모든 스레드를 패킹된 VM 상태에 저장하는 대신, 두 개의 스레드 상태 스택(왼쪽 스택과 오른쪽 스택)을 사용하여 스레드에 커밋합니다. 각 스택은 단일 `bytes32` "hash onion" 커밋먼트로 표현됩니다. 빈 스택은 `keccak256(bytes32(0) ++ bytes32(0))`이며, 스레드를 push하면 현재 커밋먼트와 스레드의 해시를 함께 해싱합니다.
+VM은 명세의 [thread stack hashing](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#thread-stack-hashing) 및 [multithreading](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#multithreading) 섹션에 설명된 대로, 두 스택을 왼쪽에서 오른쪽으로, 그리고 다시 오른쪽에서 왼쪽으로 순회하며 모든 스레드를 방문합니다.
+이러한 구조 덕분에 `step` 호출에는 현재 활성 스레드에 대한 witness만 있으면 됩니다. 즉, 패킹된 `ThreadState`와 활성 스택의 나머지 부분에 대한 내부 커밋먼트만 필요합니다.
+스레드는 협력적으로(`sched_yield`, `nanosleep`, `futex` wait 같은 syscall을 통해), 그리고 선점적으로 스케줄링됩니다. `stepsSinceLastContextSwitch`가 100,000 step의 스케줄링 quantum([`SCHED_QUANTUM`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Syscalls.sol#L126), `2783f688` 기준)에 도달하면, VM은 같은 스레드에서 다른 명령어를 실행하는 대신 컨텍스트 전환을 강제합니다.
+
+### 상태 해시
+
+상태 해시는 `MIPS64.sol` 컨트랙트에서 단일 MIPS 명령어가 완료되면 활성 Fault Dispute Game에 반환되는 `bytes32` 값입니다.
+이 해시는 패킹된 188바이트 VM 실행 `State` struct의 `keccak256`을 구한 다음, 해시의 첫 번째 바이트를 VM의 상태를 나타내는 값으로 교체하여 도출됩니다.
+이 값은 `exitCode`와 `exited` 값으로부터 도출되며, 다음 중 하나입니다.
+
+*   Valid (0)
+*   Invalid (1)
+*   Panic (2) 또는
+*   Unfinished (3)
+
+상태 해시에 VM 상태를 추가하는 이유는, 제안된 output root가 유효하다고 VM이 판단했는지 여부를 분쟁 게임에 전달하기 위해서입니다.
+이를 통해 사용자가 실제로는 output root가 유효함을 증명하는 cannon 트레이스의 상태 해시를 제공하면서 분쟁 게임 중에 해당 output root에 이의를 제기하는 것을 방지합니다.
+
+### 메모리 증명
+
+64비트 ISA를 사용한다는 것은 주소 공간의 전체 크기(가상 주소 공간이 없다고 가정할 때)가 `2^64`바이트라는 의미입니다. 또한 `MIPS64.sol` 컨트랙트는 stateless하므로 MIPS 메모리를 컨트랙트 스토리지에 저장하지 않습니다. 그 주된 이유는 온체인에서 단일 명령어를 실행하기 위해 전체 메모리를 `MIPS64.sol` 컨트랙트에 로드하는 것은 비용이 감당할 수 없을 만큼 크기 때문입니다. 게다가 결함 증명 게임마다 전체 메모리를 로드해야 하므로 여러 개의 `MIPS64.sol` 컨트랙트 인스턴스가 필요하게 됩니다. 따라서 Optimism은 온체인 명령어 실행마다 제공해야 하는 데이터 양을 최적화하면서도 64비트 주소 공간 전체의 무결성을 유지하기 위해 메모리를 이진 merkle 트리로 변환했습니다.
+
+MIPS VM의 메모리를 저장하는 데 사용되는 이진 merkle 트리(즉, 해시 트리)는 32바이트 리프 값을 가지며 깊이가 59단계로 고정되어 있습니다. 이를 통해 이진 merkle 트리는 64비트 주소 공간 전체를 포괄할 수 있습니다: `2^59 * 32 = 2^64`(자세한 내용은 Cannon 개요의 [메모리 증명](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/docs/README.md#memory-proofs) 참고). 메모리를 읽거나 쓸 때마다 전체 주소 공간의 무결성을 보장하기 위해, `MIPS64.sol`에서 MIPS 명령어가 온체인으로 실행될 때마다 `FaultDisputeGame.sol` 컨트랙트가 하나 이상의 메모리 증명을 제공합니다. 메모리 증명은 현재 리프 값과 59개의 형제 노드로 구성되며([`MEM_PROOF_LEAF_COUNT`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L9)에 따라 총 60개의 32바이트 값, `2783f688` 기준), 각 형제 노드는 자신의 자식 노드들의 `keccak256` 해시입니다. 리프 값, 59개의 형제 노드, 그리고 이진 표현으로 변환한 메모리 주소를 가이드로 사용하여(0 또는 1이 왼쪽 값과 오른쪽 값을 연결하는 순서를 알려 줌) merkle root를 계산할 수 있습니다. 이 merkle root는 VM 실행 `State` struct에 저장된 merkle root와 정확히 같아야 합니다.
+
+메모리 읽기와 메모리 쓰기는 비슷하게 동작하며, 둘 다 merkle root 계산을 포함합니다. 메모리 쓰기의 경우, `MIPS64.sol`은 쓰기 대상 메모리 위치에 대해 제공된 증명이 올바른지 신중하게 검증해야 합니다. 또한 메모리에 쓰면 VM 실행 `State` struct에 저장된 merkle root가 변경됩니다.
+
+### 상태 계산
+
+`MIPS64.sol` 컨트랙트는 온체인에서 단일 명령어만 실행할 수 있지만, 오프체인 Cannon 구현은 분쟁 중인 L2 상태의 모든 상태 전이에 대해 필요한 모든 선행 MIPS 명령어를 실행합니다. 이러한 전이는 온체인에서 실행될 분쟁 대상 명령어에 도달하기 위해 필요합니다. 이를 통해 온체인에서 실행되는 MIPS 명령어가 올바른 VM 상태와 `PreimageOracle.sol` 컨트랙트에 저장된 필요한 Pre-image를 갖추게 되어, 분쟁 게임을 해결하는 데 사용할 수 있는 실제 사후 상태를 생성할 수 있습니다.
+
+## 함수
+
+단일 명령어 인터프리터는 상태와 스레드 처리를 담당하는 `MIPS64.sol` 컨트랙트와
+[`src/cannon/libraries`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/cannon/libraries) 아래의 라이브러리 집합으로 나뉩니다: `MIPS64Memory.sol`(메모리 증명), `MIPS64Instructions.sol`(핵심 명령어 인터프리터), `MIPS64Syscalls.sol`(syscall 처리), `MIPS64State.sol`, `MIPS64Arch.sol`.
+
+### oracle
+
+external view [`oracle`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L105)(`2783f688` 기준) 함수는 PreimageOracle 주소를 `IPreimageOracle` 인터페이스로 캐스팅하여 반환하는 getter 함수입니다.
+
+### stateVersion
+
+external view [`stateVersion`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L111)(`2783f688` 기준) 함수는 배포된 컨트랙트가 구현하는 Cannon 상태 버전을 반환하며, 이를 통해 컨트랙트가 적용하는 구체적인 상태 전이 규칙을 식별할 수 있습니다.
+
+### step
+
+public [`step`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L126)(`2783f688` 기준) 함수는 단일 MIPS 명령어를 실행하는 최상위 호출입니다. 이 함수는 사전 상태와 실행할 MIPS 명령어가 주어졌을 때 실제 사후 상태를 결정하기 위해 활성 분쟁 게임에 의해 호출됩니다. 이 함수는 세 개의 인자를 받습니다. 패킹된 `State` witness(`_stateData`), 증명 데이터(`_proof`, 스레드 witness 뒤에 하나 이상의 메모리 증명이 이어짐), 그리고 분쟁 게임별로 Pre-image 키를 지역화하는 데 사용되는 `_localContext` 값입니다. 상위 수준에서 보면, 이 함수는 (내부 [`doStep`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L150) 함수를 통해, `2783f688` 기준) 다음 단계를 수행합니다.
+
+1.  `stateData` 변수를 검증하고 (메모리 내) VM 실행 `State` struct로 언패킹한 다음, 스레드 witness를 언패킹하여 활성 스레드 스택 커밋먼트와 대조해 검증합니다.
+2.  활성 스레드가 종료된 경우 스레드 스택에서 pop하고, 스케줄링 quantum을 초과한 경우 스레드를 선점합니다. 두 경우 모두 명령어를 실행하지 않고 step을 소비합니다.
+3.  그렇지 않으면, 첫 번째 메모리 증명을 사용하여 활성 스레드의 프로그램 카운터(`pc`)에 위치한 명령어를 읽습니다.
+4.  MIPS 명세에 따라 MIPS 명령어를 해석하고 실행하며, syscall과 Load Linked / Store Conditional 명령어는 전용 handler로 디스패치합니다.
+5.  결과를 레지스터 또는 메모리에 쓰고(해당하는 경우), 스레드 스택에서 활성 스레드의 커밋먼트를 업데이트한 후, 새 상태 해시를 반환합니다.
+
+컨트랙트는 사후 상태 불변 조건도 검사합니다. step 이후 활성 스레드 스택이 절대 비어 있어서는 안 됩니다.
+
+### handleSyscall
+
+internal [`handleSyscall`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L399)(`2783f688` 기준) 함수는 syscall MIPS 명령어를 처리하며, 주요 작업은 [`MIPS64Syscalls.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/libraries/MIPS64Syscalls.sol)에 구현되어 있습니다. syscall 번호는 Linux MIPS64 n64 ABI를 따릅니다(예: `read`는 `5000`, `write`는 `5001`). 실제 동작이 구현된 syscall은 일부뿐이며, 해당하는 경우 Linux 매뉴얼 페이지의 동작을 모방합니다.
+
+*   Pre-image 통신: `read` 및 `write`(아래에서 설명).
+*   메모리 관리: `mmap`(고정된 heap 한도 내에서 `heap` 포인터로부터 bump 할당) 및 `brk`(고정된 program break 반환).
+*   스레드 관리: `clone`(메모리는 공유하지만 자체 스택 포인터와 레지스터를 가진 새 스레드 생성), `exit`(현재 스레드 종료. 마지막 스레드인 경우 VM 종료), `exit_group`(VM 종료), `gettid`, `sched_yield` 및 `nanosleep`(현재 스레드 양보), 그리고 스레드 동기화에 사용되는 `futex` wait/wake 작업.
+*   기타: `fcntl`(파일 디스크립터 플래그만), `clock_gettime`(step 카운터로부터 결정론적 clock 도출), `getpid`, `getrandom`(step 카운터로부터 도출한 결정론적 의사 난수 바이트로 메모리를 채움), `eventfd2`(non-blocking 모드만).
+
+이 외에 알려져 있지만 관련 없는 syscall 목록(예: `munmap`, `mprotect`, signal 및 timer 관련 호출)은 no-op으로 처리되어 부수 효과 없이 0을 반환합니다. 명세의 [noop syscalls](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#noop-syscalls) 목록을 참고하십시오.
+인식하지 못하는 것에 대해 조용히 0을 반환하던 원래의 32비트 `MIPS.sol`과 달리, `MIPS64.sol`은 인식되지 않는 syscall 번호에 대해 revert하므로 예상치 못한 프로그램 동작이 간과되지 않습니다.
+
+#### syscall read
+
+read syscall의 대상으로 파일 디스크립터 5가 주어지면, [`handleSysRead`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Syscalls.sol#L251)(`2783f688` 기준)는 `PreimageOracle.sol` 컨트랙트를 호출하여, VM 실행 `State` struct에 저장된 `preimageKey`가 결정하는 현재 위치에서 최대 32바이트의 Pre-image 데이터를 읽습니다(로컬 키인 경우 `_localContext`로 키를 지역화합니다). Pre-image 조각을 읽고 나면, 함수는 읽을 바이트 수(최대 8바이트)와 바이트를 저장할 메모리 위치를 결정합니다. 읽는 바이트 수는 반환된 Pre-image 내 오프셋의 정렬과 데이터를 쓸 메모리 위치의 정렬에 따라 1에서 8 사이의 어떤 값이든 될 수 있습니다.
+
+#### syscall write
+
+write syscall의 대상으로 파일 디스크립터 6이 주어지면, [`handleSysWrite`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Syscalls.sol#L339)(`2783f688` 기준)는 새 Pre-image를 쓰기 위해 `PreimageOracle.sol` 컨트랙트를 호출하지 않습니다. `PreimageOracle.sol` 컨트랙트에 쓰는 것은 오프체인 Cannon 구현뿐입니다. 대신 이 함수는 `PreimageOracle.sol` 컨트랙트에 쓰여질 바이트(최대 8바이트)를 바탕으로 `preimageKey`의 새 값을 계산합니다. 또한 `preimageOffset`을 0으로 재설정합니다. 오프체인 Cannon 구현이 새로 도출된 `preimageKey` 위치에 이미 `PreimageOracle.sol` 컨트랙트로 데이터를 썼을 것으로 기대됩니다.
+
+### handleRMWOps
+
+internal [`handleRMWOps`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L304)(`2783f688` 기준) 함수는 원자적 read-modify-write 명령어 쌍인 Load Linked / Store Conditional Word(`ll`/`sc`)와 그 doubleword 변형(`lld`/`scd`)을 처리합니다. load linked 명령어는 VM 상태에 예약(`llReservationStatus`, `llAddress`, `llOwnerThread`)을 기록합니다. 대응하는 store conditional은 호출한 스레드에 대해 해당 예약이 여전히 유효한 경우에만 성공하며, 이것이 VM이 스레드 간 원자적 메모리 작업을 에뮬레이션하는 방식입니다. 예약된 주소에 대한 모든 쓰기는 예약을 해제합니다.
+
+### 스레드 스택 관리
+
+여러 internal 함수가 스레드의 생성, 선점, 종료에 따라 두 스레드 스택 커밋먼트를 관리합니다.
+[`preemptThread`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L810)는 활성 스레드를 다른 스택으로 옮기고(스택이 비면 순회 방향을 전환), [`pushThread`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L837)와 [`popThread`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L847)는 스레드를 추가하고 제거하며, [`validateCalldataThreadWitness`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L921)는 calldata로 제공된 스레드 witness가 활성 스택 커밋먼트와 일치하는지 검증합니다(모두 `2783f688` 기준).
+
+### outputState
+
+internal [`outputState`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L727)(`2783f688` 기준) 함수는 VM 실행 `State` struct의 모든 값에 대한 `keccak256` 해시를 계산한 다음, `exitCode`와 `exited` 값으로부터 도출한 VM의 현재 상태로 해시의 첫 번째 바이트를 마스킹합니다. assembly 사용으로 인해 함수가 복잡해 보이지만, 구현은 사실상 `State` struct의 모든 변수를 촘촘하게 패킹한 뒤 패킹된 바이트의 `keccak256`을 구하는 것입니다.
+
+### 명령어 실행: MIPS64Instructions.sol
+
+핵심 인터프리터는 [`MIPS64Instructions.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol)에 있습니다.
+
+*   [`getInstructionDetails`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L60)(`2783f688` 기준)는 첫 번째 메모리 증명을 사용하여 `pc`에 있는 32비트 명령어(MIPS64에서도 명령어 폭은 4바이트로 유지됨)를 읽고 opcode와 function 필드를 분리합니다.
+*   [`execMipsCoreStepLogic`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L86)(`2783f688` 기준)은 레지스터 피연산자를 가져오고, jump, branch, HI/LO 명령어를 디스패치하며, 명령어를 실행하고 결과를 저장합니다.
+*   [`executeMipsInstruction`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L239)(`2783f688` 기준)은 ALU 결과와 메모리 load/store 값을 계산합니다. 유효하지 않거나 지원되지 않는 명령어는 revert를 발생시킵니다.
+*   [`handleBranch`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L641)(`2783f688` 기준)는 branch opcode를 처리하며, 해당 명령어에 대한 MIPS 명세를 따릅니다.
+*   [`handleHiLo`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L718)(`2783f688` 기준)는 `hi` 및 `lo` 레지스터와 상호작용하는 곱셈, 나눗셈, move opcode를 처리하며, doubleword 변형(`dmult`, `dmultu`, `ddiv`, `ddivu`)과 doubleword variable shift도 포함합니다.
+*   [`handleJump`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L838)(`2783f688` 기준)는 J-type opcode를 처리하며, 해당 명령어에 대한 MIPS 명세를 따릅니다.
+*   [`handleRd`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L862)(`2783f688` 기준)는 지정된 레지스터에 값을 저장하는 작업을 처리하며, 값의 저장 여부를 결정하는 조건 플래그를 사용합니다.
+*   [`signExtend`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L625)(`2783f688` 기준)는 값을 현재 표현하는 비트 수가 주어졌을 때 `uint64` 값에 대해 부호 확장을 수행하며, 2의 보수로 표현된 [부호 있는 값의 부호 확장](https://en.wikipedia.org/wiki/Two%27s_complement#Sign_extension)의 일반적인 절차를 따릅니다. MIPS64에서는 32비트 산술 결과가 64비트로 부호 확장되므로, 이 헬퍼가 광범위하게 사용됩니다.
+
+### 메모리 접근: MIPS64Memory.sol
+
+*   internal pure [`readMem`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L17)(`2783f688` 기준) 함수는 8바이트 정렬된 64비트 주소와 calldata 내 메모리 증명의 오프셋이 주어지면, 메모리 증명을 사용하여 리프 노드를 검증한 다음 읽을 특정 8바이트 값을 반환하는 헬퍼 함수입니다. 리프 노드는 32바이트이므로, 64비트 MIPS 아키텍처 때문에 `readMem`은 최대 8바이트만 읽습니다. 리프 노드와 59개의 형제 노드가 주어졌을 때의 검증은 merkle 트리 포함 여부를 검증하는 표준 로직을 따릅니다. 주소는 두 노드를 함께 해싱하는 순서를 결정하는 경로로 사용됩니다. 트리의 최상단에 도달하여 merkle root가 계산되면, 계산된 root를 VM 실행 `State` struct에 저장된 merkle root와 비교합니다. 정렬되지 않았거나 sub-word인 읽기의 경우 8바이트 word 내에서 올바른 sub-word 위치를 선택하는 것은 후속 로직(`MIPS64Instructions.sol`의 `selectSubWord` 참고)의 몫입니다.
+*   internal pure [`writeMem`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L93)(`2783f688` 기준) 함수는 8바이트 정렬된 64비트 주소, calldata 내 메모리 증명의 오프셋, 쓸 64비트 값이 주어지면 VM 메모리의 새 merkle root를 계산하는 헬퍼 함수입니다. 새 merkle root 계산은 새 값이 리프의 대상 8바이트를 대체한다는 점을 제외하면 `readMem` 함수와 동일한 로직을 따릅니다. `writeMem`은 새 merkle root를 계산하는 데 사용되는 증명을 검증하지 않는다는 점에 유의하십시오.
+
+<Info>
+  사용되는 메모리 증명은 `readMem` 함수 또는 [`isValidProof`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L144)(`2783f688` 기준) 헬퍼를 호출하여 동일한 주소에 대해 사전에 검증하는 것이 **매우 중요합니다**.
+</Info>
+
+### Step calldata 레이아웃
+
+[`memoryProofOffset`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L153)(`2783f688` 기준) 함수는 인덱스가 주어졌을 때 calldata 내 메모리 증명 시작 지점까지의 오프셋을 계산하며, `doStep`은 `step` 인자의 예상 오프셋을 하드코딩하고 검사합니다. `step` calldata는 [Solidity ABI 인코딩 명세](https://docs.soliditylang.org/en/develop/abi-spec.html)를 사용하여 인코딩되며 다음과 같이 배치됩니다.
+
+| 오프셋(바이트) | 바이트 수      | 내용                                                                                                                                                     |
+| --------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0               | 4               | Function selector                                                                                                                                            |
+| 4               | 32              | 첫 번째 동적 bytes 인자 `_stateData`까지의 오프셋                                                                                                     |
+| 36              | 32              | 두 번째 동적 bytes 인자 `_proof`까지의 오프셋                                                                                                        |
+| 68              | 32              | `_localContext`, Pre-image oracle의 로컬 키 컨텍스트                                                                                              |
+| 100             | 32              | `_stateData`의 길이                                                                                                                                       |
+| 132             | 192             | 32바이트의 배수로 패딩된, 패킹된 188바이트 VM 실행 `State` struct                                                                            |
+| 324             | 32              | `_proof`의 길이                                                                                                                                           |
+| 356             | 298             | 활성 스레드의 패킹된 `ThreadState`(스레드 witness)                                                                                           |
+| 654             | 32              | 활성 스레드 스택 나머지 부분의 내부 커밋먼트                                                                                                  |
+| 686             | 60 \* 32 = 1920 | `pc`의 명령어를 읽는 데 사용되는 첫 번째 메모리 증명(필수): 리프 값과 그 뒤를 잇는 59개의 형제 노드                                         |
+| 2606            | 60 \* 32 = 1920 | 필요에 따른 추가 메모리 증명: load/store 또는 syscall 메모리 접근용 하나, 그리고 `clock_gettime`이 수행하는 두 word 메모리 쓰기를 위한 두 번째 증명 |
+
+## 일반적인 비트 연산 활용 사례
+
+1.  숫자에서 특정 비트를 분리하는 작업은 & 연산자(Yul에서는 and(x,y))로 수행할 수 있으며, 이를 bitmask 생성이라고도 합니다.
+2.  두 숫자의 비트를 결합하는 작업은 | 연산자(Yul에서는 or(x, y))로 수행할 수 있습니다.
+3.  모듈로 연산은 다음 비트 연산으로 표현할 수 있습니다: `x % y = x & (y - 1), ex. x % 4 = x & 3.` 이는 부호 없는 정수에 대해서만 동일하다는 점에 유의하십시오.
+4.  밑이 2인 값을 사용한 곱셈은 다음 비트 연산으로 표현할 수 있습니다: `x * y = x << z, where y = 2^z`
+    예: `x * 8 = x << 3, where 8 = 2^3`
+
+## 지원되는 MIPS 명령어 표
+
+`MIPS64.sol`은 이전에 `MIPS.sol`이 다루던 MIPS32 명령어 세트(산술, 논리, shift, branch, jump, load/store, conditional move, HI/LO, `syscall`, `sync` 명령어)를 지원하며, 이 명령어들은 64비트 레지스터에서 실행되고 32비트 word 연산은 결과를 부호 확장합니다. 여기에 MIPS64 doubleword 명령어도 추가로 지원합니다. 공식 디코딩 로직은 [`MIPS64Instructions.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol)입니다. 32비트 VM 대비 추가된 doubleword 명령어는 다음과 같습니다.
+
+| 명령어 이름                                        | Opcode 번호 | Funct 번호 |
+| ------------------------------------------------------- | ----------- | ---------- |
+| DADD (Doubleword Add)                                   | 0x00        | 0x2C       |
+| DADDU (Doubleword Add Unsigned)                         | 0x00        | 0x2D       |
+| DADDI (Doubleword Add Immediate)                        | 0x18        | -          |
+| DADDIU (Doubleword Add Immediate Unsigned)              | 0x19        | -          |
+| DSUB (Doubleword Subtract)                              | 0x00        | 0x2E       |
+| DSUBU (Doubleword Subtract Unsigned)                    | 0x00        | 0x2F       |
+| DMULT (Doubleword Multiply)                             | 0x00        | 0x1C       |
+| DMULTU (Doubleword Multiply Unsigned)                   | 0x00        | 0x1D       |
+| DDIV (Doubleword Divide)                                | 0x00        | 0x1E       |
+| DDIVU (Doubleword Divide Unsigned)                      | 0x00        | 0x1F       |
+| DSLL (Doubleword Shift Left Logical)                    | 0x00        | 0x38       |
+| DSRL (Doubleword Shift Right Logical)                   | 0x00        | 0x3A       |
+| DSRA (Doubleword Shift Right Arithmetic)                | 0x00        | 0x3B       |
+| DSLL32 (Doubleword Shift Left Logical Plus 32)          | 0x00        | 0x3C       |
+| DSRL32 (Doubleword Shift Right Logical Plus 32)         | 0x00        | 0x3E       |
+| DSRA32 (Doubleword Shift Right Arithmetic Plus 32)      | 0x00        | 0x3F       |
+| DSLLV (Doubleword Shift Left Logical Variable)          | 0x00        | 0x14       |
+| DSRLV (Doubleword Shift Right Logical Variable)         | 0x00        | 0x16       |
+| DSRAV (Doubleword Shift Right Arithmetic Variable)      | 0x00        | 0x17       |
+| DCLZ (Count Leading Zeros in Doubleword)                | 0x1C        | 0x24       |
+| DCLO (Count Leading Ones in Doubleword)                 | 0x1C        | 0x25       |
+| LD (Load Doubleword)                                    | 0x37        | -          |
+| SD (Store Doubleword)                                   | 0x3F        | -          |
+| LDL (Load Doubleword Left)                              | 0x1A        | -          |
+| LDR (Load Doubleword Right)                             | 0x1B        | -          |
+| SDL (Store Doubleword Left)                             | 0x2C        | -          |
+| SDR (Store Doubleword Right)                            | 0x2D        | -          |
+| LWU (Load Word Unsigned)                                | 0x27        | -          |
+| LLD (Load Linked Doubleword)                            | 0x34        | -          |
+| SCD (Store Conditional Doubleword)                      | 0x3C        | -          |
+
+## 더 읽어 보기
+
+*   [Cannon 개요](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/docs/README.md)
+*   [Cannon FPVM 명세](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs)
+*   [MIPS IV ISA 명세](https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf)
+*   [MIPS Assembly Wiki Book](https://en.wikibooks.org/wiki/MIPS_Assembly)
+*   [Linux MIPS n64 syscall 번호](https://github.com/torvalds/linux/blob/master/arch/mips/kernel/syscalls/syscall_n64.tbl)
+*   [Yul 명령어](https://docs.soliditylang.org/en/latest/yul.html#evm-dialect)
+*   [Solidity ABI 인코딩 명세](https://docs.soliditylang.org/en/develop/abi-spec.html)

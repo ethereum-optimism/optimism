@@ -1,0 +1,66 @@
+---
+title: L2 Contract Manager
+description: L2 Contract Manager(L2CM)가 합의 계층을 통해 거버넌스가 승인한 L2 스마트 컨트랙트 업그레이드를 가능하게 하는 방법을 알아봅니다.
+diataxis: explanation
+---
+
+L2 Contract Manager(L2CM)는 네트워크 업그레이드의 일부로 거버넌스가 승인한 L2 스마트 컨트랙트(predeploy) 업그레이드를 가능하게 하는 새로운 메커니즘입니다. L2CM은 predeploy 업그레이드를 원자적으로, 구조화되고 감사 가능한 방식으로 실행합니다. 이를 통해 컨트랙트별로 개별 멀티시그 트랜잭션을 실행할 필요가 없어지고, OP Stack 생태계 전체의 업그레이드 복잡성이 줄어듭니다.
+
+## 개요
+
+L2CM 이전에는 L2 predeploy 컨트랙트를 업그레이드하려면 각 컨트랙트마다 개별 멀티시그 트랜잭션이 필요했으며, 이는 일반적인 업그레이드 프로세스와 별도로 조율되었습니다. L2CM은 이를 하드포크 블록 시작 시점에 합의 계층이 네트워크 업그레이드 트랜잭션(Network Upgrade Transaction, NUT)을 사용하여 자동으로 트리거하는 단일 원자적 업그레이드로 대체합니다.
+
+L2CM은 상호운용성(interoperability) 및 L2 컨트랙트를 수정해야 하는 향후 프로토콜 업그레이드를 위한 전제 조건입니다.
+
+## 작동 방식
+
+L2CM은 `L2ContractsManager` 컨트랙트로 구현되며, 이 컨트랙트는 모든 predeploy의 새로운 구현 주소를 immutable로 보유합니다. 네트워크 업그레이드가 활성화되는 동안 다음과 같이 진행됩니다.
+
+1. 합의 계층(`op-node`)이 `L2ProxyAdmin` predeploy를 대상으로 하는 네트워크 업그레이드 트랜잭션(NUT)을 발생시킵니다.
+2. `L2ProxyAdmin`이 `L2ContractsManager.upgrade()` 함수에 대해 `DELEGATECALL`을 실행합니다.
+3. `upgrade()`는 현재 상태에서 체인별 구성을 읽습니다. 여기에는 `L1Block`(`isCustomGasToken`, `isInterop` 관련), fee vault 수신자, bridge 주소 및 기타 체인별 파라미터가 포함됩니다.
+4. 이 구성을 사용하여 `L2ContractsManager`는 단일 원자적 트랜잭션으로 모든 predeploy를 업그레이드하고 다시 초기화합니다.
+
+`upgrade()`는 `L2ProxyAdmin`에서 `DELEGATECALL`을 통해 호출되므로 개별 컨트랙트에 대한 멀티시그 승인이 필요하지 않습니다. 업그레이드는 전적으로 `L2ContractsManager` 배포에 인코딩되어 있으며, 일반적인 네트워크 업그레이드 프로세스를 통해 거버넌스에 의해 활성화됩니다.
+
+## 업그레이드 대상
+
+각 `L2ContractsManager` 배포는 다음을 포함한 모든 핵심 L2 predeploy의 새로운 구현을 제공합니다.
+
+*   `L2CrossDomainMessenger`
+*   `L2StandardBridge`
+*   `L2ERC721Bridge`
+*   `L1Block`
+*   `L2ToL1MessagePasser`
+*   `GasPriceOracle`
+*   `OptimismMintableERC20Factory`
+*   `OptimismMintableERC721Factory`
+*   Fee vault(`SequencerFeeWallet`, `BaseFeeVault`, `L1FeeVault`, `OperatorFeeVault`)
+*   `ProxyAdmin`
+*   interop이 활성화된 경우 interop 컨트랙트(`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, `UndeliveredMessageExporter`)
+*   CGT가 활성화된 경우 Custom Gas Token 컨트랙트(`NativeAssetLiquidity`, `LiquidityController`)
+
+업그레이드되는 컨트랙트의 정확한 목록과 새 버전은 각 네트워크 업그레이드의 변경 로그에 문서화되어 있습니다.
+
+## 중요한 이유
+
+*   **원자적 업그레이드:** 모든 predeploy가 단일 트랜잭션으로 업그레이드되므로 부분적으로 업그레이드된 상태가 발생하지 않습니다.
+*   **멀티시그 오버헤드 감소:** 컨트랙트별 서명이 필요하지 않습니다. 업그레이드는 배포 시점에 인코딩되며 거버넌스가 승인한 하드포크를 통해 활성화됩니다.
+*   **감사 가능성:** 업그레이드가 활성화되기 전에 `L2ContractsManager` 소스 코드에서 구현 변경 사항 전체를 확인할 수 있습니다.
+*   **Interop 전제 조건:** Interop은 여러 predeploy에 걸친 조율된 변경을 필요로 하며, L2CM이 이를 실현 가능하게 합니다.
+*   **Stage 1 탈중앙화:** L2 predeploy 업그레이드를 Security Council이 소유한 `L2ProxyAdmin`을 통해 라우팅함으로써, L2CM은 Security Council이 L2 업그레이드에 대해 거부권을 가져야 한다는 Stage 1 요구 사항을 충족합니다.
+
+## 앱 개발자를 위한 안내
+
+애플리케이션이 predeploy 컨트랙트와 직접 상호작용하는 경우(예: `L2CrossDomainMessenger`, `L2StandardBridge`, `L1Block`의 메서드 호출), 다음 사항에 유의하십시오.
+
+*   Predeploy의 동작은 네트워크 업그레이드마다 변경될 수 있습니다. 새로운 함수, 제거된 함수 또는 동작 변경 사항을 파악하려면 해당 업그레이드의 변경 로그를 검토하십시오.
+*   프록시 주소는 그대로 유지되며, 구현만 변경됩니다.
+*   업그레이드 변경 로그에 호환성을 깨는 변경(breaking change)이 명시적으로 기재되지 않는 한, 기존 ABI는 하위 호환성을 유지합니다.
+
+## 참고 자료
+
+*   [L2CM 설계 문서](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md)
+*   [L2CM FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md)
+*   [Upgrade 19 공지](/ko/notices/archive/upgrade-19)
+*   [L2ContractsManager 소스](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ContractsManager.sol)

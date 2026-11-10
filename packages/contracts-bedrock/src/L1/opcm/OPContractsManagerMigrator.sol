@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { OPContractsManagerUtilsCaller } from "src/L1/opcm/OPContractsManagerUtilsCaller.sol";
 
 // Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -74,9 +73,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
     /// @notice Thrown when chainSystemConfigs are not provided in ascending order by l2ChainId.
     error OPContractsManagerMigrator_ChainIdsNotAscending();
-
-    /// @notice Thrown when the ZK_DISPUTE_GAME dev feature is not enabled.
-    error OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
 
     /// @notice Thrown when a dispute game config has an init bond that its game type does not
     ///         allow: non-zero for SUPER_PERMISSIONED, which does not use bonds, or zero for any
@@ -365,7 +361,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         GameType _startingRespectedGameType
     )
         internal
-        view
+        pure
     {
         bool startingGameTypeFound;
         for (uint256 i = 0; i < _gameConfigs.length; i++) {
@@ -386,7 +382,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @param _gameConfig The dispute game config to validate.
     function _assertValidDisputeGameConfig(IOPContractsManagerUtils.DisputeGameConfig calldata _gameConfig)
         internal
-        view
+        pure
     {
         uint32 rawGameType = _gameConfig.gameType.raw();
 
@@ -408,14 +404,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             }
         } else if (_gameConfig.initBond == 0) {
             revert OPContractsManagerMigrator_InvalidInitBond();
-        }
-
-        // ZK_DISPUTE_GAME can only be registered when the dev feature is on.
-        if (
-            rawGameType == GameTypes.ZK_DISPUTE_GAME.raw()
-                && !contractsContainer().isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
-        ) {
-            revert OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
         }
 
         // A permissionless game is unplayable without an absolute prestate.

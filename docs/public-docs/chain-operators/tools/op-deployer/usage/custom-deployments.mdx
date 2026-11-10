@@ -4,6 +4,8 @@ description: Learn how to manage custom deployments with OP Deployer.
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 While OP Deployer was designed primarily for use with chains that are governed by Optimism, it also supports managing
 custom deployments. This is particularly common for RaaS providers, whose customers often request deployments with
 custom L1s (or L2s, in the case of L3s) or governance. This guide will walk you through the process of managing these
@@ -81,6 +83,10 @@ op-deployer bootstrap implementations \
   --superchain-config-proxy="<address output from bootstrap superchain>" \
   --upgrade-controller="<superchain-proxy-admin-owner used in bootstrap superchain>"
 ```
+
+<Unreleased component="op-deployer" />
+
+On L1s other than Ethereum mainnet and Sepolia, also pass `--sp1-verifier-address` with the raw SP1 verifier for the release's `SP1PlonkAdapter`, or the command fails. `op-deployer apply` takes the same input as `globalDeployOverrides.sp1Verifier` in the intent.
 
 Similar to the `bootstrap superchain` command, this will output a JSON file containing the addresses of the relevant
 contracts. Again, keep track of this file.

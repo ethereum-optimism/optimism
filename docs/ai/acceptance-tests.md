@@ -53,7 +53,9 @@ CI runs two variants of the `op-acceptance-tests` job: `memory-all-opn-op-reth-<
 (op-node + op-reth) and `memory-all-kona-op-reth-<l1_fork>` (kona-node + op-reth).
 
 A test that cannot run under a given client skips itself in code rather than being left out of
-a list — `sysgo.SkipOnKonaNode`, `sysgo.SkipOnOpReth` and `sysgo.SkipOnOpGeth`.
+a list — `sysgo.SkipOnKonaNode`, `sysgo.SkipOnOpReth` and `sysgo.SkipOnOpGeth`. Skip only for
+a real client gap. A test that pins the CL kind of every node itself runs the same way in both
+CL variants; let it run twice rather than skipping one variant to save CI time.
 
 ### Kona Prestate
 
@@ -90,9 +92,9 @@ You can also run `just build-deps` directly to pre-build without running tests.
 ## Tuning Parallelism (`acceptance-test` only)
 
 When using `just acceptance-test`, the runner sets:
-- `ACCEPTANCE_TEST_JOBS` — number of packages to test in parallel (default: 12)
-- `ACCEPTANCE_TEST_PARALLEL` — `go test -parallel` value per package (default: 1)
-- `ACCEPTANCE_TEST_TIMEOUT` — per-package timeout (default: 30m)
+- `ACCEPTANCE_TEST_JOBS` — number of tests to run at once (default: 8)
+- `ACCEPTANCE_TEST_PARALLEL` — `go test -parallel` value per test (default: 1)
+- `ACCEPTANCE_TEST_TIMEOUT` — per-test timeout (default: 30m)
 
 Override with environment variables:
 
@@ -103,11 +105,13 @@ cd op-acceptance-tests && ACCEPTANCE_TEST_PARALLEL=2 ACCEPTANCE_TEST_TIMEOUT=1h 
 ## Log Output (`acceptance-test` only)
 
 When using `just acceptance-test`, logs are written to `op-acceptance-tests/logs/testrun-<timestamp>/`:
-- `all.log` — full test output
-- `raw_go_events.log` — JSON test events
+- `all.log` — console output
+- `raw_go_events-<node>-<package>.<test>.log` — JSON test events, one file per top-level test
+- `per-test/<dotted package>/<test>.log` — each test's own output
+- `failed/<node>-<package>.<test>.log` — console output of each test that failed, plus any still running if the run was cut off
 - `flaky-tests.txt` — tests marked with `MarkFlaky()`
 
-Results XML goes to `op-acceptance-tests/results/results.xml`.
+Results XML goes to `op-acceptance-tests/results/results-<node>-<package>.<test>.xml`, one file per top-level test.
 
 When using `just test`, output goes to stdout only.
 

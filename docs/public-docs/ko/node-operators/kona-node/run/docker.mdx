@@ -1,0 +1,231 @@
+---
+title: "Docker 가이드"
+description: "Grafana 대시보드와 Prometheus가 포함된 Kona의 사전 패키징된 docker-compose 설정을 사용하여 op-reth와 함께 kona-node를 실행합니다."
+diataxis: how-to
+---
+
+<Info>
+이 가이드는 Kona의 사전 패키징된 Docker 설정을 사용합니다.
+
+`kona-node` 바이너리의 자세한 사용법은
+[바이너리 가이드](/ko/node-operators/kona-node/run/binary)를 참조하십시오.
+대신 Docker로 op-node + op-reth 스택을 실행하려면
+[Docker로 Node 실행하기](/ko/node-operators/tutorials/node-from-docker)를 참조하십시오.
+</Info>
+
+Kona는 완전한 node 구성을 실행하기 위한 자세한 안내가 포함된
+[`kona-node` Docker 레시피][recipe]를 제공합니다.
+
+## 빠른 시작
+
+Docker로 `kona-node`를 실행하는 가장 쉬운 방법은 제공된 레시피를 사용하는 것입니다.
+
+1. **레시피 디렉터리로 이동합니다.**
+   ```bash
+   cd docker/recipes/kona-node
+   ```
+
+2. **환경 변수를 설정합니다.**
+   `cfg.env`를 편집하여 L1 RPC 엔드포인트를 설정합니다.
+   ```bash
+   L1_PROVIDER_RPC=https://your-l1-rpc-endpoint
+   L1_BEACON_API=https://your-l1-beacon-endpoint
+   ```
+
+3. **서비스를 시작합니다.**
+   ```bash
+   just up
+   ```
+
+다음 서비스가 시작됩니다.
+- `kona-node` - OP Stack node 구현체
+- `op-reth` - 실행 계층 클라이언트  
+- `prometheus` - 메트릭 수집
+- `grafana` - 모니터링 대시보드(http://localhost:3000 에서 접근 가능)
+
+## Docker Compose
+
+[제공되는 docker compose][compose]에는 `kona-node`와 `op-reth` 외에도
+몇 가지 서비스가 있습니다. 바로 `prometheus`와 `grafana`이며,
+`kona-node` 및 `op-reth` 서비스를 모니터링하고 파악할 수 있는
+대시보드가 자동으로 프로비저닝됩니다.
+Prometheus와 Grafana의 동작 방식에 대한 자세한 내용은
+[모니터링][monitoring] 문서를 참조하십시오.
+
+`docker-compose.yaml`은 GitHub Container Registry에 게시된 이미지를 사용합니다.
+
+- **`op-reth`**: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:develop
+- **`kona-node`**: us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node:develop
+
+### 서비스 설정
+
+#### kona-node 서비스
+
+`kona-node` 서비스는 다음과 같은 주요 설정으로 구성됩니다.
+
+- **포트**: 
+  - `5060` - RPC 엔드포인트
+  - `9223` - P2P 탐색(TCP/UDP)
+  - `9002` - 메트릭
+- **환경**: L1 RPC 및 Beacon API 엔드포인트가 필요합니다.
+- **볼륨**: 영구 데이터 저장소와 engine API 인증용 JWT 토큰
+
+#### op-reth 서비스
+
+`op-reth` 서비스는 실행 계층을 제공합니다.
+
+- **포트**:
+  - `8545` - HTTP RPC
+  - `8551` - Engine API(인증 필요)
+  - `30303` - P2P 탐색
+  - `9001` - 메트릭
+- **설정**: OP Sepolia testnet용으로 사전 설정되어 있습니다.
+
+## 설정
+
+### 네트워크 선택
+
+기본적으로 레시피는 **OP Sepolia**용으로 설정되어 있습니다. 다른 OP Stack 체인을 동기화하려면 다음을 수행합니다.
+
+1. `cfg.env`에서 대상 네트워크에 적합한 L1 엔드포인트를 설정합니다.
+2. docker-compose.yaml을 수정합니다.
+   - `op-reth --chain` 파라미터를 업데이트합니다.
+   - `op-reth --rollup.sequencer-http` 엔드포인트를 업데이트합니다.
+   - `kona-node --chain` 파라미터를 업데이트합니다.
+
+### RPC 신뢰 설정
+
+기본적으로 `kona-node`는 op-node와 동일하게 L1 블록 해시 검증을 활성화하고(`KONA_NODE_L1_TRUST_RPC=false`) 로컬 L2 엔진을 신뢰합니다(`KONA_NODE_L2_TRUST_RPC=true`). 공개 또는 신뢰할 수 없는 RPC 엔드포인트의 경우 두 값 모두 `false`를 사용하십시오.
+
+```bash
+# In cfg.env or as environment variables:
+KONA_NODE_L1_TRUST_RPC=false
+KONA_NODE_L2_TRUST_RPC=false
+```
+
+또는 docker-compose.yaml의 command를 수정합니다.
+```yaml
+kona-node:
+  command: |
+    node
+    --chain op-sepolia
+    --l1-eth-rpc ${L1_PROVIDER_RPC}
+    --l1-beacon ${L1_BEACON_API}
+    --l1-trust-rpc=false  # The default for L1 RPCs
+    --l2-engine-rpc ws://op-reth:8551
+    --l2-trust-rpc=false  # Add this for untrusted L2 RPCs
+```
+
+RPC 신뢰 설정에 대한 자세한 내용은 [RPC 신뢰 설정](/ko/node-operators/kona-node/run/rpc-trust)을 참조하십시오.
+
+### 포트 설정
+
+모든 호스트 포트는 `cfg.env`의 환경 변수로 사용자 지정할 수 있습니다.
+
+```bash
+# Kona Node ports
+KONA_NODE_RPC_PORT=5060
+KONA_NODE_DISCOVERY_PORT=9223
+KONA_NODE_METRICS_PORT=9002
+
+# OP Reth ports  
+OP_RETH_RPC_PORT=8545
+OP_RETH_ENGINE_PORT=8551
+OP_RETH_METRICS_PORT=9001
+OP_RETH_DISCOVERY_PORT=30303
+
+# Monitoring
+PROMETHEUS_PORT=9090
+```
+
+### 로깅
+
+`RUST_LOG` 환경 변수를 설정하여 로그 수준을 조정합니다.
+
+```bash
+export RUST_LOG=engine_builder=trace,runtime=debug
+```
+
+## 관리 명령어
+
+레시피에는 편리한 Just 명령어가 포함되어 있습니다.
+
+```bash
+# Start all services
+just up
+
+# Stop all services  
+just down
+
+# Restart all services
+just restart
+
+# Generate JWT token (if needed)
+./generate-jwt.sh
+```
+
+## kona-node 이미지 가져오기
+
+레시피는 게시된 `kona-node` 및 `op-reth` 이미지를 자동으로 가져옵니다.
+릴리스 버전을 고정하거나 로컬 변경 사항을 테스트하는 등
+`kona-node` 이미지를 직접 가져오거나 빌드하려는 경우 이 섹션을 참고하십시오.
+
+### 게시된 이미지 가져오기
+
+Kona Docker 이미지는 릴리스될 때마다 GitHub Container Registry에 게시됩니다.
+
+다음 명령으로 최신 `kona-node` 이미지를 가져올 수 있습니다.
+
+```bash
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node
+```
+
+<Note>
+특정 버전(예: v0.1.0)은 다음과 같이 지정합니다.
+
+```bash
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node:v0.1.0
+```
+</Note>
+
+다음 명령으로 이미지를 테스트할 수 있습니다.
+
+```bash
+docker run --rm us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node --version
+```
+
+[최신 릴리스](https://github.com/ethereum-optimism/optimism/releases) 버전이 표시되면
+Docker를 통해 Kona를 성공적으로 설치한 것입니다.
+
+### Docker 이미지 빌드하기
+
+소스에서 이미지를 빌드하려면 모노레포의
+[kona 디렉터리](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona)
+루트로 이동하여 다음을 실행합니다.
+
+```bash
+just build-local kona-node
+```
+
+<Note>
+이 명령은 `kona:local` 태그가 붙은 이미지를 생성합니다. 사용자 지정
+태그를 지정하려면 위 명령에서 `kona-node` 뒤에 다음과 같이 전달하면 됩니다.
+
+```bash
+just build-local kona-node my-custom-tag
+```
+</Note>
+
+빌드에는 몇 분 정도 걸릴 수 있습니다. 빌드가 완료되면 다음 명령으로 테스트합니다.
+
+```bash
+docker run kona:local --version
+```
+
+로컬에서 빌드한 이미지를 레시피와 함께 사용하려면 `docker-compose.yaml`에서
+게시된 이미지 대신 `kona:local`을 사용하도록 업데이트하십시오.
+
+[monitoring]: ../monitoring.mdx
+
+[recipe]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/docker/recipes/kona-node/README.md
+[compose]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/docker/recipes/kona-node/docker-compose.yaml

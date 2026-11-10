@@ -1,0 +1,76 @@
+---
+title: 입금 흐름
+description: L1의 이벤트에 의해 트리거되는 L2 입금 트랜잭션의 입금 흐름 과정을 알아봅니다.
+diataxis: explanation
+---
+
+<Info>
+  **OP Stack 배우기 — 14단계 중 9단계.**
+  L2에서 시작해 L2에서 끝나는 트랜잭션을 따라가 보았습니다. 이 페이지에서는
+  첫 번째 계층 간 방향, 즉 L1에서 트리거된 트랜잭션이 어떻게 L2 트랜잭션이
+  되는지를 다룹니다. 다 읽은 후에는
+  [출금 흐름](/ko/op-stack/bridging/withdrawal-flow)으로 이어서 진행하십시오.
+</Info>
+
+이 페이지는 L1의 트랜잭션이나 이벤트에 의해 트리거되는 L2 입금(디파짓) 트랜잭션의 입금 흐름 과정을 설명합니다. Optimism 용어에서 "*입금 트랜잭션(deposit transaction)*"은 L1의 트랜잭션이나 이벤트에 의해 트리거되는 모든 L2 트랜잭션을 의미합니다.
+
+이 과정은 [대부분의 네트워킹 스택이 동작하는 방식](https://en.wikipedia.org/wiki/Encapsulation_\(networking\))과 어느 정도 유사합니다.
+정보는 송신 측에서 하위 계층 패킷으로 캡슐화된 후, 수신 측에서 스택을 거슬러 올라가 수신 애플리케이션에 도달하는 동안 해당 계층들에 의해 추출되어 사용됩니다.
+
+![입금 흐름 다이어그램.](/public/img/op-stack/protocol/deposit-flow-dark-mode.svg)
+
+## L1 처리
+
+1.  스마트 컨트랙트 또는 외부 소유 계정(EOA)인 L1 주체가 [`sendMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol#L191-L211)를 사용하여 [`L1CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol)에 입금 트랜잭션을 보냅니다.
+    이 함수는 세 개의 파라미터를 받습니다.
+
+    *   `_target`: L2의 대상 주소입니다.
+    *   `_message`: 대상 계정의 [ABI](https://docs.soliditylang.org/en/v0.8.19/abi-spec.html)에 따라 형식화된 L2 트랜잭션의 calldata입니다.
+    *   `_minGasLimit`: L2에서 트랜잭션에 허용되는 최소 gas 한도입니다. 이는 *최소값*이며, L2에서 실제로 제공되는 양은 지정된 gas 한도보다 높을 수 있습니다(단, 낮을 수는 없습니다). L2의 portal 컨트랙트가 `_target`에 호출을 제출하기 전에 일부 처리를 수행하기 때문에 L2에서 실제로 제공되는 양은 대개 더 높습니다.
+
+2.  L1 크로스 도메인 메신저는 [자체 `_sendMessage` 함수](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L83-L91)를 호출합니다.
+    이 함수는 다음 파라미터를 사용합니다.
+
+    *   `_to`: 목적지 주소로, 반대편에 있는 메신저입니다.
+        입금의 경우 항상 [`0x4200000000000000000000000000000000000007`](https://testnet-explorer.optimism.io/address/0x4200000000000000000000000000000000000007)입니다.
+    *   `_gasLimit`: gas 한도입니다.
+        이 값은 [`baseGas` 함수](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol#L357-L396)를 사용하여 계산됩니다.
+    *   `_value`: 메시지와 함께 전송되는 ETH입니다.
+        이 금액은 트랜잭션 value에서 가져옵니다.
+    *   `_data`: 메시지를 전달하는 데 필요한 L2 호출의 calldata입니다.
+        이는 [`relayMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol#L222-L320)에 대한 [ABI 인코딩](https://docs.soliditylang.org/en/v0.8.19/abi-spec.html)된 호출입니다.
+
+3.  [`_sendMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L83-L91)는 portal의 [`depositTransaction` 함수](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L684-L738)를 호출합니다.
+
+    다른 컨트랙트도 [`depositTransaction`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L684-L738)을 직접 호출할 수 있습니다.
+    그러나 그렇게 하면 특정 안전 장치를 우회하게 되므로, 대부분의 경우 좋지 않은 방법입니다.
+
+4.  [`depositTransaction` 함수](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L684-L738)는 몇 가지 기본 검사를 수행한 후 [`TransactionDeposited`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L149-L155) 이벤트를 발생시킵니다.
+
+## L2 처리
+
+1.  `op-node` 구성 요소는 [L1에서 `TransactionDeposited` 이벤트를 찾습니다](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/derive/deposits.go#L15-L34).
+    이러한 이벤트를 발견하면 이를 [파싱](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/derive/deposit_log.go)합니다.
+
+2.  다음으로 `op-node`는 해당 `TransactionDeposited` 이벤트를 [입금 트랜잭션](https://specs.optimism.io/protocol/deposits.html?utm_source=op-docs\&utm_medium=docs#user-deposited-transactions)으로 [변환](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/derive/deposits.go#L36-L52)합니다.
+
+3.  대부분의 경우 사용자 입금 트랜잭션은 [`L2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2CrossDomainMessenger.sol#L22)의 [`relayMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol#L222-L320) 함수를 호출합니다.
+
+4.  `relayMessage`는 몇 가지 기본 검사를 수행하고, 모든 것이 정상이면 [전달된 calldata로 실제 대상 컨트랙트를 호출합니다](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol#L298).
+
+## 서비스 거부(DoS) 방지
+
+다른 모든 L1 트랜잭션과 마찬가지로, 입금의 L1 비용은 트랜잭션 발신자가 부담합니다.
+그러나 트랜잭션의 L2 처리는 Optimism node가 수행합니다.
+비용이 부과되지 않는다면 공격자가 L2에서 실행 비용이 높은 트랜잭션을 제출하여 서비스 거부 공격을 수행할 수 있습니다.
+
+이 DoS 공격 경로를 막기 위해 [`depositTransaction`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L684-L738)과 이를 호출하는 함수들은 gas 한도 파라미터를 요구합니다.
+[이 gas 한도는 `TransactionDeposited` 이벤트에 인코딩되며](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L733-L737), L2에서 사용자 입금 트랜잭션의 gas 한도로 사용됩니다.
+
+이 L2 gas는 [여기](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/ResourceMetering.sol#L149)에서 L1 gas를 소각하는 방식으로 지불됩니다.
+
+## 실패한 입금 재실행
+
+입금 트랜잭션은 L2에서 실패할 수 있습니다. 대개 제공된 gas가 충분하지 않았거나, L2 상태가 트랜잭션의 성공을 허용하지 않았기 때문입니다. 이 경우에도 메시지는 손실되지 않습니다. `L2CrossDomainMessenger`가 이를 실패한 메시지로 기록하며, 나중에 필요하면 더 많은 gas를 지정하여 재실행(replay)할 수 있습니다.
+
+실패한 입금을 발생시키고 이를 처음부터 끝까지 재실행하는 과정을 직접 따라 하려면 [실패한 입금 재실행](/ko/app-developers/tutorials/bridging/replay-failed-deposit) 튜토리얼을 참조하십시오.

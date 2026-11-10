@@ -1,0 +1,91 @@
+---
+title: 스냅샷에서 node 복원하기
+sidebarTitle: 스냅샷에서 복원하기
+description: 초기 동기화를 건너뛰기 위해 스냅샷을 다운로드하고 검증한 후 node의 데이터 디렉터리에 압축을 해제합니다.
+diataxis: how-to
+---
+
+import OpGethEol from "/ko/snippets/op-geth-eol.mdx"
+
+이 가이드는 사전 동기화된 스냅샷으로 OP Stack 실행 클라이언트를 부트스트랩하는 과정을 안내합니다. 스냅샷을 다운로드하고, 체크섬을 검증하고, 데이터 디렉터리에 압축을 해제한 후, genesis부터 체인을 재실행하는 대신 스냅샷의 tip에서 node를 시작합니다.
+
+OP Mainnet에서 **어떤** 스냅샷을 사용할 수 있는지와 다운로드 링크는 [스냅샷 레퍼런스 페이지](/ko/op-mainnet/network-information/snapshots)를 참조하십시오.
+
+## 스냅샷을 사용해야 하는 경우
+
+<OpGethEol />
+
+이 가이드는 `op-reth` node를 전제로 합니다.
+
+스냅샷이 항상 필요한 것은 아닙니다. `op-node`에서 `--syncmode=execution-layer`와 `--l2.enginekind=reth`를 사용하는 [실행 레이어 동기화](/ko/node-operators/reference/consensus-layer-sync)를 사용하면, `op-reth`는 각 블록을 도출하는 대신 P2P 네트워크를 통해 블록을 가져옵니다. 이렇게 하면 초기 동기화가 훨씬 빨라지며, 대부분의 OP Stack 체인에서는 스냅샷이 전혀 필요하지 않습니다. [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack)는 필요한 데이터를 자동으로 다운로드합니다.
+
+다음과 같은 경우 스냅샷을 사용하십시오.
+
+*   **archive node**를 실행하거나, 그 밖의 이유로 전체 체인을 트레이스해야 하는 경우
+*   초기 동기화를 완전히 건너뛰고 싶은 경우: 성숙한 체인의 데이터 디렉터리는 수백 기가바이트에 달할 수 있으며(OP Mainnet의 full node는 약 700 GB), 실행 레이어 동기화를 사용하더라도 처음부터 동기화하는 데 며칠이 걸립니다.
+
+<Note>
+  **OP Mainnet**에서 새 데이터 디렉터리로 `op-reth`를 동기화하는 경우에도 스냅샷을 사용해야 할 이유가 있습니다. 실행 레이어 동기화가 활성화되어 있더라도 [Bedrock 이전 상태 가져오기 요구 사항](/ko/node-operators/op-reth/run/faq/sync-op-mainnet)을 한 번에 충족할 수 있습니다.
+</Note>
+
+## 시작하기 전에
+
+*   **디스크 공간**: 복원하는 동안 압축된 아카이브와 압축 해제된 데이터 디렉터리를 모두 저장할 공간이 일시적으로 필요하므로, 빠른(NVMe 급) 스토리지에 스냅샷 크기의 약 2배를 준비하십시오.
+*   **도구**: `curl`(또는 대용량 다운로드 속도를 크게 높일 수 있는 [aria2](https://aria2.github.io/)), `zstd`, `tar`.
+*   **중지된 클라이언트**: 실행 클라이언트가 사용 중인 데이터 디렉터리에는 절대 압축을 해제하지 마십시오.
+
+## 스냅샷 복원
+
+<Steps>
+  <Step title="스냅샷 선택하기">
+    체인의 스냅샷 제공자에서 네트워크와 클라이언트에 맞는 최신 스냅샷을 선택하십시오. OP Mainnet의 경우 OP Labs가 관리하는 [Data Directories 웹사이트](https://datadirs.optimism.io/)를 확인하십시오. [스냅샷 레퍼런스 페이지](/ko/op-mainnet/network-information/snapshots)에는 서드파티 제공자를 포함하여 사용 가능한 소스가 나와 있습니다.
+  </Step>
+
+  <Step title="다운로드하고 검증하기">
+    아카이브를 다운로드하고 SHA256을 인덱스 페이지에 게시된 값과 비교하십시오.
+
+    ```bash
+    curl -fLO <snapshot-url>/<snapshot-file>.tar.zst
+
+    sha256sum <snapshot-file>.tar.zst       # Linux
+    shasum -a 256 <snapshot-file>.tar.zst   # macOS
+    ```
+
+    검증을 건너뛰지 마십시오. 수백 기가바이트 규모의 다운로드가 중간에 잘린 것은 놓치기 쉬우며, 손상된 데이터베이스를 만들게 됩니다.
+  </Step>
+
+  <Step title="node를 중지하고 기존 datadir 정리하기">
+    node를 이전에 실행한 적이 있고 스냅샷에서 깨끗하게 시작하려면, 실행 클라이언트를 중지하고 데이터 디렉터리의 내용을 삭제(또는 다른 곳으로 이동)하십시오.
+  </Step>
+
+  <Step title="데이터 디렉터리에 압축 해제하기">
+    먼저 아카이브 구조를 확인한 후 클라이언트의 데이터 디렉터리에 압축을 해제하십시오.
+
+    ```bash
+    tar -tf <snapshot-file>.tar.zst | head -3
+
+    mkdir -p <datadir>
+    tar -I zstd -xvf <snapshot-file>.tar.zst -C <datadir> --strip-components=1
+    ```
+
+    `--strip-components=1`은 tarball 내부의 최상위 래핑 디렉터리를 제거합니다. 확인 결과 파일이 이미 아카이브 루트에 있다면 이 옵션을 생략하십시오. 클라이언트에 구성된 것과 동일한 경로(`op-reth`의 경우 `--datadir` 플래그)를 사용하십시오.
+  </Step>
+
+  <Step title="node를 시작하고 스냅샷이 적용되었는지 확인하기">
+    복원된 데이터 디렉터리를 가리키도록 실행 클라이언트를 시작한 후, node가 최신 블록으로 `0`이 아닌 스냅샷의 블록 높이를 보고하는지 확인하십시오.
+
+    ```bash
+    curl -s -X POST -H "Content-Type: application/json" \
+      --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+      http://localhost:8545
+    ```
+
+    그러면 node는 스냅샷의 tip에서 현재 head까지 동기화하며, 스냅샷이 얼마나 오래되었는지에 따라 몇 분에서 몇 시간이 걸립니다. 따라잡은 후에는 다운로드한 `.tar.zst` 아카이브를 삭제하여 디스크 공간을 확보할 수 있습니다.
+  </Step>
+</Steps>
+
+## 다음 단계
+
+*   Docker로 실행하십니까? [node-from-docker 튜토리얼](/ko/node-operators/tutorials/node-from-docker#bootstrap-from-a-snapshot)에서 바인드 마운트된 `op-reth` 데이터 디렉터리로 이 과정을 보여 줍니다.
+*   archive node용 레거시(Bedrock 이전) 데이터 디렉터리를 포함한 모든 OP Mainnet 다운로드 링크는 [스냅샷 레퍼런스 페이지](/ko/op-mainnet/network-information/snapshots)를 참조하십시오.
+*   문제가 발생하면 [node 문제 해결 가이드](/ko/node-operators/guides/troubleshooting)를 확인하거나 [개발자 지원](https://github.com/ethereum-optimism/developers/discussions)에 문의하십시오.

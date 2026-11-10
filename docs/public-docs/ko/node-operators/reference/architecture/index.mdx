@@ -1,0 +1,55 @@
+---
+title: node 아키텍처
+description: OP Stack node의 구성 요소가 어떻게 맞물리는지 이해합니다.
+diataxis: explanation
+---
+
+import OpGethEol from "/ko/snippets/op-geth-eol.mdx"
+
+이 페이지에서는 OP Stack node가 어떻게 구성되는지 설명합니다. 각 구성 요소가 무엇이고 어떤 역할을 하는지, 그리고 Ethereum node의 대응 요소와 어떤 관계인지를 다룹니다. node를 실행하기 전에 개념적 모델을 갖추기 위한 배경 자료이며, 실제로 node를 구축하는 단계는 아래의 [다음 단계](#next-steps)를 참조하십시오.
+
+OP Stack 네트워크의 모든 node는 Rollup Node와 Execution Client라는 두 가지 핵심 소프트웨어 서비스로 구성됩니다.
+OP Mainnet은 선택적으로 세 번째 구성 요소인 Legacy Geth도 지원합니다. Legacy Geth는 [Bedrock 업그레이드](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) 이전에 생성된 블록과 트랜잭션에 대한 상태 기반(stateful) 쿼리를 처리할 수 있습니다.
+
+## node 흐름도
+다음 다이어그램은 Rollup Node, Execution Client, Legacy Geth 구성 요소가 함께 작동하여 OP Stack 네트워크에서 실행되는 완전한 node를 구성하는 방식을 보여 줍니다.
+이 다이어그램은 Rollup Node의 `op-node` 구현을 사용하며, 모든 실행 클라이언트 구현에 적용되는 일반적인 아키텍처를 보여 줍니다.
+
+![OP Mainnet node 아키텍처 다이어그램.](/public/img/guides/node-operators/node-arch.svg)
+
+## Rollup node
+
+Rollup Node는 L1 데이터에서 L2 블록 페이로드를 도출(derive)하고 이 페이로드를 Execution Client에 전달하는 역할을 합니다. Rollup Node는 선택적으로 P2P 네트워크에 참여하여, 블록이 L1에 제출되기 전에 Sequencer로부터 직접 블록을 받을 수도 있습니다. Rollup Node는 Ethereum의 [합의 클라이언트](https://ethereum.org/en/developers/docs/nodes-and-clients/#what-are-nodes-and-clients)와 대체로 유사합니다.
+
+### Rollup node 구현
+
+*   **[op-node](/ko/op-stack/components/op-node)**는 Rollup Node의 레퍼런스 구현으로, Go로 작성되었으며 Optimism이 유지 관리합니다. 모든 node 역할의 기본 선택지이며 지원 중단되지 않았습니다.
+*   **[kona-node](/ko/op-stack/components/kona-node)**는 Kona 프로젝트의 일부로 구축된 Rollup Node의 Rust 구현입니다. 활발히 개발 중이며 실험적인 것으로 간주해야 하므로, 이를 감수할 수 있는 역할에 사용하십시오.
+
+[interop](/ko/op-stack/interop/explainer) 의존성 집합(dependency set)의 모든 체인을 따르는 node의 경우, 합의 계층을 [op-supernode](/ko/op-stack/interop/supernode)로 배포하십시오. op-supernode는 하나의 프로세스에서 각 체인에 대한 op-node 인스턴스를 호스팅하고 크로스체인 메시지 검증을 추가합니다. 권장 설정은 [supernode 구성 가이드](/ko/node-operators/guides/configuration/supernode)를, 플래그 목록은 [op-supernode 구성 레퍼런스](/ko/node-operators/reference/op-supernode-config)를 참조하십시오.
+
+## Execution client
+
+Execution Client는 표준 [Ethereum Engine API](https://github.com/ethereum/execution-apis/blob/main/src/engine/common.md#engine-api----common-definitions)를 통해 JSON-RPC로 Rollup Node로부터 받은 블록 페이로드를 실행하는 역할을 합니다.
+Execution Client는 Ethereum 개발자에게 익숙한 표준 JSON-RPC API를 제공하며, 블록체인 데이터를 조회하고 네트워크에 트랜잭션을 제출하는 데 사용할 수 있습니다.
+Execution Client는 Ethereum의 [실행 클라이언트](https://ethereum.org/en/developers/docs/nodes-and-clients/#what-are-nodes-and-clients)와 대체로 유사합니다.
+
+### Execution client 구현
+
+*   **[op-reth](/ko/op-stack/components/op-reth)**는 Optimism이 유지 관리하는 실행 클라이언트로, Rust로 작성되었으며 reth를 기반으로 구축되었습니다. OP Stack node의 주요 지원 실행 클라이언트입니다. 작동하는 구성은 [실행 클라이언트 구성 가이드](/ko/node-operators/guides/configuration/execution-clients)를 참조하십시오.
+*   **[Nethermind](https://github.com/NethermindEth/nethermind)**는 C#으로 작성된 서드파티 실행 클라이언트로, OP Stack 체인도 지원합니다. 이 문서는 Optimism이 유지 관리하는 소프트웨어를 중심으로 다루며, Nethermind 관련 세부 사항은 [Nethermind 문서](https://docs.nethermind.io/get-started/running-node/l2-networks)를 참조하십시오.
+
+<OpGethEol />
+
+op-program 역시 지원이 종료되었으며, 결함 증명(fault proof)에서는 kona-client로 대체되었습니다. 동일한 [공지](/ko/notices/archive/op-geth-deprecation)에서 두 마이그레이션을 모두 다룹니다.
+
+## Legacy Geth
+
+2023년 [Bedrock 업그레이드](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) 이전의 OP Mainnet 블록과 트랜잭션은 현재의 모든 실행 클라이언트에서 읽을 수 있습니다. 하지만 이를 재실행하려면(Bedrock 이전 블록에 대한 `eth_call` 같은 RPC 호출) 선택적인 세 번째 구성 요소인 Legacy Geth(`l2geth`)가 필요합니다. Legacy Geth는 업그레이드 이전에 OP Mainnet을 실행하던 클라이언트입니다.
+일반적으로 완전한 OP Mainnet 아카이브 node에만 필요합니다. 설정 및 요청 라우팅은 [Legacy Geth 구성 가이드](/ko/node-operators/guides/configuration/legacy-geth)를, 현재 체인 데이터보다 더 오래된 히스토리는 [regenesis 이전 히스토리 접근](/ko/op-mainnet/pre-bedrock-history/regenesis-history)을 참조하십시오.
+
+## 다음 단계
+
+*   node를 구축하고 실행하려면 [Docker로 node 실행하기](/ko/node-operators/tutorials/node-from-docker) 또는 [소스에서 node 빌드 및 실행하기](/ko/node-operators/tutorials/run-node-from-source) 튜토리얼부터 시작하십시오. 소스 튜토리얼은 `op-reth`(주요) 및 `Nethermind` 실행 클라이언트를 다룹니다.
+*   이미 node를 실행 중이라면 [node 메트릭 및 모니터링 가이드](/ko/node-operators/guides/monitoring/metrics)에서 node를 지속적으로 확인하고 원활하게 실행되도록 유지하는 방법을 알아보십시오.
+*   문제가 발생하면 [node 문제 해결 가이드](/ko/node-operators/guides/troubleshooting)에서 도움을 받으십시오.

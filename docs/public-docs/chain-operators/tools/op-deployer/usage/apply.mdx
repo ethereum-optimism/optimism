@@ -30,11 +30,13 @@ supported CLI arg.
 
 *   `live`: Deploys to a live L1. Concretely, this means that OP Deployer will send transactions identified by
     `vm.broadcast` calls to L1. `--l1-rpc-url` and `--private-key` must be specified when using this target.
-*   `genesis`: Deploys to an L1 genesis file. This is useful for testing or local development purposes. You do not need to
-    specify any additional arguments when using this target.
-*   `calldata`: Deploys to a calldata file. This is useful for generating inputs to multisig wallets for future execution.
-*   `noop`: Doesn't deploy anything. This is useful for performing a dry-run of the deployment process prior to another
-    deployment target.
+*   `genesis`: Deploys to an L1 genesis file. This is useful for testing or local development purposes. The generated
+    genesis contains no SP1 verifier, so pass `--deploy-mock-sp1-verifier`.
+
+### `--deploy-mock-sp1-verifier`
+
+With `--deployment-target genesis`, deploys a mock SP1 verifier into the genesis for the ZK dispute game to use. The mock
+accepts every proof, so use it for development only.
 
 ### `--l1-rpc-url`
 

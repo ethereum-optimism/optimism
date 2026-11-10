@@ -69,13 +69,13 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	// the default batcher
 	batcherA := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
-		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// a batcher with a new key
 	altCfg := *actionsHelpers.DefaultBatcherCfg(dp)
 	altCfg.BatcherKey = dp.Secrets.Bob
 	batcherB := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, &altCfg,
-		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -299,7 +299,7 @@ func TestGPOParamsChangeEcotone(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
 	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
-		sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		sequencer.RollupClient(), miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	alice := actionsHelpers.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
 	alice.SetUserEnv(&actionsHelpers.BasicUserEnv[any]{
@@ -431,7 +431,7 @@ func GasLimitChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
 	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
-		sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		sequencer.RollupClient(), miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
 	miner.ActEmptyBlock(t)

@@ -1,0 +1,30 @@
+---
+title: 메시지 만료
+description: 메시지 만료란 무엇이며 왜 존재하는지, 그리고 애플리케이션이 릴레이되지 않고 만료된 메시지를 어떻게 취소하는지 설명합니다.
+diataxis: explanation
+---
+
+# 메시지 만료
+
+OP Stack 체인 간에 참조되는 [메시지](/ko/app-developers/guides/interoperability/message-passing)에는 만료 기간(expiry window)이라고 하는 제한된 유효 기간이 있습니다. 이 기간이 지나면 참조된 메시지는 유효하지 않게 되며 더 이상 참조할 수 없습니다.
+
+[`L2ToL2CrossDomainMessenger`](/ko/app-developers/guides/interoperability/message-passing)를 사용하는 메시지의 경우, 릴레이되기 전에 만료된 메시지는 절대 릴레이될 수 없습니다. 소스 체인은 이 사실을 파악하고 보고할 수 있으므로, 애플리케이션은 전송을 취소할 수 있습니다.
+
+## 만료 기간
+
+만료 기간은 크로스체인 메시지 또는 발생한 이벤트가 얼마 동안 유효한지를 정의하는 오프체인 상수입니다. [Superchain interop cluster](/ko/op-stack/interop/explainer#superchain-interop-cluster)에 속한 모든 체인에서 메시지는 로그가 생성된 후 7일(604,800초) 이내에 참조되어야 합니다.
+
+## 만료된 메시지 취소하기
+
+대상 체인에서 릴레이되지 않은 메시지는 소스 체인에서 만료된 것으로 표시할 수 있으며, 이를 통해 애플리케이션은 전송을 취소할 수 있습니다.
+
+1.  **내보내기(Export).** 누구나 대상 체인의 `UndeliveredMessageExporter` predeploy(`0x4200000000000000000000000000000000000030`)에서 해당 메시지와 소스 체인의 `L1CrossDomainMessenger`를 지정하여 `exportUndeliveredMessage`를 호출할 수 있습니다. exporter는 대상 체인에서 메시지가 릴레이되지 않았는지 확인합니다. 대상 체인의 sequencer가 이 호출을 거부하는 경우, 입금(디파짓)으로 강제 포함시킬 수도 있습니다.
+2.  **출금(Withdrawal).** 내보내기는 소스 체인의 `L1CrossDomainMessenger`로 향하는 L2에서 L1으로의 출금입니다. 대상 체인의 출금 지연 기간이 지난 후 누군가가 L1에서 이를 증명하고 최종 확정하면, 소스 체인의 `L1CrossDomainMessenger`가 이를 입금으로 소스 체인에 전달합니다.
+3.  **만료(Expiry).** 소스 체인의 `L2ToL2CrossDomainMessenger`는 `expiredMessages(messageHash)`를 설정하고 `MessageExpired(messageHash, undeliveredAt)`를 발생시킵니다. 단, 이는 메시지가 전송된 후 8일(만료 기간에 하루의 여유를 더한 기간)이 지난 시점에 내보내기가 이루어진 경우에만 해당합니다. 그보다 이른 내보내기는 결코 유효해지지 않습니다. 이 경우 소스 체인에서 실패한 메시지로 남게 되며, 해당 메시지는 나중에 다시 내보낼 수 있습니다.
+
+`SuperchainETHBridge`는 `refundETH`로 만료된 전송을 취소합니다. `sendETH`를 호출했던 주소가 이 함수를 호출하면 ETH를 돌려받습니다. 다른 애플리케이션도 같은 방식으로 자체 전송을 취소할 수 있습니다. 소스 체인의 `L2ToL2CrossDomainMessenger`에서 `expiredMessages(messageHash)`를 확인하거나 `MessageExpired`를 감시하고, 전송을 취소했다는 사실을 기록하여 취소가 한 번만 일어나도록 하십시오. 이 플래그는 설정된 상태로 유지됩니다.
+
+## 다음 단계
+
+*   [블록체인 간에 메시지를 전달](/ko/app-developers/tutorials/interoperability/message-passing)하는 방법을 알아보십시오
+*   ETH 브리지가 [만료된 전송을 환불](/ko/op-stack/interop/superchain-eth-bridge#refunds)하는 방식을 확인하십시오

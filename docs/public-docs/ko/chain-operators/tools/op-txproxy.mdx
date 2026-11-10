@@ -1,0 +1,82 @@
+---
+title: OP Txproxy
+description: 트랜잭션이 sequencer에 도달하기 전에 추가 제약 조건을 적용할 수 있는 패스스루 프록시 서비스입니다.
+diataxis: reference
+---
+
+실행 엔진 엔드포인트를 위한 [패스스루 프록시](https://github.com/ethereum-optimism/infra/tree/main/op-txproxy)입니다. 이 프록시는 모든 RPC 트래픽을 전달하지 않으며 특정 메서드 집합만 노출합니다. 운영상 ingress 라우터는 이러한 특정 메서드에 대한 요청만 이 프록시로 다시 라우팅해야 합니다.
+
+<Info>
+  ingress 라우터로서의 [proxyd](./proxyd)는 특정 메서드를 고유한 백엔드에 매핑하는 기능을 지원합니다.
+</Info>
+## 메서드
+
+### **eth_sendRawTransactionConditional**
+
+이 엔드포인트를 안전하게 공개적으로 노출하기 위해 추가적인 상태 비저장(stateless) 제약 조건이 적용됩니다. 이러한 제약 조건은 검증 규칙을 수평적으로 확장하고, 조건부 트랜잭션이 sequencer에 도달하기 전에 미리 거부하는 데 도움이 됩니다.
+
+필요한 조정을 안내하기 위해 다양한 메트릭이 발행됩니다.
+#### 런타임 차단
+
+이 서비스는 플래그 또는 환경 변수로 구성하여 실행 엔진을 중단하지 않고도 조건부 트랜잭션을 거부할 수 있습니다. 이 기능은 문제를 진단할 때 유용합니다.
+
+`--sendRawTxConditional.enabled (default: true) ($OP_TXPROXY_SENDRAWTXCONDITIONAL_ENABLED)`
+
+비활성화하면 요청은 메서드가 비활성화되었다는 메시지와 함께 `-32003`(transaction rejected) json rpc 오류 코드로 실패합니다.
+#### 속도 제한
+
+op-geth의 이 엔드포인트 구현에도 속도 제한이 포함되어 있지만, 이러한 요청을 조기에 종료하기 위해 여기에서 대신 적용됩니다.
+
+`--sendRawTxConditional.ratelimit (default: 5000) ($OP_TXPROXY_SENDRAWTXCONDITIONAL_RATELIMIT)`
+
+#### 상태 비저장 검증
+
+*   조건부 비용이 최대값 미만인지 확인
+*   조건부 값이 유효한지 확인(예: min \< max)
+*   트랜잭션 대상이 4337 Entrypoint 컨트랙트로만 한정되는지 확인
+
+<Info>
+  이 엔드포인트의 주된 목적은 무허가(permissionless) 4337 mempool을 지원하는 것이며, 따라서 이 메서드의 사용이 [Entrypoint](https://github.com/eth-infinitism/account-abstraction/blob/develop/contracts/core/EntryPoint.sol) 트랜잭션으로만 제한됩니다.
+
+  이 엔드포인트의 활용 범위를 넓히기 위해 이 제한을 구성으로 선택할 수 있게 하고 싶다면 이슈를 열어 주십시오.
+</Info>
+
+요청이 검증을 통과하면 구성된 백엔드 URL로 전달됩니다.
+
+`--sendRawTxConditional.backend ($OP_TXPROXY_SENDRAWTXCONDITIONAL_BACKENDS)`
+
+<Info>
+  [사양](/ko/op-stack/features/send-raw-transaction-conditional)에 따라 조건부 트랜잭션은 피어 간에 가십(gossip)되지 않습니다. 따라서 active/passive sequencer 구성에서 레플리카를 사용하는 경우 이 요청을 모든 레플리카에 브로드캐스트해야 합니다.
+
+  이 메서드에 대한 egress 라우터로서의 [proxyd](./proxyd)는 이러한 브로드캐스트 기능을 지원합니다.
+</Info>
+
+## 작동 방식
+
+`op-txproxy` 사용을 시작하려면 다음 단계를 따르십시오.
+
+<Steps>
+  <Step title="바이너리 빌드 또는 Docker 이미지 가져오기">
+  1.  다음 명령을 실행하여 바이너리를 빌드합니다.
+    ```bash
+    make build
+    ```
+    2.  이 명령은 바이너리를 빌드하여 `/bin/op-txproxy`에 출력합니다.
+  
+    이 바이너리의 이미지는 [docker 아티팩트](https://us-docker.pkg.dev/oplabs-tools-artifacts/images/op-txproxy)로도 제공됩니다.
+  </Step>
+
+  <Step title="구성">
+  바이너리는 CLI 플래그를 통해 구성을 받으며, 이 플래그는 환경 변수로도 설정할 수 있습니다. 바이너리를 시작할 때 플래그를 명시적으로 설정하거나 프록시를 시작하는 호스트의 환경 변수를 설정하십시오.
+  
+    각 메서드에서 사용할 수 있는 구성 옵션은 [메서드](#methods)를 참조하십시오.
+  </Step>
+
+  <Step title="시작">
+  다음 명령으로 서비스를 시작합니다.
+  
+    ```bash
+    op-txproxy // ... with flags if env variables are not set
+    ```
+  </Step>
+</Steps>
