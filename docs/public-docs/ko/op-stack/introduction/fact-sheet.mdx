@@ -1,0 +1,29 @@
+---
+title: 팩트 시트
+description: OP Stack의 기능을 한눈에 살펴봅니다
+diataxis: reference
+---
+
+OP Stack은 완전한 커스터마이징을 허용하지만, 표준 OP Stack 체인은 [표준 기술 및 거버넌스 파라미터 세트](/ko/op-stack/protocol/blockspace-charter)를 준수합니다. 이를 통해 OP Stack 상호운용성(interoperability), 네트워크 보안, 그리고 체인 업그레이드의 용이성이 보장됩니다.
+
+# 기술 스택
+
+| 기능                              | 표준 OP Stack                 | OP Stack                    |
+| --------------------------------- | ----------------------------- | --------------------------- |
+| **상위 체인**                     | Ethereum                      | 모든 L1, 모든 L2            |
+| **처리량<sup>1</sup>**            | 32.5Mgas/s                    | 50Mgas/s                    |
+| **Gas 한도<sup>2</sup>**          | 200M                          | 200M                        |
+| **블록 시간<sup>3</sup>**         | 200ms                         | 200ms                       |
+| **데이터 가용성 지원**            | Ethereum                      | Ethereum, Celestia, EigenDA |
+| **Gas 토큰 지원<sup>4</sup>**     | ETH                           | ETH, Custom Gas Token       |
+| **업그레이드**                    | OP 거버넌스를 통해 진행       | 자체 관리                   |
+| **EVM 호환성**                    | 동등(Equivalent)              | 가변                        |
+
+<sup>1</sup>표준 OP Stack 데이터는 [Base](https://etherscan.io/address/0x73a79Fab69143498Ed3712e519A88a918e1f4072#readProxyContract#F14) 기준입니다. OP Stack 데이터는 [opBNB](https://docs.bnbchain.org/bnb-opbnb/core-concepts/opbnb-metrics/) 기준입니다.
+
+<sup>2</sup>표준 블록스페이스 헌장(blockspace charter)의 최대 gas 한도는 [200m](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs#gas-limit)입니다. Gas 한도와 gas 목표치는 모두 system config를 통해 설정할 수 있습니다.
+
+<sup>3</sup>프로토콜 블록 시간은 1초까지 낮출 수 있으며, 1초 미만의 사전 확인(pre-confirmation)은 [Subblocks](/ko/op-stack/features/subblocks)를 통해 제공됩니다.
+
+<sup>4</sup>OP Stack 체인은 [Custom Gas Token](/ko/op-stack/features/custom-gas-token)을 사용하여 어떤 자산이든 네이티브 수수료 통화로 사용할 수 있습니다. 표준 OP Stack 체인은 ETH를 gas 토큰으로 사용하지만, 체인 운영자는 ERC-20 paymaster를 사용하여 유사한 UX를 구현할 수 있습니다.
+

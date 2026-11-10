@@ -329,13 +329,14 @@ func initAllocType(root string, allocType AllocType) {
 			if err := deployer.ApplyPipeline(
 				context.Background(),
 				deployer.ApplyPipelineOpts{
-					DeploymentTarget:   deployer.DeploymentTargetGenesis,
-					L1RPCUrl:           "",
-					DeployerPrivateKey: pk,
-					Intent:             intent,
-					State:              st,
-					Logger:             lgr,
-					StateWriter:        pipeline.NoopStateWriter(),
+					DeploymentTarget:      deployer.DeploymentTargetGenesis,
+					L1RPCUrl:              "",
+					DeployerPrivateKey:    pk,
+					Intent:                intent,
+					State:                 st,
+					Logger:                lgr,
+					StateWriter:           pipeline.NoopStateWriter(),
+					DeployMockSP1Verifier: true,
 				},
 			); err != nil {
 				panic(fmt.Errorf("failed to apply pipeline: %w", err))

@@ -1,0 +1,416 @@
+---
+title: op-supernode 구성 옵션
+description: op-supernode의 모든 명령줄 플래그와 환경 변수에 대한 전체 레퍼런스입니다.
+diataxis: reference
+audit-source:
+  - op-supernode/flags/flags.go
+  - op-supernode/flags/virtual_flags.go
+  - op-supernode/cmd/main.go
+  - op-supernode/supernode/supernode.go
+  - op-supernode/supernode/activity/interop/interop.go
+  - op-supernode/README.md
+---
+
+<Info>
+  op-supernode는 활발히 개발 중입니다.
+  이 페이지는 [op-supernode/v0.2.2-rc.8](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv0.2.2-rc.8) 릴리스 후보(release candidate)를 기준으로 하며, 정식 릴리스 전에 플래그 목록이 변경될 수 있습니다.
+</Info>
+
+이 페이지는 op-supernode의 모든 구성 옵션을 기능별로 정리하여 설명합니다.
+다음 옵션은 [op-supernode/v0.2.2-rc.8](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv0.2.2-rc.8)의 `--help` 출력에서 가져온 것입니다.
+
+권장 설정, 배포 토폴로지, 시작용 구성은 [supernode 구성 가이드](/ko/node-operators/guides/configuration/supernode)를 참고하십시오.
+op-supernode가 무엇이며 왜 존재하는지는 [supernode 설명](/ko/op-stack/interop/supernode)을 참고하십시오.
+
+<Info>
+  환경 변수 이름이 항상 CLI 플래그 이름에서 기계적으로 파생되는 것은 아닙니다.
+  일부 환경 변수 접미사는 CLI 플래그 이름이 변경된 경우에도 op-node 소스 수준의 표기를 유지합니다(예: `--vn.<chainID>.l2`는 `OP_SUPERNODE_VN_<chainID>_L2`가 아니라 `OP_SUPERNODE_VN_<chainID>_L2_ENGINE_RPC`로 설정됩니다).
+  아래의 각 플래그 항목에는 CLI 형식과 함께 올바른 환경 변수 이름이 표시되어 있습니다.
+  확실하지 않은 경우 `op-supernode --chains=<chainIDs> --help`를 실행하여 각 플래그의 정확한 이름을 확인하십시오.
+</Info>
+
+## 의존성 집합 및 스토리지
+
+### chains
+
+이 supernode가 호스팅하는 chain ID 목록입니다.
+필수입니다.
+쉼표로 구분된 목록 또는 반복 가능한 플래그를 허용합니다.
+각 chain ID에는 해당 체인의 네트워크 식별 정보와 실행 클라이언트 연결을 구성하는 체인별 `--vn.<chainID>.*` 플래그 집합이 대응되어야 합니다.
+
+<Tabs>
+  <Tab title="구문">`--chains=<value>`</Tab>
+  <Tab title="예시">`--chains=11155420,1301`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_CHAINS=`</Tab>
+</Tabs>
+
+### data-dir
+
+op-supernode의 데이터 디렉터리입니다.
+각 체인의 SafeDB와 P2P 상태는 체인 간 충돌이 없도록 이 경로 아래의 `chain-<chainID>` 하위 디렉터리에 저장됩니다.
+기본값은 `./datadir`입니다.
+
+<Tabs>
+  <Tab title="구문">`--data-dir=<value>`</Tab>
+  <Tab title="예시">`--data-dir=/var/lib/op-supernode`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_DATA_DIR=`</Tab>
+</Tabs>
+
+## 공유 L1 접근
+
+supernode는 의존성 집합(dependency set)의 모든 체인에서 하나의 L1 클라이언트와 하나의 beacon 클라이언트를 공유합니다.
+이들은 supernode 자체의 프로세스 내 클라이언트(원격 엔드포인트 앞단의 캐싱 계층)이며, 원격 L1 node나 beacon node 자체가 아닙니다. supernode는 자체 L1 node를 실행하지 않고 기존 엔드포인트에 연결합니다.
+이 플래그는 최상위 수준에서만 구성하십시오. 체인별 네임스페이스에도 `--vn.<chainID>.l1` 및 `--vn.<chainID>.l1.beacon`이 포함되어 있지만(supernode가 모든 op-node 플래그를 기계적으로 네임스페이스에 복제하기 때문), supernode는 시작 시 이를 무시합니다.
+
+### l1
+
+L1 사용자 JSON-RPC 엔드포인트의 주소입니다.
+필수입니다.
+엔드포인트에서 `eth` 네임스페이스가 활성화되어 있어야 합니다.
+
+<Tabs>
+  <Tab title="구문">`--l1=<value>`</Tab>
+  <Tab title="예시">`--l1=https://ethereum-rpc-endpoint.example.com`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_L1_ETH_RPC=`</Tab>
+</Tabs>
+
+### l1.beacon
+
+L1 beacon node HTTP 엔드포인트의 주소입니다.
+blob에서 파생된 L1 데이터에 의존하는 모든 체인에 필수이며, 이는 Ecotone 이후의 모든 OP Stack 체인에 해당합니다.
+
+<Tabs>
+  <Tab title="구문">`--l1.beacon=<value>`</Tab>
+  <Tab title="예시">`--l1.beacon=https://ethereum-beacon-endpoint.example.com`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_L1_BEACON=`</Tab>
+</Tabs>
+
+### l1.beacon-fallbacks
+
+L1 beacon API와 호환되는 HTTP 대체(fallback) 엔드포인트의 주소입니다.
+기본 `--l1.beacon` 엔드포인트에서 사용할 수 없는 blob sidecar를 가져오는 데 사용되며, 일반 beacon node의 prune 범위를 지난 오래된 blob도 포함됩니다.
+`--l1.beacon-archiver` 별칭도 같은 플래그를 가리킵니다.
+쉼표로 구분된 목록 또는 반복 가능한 플래그를 허용합니다.
+
+<Tabs>
+  <Tab title="구문">`--l1.beacon-fallbacks=<value>`</Tab>
+  <Tab title="예시">`--l1.beacon-fallbacks=https://archiver-1.example.com,https://archiver-2.example.com`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_L1_BEACON_FALLBACKS=`</Tab>
+</Tabs>
+
+### l1.http-poll-interval
+
+공유 L1 HTTP RPC 구독의 폴링 간격입니다.
+기본값은 `12s`입니다.
+이 플래그는 supernode 자체의 L1 클라이언트를 제어합니다.
+공유 클라이언트가 해당 리소스를 소유하므로 체인별 `--vn.<chainID>.l1.http-poll-interval` 설정은 무시됩니다.
+
+<Tabs>
+  <Tab title="구문">`--l1.http-poll-interval=<value>`</Tab>
+  <Tab title="예시">`--l1.http-poll-interval=12s`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_L1_HTTP_POLL_INTERVAL=`</Tab>
+</Tabs>
+
+## 체인별 virtual node 구성
+
+`--chains`의 모든 체인은 supernode 내부에서 virtual node로 실행됩니다.
+supernode는 각 체인을 구성할 수 있도록 전체 op-node 플래그 집합을 두 가지 접두사 아래에 재현합니다.
+
+* **`--vn.<chainID>.<flag>`**는 특정 체인 하나에 대해 `<flag>`를 설정합니다.
+* **`--vn.all.<flag>`**는 의존성 집합의 모든 체인에 대해 `<flag>`를 설정합니다.
+
+환경 변수 형식도 같은 접두사 규칙을 따릅니다. 체인 하나에는 `OP_SUPERNODE_VN_<CHAINID>_<SUFFIX>`, 모든 체인에는 `OP_SUPERNODE_VN_ALL_<SUFFIX>`를 사용합니다.
+`<SUFFIX>`는 op-node 플래그의 소스 수준 환경 변수 이름입니다(CLI 플래그와 항상 일치하지 않는 이유는 이 페이지 상단의 참고 사항을 확인하십시오).
+
+<Info>
+  일부 플래그는 개별 virtual node가 아니라 supernode가 소유합니다.
+  이러한 플래그를 `--vn.<chainID>.*` 또는 `--vn.all.*` 아래에 설정해도 효과가 없습니다.
+
+  * `--l1` 및 `--l1.beacon`: 공유 L1 구성 요소가 시작 시 모든 체인별 L1 설정을 대체합니다.
+  * `--l1.http-poll-interval`: 공유 L1 클라이언트가 폴링 주기를 소유하며, 체인별 값이 설정되면 supernode가 경고를 로그로 남깁니다.
+  * `--log.*`: supernode와 모든 virtual node는 하나의 logger를 공유하며, 최상위 `--log.*`로 이를 구성합니다. 체인별 `--vn.*.log.*` 플래그는 네임스페이스에 나타나지만 별다른 알림 없이 무시됩니다. (`--metrics.*`는 다릅니다. 최상위 설정은 supernode 자체의 메트릭 서비스를 구성하지만, 체인별 `--vn.*.metrics.*`는 각 virtual node 자체의 메트릭을 구성하며, 이 메트릭은 체인별 Prometheus 레이블과 함께 같은 엔드포인트로 모아집니다.)
+  * P2P 수신 포트: [P2P](#p2p) 섹션을 참고하십시오.
+</Info>
+
+대부분의 운영자가 체인별로 설정해야 하는 플래그는 아래와 같습니다.
+`--vn.*` 네임스페이스에서 사용할 수 있는 op-node 플래그 전체 목록은 [op-node 구성 레퍼런스](/ko/node-operators/reference/op-node-config)와 [합의 클라이언트 구성 페이지](/ko/node-operators/guides/configuration/consensus-clients)를 참고하십시오.
+
+### vn.&lt;chainID&gt;.network
+
+supernode가 op-node의 내장 레지스트리에서 일치하는 rollup 구성을 불러올 수 있도록 체인의 알려진 네트워크 구성 이름을 지정합니다.
+op-node에 등록된 모든 체인(`op-mainnet`, `op-sepolia`, `unichain-sepolia` 등)에 사용하십시오.
+
+<Tabs>
+  <Tab title="구문">`--vn.<chainID>.network=<value>`</Tab>
+  <Tab title="예시">`--vn.11155420.network=op-sepolia`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_VN_<CHAINID>_NETWORK=`</Tab>
+</Tabs>
+
+### vn.&lt;chainID&gt;.rollup.config
+
+op-node의 내장 네트워크 레지스트리에 없는 체인을 위한 rollup 구성 JSON 파일의 경로입니다.
+사용자 정의 devnet이나 rollup 구성 파일이 있는 체인에는 `--vn.<chainID>.network` 대신 이 플래그를 사용하십시오.
+
+<Tabs>
+  <Tab title="구문">`--vn.<chainID>.rollup.config=<value>`</Tab>
+  <Tab title="예시">`--vn.420120037.rollup.config=/etc/op/rollup-config.json`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_VN_<CHAINID>_ROLLUP_CONFIG=`</Tab>
+</Tabs>
+
+### vn.&lt;chainID&gt;.l2
+
+체인 실행 클라이언트의 engine API 엔드포인트 주소입니다.
+각 체인에는 자체 실행 클라이언트가 필요하며, 하나의 실행 클라이언트가 두 체인을 지원할 수는 없습니다.
+
+<Tabs>
+  <Tab title="구문">`--vn.<chainID>.l2=<value>`</Tab>
+  <Tab title="예시">`--vn.11155420.l2=http://op-sepolia-geth:8551`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_RPC=`</Tab>
+</Tabs>
+
+### vn.all.l2.jwt-secret
+
+모든 virtual node가 실행 클라이언트에 대한 engine 연결을 인증하는 데 사용하는 JWT secret의 경로입니다.
+의존성 집합의 모든 실행 클라이언트가 하나의 secret을 공유하는 경우 `vn.all.*` 수준에서 설정하십시오.
+특정 체인의 실행 클라이언트에 별도의 secret이 필요한 경우에만 체인별 `--vn.<chainID>.l2.jwt-secret` 형식을 사용하십시오.
+
+<Tabs>
+  <Tab title="구문">`--vn.all.l2.jwt-secret=<value>`</Tab>
+  <Tab title="예시">`--vn.all.l2.jwt-secret=/etc/op/jwt-secret.txt`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH=`</Tab>
+</Tabs>
+
+### vn.&lt;chainID&gt;.l2.enginekind
+
+supernode가 각 클라이언트에 맞는 engine API 동작을 적용할 수 있도록 engine 클라이언트 종류를 선택합니다.
+체인의 실행 클라이언트가 op-reth인 경우 `reth`로 설정하고, op-geth인 경우 기본값으로 두십시오.
+지원되는 값은 `geth`와 `reth`입니다.
+기본값은 `geth`입니다.
+
+<Tabs>
+  <Tab title="구문">`--vn.<chainID>.l2.enginekind=<value>`</Tab>
+  <Tab title="예시">`--vn.11155420.l2.enginekind=reth`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_KIND=`</Tab>
+</Tabs>
+
+## P2P
+
+P2P는 supernode 수준에서 모든 체인에 대해 활성화되거나, 모든 체인에 대해 비활성화됩니다.
+체인별 활성화/비활성화는 지원되지 않습니다.
+
+### disable-p2p
+
+모든 체인에 대해 P2P를 비활성화합니다.
+기본값은 `false`입니다.
+unsafe head P2P gossip을 플릿의 다른 node(예: Light CL 플릿)가 처리하고 supernode는 L1에서 도출(derive)만 하면 되는 토폴로지에서 사용하십시오.
+
+<Tabs>
+  <Tab title="구문">`--disable-p2p=<value>`</Tab>
+  <Tab title="예시">`--disable-p2p=true`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_DISABLE_P2P=`</Tab>
+</Tabs>
+
+### 체인별 수신 포트
+
+P2P가 활성화된 경우, 체인 간 포트 충돌을 방지하기 위해 각 virtual node의 P2P 수신 포트 기본값은 `0`(동적)입니다.
+같은 포트를 여러 virtual node에서 재사용할 수 없으므로 `--vn.all.p2p.listen.tcp` 또는 `--vn.all.p2p.listen.udp`를 0이 아닌 값으로 설정하면 거부됩니다.
+
+체인별로 고정 포트를 지정하려면 체인별 형식으로 TCP(RLPx) 포트와 UDP(discovery v5) 포트를 모두 설정하십시오.
+
+```bash
+--vn.11155420.p2p.listen.tcp=9222 \
+--vn.11155420.p2p.listen.udp=9222 \
+--vn.1301.p2p.listen.tcp=9223 \
+--vn.1301.p2p.listen.udp=9223
+```
+
+## 상호운용성 검증
+
+interop activity는 체인의 블록이 체인 간 의존성을 충족했는지를 판단하는 op-supernode의 구성 요소입니다.
+activity가 *wait*, *advance*, *invalidate*, *rewind* 중 어떤 것을 결정하는지에 대한 배경 설명은 [supernode 설명](/ko/op-stack/interop/supernode#cross-chain-message-safety)을 참고하십시오.
+
+### interop.activation-timestamp
+
+불러온 rollup 구성에서 파생된 상호운용성(interoperability) 활성화 타임스탬프를 재정의합니다.
+기본값은 `0`(rollup 구성의 값 사용)입니다.
+rollup 구성에 아직 활성화 타임스탬프가 포함되지 않은 사용자 정의 devnet에서 interop을 활성화할 때만 설정하십시오.
+
+<Tabs>
+  <Tab title="구문">`--interop.activation-timestamp=<value>`</Tab>
+  <Tab title="예시">`--interop.activation-timestamp=1735689600`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP=`</Tab>
+</Tabs>
+
+### interop.log-backfill-depth
+
+initiating message 로그 수집 범위를 L2 tip에서 이 기간만큼 과거로 확장하며, interop 활성화 타임스탬프를 하한으로 합니다.
+검증은 여전히 local safe head 이후부터만 시작됩니다. backfill은 검증에 필요할 때 로그를 사용할 수 있도록 미리 수집합니다.
+interop 활성화 타임스탬프를 rollup 구성 또는 `--interop.activation-timestamp`를 통해 알 수 있어야 합니다.
+기본값은 `0s`(backfill 없음)입니다.
+
+<Tabs>
+  <Tab title="구문">`--interop.log-backfill-depth=<value>`</Tab>
+  <Tab title="예시">`--interop.log-backfill-depth=168h`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_INTEROP_LOG_BACKFILL_DEPTH=`</Tab>
+</Tabs>
+
+## JSON-RPC 서버
+
+supernode는 activity 메서드와 모든 체인의 op-node RPC를 하나의 HTTP 엔드포인트로 다중화하는 단일 JSON-RPC 서버를 노출합니다.
+체인별 RPC 네임스페이스는 같은 서버에서 `/<chainID>/` 경로 접두사 아래에 마운트됩니다.
+예를 들어 `POST /11155420/`은 OP Sepolia op-node RPC에 도달합니다.
+activity RPC 메서드(`superroot_atTimestamp`, `supernode_syncStatus`, `heartbeat_check`)는 루트에 노출됩니다.
+예를 들어 메서드 `superroot_atTimestamp`를 사용한 `POST /`는 SuperRoot activity에 도달합니다.
+
+### rpc.addr
+
+JSON-RPC 서버가 바인딩하는 주소입니다.
+기본값은 `0.0.0.0`입니다.
+
+<Tabs>
+  <Tab title="구문">`--rpc.addr=<value>`</Tab>
+  <Tab title="예시">`--rpc.addr=0.0.0.0`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_RPC_ADDR=`</Tab>
+</Tabs>
+
+### rpc.port
+
+JSON-RPC 서버가 수신하는 포트입니다.
+기본값은 `8545`입니다.
+
+<Tabs>
+  <Tab title="구문">`--rpc.port=<value>`</Tab>
+  <Tab title="예시">`--rpc.port=8545`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_RPC_PORT=`</Tab>
+</Tabs>
+
+### rpc.enable-admin
+
+admin 네임스페이스 RPC 메서드를 활성화합니다.
+기본값은 `false`입니다.
+신뢰할 수 없는 네트워크에 노출되지 않은 엔드포인트에서만 활성화하십시오.
+
+<Tabs>
+  <Tab title="구문">`--rpc.enable-admin=<value>`</Tab>
+  <Tab title="예시">`--rpc.enable-admin=true`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_RPC_ENABLE_ADMIN=`</Tab>
+</Tabs>
+
+## 로깅
+
+로깅은 최상위 수준에서 구성합니다.
+supernode와 모든 virtual node는 하나의 logger를 공유합니다. 체인별 `--vn.*.log.*` 플래그는 네임스페이스에 나타나지만 별다른 알림 없이 무시됩니다.
+
+### log.level
+
+출력할 최소 로그 심각도입니다.
+유효한 값은 `trace`, `debug`, `info`, `warn`, `error`, `crit`입니다.
+기본값은 `info`입니다.
+
+<Tabs>
+  <Tab title="구문">`--log.level=<value>`</Tab>
+  <Tab title="예시">`--log.level=info`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_LOG_LEVEL=`</Tab>
+</Tabs>
+
+### log.format
+
+로그 출력 형식입니다.
+유효한 값은 `text`, `terminal`, `logfmt`, `logfmtms`, `json`, `jsonms`입니다(`*ms` 변형은 밀리초 타임스탬프를 추가합니다).
+기본값은 `text`입니다.
+구조화된 로그 파이프라인으로 로그를 수집하는 경우 `logfmt` 또는 `json`으로 설정하십시오. 기본값 `text`는 사람이 직접 읽기 위한 형식입니다.
+
+<Tabs>
+  <Tab title="구문">`--log.format=<value>`</Tab>
+  <Tab title="예시">`--log.format=json`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_LOG_FORMAT=`</Tab>
+</Tabs>
+
+### log.color
+
+스트림이 터미널인지 여부와 관계없이 `text` 로그 출력에 ANSI 색상 코드를 강제로 적용합니다.
+기본값은 `false`입니다.
+
+<Tabs>
+  <Tab title="구문">`--log.color=<value>`</Tab>
+  <Tab title="예시">`--log.color=true`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_LOG_COLOR=`</Tab>
+</Tabs>
+
+## 메트릭 및 프로파일링
+
+메트릭 및 프로파일링 엔드포인트는 최상위 수준에서 구성합니다.
+메트릭 서버는 모든 체인 컨테이너의 카운터를 모아 체인별 Prometheus 레이블과 함께 하나의 엔드포인트에 노출합니다.
+
+### metrics.enabled
+
+Prometheus 메트릭 서버를 활성화합니다.
+기본값은 `false`입니다.
+
+<Tabs>
+  <Tab title="구문">`--metrics.enabled=<value>`</Tab>
+  <Tab title="예시">`--metrics.enabled=true`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_METRICS_ENABLED=`</Tab>
+</Tabs>
+
+### metrics.addr
+
+메트릭 서버가 바인딩하는 주소입니다.
+기본값은 `0.0.0.0`입니다.
+
+<Tabs>
+  <Tab title="구문">`--metrics.addr=<value>`</Tab>
+  <Tab title="예시">`--metrics.addr=0.0.0.0`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_METRICS_ADDR=`</Tab>
+</Tabs>
+
+### metrics.port
+
+메트릭 서버가 수신하는 포트입니다.
+기본값은 `7300`입니다.
+
+<Tabs>
+  <Tab title="구문">`--metrics.port=<value>`</Tab>
+  <Tab title="예시">`--metrics.port=7300`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_METRICS_PORT=`</Tab>
+</Tabs>
+
+### pprof.enabled
+
+pprof 프로파일링 엔드포인트를 활성화합니다.
+기본값은 `false`입니다.
+
+<Tabs>
+  <Tab title="구문">`--pprof.enabled=<value>`</Tab>
+  <Tab title="예시">`--pprof.enabled=true`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_PPROF_ENABLED=`</Tab>
+</Tabs>
+
+### pprof.addr
+
+pprof 서버가 바인딩하는 주소입니다.
+기본값은 `0.0.0.0`입니다.
+
+<Tabs>
+  <Tab title="구문">`--pprof.addr=<value>`</Tab>
+  <Tab title="예시">`--pprof.addr=0.0.0.0`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_PPROF_ADDR=`</Tab>
+</Tabs>
+
+### pprof.port
+
+pprof 서버가 수신하는 포트입니다.
+기본값은 `6060`입니다.
+
+<Tabs>
+  <Tab title="구문">`--pprof.port=<value>`</Tab>
+  <Tab title="예시">`--pprof.port=6060`</Tab>
+  <Tab title="환경 변수">`OP_SUPERNODE_PPROF_PORT=`</Tab>
+</Tabs>
+
+## 다음 단계
+
+* 권장 설정과 시작용 구성은 [supernode 구성 가이드](/ko/node-operators/guides/configuration/supernode)를 따르십시오.
+* op-supernode가 무엇이며 왜 존재하는지는 [supernode 설명](/ko/op-stack/interop/supernode)을 읽어 보십시오.
+* `--vn.*` 네임스페이스에서 사용할 수 있는 전체 플래그 목록은 [op-node 구성 레퍼런스](/ko/node-operators/reference/op-node-config)를 읽어 보십시오.
+* 구현 세부 사항은 모노레포의 [op-supernode 소스](https://github.com/ethereum-optimism/optimism/tree/develop/op-supernode)를 참고하십시오.

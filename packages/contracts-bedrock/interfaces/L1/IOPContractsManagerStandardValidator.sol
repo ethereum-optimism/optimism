@@ -39,6 +39,7 @@ interface IOPContractsManagerStandardValidator {
         ISystemConfig sysCfg;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
+        bytes32 zkPrestate;
         uint256 l2ChainID;
         address proposer;
     }

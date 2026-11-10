@@ -72,6 +72,10 @@ The implementations fix the bounds each chain's withdrawal delays must fall with
 | `--min-dispute-game-finality-delay-seconds`, `--max-dispute-game-finality-delay-seconds` | `AnchorStateRegistry` | Time after a game resolves before its result is final | 12 hours to 3.5 days |
 | `--min-withdrawal-delay-seconds`, `--max-withdrawal-delay-seconds` | `DelayedWETH` | Time between unlocking a bond and withdrawing it | 12 hours to 7 days |
 
+<Unreleased component="op-deployer" />
+
+The implementations include `ZKDisputeGame` and its `SP1PlonkAdapter`, which wraps a raw SP1 verifier. On Ethereum mainnet and Sepolia, op-deployer uses Succinct's release-approved verifier. On any other L1, pass `--sp1-verifier-address`, or the command fails.
+
 ### Output
 
 This command will deploy implementations, blueprints, and the OPCM. Deployments are (for the most part)

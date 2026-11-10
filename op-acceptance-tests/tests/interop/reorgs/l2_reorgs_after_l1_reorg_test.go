@@ -16,6 +16,7 @@ import (
 type checksFunc func(t devtest.T, sys *presets.TwoL2SupernodeInterop)
 
 func TestL2ReorgAfterL1Reorg(gt *testing.T) {
+	gt.Parallel()
 	gt.Run("unsafe reorg", func(gt *testing.T) {
 		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
 		// Capture refs that must remain canonical before the manual L1 sequencing loop runs,
@@ -66,7 +67,7 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 // to-be-reorged window.
 // postChecks runs after the reorg has been recovered.
 func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preEarlyChecks, preChecks, postChecks checksFunc) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)

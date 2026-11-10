@@ -1,0 +1,58 @@
+---
+title: proxyd
+description: RPC 요청 라우터 및 프록시인 proxyd의 정식 허브입니다. proxyd가 하는 일, 운영 주체, 그리고 가이드, 구성, 릴리스, 소스의 위치를 안내합니다.
+diataxis: explanation
+---
+
+proxyd는 OP Stack의 RPC 요청 라우터이자 프록시입니다. 여러 백엔드 node 앞단에 위치하여 클라이언트에게
+이들을 하나의 안정적인 RPC 엔드포인트로 제공하는 데몬입니다.
+
+## 개요
+
+proxyd는 RPC 메서드를 화이트리스트로 관리하고, 이를 백엔드 서비스 그룹으로 라우팅하며, 실패한 백엔드
+요청을 자동으로 재시도하고, 백엔드 간 부하를 분산하며, 변경 불가능한 응답을 캐시하고, 요청 지연
+시간, 오류율, 백엔드 상태에 대한 메트릭을 노출합니다. 합의 인식(consensus-aware) 모드에서는 추가로 각
+백엔드의 `latest`, `safe`, `finalized` 블록을 추적하고, 정상 백엔드로 구성된 합의 그룹을 결정하며,
+해당 합의를 강제하도록 요청과 응답을 재작성합니다. 그 결과 클라이언트는 체인을 일관된 관점으로 보게
+되고 reorg를 덜 겪게 됩니다.
+
+proxyd가 존재하는 이유는 단일 node로 프로덕션 RPC 트래픽을 처리하는 것이 취약하기 때문입니다. 하나의
+백엔드가 충돌하거나, 포크되거나, 뒤처지면 사용자에게 보이는 다운타임이 됩니다. proxyd는 복제본 풀을
+장애 허용 서비스 계층으로 바꿉니다. proxyd는 프로토콜 구성 요소가 아니라 체인 주변의 인프라입니다.
+
+**운영 주체:** 복제본 node 풀에서 공개 또는 내부 RPC를 제공하는 체인 운영자와 RPC 제공자입니다.
+op-supernode 인스턴스로 구성된 고가용성 풀의 앞단으로도 권장됩니다.
+
+## 시작하기
+
+*   [proxyd 실행](/ko/chain-operators/tools/proxyd): 바이너리를 빌드하고, 구성 파일을 만들고,
+    서비스를 시작합니다.
+
+## 사용 방법 가이드
+
+*   [네트워크 아키텍처](/ko/chain-operators/guides/management/network-architecture):
+    합의 인식 라우팅 모드의 proxyd 뒤에서 공개 RPC를 운영하는 방법을 포함하여, 프로덕션 토폴로지에서
+    proxyd가 위치하는 곳을 설명합니다.
+*   [Supernode 구성](/ko/node-operators/guides/configuration/supernode):
+    합의 인식 proxyd를 op-supernode 인스턴스로 구성된 고가용성 풀의 앞단에 배치합니다.
+
+## 구성 및 플래그 레퍼런스
+
+proxyd는 CLI 플래그가 아니라 TOML 파일로 구성되며, 이 사이트에는 아직 생성된 구성 레퍼런스가 없습니다.
+
+*   [example.config.toml](https://github.com/ethereum-optimism/infra/blob/main/proxyd/example.config.toml):
+    proxyd 소스에 있는, 설명이 포함된 전체 옵션 목록입니다.
+*   [proxyd 가이드](/ko/chain-operators/tools/proxyd)에 합의 인식, 캐싱, 메트릭 설정이 문서화되어
+    있습니다.
+
+## 릴리스
+
+*   [proxyd 릴리스 이력](/ko/releases/proxyd)
+
+## 소스 및 사양 링크
+
+*   Optimism infra 저장소의 [소스: `proxyd/`](https://github.com/ethereum-optimism/infra/tree/main/proxyd).
+    infra 저장소는 생태계 인프라를 위한 모노레포의 확장 저장소입니다.
+    [README](https://github.com/ethereum-optimism/infra/blob/main/proxyd/README.md)에 요청 생애 주기,
+    WebSocket 지원, 합의 인식이 문서화되어 있습니다.
+*   proxyd는 RPC 인프라이므로 OP Stack 사양에 별도의 섹션이 없습니다.

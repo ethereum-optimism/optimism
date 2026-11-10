@@ -119,7 +119,7 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	}
 	l.Info("Downloaded artifacts")
 
-	bundle, err := GetBundleFromFile(inputFile)
+	bundle, err := GetBundleFromFile(l, inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve bundle: %w", err)
 	}

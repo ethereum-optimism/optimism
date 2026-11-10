@@ -468,7 +468,11 @@ pub(crate) mod tests {
     #[test]
     fn test_block_invalid_timestamp_too_far() {
         let mut block = v1_valid_block();
-        block.header.timestamp += 6;
+        // The block is built at wall-clock second `t`, and `block_valid` reads the clock again,
+        // so it may read `t + 1` or later. The bound is `current + 5`. An offset of 6 is accepted
+        // if one second boundary passes between the two reads, so use 10: the test fails only if
+        // more than 4 seconds pass.
+        block.header.timestamp += 10;
         let envelope = v1_envelope(&block);
 
         assert!(matches!(

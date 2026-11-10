@@ -1,0 +1,54 @@
+{/*
+  Standing "Running this in production" callout: the shared OP Enterprise
+  steering snippet for chain-operator decision points.
+
+  Usage (default include - the full Info callout):
+    import OpEnterpriseCallout from "/snippets/op-enterprise-callout.mdx"
+
+    <OpEnterpriseCallout />
+
+  Usage (named export - the body copy alone, for composing into another
+  wrapper such as a Card; pass linked={false} when the wrapper is itself
+  a link, so no nested anchor is rendered):
+    import { OpEnterpriseCalloutBody } from "/snippets/op-enterprise-callout.mdx"
+
+    <OpEnterpriseCalloutBody linked={false} />
+
+  Consumers:
+    - chain-operators/quickstart.mdx (default include)
+    - chain-operators/tutorials/create-l2-rollup/op-challenger-setup.mdx (default include)
+    - chain-operators/guides/management/best-practices.mdx (default include)
+    - use-cases/index.mdx (OpEnterpriseCalloutBody, inside a Card)
+
+  Placement rules: chain-operator decision moments only (quickstart end,
+  create-l2-rollup completion, best-practices). Never inside step sequences
+  or reference pages, and never in app-developer or node-operator journeys.
+
+  Copy rules: Info styling only, never Warning. No product digits: no uptime
+  percentages, response times, support hours, request volumes, tier names, or
+  time-to-production figures; the product page carries its own numbers. Every
+  factual clause must stay re-derivable from a published docs page.
+*/}
+
+export const OpEnterpriseCalloutBody = ({ linked = true }) => (
+  <p>
+    프로덕션 체인은 24시간 연중무휴로 운영되어야 합니다. HA sequencer
+    클러스터, 안정적인 출금 시스템, 일관된 L1 엔드포인트, 안전하게 보호된 핫
+    키, 그리고 견고한 운영이 필요합니다. 이를 직접 운영하고 싶지 않거나,
+    직접 운영하는 부분에 OP Labs 엔지니어링의 지원을 받고 싶다면{" "}
+    {linked ? (
+      <a href="https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise">
+        OP Enterprise
+      </a>
+    ) : (
+      "OP Enterprise"
+    )}{" "}
+    가 완전 관리형 옵션과 지원형 자체 관리 옵션을 제공합니다.
+  </p>
+);
+
+<Info>
+  **프로덕션 환경에서 운영하기**
+
+  <OpEnterpriseCalloutBody />
+</Info>

@@ -1,0 +1,61 @@
+---
+title: kona-host
+description: kona-client에 preimage 데이터를 제공하는 결함 증명 호스트인 kona-host의 정식 허브입니다. kona-host가 하는 일, 운영 주체, 그리고 가이드, 릴리스, 소스, 사양의 위치를 안내합니다.
+diataxis: explanation
+---
+
+kona-host는 OP Stack의 결함 증명(fault proof) 호스트 프로그램입니다.
+[Kona](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona) 프로젝트의 일부로 빌드되는
+네이티브 Rust 바이너리로, [kona-client](/ko/op-stack/components/kona-client)가 실행되는 동안 체인
+데이터를 제공하는 preimage 서버를 실행합니다.
+
+## 개요
+
+kona-client는 네트워크 접근 없이 실행되므로 체인 데이터를 직접 가져올 수 없습니다. kona-client가
+읽는 모든 데이터는 preimage oracle ABI를 통해 키로 요청된 preimage 형태로 전달됩니다. kona-host는
+그 채널의 반대편입니다. 구성된 L1, L1 beacon, L2 엔드포인트에서 요청된 데이터(L1 헤더, 트랜잭션,
+영수증, blob, L2 상태)를 가져오고, 요청 시 올바른 preimage가 준비되도록 클라이언트의 힌트에
+응답하며, 이를 다시 제공합니다. kona-host가 없으면 결함 증명 프로그램은 검증해야 할 체인 상태를
+알 방법이 없습니다.
+
+kona-host는 `single` 모드(interop 이전의 단일 체인) 또는 `super` 모드(interop superchain 클러스터)로
+실행되며, preimage 서버는 두 가지 방식 중 하나로 시작됩니다. `server` 모드에서는 FPVM이 실행하는
+클라이언트 프로그램에 preimage만 제공합니다([cannon](/ko/op-stack/components/cannon)이 kona-client를
+실행할 때 kona-host를 하위 프로세스로 실행하며, `cannon run`에서 `--` 구분자 뒤에 호스트 명령을
+전달합니다). `native` 모드에서는 kona-host가 네이티브 프로세스에서 kona-client를 직접 실행하며,
+witness 생성과 테스트에 유용합니다.
+
+**운영 주체:** 분쟁 게임(dispute game) 참여자가 간접적으로 운영합니다.
+[op-challenger](/ko/op-stack/fault-proofs/challenger)의 `--cannon-kona-server` 플래그는 kona-host
+바이너리를 가리키며, 결함 분쟁이 실행 트레이스 단계에 도달하면 cannon이 이를 실행합니다. 개발자는
+FPVM 없이 kona-client를 실행하기 위해 native 모드로 직접 실행하기도 합니다.
+
+## 시작하기
+
+*   [kona-host 사용법](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/host#usage):
+    저장소 내 README에 호스트 모드, preimage 서버 모드, CLI가 문서화되어 있습니다.
+
+## 사용 방법 가이드
+
+*   [결함 증명 challenger 실행](/ko/use-cases/run-a-fault-proof-challenger):
+    구성된 prestate와 일치하는 kona-host 빌드를 `--cannon-kona-server`로 지정하는 것을 포함하여
+    op-challenger 배포를 구축합니다.
+*   [challenger 구동](/ko/chain-operators/tutorials/create-l2-rollup/op-challenger-setup):
+    필요한 kona-host 바이너리를 어디서 얻는지를 포함하여 새 체인에 맞게 op-challenger를 구성합니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   이 사이트에는 아직 kona-host의 구성 레퍼런스 페이지가 없습니다. kona-host는 전적으로 CLI
+    플래그로 구성되며, 플래그는 `kona-host --help`와
+    [저장소 내 README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/host#usage)에
+    문서화되어 있습니다.
+
+## 릴리스
+
+*   [kona-host 릴리스 이력](/ko/releases/kona-host)
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `rust/kona/bin/host`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/host).
+*   [Pre-image oracle 사양](https://specs.optimism.io/fault-proof/index.html#pre-image-oracle):
+    preimage 키 유형, 힌팅, 부트스트래핑을 포함하여 kona-host가 구현하는 ABI의 규범적 정의입니다.

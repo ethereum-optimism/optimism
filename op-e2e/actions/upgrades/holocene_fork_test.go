@@ -7,11 +7,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -170,13 +169,13 @@ func TestHoloceneInvalidPayload(gt *testing.T) {
 	require.Len(t, b.Transactions(), 2)
 
 	// buffer into the batcher, invalidating the tx via signature zeroing
-	env.Batcher.ActL2BatchBuffer(t, helpers.WithBlockModifier(func(block *types.Block) *types.Block {
+	env.Batcher.ActL2BatchBuffer(t, helpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
 		// Replace the tx with one that has a bad signature.
-		txs := block.Transactions()
-		newTx, err := txs[1].WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
+		i := helpers.PayloadUserTxIndexes(payload)[0]
+		newTx, err := helpers.DecodePayloadTx(t, payload, i).WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
 		require.NoError(t, err)
-		txs[1] = newTx
-		return block
+		payload.Transactions[i] = helpers.EncodeTx(t, newTx)
+		return payload
 	}))
 
 	// generate two more empty blocks

@@ -50,7 +50,6 @@ op-alloy-provider.workspace = true
 # general
 url.workspace = true
 libp2p = { workspace = true, features = ["metrics"] }
-libp2p-stream.workspace = true
 discv5.workspace = true
 futures.workspace = true
 tracing.workspace = true
@@ -63,7 +62,7 @@ strum = { workspace = true, features = ["derive"] }
 backon.workspace = true
 derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "time"] }
 tower.workspace = true
 http-body-util.workspace = true
 

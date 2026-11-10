@@ -8,9 +8,9 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -60,6 +60,8 @@ type ImplementationsConfig struct {
 	CacheDir                           string             `cli:"cache-dir"`
 	UseForge                           bool               `cli:"use-forge"`
 	ForgeSlowBroadcast                 bool               `cli:"forge-slow-broadcast"`
+	// ReceiptQueryInterval is how often to poll for each broadcast's receipt. Zero uses the broadcaster's default.
+	ReceiptQueryInterval time.Duration
 
 	Logger log.Logger
 
@@ -67,6 +69,9 @@ type ImplementationsConfig struct {
 }
 
 func (c *ImplementationsConfig) Check() error {
+	if err := broadcaster.CheckReceiptQueryInterval(c.ReceiptQueryInterval); err != nil {
+		return err
+	}
 	if c.L1RPCUrl == "" {
 		return errors.New("l1RPCUrl must be specified")
 	}
@@ -137,16 +142,11 @@ func (c *ImplementationsConfig) Check() error {
 	if c.Challenger == (common.Address{}) {
 		return errors.New("challenger must be specified")
 	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if !zkEnabled && c.SP1Verifier != (common.Address{}) {
-		return errors.New("sp1 verifier must not be specified when ZK dispute games are disabled")
-	}
 	return nil
 }
 
 func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) error {
-	if !devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag) ||
-		c.SP1Verifier != (common.Address{}) {
+	if c.SP1Verifier != (common.Address{}) {
 		return nil
 	}
 
@@ -182,6 +182,7 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	if cliCtx.IsSet(SP1VerifierAddressFlagName) && cfg.SP1Verifier == (common.Address{}) {
 		return fmt.Errorf("--%s must not be zero when explicitly set", SP1VerifierAddressFlagName)
 	}
+	cfg.ReceiptQueryInterval = cliCtx.Duration(deployer.ReceiptQueryIntervalFlagName)
 	cfg.Logger = l
 
 	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
@@ -251,8 +252,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	if err := cfg.Check(); err != nil {
 		return dio, fmt.Errorf("invalid config for Implementations: %w", err)
 	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(cfg.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if zkEnabled && cfg.SP1Verifier == (common.Address{}) {
+	if cfg.SP1Verifier == (common.Address{}) {
 		chainID, err := deployer.ChainIDFromRPC(ctx, cfg.L1RPCUrl)
 		if err != nil {
 			return dio, fmt.Errorf("failed to select default SP1 verifier: %w", err)
@@ -263,9 +263,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	}
 
 	lgr := cfg.Logger
-	if zkEnabled {
-		lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
-	}
+	lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
 
 	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {
@@ -327,11 +325,12 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 
 		bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-			Logger:  lgr,
-			ChainID: chainID,
-			Client:  l1Client,
-			Signer:  signer,
-			From:    chainDeployer,
+			Logger:               lgr,
+			ChainID:              chainID,
+			Client:               l1Client,
+			Signer:               signer,
+			From:                 chainDeployer,
+			ReceiptQueryInterval: cfg.ReceiptQueryInterval,
 		})
 		if err != nil {
 			return dio, fmt.Errorf("failed to create broadcaster: %w", err)

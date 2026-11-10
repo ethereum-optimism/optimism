@@ -1,0 +1,353 @@
+---
+title: 콘텐츠 가이드
+description: docs.optimism.io에 들어갈 콘텐츠, 각 콘텐츠 유형의 정식 위치, 서드파티 콘텐츠를 표시하는 방법을 설명합니다.
+diataxis: reference
+---
+
+import ThirdPartyContent from "/ko/snippets/third-party-content.mdx"
+import ThirdPartyContentSingle from "/ko/snippets/third-party-content-single.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+import { Unreleased } from "/ko/snippets/unreleased.mdx"
+
+이 페이지는 docs.optimism.io에 어떤 콘텐츠가 들어가는지, 그리고 각
+콘텐츠 유형에 대해 어떤 출처가 정식인지를 정의합니다. 이 페이지는 "이 내용은 어디에
+두어야 하는가?"라는 질문을 pull request마다 다시 논쟁하지 않고 규칙을 인용해 해결하기 위해 존재합니다.
+리뷰어는 변경을 요청할 때 이 페이지의 관련 섹션을 링크해야 합니다.
+
+이 접근 방식은 Kubernetes
+[콘텐츠 가이드](https://kubernetes.io/docs/contribute/style/content-guide/)를 바탕으로 했습니다.
+이 가이드는 같은 두 가지 아이디어로 kubernetes.io를 관리합니다. 사이트에 무엇을 둘지에 대한
+짧은 허용 목록 테스트, 그리고 정식 출처를 다시 서술하기보다 링크하는 것을 엄격하게
+선호하는 원칙입니다.
+
+## 허용되는 것: 세 가지 조건 테스트
+
+콘텐츠는 다음 중 적어도 하나가 참일 때만 docs.optimism.io에 들어갈 수
+있습니다(Kubernetes 콘텐츠 가이드의 서드파티 콘텐츠 규칙을 바탕으로 함).
+
+1.  **퍼스트파티 OP Stack 소프트웨어를 문서화합니다** — 진실의 원천(source of
+    truth)이 [Optimism](https://github.com/ethereum-optimism)
+    저장소에 있는 소프트웨어로, 예를 들어
+    [Releases](/ko/releases) 페이지에 나열된 컴포넌트가 있습니다.
+2.  **OP Stack이 작동하는 데 필요한 서드파티 소프트웨어를 문서화합니다**
+    — 예를 들어, OP Stack 체인이 없으면 실행될 수 없는 L1 실행 클라이언트나 키 관리
+    도구입니다. 이러한 콘텐츠는
+    [`<ThirdPartyContent>` 컴포넌트](#marking-third-party-content)로 표시해야 합니다.
+3.  **다른 곳에 있는 정식 콘텐츠로 안내합니다** — 독자를 올바른 정식 위치로
+    보내는 것이 역할인 선택, 방향 안내, 또는 허브 페이지입니다(예를 들어, 각
+    SDK의 자체 문서에 링크하는 큐레이션된 SDK 매트릭스).
+
+세 가지 조건 중 어느 것도 충족하지 않는 콘텐츠 — 도구 홍보,
+프로젝트별 마케팅, 또는 퍼스트파티도 아니고 OP Stack에 필요하지도 않은
+소프트웨어의 문서 — 는 여기가 아니라 해당 서드파티의 자체 사이트에 두어야 합니다.
+
+## 다시 서술하지 말고 링크하기: 이중 소싱 금지
+
+정식 출처가 이미 존재하는 곳에서는 **링크하고, 절대 다시 서술하지 마세요**.
+Kubernetes 콘텐츠 가이드는 그 이유를 명확히 밝힙니다. 이중 소싱된 콘텐츠는
+"유지 관리에 두 배의 노력이 들고 더 빨리 낡는다"는 것입니다.
+
+실제로는 다음과 같습니다.
+
+*   **규범적 프로토콜 텍스트를 절대 바꿔 쓰지 마세요.** 개념은 설명 문서 수준의 깊이로
+    자신의 말로 설명한 다음, 규범적 정의는
+    [OP Stack 스펙](https://specs.optimism.io/)의 정확한 섹션에 딥링크합니다.
+*   **현재 유지되고 있는 다른 문서의 레퍼런스 자료를 절대 복사하지 마세요.**
+    컴포넌트의 book, README, 또는 상위 API 레퍼런스가 이미 문서화하고 있다면
+    그것에 링크합니다.
+*   **다른 시스템이 관리하는 사실 표(버전, 주소, 활성화 시점,
+    플래그 목록)를 절대 포크하지 마세요.** 진실의 원천에서 렌더링하거나 링크합니다.
+
+## 정식 위치
+
+대상마다 하나의 위치. 아래 매트릭스는 OP Stack 문서 영역의
+세 레이어 — 프로토콜, 컴포넌트, 주변 생태계 — 에 걸쳐 각 콘텐츠 유형에
+정식 위치를 할당하고, 각각에 대해 docs.optimism.io가 무엇을 담는지
+명시합니다.
+
+| 레이어 | 콘텐츠 유형 | 정식 위치 | docs.optimism.io가 담는 것 |
+| --- | --- | --- | --- |
+| 프로토콜 | 규범적 프로토콜 동작 | [specs.optimism.io](https://specs.optimism.io/) | 딥링크로 스펙을 인용하는 설명 및 안내 페이지 — 규범적 텍스트를 다시 서술하지 않음 |
+| 프로토콜 | 하드포크 활성화 및 체인 메타데이터 | [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) | 레지스트리의 구조화된 데이터에서 렌더링하여 결합한 페이지 — 수동으로 복사하지 않음 |
+| 컴포넌트 | 컴포넌트 실행에 관한 개념, how-to, 튜토리얼 | docs.optimism.io(완전한 소유) | 페이지 자체, 예: [batcher 가이드](/ko/chain-operators/guides/configuration/batcher) |
+| 컴포넌트 | 플래그, 명령어, 구성 레퍼런스 | 확정된 태그의 공개 릴리스 산출물(해당 `--help` 출력, 또는 해당 태그 소스의 스키마) | `reference/` 아래에 릴리스 라인별로 버전이 관리되는 생성된 페이지만 해당 — [컴포넌트 레퍼런스](#component-reference) 참고. 수동 관리 플래그 표는 절대 두지 않음 |
+| 컴포넌트 | 구현 내부 구조 및 개발자 book(예: [kona](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona), [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth)) | 소스 옆에서 관리되는 컴포넌트의 개발자 문서 | 심층 자료로 링크하는 방향 안내 및 선택 페이지 |
+| 주변 생태계 | SDK 및 생태계 도구(예: [viem](https://viem.sh/op-stack), wagmi) | 상위 프로젝트의 자체 문서 | 지원 매트릭스가 있는 하나의 큐레이션 허브. 모든 목록 항목에 `<ThirdPartyContent>` 표시 |
+
+매트릭스의 조항별 선례:
+
+*   **스펙은 결합하되, 절대 미러링하지 않습니다.** Kubernetes는 설계 문서를 산문으로
+    복사하는 대신 구조화된
+    [feature gates 레퍼런스](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/)를
+    통해 기능 생명주기를 문서화합니다.
+*   **컴포넌트마다 하나의 정체성 페이지.** Cloudflare는 제품별로 통일된
+    [콘텐츠 전략](https://developers.cloudflare.com/style-guide/documentation-content-strategy/)을
+    공개하여 모든 제품의 문서 세트가 같은 형태를 갖도록 합니다.
+*   **주변 생태계에 대한 큐레이션 매트릭스.** Stripe의
+    [SDK 페이지](https://docs.stripe.com/sdks)는 하나의 표에서 클라이언트
+    인터페이스를 구분하고, ethereum.org는 성문화된
+    [등재 기준](https://ethereum.org/en/contributing/adding-products/)을 공개하여
+    큐레이션이 PR마다의 논쟁이 아니라 정책 적용이 되도록 합니다.
+*   **컴포넌트가 자신의 문서 위치를 선언합니다.** 각 컴포넌트의 README는
+    [op-deployer README](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/README.md)
+    모델을 따라 정식 문서를 가리켜야 합니다.
+
+두 페이지가 모두 하나의 주제를 주장할 수 있는 경우 매트릭스가 결정합니다. 매트릭스가
+해당 경우를 다루지 않는다면 문서 PR에서 제기하고 새 행을 제안하세요.
+이 페이지의 수정은 다른 문서 변경과 동일한 리뷰를 거칩니다.
+
+## 컴포넌트 레퍼런스
+
+모든 퍼스트파티 컴포넌트는 이 문서에 하나의 레퍼런스를 가지며, 이 레퍼런스는
+명령줄 인터페이스, JSON-RPC API, 메트릭을 다루고, 모든 페이지가
+자동 생성됩니다. 이 섹션은 컴포넌트 간에 레퍼런스를 통일하는 규약입니다.
+생성기와 그 린트가 이를 강제하며, 변경이 규약을 깨뜨릴 경우 리뷰어가
+이 섹션을 인용합니다.
+
+**대상 컴포넌트:** op-node, op-batcher, op-proposer, op-challenger,
+op-conductor, op-supernode, op-deployer, op-reth, kona-node. 컴포넌트는
+수동으로 작성한 페이지가 아니라 생성기에 추가됨으로써만 목록에 합류합니다.
+
+### 진실의 원천
+
+모든 인터페이스는 **확정된** 릴리스 태그의 컴포넌트에서 생성되며,
+pre-release에서는 절대 생성하지 않습니다. 또한 [버전](#versions)에서 설명하는
+`develop` 버전으로 생성하는 경우를 제외하고는 `develop`에서 생성하지 않습니다.
+
+*   **명령줄:** **공개 릴리스 산출물**(해당 태그로 공개된 Docker 이미지,
+    또는 릴리스 바이너리가 공개된 경우 그 바이너리)의 `--help` 출력. `--help`는
+    urfave/cli로 만든 Go 프로그램이든 clap으로 만든 Rust
+    프로그램이든 모든 바이너리가 같은 방식으로 노출하는 유일한 인터페이스이며,
+    정의상 릴리스된 바이너리가 받아들이는 것 그 자체입니다. 따라서 잘못된 커밋에서
+    실행된 소스 파서처럼 릴리스와 어긋날 수 없습니다. geth와 reth도
+    같은 출력으로 CLI를 문서화합니다.
+*   **JSON-RPC:** 해당 태그의 컴포넌트 소스에 있는 메서드 등록: Go 서비스가
+    등록하는 `rpc.API` namespace, 그리고 kona-node의 jsonrpsee trait에 있는 `#[rpc]`
+    및 `#[method]` attribute. 상위 클라이언트의 RPC를 상속하는 컴포넌트(op-reth)는
+    상속된 namespace에 대해서는 상위 레퍼런스를 가리키고, OP Stack
+    추가분만 생성합니다.
+*   **메트릭:** 해당 태그의 컴포넌트 소스에 있는 메트릭 정의(이름, 유형, 레이블, help 문자열)로,
+    상위 클라이언트에 대해서도 같은 규칙을 따릅니다.
+*   deploy config처럼 `--help`가 없는 **구성 스키마**는 같은 태그의 소스에서
+    생성합니다.
+
+### 렌더링
+
+프레임워크와 관계없이 하나의 생성기, 하나의 출력 형태를 사용합니다. 모든 플래그는
+표의 한 행(플래그, 환경 변수, 기본값, 설명)으로 렌더링되며, 운영자가 터미널에 표시되는
+내용과 대조할 수 있도록 원문 그대로의 `--help` 텍스트가 펼칠 수 있는 블록으로
+뒤따릅니다. RPC 페이지는 namespace마다 하나의 섹션으로 렌더링되며,
+메서드 표(메서드, 파라미터, 결과, 설명)를 포함합니다. 메트릭
+페이지는 하나의 표(이름, 유형, 레이블, 설명)로 렌더링됩니다.
+
+### 페이지 트리
+
+*   최상위 명령어마다 하나의 페이지.
+*   하위 명령어 그룹은 하위 명령어마다 하나의 제목으로 상위 페이지에 합쳐지므로,
+    하위 명령어는 별도 페이지 없이도 앵커로 딥링크할 수 있습니다
+    (`db/checksum#mdbx`).
+*   모든 명령어가 반복하는 옵션 블록(로깅, 메트릭, 프로파일링,
+    RPC)은 컴포넌트마다 하나의 `global-options` 페이지로 올립니다.
+*   명령어 페이지 옆에 컴포넌트마다 하나의 `rpc` 페이지와 하나의 `metrics` 페이지를
+    둡니다.
+*   URL은 `reference/<component>/<version>/<page>`이며, 이보다 깊어지지 않습니다.
+
+### 버전
+
+*   **마이너 릴리스 라인**(`v1.19`, `v2.4`)마다 하나의 버전을 두며, 해당 라인의
+    최신 확정 패치에서 생성합니다. 출처 헤더에 정확한 태그를 명시합니다.
+*   가장 최신 라인이 기본값이며 **Latest** 태그가 붙습니다. 최신 세 개의
+    라인이 공개되며, 그보다 오래된 라인은 제거되고 최신 라인으로 리디렉션됩니다.
+*   인터페이스를 변경하는 패치 릴리스는 해당 라인을 그 자리에서 다시 생성합니다.
+*   추가로 `develop`이라는 버전이 하나 있으며, **Unreleased** 태그가 붙고,
+    컴포넌트에 영향을 주는 모든 병합 시 `develop` 브랜치에서 생성됩니다. 출처에는
+    커밋이 명시되며, 페이지에는 `noindex: true`가 붙어 있어
+    릴리스되지 않은 동작이 사이트 검색이나 검색 엔진에 절대 나타나지 않습니다. 이 버전은
+    `<Unreleased>` 콜아웃을 본 독자가 앞으로 무엇이 올지 확인할 수 있도록
+    존재합니다.
+
+### 출처 표시와 수동 편집 금지
+
+*   모든 생성된 페이지는 산문보다 앞, import보다 뒤에 `DO NOT EDIT` 주석으로
+    시작하며, 정확한 태그(`develop` 버전의 경우 커밋)를 명시하고,
+    GitHub 릴리스에 링크하며, 생성에 사용된 산출물을 명시합니다.
+    생성기의 manifest는 컴포넌트별, 버전별로 태그,
+    산출물, 콘텐츠 해시를 기록합니다.
+*   릴리스 노트는 링크하며, 절대 복사하지 않습니다. 출처 링크가 해당 릴리스의
+    변경 사항을 가리키는 포인터이며, 생성된
+    [릴리스 이력](/ko/releases) 페이지가 여전히 릴리스 노트의 위치입니다.
+*   **최상위 `reference/` 디렉터리 아래의 어떤 것도 수동으로 작성하지 않습니다.**
+    방향 안내("CLI가 어떻게 구성되어 있는가"), 값 선택에 대한 조언, 그리고
+    선택된 플래그에 대한 참고 사항은 페르소나 탭의 가이드에 두고
+    레퍼런스로 링크합니다. `pnpm lint:reference`는 생성된 헤더가 없는
+    `reference/` 아래의 모든 페이지를 실패 처리합니다.
+*   생성된 페이지를 수동으로 편집하면 다음 실행 시 생성기의 drift 검사에서
+    실패합니다. 대신 다시 생성하세요.
+
+<Note>
+  **전환 기간.** 현재 공개된 컴포넌트 레퍼런스는 페르소나 탭 안에 있으며
+  (예: `chain-operators/reference/`와
+  `node-operators/op-reth/cli/`), 일부는 생성되고 일부는 수동으로 관리됩니다.
+  각 컴포넌트가 생성기에 합류하면서 최상위 `reference/` 트리로 이동하며,
+  위의 규칙은 컴포넌트가 이동한 후부터 적용됩니다.
+  그때까지 어디에도 새로운 수동 관리 플래그 표를 추가하지 마세요. 대신
+  컴포넌트를 생성기에 추가하세요.
+</Note>
+
+### 재생성과 자동화
+
+아무도 생성기를 수동으로 실행하지 않으며, 에이전트에 의존하는 부분도 없습니다. 아래의
+모든 작업은 monorepo CI의 결정론적 스크립트이며, 그 출력은
+생성기 자체의 `--check`로 검증할 수 있습니다.
+
+*   **모든 확정 릴리스 태그마다** CI 작업이 해당 릴리스의 산출물로
+    생성기를 실행하고, 다시 생성된 버전, manifest, 리디렉션을 담은
+    문서 pull request를 엽니다. 문서 팀이 이를 리뷰하고 병합합니다. 태그가 공개된 지
+    일주일이 지났는데도 그러한 pull request가 없다면 파이프라인 버그이므로 이슈를 등록하세요.
+*   **대상 컴포넌트에 영향을 주는 `develop` 병합마다** 같은
+    작업이 해당 컴포넌트의 `develop` 버전을 다시 생성하고 리뷰 없이 병합합니다.
+    편집 콘텐츠가 없고 검색 색인에도 포함되지 않기 때문입니다.
+*   **모든 문서 pull request마다** CI가 문서 린트(내비게이션,
+    리디렉션, 레퍼런스, 링크 정책)를 실행합니다.
+*   **매주** CI가 GitHub Releases에서 [릴리스 이력](/ko/releases) 페이지를
+    다시 생성하여 하나의 누적 pull request로 만들고, 레퍼런스
+    린트를 strict 모드로 실행합니다. strict 모드에서는 이미 릴리스가 태그된
+    `<Unreleased>` 콜아웃이 있으면 실패하고, 버전을 명시하지 않은 콜아웃을 나열하여
+    유지 관리자가 무엇이 배포되었는지 확인할 수 있게 합니다.
+
+각 작업은 해당 작업이 지원하는 생성기와 함께 도입됩니다. 작업이 존재하기 전까지는
+해당 단계를 수동으로 수행하며, 규약은 여전히 적용됩니다.
+
+### 릴리스되지 않은 변경 사항 문서화
+
+docs.optimism.io는 `develop`에서 배포되고, 컴포넌트는 릴리스 태그에서 배포됩니다.
+동작을 변경하는 컴포넌트 pull request는 다음과 같이 같은 pull request에서
+문서를 업데이트해야 합니다.
+
+*   **생성된 레퍼런스:** 아무것도 하지 않습니다. 파이프라인이 다음 확정 태그에서
+    컴포넌트의 레퍼런스를 다시 생성합니다.
+*   **수동으로 작성한 가이드와 설명 문서:** 같은 pull request에서 산문을 수정하고,
+    변경된 문장을 컴포넌트 이름을 명시한 `<Unreleased>` 컴포넌트로
+    감쌉니다. 변경이 병합될 때는 해당 변경이 포함될 릴리스를 보통
+    알 수 없으므로 버전은 선택 사항입니다. 알고 있다면 명시합니다.
+
+    ```mdx
+    import { Unreleased } from "/snippets/unreleased.mdx"
+
+    <Unreleased component="op-reth" />
+    <Unreleased component="op-reth" version="v2.5.0" />
+    ```
+
+    렌더링 결과:
+
+    <Unreleased component="op-reth" />
+
+    이 콜아웃은 임시입니다. 콜아웃에 버전이 명시되어 있으면, 해당 태그가 생긴 후
+    `pnpm lint:reference`가 실행될 때마다 경고를 표시하고, 린트를 strict 모드로
+    실행하는 주간 CI 점검은 콜아웃이 제거될 때까지 실패합니다. 이 검사를
+    pull request CI가 아닌 주간 작업에 둔 이유는 릴리스 태그가 생겼다고 해서
+    관련 없는 pull request가 실패하는 일이 없도록 하기 위해서입니다. 콜아웃에
+    버전이 명시되어 있지 않으면 주간 점검이 이를 나열하고,
+    유지 관리자가 변경이 배포되었음을 확인한 후 제거합니다. 린트는 또한 대상 목록에 없는
+    컴포넌트를 명시한 콜아웃이나, 완전한 `vX.Y.Z` 형식이 아닌 버전을 명시한 콜아웃도
+    거부합니다. 그러한 콜아웃은 결코 만료될 수 없기 때문입니다.
+*   **기능 제거:** 같은 pull request에서 콜아웃을 추가하거나, 페이지의
+    프런트매터에 `deprecated: true`를 설정합니다. 페이지 삭제는 릴리스가 배포된 후에만
+    리디렉션과 함께 수행합니다.
+*   릴리스 전에 공개되어서는 안 되는 **엠바고 콘텐츠**는 대신
+    `flag:merge-pending-release` pull request 레이블을 사용합니다.
+
+## 서드파티 콘텐츠 표시
+
+<Info>
+  이 섹션은 Kubernetes [`thirdparty-content` shortcode](https://kubernetes.io/docs/contribute/style/content-guide/)
+  패턴을 따르는 `<ThirdPartyContent>` 컴포넌트를 설명합니다. 모든 서드파티 언급에
+  같은 방식으로 표시하므로, 서드파티 콘텐츠를 grep으로 찾고 감사할 수 있습니다.
+</Info>
+
+서드파티 소프트웨어를 문서화하거나 나열하는 페이지 또는 섹션([세 가지 조건 테스트](#whats-allowed-the-three-clause-test)의
+조건 2와 3)은 `<ThirdPartyContent>` 컴포넌트로 시작해야 합니다.
+
+```mdx
+import ThirdPartyContent from "/snippets/third-party-content.mdx"
+
+<ThirdPartyContent />
+```
+
+렌더링 결과:
+
+<ThirdPartyContent />
+
+페이지 전체가 하나의 서드파티 프로젝트나 제품에 관한 것이라면 대신
+단일 프로젝트용 변형을 사용합니다.
+
+```mdx
+import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
+
+<ThirdPartyContentSingle />
+```
+
+렌더링 결과:
+
+<ThirdPartyContentSingle />
+
+## 규범적 스펙 인용
+
+<Info>
+  이 섹션은 `<NormativeSpec>` 컴포넌트를 설명합니다. 이 컴포넌트는
+  [이중 소싱 금지](#link-dont-restate-the-dual-sourcing-ban)를 프로토콜 페이지에
+  적용하는 상시 콜아웃입니다.
+  [OP Stack 스펙](https://specs.optimism.io/)에 주제가 규범적으로 정의된 모든 페이지에
+  같은 방식으로 표시하므로, 스펙 인용이 일관되고 grep으로 찾을 수 있습니다.
+</Info>
+
+이 컴포넌트는 **설명 문서 페이지 전용**입니다. 즉 프런트매터에
+`diataxis: explanation`을 선언한 페이지로, 주로 OP Stack
+섹션의 개념 페이지입니다. 주제가 스펙에 규범적으로 정의된 설명 문서 페이지는
+`<NormativeSpec>` 컴포넌트로 시작해야 하며, 해당 주제를 정의하는 정확한 스펙
+섹션에 딥링크합니다.
+
+```mdx
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The derivation pipeline"
+  title="L2 chain derivation specification"
+  href="https://specs.optimism.io/protocol/derivation.html"
+  note="This page is a short orientation; it does not restate the spec."
+/>
+```
+
+렌더링 결과:
+
+<NormativeSpec
+  what="derivation pipeline"
+  title="L2 체인 derivation 스펙"
+  href="https://specs.optimism.io/protocol/derivation.html"
+  note="이 페이지는 짧은 방향 안내이며, 스펙을 다시 서술하지 않습니다."
+/>
+
+네 가지 변수는 모두 필수입니다. `what`은 스펙이 정의하는 주제를 명시하고,
+`title`과 `href`는 해당 스펙 섹션의 이름을 명시하고 딥링크하며([링크 정책](/ko/op-stack/contribute/link-policy)에 따라
+현재 경로의 렌더링된 `specs.optimism.io` URL),
+`note`는 스펙을 다시 서술하는 대신 페이지가 무엇을 하는지 밝힙니다.
+
+가이드, 튜토리얼, 레퍼런스 페이지는 이 컴포넌트로 시작하지 **않습니다**.
+이러한 페이지는 프로토콜 동작 방식을 깊이 다루지 않아야 합니다. 그런 깊이는
+설명 문서 페이지나 스펙 자체에 있어야 합니다. 가이드, 튜토리얼, 또는
+레퍼런스 페이지가 스펙에 정의된 개념을 다뤄야 하는 경우, 대신 사용하는 지점에서
+관련 스펙 섹션을 인라인으로 링크합니다.
+
+의도적인 예외가 하나 있습니다.
+[하드포크 레지스트리 페이지](/ko/op-stack/protocol/network-upgrades)는 레퍼런스
+페이지이지만, 레지스트리의 목적이 스펙을 가리키는 것이므로 구조화된
+프런트매터의 스펙 URL과 함께 같은 컴포넌트를 사용합니다.
+
+## 다음 단계
+
+*   문체, 어조, 서식 규칙은 [스타일 가이드](/ko/op-stack/contribute/style-guide)를
+    읽어 보세요.
+*   개발 환경 설정과 pull request 절차는 [기여 가이드](https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/DOCS_CONTRIBUTING.md)를
+    읽어 보세요.
+*   질문이 있으신가요?
+    [Optimism monorepo](https://github.com/ethereum-optimism/optimism/issues)에 이슈를 등록하세요.

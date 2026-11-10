@@ -122,17 +122,25 @@ func testContinuePermissionless(t *testing.T) {
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.standardValidator, validatorCode)
 
-	// The game mode read is the first call made against the pinned OPCM, so an unusable
+	// The implementations read is the first call made against the pinned OPCM, so an unusable
 	// OPCM stops the run before the fork simulation.
 	opcmCode, err := env.l1Client.CodeAt(env.ctx, env.opcm, nil)
 	require.NoError(t, err)
 	setAnvilCode(t, env.l1Client, env.opcm, []byte{byte(vm.PUSH0), byte(vm.PUSH0), byte(vm.REVERT)})
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	err = deployer.Continue(env.ctx, env.config())
-	require.ErrorContains(t, err, "failed to read the OPCM game mode")
+	require.ErrorContains(t, err, "failed to read implementations from OPCM")
 	require.ErrorContains(t, err, env.opcm.Hex())
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.opcm, opcmCode)
+
+	preparedImpls := *env.prepared.ImplementationsDeployment
+	env.prepared.ImplementationsDeployment.DelayedWethImpl = common.Address{0xff}
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	err = deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "the implementations recorded by prepare do not match")
+	require.Equal(t, nonceBefore, pendingNonce(t, env))
+	*env.prepared.ImplementationsDeployment = preparedImpls
 
 	env.preparedSnapshotChain.SystemConfigProxy = common.Address{0xff}
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
@@ -555,6 +563,7 @@ func newContinuationEnvWithIntentMutator(
 		CacheDir:                  cacheDir,
 		SuperchainProxyAdminOwner: superchainPAO,
 		Guardian:                  intent.SuperchainRoles.SuperchainGuardian,
+		ReceiptQueryInterval:      testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
 
@@ -582,6 +591,8 @@ func newContinuationEnvWithIntentMutator(
 		FaultGameSplitDepth:                standard.DisputeSplitDepth,
 		FaultGameClockExtension:            standard.DisputeClockExtension,
 		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
+		SP1Verifier:                        deployMockSP1Verifier(t, l1Client, key),
+		ReceiptQueryInterval:               testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
 
@@ -645,11 +656,12 @@ func newContinuationEnvWithIntentMutator(
 
 func (e *continuationEnv) config() deployer.ContinueConfig {
 	return deployer.ContinueConfig{
-		Workdir:    e.workdir,
-		L1RPCUrl:   e.l1RPC,
-		PrivateKey: e.privateKey,
-		CacheDir:   e.cacheDir,
-		Logger:     e.lgr,
+		Workdir:              e.workdir,
+		L1RPCUrl:             e.l1RPC,
+		PrivateKey:           e.privateKey,
+		CacheDir:             e.cacheDir,
+		Logger:               e.lgr,
+		ReceiptQueryInterval: testReceiptQueryInterval,
 	}
 }
 

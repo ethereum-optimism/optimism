@@ -1,6 +1,5 @@
 //! Contains the hardfork configuration for the chain.
 
-use alloc::string::{String, ToString};
 use alloy_op_hardforks::OpHardfork;
 use core::fmt::Display;
 
@@ -91,19 +90,21 @@ pub struct HardForkConfig {
 }
 
 impl Display for HardForkConfig {
+    /// Formats the activation time of each hardfork on one line, as `Name: time` pairs.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        #[inline(always)]
-        fn fmt_time(t: Option<u64>) -> String {
-            t.map(|t| t.to_string()).unwrap_or_else(|| "Not scheduled".to_string())
-        }
-
-        writeln!(f, "🍴 Scheduled Hardforks:")?;
-        for (name, time) in self.iter() {
-            writeln!(f, "-> {} Activation Time: {}", name, fmt_time(time))?;
+        for (i, (name, time)) in self.iter().enumerate() {
+            if i > 0 {
+                f.write_str(", ")?;
+            }
+            write!(f, "{name}: ")?;
+            match time {
+                Some(time) => write!(f, "{time}")?,
+                None => f.write_str("unscheduled")?,
+            }
         }
         if self.keep_karst_upgrade_gas {
             // Behavioral opt-out flag rather than a scheduled time; only shown when set.
-            writeln!(f, "-> Keep Karst upgrade gas: true")?;
+            f.write_str(", Keep Karst upgrade gas: true")?;
         }
         Ok(())
     }
@@ -224,6 +225,25 @@ mod activate_tests {
 #[cfg(feature = "serde")]
 mod tests {
     use super::*;
+    use alloc::string::ToString;
+
+    #[test]
+    fn test_hardforks_display() {
+        let mut hardforks =
+            HardForkConfig { regolith_time: Some(0), canyon_time: Some(10), ..Default::default() };
+        assert_eq!(
+            hardforks.to_string(),
+            "Regolith: 0, Canyon: 10, Delta: unscheduled, Ecotone: unscheduled, \
+             Fjord: unscheduled, Granite: unscheduled, Holocene: unscheduled, \
+             Pectra Blob Schedule: unscheduled, Isthmus: unscheduled, Jovian: unscheduled, \
+             Karst: unscheduled, Lagoon: unscheduled"
+        );
+
+        hardforks.keep_karst_upgrade_gas = true;
+        assert!(
+            hardforks.to_string().ends_with("Lagoon: unscheduled, Keep Karst upgrade gas: true")
+        );
+    }
 
     #[test]
     fn test_hardforks_deserialize_json() {

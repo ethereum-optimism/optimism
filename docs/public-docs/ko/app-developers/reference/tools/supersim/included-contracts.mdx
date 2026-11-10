@@ -1,0 +1,47 @@
+---
+title: 포함된 컨트랙트
+description: Supersim에 포함된 컨트랙트에 대해 알아봅니다.
+diataxis: reference
+---
+
+import SupersimDepositPointer from '/ko/snippets/supersim-deposit-pointer.mdx';
+
+`supersim` 체인 환경에는 OP Stack 상호운용성(interop) 환경을 재현하는 데 도움이 되도록 이미 배포된 컨트랙트가 포함되어 있습니다. L2 시스템의 컨트랙트 주소 예시는 [OP Chain A](./chain-a)를 참조하십시오.
+
+## OP Stack 시스템 컨트랙트(L1)
+
+OP Stack 프로토콜의 일부로서 rollup에 필요한 L1 컨트랙트입니다. 예로는 [OptimismPortal](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol), [L1StandardBridge](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1StandardBridge.sol), [L1CrossDomainMessenger](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol)가 있습니다.
+
+자세한 내용은 [예시 컨트랙트](/ko/op-mainnet/network-information/op-addresses#ethereum-mainnet) 또는 [소스 코드](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1)를 참조하십시오.
+
+## OP Stack L2 컨트랙트(L2)
+
+L2의 OP Stack 시스템 컨트랙트는 기본적으로 표준 주소에 포함되어 있습니다.
+
+*   [표준 OP Stack predeploy(L2)](https://specs.optimism.io/protocol/predeploys.html)
+*   [상호운용성 predeploy(*실험적*)(L2)](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs)
+*   [OP Stack preinstall(L2)](https://specs.optimism.io/protocol/preinstalls.html?utm_source=op-docs&utm_medium=docs)
+
+## 주변(periphery) 컨트랙트(L2)
+
+`supersim`에서 실행되는 L2 체인에는 기본적으로 OP Stack에 포함되지 않는, 테스트 목적으로 유용한 컨트랙트도 포함되어 있습니다.
+
+### L2NativeSuperchainERC20
+
+크로스체인 토큰 전송을 테스트하기 위해 Supersim에 포함된 간단한 ERC20입니다. 쉽게 테스트할 수 있도록 누구나 민팅할 수 있는(permissionless) 기능을 포함하고 있습니다.
+
+소스: [L2NativeSuperchainERC20.sol](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/L2NativeSuperchainERC20.sol)
+
+배포 주소: `0x420beeF000000000000000000000000000000001`
+
+#### 새 토큰 민팅
+
+```bash
+cast send 0x420beeF000000000000000000000000000000001 "mint(address _to, uint256 _amount)" $RECIPIENT_ADDRESS 1ether  --rpc-url $L2_RPC_URL
+```
+
+## 다음 단계
+
+*   바닐라 모드에서 실행되는 두 OP Stack 시스템의 네트워크 세부 정보를 확인하십시오: [OPChainA (chainID 901)](/ko/app-developers/reference/tools/supersim/chain-a) 및 [OPChainB (chainID 902)](/ko/app-developers/reference/tools/supersim/chain-b).
+
+<SupersimDepositPointer />

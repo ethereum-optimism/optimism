@@ -12,6 +12,7 @@
  *                          a rendered specs.optimism.io page exists for every specs/**.md file
  *   unbadged-pinned-link   commit- or tag-pinned ethereum-optimism source link without an
  *                          "as of `<tag>`" badge on (or adjacent to) the same line
+ *                          (localized ko/ pages: "`<tag>` 기준")
  *   dead-internal-link     root-relative internal link whose target page/asset does not exist
  *                          (docs.json redirects are honored)
  *   malformed-link         internal link target that is neither root-relative, a fragment,
@@ -279,7 +280,8 @@ function lintTree(docsRoot, { specsSrc = null } = {}) {
             const refInfo = parseRef(rest);
             if (refInfo && refInfo.kind !== "floating") {
               const window = [rawLines[i - 1] ?? "", rawLines[i] ?? "", rawLines[i + 1] ?? ""].join("\n");
-              if (!/as of/i.test(window)) {
+              // Localized pages (ko/) render the badge as "(`<tag>` 기준)".
+              if (!/as of/i.test(window) && !/`[^`]+`\s*기준/.test(window)) {
                 add(
                   "unbadged-pinned-link",
                   file,

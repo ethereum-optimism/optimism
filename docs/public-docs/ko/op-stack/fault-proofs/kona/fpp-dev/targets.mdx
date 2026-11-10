@@ -1,0 +1,72 @@
+---
+title: "지원 타깃"
+diataxis: reference
+---
+
+Kona는 LLVM과 `rustc`가 기본적인 지원을 제공할 수 있는 모든 FPVM 타깃을 지원하는 것을 목표로 합니다. 아래는 Kona가 각 FPVM 타깃에
+제공하는 기능을 정리한 표입니다.
+
+| 타깃       | IO  | malloc |
+| ---------- | --- | ------ |
+| `cannon`   | ✅  | ✅     |
+| `asterisc` | ✅  | ✅     |
+
+`kona-std-fpvm` crate는 `mips64`(cannon)와 `riscv64`(asterisc) 아키텍처 모두에 대해 IO 및 allocator 지원을 제공합니다. 모노레포에서 유지 관리되는 재현 가능한 prestate 빌드 파이프라인(kona `justfile`의 `build-cannon-client` recipe 및 결함 증명 릴리스 프로세스)은 cannon만 대상으로 합니다. asterisc용으로 빌드하려면 자체 빌드 파이프라인을 구성해야 합니다.
+
+지원되었으면 하는 기능이 있다면 [이슈를 열거나][new-issue] [기여를 고려해 주십시오][contributing]!
+
+## Asterisc (RISC-V)
+
+Asterisc는 `rv64gc` 타깃 아키텍처를 기반으로 하며, 이 아키텍처는 다음 확장을 정의합니다.
+
+- `RV32I` 지원 - 32비트 기본 명령어 세트
+  - `FENCE`, `ECALL`, `EBREAK`는 linux 커널 시스템 콜의 최소 하위 집합을 구현하도록 고정되어 있습니다.
+    - 작업 진행 중입니다. Golang `risc64` 런타임에서 사용하는 모든 syscall을 지원합니다.
+- `RV64I` 지원
+- `RV32M`+`RV64M`: 곱셈 지원
+- `RV32A`+`RV64A`: Atomics 지원
+- `RV{32,64}{D,F,Q}`: no-op: 부동소수점 미지원(반올림 모드 등에서 IEEE754 결정성이 보장되지 않으며, 복잡성을 감수할 가치도 없기 때문입니다)
+- `Zifencei`: `FENCE.I` no-op: `FENCE.I`가 필요하지 않습니다
+- `Zicsr`: no-op: 다만 Control-and-status 레지스터에 대한 일부 지원은 추후 추가될 수 있습니다.
+- `Ztso`: no-op: Total Store Ordering이 필요하지 않습니다
+- 기타: 인식되지 않는 명령어는 오류 코드와 함께 revert합니다
+
+`asterisc`는 [저장소에 문서화된][asterisc-syscalls] 다양한 syscall을 지원합니다. `kona`는 프로그램이 일부 선택된 syscall을
+직접 호출할 수 있는 인터페이스를 제공합니다.
+
+1. `EXIT` - 제공된 종료 코드로 프로세스를 종료합니다.
+1. `WRITE` - 전달된 버퍼를 전달된 파일 디스크립터에 씁니다.
+1. `READ` - 전달된 파일 디스크립터에서 지정된 바이트 수만큼 읽습니다.
+
+[asterisc-syscalls]: https://github.com/ethereum-optimism/asterisc/blob/master/docs/golang.md#linux-syscalls-used-by-go
+
+## Cannon (MIPS64r2)
+
+Cannon은 [MIPS® Architecture For Programmers Volume II-A: The MIPS64® Instruction Set Reference Manual](https://s3-eu-west-1.amazonaws.com/downloads-mips/documents/MIPS_Architecture_MIPS64_InstructionSet_%20AFP_P_MD00087_06.05.pdf)에 명시된 `mips64r2` 타깃 아키텍처를 기반으로 합니다.
+
+### Syscall
+
+`cannon`이 지원하는 syscall은 `cannon` 명세의 [여기][cannon-syscalls]에서 확인할 수 있습니다.
+
+[cannon-syscalls]: https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html#syscalls
+
+[op-stack]: https://github.com/ethereum-optimism/optimism
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
+[cannon-rs]: https://github.com/op-rs/cannon-rs
+[asterisc]: https://github.com/ethereum-optimism/asterisc
+[fp-specs]: https://specs.optimism.io/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
+[op-succinct]: https://github.com/succinctlabs/op-succinct
+[revm]: https://github.com/bluealloy/revm
+
+[kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
+[issues]: https://github.com/ethereum-optimism/optimism/issues
+[new-issue]: https://github.com/ethereum-optimism/optimism/issues/new
+[contributing]: https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md
+
+[op-labs]: https://github.com/ethereum-optimism
+[bad-boi-labs]: https://github.com/BadBoiLabs

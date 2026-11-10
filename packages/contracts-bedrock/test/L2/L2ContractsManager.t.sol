@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { L2ContractsManager } from "src/L2/L2ContractsManager.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";
@@ -24,7 +23,6 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
-import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -846,7 +844,7 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
     function setUp() public override {
         super.enableInterop();
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        vm.skip(!deploy.cfg().useInterop());
         interopPredeploys.push(Predeploys.CROSS_L2_INBOX);
         interopPredeploys.push(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         interopPredeploys.push(Predeploys.SUPERCHAIN_ETH_BRIDGE);
@@ -988,7 +986,7 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
 
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        vm.skip(deploy.cfg().useInterop());
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
             .sig("isFeatureEnabled(bytes32)")
             .with_key(Features.INTEROP)
@@ -1022,19 +1020,20 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
     }
 }
 
-/// @title L2ContractsManager_Upgrade_InteropWithoutDevFeature_Test
-/// @notice Tests that the upgrade is gated by the INTEROP system feature alone, independent of the
-///         OPTIMISM_PORTAL_INTEROP dev feature. Existing chains activate interop at the Lagoon hard fork
-///         without having set the L2 dev feature bitmap at genesis.
-contract L2ContractsManager_Upgrade_InteropWithoutDevFeature_Test is L2ContractsManager_Upgrade_Test {
+/// @title L2ContractsManager_Upgrade_InteropSystemFeature_Test
+/// @notice Tests that the upgrade is gated by the INTEROP system feature alone, independent of
+///         whether interop was active at genesis. Existing chains activate interop at the Lagoon
+///         hard fork.
+contract L2ContractsManager_Upgrade_InteropSystemFeature_Test is L2ContractsManager_Upgrade_Test {
     using stdStorage for StdStorage;
 
-    /// @notice Tests that upgrade succeeds when the dev feature is enabled but the system feature is not.
-    ///         This is a valid transitional state: interop code is deployed but not yet activated.
-    function test_upgrade_devEnabledSysDisabled_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    /// @notice Tests that upgrade succeeds when interop was active at genesis but the system feature
+    ///         is not set. This is a valid transitional state: interop code is deployed but not yet
+    ///         activated.
+    function test_upgrade_genesisInteropSysDisabled_succeeds() public {
+        vm.skip(!deploy.cfg().useInterop());
 
-        // Clear the INTEROP system feature on L1Block while the dev feature remains enabled.
+        // Clear the INTEROP system feature on L1Block that L2 genesis set.
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
             .sig("isFeatureEnabled(bytes32)")
             .with_key(Features.INTEROP)
@@ -1044,14 +1043,11 @@ contract L2ContractsManager_Upgrade_InteropWithoutDevFeature_Test is L2Contracts
     }
 
     /// @notice Tests that upgrade installs the interop predeploys when the system feature is enabled
-    ///         but the dev feature bitmap is zero, as on a chain activating interop at Lagoon.
-    function test_upgrade_sysEnabledDevDisabled_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-        assertFalse(
-            IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
-        );
+    ///         on a chain without interop at genesis, as on a chain activating interop at Lagoon.
+    function test_upgrade_sysEnabledNoGenesisInterop_succeeds() public {
+        vm.skip(deploy.cfg().useInterop());
 
-        // Set the INTEROP system feature on L1Block while the dev feature remains disabled.
+        // Set the INTEROP system feature on L1Block.
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
             .sig("isFeatureEnabled(bytes32)")
             .with_key(Features.INTEROP)
@@ -1103,7 +1099,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         super.setUp();
         // Skip interop since it requires to call useInterop() on setUp.
         // The upgrade test for interop is in L2ContractsManager_Upgrade_InteropFlagEnabled_Test.
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        vm.skip(deploy.cfg().useInterop());
     }
 
     /// @notice Expects the proxy call path used by L2CM.

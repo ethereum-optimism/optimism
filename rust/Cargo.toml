@@ -96,13 +96,13 @@ rustdoc-args = ["--cfg", "docsrs"]
 # this block to the nested SP1 guest workspace.
 # BEGIN SHARED WORKSPACE LINTS
 [workspace.lints.rust]
-missing-debug-implementations = "warn"
-missing-docs = "warn"
-unreachable-pub = "warn"
-unused-must-use = "deny"
-rust-2018-idioms = { level = "deny", priority = -1 }
-unnameable-types = "warn"
-rust-2024-incompatible-pat = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+unreachable_pub = "warn"
+unused_must_use = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+unnameable_types = "warn"
+rust_2024_incompatible_pat = "warn"
 
 [workspace.lints.rustdoc]
 all = "warn"
@@ -142,7 +142,7 @@ manual_clamp = "warn"
 manual_is_variant_and = "warn"
 manual_string_new = "warn"
 match_same_arms = "warn"
-missing-const-for-fn = "warn"
+missing_const_for_fn = "warn"
 mutex_integer = "warn"
 naive_bytecount = "warn"
 needless_bitwise_bool = "warn"
@@ -151,11 +151,11 @@ needless_for_each = "warn"
 needless_pass_by_ref_mut = "warn"
 nonstandard_macro_braces = "warn"
 option_as_ref_cloned = "warn"
-option-if-let-else = "warn"
+option_if_let_else = "warn"
 or_fun_call = "warn"
 path_buf_push_overwrite = "warn"
 read_zero_byte_vec = "warn"
-redundant-clone = "warn"
+redundant_clone = "warn"
 redundant_else = "warn"
 single_char_pattern = "warn"
 string_lit_as_bytes = "warn"
@@ -174,7 +174,7 @@ unnecessary_struct_initialization = "warn"
 unnested_or_patterns = "warn"
 unused_peekable = "warn"
 unused_rounding = "warn"
-use-self = "warn"
+use_self = "warn"
 useless_let_if_seq = "warn"
 while_float = "warn"
 zero_sized_map_values = "warn"
@@ -364,79 +364,79 @@ reth-rpc-traits = { version = "0.7.0", default-features = false }
 reth-zstd-compressors = { version = "0.7.0", default-features = false }
 
 # ==================== RETH CRATES (git) ====================
-reth = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-basic-payload-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-chain-state = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-chainspec = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-cli = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-cli-commands = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-cli-runner = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-cli-util = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-consensus = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-consensus-common = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-db = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-db-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-db-common = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-downloaders = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-e2e-test-utils = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-engine-local = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-engine-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-engine-tree = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-eth-wire = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-eth-wire-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-ethereum = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-ethereum-cli = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-ethereum-consensus = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-ethereum-forks = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-ethereum-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-evm = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-evm-ethereum = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-exex = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-exex-test-utils = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-execution-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-execution-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-fs-util = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-ipc = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-metrics = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-network = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-network-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-network-peers = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-node-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-node-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-node-core = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-node-ethereum = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-node-events = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-node-metrics = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-payload-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-payload-builder-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-payload-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-payload-util = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-payload-validator = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-provider = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-prune = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-prune-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-revm = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-rpc = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-rpc-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-rpc-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-rpc-engine-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-rpc-eth-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-rpc-eth-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-rpc-server-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-stages = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-stages-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-static-file = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-static-file-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-storage-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-storage-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-storage-overlay = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-tasks = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-tracing = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-transaction-pool = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-trie = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
-reth-trie-common = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
-reth-trie-db = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-basic-payload-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-chain-state = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-chainspec = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-cli = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-cli-commands = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-cli-runner = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-cli-util = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-consensus = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-consensus-common = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-db = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-db-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-db-common = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-downloaders = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-e2e-test-utils = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-engine-local = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-engine-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-engine-tree = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-eth-wire = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-eth-wire-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-ethereum = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-ethereum-cli = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-ethereum-consensus = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-ethereum-forks = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-ethereum-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-evm = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-evm-ethereum = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-exex = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-exex-test-utils = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-execution-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-execution-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-fs-util = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-ipc = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-metrics = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-network = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-network-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-network-peers = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-node-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-node-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-node-core = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-node-ethereum = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-node-events = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-node-metrics = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-payload-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-payload-builder-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-payload-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-payload-util = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-payload-validator = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-provider = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-prune = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-prune-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-revm = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-rpc = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-rpc-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-rpc-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-rpc-engine-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-rpc-eth-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-rpc-eth-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-rpc-server-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-stages = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-stages-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-static-file = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-static-file-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-storage-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-storage-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-storage-overlay = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-tasks = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-tracing = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-transaction-pool = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-trie = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
+reth-trie-common = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2", default-features = false }
+reth-trie-db = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-2" }
 
 # ==================== REVM (latest: op-reth versions) ====================
 revm = { version = "43.0.2", default-features = false }
@@ -743,7 +743,6 @@ spin = "0.10.0"
 strum = { version = "0.27", default-features = false }
 strum_macros = "0.27"
 syn = "2.0"
-tabled = { version = "0.20.0", default-features = false }
 tar = "0.4.44"
 thiserror = { version = "2.0.18", default-features = false }
 unsigned-varint = "0.8.0"

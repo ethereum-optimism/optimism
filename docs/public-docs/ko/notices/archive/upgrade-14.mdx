@@ -1,0 +1,95 @@
+---
+title: Upgrade 14 MT-Cannon 및 Isthmus L1 컨트랙트
+description: Upgrade 14의 호환성을 깨는 변경 사항(breaking changes)에 대비하는 방법을 알아봅니다.
+diataxis: reference
+content_type: notice
+---
+
+<Info>
+  업그레이드 실행 일정은 이 [릴리스 관리 프로젝트 보드](https://github.com/orgs/ethereum-optimism/projects/117/views/12)에서 공개적으로 추적되고 있으며 변경될 수 있습니다. 예상 일정은 다음과 같습니다.
+
+  *   OP Sepolia, Ink Sepolia, Minato Sepolia 업그레이드는 **2025년 4월 9일**을 목표로 합니다.
+  *   OP Mainnet, Soneium Mainnet, Ink Mainnet은 **2025년 4월 25일**에 Upgrade 14를 실행할 예정입니다.
+  *   Optimism이 거버넌스를 담당하는 기타 체인의 업그레이드는 릴리스 관리 프로젝트 보드에서 추적됩니다.
+</Info>
+
+이 페이지에서는 OP Stack 체인의 체인 운영자, 노드 운영자, 사용자를 위해 Upgrade 14 네트워크 업그레이드와 관련된 변경 사항을 설명합니다. 업그레이드 제안은 [여기](https://gov.optimism.io/t/upgrade-proposal-14-isthmus-l1-contracts-mt-cannon/9796)에서, 거버넌스 투표는 [여기](https://vote.optimism.io/?utm_source=op-docs&utm_medium=docs)에서 확인할 수 있습니다.
+
+이 과정의 어느 단계에서든 어려움이 있으면 개발자 지원팀에 문의하시기 바랍니다.
+
+## Upgrade 14에 포함된 내용
+
+Upgrade 14는 두 가지 주요 구성 요소로 이루어져 있습니다.
+
+*   **MT-Cannon**: MIPS-64 명령어 세트와 멀티스레드 프로그램을 지원하는 결함 증명(fault proof) VM 업그레이드로, 결함 증명 프로그램의 메모리 제약을 제거합니다.
+*   **Operator Fee**: 체인이 ZK 증명, alt-DA, 커스텀 gas 토큰을 사용할 때 사용자 수수료를 정확하게 책정하는 데 따르는 문제를 해결하기 위한 메커니즘의 첫 번째 단계를 도입합니다.
+
+## 기술 세부 사항
+
+### MT-Cannon
+
+MT-Cannon은 MIPS-64 명령어 세트와 멀티스레드 프로그램을 지원하는 [결함 증명 VM](/ko/op-stack/fault-proofs/fp-components#fault-proof-virtual-machine)인 [Cannon](/ko/op-stack/fault-proofs/cannon)의 업그레이드로, 결함 증명 프로그램의 메모리 제약을 제거합니다.
+
+주요 변경 사항:
+
+*   에뮬레이션되는 CPU 아키텍처가 이제 MIPS32가 아닌 MIPS64입니다.
+    *   레지스터가 이제 64비트 값을 저장합니다.
+    *   메모리 주소 공간이 크게 확장되었습니다.
+    *   64비트 값에 대한 연산을 위한 새로운 64비트 전용 명령어가 추가되었습니다.
+*   pre-image oracle에서 한 번에 4바이트 대신 8바이트의 데이터를 읽을 수 있습니다.
+*   멀티스레딩 지원
+    *   멀티태스킹을 통한 동시성
+    *   VM이 이제 각 스레드에 대해 ThreadState 객체를 추적합니다.
+    *   Load Linked Word(ll) 및 Store Conditional Word(sc) 명령어를 통해 스레드 안전한 메모리 접근이 가능합니다.
+    *   멀티스레딩을 위한 확장된 syscall 지원
+*   인식되지 않는 syscall에 대한 예외 처리 개선
+
+이번 업그레이드 이후 결함 증명 VM의 온체인 구현체는 [MIPS.s.sol](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/scripts/deploy/DeployMIPS.s.sol) 대신 [DeployMIPS.s.sol](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol)이 됩니다.
+### Operator Fee
+
+이번 업그레이드는 롤업 운영자가 구성하는 두 가지 새로운 스칼라를 도입합니다.
+
+*   `operatorFeeScalar`
+*   `operatorFeeConstant`
+
+이 파라미터는 다음과 같이 수수료 계산에 반영됩니다.
+
+```
+operatorFee = operatorFeeConstant + operatorFeeScalar * gasUsed / 1e6
+
+totalFee = operatorFee + gasUsed * (baseFee + priorityFee) + l1Fee
+```
+
+스칼라는 SystemConfig L1 컨트랙트를 통해 업데이트됩니다. 새로운 수수료 볼트인 OperatorFeeVault가 operator fee를 보관합니다. 이 기능은 이번 업그레이드에 포함되어 있지만 기본적으로 비활성화되어 있으며, 향후 하드포크에서 활성화될 예정입니다.
+
+### Absolute Prestate
+
+이번 업그레이드부터 op-program absolute prestate는 "cannon64" 변형을 사용합니다. 이번 업그레이드에는 [op-program 1.5.1-rc.1의 absolute prestate인 `0x03ee2917da962ec266b091f4b62121dc9682bb0db534633707325339f99ee405`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)가 포함됩니다.
+
+## 체인 운영자를 위한 안내
+
+이 제안이 수락되면 업그레이드 트랜잭션을 실행하기 위한 멀티시그 세레모니가 조율됩니다. 다음 트랜잭션은 각 체인에서 실행됩니다: `OP Mainnet`, `Soneium Mainnet`, `Ink Mainnet`, `Base Mainnet`, `Unichain Mainnet`, `Mode Mainnet`, `Zora Mainnet`, `Arena Z Mainnet`, `Swell Mainnet`, `Metal Mainnet`. 실행 시점은 체인의 현재 상태에 따라 달라집니다. Optimism이 거버넌스를 담당하는 체인이 이 목록에 없다면 OP Labs Solutions Engineering에 연락하여 업그레이드를 조율하시기 바랍니다.
+
+결함 증명 인프라를 운영하는 체인 운영자는 다음의 최신 버전을 실행하고 있는지 확인해야 합니다.
+
+*   op-challenger: `op-challenger/v1.3.3`(권장) 또는 최소 `op-challenger/v1.3.1`
+*   op-dispute-mon: `op-dispute-mon/v1.4.0`
+
+## 노드 운영자를 위한 안내
+
+노드 운영자는 `SystemConfig` 컨트랙트에서 발생하는 새로운 이벤트를 처리할 수 있는 최신 버전의 op-node를 실행하고 있는지 확인해야 합니다.
+
+*   op-node: `op-node/v1.12.2`
+
+## 감사 보고서
+
+Upgrade 14의 코드는 여러 차례 감사를 받았습니다.
+
+*   **Spearbit**: MT-Cannon에 대한 감사를 완료했습니다. 자세한 내용은 [여기](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2025_01-MT-Cannon-Spearbit.pdf)에서 확인할 수 있습니다.
+*   **Coinbase Protocol Security**: MT-Cannon에 대한 감사를 완료했습니다. 자세한 내용은 [여기](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2025_01-MT-Cannon-Base.pdf)에서 확인할 수 있습니다.
+
+## 긴급 취소
+
+업그레이드 전에 심각한 보안 문제가 발견되면 OP Labs는 커뮤니티와 협력하여 업그레이드가 더 이상 진행되지 않는다는 사실을 광범위하게 알릴 것입니다. Optimism Foundation과 Security Council은 긴급 취소를 조율하기 위해 협력합니다.
+
+자세한 내용은 전체 업그레이드 제안을 참고하거나 개발자 지원팀에 문의하시기 바랍니다.
