@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -16,14 +17,16 @@ import (
 // The refusal must come before any stage runs: the L1 RPC URL is unreachable, so reaching the
 // pipeline would fail with a different error.
 func TestApplyPipelineRejectsLiveMockSP1VerifierOnReleaseL1(t *testing.T) {
-	err := ApplyPipeline(context.Background(), ApplyPipelineOpts{
-		DeploymentTarget:      DeploymentTargetLive,
-		DeployMockSP1Verifier: true,
-		L1RPCUrl:              "http://127.0.0.1:1",
-		Intent:                &state.Intent{L1ChainID: 11155111},
-		State:                 &state.State{},
-	})
-	require.ErrorContains(t, err, "L1 chain ID 11155111 has a release SP1 verifier")
+	for _, l1ChainID := range []uint64{1, 11155111} {
+		err := ApplyPipeline(context.Background(), ApplyPipelineOpts{
+			DeploymentTarget:      DeploymentTargetLive,
+			DeployMockSP1Verifier: true,
+			L1RPCUrl:              "http://127.0.0.1:1",
+			Intent:                &state.Intent{L1ChainID: l1ChainID},
+			State:                 &state.State{},
+		})
+		require.ErrorContains(t, err, fmt.Sprintf("L1 chain ID %d has a release SP1 verifier", l1ChainID))
+	}
 }
 
 // TestNewPipelineEnvForgeCacheProfile checks that only the L2 genesis, where contracts may exceed the

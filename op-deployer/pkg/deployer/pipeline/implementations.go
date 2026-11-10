@@ -290,6 +290,7 @@ func deployMockSP1Verifier(env *Env) (common.Address, error) {
 	if err != nil || env.IsGenesis {
 		return verifier, err
 	}
+	env.Logger.Warn("deploying the accept-all mock SP1 verifier to a live L1; development use only", "sp1Verifier", verifier)
 
 	env.Broadcaster.Hook(broadcaster.Broadcast{
 		From:  env.Deployer,
