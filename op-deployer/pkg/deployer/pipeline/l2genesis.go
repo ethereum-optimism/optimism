@@ -198,6 +198,12 @@ func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIn
 		}
 	}
 
+	// Read through the one accessor, so the precedence here and in the settlement checks agree.
+	overrides.SettlementChainID, err = SettlementChainIDOverride(intent, thisIntent)
+	if err != nil {
+		return l2GenesisOverrides{}, nil, err
+	}
+
 	return overrides, schedule, nil
 }
 

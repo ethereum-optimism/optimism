@@ -8,6 +8,7 @@ use crate::{
     payload_service::OpPayloadServiceBuilder,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
+use alloy_consensus::BlockHeader;
 use alloy_primitives::Sealed;
 use eyre::ErrReport;
 use futures_util::FutureExt;
@@ -72,7 +73,7 @@ use reth_optimism_txpool::{
 };
 use reth_primitives_traits::header::HeaderMut;
 use reth_provider::{
-    CanonStateSubscriptions, DatabaseProviderFactory, StorageSettingsCache,
+    BlockReaderIdExt, CanonStateSubscriptions, DatabaseProviderFactory, StorageSettingsCache,
     providers::ProviderFactoryBuilder,
 };
 use reth_rpc_api::{
@@ -104,7 +105,6 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
         &self,
         parent: &reth_primitives_traits::SealedHeader<alloy_consensus::Header>,
     ) -> OpPayloadAttrs {
-        use alloy_consensus::BlockHeader;
         use alloy_primitives::{Address, B64};
 
         let timestamp = std::cmp::max(
@@ -303,7 +303,8 @@ impl OpNode {
     }
 
     /// The pool builder configured the way every OP node's pool expects: tx-conditional support,
-    /// interop endpoints and quorum, and the shared interop failsafe gate.
+    /// interop endpoints and quorum, the shared interop failsafe gate, and the shared operator gas
+    /// limit.
     ///
     /// Generic over the pooled-transaction type so a downstream node can start from this base and
     /// chain [`with_ordering`](OpPoolBuilder::with_ordering) /
@@ -318,6 +319,7 @@ impl OpNode {
                 self.args.interop_safety_level,
             )
             .with_interop_failsafe(self.interop_failsafe.clone())
+            .with_gas_limit_config(self.gas_limit_config.clone())
     }
 
     /// Returns the payload builder stock components install.
@@ -1394,6 +1396,8 @@ pub struct OpPoolBuilder<
     pub interop_safety_level: SafetyLevel,
     /// Shared interop failsafe gate, passed to the interop filter client this builder constructs.
     pub interop_failsafe: InteropFailsafe,
+    /// The operator's gas limit, shared with the payload builder.
+    pub gas_limit_config: OpGasLimitConfig,
     /// The transaction ordering used by the pool.
     pub ordering: O,
     /// The validator wrapper applied to the built [`OpTransactionValidator`].
@@ -1411,6 +1415,7 @@ impl<T> Default for OpPoolBuilder<T> {
             interop_min_responses: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,
             interop_failsafe: InteropFailsafe::default(),
+            gas_limit_config: OpGasLimitConfig::default(),
             ordering: CoinbaseTipOrdering::default(),
             validator_wrapper: IdentityValidatorWrapper,
             _pd: Default::default(),
@@ -1427,6 +1432,7 @@ impl<T, O: Clone, W: Clone> Clone for OpPoolBuilder<T, O, W> {
             interop_min_responses: self.interop_min_responses,
             interop_safety_level: self.interop_safety_level,
             interop_failsafe: self.interop_failsafe.clone(),
+            gas_limit_config: self.gas_limit_config.clone(),
             ordering: self.ordering.clone(),
             validator_wrapper: self.validator_wrapper.clone(),
             _pd: core::marker::PhantomData,
@@ -1471,6 +1477,12 @@ impl<T, O, W> OpPoolBuilder<T, O, W> {
         self
     }
 
+    /// Shares the operator's gas limit with the pool's validator.
+    pub fn with_gas_limit_config(mut self, gas_limit_config: OpGasLimitConfig) -> Self {
+        self.gas_limit_config = gas_limit_config;
+        self
+    }
+
     /// Sets a custom transaction ordering for the pool, replacing the default
     /// [`CoinbaseTipOrdering`].
     pub fn with_ordering<NewO>(self, ordering: NewO) -> OpPoolBuilder<T, NewO, W> {
@@ -1481,6 +1493,7 @@ impl<T, O, W> OpPoolBuilder<T, O, W> {
             interop_min_responses: self.interop_min_responses,
             interop_safety_level: self.interop_safety_level,
             interop_failsafe: self.interop_failsafe,
+            gas_limit_config: self.gas_limit_config,
             ordering,
             validator_wrapper: self.validator_wrapper,
             _pd: core::marker::PhantomData,
@@ -1501,6 +1514,7 @@ impl<T, O, W> OpPoolBuilder<T, O, W> {
             interop_min_responses: self.interop_min_responses,
             interop_safety_level: self.interop_safety_level,
             interop_failsafe: self.interop_failsafe,
+            gas_limit_config: self.gas_limit_config,
             ordering: self.ordering,
             validator_wrapper,
             _pd: core::marker::PhantomData,
@@ -1554,9 +1568,15 @@ where
             Some(builder.build().await)
         };
 
+        // Reth's validator assumes a 30M block gas limit until it sees its first canonical update.
+        // Start it with the chain's limit.
+        let latest_header =
+            ctx.provider().latest_header()?.ok_or_else(|| eyre::eyre!("no latest header"))?;
+
         let blob_store = reth_node_builder::components::create_blob_store(ctx)?;
         let validator =
             TransactionValidationTaskExecutor::eth_builder(ctx.provider().clone(), evm_config)
+                .set_block_gas_limit(latest_header.gas_limit())
                 .no_eip4844()
                 .with_max_tx_input_bytes(ctx.config().txpool.max_tx_input_bytes)
                 .kzg_settings(ctx.kzg_settings()?)
@@ -1574,11 +1594,13 @@ where
                     // moved-in wrapper is taken out of an `Option` on the single call.
                     let mut validator_wrapper = Some(validator_wrapper);
                     let interop_client = interop_client.clone();
+                    let gas_limit_config = self.gas_limit_config.clone();
                     move |validator| {
                         let v = OpTransactionValidator::new(validator)
                             // In --dev mode we can't require gas fees because we're unable to
                             // decode the L1 block info
-                            .require_l1_data_gas_fee(!ctx.config().dev.dev);
+                            .require_l1_data_gas_fee(!ctx.config().dev.dev)
+                            .with_gas_limit_config(gas_limit_config.clone());
                         let op_validator = if let Some(client) = interop_client.clone() {
                             v.with_interop(client)
                         } else {

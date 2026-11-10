@@ -8,7 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 )
 
-// The MockSP1Verifier artifact is test-only: builds that skip test/, such as release builds, lack it.
+// The MockSP1Verifier contract lives under test/. op-deployer/scripts/build-embedded-contracts.sh
+// compiles it into the embedded artifacts; other contracts builds that skip test/ lack it.
 const (
 	MockSP1VerifierArtifact = "MockSP1Verifier.sol"
 	MockSP1VerifierContract = "MockSP1Verifier"
