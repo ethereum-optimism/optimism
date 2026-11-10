@@ -1614,12 +1614,15 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: go-lint
+      # Scoped by branch like the shared Go caches (see helpers.yml).
       - restore_cache:
           keys:
-            - golangci-v1-{{ checksum ".golangci.yaml" }}
+            - golangci-v1-{{ .Branch }}:{{ checksum ".golangci.yaml" }}
+            - golangci-v1-develop:{{ checksum ".golangci.yaml" }}
             # Fall back to the latest golangci cache so a config change reuses
             # the prior analysis cache instead of a full cold lint.
-            - golangci-v1-
+            - "golangci-v1-{{ .Branch }}:"
+            - "golangci-v1-develop:"
       - run:
           name: run Go linter
           command: |
@@ -1632,7 +1635,7 @@ jobs:
       - save_cache:
           # Warm the analysis cache even when linting fails, so a branch with
           # lint errors doesn't repeatedly cold-start golangci-lint.
-          key: golangci-v1-{{ checksum ".golangci.yaml" }}
+          key: golangci-v1-{{ .Branch }}:{{ checksum ".golangci.yaml" }}
           when: always
           paths:
             - "/home/circleci/.cache/golangci-lint"
@@ -1691,19 +1694,22 @@ jobs:
       # with an empty module cache and compare what it adds to the shared one.
       # The fallback restores the upstream modules across go.mod changes that
       # rarely touch them; an old go-ethereum version then lingers in the cache
-      # until c-go-cache-version is bumped.
+      # until c-go-cache-version is bumped. Scoped by branch like the shared Go
+      # caches (see helpers.yml).
       - restore_cache:
           name: Restore upstream go-ethereum modules
           keys:
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:{{ checksum "go.mod" }}
+            - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:"
+            - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:"
       - run:
           name: Check op-geth-only API uses against the allowlist
           command: |
             just opgeth-ratchet
       - save_cache:
           name: Save upstream go-ethereum modules
-          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
+          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
           paths:
             - ~/go/pkg/mod/cache/download/github.com/ethereum/go-ethereum
             - ~/go/pkg/mod/cache/download/github.com/pion/stun/v2
@@ -1769,6 +1775,9 @@ jobs:
             # (INTERNAL_ERROR). Retry with exponential backoff so a flaky
             # download doesn't fail this shared prep job and everything behind
             # it.
+            dl="$(go env GOMODCACHE)/cache/download"
+            count_files() { if [ -d "$dl" ]; then find "$dl" -type f | wc -l; else echo 0; fi; }
+            before=$(count_files)
             n=0
             until go mod download; do
               n=$((n+1))
@@ -1780,6 +1789,15 @@ jobs:
               echo "go mod download failed (attempt $n); retrying in ${backoff}s..." >&2
               sleep "$backoff"
             done
+            # The module cache is saved per branch. If nothing was downloaded,
+            # the restored cache already had every module, and the jobs after
+            # this one restore a cache that has them too. So skip the save
+            # rather than have every branch upload its own copy of develop's.
+            # The halt ends the job, so keep the save as its last step.
+            if (( $(count_files) == before )); then
+              echo "No modules downloaded; nothing new to save"
+              circleci-agent step halt
+            fi
       - save-go-mod-cache
 
   check-nut-locks:
