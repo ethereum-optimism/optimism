@@ -664,6 +664,12 @@ commands:
               export PROFILE="--profile dev"
             fi
 
+            # These release builds only feed CI jobs. Release images are built in
+            # GitHub Actions with the maxperf profile, so skip LTO to save build time.
+            if [ "<< parameters.profile >>" = "release" ]; then
+              export CARGO_PROFILE_RELEASE_LTO=off
+            fi
+
             export PACKAGE="--workspace"
             if [ -n "<< parameters.package >>" ]; then
               # Space-separated package list -> repeated --package flags.
