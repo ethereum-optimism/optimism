@@ -118,7 +118,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 		require.Empty(t, userTxs)
 	}
 	// check that the tx from alice is not included in verifier's chain
-	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash())
+	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash()) //nolint:forbidigo // L2 user tx: alice's transfer, expected absent
 	require.ErrorIs(t, err, ethereum.NotFound)
 }
 
@@ -233,7 +233,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 		require.Empty(t, userTxs)
 	}
 	// Check that the tx from alice is not included in verifier's chain
-	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash())
+	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash()) //nolint:forbidigo // L2 user tx: alice's transfer, expected absent
 	require.ErrorIs(t, err, ethereum.NotFound)
 }
 
@@ -318,7 +318,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 
 	// check that the tx from alice made it into the L2 chain
 	verifCl := verifEngine.EthClient()
-	vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), tx.Hash())
+	vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), tx.Hash()) //nolint:forbidigo // L2 user tx: alice's transfer
 	require.NoError(t, err)
 	require.False(t, isPending)
 	require.NotNil(t, vTx)
@@ -410,7 +410,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 	// Check that the tx from alice made it into the L2 chain
 	verifCl := verifEngine.EthClient()
 	for _, txHash := range txHashes {
-		vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), txHash)
+		vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), txHash) //nolint:forbidigo // L2 user tx: alice's transfers
 		require.NoError(t, err)
 		require.False(t, isPending)
 		require.NotNil(t, vTx)

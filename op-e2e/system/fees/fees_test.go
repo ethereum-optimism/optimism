@@ -210,7 +210,7 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee mismatch")
 
 	// Tally L1 Fee
-	tx, _, err := l2Seq.TransactionByHash(context.Background(), receipt.TxHash)
+	tx, _, err := l2Seq.TransactionByHash(context.Background(), receipt.TxHash) //nolint:forbidigo // L2 user tx: the tx SendL2Tx sent
 	require.NoError(t, err, "Should be able to get transaction")
 	bytes, err := tx.MarshalBinary()
 	require.Nil(t, err)
