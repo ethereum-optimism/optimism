@@ -183,13 +183,14 @@ contract ComplianceModule_User is StdUtils, StdCheats {
     }
 
     /// @notice Records a verdict as the current policy for a previously held item, including a
-    ///         completed item. An _expiresAt of zero clears the verdict.
+    ///         completed item.
     function recordVerdict(uint256 _index, uint64 _expiresAt) external {
         if (ids.length == 0) return;
         _index = bound(_index, 0, ids.length - 1);
+        _expiresAt = uint64(bound(_expiresAt, 1, type(uint64).max));
         vm.prank(address(module.policy()));
         module.recordVerdict(ids[_index], _expiresAt);
-        if (_expiresAt != 0) verdictIndexes.push(_index);
+        verdictIndexes.push(_index);
     }
 
     /// @notice Revokes a verdict as the current policy for a previously held item, including a

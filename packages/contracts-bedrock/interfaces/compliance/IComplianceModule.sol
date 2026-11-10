@@ -24,6 +24,7 @@ interface IComplianceModule is IBridgeHook, IProxyAdminOwnedBase {
     error ComplianceModule_ETHAmountMismatch();
     error ComplianceModule_ZeroAddress();
     error ComplianceModule_InsufficientBalance();
+    error ComplianceModule_ZeroExpiry();
     error ComplianceModule_Paused();
     error ComplianceModule_OwnershipNotRenounceable();
     error InvalidInitialization();
@@ -61,7 +62,7 @@ interface IComplianceModule is IBridgeHook, IProxyAdminOwnedBase {
     function cutoffL2Nonce() external view returns (uint256);
     function paused() external view returns (bool);
     function items(bytes32 _id) external view returns (Record memory);
-    function heldTokens(address, address) external view returns (uint256);
+    function heldTokens(address l1Token, address l2Token) external view returns (uint256 amount);
     function parties(BridgeHookTypes.Item calldata _item) external view returns (address[] memory parties_);
     function setPolicy(IPolicy _policy) external;
     function disable(uint256 _cutoffL2Nonce) external;

@@ -230,12 +230,12 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "l1Token",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "",
+        "name": "l2Token",
         "type": "address"
       }
     ],
@@ -243,7 +243,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "amount",
         "type": "uint256"
       }
     ],
@@ -1138,6 +1138,11 @@
   {
     "inputs": [],
     "name": "ComplianceModule_ZeroAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ComplianceModule_ZeroExpiry",
     "type": "error"
   },
   {

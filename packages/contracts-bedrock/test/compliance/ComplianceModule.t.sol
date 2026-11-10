@@ -1122,6 +1122,46 @@ contract ComplianceModule_HoldWithdrawal_Test is ComplianceModule_TestInit {
         vm.prank(address(optimismPortal2));
         module.holdWithdrawal(item);
     }
+
+    /// @notice Tests that holdWithdrawal leaves heldTokens unchanged for a mintable token.
+    function test_holdWithdrawal_mintableToken_succeeds() external {
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Withdrawal,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            aliased: false,
+            to: address(l1CrossDomainMessenger),
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 200_000,
+            isCreation: false,
+            data: abi.encodeCall(
+                ICrossDomainMessenger.relayMessage,
+                (
+                    0,
+                    Predeploys.L2_STANDARD_BRIDGE,
+                    address(l1StandardBridge),
+                    0,
+                    100_000,
+                    abi.encodeCall(
+                        IStandardBridge.finalizeBridgeERC20,
+                        (address(L1Token), address(L2Token), alice, bob, 100, hex"")
+                    )
+                )
+            ),
+            nonce: 1
+        });
+        vm.mockCall(
+            address(l1StandardBridge),
+            abi.encodeCall(IL1StandardBridge.heldTokenKinds, (BridgeHookHashing.hashItem(item))),
+            abi.encode(BridgeHookTypes.TokenKind.Mintable)
+        );
+
+        vm.prank(address(optimismPortal2));
+        module.holdWithdrawal(item);
+
+        assertEq(module.heldTokens(address(L1Token), address(L2Token)), 0);
+    }
 }
 
 /// @title ComplianceModule_RecordVerdict_Test
@@ -1136,8 +1176,16 @@ contract ComplianceModule_RecordVerdict_Test is ComplianceModule_TestInit {
         module.recordVerdict(keccak256("item"), uint64(block.timestamp + 1 days));
     }
 
-    /// @notice Tests that recordVerdict stores any expiration time for an item that is not held.
+    /// @notice Tests that recordVerdict reverts for a zero expiration time.
+    function test_recordVerdict_zeroExpiry_reverts() external {
+        vm.expectRevert(IComplianceModule.ComplianceModule_ZeroExpiry.selector);
+        vm.prank(address(policy));
+        module.recordVerdict(keccak256("item"), 0);
+    }
+
+    /// @notice Tests that recordVerdict stores a nonzero expiration time for an item that is not held.
     function testFuzz_recordVerdict_itemNotHeld_succeeds(bytes32 _id, uint64 _expiresAt) external {
+        _expiresAt = uint64(bound(_expiresAt, 1, type(uint64).max));
         vm.expectEmit(address(module));
         emit VerdictRecorded(_id, _expiresAt);
         vm.prank(address(policy));
@@ -2027,6 +2075,60 @@ contract ComplianceModule_CompleteWithdrawal_Test is ComplianceModule_TestInit {
         assertEq(L1Token.balanceOf(address(module)), 0);
         assertEq(L1Token.allowance(address(module), address(l1StandardBridge)), 0);
         assertEq(L1Token.balanceOf(bob), _amount);
+    }
+
+    /// @notice Tests that completeWithdrawal skips approval and heldTokens for a Mintable token.
+    function test_completeWithdrawal_mintableToken_succeeds() external {
+        ERC20 mintableToken =
+            ERC20(l1OptimismMintableERC20Factory.createStandardL2Token(address(NativeL2Token), "L1 Mintable", "L1M"));
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Withdrawal,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            aliased: false,
+            to: address(l1CrossDomainMessenger),
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 500_000,
+            isCreation: false,
+            data: abi.encodeCall(
+                ICrossDomainMessenger.relayMessage,
+                (
+                    Encoding.encodeVersionedNonce(0, 1),
+                    Predeploys.L2_STANDARD_BRIDGE,
+                    address(l1StandardBridge),
+                    0,
+                    200_000,
+                    abi.encodeCall(
+                        IStandardBridge.finalizeBridgeERC20,
+                        (address(mintableToken), address(NativeL2Token), alice, bob, 100, hex"")
+                    )
+                )
+            ),
+            nonce: 1
+        });
+        bytes32 id = BridgeHookHashing.hashItem(item);
+        _storeRecord(id, uint64(block.timestamp), uint64(block.timestamp + 1 days));
+        stdstore.target(address(optimismPortal2))
+            .sig(IOptimismPortal2.heldWithdrawals.selector)
+            .with_key(id)
+            .checked_write(true);
+        stdstore.target(address(l1StandardBridge))
+            .sig(IL1StandardBridge.heldTokenKinds.selector)
+            .with_key(id)
+            .checked_write(uint256(BridgeHookTypes.TokenKind.Mintable));
+        stdstore.target(address(module))
+            .sig(IComplianceModule.heldTokens.selector)
+            .with_key(address(mintableToken))
+            .with_key(address(NativeL2Token))
+            .checked_write(100);
+        vm.mockCall(address(policy), abi.encodePacked(IPolicy.screenRelease.selector), abi.encode(true));
+
+        vm.expectCall(address(mintableToken), abi.encodePacked(mintableToken.approve.selector), 0);
+        module.completeWithdrawal(item);
+
+        assertEq(module.heldTokens(address(mintableToken), address(NativeL2Token)), 100);
+        assertEq(mintableToken.balanceOf(bob), 100);
     }
 
     /// @notice Tests that completeWithdrawal reverts when the target reverts. The item stays held.
