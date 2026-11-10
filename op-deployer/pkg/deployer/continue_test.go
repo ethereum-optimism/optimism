@@ -494,9 +494,15 @@ func TestStandardValidatorInput(t *testing.T) {
 	require.Equal(t, dci.Challenger, input.Challenger)
 	require.True(t, input.UseDevFeaturesInput)
 
+	require.False(t, input.BridgeHookConfigured)
+
 	dci.DisputeGameType = uint32(opcm.GameTypeSuperCannonKona)
 	input = standardValidatorInput(dci, contracts)
 	require.True(t, input.UseDevFeaturesInput)
+
+	dci.BridgeHook = common.Address{0x05}
+	input = standardValidatorInput(dci, contracts)
+	require.True(t, input.BridgeHookConfigured)
 }
 
 func addressesForValidationTest() addresses.OpChainContracts {

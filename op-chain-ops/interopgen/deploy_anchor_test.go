@@ -92,6 +92,7 @@ func TestInProcessAnchorProposalTransport(t *testing.T) {
 			ProofMaturityDelaySeconds:       new(big.Int).SetUint64(l2Cfg.ProofMaturityDelaySeconds),
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(l2Cfg.DisputeGameFinalityDelaySeconds),
 			WithdrawalDelaySeconds:          new(big.Int).SetUint64(l2Cfg.WithdrawalDelaySeconds),
+			BridgeHook:                      common.Address{},
 		})
 		require.NoError(t, err)
 

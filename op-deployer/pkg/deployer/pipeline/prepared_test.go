@@ -44,6 +44,14 @@ func TestValidatePreparedDeploymentDrift(t *testing.T) {
 			wantErr: "deployment intent changed",
 		},
 		{
+			name: "bridge hook",
+			mutate: func(intent *state.Intent) {
+				hook := common.Address{0xcc}
+				intent.Chains[0].BridgeHook = &hook
+			},
+			wantErr: "deployment intent changed",
+		},
+		{
 			name: "fund dev accounts",
 			mutate: func(intent *state.Intent) {
 				intent.FundDevAccounts = false

@@ -24,6 +24,8 @@ func TestIntentClone(t *testing.T) {
 	setChainRolesForStandard(&intent)
 	proxy := common.HexToAddress("0x11")
 	intent.SuperchainConfigProxy = &proxy
+	hook := common.HexToAddress("0x44")
+	intent.Chains[0].BridgeHook = &hook
 	intent.GlobalDeployOverrides = map[string]any{"faultGameMaxDepth": float64(73)}
 
 	clone, err := intent.Clone()
@@ -32,10 +34,12 @@ func TestIntentClone(t *testing.T) {
 
 	// Mutating the clone's pointers, slices, and maps must not reach back into the original.
 	*clone.SuperchainConfigProxy = common.HexToAddress("0x22")
+	*clone.Chains[0].BridgeHook = common.HexToAddress("0x55")
 	clone.Chains[0].Roles.Challenger = common.HexToAddress("0x33")
 	clone.GlobalDeployOverrides["faultGameMaxDepth"] = float64(1)
 
 	require.Equal(t, common.HexToAddress("0x11"), proxy)
+	require.Equal(t, common.HexToAddress("0x44"), hook)
 	require.NotEqual(t, common.HexToAddress("0x33"), intent.Chains[0].Roles.Challenger)
 	require.Equal(t, float64(73), intent.GlobalDeployOverrides["faultGameMaxDepth"])
 }
@@ -127,6 +131,14 @@ func TestValidateStandardValues(t *testing.T) {
 				}
 			},
 			ErrIncompatibleValue,
+		},
+		{
+			"BridgeHook",
+			func(intent *Intent) {
+				hook := common.HexToAddress("0x9999")
+				intent.Chains[0].BridgeHook = &hook
+			},
+			ErrNonStandardValue,
 		},
 		{
 			"UseInterop",
@@ -244,6 +256,40 @@ func TestValidateCustomValues(t *testing.T) {
 			err = intent.Check()
 			require.Error(t, err)
 			require.ErrorIs(t, err, tt.err)
+		})
+	}
+}
+
+func TestValidateCustomValues_BridgeHookInterop(t *testing.T) {
+	hook := common.HexToAddress("0x9999")
+	tests := []struct {
+		name       string
+		hook       *common.Address
+		useInterop bool
+		err        error
+	}{
+		{name: "hook without interop", hook: &hook},
+		{name: "interop without hook", useInterop: true},
+		{name: "hook with interop", hook: &hook, useInterop: true, err: ErrIncompatibleValue},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			intent, err := NewIntentCustom(11155111, []common.Hash{common.HexToHash("0x336")})
+			require.NoError(t, err)
+			setSuperchainRoles(&intent)
+			setChainRoles(&intent)
+			setEip1559Params(&intent)
+			setFeeAddresses(&intent)
+
+			intent.Chains[0].BridgeHook = tt.hook
+			intent.UseInterop = tt.useInterop
+
+			err = intent.Check()
+			if tt.err == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.err)
+			}
 		})
 	}
 }
