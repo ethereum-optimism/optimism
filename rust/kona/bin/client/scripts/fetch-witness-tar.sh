@@ -21,5 +21,10 @@ TAR_PATH="${TESTDATA_DIR}/${TAR_NAME}"
 ETAG_PATH="${TESTDATA_DIR}/${TAR_NAME}.etag"
 
 mkdir -p "${TESTDATA_DIR}"
+# An etag without its tar would make the server answer 304 with no body and
+# leave no tar to extract.
+if [[ ! -f "${TAR_PATH}" ]]; then rm -f "${ETAG_PATH}"; fi
+# No --retry-delay: it replaces curl's exponential backoff (1, 2, 4, 8, 16 s)
+# with a fixed wait, which a longer release-CDN or redirect failure outlasts.
 curl --etag-save "${ETAG_PATH}" --etag-compare "${ETAG_PATH}" \
-  -L --fail -o "${TAR_PATH}" "${URL}"
+  -L --fail --retry 5 --retry-all-errors -o "${TAR_PATH}" "${URL}"
