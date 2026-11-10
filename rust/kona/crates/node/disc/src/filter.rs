@@ -84,7 +84,18 @@ mod tests {
     #[case::past_documentation_v6_new("3fff:1000::1", true)]
     #[case::mapped_loopback("::ffff:127.0.0.1", false)]
     #[case::mapped_private("::ffff:10.10.0.2", false)]
+    // Reserved, which some clouds use for internal ranges, such as GKE's Class E pod ranges.
+    #[case::reserved_first("240.0.0.0", false)]
+    #[case::reserved("250.1.2.3", false)]
+    #[case::reserved_last("255.255.255.254", false)]
+    #[case::mapped_reserved("::ffff:240.0.0.1", false)]
+    // Benchmarking, which labs and proxy tools use internally.
+    #[case::benchmarking_first("198.18.0.0", false)]
+    #[case::benchmarking_last("198.19.255.255", false)]
+    #[case::before_benchmarking("198.17.255.255", true)]
+    #[case::past_benchmarking("198.20.0.0", true)]
     fn test_is_public(#[case] ip: IpAddr, #[case] expected: bool) {
+        // TODO(#23766): the reserved and benchmarking cases fail, as they count as public.
         assert_eq!(is_public(ip), expected);
     }
 
