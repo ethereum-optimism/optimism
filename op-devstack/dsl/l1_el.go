@@ -40,10 +40,27 @@ func (el *L1ELNode) EthClient() apis.EthClient {
 	return el.inner.EthClient()
 }
 
-func (el *L1ELNode) AdvanceTime(timeTravel *clock.AdvancingClock, amount time.Duration) {
+// AdvanceTime moves the L1 clock forward and waits until L1 has caught up with it. FakePoS builds
+// the skipped blocks one per half second while real time keeps passing, so the head can still be
+// many blocks behind the clock when it reaches target. Those blocks are sealed at once and usually
+// empty, so a transaction sent before the backlog clears can miss its inclusion deadline. When its
+// next block would be more than 5 minutes behind the clock, FakePoS builds one block at the clock
+// instead.
+func (el *L1ELNode) AdvanceTime(timeTravel *clock.AdvancingClock, amount, blockTime time.Duration) {
 	target := el.BlockRefByLabel(eth.Unsafe).Time + uint64(amount/time.Second)
 	timeTravel.AdvanceTime(amount)
-	el.WaitForTime(target)
+	// While behind, FakePoS builds a block every half second, so it closes the gap faster than the
+	// clock moves and both waits fit in amount plus a margin.
+	ctx, cancel := context.WithTimeout(el.ctx, amount+DefaultTimeout)
+	defer cancel()
+	el.require.NoError(el.AwaitTime(ctx, target), "L1 did not reach the time travel target %d", target)
+	if amount == 0 {
+		return
+	}
+	_, err := el.awaitLabel(ctx, eth.Unsafe, func(info eth.BlockInfo) (bool, error) {
+		return time.Unix(int64(info.Time()), 0).Add(blockTime).After(timeTravel.Now()), nil
+	})
+	el.require.NoError(err, "L1 did not catch up with the clock after advancing it by %s", amount)
 }
 
 // EstimateBlockTime estimates the L1 block based on the last 1000 blocks

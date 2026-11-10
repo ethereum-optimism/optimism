@@ -175,6 +175,7 @@ run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
   HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/release/kona-host"
   CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/mips64-unknown-none/release-client-lto/kona-client"
   STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
+  FINAL_STATE_PATH="{{KONA_CLIENT_ROOT}}/../../out.bin.gz"
 
   L1_NODE_ADDRESS="{{l1_rpc}}"
   L1_BEACON_ADDRESS="{{l1_beacon_rpc}}"
@@ -217,6 +218,7 @@ run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
     --info-at '%10000000' \
     --proof-at never \
     --input $STATE_PATH \
+    --output $FINAL_STATE_PATH \
     -- \
     $HOST_BIN_PATH \
     single \
@@ -232,6 +234,8 @@ run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
     --server \
     --data-dir ./data \
     {{verbosity}}
+
+  {{KONA_CLIENT_ROOT}}/scripts/require-cannon-success.sh "$FINAL_STATE_PATH"
 
 # Fetch the offline witness tar from chain-test-data and decompress it into
 # rust/kona/data. Etag caching in `scripts/fetch-witness-tar.sh` keeps repeat
@@ -251,10 +255,12 @@ prepare-witness-data witness_tar witness_tar_url:
 # the `witness_tar` / `witness_tar_url` defaults.
 run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id witness_tar='op-sepolia-47600000-witness.tar.zst' witness_tar_url='https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2' verbosity='': (prepare-witness-data witness_tar witness_tar_url)
   #!/usr/bin/env bash
+  set -o errexit -o nounset -o pipefail
 
   HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/debug/kona-host"
   CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/mips64-unknown-none/release-client-lto/kona-client"
   STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
+  FINAL_STATE_PATH="{{KONA_CLIENT_ROOT}}/../../out.bin.gz"
 
   CLAIMED_L2_BLOCK_NUMBER={{block_number}}
   CLAIMED_L2_OUTPUT_ROOT={{l2_claim}}
@@ -280,6 +286,7 @@ run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l
     --info-at '%10000000' \
     --proof-at never \
     --input $STATE_PATH \
+    --output $FINAL_STATE_PATH \
     -- \
     $HOST_BIN_PATH \
     single \
@@ -292,3 +299,5 @@ run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l
     --server \
     --data-dir ./data \
     {{verbosity}}
+
+  {{KONA_CLIENT_ROOT}}/scripts/require-cannon-success.sh "$FINAL_STATE_PATH"
