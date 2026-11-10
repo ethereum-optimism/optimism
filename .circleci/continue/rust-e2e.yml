@@ -278,6 +278,7 @@ jobs:
             just action-tests-<<parameters.kind>>-run
       - go-save-cache:
           namespace: kona-ci
+      - save-shard-timings
       - store_test_results:
           path: rust/kona/tests/proofs/tmp/test-results
       - store_artifacts:
@@ -579,6 +580,7 @@ workflows:
       - cannon-prestate: &rust-e2e-job-base
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - shard-timings
       # The release workspace build is split in two so the e2e jobs below don't
       # wait for the other binaries' link step. rust-e2e-binaries builds the
       # binaries they run and persists them; rust-workspace-release builds the
@@ -640,6 +642,7 @@ workflows:
           kind: single
           requires:
             - rust-e2e-binaries
+            - shard-timings
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token

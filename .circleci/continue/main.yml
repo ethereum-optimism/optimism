@@ -349,6 +349,31 @@ commands:
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
 
+  # On develop, saves the timing data CircleCI gave this job's test split (from
+  # develop's last green run of the job) for the shard-timings job.
+  save-shard-timings:
+    description: "Save this develop job's shard timings for other branches"
+    steps:
+      - when:
+          condition:
+            equal: ["develop", << pipeline.git.branch >>]
+          steps:
+            - run:
+                name: Copy shard timings
+                command: |
+                  # Where CircleCI downloads the timing data `circleci tests split` reads.
+                  SRC="$CIRCLE_INTERNAL_TASK_DATA/circle-test-results/results.json"
+                  if [ -s "$SRC" ]; then
+                    mkdir -p /tmp/shard-timings
+                    cp "$SRC" "/tmp/shard-timings/$CIRCLE_JOB.json"
+                  else
+                    echo "warning: no timing data at $SRC, so nothing to save" >&2
+                  fi
+            - save_cache:
+                key: shard-timings-v1-{{ .Environment.CIRCLE_JOB }}-{{ .Revision }}
+                paths:
+                  - /tmp/shard-timings
+
   apt-install:
     description: "apt-get update + install via .circleci/scripts/apt-install.sh,
       which installs from the Ubuntu geo mirror list."
@@ -2185,6 +2210,7 @@ jobs:
       # Save the module cache for future runs
       - go-save-cache:
           namespace: op-acceptance-tests
+      - save-shard-timings
       # Store test results and artifacts
       - when:
           condition: always
@@ -2201,6 +2227,32 @@ jobs:
           steps:
             - notify-failures-on-develop:
                 mentions: "@protocol-oncall"
+
+  # CircleCI splits tests by the timings of the same branch's last green run of
+  # each job, which after a rebase can be weeks old. This gives every sharded job
+  # in the workflow develop's latest timings instead, restored once so that every
+  # node splits from the same file. No file just means the usual split.
+  shard-timings:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - run:
+          name: Create shard timings directory
+          command: mkdir -p /tmp/shard-timings
+      - restore_cache:
+          keys:
+            - shard-timings-v1-memory-all-opn-op-reth-fusaka-
+      - restore_cache:
+          keys:
+            - shard-timings-v1-memory-all-kona-op-reth-fusaka-
+      - restore_cache:
+          keys:
+            - shard-timings-v1-kona-proof-action-single-
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - shard-timings
 
   # Aggregator job - allows downstream jobs and required checks to depend on a single memory-all job.
   memory-all:
@@ -2652,6 +2704,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
+      - shard-timings
       - rust-kona-binaries:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2698,6 +2751,7 @@ workflows:
             - slack
             - discord
           requires: &memory_all_requires
+            - shard-timings
             - contracts-bedrock-build
             - cannon-prestate
             - rust-kona-binaries
