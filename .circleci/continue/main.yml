@@ -608,7 +608,7 @@ commands:
         type: string
         default: *rust-cache-version
       profile:
-        description: "Profile to build the binary with"
+        description: "Profile to build the binary with. release skips LTO, because these builds only feed CI tests."
         type: string
         default: "debug"
       features:
@@ -786,7 +786,7 @@ jobs:
         type: string
         default: *rust-cache-version
       profile:
-        description: "Profile to build the binary with"
+        description: "Profile to build the binary with. release skips LTO, because these builds only feed CI tests."
         type: string
         default: "debug"
       features:
@@ -2138,6 +2138,10 @@ jobs:
           leaves the justfile default in place"
         type: string
         default: ""
+      notify_on_fail:
+        description: "Post failures on develop to Slack. Off where a ci-gate posts instead."
+        type: boolean
+        default: true
     docker:
       - image: <<parameters.image>>
     resource_class: <<parameters.resource_class>>
@@ -2231,8 +2235,9 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
+      # notify-failures-on-develop posts only when the job fails.
       - when:
-          condition: on_fail
+          condition: << parameters.notify_on_fail >>
           steps:
             - notify-failures-on-develop:
                 mentions: "@protocol-oncall"
@@ -3034,12 +3039,21 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+      # If the images never appear, it posts to Slack without a mention and
+      # cancels the workflow, so the gate doesn't page.
       - shipped-rust-binaries:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
+            - slack
       - op-acceptance-tests:
           <<: *memory_all_opn
           name: shipped-memory-all-opn-op-reth-<<matrix.l1_fork>>
+          matrix:
+            alias: shipped-memory-all-opn
+            parameters:
+              l1_fork: *acceptance_l1_forks
+          notify_on_fail: false
           requires: &shipped_memory_all_requires
             - contracts-bedrock-build
             - cannon-prestate
@@ -3051,9 +3065,15 @@ workflows:
       - op-acceptance-tests:
           <<: *memory_all_kona
           name: shipped-memory-all-kona-op-reth-<<matrix.l1_fork>>
+          matrix:
+            alias: shipped-memory-all-kona
+            parameters:
+              l1_fork: *acceptance_l1_forks
+          notify_on_fail: false
           requires: *shipped_memory_all_requires
       # Pages on-call once if any job here fails, including a build job that
-      # stops the memory-all jobs from running at all.
+      # stops the memory-all jobs from running at all. The one exception: when
+      # the images never appear, shipped-rust-binaries cancels the workflow first.
       - ci-gate:
           name: shipped-memory-all-requires
           requires:
@@ -3064,8 +3084,8 @@ workflows:
             - go-binaries-for-sysgo: terminal
             - prep-go-modules: terminal
             - prep-superchain: terminal
-            - shipped-memory-all-opn-op-reth-fusaka: terminal
-            - shipped-memory-all-kona-op-reth-fusaka: terminal
+            - shipped-memory-all-opn: terminal
+            - shipped-memory-all-kona: terminal
           post-steps:
             - notify-failures-on-develop:
                 mentions: "<!subteam^S09D13R3HJ7>" # @protocol-oncall
