@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"compress/zlib"
+	"encoding/hex"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -279,4 +280,20 @@ func TestBatchReader(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+// TestBatchReaderRejectsLargeWindowBrotli pins that a brotli channel in the non-standard
+// large-window format is rejected. RFC 7932 §9.1 marks the stream's window bits pattern
+// (0b0010001) as invalid. kona's test_batch_reader_rejects_large_window_brotli uses the same
+// vector.
+func TestBatchReaderRejectsLargeWindowBrotli(t *testing.T) {
+	// The brotli channel version byte, then "large-window brotli stream" compressed by the Rust
+	// brotli crate's encoder with large_window enabled.
+	channel, err := hex.DecodeString("011156640000108fb1758de31e4f2925394823bca485460a1eb70183d6c72802")
+	require.NoError(t, err)
+
+	reader, err := BatchReader(bytes.NewReader(channel), 120000, true)
+	require.NoError(t, err)
+	_, err = reader()
+	require.ErrorContains(t, err, "WINDOW_BITS")
 }

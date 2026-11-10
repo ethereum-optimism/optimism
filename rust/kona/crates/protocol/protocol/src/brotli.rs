@@ -15,6 +15,9 @@ pub enum BrotliDecompressionError {
 
 /// Decompresses the given bytes data using the Brotli decompressor implemented
 /// in the [`brotli-decompressor`](https://crates.io/crates/brotli-decompressor) crate.
+///
+/// Only standard RFC 7932 streams are accepted. A stream in the non-standard large-window
+/// format is an error, as it is for op-node's decoder.
 #[allow(clippy::large_stack_frames)]
 pub fn decompress_brotli(
     data: &[u8],
@@ -28,7 +31,9 @@ pub fn decompress_brotli(
     let u8_allocator = MemPool::<u8>::new_allocator(&mut u8_buffer, bzero);
     let u32_allocator = MemPool::<u32>::new_allocator(&mut u32_buffer, bzero);
     let hc_allocator = MemPool::<HuffmanCode>::new_allocator(&mut hc_buffer, bzero);
-    let mut brotli_state = BrotliState::new(u8_allocator, u32_allocator, hc_allocator);
+    // `BrotliState::new` also accepts the large-window extension, which RFC 7932 §9.1 marks as
+    // invalid and op-node rejects. Its window can be up to 1 GiB, larger than the u8 pool above.
+    let mut brotli_state = BrotliState::new_strict(u8_allocator, u32_allocator, hc_allocator);
 
     // Setup the decompressor inputs and outputs.
     // Cap initial buffer at the limit to prevent over-allocation.
@@ -281,5 +286,30 @@ mod test {
                  got {result:?}",
             );
         }
+    }
+
+    #[test]
+    fn test_brotli_rejects_large_window_stream() {
+        // "large-window brotli stream", compressed by the brotli crate's encoder with
+        // `large_window: true`. The stream starts with the window bits pattern 0b0010001, which
+        // RFC 7932 §9.1 marks as invalid; only the non-standard large-window extension uses it.
+        // op-node's decoder (andybalholm/brotli) rejects the stream, so kona must reject it too.
+        // `test_batch_reader_rejects_large_window_brotli` and op-node's
+        // `TestBatchReaderRejectsLargeWindowBrotli` use the same stream.
+        use std::io::Read;
+
+        let stream = hex!("1156640000108fb1758de31e4f2925394823bca485460a1eb70183d6c72802");
+
+        // Sanity: the stream is well formed. The brotli crate's default decoder accepts the
+        // large-window extension and decodes it.
+        let mut decoded = Vec::new();
+        brotli::Decompressor::new(stream.as_slice(), 4096).read_to_end(&mut decoded).unwrap();
+        assert_eq!(decoded, b"large-window brotli stream");
+
+        let result = decompress_brotli(&stream, MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize);
+        assert!(
+            matches!(result, Err(BrotliDecompressionError::DecompressionFailed(_))),
+            "large-window stream must be rejected, got {result:?}",
+        );
     }
 }

@@ -248,4 +248,17 @@ mod test {
         // First n-1 batches should have been fully consumed.
         assert_eq!(reader.cursor, single_batch_len * (n - 1));
     }
+
+    #[test]
+    fn test_batch_reader_rejects_large_window_brotli() {
+        // The brotli channel version byte, then a brotli stream in the non-standard large-window
+        // format. op-node rejects this channel, and its `TestBatchReaderRejectsLargeWindowBrotli`
+        // uses the same vector.
+        let channel = alloy_primitives::hex!(
+            "011156640000108fb1758de31e4f2925394823bca485460a1eb70183d6c72802"
+        );
+        let mut reader = BatchReader::new(channel, MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize, 0);
+
+        assert!(matches!(reader.decompress(), Err(DecompressionError::BrotliError(_))));
+    }
 }
