@@ -189,3 +189,42 @@ where
     );
     (server, engine.query_client())
 }
+
+/// The target block of the safe-DB tests.
+pub(super) const TARGET: u64 = 3;
+
+/// A safe head database recording block 1 of `chain` at L1 block 100 and `recorded_head` at L1
+/// block 110.
+pub(super) fn recorded_safe_heads(
+    chain: &Chain,
+    recorded_head: u64,
+) -> (TempDir, Arc<SafeDatabase>) {
+    let directory = TempDir::new().unwrap();
+    let database = Arc::new(SafeDatabase::new(directory.path()).unwrap());
+    for (height, l1) in [(1, 100), (recorded_head, 110)] {
+        database.safe_head_updated(block_info(&chain[&height]), l1_block(l1).id()).unwrap();
+    }
+    (directory, database)
+}
+
+pub(super) fn engine_state_with(
+    heads: EngineSyncStateUpdate,
+) -> (tokio::sync::watch::Sender<EngineState>, tokio::sync::watch::Receiver<EngineState>) {
+    let sync_state = EngineState::default().sync_state.apply_update(heads);
+    tokio::sync::watch::channel(EngineState { sync_state, ..Default::default() })
+}
+
+pub(super) fn super_root_rpc(
+    query_client: EngineQueryClient,
+    engine_state: tokio::sync::watch::Receiver<EngineState>,
+    config: Arc<RollupConfig>,
+    database: Arc<SafeDatabase>,
+) -> SuperRootRpc {
+    SuperRootRpc::new(
+        query_client,
+        engine_state,
+        l1_watcher_at(Some(l1_block(CURRENT_L1))),
+        config,
+        Some(database),
+    )
+}

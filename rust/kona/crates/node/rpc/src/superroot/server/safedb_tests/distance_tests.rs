@@ -1,13 +1,12 @@
 use super::{
     execution_layer::{
-        Chain, InMemoryExecutionLayer, Read, block_info, chain, output_root,
-        rollup_config_with_genesis, serve_execution_layer,
+        Chain, InMemoryExecutionLayer, Read, TARGET, block_info, chain, engine_state_with,
+        output_root, recorded_safe_heads, rollup_config_with_genesis, serve_execution_layer,
+        super_root_rpc,
     },
     *,
 };
 use std::{collections::BTreeMap, sync::Mutex};
-
-const TARGET: u64 = 3;
 
 /// The EL requests of one query, given its block reads by hash and by number and one proof.
 fn el_requests(blocks_by_hash: usize, blocks_by_number: usize) -> BTreeMap<&'static str, usize> {
@@ -24,7 +23,7 @@ fn el_requests(blocks_by_hash: usize, blocks_by_number: usize) -> BTreeMap<&'sta
 /// The request count, not wall-clock time, is what this test asserts: each request is one EL
 /// round trip, and a remote EL turns a count that grows with the distance into a timeout.
 #[rstest]
-#[case::at_the_recorded_head(0, el_requests(1, 1))]
+#[case::at_the_recorded_head(0, el_requests(1, 2))]
 #[case::one_below_the_recorded_head(1, el_requests(0, 3))]
 #[case::a_span_batch_below_the_recorded_head(1_800, el_requests(0, 3))]
 #[case::thousands_below_the_recorded_head(5_000, el_requests(0, 3))]
@@ -43,27 +42,15 @@ async fn the_el_requests_for_a_target_do_not_grow_with_its_distance_below_the_re
     let config = rollup_config_with_genesis(&canonical[&0]);
     let (server, query_client) =
         serve_execution_layer(execution_layer.clone(), config.clone()).await;
-    let directory = TempDir::new().unwrap();
-    let database = SafeDatabase::new(directory.path()).unwrap();
-    for (height, l1) in [(1, 100), (recorded_head, 110)] {
-        database.safe_head_updated(block_info(&canonical[&height]), l1_block(l1).id()).unwrap();
-    }
+    let (_directory, database) = recorded_safe_heads(&canonical, recorded_head);
     let head = block_info(&canonical[&recorded_head]);
-    let sync_state = EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
+    let (_, engine_state) = engine_state_with(EngineSyncStateUpdate {
         finalized_head: Some(head),
         local_safe_head: Some(head),
         safe_head: Some(head),
         unsafe_head: Some(head),
     });
-    let (_, engine_state) =
-        tokio::sync::watch::channel(EngineState { sync_state, ..Default::default() });
-    let rpc = SuperRootRpc::new(
-        query_client,
-        engine_state,
-        l1_watcher_at(Some(l1_block(CURRENT_L1))),
-        config,
-        Some(Arc::new(database)),
-    );
+    let rpc = super_root_rpc(query_client, engine_state, config, database);
 
     let response = rpc.superroot_at_timestamp(U64::from(timestamp_of(TARGET))).await.unwrap();
     let _ = server.stop();

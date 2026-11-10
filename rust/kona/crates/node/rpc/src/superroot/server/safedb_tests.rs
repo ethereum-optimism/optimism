@@ -243,7 +243,7 @@ async fn an_output_read_failure_returns_an_internal_error() {
     let (_directory, database) = recorded();
     let config = rollup_config();
     let (engine, l1, l2) = kona_engine::test_utils::test_engine_client(config.clone());
-    l2.expect_error("eth_getBlockByHash");
+    l2.expect_error("eth_getBlockByNumber");
     let (_, state) = tokio::sync::watch::channel(engine_state());
     let rpc = SuperRootRpc::new(
         engine.query_client(),

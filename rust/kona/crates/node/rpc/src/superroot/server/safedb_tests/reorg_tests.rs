@@ -1,14 +1,13 @@
 use super::{
     execution_layer::{
-        Chain, InMemoryExecutionLayer, Read, block_info, chain, output_root,
-        rollup_config_with_genesis, serve_execution_layer,
+        Chain, InMemoryExecutionLayer, Read, TARGET, block_info, chain, engine_state_with,
+        output_root, recorded_safe_heads, rollup_config_with_genesis, serve_execution_layer,
+        super_root_rpc,
     },
     *,
 };
 use jsonrpsee::server::ServerHandle;
 use std::sync::Mutex;
-
-const TARGET: u64 = 3;
 
 #[derive(Clone, Copy, Debug)]
 enum Mutation {
@@ -89,22 +88,20 @@ impl Drop for ReorgFixture {
     }
 }
 
+fn heads_of(chain: &Chain) -> EngineSyncStateUpdate {
+    EngineSyncStateUpdate {
+        finalized_head: Some(block_info(&chain[&FINALIZED])),
+        local_safe_head: Some(block_info(&chain[&LOCAL_SAFE])),
+        safe_head: Some(block_info(&chain[&SAFE])),
+        unsafe_head: Some(block_info(&chain[&(LOCAL_SAFE + 2)])),
+    }
+}
+
 async fn fixture(recorded_head: u64, mutation: Mutation) -> ReorgFixture {
     let original = chain(LOCAL_SAFE + 2, u64::MAX);
     let replacement = chain(LOCAL_SAFE + 2, TARGET);
-    let directory = TempDir::new().unwrap();
-    let database = Arc::new(SafeDatabase::new(directory.path()).unwrap());
-    for (height, l1) in [(1, 100), (recorded_head, 110)] {
-        database.safe_head_updated(block_info(&original[&height]), l1_block(l1).id()).unwrap();
-    }
-    let sync_state = EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
-        finalized_head: Some(block_info(&original[&FINALIZED])),
-        local_safe_head: Some(block_info(&original[&LOCAL_SAFE])),
-        safe_head: Some(block_info(&original[&SAFE])),
-        unsafe_head: Some(block_info(&original[&(LOCAL_SAFE + 2)])),
-    });
-    let (engine_state_sender, engine_state) =
-        tokio::sync::watch::channel(EngineState { sync_state, ..Default::default() });
+    let (directory, database) = recorded_safe_heads(&original, recorded_head);
+    let (engine_state_sender, engine_state) = engine_state_with(heads_of(&original));
     let canonical = if matches!(mutation, Mutation::ReorgBeforeQuery) {
         replacement.clone()
     } else {
@@ -125,13 +122,7 @@ async fn fixture(recorded_head: u64, mutation: Mutation) -> ReorgFixture {
     let config = rollup_config_with_genesis(&original[&0]);
     let (server, query_client) =
         serve_execution_layer(Arc::new(Mutex::new(execution_layer)), config.clone()).await;
-    let rpc = SuperRootRpc::new(
-        query_client,
-        engine_state,
-        l1_watcher_at(Some(l1_block(CURRENT_L1))),
-        config,
-        Some(database),
-    );
+    let rpc = super_root_rpc(query_client, engine_state, config, database);
     ReorgFixture {
         _directory: directory,
         expected_output: output_root(&original[&TARGET]),
@@ -212,4 +203,29 @@ async fn a_local_safe_head_replaced_during_the_read_is_rejected() {
 
     assert_eq!(error.code(), -32000);
     assert!(error.message().contains("changed"), "{error}");
+}
+
+/// An EL can fail `eth_getProof` for a block off its canonical chain, so a record that was
+/// reorged out must be rejected before its block is proven.
+#[tokio::test]
+async fn a_reorged_out_exact_record_is_rejected_without_a_proof_read() {
+    let original = chain(LOCAL_SAFE + 2, u64::MAX);
+    let replacement = chain(LOCAL_SAFE + 2, TARGET);
+    let execution_layer = Arc::new(Mutex::new(InMemoryExecutionLayer::new(
+        [&original, &replacement],
+        replacement.clone(),
+        |_: Read, _: &mut Chain| {},
+    )));
+    let config = rollup_config_with_genesis(&original[&0]);
+    let (server, query_client) =
+        serve_execution_layer(execution_layer.clone(), config.clone()).await;
+    let (_directory, database) = recorded_safe_heads(&original, TARGET);
+    let (_, engine_state) = engine_state_with(heads_of(&replacement));
+    let rpc = super_root_rpc(query_client, engine_state, config, database);
+
+    let error = rpc.superroot_at_timestamp(U64::from(timestamp_of(TARGET))).await.unwrap_err();
+    let _ = server.stop();
+
+    assert_eq!(error.code(), -32000);
+    assert!(!execution_layer.lock().unwrap().request_counts().contains_key("eth_getProof"));
 }

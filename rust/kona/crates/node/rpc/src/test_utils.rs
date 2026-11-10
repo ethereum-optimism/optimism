@@ -39,6 +39,7 @@ pub(crate) fn recorded_query_client(
     if let (Some(output), Some(record)) = (output, record) {
         let target = rpc_block(output);
         if record.safe_head.number == output.block.block_info.number {
+            expect_canonical_check(&transport, &target);
             transport.expect_params(
                 "eth_getBlockByHash",
                 serde_json::json!([record.safe_head.hash, true]),

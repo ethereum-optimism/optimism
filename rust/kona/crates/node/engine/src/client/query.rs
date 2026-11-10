@@ -47,11 +47,16 @@ impl EngineQueryClient {
         }
     }
 
-    /// The recorded head is read by its hash, so it only has to be canonical once the read is done.
+    /// The recorded head is read by its hash, between two checks that it is canonical. The leading
+    /// check keeps a record that was reorged out from reaching `eth_getProof`, which an EL can fail
+    /// for a block off its canonical chain.
     async fn output_at_recorded_head(
         &self,
         recorded_head: BlockNumHash,
     ) -> Result<Option<(L2BlockInfo, OutputRoot)>, EngineClientError> {
+        if !self.is_canonical(recorded_head).await? {
+            return Ok(None);
+        }
         trace!(?recorded_head, "Reading output of the recorded head");
         let Some(output) = self.output_at_id(BlockId::hash(recorded_head.hash)).await? else {
             warn!(?recorded_head, "EL does not have the recorded head");
