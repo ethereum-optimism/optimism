@@ -57,7 +57,8 @@ bootstrap할 때는 다음 모범 사례를 따르는 것을 권장합니다.
 1.  `guardian` 및 `superchain-proxy-admin-owner`와 같은 소유권 역할에는 Gnosis SAFE를 사용하십시오. 향후 업그레이드를
     지원하려면 소유자는 **반드시** 스마트 컨트랙트여야 하므로, SAFE가 합리적인 기본 선택입니다.
 2.  배포자로는 일반 EOA를 사용하십시오. 배포가 완료되면 배포자는 배포에 대한 어떠한 제어 권한도 갖지 않습니다.
-3.  표준 컨트랙트 태그(예: `tag://op-contracts/v2.0.0`)를 사용하십시오. 이렇게 하면 업그레이드가 더 쉬워집니다.
+3.  op-deployer에 내장된 컨트랙트(`embedded`, 기본값)를 사용하십시오. op-deployer는 빌드될 때 사용된 컨트랙트 릴리스
+    또는 해당 릴리스의 빌드만 실행합니다.
 
 ### 구현 Bootstrap {#bootstrapping-implementations}
 
@@ -116,8 +117,8 @@ bootstrap 명령에서 사용한 것과 동일한 `l1ContractsLocator` 및 `l2Co
 configType = "standard-overrides"
 l1ChainID = 11155420
 opcmAddress = "0x..."
-l1ContractsLocator = "tag://..." # must match the one used in bootstrap
-l2ContractsLocator = "tag://..."
+l1ContractsLocator = "embedded" # must match the one used in bootstrap
+l2ContractsLocator = "embedded"
 
 [[chains]]
 # Chain configs...
