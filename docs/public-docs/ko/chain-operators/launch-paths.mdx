@@ -1,0 +1,175 @@
+---
+title: 체인 운영 방식 선택
+description: OP Stack 체인을 직접 운영하는 것과 대신 운영을 맡기는 것 사이의 스펙트럼, 그리고 각 지점에서 팀이 담당하는 부분을 설명합니다.
+diataxis: explanation
+last-reviewed: 2026-08-06
+---
+
+OP Stack 체인을 출시하는 모든 팀은 동일한 스펙트럼의 어딘가에 위치하게 됩니다.
+한쪽 끝에서는 팀이 모든 서비스를 운영하고 모든 키를 보유합니다. 다른 쪽 끝에서는
+다른 누군가가 대신 운영합니다. 이 선택은 역량의 문제가 아닙니다. 상시 운영의
+어떤 부분을 팀이 직접 담당하고 싶은지에 관한 문제입니다.
+
+이 페이지는 이 스펙트럼과 각 지점에서 팀이 맡게 되는 부분을 설명합니다. 특정
+지점을 대신 선택해 주지는 않습니다. 아래에 링크된 페이지들은 누가 운영하든
+시스템 전체를 문서화합니다.
+
+## 스펙트럼
+
+|                       | 직접 운영                                | 엔지니어링 지원을 받으며 운영                        | 운영을 위탁                                    |
+| --------------------- | ---------------------------------------- | ---------------------------------------------------- | --------------------------------------------- |
+| Sequencer 클러스터    | 자체 팀                                  | 자체 팀, OP Labs 엔지니어링 지원                     | OP Enterprise                                  |
+| 결함 증명 방어        | 자체 팀                                  | 자체 팀, OP Labs 엔지니어링 지원                     | OP Enterprise                                  |
+| 업그레이드 실행       | 자체 팀                                  | 자체 팀, OP Labs 엔지니어링 지원                     | OP Enterprise                                  |
+| 장애 대응             | 자체 팀                                  | 자체 팀, OP Labs 엔지니어링 지원                     | OP Enterprise                                  |
+| 이 문서               | 직접 운영하는 대상에 대한 레퍼런스       | 직접 운영하는 대상에 대한 레퍼런스                   | 대신 운영되는 대상에 대한 레퍼런스            |
+
+## 직접 운영
+
+팀이 모든 서비스를 운영하고, 모든 키를 보유하며, 모든 장애를 책임집니다. 이
+문서는 그 모든 것을 다루며, 아래의 모든 목적지는 클릭 한 번으로 이동할 수 있습니다.
+
+그 책임에 포함되는 내용을 문서 자체의 표현대로 정리하면 다음과 같습니다.
+
+### 운영하는 서비스
+
+*   **Sequencer.** 단일 sequencer는 체인 전체의 단일 장애 지점입니다. sequencer가
+    멈추면 누구에게도 새로운 unsafe 블록이 생성되지 않습니다. 고가용성을 위한 해법은
+    [op-conductor](/ko/chain-operators/tools/op-conductor)로 관리되는 sequencer
+    클러스터이며, 각 node는 서로 다른 장애 도메인에 배치됩니다. 이 설계는 비잔틴
+    장애 허용(Byzantine fault tolerant)이 아닙니다. 클러스터의 모든 node가 정직하고
+    여러분이 운영한다고 가정하므로, 충돌과 네트워크 분할은 방지하지만 악의적인
+    클러스터 구성원은 방지하지 못합니다.
+    [출시 가이드의 sequencer 토폴로지 단계](/ko/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#step-3-design-the-sequencer-topology)를
+    참조하세요.
+*   **방어.** 방어는 여러분이 운영하는 서비스이자 팀이 인력을 배치해야 하는 일련의
+    결정입니다. [`op-challenger`](/ko/op-stack/fault-proofs/challenger)는 모든 게임을
+    모니터링하고, 유효한 제안을 방어하며, 잘못된 제안에 이의를 제기하고, 게임을
+    종결하고, bond를 회수하는 서비스입니다. 시작하는 것만으로 끝나는 일이 아닙니다.
+    게시하는 모든 claim에는 트랜잭션 값으로 전송되는 bond가 수반됩니다. 올바른 claim은
+    환불되고, 잘못된 claim은 반대 claim 제출자에게 지급되며, 승리한 게임의 bond는
+    지연 후에만 지급되므로 게임이 종결되는 동안 자본이 묶여 있게 됩니다. challenger
+    계정에 얼마를 보유할지, 진행 중인 분쟁 중에 얼마나 빨리 충전할 수 있는지, 어떤
+    absolute prestate로 게임을 진행할지는 팀이 담당하는 운영상의 결정입니다.
+    challenger는 자신이 보유하지 않은 prestate를 사용하는 게임과는 상호작용하지
+    않습니다. [결함 증명 challenger 운영](/ko/use-cases/run-a-fault-proof-challenger)을
+    참조하세요.
+*   **모니터링.** 체인을 관찰하는 것은 체인을 운영하는 것과는 별개의 서비스
+    집합입니다. `op-dispute-mon`은 모든 분쟁 게임의 상태를 추적하며, challenger가
+    동작하고 있는지 확인하는 수단입니다. `monitorism`은 온체인 보안 모니터를
+    제공하며, 그중 security-integrity 그룹은 L2와 L1 간의 bridge가 예상대로
+    동작하는지 확인하기 위해 존재합니다. 여기에는 `OptimismPortal`의
+    `ProvenWithdrawals` 이벤트를 감시하고 불변 조건 위반을 표시하는 faultproof
+    출금 모니터가 포함됩니다. 이와 함께 자체 구성 요소의 메트릭 엔드포인트도
+    수집해야 합니다. `op-node`, `op-batcher`, `op-proposer`, `op-challenger`는 각각
+    메트릭 엔드포인트를 제공합니다. 피어 수도 이 목록에 포함되어야 합니다. 피어가
+    없는 `op-node`는 unsafe 블록을 동기화할 수 없어 sequencer보다 뒤처지기
+    때문입니다. [체인 모니터링 옵션](/ko/chain-operators/tools/chain-monitoring) 및
+    [중요한 node 메트릭](/ko/node-operators/guides/monitoring/metrics#important-metrics)을
+    참조하세요.
+*   **RPC 엔드포인트.** 스택의 모든 서비스는 RPC에 의존하며, L1에만 의존하는 것이
+    아닙니다. 각 sequencer의 op-node는 L1 RPC와 L1 beacon 엔드포인트로부터 체인을
+    도출하고, batcher, proposer, challenger는 L1을 읽고 L1에 트랜잭션을 보냅니다.
+    `op-challenger`는 추가로 L2 아카이브 node(`--l2-eth-rpc`)와 SafeDB가 있는 rollup
+    node(`--rollup-rpc`)가 필요하며, `op-dispute-mon`은 자체 rollup RPC를 사용합니다.
+    일반적인 로드 밸런서 뒤에 중복 node를 두는 방식은 이들 중 어느 것에도 적합하지
+    않습니다. 두 node가 같은 head에 있을 수는 있지만 그 상태를 유지시키는 장치는
+    없습니다. 연속된 요청이 두 node 사이를 라운드 로빈으로 오가는 서비스는 그
+    차이를 블록이 나타났다 사라지는 것, 즉 실제로는 일어나지 않은 reorg로
+    해석합니다. challenger는 이러한 상황을 가장 견디지 못하는 소비자이며, 요청마다가
+    아니라 의도적으로 장애 조치(failover)되는 신뢰할 수 있는 단일 엔드포인트가
+    필요합니다.
+    [일관된 뷰에 관한 출시 가이드 섹션](/ko/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#give-every-service-a-consistent-view-of-l1)을
+    참조하세요.
+
+### 키와 결정
+
+*   **키.** batcher와 proposer 주소는 시스템이 작동하기 위해 개인 키가 어딘가에
+    온라인 상태로 있어야 하며, 이러한 주소가 탈취되면 시스템이 악용될 수 있습니다.
+    이들만이 체인의 권한 있는 주소인 것은 아닙니다. Proxy Admin은 L1과 L2의 대부분의
+    시스템 컨트랙트를 업그레이드할 수 있고, System Config Owner는 `SystemConfig`
+    컨트랙트의 값을 변경할 수 있으며, Guardian은 출금 로직을 일시 중지하고 분쟁
+    게임 type이 출금을 실행하지 못하도록 비활성화할 수 있습니다. 또한 permissioned
+    Challenger 역할은 `op-challenger` 서비스와는 별개의 주소입니다. 어떤 주소가 어떤
+    역할을 맡을지, 그리고 각 키를 HSM으로 보관할지 클라우드 키 관리 시스템으로
+    보관할지는 체인 운영자가 결정합니다. 각 역할이 할 수 있는 일과 해당 역할이
+    탈취되었을 때의 의미는 [키 관리](/ko/chain-operators/guides/management/key-management)
+    및 [OP Stack 체인의 권한 있는 역할](/ko/op-stack/protocol/privileged-roles#privileged-roles-in-op-stack-chains)을
+    참조하세요.
+*   **무허가 증명으로의 전환 경로.** `op-deployer`로 배포된 체인은 permissioned
+    분쟁 게임으로 시작하며, 이 게임에서는 proposer와 challenger가 권한 있는 역할을
+    가진 특정 주소입니다. 무허가(permissionless) 결함 증명으로의 전환은 출시 후 팀이
+    일정을 잡아 진행하는 작업입니다.
+    [출시 가이드의 무허가 증명 단계](/ko/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#step-7-schedule-the-switch-to-permissionless-proofs)를
+    참조하세요.
+
+### 반복되는 작업
+
+*   **프로토콜 업그레이드 주기.** OP Stack은 지속적으로 개선되고 있으며, 이를 최신
+    상태로 유지하는 것은 여러분의 책임입니다. 네트워크 업그레이드, 지원 중단, 보안
+    패치, 운영상의 변경 사항은 [Network Notices](/ko/notices)에 기한이 정해진 조치
+    항목으로 게시되며, 각 하드포크의 영구 기록은 활성화 시간, 관련 스펙, 최소 구성
+    요소 버전을 기록하는 [하드포크 레지스트리](/ko/op-stack/protocol/network-upgrades)에
+    있습니다. 각 공지를 추적하고, 공지에 명시된 버전으로 구성 요소를 업데이트하며,
+    체인에서 변경을 실행하는 작업은 체인이 운영되는 한 계속 반복됩니다.
+*   **상시 작업.** 최신 프로덕션 릴리스 실행, 배포 아티팩트 보관, 인프라 전반에 걸친
+    단계적 업그레이드 롤아웃, sequencer 격리, 자체 런북 작성은 출시 당일만의 작업이
+    아니라 지속적인 작업입니다. 모니터링은 그 반대편에 누군가가 있을 때만 도움이
+    됩니다. 주요 구성 요소의 메트릭 엔드포인트와 예상대로 동작하지 않을 때 실행할
+    런북은 문서화된 관행입니다. 알림 경로, 그 경로를 통해 연락 가능한 인력, 그리고
+    장애 대응 자체는 여러분이 구축하고 인력을 배치해야 합니다.
+    [체인 운영자 모범 사례](/ko/chain-operators/guides/management/best-practices)를
+    참조하세요.
+
+<CardGroup cols={2}>
+  <Card title="구성 요소별로 체인 배포" icon="rocket" href="/ko/chain-operators/tutorials/create-l2-rollup">
+    전체 배포 튜토리얼: testnet에서 컨트랙트, genesis, sequencer, batcher,
+    proposer, challenger를 배포합니다.
+  </Card>
+  <Card title="체인을 프로덕션으로" icon="shield-check" href="/ko/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing">
+    출시 가이드: 첫날부터 결함 증명을 적용하고 단일 장애 지점이 없는 sequencer
+    토폴로지를 구성하며, 장애 조치 훈련까지 진행합니다.
+  </Card>
+  <Card title="방어 인력 배치" icon="gavel" href="/ko/use-cases/run-a-fault-proof-challenger">
+    bond 예산 책정, prestate 선택, challenger가 의존하는 인프라, 그리고 체인을
+    방어하고 있는지 확인하는 방법을 다룹니다.
+  </Card>
+  <Card title="일상 운영" icon="wrench" href="/ko/chain-operators/guides/management/best-practices">
+    릴리스 선택, 배포 아티팩트, 단계적 롤아웃, sequencer 격리, 런북을
+    다룹니다.
+  </Card>
+</CardGroup>
+
+## 엔지니어링 지원을 받으며 운영
+
+여전히 팀이 체인을 운영합니다. 차이점은 위의 결정과 장애 발생 시 그 뒤를 받쳐 주는
+주체입니다. OP Labs 엔지니어링이 여러분의 운영자와 함께 그 역할을 합니다. 팀이
+운영하는 것은 동일한 시스템이므로, 이전 섹션에 링크된 모든 자료는 여전히 그에 대한
+레퍼런스입니다.
+
+이 경로에서는 팀이 직접 구축할 필요가 없는 기능이 하나 있습니다. OP Labs는 팀이
+운영하는 sequencer 클러스터와 별도로 체인을 위한 백업 sequencer를 선택적으로 운영할
+수 있습니다. 이는 경로에 기본으로 포함되는 것이 아니라 선택 사항(opt-in)이며, 이를
+사용할지는 팀이 결정합니다.
+
+## 운영을 위탁
+
+OP Enterprise가 체인을 운영하고 팀은 이를 사용합니다. 위의 페이지들은 여전히
+여러분을 대신해 운영되는 대상을 설명하므로, 이 경로에서도 읽어 볼 가치가 있습니다.
+여러분이 구매하는 속성이 바로 그 페이지들이 문서화하는 속성이기 때문입니다.
+
+## OP Enterprise란
+
+OP Enterprise는 Optimism의 관리형 서비스입니다. 완전 관리형 옵션과 지원형 자체
+관리 옵션을 제공하며, 가동 시간 SLA, 우선 장애 대응, 직접적인 엔지니어링 지원,
+관리형 공개 RPC가 뒷받침됩니다.
+
+[OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise)
+페이지에 각 옵션에 포함되는 내용이 명시되어 있으며, 해당 페이지가 약관의 기준
+자료입니다. 이 페이지에서는 이를 다시 기술하지 않습니다.
+
+## 다음으로 이동할 곳
+
+스펙트럼의 어느 지점을 선택하든, [체인 운영자 quickstart](/ko/chain-operators/quickstart)와
+그곳에서 이어지는 페이지들은 동일한 체인을 설명합니다. 아직 체인을 배포하지
+않았다면 그곳에서 시작하세요.

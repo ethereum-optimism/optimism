@@ -27,6 +27,9 @@ const (
 	UseForgeFlagName           = "use-forge"
 	ForgeSlowBroadcastFlagName = "forge-slow-broadcast"
 	GenesisTimeOffsetFlagName  = "genesis-time-offset"
+
+	ReceiptQueryIntervalFlagName  = "receipt-query-interval"
+	DeployMockSP1VerifierFlagName = "deploy-mock-sp1-verifier"
 )
 
 func DefaultCacheDir() string {

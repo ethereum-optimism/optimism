@@ -1,0 +1,20 @@
+---
+title: "에필로그"
+diataxis: explanation
+---
+
+프로그램의 epilogue 단계는 [실행 단계](/ko/op-stack/fault-proofs/kona/fpp-dev/execution)의 출력에 대해
+최종 검증을 수행하기 위한 것입니다. 대부분의 프로그램에서 이는 실행 단계의 출력을
+[prologue 단계](/ko/op-stack/fault-proofs/kona/fpp-dev/prologue)에서 제공된 부트스트랩 데이터의 일부와 비교하는 것을 의미합니다.
+
+일반적으로 이 단계는 거의 전적으로 검증 단계로 구성되어야 합니다.
+
+## 예시
+
+`kona-client` 프로그램에서 epilogue 단계에는 두 가지 지시 사항만 포함됩니다.
+
+1. 주장된 L2 블록 높이에서 L2 safe 체인을 생성할 수 있는지 검증합니다.
+1. 구성된 output root가 주장된 [L2 output root][l2-output-root]와 동일한지 확인합니다.
+
+
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction

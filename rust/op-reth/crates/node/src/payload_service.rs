@@ -1,8 +1,6 @@
 //! OP payload-service configuration.
 //!
-//! Normal launches delegate to
-//! [`BasicPayloadServiceBuilder`](reth_node_builder::components::BasicPayloadServiceBuilder) with
-//! the stock EVM configuration.
+//! Normal launches delegate to [`BasicPayloadServiceBuilder`] with the stock EVM configuration.
 //! The hidden, default-off SDM testing control replaces that configuration once, when the payload
 //! service is constructed, so policy selection never occurs during transaction execution.
 

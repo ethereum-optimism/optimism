@@ -1,0 +1,64 @@
+---
+title: "체인 운영자 quickstart"
+description: "Optimism 기반으로 Ethereum 수준의 보안을 갖춘 확장 가능하고 사용자 정의 가능한 Layer 2 Rollup 블록체인을 출시합니다."
+diataxis: how-to
+---
+
+import OpEnterpriseCallout from '/ko/snippets/op-enterprise-callout.mdx';
+
+오픈 소스이자 모듈식인 Ethereum Layer 2 rollup, 자체 OP Stack 체인을 출시하세요.
+이 페이지는 주요 구성 요소와 단계 순서를 안내한 다음, [전체 배포 튜토리얼](/ko/chain-operators/tutorials/create-l2-rollup)로 연결합니다.
+
+OP Stack 체인을 보유하는 방법에는 두 가지가 있습니다. 이 페이지와 연결된 튜토리얼에서 다루는 것처럼 직접 운영하거나, 다른 곳에서 대신 운영하도록 하는 것입니다.
+[체인 운영 방식 선택](/ko/chain-operators/launch-paths)에서는 두 방식 사이의 스펙트럼과 각 지점에서 팀이 담당하는 부분을 설명합니다.
+
+## 구성 요소
+
+배포하기 전에 주요 구성 요소와 이들이 어떻게 결합하여 블록체인을 구성하는지 이해하는 것이 중요합니다.
+
+- **L1 스마트 컨트랙트**: L1과 L2 도메인 간을 bridge하고 rollup의 여러 측면을 관리하기 위해 Ethereum에 배포되는 스마트 컨트랙트 집합입니다.
+- **Sequencer**: 네트워크에서 사용자 트랜잭션을 받아들이고 도출하여 블록체인을 구성하는 단일 권한 node입니다.
+- **Batcher**: L2 트랜잭션을 Ethereum에 게시하는 sequencer 서비스입니다.
+Ethereum을 데이터 가용성 계층으로 사용함으로써, OP Stack은 모든 node가 L1으로부터 L2 블록체인의 상태를 도출할 수 있게 하여 Ethereum의 보안 속성을 상속합니다.
+- **Proposer**: L2 상태 루트를 Ethereum에 게시하여 사용자가 자산을 출금할 수 있도록 하는 서비스입니다.
+- **Challenger**: Ethereum에 게시된 잘못된 상태 루트에 이의를 제기하여 네트워크 보안을 유지합니다.
+
+## 배포
+
+다음 섹션에서는 체인 운영자가 체인 sequencing을 시작하기 위해 따르는 단계 순서를 안내합니다.
+
+<Steps>
+  <Step title="스마트 컨트랙트 배포">
+    [op-deployer](/ko/chain-operators/tools/op-deployer/overview)라는 CLI 도구를 사용하여 체인을 구성한 다음 Ethereum에 스마트 컨트랙트를 배포합니다.
+  </Step>
+  <Step title="체인 genesis 생성">
+    L1 스마트 컨트랙트를 배포한 후 [op-deployer](/ko/chain-operators/tools/op-deployer/overview)를 사용하여 L2 네트워크에서 node를 실행하는 데 필요한 두 파일을 생성합니다.
+
+        *   **Genesis 파일** (`genesis.json`): 실행 클라이언트(`op-reth`)를 초기화합니다
+        *   **Rollup 구성 파일** (`rollup.json`): 합의 클라이언트(`op-node`)를 구성합니다
+
+    이 파일들에는 서비스가 Ethereum 및 배포한 시스템 컨트랙트와 상호작용하는 데 필요한 모든 핵심 정보가 담겨 있습니다.
+  </Step>
+  <Step title="Sequencing 시작">
+    트랜잭션 sequencing과 블록 생성을 시작하려면, 함께 **sequencer node**를 구성하는 **실행 클라이언트**와 **합의 클라이언트**를 실행합니다. 
+  </Step>
+  <Step title="트랜잭션 배치 시작">
+    다음으로 사용자 트랜잭션을 Ethereum에 게시하는 `op-batcher`를 실행합니다.
+  </Step>
+  <Step title="상태 루트 제안 시작">
+    그런 다음 `op-proposer`를 실행하여 L2 상태 루트를 Ethereum에 게시하고 Ethereum으로의 출금을 가능하게 합니다.
+  </Step>
+  <Step title="체인 보호">
+    마지막으로 `op-challenger`를 실행하여 게시된 잘못된 L2 상태 루트를 모니터링하고 이의를 제기합니다.
+  </Step>
+</Steps>
+
+<Card title="배포 튜토리얼 시작" icon="rocket" href="/ko/chain-operators/tutorials/create-l2-rollup">
+  작동하는 자동화 예시와 함께 구성 요소별로 완전한 OP Stack testnet을 배포합니다.
+</Card>
+
+## 다음 단계
+
+유의해야 할 사항을 파악하려면 [체인 운영자 모범 사례](/ko/chain-operators/guides/management/best-practices)를 살펴보세요.
+
+<OpEnterpriseCallout />

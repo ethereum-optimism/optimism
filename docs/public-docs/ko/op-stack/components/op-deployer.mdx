@@ -1,0 +1,79 @@
+---
+title: op-deployer
+description: OP Stack 체인 배포 도구인 op-deployer의 정식 허브입니다. op-deployer가 하는 일, 운영 주체, 그리고 가이드, 레퍼런스, 릴리스, 소스의 위치를 안내합니다.
+diataxis: explanation
+---
+
+op-deployer는 OP Stack의 체인 배포 도구입니다. 선언적 구성 파일을 기반으로 새 OP Stack 체인의 L1
+스마트 컨트랙트를 배포하는 CLI입니다.
+
+## 개요
+
+op-deployer는 체인의 원하는 구성을 기술한 *intent* 파일을 읽고, 배포가 그 구성과 일치하도록 만드는 데
+필요한 최소한의 스마트 컨트랙트 호출을 수행합니다. 추가 종속성이 없는 독립 실행형 바이너리로
+배포되며, 구성은 Standard OP Chain 배포에 최적화되어 있고, 더 복잡한 구성을 위한 하위 수준
+프리미티브와 Go 라이브러리를 제공합니다. `upgrade` 및 `manage` 명령은 제거되었습니다. `upgrade`가
+아직 포함된 이전 릴리스는 `op-contracts/v5.0.0`까지의 업그레이드를 지원합니다
+([버전 표](/ko/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade) 참조).
+이후 업그레이드에 대해서는 지원되는 경로와 대안을 다루는
+[지원 중단 공지](/ko/notices/archive/op-deployer-upgrade-deprecation)를 참조하십시오.
+
+op-deployer가 존재하는 이유는 OP Stack 체인을 배포하려면 상호 의존적인 대규모 L1 컨트랙트 집합을
+특정 지원 버전으로 배포해야 하기 때문입니다. op-deployer는 이를 선언적이고 반복 가능한 프로세스로
+바꾸며, 각 릴리스는 지원하는 컨트랙트 릴리스에 대응됩니다.
+
+**운영 주체:** 체인을 배포하는 체인 운영자와 개발자입니다. 워크스테이션, CI 파이프라인 또는 로컬
+개발 환경에서 필요할 때 실행하며, 상시 실행되는 서비스가 아닙니다.
+
+대부분의 구성 요소와 달리 op-deployer는 이미 이 사이트의 Chain Operators 탭 아래
+[OP Deployer](/ko/chain-operators/tools/op-deployer/overview)에 전체 문서 세트가 있으며, 이 허브는
+해당 문서로 연결합니다.
+
+## 시작하기
+
+*   [op-deployer로 L1 컨트랙트 배포](/ko/chain-operators/tutorials/create-l2-rollup/op-deployer-setup):
+    OP Stack 체인 구축의 첫 단계로 op-deployer를 설치하고, 환경을 준비한 뒤, 체인의 L1 컨트랙트를
+    배포합니다. 바이너리만 설치하려면
+    [op-deployer 설치](/ko/chain-operators/tools/op-deployer/installation)를 참조하십시오.
+
+## 사용 방법 가이드
+
+*   [사용자 지정 배포](/ko/chain-operators/tools/op-deployer/usage/custom-deployments):
+    표준 구성에서 벗어나는 배포를 관리합니다.
+*   [릴리스 워크플로](/ko/chain-operators/tools/op-deployer/usage/release-workflows):
+    이전 op-deployer 버전에 수정 사항을 백포트하고 새 컨트랙트 버전에 대한 지원을 추가합니다.
+*   [op-deployer를 사용한 L1 컨트랙트 업그레이드](/ko/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade):
+    `op-contracts/v5.0.0`까지의 업그레이드만 지원하는 지원 중단된 `upgrade` 명령에 대한 버전 가용성과
+    마이그레이션 경로를 다룹니다. 이후 업그레이드에 대해서는
+    [지원 중단 공지](/ko/notices/archive/op-deployer-upgrade-deprecation)를 참조하십시오.
+
+## 구성 및 플래그 레퍼런스
+
+*   명령 레퍼런스:
+    [init](/ko/chain-operators/tools/op-deployer/usage/init),
+    [apply](/ko/chain-operators/tools/op-deployer/usage/apply),
+    [bootstrap](/ko/chain-operators/tools/op-deployer/usage/bootstrap),
+    [verify](/ko/chain-operators/tools/op-deployer/usage/verify)에서 각 명령의 플래그와 intent 파일
+    설정을 설명합니다.
+*   [Artifacts locator](/ko/chain-operators/tools/op-deployer/reference/artifacts-locators):
+    op-deployer가 컨트랙트 아티팩트를 지정하는 방법을 다룹니다.
+*   [알려진 제한 사항](/ko/chain-operators/tools/op-deployer/known-limitations):
+    현재 제한 사항과 해결 방법을 다룹니다.
+
+## 릴리스
+
+*   [op-deployer 릴리스 이력](/ko/releases/op-deployer)
+*   [OP Deployer 릴리스 레퍼런스](/ko/chain-operators/tools/op-deployer/reference/releases):
+    어떤 op-deployer 버전이 어떤 컨트랙트 릴리스를 지원하는지 안내합니다.
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `op-deployer/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-deployer).
+    [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/README.md)는 이 문서
+    세트를 신뢰할 수 있는 기준 문서(source of truth)로 명시합니다.
+*   [아키텍처 레퍼런스](/ko/chain-operators/tools/op-deployer/reference/architecture/overview):
+    배포 파이프라인과 실행 엔진을 포함한 op-deployer의 내부 구조를 다룹니다.
+*   op-deployer는 배포 도구이므로 OP Stack 사양에 별도의 섹션이 없습니다. op-deployer가 배포하는 표준
+    체인 구성은
+    [OP Stack Configurability](https://specs.optimism.io/protocol/configurability.html)에 명시되어
+    있습니다.

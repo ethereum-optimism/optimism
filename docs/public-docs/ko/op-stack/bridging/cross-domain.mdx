@@ -1,0 +1,19 @@
+---
+title: 크로스 도메인 개요
+description: OP Stack 크로스 체인 트랜잭션의 생애 주기를 개괄하고, 입금, 트랜잭션 흐름, 출금에 대한 상세 설명으로 연결합니다.
+diataxis: explanation
+---
+
+OP Stack의 크로스 도메인 통신은 L1과 L2 사이에서 자산과 메시지를 이동시키는 것을 포함합니다. Standard Bridge, 크로스 도메인 메신저 컨트랙트, `OptimismPortal`과 같은 핵심 구성 요소가 이러한 트랜잭션이 안전하고 투명하게 실행되도록 보장합니다. 이 페이지는 크로스 체인 트랜잭션의 생애 주기를 입금 흐름, 트랜잭션 흐름, 출금 흐름의 세 가지 흐름으로 요약하고, 각각에 대한 상세 설명으로 연결합니다.
+
+## 입금 흐름
+
+*입금(디파짓, deposit)*은 L1의 트랜잭션이나 이벤트에 의해 트리거되는 모든 L2 트랜잭션입니다. L1 계정 또는 컨트랙트(대개 L1 Standard Bridge)가 `L1CrossDomainMessenger`를 통해 메시지를 보내면, 이 메신저가 메시지를 L1의 `OptimismPortal` 컨트랙트에 전달합니다. portal은 `TransactionDeposited` 이벤트를 발생시키고, `op-node`는 그 이벤트로부터 입금 트랜잭션을 파생하며, `L2CrossDomainMessenger`가 호출을 L2의 대상에게 전달합니다. 단계별 설명은 [입금 흐름](/ko/op-stack/bridging/deposit-flow)을 참조하십시오.
+
+## 트랜잭션 흐름
+
+모든 L2 트랜잭션에는 두 가지 요구 사항이 있습니다. 데이터가 L1에 기록되어야 하며(`op-batcher`가 압축된 배치로 수행), L2 상태를 갱신하기 위해 실행 클라이언트가 트랜잭션을 실행해야 합니다. 그 후 `op-proposer`가 결과 상태에 대한 커밋먼트를 L1에 게시합니다. 단계별 설명은 [트랜잭션 흐름](/ko/op-stack/transactions/transaction-flow)을 참조하고, 트랜잭션을 되돌릴 수 없는 것으로 신뢰할 수 있는 시점은 [트랜잭션 최종성](/ko/op-stack/transactions/transaction-finality)을 참조하십시오.
+
+## 출금 흐름
+
+*출금(withdrawal)*은 L2에서 L1으로 다시 보내는 트랜잭션입니다. 출금에는 세 개의 사용자 트랜잭션이 필요합니다. `L2ToL1MessagePasser`에 기록되는 L2의 출금 시작 트랜잭션, output root를 기준으로 출금을 증명하는 L1의 출금 증명 트랜잭션, 그리고 결함 이의 제기 기간(mainnet에서는 7일, 테스트 네트워크에서는 더 짧음)이 지난 후 출금을 실행하는 L1의 출금 최종 확정 트랜잭션입니다. 단계별 설명은 [출금 흐름](/ko/op-stack/bridging/withdrawal-flow)을 참조하십시오.

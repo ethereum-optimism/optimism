@@ -1,0 +1,26 @@
+---
+title: "OP Mainnet의 트랜잭션 최종성"
+description: "OP Mainnet에서 트랜잭션이 각 최종성 단계에 도달하는 데 걸리는 시간입니다."
+diataxis: explanation
+---
+
+OP Mainnet은 표준 OP Stack 최종성(finality) 모델을 따릅니다. 트랜잭션은 sequencer가 처리하는 즉시 soft finality에 도달하며(Subblocks를 통한 1초 미만의 preconfirmation), 해당 트랜잭션이 포함된 batch가 Ethereum 블록에 포함되고 그 블록이 최종 확정되면 Ethereum이 보장하는 hard finality에 도달합니다. 이는 일반적으로 제출 후 15~30분이 걸립니다. 각 단계의 신뢰 가정을 포함하여 soft finality에서 hard finality에 이르는 과정에 대한 전체 설명은 [트랜잭션 최종성](/ko/op-stack/transactions/transaction-finality)을 참조하세요.
+
+<Note>
+OP Mainnet의 트랜잭션이 최종 확정되는 데 7일이 걸린다는 것은 흔한 오해입니다. **이는 사실이 아닙니다.** Standard Bridge를 통해 Ethereum으로 *출금*하는 경우에만 7일을 기다려야 하며, 트랜잭션 최종성 자체는 일반적으로 약 15~30분이 걸립니다.
+</Note>
+
+## OP Mainnet의 일반적인 소요 시간
+
+| 단계                       | 발생한 일                                                                                | 제출 후 일반적인 소요 시간 |
+| -------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------- |
+| Subblock preconfirmation | sequencer가 트랜잭션을 [subblock](/ko/op-stack/features/subblocks)에 포함합니다 | ~200밀리초             |
+| Soft finality(L2 블록 포함) | 트랜잭션이 peer-to-peer 네트워크로 배포되는 L2 블록에 포함됩니다             | ~2초                    |
+| Ethereum에 데이터 게시  | 트랜잭션이 포함된 batch가 Ethereum 블록에 포함됩니다                            | 수 분                 |
+| Hard finality(최종 확정)                  | Ethereum이 batch가 포함된 블록을 최종 확정합니다                                        | ~15~30분             |
+
+이 소요 시간은 Ethereum 네트워크 상황에 따라 달라집니다. Ethereum 블록체인에 포함되는 시점은 batcher의 제출 주기에 따라 달라지며, OP Mainnet은 몇 분마다 batch를 게시할 수 있을 만큼 충분한 데이터를 생성합니다. 최종 확정 단계에는 Ethereum 자체의 최종성 시간이 추가되며, 이는 일반적으로 batch가 Ethereum에 포함된 후 약 2~3 epoch(대략 13~19분)입니다.
+
+## Ethereum으로의 출금
+
+Standard Bridge를 통한 ETH 및 ERC-20 토큰 출금은 Ethereum에서 자금을 청구하기 전에 7일간의 챌린지 기간을 거칩니다. 이는 트랜잭션 최종성이 아니라 bridge의 결함 증명(Fault Proof) 보호 장치의 특성입니다. OP Mainnet 체인 자체가 최종 확정되는 데 7일이 걸리는 것이 아니며, 챌린지가 성공하더라도 L2 체인이 reorg되지 않습니다. 챌린지 기간의 작동 방식은 [출금 흐름](/ko/op-stack/bridging/withdrawal-flow)을 참조하세요.

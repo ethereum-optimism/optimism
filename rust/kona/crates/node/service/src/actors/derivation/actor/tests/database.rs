@@ -39,7 +39,7 @@ fn actor_with_database_at_genesis(
         request_receiver,
         StubPipeline {
             origin: BlockInfo::default(),
-            reset_error: None,
+            signal_error: None,
             rollup_config: Arc::new(rollup_config),
             step_result: StepResult::StepFailed(PipelineError::Eof.temp()),
         },

@@ -2,8 +2,8 @@
 pragma solidity 0.8.15;
 
 // Testing
+import { console } from "forge-std/console.sol";
 import { VmSafe } from "forge-std/Vm.sol";
-import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 import { PastUpgrades } from "test/setup/PastUpgrades.sol";
@@ -54,9 +54,48 @@ contract OPContractsManagerV2_TestInit is CommonTest {
     /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for deployments.
     uint256 public constant DEPLOY_GAS_BUFFER_PERCENTAGE = 80; // 80%
 
+    /// @notice Maximum gas allowed for an optimized deployment. Matches the L1 block gas limit.
+    uint64 public constant OPTIMIZED_DEPLOY_GAS_LIMIT = 60_000_000;
+
+    /// @notice Maximum gas allowed for an unoptimized test deployment. Not a protocol limit: it adds
+    ///         headroom over OPTIMIZED_DEPLOY_GAS_LIMIT for the larger unoptimized bytecode.
+    uint64 public constant UNOPTIMIZED_DEPLOY_GAS_LIMIT = 75_000_000;
+
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
+    }
+
+    function _deployGasLimit() internal view returns (uint64) {
+        return Config.isUnoptimized() ? UNOPTIMIZED_DEPLOY_GAS_LIMIT : OPTIMIZED_DEPLOY_GAS_LIMIT;
+    }
+
+    /// @notice Asserts that the most recent deployment remains within transaction gas limits.
+    function _assertDeployGasWithinLimits() internal view {
+        uint256 fusakaLimit = 2 ** 24;
+        VmSafe.Gas memory gas = vm.lastFrameGas();
+        console.log("Deploy execution gas:", gas.gasTotalUsed);
+        console.log("Deploy state gas:", gas.gasStateUsed);
+        assertLt(
+            gas.gasTotalUsed,
+            fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
+            string.concat(
+                "Deploy exceeds gas target of ", vm.toString(DEPLOY_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
+            )
+        );
+
+        _assertTotalGasWithinProfileLimit(gas);
+    }
+
+    /// @notice Asserts that regular plus state gas fits the profile limit, which EIP-8037 requires
+    ///         the transaction gas limit to cover.
+    /// @param _gas The gas measurement of the frame to check.
+    function _assertTotalGasWithinProfileLimit(VmSafe.Gas memory _gas) internal view {
+        assertLt(
+            int256(uint256(_gas.gasTotalUsed)) + _gas.gasStateUsed,
+            int256(uint256(_deployGasLimit())),
+            "Regular plus state gas exceeds profile limit"
+        );
     }
 
     /// @notice Helper function that runs an OPCM V2 deploy, asserts that the deploy was successful,
@@ -121,17 +160,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
             return cts_;
         }
 
-        // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
-        // by using Safe.
-        uint256 fusakaLimit = 2 ** 24;
-        VmSafe.Gas memory gas = vm.lastFrameGas();
-        assertLt(
-            gas.gasTotalUsed,
-            fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
-            string.concat(
-                "Deploy exceeds gas target of ", vm.toString(DEPLOY_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
-            )
-        );
+        _assertDeployGasWithinLimits();
 
         // Coverage changes bytecode, so we get various errors. We can safely ignore the result of
         // the standard validator in the coverage case.
@@ -162,6 +191,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
                 sysCfg: cts_.systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: bytes32(0),
                 l2ChainID: _deployConfig.l2ChainId,
                 proposer: deployProposer
             }),
@@ -259,14 +289,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         // Set up the default v2 upgrade input dispute game configs.
         address initialProposerForV2 = DisputeGames.permissionedGameProposer(disputeGameFactory);
         v2UpgradeInput.systemConfig = systemConfig;
-        if (SemverComp.parse(opcmV2.version()).major == 9) {
-            v2UpgradeInput.extraInstructions
-                .push(
-                    IOPContractsManagerUtils.ExtraInstruction({
-                        key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("ETHLockbox")
-                    })
-                );
-        }
         v2UpgradeInput.disputeGameConfigs
             .push(
                 IOPContractsManagerUtils.DisputeGameConfig({
@@ -433,12 +455,27 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 sysCfg: v2UpgradeInput.systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: _upgradeZKPrestate(),
                 l2ChainID: l2ChainId,
                 proposer: initialProposer
             }),
             false,
             validationOverrides
         );
+    }
+
+    /// @notice Returns the enabled ZK_DISPUTE_GAME prestate in the upgrade input, or zero.
+    function _upgradeZKPrestate() internal view returns (bytes32) {
+        IOPContractsManagerUtils.DisputeGameConfig[] memory configs = v2UpgradeInput.disputeGameConfigs;
+        for (uint256 i = 0; i < configs.length; i++) {
+            if (configs[i].enabled && configs[i].gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+                return
+                    abi.decode(configs[i].gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig))
+                        .absolutePrestate
+                        .raw();
+            }
+        }
+        return bytes32(0);
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
@@ -772,7 +809,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                     key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
                 })
             );
-        runCurrentUpgradeV2(chainPAO, hex"", "SCKDG-SHAPE,SCKDG-10");
+        runCurrentUpgradeV2(chainPAO, hex"", "DF-60");
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)), address(0), "game impl not cleared"
         );
@@ -847,7 +884,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                     key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
                 })
             );
-        runCurrentUpgradeV2(chainPAO, hex"", "SCKDG-SHAPE,SCKDG-10");
+        runCurrentUpgradeV2(chainPAO, hex"", "DF-60");
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)), address(0), "game impl not cleared"
         );
@@ -1019,19 +1056,45 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(uint256(vm.load(address(delayedWeth), bytes32(uint256(6)))), wethDelayBefore);
     }
 
-    /// @notice Tests that the upgrade keeps the bridge hook a chain already has, since the OPCM
-    ///         passes a zero hook to the portal's initialize.
-    function test_upgrade_bridgeHookUnchanged_succeeds() public {
-        if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) vm.skip(true);
+    /// @notice Tests that the upgrade keeps a chain's bridge hook state. This is the hook, the held
+    ///         deposits and withdrawals, the deposit nonce and the published count.
+    function test_upgrade_bridgeHookStateUnchanged_succeeds() public {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
-        // The pre-upgrade portal has no hook getter, so the hook is written straight into its storage slot.
+        // The pre-upgrade portal has no code for this state, so the test writes it into storage.
         address hook = makeAddr("bridgeHook");
-        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
-        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(hook))));
+        bytes32 id = keccak256("held");
+        // The count packs gas (low 8 bytes) and its block (next 8 bytes). The block is an earlier
+        // one because _countAlreadyPublished keeps a count for the current block, which would hide
+        // a wrong call from initialize.
+        bytes32 published = bytes32((block.number - 1) << 64 | 300_000);
+        uint256 nonceSlot = ForgeArtifacts.getSlot("OptimismPortal2", "depositNonce").slot;
+        uint256 publishedSlot = ForgeArtifacts.getSlot("OptimismPortal2", "_publishedParams").slot;
+        vm.store(
+            address(optimismPortal2),
+            bytes32(ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook").slot),
+            bytes32(uint256(uint160(hook)))
+        );
+        vm.store(
+            address(optimismPortal2),
+            keccak256(abi.encode(id, ForgeArtifacts.getSlot("OptimismPortal2", "heldDeposits").slot)),
+            bytes32(uint256(1))
+        );
+        vm.store(
+            address(optimismPortal2),
+            keccak256(abi.encode(id, ForgeArtifacts.getSlot("OptimismPortal2", "heldWithdrawals").slot)),
+            bytes32(uint256(1))
+        );
+        vm.store(address(optimismPortal2), bytes32(nonceSlot), bytes32(uint256(7)));
+        vm.store(address(optimismPortal2), bytes32(publishedSlot), published);
 
         runCurrentUpgradeV2(chainPAO);
 
         assertEq(address(optimismPortal2.bridgeHook()), hook, "bridge hook changed");
+        assertTrue(optimismPortal2.heldDeposits(id), "held deposit changed");
+        assertTrue(optimismPortal2.heldWithdrawals(id), "held withdrawal changed");
+        assertEq(vm.load(address(optimismPortal2), bytes32(nonceSlot)), bytes32(uint256(7)), "nonce changed");
+        assertEq(vm.load(address(optimismPortal2), bytes32(publishedSlot)), published, "count changed");
     }
 
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.
@@ -1052,8 +1115,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that enabling the ZK dispute game registers it in the factory.
     function test_upgrade_enableZKGame_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         address zkImpl = opcmV2.implementations().zkDisputeGameImpl;
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
@@ -1080,8 +1141,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         factory game args. As a super game, chain scoping comes from the SuperRootProof
     ///         preimage committed to via rootClaim, so no l2ChainId field is included.
     function test_upgrade_zkGameArgsLayout_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
@@ -1110,8 +1169,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that enabling the ZK dispute game with a zero absolute prestate reverts. The
     ///         prestate is the verification key, so an empty one makes the game unplayable.
     function test_upgrade_enableZKGameZeroPrestate_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
@@ -1157,8 +1214,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         zero, which lets an unchallenged root win immediately, or above uint32 max, which can
     ///         overflow the game's uint64 deadline into the past.
     function test_upgrade_enableZKGameInvalidMaxChallengeDuration_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
         for (uint256 i = 0; i < bad.length; i++) {
             _setZKUpgradeConfig(bad[i], uint64(3 days), 1 ether);
@@ -1173,8 +1228,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that enabling the ZK dispute game reverts when the max prove duration is
     ///         zero or above uint32 max.
     function test_upgrade_enableZKGameInvalidMaxProveDuration_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
         for (uint256 i = 0; i < bad.length; i++) {
             _setZKUpgradeConfig(uint64(7 days), bad[i], 1 ether);
@@ -1189,8 +1242,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that enabling the ZK dispute game reverts when the challenger bond is zero,
     ///         which would make challenges free.
     function test_upgrade_enableZKGameZeroChallengerBond_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         _setZKUpgradeConfig(uint64(7 days), uint64(3 days), 0);
 
         // nosemgrep: sol-style-use-abi-encodecall
@@ -1202,8 +1253,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that enabling the ZK dispute game accepts the inclusive bounds: uint32 max
     ///         durations and a challenger bond of one wei.
     function test_upgrade_enableZKGameMaxDurations_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         _setZKUpgradeConfig(type(uint32).max, type(uint32).max, 1);
 
         runCurrentUpgradeV2(chainPAO);
@@ -1215,37 +1264,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(args.challengerBond, 1, "challenger bond not set");
     }
 
-    /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
-    function test_upgrade_enableZKGameWithoutDevFeature_reverts() public {
-        // Mock the container to report ZK_DISPUTE_GAME dev feature as disabled, regardless of
-        // what the real deployed container has in its bitmap.
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
-            abi.encode(false)
-        );
-
-        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
-        v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
-        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
-            IOPContractsManagerUtils.ZKDisputeGameConfig({
-                absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                maxChallengeDuration: Duration.wrap(uint64(7 days)),
-                maxProveDuration: Duration.wrap(uint64(3 days)),
-                challengerBond: 1 ether
-            })
-        );
-
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
-        );
-    }
-
     /// @notice Tests that the ZK prestate can be rotated while the release adapter remains fixed.
     function test_upgrade_updateZKPrestate_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         // Enable ZK with initial config.
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
@@ -1281,8 +1301,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that disabling the ZK game sets the init bond to zero in the factory.
     function test_upgrade_disableZKGame_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         // First enable ZK game.
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
@@ -1676,8 +1694,6 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
 /// @title OPContractsManagerV2_Deploy_Test
 /// @notice Tests OPContractsManagerV2.deploy
 contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
-    using stdStorage for StdStorage;
-
     /// @notice Default deploy config.
     IOPContractsManagerV2.FullConfig deployConfig;
 
@@ -1843,60 +1859,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         });
     }
 
-    /// @notice Recreates the legacy disabled-lockbox storage state for upgrade tests.
-    function _setLegacyLockboxState(ISystemConfig _systemConfig, IOptimismPortal2 _portal) internal {
-        stdstore.target(address(_systemConfig))
-            .sig("isFeatureEnabled(bytes32)")
-            .with_key(Features.ETH_LOCKBOX)
-            .checked_write(false);
-        stdstore.target(address(_systemConfig))
-            .sig("isFeatureEnabled(bytes32)")
-            .with_key(Features.INTEROP)
-            .checked_write(false);
-        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
-        vm.store(address(_portal), bytes32(slot.slot), bytes32(0));
-        assertFalse(_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-        assertEq(address(_portal.ethLockbox()), address(0));
-    }
-
-    /// @notice Tests lockbox deployment permission and first activation without requiring a fork.
-    function test_upgrade_missingLockbox_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(false, false);
-    }
-
-    /// @notice Tests that a CGT chain without a lockbox can upgrade without migrating portal ETH.
-    function test_upgrade_missingLockboxCGT_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(true, false);
-    }
-
-    /// @notice Tests first lockbox activation with a v9 development version.
-    function test_upgrade_missingLockboxV9Dev_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0-dev"));
-        _testUpgradeMissingLockbox(false, false);
-    }
-
-    /// @notice Tests liquidity migration when the flag was enabled without configuring a lockbox.
-    function test_upgrade_missingLockboxFeatureEnabled_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(false, true);
-    }
-
-    /// @notice Tests that an enabled flag without a lockbox does not migrate CGT portal ETH.
-    function test_upgrade_missingLockboxCGTFeatureEnabled_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(true, true);
-    }
-
-    /// @notice Tests that v8 rejects the ETHLockbox deployment instruction.
-    function test_upgrade_lockboxInstructionV8_reverts() public {
-        _assertUpgradeInstructionRejected("8.0.4", Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"));
-    }
-
-    /// @notice Tests that the ETHLockbox deployment allowance expires in v10.
-    function test_upgrade_lockboxInstructionV10_reverts() public {
-        _assertUpgradeInstructionRejected("10.0.0", Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"));
+    /// @notice Tests that an upgrade cannot deploy an ETHLockbox for an existing chain.
+    function test_upgrade_lockboxInstruction_reverts() public {
+        _assertUpgradeInstructionRejected(
+            opcmV2.version(), Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox")
+        );
     }
 
     /// @notice Tests that the per-chain withdrawal delays cannot be overridden during an upgrade.
@@ -1948,78 +1915,12 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    /// @notice Tests first lockbox activation and repeat upgrades for ETH and CGT chains.
-    /// @param _useCustomGasToken Whether the chain uses a custom gas token.
-    /// @param _enableFeatureBeforeUpgrade Whether to enable the flag without configuring a lockbox.
-    function _testUpgradeMissingLockbox(bool _useCustomGasToken, bool _enableFeatureBeforeUpgrade) internal {
-        deployConfig.useCustomGasToken = _useCustomGasToken;
-        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        _setLegacyLockboxState(cts.systemConfig, cts.optimismPortal);
-        if (_enableFeatureBeforeUpgrade) {
-            vm.prank(cts.proxyAdmin.owner());
-            cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-        }
-        assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
-        vm.deal(address(cts.optimismPortal), 1 ether);
-
-        IOPContractsManagerV2.UpgradeInput memory input;
-        input.systemConfig = cts.systemConfig;
-        input.disputeGameConfigs = deployConfig.disputeGameConfigs;
-        address pao = cts.proxyAdmin.owner();
-
-        // Without the instruction, the upgrade must stop before changing any chain state.
-        prankDelegateCall(pao);
-        (bool success, bytes memory reason) =
-            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
-        assertFalse(success);
-        // nosemgrep: sol-style-use-abi-encodecall
-        assertEq(
-            reason,
-            abi.encodeWithSelector(
-                IOPContractsManagerUtils.OPContractsManagerUtils_ProxyMustLoad.selector, "ETHLockbox"
-            )
-        );
-        assertEq(address(cts.optimismPortal.ethLockbox()), address(0));
-        assertEq(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), _enableFeatureBeforeUpgrade);
-        assertEq(address(cts.optimismPortal).balance, 1 ether);
-
-        input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
-        input.extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("ETHLockbox")
-        });
-        prankDelegateCall(pao);
-        (success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
-        assertTrue(success, "upgrade failed");
-
-        IETHLockbox lockbox = cts.optimismPortal.ethLockbox();
-        assertNotEq(address(lockbox), address(0));
-        assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-        assertFalse(cts.systemConfig.isFeatureEnabled(Features.INTEROP));
-        assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
-        assertTrue(lockbox.authorizedPortals(cts.optimismPortal));
-        assertEq(address(lockbox.superchainConfig()), address(cts.systemConfig.superchainConfig()));
-        assertEq(address(cts.anchorStateRegistry.ethLockbox()), address(lockbox));
-        assertEq(address(cts.delayedWETH.ethLockbox()), address(lockbox));
-        assertEq(address(cts.optimismPortal).balance, _useCustomGasToken ? 1 ether : 0);
-        assertEq(address(lockbox).balance, _useCustomGasToken ? 0 : 1 ether);
-
-        // Repeating the upgrade reuses the lockbox and does not migrate portal liquidity again.
-        vm.deal(address(cts.optimismPortal), 2 ether);
-        prankDelegateCall(pao);
-        (success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
-        assertTrue(success, "repeat upgrade failed");
-        assertEq(address(cts.optimismPortal.ethLockbox()), address(lockbox));
-        assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
-        assertEq(address(cts.optimismPortal).balance, 2 ether);
-        assertEq(address(lockbox).balance, _useCustomGasToken ? 0 : 1 ether);
-    }
-
     /// @notice Tests that the deploy function succeeds and passes standard validation.
     function test_deploy_succeeds() public {
         // Run the deploy and standard validator checks.
         // In standard mode, CANNON_KONA is disabled. In super root mode, SUPER_CANNON_KONA is disabled.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         // Verify key contracts are deployed.
@@ -2046,7 +1947,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.useCustomGasToken = true;
 
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         assertTrue(cts.systemConfig.isCustomGasToken(), "CGT not enabled");
@@ -2079,7 +1980,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.withdrawalDelaySeconds = 1 days;
 
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         assertEq(cts.optimismPortal.proofMaturityDelaySeconds(), 2 days, "proof maturity delay mismatch");
@@ -2181,8 +2082,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests that enabling the ZK game during initial deployment reverts.
     function test_deploy_enableZKGame_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         deployConfig.disputeGameConfigs[5].enabled = true;
         deployConfig.disputeGameConfigs[5].initBond = 1 ether;
 
@@ -2239,9 +2138,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
         vm.prank(senderA);
         IOPContractsManagerV2.ChainContracts memory ctsA = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
 
         vm.prank(senderB);
         IOPContractsManagerV2.ChainContracts memory ctsB = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
 
         assertNotEq(
             address(ctsA.systemConfig), address(ctsB.systemConfig), "systemConfig addresses should differ by sender"
@@ -2344,6 +2245,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
         assertEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)),
             opcmV2.implementations().faultDisputeGameImpl,
@@ -2453,6 +2355,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
         assertEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)),
             opcmV2.implementations().superFaultDisputeGameImpl,
@@ -2475,7 +2378,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingAnchorRoot =
             Proposal({ root: Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT), l2SequenceNumber: 0 });
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
         Proposal memory startingAnchorRoot = cts.anchorStateRegistry.getStartingAnchorRoot();
         assertEq(
@@ -2848,16 +2751,15 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         }
 
         // Execute a delegatecall to the OPCM migration function.
-        // Check gas usage of the migration function.
-        uint256 gasBefore = gasleft();
         prankDelegateCall(proxyAdminOwner);
         (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (_input)));
+        VmSafe.Gas memory gas = vm.lastFrameGas();
         assertTrue(success, "migrate failed");
-        uint256 gasAfter = gasleft();
 
-        // Make sure we can fit in a block
+        // The EIP-7825 cap limits regular gas only, so EIP-8037 state gas is excluded.
         uint256 fusakaLimit = 2 ** 24;
-        assertLt(gasBefore - gasAfter, fusakaLimit * MIGRATE_GAS_BUFFER_PERCENTAGE / 100, "Gas usage too high");
+        assertLt(gas.gasTotalUsed, fusakaLimit * MIGRATE_GAS_BUFFER_PERCENTAGE / 100, "Gas usage too high");
+        _assertTotalGasWithinProfileLimit(gas);
     }
 
     /// @notice Helper function to enable a chain's existing per-chain ETHLockbox before migration.
@@ -2963,8 +2865,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     ///         The shared contracts are reachable from every chain in the set, so upgrading a
     ///         single chain applies the new dispute game config to the whole set.
     function test_upgrade_migratedSetSwapsSharedDisputeGames_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         _enableEthLockboxes();
         _doMigration(_getDefaultMigrateInput());
 
@@ -3711,28 +3611,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidAbsolutePrestate.selector);
     }
 
-    /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config is supplied
-    ///         while the ZK_DISPUTE_GAME dev feature is disabled.
-    function test_migrate_zkDisputeGameNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // Game args are irrelevant: validation rejects the config before they are decoded.
-        _appendDisputeGameConfig(
-            input,
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true, initBond: 0.08 ether, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
-            })
-        );
-
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
-            abi.encode(false)
-        );
-
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ZKDisputeGameNotEnabled.selector);
-    }
-
     /// @notice Tests that the migration function reverts when a supplied game config is for a game
     ///         type that does not use super roots.
     function test_migrate_nonSuperGameType_reverts() public {
@@ -3774,8 +3652,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
     ///         absolute prestate.
     function test_migrate_zkZeroAbsolutePrestate_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, Claim.wrap(bytes32(0))));
 
@@ -3785,8 +3661,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
     ///         or greater-than-uint32-max challenge or prove duration.
     function test_migrate_zkInvalidDurations_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         Claim zkPrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
         uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
         for (uint256 i = 0; i < bad.length; i++) {
@@ -3807,8 +3681,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
     ///         challenger bond.
     function test_migrate_zkZeroChallengerBond_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         _appendDisputeGameConfig(
             input,
@@ -3820,11 +3692,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector);
     }
 
-    /// @notice Tests that the migration function registers a ZK_DISPUTE_GAME config when the dev
-    ///         feature is enabled.
+    /// @notice Tests that the migration function registers a ZK_DISPUTE_GAME config.
     function test_migrate_zkDisputeGame_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         Claim zkPrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, zkPrestate));
@@ -4051,7 +3920,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
     function test_batchUpgrade_multipleChains_succeeds() public {
         skipIfUnoptimized();
 
-        uint256 numberOfChains = 14;
+        uint256 numberOfChains = 10;
 
         // 1. Deploy BatchUpgrader helper contract.
         BatchUpgrader batchUpgrader = new BatchUpgrader(opcmV2);

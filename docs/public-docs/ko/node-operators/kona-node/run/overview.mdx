@@ -1,0 +1,40 @@
+---
+title: "Node 실행하기"
+diataxis: how-to
+---
+
+[`kona-node`를 설치](/ko/node-operators/kona-node/install/overview)했다면,
+이제 실행할 차례입니다.
+
+이 섹션에서는 다양한 네트워크와 여러 설정으로 kona-node를
+실행하는 방법을 안내합니다.
+
+
+## 지원 네트워크
+
+Kona는 [superchain-registry][scr]를 사용하여 지정된 네트워크의
+체인 설정을 동적으로 로드합니다. 따라서 Kona는
+이 방식으로 정의된 네트워크만 지원할 수 있습니다.
+
+[scr]: https://github.com/ethereum-optimism/superchain-registry
+
+사용 가능한 네트워크를 확인하려면 `kona-node`가 superchain-registry에서
+가져와 내장하는 [체인 목록][chain-list]을 참조하십시오. 이 링크는
+`develop` 브랜치의 목록을 보여 줍니다. 특정 릴리스가 지원하는 체인을 확인하려면
+해당 릴리스 태그에서 같은 파일을 여십시오.
+
+[chain-list]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/protocol/registry/etc/chainList.json
+
+<Tip>
+새로운 네트워크 지원을 추가하고 싶으십니까?
+superchain-registry에 [체인을 추가](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#adding-a-chain)해 주십시오!
+</Tip>
+
+
+## 설정 및 모니터링
+
+node를 설정하고 모니터링하는 방법을 알아보십시오.
+
+-   **[설정](/ko/node-operators/kona-node/configuration)** - node 설정하기
+-   **[모니터링](/ko/node-operators/kona-node/monitoring)** - 로그, 메트릭, 관측 가능성 설정하기
+

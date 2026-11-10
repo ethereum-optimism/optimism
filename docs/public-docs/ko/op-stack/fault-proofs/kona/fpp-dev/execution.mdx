@@ -1,0 +1,24 @@
+---
+title: "실행"
+diataxis: explanation
+---
+
+프로그램의 실행 단계는 일반적으로 결함 증명 프로그램(fault proof program)에서 가장 무거운 부분으로, 검증 대상이 되는 연산이
+수행되는 단계입니다.
+
+이 단계는 [프롤로그 단계](/ko/op-stack/fault-proofs/kona/fpp-dev/prologue)의 출력을 받아 검증 가능한 연산의 대부분을
+수행합니다. 실행이 끝나면 출력은 최종 검증을 위해 [에필로그 단계](/ko/op-stack/fault-proofs/kona/fpp-dev/epilogue)로
+전달됩니다.
+
+## 예시
+
+상위 수준에서 보면, `kona-client` 프로그램의 실행 단계는 다음을 수행합니다.
+
+1. 프롤로그에서 가져온 L1 head hash를 역추적(unroll)하여 L2 derivation 파이프라인의 입력을 도출합니다.
+1. 입력을 L2 derivation 파이프라인에 전달하여, 주장된 높이에서 L2 safe chain을 재현하는 데 필요한
+   L2 실행 페이로드를 생성합니다.
+1. L2 derivation 파이프라인이 생성한 페이로드를 실행하여, L2 claim 높이에서의 [L2 output root][l2-output-root]를
+   생성합니다.
+
+
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction

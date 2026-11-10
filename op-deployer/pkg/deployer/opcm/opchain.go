@@ -112,57 +112,6 @@ func NewDeployOPChainForgeCaller(client *forge.Client) forge.ScriptCaller[Deploy
 	)
 }
 
-type ReadImplementationAddressesInput struct {
-	AddressManager                    common.Address
-	L1ERC721BridgeProxy               common.Address
-	SystemConfigProxy                 common.Address
-	OptimismMintableERC20FactoryProxy common.Address
-	L1StandardBridgeProxy             common.Address
-	OptimismPortalProxy               common.Address
-	DisputeGameFactoryProxy           common.Address
-	Opcm                              common.Address
-}
-
-type ReadImplementationAddressesOutput struct {
-	DelayedWETH                  common.Address
-	OptimismPortal               common.Address
-	EthLockbox                   common.Address `evm:"ethLockbox"`
-	SystemConfig                 common.Address
-	AnchorStateRegistry          common.Address
-	L1CrossDomainMessenger       common.Address
-	L1ERC721Bridge               common.Address
-	L1StandardBridge             common.Address
-	OptimismMintableERC20Factory common.Address
-	DisputeGameFactory           common.Address
-	MipsSingleton                common.Address
-	PreimageOracleSingleton      common.Address
-	FaultDisputeGame             common.Address
-	PermissionedDisputeGame      common.Address
-	SuperFaultDisputeGame        common.Address
-	SuperPermissionedDisputeGame common.Address
-	ZkDisputeGame                common.Address
-	OpcmStandardValidator        common.Address
-	OpcmInteropMigrator          common.Address
-	SP1PlonkAdapter              common.Address `evm:"sp1PlonkAdapter" abi:"sp1PlonkAdapter"`
-}
-
-type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImplementationAddressesInput, ReadImplementationAddressesOutput]
-
-// NewReadImplementationAddressesScript loads and validates the ReadImplementationAddresses script contract
-func NewReadImplementationAddressesScript(host *script.Host) (ReadImplementationAddressesScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[ReadImplementationAddressesInput, ReadImplementationAddressesOutput](host, "ReadImplementationAddresses.s.sol", "ReadImplementationAddresses")
-}
-
-func NewReadImplementationAddressesForgeCaller(client *forge.Client) forge.ScriptCaller[ReadImplementationAddressesInput, ReadImplementationAddressesOutput] {
-	return forge.NewScriptCaller(
-		client,
-		"scripts/deploy/ReadImplementationAddresses.s.sol:ReadImplementationAddresses",
-		"runWithBytes(bytes)",
-		&forge.BytesScriptEncoder[ReadImplementationAddressesInput]{TypeName: "ReadImplementationAddressesInput"},
-		&forge.BytesScriptDecoder[ReadImplementationAddressesOutput]{TypeName: "ReadImplementationAddressesOutput"},
-	)
-}
-
 // DeployOPChainViaForge deploys OP Chain contracts using Forge
 func DeployOPChainViaForge(env *ForgeEnv, input DeployOPChainInput) (DeployOPChainOutput, error) {
 	var output DeployOPChainOutput
@@ -174,21 +123,6 @@ func DeployOPChainViaForge(env *ForgeEnv, input DeployOPChainInput) (DeployOPCha
 	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy OP Chain with Forge: %w", err)
-	}
-	return output, nil
-}
-
-// ReadImplementationAddressesViaForge reads implementation addresses using Forge
-func ReadImplementationAddressesViaForge(env *ForgeEnv, input ReadImplementationAddressesInput) (ReadImplementationAddressesOutput, error) {
-	var output ReadImplementationAddressesOutput
-	if err := env.validate(false); err != nil {
-		return output, err
-	}
-	forgeCaller := NewReadImplementationAddressesForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOptsReadOnly()...)
-	if err != nil {
-		return output, fmt.Errorf("failed to run ReadImplementationAddresses with Forge: %w", err)
 	}
 	return output, nil
 }

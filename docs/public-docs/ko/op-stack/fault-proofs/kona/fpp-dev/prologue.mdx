@@ -1,0 +1,45 @@
+---
+title: "프롤로그"
+diataxis: explanation
+---
+
+프로그램의 프롤로그 단계는 일반적으로 [Host-Client 통신](/ko/op-stack/fault-proofs/kona/fpp-dev/env#host-and-client-communication) 구현을 통해
+외부 소스에서 가져온 입력으로 프로그램을 부트스트래핑하는 역할을 합니다.
+
+경험적으로, 프롤로그 구현은 최소한으로 유지해야 하며, [실행 단계](/ko/op-stack/fault-proofs/kona/fpp-dev/execution)의 입력을
+준비하는 것 이상의 작업은 하지 않는 것이 좋습니다.
+
+## 예시
+
+예를 들어, `kona-client` 프로그램의 프롤로그 단계는 다음과 같은 여러 단계를 거칩니다.
+
+1. [Preimage Oracle ABI][preimage-specs]를 통해 다음 내용을 포함하는 부트 정보를 가져옵니다.
+   - 주장된 블록 높이에서 L2 safe chain을 재현하는 데 필요한 모든 데이터를 포함하는 L1 head hash
+   - 합의된 safe [L2 output root][l2-output-root]
+   - [L2 output root][l2-output-root] claim
+   - [L2 output root][l2-output-root] claim의 블록 번호
+   - L2 chain ID
+1. 전달된 L2 chain ID에 해당하는 `RollupConfig`와 `L1ChainConfig`를 가져옵니다.
+1. 이 값들을 검증합니다.
+1. 부트 정보를 실행 단계로 전달합니다.
+
+[op-stack]: https://github.com/ethereum-optimism/optimism
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
+[cannon-rs]: https://github.com/op-rs/cannon-rs
+[asterisc]: https://github.com/ethereum-optimism/asterisc
+[fp-specs]: https://specs.optimism.io/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
+[op-succinct]: https://github.com/succinctlabs/op-succinct
+[revm]: https://github.com/bluealloy/revm
+
+[kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
+[issues]: https://github.com/ethereum-optimism/optimism/issues
+[new-issue]: https://github.com/ethereum-optimism/optimism/issues/new
+[contributing]: https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md
+
+[op-labs]: https://github.com/ethereum-optimism
+[bad-boi-labs]: https://github.com/BadBoiLabs

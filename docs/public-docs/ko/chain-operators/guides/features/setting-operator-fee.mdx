@@ -1,0 +1,90 @@
+---
+title: Operator Fee 설정
+description: OP Stack 체인에서 operator fee를 구성하는 방법을 알아봅니다
+diataxis: how-to
+---
+
+## 개요
+
+| 파라미터                | 기본값  | 권장값         | 타입                         |
+| :---------------------- | :-----: | :------------- | :----------------------------|
+| `operatorFeeScalar`     | 0       | 체인별로 다름  | uint32 scalar (1e6 단위로 스케일링)|
+| `operatorFeeConstant`   | 0       | 체인별로 다름  | uint64 scalar (wei)          |
+
+**Operator Fee**는 **[Isthmus 업그레이드](https://docs.optimism.io/notices/upgrade-14#operator-fee)**에서 도입되었으며 **[Jovian 업그레이드](https://docs.optimism.io/notices/upgrade-17#breaking-changes)**에서 변경되었습니다.  
+이를 통해 OP Stack 체인 운영자(chain operator)는 **실행 gas 수수료**(base fee + priority fee)와 **L1 데이터 수수료** 외에 트랜잭션에 추가 수수료를 부과할 수 있습니다.
+
+이 메커니즘은 운영자에게 두 가지 조정 수단을 제공합니다.
+
+- 사용된 gas에 비례하여 커지는 **gas 비례 구성 요소**(`operatorFeeScalar`)
+- **고정 구성 요소**(`operatorFeeConstant`)
+
+<Info>
+  operator fee는 Isthmus 업그레이드를 활성화한 체인에서만 적용됩니다.
+</Info>
+
+<Info>
+  **입금(디파짓) 트랜잭션에는 operator fee가 부과되지 않습니다.**  
+  모든 입금 트랜잭션의 경우 operator fee 구성과 관계없이 operator fee는 항상 0입니다.
+</Info>
+
+---
+
+## Operator Fee 공식
+
+operator fee는 활성화된 포크에 따라 다음 공식으로 계산됩니다.
+
+**Isthmus 이후:**
+
+```text
+operatorFee = operatorFeeConstant + (operatorFeeScalar * gasUsed / 1e6)
+```
+
+**Jovian 이후:**
+
+```text
+operatorFee = operatorFeeConstant + (operatorFeeScalar × gasUsed × 100)
+```
+
+<Warning>
+  operator fee 값을 너무 높게 설정하면 트랜잭션 비용이 크게 증가하고 사용자 채택이 줄어들 수 있습니다.
+  operator fee는 UX와 경쟁력에 직접적인 영향을 미치므로 보수적으로 조정해야 합니다.
+  표준 체인의 기본값은 0이며, 그 외의 값은 비표준으로 간주됩니다.
+</Warning>
+
+---
+
+## Operator Fee 업데이트 방법
+
+operator fee 파라미터를 업데이트하려면 `SystemConfigOwner`에서 `SystemConfig` 컨트랙트의 다음 메서드를 호출합니다.
+
+`setOperatorFeeScalars(uint32 _operatorFeeScalar, uint64 _operatorFeeConstant) external onlyOwner;`
+
+cast를 사용한 예시:
+
+    ```bash title="cast"
+    cast send  --rpc-url <RPC_URL> --private-key <PRIVATE_KEY> \
+      <SYSTEM_CONFIG_PROXY_ADDRESS> \
+      "setOperatorFeeScalars(uint32,uint64)" \
+      500000 1000000000000
+    ```
+
+트랜잭션이 확인되면 다음을 호출하여 현재 구성을 검증합니다.
+
+    `function operatorFeeScalar() view returns (uint32);`  
+    `function operatorFeeConstant() view returns (uint64);`
+
+cast를 사용한 예시:
+
+    ```bash title="cast"
+    cast call --rpc-url <RPC_URL> <SYSTEM_CONFIG_PROXY_ADDRESS> "operatorFeeScalar()"
+    cast call --rpc-url <RPC_URL> <SYSTEM_CONFIG_PROXY_ADDRESS> "operatorFeeConstant()"
+    ```
+
+---
+
+## 참고 자료
+
+- [Operator Fee 개요 – OP Stack 수수료 문서](https://docs.optimism.io/op-stack/transactions/fees#operator-fee-component)
+- [SystemConfig Operator Fee 파라미터 구성 – OP Stack 스펙](https://specs.optimism.io/protocol/isthmus/system-config.html#operator-fee-parameter-configuration)
+- [Isthmus Operator Fee 세부 정보 – OP Stack 스펙](https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee)

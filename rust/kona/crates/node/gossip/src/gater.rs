@@ -1,7 +1,6 @@
 //! An implementation of the [`ConnectionGate`] trait.
 
-use crate::{Connectedness, ConnectionGate, DialError};
-use ipnet::IpNet;
+use crate::{CanonicalIp, ConnectionGate, DialError, gate};
 use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 use std::{
     collections::{HashMap, HashSet},
@@ -70,19 +69,11 @@ pub struct ConnectionGater {
     pub current_dials: HashSet<PeerId>,
     /// The dial info for each address dialed.
     pub(crate) dialed_addrs: HashMap<Multiaddr, DialInfo>,
-    /// Holds a map from peer id to connectedness for the given peer id.
-    pub connectedness: HashMap<PeerId, Connectedness>,
     /// A set of protected peers that cannot be disconnected.
     ///
     /// Protecting a peer prevents the peer from any redial thresholds or peer scoring.
     pub protected_peers: HashSet<PeerId>,
-    /// A set of blocked peer ids.
-    pub blocked_peers: HashSet<PeerId>,
-    /// A set of blocked ip addresses that cannot be dialed.
-    pub blocked_addrs: HashSet<IpAddr>,
-    /// A set of blocked subnets that cannot be connected to.
-    pub blocked_subnets: HashSet<IpNet>,
-    /// Whether addresses without an IP or DNS name may be dialed.
+    /// Whether addresses without an IP, such as `/memory` ones, may be dialed.
     ///
     /// The checks on the peer ID still apply to them, but IP and subnet blocks cannot, so they
     /// are only allowed for a [`crate::GossipTransport::Other`] transport.
@@ -96,16 +87,12 @@ impl ConnectionGater {
             config,
             current_dials: HashSet::new(),
             dialed_addrs: HashMap::new(),
-            connectedness: HashMap::new(),
             protected_peers: HashSet::new(),
-            blocked_peers: HashSet::new(),
-            blocked_addrs: HashSet::new(),
-            blocked_subnets: HashSet::new(),
             allow_addrs_without_ip: false,
         }
     }
 
-    /// Allows dialing addresses without an IP or DNS name, such as `/memory` ones.
+    /// Allows dialing addresses without an IP, such as `/memory` ones.
     pub(crate) const fn allowing_addrs_without_ip(mut self) -> Self {
         self.allow_addrs_without_ip = true;
         self
@@ -146,11 +133,11 @@ impl ConnectionGater {
         })
     }
 
-    /// Constructs the [`IpAddr`] from the given [`Multiaddr`].
-    pub fn ip_from_addr(addr: &Multiaddr) -> Option<IpAddr> {
+    /// Returns the IP address in the given [`Multiaddr`], in the form the gate matches.
+    pub fn ip_from_addr(addr: &Multiaddr) -> Option<CanonicalIp> {
         addr.iter().find_map(|component| match component {
-            libp2p::multiaddr::Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
-            libp2p::multiaddr::Protocol::Ip6(ip) => Some(IpAddr::V6(ip)),
+            libp2p::multiaddr::Protocol::Ip4(ip) => Some(IpAddr::V4(ip).into()),
+            libp2p::multiaddr::Protocol::Ip6(ip) => Some(IpAddr::V6(ip).into()),
             _ => None,
         })
     }
@@ -216,113 +203,59 @@ impl ConnectionGater {
             .collect()
     }
 
-    /// Checks if a given [`IpAddr`] is within any of the `blocked_subnets`.
-    pub fn check_ip_in_blocked_subnets(&self, ip_addr: &IpAddr) -> bool {
-        for subnet in &self.blocked_subnets {
-            if subnet.contains(ip_addr) {
-                return true;
+    /// Returns why the gate refuses to dial `peer_id` at `addr`, see
+    /// [`ConnectionGate::can_dial_addr`].
+    fn check_addr(
+        &self,
+        peer_id: &PeerId,
+        addr: &Multiaddr,
+        gate: &gate::Behaviour,
+    ) -> Result<(), DialError> {
+        // Protected peers aren't held to the redial limit.
+        if !self.protected_peers.contains(peer_id) &&
+            self.dial_threshold_reached(addr) &&
+            !self.dial_period_expired(addr)
+        {
+            return Err(DialError::ThresholdReached { addr: addr.clone() });
+        }
+        match Self::ip_from_addr(addr) {
+            Some(ip) => gate.check_ip(ip),
+            // IP and subnet blocks can't apply to it.
+            None if self.allow_addrs_without_ip => Ok(()),
+            None => {
+                warn!(target: "p2p", peer=?addr, "Failed to extract IpAddr from Multiaddr");
+                Err(DialError::InvalidIpAddress { addr: addr.clone() })
             }
         }
-        false
-    }
-
-    /// Returns the IPs to check for an address: the one it has, or every one its DNS name resolves
-    /// to.
-    ///
-    /// Returns none when there is no IP to check: DNS resolution failed, or the address has no IP
-    /// and a custom transport is allowed to dial it. [`GossipDriver::dial_peer`] resolves names
-    /// itself before it asks the gate, and drops those that don't resolve.
-    ///
-    /// [`GossipDriver::dial_peer`]: crate::GossipDriver::dial_peer
-    fn ips_to_check(&self, addr: &Multiaddr) -> Result<Vec<IpAddr>, DialError> {
-        match Self::resolve_dns(addr, Self::system_resolve) {
-            Some(Ok(ips)) => Ok(ips),
-            Some(Err(error)) => {
-                debug!(target: "gossip", peer=?addr, %error, "DNS resolution failed, allowing dial");
-                Ok(Vec::new())
-            }
-            None => match Self::ip_from_addr(addr) {
-                Some(ip) => Ok(vec![ip]),
-                None if self.allow_addrs_without_ip => Ok(Vec::new()),
-                None => {
-                    warn!(target: "p2p", peer=?addr, "Failed to extract IpAddr from Multiaddr");
-                    Err(DialError::InvalidIpAddress { addr: addr.clone() })
-                }
-            },
-        }
-    }
-
-    /// Checks the IP address of `addr` against the blocked addresses and subnets.
-    fn check_ip(&mut self, addr: &Multiaddr, peer_id: PeerId, ip: IpAddr) -> Result<(), DialError> {
-        // If the address is blocked, do not dial.
-        if self.is_blocked_addr(&ip) {
-            debug!(target: "gossip", peer=?addr, "Address is blocked, not dialing");
-            self.connectedness.insert(peer_id, Connectedness::CannotConnect);
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_address")
-                .increment(1);
-            return Err(DialError::AddressBlocked { ip });
-        }
-
-        // If address lies in any blocked subnets, do not dial.
-        if self.check_ip_in_blocked_subnets(&ip) {
-            debug!(target: "gossip", ip=?ip, "IP address is in a blocked subnet, not dialing");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_subnet")
-                .increment(1);
-            return Err(DialError::SubnetBlocked { ip });
-        }
-
-        Ok(())
     }
 }
 
 impl ConnectionGate for ConnectionGater {
-    fn can_dial(&mut self, addr: &Multiaddr) -> Result<(), DialError> {
-        // Get the peer id from the given multiaddr.
-        let peer_id = Self::peer_id_from_addr(addr).ok_or_else(|| {
-            warn!(target: "p2p", peer=?addr, "Failed to extract PeerId from Multiaddr");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr")
-                .increment(1);
-            DialError::InvalidMultiaddr { addr: addr.clone() }
-        })?;
-
-        // Cannot dial a peer that is already being dialed.
-        if self.current_dials.contains(&peer_id) {
-            debug!(target: "gossip", peer=?addr, "Already dialing peer, not dialing");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_dialing")
-                .increment(1);
-            return Err(DialError::AlreadyDialing { peer_id });
-        }
-
-        // If the peer is protected, do not apply thresholds.
-        let protected = self.protected_peers.contains(&peer_id);
-
-        // If the peer is not protected, its dial threshold is reached and dial period is not
-        // expired, do not dial.
-        if !protected && self.dial_threshold_reached(addr) && !self.dial_period_expired(addr) {
-            debug!(target: "gossip", peer=?addr, "Dial threshold reached, not dialing");
-            self.connectedness.insert(peer_id, Connectedness::CannotConnect);
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "threshold_reached")
-                .increment(1);
-            return Err(DialError::ThresholdReached { addr: addr.clone() });
-        }
-
-        // If the peer is blocked, do not dial.
-        if self.is_blocked_peer(&peer_id) {
-            debug!(target: "gossip", peer=?addr, "Peer is blocked, not dialing");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_peer").increment(1);
-            return Err(DialError::PeerBlocked { peer_id });
-        }
-
-        // Checks on the IP address only apply to addresses that have one.
-        for ip in self.ips_to_check(addr)? {
-            self.check_ip(addr, peer_id, ip)?;
-        }
-
-        Ok(())
+    fn can_dial_peer(&self, peer_id: &PeerId, gate: &gate::Behaviour) -> Result<(), DialError> {
+        // A block first, as the more useful answer for a blocked peer still being dialed.
+        let refusal = if let Err(refusal) = gate.check_peer(peer_id) {
+            refusal
+        } else if self.current_dials.contains(peer_id) {
+            DialError::AlreadyDialing { peer_id: *peer_id }
+        } else {
+            return Ok(());
+        };
+        debug!(target: "gossip", %peer_id, %refusal, "Not dialing peer");
+        metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => refusal.reason()).increment(1);
+        Err(refusal)
     }
 
-    fn connectedness(&self, peer_id: &PeerId) -> Connectedness {
-        self.connectedness.get(peer_id).copied().unwrap_or(Connectedness::NotConnected)
+    fn can_dial_addr(
+        &self,
+        peer_id: &PeerId,
+        addr: &Multiaddr,
+        gate: &gate::Behaviour,
+    ) -> Result<(), DialError> {
+        self.check_addr(peer_id, addr, gate).inspect_err(|refusal| {
+            debug!(target: "gossip", peer=?addr, %refusal, "Not dialing address");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => refusal.reason())
+                .increment(1);
+        })
     }
 
     fn list_protected_peers(&self) -> Vec<PeerId> {
@@ -331,7 +264,6 @@ impl ConnectionGate for ConnectionGater {
 
     fn dialing(&mut self, peer_id: &PeerId) {
         self.current_dials.insert(*peer_id);
-        self.connectedness.insert(*peer_id, Connectedness::Connected);
     }
 
     fn dialed(&mut self, addr: &Multiaddr) {
@@ -368,58 +300,6 @@ impl ConnectionGate for ConnectionGater {
         false
     }
 
-    fn block_peer(&mut self, peer_id: &PeerId) {
-        self.blocked_peers.insert(*peer_id);
-        debug!(target: "gossip", peer=?peer_id, "Blocked peer");
-        self.connectedness.insert(*peer_id, Connectedness::CannotConnect);
-    }
-
-    fn unblock_peer(&mut self, peer_id: &PeerId) {
-        self.blocked_peers.remove(peer_id);
-        debug!(target: "gossip", peer=?peer_id, "Unblocked peer");
-        self.connectedness.insert(*peer_id, Connectedness::NotConnected);
-    }
-
-    fn list_blocked_peers(&self) -> Vec<PeerId> {
-        self.blocked_peers.iter().copied().collect()
-    }
-
-    fn is_blocked_peer(&self, peer_id: &PeerId) -> bool {
-        self.blocked_peers.contains(peer_id)
-    }
-
-    fn block_addr(&mut self, ip: IpAddr) {
-        self.blocked_addrs.insert(ip);
-        debug!(target: "gossip", ?ip, "Blocked ip address");
-    }
-
-    fn unblock_addr(&mut self, ip: IpAddr) {
-        self.blocked_addrs.remove(&ip);
-        debug!(target: "gossip", ?ip, "Unblocked ip address");
-    }
-
-    fn list_blocked_addrs(&self) -> Vec<IpAddr> {
-        self.blocked_addrs.iter().copied().collect()
-    }
-
-    fn is_blocked_addr(&self, ip: &IpAddr) -> bool {
-        self.blocked_addrs.contains(ip)
-    }
-
-    fn block_subnet(&mut self, subnet: IpNet) {
-        self.blocked_subnets.insert(subnet);
-        debug!(target: "gossip", ?subnet, "Blocked subnet");
-    }
-
-    fn unblock_subnet(&mut self, subnet: IpNet) {
-        self.blocked_subnets.remove(&subnet);
-        debug!(target: "gossip", ?subnet, "Unblocked subnet");
-    }
-
-    fn list_blocked_subnets(&self) -> Vec<IpNet> {
-        self.blocked_subnets.iter().copied().collect()
-    }
-
     fn protect_peer(&mut self, peer_id: PeerId) {
         self.protected_peers.insert(peer_id);
         debug!(target: "gossip", peer=?peer_id, "Protected peer");
@@ -432,29 +312,6 @@ impl ConnectionGate for ConnectionGater {
 }
 
 #[test]
-fn test_check_ip_in_blocked_subnets_ipv4() {
-    use std::str::FromStr;
-
-    let mut gater = ConnectionGater::new(GaterConfig {
-        peer_redialing: None,
-        dial_period: Duration::from_secs(60 * 60),
-    });
-    gater.blocked_subnets.insert("192.168.1.0/24".parse::<IpNet>().unwrap());
-    gater.blocked_subnets.insert("10.0.0.0/8".parse::<IpNet>().unwrap());
-    gater.blocked_subnets.insert("172.16.0.0/16".parse::<IpNet>().unwrap());
-
-    // IP in blocked subnet
-    assert!(gater.check_ip_in_blocked_subnets(&IpAddr::from_str("192.168.1.100").unwrap()));
-    assert!(gater.check_ip_in_blocked_subnets(&IpAddr::from_str("10.0.0.5").unwrap()));
-    assert!(gater.check_ip_in_blocked_subnets(&IpAddr::from_str("172.16.255.255").unwrap()));
-
-    // IP not in any blocked subnet
-    assert!(!gater.check_ip_in_blocked_subnets(&IpAddr::from_str("192.168.2.1").unwrap()));
-    assert!(!gater.check_ip_in_blocked_subnets(&IpAddr::from_str("172.17.0.1").unwrap()));
-    assert!(!gater.check_ip_in_blocked_subnets(&IpAddr::from_str("8.8.8.8").unwrap()));
-}
-
-#[test]
 fn test_dial_threshold() {
     use crate::{ConnectionGate, DialError};
     use std::str::FromStr;
@@ -464,8 +321,11 @@ fn test_dial_threshold() {
     )
     .unwrap();
     let peer_id = ConnectionGater::peer_id_from_addr(&addr).unwrap();
+    let gate = gate::Behaviour::default();
     let dial = |gater: &mut ConnectionGater| {
-        let result = gater.can_dial(&addr);
+        let result = gater
+            .can_dial_peer(&peer_id, &gate)
+            .and_then(|()| gater.can_dial_addr(&peer_id, &addr, &gate));
         if result.is_ok() {
             gater.dialing(&peer_id);
             gater.dialed(&addr);
@@ -489,33 +349,23 @@ fn test_dial_threshold() {
     assert!(matches!(dial(&mut gater), Err(DialError::ThresholdReached { .. })));
 }
 
+/// A peer being dialed isn't dialed again, and a block is the answer for one that is also blocked.
 #[test]
-fn test_dial_error_handling() {
+fn test_can_dial_peer() {
     use crate::{ConnectionGate, DialError};
-    use std::str::FromStr;
 
     let mut gater = ConnectionGater::new(GaterConfig::default());
+    let mut gate = gate::Behaviour::default();
+    let peer_id = PeerId::random();
+    assert!(gater.can_dial_peer(&peer_id, &gate).is_ok());
 
-    // Test invalid multiaddr (missing peer ID)
-    let invalid_addr = Multiaddr::from_str("/ip4/127.0.0.1/tcp/8080").unwrap();
-    let result = gater.can_dial(&invalid_addr);
-    assert!(matches!(result, Err(DialError::InvalidMultiaddr { .. })));
+    gater.dialing(&peer_id);
+    let refusal = gater.can_dial_peer(&peer_id, &gate);
+    assert!(matches!(refusal, Err(DialError::AlreadyDialing { .. })), "{refusal:?}");
 
-    // Test with valid address
-    let valid_addr = Multiaddr::from_str(
-        "/ip4/127.0.0.1/tcp/8080/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp",
-    )
-    .unwrap();
-
-    // First dial should succeed
-    assert!(gater.can_dial(&valid_addr).is_ok());
-
-    // Mark as dialing
-    gater.dialing(&ConnectionGater::peer_id_from_addr(&valid_addr).unwrap());
-
-    // Second dial should fail with AlreadyDialing
-    let result = gater.can_dial(&valid_addr);
-    assert!(matches!(result, Err(DialError::AlreadyDialing { .. })));
+    gate.block_peer(peer_id);
+    let refusal = gater.can_dial_peer(&peer_id, &gate);
+    assert!(matches!(refusal, Err(DialError::PeerBlocked { .. })), "{refusal:?}");
 }
 
 #[test]
@@ -527,21 +377,33 @@ fn test_memory_multiaddr_can_dial() {
         "/memory/1234/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp",
     )
     .unwrap();
+    let peer_id = ConnectionGater::peer_id_from_addr(&addr).unwrap();
 
-    // By default, an address without an IP or DNS name is rejected.
-    let mut gater = ConnectionGater::new(GaterConfig::default());
-    assert!(matches!(gater.can_dial(&addr), Err(DialError::InvalidIpAddress { .. })));
+    // By default, an address without an IP is rejected.
+    let gater = ConnectionGater::new(GaterConfig::default());
+    let mut gate = gate::Behaviour::default();
+    let refusal = gater.can_dial_addr(&peer_id, &addr, &gate);
+    assert!(matches!(refusal, Err(DialError::InvalidIpAddress { .. })), "{refusal:?}");
 
     // For a custom transport, there is no IP to check, so even a block on every IPv4 address
     // does not apply.
-    let mut gater = ConnectionGater::new(GaterConfig::default()).allowing_addrs_without_ip();
-    gater.block_subnet("0.0.0.0/0".parse::<IpNet>().unwrap());
-    assert!(gater.can_dial(&addr).is_ok());
+    let gater = ConnectionGater::new(GaterConfig::default()).allowing_addrs_without_ip();
+    gate.block_subnet("0.0.0.0/0".parse().unwrap());
+    assert!(gater.can_dial_addr(&peer_id, &addr, &gate).is_ok());
+}
 
-    // The checks on the peer ID still apply.
-    let peer_id = ConnectionGater::peer_id_from_addr(&addr).unwrap();
-    gater.block_peer(&peer_id);
-    assert!(matches!(gater.can_dial(&addr), Err(DialError::PeerBlocked { .. })));
+/// A DNS name the driver hasn't resolved counts as no IP, so it isn't dialed unchecked.
+#[test]
+fn test_unresolved_dns_name_counts_as_no_ip() {
+    use crate::{ConnectionGate, DialError};
+
+    let gater = ConnectionGater::new(GaterConfig::default());
+    let gate = gate::Behaviour::default();
+    let peer_id = PeerId::random();
+    let addr: Multiaddr = format!("/dns4/example.com/tcp/9003/p2p/{peer_id}").parse().unwrap();
+
+    let refusal = gater.can_dial_addr(&peer_id, &addr, &gate);
+    assert!(matches!(refusal, Err(DialError::InvalidIpAddress { .. })), "{refusal:?}");
 }
 
 #[test]
@@ -616,15 +478,17 @@ fn test_resolve_dns_addrs() {
 fn test_gate_checks_every_resolved_ip() {
     use crate::ConnectionGate;
 
-    let mut gater = ConnectionGater::new(GaterConfig::default());
-    gater.block_addr("10.0.0.1".parse().unwrap());
+    let gater = ConnectionGater::new(GaterConfig::default());
+    let mut gate = gate::Behaviour::default();
+    gate.block_addr("10.0.0.1".parse().unwrap());
     let addr =
         "/dns4/node.example.com/tcp/9222/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp";
+    let peer_id = ConnectionGater::peer_id_from_addr(&addr.parse().unwrap()).unwrap();
 
     let allowed: Vec<_> =
         ConnectionGater::resolve_dns_addrs(addr.parse().unwrap(), two_ipv4_and_one_ipv6)
             .into_iter()
-            .filter(|addr| gater.can_dial(addr).is_ok())
+            .filter(|addr| gater.can_dial_addr(&peer_id, addr, &gate).is_ok())
             .map(|addr| addr.to_string())
             .collect();
 
@@ -632,102 +496,4 @@ fn test_gate_checks_every_resolved_ip() {
         allowed,
         ["/ip4/10.0.0.2/tcp/9222/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"]
     );
-}
-
-#[test]
-fn test_dns_multiaddr_can_dial() {
-    use crate::ConnectionGate;
-    use std::str::FromStr;
-
-    let mut gater = ConnectionGater::new(GaterConfig::default());
-
-    // DNS4 multiaddr should be allowed to dial (IP checks skipped)
-    let dns4_addr = Multiaddr::from_str(
-        "/dns4/example.com/tcp/9003/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp",
-    )
-    .unwrap();
-    assert!(gater.can_dial(&dns4_addr).is_ok());
-
-    // Real-world DNS multiaddr format (like the one from the issue)
-    let real_world_dns = Multiaddr::from_str(
-        "/dns4/alfonso-0-opn-reth-a-rpc-1-p2p.primary.infra.dev.oplabs.cloud/tcp/9003/p2p/16Uiu2HAmUSo81N6iNQNKZCiqDAg5Mcmh9gwvPgKmKj1HH6qCR4Kq",
-    )
-    .unwrap();
-    assert!(gater.can_dial(&real_world_dns).is_ok());
-
-    // DNS multiaddr with blocked peer should still be blocked
-    let peer_id = ConnectionGater::peer_id_from_addr(&dns4_addr).unwrap();
-    gater.block_peer(&peer_id);
-    assert!(gater.can_dial(&dns4_addr).is_err());
-}
-
-#[test]
-fn test_dns_multiaddr_blocked_by_resolved_ip() {
-    use crate::{ConnectionGate, DialError};
-    use std::{net::IpAddr, str::FromStr};
-
-    let mut gater = ConnectionGater::new(GaterConfig::default());
-
-    // localhost resolves to 127.0.0.1
-    let dns_localhost = Multiaddr::from_str(
-        "/dns4/localhost/tcp/9003/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp",
-    )
-    .unwrap();
-
-    // Should succeed before blocking
-    assert!(gater.can_dial(&dns_localhost).is_ok());
-
-    // Block 127.0.0.1
-    gater.block_addr(IpAddr::from_str("127.0.0.1").unwrap());
-
-    // Should now fail because localhost resolves to blocked IP
-    let result = gater.can_dial(&dns_localhost);
-    assert!(matches!(result, Err(DialError::AddressBlocked { .. })));
-}
-
-#[test]
-fn test_dns_multiaddr_blocked_by_subnet() {
-    use crate::{ConnectionGate, DialError};
-    use std::str::FromStr;
-
-    let mut gater = ConnectionGater::new(GaterConfig::default());
-
-    // localhost resolves to 127.0.0.1
-    let dns_localhost = Multiaddr::from_str(
-        "/dns4/localhost/tcp/9003/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp",
-    )
-    .unwrap();
-
-    // Should succeed before blocking
-    assert!(gater.can_dial(&dns_localhost).is_ok());
-
-    // Block the 127.0.0.0/8 subnet
-    gater.block_subnet("127.0.0.0/8".parse().unwrap());
-
-    // Should now fail because localhost resolves to IP in blocked subnet
-    let result = gater.can_dial(&dns_localhost);
-    assert!(matches!(result, Err(DialError::SubnetBlocked { .. })));
-}
-
-#[test]
-fn test_is_blocked() {
-    let mut gater = ConnectionGater::new(GaterConfig::default());
-    let peer_id = PeerId::random();
-    let ip: IpAddr = "10.0.0.1".parse().unwrap();
-    assert!(!gater.is_blocked_peer(&peer_id));
-    assert!(!gater.is_blocked_addr(&ip));
-
-    gater.block_peer(&peer_id);
-    gater.block_addr(ip);
-    assert!(gater.is_blocked_peer(&peer_id));
-    assert!(gater.is_blocked_addr(&ip));
-
-    gater.unblock_peer(&peer_id);
-    gater.unblock_addr(ip);
-    assert!(!gater.is_blocked_peer(&peer_id));
-    assert!(!gater.is_blocked_addr(&ip));
-
-    // Only an address blocked by itself counts, not one in a blocked subnet.
-    gater.block_subnet("10.0.0.0/8".parse().unwrap());
-    assert!(!gater.is_blocked_addr(&ip));
 }

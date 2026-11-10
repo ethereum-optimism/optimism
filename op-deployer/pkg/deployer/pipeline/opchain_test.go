@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
@@ -186,13 +187,14 @@ func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
 	}
 }
 
-func TestExecuteOPChainDeploymentRejectsInvalidChainIDBeforeExecution(t *testing.T) {
+func TestExecuteOPChainDeploymentRejectsInvalidInputBeforeExecution(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 	otherChainID := common.HexToHash("0x0301")
 
 	tests := []struct {
 		name       string
 		l2ChainID  *big.Int
+		impls      *addresses.ImplementationsContracts
 		wantErrMsg string
 	}{
 		{
@@ -204,6 +206,23 @@ func TestExecuteOPChainDeploymentRejectsInvalidChainIDBeforeExecution(t *testing
 			name:       "mismatch",
 			l2ChainID:  otherChainID.Big(),
 			wantErrMsg: "does not match requested chain ID",
+		},
+		{
+			name:       "unknown implementations",
+			l2ChainID:  chainID.Big(),
+			wantErrMsg: "the implementations of OPCM",
+		},
+		{
+			name:       "only the OPCM recorded",
+			l2ChainID:  chainID.Big(),
+			impls:      &addresses.ImplementationsContracts{},
+			wantErrMsg: "the implementations of OPCM",
+		},
+		{
+			name:       "implementations of another OPCM",
+			l2ChainID:  chainID.Big(),
+			impls:      &addresses.ImplementationsContracts{OpcmV2Impl: common.Address{0x01}, MipsImpl: common.Address{0x02}},
+			wantErrMsg: "the implementations of OPCM",
 		},
 	}
 
@@ -225,7 +244,7 @@ func TestExecuteOPChainDeploymentRejectsInvalidChainIDBeforeExecution(t *testing
 				}},
 			}
 
-			result, err := ExecuteOPChainDeployment(&Env{}, st, chainID, dci)
+			result, err := ExecuteOPChainDeployment(&Env{}, st, chainID, dci, tt.impls)
 			require.ErrorContains(t, err, tt.wantErrMsg)
 			require.Equal(t, OPChainDeploymentResult{}, result)
 			require.Equal(t, expectedState, st)
@@ -279,20 +298,16 @@ func TestRecordOPChainDeploymentRejectsUninitializedResult(t *testing.T) {
 	require.ErrorContains(t, err, "uninitialized OP chain deployment result")
 }
 
-func TestRecordOPChainDeploymentRecordsBoundChainWithoutImplementations(t *testing.T) {
+func TestRecordOPChainDeploymentRecordsOnlyBoundChain(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 	otherChainID := common.HexToHash("0x0301")
 
 	var contracts addresses.OpChainContracts
 	contracts.SystemConfigProxy = common.HexToAddress("0x1111111111111111111111111111111111111111")
 
-	var readback opcm.ReadImplementationAddressesOutput
-	readback.SystemConfig = common.HexToAddress("0x2222222222222222222222222222222222222222")
-
 	result := OPChainDeploymentResult{
 		chainID:     chainID,
 		contracts:   contracts,
-		readback:    readback,
 		initialized: true,
 	}
 	st := &state.State{
@@ -307,7 +322,7 @@ func TestRecordOPChainDeploymentRecordsBoundChainWithoutImplementations(t *testi
 				Deployed: ptr.New(false),
 			},
 		},
-		ImplementationsDeployment: nil,
+		ImplementationsDeployment: &addresses.ImplementationsContracts{SystemConfigImpl: common.Address{0x22}},
 	}
 
 	require.NoError(t, RecordOPChainDeployment(st, result))
@@ -322,7 +337,7 @@ func TestRecordOPChainDeploymentRecordsBoundChainWithoutImplementations(t *testi
 	require.False(t, *otherChain.Deployed)
 	var emptyContracts addresses.OpChainContracts
 	require.Equal(t, emptyContracts, otherChain.OpChainContracts)
-	require.Nil(t, st.ImplementationsDeployment)
+	require.Equal(t, &addresses.ImplementationsContracts{SystemConfigImpl: common.Address{0x22}}, st.ImplementationsDeployment)
 
 	afterFirstRecord, err := json.Marshal(st)
 	require.NoError(t, err)
@@ -330,30 +345,6 @@ func TestRecordOPChainDeploymentRecordsBoundChainWithoutImplementations(t *testi
 	afterSecondRecord, err := json.Marshal(st)
 	require.NoError(t, err)
 	require.Equal(t, afterFirstRecord, afterSecondRecord)
-}
-
-func TestRecordOPChainDeploymentAppliesImplementationReadback(t *testing.T) {
-	chainID := common.HexToHash("0x0300")
-
-	var readback opcm.ReadImplementationAddressesOutput
-	readback.SystemConfig = common.HexToAddress("0x1111111111111111111111111111111111111111")
-	readback.SuperFaultDisputeGame = common.HexToAddress("0x2222222222222222222222222222222222222222")
-	readback.SP1PlonkAdapter = common.HexToAddress("0x3333333333333333333333333333333333333333")
-
-	var contracts addresses.OpChainContracts
-	result := OPChainDeploymentResult{
-		chainID:     chainID,
-		contracts:   contracts,
-		readback:    readback,
-		initialized: true,
-	}
-	var implementations addresses.ImplementationsContracts
-	st := &state.State{ImplementationsDeployment: &implementations}
-
-	require.NoError(t, RecordOPChainDeployment(st, result))
-	require.Equal(t, readback.SystemConfig, st.ImplementationsDeployment.SystemConfigImpl)
-	require.Equal(t, readback.SuperFaultDisputeGame, st.ImplementationsDeployment.SuperFaultDisputeGameImpl)
-	require.Equal(t, readback.SP1PlonkAdapter, st.ImplementationsDeployment.SP1PlonkAdapterImpl)
 }
 
 func TestChainContractsForRecordedStatePreservesPreparedAddresses(t *testing.T) {
@@ -366,14 +357,15 @@ func TestChainContractsForRecordedStatePreservesPreparedAddresses(t *testing.T) 
 			PermissionedDisputeGameImpl: common.Address{0x03},
 		},
 	}
-	var readback opcm.ReadImplementationAddressesOutput
-	readback.FaultDisputeGame = common.Address{0x04}
-	readback.PermissionedDisputeGame = common.Address{0x05}
+	impls := &addresses.ImplementationsContracts{
+		FaultDisputeGameImpl:        common.Address{0x04},
+		PermissionedDisputeGameImpl: common.Address{0x05},
+	}
 
-	recorded := chainContractsForRecordedState(readback, prepared)
+	recorded := chainContractsForRecordedState(impls, prepared)
 	require.Equal(t, prepared.SystemConfigProxy, recorded.SystemConfigProxy)
-	require.Equal(t, readback.FaultDisputeGame, recorded.FaultDisputeGameImpl)
-	require.Equal(t, readback.PermissionedDisputeGame, recorded.PermissionedDisputeGameImpl)
+	require.Equal(t, impls.FaultDisputeGameImpl, recorded.FaultDisputeGameImpl)
+	require.Equal(t, impls.PermissionedDisputeGameImpl, recorded.PermissionedDisputeGameImpl)
 	require.Equal(t, common.Address{0x02}, prepared.FaultDisputeGameImpl)
 	require.Equal(t, common.Address{0x03}, prepared.PermissionedDisputeGameImpl)
 }
@@ -1220,6 +1212,11 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	err = DeploySuperchain(pEnv, intent, st)
 	require.NoError(t, err)
 
+	// DeployImplementations requires a raw SP1 verifier contract on the L1 that Forge broadcasts to.
+	deployerKey, err := crypto.HexToECDSA(privateKey)
+	require.NoError(t, err)
+	intent.GlobalDeployOverrides["sp1Verifier"] = testutil.DeployMockSP1Verifier(t, l1Client, deployerKey, afacts)
+
 	err = DeployImplementations(pEnv, intent, st)
 	require.NoError(t, err)
 
@@ -1276,7 +1273,7 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	beforeExecution, err := json.Marshal(st)
 	require.NoError(t, err)
 
-	deploymentResult, err := ExecuteOPChainDeployment(pEnv, st, secondChainID, secondDCI)
+	deploymentResult, err := ExecuteOPChainDeployment(pEnv, st, secondChainID, secondDCI, st.ImplementationsDeployment)
 	require.NoError(t, err)
 	afterExecution, err := json.Marshal(st)
 	require.NoError(t, err)

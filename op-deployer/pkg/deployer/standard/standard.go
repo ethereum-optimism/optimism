@@ -63,7 +63,8 @@ const (
 	ContractsV600Tag        = "op-contracts/v6.0.0-rc.2"
 	ContractsV700Tag        = "op-contracts/v7.0.0-rc.4"
 	ContractsV800Tag        = "op-contracts/v8.0.0"
-	CurrentTag              = ContractsV800Tag
+	ContractsV900Tag        = "op-contracts/v9.0.0"
+	CurrentTag              = ContractsV900Tag
 )
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
@@ -139,9 +140,8 @@ var sp1VerifierHashes = func() map[string]common.Hash {
 }()
 
 // SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
-// chain ID. Both `bootstrap implementations` and `apply` default to it when ZK dispute games are
-// enabled and the operator did not pin a verifier explicitly. Change it together with
-// SP1VerifierHashFor and the sp1-sdk pin in rust/Cargo.toml.
+// chain ID. Both `bootstrap implementations` and live `apply` default to it when the operator did
+// not pin a verifier. Change it together with SP1VerifierHashFor and the sp1-sdk pin in rust/Cargo.toml.
 // DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
 func SP1VerifierFor(chainID uint64) (common.Address, error) {
 	switch chainID {

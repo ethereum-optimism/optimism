@@ -89,7 +89,7 @@ func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
 
-	batcher := helpers.NewL2Batcher(log, sd.RollupCfg, helpers.AltDABatcherCfg(dp, storage), sequencer.RollupClient(), l1Client, engine.EthClient(), engCl)
+	batcher := helpers.NewL2Batcher(log, sd.RollupCfg, helpers.AltDABatcherCfg(dp, storage), sequencer.RollupClient(), l1Client, engCl)
 
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	cl := engine.EthClient()

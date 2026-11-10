@@ -16,9 +16,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
 )
 
@@ -31,7 +33,8 @@ import (
 const genPreForkStateEnv = "OP_E2E_GEN_PREFORK_STATE"
 
 // TestGenerateForkState (re)generates op-core/nuts/state/<fork>_state.json for the
-// fork named by OP_E2E_GEN_PREFORK_STATE, and is skipped otherwise (so it never runs in
+// fork named by OP_E2E_GEN_PREFORK_STATE, plus <fork>_multichain_state.json from
+// Lagoon onward, and is skipped otherwise (so it never runs in
 // normal CI). It reuses the exact activation flow via activateFork — the
 // post-activation state IS the artifact (compose: <fork>_state = <prev>_state +
 // the frozen <fork> bundle) — so generation stays in lockstep with the validation
@@ -39,7 +42,7 @@ const genPreForkStateEnv = "OP_E2E_GEN_PREFORK_STATE"
 func TestGenerateForkState(gt *testing.T) {
 	target := os.Getenv(genPreForkStateEnv)
 	if target == "" {
-		gt.Skipf("set %s=<fork> to (re)generate <fork>_state.json", genPreForkStateEnv)
+		gt.Skipf("set %s=<fork> to (re)generate the <fork> pre-fork states", genPreForkStateEnv)
 	}
 
 	fork := forks.Name(target)
@@ -49,26 +52,42 @@ func TestGenerateForkState(gt *testing.T) {
 	require.NotNilf(gt, preHelper, "no pre-fork helper registered for %s (prior fork %s)", fork, preFork)
 
 	matrix := helpers.NewMatrix[forks.Name]()
-	matrix.AddDefaultTestCasesWithName(string(fork), fork, helpers.NewForkMatrix(preHelper), generateForkState)
+	matrix.AddDefaultTestCasesWithName(string(fork), fork, helpers.NewForkMatrix(preHelper),
+		func(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
+			generateForkState(gt, testCfg, false)
+		})
+	if nutsstate.HasMultiChainState(fork) {
+		matrix.AddDefaultTestCasesWithName(string(fork)+"-multichain", fork, helpers.NewForkMatrix(preHelper),
+			func(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
+				generateForkState(gt, testCfg, true)
+			})
+	}
 	matrix.Run(gt)
 }
 
-func generateForkState(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
+// generateForkState writes <fork>_state.json, or <fork>_multichain_state.json for a chain with a
+// dependency set of more than one chain.
+func generateForkState(gt *testing.T, testCfg *helpers.TestCfg[forks.Name], multiChain bool) {
 	t := actionsHelpers.NewDefaultTesting(gt)
+	name := string(testCfg.Custom) + "_state.json"
+	if multiChain {
+		testCfg.DependencySetPeers = []eth.ChainID{dependencySetPeer}
+		name = string(testCfg.Custom) + "_multichain_state.json"
+	}
 	env, actHeader := activateFork(t, testCfg, false)
-	writePreForkState(t, env, testCfg.Custom, actHeader)
+	writePreForkState(t, env, testCfg.Custom, name, actHeader)
 }
 
 // writePreForkState dumps the post-activation predeploy-scoped state to
-// op-core/nuts/state/<fork>_state.json.
-func writePreForkState(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, fork forks.Name, actHeader *types.Header) {
+// op-core/nuts/state/<name>.
+func writePreForkState(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, fork forks.Name, name string, actHeader *types.Header) {
 	scoped := predeployScoped(dumpPredeployState(t, env.Engine, actHeader.Hash()))
 	require.NotEmptyf(t, scoped.Accounts, "dumped state at the %s activation block is empty", fork)
 	canonicalizeL1Block(scoped)
 
 	root, err := opservice.FindMonorepoRoot(".")
 	require.NoError(t, err)
-	outPath := filepath.Join(root, "op-core", "nuts", "state", string(fork)+"_state.json")
+	outPath := filepath.Join(root, "op-core", "nuts", "state", name)
 	data, err := json.MarshalIndent(scoped, "", "  ")
 	require.NoError(t, err)
 	data = append(data, '\n')

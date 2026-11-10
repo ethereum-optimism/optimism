@@ -1,0 +1,131 @@
+---
+title: "콘텐츠 유형: 학습 단위"
+description: 학습 단위에 대해 공개된 계약으로, 목적, 어조, 필수 구성 요소, 제목 문법, 두 가지 형태 모두에 대한 복사해 쓸 수 있는 템플릿을 다룹니다.
+diataxis: reference
+---
+
+**학습 단위(learning unit)**는 순서가 있는 학습 시퀀스, 즉 "Learn
+the OP Stack" 트랙이나 기능별 커리큘럼 허브의 한 단계입니다. 학습 단위는 기존
+페이지에 강의 계획서 안의 자리를 부여합니다. 학습자가 도착 시점에 이미 알고 있는 것,
+이 단계가 더하는 것, 다음에 갈 곳을 알려 줍니다. 콘텐츠는 링크하고 맥락을 덧붙일 뿐,
+결코 중복하지 않습니다.
+
+이 페이지는 이 유형에 대한 계약입니다. 새 학습 단위는 이 계약을 기준으로 리뷰되며,
+리뷰 시 다시 논쟁하는 대신 관련 섹션을 인용합니다.
+
+## 목적
+
+*   어떤 순서로든 읽을 수 있도록 작성된 자료를 입문자가 **선형적으로**
+    진행할 수 있게 합니다.
+*   **순서에 관한 맥락만** 추가합니다: 방향 안내, 위치에 따른 사전 지식,
+    다음 단계에 대한 안내.
+*   기반 페이지를 보호합니다: 페이지의 문구 수정이 필요한 트랙은 아무것도
+    포크하지 않고 해당 페이지 자체에 이슈를 등록합니다.
+
+## 구성
+
+학습 단위는 다섯 번째 사분면이 아니라 구성 방식입니다. 두 가지 형태가 있습니다.
+
+*   **프레이밍 헤더**(기본값): 트랙 단계 역할을 하는 기존 페이지 앞에
+    덧붙이는 짧은 프레이밍 블록입니다. 페이지는 자체
+    `diataxis:` 값을 유지하며, 그 외에는 아무것도 바뀌지 않습니다.
+*   **독립 단위 페이지**(예외): 시퀀스에 필요한 단계를 기존 페이지가
+    제공하지 못할 때 새로 작성하는 짧은 페이지입니다(예를 들어,
+    커리큘럼 허브에서 두 개념을 잇는 단락). 이 페이지는 실제 성격에 맞는
+    사분면 값 — 보통 `diataxis: explanation`, 실습 단계라면 `diataxis: tutorial` —
+    과 함께 `content-type: learning-unit`을 포함합니다.
+
+설명 문서와 학습 단위 중 무엇을 선택할지에 대한 의사결정 표는
+[콘텐츠 유형 선택](/ko/op-stack/contribute/choose-a-content-type)을 참고하세요.
+
+## 어조
+
+*   친근하되 수다스럽지 않게: 학습자는 시퀀스 진행 중이므로 그 흐름을
+    존중합니다.
+*   2인칭, 현재 시제: "이제 …을 알고 있습니다", "이 페이지에서는 …을 더합니다".
+*   프레이밍은 기반 페이지에 대해 주관적 평가를 하지 않으며("이 훌륭한
+    가이드는…") 내용을 요약하지도 않습니다. 이 단계가 더하는 것을 한 줄로
+    서술하는 것이 상한입니다.
+
+## 필수 구성 요소
+
+**프레이밍 헤더**(기존 페이지에):
+
+1.  페이지 본문 상단, 프런트매터와 기존 콜아웃 아래에 위치한
+    `<Info>` 블록.
+2.  그 안에 순서대로: 트랙 이름과 단계 위치("stop N of M"),
+    도착 시점의 맥락 한 문장(학습자가 이전 단계에서 알게 된 것),
+    이 단계가 더하는 것 한 문장, 다음 단계 링크
+    (마지막 단계라면 완료 문구).
+3.  페이지의 다른 부분은 바뀌지 않습니다: 같은 `diataxis:` 값, 같은 콘텐츠.
+
+**독립 단위 페이지**:
+
+1.  **프런트매터**: `title`, `description`, `diataxis:`(페이지의 실제 성격에 맞는
+    사분면), `content-type: learning-unit`.
+2.  위와 **동일한 프레이밍 블록**을 넣어 모든 단계가 일관되게 읽히도록 합니다.
+3.  **존재 이유가 있는 본문**: 기존 페이지가 다루지 않는 자료여야 합니다.
+    기존 페이지가 다루고 있다면 대신 그 페이지에 프레이밍 헤더를 사용합니다.
+4.  **앞으로 나아가는 출구**: 마지막 줄에서 다음 단계, 또는 완료 시 트랙
+    인덱스에 링크합니다.
+
+## 제목 문법
+
+*   프레이밍 헤더는 **제목을 추가하지 않습니다**. 기반 페이지는 자체 제목을 유지합니다.
+*   독립 단위 페이지는 개념을 sentence case의 평이한 명사구로 제목을 붙입니다
+    ("Fault proof economics", "From transactions to blocks").
+    위치("Part 3:", "Lesson 3")는 제목에 절대 넣지 않습니다. 순서는
+    트랙의 내비게이션 그룹과 프레이밍 블록에만 있으므로, 제목을 바꾸지 않고도 단계의
+    순서를 바꿀 수 있습니다.
+
+## 템플릿
+
+프레이밍 헤더 — 트랙 단계가 되는 기존 페이지에 복사합니다.
+
+```mdx
+<Info>
+  **<Track name> — stop <N> of <M>.**
+  You've <what the previous stops covered>. This page <what this stop
+  adds>. When you're done, continue to [<next stop title>](</path/to/next>).
+</Info>
+```
+
+독립 단위 페이지:
+
+```mdx
+---
+title: <Concept noun phrase>
+description: <One sentence: the concept and what understanding it unlocks.>
+diataxis: explanation
+content-type: learning-unit
+---
+
+<Info>
+  **<Track name> — stop <N> of <M>.**
+  You've <what the previous stops covered>. This page <what this stop
+  adds>. When you're done, continue to [<next stop title>](</path/to/next>).
+</Info>
+
+<The concept, at the smallest size that lets the learner continue the
+sequence. Link the canonical deep material rather than reproducing it.>
+
+## Next stop
+
+Continue to [<next stop title>](</path/to/next>), where you'll <what comes
+next>.
+```
+
+## 모범 사례
+
+아직 연결된 트랙은 없습니다. Learn 트랙과 커리큘럼 허브가 배포되면 이
+계약을 사용하게 됩니다. 단계가 될 페이지들과 외부 패턴을 기준으로
+맞춥니다.
+
+*   [OP Stack](/ko/op-stack/introduction/op-stack)과
+    [결함 증명 설명](/ko/op-stack/fault-proofs/explainer) — 프레이밍 헤더만
+    추가되고 그 외에는 바뀌지 않을 기존 설명 문서입니다.
+*   [ERC-20 토큰 브리징하기](/ko/app-developers/tutorials/bridging/cross-dom-bridge-erc20)
+    — 실습 단계(`diataxis: tutorial`)의 형태입니다.
+*   [Rust Book](https://doc.rust-lang.org/book/) — 이 유형이 재현하려는
+    리듬입니다: 엄격하게 순서가 정해진 장, 시퀀스 곳곳에 배치된 실습 프로젝트,
+    레퍼런스로 넘긴 깊이 있는 내용.

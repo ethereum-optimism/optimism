@@ -1,0 +1,462 @@
+---
+title: 소스에서 OP Stack node 빌드 및 실행하기
+description: 풀 node와 아카이브 node를 위해 소스 코드에서 OP Stack node(op-reth + op-node)를 빌드하고 실행합니다.
+diataxis: tutorial
+---
+
+import OpGethEol from "/ko/snippets/op-geth-eol.mdx"
+
+<OpGethEol />
+
+이 튜토리얼에서는 op-node와 실행 클라이언트로 구성된 OP Stack node를 소스에서 빌드하고 실행하는 전체 과정을 안내합니다. 소스에서 빌드하는 방식은 사전 빌드된 Docker 이미지를 사용하는 방식에 대한 유연한 대안입니다. 특정 아키텍처가 필요하거나 실행 중인 코드를 직접 확인하고 싶을 때 유용합니다.
+이 튜토리얼에서는 op-reth와 Nethermind를 빌드하고 실행합니다. 마이그레이션 중인 운영자를 위해 op-geth 관련 안내는 하단의 레거시 섹션에 남겨 두었습니다.
+
+출금 증명(withdrawal proving)을 위해 과거 증명(historical proofs)을 설정하는 permissionless 체인의 경우, 먼저 이 튜토리얼을 따라 작동하는 node를 준비한 다음 [과거 증명과 함께 op-reth 실행하기](/ko/node-operators/tutorials/reth-historical-proofs)로 진행하십시오.
+
+## 하드웨어 요구 사항
+
+OP Mainnet node의 하드웨어 요구 사항은 실행하려는 node 유형에 따라 달라질 수 있습니다.
+아카이브 node는 일반적으로 풀 node보다 훨씬 많은 리소스를 필요로 합니다.
+다음은 각 node 유형에 권장되는 최소 하드웨어 요구 사항입니다.
+
+*   16GB RAM
+*   비교적 최신 CPU
+
+### SSD 용량 요구 사항
+
+블록체인 상태의 크기가 계속 증가하고 있으므로 적절한 SSD 용량을 선택하는 것이 중요합니다.
+다음은 2025년 6월 기준 스토리지 요구 사항입니다.
+
+*   **풀 node:** 풀 node의 스냅샷 크기는 약 700GB이며, 데이터 디렉터리 용량은 6개월마다 약 100GB씩 증가합니다.
+*   **아카이브 node:** 아카이브 node의 스냅샷 크기는 약 14TB이며, 데이터 디렉터리 용량은 6개월마다 약 3.5TB씩 증가합니다. 아카이브 node에는 NVME 인터페이스를 갖춘 로컬 SSD를 권장합니다.
+
+향후 스토리지 수요를 고려하여 증가하는 요구 사항을 감당할 수 있는 SSD를 선택하십시오.
+
+## 소프트웨어 의존성
+
+빌드 환경은 [mise](https://mise.jdx.dev/)로 관리합니다. mise는 모노레포 빌드에 필요한 툴체인(Rust, Go)을 설치하고 관리합니다. mise 설정은 모노레포 루트의 [`mise.toml`](https://github.com/ethereum-optimism/optimism/blob/develop/mise.toml)에 있습니다.
+
+## op-node 및 실행 클라이언트 빌드
+
+Optimism Monorepo는 **조정된 릴리스(coordinated releases)** 방식을 사용합니다. 각 릴리스 커밋에는 여러 구성 요소(op-node, op-reth, kona-node 등)의 태그가 동시에 지정됩니다. 하나의 릴리스 태그에 고정하면 동일한 소스 상태에서 빌드된, 검증된 구성 요소 조합을 사용할 수 있습니다. 최신 태그는 [Optimism 릴리스 페이지](https://github.com/ethereum-optimism/optimism/releases)에서 확인하십시오.
+
+<Steps>
+  <Step title="Optimism Monorepo 클론">
+    모노레포에는 `op-node`와 `op-reth`의 소스가 모두 포함되어 있습니다.
+
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    ```
+  </Step>
+
+  <Step title="릴리스 커밋에 고정">
+    최신 op-node 릴리스 태그를 체크아웃합니다. 같은 커밋에 대응하는 op-reth 태그도 지정되어 있습니다. 예를 들어 `op-node/v1.18.2`에는 `op-reth/v2.2.4`가 함께 태그되어 있습니다.
+
+    ```bash
+    git checkout op-node/v1.18.2
+    ```
+
+  </Step>
+
+  <Step title="op-node 빌드">
+    ```bash
+    cd op-node && just && cd ..
+    ```
+
+    바이너리: `op-node/bin/op-node` (모노레포 루트 기준 상대 경로)
+  </Step>
+
+  <Step title="실행 클라이언트 빌드">
+    <Tabs items={['op-reth', 'Nethermind']}>
+      <Tab title="op-reth">
+        op-reth는 모노레포 내부의 `rust/op-reth/`에 있으므로 별도로 `git clone`할 필요가 없습니다.
+
+        ```bash
+        cd rust/op-reth && cargo build --release --bin op-reth && cd ../..
+        ```
+
+        바이너리: `rust/target/release/op-reth` (모노레포 루트 기준 상대 경로). `rust/`는 Cargo 워크스페이스이므로 `target/` 디렉터리는 개별 crate 내부가 아니라 워크스페이스 루트에 위치합니다. 빌드 결과물은 gitignore 처리되어 있으므로 이후 `git checkout`을 실행해도 그대로 유지됩니다.
+      </Tab>
+
+      <Tab title="Nethermind">
+        `Nethermind`는 .NET으로 작성된 대체 실행 클라이언트입니다. **사전 요구 사항:** [.NET SDK](https://aka.ms/dotnet/download) 9 이상.
+
+        ```bash
+        git clone --recursive https://github.com/nethermindeth/nethermind.git
+        dotnet build nethermind/src/Nethermind/Nethermind.sln -c release
+        ```
+
+        빌드 결과물: `nethermind/src/Nethermind/artifacts/bin/Nethermind.Runner/release/`. 자세한 내용은 [Nethermind 문서](https://docs.nethermind.io/get-started/running-node/)를 참조하십시오.
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## blob 아카이버 필요 여부 확인
+
+[Blob 아카이버 구성](/ko/node-operators/guides/management/blobs#configuring-a-blob-archiver)을 읽고 blob 아카이버 서비스를 구성해야 하는지 판단하십시오.
+
+## JWT 시크릿 생성
+
+실행 클라이언트와 `op-node`는 공유된 32바이트 hex 시크릿으로 보호되는 engine API authrpc를 통해 통신합니다. 두 바이너리는 반드시 **동일한** 시크릿 파일을 읽어야 합니다. 아래 명령은 각 바이너리에 상대 경로(`./jwt.txt`)를 사용하므로, 두 실행 디렉터리 모두에 동일한 내용의 파일이 있어야 합니다.
+
+<Steps>
+  <Step title="시크릿 생성">
+    모노레포 루트에서 다음을 실행합니다.
+
+    ```bash
+    openssl rand -hex 32 > jwt.txt
+    ```
+
+    이 명령은 `optimism/jwt.txt`를 생성합니다.
+  </Step>
+
+  <Step title="op-node 실행 디렉터리로 복사">
+    ```bash
+    cp jwt.txt op-node/jwt.txt
+    ```
+  </Step>
+
+  <Step title="op-reth 실행 디렉터리로 복사">
+    op-reth 바이너리는 `rust/target/release/op-reth`에 있으며 이 튜토리얼에서는 `rust/`에서 실행하므로 JWT를 해당 위치에 둡니다.
+
+    ```bash
+    cp jwt.txt rust/jwt.txt
+    ```
+  </Step>
+</Steps>
+
+두 복사본은 항상 동일해야 합니다. 한쪽을 다시 생성했다면 재시작하기 전에 다른 쪽에도 복사하십시오.
+
+## 실행 클라이언트 시작
+
+일반적으로 `op-node`보다 실행 클라이언트를 먼저 시작하는 것이 더 간편합니다. `op-node`가 시작될 때까지 EL은 단순히 블록을 수신하지 않습니다.
+
+<Tabs items={['op-reth', 'Nethermind']}>
+  <Tab title="op-reth">
+    <Steps>
+      <Step title="rust 워크스페이스 디렉터리로 이동">
+        op-reth는 워크스페이스 target 디렉터리에 빌드되므로 `optimism/rust/`에서 실행합니다.
+
+        ```bash
+        cd /path/to/optimism/rust
+        ```
+
+        이때 바이너리 경로는 `./target/release/op-reth`입니다.
+      </Step>
+
+      <Step title="환경 변수 설정">
+        ```bash
+        export DATADIR_PATH=... # Path to the desired data directory for op-reth
+        ```
+      </Step>
+
+      <Step title="op-reth 시작">
+        <Info>
+          아카이브 node 구성(출금 증명을 위한 과거 상태)은 [OP Mainnet 아카이브 node](#op-mainnet-archive-nodes) 섹션을 참조하십시오.
+        </Info>
+
+        JSON-RPC API는 8545 포트에서 사용할 수 있습니다. 전체 플래그 목록은 [op-reth 구성 레퍼런스](/ko/node-operators/reference/op-reth-config)를 참조하십시오.
+
+        ```bash
+        ./target/release/op-reth node \
+          --chain=optimism_sepolia \
+          --datadir=$DATADIR_PATH \
+          --http \
+          --ws \
+          --authrpc.jwtsecret=./jwt.txt \
+          --rollup.sequencer=https://sepolia-sequencer.optimism.io
+        ```
+
+        OP Mainnet의 경우 `--chain=optimism`과 `--rollup.sequencer=https://mainnet-sequencer.optimism.io`를 설정하십시오.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Nethermind">
+    <Steps>
+      <Step title="Nethermind 디렉터리로 이동">
+        `Nethermind` 바이너리를 빌드한 디렉터리를 찾습니다.
+      </Step>
+
+      <Step title="Nethermind 시작">
+        <Info>
+          아카이브 node의 경우 `op-sepolia` 대신 `op-sepolia_archive` 구성을 사용하십시오. OP Mainnet의 경우 각각 `op-mainnet` 또는 `op-mainnet_archive`를 사용하십시오.
+        </Info>
+
+        JSON-RPC API는 8545 포트에서 사용할 수 있습니다. 더 많은 옵션은 [실행 클라이언트 구성 가이드](/ko/node-operators/guides/configuration/execution-clients)를 참조하십시오.
+
+        ```bash
+        ./Nethermind.Runner \
+          -c op-sepolia \
+          --data-dir path/to/data/dir \
+          --JsonRpc.JwtSecretFile=./jwt.txt
+        ```
+
+        이 명령은 JSON-RPC 엔드포인트, 네트워크 포트, sequencer URL 및 기타 OP Stack 전용 설정이 포함된 내장 `op-sepolia` 구성을 사용합니다.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## op-node 시작
+
+실행 클라이언트가 실행되면 `op-node`를 시작합니다. `op-node`는 EL에 연결하여 체인 동기화를 시작합니다.
+
+<Steps>
+  <Step title="op-node 디렉터리로 이동">
+    op-node는 자체 crate 디렉터리에 빌드되므로 `optimism/op-node/`에서 실행합니다.
+
+    ```bash
+    cd /path/to/optimism/op-node
+    ```
+
+    이때 바이너리 경로는 `./bin/op-node`입니다.
+  </Step>
+
+  <Step title="환경 변수 설정">
+    ```bash
+    export L1_RPC_URL=...  # URL for the L1 node. Local default: http://127.0.0.1:8545
+    export L1_RPC_KIND=... # alchemy, quicknode, infura, parity, nethermind, debug_geth, erigon, basic, any
+    export L1_BEACON_URL=... # URL for the L1 Beacon HTTP endpoint. Local default: http://127.0.0.1:3500
+    ```
+  </Step>
+
+  <Step title="op-node 시작">
+    <Info>
+      `op-node` RPC는 공개적으로 노출해서는 안 됩니다. 노출된 상태로 두면 관리자 제어 기능이 공용 인터넷에 실수로 노출될 수 있습니다.
+    </Info>
+
+    <Info>
+      `--syncmode=execution-layer`는 [snap sync](/ko/node-operators/reference/consensus-layer-sync)를 활성화합니다. 이 방식은 `op-reth`와 `Nethermind` 모두에서 작동하며, 데이터 디렉터리로 node를 초기화할 필요가 없습니다.
+    </Info>
+
+    <Info>
+      `--l2.enginekind`는 op-node가 구동하는 실행 클라이언트의 종류를 지정합니다. 바이너리 기본값은 `reth`이므로, 이 플래그는 명확성을 위해 표시한 것이며 op-reth와 함께 사용할 때는 생략할 수 있습니다.
+    </Info>
+
+    ```bash
+    ./bin/op-node \
+      --l1=$L1_RPC_URL \
+      --l1.rpckind=$L1_RPC_KIND \
+      --l1.beacon=$L1_BEACON_URL \
+      --l2=ws://localhost:8551 \
+      --l2.jwt-secret=./jwt.txt \
+      --network=op-sepolia \
+      --syncmode=execution-layer \
+      --l2.enginekind=reth
+    ```
+
+    <Info>
+      일부 L1 node(예: Erigon)는 `eth_getProof`를 지원하지 않습니다. L1이 이를 지원하지 않는 경우 `--l1.trustrpc`를 추가하십시오. 이는 op-node가 L1 node가 올바른 데이터를 제공한다고 신뢰한다는 의미입니다.
+    </Info>
+  </Step>
+</Steps>
+
+## 동기화 확인
+
+EL과 op-node가 실행되면 서로 통신하며 동기화를 시작하는 것을 확인할 수 있습니다.
+
+### Snap sync (기본값)
+
+초기 동기화에는 몇 시간이 걸릴 수 있습니다. snap sync가 시작되면 `op-node`는 다음과 같은 로그를 출력합니다.
+
+```text
+INFO [03-06|10:56:55.602] Starting EL sync
+INFO [03-06|10:56:55.615] Sync progress                            reason="unsafe payload from sequencer while in EL sync" l2_finalized=000000..000000:0 l2_safe=000000..000000:0 l2_pending_safe=000000..000000:0 l2_unsafe=4284ab..7e7e84:117076319 l2_time=1,709,751,415 l1_derived=000000..000000:0
+INFO [03-06|10:56:57.567] Optimistically inserting unsafe L2 execution payload to drive EL sync id=4ac160..df4d12:117076320
+```
+
+`Starting EL sync`는 한 번만 표시되며, 동기화 진행 및 삽입 로그는 완료될 때까지 반복됩니다. 완료되면 `op-node`는 다음 로그를 출력합니다.
+
+```text
+lvl=info msg="Finished EL sync" sync_duration=23h25m0.370558429s finalized_block=0x4f69e83ff1407f2e2882f2526ee8a154ac326590799889cede3af04a7742f18d:116817417
+```
+
+실행 클라이언트는 동시에 자체 헤더 및 상태 다운로드 진행 상황을 로그로 출력합니다.
+
+<Tabs items={['op-reth', 'Nethermind']}>
+  <Tab title="op-reth">
+    `op-reth`는 주기적인 진행 로그와 함께 동기화 단계(headers, bodies, execution, state root)를 출력합니다. op-reth 로그를 모니터링하여 op-node의 `Sync progress` 로그와 함께 각 단계가 진행되고 있는지 확인하십시오.
+  </Tab>
+
+  <Tab title="Nethermind">
+    `Nethermind`의 snap sync는 다음과 같이 작동합니다.
+
+    1.  상태 트리의 리프 node만 다운로드
+    2.  중간 node를 로컬에서 생성
+    3.  상태 루트가 일치하는지 검증
+
+    이 방식은 기존 full sync보다 최대 10배 빠릅니다.
+  </Tab>
+</Tabs>
+
+### Full sync
+
+Full sync는 제네시스부터 체인을 다시 구성하며, 성숙한 네트워크에서는 며칠에서 몇 주가 걸릴 수 있습니다. 대부분의 운영자는 snap sync(위 참조)를 사용하거나 [사전 동기화된 스냅샷에서 부트스트랩](https://datadirs.optimism.io/)해야 합니다. Full sync 구성은 클라이언트마다 다릅니다.
+
+<Tabs items={['op-reth', 'Nethermind']}>
+  <Tab title="op-reth">
+    op-reth에서는 snap sync가 권장 초기화 방식입니다. 다른 동기화 구성은 [op-reth 구성 레퍼런스](/ko/node-operators/reference/op-reth-config)를 참조하십시오.
+  </Tab>
+
+  <Tab title="Nethermind">
+    `Nethermind`에서 full sync를 사용하려면 다음과 같이 설정합니다.
+
+    ```bash
+    ./Nethermind.Runner \
+      -c op-sepolia \
+      --Sync.SnapSync=false \
+      --Sync.FastSync=false \
+      --data-dir path/to/data/dir \
+      --JsonRpc.JwtSecretFile=./jwt.txt
+    ```
+
+    Full sync는 제네시스부터 모든 블록을 다운로드하고 검증하므로 snap sync보다 훨씬 오래 걸리지만, 가장 강력한 보안 보장을 제공합니다.
+  </Tab>
+</Tabs>
+
+초기 동기화가 끝나면 `op-node`는 L1 배치로부터 L2 블록을 도출하여 실행 클라이언트에 전달합니다. 다음과 같은 로그를 볼 수 있습니다.
+
+```text
+INFO [06-26|13:31:20.389] Advancing bq origin                      origin=17171d..1bc69b:8300332 originBehind=false
+INFO [06-26|14:00:59.460] Sync progress                            reason="processed safe block derived from L1" l2_safe=7fe3f6..900127:4068014 l2_unsafe=7fe3f6..900127:4068014 l1_derived=6079cd..be4231:8301091
+INFO [06-26|14:00:59.461] generated attributes in payload queue    txs=1  timestamp=1,673,564,098
+INFO [06-26|14:00:59.463] inserted block                           hash=e80dc4..72a759 number=4,068,015 update_safe=true
+```
+
+실행 클라이언트는 동시에 자체 블록 임포트 진행 상황을 로그로 출력합니다. 로그의 세부 사항은 해당 클라이언트의 문서를 참조하십시오.
+
+## OP Mainnet 아카이브 node
+
+<Info>
+  아카이브 node는 과거 상태가 필요한 경우에만 필요합니다. 대부분의 노드 운영자는 기본적으로 풀 node를 사용해야 합니다.
+</Info>
+
+op-reth에서 출금 증명을 위한 과거 상태는 `--rpc.eth-proof-window`(별도의 증명 데이터베이스 없음, 분쟁 게임(dispute game) 주기에 맞춰 크기 설정) 또는 `--proofs-history`(제한된 메모리, 더 큰 스토리지) 중 하나로 구성합니다. 다음을 참조하십시오.
+
+- [과거 증명과 함께 op-reth 실행하기](/ko/node-operators/tutorials/reth-historical-proofs) — op-reth v2.2.3+에서 `--proofs-history`(v2)의 전체 설정 방법
+- [아카이브 node 가이드](/ko/node-operators/guides/management/archive-node) — 두 방식 모두에 대한 플래그 개요
+- [OP Mainnet 스냅샷](https://datadirs.optimism.io/) — 부트스트랩에 사용할 수 있는 사전 동기화된 op-reth 데이터 디렉터리
+
+### Legacy Geth (Bedrock 이전, 선택 사항)
+
+Bedrock 업그레이드 이전에 OP Mainnet에 포함된 블록과 트랜잭션은 최신 OP Mainnet node에서 실행할 수 없습니다. 최신 node는 이러한 블록을 제공하지만 `eth_call`과 같은 상태 기반 쿼리는 실행할 수 없습니다. Bedrock 이전 OP Mainnet 상태까지 완전한 아카이브 범위를 확보하려면 최신 node와 함께 Legacy Geth(`l2geth`) node를 실행하십시오. 이는 OP Mainnet 아카이브 node에**만** 해당합니다. 풀 node나 OP Sepolia를 실행하는 경우에는 건너뛰십시오.
+
+<Steps>
+  <Step title="l2geth 빌드">
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism-legacy.git
+    cd optimism-legacy/l2geth
+    make
+    ```
+  </Step>
+
+  <Step title="Legacy Geth 데이터 디렉터리 다운로드">
+    [Legacy Geth 데이터 디렉터리(2.9TB)](/ko/op-mainnet/network-information/snapshots#op-mainnet-legacy)에서 스냅샷을 다운로드하고 검증합니다.
+
+    ```bash
+    sha256sum mainnet-legacy-archival.tar.zst
+    # Expected: 4adedb61125b81b55f9bdccc2e85092050c65ef2253c86e2b79569732b772829
+    ```
+
+    그런 다음 압축을 해제합니다.
+
+    ```bash
+    tar xvf mainnet-legacy-archival.tar.zst
+    ```
+  </Step>
+
+  <Step title="l2geth 시작">
+    ```bash
+    USING_OVM=true \
+      ETH1_SYNC_SERVICE_ENABLE=false \
+      RPC_API=eth,rollup,net,web3,debug \
+      RPC_ENABLE=true \
+      RPC_PORT=8546 \
+      ./build/bin/geth --datadir /path/to/l2geth-datadir
+    ```
+  </Step>
+</Steps>
+
+## op-geth (레거시, 지원 종료 2026-05-31)
+
+<OpGethEol />
+
+<Accordion title="op-geth 빌드 및 실행 (레거시)">
+  위의 op-node 명령에서 `reth` 대신 `--l2.enginekind=geth`를 설정하여 op-geth를 op-node와 함께 사용합니다.
+
+  ### op-geth 빌드
+
+  <Steps>
+    <Step title="op-geth 클론">
+      ```bash
+      git clone https://github.com/ethereum-optimism/op-geth.git
+      cd op-geth
+      ```
+    </Step>
+
+    <Step title="필요한 릴리스 브랜치 체크아웃">
+      올바른 브랜치는 [op-geth 릴리스 페이지](https://github.com/ethereum-optimism/op-geth/releases)에서 확인하십시오.
+
+      ```bash
+      git checkout <name of release branch>
+      ```
+    </Step>
+
+    <Step title="op-geth 빌드">
+      ```bash
+      make geth
+      ```
+    </Step>
+  </Steps>
+
+  ### op-geth 시작
+
+  아카이브 node의 경우 `--gcmode=archive`도 설정하십시오.
+
+  ```bash
+  ./build/bin/geth \
+    --http \
+    --http.port=8545 \
+    --http.addr=localhost \
+    --authrpc.addr=localhost \
+    --authrpc.jwtsecret=./jwt.txt \
+    --verbosity=3 \
+    --rollup.sequencerhttp=https://sepolia-sequencer.optimism.io/ \
+    --op-network=op-sepolia \
+    --datadir=$DATADIR_PATH
+  ```
+
+  op-geth 구성 레퍼런스는 폐기되었습니다. 이에 상응하는 op-reth 플래그는 [op-reth 구성 레퍼런스](/ko/node-operators/reference/op-reth-config)를 참조하십시오.
+
+  ### op-geth snap sync 단계
+
+  op-geth의 snap sync는 헤더 다운로드와 상태 다운로드의 두 단계로 진행됩니다.
+
+  ```text
+  lvl=info msg="Syncing beacon headers" downloaded=116775778 left=1162878 eta=53.182s
+  ```
+
+  ```text
+  lvl=info msg="Syncing: state download in progress" synced=99.75% state="191.33 GiB" accounts=124,983,227@25.62GiB slots=806,829,266@165.16GiB codes=78965@566.74MiB eta=-2m7.602s
+  ```
+
+  ```text
+  msg="Syncing: chain download in progress" synced=100.00% chain="176.01 GiB" headers=116,817,399@45.82GiB bodies=116,817,286@52.87GiB receipts=116,817,286@77.32GiB eta=77.430ms
+  ```
+
+  동기화가 완료되면 op-geth는 op-node가 페이로드를 전달할 때마다 블록 임포트 로그를 출력합니다.
+
+  ```text
+  INFO [06-26|14:02:12.974] Imported new potential chain segment     number=4,068,194 hash=a334a0..609a83 blocks=1 txs=1
+  INFO [06-26|14:02:12.976] Chain head was updated                   number=4,068,194 hash=a334a0..609a83
+  ```
+</Accordion>
+
+## 다음 단계
+
+*   node가 정상적으로 실행 중이라면 [Node 메트릭 및 모니터링 가이드](/ko/node-operators/guides/monitoring/metrics)를 참고하여 상태를 지속적으로 확인하십시오.
+*   문제가 발생하면 [Node 문제 해결 가이드](/ko/node-operators/guides/troubleshooting)를 참조하십시오.
+*   출금 증명을 설정하는 permissionless 체인의 경우 [과거 증명과 함께 op-reth 실행하기](/ko/node-operators/tutorials/reth-historical-proofs)로 계속 진행하십시오.

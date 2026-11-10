@@ -7,7 +7,7 @@ mod builder;
 pub use builder::NetworkBuilder;
 
 mod config;
-pub use config::NetworkConfig;
+pub use config::{IpVotes, NetworkConfig};
 
 mod driver;
 pub use driver::{NetworkDriver, NetworkDriverError};

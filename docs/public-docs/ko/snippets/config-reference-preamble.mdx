@@ -1,0 +1,33 @@
+{/*
+  Shared preamble for the generated config-reference flag tables. It describes
+  the generation pipeline (the tables themselves live under snippets/generated/
+  with provenance headers); this preamble is hand-maintained, not generated
+  (duplication census cluster S5).
+
+  Usage:
+    import { ConfigReferencePreamble } from "/snippets/config-reference-preamble.mdx"
+
+    <ConfigReferencePreamble component="op-batcher" />
+
+  Props:
+    component - required. The service whose flags the page documents, as the
+                monorepo directory name: "op-batcher", "op-challenger",
+                "op-proposer", "op-conductor", or "op-node". Rendered in prose
+                and as the monorepo flags path ({component}/flags).
+
+  Consumer pages (keep this list in sync):
+    chain-operators/reference/batcher-configuration.mdx
+    chain-operators/reference/challenger-configuration.mdx
+    chain-operators/guides/configuration/proposer.mdx
+    chain-operators/tools/op-conductor/reference.mdx
+    node-operators/reference/op-node-config.mdx
+*/}
+
+export const ConfigReferencePreamble = ({ component }) => (
+  <p>
+    아래 플래그 테이블은 출처(provenance) 줄에 명시된 릴리스 태그 시점의 모노레포에 있는
+    {component}의 플래그 정의(<code>{component}/flags</code>)로부터 직접 생성되며, 새로운 최종
+    확정 릴리스가 게시될 때 재생성되므로 조용히 뒤처지는 일이 없습니다. 모든 플래그는 옆에
+    표시된 환경 변수를 통해서도 설정할 수 있습니다.
+  </p>
+);

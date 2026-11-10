@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -67,7 +66,7 @@ func TestDeployDisputeGame_ZK_ZeroImpl(t *testing.T) {
 	env := &Env{Logger: lgr}
 	st := &state.State{
 		ImplementationsDeployment: &addresses.ImplementationsContracts{
-			ZkDisputeGameImpl: common.Address{}, // zero — flag was not active
+			ZkDisputeGameImpl: common.Address{}, // zero — predeployed OPCM without ZK
 		},
 	}
 	game := state.AdditionalDisputeGame{
@@ -195,11 +194,4 @@ func TestDeployDisputeGame_UnsupportedVMType(t *testing.T) {
 
 	err := deployDisputeGame(env, st, &state.ChainIntent{}, &state.ChainState{}, game)
 	require.ErrorContains(t, err, "unsupported VM type")
-}
-
-// TestZKDisputeGameFlag validates that devfeatures.ZKDisputeGameFlag matches the expected value.
-func TestZKDisputeGameFlag(t *testing.T) {
-	expected := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
-	require.Equal(t, expected, devfeatures.ZKDisputeGameFlag,
-		"devfeatures.ZKDisputeGameFlag must match the expected value")
 }

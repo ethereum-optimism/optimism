@@ -1,0 +1,106 @@
+---
+title: "OP Mainnet 동기화"
+description: op-reth를 OP Mainnet 및 Bedrock 상태와 동기화합니다.
+diataxis: how-to
+---
+
+OP Mainnet을 동기화하려면 시작점으로 Bedrock 상태를 가져와야 합니다. 현재 두 가지 방법이 있습니다.
+
+- 최소 부트스트랩 **(권장)**: OVM 과거 데이터 없이 Bedrock 블록 시점의 상태 스냅샷만 가져옵니다.
+- 전체 부트스트랩 **(권장하지 않음)**: 상태, 블록, 영수증(receipt)을 모두 가져옵니다.
+
+## 최소 부트스트랩 (권장)
+
+**Bedrock 블록 시점의 상태 스냅샷이 필요합니다.** 이 스냅샷은 [op-geth](https://github.com/testinprod-io/op-erigon/blob/pcw109550/bedrock-db-migration/bedrock-migration.md#export-state)에서 내보내거나(**.jsonl**) [여기](https://mega.nz/file/GdZ1xbAT#a9cBv3AqzsTGXYgX7nZc_3fl--tcBmOAIwIA5ND6kwc)에서 직접 다운로드할 수 있습니다.
+
+### 1. 다운로드 및 압축 해제
+
+상태 파일을 다운로드한 후 **.jsonl** 형식으로 압축이 해제되었는지 확인하십시오.
+
+```sh
+$ unzstd /path/to/world_trie_state.jsonl.zstd
+```
+
+### 2. 상태 가져오기
+
+상태 스냅샷을 가져옵니다.
+
+```sh
+$ op-reth init-state --without-ovm --chain optimism --datadir op-mainnet world_trie_state.jsonl
+```
+
+### 3. Bedrock부터 최신 블록까지 동기화
+
+`--debug.tip <block-hash>`를 사용해 node를 실행하면 CL의 도움 없이 고정된 tip까지 node가 동기화됩니다.
+블록 해시는 [https://optimistic.etherscan.io](https://optimistic.etherscan.io)의 최신 블록에서 가져올 수 있습니다.
+
+예를 들어, op-node와 연결하기 전에 최근의 최종 확정된 블록(예: 125200000)까지 node를 동기화하여 최신 블록에 가깝게 따라잡을 수 있습니다.
+
+```sh
+$ op-reth node --chain optimism --datadir op-mainnet --debug.tip 0x098f87b75c8b861c775984f9d5dbe7b70cbbbc30fc15adb03a5044de0144f2d0 # block #125200000
+```
+
+## 전체 부트스트랩 (권장하지 않음)
+
+**현재는 권장하지 않습니다**: [스토리지 일관성 문제](https://github.com/paradigmxyz/reth/pull/11099) 요약: 갑작스러운 충돌이 발생하면 node가 손상될 수 있습니다.
+
+### 상태 가져오기
+
+OP Mainnet을 동기화하려면 시작점으로 사용할 Bedrock datadir을 가져와야 합니다.
+OP Mainnet Bedrock 포크 이전의 블록은 OVM 위에서 생성되었으므로 EVM에서 실행할 수 없습니다.
+이 때문에 reth 동기화 파이프라인에서의 실행을 우회하려면 genesis부터 Bedrock까지의 체인 구간을
+수동으로 가져와야 합니다.
+
+OP Mainnet Bedrock datadir을 가져오려면 다음과 같이 내보낸 데이터가 필요합니다.
+
+- Bedrock 이전의 블록 [및 영수증]
+- 첫 번째 Bedrock 블록 시점의 상태 스냅샷
+
+### 수동 내보내기 단계
+
+`op-geth` Bedrock datadir은 [https://datadirs.optimism.io](https://datadirs.optimism.io)에서 다운로드할 수 있습니다.
+
+`op-geth`에서 OVM 체인을 내보내려면 `testinprod-io/op-geth` 저장소를 클론하고
+[testinprod-io/op-geth#1](https://github.com/testinprod-io/op-geth/pull/1)을 체크아웃하십시오. 블록, 영수증, 상태 덤프를 내보내는 명령은
+`op-geth/migrate.sh`에서 확인할 수 있습니다.
+
+### 수동 가져오기 단계
+
+#### 1. 블록 가져오기
+
+블록이 담긴 `.rlp` 파일을 가져옵니다.
+
+genesis부터 Bedrock까지 1억 개가 넘는 OVM 블록을 가져오는 데 45분이 걸립니다.
+
+```bash
+$ op-reth import-op --chain optimism <exported-blocks>
+```
+
+#### 2. 영수증 가져오기
+
+이 단계는 선택 사항입니다. 풀 node를 실행하려면 이 단계를 건너뛰십시오. 영수증을 가져오려는 경우에는
+해당 트랜잭션을 미리 가져와 두어야 합니다([1단계](#1-import-blocks) 참조).
+
+[testinprod-io/op-geth#1](https://github.com/testinprod-io/op-geth/pull/1)에 명시된 명령으로 내보낸 영수증 `.rlp` 파일을 가져옵니다(영수증 내보내기 명령은 사용자 정의 RLP 인코딩을 사용합니다).
+
+genesis부터 Bedrock까지 1억 개가 넘는 OVM 영수증을 가져오는 데 30분이 걸립니다.
+
+```bash
+$ op-reth import-receipts-op --chain optimism <exported-receipts>
+```
+
+#### 3. 상태 가져오기
+
+`.jsonl` 상태 덤프를 가져옵니다. 상태 덤프가 생성된 블록은 reth 데이터베이스의
+최신 블록이어야 합니다. 이 블록은 첫 번째 Bedrock 블록인 105 235 063번 블록이어야 합니다([1단계](#1-import-blocks) 참조).
+
+Bedrock 시점의 400만 개가 넘는 OP Mainnet 계정을 가져오는 데 10분이 걸립니다.
+
+```bash
+$ op-reth init-state --chain optimism <state-dump>
+```
+
+### op-node와 함께 시작하기
+
+`op-node`를 사용해 최신 블록을 추적합니다. `--syncmode=execution-layer` 및 `--l2.enginekind=reth`로 `op-node`를 시작하십시오. `op-node`의 L1 RPC
+연결이 localhost를 통하는 경우 `--l1.trustrpc`를 설정하여 성능을 개선할 수 있습니다.

@@ -144,3 +144,26 @@ jobs:
       runner: ${{ matrix.runner }}
       smoke-test: ${{ matrix.smoke_test }}
       expected-version: ${{ matrix.expected_version }}
+
+  # Runs a genesis apply with the mock SP1 verifier in the op-deployer image just built, which the
+  # version smoke test above can't: it needs a workdir and the image's embedded contract artifacts.
+  op-deployer-genesis-smoke-test:
+    name: op-deployer genesis smoke test
+    needs: [plan, apko]
+    if: |
+      always() &&
+      needs.apko.result == 'success' &&
+      contains(needs.plan.outputs.apko_matrix_json, '"op-deployer"') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          persist-credentials: false
+
+      - name: Genesis apply with the mock SP1 verifier
+        run: op-deployer/scripts/genesis-smoke-test.sh "$REGISTRY/op-deployer:$GITHUB_SHA"

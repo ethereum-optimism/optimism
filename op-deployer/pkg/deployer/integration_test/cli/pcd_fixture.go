@@ -164,6 +164,7 @@ func (f *pcdJourneyFixture) bootstrapOPCM() {
 		"--l1-proxy-admin-owner", l1ProxyAdminOwner.Hex(),
 		"--superchain-proxy-admin", f.superchainOutput.SuperchainProxyAdmin.Hex(),
 		"--challenger", challenger.Hex(),
+		"--sp1-verifier-address", f.runner.DeployMockSP1Verifier(f.t).Hex(),
 	}, nil)
 	f.readJSON(implementationsOutputFile, &f.implementationsOutput)
 	require.NotEqual(f.t, common.Address{}, f.implementationsOutput.OpcmV2)

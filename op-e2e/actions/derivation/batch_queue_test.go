@@ -64,7 +64,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	batcher.ActSubmitAll(t)
 	require.EqualValues(gt, l2BlockNum, batcher.L2BufferedBlock.Number)
