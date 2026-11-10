@@ -24,9 +24,8 @@ import (
 // the build infos as they are, so that forge does not compile. exclude holds more glob patterns of
 // files to leave out. A commit that is not empty is written to the COMMIT file.
 //
-// A bundle is code and data that scripts with a deployer key read, so Write reads only files of the
-// project and never copies a link. It fails on a link that is, is in, or holds a part of the build,
-// and skips every other link.
+// Write copies no link. It fails on a link that is, is in, or holds a part of the build, which the
+// bundle would miss, and skips every other link.
 func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 	for _, pattern := range exclude {
 		if _, err := path.Match(filepath.ToSlash(pattern), ""); err != nil {
@@ -38,30 +37,19 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 		return err
 	}
 
-	root, err := os.OpenRoot(absBase)
-	if err != nil {
-		return fmt.Errorf("open the forge project: %w", err)
-	}
-	defer root.Close()
-
+	project := os.DirFS(absBase)
 	tw := tar.NewWriter(w)
-	// The walk lists the project through root too, so that a directory replaced by a link lists
-	// nothing outside it.
-	if err := fs.WalkDir(root.FS(), ".", func(slashRel string, d fs.DirEntry, walkErr error) error {
+	if err := fs.WalkDir(project, ".", func(slashRel string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		rel := filepath.FromSlash(slashRel)
-
-		// A link in the build fails the pack, so that op-deployer uses the build as it is. Every other
-		// link is left out.
 		if d.Type()&fs.ModeSymlink != 0 {
 			if cache.inBuild(slashRel) {
 				return fmt.Errorf("%s is a link, which a bundle does not copy", slashRel)
 			}
 			return nil
 		}
-		if shouldExclude(rel, d, exclude) {
+		if shouldExclude(slashRel, d, exclude) {
 			if d.IsDir() {
 				return fs.SkipDir
 			}
@@ -78,12 +66,17 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 			return nil
 		}
 
-		var info fs.FileInfo
+		// Reading a pipe or a device could block or read without end.
+		if !d.IsDir() && !d.Type().IsRegular() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 		var content []byte
-		var err error
-		switch {
-		case d.Type().IsRegular():
-			if content, info, err = readFile(root, rel); err != nil {
+		if !d.IsDir() {
+			if content, err = fs.ReadFile(project, slashRel); err != nil {
 				return err
 			}
 			if cache.isArtifact(slashRel) {
@@ -91,12 +84,6 @@ func Write(w io.Writer, absBase string, exclude []string, commit string) error {
 					return fmt.Errorf("strip the AST of %s: %w", slashRel, err)
 				}
 			}
-		case d.IsDir():
-			if info, err = d.Info(); err != nil {
-				return err
-			}
-		default:
-			return nil
 		}
 
 		hdr, err := tar.FileInfoHeader(info, "")
@@ -183,41 +170,10 @@ func ArtifactsDir(dir string) (string, error) {
 	return cache.Paths.Artifacts, nil
 }
 
-// readFile reads the regular file at name in root, and refuses a link, or a file that changed while
-// it read it: os.Root follows a link in the root even with O_NOFOLLOW.
-func readFile(root *os.Root, name string) ([]byte, fs.FileInfo, error) {
-	// Opening a pipe or a device could block or read without end.
-	found, err := root.Lstat(name)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !found.Mode().IsRegular() {
-		return nil, nil, fmt.Errorf("%s is not a regular file", name)
-	}
-	f, err := root.Open(name)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return nil, nil, err
-	}
-	if !os.SameFile(found, info) {
-		return nil, nil, fmt.Errorf("%s changed while op-deployer read it", name)
-	}
-	content, err := io.ReadAll(f)
-	if err != nil {
-		return nil, nil, err
-	}
-	return content, info, nil
-}
-
 // inBuild reports whether rel is, is in, or holds a part of the build: the artifacts, the build
-// infos, ScriptReadDir, the compile cache, a forge config or a source. It ignores case, so that its
-// answer does not depend on whether the filesystem does.
+// infos, the compile cache, a forge config or a source.
 func (c *compileCache) inBuild(rel string) bool {
-	parts := []string{c.Paths.Artifacts, ScriptReadDir, CompileCacheFile, "foundry.toml"}
+	parts := []string{c.Paths.Artifacts, CompileCacheFile, "foundry.toml"}
 	if c.Paths.BuildInfos != "" {
 		parts = append(parts, c.Paths.BuildInfos)
 	}
@@ -225,25 +181,16 @@ func (c *compileCache) inBuild(rel string) bool {
 		parts = append(parts, source)
 	}
 	for _, part := range parts {
-		if underFold(rel, part) || underFold(part, rel) {
+		if under(rel, part) || under(part, rel) {
 			return true
 		}
 	}
-	return c.inLibrary(rel) && isForgeConfig(strings.ToLower(rel))
+	return c.inLibrary(rel) && isForgeConfig(rel)
 }
 
-// underFold reports whether rel is dir or in it, ignoring case.
-func underFold(rel string, dir string) bool {
-	relNames, dirNames := strings.Split(rel, "/"), strings.Split(dir, "/")
-	if len(relNames) < len(dirNames) {
-		return false
-	}
-	for i, name := range dirNames {
-		if !strings.EqualFold(relNames[i], name) {
-			return false
-		}
-	}
-	return true
+// under reports whether rel is dir or in it.
+func under(rel string, dir string) bool {
+	return rel == dir || strings.HasPrefix(rel, dir+"/")
 }
 
 // isSource reports whether rel is a source of the build.
@@ -320,12 +267,10 @@ func stripAST(artifact []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func shouldExclude(rel string, d os.DirEntry, exclude []string) bool {
+func shouldExclude(rel string, d fs.DirEntry, exclude []string) bool {
 	if rel == "." {
 		return false
 	}
-
-	rel = filepath.ToSlash(rel)
 
 	for _, pattern := range exclude {
 		pattern = filepath.ToSlash(pattern)

@@ -24,8 +24,7 @@ Locators can be one of three types. `tag://` locators from older releases are no
         Solidity AST of the artifacts, which takes a fraction of the memory. The copies are in `bundles/` of the
         cache directory, `--cache-dir` or `~/.op-deployer/cache` by default: OP Deployer copies each build once
         and keeps the copies of the last few builds that it used. A run uses the build that it found at its start:
-        a rebuild of the contracts during the run is not seen. When other users can write the cache directory,
-        OP Deployer copies the build into a temporary directory for each run instead, and logs a warning.
+        a rebuild of the contracts during the run is not seen.
 
 OP Deployer runs the deploy scripts of the artifacts with forge, and it never compiles them. So the artifacts must come
 from the contracts release of the same OP Deployer release, compiled with their compile cache. OP Deployer stops with an

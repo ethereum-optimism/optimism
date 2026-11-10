@@ -15,9 +15,9 @@ type fileLock struct {
 	f *os.File
 }
 
-// openFileLock opens the lock of the file at path, which it creates. A link at path fails it.
+// openFileLock opens the lock of the file at path, which it creates.
 func openFileLock(path string) (*fileLock, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0o600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the lock %s: %w", path, err)
 	}
@@ -58,18 +58,4 @@ func (l *fileLock) tryLock() (bool, error) {
 // release frees the lock.
 func (l *fileLock) release() {
 	_ = l.f.Close()
-}
-
-// checkPrivateDir checks that dir is a directory, not a link, of this user that no other user can
-// write, so that no other user can plant a bundle in it.
-func checkPrivateDir(dir string) error {
-	info, err := os.Lstat(dir)
-	if err != nil {
-		return err
-	}
-	st, ok := info.Sys().(*syscall.Stat_t)
-	if !info.IsDir() || !ok || int(st.Uid) != os.Geteuid() || info.Mode().Perm()&0o022 != 0 {
-		return fmt.Errorf("%s (mode %v) is not a private directory of uid %d", dir, info.Mode(), os.Geteuid())
-	}
-	return nil
 }

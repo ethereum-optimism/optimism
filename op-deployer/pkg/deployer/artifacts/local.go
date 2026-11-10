@@ -48,7 +48,7 @@ func openLocal(dir string, cacheDir string) fs.FS {
 }
 
 // openProject returns the artifacts at dir as openLocal does. With shared false, the bundles are in
-// a new directory of this process, as privateBundlesDir makes it, not in the shared one.
+// a new directory of this process, as processBundlesDir makes it, not in the shared one.
 func openProject(dir string, cacheDir string, shared bool) fs.FS {
 	dir = filepath.Clean(dir)
 	project, artifactsDir := dir, filepath.Join(dir, bundle.ScriptReadDir)
@@ -79,34 +79,37 @@ func openProject(dir string, cacheDir string, shared bool) fs.FS {
 		return os.DirFS(artifactsDir)
 	}
 
-	// The shared directory can fail where a private one works, as without file locks on a network home.
+	// The shared directory can fail where one of this process works, as without a home or without
+	// file locks on a network home.
 	if shared {
-		root, err := sharedBundlesDir(cacheDir)
+		bundleDir, err := bundleIn(sharedBundlesDir, cacheDir, resolved, rel)
 		if err == nil {
-			var bundleDir string
-			if bundleDir, err = localBundle(resolved, root, rel); err == nil {
-				return os.DirFS(filepath.Join(bundleDir, rel))
-			}
+			return os.DirFS(filepath.Join(bundleDir, rel))
 		}
 		log.Warn("Cannot use the shared copy of the contracts build; copying it for this process", "project", resolved, "err", err)
 	}
-	root, err := privateBundlesDir(cacheDir)
+	bundleDir, err := bundleIn(processBundlesDir, cacheDir, resolved, rel)
 	if err == nil {
-		var bundleDir string
-		if bundleDir, err = localBundle(resolved, root, rel); err == nil {
-			return os.DirFS(filepath.Join(bundleDir, rel))
-		}
+		return os.DirFS(filepath.Join(bundleDir, rel))
 	}
 	log.Warn("Cannot copy the contracts build without the AST; forge runs on the build and takes several times the memory",
 		"project", resolved, "err", err)
 	return os.DirFS(artifactsDir)
 }
 
+// bundleIn returns the bundle of the forge project at project in the bundles directory that
+// bundlesDir returns for cacheDir, as localBundle does.
+func bundleIn(bundlesDir func(cacheDir string) (string, error), cacheDir string, project string, artifactsDir string) (string, error) {
+	root, err := bundlesDir(cacheDir)
+	if err != nil {
+		return "", err
+	}
+	return localBundle(project, root, artifactsDir)
+}
+
 // sharedBundlesDir returns the bundles directory of cacheDir, or of op-deployer's default cache
 // directory, ~/.op-deployer/cache, when cacheDir is empty. The processes that use the cache directory
-// share it, so it and its bundles directory must be private: a bundle is code that runs with a
-// deployer key. As for the forge binary and the downloaded tarballs that it also holds, the location
-// of the cache directory is trusted.
+// share it.
 func sharedBundlesDir(cacheDir string) (string, error) {
 	if cacheDir == "" {
 		home, err := os.UserHomeDir()
@@ -115,45 +118,19 @@ func sharedBundlesDir(cacheDir string) (string, error) {
 		}
 		cacheDir = filepath.Join(home, ".op-deployer", "cache")
 	}
-	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
-		return "", err
-	}
-	// The cache directory that a user names can be a link.
-	cacheDir, err := filepath.EvalSymlinks(cacheDir)
-	if err != nil {
-		return "", err
-	}
-	if err := checkPrivateDir(cacheDir); err != nil {
-		return "", err
-	}
-	// Not MkdirAll: a link planted at dir must fail the check, not the create.
 	dir := filepath.Join(cacheDir, "bundles")
-	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
-		return "", err
-	}
-	if err := checkPrivateDir(dir); err != nil {
-		return "", err
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create the bundles directory: %w", err)
 	}
 	return dir, nil
 }
 
-// privateBundlesDir returns a new directory for the bundles of this process in cacheDir, or in the
-// temporary directory when cacheDir is empty or another user could write it. Its name is not
-// predictable, so that no other user can plant a bundle in it.
-func privateBundlesDir(cacheDir string) (string, error) {
-	if cacheDir != "" {
-		if err := os.MkdirAll(cacheDir, 0o700); err != nil {
-			return "", fmt.Errorf("failed to create the artifacts directory: %w", err)
-		}
-		resolved, err := filepath.EvalSymlinks(cacheDir)
-		if err != nil || checkPrivateDir(resolved) != nil {
-			resolved = ""
-		}
-		cacheDir = resolved
-	}
+// processBundlesDir returns a new directory for the bundles of this process in cacheDir, or in the
+// temporary directory when cacheDir is empty. The process removes it when it exits.
+func processBundlesDir(cacheDir string) (string, error) {
 	dir, err := os.MkdirTemp(cacheDir, "op-deployer-bundles-*")
 	if err != nil {
-		return "", fmt.Errorf("failed to create the bundle directory: %w", err)
+		return "", fmt.Errorf("failed to create the bundles directory: %w", err)
 	}
 	RegisterForCleanup(dir)
 	return dir, nil
@@ -257,16 +234,13 @@ func packOnce(project string, root string, key string, artifactsDir string) erro
 	return nil
 }
 
-// bundleExists reports whether there is a bundle at dir, and fails when dir is not a private
-// directory, such as a link.
+// bundleExists reports whether there is a bundle at dir.
 func bundleExists(dir string) (bool, error) {
-	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
+	_, err := os.Stat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
 	}
-	if err := checkPrivateDir(dir); err != nil {
-		return false, err
-	}
-	return true, nil
+	return err == nil, err
 }
 
 // checkBundle checks that the bundle at dir has the files that forge needs.

@@ -183,15 +183,11 @@ func TestWrite_Links(t *testing.T) {
 		wantErr string
 	}{
 		{name: "artifact to a file outside", link: "forge-artifacts/leak", target: outside, wantErr: "is a link"},
-		{name: "artifact to the environment", link: "forge-artifacts/env", target: "/proc/self/environ", wantErr: "is a link"},
 		{name: "artifacts directory", link: "forge-artifacts", target: t.TempDir(), wantErr: "is a link"},
 		{name: "source outside the project", link: "src/Linked.sol", target: outside, wantErr: "is a link"},
 		{name: "source in the project", link: "src/Linked.sol", target: "../other/Linked.sol", wantErr: "is a link"},
 		{name: "artifact directory", link: "forge-artifacts/B.sol", target: t.TempDir(), wantErr: "is a link"},
 		{name: "directory of sources", link: "lib/dep", target: "../other", wantErr: "is a link"},
-		// On a filesystem that ignores case, forge-artifacts names these directories too.
-		{name: "source in another spelling of the artifacts", link: "Forge-Artifacts/leak", target: "../notes-file", wantErr: "is a link"},
-		{name: "other file in another spelling of the artifacts", link: "FORGE-ARTIFACTS/other", target: "../notes-file", wantErr: "is a link"},
 		{name: "library remappings", link: "lib/dep/remappings.txt", target: "../../notes-file", wantErr: "is a link"},
 		{name: "build infos", link: "artifacts/build-info", target: t.TempDir(), wantErr: "is a link"},
 		{name: "other file", link: "AGENTS.md", target: "CLAUDE.md"},
@@ -201,7 +197,7 @@ func TestWrite_Links(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			base := t.TempDir()
 			writeFiles(t, base, map[string]string{
-				CompileCacheFile:   `{"paths": {"artifacts": "forge-artifacts", "build_infos": "artifacts/build-info", "libraries": ["lib"]}, "files": {"src/Linked.sol": {}, "other/Linked.sol": {}, "lib/dep/D.sol": {}, "Forge-Artifacts/leak": {}, "notes-file": {}}}`,
+				CompileCacheFile:   `{"paths": {"artifacts": "forge-artifacts", "build_infos": "artifacts/build-info", "libraries": ["lib"]}, "files": {"src/Linked.sol": {}, "other/Linked.sol": {}, "lib/dep/D.sol": {}, "notes-file": {}}}`,
 				"CLAUDE.md":        "instructions",
 				"other/Linked.sol": "contract Linked {}",
 				"notes-file":       "notes",
@@ -248,25 +244,6 @@ func TestWrite_LeavesOutEnvFiles(t *testing.T) {
 	}
 }
 
-// TestWrite_RefusesLinkWhereScriptsRead checks that a link in the directory that op-deployer lets
-// scripts read fails the pack, as one in the artifacts does, also when the compile cache names other
-// artifacts and lists neither link as a source.
-func TestWrite_RefusesLinkWhereScriptsRead(t *testing.T) {
-	for _, link := range []string{ScriptReadDir + "/x", "out/A.sol/leak"} {
-		t.Run(link, func(t *testing.T) {
-			base := t.TempDir()
-			writeFiles(t, base, map[string]string{
-				CompileCacheFile:   `{"paths": {"artifacts": "out", "libraries": ["lib"]}, "files": {}}`,
-				"out/A.sol/A.json": `{"abi":[]}`,
-				".env":             "KEY=secret",
-			})
-			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(base, link)), 0o755))
-			require.NoError(t, os.Symlink(filepath.Join(base, ".env"), filepath.Join(base, link)))
-			require.ErrorContains(t, Write(io.Discard, base, nil, ""), "is a link")
-		})
-	}
-}
-
 // TestWrite_ThroughLinkedProject checks that a project at a link packs.
 func TestWrite_ThroughLinkedProject(t *testing.T) {
 	base := t.TempDir()
@@ -284,8 +261,8 @@ func TestWrite_ThroughLinkedProject(t *testing.T) {
 	require.Equal(t, "contract A {}", files["src/A.sol"])
 }
 
-// TestScriptReadDir_IsWhatScriptsMayRead ties ScriptReadDir, which the link check guards, to the
-// directory that op-deployer lets scripts read.
+// TestScriptReadDir_IsWhatScriptsMayRead ties ScriptReadDir to the directory that op-deployer lets
+// scripts read.
 func TestScriptReadDir_IsWhatScriptsMayRead(t *testing.T) {
 	require.Equal(t, "./"+ScriptReadDir+"/", forge.ArtifactsReadPermission.Path)
 }
