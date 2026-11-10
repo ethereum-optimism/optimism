@@ -49,6 +49,12 @@ func TestGenesisForgeMatchesGoHost(t *testing.T) {
 	}{
 		{name: "standard"},
 		{
+			name: "op-private with a settlement chain",
+			mutate: func(t *testing.T, intent *state.Intent, _ *deployer.ApplyPipelineOpts) {
+				enableOPPrivate(t, intent)
+			},
+		},
+		{
 			name: "interop with two chains",
 			mutate: func(t *testing.T, intent *state.Intent, _ *deployer.ApplyPipelineOpts) {
 				dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
