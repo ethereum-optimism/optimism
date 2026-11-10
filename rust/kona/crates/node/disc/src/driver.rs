@@ -973,6 +973,58 @@ mod tests {
         );
     }
 
+    /// A node with a public-only table filter should use only public addresses: it shouldn't dial
+    /// a node at a private address even after a session with it, which only shows that the node is
+    /// reachable from here. To peer with private nodes, a node needs `--p2p.discovery.private`, or
+    /// static peers.
+    ///
+    /// N has a public-only filter. L has none, and has N as its bootnode, given by an enode URL on
+    /// loopback, so L's bootstrap starts a session with N from loopback, which L's record holds.
+    #[tokio::test]
+    async fn test_public_only_node_does_not_dial_a_private_session() {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let node = Discv5Driver::builder(
+            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
+            0xdead_beef,
+            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into())
+                .table_filter(crate::public_only)
+                .build(),
+        )
+        .build()
+        .expect("the node builds");
+        let node_enr = node.disc.local_enr();
+        let peer_id = kona_peers::enr_to_multiaddr(&node_enr)
+            .and_then(|addr| addr.iter().last().map(|protocol| protocol.acquire()))
+            .expect("the node's record has a peer ID");
+        let enode = Multiaddr::from(Ipv4Addr::LOCALHOST)
+            .with(Protocol::Udp(node_enr.udp4().expect("the node has a UDP port")))
+            .with(Protocol::Tcp(0))
+            .with(peer_id);
+        let (node, mut records) = node.start();
+
+        let mut loopback = offline_driver();
+        loopback.bootnodes = BootNodes(vec![BootNode::Enode(enode)]);
+        let loopback_id = loopback.disc.local_enr().node_id();
+        let (_loopback, _) = loopback.start();
+
+        // discv5 adds a node it has a session with to its table, without the table filter, before
+        // it reports the session.
+        let session = async {
+            while !node.table_enrs().await.unwrap().iter().any(|enr| enr.node_id() == loopback_id) {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(5), session)
+            .await
+            .expect("the loopback node starts a session with the node");
+
+        // TODO(#23766): fails, as a session's record is dialed whatever its address.
+        let dialed = tokio::time::timeout(Duration::from_secs(1), records.recv()).await;
+        assert!(dialed.is_err(), "a public-only node dialed a session at a loopback address");
+    }
+
     /// An enode bootnode is contacted only if the table filter accepts its address, or it has none.
     #[test]
     fn test_accepts_enode() {
