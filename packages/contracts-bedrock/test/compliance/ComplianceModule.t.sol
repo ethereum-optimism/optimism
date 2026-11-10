@@ -112,8 +112,7 @@ abstract contract ComplianceModule_TestInit is CommonTest {
 /// @title ComplianceModule_Constructor_Test
 /// @notice Tests the constructor of the `ComplianceModule` contract.
 contract ComplianceModule_Constructor_Test is ComplianceModule_TestInit {
-    /// @notice Tests that the implementation exposes the supplied addresses and rejects
-    ///         initialization.
+    /// @notice Tests that the implementation exposes its addresses and rejects initialization.
     function test_constructor_succeeds() external {
         assertEq(address(impl.portal()), address(optimismPortal2));
         assertEq(address(impl.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
@@ -153,8 +152,7 @@ contract ComplianceModule_Constructor_Test is ComplianceModule_TestInit {
 /// @title ComplianceModule_Initialize_Test
 /// @notice Tests the `initialize` function of the `ComplianceModule` contract.
 contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
-    /// @notice Tests that initialization sets the owner and policy and emits OwnershipTransferred
-    ///         and PolicySet.
+    /// @notice Tests that initialize sets the owner and policy and emits both events.
     function test_initialize_succeeds() external {
         IComplianceModule proxy = _newProxy();
 
@@ -236,6 +234,20 @@ contract ComplianceModule_TransferOwnership_Test is ComplianceModule_TestInit {
     }
 }
 
+/// @title ComplianceModule_Paused_Test
+/// @notice Tests the `paused` function of the `ComplianceModule` contract.
+contract ComplianceModule_Paused_Test is ComplianceModule_TestInit {
+    /// @notice Tests that paused returns the Portal's pause state.
+    function test_paused_succeeds() external {
+        assertFalse(module.paused());
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        assertTrue(module.paused());
+    }
+}
+
 /// @title ComplianceModule_Parties_Test
 /// @notice Tests the `parties` function of the `ComplianceModule` contract.
 contract ComplianceModule_Parties_Test is ComplianceModule_TestInit {
@@ -279,8 +291,7 @@ contract ComplianceModule_Parties_Test is ComplianceModule_TestInit {
         assertEq(module.parties(item), parties);
     }
 
-    /// @notice Tests that parties and deposit screening use the unaliased sender and target
-    ///         for a deposit without a messenger message.
+    /// @notice Tests that parties and screenDeposit use the unaliased sender and target.
     function test_parties_aliasedSender_succeeds() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Deposit,
@@ -487,8 +498,7 @@ contract ComplianceModule_ScreenWithdrawal_Test is ComplianceModule_TestInit {
         );
     }
 
-    /// @notice Tests that screenWithdrawal passes the item, parties, stored expiry, and finalizable
-    ///         time to the policy and returns its result.
+    /// @notice Tests that screenWithdrawal passes its inputs to the policy and returns the result.
     function testFuzz_screenWithdrawal_policyAnswer_succeeds(
         bool _pass,
         uint64 _expiresAt,
@@ -545,8 +555,7 @@ contract ComplianceModule_ScreenWithdrawal_Test is ComplianceModule_TestInit {
         );
     }
 
-    /// @notice Tests that screenWithdrawal returns true without calling the policy when the module
-    ///         is disabled and the withdrawal nonce equals the cutoff.
+    /// @notice Tests that screenWithdrawal skips the policy when disabled at the cutoff nonce.
     function testFuzz_screenWithdrawal_disabledAtCutoff_succeeds(uint256 _cutoff) external {
         vm.prank(moduleOwner);
         module.disable(_cutoff);
@@ -573,8 +582,7 @@ contract ComplianceModule_ScreenWithdrawal_Test is ComplianceModule_TestInit {
         );
     }
 
-    /// @notice Tests that screenWithdrawal returns true without calling the policy when the module
-    ///         is disabled and the withdrawal nonce exceeds the cutoff.
+    /// @notice Tests that screenWithdrawal skips the policy when disabled above the cutoff nonce.
     function testFuzz_screenWithdrawal_disabledAboveCutoff_succeeds(uint256 _cutoff, uint256 _nonce) external {
         _cutoff = bound(_cutoff, 0, type(uint256).max - 1);
         _nonce = bound(_nonce, _cutoff + 1, type(uint256).max);
@@ -603,8 +611,7 @@ contract ComplianceModule_ScreenWithdrawal_Test is ComplianceModule_TestInit {
         );
     }
 
-    /// @notice Tests that screenWithdrawal calls the policy and returns false when the policy
-    ///         rejects a withdrawal below the nonce cutoff, even when the module is disabled.
+    /// @notice Tests that screenWithdrawal calls the policy below the cutoff when disabled.
     function testFuzz_screenWithdrawal_disabledBelowCutoff_succeeds(uint256 _cutoff, uint256 _nonce) external {
         _cutoff = bound(_cutoff, 1, type(uint256).max);
         _nonce = bound(_nonce, 0, _cutoff - 1);
@@ -740,8 +747,7 @@ contract ComplianceModule_HoldDeposit_Test is ComplianceModule_TestInit {
         );
     }
 
-    /// @notice Tests that holdDeposit increases heldTokens by the escrowed amount for the
-    ///         L1 and L2 token pair.
+    /// @notice Tests that holdDeposit adds the escrowed amount to heldTokens for the token pair.
     function testFuzz_holdDeposit_escrowedToken_succeeds(uint256 _amount, uint256 _existing) external {
         _amount = bound(_amount, 0, type(uint256).max - _existing);
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
@@ -781,10 +787,66 @@ contract ComplianceModule_HoldDeposit_Test is ComplianceModule_TestInit {
             abi.encode(BridgeHookTypes.TokenKind.Escrowed)
         );
 
+        deal(address(L1Token), address(module), _existing + _amount);
+
         vm.prank(address(optimismPortal2));
         module.holdDeposit(item);
 
         assertEq(module.heldTokens(address(L1Token), address(L2Token)), _existing + _amount);
+    }
+
+    /// @notice Tests that holdDeposit reverts when the token balance does not cover heldTokens.
+    function testFuzz_holdDeposit_insufficientBalance_reverts(
+        uint256 _amount,
+        uint256 _existing,
+        uint256 _balance
+    )
+        external
+    {
+        _existing = bound(_existing, 0, type(uint256).max - 1);
+        _amount = bound(_amount, 1, type(uint256).max - _existing);
+        _balance = bound(_balance, 0, _existing + _amount - 1);
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
+            aliased: true,
+            to: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 200_000,
+            isCreation: false,
+            data: abi.encodeCall(
+                ICrossDomainMessenger.relayMessage,
+                (
+                    0,
+                    address(l1StandardBridge),
+                    Predeploys.L2_STANDARD_BRIDGE,
+                    0,
+                    100_000,
+                    abi.encodeCall(
+                        IStandardBridge.finalizeBridgeERC20,
+                        (address(L2Token), address(L1Token), alice, bob, _amount, hex"")
+                    )
+                )
+            ),
+            nonce: 1
+        });
+        stdstore.target(address(module))
+            .sig(IComplianceModule.heldTokens.selector)
+            .with_key(address(L1Token))
+            .with_key(address(L2Token))
+            .checked_write(_existing);
+        vm.mockCall(
+            address(l1StandardBridge),
+            abi.encodeCall(IL1StandardBridge.heldTokenKinds, (BridgeHookHashing.hashItem(item))),
+            abi.encode(BridgeHookTypes.TokenKind.Escrowed)
+        );
+        deal(address(L1Token), address(module), _balance);
+
+        vm.expectRevert(IComplianceModule.ComplianceModule_InsufficientBalance.selector);
+        vm.prank(address(optimismPortal2));
+        module.holdDeposit(item);
     }
 
     /// @notice Tests that holdDeposit leaves heldTokens unchanged for a mintable token.
@@ -959,8 +1021,7 @@ contract ComplianceModule_HoldWithdrawal_Test is ComplianceModule_TestInit {
         assertEq(module.items(id).expiresAt, expiresAt);
     }
 
-    /// @notice Tests that holdWithdrawal increases heldTokens by the escrowed amount for the
-    ///         L1 and L2 token pair.
+    /// @notice Tests that holdWithdrawal adds the escrowed amount to heldTokens for the token pair.
     function testFuzz_holdWithdrawal_escrowedToken_succeeds(uint256 _amount, uint256 _existing) external {
         _amount = bound(_amount, 0, type(uint256).max - _existing);
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
@@ -1000,10 +1061,66 @@ contract ComplianceModule_HoldWithdrawal_Test is ComplianceModule_TestInit {
             abi.encode(BridgeHookTypes.TokenKind.Escrowed)
         );
 
+        deal(address(L1Token), address(module), _existing + _amount);
+
         vm.prank(address(optimismPortal2));
         module.holdWithdrawal(item);
 
         assertEq(module.heldTokens(address(L1Token), address(L2Token)), _existing + _amount);
+    }
+
+    /// @notice Tests that holdWithdrawal reverts when the token balance does not cover heldTokens.
+    function testFuzz_holdWithdrawal_insufficientBalance_reverts(
+        uint256 _amount,
+        uint256 _existing,
+        uint256 _balance
+    )
+        external
+    {
+        _existing = bound(_existing, 0, type(uint256).max - 1);
+        _amount = bound(_amount, 1, type(uint256).max - _existing);
+        _balance = bound(_balance, 0, _existing + _amount - 1);
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Withdrawal,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            aliased: false,
+            to: address(l1CrossDomainMessenger),
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 200_000,
+            isCreation: false,
+            data: abi.encodeCall(
+                ICrossDomainMessenger.relayMessage,
+                (
+                    0,
+                    Predeploys.L2_STANDARD_BRIDGE,
+                    address(l1StandardBridge),
+                    0,
+                    100_000,
+                    abi.encodeCall(
+                        IStandardBridge.finalizeBridgeERC20,
+                        (address(L1Token), address(L2Token), alice, bob, _amount, hex"")
+                    )
+                )
+            ),
+            nonce: 1
+        });
+        stdstore.target(address(module))
+            .sig(IComplianceModule.heldTokens.selector)
+            .with_key(address(L1Token))
+            .with_key(address(L2Token))
+            .checked_write(_existing);
+        vm.mockCall(
+            address(l1StandardBridge),
+            abi.encodeCall(IL1StandardBridge.heldTokenKinds, (BridgeHookHashing.hashItem(item))),
+            abi.encode(BridgeHookTypes.TokenKind.Escrowed)
+        );
+        deal(address(L1Token), address(module), _balance);
+
+        vm.expectRevert(IComplianceModule.ComplianceModule_InsufficientBalance.selector);
+        vm.prank(address(optimismPortal2));
+        module.holdWithdrawal(item);
     }
 }
 
@@ -1112,8 +1229,7 @@ contract ComplianceModule_SetPolicy_Test is ComplianceModule_TestInit {
         module.setPolicy(IPolicy(makeAddr("newPolicy")));
     }
 
-    /// @notice Tests that setPolicy sets the policy, emits PolicySet, and leaves the item's
-    ///         hold and expiration times unchanged.
+    /// @notice Tests that setPolicy sets the policy, emits PolicySet and keeps item records.
     function testFuzz_setPolicy_succeeds(IPolicy _newPolicy) external {
         vm.assume(address(_newPolicy) != address(0));
         bytes32 id = keccak256("item");
@@ -1151,8 +1267,7 @@ contract ComplianceModule_Disable_Test is ComplianceModule_TestInit {
         module.disable(0);
     }
 
-    /// @notice Tests that disable sets the cutoff and emits Disabled on each call, including when
-    ///         the module is already disabled.
+    /// @notice Tests that disable sets the cutoff and emits Disabled on each call.
     function testFuzz_disable_succeeds(uint256 _cutoff, uint256 _newCutoff) external {
         vm.expectEmit(address(module));
         emit Disabled(_cutoff);
@@ -1271,8 +1386,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
         assertEq(address(module).balance, 0);
     }
 
-    /// @notice Tests that completeDeposit returns the item's tokens to bridge escrow, reduces
-    ///         heldTokens by the item's amount, and leaves no token allowance.
+    /// @notice Tests that completeDeposit restores escrow, reduces heldTokens and clears allowance.
     function testFuzz_completeDeposit_escrowedToken_succeeds(uint256 _amount, uint256 _existing) external {
         // Exclude infinite allowance because this test checks that the transfer consumes it.
         _amount = bound(_amount, 0, type(uint256).max - 1);
@@ -1329,8 +1443,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _amount);
     }
 
-    /// @notice Tests that completeDeposit skips token approval and leaves heldTokens unchanged
-    ///         when the bridge records the token kind as Mintable.
+    /// @notice Tests that completeDeposit skips approval and heldTokens for a Mintable token.
     function test_completeDeposit_mintableToken_succeeds() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Deposit,
@@ -1527,8 +1640,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
         assertTrue(optimismPortal2.heldDeposits(id));
     }
 
-    /// @notice Tests that completeDeposit preserves the policy's revert data and leaves the item
-    ///         held.
+    /// @notice Tests that completeDeposit keeps the policy's revert data and the item held.
     function test_completeDeposit_policyReverts_reverts() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Deposit,
@@ -1586,8 +1698,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
         assertTrue(optimismPortal2.heldDeposits(id));
     }
 
-    /// @notice Tests that completeDeposit preserves revert data from restoreERC20 and leaves
-    ///         the item held.
+    /// @notice Tests that completeDeposit keeps restoreERC20's revert data and the item held.
     function test_completeDeposit_restoreFails_reverts() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Deposit,
@@ -1737,8 +1848,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
         assertEq(reentryReturnData, bytes.concat(IComplianceModule.ComplianceModule_ItemNotHeld.selector));
     }
 
-    /// @notice Tests that reentrant completion of the same deposit from the token's transferFrom
-    ///         reverts.
+    /// @notice Tests that the token's transferFrom cannot complete the same deposit again.
     function test_completeDeposit_reentryFromToken_reverts() external {
         ComplianceModule_ReentrantERC20_Harness token = new ComplianceModule_ReentrantERC20_Harness();
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
@@ -1862,8 +1972,7 @@ contract ComplianceModule_CompleteWithdrawal_Test is ComplianceModule_TestInit {
         assertEq(bob.balance, bobBalance + _ethAmount);
     }
 
-    /// @notice Tests that completeWithdrawal delivers the item's tokens to the recipient, reduces
-    ///         heldTokens by the item's amount, and leaves no token allowance.
+    /// @notice Tests that completeWithdrawal pays out, reduces heldTokens and clears allowance.
     function testFuzz_completeWithdrawal_escrowedToken_succeeds(uint256 _amount, uint256 _existing) external {
         // Exclude infinite allowance because this test checks that the transfer consumes it.
         _amount = bound(_amount, 0, type(uint256).max - 1);
@@ -1957,8 +2066,7 @@ contract ComplianceModule_CompleteWithdrawal_Test is ComplianceModule_TestInit {
         assertTrue(optimismPortal2.heldWithdrawals(id));
     }
 
-    /// @notice Tests that disabling screening does not bypass the verdict or policy approval
-    ///         required for a held withdrawal, and enabling screening still requires approval.
+    /// @notice Tests that disable and enable do not bypass verdict or policy approval at release.
     function test_completeWithdrawal_disabledAndEnabled_reverts() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
@@ -1999,8 +2107,7 @@ contract ComplianceModule_CompleteWithdrawal_Test is ComplianceModule_TestInit {
         module.completeWithdrawal(item);
     }
 
-    /// @notice Tests that completeWithdrawal returns the pause error even when the item is not
-    ///         held.
+    /// @notice Tests that completeWithdrawal reverts with the pause error for an item not held.
     function test_completeWithdrawal_paused_reverts() external {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(0));
@@ -2060,8 +2167,7 @@ contract ComplianceModule_Integration_Test is OptimismPortal2_TestInit, Complian
         super.setUp();
     }
 
-    /// @notice Tests that completing a held ETH deposit produces the same deposit event and
-    ///         Portal and lockbox balances as a deposit approved during screening.
+    /// @notice Tests that a completed held ETH deposit matches one approved during screening.
     function test_completeDeposit_ethDeposit_succeeds() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Deposit,
@@ -2104,8 +2210,7 @@ contract ComplianceModule_Integration_Test is OptimismPortal2_TestInit, Complian
         assertEq(address(module).balance, 0);
     }
 
-    /// @notice Tests that completing a held token deposit restores bridge escrow and produces
-    ///         the same deposit event as a deposit approved during screening.
+    /// @notice Tests that a completed held token deposit matches one approved during screening.
     function test_completeDeposit_escrowedTokenDeposit_succeeds() external {
         bytes memory message = abi.encodeCall(
             IStandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
@@ -2161,9 +2266,7 @@ contract ComplianceModule_Integration_Test is OptimismPortal2_TestInit, Complian
         assertEq(module.heldTokens(address(L1Token), address(L2Token)), 0);
     }
 
-    /// @notice Tests that completing a held ETH withdrawal produces the same finalization event
-    ///         and recipient, Portal and lockbox balances as a withdrawal approved during
-    ///         screening.
+    /// @notice Tests that a completed held ETH withdrawal matches one approved during screening.
     function test_completeWithdrawal_ethWithdrawal_succeeds() external {
         Types.WithdrawalTransaction memory withdrawal = Types.WithdrawalTransaction({
             nonce: 0, sender: alice, target: bob, value: 100, gasLimit: 100_000, data: hex"aa"
@@ -2210,8 +2313,7 @@ contract ComplianceModule_Integration_Test is OptimismPortal2_TestInit, Complian
         assertEq(address(module).balance, 0);
     }
 
-    /// @notice Tests that completing a held escrowed token withdrawal produces the same recipient
-    ///         token balance and finalization event as a withdrawal approved during screening.
+    /// @notice Tests that a completed held token withdrawal matches one approved during screening.
     function test_completeWithdrawal_escrowedTokenWithdrawal_succeeds() external {
         bytes memory message = abi.encodeCall(
             IStandardBridge.finalizeBridgeERC20, (address(L1Token), address(L2Token), alice, bob, 100, hex"")
@@ -2279,9 +2381,8 @@ contract ComplianceModule_Integration_Test is OptimismPortal2_TestInit, Complian
         assertEq(module.heldTokens(address(L1Token), address(L2Token)), 0);
     }
 
-    /// @notice Tests that after hook removal, a withdrawal calling the former hook's holdWithdrawal
-    ///         is marked failed without creating a module hold or transferring ETH to the module.
-    function test_holdWithdrawal_formerHook_fails() external {
+    /// @notice Tests that a removed hook's holdWithdrawal reverts inside a failed withdrawal.
+    function test_holdWithdrawal_formerHook_reverts() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
             asset: BridgeHookTypes.Asset.ETH,

@@ -23,6 +23,7 @@ interface IComplianceModule is IBridgeHook, IProxyAdminOwnedBase {
     error ComplianceModule_PolicyRefused();
     error ComplianceModule_ETHAmountMismatch();
     error ComplianceModule_ZeroAddress();
+    error ComplianceModule_InsufficientBalance();
     error ComplianceModule_Paused();
     error ComplianceModule_OwnershipNotRenounceable();
     error InvalidInitialization();

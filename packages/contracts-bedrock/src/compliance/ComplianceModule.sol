@@ -96,6 +96,9 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     /// @notice Thrown when an address argument is zero.
     error ComplianceModule_ZeroAddress();
 
+    /// @notice Thrown when the module's token balance does not cover heldTokens after a hold.
+    error ComplianceModule_InsufficientBalance();
+
     /// @notice Thrown when withdrawal completion is requested while the Portal is paused.
     error ComplianceModule_Paused();
 
@@ -336,7 +339,8 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     }
 
     /// @notice Records a hold and tracks escrowed token amounts transferred by the bridge.
-    ///         Leaves any recorded verdict unchanged.
+    ///         Reverts if the module's token balance does not cover heldTokens. Leaves any
+    ///         recorded verdict unchanged.
     /// @param _item The deposit or withdrawal item.
     function _hold(BridgeHookTypes.Item calldata _item) internal {
         _assertOnlyActiveHook();
@@ -352,7 +356,9 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
             (, bytes memory message) = BridgeHookDecoder.extractTokenMessage(_item);
             (, address l1Token, address l2Token, uint256 amount) =
                 BridgeHookDecoder.decodeTokenTransfer(_item.direction, message);
-            heldTokens[l1Token][l2Token] += amount;
+            uint256 held = heldTokens[l1Token][l2Token] + amount;
+            if (IERC20(l1Token).balanceOf(address(this)) < held) revert ComplianceModule_InsufficientBalance();
+            heldTokens[l1Token][l2Token] = held;
         }
 
         emit Held(id, _item);

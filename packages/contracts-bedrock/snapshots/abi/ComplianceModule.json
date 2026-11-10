@@ -1102,6 +1102,11 @@
   },
   {
     "inputs": [],
+    "name": "ComplianceModule_InsufficientBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ComplianceModule_ItemNotCleared",
     "type": "error"
   },
