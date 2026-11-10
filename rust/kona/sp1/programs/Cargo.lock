@@ -1949,7 +1949,6 @@ name = "kona-sp1-log-commitment"
 version = "0.0.1"
 dependencies = [
  "alloy-primitives",
- "foldhash 0.2.0",
  "kona-sp1-build-info",
  "kona-sp1-client-utils",
  "sp1-zkvm",

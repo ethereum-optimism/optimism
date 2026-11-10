@@ -8186,7 +8186,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "getrandom 0.3.4",
  "httpmock",
  "jsonrpsee-core",
  "jsonrpsee-http-client",

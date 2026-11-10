@@ -26,11 +26,33 @@ pub fn main() {
     println!("{}", kona_sp1_build_info::BUILD_MARKER);
     #[cfg(feature = "test-config-fallback")]
     println!("{}", test_config::MARKER);
-    foldhash::install_global_seed(sp1_zkvm::io::read::<u64>());
 
     let inputs = sp1_zkvm::io::read::<SuperInteropInputs>();
+    foldhash::install_global_seed(hash_seed(&inputs));
     let outputs = kona_proof::block_on(run(inputs)).expect("super interop failed");
     sp1_zkvm::io::commit(&outputs);
+}
+
+/// The hash that keys every hash map of this guest (see `programs/foldhash-seeded`). In each mode
+/// it exists only after every key the guest hashes is fixed, and no block the proof executes can
+/// read it, so no on-chain actor can predict or choose it.
+fn hash_seed(inputs: &SuperInteropInputs) -> u64 {
+    let hash = match inputs {
+        // The game's L1 head. Every batch and deposit the range derives is at or below it, and
+        // each L2 block's L1 origin precedes the L1 block that includes its batch.
+        SuperInteropInputs::Range(inputs) => inputs.l1_head,
+        // The super root that the consolidation proves at `span.end`. It commits to every
+        // chain's block at `span.end`, and no block in the span can read it.
+        SuperInteropInputs::Consolidation(inputs) => inputs
+            .transitions
+            .last()
+            .expect("consolidation input span contains no transitions")
+            .claimed_super_root_proof
+            .super_root
+            .hash(),
+    };
+    // Both are keccak hashes, so their first 8 bytes are uniform.
+    u64::from_le_bytes(hash[..8].try_into().expect("8 bytes"))
 }
 
 async fn run(inputs: SuperInteropInputs) -> anyhow::Result<SuperInteropOutputs> {

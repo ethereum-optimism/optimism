@@ -769,7 +769,7 @@ pub fn synthesize_execution(
     })
 }
 
-/// Encodes super-range SP1 stdin as the guest hash seed, typed inputs, and rkyv witness bytes.
+/// Encodes super-range SP1 stdin as typed inputs followed by rkyv witness bytes.
 pub fn build_super_range_stdin(
     inputs: &SuperRangeInputs,
     witness: DefaultWitnessData,
@@ -799,9 +799,8 @@ impl LogCommitmentProofs {
     }
 }
 
-/// Encodes consolidation-mode SP1 stdin: the guest hash seed, typed inputs, rkyv witness bytes,
-/// and the encoded `log_commitments`. `proofs` go to the proof stream (see
-/// [`write_log_commitment_proofs`]).
+/// Encodes consolidation-mode SP1 stdin: typed inputs, rkyv witness bytes, and the encoded
+/// `log_commitments`. `proofs` go to the proof stream (see [`write_log_commitment_proofs`]).
 /// Without `proofs`, only execution with the deferred-proof check off can use batches.
 pub fn build_super_consolidation_stdin(
     inputs: &SuperConsolidationInputs,
@@ -859,14 +858,12 @@ pub fn build_log_commitment_stdin_from_receipts(blocks: &[BlockReceipts]) -> Res
     build_log_commitment_stdin(&receipts_roots, log_commitment_witness(blocks)?)
 }
 
-/// Encodes log-commitment SP1 stdin as the guest hash seed, the receipts roots, and rkyv witness
-/// bytes.
+/// Encodes log-commitment SP1 stdin as the receipts roots followed by rkyv witness bytes.
 pub fn build_log_commitment_stdin(
     receipts_roots: &[B256],
     witness: DefaultWitnessData,
 ) -> Result<SP1Stdin> {
     let mut stdin = SP1Stdin::new();
-    stdin.write(&guest_hash_seed()?);
     stdin.write(&receipts_roots);
     stdin.write_slice(&archive_witness(&witness)?);
     Ok(stdin)
@@ -875,8 +872,8 @@ pub fn build_log_commitment_stdin(
 /// The public values that the `log-commitment` program commits for `stdin` from
 /// [`build_log_commitment_stdin`], by the program's own function over the same stdin items.
 pub fn expected_batch_public_values(stdin: &SP1Stdin) -> Vec<u8> {
-    let receipts_roots: Vec<B256> = SP1Stdin::from(&stdin.buffer[1]).read();
-    log_commitment_public_values(&receipts_roots, &stdin.buffer[2])
+    let receipts_roots: Vec<B256> = SP1Stdin::from(&stdin.buffer[0]).read();
+    log_commitment_public_values(&receipts_roots, &stdin.buffer[1])
 }
 
 fn build_super_interop_stdin(
@@ -884,19 +881,9 @@ fn build_super_interop_stdin(
     witness: DefaultWitnessData,
 ) -> Result<SP1Stdin> {
     let mut stdin = SP1Stdin::new();
-    stdin.write(&guest_hash_seed()?);
     stdin.write(&inputs);
     stdin.write_slice(&archive_witness(&witness)?);
     Ok(stdin)
-}
-
-/// A fresh secret seed for one proof's stdin, which the guest reads first and keys every hash map
-/// with. Attacker inputs are fixed before it is drawn, so they cannot be made to collide under it.
-fn guest_hash_seed() -> Result<u64> {
-    let mut bytes = [0u8; 8];
-    getrandom::fill(&mut bytes)
-        .map_err(|err| anyhow!("failed to draw the guest hash seed: {err}"))?;
-    Ok(u64::from_le_bytes(bytes))
 }
 
 /// Decodes the public output committed by the super-range guest.
@@ -2702,26 +2689,6 @@ mod tests {
             proofs: vec![kzg_rs::Bytes48([0; 48]); blobs],
         };
         DefaultWitnessData::from_parts(store, blob_data)
-    }
-
-    /// A seed that repeats across stdins, or follows from their inputs, lets an attacker choose
-    /// keys that collide under it (proofs-team#58).
-    #[test]
-    fn each_stdin_draws_a_fresh_guest_hash_seed() {
-        use kona_sp1_client_utils::super_root::{SuperConsolidationInputs, TimestampSpan};
-
-        let witness = || sized_witness(1, 1, 0);
-        let interop = || {
-            let inputs = SuperInteropInputs::Consolidation(SuperConsolidationInputs {
-                span: TimestampSpan::new(101, 101).unwrap(),
-                previous_super_root: Default::default(),
-                transitions: Vec::new(),
-            });
-            build_super_interop_stdin(inputs, witness()).unwrap().buffer.remove(0)
-        };
-        assert_ne!(interop(), interop());
-        let log = || build_log_commitment_stdin(&[], witness()).unwrap().buffer.remove(0);
-        assert_ne!(log(), log());
     }
 
     #[test]

@@ -156,5 +156,5 @@ crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag 
 k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.10.0" }
 p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.10.0" }
 substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.10.0-substrate-bn" }
-# Prover-seeded hashing against HashDoS; see foldhash-seeded/src/lib.rs.
+# Seeds guest hash maps from their inputs; see foldhash-seeded/src/lib.rs.
 foldhash = { path = "foldhash-seeded" }

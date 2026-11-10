@@ -597,7 +597,7 @@ async fn consolidation_checks_persistent_message_heads_across_idle_timestamps() 
         let stdin = build_log_commitment_stdin_from_receipts(&fixture.below_head).unwrap();
         let batch = kona_sp1_client_utils::log_commitment::log_commitment_public_values(
             &roots,
-            &stdin.buffer[2],
+            &stdin.buffer[1],
         );
         assert_eq!(batch, fixture.native_batch());
         let expected =
@@ -1087,7 +1087,7 @@ async fn measure_consolidation_cost() {
                 continue;
             }
             let stdin = fixture.stdin(witness, &log_commitments);
-            let (witness_bytes, section_bytes) = (stdin.buffer[2].len(), stdin.buffer[3].len());
+            let (witness_bytes, section_bytes) = (stdin.buffer[1].len(), stdin.buffer[2].len());
             let (_, report) = execute_consolidation(&dir, stdin, false).await;
             println!(
                 "RESULT {label} n={n} mode={mode} batches={} witness_bytes={witness_bytes} \

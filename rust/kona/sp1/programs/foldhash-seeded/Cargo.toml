@@ -2,7 +2,7 @@
 name = "foldhash"
 version = "0.2.0"
 publish = false
-description = "SP1-guest foldhash 0.2.0 whose RandomState is keyed by a prover-installed seed"
+description = "SP1-guest foldhash 0.2.0 whose RandomState is keyed by a seed the guest takes from its input"
 license.workspace = true
 edition.workspace = true
 authors.workspace = true

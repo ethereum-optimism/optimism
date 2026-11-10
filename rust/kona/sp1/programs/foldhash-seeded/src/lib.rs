@@ -1,7 +1,8 @@
-//! SP1 guest builds patch `foldhash` to this crate so that every hash map is keyed by a secret
-//! seed the prover draws for each proof. Unseeded, the seed is a constant of the guest ELF, so
-//! attacker-chosen keys can be made to collide (`HashDoS`). A guest must call
-//! [`install_global_seed`] before creating any hash map; creating one earlier panics.
+//! SP1 guest builds patch `foldhash` to this crate so that every hash map is keyed by a seed that
+//! the guest takes from a hash in its input. Only on-chain actors must be unable to predict or
+//! choose the seed before their keys are fixed; the prover may know it. Unseeded, the seed is a
+//! constant of the guest ELF, so attacker-chosen keys can be made to collide. A guest that creates
+//! a hash map must call [`install_global_seed`] first; creating one earlier panics.
 
 #![no_std]
 
@@ -30,7 +31,9 @@ static SEED: SeedCell = SeedCell(UnsafeCell::new(upstream::SharedSeed::from_u64(
 const FIRST_PER_HASHER_COUNTER: u64 = 1;
 static PER_HASHER_COUNTER: AtomicU64 = AtomicU64::new(FIRST_PER_HASHER_COUNTER);
 
-/// Installs the global hash seed. Must be called once, before any hash map is created.
+/// Installs the global hash seed. Must be called once, before any hash map is created. `seed` must
+/// come from a hash in the guest's input that no on-chain actor can predict or choose before its
+/// keys are fixed (see `hash_seed` in the super-range guest).
 ///
 /// # Panics
 ///
@@ -56,13 +59,13 @@ fn shared_seed() -> &'static upstream::SharedSeed {
     unsafe { &*SEED.0.get() }
 }
 
-/// A distinct secret seed for each hasher builder. hashbrown goes quadratic when one table is
-/// filled in another's iteration order under the same seed.
+/// A distinct unpredictable seed for each hasher builder. hashbrown goes quadratic when one table
+/// is filled in another's iteration order under the same seed.
 fn next_per_hasher_seed() -> u64 {
     per_hasher_seed(PER_HASHER_COUNTER.fetch_add(1, Ordering::Relaxed), shared_seed())
 }
 
-/// `folded_multiply(n, s0)` for counter value `n`: secret, because it depends on `s0`.
+/// `folded_multiply(n, s0)` for counter value `n`: unpredictable, because it depends on `s0`.
 fn per_hasher_seed(n: u64, shared: &upstream::SharedSeed) -> u64 {
     let mut hasher = upstream::fast::FoldHasher::with_seed(0, shared);
     hasher.write_u64(n);
