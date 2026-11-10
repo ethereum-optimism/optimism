@@ -43,6 +43,9 @@ class _LiveTestsFixtures:
         files['packages/contracts-bedrock/justfile'] = build + '\n' + summaries
         self.placeholders = {name: '// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\ncontract ' + Path(name).stem + ' {}\n' for name in sum(K.GENERATED.values(), [])}
         files.update(self.placeholders)
+        # forge-build warms the script cache of every op-deployer script (one that
+        # defines runWithBytes) and fails when there is none.
+        files['packages/contracts-bedrock/scripts/deploy/DeploySuperchain.s.sol'] = '// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\ncontract DeploySuperchain { function runWithBytes(bytes memory) public {} }\n'
         files['packages/contracts-bedrock/scripts/Artifacts.s.sol'] = '// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\ncontract Artifacts {}\n'
         deployer = (K.ROOT / 'op-deployer/justfile').read_text()
         files['op-deployer/justfile'] = deployer[deployer.index('copy-contract-artifacts:\n'):deployer.index('_LDFLAGSSTRING :=')]

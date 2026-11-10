@@ -38,6 +38,9 @@ class ContractDependenciesTests(unittest.TestCase):
                 'packages/contracts-bedrock/justfile': recipe,
                 'packages/contracts-bedrock/foundry.toml': '[profile.default]\nsrc="src"\nscript="scripts"\nout="forge-artifacts"\nsolc="0.8.28"\nbuild_info=true\nbuild_info_path="artifacts/build-info"\n',
                 'packages/contracts-bedrock/src/Protocol.sol': '// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\ncontract Protocol {}\n',
+                # forge-build warms the script cache of every op-deployer script (one that
+                # defines runWithBytes) and fails when there is none.
+                'packages/contracts-bedrock/scripts/deploy/DeploySuperchain.s.sol': '// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\ncontract DeploySuperchain { function runWithBytes(bytes memory) public {} }\n',
                 # The alias must retain .sol helpers inside test/, not exclude the directory.
                 'packages/contracts-bedrock/test/dispute/zk/MockSP1Verifier.sol': '// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\ncontract MockSP1Verifier { function verify() external pure returns (bool) { return true; } }\n',
                 # An intentionally invalid executable test proves the producer excludes .t.sol.
