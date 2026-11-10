@@ -3,8 +3,9 @@
 //! Vendored from reth v2.6.0's `crates/chain-state/src/memory_overlay.rs`, which
 //! `paradigmxyz/reth#26923` removed in favour of the overlay manager. The pending state of a
 //! speculative flashblock still needs it: see `pending_flashblock_state`. The trait impls are
-//! unchanged; the other changes fit it to this crate: import paths, crate-private visibility and
-//! the lints that follow from it, and no default for the primitives type.
+//! unchanged, except that `canonical_hashes_range` no longer reserves capacity for the whole
+//! requested range. The other changes fit it to this crate: import paths, crate-private visibility
+//! and the lints that follow from it, and no default for the primitives type.
 //!
 //! UPSTREAM-MIRROR(port): reth@v2.6.0 `reth_chain_state::memory_overlay`
 
@@ -93,7 +94,9 @@ impl<N: NodePrimitives> BlockHashReader for MemoryOverlayStateProviderRef<'_, N>
     ) -> ProviderResult<Vec<B256>> {
         let range = start..end;
         let mut earliest_block_number = None;
-        let mut in_memory_hashes = Vec::with_capacity(range.size_hint().0);
+        // Upstream reserved `range.size_hint().0`, which overflows for a wide range although at
+        // most one hash per in-memory block is pushed.
+        let mut in_memory_hashes = Vec::with_capacity(self.in_memory.len());
 
         // iterate in ascending order (oldest to newest = low to high)
         for block in self.in_memory.iter() {
@@ -341,5 +344,15 @@ mod tests {
         provider.hashed_post_state(&bundle_state).unwrap();
 
         assert!(provider.trie_input.get().is_none());
+    }
+
+    #[test]
+    fn canonical_hashes_range_does_not_allocate_for_the_whole_range() {
+        let provider = MemoryOverlayStateProviderRef::<EthPrimitives>::new(
+            Box::new(NoopProvider::default()),
+            Vec::new(),
+        );
+
+        assert_eq!(provider.canonical_hashes_range(0, u64::MAX).unwrap(), Vec::<B256>::new());
     }
 }
