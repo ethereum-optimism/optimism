@@ -2,7 +2,10 @@
 //!
 //! Vendored from reth v2.6.0's `crates/chain-state/src/memory_overlay.rs`, which
 //! `paradigmxyz/reth#26923` removed in favour of the overlay manager. The pending state of a
-//! speculative flashblock still needs it: see `pending_flashblock_state`. The trait impls are
+//! speculative flashblock still needs it: see `pending_flashblock_state`. It is temporary: it can
+//! go once the speculative chain reaches the RPC
+//! (<https://github.com/ethereum-optimism/optimism/issues/23998>) and reth lets us fold that chain
+//! onto the anchor through its overlay manager. The trait impls are
 //! unchanged, except that `canonical_hashes_range` no longer reserves capacity for the whole
 //! requested range. The other changes fit it to this crate: import paths, crate-private visibility
 //! and the lints that follow from it, and no default for the primitives type.

@@ -24,44 +24,43 @@ const fn pending_state_history_lookup_hash<N: NodePrimitives>(
     pending_block.canonical_anchor_hash
 }
 
-/// Returns the state after `pending_block`: its canonical anchor's state with the block on top.
+/// Returns the pending state: the tip's bundle on its canonical anchor's state.
 ///
 /// The sequencer streams flashblocks ahead of block import, so the flashblocks worker can build
-/// several blocks past the canonical head. With canonical head N-1:
+/// past the canonical head. With canonical head N-1, it builds pending N on N-1, then speculative
+/// N+1 on N, and so on, all anchored at N-1. A tip on the anchor, such as N, opens through reth's
+/// `state_with_block_appended`. A speculative tip opens through the vendored
+/// [`MemoryOverlayStateProvider`]: its bundle holds every write since the anchor, so account,
+/// storage and code reads need only the tip. Block hash lookups are the exception: they see only
+/// the tip, not the pending blocks before it.
 ///
-/// - Canonical build: pending N, whose parent is N-1.
-/// - Speculative build: pending N+1 on pending N, then N+2 on N+1, and so on. Each keeps N-1 as its
-///   canonical anchor.
+/// reth's `state_with_block_appended(parent_hash, block)` can't open a speculative tip such as N+1:
 ///
-/// The tip's bundle holds every write since the anchor, so the tip alone on the anchor's state is
-/// the pending state, however many blocks the build is ahead.
+/// - With N, it fails with `BlockHashNotFound`. N is in neither the database nor the overlay
+///   manager, which holds only blocks the engine executed.
+/// - With N-1, it panics on the `debug_assert` in `OverlayBuilder::with_appended_block` that the
+///   hash is the header's parent.
 ///
-/// reth's `StateProviderFactory::state_with_block_appended(parent_hash, block)` can't open the
-/// state of a speculative tip such as N+1, whose header names N as its parent:
-///
-/// - Passing N fails with `BlockHashNotFound`: N is neither in the database nor in reth's overlay
-///   manager, which only holds blocks the engine has executed.
-/// - Passing the anchor N-1 panics on the `debug_assert` in `OverlayBuilder::with_appended_block`
-///   that the block's header parent is the hash it was given.
-///
-/// <https://github.com/ethereum-optimism/optimism/issues/23998> will make the whole speculative
-/// chain available to the RPC. Appending it from N onwards would need reth to accept the chain:
-/// `state_with_block_appended` takes a single block, and folding
-/// `OverlayBuilder::with_appended_block` over the chain ourselves needs
-/// `ProviderFactory::overlay_manager`, which is crate-private. This overlay does not need the
-/// chain.
+/// Appending the whole chain instead needs it at the RPC
+/// (<https://github.com/ethereum-optimism/optimism/issues/23998>) and reth access we lack:
+/// `state_with_block_appended` takes one block, and `ProviderFactory::overlay_manager` is
+/// crate-private.
 fn pending_flashblock_state<P, N>(
     provider: &P,
     pending_block: PendingFlashBlock<N>,
 ) -> ProviderResult<StateProviderBox>
 where
     N: NodePrimitives,
-    P: StateProviderFactory,
+    P: StateProviderFactory<Primitives = N>,
 {
-    let anchor_historical =
-        provider.history_by_block_hash(pending_state_history_lookup_hash(&pending_block))?;
-    let in_memory = vec![pending_block.pending.executed_block];
-    Ok(MemoryOverlayStateProvider::new(anchor_historical, in_memory).boxed())
+    let anchor = pending_state_history_lookup_hash(&pending_block);
+    let speculative = pending_block.pending.parent_hash() != anchor;
+    let tip = pending_block.pending.executed_block;
+    if !speculative {
+        return provider.state_with_block_appended(anchor, tip);
+    }
+    let anchor_historical = provider.history_by_block_hash(anchor)?;
+    Ok(MemoryOverlayStateProvider::new(anchor_historical, vec![tip]).boxed())
 }
 
 impl<N, Rpc> LoadPendingBlock for OpEthApi<N, Rpc>
@@ -85,6 +84,13 @@ where
         self.inner.eth_api.pending_block_kind()
     }
 
+    /// UPSTREAM-MIRROR(override): reth@rev:0447ceb
+    /// `reth_rpc_eth_api::helpers::pending_block::LoadPendingBlock::local_pending_state`
+    ///
+    /// Serves the flashblock pending state instead of the pool-built one. Keep upstream's blocking
+    /// discipline: callers await this on the async runtime, so the reads that open the state go
+    /// through `spawn_blocking_io`, as the default does.
+    ///
     /// Returns a [`StateProviderBox`] on a mem-pool built pending block overlaying latest.
     async fn local_pending_state(&self) -> Result<Option<StateProviderBox>, Self::Error>
     where
@@ -93,10 +99,14 @@ where
         let Ok(Some(pending_block)) = self.pending_flashblock().await else {
             return Ok(None);
         };
-        let state = pending_flashblock_state(self.provider(), pending_block)
-            .map_err(Self::Error::from_eth_err)?;
-
-        Ok(Some(state))
+        // Callers resolve pending state before taking a blocking thread, so the reads that open it
+        // take one here, as reth's default does.
+        self.spawn_blocking_io(move |this| {
+            pending_flashblock_state(this.provider(), pending_block)
+                .map(Some)
+                .map_err(Self::Error::from_eth_err)
+        })
+        .await
     }
 
     /// Returns the locally built pending block
@@ -129,6 +139,7 @@ mod tests {
     use alloy_consensus::Header;
     use alloy_primitives::{Address, B256, U256};
     use reth_chain_state::ExecutedBlock;
+    use reth_chainspec::MAINNET;
     use reth_db_common::init::init_genesis;
     use reth_ethereum_primitives::{Block, EthPrimitives};
     use reth_execution_types::BlockExecutionOutput;
@@ -137,9 +148,12 @@ mod tests {
     use reth_primitives_traits::{RecoveredBlock, SealedBlock};
     use reth_provider::{providers::BlockchainProvider, test_utils::create_test_provider_factory};
     use reth_rpc_eth_types::PendingBlock;
-    use reth_storage_api::AccountReader;
+    use reth_storage_api::{AccountReader, StateProvider, StateProviderFactory};
     use reth_trie::{ComputedTrieData, HashedPostState, KeccakKeyHasher};
-    use revm::{database::BundleState, state::AccountInfo};
+    use revm::{
+        database::{AccountStatus, BundleState},
+        state::AccountInfo,
+    };
     use rstest::rstest;
     use std::{sync::Arc, time::Instant};
 
@@ -165,8 +179,13 @@ mod tests {
     }
 
     /// Builds `blocks` pending blocks on the canonical genesis and reads the tip's state the way
-    /// `local_pending_state` does. Block `n` sets the balance of account `n` to `n`. As in the
+    /// `local_pending_state` does: through reth's overlay for a tip on the anchor, through the
+    /// vendored one for a speculative tip. Block `n` sets the balance of account `n` to `n`, and
+    /// the first block also writes a storage slot and destroys a genesis account. As in the
     /// flashblocks worker, a speculative tip's bundle holds every write since the anchor.
+    ///
+    /// These are spot checks that the speculative gap is bridged, not a parity suite against reth's
+    /// `OverlayStateProvider`: the vendored overlay is meant to go away (see its module doc).
     #[rstest]
     #[case::canonical(1)]
     #[case::speculative(2)]
@@ -176,7 +195,13 @@ mod tests {
         let provider = BlockchainProvider::new(factory).unwrap();
 
         let account = |number: u64| Address::with_last_byte(number as u8);
-        let mut bundle = BundleState::builder(1..=blocks);
+        let destroyed = *MAINNET.genesis.alloc.keys().next().expect("mainnet genesis has accounts");
+        assert!(provider.latest().unwrap().basic_account(&destroyed).unwrap().is_some());
+        let (slot, value) = (U256::from(1), U256::from(42));
+
+        let mut bundle = BundleState::builder(1..=blocks)
+            .state_storage(account(1), [(slot, (U256::ZERO, value))].into_iter().collect())
+            .state_original_account_info(destroyed, AccountInfo::default());
         let mut parent_hash = anchor;
         let mut tip = None;
         for number in 1..=blocks {
@@ -189,7 +214,8 @@ mod tests {
             parent_hash = block.hash();
             tip = Some(block);
         }
-        let bundle = bundle.build();
+        let mut bundle = bundle.build();
+        bundle.state.get_mut(&destroyed).expect("in the bundle").status = AccountStatus::Destroyed;
         let hashed_state = HashedPostState::from_bundle_state::<KeccakKeyHasher>(bundle.state());
         let executed = ExecutedBlock::<EthPrimitives>::new(
             Arc::new(RecoveredBlock::new_sealed(tip.expect("at least one block"), Vec::new())),
@@ -209,5 +235,7 @@ mod tests {
             let balance = state.basic_account(&account(number)).unwrap().map(|a| a.balance);
             assert_eq!(balance, Some(U256::from(number)), "account {number}");
         }
+        assert_eq!(state.storage(account(1), B256::from(slot)).unwrap(), Some(value));
+        assert_eq!(state.basic_account(&destroyed).unwrap(), None, "destroyed account");
     }
 }

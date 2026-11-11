@@ -69,8 +69,9 @@ where
     /// upstream, which takes the permit first and then checks its window, this checks the window
     /// before taking the permit, so out-of-window requests never wait for one. Upstream also
     /// resolves the state before taking a blocking thread (`spawn_blocking_io_with_state`), as
-    /// building a pending block may need one itself; this resolves it inside the task, which
-    /// `OpEthApi`'s pending state allows because it does not spawn blocking work.
+    /// opening the pending state takes one itself; this resolves it inside the task. That is safe
+    /// because `pending` never gets this far: reth sets no canonical pending block on an OP node,
+    /// so `ensure_within_proofs_window` rejects it with `HeaderNotFound` first.
     async fn get_proof_inner(
         &self,
         address: Address,
