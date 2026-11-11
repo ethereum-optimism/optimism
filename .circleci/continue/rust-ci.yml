@@ -163,6 +163,20 @@ jobs:
           command: typos
       # No cache save: downloads no crates.
 
+  # Fails while the reth fork is pinned by anything but an op-<base>-<n> tag. Its own job,
+  # so a PR pinned on a fork PR's commit still runs every other check and is red only here.
+  rust-reth-pin:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Check the reth fork is pinned by tag
+          working_directory: rust
+          command: just check-reth-pin
+
   # Shared no_std compatibility check job
   rust-ci-check-no-std:
     parameters:
@@ -1018,6 +1032,10 @@ workflows:
           directory: rust
           context: *rust-ci-context
 
+      - rust-reth-pin:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
       - rust-ci-cargo-tests:
           name: rust-tests
           directory: rust
@@ -1131,6 +1149,7 @@ workflows:
             - rust-deny: terminal
             - rust-typos: terminal
             - rust-zepter: terminal
+            - rust-reth-pin: terminal
             - rust-tests: terminal
             - interop-deposits-diff: terminal
             - rust-doctest: terminal

@@ -477,6 +477,12 @@ PR's head commit with `rev = "<sha>"` meanwhile. Once the fork PR merges, tag
 its merged commit and switch the monorepo PR to the tag before it merges, so
 a fork pin on `develop` is always a tag.
 
+CI enforces this: the required `rust-reth-pin` job (`just check-reth-pin` in
+`rust/`) fails while any crate from the fork resolves through anything but an
+`op-<base>-<n>` tag. It runs apart from the other jobs, so a PR on a `rev` pin
+still gets the full CI result and is red only on this check. Keep that PR in
+draft until the switch to the tag.
+
 ## After the monorepo PR merges
 
 Repin the premium PR's monorepo dependency to the merge commit on `develop`

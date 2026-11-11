@@ -265,6 +265,33 @@ check-sp1-guest-lock:
     exit 1
   fi
 
+# Fail unless every crate from the ethereum-optimism/reth fork resolves through an
+# `op-<base>-<n>` tag. A `rev` pin on an open fork PR is fine while both PRs are in
+# development, but not on develop. CI runs this as its own required job, so such a PR
+# still runs every other check. Reads the lockfiles, which `--locked` CI jobs keep in
+# sync with the manifests, so a transitive fork dependency is caught too.
+[script('bash')]
+check-reth-pin:
+  set -euo pipefail
+  # Fail closed: a git or grep error must not read as "no untagged sources".
+  files=$(git ls-files -- '*Cargo.lock')
+  locks=()
+  while IFS= read -r f; do [ -n "$f" ] && locks+=("$f"); done <<< "$files"
+  [ "${#locks[@]}" -gt 0 ] || { echo "error: no Cargo.lock found" >&2; exit 1; }
+  rc=0
+  sources=$(grep -hoE '"git\+https://github\.com/ethereum-optimism/reth(\.git)?[?#][^"]*"' "${locks[@]}") || rc=$?
+  [ "$rc" -le 1 ] || exit "$rc"
+  # `<base>` may contain hyphens, e.g. an upstream pre-release `v2.8.0-rc.1`.
+  untagged=$(printf '%s\n' "$sources" | grep -vE '^$|\?tag=op-[0-9A-Za-z.-]+-[0-9]+#[0-9a-f]{40}"$' | sort -u) || true
+  if [ -n "$untagged" ]; then
+    echo "error: the reth fork is pinned by something other than an op-<base>-<n> tag:" >&2
+    echo "$untagged" | sed 's/^/         /' >&2
+    echo "       Before merging: merge the ethereum-optimism/reth PRs this pin points at," >&2
+    echo "       tag the merged commit, and pin \`tag = \"op-<base>-<n>\"\` in rust/Cargo.toml." >&2
+    echo "       See rust/UPDATING-RETH.md, \"Pinning a fork change\"." >&2
+    exit 1
+  fi
+
 # Cargo only warns when a [patch.crates-io] entry is unused. Assert that every
 # crypto crate used by each guest program resolves exclusively to its SP1 fork.
 [script('bash')]
