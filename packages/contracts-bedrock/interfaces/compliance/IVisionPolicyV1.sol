@@ -47,4 +47,17 @@ interface IVisionPolicyV1 is IPolicy {
     function removeFromDenylist(address[] calldata _accounts) external;
     function setMaxClearanceAge(uint64 _maxClearanceAge) external;
     function setHoldDelay(uint64 _holdDelay) external;
+
+    function owner() external view returns (address);
+
+    function __constructor__(
+        IComplianceModule _module,
+        address _owner,
+        address _verdictWriter,
+        uint64 _maxVerdictValidity,
+        uint64 _holdDelay,
+        address[] memory _allowlist,
+        address[] memory _denylist
+    )
+        external;
 }

@@ -26,6 +26,15 @@ interface IComplianceModule is IBridgeHook {
     event Disabled(uint256 cutoffL2Nonce);
     event Enabled();
 
+    function initialize(
+        address _owner,
+        IPolicy _policy,
+        IOptimismPortal2 _portal,
+        IL1CrossDomainMessenger _l1CrossDomainMessenger,
+        IL1StandardBridge _l1StandardBridge
+    )
+        external;
+    function owner() external view returns (address);
     function portal() external view returns (IOptimismPortal2);
     function bridge() external view returns (IL1StandardBridge);
     function l1CrossDomainMessenger() external view returns (IL1CrossDomainMessenger);
@@ -43,4 +52,6 @@ interface IComplianceModule is IBridgeHook {
     function revokeVerdict(bytes32 _id) external;
     function completeDeposit(BridgeHookTypes.Item calldata _item) external;
     function completeWithdrawal(BridgeHookTypes.Item calldata _item) external;
+
+    function __constructor__() external;
 }
