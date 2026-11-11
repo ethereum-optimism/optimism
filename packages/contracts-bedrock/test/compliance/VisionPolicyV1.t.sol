@@ -346,7 +346,6 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
 
     /// @notice Tests that screenDeposit never reverts for the module with two parties.
     function testFuzz_screenDeposit_twoParties_succeeds(
-        BridgeHookTypes.Item memory _item,
         address _sender,
         address _recipient,
         bool _allowlistSender,
@@ -355,6 +354,7 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
     )
         external
     {
+        BridgeHookTypes.Item memory item;
         address[] memory accounts = new address[](1);
         vm.startPrank(owner);
         accounts[0] = _sender;
@@ -368,7 +368,7 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
         parties[1] = _recipient;
 
         vm.prank(module);
-        policy.screenDeposit(_item, parties);
+        policy.screenDeposit(item, parties);
     }
 }
 
@@ -445,6 +445,22 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         }
     }
 
+    /// @notice Tests that a sender other than a Fee Vault gets no exemption.
+    function testFuzz_screenWithdrawal_notFeeVault_succeeds(address _sender) external {
+        vm.assume(_sender != allowlistedSender && _sender != deniedParty);
+        vm.assume(_sender != Predeploys.SEQUENCER_FEE_WALLET && _sender != Predeploys.BASE_FEE_VAULT);
+        vm.assume(_sender != Predeploys.L1_FEE_VAULT && _sender != Predeploys.OPERATOR_FEE_VAULT);
+        BridgeHookTypes.Item memory item;
+        address[] memory parties = new address[](2);
+        parties[0] = _sender;
+        parties[1] = recipient;
+        uint256 finalizableAt = block.timestamp;
+        vm.warp(finalizableAt + policy.holdDelay());
+
+        vm.prank(module);
+        assertFalse(policy.screenWithdrawal(item, parties, 0, finalizableAt));
+    }
+
     /// @notice Tests that a verdict permits withdrawal one second before expiry.
     ///         At expiry, screening returns false even before the Holdable Time.
     function test_screenWithdrawal_verdictExpiry_succeeds() external {
@@ -459,7 +475,7 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
     }
 
     /// @notice Tests that a withdrawal with no verdict reverts before the Holdable Time and gives
-    ///         false at it.
+    ///         false at and after it.
     function testFuzz_screenWithdrawal_holdableTime_succeeds(uint256 _finalizableAt, uint64 _holdDelay) external {
         BridgeHookTypes.Item memory item;
         address[] memory parties = new address[](2);
@@ -467,8 +483,8 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         parties[1] = recipient;
         _holdDelay = uint64(bound(_holdDelay, 0, HOLD_DELAY_CAP));
         // Reserve room for any permitted hold delay so overflow cannot mask the screening rule.
-        // Keep holdableAt above zero so the test can check one second before it.
-        _finalizableAt = bound(_finalizableAt, 1, type(uint256).max - HOLD_DELAY_CAP);
+        // Keep holdableAt between the limits so the test can check one second before and after it.
+        _finalizableAt = bound(_finalizableAt, 1, type(uint256).max - HOLD_DELAY_CAP - 1);
         vm.prank(owner);
         policy.setHoldDelay(_holdDelay);
         uint256 holdableAt = _finalizableAt + _holdDelay;
@@ -478,7 +494,9 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         vm.expectRevert(bytes.concat(IVisionPolicyV1.VisionPolicyV1_NotYetHoldable.selector, abi.encode(holdableAt)));
         policy.screenWithdrawal(item, parties, 0, _finalizableAt);
         vm.warp(holdableAt);
-        assertFalse(policy.screenWithdrawal(item, parties, 0, _finalizableAt));
+        assertFalse(policy.screenWithdrawal(item, parties, 0, _finalizableAt), "at");
+        vm.warp(holdableAt + 1);
+        assertFalse(policy.screenWithdrawal(item, parties, 0, _finalizableAt), "after");
     }
 
     /// @notice Tests that a zero holdDelay holds a withdrawal with no verdict at its Finalizable
@@ -761,6 +779,15 @@ contract VisionPolicyV1_Clear_Test is VisionPolicyV1_TestInit {
         vm.prank(newVerdictWriter);
         policy.clear(id, expiresAt);
     }
+
+    /// @notice Tests that a recordVerdict revert bubbles up unchanged.
+    function test_clear_moduleReverts_reverts() external {
+        vm.mockCallRevert(module, abi.encodePacked(IComplianceModule.recordVerdict.selector), hex"c0ffee");
+
+        vm.expectRevert(bytes(hex"c0ffee"));
+        vm.prank(verdictWriter);
+        policy.clear(keccak256("item"), uint64(block.timestamp + 1));
+    }
 }
 
 /// @title VisionPolicyV1_Revoke_Test
@@ -854,6 +881,16 @@ contract VisionPolicyV1_ClearAndCompleteDeposit_Test is VisionPolicyV1_TestInit 
             policy.clearAndCompleteDeposit(item, expiries[i]);
         }
     }
+
+    /// @notice Tests that a completeDeposit revert bubbles up unchanged.
+    function test_clearAndCompleteDeposit_moduleReverts_reverts() external {
+        BridgeHookTypes.Item memory item;
+        vm.mockCallRevert(module, abi.encodePacked(IComplianceModule.completeDeposit.selector), hex"c0ffee");
+
+        vm.expectRevert(bytes(hex"c0ffee"));
+        vm.prank(verdictWriter);
+        policy.clearAndCompleteDeposit(item, uint64(block.timestamp + 1));
+    }
 }
 
 /// @title VisionPolicyV1_ClearAndCompleteWithdrawal_Test
@@ -923,6 +960,16 @@ contract VisionPolicyV1_ClearAndCompleteWithdrawal_Test is VisionPolicyV1_TestIn
             vm.expectRevert(IVisionPolicyV1.VisionPolicyV1_InvalidExpiry.selector);
             policy.clearAndCompleteWithdrawal(item, expiries[i]);
         }
+    }
+
+    /// @notice Tests that a completeWithdrawal revert bubbles up unchanged.
+    function test_clearAndCompleteWithdrawal_moduleReverts_reverts() external {
+        BridgeHookTypes.Item memory item;
+        vm.mockCallRevert(module, abi.encodePacked(IComplianceModule.completeWithdrawal.selector), hex"c0ffee");
+
+        vm.expectRevert(bytes(hex"c0ffee"));
+        vm.prank(verdictWriter);
+        policy.clearAndCompleteWithdrawal(item, uint64(block.timestamp + 1));
     }
 }
 
