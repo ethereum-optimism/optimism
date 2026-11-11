@@ -66,9 +66,10 @@ contract ComplianceModule is Initializable, Ownable2Step, ISemver {
     /// @notice Item identifier to hold status and clear verdict.
     mapping(bytes32 => Record) internal _items;
 
-    /// @notice Amount of escrowed tokens held for each L1 token and L2 token pair.
-    ///         Excludes mintable tokens, which the bridge burns instead of transferring here.
-    mapping(address l1Token => mapping(address l2Token => uint256 amount)) public heldTokens;
+    /// @notice Total escrowed amount held for each L1 token across all L2 token pairs.
+    ///         Includes held deposits and withdrawals. Excludes mintable tokens, which the
+    ///         bridge burns instead of transferring here.
+    mapping(address l1Token => uint256 amount) public heldTokensTotal;
 
     /// @notice Thrown when the caller is not the Portal.
     error ComplianceModule_CallerNotPortal();
@@ -97,7 +98,8 @@ contract ComplianceModule is Initializable, Ownable2Step, ISemver {
     /// @notice Thrown when an address argument is zero.
     error ComplianceModule_ZeroAddress();
 
-    /// @notice Thrown when the module's token balance does not cover heldTokens after a hold.
+    /// @notice Thrown when the module's L1 token balance cannot cover the total held amount,
+    ///         including the new hold.
     error ComplianceModule_InsufficientBalance();
 
     /// @notice Thrown when the policy records a verdict with a zero expiry.
@@ -331,9 +333,9 @@ contract ComplianceModule is Initializable, Ownable2Step, ISemver {
         if (msg.sender != address(policy)) revert ComplianceModule_CallerNotPolicy();
     }
 
-    /// @notice Records a hold and tracks escrowed token amounts transferred by the bridge.
-    ///         Reverts if the module's token balance does not cover heldTokens. Leaves any
-    ///         recorded verdict unchanged.
+    /// @notice Records a hold without changing any recorded verdict. For escrowed tokens, adds
+    ///         the item's amount to heldTokensTotal for its L1 token and reverts if the module's
+    ///         balance cannot cover the updated total.
     /// @param _item The deposit or withdrawal item.
     function _hold(BridgeHookTypes.Item calldata _item) internal {
         _assertOnlyActiveHook();
@@ -342,11 +344,11 @@ contract ComplianceModule is Initializable, Ownable2Step, ISemver {
         bytes32 id = BridgeHookHashing.hashItem(_item);
         _items[id].heldAt = uint64(block.timestamp);
 
-        (bool escrowed, address l1Token, address l2Token, uint256 amount) = _escrowedTransfer(_item, id);
+        (bool escrowed, address l1Token, uint256 amount) = _escrowedTransfer(_item, id);
         if (escrowed) {
-            uint256 held = heldTokens[l1Token][l2Token] + amount;
-            if (IERC20(l1Token).balanceOf(address(this)) < held) revert ComplianceModule_InsufficientBalance();
-            heldTokens[l1Token][l2Token] = held;
+            uint256 total = heldTokensTotal[l1Token] + amount;
+            if (IERC20(l1Token).balanceOf(address(this)) < total) revert ComplianceModule_InsufficientBalance();
+            heldTokensTotal[l1Token] = total;
         }
 
         emit Held(id, _item);
@@ -354,7 +356,8 @@ contract ComplianceModule is Initializable, Ownable2Step, ISemver {
 
     /// @notice Prepares a held item with a clear verdict for completion. Requires policy approval.
     ///         Deletes the record before calling the policy. For escrowed tokens, approves the
-    ///         bridge to transfer the item's amount and reduces heldTokens.
+    ///         bridge to transfer the item's amount and subtracts that amount from heldTokensTotal
+    ///         for the item's L1 token.
     /// @param _item The deposit or withdrawal item.
     /// @return id_ The item identifier.
     function _release(BridgeHookTypes.Item calldata _item) internal returns (bytes32 id_) {
@@ -369,10 +372,10 @@ contract ComplianceModule is Initializable, Ownable2Step, ISemver {
         if (!policy.screenRelease(_item, _parties(_item), record.expiresAt)) revert ComplianceModule_PolicyRefused();
 
         // The token kind remains available until the Portal calls the bridge's restoreERC20.
-        (bool escrowed, address l1Token, address l2Token, uint256 amount) = _escrowedTransfer(_item, id_);
+        (bool escrowed, address l1Token, uint256 amount) = _escrowedTransfer(_item, id_);
         if (escrowed) {
             IERC20(l1Token).forceApprove(address(bridge), amount);
-            heldTokens[l1Token][l2Token] -= amount;
+            heldTokensTotal[l1Token] -= amount;
         }
     }
 
@@ -381,7 +384,6 @@ contract ComplianceModule is Initializable, Ownable2Step, ISemver {
     /// @param _id   The item identifier.
     /// @return escrowed_ Whether the item carries an escrowed token transfer.
     /// @return l1Token_  The L1 token. Zero unless escrowed.
-    /// @return l2Token_  The L2 token. Zero unless escrowed.
     /// @return amount_   The token amount. Zero unless escrowed.
     function _escrowedTransfer(
         BridgeHookTypes.Item calldata _item,
@@ -389,15 +391,15 @@ contract ComplianceModule is Initializable, Ownable2Step, ISemver {
     )
         internal
         view
-        returns (bool escrowed_, address l1Token_, address l2Token_, uint256 amount_)
+        returns (bool escrowed_, address l1Token_, uint256 amount_)
     {
         if (
             _item.asset != BridgeHookTypes.Asset.ERC20
                 || bridge.heldTokenKinds(_id) != BridgeHookTypes.TokenKind.Escrowed
-        ) return (false, address(0), address(0), 0);
+        ) return (false, address(0), 0);
 
         (, bytes memory message) = BridgeHookDecoder.extractTokenMessage(_item);
-        (, l1Token_, l2Token_, amount_) = BridgeHookDecoder.decodeTokenTransfer(_item.direction, message);
+        (, l1Token_,, amount_) = BridgeHookDecoder.decodeTokenTransfer(_item.direction, message);
         escrowed_ = true;
     }
 

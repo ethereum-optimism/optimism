@@ -216,14 +216,9 @@
         "internalType": "address",
         "name": "l1Token",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "l2Token",
-        "type": "address"
       }
     ],
-    "name": "heldTokens",
+    "name": "heldTokensTotal",
     "outputs": [
       {
         "internalType": "uint256",

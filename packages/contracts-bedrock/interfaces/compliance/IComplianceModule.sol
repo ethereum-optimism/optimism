@@ -69,7 +69,7 @@ interface IComplianceModule is IBridgeHook {
     function cutoffL2Nonce() external view returns (uint256);
     function paused() external view returns (bool);
     function items(bytes32 _id) external view returns (Record memory);
-    function heldTokens(address l1Token, address l2Token) external view returns (uint256 amount);
+    function heldTokensTotal(address l1Token) external view returns (uint256 amount);
     function parties(BridgeHookTypes.Item calldata _item) external view returns (IPolicy.Parties memory parties_);
     function setPolicy(IPolicy _policy) external;
     function disable(uint256 _cutoffL2Nonce) external;

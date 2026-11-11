@@ -97,6 +97,13 @@ abstract contract ComplianceModule_TestInit is CommonTest {
         moduleProxyAdmin.upgrade(payable(address(proxy_)), address(impl));
     }
 
+    /// @notice Sets heldTokensTotal for an L1 token directly in module storage.
+    function _storeHeldTokensTotal(address _l1Token, uint256 _amount) internal {
+        bytes32 slot =
+            keccak256(abi.encode(_l1Token, ForgeArtifacts.getSlot("ComplianceModule", "heldTokensTotal").slot));
+        vm.store(address(module), slot, bytes32(_amount));
+    }
+
     /// @notice Writes a module record directly, which hides the storage slot math.
     function _storeRecord(bytes32 _id, uint64 _heldAt, uint64 _expiresAt) internal {
         bytes32 slot = keccak256(abi.encode(_id, ForgeArtifacts.getSlot("ComplianceModule", "_items").slot));
@@ -764,7 +771,7 @@ contract ComplianceModule_HoldDeposit_Test is ComplianceModule_TestInit {
         );
     }
 
-    /// @notice Tests that holdDeposit adds the escrowed amount to heldTokens for the token pair.
+    /// @notice Tests that holdDeposit adds the escrowed amount to heldTokensTotal for the L1 token.
     function testFuzz_holdDeposit_escrowedToken_succeeds(uint256 _amount, uint256 _existing) external {
         _amount = bound(_amount, 0, type(uint256).max - _existing);
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
@@ -793,11 +800,7 @@ contract ComplianceModule_HoldDeposit_Test is ComplianceModule_TestInit {
             ),
             nonce: 1
         });
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(_existing);
+        _storeHeldTokensTotal(address(L1Token), _existing);
         vm.mockCall(
             address(l1StandardBridge),
             abi.encodeCall(IL1StandardBridge.heldTokenKinds, (BridgeHookHashing.hashItem(item))),
@@ -809,10 +812,10 @@ contract ComplianceModule_HoldDeposit_Test is ComplianceModule_TestInit {
         vm.prank(address(optimismPortal2));
         module.holdDeposit(item);
 
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), _existing + _amount);
+        assertEq(module.heldTokensTotal(address(L1Token)), _existing + _amount);
     }
 
-    /// @notice Tests that holdDeposit reverts when the token balance does not cover heldTokens.
+    /// @notice Tests that holdDeposit reverts when the token balance does not cover heldTokensTotal.
     function testFuzz_holdDeposit_insufficientBalance_reverts(
         uint256 _amount,
         uint256 _existing,
@@ -849,11 +852,7 @@ contract ComplianceModule_HoldDeposit_Test is ComplianceModule_TestInit {
             ),
             nonce: 1
         });
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(_existing);
+        _storeHeldTokensTotal(address(L1Token), _existing);
         vm.mockCall(
             address(l1StandardBridge),
             abi.encodeCall(IL1StandardBridge.heldTokenKinds, (BridgeHookHashing.hashItem(item))),
@@ -866,7 +865,7 @@ contract ComplianceModule_HoldDeposit_Test is ComplianceModule_TestInit {
         module.holdDeposit(item);
     }
 
-    /// @notice Tests that holdDeposit leaves heldTokens unchanged for a mintable token.
+    /// @notice Tests that holdDeposit leaves heldTokensTotal unchanged for a mintable token.
     function test_holdDeposit_mintableToken_succeeds() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Deposit,
@@ -903,7 +902,7 @@ contract ComplianceModule_HoldDeposit_Test is ComplianceModule_TestInit {
         vm.prank(address(optimismPortal2));
         module.holdDeposit(item);
 
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), 0);
+        assertEq(module.heldTokensTotal(address(L1Token)), 0);
     }
 }
 
@@ -1038,7 +1037,7 @@ contract ComplianceModule_HoldWithdrawal_Test is ComplianceModule_TestInit {
         assertEq(module.items(id).expiresAt, expiresAt);
     }
 
-    /// @notice Tests that holdWithdrawal adds the escrowed amount to heldTokens for the token pair.
+    /// @notice Tests that holdWithdrawal adds the escrowed amount to heldTokensTotal for the L1 token.
     function testFuzz_holdWithdrawal_escrowedToken_succeeds(uint256 _amount, uint256 _existing) external {
         _amount = bound(_amount, 0, type(uint256).max - _existing);
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
@@ -1067,11 +1066,7 @@ contract ComplianceModule_HoldWithdrawal_Test is ComplianceModule_TestInit {
             ),
             nonce: 1
         });
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(_existing);
+        _storeHeldTokensTotal(address(L1Token), _existing);
         vm.mockCall(
             address(l1StandardBridge),
             abi.encodeCall(IL1StandardBridge.heldTokenKinds, (BridgeHookHashing.hashItem(item))),
@@ -1083,10 +1078,10 @@ contract ComplianceModule_HoldWithdrawal_Test is ComplianceModule_TestInit {
         vm.prank(address(optimismPortal2));
         module.holdWithdrawal(item);
 
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), _existing + _amount);
+        assertEq(module.heldTokensTotal(address(L1Token)), _existing + _amount);
     }
 
-    /// @notice Tests that holdWithdrawal reverts when the token balance does not cover heldTokens.
+    /// @notice Tests that holdWithdrawal reverts when the token balance does not cover heldTokensTotal.
     function testFuzz_holdWithdrawal_insufficientBalance_reverts(
         uint256 _amount,
         uint256 _existing,
@@ -1123,11 +1118,7 @@ contract ComplianceModule_HoldWithdrawal_Test is ComplianceModule_TestInit {
             ),
             nonce: 1
         });
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(_existing);
+        _storeHeldTokensTotal(address(L1Token), _existing);
         vm.mockCall(
             address(l1StandardBridge),
             abi.encodeCall(IL1StandardBridge.heldTokenKinds, (BridgeHookHashing.hashItem(item))),
@@ -1140,7 +1131,7 @@ contract ComplianceModule_HoldWithdrawal_Test is ComplianceModule_TestInit {
         module.holdWithdrawal(item);
     }
 
-    /// @notice Tests that holdWithdrawal leaves heldTokens unchanged for a mintable token.
+    /// @notice Tests that holdWithdrawal leaves heldTokensTotal unchanged for a mintable token.
     function test_holdWithdrawal_mintableToken_succeeds() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
@@ -1177,7 +1168,7 @@ contract ComplianceModule_HoldWithdrawal_Test is ComplianceModule_TestInit {
         vm.prank(address(optimismPortal2));
         module.holdWithdrawal(item);
 
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), 0);
+        assertEq(module.heldTokensTotal(address(L1Token)), 0);
     }
 }
 
@@ -1449,7 +1440,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
         assertEq(address(module).balance, 0);
     }
 
-    /// @notice Tests that completeDeposit restores escrow, reduces heldTokens and clears allowance.
+    /// @notice Tests that completeDeposit restores escrow, reduces heldTokensTotal and clears allowance.
     function testFuzz_completeDeposit_escrowedToken_succeeds(uint256 _amount, uint256 _existing) external {
         // Exclude infinite allowance because this test checks that the transfer consumes it.
         _amount = bound(_amount, 0, type(uint256).max - 1);
@@ -1490,23 +1481,19 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             .sig(IL1StandardBridge.heldTokenKinds.selector)
             .with_key(id)
             .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(_existing + _amount);
+        _storeHeldTokensTotal(address(L1Token), _existing + _amount);
         deal(address(L1Token), address(module), _amount);
         vm.mockCall(address(policy), abi.encodePacked(IPolicy.screenRelease.selector), abi.encode(true));
 
         module.completeDeposit(item);
 
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), _existing);
+        assertEq(module.heldTokensTotal(address(L1Token)), _existing);
         assertEq(L1Token.balanceOf(address(module)), 0);
         assertEq(L1Token.allowance(address(module), address(l1StandardBridge)), 0);
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _amount);
     }
 
-    /// @notice Tests that completeDeposit skips approval and heldTokens for a Mintable token.
+    /// @notice Tests that completeDeposit skips approval and keeps heldTokensTotal unchanged for a mintable token.
     function test_completeDeposit_mintableToken_succeeds() external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Deposit,
@@ -1544,17 +1531,13 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             .sig(IL1StandardBridge.heldTokenKinds.selector)
             .with_key(id)
             .checked_write(uint256(BridgeHookTypes.TokenKind.Mintable));
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(100);
+        _storeHeldTokensTotal(address(L1Token), 100);
         vm.mockCall(address(policy), abi.encodePacked(IPolicy.screenRelease.selector), abi.encode(true));
 
         vm.expectCall(address(L1Token), abi.encodePacked(L1Token.approve.selector), 0);
         module.completeDeposit(item);
 
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), 100);
+        assertEq(module.heldTokensTotal(address(L1Token)), 100);
     }
 
     /// @notice Tests that completeDeposit reverts for an item that is not held.
@@ -1685,11 +1668,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             .sig(IL1StandardBridge.heldTokenKinds.selector)
             .with_key(id)
             .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(100);
+        _storeHeldTokensTotal(address(L1Token), 100);
         deal(address(L1Token), address(module), 100);
         vm.mockCall(address(policy), abi.encodePacked(IPolicy.screenRelease.selector), abi.encode(false));
 
@@ -1699,7 +1678,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
         assertEq(module.items(id).heldAt, heldAt);
         assertEq(module.items(id).expiresAt, expiresAt);
         assertEq(L1Token.balanceOf(address(module)), 100);
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), 100);
+        assertEq(module.heldTokensTotal(address(L1Token)), 100);
         assertTrue(optimismPortal2.heldDeposits(id));
     }
 
@@ -1743,11 +1722,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             .sig(IL1StandardBridge.heldTokenKinds.selector)
             .with_key(id)
             .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(100);
+        _storeHeldTokensTotal(address(L1Token), 100);
         deal(address(L1Token), address(module), 100);
         vm.mockCallRevert(address(policy), abi.encodePacked(IPolicy.screenRelease.selector), hex"c0ffee");
 
@@ -1757,7 +1732,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
         assertEq(module.items(id).heldAt, heldAt);
         assertEq(module.items(id).expiresAt, expiresAt);
         assertEq(L1Token.balanceOf(address(module)), 100);
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), 100);
+        assertEq(module.heldTokensTotal(address(L1Token)), 100);
         assertTrue(optimismPortal2.heldDeposits(id));
     }
 
@@ -1801,11 +1776,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             .sig(IL1StandardBridge.heldTokenKinds.selector)
             .with_key(id)
             .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(100);
+        _storeHeldTokensTotal(address(L1Token), 100);
         deal(address(L1Token), address(module), 100);
         vm.mockCall(address(policy), abi.encodePacked(IPolicy.screenRelease.selector), abi.encode(true));
         vm.mockCallRevert(
@@ -1818,7 +1789,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
         assertEq(module.items(id).heldAt, heldAt);
         assertEq(module.items(id).expiresAt, expiresAt);
         assertEq(L1Token.balanceOf(address(module)), 100);
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), 100);
+        assertEq(module.heldTokensTotal(address(L1Token)), 100);
         assertTrue(optimismPortal2.heldDeposits(id));
     }
 
@@ -1949,11 +1920,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             .sig(IL1StandardBridge.heldTokenKinds.selector)
             .with_key(id)
             .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(token))
-            .with_key(address(L2Token))
-            .checked_write(100);
+        _storeHeldTokensTotal(address(token), 100);
         deal(address(token), address(module), 100);
         vm.mockCall(address(policy), abi.encodePacked(IPolicy.screenRelease.selector), abi.encode(true));
         token.setReentry(address(module), abi.encodeCall(IComplianceModule.completeDeposit, (item)));
@@ -2033,7 +2000,7 @@ contract ComplianceModule_CompleteWithdrawal_Test is ComplianceModule_TestInit {
         assertEq(bob.balance, bobBalance + _ethAmount);
     }
 
-    /// @notice Tests that completeWithdrawal pays out, reduces heldTokens and clears allowance.
+    /// @notice Tests that completeWithdrawal pays out, reduces heldTokensTotal and clears allowance.
     function testFuzz_completeWithdrawal_escrowedToken_succeeds(uint256 _amount, uint256 _existing) external {
         // Exclude infinite allowance because this test checks that the transfer consumes it.
         _amount = bound(_amount, 0, type(uint256).max - 1);
@@ -2074,23 +2041,19 @@ contract ComplianceModule_CompleteWithdrawal_Test is ComplianceModule_TestInit {
             .sig(IL1StandardBridge.heldTokenKinds.selector)
             .with_key(id)
             .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(L1Token))
-            .with_key(address(L2Token))
-            .checked_write(_existing + _amount);
+        _storeHeldTokensTotal(address(L1Token), _existing + _amount);
         deal(address(L1Token), address(module), _amount);
         vm.mockCall(address(policy), abi.encodePacked(IPolicy.screenRelease.selector), abi.encode(true));
 
         module.completeWithdrawal(item);
 
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), _existing);
+        assertEq(module.heldTokensTotal(address(L1Token)), _existing);
         assertEq(L1Token.balanceOf(address(module)), 0);
         assertEq(L1Token.allowance(address(module), address(l1StandardBridge)), 0);
         assertEq(L1Token.balanceOf(bob), _amount);
     }
 
-    /// @notice Tests that completeWithdrawal skips approval and heldTokens for a Mintable token.
+    /// @notice Tests that completeWithdrawal skips approval and keeps heldTokensTotal unchanged for a mintable token.
     function test_completeWithdrawal_mintableToken_succeeds() external {
         ERC20 mintableToken =
             ERC20(l1OptimismMintableERC20Factory.createStandardL2Token(address(NativeL2Token), "L1 Mintable", "L1M"));
@@ -2130,17 +2093,13 @@ contract ComplianceModule_CompleteWithdrawal_Test is ComplianceModule_TestInit {
             .sig(IL1StandardBridge.heldTokenKinds.selector)
             .with_key(id)
             .checked_write(uint256(BridgeHookTypes.TokenKind.Mintable));
-        stdstore.target(address(module))
-            .sig(IComplianceModule.heldTokens.selector)
-            .with_key(address(mintableToken))
-            .with_key(address(NativeL2Token))
-            .checked_write(100);
+        _storeHeldTokensTotal(address(mintableToken), 100);
         vm.mockCall(address(policy), abi.encodePacked(IPolicy.screenRelease.selector), abi.encode(true));
 
         vm.expectCall(address(mintableToken), abi.encodePacked(mintableToken.approve.selector), 0);
         module.completeWithdrawal(item);
 
-        assertEq(module.heldTokens(address(mintableToken), address(NativeL2Token)), 100);
+        assertEq(module.heldTokensTotal(address(mintableToken)), 100);
         assertEq(mintableToken.balanceOf(bob), 100);
     }
 
@@ -2378,7 +2337,7 @@ contract ComplianceModule_Integration_Test is OptimismPortal2_TestInit, Complian
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), 100);
         assertEq(L1Token.balanceOf(address(l1StandardBridge)), 100);
         assertEq(L1Token.balanceOf(address(module)), 0);
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), 0);
+        assertEq(module.heldTokensTotal(address(L1Token)), 0);
     }
 
     /// @notice Tests that a completed held ETH withdrawal matches one approved during screening.
@@ -2493,7 +2452,7 @@ contract ComplianceModule_Integration_Test is OptimismPortal2_TestInit, Complian
         assertEq(L1Token.balanceOf(address(l1StandardBridge)), 0);
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), 0);
         assertEq(L1Token.balanceOf(address(module)), 0);
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), 0);
+        assertEq(module.heldTokensTotal(address(L1Token)), 0);
     }
 
     /// @notice Tests that a removed hook's holdWithdrawal reverts inside a failed withdrawal.

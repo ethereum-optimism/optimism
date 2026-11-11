@@ -64,9 +64,9 @@
   },
   {
     "bytes": "32",
-    "label": "heldTokens",
+    "label": "heldTokensTotal",
     "offset": 0,
     "slot": "8",
-    "type": "mapping(address => mapping(address => uint256))"
+    "type": "mapping(address => uint256)"
   }
 ]

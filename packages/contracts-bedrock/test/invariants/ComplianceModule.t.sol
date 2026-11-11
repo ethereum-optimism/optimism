@@ -34,7 +34,7 @@ contract ComplianceModule_User is StdUtils, StdCheats {
     IL1StandardBridge internal bridge;
     address internal l1CrossDomainMessenger;
     address internal l1Token;
-    address internal l2Token;
+    address[2] internal l2Tokens;
     address internal owner;
     IPolicy[3] internal policies;
     uint256 internal heldDepositsSlot;
@@ -73,7 +73,7 @@ contract ComplianceModule_User is StdUtils, StdCheats {
         IL1StandardBridge _bridge,
         address _l1CrossDomainMessenger,
         address _l1Token,
-        address _l2Token,
+        address[2] memory _l2Tokens,
         address _owner,
         IPolicy[3] memory _policies
     ) {
@@ -83,7 +83,7 @@ contract ComplianceModule_User is StdUtils, StdCheats {
         bridge = _bridge;
         l1CrossDomainMessenger = _l1CrossDomainMessenger;
         l1Token = _l1Token;
-        l2Token = _l2Token;
+        l2Tokens = _l2Tokens;
         owner = _owner;
         policies = _policies;
         heldDepositsSlot = ForgeArtifacts.getSlot("OptimismPortal2", "heldDeposits").slot;
@@ -115,10 +115,11 @@ contract ComplianceModule_User is StdUtils, StdCheats {
         _hold(item, BridgeHookTypes.TokenKind.None, 0);
     }
 
-    /// @notice Holds a new escrowed or mintable token deposit.
-    function holdTokenDeposit(bool _mintable, uint256 _amount) external {
+    /// @notice Holds a new escrowed or mintable token deposit for either L2 token.
+    function holdTokenDeposit(bool _mintable, bool _secondPair, uint256 _amount) external {
         _amount = bound(_amount, 0, 1e30);
         uint256 itemNonce = nonce++;
+        address l2Token = l2Tokens[_secondPair ? 1 : 0];
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Deposit,
             asset: BridgeHookTypes.Asset.ERC20,
@@ -148,11 +149,13 @@ contract ComplianceModule_User is StdUtils, StdCheats {
         _hold(item, _mintable ? BridgeHookTypes.TokenKind.Mintable : BridgeHookTypes.TokenKind.Escrowed, _amount);
     }
 
-    /// @notice Holds a new escrowed token withdrawal. Mintable withdrawals are excluded because
-    ///         this test uses a non-mintable ERC20, which the bridge finalizes through escrow.
-    function holdTokenWithdrawal(uint256 _amount) external {
+    /// @notice Holds a new escrowed token withdrawal for either L2 token. Mintable withdrawals are
+    ///         excluded because this test uses a non-mintable ERC20, which the bridge finalizes
+    ///         through escrow.
+    function holdTokenWithdrawal(bool _secondPair, uint256 _amount) external {
         _amount = bound(_amount, 0, 1e30);
         uint256 itemNonce = nonce++;
+        address l2Token = l2Tokens[_secondPair ? 1 : 0];
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
             asset: BridgeHookTypes.Asset.ERC20,
@@ -290,7 +293,7 @@ contract ComplianceModule_Invariant is ComplianceModule_TestInit {
             l1StandardBridge,
             address(l1CrossDomainMessenger),
             address(L1Token),
-            address(L2Token),
+            [address(L2Token), address(LegacyL2Token)],
             moduleOwner,
             [policy, IPolicy(makeAddr("secondPolicy")), IPolicy(makeAddr("thirdPolicy"))]
         );
@@ -310,9 +313,9 @@ contract ComplianceModule_Invariant is ComplianceModule_TestInit {
         targetSelector(FuzzSelector({ addr: address(actor), selectors: selectors }));
     }
 
-    /// @custom:invariant The module's ETH balance equals the ETH in items still held. Its
-    ///                   test-token balance and heldTokens entry equal the escrowed tokens in
-    ///                   items still held.
+    /// @custom:invariant The module's ETH balance equals the total ETH in items still held.
+    ///                   Its L1 test-token balance and heldTokensTotal entry each equal the total
+    ///                   escrowed amount in items still held across both L2 token pairs.
     function invariant_heldValue_matchesOpenItems() external view {
         uint256 openEth;
         uint256 openEscrowed;
@@ -324,8 +327,8 @@ contract ComplianceModule_Invariant is ComplianceModule_TestInit {
         }
 
         assertEq(address(module).balance, openEth);
-        assertEq(module.heldTokens(address(L1Token), address(L2Token)), openEscrowed);
-        assertEq(L1Token.balanceOf(address(module)), module.heldTokens(address(L1Token), address(L2Token)));
+        assertEq(module.heldTokensTotal(address(L1Token)), openEscrowed);
+        assertEq(L1Token.balanceOf(address(module)), module.heldTokensTotal(address(L1Token)));
     }
 
     /// @custom:invariant In this test setup, each completion attempt succeeds if and only if the
