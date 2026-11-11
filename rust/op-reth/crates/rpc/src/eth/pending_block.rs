@@ -26,6 +26,11 @@ const fn pending_state_history_lookup_hash<N: NodePrimitives>(
     pending_block.canonical_anchor_hash
 }
 
+/// Whether the tip builds on another pending block rather than on its canonical anchor.
+fn is_speculative<N: NodePrimitives>(pending_block: &PendingFlashBlock<N>) -> bool {
+    pending_block.pending.parent_hash() != pending_state_history_lookup_hash(pending_block)
+}
+
 /// Returns the pending state: the tip's bundle on its canonical anchor's state.
 ///
 /// The sequencer streams flashblocks ahead of block import, so the flashblocks worker can build
@@ -56,7 +61,7 @@ where
     P: StateProviderFactory<Primitives = N>,
 {
     let anchor = pending_state_history_lookup_hash(&pending_block);
-    let speculative = pending_block.pending.parent_hash() != anchor;
+    let speculative = is_speculative(&pending_block);
     let tip = pending_block.pending.executed_block;
     if !speculative {
         // reth's overlay resolves the anchor on its first read, so a missing anchor would only
@@ -154,18 +159,22 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{pending_flashblock_state, pending_state_history_lookup_hash};
+    use super::{is_speculative, pending_flashblock_state, pending_state_history_lookup_hash};
     use alloy_consensus::Header;
+    use alloy_genesis::{Genesis, GenesisAccount};
     use alloy_primitives::{Address, B256, U256};
     use reth_chain_state::ExecutedBlock;
-    use reth_chainspec::MAINNET;
+    use reth_chainspec::ChainSpecBuilder;
     use reth_db_common::init::init_genesis;
     use reth_ethereum_primitives::{Block, EthPrimitives};
     use reth_execution_types::BlockExecutionOutput;
     use reth_optimism_flashblocks::PendingFlashBlock;
     use reth_optimism_primitives::OpPrimitives;
     use reth_primitives_traits::{RecoveredBlock, SealedBlock};
-    use reth_provider::{providers::BlockchainProvider, test_utils::create_test_provider_factory};
+    use reth_provider::{
+        providers::BlockchainProvider,
+        test_utils::{create_test_provider_factory, create_test_provider_factory_with_chain_spec},
+    };
     use reth_rpc_eth_types::PendingBlock;
     use reth_storage_api::{
         AccountReader, StateProvider, StateProviderFactory, errors::ProviderError,
@@ -176,7 +185,7 @@ mod tests {
         state::AccountInfo,
     };
     use rstest::rstest;
-    use std::{sync::Arc, time::Instant};
+    use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
     #[test]
     fn pending_state_prefers_canonical_anchor_over_parent_hash() {
@@ -202,8 +211,8 @@ mod tests {
     /// Builds `blocks` pending blocks on the canonical genesis and reads the tip's state the way
     /// `local_pending_state` does: through reth's overlay for a tip on the anchor, through the
     /// vendored one for a speculative tip. Block `n` sets the balance of account `n` to `n`, and
-    /// the first block also writes a storage slot and destroys a genesis account. As in the
-    /// flashblocks worker, a speculative tip's bundle holds every write since the anchor.
+    /// the first block also writes a storage slot and destroys a genesis account with storage. As
+    /// in the flashblocks worker, a speculative tip's bundle holds every write since the anchor.
     ///
     /// These are spot checks that the speculative gap is bridged, not a parity suite against reth's
     /// `OverlayStateProvider`: the vendored overlay is meant to go away (see its module doc).
@@ -211,14 +220,22 @@ mod tests {
     #[case::canonical(1)]
     #[case::speculative(2)]
     fn pending_flashblock_state_includes_every_pending_block(#[case] blocks: u64) {
-        let factory = create_test_provider_factory();
+        let account = |number: u64| Address::with_last_byte(number as u8);
+        let (slot, value) = (U256::from(1), U256::from(42));
+        let destroyed = Address::with_last_byte(0xdd);
+        let genesis = Genesis::default().extend_accounts([(
+            destroyed,
+            GenesisAccount::default()
+                .with_balance(U256::from(1))
+                .with_storage(Some(BTreeMap::from([(B256::from(slot), B256::from(value))]))),
+        )]);
+        let chain_spec = ChainSpecBuilder::mainnet().genesis(genesis).build();
+        let factory = create_test_provider_factory_with_chain_spec(Arc::new(chain_spec));
         let anchor = init_genesis(&factory).unwrap();
         let provider = BlockchainProvider::new(factory).unwrap();
-
-        let account = |number: u64| Address::with_last_byte(number as u8);
-        let destroyed = *MAINNET.genesis.alloc.keys().next().expect("mainnet genesis has accounts");
-        assert!(provider.latest().unwrap().basic_account(&destroyed).unwrap().is_some());
-        let (slot, value) = (U256::from(1), U256::from(42));
+        let genesis_state = provider.latest().unwrap();
+        assert!(genesis_state.basic_account(&destroyed).unwrap().is_some());
+        assert_eq!(genesis_state.storage(destroyed, B256::from(slot)).unwrap(), Some(value));
 
         let mut bundle = BundleState::builder(1..=blocks)
             .state_storage(account(1), std::iter::once((slot, (U256::ZERO, value))).collect())
@@ -250,6 +267,7 @@ mod tests {
             B256::ZERO,
             false,
         );
+        assert_eq!(is_speculative(&pending), blocks > 1, "overlay serving the tip");
 
         let state = pending_flashblock_state(&provider, pending).unwrap();
         for number in 1..=blocks {
@@ -258,6 +276,11 @@ mod tests {
         }
         assert_eq!(state.storage(account(1), B256::from(slot)).unwrap(), Some(value));
         assert_eq!(state.basic_account(&destroyed).unwrap(), None, "destroyed account");
+        assert_eq!(
+            state.storage(destroyed, B256::from(slot)).unwrap(),
+            Some(U256::ZERO),
+            "destroyed account's storage"
+        );
     }
 
     /// A pending tip whose canonical anchor the provider doesn't know, as after the anchor was
