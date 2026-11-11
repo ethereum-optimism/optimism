@@ -5,7 +5,8 @@
 //! speculative flashblock still needs it: see `pending_flashblock_state`. It is temporary: it can
 //! go once the speculative chain reaches the RPC
 //! (<https://github.com/ethereum-optimism/optimism/issues/23998>) and reth lets us fold that chain
-//! onto the anchor through its overlay manager. The trait impls are
+//! onto the anchor through its overlay manager
+//! (<https://github.com/ethereum-optimism/optimism/issues/24062>). The trait impls are
 //! unchanged, except that `canonical_hashes_range` no longer reserves capacity for the whole
 //! requested range. The other changes fit it to this crate: import paths, crate-private visibility
 //! and the lints that follow from it, and no default for the primitives type.
