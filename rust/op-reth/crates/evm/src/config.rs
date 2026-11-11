@@ -25,7 +25,7 @@ pub struct OpNextBlockEnvAttributes {
 impl<H: alloy_consensus::BlockHeader> reth_rpc_eth_api::helpers::pending_block::BuildPendingEnv<H>
     for OpNextBlockEnvAttributes
 {
-    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-0
+    /// UPSTREAM-MIRROR(copy): reth@rev:e1bf972
     /// `reth_rpc_eth_api::helpers::pending_block::NextBlockEnvAttributes::build_pending_env`
     ///
     /// Copies upstream pending-environment defaults for the OP attribute type, except that
@@ -35,7 +35,11 @@ impl<H: alloy_consensus::BlockHeader> reth_rpc_eth_api::helpers::pending_block::
         block_overrides: Option<&alloy_rpc_types_eth::BlockOverrides>,
     ) -> Self {
         let mut attributes = Self {
-            timestamp: parent.timestamp().saturating_add(12),
+            // The timestamp selects the hardfork rules, so it must be overridden before the EVM
+            // environment is derived from these attributes.
+            timestamp: block_overrides
+                .and_then(|overrides| overrides.time)
+                .unwrap_or_else(|| parent.timestamp().saturating_add(12)),
             suggested_fee_recipient: parent.beneficiary(),
             prev_randao: B256::random(),
             gas_limit: parent.gas_limit(),
@@ -43,9 +47,9 @@ impl<H: alloy_consensus::BlockHeader> reth_rpc_eth_api::helpers::pending_block::
             extra_data: parent.extra_data().clone(),
         };
 
-        // Only the beacon root override must be applied here: it is consumed during EVM
-        // environment construction. All other `BlockOverrides` fields are applied directly
-        // to the constructed environment by the caller, matching the upstream
+        // Besides the timestamp, only the beacon root override must be applied here: it is
+        // consumed during EVM environment construction. All other `BlockOverrides` fields are
+        // applied directly to the constructed environment by the caller, matching the upstream
         // `NextBlockEnvAttributes::build_pending_env` behavior.
         if attributes.parent_beacon_block_root.is_some() &&
             let Some(beacon_root) = block_overrides.and_then(|overrides| overrides.beacon_root)
@@ -67,5 +71,26 @@ impl From<OpFlashblockPayloadBase> for OpNextBlockEnvAttributes {
             parent_beacon_block_root: Some(base.parent_beacon_block_root),
             extra_data: base.extra_data,
         }
+    }
+}
+
+#[cfg(all(test, feature = "rpc"))]
+mod tests {
+    use super::OpNextBlockEnvAttributes;
+    use alloy_consensus::Header;
+    use alloy_rpc_types_eth::BlockOverrides;
+    use reth_primitives_traits::SealedHeader;
+    use reth_rpc_eth_api::helpers::pending_block::BuildPendingEnv;
+
+    #[test]
+    fn build_pending_env_takes_timestamp_from_block_overrides() {
+        let parent = SealedHeader::seal_slow(Header { timestamp: 1_000, ..Default::default() });
+
+        let overrides = BlockOverrides { time: Some(1_003), ..Default::default() };
+        let attributes = OpNextBlockEnvAttributes::build_pending_env(&parent, Some(&overrides));
+        assert_eq!(attributes.timestamp, 1_003);
+
+        let attributes = OpNextBlockEnvAttributes::build_pending_env(&parent, None);
+        assert_eq!(attributes.timestamp, 1_012);
     }
 }

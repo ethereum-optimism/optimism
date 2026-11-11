@@ -9,7 +9,7 @@ use metrics::{Label, gauge};
 use reth_db::Database;
 use tracing::error;
 
-/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-0
+/// UPSTREAM-MIRROR(copy): reth@rev:e1bf972
 /// `reth_db::database_metrics::DatabaseMetrics`
 ///
 /// Mirrors the implementation for `DatabaseEnv`, which hard-codes reth's own table names.
