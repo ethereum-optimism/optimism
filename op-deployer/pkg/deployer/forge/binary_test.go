@@ -108,6 +108,32 @@ func TestStandardBinary_Downloads(t *testing.T) {
 		require.FileExists(t, path.Join(anvilCacheDir, "forge"), "the download installs every tool of the archive")
 	})
 
+	t.Run("extracts inside the cache", func(t *testing.T) {
+		installCacheDir := t.TempDir()
+		// From a temp directory on another filesystem, such as a tmpfs /tmp, the install falls back
+		// to a copy over the cached tool, which can fail on a running forge. So the download must
+		// not use TMPDIR.
+		t.Setenv("TMPDIR", path.Join(t.TempDir(), "missing"))
+		bin, err := NewStandardBinary(
+			WithTool("anvil"),
+			WithURL(ts.URL+"/foundry.tgz"),
+			WithCachePather(func() (string, error) { return installCacheDir, nil }),
+			WithChecksummer(staticChecksummer(string(expChecksum))),
+		)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, bin.Ensure(ctx))
+		entries, err := os.ReadDir(installCacheDir)
+		require.NoError(t, err)
+		var names []string
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		require.ElementsMatch(t, foundryTools, names, "the cache holds the tools and no leftover download")
+	})
+
 	t.Run("invalid checksum", func(t *testing.T) {
 		bin, err := NewStandardBinary(
 			WithURL(ts.URL+"/foundry.tgz"),

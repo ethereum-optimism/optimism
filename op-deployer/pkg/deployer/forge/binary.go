@@ -245,13 +245,6 @@ func (b *StandardBin) Path() string {
 }
 
 func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
-	tmpDir, err := os.MkdirTemp("", "op-deployer-forge-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer func() {
-		_ = os.RemoveAll(tmpDir)
-	}()
 	downloader := &httputil.Downloader{
 		Progressor: b.progressor,
 		MaxSize:    maxDownloadSize,
@@ -264,6 +257,14 @@ func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
 	if err := b.checksummer(bytes.NewReader(data)); err != nil {
 		return fmt.Errorf("checksum mismatch: %w", err)
 	}
+	// Extract inside dest, so that each install below is a rename on one filesystem.
+	tmpDir, err := os.MkdirTemp(dest, ".download-*")
+	if err != nil {
+		return fmt.Errorf("failed to create download directory: %w", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 	gzr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
@@ -272,13 +273,16 @@ func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
 	if err := ioutil.Untar(tmpDir, tr); err != nil {
 		return fmt.Errorf("failed to untar: %w", err)
 	}
-	// Install every tool, so that no tool needs a download of its own.
+	// Install every tool, so that no tool needs a download of its own. The rename replaces a cached
+	// tool atomically: a running tool keeps its old binary, and a concurrent lookup finds the old
+	// or the new one, never a partial copy.
 	for _, tool := range foundryTools {
-		if err := ioutil.SafeRename(path.Join(tmpDir, tool), path.Join(dest, tool)); err != nil {
-			return fmt.Errorf("failed to move %s binary: %w", tool, err)
-		}
-		if err := os.Chmod(path.Join(dest, tool), 0o700); err != nil {
+		tmpPath := path.Join(tmpDir, tool)
+		if err := os.Chmod(tmpPath, 0o700); err != nil {
 			return fmt.Errorf("failed to set executable bit of %s: %w", tool, err)
+		}
+		if err := os.Rename(tmpPath, path.Join(dest, tool)); err != nil {
+			return fmt.Errorf("failed to install %s binary: %w", tool, err)
 		}
 	}
 	return nil
