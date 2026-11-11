@@ -218,16 +218,17 @@ where
             // Compute the path to the account in the trie.
             let account_path = Nibbles::unpack(hashed_address.as_slice());
 
-            // If the account was destroyed, delete it from the trie and wipe its storage.
-            // For DestroyedChanged accounts the account was re-created after destruction, so
-            // fall through to re-insert the new state rather than skipping it.
+            // A destroyed account's storage is wiped. If the account was re-created
+            // (`DestroyedChanged`), the insert below overwrites its leaf: deleting the leaf first
+            // gives the same root, but it can collapse a branch onto a sibling node that the block
+            // never touches, which no execution witness holds.
             if bundle_account.was_destroyed() {
-                match self.root_node.delete(&account_path, &self.fetcher, &self.hinter) {
-                    Ok(()) | Err(TrieNodeError::KeyNotFound) => {}
-                    Err(e) => return Err(e.into()),
-                }
                 self.storage_roots.remove(address);
                 if bundle_account.account_info().is_none() {
+                    match self.root_node.delete(&account_path, &self.fetcher, &self.hinter) {
+                        Ok(()) | Err(TrieNodeError::KeyNotFound) => {}
+                        Err(e) => return Err(e.into()),
+                    }
                     continue;
                 }
             }
@@ -418,8 +419,8 @@ where
 mod tests {
     use super::*;
     use alloy_consensus::Sealable;
-    use alloy_primitives::{U256, b256};
-    use kona_mpt::NoopTrieHinter;
+    use alloy_primitives::{Bytes, U256, b256};
+    use kona_mpt::{NoopTrieHinter, TrieProvider};
     use revm::database::{AccountStatus, BundleAccount};
 
     fn new_test_db() -> TrieDB<NoopTrieDBProvider, NoopTrieHinter> {
@@ -576,7 +577,7 @@ mod tests {
     }
 
     // A DestroyedChanged account that was never in the parent trie (e.g. CREATE+SELFDESTRUCT+
-    // re-CREATE in a single block) must not fail when the delete is a no-op.
+    // re-CREATE in a single block) must be inserted as a new leaf.
     #[test]
     fn test_destroyed_changed_new_account_never_in_trie() {
         let mut db = new_test_db();
@@ -622,5 +623,99 @@ mod tests {
             ))
             .unwrap();
         assert_eq!(root, EMPTY_ROOT_HASH, "DestroyedAgain account should not appear in trie");
+    }
+
+    /// Serves the preimage of every node in `nodes` except `withheld`.
+    struct WitnessProvider {
+        nodes: HashMap<B256, Bytes>,
+        withheld: B256,
+    }
+
+    impl TrieProvider for WitnessProvider {
+        type Error = String;
+
+        fn trie_node_by_hash(&self, key: B256) -> Result<TrieNode, Self::Error> {
+            let preimage = self
+                .nodes
+                .get(&key)
+                .filter(|_| key != self.withheld)
+                .ok_or_else(|| format!("no preimage for {key}"))?;
+            TrieNode::decode(&mut preimage.as_ref()).map_err(|e| e.to_string())
+        }
+    }
+
+    impl TrieDBProvider for WitnessProvider {
+        fn bytecode_by_hash(&self, _code_hash: B256) -> Result<Bytes, Self::Error> {
+            Ok(Bytes::default())
+        }
+
+        fn header_by_hash(&self, _hash: B256) -> Result<Header, Self::Error> {
+            Ok(Header::default())
+        }
+    }
+
+    /// Records the preimage of `node` and of every node below it.
+    fn record_preimages(node: &TrieNode, nodes: &mut HashMap<B256, Bytes>) {
+        let mut preimage = Vec::new();
+        node.encode(&mut preimage);
+        nodes.insert(keccak256(&preimage), preimage.into());
+        match node {
+            TrieNode::Branch { stack } => {
+                for child in stack {
+                    record_preimages(child, nodes);
+                }
+            }
+            TrieNode::Extension { node, .. } => record_preimages(node, nodes),
+            _ => {}
+        }
+    }
+
+    // A DestroyedChanged account must commit with only the nodes on its own path, which are all
+    // that a block's execution witness holds. Deleting its leaf before re-inserting it collapsed
+    // the branch it shares with an untouched sibling and needed the sibling's node.
+    #[test]
+    fn test_destroyed_changed_account_needs_no_sibling_node() {
+        let (recreated, sibling) = (Address::repeat_byte(0x0a), Address::repeat_byte(0x0b));
+        let live = |balance: u64| {
+            BundleAccount::new(
+                None,
+                Some(AccountInfo { balance: U256::from(balance), ..Default::default() }),
+                Default::default(),
+                AccountStatus::InMemoryChange,
+            )
+        };
+        let two_accounts = |recreated_balance: u64| BundleState {
+            state: [(recreated, live(recreated_balance)), (sibling, live(5))].into_iter().collect(),
+            ..Default::default()
+        };
+
+        let mut parent = new_test_db();
+        let parent_root = parent.state_root(&two_accounts(1)).unwrap();
+        let parent_trie = parent.take_root_node();
+        // The two keys differ in their first nibble (0x74.. and 0x32..), so the root is a branch
+        // whose only children are the two leaves.
+        let TrieNode::Branch { stack } = &parent_trie else { panic!("root must be a branch") };
+        let sibling_leaf = stack[(keccak256(sibling)[0] >> 4) as usize].blind();
+        let mut nodes = HashMap::default();
+        record_preimages(&parent_trie, &mut nodes);
+
+        let mut db = TrieDB::new(
+            Header { state_root: parent_root, ..Default::default() }.seal_slow(),
+            WitnessProvider { nodes, withheld: sibling_leaf },
+            NoopTrieHinter,
+        );
+        let root = db
+            .state_root(&bundle_with_account(
+                recreated,
+                BundleAccount::new(
+                    Some(AccountInfo { balance: U256::from(1u64), ..Default::default() }),
+                    Some(AccountInfo { balance: U256::from(2u64), ..Default::default() }),
+                    Default::default(),
+                    AccountStatus::DestroyedChanged,
+                ),
+            ))
+            .expect("committing a DestroyedChanged account must not need its sibling's node");
+
+        assert_eq!(root, new_test_db().state_root(&two_accounts(2)).unwrap());
     }
 }

@@ -22,6 +22,7 @@ import (
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -655,6 +656,24 @@ func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 	})
 	el.require.NoError(err, "failed to get receipt for tx %s", txHash.Hex())
 	return &receipt.Receipt
+}
+
+// AccountProofAt returns addr's account and its state-trie proof at blockNum. op-reth serves
+// proofs from a store that can lag the blocks it has inserted, so this retries until the proof
+// is available.
+func (el *L2ELNode) AccountProofAt(addr common.Address, blockNum uint64) *eth.AccountResult {
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "account", addr, "block", blockNum)
+	proof, err := retry.Do(el.ctx, 30, &retry.FixedStrategy{Dur: time.Second}, func() (*eth.AccountResult, error) {
+		ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+		defer cancel()
+		proof, err := el.inner.EthClient().GetProof(ctx, addr, []common.Hash{}, hexutil.EncodeUint64(blockNum))
+		if err != nil {
+			logger.Info("Waiting for account proof", "err", err)
+		}
+		return proof, err
+	})
+	el.require.NoError(err, "account proof of %s at block %d", addr, blockNum)
+	return proof
 }
 
 func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
