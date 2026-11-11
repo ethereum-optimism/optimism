@@ -2,6 +2,7 @@ package opcm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 )
 
@@ -54,8 +56,22 @@ func DeployMockSP1VerifierGenesis(env *ForgeEnv) (common.Address, error) {
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to read MockSP1Verifier artifact: %w", err)
 	}
-	// The verifier has no constructor and no immutables, so its runtime code is its genesis code.
+	// The genesis gets the runtime code without running the init code, so refuse what the artifact
+	// shows the init code doing: a constructor, immutables or state variables. A missing constructor
+	// is the zero Method, whose String is empty; its Type is abi.Constructor all the same. The ABI
+	// omits an inherited constructor, so MockSP1Verifier may inherit only interfaces.
+	if artifact.ABI.Constructor.String() != "" || hasImmutables(artifact) || len(artifact.StorageLayout.Storage) != 0 {
+		return common.Address{}, errors.New("MockSP1Verifier needs its init code: it has a constructor, immutables or storage")
+	}
 	return env.Genesis.Create(artifact.DeployedBytecode.Object), nil
+}
+
+// hasImmutables reports whether the runtime code of artifact has immutables to fill. Invalid
+// references count as immutables, which refuses the code.
+func hasImmutables(artifact *foundry.Artifact) bool {
+	var refs solc.ImmutableReferences
+	raw := artifact.DeployedBytecode.ImmutableReferences
+	return len(raw) != 0 && (json.Unmarshal(raw, &refs) != nil || len(refs) != 0)
 }
 
 // DeployMockSP1VerifierLive sends a deployment of the accept-all MockSP1Verifier from the deployer

@@ -446,9 +446,6 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L2 Forge client: %w", err)
 	}
-	// The L2 genesis deploys nothing to a chain, so where its contracts may exceed the code size
-	// limit, it may also run a build made with another profile, such as a lite build.
-	pEnv.L2Forge.AnyCacheProfile = pEnv.AllowUnoptimizedContracts
 
 	forgeClient, err := opcm.NewForgeClient(bundle.L1, opts.CacheDir, opcm.L1ForgeScripts)
 	if err != nil {

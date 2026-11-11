@@ -2,6 +2,7 @@ package opcm
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"math/big"
@@ -51,6 +52,22 @@ func TestGenesisStateWithoutIsolation(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotContains(t, genesis.Allocs.Accounts, common.Address{0x56, 0x78})
+}
+
+// TestGenesisStateRunAnyCacheProfile checks that a genesis run without a code size limit may run a
+// contracts build of another profile, such as a lite build, and that a run with the limit may not.
+func TestGenesisStateRunAnyCacheProfile(t *testing.T) {
+	for _, noCodeSizeLimit := range []bool{false, true} {
+		genesis := NewGenesisState(common.Address{0x5e}, noCodeSizeLimit)
+		errStop := errors.New("stop")
+		var anyCacheProfile bool
+		err := genesis.run(&forge.Client{}, func(client *forge.Client, _ []string) error {
+			anyCacheProfile = client.AnyCacheProfile
+			return errStop
+		})
+		require.ErrorIs(t, err, errStop)
+		require.Equal(t, noCodeSizeLimit, anyCacheProfile, "noCodeSizeLimit %v", noCodeSizeLimit)
+	}
 }
 
 // newGenesisTestClient builds a forge project with the test scripts and config appended to its
