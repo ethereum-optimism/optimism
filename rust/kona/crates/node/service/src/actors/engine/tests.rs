@@ -4,7 +4,7 @@ use alloy_primitives::B256;
 use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
 use kona_engine::{
     Engine, EngineActorRequest, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
-    test_utils::{TestAttributesBuilder, test_engine_client},
+    test_utils::{TestAttributesBuilder, delegated_safe_heads, test_engine_client},
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -75,7 +75,7 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
             .build()
             .into()
     } else {
-        l2_block(1).into()
+        delegated_safe_heads(l2_block(1), l2_block(1))
     };
     requests.send(EngineActorRequest::ProcessSafeL2Signal(signal)).await.unwrap();
     actor.step().await.unwrap();
@@ -98,7 +98,10 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
         ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
     );
     let recovered = l2_block(2);
-    requests.send(EngineActorRequest::ProcessSafeL2Signal(recovered.into())).await.unwrap();
+    requests
+        .send(EngineActorRequest::ProcessSafeL2Signal(delegated_safe_heads(recovered, recovered)))
+        .await
+        .unwrap();
     actor.step().await.unwrap();
     assert_eq!(state_rx.borrow().sync_state.unsafe_head(), genesis, "publish the reset head");
     assert_eq!(state_rx.borrow().sync_state.safe_head(), genesis);
