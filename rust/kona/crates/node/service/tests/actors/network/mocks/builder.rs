@@ -44,6 +44,9 @@ pub(crate) struct TestNetworkBuilder {
     udp_port: Option<u16>,
     /// The IP the next node built listens on, if not `127.0.0.1`.
     listen_ip: Option<IpAddr>,
+    /// The discovery table filter of the next node built, if not discv5's, which accepts every
+    /// record, as `--p2p.discovery.private` does.
+    table_filter: Option<fn(&Enr) -> bool>,
     /// How many peers must agree on the next node's address before it advertises it, if not
     /// [`IpVotes::DEFAULT`].
     ip_votes: Option<IpVotes>,
@@ -82,6 +85,7 @@ impl TestNetworkBuilder {
             discovery_enabled: true,
             udp_port: None,
             listen_ip: None,
+            table_filter: None,
             ip_votes: None,
             unsafe_block_signer: Address::ZERO,
             custom_keypair: None,
@@ -130,6 +134,14 @@ impl TestNetworkBuilder {
     /// advertises `ip` unless that is unspecified, as with no `--p2p.advertise.ip`.
     pub(crate) const fn with_listen_ip(mut self, ip: IpAddr) -> Self {
         self.listen_ip = Some(ip);
+        self
+    }
+
+    /// Gives the next node built, and only that one, this discovery table filter, which it also
+    /// applies to its bootnodes, saved records and sessions, as kona-node does with
+    /// `kona_disc::public_only`.
+    pub(crate) const fn with_table_filter(mut self, table_filter: fn(&Enr) -> bool) -> Self {
+        self.table_filter = Some(table_filter);
         self
     }
 
@@ -212,10 +224,13 @@ impl TestNetworkBuilder {
         let udp_port = self.udp_port.take().unwrap_or(0);
         // As the node configures discovery, without `--p2p.advertise.ip`.
         let ip_votes = self.ip_votes.take().unwrap_or(IpVotes::DEFAULT);
-        let discovery_config = NetworkConfig::discv5_config(
+        let mut discovery_config = NetworkConfig::discv5_config(
             ListenConfig::from_ip(node_addr, udp_port),
             Some(ip_votes),
         );
+        if let Some(table_filter) = self.table_filter.take() {
+            discovery_config.table_filter = table_filter;
+        }
 
         let gossip_multiaddr = if self.in_memory {
             Multiaddr::empty().with(Protocol::Memory(0))

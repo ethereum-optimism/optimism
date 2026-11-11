@@ -192,6 +192,114 @@ async fn test_lan_node_finds_loopback_nodes_through_a_lan_bootnode() -> anyhow::
     Ok(())
 }
 
+/// Stands in for `kona_disc::public_only` on one host, where no address is public: the host's own
+/// IP plays the public address, and loopback the private one. A node with this filter uses no
+/// loopback address in other nodes' records, as a public-only node uses no private one.
+fn not_loopback(enr: &Enr) -> bool {
+    let ips = [enr.ip4().map(IpAddr::V4), enr.ip6().map(IpAddr::V6)];
+    ips.iter().any(Option::is_some) && ips.into_iter().flatten().all(|ip| !ip.is_loopback())
+}
+
+/// The wrong way to keep a sequencer behind a sentry: running discovery against it. Here S, the
+/// sequencer, is on a private network, which loopback stands for, and B, its sentry, and E, an
+/// external node, are on the public one, which the host's own IP stands for, see
+/// [`not_loopback`]:
+///
+/// - B listens on the host's IP and uses only public addresses.
+/// - E listens on the host's IP, and joins through B. Like any node outside our control, it needn't
+///   follow our rules, so it uses every address.
+/// - S listens on loopback, and joins through B.
+///
+/// S and B connect over gossip, as S dials B. But B keeps S in its discovery table, as discv5
+/// keeps every node it has a session with, whatever its table filter, and hands S's record out to
+/// the nodes that look it up. So E learns S's private address through B. On a real network, E
+/// couldn't reach that address, but S's address has leaked all the same. And the worse part: S
+/// learns E through B, and reaches out to E directly, so S is no longer behind its sentry.
+///
+/// Skipped on a host with no address but loopback.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_running_discovery_against_its_sentry_is_exposed() -> anyhow::Result<()> {
+    let Some(host_ip) = host_ip() else {
+        eprintln!("skipping, this host has no address but loopback");
+        return Ok(());
+    };
+    let mut builder = TestNetworkBuilder::new()
+        .with_discovery_interval(Duration::from_millis(100))
+        .with_listen_ip(host_ip)
+        .with_table_filter(not_loopback);
+    let sentry = builder.build(vec![]).await;
+    let sentry_enr = sentry.peer_enr().await?;
+
+    let mut builder = builder.with_listen_ip(host_ip);
+    let external = builder.build(vec![sentry_enr.clone()]).await;
+    sentry.check_in_discovery_table_with_retries(external.node_id().await?).await?;
+
+    let sequencer = builder.build(vec![sentry_enr]).await;
+    let sequencer_id = sequencer.node_id().await?;
+
+    sequencer.check_connected_to_with_retries(&sentry).await?;
+    // The sentry keeps the sequencer, and hands it out to the external node.
+    sentry.check_in_discovery_table_with_retries(sequencer_id).await?;
+    external.check_in_discovery_table_with_retries(sequencer_id).await?;
+    // The sequencer finds the external node through its sentry, and the two connect directly.
+    sequencer.check_in_discovery_table_with_retries(external.node_id().await?).await?;
+    sequencer.check_connected_to_with_retries(&external).await?;
+
+    Ok(())
+}
+
+/// The right way to keep a sequencer behind a sentry: S runs without discovery, and has B as a
+/// static peer. The nodes are as in
+/// [`test_sequencer_running_discovery_against_its_sentry_is_exposed`].
+///
+/// S and B connect over gossip, but S never gets into B's discovery table, as kona never passes
+/// static peers on through discovery. So E never learns S, and the two never connect, however
+/// long discovery runs.
+///
+/// Skipped on a host with no address but loopback.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_with_its_sentry_as_static_peer_stays_hidden() -> anyhow::Result<()> {
+    let Some(host_ip) = host_ip() else {
+        eprintln!("skipping, this host has no address but loopback");
+        return Ok(());
+    };
+    let mut builder = TestNetworkBuilder::new()
+        .with_discovery_interval(Duration::from_millis(100))
+        .with_listen_ip(host_ip)
+        .with_table_filter(not_loopback);
+    let sentry = builder.build(vec![]).await;
+    let sentry_enr = sentry.peer_enr().await?;
+
+    let mut builder = builder.with_listen_ip(host_ip);
+    let external = builder.build(vec![sentry_enr]).await;
+    sentry.check_in_discovery_table_with_retries(external.node_id().await?).await?;
+    external.check_connected_to_with_retries(&sentry).await?;
+
+    let sentry_addr = PeerAddr::try_from(sentry.listen_addr().await?)?;
+    let mut builder = builder.without_discovery().with_static_peers(vec![sentry_addr]);
+    let sequencer = builder.build(vec![]).await;
+    let sequencer_id = sequencer.node_id().await?;
+    sequencer.check_connected_to_with_retries(&sentry).await?;
+
+    // Give the sentry and the external node many lookups.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    assert!(
+        !node_ids(&sentry.discovery_table().await?).contains(&sequencer_id),
+        "the sentry passes the sequencer on through discovery"
+    );
+    assert!(
+        !node_ids(&external.discovery_table().await?).contains(&sequencer_id),
+        "the external node learned the sequencer"
+    );
+    assert!(
+        !external.is_connected_to(&sequencer).await?,
+        "the external node connected to the sequencer"
+    );
+
+    Ok(())
+}
+
 /// Nodes gossiping over the in-memory transport, without discovery, connect through the
 /// `ConnectPeer` command that `opp2p_connectPeer` sends.
 #[tokio::test(flavor = "multi_thread")]
