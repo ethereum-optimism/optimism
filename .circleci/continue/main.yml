@@ -1098,6 +1098,15 @@ jobs:
       - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      # Tells the test jobs that this job ran its change check, so a missing
+      # build there means it skipped rather than that nothing was attached.
+      - run:
+          name: Mark the change check
+          command: touch packages/contracts-bedrock/.build-tests-checked
+      - persist_to_workspace:
+          root: "."
+          paths:
+            - "packages/contracts-bedrock/.build-tests-checked"
       - check-changed:
           patterns: <<parameters.check_changed_patterns>>
       - install-contracts-dependencies
@@ -1194,10 +1203,16 @@ jobs:
             - run:
                 name: Check if the build ran
                 command: |
-                  if [ ! -d packages/contracts-bedrock/forge-artifacts ]; then
+                  if [ -d packages/contracts-bedrock/forge-artifacts ]; then
+                    exit 0
+                  fi
+                  if [ -f packages/contracts-bedrock/.build-tests-checked ]; then
                     echo "The build job found no contract changes. Exiting early."
                     circleci-agent step halt
+                    exit 0
                   fi
+                  echo "attach_build is set, but no contracts-bedrock-build-tests job ran upstream." >&2
+                  exit 1
       - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
@@ -1238,12 +1253,17 @@ jobs:
           name: Run tests
           # `just test` partitions the shard between Amsterdam and default-EVM tests.
           command: |
-            TEST_FILES=$(<<parameters.test_list>>)
-            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
-            # just test runs every file when TEST_FILES is empty.
+            ALL_FILES=$(<<parameters.test_list>>)
+            TEST_FILES=$(echo "$ALL_FILES" | circleci tests split --split-by=timings)
+            # just test runs every file when TEST_FILES is empty. A node may
+            # only draw none when there are fewer files than nodes.
             if [ -z "$TEST_FILES" ]; then
-              echo "No test files on this node."
-              exit 0
+              if [ "$(echo "$ALL_FILES" | grep -c .)" -lt "${CIRCLE_NODE_TOTAL:-1}" ]; then
+                echo "No test files on this node."
+                exit 0
+              fi
+              echo "The split gave this node no test files." >&2
+              exit 1
             fi
             export TEST_FILES
             JUNIT_TEST_DIR=results just test
