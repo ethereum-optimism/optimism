@@ -167,7 +167,9 @@ mod tests {
     use reth_primitives_traits::{RecoveredBlock, SealedBlock};
     use reth_provider::{providers::BlockchainProvider, test_utils::create_test_provider_factory};
     use reth_rpc_eth_types::PendingBlock;
-    use reth_storage_api::{AccountReader, StateProvider, StateProviderFactory};
+    use reth_storage_api::{
+        AccountReader, StateProvider, StateProviderFactory, errors::ProviderError,
+    };
     use reth_trie::{ComputedTrieData, HashedPostState, KeccakKeyHasher};
     use revm::{
         database::{AccountStatus, BundleState},
@@ -256,5 +258,40 @@ mod tests {
         }
         assert_eq!(state.storage(account(1), B256::from(slot)).unwrap(), Some(value));
         assert_eq!(state.basic_account(&destroyed).unwrap(), None, "destroyed account");
+    }
+
+    /// A pending tip whose canonical anchor the provider doesn't know, as after the anchor was
+    /// reorged out and evicted, fails before any state is read, on both branches. Callers rely on
+    /// that to fall back to latest instead of failing the RPC on its first read.
+    #[rstest]
+    #[case::canonical(false)]
+    #[case::speculative(true)]
+    fn pending_flashblock_state_fails_eagerly_without_its_anchor(#[case] speculative: bool) {
+        let factory = create_test_provider_factory();
+        init_genesis(&factory).unwrap();
+        let provider = BlockchainProvider::new(factory).unwrap();
+
+        let anchor = B256::repeat_byte(0xaa);
+        let parent_hash = if speculative { B256::repeat_byte(0xbb) } else { anchor };
+        let header = Header { number: 1, parent_hash, ..Default::default() };
+        let block = SealedBlock::seal_slow(Block { header, body: Default::default() });
+        let executed = ExecutedBlock::<EthPrimitives>::new(
+            Arc::new(RecoveredBlock::new_sealed(block, Vec::new())),
+            Arc::new(BlockExecutionOutput::default()),
+            ComputedTrieData::new(Arc::default(), Arc::default()),
+        );
+        let pending = PendingFlashBlock::new(
+            PendingBlock::with_executed_block(Instant::now(), executed),
+            anchor,
+            0,
+            B256::ZERO,
+            false,
+        );
+
+        let err = pending_flashblock_state(&provider, pending).err();
+        assert!(
+            matches!(&err, Some(ProviderError::BlockHashNotFound(hash)) if *hash == anchor),
+            "{err:?}"
+        );
     }
 }
