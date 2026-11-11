@@ -170,7 +170,6 @@ contract GenerateNUTBundle_assertValidOutput_Test is Test {
 
     function setUp() public {
         script = new GenerateNUTBundle_Harness();
-        script.setUp();
         encodedOutput = abi.encode(script.buildOutput());
     }
 
@@ -180,7 +179,6 @@ contract GenerateNUTBundle_assertValidOutput_Test is Test {
     }
 
     /// @notice Tests that a bundle with an incorrect number of transactions is rejected.
-    /// @dev Builds a valid bundle, then mutates the array length to trigger the assertion.
     function testFuzz_assertValidOutput_transactionCountMismatch_reverts(uint256 _newLength) public {
         GenerateNUTBundle.Output memory output = _validOutput();
 
@@ -195,7 +193,6 @@ contract GenerateNUTBundle_assertValidOutput_Test is Test {
     }
 
     /// @notice Tests that a transaction with empty data is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_emptyData_reverts(uint256 _index) public {
         GenerateNUTBundle.Output memory output = _validOutput();
 
@@ -207,7 +204,6 @@ contract GenerateNUTBundle_assertValidOutput_Test is Test {
     }
 
     /// @notice Tests that a transaction with an empty intent is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_emptyIntent_reverts(uint256 _index) public {
         GenerateNUTBundle.Output memory output = _validOutput();
 
@@ -219,7 +215,6 @@ contract GenerateNUTBundle_assertValidOutput_Test is Test {
     }
 
     /// @notice Tests that a transaction with a zero destination address is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroTo_reverts(uint256 _index) public {
         GenerateNUTBundle.Output memory output = _validOutput();
 
@@ -231,7 +226,6 @@ contract GenerateNUTBundle_assertValidOutput_Test is Test {
     }
 
     /// @notice Tests that a transaction exceeding the EIP-7825 per-tx gas limit cap is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_gasLimitExceedsMax_reverts(uint256 _index, uint64 _gasLimit) public {
         GenerateNUTBundle.Output memory output = _validOutput();
 
@@ -251,7 +245,6 @@ contract GenerateNUTBundle_assertValidOutput_Test is Test {
     }
 
     /// @notice Tests that a transaction with a zero gas limit is rejected by the EIP-7623 floor.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroGasLimit_reverts(uint256 _index) public {
         GenerateNUTBundle.Output memory output = _validOutput();
 
@@ -270,7 +263,6 @@ contract GenerateNUTBundle_assertValidOutput_Test is Test {
     }
 
     /// @notice Tests that a transaction whose gasLimit is one below the EIP-7623 floor is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_gasLimitBelowFloor_reverts(uint256 _index) public {
         GenerateNUTBundle.Output memory output = _validOutput();
 
@@ -290,7 +282,6 @@ contract GenerateNUTBundle_assertValidOutput_Test is Test {
     }
 
     /// @notice Tests that a transaction with a zero sender and a non-privileged destination is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroFromNonPrivilegedTo_reverts(uint256 _index, address _to) public {
         GenerateNUTBundle.Output memory output = _validOutput();
 
