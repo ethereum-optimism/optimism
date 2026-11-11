@@ -1,9 +1,11 @@
 use alloy_rpc_types_engine::JwtSecret;
-use std::path::PathBuf;
+use kona_engine::DEFAULT_EL_SYNC_STALL_TIMEOUT;
+use std::{path::PathBuf, time::Duration};
 use url::Url;
 
-const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
 const DEFAULT_L1_TRUST_RPC: bool = false;
+const DEFAULT_L2_EL_SYNC_STALL_TIMEOUT: u64 = DEFAULT_EL_SYNC_STALL_TIMEOUT.as_secs();
+const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
 
 /// L1 client arguments.
 #[derive(Clone, Debug, clap::Args)]
@@ -73,6 +75,22 @@ pub struct L2ClientArgs {
         default_value_t = DEFAULT_L2_ENGINE_TIMEOUT
     )]
     pub l2_engine_timeout: u64,
+    /// Seconds to wait for a missing derived block while the execution layer answers `SYNCING`
+    /// and neither its reported sync progress nor its latest block moves, before resetting.
+    #[arg(
+        long,
+        visible_alias = "l2.el-sync-stall-timeout",
+        env = "KONA_NODE_L2_EL_SYNC_STALL_TIMEOUT",
+        default_value_t = DEFAULT_L2_EL_SYNC_STALL_TIMEOUT
+    )]
+    pub l2_el_sync_stall_timeout: u64,
+}
+
+impl L2ClientArgs {
+    /// How long a consolidation waits for an execution layer whose sync reports no progress.
+    pub const fn el_sync_stall_timeout(&self) -> Duration {
+        Duration::from_secs(self.l2_el_sync_stall_timeout)
+    }
 }
 
 impl Default for L2ClientArgs {
@@ -82,6 +100,7 @@ impl Default for L2ClientArgs {
             l2_engine_jwt_secret: None,
             l2_engine_jwt_encoded: None,
             l2_engine_timeout: DEFAULT_L2_ENGINE_TIMEOUT,
+            l2_el_sync_stall_timeout: DEFAULT_L2_EL_SYNC_STALL_TIMEOUT,
         }
     }
 }
@@ -134,6 +153,20 @@ mod tests {
         let matches = command.try_get_matches_from(args).unwrap();
         let parsed = ClientArgs::from_arg_matches(&matches).unwrap();
         assert_eq!(parsed.l1.l1_trust_rpc, l1);
+    }
+
+    #[rstest]
+    #[case::default(&[], DEFAULT_EL_SYNC_STALL_TIMEOUT)]
+    #[case::dotted_alias(&["--l2.el-sync-stall-timeout=600"], Duration::from_secs(600))]
+    #[case::long_flag(&["--l2-el-sync-stall-timeout", "7200"], Duration::from_secs(7200))]
+    fn test_parse_el_sync_stall_timeout(#[case] flags: &[&str], #[case] expected: Duration) {
+        // Keep these CLI/default tests independent of the operator's environment.
+        let command =
+            ClientArgs::command().mut_arg("l2_el_sync_stall_timeout", |arg| arg.env(None::<&str>));
+        let args = [CLIENT_ARGS, flags].concat();
+        let matches = command.try_get_matches_from(args).unwrap();
+        let parsed = ClientArgs::from_arg_matches(&matches).unwrap();
+        assert_eq!(parsed.l2.el_sync_stall_timeout(), expected);
     }
 
     #[test]

@@ -4,13 +4,15 @@ use kona_engine::EngineClient;
 use kona_genesis::RollupConfig;
 use kona_providers_alloy::AlloyChainProvider;
 use op_alloy_network::Optimism;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 /// Configuration for the Engine Actor.
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
     /// The [`RollupConfig`].
     pub config: Arc<RollupConfig>,
+    /// How long a consolidation waits for an execution layer whose sync reports no progress.
+    pub el_sync_stall_timeout: Duration,
 
     /// The mode of operation for the node.
     /// When the node is in sequencer mode, the engine actor will receive requests to build blocks

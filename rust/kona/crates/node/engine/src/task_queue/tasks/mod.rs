@@ -7,7 +7,10 @@ pub use task::{
 
 mod synchronize;
 pub use synchronize::SynchronizeTaskError;
-pub(super) use synchronize::{synchronize, synchronize_unconditionally};
+pub(super) use synchronize::{
+    ForkchoiceReply, record_forkchoice_reply, send_forkchoice, synchronize,
+    synchronize_unconditionally,
+};
 
 mod insert;
 pub(super) use insert::insert_payload;
@@ -25,7 +28,9 @@ mod canonicalize;
 pub use canonicalize::{CanonicalizeTask, CanonicalizeTaskError};
 
 mod consolidate;
-pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
+pub use consolidate::{
+    ConsolidateInput, ConsolidateTask, ConsolidateTaskError, DEFAULT_EL_SYNC_STALL_TIMEOUT,
+};
 
 mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};

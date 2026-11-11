@@ -336,8 +336,12 @@ impl NodeCommand {
         let p2p_config = self.p2p_flags.clone().config(&cfg, args, Some(&l1_provider)).await?;
         let rpc_config = self.rpc_flags.clone().into();
 
-        let engine_config =
-            EngineConfig { config: Arc::new(cfg.clone()), mode: self.node_mode, provider: engine };
+        let engine_config = EngineConfig {
+            config: Arc::new(cfg.clone()),
+            el_sync_stall_timeout: self.l2_client_args.el_sync_stall_timeout(),
+            mode: self.node_mode,
+            provider: engine,
+        };
 
         let dependency_set = self.load_dependency_set(&cfg)?;
         let safe_db = self.open_safe_db()?;
