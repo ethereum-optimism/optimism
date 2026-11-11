@@ -101,8 +101,6 @@ where
     /// Serves the flashblock pending state instead of the pool-built one. Keep upstream's blocking
     /// discipline: callers await this on the async runtime, so the reads that open the state go
     /// through `spawn_blocking_io`, as the default does.
-    ///
-    /// Returns a [`StateProviderBox`] on a mem-pool built pending block overlaying latest.
     async fn local_pending_state(&self) -> Result<Option<StateProviderBox>, Self::Error>
     where
         Self: SpawnBlocking,
@@ -112,8 +110,6 @@ where
         };
         let anchor = pending_state_history_lookup_hash(&pending_block);
         let tip = pending_block.pending.block().num_hash();
-        // Callers resolve pending state before taking a blocking thread, so the reads that open it
-        // take one here, as reth's default does.
         self.spawn_blocking_io(move |this| {
             pending_flashblock_state(this.provider(), pending_block)
                 // Callers treat an error as "no pending block" and serve latest, so this is the
