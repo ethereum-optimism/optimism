@@ -14,4 +14,4 @@ mod engine_state;
 pub use engine_state::TestEngineStateBuilder;
 
 mod misc;
-pub use misc::test_block_info;
+pub use misc::{delegated_safe_heads, test_block_info};

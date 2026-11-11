@@ -25,7 +25,10 @@ mod canonicalize;
 pub use canonicalize::{CanonicalizeTask, CanonicalizeTaskError};
 
 mod consolidate;
-pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
+pub use consolidate::{
+    ConsolidateInput, ConsolidateTask, ConsolidateTaskError, DelegatedSafeHeads,
+    InconsistentSafeHeadsError,
+};
 
 mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};

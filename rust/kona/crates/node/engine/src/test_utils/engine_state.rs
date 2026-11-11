@@ -3,7 +3,10 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, b256};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 
-/// Builder for creating test `EngineState` instances with sensible defaults
+/// Builder for creating test `EngineState` instances with sensible defaults.
+///
+/// An unset local-safe head equals the safe head, as on every chain before interop; tests of the
+/// local-safe and safe labels apart set it with [`Self::with_local_safe_head`].
 #[derive(Debug)]
 pub struct TestEngineStateBuilder {
     unsafe_head: L2BlockInfo,
@@ -45,6 +48,12 @@ impl TestEngineStateBuilder {
         self
     }
 
+    /// Sets the local-safe head, which otherwise follows the safe head
+    pub const fn with_local_safe_head(mut self, block: L2BlockInfo) -> Self {
+        self.local_safe_head = Some(block);
+        self
+    }
+
     /// Sets the safe head
     pub const fn with_safe_head(mut self, block: L2BlockInfo) -> Self {
         self.safe_head = Some(block);
@@ -80,7 +89,9 @@ impl TestEngineStateBuilder {
         // Set unsafe head (required)
         state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
             unsafe_head: Some(self.unsafe_head),
-            local_safe_head: Some(self.local_safe_head.unwrap_or(self.unsafe_head)),
+            local_safe_head: Some(
+                self.local_safe_head.or(self.safe_head).unwrap_or(self.unsafe_head),
+            ),
             safe_head: Some(self.safe_head.unwrap_or(self.unsafe_head)),
             finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
         });

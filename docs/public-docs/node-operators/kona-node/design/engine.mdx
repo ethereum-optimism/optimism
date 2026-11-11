@@ -145,7 +145,7 @@ pub struct ConsolidateTask {
     pub client: Arc<EngineClient>,
     /// The RollupConfig.
     pub cfg: Arc<RollupConfig>,
-    /// The input for consolidation (either attributes or block info).
+    /// The input for consolidation (either derived attributes or delegated safe heads).
     pub input: ConsolidateInput,
     /// Where to hand the decoded block once the engine has canonicalized it.
     pub block_sink: Arc<dyn ImportedBlockSink>,

@@ -12,8 +12,7 @@ pub enum ConsolidateTaskError {
     /// A delegated safe head would move the safe labels below finality.
     #[error("Delegated safe head breaks finality: {0}")]
     BreaksFinality(#[from] FinalityViolation),
-    /// Failed to fetch the execution layer's block at the height of a delegated safe head below the
-    /// safe head.
+    /// Failed to fetch the execution layer's block at the height of a delegated safe head.
     #[error("Failed to fetch the block at delegated safe head height {0}")]
     FailedToFetchDelegatedSafeBlock(u64),
     /// The unsafe L2 block is missing.
