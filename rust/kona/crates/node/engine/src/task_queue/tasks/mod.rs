@@ -6,8 +6,10 @@ pub use task::{
 };
 
 mod synchronize;
-pub use synchronize::SynchronizeTaskError;
-pub(super) use synchronize::{synchronize, synchronize_unconditionally};
+pub(super) use synchronize::{
+    ForkchoiceReply, restore_forkchoice, synchronize, synchronize_unconditionally,
+};
+pub use synchronize::{SafeLabel, SynchronizeTaskError};
 
 mod insert;
 pub(super) use insert::insert_payload;
@@ -26,8 +28,8 @@ pub use canonicalize::{CanonicalizeTask, CanonicalizeTaskError};
 
 mod consolidate;
 pub use consolidate::{
-    ConsolidateInput, ConsolidateTask, ConsolidateTaskError, DelegatedSafeHeads,
-    InconsistentSafeHeadsError,
+    ConsolidateInput, ConsolidateTask, ConsolidateTaskError, DelegatedRejection,
+    DelegatedSafeHeads, InconsistentSafeHeadsError,
 };
 
 mod finalize;

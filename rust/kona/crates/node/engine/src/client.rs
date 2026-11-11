@@ -5,7 +5,7 @@ use alloy_network::Network;
 use alloy_primitives::B256;
 use alloy_provider::{EthGetBlock, Provider, RootProvider};
 use alloy_rpc_types_eth::Block;
-use alloy_transport::{RpcError, TransportErrorKind};
+use alloy_transport::{RpcError, TransportErrorKind, TransportResult};
 use kona_genesis::RollupConfig;
 use kona_protocol::FromBlockError;
 use kona_providers_alloy::{AlloyChainProvider, AlloyChainProviderError, BlockLabel};
@@ -13,6 +13,7 @@ use op_alloy_network::Optimism;
 use op_alloy_rpc_types::Transaction;
 use std::sync::Arc;
 use thiserror::Error;
+use tracing::{debug, warn};
 
 mod query;
 pub use query::EngineQueryClient;
@@ -84,6 +85,17 @@ impl EngineClient {
         block: BlockId,
     ) -> EthGetBlock<<Optimism as Network>::BlockResponse> {
         self.engine.get_block(block)
+    }
+
+    /// Whether the execution layer stores the L2 block with `hash`, canonical or not. Only the
+    /// block's presence is needed, so it is fetched without its transactions.
+    pub async fn l2_block_is_stored(&self, hash: B256) -> TransportResult<bool> {
+        debug!(target: "engine", %hash, "Looking up the execution layer's block by hash");
+        let is_stored = self.get_l2_block(hash.into()).await.inspect_err(|err| {
+            warn!(target: "engine", ?err, %hash, "Failed to look up the execution layer's block by hash");
+        })?.is_some();
+        debug!(target: "engine", %hash, is_stored, "Looked up the execution layer's block by hash");
+        Ok(is_stored)
     }
 
     /// Fetches an L2 block with full transactions.

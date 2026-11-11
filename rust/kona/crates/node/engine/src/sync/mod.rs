@@ -1,5 +1,6 @@
 //! Sync start algorithm for the OP Stack rollup node.
 
+use alloy_eips::BlockNumHash;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 
@@ -9,7 +10,7 @@ pub use forkchoice::L2ForkchoiceState;
 mod error;
 pub use error::SyncStartError;
 
-use tracing::info;
+use tracing::{error, info};
 
 use crate::EngineClient;
 
@@ -18,6 +19,19 @@ use crate::EngineClient;
 /// measures this in `SyncLookback`, which exceeds the sequence window only on alt-DA chains, which
 /// kona does not derive.
 const MAX_REORG_SEQ_WINDOWS: u64 = 5;
+
+/// A block known only by its number and hash, which is all a forkchoice update or a finality
+/// comparison needs of it.
+pub(crate) fn l2_block_info_at(id: BlockNumHash) -> L2BlockInfo {
+    L2BlockInfo {
+        block_info: kona_protocol::BlockInfo {
+            hash: id.hash,
+            number: id.number,
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
 
 /// Searches for the latest [`L2ForkchoiceState`] that we can use to start the sync process with.
 ///
@@ -179,22 +193,203 @@ pub async fn find_starting_forkchoice(
         safe_cursor = L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &cfg.genesis)?;
     }
 
+    ensure_finalized_block_on_walked_chain(engine_client, &current_fc).await?;
+
     // Leave the finalized block as-is, and return the current forkchoice.
     Ok(current_fc)
 }
 
-/// Fails when a walk back from the unsafe head reaches the finalized height on another block,
-/// as op-node's `ReorgFinalizedErr` does: the EL's chain no longer contains its finalized head.
+/// Fails when a walk back from the unsafe head reaches the finalized height, or a height below it,
+/// on another block, as op-node's `ReorgFinalizedErr` does: the EL's chain no longer contains its
+/// finalized head, and walking on would move finality back.
 fn check_finalized(finalized: &L2BlockInfo, block: &L2BlockInfo) -> Result<(), SyncStartError> {
-    if block.block_info.number == finalized.block_info.number &&
+    if block.block_info.number <= finalized.block_info.number &&
         block.block_info.hash != finalized.block_info.hash
     {
-        return Err(SyncStartError::MismatchedFinalizedBlock(
-            finalized.block_info.hash,
-            block.block_info.hash,
-        ));
+        return Err(finalized_block_not_on_walked_chain(finalized, block));
     }
     Ok(())
+}
+
+/// Checks that the finalized block is on the walked chain when the safe walk stopped above it, as
+/// the sequencing window can stop it. The walk follows the execution layer's canonical chain, so
+/// its block at the finalized height is the canonical one there.
+async fn ensure_finalized_block_on_walked_chain(
+    engine_client: &EngineClient,
+    current_fc: &L2ForkchoiceState,
+) -> Result<(), SyncStartError> {
+    let finalized = current_fc.finalized.block_info;
+    if current_fc.safe.block_info.number <= finalized.number {
+        return Ok(());
+    }
+    info!(target: "sync_start", finalized = %finalized.number, "Checking that the finalized block is on the walked chain");
+    let walked = engine_client
+        .get_l2_block(finalized.number.into())
+        .await?
+        .ok_or(SyncStartError::FinalizedHeightUnavailable(finalized.number))?
+        .header;
+    if walked.hash == finalized.hash {
+        return Ok(());
+    }
+    let walked = l2_block_info_at(BlockNumHash { hash: walked.hash, number: walked.number });
+    Err(finalized_block_not_on_walked_chain(&current_fc.finalized, &walked))
+}
+
+/// The error for a walk from the execution layer's unsafe head that reached the height of its
+/// finalized block without meeting that block. A forkchoice built from such a walk would either
+/// finalize a block that is not an ancestor of its head or move finality back, so the sync start
+/// refuses it, like op-node's `ReorgFinalizedErr`.
+fn finalized_block_not_on_walked_chain(
+    finalized: &L2BlockInfo,
+    walked: &L2BlockInfo,
+) -> SyncStartError {
+    error!(
+        target: "sync_start",
+        finalized = %finalized.block_info.number,
+        finalized_hash = %finalized.block_info.hash,
+        walked = %walked.block_info.number,
+        walked_hash = %walked.block_info.hash,
+        "The chain walked from the execution layer's unsafe head does not contain its finalized block"
+    );
+    SyncStartError::MismatchedFinalizedBlock {
+        finalized: finalized.block_info.id(),
+        walked: walked.block_info.id(),
+    }
+}
+
+#[cfg(test)]
+mod finality_tests {
+    use super::*;
+    use crate::test_utils::{
+        expect_sync_start_walk, test_engine_client, test_l2_block_at_l1_origin, test_l2_chain,
+        test_rpc_block,
+    };
+    use alloy_primitives::B256;
+    use std::sync::Arc;
+
+    const CANONICAL: u8 = 0;
+    const FORK: u8 = 1;
+
+    #[tokio::test]
+    async fn walk_that_meets_the_finalized_block_stops_there() {
+        let cfg = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        let canonical = test_l2_chain(B256::ZERO, 1, 4, CANONICAL);
+        expect_sync_start_walk(
+            &l1,
+            &l2,
+            &canonical[1],
+            &canonical[3],
+            true,
+            &[&canonical[2], &canonical[1]],
+        );
+
+        let start = find_starting_forkchoice(&cfg, &client).await.unwrap();
+
+        assert_eq!(start.safe.block_info.hash, canonical[1].header.hash_slow());
+        assert_eq!(start.finalized, start.safe);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// The execution layer's unsafe head is on a fork from below its finalized block, as after a
+    /// rejected forkchoice update that it made canonical first, so the safe walk reaches the
+    /// finalized height on another block.
+    #[tokio::test]
+    async fn walk_on_a_fork_below_the_finalized_block_is_refused() {
+        let cfg = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        let canonical = test_l2_chain(B256::ZERO, 1, 2, CANONICAL);
+        let fork = test_l2_chain(canonical[0].header.hash_slow(), 2, 4, FORK);
+        expect_sync_start_walk(&l1, &l2, &canonical[1], &fork[2], true, &[&fork[1], &fork[0]]);
+
+        let error = find_starting_forkchoice(&cfg, &client).await.unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                SyncStartError::MismatchedFinalizedBlock { finalized, walked }
+                    if finalized.hash == canonical[1].header.hash_slow()
+                        && walked.hash == fork[0].header.hash_slow()
+            ),
+            "got {error:?}"
+        );
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A safe walk that the sequencing window stops above the finalized height still checks the
+    /// finalized block: on a fork from below it, the canonical block at its height differs.
+    #[tokio::test]
+    async fn walk_stopped_above_finality_by_the_sequencing_window_checks_the_finalized_block() {
+        let cfg = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        let canonical = test_l2_chain(B256::ZERO, 1, 2, CANONICAL);
+        let fork_at_2 = test_l2_block_at_l1_origin(2, canonical[0].header.hash_slow(), FORK, 0);
+        let fork_at_3 = test_l2_block_at_l1_origin(3, fork_at_2.header.hash_slow(), FORK, 1);
+        let fork_at_4 = test_l2_block_at_l1_origin(4, fork_at_3.header.hash_slow(), FORK, 2);
+        expect_sync_start_walk(&l1, &l2, &canonical[1], &fork_at_4, true, &[&fork_at_3]);
+        l2.expect_block_header_by_number(2, Some(test_rpc_block(&fork_at_2)));
+
+        let error = find_starting_forkchoice(&cfg, &client).await.unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                SyncStartError::MismatchedFinalizedBlock { finalized, walked }
+                    if finalized.hash == canonical[1].header.hash_slow()
+                        && walked.hash == fork_at_2.header.hash_slow()
+            ),
+            "got {error:?}"
+        );
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// An execution layer that answers no block at its finalized height, although the walk shows
+    /// its canonical chain above it, answered inconsistently; the sync start reports that, rather
+    /// than a missing block, so the reset is retried.
+    #[tokio::test]
+    async fn missing_block_at_the_finalized_height_is_reported_as_such() {
+        let cfg = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        let canonical = test_l2_chain(B256::ZERO, 1, 2, CANONICAL);
+        let at_3 = test_l2_block_at_l1_origin(3, canonical[1].header.hash_slow(), CANONICAL, 1);
+        let at_4 = test_l2_block_at_l1_origin(4, at_3.header.hash_slow(), CANONICAL, 2);
+        expect_sync_start_walk(&l1, &l2, &canonical[1], &at_4, true, &[&at_3]);
+        l2.expect_block_header_by_number(2, None);
+
+        let error = find_starting_forkchoice(&cfg, &client).await.unwrap_err();
+
+        assert!(matches!(error, SyncStartError::FinalizedHeightUnavailable(2)), "got {error:?}");
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// Another block at the finalized height is a fork from below finality, so the walk refuses
+    /// it even though its reorged-out L1 origin alone would only move the walk back.
+    #[tokio::test]
+    async fn fork_block_at_the_finalized_height_is_refused() {
+        let cfg = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        let canonical = test_l2_chain(B256::ZERO, 1, 2, CANONICAL);
+        let fork = test_l2_chain(canonical[0].header.hash_slow(), 2, 2, FORK);
+        expect_sync_start_walk(&l1, &l2, &canonical[1], &fork[0], false, &[]);
+
+        let error = find_starting_forkchoice(&cfg, &client).await.unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                SyncStartError::MismatchedFinalizedBlock { finalized, walked }
+                    if finalized.hash == canonical[1].header.hash_slow()
+                        && walked.hash == fork[0].header.hash_slow()
+            ),
+            "got {error:?}"
+        );
+        l1.assert_finished();
+        l2.assert_finished();
+    }
 }
 
 #[cfg(test)]
@@ -415,6 +610,15 @@ mod test {
             for index in (expected_safe as usize..=index).rev() {
                 expect_parent(&l2, &l2_blocks[index], &l2_blocks[index - 1]);
             }
+            // A safe walk that stops above the finalized block checks the block at its height.
+            let finalized = &l2_blocks[0];
+            if expected_safe > finalized.header.number {
+                l2.expect_params(
+                    "eth_getBlockByNumber",
+                    json!([format!("{:#x}", finalized.header.number), false]),
+                    finalized,
+                );
+            }
         }
 
         let result = find_starting_forkchoice(&cfg, &client).await;
@@ -459,8 +663,9 @@ mod test {
         assert!(
             matches!(
                 err,
-                SyncStartError::MismatchedFinalizedBlock(expected, got)
-                    if expected == finalized.header.hash && got == l2_blocks[0].header.hash
+                SyncStartError::MismatchedFinalizedBlock { finalized: expected, walked }
+                    if expected.hash == finalized.header.hash &&
+                        walked.hash == l2_blocks[0].header.hash
             ),
             "unexpected error: {err:?}"
         );
