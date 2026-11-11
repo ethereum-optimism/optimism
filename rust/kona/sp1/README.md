@@ -253,15 +253,17 @@ The guest workspace also patches `foldhash` to `programs/foldhash-seeded`. Insid
 hasher's seed is otherwise a constant of the ELF, so attacker-chosen keys could be made to collide,
 and the quadratic cost of hash-map operations on colliding keys would make a block unprovable.
 `super-range` installs a seed before it creates any hash map (`hash_seed` in
-`programs/super-range/src/main.rs`); creating one earlier panics. The seed is a hash that the guest
-already reads: in range mode the game's L1 head, which every batch and deposit the range derives
-precedes; in consolidation mode the claimed super root at `span.end`. Both exist only after every
-key is fixed, and no block in the proof can read them, so no on-chain actor can predict or choose
-the seed. The prover may know it. Never seed from a value known earlier, such as the previous super
-root or an idle chain's head, or from the hash of a block that a later block in the same proof can
-read through `BLOCKHASH`. `log-commitment`, `super-aggregation` and `tests/bls12-381-check` build
-no hash map and install no seed, so a hash map added there panics until the guest installs a seed
-from such a hash first in `main`. `tests/hashdos-check` seeds from its deposit's source hash.
+`programs/super-range/src/main.rs`); creating one earlier panics. The seed comes from hashes that
+the guest already reads: in range mode the game's L1 head, which every batch and deposit the range
+derives precedes; in consolidation mode the claimed super root at `span.end` together with every
+optimistic block hash in the span, which commits to the transactions of a block that consolidation
+replaces. Both exist only after every key is fixed, and no block in the proof can read them, so no
+on-chain actor can predict or choose the seed. The prover may know it. Never seed from a value known
+earlier, such as the previous super root or an idle chain's head, or from the hash of a block that a
+later block in the same proof can read through `BLOCKHASH`. `log-commitment`, `super-aggregation`
+and `tests/bls12-381-check` build no hash map and install no seed, so a hash map added there panics
+until the guest installs a seed from such a hash first in `main`. `tests/hashdos-check` seeds from
+its deposit's source hash.
 
 The guest hashes under a different seed from the native host run that produces the claim and the
 witness, so **no committed output, error class or control-flow decision of any guest may depend on

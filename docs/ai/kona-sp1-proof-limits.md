@@ -262,9 +262,9 @@ constant of the ELF, and the attacker can find colliding keys offline.
 
 The defence: the guest workspace patches `foldhash` to `programs/foldhash-seeded`, whose
 `RandomState` is keyed by a seed that the super-range guest takes from its input before it creates
-any map: the L1 head in range mode, the claimed super root at `span.end` in consolidation mode.
-Creating a map earlier panics. `log-commitment` and `super-aggregation` build no hash map and
-install no seed. `PreimageStore` is a `BTreeMap`.
+any map: the L1 head in range mode; in consolidation mode, the claimed super root at `span.end`
+hashed with every optimistic block hash in the span. Creating a map earlier panics. `log-commitment`
+and `super-aggregation` build no hash map and install no seed. `PreimageStore` is a `BTreeMap`.
 `just check-sp1-guest-hashers` fails if a guest links an unseeded foldhash or a listed hasher
 crate, or builds alloy-primitives without `map-foldhash`, and `just check-hashdos-zkvm` checks in
 the zkVM that the seed reaches revm's maps. std's `HashMap` is not used on guest paths, only in
@@ -295,13 +295,14 @@ Rules:
    cold SLOAD 2,100, access-list address 2,400, cold account 2,600. `CacheAccount.storage`
    accumulates across a whole block.
 6. A guest's seed must be a hash in its input that no on-chain actor can predict or choose before
-   the guest's keys are fixed, and that no block the proof executes can read (see `hash_seed` in
-   the super-range guest). The prover knowing the seed is not a finding. Seeding from a value known
-   earlier (the previous super root, a pre-state root, an idle chain's head), or from the hash of a
-   block that a later block in the same proof can read through `BLOCKHASH` or the L1 info deposit,
-   is a completeness finding: the attacker can build keys that collide under it, for example in a
-   deposit that the consolidation re-executes. A guest that creates a hash map without installing a
-   seed panics.
+   the guest's keys are fixed, and that no block the proof executes can read (see `hash_seed` in the
+   super-range guest). The prover knowing the seed is not a finding. Seeding from a value known
+   earlier (the previous super root, a pre-state root, an idle chain's head), from a value that
+   omits blocks whose data the guest reads (a super root alone omits the transactions of a block
+   that consolidation replaces), or from the hash of a block that a later block in the same proof
+   can read through `BLOCKHASH` or the L1 info deposit, is a completeness finding: the attacker can
+   build keys that collide under it, for example in a deposit that the consolidation re-executes. A
+   guest that creates a hash map without installing a seed panics.
 
 ## Known case: interop receipts in consolidation
 

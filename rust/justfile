@@ -351,14 +351,14 @@ check-sp1-guest-hashers:
   fi
   # The shim's Cargo.toml is the single source of truth for the upstream foldhash it wraps.
   shim_manifest=kona/sp1/programs/foldhash-seeded/Cargo.toml
-  upstream_rev=$(sed -nE 's/^upstream = .*rev = "([0-9a-f]{40})".*/\1/p' "$shim_manifest")
-  if [[ -z "$upstream_rev" ]]; then
-    echo "error: no upstream foldhash rev found in rust/$shim_manifest" >&2
+  upstream_tag=$(sed -nE 's/^upstream = .*tag = "([^"]+)".*/\1/p' "$shim_manifest")
+  if [[ -z "$upstream_tag" ]]; then
+    echo "error: no upstream foldhash tag found in rust/$shim_manifest" >&2
     exit 1
   fi
   seeded_sources=(
     "/rust/kona/sp1/programs/foldhash-seeded)"
-    "github.com/orlp/foldhash?rev=$upstream_rev"
+    "github.com/ethereum-optimism/foldhash?tag=$upstream_tag#"
   )
   banned_hashers=(
     rapidhash rustc-hash fxhash siphasher twox-hash xxhash-rust seahash gxhash wyhash highway
