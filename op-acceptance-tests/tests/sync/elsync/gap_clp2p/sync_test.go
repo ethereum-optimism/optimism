@@ -56,6 +56,8 @@ func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
 	//             	expected: 0x5
 	//             	actual  : 0x6
 	// Test:       	TestCLUnsafeNotRewoundOnInvalidDuringELSync
+	//
+	// TODO(#23317): the CL unsafe head advances onto the injected invalid payload; remove once fixed.
 	sysgo.SkipOnOpReth(t, "not supported")
 	sys := newGapCLP2PSystem(t)
 	logger := t.Logger()

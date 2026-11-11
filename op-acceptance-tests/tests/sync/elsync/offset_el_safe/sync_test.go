@@ -53,6 +53,7 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
+	sys.L2ELB.WaitForOnline()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
 	// Wait for the verifier CL to advance LocalSafe, which confirms:
@@ -61,7 +62,9 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	//  - Derivation began processing old batched data
 	// Because the batcher is stopped, derivation can only reach the last batched
 	// block — the gap between safe and unsafe is permanent.
-	sys.L2CLB.Advanced(safety.LocalSafe, 1, 30)
+	// A full EL sync after a wipe is slower than the initial sync, so allow the
+	// same budget as TestTruncateDatabaseOnELResync.
+	sys.L2CLB.Advanced(safety.LocalSafe, 1, 90)
 
 	unsafeHead := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
 	safeHead := sys.L2ELB.SafeHead().BlockRef

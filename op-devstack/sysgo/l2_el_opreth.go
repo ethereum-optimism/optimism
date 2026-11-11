@@ -121,9 +121,8 @@ type OpReth struct {
 	// Each entry is of the form "key=value".
 	env []string
 
-	// dataDir is the node's --datadir. dataDirs lists every directory holding
-	// chain data, including dataDir; initCmds populate them from genesis.
-	dataDir  string
+	// dataDirs lists every directory holding chain data, including --datadir;
+	// initCmds populate them from genesis.
 	dataDirs []string
 	initCmds [][]string
 
@@ -265,8 +264,8 @@ func (n *OpReth) initData() {
 	require := n.p.Require()
 	for _, dir := range n.dataDirs {
 		require.NoError(os.RemoveAll(dir), "must remove %s", dir)
+		require.NoError(os.MkdirAll(dir, 0o755), "must create %s", dir)
 	}
-	require.NoError(os.MkdirAll(n.dataDir, 0o755), "must create datadir")
 	for _, args := range n.initCmds {
 		out, err := exec.CommandContext(n.p.Ctx(), n.execPath, args...).CombinedOutput()
 		require.NoError(err, "must run op-reth %s: %s", strings.Join(args, " "), string(out))

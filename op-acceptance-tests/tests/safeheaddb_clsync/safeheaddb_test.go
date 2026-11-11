@@ -31,8 +31,8 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 
 	// Stop the verifier node and wipe its EL database.
-	// With the EL reset to genesis, when the CL restarts it will use EL sync to resync the chain rather than
-	// deriving it from L1.
+	// With the EL reset to genesis and the verifier in CL sync mode, the restarted CL resets to genesis and
+	// derives the chain again from L1, re-recording safe heads that are already in its database.
 	sys.L2ELB.Stop()
 	sys.L2ELB.Wipe()
 	sys.L2CLB.Stop()

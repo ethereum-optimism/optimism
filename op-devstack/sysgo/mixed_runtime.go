@@ -503,7 +503,6 @@ func buildMixedOpRethNode(
 		execPath:           execPath,
 		args:               args,
 		env:                []string{},
-		dataDir:            dataDirPath,
 		dataDirs:           dataDirs,
 		initCmds:           initCmds,
 		p:                  t,
