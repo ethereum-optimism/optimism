@@ -136,7 +136,7 @@ impl EphemeralChain {
         &self,
         hash: B256,
     ) -> crate::Result<Option<(SealedHeader, StateProviderBox)>> {
-        let Some((anchor, overlay)) = self.blocks.blocks_by_hash(hash) else {
+        let Some(block) = self.blocks.executed_block_by_hash(hash).cloned() else {
             let Some(header) = self.sealed_header(hash)? else {
                 return Ok(None);
             };
@@ -145,12 +145,9 @@ impl EphemeralChain {
                 .ok_or_else(|| Error::Execution(format!("no state for canonical block {hash}")))?;
             return Ok(Some((header, state)));
         };
-        if self.state_at(anchor)?.is_none() {
-            return Ok(None);
-        }
-        // The overlay manager resolves the recorded ancestors, so appending the block to its
-        // parent rebuilds the whole recorded chain on the anchor.
-        let block = overlay.into_iter().next().expect("blocks_by_hash starts with the block");
+        // Every recorded block is in the overlay manager the provider shares, and its recorded
+        // ancestors reach back to genesis, so the provider resolves the block's whole chain from
+        // its parent. A recorded ancestor it can't resolve is an inconsistency, so it errors.
         let header = block.recovered_block().clone_sealed_header();
         let state = self.provider.state_with_block_appended(header.parent_hash(), block)?;
         Ok(Some((header, state)))
