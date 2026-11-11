@@ -200,7 +200,7 @@ mod tests {
         let (slot, value) = (U256::from(1), U256::from(42));
 
         let mut bundle = BundleState::builder(1..=blocks)
-            .state_storage(account(1), [(slot, (U256::ZERO, value))].into_iter().collect())
+            .state_storage(account(1), std::iter::once((slot, (U256::ZERO, value))).collect())
             .state_original_account_info(destroyed, AccountInfo::default());
         let mut parent_hash = anchor;
         let mut tip = None;
