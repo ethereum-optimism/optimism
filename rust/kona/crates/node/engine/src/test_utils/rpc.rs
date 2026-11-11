@@ -80,6 +80,26 @@ impl RpcMock {
         );
     }
 
+    /// Expects an `eth_syncing` call answered with no sync in progress, then an `eth_blockNumber`
+    /// call answered with `latest_number`.
+    pub fn expect_el_not_syncing_at(&self, latest_number: u64) {
+        self.expect("eth_syncing", false);
+        self.expect("eth_blockNumber", alloy_primitives::U64::from(latest_number));
+    }
+
+    /// Expects an `eth_syncing` call answered with a sync in progress whose current block is
+    /// `current_number`.
+    pub fn expect_el_syncing_at(&self, current_number: u64) {
+        self.expect(
+            "eth_syncing",
+            serde_json::json!({
+                "currentBlock": format!("{current_number:#x}"),
+                "highestBlock": "0xffff",
+                "startingBlock": "0x0",
+            }),
+        );
+    }
+
     /// Expects an `engine_forkchoiceUpdatedV3` call for `forkchoice` without payload attributes and
     /// answers it with `status`.
     pub fn expect_forkchoice_updated(

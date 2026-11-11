@@ -1,6 +1,8 @@
 //! The `engine_forkchoiceUpdated` call, with no attributes, that the engine tasks share.
 
-use crate::{EngineClient, EngineState, SynchronizeTaskError, state::EngineSyncStateUpdate};
+use crate::{
+    EngineClient, EngineState, EngineSyncState, SynchronizeTaskError, state::EngineSyncStateUpdate,
+};
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
 use op_alloy_provider::ext::engine::OpEngineApi;
 
@@ -14,6 +16,15 @@ pub(in crate::task_queue) enum ForkchoiceDelivery {
     Always,
     /// Skip the update when it leaves the consensus labels unchanged.
     WhenChanged,
+}
+
+/// How the execution layer answered a forkchoice update it accepted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::task_queue) enum ForkchoiceReply {
+    /// The execution layer does not have the head block yet and is syncing toward it.
+    Syncing,
+    /// The execution layer applied the forkchoice.
+    Valid,
 }
 
 /// Applies `state_update` to the engine's sync state and synchronizes the execution layer's
@@ -69,12 +80,39 @@ pub(in crate::task_queue) async fn synchronize(
     // Send the forkchoice update through the input.
     let forkchoice = new_sync_state.create_forkchoice_state();
     tracing::Span::current().record("forkchoice", tracing::field::debug(forkchoice));
+    let reply = send_forkchoice(client, &new_sync_state).await?;
+    record_forkchoice_reply(state, reply);
 
-    // Handle the forkchoice update result.
+    // Apply the new sync state to the engine state.
+    state.sync_state = new_sync_state;
+
+    Ok(())
+}
+
+/// Records how the execution layer answered the engine's forkchoice: whether it applied it, and
+/// whether its sync has finished, which only a `VALID` answer marks and nothing clears.
+pub(in crate::task_queue) fn record_forkchoice_reply(
+    state: &mut EngineState,
+    reply: ForkchoiceReply,
+) {
+    state.el_applied_last_forkchoice = reply == ForkchoiceReply::Valid;
+    if reply == ForkchoiceReply::Valid && !state.el_sync_finished {
+        info!(target: "engine", "Finished execution layer sync.");
+        state.el_sync_finished = true;
+    }
+}
+
+/// Sends `sync_state`'s forkchoice to the execution layer, with no payload attributes, and returns
+/// whether it applied the forkchoice or is still syncing toward its head. Neither the engine state
+/// nor its record of the execution layer's sync changes.
+pub(in crate::task_queue) async fn send_forkchoice(
+    client: &EngineClient,
+    sync_state: &EngineSyncState,
+) -> Result<ForkchoiceReply, SynchronizeTaskError> {
     // NOTE: it doesn't matter which version we use here, because we're not sending any payload
     // attributes. The forkchoice updated call is version agnostic if no payload attributes are
     // provided.
-    let response = client.fork_choice_updated_v3(forkchoice, None).await;
+    let response = client.fork_choice_updated_v3(sync_state.create_forkchoice_state(), None).await;
 
     let valid_response = response.map_err(|e| {
         // Fatal forkchoice update error.
@@ -87,24 +125,13 @@ pub(in crate::task_queue) async fn synchronize(
     })?;
 
     match &valid_response.payload_status.status {
-        PayloadStatusEnum::Valid => {
-            state.el_applied_last_forkchoice = true;
-            if !state.el_sync_finished {
-                info!(target: "engine", "Finished execution layer sync.");
-                state.el_sync_finished = true;
-            }
-        }
+        PayloadStatusEnum::Valid => Ok(ForkchoiceReply::Valid),
         // If we're not building a new payload, we're driving EL sync.
         PayloadStatusEnum::Syncing => {
-            state.el_applied_last_forkchoice = false;
-            debug!(target: "engine", "Attempting to update forkchoice state while EL syncing")
+            debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
+            Ok(ForkchoiceReply::Syncing)
         }
         // Other codes are not expected.
-        status => return Err(SynchronizeTaskError::UnexpectedPayloadStatus(status.clone())),
+        status => Err(SynchronizeTaskError::UnexpectedPayloadStatus(status.clone())),
     }
-
-    // Apply the new sync state to the engine state.
-    state.sync_state = new_sync_state;
-
-    Ok(())
 }

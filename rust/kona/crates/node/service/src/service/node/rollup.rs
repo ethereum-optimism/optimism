@@ -277,7 +277,8 @@ impl RollupNode {
             unsafe_head_tx_opt,
             engine_request_rx,
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
-        );
+        )
+        .with_el_sync_stall_timeout(self.engine_config.el_sync_stall_timeout);
 
         (actor, engine_client.query_client(), engine_state_rx)
     }

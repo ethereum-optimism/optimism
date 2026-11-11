@@ -2,7 +2,7 @@ mod attributes;
 pub use attributes::TestAttributesBuilder;
 
 mod blocks;
-pub use blocks::{TestRpcBlock, test_l2_block, test_rpc_block};
+pub use blocks::{TestRpcBlock, test_l2_block, test_rpc_block, test_rpc_block_from_attributes};
 
 mod deposits;
 pub use deposits::l1_info_deposit;
