@@ -262,7 +262,7 @@ dependencies = [
  "cfg-if",
  "const-hex",
  "derive_more",
- "foldhash",
+ "foldhash 0.2.0",
  "hashbrown 0.17.0",
  "indexmap",
  "itoa",
@@ -1348,8 +1348,14 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 [[package]]
 name = "foldhash"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+dependencies = [
+ "foldhash 0.2.0 (git+https://github.com/ethereum-optimism/foldhash?tag=v0.2.0)",
+]
+
+[[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "git+https://github.com/ethereum-optimism/foldhash?tag=v0.2.0#8f878c636fda9c9e93384824ea45e06d03f009f5"
 
 [[package]]
 name = "funty"
@@ -1431,7 +1437,7 @@ checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.2.0",
  "serde",
  "serde_core",
 ]
@@ -1973,7 +1979,9 @@ dependencies = [
 name = "kona-sp1-super-range"
 version = "0.0.1"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
+ "foldhash 0.2.0",
  "kona-preimage",
  "kona-proof",
  "kona-sp1-build-info",

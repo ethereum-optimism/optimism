@@ -58,8 +58,15 @@ mod tests {
         witness::preimage_store::PreimageStore,
     };
 
+    /// Installs the guest hash seed once for this test process; `main` does it in the guest.
+    fn install_test_seed() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| foldhash::install_global_seed(0));
+    }
+
     #[test]
     fn test_guest_rejects_consolidation_without_transitions() {
+        install_test_seed();
         let inputs = SuperInteropInputs::Consolidation(SuperConsolidationInputs {
             span: TimestampSpan::new(101, 101).unwrap(),
             previous_super_root: Default::default(),
@@ -71,6 +78,7 @@ mod tests {
 
     #[test]
     fn test_guest_loads_complete_synthetic_configs_and_rejects_mismatched_l1() {
+        install_test_seed();
         // The range proves only the synthetic chain, while its previous super root also holds
         // chain 10, so the configs must cover both.
         let mut configs = ChainConfigs::from_registry(&["0xa".parse().unwrap()]).unwrap();
