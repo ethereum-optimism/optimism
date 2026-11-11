@@ -1,5 +1,6 @@
 use super::*;
-use crate::QueuedEngineDerivationClient;
+use crate::{DerivationActorRequest, QueuedEngineDerivationClient};
+use alloy_eips::Encodable2718;
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{
     ExecutionPayloadV1, ForkchoiceState, PayloadStatus, PayloadStatusEnum,
@@ -7,8 +8,9 @@ use alloy_rpc_types_engine::{
 use kona_engine::{
     EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink, ResetRequest,
     test_utils::{
-        RpcMock, TestEngineStateBuilder, TestRpcBlock, delegated_safe_heads, expect_sync_start,
-        test_block_info, test_engine_client, test_l2_block, test_rpc_block,
+        RpcMock, TestAttributesBuilder, TestEngineStateBuilder, TestRpcBlock, delegated_safe_heads,
+        expect_sync_start, l1_info_deposit, test_block_info, test_engine_client, test_l2_block,
+        test_rpc_block, test_rpc_block_from_attributes,
     },
 };
 use op_alloy_consensus::{OpBlock, OpTxEnvelope};
@@ -197,6 +199,395 @@ async fn delegated_poll_during_el_sync_moves_safe_labels_and_skips_finalization(
     assert!(actor.engine.is_empty());
     assert!(!actor.reset_pending);
     assert_eq!(state_rx.borrow().sync_state, expected_sync_state);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// After an execution layer datadir wipe, or while the execution layer commits blocks in bursts,
+/// derived attributes can name a block below the unsafe head that the execution layer does not
+/// have yet. While it answers `SYNCING`, the consolidation waits without a reset, which would
+/// clear the derivation actor's finalization queue and re-derive from the execution layer's labels.
+/// Unsafe imports received meanwhile run as they arrive rather than at the waiting task's retry,
+/// the wait leaves the failure backoff untouched, and the retry consolidates the block once the
+/// execution layer has it.
+#[tokio::test(start_paused = true)]
+async fn derived_block_missing_during_el_sync_waits_without_reset() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let unsafe_head = test_block_info(20);
+    let finalized_head = test_block_info(5);
+    let mut attributes = TestAttributesBuilder::new()
+        .with_parent(test_block_info(9))
+        .with_transactions(vec![l1_info_deposit().encoded_2718().into()])
+        .build();
+    attributes.is_last_in_span = true;
+    let safe_head = attributes.parent;
+    let derived_block = test_rpc_block_from_attributes(&attributes);
+    let derived_safe_head = L2BlockInfo::from_block_and_genesis(
+        &derived_block.clone().into_consensus().map_transactions(|t| t.inner.inner.into_inner()),
+        &config.genesis,
+    )
+    .unwrap();
+    let gossiped_payload =
+        ExecutionPayloadV1::from_block_slow(&test_l2_block(21, unsafe_head.hash(), 0));
+    let gossiped_head = L2BlockInfo::from_block_and_genesis(
+        &OpExecutionPayloadEnvelope::V1(gossiped_payload.clone())
+            .try_into_block::<OpTxEnvelope>()
+            .unwrap(),
+        &config.genesis,
+    )
+    .unwrap();
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(unsafe_head)
+        .with_safe_head(safe_head)
+        .with_finalized_head(finalized_head)
+        .build();
+    let (state_tx, state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+
+    // The execution layer has neither the derived block nor the unsafe head, and answers the
+    // unchanged forkchoice with `SYNCING`. An unsafe block arrives while the consolidation waits.
+    l2.expect_block_by_number(10, None);
+    l2.expect_el_not_syncing_at(0);
+    l2.expect_forkchoice_updated(
+        forkchoice(unsafe_head, safe_head, finalized_head),
+        PayloadStatusEnum::Syncing,
+    );
+    requests.send(EngineActorRequest::ProcessSafeL2Signal(attributes.into())).await.unwrap();
+    actor.step().await.unwrap();
+    requests
+        .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(OpExecutionPayloadEnvelope::V1(
+            gossiped_payload.clone(),
+        ))))
+        .await
+        .unwrap();
+    actor.step().await.unwrap();
+    assert_eq!(actor.engine.len(), 2, "the consolidation waits behind the unsafe import");
+    assert!(!actor.reset_pending);
+    assert_eq!(actor.retry_delay, Duration::from_millis(100), "waiting is not a failure");
+
+    // The unsafe import runs at the next step, well before the waiting consolidation's retry
+    // elapses; the step then idles toward that retry.
+    l2.expect_params(
+        "engine_newPayloadV1",
+        serde_json::json!([gossiped_payload]),
+        PayloadStatus::from_status(PayloadStatusEnum::Valid),
+    );
+    l2.expect_forkchoice_updated(
+        forkchoice(gossiped_head, safe_head, finalized_head),
+        PayloadStatusEnum::Valid,
+    );
+    assert!(time::timeout(Duration::from_millis(50), actor.step()).await.is_err());
+    assert_eq!(state_rx.borrow().sync_state.unsafe_head(), gossiped_head);
+    assert_eq!(actor.engine.len(), 1, "only the waiting consolidation may remain");
+
+    // The next step only idles until the waiting consolidation's retry is due.
+    assert!(actor.engine.has_waiting_task());
+    time::timeout(WAIT_RETRY_INTERVAL, actor.step()).await.unwrap().unwrap();
+    assert!(actor.engine.has_waiting_task(), "the consolidation is not retried before it is due");
+
+    // The step after it retries the consolidation, which finds the derived block; with nothing left
+    // to do, the actor then waits for requests instead of retrying.
+    l2.expect_block_by_number(10, Some(derived_block));
+    l2.expect_forkchoice_updated(
+        forkchoice(gossiped_head, derived_safe_head, finalized_head),
+        PayloadStatusEnum::Valid,
+    );
+    assert!(time::timeout(Duration::from_secs(60), actor.step()).await.is_err());
+
+    assert!(actor.engine.is_empty());
+    assert!(!actor.reset_pending);
+    assert_eq!(state_rx.borrow().sync_state.safe_head(), derived_safe_head);
+    assert_eq!(state_rx.borrow().sync_state.unsafe_head(), gossiped_head);
+    let mut derivation_requests = Vec::new();
+    while let Ok(request) = derivation_rx.try_recv() {
+        derivation_requests.push(request);
+    }
+    assert!(
+        !derivation_requests.iter().any(|request| matches!(
+            request,
+            DerivationActorRequest::ProcessEngineSignalRequest(_)
+        )),
+        "no reset may reach derivation: {derivation_requests:?}"
+    );
+    assert!(matches!(
+        derivation_requests.last(),
+        Some(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(head)) if **head == derived_safe_head
+    ));
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A failure of an unsafe import that runs ahead of a consolidation waiting for the execution
+/// layer retries the import on the failure backoff, but leaves the consolidation parked until its
+/// own retry is due.
+#[tokio::test(start_paused = true)]
+async fn failing_import_ahead_of_a_waiting_consolidation_keeps_its_retry() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let unsafe_head = test_block_info(20);
+    let finalized_head = test_block_info(5);
+    let mut attributes = TestAttributesBuilder::new()
+        .with_parent(test_block_info(9))
+        .with_transactions(vec![l1_info_deposit().encoded_2718().into()])
+        .build();
+    attributes.is_last_in_span = true;
+    let safe_head = attributes.parent;
+    let gossiped_payload =
+        ExecutionPayloadV1::from_block_slow(&test_l2_block(21, unsafe_head.hash(), 0));
+    let gossiped_head = L2BlockInfo::from_block_and_genesis(
+        &OpExecutionPayloadEnvelope::V1(gossiped_payload.clone())
+            .try_into_block::<OpTxEnvelope>()
+            .unwrap(),
+        &config.genesis,
+    )
+    .unwrap();
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(unsafe_head)
+        .with_safe_head(safe_head)
+        .with_finalized_head(finalized_head)
+        .build();
+    let (state_tx, state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+
+    // The consolidation finds no derived block and parks while the execution layer syncs.
+    l2.expect_block_by_number(10, None);
+    l2.expect_el_not_syncing_at(0);
+    l2.expect_forkchoice_updated(
+        forkchoice(unsafe_head, safe_head, finalized_head),
+        PayloadStatusEnum::Syncing,
+    );
+    requests.send(EngineActorRequest::ProcessSafeL2Signal(attributes.into())).await.unwrap();
+    actor.step().await.unwrap();
+    l2.expect_error("engine_newPayloadV1");
+    requests
+        .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(OpExecutionPayloadEnvelope::V1(
+            gossiped_payload.clone(),
+        ))))
+        .await
+        .unwrap();
+    actor.step().await.unwrap();
+    let parked_at = Instant::now();
+    assert!(actor.engine.has_waiting_task());
+
+    // The unsafe import runs ahead of it and fails once, then succeeds on its backoff, both well
+    // before the consolidation's retry; the step then idles toward that retry.
+    actor.step().await.unwrap();
+    l2.expect_params(
+        "engine_newPayloadV1",
+        serde_json::json!([gossiped_payload]),
+        PayloadStatus::from_status(PayloadStatusEnum::Valid),
+    );
+    l2.expect_forkchoice_updated(
+        forkchoice(gossiped_head, safe_head, finalized_head),
+        PayloadStatusEnum::Valid,
+    );
+    assert!(time::timeout(WAIT_RETRY_INTERVAL / 2, actor.step()).await.is_err());
+
+    assert_eq!(state_rx.borrow().sync_state.unsafe_head(), gossiped_head);
+    assert!(actor.engine.has_waiting_task(), "the consolidation stays parked");
+    assert!(
+        Instant::now() < parked_at + WAIT_RETRY_INTERVAL,
+        "the import ran before the consolidation's retry was due"
+    );
+    assert_eq!(actor.engine.len(), 1, "only the waiting consolidation remains");
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A drain in which an unsafe import completes the execution layer's sync and a consolidation then
+/// waits still reports the import to derivation: the waiting task changed nothing, but the import
+/// moved the engine's labels and finished its sync.
+#[tokio::test(start_paused = true)]
+async fn sync_completed_before_a_waiting_consolidation_reaches_derivation() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let client = Arc::new(client);
+    let unsafe_head = test_block_info(20);
+    let finalized_head = test_block_info(5);
+    let mut attributes = TestAttributesBuilder::new()
+        .with_parent(test_block_info(9))
+        .with_transactions(vec![l1_info_deposit().encoded_2718().into()])
+        .build();
+    attributes.is_last_in_span = true;
+    let safe_head = attributes.parent;
+    let gossiped_payload =
+        ExecutionPayloadV1::from_block_slow(&test_l2_block(21, unsafe_head.hash(), 0));
+    let gossiped_head = L2BlockInfo::from_block_and_genesis(
+        &OpExecutionPayloadEnvelope::V1(gossiped_payload.clone())
+            .try_into_block::<OpTxEnvelope>()
+            .unwrap(),
+        &config.genesis,
+    )
+    .unwrap();
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(unsafe_head)
+        .with_safe_head(safe_head)
+        .with_finalized_head(finalized_head)
+        .with_el_sync_finished(false)
+        .build();
+    let (state_tx, _state_rx) = watch::channel(state);
+    let mut engine = Engine::new(state, state_tx);
+    engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+        client.clone(),
+        config.clone(),
+        attributes.into(),
+        Arc::new(NoopBlockSink),
+        DEFAULT_EL_SYNC_STALL_TIMEOUT,
+    ))));
+    engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+        client.clone(),
+        config.clone(),
+        OpExecutionPayloadEnvelope::V1(gossiped_payload.clone()),
+        false,
+        Arc::new(NoopBlockSink),
+    ))));
+    let (_requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        client,
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        engine,
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+
+    // The import's forkchoice update is answered `VALID`, which finishes the sync; the
+    // consolidation then finds no derived block and waits.
+    l2.expect_params(
+        "engine_newPayloadV1",
+        serde_json::json!([gossiped_payload]),
+        PayloadStatus::from_status(PayloadStatusEnum::Valid),
+    );
+    l2.expect_forkchoice_updated(
+        forkchoice(gossiped_head, safe_head, finalized_head),
+        PayloadStatusEnum::Valid,
+    );
+    l2.expect_block_by_number(10, None);
+    l2.expect_el_not_syncing_at(21);
+    l2.expect_forkchoice_updated(
+        forkchoice(gossiped_head, safe_head, finalized_head),
+        PayloadStatusEnum::Syncing,
+    );
+    actor.step().await.unwrap();
+
+    assert!(actor.el_sync_complete);
+    assert_eq!(actor.engine.len(), 1, "only the waiting consolidation remains");
+    let mut derivation_requests = Vec::new();
+    while let Ok(request) = derivation_rx.try_recv() {
+        derivation_requests.push(request);
+    }
+    assert!(
+        derivation_requests.iter().any(|request| matches!(
+            request,
+            DerivationActorRequest::ProcessEngineSyncCompletionRequest(_)
+        )),
+        "the sync completion must reach derivation: {derivation_requests:?}"
+    );
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A drain in which an unsafe import succeeds and a consolidation then waits restarts the failure
+/// backoff: every task ahead of the waiting one succeeded, so a later unrelated failure is retried
+/// on the shortest delay rather than on one grown by earlier failures.
+#[tokio::test(start_paused = true)]
+async fn waiting_after_successful_tasks_restarts_the_failure_backoff() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let client = Arc::new(client);
+    let unsafe_head = test_block_info(20);
+    let finalized_head = test_block_info(5);
+    let mut attributes = TestAttributesBuilder::new()
+        .with_parent(test_block_info(9))
+        .with_transactions(vec![l1_info_deposit().encoded_2718().into()])
+        .build();
+    attributes.is_last_in_span = true;
+    let safe_head = attributes.parent;
+    let gossiped_payload =
+        ExecutionPayloadV1::from_block_slow(&test_l2_block(21, unsafe_head.hash(), 0));
+    let gossiped_head = L2BlockInfo::from_block_and_genesis(
+        &OpExecutionPayloadEnvelope::V1(gossiped_payload.clone())
+            .try_into_block::<OpTxEnvelope>()
+            .unwrap(),
+        &config.genesis,
+    )
+    .unwrap();
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(unsafe_head)
+        .with_safe_head(safe_head)
+        .with_finalized_head(finalized_head)
+        .build();
+    let (state_tx, _state_rx) = watch::channel(state);
+    let mut engine = Engine::new(state, state_tx);
+    engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+        client.clone(),
+        config.clone(),
+        attributes.into(),
+        Arc::new(NoopBlockSink),
+        DEFAULT_EL_SYNC_STALL_TIMEOUT,
+    ))));
+    engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+        client.clone(),
+        config.clone(),
+        OpExecutionPayloadEnvelope::V1(gossiped_payload.clone()),
+        false,
+        Arc::new(NoopBlockSink),
+    ))));
+    let (_requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        client,
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        engine,
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    actor.retry_delay = Duration::from_secs(5);
+
+    l2.expect_params(
+        "engine_newPayloadV1",
+        serde_json::json!([gossiped_payload]),
+        PayloadStatus::from_status(PayloadStatusEnum::Valid),
+    );
+    l2.expect_forkchoice_updated(
+        forkchoice(gossiped_head, safe_head, finalized_head),
+        PayloadStatusEnum::Valid,
+    );
+    l2.expect_block_by_number(10, None);
+    l2.expect_el_not_syncing_at(21);
+    l2.expect_forkchoice_updated(
+        forkchoice(gossiped_head, safe_head, finalized_head),
+        PayloadStatusEnum::Syncing,
+    );
+    actor.step().await.unwrap();
+
+    assert_eq!(actor.engine.len(), 1, "only the waiting consolidation remains");
+    assert_eq!(actor.retry_delay, Duration::from_millis(100));
     l1.assert_finished();
     l2.assert_finished();
 }

@@ -4,9 +4,9 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, CanonicalizeTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, FinalizeTask,
-    ImportedBlockSink, InsertTask, SealTask,
+    BuildTask, CanonicalizeTask, ConsolidateTask, DEFAULT_EL_SYNC_STALL_TIMEOUT, DrainScope,
+    Engine, EngineActorRequest, EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
+    EngineTaskErrors, FinalizeTask, ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -20,6 +20,12 @@ use tokio::{
 #[path = "queue_tests.rs"]
 mod queue_tests;
 
+/// How long a task waiting for the execution layer to sync waits between retries.
+///
+/// The wait is not a failure, so it does not grow the failure backoff, and each retry costs a few
+/// RPCs on an execution layer that is busy syncing.
+const WAIT_RETRY_INTERVAL: Duration = Duration::from_secs(2);
+
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
 /// the [`Ord`] implementation of [`EngineTask`].
@@ -32,6 +38,8 @@ where
     derivation_client: DerivationClient,
     /// Whether the EL sync is complete. This should only ever go from false to true.
     el_sync_complete: bool,
+    /// How long a consolidation waits for an execution layer whose sync reports no progress.
+    el_sync_stall_timeout: Duration,
     /// The last local-safe head sent to the derivation actor.
     last_engine_safe_head_sent: L2BlockInfo,
     /// The error of the last skipped engine task, so an identical repeat logs no new warning
@@ -43,17 +51,18 @@ where
     /// mode.
     unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
 
-    /// The [`RollupConfig`] used to build tasks.
-    rollup: Arc<RollupConfig>,
+    /// Where to hand every imported block, so the derivation providers can read it locally
+    /// instead of fetching it back from the execution layer.
+    block_sink: Arc<dyn ImportedBlockSink>,
     /// An [`EngineClient`] used for creating engine tasks.
     client: Arc<EngineClient>,
     /// The [`Engine`] task queue.
     engine: Engine,
     /// The inbound request channel.
     inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
-    /// Where to hand every imported block, so the derivation providers can read it locally
-    /// instead of fetching it back from the execution layer.
-    block_sink: Arc<dyn ImportedBlockSink>,
+    /// The [`RollupConfig`] used to build tasks.
+    rollup: Arc<RollupConfig>,
+
     /// A reset is retained until successful; RPC failure must not lose the request.
     reset_pending: bool,
     /// Callers waiting for the retained reset to finish.
@@ -62,6 +71,9 @@ where
     retry_at: Instant,
     /// Exponentially increasing retry delay, capped to keep recovery responsive.
     retry_delay: Duration,
+    /// Earliest retry of the task parked while it waits for the execution layer. Kept apart from
+    /// `retry_at`, so a failure of a task that runs ahead of it cannot bring its retry forward.
+    waiting_retry_at: Instant,
 }
 
 impl<DerivationClient> EngineActor<DerivationClient>
@@ -79,21 +91,30 @@ where
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
         Self {
+            block_sink,
             client,
             derivation_client,
             el_sync_complete: false,
+            el_sync_stall_timeout: DEFAULT_EL_SYNC_STALL_TIMEOUT,
             engine,
+            inbound_request_rx,
             last_engine_safe_head_sent: L2BlockInfo::default(),
             last_skipped_task_error: None,
-            rollup: config,
-            unsafe_head_tx,
-            inbound_request_rx,
-            block_sink,
             reset_pending: false,
             reset_waiters: Vec::new(),
             retry_at: Instant::now(),
             retry_delay: Duration::from_millis(100),
+            rollup: config,
+            unsafe_head_tx,
+            waiting_retry_at: Instant::now(),
         }
+    }
+
+    /// Bounds how long a consolidation waits for an execution layer whose sync reports no
+    /// progress.
+    pub const fn with_el_sync_stall_timeout(mut self, el_sync_stall_timeout: Duration) -> Self {
+        self.el_sync_stall_timeout = el_sync_stall_timeout;
+        self
     }
 
     /// Logs a skipped task at `warn!` when its error differs from the last skip, and at `debug!`
@@ -111,6 +132,30 @@ where
     fn defer_retry(&mut self) {
         self.retry_at = Instant::now() + self.retry_delay;
         self.retry_delay = (self.retry_delay * 2).min(Duration::from_secs(5));
+    }
+
+    /// Schedules the retry of a task waiting for the execution layer, leaving the failure backoff
+    /// as it is.
+    fn defer_waiting_retry(&mut self) {
+        self.waiting_retry_at = Instant::now() + WAIT_RETRY_INTERVAL;
+    }
+
+    /// Which tasks a drain may run now: the waiting task only once its retry is due.
+    fn drain_scope(&self, now: Instant) -> DrainScope {
+        if now >= self.waiting_retry_at {
+            DrainScope::AllTasks
+        } else {
+            DrainScope::AheadOfWaitingTask
+        }
+    }
+
+    /// When the actor next has work to retry without a new request, if any: the failure backoff
+    /// while a reset or a runnable task is pending, and otherwise the waiting task's retry.
+    fn next_retry_at(&self) -> Option<Instant> {
+        if self.reset_pending || self.engine.has_work_ahead_of_waiting_task() {
+            return Some(self.retry_at);
+        }
+        self.engine.has_waiting_task().then(|| self.retry_at.max(self.waiting_retry_at))
     }
 
     fn begin_reset(&mut self) {
@@ -188,10 +233,10 @@ where
     }
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
-    async fn drain(&mut self) -> Result<(), EngineError> {
-        match self.engine.drain().await {
+    async fn drain(&mut self, scope: DrainScope) -> Result<(), EngineError> {
+        match self.engine.drain(scope).await {
             Ok(_) => {
-                trace!(target: "engine", "[ENGINE] tasks drained");
+                trace!(target: "engine", ?scope, "[ENGINE] tasks drained");
                 self.retry_delay = Duration::from_millis(100);
             }
             Err(err) => {
@@ -228,6 +273,14 @@ where
                         return Ok(());
                     }
                     EngineTaskErrorSeverity::Skip => self.log_skipped_task(&err),
+                    // A waiting task changed nothing, but tasks that ran before it in this drain
+                    // did, so their safe head and sync completion still reach derivation below.
+                    // They all succeeded, so the failure backoff starts over too.
+                    EngineTaskErrorSeverity::Wait => {
+                        trace!(target: "engine", %err, "Engine task waits before its retry");
+                        self.retry_delay = Duration::from_millis(100);
+                        self.defer_waiting_retry();
+                    }
                 }
             }
         }
@@ -267,7 +320,7 @@ where
     async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
         let local_safe_head = self.engine.state().sync_state.local_safe_head();
         if local_safe_head == self.last_engine_safe_head_sent {
-            info!(target: "engine", safe_head = ?local_safe_head, "Local-safe head unchanged");
+            debug!(target: "engine", safe_head = ?local_safe_head, "Local-safe head unchanged");
             return Ok(());
         }
 
@@ -291,11 +344,14 @@ where
     type Error = EngineError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        if Instant::now() >= self.retry_at {
+        let now = Instant::now();
+        if now >= self.retry_at {
             if self.reset_pending {
                 self.attempt_reset().await?;
             } else {
-                self.drain().await?;
+                // Work that outranks a task waiting for the execution layer to sync, such as an
+                // unsafe import, runs as it arrives; the waiting task runs once its retry is due.
+                self.drain(self.drain_scope(now)).await?;
             }
         }
 
@@ -305,13 +361,14 @@ where
         // Wait for the next processing request.
         // Retry without needing a new inbound message, while still accepting requests during
         // backoff. Bound queued work so a prolonged outage cannot grow memory without limit.
+        let next_retry_at = self.next_retry_at();
         let request = tokio::select! {
             request = self.inbound_request_rx.recv(),
                 if self.engine.len() < 1024 && self.reset_waiters.len() < 1024 => {
                 request.ok_or(EngineError::ChannelClosed)?
             }
-            _ = time::sleep_until(self.retry_at),
-                if self.reset_pending || !self.engine.is_empty() => return Ok(()),
+            _ = time::sleep_until(next_retry_at.unwrap_or(self.retry_at)),
+                if next_retry_at.is_some() => return Ok(()),
         };
 
         match request {
@@ -331,6 +388,7 @@ where
                     self.rollup.clone(),
                     safe_signal,
                     Arc::clone(&self.block_sink),
+                    self.el_sync_stall_timeout,
                 )));
                 self.engine.enqueue(task);
             }

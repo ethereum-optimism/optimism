@@ -318,9 +318,10 @@ impl NodeCommand {
 
         let engine_config = EngineConfig {
             config: Arc::new(cfg.clone()),
-            l2_url: self.l2_client_args.l2_engine_rpc.clone(),
-            l2_jwt_secret: jwt_secret,
+            el_sync_stall_timeout: self.l2_client_args.el_sync_stall_timeout(),
             l1_url: self.l1_rpc_args.l1_eth_rpc.clone(),
+            l2_jwt_secret: jwt_secret,
+            l2_url: self.l2_client_args.l2_engine_rpc.clone(),
             mode: self.node_mode,
         };
 

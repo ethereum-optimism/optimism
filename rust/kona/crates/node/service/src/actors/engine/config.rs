@@ -2,7 +2,7 @@ use crate::NodeMode;
 use alloy_rpc_types_engine::JwtSecret;
 use kona_engine::{EngineClient, EngineClientBuilder};
 use kona_genesis::RollupConfig;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use url::Url;
 
 /// Configuration for the Engine Actor.
@@ -10,6 +10,8 @@ use url::Url;
 pub struct EngineConfig {
     /// The [`RollupConfig`].
     pub config: Arc<RollupConfig>,
+    /// How long a consolidation waits for an execution layer whose sync reports no progress.
+    pub el_sync_stall_timeout: Duration,
 
     /// The engine rpc url.
     pub l2_url: Url,

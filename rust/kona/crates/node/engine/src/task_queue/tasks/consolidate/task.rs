@@ -1,18 +1,27 @@
 //! A task to consolidate the engine state.
 
+use super::el_sync_progress::{ElSyncProgress, ElSyncReading, ElSyncWaitOutcome, ElSyncWaitStep};
 use crate::{
     ConsolidateTaskError, DelegatedSafeHeads, EngineClient, EngineState, ExecutableEngineTask,
     FinalityViolation, ImportedBlockSink,
     state::EngineSyncStateUpdate,
-    task_queue::{ForkchoiceDelivery, build_and_import, synchronize},
+    task_queue::{
+        ForkchoiceDelivery, ForkchoiceReply, build_and_import, record_forkchoice_reply,
+        send_forkchoice, synchronize,
+    },
 };
 use alloy_primitives::B256;
+use alloy_provider::Provider;
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types::Transaction;
-use std::sync::Arc;
+use std::{
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
+};
+use tokio::time::Instant;
 
 /// Input for consolidation - either derived attributes or delegated safe heads
 #[derive(Debug, Clone)]
@@ -70,6 +79,15 @@ impl ConsolidateInput {
     }
 }
 
+/// What a consolidation waiting for the execution layer does with a derived block it lacked.
+#[derive(Debug)]
+enum DerivedBlock {
+    /// Build the block from the derived attributes on its parent, which the execution layer has.
+    BuildFromAttributes,
+    /// Consolidate the block the execution layer committed since the lookup.
+    Committed(Box<Block<Transaction>>),
+}
+
 /// The [`ConsolidateTask`] attempts to consolidate the engine state
 /// using the specified derived attributes or delegated safe heads.
 #[derive(Debug, Clone)]
@@ -82,17 +100,28 @@ pub struct ConsolidateTask {
     pub input: ConsolidateInput,
     /// Where to hand the decoded block once the engine has canonicalized it.
     pub block_sink: Arc<dyn ImportedBlockSink>,
+    /// The execution layer's progress across the retries of this task while it waits for the
+    /// execution layer to sync.
+    el_sync_progress: Arc<Mutex<ElSyncProgress>>,
 }
 
 impl ConsolidateTask {
-    /// Creates a new [`ConsolidateTask`] with the specified input
-    pub const fn new(
+    /// Creates a new [`ConsolidateTask`] with the specified input. A wait for the execution layer
+    /// to sync resets the engine once its sync reports no progress for `el_sync_stall_timeout`.
+    pub fn new(
         client: Arc<EngineClient>,
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
         block_sink: Arc<dyn ImportedBlockSink>,
+        el_sync_stall_timeout: Duration,
     ) -> Self {
-        Self { client, cfg, input, block_sink }
+        let el_sync_progress = Arc::new(Mutex::new(ElSyncProgress::new(el_sync_stall_timeout)));
+        Self { block_sink, cfg, client, el_sync_progress, input }
+    }
+
+    /// The execution layer's progress across the retries of this task.
+    fn el_sync_progress(&self) -> MutexGuard<'_, ElSyncProgress> {
+        self.el_sync_progress.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
@@ -433,6 +462,196 @@ impl ConsolidateTask {
         .await
     }
 
+    /// Waits for the execution layer to sync a derived block that it did not have, at or below the
+    /// unsafe head, and returns the block if the execution layer has it after all.
+    ///
+    /// Retries between checks only rely on the block lookup that precedes this call. A check reads
+    /// the execution layer's sync progress and resends the engine's unchanged forkchoice:
+    ///
+    /// - `SYNCING`: the execution layer is still syncing toward the unsafe head and will fill the
+    ///   block in, so the task waits. Resetting instead would restart from the execution layer's
+    ///   own labels, which are genesis after a datadir wipe, and re-derive the chain in a loop.
+    /// - `VALID`: the execution layer has the unsafe head, so it has the block unless it lost it.
+    ///   It may have committed the block since the lookup, so the block is looked up once more.
+    ///
+    /// An execution layer that answers `SYNCING` while it reports no sync and sits at the derived
+    /// block's parent is not fetching anything, as without peers, so the block is built from the
+    /// derived attributes instead. A `SYNCING` answer after the progress has stalled for the bound
+    /// resets the engine. Only a `VALID` answer changes the engine state, so a task that then waits
+    /// has changed nothing.
+    async fn derived_block_once_el_syncs(
+        &self,
+        state: &mut EngineState,
+        block_number: u64,
+    ) -> Result<DerivedBlock, ConsolidateTaskError> {
+        let unsafe_number = state.sync_state.unsafe_head().block_info.number;
+        if !self.el_sync_progress().is_check_due(Instant::now()) {
+            debug!(
+                target: "engine",
+                block_number,
+                unsafe_number,
+                "Still waiting for the execution layer to sync the derived block"
+            );
+            return Err(ConsolidateTaskError::MissingUnsafeL2BlockDuringElSync(block_number));
+        }
+
+        let reading = self.el_sync_reading().await;
+        // Every check probes, a stalled one included: the execution layer may have reached the
+        // unsafe head since the last check, and then the block is consolidated instead of reset.
+        if self.el_has_unsafe_head(state, block_number).await? {
+            record_forkchoice_reply(state, ForkchoiceReply::Valid);
+            return self
+                .derived_block_committed_since_lookup(block_number)
+                .await
+                .map(|block| DerivedBlock::Committed(Box::new(block)));
+        }
+        // The reading counts, and its report goes out, only once the probe is answered.
+        let now = Instant::now();
+        self.el_sync_progress().check_answered(now);
+        let step = self.el_sync_progress().record(reading.clone(), now);
+        if reading
+            .as_ref()
+            .is_some_and(|reading| reading.is_idle_at(block_number.saturating_sub(1)))
+        {
+            info!(
+                target: "engine",
+                block_number,
+                ?reading,
+                unsafe_number,
+                "Execution layer is idle at the derived block's parent; building the derived block"
+            );
+            return Ok(DerivedBlock::BuildFromAttributes);
+        }
+        if step.outcome == ElSyncWaitOutcome::Stalled {
+            warn!(
+                target: "engine",
+                block_number,
+                ?reading,
+                unsafe_number,
+                "Execution layer stopped making progress toward the unsafe head; resetting"
+            );
+            return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_number));
+        }
+        Self::log_wait_for_el_sync(step, reading.as_ref(), block_number, unsafe_number);
+        Err(ConsolidateTaskError::MissingUnsafeL2BlockDuringElSync(block_number))
+    }
+
+    /// Resends the engine's unchanged forkchoice and returns whether the execution layer applied
+    /// it, rather than syncing toward its head.
+    async fn el_has_unsafe_head(
+        &self,
+        state: &EngineState,
+        block_number: u64,
+    ) -> Result<bool, ConsolidateTaskError> {
+        debug!(target: "engine", block_number, "Asking the execution layer whether it has the unsafe head");
+        let reply = send_forkchoice(self.client.as_ref(), &state.sync_state).await.map_err(|err| {
+            warn!(target: "engine", ?err, block_number, "Forkchoice update for a missing derived block failed");
+            ConsolidateTaskError::MissingUnsafeL2BlockProbeFailed(err)
+        })?;
+        debug!(target: "engine", block_number, ?reply, "Execution layer answered the forkchoice update");
+        Ok(reply == ForkchoiceReply::Valid)
+    }
+
+    /// Logs a retry that keeps waiting: at `info!` when the wait starts and when progress is
+    /// reported, at `warn!` when no progress is reported on that cadence, and at `debug!`
+    /// otherwise.
+    fn log_wait_for_el_sync(
+        step: ElSyncWaitStep,
+        reading: Option<&ElSyncReading>,
+        block_number: u64,
+        unsafe_number: u64,
+    ) {
+        let time_until_reset = step.time_until_reset;
+        match step.outcome {
+            ElSyncWaitOutcome::Started => info!(
+                target: "engine",
+                block_number,
+                ?reading,
+                ?time_until_reset,
+                unsafe_number,
+                "Execution layer is syncing toward the unsafe head; waiting for the derived block"
+            ),
+            ElSyncWaitOutcome::Progressed if step.reports_progress => info!(
+                target: "engine",
+                block_number,
+                ?reading,
+                ?time_until_reset,
+                unsafe_number,
+                "Execution layer sync is progressing; still waiting for the derived block"
+            ),
+            _ if step.reports_progress => warn!(
+                target: "engine",
+                block_number,
+                ?reading,
+                ?time_until_reset,
+                unsafe_number,
+                "Execution layer reports no sync progress; the engine resets if none comes in time"
+            ),
+            _ => debug!(
+                target: "engine",
+                block_number,
+                ?reading,
+                ?time_until_reset,
+                "Still waiting for the execution layer to sync the derived block"
+            ),
+        }
+    }
+
+    /// What the execution layer reports about its sync: the progress of the range it syncs, or
+    /// its latest block number when it syncs none. `None` if that cannot be read.
+    async fn el_sync_reading(&self) -> Option<ElSyncReading> {
+        trace!(target: "engine", "Fetching the execution layer's sync status");
+        match self.client.client().request_noparams::<serde_json::Value>("eth_syncing").await {
+            Ok(serde_json::Value::Object(status)) => Some(ElSyncReading::from_sync_status(status)),
+            Ok(serde_json::Value::Bool(false)) => self
+                .el_latest_block_number()
+                .await
+                .map(|latest_number| ElSyncReading::NotSyncing { latest_number }),
+            Ok(status) => {
+                warn!(target: "engine", %status, "Execution layer returned an unexpected sync status");
+                None
+            }
+            Err(err) => {
+                warn!(target: "engine", ?err, "Failed to fetch the execution layer's sync status");
+                None
+            }
+        }
+    }
+
+    /// The number of the execution layer's latest block, or `None` if it cannot be read.
+    async fn el_latest_block_number(&self) -> Option<u64> {
+        trace!(target: "engine", "Fetching the execution layer's latest block number");
+        self.client
+            .get_block_number()
+            .await
+            .map_err(|err| {
+                warn!(target: "engine", ?err, "Failed to fetch the execution layer's latest block number");
+            })
+            .ok()
+    }
+
+    /// Looks up the derived block again after the execution layer answered `VALID` for the unsafe
+    /// head; the engine resets if the block is still missing.
+    async fn derived_block_committed_since_lookup(
+        &self,
+        block_number: u64,
+    ) -> Result<Block<Transaction>, ConsolidateTaskError> {
+        match self.client.l2_block_by_label(block_number.into()).await {
+            Ok(Some(block)) => {
+                info!(target: "engine", block_number, "Execution layer committed the derived block since the lookup");
+                Ok(block)
+            }
+            Ok(None) => {
+                warn!(target: "engine", block_number, "Execution layer has the unsafe head but not the derived block");
+                Err(ConsolidateTaskError::MissingUnsafeL2Block(block_number))
+            }
+            Err(err) => {
+                warn!(target: "engine", ?err, block_number, "Failed to look up the derived block again");
+                Err(ConsolidateTaskError::FailedToFetchUnsafeL2Block)
+            }
+        }
+    }
+
     /// The safe label after consolidating onto `consolidated`, which the execution layer has: that
     /// block for derived attributes, and the judged cross-safe head for a delegate.
     async fn consolidated_safe_head(
@@ -495,8 +714,12 @@ impl ConsolidateTask {
                 if let ConsolidateInput::Delegated(heads) = &self.input {
                     return self.follow_safe_head_during_el_sync(state, heads).await;
                 }
-                warn!(target: "engine", "Received `None` block for {}", block_num);
-                return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
+                match self.derived_block_once_el_syncs(state, block_num).await? {
+                    DerivedBlock::Committed(block) => *block,
+                    DerivedBlock::BuildFromAttributes => {
+                        return self.reconcile_mismatch(state).await;
+                    }
+                }
             }
             Err(_) => {
                 return Err(ConsolidateTaskError::FailedToFetchUnsafeL2Block);
@@ -655,17 +878,19 @@ impl ExecutableEngineTask for ConsolidateTask {
 mod tests {
     use super::*;
     use crate::{
-        EngineSyncState, EngineTaskError, EngineTaskErrorSeverity, FinalityViolation,
-        ImportedBlockSink, NoopBlockSink, SealTaskError,
+        EngineSyncState, EngineTaskError,
+        EngineTaskErrorSeverity::{self, Reset, Temporary, Wait},
+        FinalityViolation, ImportedBlockSink, NoopBlockSink, SealTaskError,
         test_utils::{
             RpcMock, TestAttributesBuilder, TestEngineStateBuilder, delegated_safe_heads,
-            l1_info_deposit, test_block_info, test_engine_client,
+            l1_info_deposit, test_block_info, test_engine_client, test_rpc_block_from_attributes,
         },
     };
-    use alloy_consensus::transaction::Recovered;
     use alloy_eips::{BlockNumHash, Encodable2718};
-    use alloy_primitives::{Address, B256};
-    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use alloy_primitives::B256;
+    use alloy_rpc_types_engine::{
+        ForkchoiceUpdated, INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatus, PayloadStatusEnum,
+    };
     use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
     use kona_genesis::ChainGenesis;
     use kona_protocol::BlockInfo;
@@ -700,8 +925,13 @@ mod tests {
             ..Default::default()
         };
         let sink = Arc::new(RecordingSink::default());
-        let task =
-            ConsolidateTask::new(client, cfg, delegated_safe_heads(safe_l2, safe_l2), sink.clone());
+        let task = ConsolidateTask::new(
+            client,
+            cfg,
+            delegated_safe_heads(safe_l2, safe_l2),
+            sink.clone(),
+            STALL,
+        );
 
         task.consolidate(&mut EngineState::default()).await.unwrap();
 
@@ -739,6 +969,7 @@ mod tests {
             cfg,
             ConsolidateInput::Attributes(Box::new(attributes.clone())),
             Arc::new(crate::NoopBlockSink),
+            STALL,
         );
         task.build_and_import_attributes(&mut state, attributes)
             .await
@@ -920,6 +1151,7 @@ mod tests {
             cfg,
             delegated_safe_heads(delegated_safe_head, delegated_safe_head),
             sink.clone(),
+            STALL,
         );
 
         task.execute(&mut state).await.unwrap();
@@ -930,32 +1162,267 @@ mod tests {
         l2.assert_finished();
     }
 
-    /// Unlike a delegated safe head, derived attributes whose block is missing below the unsafe
-    /// head still reset the engine.
-    #[tokio::test]
-    async fn derived_attributes_missing_from_el_reset_the_engine() {
-        let cfg = Arc::new(RollupConfig::default());
+    const STALL_SECS: u64 = 3600;
+    const STALL: Duration = Duration::from_secs(STALL_SECS);
+
+    /// A derived-attributes task for block 10 and an engine state whose unsafe head is above it.
+    fn task_for_missing_derived_block(client: EngineClient) -> (ConsolidateTask, EngineState) {
         let attributes = derived_attributes(true);
-        let mut state = engine_state_with_safe_head(attributes.parent);
-        let state_before = state;
-        let (client, l1, l2) = test_engine_client(cfg.clone());
-        l2.expect_params(
-            "eth_getBlockByNumber",
-            serde_json::json!(["0xa", true]),
-            None::<RpcBlock<Transaction>>,
-        );
+        let state = engine_state_with_safe_head(attributes.parent);
         let task = ConsolidateTask::new(
             Arc::new(client),
-            cfg,
+            Arc::new(RollupConfig::default()),
             ConsolidateInput::Attributes(Box::new(attributes)),
             Arc::new(NoopBlockSink),
+            STALL,
         );
+        (task, state)
+    }
+
+    /// The execution layer lacks block 10, reports no sync in progress, and answers the unchanged
+    /// forkchoice with `reply`.
+    fn el_lacks_derived_block(l2: &RpcMock, state: &EngineState, reply: PayloadStatusEnum) {
+        el_lacks_derived_block_and_reports(l2, IdleAt(100));
+        l2.expect_forkchoice_updated(state.sync_state.create_forkchoice_state(), reply);
+    }
+
+    /// The execution layer lacks block 10 and reports `report` about its sync.
+    fn el_lacks_derived_block_and_reports(l2: &RpcMock, report: ElReports) {
+        l2.expect_block_by_number(10, None);
+        report.expect_on(l2);
+    }
+
+    fn el_syncing(l2: &RpcMock, state: &EngineState) {
+        el_lacks_derived_block(l2, state, PayloadStatusEnum::Syncing);
+    }
+
+    fn el_valid_and_block_still_missing(l2: &RpcMock, state: &EngineState) {
+        el_lacks_derived_block(l2, state, PayloadStatusEnum::Valid);
+        l2.expect_block_by_number(10, None);
+    }
+
+    fn el_valid_and_recheck_fails(l2: &RpcMock, state: &EngineState) {
+        el_lacks_derived_block(l2, state, PayloadStatusEnum::Valid);
+        l2.expect_error("eth_getBlockByNumber");
+    }
+
+    fn el_invalid(l2: &RpcMock, state: &EngineState) {
+        el_lacks_derived_block(
+            l2,
+            state,
+            PayloadStatusEnum::Invalid { validation_error: "bad block".into() },
+        );
+    }
+
+    fn forkchoice_update_fails(l2: &RpcMock, _: &EngineState) {
+        el_lacks_derived_block_and_reports(l2, IdleAt(100));
+        l2.expect_error("engine_forkchoiceUpdatedV3");
+    }
+
+    fn forkchoice_state_rejected(l2: &RpcMock, _: &EngineState) {
+        el_lacks_derived_block_and_reports(l2, IdleAt(100));
+        l2.expect_error_code("engine_forkchoiceUpdatedV3", INVALID_FORK_CHOICE_STATE_ERROR as i64);
+    }
+
+    /// Derived attributes whose block is missing below the unsafe head resend the unchanged
+    /// forkchoice. An execution layer still syncing toward the unsafe head makes the task wait, and
+    /// a failed RPC is retried on the failure backoff; one that has the unsafe head but still not
+    /// the block, or rejects the forkchoice, resets the engine. The labels stay unchanged.
+    #[rstest::rstest]
+    #[case::el_syncing_waits(el_syncing, Wait)]
+    #[case::el_valid_and_block_still_missing_resets(el_valid_and_block_still_missing, Reset)]
+    #[case::el_valid_and_recheck_failing_is_retried(el_valid_and_recheck_fails, Temporary)]
+    #[case::el_invalid_resets(el_invalid, Reset)]
+    #[case::forkchoice_update_failing_is_retried(forkchoice_update_fails, Temporary)]
+    #[case::forkchoice_state_rejected_resets(forkchoice_state_rejected, Reset)]
+    #[tokio::test]
+    async fn derived_block_missing_from_el_asks_whether_it_syncs(
+        #[case] el_answers: fn(&RpcMock, &EngineState),
+        #[case] expected_severity: EngineTaskErrorSeverity,
+    ) {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let (task, mut state) = task_for_missing_derived_block(client);
+        let state_before = state;
+        el_answers(&l2, &state);
 
         let err = task.execute(&mut state).await.unwrap_err();
 
-        assert!(matches!(err, ConsolidateTaskError::MissingUnsafeL2Block(10)), "got {err:?}");
-        assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Reset);
+        assert_eq!(err.severity(), expected_severity, "got {err:?}");
         assert_eq!(state, state_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A probe answered `VALID` tells the engine the execution layer applied its forkchoice and
+    /// finished syncing, even when the recheck of the block then fails; only the labels stay.
+    #[tokio::test]
+    async fn valid_probe_records_the_el_sync_even_when_the_recheck_fails() {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let (task, mut state) = task_for_missing_derived_block(client);
+        state.el_applied_last_forkchoice = false;
+        state.el_sync_finished = false;
+        let sync_state_before = state.sync_state;
+        el_valid_and_recheck_fails(&l2, &state);
+
+        let err = task.execute(&mut state).await.unwrap_err();
+
+        assert_eq!(err.severity(), Temporary, "got {err:?}");
+        assert!(state.el_applied_last_forkchoice);
+        assert!(state.el_sync_finished);
+        assert_eq!(state.sync_state, sync_state_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// An execution layer that commits the derived block between the lookup and the forkchoice
+    /// update answers `VALID`; the block is then consolidated instead of resetting the engine.
+    #[tokio::test]
+    async fn derived_block_committed_during_the_probe_is_consolidated() {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let (task, mut state) = task_for_missing_derived_block(client);
+        let ConsolidateInput::Attributes(attributes) = &task.input else { unreachable!() };
+        let block = test_rpc_block_from_attributes(attributes);
+        let expected_sync_state =
+            with_safe_head(&state, block_info_of(&RollupConfig::default(), &block));
+        el_lacks_derived_block(&l2, &state, PayloadStatusEnum::Valid);
+        l2.expect_block_by_number(10, Some(block));
+        l2.expect_forkchoice_updated(
+            expected_sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Valid,
+        );
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state.sync_state, expected_sync_state);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// What the execution layer reports about its sync on one retry.
+    #[derive(Debug, Clone, Copy)]
+    enum ElReports {
+        /// No sync in progress, at this latest block.
+        IdleAt(u64),
+        /// A sync in progress, at this current block.
+        SyncingAt(u64),
+    }
+    use ElReports::{IdleAt, SyncingAt};
+
+    impl ElReports {
+        fn expect_on(self, l2: &RpcMock) {
+            match self {
+                IdleAt(latest_number) => l2.expect_el_not_syncing_at(latest_number),
+                SyncingAt(current_number) => l2.expect_el_syncing_at(current_number),
+            }
+        }
+    }
+
+    /// One retry of a task waiting for block 10, `elapsed_secs` after the previous one. The
+    /// execution layer lacks the block; on a check it also reports `check` about its sync and
+    /// answers the resent forkchoice with `SYNCING`.
+    #[derive(Debug, Clone, Copy)]
+    struct Retry {
+        check: Option<ElReports>,
+        elapsed_secs: u64,
+    }
+
+    /// A retry that checks on the execution layer.
+    const fn checking(elapsed_secs: u64, report: ElReports) -> Retry {
+        Retry { check: Some(report), elapsed_secs }
+    }
+
+    /// A retry between checks, which only looks the block up.
+    const fn looking_up(elapsed_secs: u64) -> Retry {
+        Retry { check: None, elapsed_secs }
+    }
+
+    impl Retry {
+        fn expect_on(self, l2: &RpcMock, state: &EngineState) {
+            l2.expect_block_by_number(10, None);
+            if let Some(report) = self.check {
+                report.expect_on(l2);
+                l2.expect_forkchoice_updated(
+                    state.sync_state.create_forkchoice_state(),
+                    PayloadStatusEnum::Syncing,
+                );
+            }
+        }
+    }
+
+    const CHECK_SECS: u64 = super::super::el_sync_progress::CHECK_INTERVAL.as_secs();
+
+    /// Across the retries of one task, the execution layer reports its sync on each check. Each
+    /// retry yields one severity: the task waits while the report changes, and resets once it has
+    /// stayed the same for the bound and the final check's forkchoice is still answered
+    /// `SYNCING`. Retries between checks make no RPC but the block lookup.
+    #[rstest::rstest]
+    #[case::progressing_el_keeps_waiting(&[checking(0, IdleAt(100)), checking(STALL_SECS - 1, IdleAt(101)), checking(STALL_SECS - 1, IdleAt(102))], &[Wait, Wait, Wait])]
+    #[case::stuck_el_resets_after_the_bound(&[checking(0, IdleAt(100)), checking(STALL_SECS - CHECK_SECS, IdleAt(100)), checking(CHECK_SECS, IdleAt(100))], &[Wait, Wait, Reset])]
+    #[case::stuck_sync_resets_after_the_bound(&[checking(0, SyncingAt(100)), checking(STALL_SECS, SyncingAt(100))], &[Wait, Reset])]
+    #[case::retries_between_checks_only_look_up(&[checking(0, IdleAt(100)), looking_up(2), looking_up(2)], &[Wait, Wait, Wait])]
+    #[case::check_interval_elapsing_checks(&[checking(0, IdleAt(100)), looking_up(2), checking(CHECK_SECS - 2, IdleAt(100))], &[Wait, Wait, Wait])]
+    #[tokio::test(start_paused = true)]
+    async fn wait_for_el_sync_is_bounded_by_its_progress(
+        #[case] retries: &[Retry],
+        #[case] expected_severities: &[EngineTaskErrorSeverity],
+    ) {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let (task, mut state) = task_for_missing_derived_block(client);
+        let mut severities = Vec::new();
+        for retry in retries {
+            tokio::time::advance(Duration::from_secs(retry.elapsed_secs)).await;
+            retry.expect_on(&l2, &state);
+            severities.push(task.execute(&mut state).await.unwrap_err().severity());
+        }
+
+        assert_eq!(severities, expected_severities);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// The check that finds the progress stalled still resends the forkchoice. An execution layer
+    /// that reached the unsafe head since the last check answers `VALID`, and the derived block is
+    /// consolidated instead of resetting the engine.
+    #[tokio::test(start_paused = true)]
+    async fn stalled_el_that_reached_the_unsafe_head_is_consolidated() {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let (task, mut state) = task_for_missing_derived_block(client);
+        checking(0, IdleAt(100)).expect_on(&l2, &state);
+        let first = task.execute(&mut state).await.unwrap_err().severity();
+
+        tokio::time::advance(STALL).await;
+        let ConsolidateInput::Attributes(attributes) = &task.input else { unreachable!() };
+        let block = test_rpc_block_from_attributes(attributes);
+        let expected_sync_state =
+            with_safe_head(&state, block_info_of(&RollupConfig::default(), &block));
+        el_lacks_derived_block(&l2, &state, PayloadStatusEnum::Valid);
+        l2.expect_block_by_number(10, Some(block));
+        l2.expect_forkchoice_updated(
+            expected_sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Valid,
+        );
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(first, Wait);
+        assert_eq!(state.sync_state, expected_sync_state);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A check whose forkchoice update fails is not counted as answered, so the next retry checks
+    /// again instead of waiting for the check interval.
+    #[tokio::test(start_paused = true)]
+    async fn failed_probe_is_retried_on_the_next_retry() {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let (task, mut state) = task_for_missing_derived_block(client);
+        forkchoice_update_fails(&l2, &state);
+        let first = task.execute(&mut state).await.unwrap_err().severity();
+
+        tokio::time::advance(Duration::from_secs(2)).await;
+        checking(0, IdleAt(100)).expect_on(&l2, &state);
+        let second = task.execute(&mut state).await.unwrap_err().severity();
+
+        assert_eq!([first, second], [Temporary, Wait]);
         l1.assert_finished();
         l2.assert_finished();
     }
@@ -967,26 +1434,6 @@ mod tests {
             .build();
         attributes.is_last_in_span = is_last_in_span;
         attributes
-    }
-
-    /// The unsafe block that `attributes` derive, so consolidation finds it consistent.
-    fn unsafe_block_matching(attributes: &OpAttributesWithParent) -> RpcBlock<Transaction> {
-        let payload_attributes = &attributes.attributes.payload_attributes;
-        let header = alloy_consensus::Header {
-            beneficiary: payload_attributes.suggested_fee_recipient,
-            gas_limit: attributes.attributes.gas_limit.unwrap(),
-            mix_hash: payload_attributes.prev_randao,
-            number: attributes.block_number(),
-            parent_beacon_block_root: payload_attributes.parent_beacon_block_root,
-            parent_hash: attributes.parent.block_info.hash,
-            timestamp: payload_attributes.timestamp,
-            ..Default::default()
-        };
-        let deposit = Transaction::from_transaction(
-            Recovered::new_unchecked(l1_info_deposit(), Address::ZERO),
-            Default::default(),
-        );
-        RpcBlock::new(RpcHeader::new(header), BlockTransactions::Full(vec![deposit]))
     }
 
     /// Derived blocks inside a span batch only move the safe label; the span's last block sends
@@ -1001,7 +1448,7 @@ mod tests {
     ) {
         let cfg = Arc::new(RollupConfig::default());
         let attributes = derived_attributes(is_last_in_span);
-        let block = unsafe_block_matching(&attributes);
+        let block = test_rpc_block_from_attributes(&attributes);
         let derived_safe_head = block_info_of(&cfg, &block);
         let mut state = engine_state_with_safe_head(attributes.parent);
         let expected_sync_state = with_safe_head(&state, derived_safe_head);
@@ -1018,6 +1465,7 @@ mod tests {
             cfg,
             ConsolidateInput::Attributes(Box::new(attributes)),
             Arc::new(NoopBlockSink),
+            STALL,
         );
 
         task.execute(&mut state).await.unwrap();
@@ -1168,6 +1616,7 @@ mod tests {
             cfg,
             delegated_safe_heads(local_safe, cross_safe),
             Arc::new(NoopBlockSink),
+            STALL,
         );
 
         let result = task.execute(state).await;
@@ -1374,6 +1823,28 @@ mod tests {
         .await
         .unwrap();
 
+        assert_eq!(state, state_before);
+    }
+
+    /// A failed lookup of a lagging delegated head changes nothing and is retried on the failure
+    /// backoff.
+    #[tokio::test]
+    async fn failed_lookup_of_a_lagging_delegated_head_is_retried() {
+        let delegated = engine_chain_block(10);
+        let mut state = engine_state_with_safe_labels(12, 12);
+        let state_before = state;
+
+        let err = run_delegated(&mut state, delegated, delegated, |l2| {
+            l2.expect_error("eth_getBlockByNumber");
+        })
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(err, ConsolidateTaskError::FailedToFetchDelegatedSafeBlock(10)),
+            "got {err:?}"
+        );
+        assert_eq!(err.severity(), Temporary);
         assert_eq!(state, state_before);
     }
 
@@ -1792,6 +2263,7 @@ mod tests {
             cfg,
             delegated_safe_heads(local_safe, local_safe),
             Arc::new(NoopBlockSink),
+            STALL,
         );
 
         task.execute(&mut state).await.unwrap();
@@ -1880,5 +2352,45 @@ mod tests {
         .unwrap();
 
         assert_eq!(state.sync_state, expected);
+    }
+
+    /// An execution layer that answers `SYNCING` while it reports no sync and sits at the derived
+    /// block's parent fetches nothing, as without peers, so the block is built from the derived
+    /// attributes on that parent instead of waiting: the build's forkchoice update follows.
+    #[tokio::test]
+    async fn el_idle_at_the_parent_builds_the_derived_block() {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let (task, mut state) = task_for_missing_derived_block(client);
+        el_lacks_derived_block_and_reports(&l2, IdleAt(9));
+        l2.expect_forkchoice_updated(
+            state.sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Syncing,
+        );
+        l2.expect_error("engine_forkchoiceUpdatedV2");
+
+        let err = task.execute(&mut state).await.unwrap_err();
+
+        assert!(matches!(err, ConsolidateTaskError::BuildTaskFailed(_)), "got {err:?}");
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A check whose probe fails records nothing: the wait has not started, so the next check's
+    /// reading starts it and its report still goes out.
+    #[tokio::test(start_paused = true)]
+    async fn failed_probe_does_not_start_the_wait() {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let (task, mut state) = task_for_missing_derived_block(client);
+        forkchoice_update_fails(&l2, &state);
+        task.execute(&mut state).await.unwrap_err();
+        let has_started_after_failure = task.el_sync_progress().has_started();
+
+        checking(0, IdleAt(100)).expect_on(&l2, &state);
+        task.execute(&mut state).await.unwrap_err();
+
+        assert!(!has_started_after_failure);
+        assert!(task.el_sync_progress().has_started());
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }
