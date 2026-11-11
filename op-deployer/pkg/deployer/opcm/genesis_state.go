@@ -19,9 +19,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
-// offlineScriptChainID is the chain ID of the Go script host's default context, so that offline forge
-// runs produce the same state. It matters for the L1 dev genesis, whose Permit2 preinstall has the
-// chain ID built in; L2Genesis sets the L2 chain ID itself.
+// offlineScriptChainID is the chain ID that offline forge runs see, the one that the genesis of
+// earlier releases was built with. It matters for the L1 dev genesis, whose Permit2 preinstall has
+// the chain ID built in; L2Genesis sets the L2 chain ID itself.
 const offlineScriptChainID = 1337
 
 // GenesisState is the L1 state of a genesis deployment. Each script runs offline in its own forge

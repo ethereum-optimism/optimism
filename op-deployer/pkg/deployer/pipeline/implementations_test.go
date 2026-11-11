@@ -198,6 +198,14 @@ func TestImplementationsInputSelectsStandardSP1Verifier(t *testing.T) {
 		})
 	}
 
+	for _, isGenesis := range []bool{false, true} {
+		t.Run(fmt.Sprintf("mock is accepted on a development L1/isGenesis=%t", isGenesis), func(t *testing.T) {
+			input, err := implementationsInput(&Env{DeployMockSP1Verifier: true, IsGenesis: isGenesis}, intentFor(900, nil), newSP1VerifierTestState())
+			require.NoError(t, err)
+			require.Equal(t, common.Address{}, input.SP1Verifier, "zero selects the mock")
+		})
+	}
+
 	t.Run("genesis does not select the release verifier", func(t *testing.T) {
 		_, err := implementationsInput(&Env{IsGenesis: true}, intentFor(11155111, nil), newSP1VerifierTestState())
 		require.ErrorContains(t, err, "sp1Verifier must be specified")

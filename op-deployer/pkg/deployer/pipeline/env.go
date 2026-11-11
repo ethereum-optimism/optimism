@@ -34,8 +34,8 @@ type Env struct {
 	IsGenesis bool
 	// DeployMockSP1Verifier explicitly opts development environments into an accept-all raw verifier.
 	DeployMockSP1Verifier bool
-	// AllowUnoptimizedContracts permits contract artifacts that exceed the EIP-170 code-size limit.
-	// It is only enabled for genesis-mode deployments.
+	// AllowUnoptimizedContracts lets the L2 genesis hold contracts over the EIP-170 code-size limit.
+	// Genesis deployments set it, as does the test-only ApplyPipelineOpts.AllowUnoptimizedContracts.
 	AllowUnoptimizedContracts bool
 	Context                   context.Context
 }
