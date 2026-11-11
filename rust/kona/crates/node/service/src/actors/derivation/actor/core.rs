@@ -375,6 +375,9 @@ where
 
                 self.attempt_derivation().await?;
             }
+            DerivationActorRequest::ProcessRejectedDelegatedSafeHeads { heads, .. } => {
+                debug!(target: "derivation", ?heads, "Ignoring rejected delegated safe heads while deriving");
+            }
             DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
                 self.derivation_state_machine
