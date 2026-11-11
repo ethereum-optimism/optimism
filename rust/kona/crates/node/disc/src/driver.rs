@@ -1002,27 +1002,23 @@ mod tests {
         );
     }
 
-    /// A node with a public-only table filter should use only public addresses: it shouldn't dial
-    /// a node at a private address even after a session with it, which only shows that the node is
-    /// reachable from here. To peer with private nodes, a node needs `--p2p.discovery.private`, or
-    /// static peers.
+    /// A node with a public-only table filter should dial a node at a private address back after a
+    /// session with it, but not save it. The private node reached us first: our lookups and
+    /// bootnodes go through the filter, so a session from a private address is one the other node
+    /// started. Its packets came from that address, so the dial reaches a node on our own network,
+    /// not a host it pointed us at. Refusing the dial wouldn't keep the two apart either, as the
+    /// private node can dial us, and gossip accepts it. Not saving the record keeps private
+    /// addresses out of the bootstore, which dials what it holds after a restart.
     ///
-    /// N has a public-only filter. L has none, and has N as its bootnode, given by an enode URL on
-    /// loopback, so L's bootstrap starts a session with N from loopback, which L's record holds.
+    /// N has a public-only filter, and a bootstore with a public record. L has no filter, and has
+    /// N as its bootnode, given by an enode URL on loopback, so L's bootstrap starts a session with
+    /// N from loopback, which L's record holds.
     #[tokio::test]
-    async fn test_public_only_node_does_not_dial_a_private_session() {
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        let node = Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
-            0xdead_beef,
-            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into())
-                .table_filter(crate::public_only)
-                .build(),
-        )
-        .build()
-        .expect("the node builds");
+    async fn test_public_only_node_dials_a_private_session_back_without_saving_it() {
+        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), BOOTSTORE_CHAIN_ID);
+        let (mut node, dir) = public_driver_with_bootstore(std::slice::from_ref(&public));
+        node.store_interval = Duration::from_millis(100);
+        let path = dir.path().join("bootstore.json");
         let node_enr = node.disc.local_enr();
         let peer_id = kona_peers::enr_to_multiaddr(&node_enr)
             .and_then(|addr| addr.iter().last().map(|protocol| protocol.acquire()))
@@ -1031,26 +1027,48 @@ mod tests {
             .with(Protocol::Udp(node_enr.udp4().expect("the node has a UDP port")))
             .with(Protocol::Tcp(0))
             .with(peer_id);
-        let (node, mut records) = node.start();
+        let (_node, mut records) = node.start();
 
         let mut loopback = offline_driver();
         loopback.bootnodes = BootNodes(vec![BootNode::Enode(enode)]);
         let loopback_id = loopback.disc.local_enr().node_id();
         let (_loopback, _) = loopback.start();
 
-        // discv5 adds a node it has a session with to its table, without the table filter, before
-        // it reports the session.
-        let session = async {
-            while !node.table_enrs().await.unwrap().iter().any(|enr| enr.node_id() == loopback_id) {
+        // The driver also hands over the saved public record, at startup and every store interval.
+        let dialed = async {
+            loop {
+                let record = records.recv().await.expect("the driver runs");
+                if record.node_id() == loopback_id {
+                    return record;
+                }
+            }
+        };
+        let dialed = tokio::time::timeout(Duration::from_secs(5), dialed)
+            .await
+            .expect("a public-only node didn't dial a session at a loopback address back");
+
+        // Wait for a save after the dial. A read while the driver writes can come back empty, so
+        // wait for one that holds the public record.
+        let dialed_at = std::time::SystemTime::now();
+        let saved_after_dial = async {
+            loop {
+                let modified = std::fs::metadata(&path).and_then(|meta| meta.modified());
+                if modified.is_ok_and(|modified| modified > dialed_at) {
+                    let store: BootStore = BootStoreFile::Custom(path.clone())
+                        .try_into()
+                        .expect("the bootstore opens");
+                    let saved = store.valid_peers().into_iter().cloned().collect::<Vec<_>>();
+                    if saved.contains(&public) {
+                        return saved;
+                    }
+                }
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
         };
-        tokio::time::timeout(Duration::from_secs(5), session)
+        let saved = tokio::time::timeout(Duration::from_secs(5), saved_after_dial)
             .await
-            .expect("the loopback node starts a session with the node");
-
-        let dialed = tokio::time::timeout(Duration::from_secs(1), records.recv()).await;
-        assert!(dialed.is_err(), "a public-only node dialed a session at a loopback address");
+            .expect("the driver saves its bootstore every store interval");
+        assert!(!saved.contains(&dialed), "a public-only node saved a loopback record");
     }
 
     /// An enode bootnode is contacted only if the table filter accepts its address, or it has none.
