@@ -68,17 +68,13 @@ abstract contract ComplianceModule_TestInit is CommonTest {
         impl = IComplianceModule(
             DeployUtils.create1({
                 _name: "ComplianceModule",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IComplianceModule.__constructor__, (optimismPortal2, l1CrossDomainMessenger, l1StandardBridge)
-                    )
-                )
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IComplianceModule.__constructor__, ()))
             })
         );
 
         module = _newProxy();
         vm.prank(custodian);
-        module.initialize(moduleOwner, policy);
+        module.initialize(moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
 
         vm.store(
             address(optimismPortal2),
@@ -112,47 +108,18 @@ abstract contract ComplianceModule_TestInit is CommonTest {
 /// @title ComplianceModule_Constructor_Test
 /// @notice Tests the constructor of the `ComplianceModule` contract.
 contract ComplianceModule_Constructor_Test is ComplianceModule_TestInit {
-    /// @notice Tests that the implementation exposes its addresses and rejects initialization.
+    /// @notice Tests that the implementation rejects initialization.
     function test_constructor_succeeds() external {
-        assertEq(address(impl.portal()), address(optimismPortal2));
-        assertEq(address(impl.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
-        assertEq(address(impl.bridge()), address(l1StandardBridge));
-
         vm.expectRevert(IComplianceModule.InvalidInitialization.selector);
         vm.prank(custodian);
-        impl.initialize(moduleOwner, policy);
-    }
-
-    /// @notice Tests that the constructor reverts when any address is zero.
-    function test_constructor_zeroAddress_reverts() external {
-        address[3][3] memory args = [
-            [address(0), address(l1CrossDomainMessenger), address(l1StandardBridge)],
-            [address(optimismPortal2), address(0), address(l1StandardBridge)],
-            [address(optimismPortal2), address(l1CrossDomainMessenger), address(0)]
-        ];
-        for (uint256 i; i < args.length; i++) {
-            vm.expectRevert(IComplianceModule.ComplianceModule_ZeroAddress.selector);
-            DeployUtils.create1({
-                _name: "ComplianceModule",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IComplianceModule.__constructor__,
-                        (
-                            IOptimismPortal2(payable(args[i][0])),
-                            IL1CrossDomainMessenger(args[i][1]),
-                            IL1StandardBridge(payable(args[i][2]))
-                        )
-                    )
-                )
-            });
-        }
+        impl.initialize(moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
     }
 }
 
 /// @title ComplianceModule_Initialize_Test
 /// @notice Tests the `initialize` function of the `ComplianceModule` contract.
 contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
-    /// @notice Tests that initialize sets the owner and policy and emits both events.
+    /// @notice Tests that initialize sets the owner, policy and addresses and emits both events.
     function test_initialize_succeeds() external {
         IComplianceModule proxy = _newProxy();
 
@@ -162,10 +129,13 @@ contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
         emit PolicySet(IPolicy(address(0)), policy);
 
         vm.prank(custodian);
-        proxy.initialize(moduleOwner, policy);
+        proxy.initialize(moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
 
         assertEq(proxy.owner(), moduleOwner);
         assertEq(address(proxy.policy()), address(policy));
+        assertEq(address(proxy.portal()), address(optimismPortal2));
+        assertEq(address(proxy.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
+        assertEq(address(proxy.bridge()), address(l1StandardBridge));
     }
 
     /// @notice Tests that initialize reverts for a caller other than the ProxyAdmin or its owner.
@@ -175,14 +145,14 @@ contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
 
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
         vm.prank(_caller);
-        proxy.initialize(moduleOwner, policy);
+        proxy.initialize(moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
     }
 
     /// @notice Tests that a second initialize reverts.
     function test_initialize_alreadyInitialized_reverts() external {
         vm.expectRevert(IComplianceModule.InvalidInitialization.selector);
         vm.prank(custodian);
-        module.initialize(moduleOwner, policy);
+        module.initialize(moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
     }
 
     /// @notice Tests that initialize reverts for a zero owner.
@@ -191,7 +161,7 @@ contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
 
         vm.expectRevert(IComplianceModule.ComplianceModule_ZeroAddress.selector);
         vm.prank(custodian);
-        proxy.initialize(address(0), policy);
+        proxy.initialize(address(0), policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
     }
 
     /// @notice Tests that initialize reverts for a zero policy.
@@ -200,7 +170,28 @@ contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
 
         vm.expectRevert(IComplianceModule.ComplianceModule_ZeroAddress.selector);
         vm.prank(custodian);
-        proxy.initialize(moduleOwner, IPolicy(address(0)));
+        proxy.initialize(moduleOwner, IPolicy(address(0)), optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
+    }
+
+    /// @notice Tests that initialize reverts when the Portal, messenger or bridge is zero.
+    function test_initialize_zeroAddress_reverts() external {
+        address[3][3] memory args = [
+            [address(0), address(l1CrossDomainMessenger), address(l1StandardBridge)],
+            [address(optimismPortal2), address(0), address(l1StandardBridge)],
+            [address(optimismPortal2), address(l1CrossDomainMessenger), address(0)]
+        ];
+        for (uint256 i; i < args.length; i++) {
+            IComplianceModule proxy = _newProxy();
+            vm.expectRevert(IComplianceModule.ComplianceModule_ZeroAddress.selector);
+            vm.prank(custodian);
+            proxy.initialize(
+                moduleOwner,
+                policy,
+                IOptimismPortal2(payable(args[i][0])),
+                IL1CrossDomainMessenger(args[i][1]),
+                IL1StandardBridge(payable(args[i][2]))
+            );
+        }
     }
 }
 

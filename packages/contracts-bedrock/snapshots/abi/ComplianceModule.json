@@ -1,22 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "contract IOptimismPortal2",
-        "name": "_portal",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IL1CrossDomainMessenger",
-        "name": "_l1CrossDomainMessenger",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IL1StandardBridge",
-        "name": "_l1StandardBridge",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -33,7 +17,7 @@
     "outputs": [
       {
         "internalType": "contract IL1StandardBridge",
-        "name": "bridge_",
+        "name": "",
         "type": "address"
       }
     ],
@@ -401,6 +385,21 @@
         "internalType": "contract IPolicy",
         "name": "_policy",
         "type": "address"
+      },
+      {
+        "internalType": "contract IOptimismPortal2",
+        "name": "_portal",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IL1CrossDomainMessenger",
+        "name": "_l1CrossDomainMessenger",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IL1StandardBridge",
+        "name": "_l1StandardBridge",
+        "type": "address"
       }
     ],
     "name": "initialize",
@@ -445,7 +444,7 @@
     "outputs": [
       {
         "internalType": "contract IL1CrossDomainMessenger",
-        "name": "l1CrossDomainMessenger_",
+        "name": "",
         "type": "address"
       }
     ],
@@ -586,7 +585,7 @@
     "outputs": [
       {
         "internalType": "contract IOptimismPortal2",
-        "name": "portal_",
+        "name": "",
         "type": "address"
       }
     ],

@@ -47,16 +47,23 @@ interface IComplianceModule is IBridgeHook, IProxyAdminOwnedBase {
     event Disabled(uint256 cutoffL2Nonce);
     event Enabled();
 
-    function initialize(address _owner, IPolicy _policy) external;
+    function initialize(
+        address _owner,
+        IPolicy _policy,
+        IOptimismPortal2 _portal,
+        IL1CrossDomainMessenger _l1CrossDomainMessenger,
+        IL1StandardBridge _l1StandardBridge
+    )
+        external;
     function version() external view returns (string memory);
     function owner() external view returns (address);
     function pendingOwner() external view returns (address);
     function transferOwnership(address newOwner) external; // nosemgrep
     function acceptOwnership() external;
     function renounceOwnership() external pure;
-    function portal() external view returns (IOptimismPortal2 portal_);
-    function bridge() external view returns (IL1StandardBridge bridge_);
-    function l1CrossDomainMessenger() external view returns (IL1CrossDomainMessenger l1CrossDomainMessenger_);
+    function portal() external view returns (IOptimismPortal2);
+    function bridge() external view returns (IL1StandardBridge);
+    function l1CrossDomainMessenger() external view returns (IL1CrossDomainMessenger);
     function policy() external view returns (IPolicy);
     function disabled() external view returns (bool);
     function cutoffL2Nonce() external view returns (uint256);
@@ -72,10 +79,5 @@ interface IComplianceModule is IBridgeHook, IProxyAdminOwnedBase {
     function completeDeposit(BridgeHookTypes.Item calldata _item) external;
     function completeWithdrawal(BridgeHookTypes.Item calldata _item) external;
 
-    function __constructor__(
-        IOptimismPortal2 _portal,
-        IL1CrossDomainMessenger _l1CrossDomainMessenger,
-        IL1StandardBridge _l1StandardBridge
-    )
-        external;
+    function __constructor__() external;
 }

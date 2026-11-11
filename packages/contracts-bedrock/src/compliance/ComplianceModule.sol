@@ -44,19 +44,13 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     string public constant version = "1.0.0";
 
     /// @notice The OptimismPortal this module is the hook for.
-    // nosemgrep: sol-safety-no-immutable-variables
-    IOptimismPortal2 internal immutable PORTAL;
+    IOptimismPortal2 public portal;
 
     /// @notice The L1CrossDomainMessenger used to resolve the parties of an item.
-    // nosemgrep: sol-safety-no-immutable-variables
-    IL1CrossDomainMessenger internal immutable L1_CROSS_DOMAIN_MESSENGER;
+    IL1CrossDomainMessenger public l1CrossDomainMessenger;
 
     /// @notice The L1StandardBridge used to resolve the parties of an item and to restore tokens.
-    // nosemgrep: sol-safety-no-immutable-variables
-    IL1StandardBridge internal immutable BRIDGE;
-
-    /// @notice Item identifier to hold status and clear verdict.
-    mapping(bytes32 => Record) internal _items;
+    IL1StandardBridge public bridge;
 
     /// @notice The policy the module consults and accepts verdicts from.
     IPolicy public policy;
@@ -67,6 +61,9 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
 
     /// @notice The first L2 withdrawal nonce that skips screening while the module is disabled.
     uint256 public cutoffL2Nonce;
+
+    /// @notice Item identifier to hold status and clear verdict.
+    mapping(bytes32 => Record) internal _items;
 
     /// @notice Amount of escrowed tokens held for each L1 token and L2 token pair.
     ///         Excludes mintable tokens, which the bridge burns instead of transferring here.
@@ -138,61 +135,47 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     /// @notice Emitted when screening is enabled.
     event Enabled();
 
-    /// @notice Deploys an implementation bound to the supplied Portal, messenger, and bridge.
-    ///         All three addresses must be nonzero and must belong to the same chain configuration.
-    ///         The Portal does not need to be initialized before this implementation is deployed.
-    ///         Initialization is only available through a proxy.
-    /// @param _portal                 The Portal that will use this module as its bridge hook.
-    /// @param _l1CrossDomainMessenger The L1CrossDomainMessenger for the same chain.
-    /// @param _l1StandardBridge       The L1StandardBridge for the same chain.
-    constructor(
-        IOptimismPortal2 _portal,
-        IL1CrossDomainMessenger _l1CrossDomainMessenger,
-        IL1StandardBridge _l1StandardBridge
-    )
+    /// @notice Deploys an implementation whose initializers are disabled. Initialization is only
+    ///         available through a proxy.
+    constructor()
         // OpenZeppelin v5 Ownable requires a nonzero owner. This placeholder is stored only in
         // the implementation, whose initializers are disabled. The proxy's owner is set in
         // initialize().
         Ownable(address(0xdEaD))
     {
-        if (
-            address(_portal) == address(0) || address(_l1CrossDomainMessenger) == address(0)
-                || address(_l1StandardBridge) == address(0)
-        ) revert ComplianceModule_ZeroAddress();
-
-        PORTAL = _portal;
-        L1_CROSS_DOMAIN_MESSENGER = _l1CrossDomainMessenger;
-        BRIDGE = _l1StandardBridge;
         _disableInitializers();
     }
 
     /// @notice Initializes the proxy once. Only its ProxyAdmin or the ProxyAdmin's owner can call.
     ///         The module owner manages the policy and screening bypass, separately from proxy
-    ///         upgrades.
-    /// @param _owner  The nonzero address that will own the module.
-    /// @param _policy The nonzero address of the initial policy.
-    function initialize(address _owner, IPolicy _policy) external initializer {
+    ///         upgrades. The Portal does not need to be initialized first.
+    /// @param _owner                  The nonzero address that will own the module.
+    /// @param _policy                 The nonzero address of the initial policy.
+    /// @param _portal                 The Portal that will use this module as its bridge hook.
+    /// @param _l1CrossDomainMessenger The L1CrossDomainMessenger for the same chain.
+    /// @param _l1StandardBridge       The L1StandardBridge for the same chain.
+    function initialize(
+        address _owner,
+        IPolicy _policy,
+        IOptimismPortal2 _portal,
+        IL1CrossDomainMessenger _l1CrossDomainMessenger,
+        IL1StandardBridge _l1StandardBridge
+    )
+        external
+        initializer
+    {
         _assertOnlyProxyAdminOrProxyAdminOwner();
-        if (_owner == address(0) || address(_policy) == address(0)) revert ComplianceModule_ZeroAddress();
+        if (
+            _owner == address(0) || address(_policy) == address(0) || address(_portal) == address(0)
+                || address(_l1CrossDomainMessenger) == address(0) || address(_l1StandardBridge) == address(0)
+        ) revert ComplianceModule_ZeroAddress();
 
         _transferOwnership(_owner);
         policy = _policy;
+        portal = _portal;
+        l1CrossDomainMessenger = _l1CrossDomainMessenger;
+        bridge = _l1StandardBridge;
         emit PolicySet(IPolicy(address(0)), _policy);
-    }
-
-    /// @notice Returns the OptimismPortal this module is the hook for.
-    function portal() external view returns (IOptimismPortal2 portal_) {
-        portal_ = PORTAL;
-    }
-
-    /// @notice Returns the messenger used to identify the parties of a cross-domain message.
-    function l1CrossDomainMessenger() external view returns (IL1CrossDomainMessenger l1CrossDomainMessenger_) {
-        l1CrossDomainMessenger_ = L1_CROSS_DOMAIN_MESSENGER;
-    }
-
-    /// @notice Returns the bridge used to identify token transfers and restore held tokens.
-    function bridge() external view returns (IL1StandardBridge bridge_) {
-        bridge_ = BRIDGE;
     }
 
     /// @notice Returns the record for an item identifier.
@@ -203,7 +186,7 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
 
     /// @notice Returns whether the Portal is paused.
     function paused() external view returns (bool) {
-        return PORTAL.paused();
+        return portal.paused();
     }
 
     /// @notice Returns the sender and recipient that the policy screens for an item. Decodes
@@ -283,7 +266,7 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     /// @param _item The item as emitted in Held.
     function completeDeposit(BridgeHookTypes.Item calldata _item) external {
         bytes32 id = _release(_item);
-        PORTAL.completeDepositTransaction{ value: _item.ethAmount }(_item);
+        portal.completeDepositTransaction{ value: _item.ethAmount }(_item);
         emit Completed(id);
     }
 
@@ -291,10 +274,10 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     ///         not paused. Requires a clear verdict and policy approval.
     /// @param _item The item as emitted in Held.
     function completeWithdrawal(BridgeHookTypes.Item calldata _item) external {
-        if (PORTAL.paused()) revert ComplianceModule_Paused();
+        if (portal.paused()) revert ComplianceModule_Paused();
 
         bytes32 id = _release(_item);
-        PORTAL.completeWithdrawalTransaction{ value: _item.ethAmount }(_item);
+        portal.completeWithdrawalTransaction{ value: _item.ethAmount }(_item);
         emit Completed(id);
     }
 
@@ -333,8 +316,8 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     /// @notice Reverts unless the caller is the Portal and this module is its bridge hook.
     ///         Checks both because the Portal can call a former hook as a withdrawal target.
     function _assertOnlyActiveHook() internal view {
-        if (msg.sender != address(PORTAL)) revert ComplianceModule_CallerNotPortal();
-        if (address(PORTAL.bridgeHook()) != address(this)) revert ComplianceModule_NotActiveHook();
+        if (msg.sender != address(portal)) revert ComplianceModule_CallerNotPortal();
+        if (address(portal.bridgeHook()) != address(this)) revert ComplianceModule_NotActiveHook();
     }
 
     /// @notice Reverts unless the caller is the policy.
@@ -382,7 +365,7 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
         // The token kind remains available until the Portal calls the bridge's restoreERC20.
         (bool escrowed, address l1Token, address l2Token, uint256 amount) = _escrowedTransfer(_item, id_);
         if (escrowed) {
-            IERC20(l1Token).forceApprove(address(BRIDGE), amount);
+            IERC20(l1Token).forceApprove(address(bridge), amount);
             heldTokens[l1Token][l2Token] -= amount;
         }
     }
@@ -404,7 +387,7 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     {
         if (
             _item.asset != BridgeHookTypes.Asset.ERC20
-                || BRIDGE.heldTokenKinds(_id) != BridgeHookTypes.TokenKind.Escrowed
+                || bridge.heldTokenKinds(_id) != BridgeHookTypes.TokenKind.Escrowed
         ) return (false, address(0), address(0), 0);
 
         (, bytes memory message) = BridgeHookDecoder.extractTokenMessage(_item);
@@ -417,7 +400,7 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     /// @return parties_ The sender, then the recipient.
     function _parties(BridgeHookTypes.Item memory _item) internal view returns (address[] memory parties_) {
         (address initiator, address recipient) =
-            BridgeHookDecoder.resolveParties(_item, address(L1_CROSS_DOMAIN_MESSENGER), address(BRIDGE));
+            BridgeHookDecoder.resolveParties(_item, address(l1CrossDomainMessenger), address(bridge));
         parties_ = new address[](2);
         parties_[0] = initiator;
         parties_[1] = recipient;
