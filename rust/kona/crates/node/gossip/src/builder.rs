@@ -6,13 +6,14 @@ use kona_peers::{PeerMonitoring, PeerScoreLevel};
 use libp2p::{
     Multiaddr, PeerId, SwarmBuilder,
     core::{muxing::StreamMuxerBox, transport::Boxed},
+    dns::{ResolverConfig, ResolverOpts},
     gossipsub::Config,
     identity::Keypair,
     noise::Config as NoiseConfig,
     tcp::Config as TcpConfig,
     yamux::Config as YamuxConfig,
 };
-use std::{convert::Infallible, error::Error, time::Duration};
+use std::{convert::Infallible, error::Error, fmt::Display, time::Duration};
 use tokio::sync::watch;
 
 use crate::{
@@ -33,7 +34,8 @@ pub type TransportBuilder = Box<
 /// The transport the gossip swarm listens and dials on.
 #[derive(Default, derive_more::Debug)]
 pub enum GossipTransport {
-    /// TCP, with DNS resolution of `/dns`, `/dns4` and `/dns6` addresses.
+    /// TCP, wrapped in a DNS transport that resolves names with the system's resolver
+    /// configuration, or with no nameservers when that can't be read.
     #[default]
     Tcp,
     /// A transport built by the caller, such as an in-memory one in tests.
@@ -263,8 +265,11 @@ impl GossipDriverBuilder {
         let custom_transport = matches!(transport, GossipTransport::Other(_));
         let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
         let swarm = match transport {
-            // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
-            GossipTransport::Tcp => builder
+            // Note: with_dns_config() must be called after with_tcp() to wrap TCP with DNS
+            // resolution.
+            GossipTransport::Tcp => {
+                let (dns_config, dns_opts) = dns_resolver_config();
+                builder
                 .with_tcp(
                     TcpConfig::default().nodelay(true),
                     |i: &Keypair| {
@@ -274,12 +279,12 @@ impl GossipDriverBuilder {
                     YamuxConfig::default,
                 )
                 .map_err(GossipDriverBuilderError::TcpError)?
-                .with_dns()
-                .map_err(GossipDriverBuilderError::DnsError)?
+                .with_dns_config(dns_config, dns_opts)
                 .with_behaviour(|_| behaviour)
                 .unwrap_or_else(|never: Infallible| match never {})
                 .with_swarm_config(|c| c.with_idle_connection_timeout(timeout))
-                .build(),
+                .build()
+            }
             GossipTransport::Other(build_transport) => builder
                 .with_other_transport(build_transport)
                 .map_err(GossipDriverBuilderError::OtherTransportError)?
@@ -309,16 +314,59 @@ impl GossipDriverBuilder {
     }
 }
 
+/// The resolver configuration for the transport's DNS resolution, read from the system.
+///
+/// Reading it can fail on a working host. On macOS it comes from the `SystemConfiguration` store,
+/// whose nameservers can include a scoped link-local address such as `fe80::1%en0` when a router
+/// advertises one, and the resolver cannot parse the scope. On Linux it fails when
+/// `/etc/resolv.conf` lists no nameservers.
+fn dns_resolver_config() -> (ResolverConfig, ResolverOpts) {
+    system_dns_config_or_none(hickory_resolver::system_conf::read_system_conf())
+}
+
+/// The system's resolver configuration when it was read, otherwise one with no nameservers, so
+/// the transport resolves no DNS names itself and IP addresses are unaffected.
+///
+/// The fallback deliberately names no public resolver, so that no name is ever sent to a DNS
+/// provider the operator didn't configure.
+fn system_dns_config_or_none<E: Display>(
+    system_config: Result<(ResolverConfig, ResolverOpts), E>,
+) -> (ResolverConfig, ResolverOpts) {
+    system_config.unwrap_or_else(|error| {
+        warn!(
+            target: "gossip",
+            %error,
+            "Unable to read the system DNS configuration; the gossip transport will not resolve DNS names itself"
+        );
+        (ResolverConfig::from_parts(None, Vec::new(), Vec::new()), ResolverOpts::default())
+    })
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use crate::GossipDriver;
+    use hickory_resolver::config::NameServerConfig;
     use libp2p::{
         Transport,
         core::{transport::MemoryTransport, upgrade::Version},
         multiaddr::Protocol,
     };
-    use std::collections::HashMap;
+    use rstest::rstest;
+    use std::{
+        collections::HashMap,
+        net::{IpAddr, Ipv4Addr},
+    };
+
+    const SYSTEM_NAMESERVER: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 53));
+
+    /// A system resolver configuration read successfully, listing `nameservers`.
+    fn system_config_with(
+        nameservers: &[IpAddr],
+    ) -> Result<(ResolverConfig, ResolverOpts), &'static str> {
+        let nameservers = nameservers.iter().copied().map(NameServerConfig::udp_and_tcp).collect();
+        Ok((ResolverConfig::from_parts(None, Vec::new(), nameservers), ResolverOpts::default()))
+    }
 
     /// An in-process transport with the upgrades `with_tcp` applies: lazy protocol negotiation,
     /// Noise, then Yamux.
@@ -462,5 +510,30 @@ pub(crate) mod tests {
         driver_1.dial_multiaddr(addr_2).expect("dial");
 
         poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// The system's nameservers are used when its configuration was read. When it wasn't, the
+    /// transport gets no nameservers rather than failing the build or using a public resolver.
+    #[rstest]
+    #[case::read(system_config_with(&[SYSTEM_NAMESERVER]), &[SYSTEM_NAMESERVER])]
+    #[case::unreadable(Err("failed to parse nameserver address"), &[])]
+    fn test_system_dns_config_or_none(
+        #[case] system_config: Result<(ResolverConfig, ResolverOpts), &'static str>,
+        #[case] expected_nameservers: &[IpAddr],
+    ) {
+        let (config, _) = system_dns_config_or_none(system_config);
+
+        let nameservers: Vec<IpAddr> = config.name_servers.iter().map(|server| server.ip).collect();
+        assert_eq!(nameservers, expected_nameservers);
+    }
+
+    /// libp2p panics if the DNS transport's resolver fails to build, so a resolver that rejected
+    /// the empty fallback config would crash the hosts the fallback exists for.
+    #[tokio::test]
+    async fn test_dns_transport_builds_from_fallback_config() {
+        let (config, opts) = system_dns_config_or_none(Err("failed to parse nameserver address"));
+
+        let _transport =
+            libp2p::dns::tokio::Transport::custom(MemoryTransport::default(), config, opts);
     }
 }

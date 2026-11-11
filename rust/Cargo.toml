@@ -658,6 +658,7 @@ zstd = "0.14"
 
 # ==================== NETWORKING ====================
 discv5 = "0.12.0"
+hickory-resolver = { version = "0.26.3", default-features = false, features = ["system-config"] }
 ipnet = "2.11.0"
 libp2p = "0.57.0"
 libp2p-stream = "0.5.0-alpha"
