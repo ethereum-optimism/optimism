@@ -20,6 +20,7 @@ Usage:
   upstream-mirrors.py --stale-only    only the stale bump worklist
   upstream-mirrors.py --json          machine-readable, for CI comments
   upstream-mirrors.py --check         exit 1 on tag or workspace metadata errors
+  upstream-mirrors.py --check-tag-pin exit 1 unless reth is pinned by tag, lockfiles included
 """
 
 from __future__ import annotations
@@ -295,6 +296,61 @@ def reth_pin(manifest_path: Path | None = None) -> tuple[str, str]:
     return token, repo
 
 
+def tracked_lockfiles(root: Path = RUST_ROOT) -> list[Path]:
+    """Every `Cargo.lock` git tracks under `root`."""
+    files = subprocess.run(
+        ["git", "ls-files", "-z", "*Cargo.lock"],
+        cwd=root, stdout=subprocess.PIPE, text=True, check=True,
+    ).stdout.split("\0")
+    locks = [root / rel for rel in filter(None, files)]
+    if not locks:
+        raise ConfigError(f"no tracked Cargo.lock under {root}")
+    return locks
+
+
+def untagged_reth_sources(lock_path: Path) -> list[str]:
+    """`name source` for each locked reth git package not resolved through a release or fork tag."""
+    with lock_path.open("rb") as lock_file:
+        packages = tomllib.load(lock_file).get("package", [])
+
+    untagged = []
+    for package in packages:
+        source = package.get("source", "")
+        match = re.fullmatch(r"git\+https://github\.com/[\w.-]+/reth(?:\.git)?(?:\?(?P<query>[^#]*))?#.*", source)
+        if match is None:
+            continue
+        tag = re.fullmatch(r"tag=(?P<tag>[^&]+)", match.group("query") or "")
+        try:
+            kind = parse_reth_token(tag.group("tag"))[0] if tag else None
+        except ValueError:
+            kind = None
+        if kind not in ("tag", "fork"):
+            untagged.append(f"{package['name']} {source}")
+    return untagged
+
+
+def tag_pin(manifest_path: Path | None = None, lockfiles: list[Path] | None = None) -> str:
+    """Return the reth family's tag; raise `ConfigError` on a `rev` pin or an untagged locked source.
+
+    The lockfiles also catch a reth crate a member manifest pins outside the workspace pin.
+    """
+    token, repo = reth_pin(manifest_path)
+    if token.startswith("rev:"):
+        raise ConfigError(
+            f"reth is pinned by rev {token[4:]} on {repo}: pin a v<semver> release tag or an "
+            "op-<base>-<n> fork tag before the PR leaves draft "
+            "(rust/UPDATING-RETH.md, \"Pinning a fork change\")"
+        )
+    for lock in tracked_lockfiles() if lockfiles is None else lockfiles:
+        untagged = untagged_reth_sources(lock)
+        if untagged:
+            raise ConfigError(
+                f"{lock} resolves reth crates without a release or fork tag: "
+                + "; ".join(untagged)
+            )
+    return token
+
+
 def workspace_requirements(manifest_path: Path | None = None) -> dict[str, str]:
     """The version requirement each crates.io dependency is declared with in the workspace."""
     path = manifest_path or RUST_ROOT / "Cargo.toml"
@@ -491,7 +547,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="exit 1 on malformed/ahead/unknown/ambiguous tags (not on stale)",
     )
+    parser.add_argument(
+        "--check-tag-pin",
+        action="store_true",
+        help="exit 1 unless the reth family is pinned by a release or fork tag",
+    )
     args = parser.parse_args(argv)
+
+    if args.check_tag_pin:
+        try:
+            print(f"reth pinned by tag {tag_pin()}")
+        except (
+            ConfigError, OSError, subprocess.CalledProcessError, tomllib.TOMLDecodeError
+        ) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        return 0
 
     try:
         mirrors = classify(find_tags())

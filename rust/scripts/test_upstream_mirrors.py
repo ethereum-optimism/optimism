@@ -151,6 +151,55 @@ class WorkspaceParsingTests(unittest.TestCase):
                     with self.assertRaises(mirrors.ConfigError):
                         mirrors.reth_pin(manifest)
 
+    TAGGED_LOCK = textwrap.dedent("""
+        [[package]]
+        name = "reth-chainspec"
+        version = "2.7.0"
+        source = "git+https://github.com/ethereum-optimism/reth?tag=op-v2.7.0-0#{sha}"
+    """).format(sha="0" * 40)
+
+    def test_tag_pin_rejects_rev(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            manifest = Path(temp) / "Cargo.toml"
+            lock = Path(temp) / "Cargo.lock"
+            lock.write_text(self.TAGGED_LOCK)
+            for ref, value in (("tag", "v2.7.0"), ("tag", "op-v2.7.0-0"), ("rev", "0447ceb")):
+                with self.subTest(ref=ref, value=value):
+                    manifest.write_text(textwrap.dedent(f"""
+                        [workspace.dependencies]
+                        reth = {{ git = "https://github.com/ethereum-optimism/reth", {ref} = "{value}" }}
+                    """))
+                    if ref == "tag":
+                        self.assertEqual(mirrors.tag_pin(manifest, [lock]), value)
+                    else:
+                        with self.assertRaisesRegex(mirrors.ConfigError, "pinned by rev"):
+                            mirrors.tag_pin(manifest, [lock])
+
+    def test_tag_pin_rejects_untagged_lock_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            manifest = Path(temp) / "Cargo.toml"
+            manifest.write_text(textwrap.dedent("""
+                [workspace.dependencies]
+                reth = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.7.0-0" }
+            """))
+            sha = "0" * 40
+            for source in (
+                f"git+https://github.com/ethereum-optimism/reth?rev=0447ceb#{sha}",
+                f"git+https://github.com/paradigmxyz/reth?branch=main#{sha}",
+                f"git+https://github.com/paradigmxyz/reth#{sha}",
+                f"git+https://github.com/ethereum-optimism/reth?tag=main#{sha}",
+            ):
+                with self.subTest(source=source):
+                    lock = Path(temp) / "Cargo.lock"
+                    lock.write_text(self.TAGGED_LOCK + textwrap.dedent(f"""
+                        [[package]]
+                        name = "reth-trie"
+                        version = "2.7.0"
+                        source = "{source}"
+                    """))
+                    with self.assertRaisesRegex(mirrors.ConfigError, "reth-trie"):
+                        mirrors.tag_pin(manifest, [lock])
+
     def test_reth_pin_compares_complete_revisions(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             manifest = Path(temp) / "Cargo.toml"

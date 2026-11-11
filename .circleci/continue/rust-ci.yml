@@ -61,6 +61,20 @@ jobs:
           command: <<parameters.command>>
       # No cache save: downloads no crates.
 
+  # Red while a draft PR pins reth by rev (rust/UPDATING-RETH.md, "Pinning a fork change").
+  # Runs the script without just or the Rust cache: it only reads rust/Cargo.toml.
+  rust-reth-tag-pin:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: small.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Check reth is pinned by tag
+          working_directory: rust
+          command: python3 scripts/upstream-mirrors.py --check-tag-pin
+
   # Shared clippy lint job
   rust-ci-clippy:
     parameters:
@@ -985,6 +999,10 @@ workflows:
             # GCS compile cache (rust-sccache-setup). Restricted to this project.
             - sccache-gcs-optimism
 
+      - rust-reth-tag-pin:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
       - rust-ci-clippy:
           name: rust-clippy
           directory: rust
@@ -1127,6 +1145,7 @@ workflows:
       - required-rust-ci:
           requires:
             - rust-fmt: terminal
+            - rust-reth-tag-pin: terminal
             - rust-clippy: terminal
             - rust-deny: terminal
             - rust-typos: terminal
