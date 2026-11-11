@@ -1,7 +1,8 @@
 //! Contains error types for the [`crate::FinalizeTask`].
 
 use crate::{
-    EngineTaskError, SynchronizeTaskError, task_queue::tasks::task::EngineTaskErrorSeverity,
+    EngineTaskError, FinalityViolation, SynchronizeTaskError,
+    task_queue::tasks::task::EngineTaskErrorSeverity,
 };
 use alloy_eips::BlockNumHash;
 use alloy_transport::{RpcError, TransportErrorKind};
@@ -11,14 +12,9 @@ use thiserror::Error;
 /// An error that occurs when running the [`crate::FinalizeTask`].
 #[derive(Debug, Error)]
 pub enum FinalizeTaskError {
-    /// The target is below the finalized head, and finality never moves backward.
-    #[error("Finalization target {target} is behind the finalized head {finalized}")]
-    BehindFinalizedHead {
-        /// The number of the finalized head.
-        finalized: u64,
-        /// The number of the finalization target.
-        target: u64,
-    },
+    /// The target would move the finalized head backward, or onto another chain.
+    #[error("Finalization target breaks finality: {0}")]
+    BreaksFinality(#[from] FinalityViolation),
     /// The block to finalize was not found.
     #[error("The block to finalize was not found: Number {0}")]
     BlockNotFound(u64),
@@ -34,14 +30,6 @@ pub enum FinalizeTaskError {
         requested: u64,
         /// The number of the block the engine returned.
         returned: u64,
-    },
-    /// The target is a different block at the finalized head's height.
-    #[error("Finalization target {target:?} conflicts with the finalized head {finalized:?}")]
-    ConflictsWithFinalizedHead {
-        /// The finalized head.
-        finalized: BlockNumHash,
-        /// The finalization target.
-        target: BlockNumHash,
     },
     /// The forkchoice update call to finalize the block failed.
     #[error(transparent)]
@@ -75,9 +63,8 @@ pub enum FinalizeTaskError {
 impl EngineTaskError for FinalizeTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
-            Self::BehindFinalizedHead { .. } |
             Self::BlockNotSafe |
-            Self::ConflictsWithFinalizedHead { .. } |
+            Self::BreaksFinality(_) |
             Self::NotCanonical { .. } |
             Self::NotYetAvailable { .. } => EngineTaskErrorSeverity::Skip,
             Self::BlockNotFound(_) | Self::BlockNumberMismatch { .. } | Self::FromBlock(_) => {

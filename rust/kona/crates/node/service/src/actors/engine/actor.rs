@@ -235,7 +235,7 @@ where
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
-            if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
+            if self.engine.state().sync_state.established_finalized_head().is_none() {
                 self.begin_reset();
             } else {
                 self.mark_el_sync_complete_and_notify_derivation_actor().await?;

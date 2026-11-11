@@ -200,6 +200,69 @@ impl ConsolidateTask {
         Ok(())
     }
 
+    /// Follows a delegated safe head below the safe head. Only a different block at its height in
+    /// a synced execution layer proves the delegate diverged and reorgs the engine onto it; the
+    /// same block (a lagging delegate) or a missing one leaves the labels. After a delegate L1
+    /// reorg whose fork point is above the head it reports, the labels stay on the abandoned
+    /// blocks until it reports a head above that point.
+    async fn follow_delegated_safe_head_behind_safe_head(
+        &self,
+        state: &mut EngineState,
+        safe_l2: &L2BlockInfo,
+    ) -> Result<(), ConsolidateTaskError> {
+        // Until the execution layer applies the engine's forkchoice, its canonical block at that
+        // height may predate the engine's own labels, so it proves nothing about the delegate.
+        if !state.el_applied_last_forkchoice {
+            debug!(
+                target: "engine",
+                safe_l2 = %safe_l2,
+                "Ignoring a delegated safe head behind the safe head while the execution layer syncs"
+            );
+            return Ok(());
+        }
+        debug!(
+            target: "engine",
+            safe_l2 = %safe_l2,
+            "Looking up the execution layer's block at a delegated safe head behind the safe head"
+        );
+        let el_block =
+            self.client.get_l2_block(safe_l2.block_info.number.into()).await.map_err(|err| {
+                warn!(
+                    target: "engine",
+                    ?err,
+                    safe_l2 = %safe_l2,
+                    "Failed to look up the execution layer's block at a delegated safe head"
+                );
+                ConsolidateTaskError::FailedToFetchDelegatedSafeBlock(safe_l2.block_info.number)
+            })?;
+        debug!(
+            target: "engine",
+            safe_l2 = %safe_l2,
+            el_hash = ?el_block.as_ref().map(|block| block.header.hash),
+            "Looked up the execution layer's block at a delegated safe head"
+        );
+        match el_block {
+            Some(el_block) if el_block.header.hash != safe_l2.block_info.hash => {
+                debug!(
+                    target: "engine",
+                    safe_l2 = %safe_l2,
+                    el_hash = %el_block.header.hash,
+                    "Delegated safe head behind the safe head diverges from the execution layer"
+                );
+                self.reconcile_to_safe_head(state, safe_l2).await
+            }
+            _ => {
+                debug!(
+                    target: "engine",
+                    safe_l2 = %safe_l2,
+                    safe_number = state.sync_state.safe_head().block_info.number,
+                    "Ignoring a delegated safe head behind the safe head"
+                );
+                Ok(())
+            }
+        }
+    }
+
     /// Handles the fallback case when the block doesn't match the input or does not exist.
     async fn reconcile_unsafe_to_safe(
         &self,
@@ -310,6 +373,14 @@ impl ConsolidateTask {
             }
         }
 
+        // A different block from an execution layer that has not applied the engine's forkchoice
+        // may be from before its sync, so it does not prove the delegate diverged.
+        if let ConsolidateInput::BlockInfo(safe_l2) = &self.input &&
+            !state.el_applied_last_forkchoice
+        {
+            return self.follow_safe_head_during_el_sync(state, safe_l2).await;
+        }
+
         debug!(
             target: "engine",
             input = ?self.input,
@@ -339,6 +410,19 @@ impl ExecutableEngineTask for ConsolidateTask {
     //   injected safe head is ahead of the EngineActor's unsafe head, we reconcile the unsafe chain
     //   up to the safe head instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+        if let ConsolidateInput::BlockInfo(safe_l2) = &self.input {
+            state.sync_state.ensure_respects_finality(safe_l2.block_info.id())?;
+            // Labels with the unsafe head below the safe head take the paths below, which move the
+            // labels back to a consistent state; ignoring a lagging delegate would keep them broken
+            // until a finalization above the unsafe head fails.
+            let are_labels_consistent = state.sync_state.unsafe_head().block_info.number >=
+                state.sync_state.safe_head().block_info.number;
+            if are_labels_consistent &&
+                safe_l2.block_info.number < state.sync_state.safe_head().block_info.number
+            {
+                return self.follow_delegated_safe_head_behind_safe_head(state, safe_l2).await;
+            }
+        }
         let safe_head_number = match &self.input {
             ConsolidateInput::Attributes { .. } => state.sync_state.safe_head().block_info.number,
             ConsolidateInput::BlockInfo(safe_block_info) => safe_block_info.block_info.number,
@@ -355,7 +439,8 @@ impl ExecutableEngineTask for ConsolidateTask {
 mod tests {
     use super::*;
     use crate::{
-        EngineSyncState, EngineTaskError, ImportedBlockSink, NoopBlockSink, SealTaskError,
+        EngineSyncState, EngineTaskError, FinalityViolation, ImportedBlockSink, NoopBlockSink,
+        SealTaskError,
         test_utils::{
             TestAttributesBuilder, TestEngineStateBuilder, l1_info_deposit, test_block_info,
             test_engine_client,
@@ -579,10 +664,9 @@ mod tests {
         el_has_block.then_some(block)
     }
 
-    /// The safe head before consolidation: either already the delegated target, as a `SYNCING`
-    /// answer or an earlier poll leaves it, or an older block.
-    fn initial_safe_head(starts_at_target: bool, target: L2BlockInfo) -> L2BlockInfo {
-        if starts_at_target { target } else { test_block_info(5) }
+    /// Either `target` itself or an older block, for a label that may already sit at the target.
+    fn target_or_older_block(is_at_target: bool, target: L2BlockInfo) -> L2BlockInfo {
+        if is_at_target { target } else { test_block_info(5) }
     }
 
     /// Below the unsafe head, a delegated safe head always reaches the execution layer: when the
@@ -602,8 +686,10 @@ mod tests {
     ) {
         let (block, cfg) = genesis_pinned_block(10);
         let delegated_safe_head = block_info_of(&cfg, &block);
-        let mut state =
-            engine_state_with_safe_head(initial_safe_head(starts_at_target, delegated_safe_head));
+        let mut state = engine_state_with_safe_head(target_or_older_block(
+            starts_at_target,
+            delegated_safe_head,
+        ));
         let expected_sync_state = with_safe_head(&state, delegated_safe_head);
         let (client, l1, l2) = test_engine_client(cfg.clone());
         l2.expect_params(
@@ -715,6 +801,328 @@ mod tests {
             Arc::new(client),
             cfg,
             ConsolidateInput::Attributes(Box::new(attributes)),
+            Arc::new(NoopBlockSink),
+        );
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state.sync_state, expected_sync_state);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// Where a delegated safe head sits against the finalized head.
+    #[derive(Clone, Copy, Debug)]
+    enum TargetAgainstFinalized {
+        Below,
+        ConflictingAt,
+    }
+
+    impl TargetAgainstFinalized {
+        fn delegated_safe_head(self, finalized: L2BlockInfo) -> L2BlockInfo {
+            let number = finalized.block_info.number;
+            match self {
+                Self::Below => test_block_info(number - 1),
+                Self::ConflictingAt => L2BlockInfo {
+                    block_info: BlockInfo {
+                        hash: !finalized.block_info.hash,
+                        ..finalized.block_info
+                    },
+                    ..finalized
+                },
+            }
+        }
+    }
+
+    /// The outcome of checking a delegated safe head against finality.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum FinalityCheck {
+        Accepted,
+        BehindFinalizedHead,
+        ConflictsWithFinalizedHead,
+    }
+
+    impl FinalityCheck {
+        fn of(result: &Result<(), ConsolidateTaskError>) -> Self {
+            match result {
+                Ok(()) => Self::Accepted,
+                Err(ConsolidateTaskError::BreaksFinality(
+                    FinalityViolation::BehindFinalizedHead { .. },
+                )) => Self::BehindFinalizedHead,
+                Err(ConsolidateTaskError::BreaksFinality(
+                    FinalityViolation::ConflictsWithFinalizedHead { .. },
+                )) => Self::ConflictsWithFinalizedHead,
+                Err(err) => panic!("unexpected error {err:?}"),
+            }
+        }
+    }
+
+    /// A delegated safe head that breaks finality, as a stale delegate snapshot reports, is skipped
+    /// before the execution layer is asked anything, and leaves every label where it was.
+    #[rstest::rstest]
+    #[case::below(TargetAgainstFinalized::Below, FinalityCheck::BehindFinalizedHead)]
+    #[case::conflicting(
+        TargetAgainstFinalized::ConflictingAt,
+        FinalityCheck::ConflictsWithFinalizedHead
+    )]
+    #[tokio::test]
+    async fn delegated_safe_head_breaking_finality_is_skipped(
+        #[case] target: TargetAgainstFinalized,
+        #[case] expected: FinalityCheck,
+    ) {
+        let cfg = Arc::new(RollupConfig::default());
+        let mut state = engine_state_with_safe_head(test_block_info(12));
+        let state_before = state;
+        let delegated_safe_head = target.delegated_safe_head(state.sync_state.finalized_head());
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::BlockInfo(delegated_safe_head),
+            Arc::new(NoopBlockSink),
+        );
+
+        let result = task.execute(&mut state).await;
+
+        assert_eq!(FinalityCheck::of(&result), expected);
+        assert_eq!(result.unwrap_err().severity(), crate::EngineTaskErrorSeverity::Skip);
+        assert_eq!(state, state_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A delegated safe head from a lagging delegate, between the finalized head, inclusive, and
+    /// the safe head, does not move the safe labels back, whether or not the execution layer has
+    /// its block, and sends no forkchoice update.
+    #[rstest::rstest]
+    #[case::el_has_block(true, false)]
+    #[case::el_missing_block(false, false)]
+    #[case::at_finalized_head(true, true)]
+    #[tokio::test]
+    async fn lagging_delegated_safe_head_leaves_labels_unchanged(
+        #[case] el_has_block: bool,
+        #[case] finalized_at_target: bool,
+    ) {
+        let (block, cfg) = genesis_pinned_block(10);
+        let delegated_safe_head = block_info_of(&cfg, &block);
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(20))
+            .with_safe_head(test_block_info(12))
+            .with_finalized_head(target_or_older_block(finalized_at_target, delegated_safe_head))
+            .build();
+        let state_before = state;
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_block_header_by_number(10, el_block(el_has_block, block));
+        let sink = Arc::new(RecordingSink::default());
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::BlockInfo(delegated_safe_head),
+            sink.clone(),
+        );
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state, state_before);
+        assert!(sink.0.lock().unwrap().is_empty());
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A delegated safe head behind the safe head whose block differs from the execution layer's
+    /// means the delegate's chain diverged above it, so the engine still reorgs onto it, without
+    /// moving finalized.
+    #[tokio::test]
+    async fn diverged_delegated_safe_head_behind_safe_head_reorgs_the_engine() {
+        let (block, cfg) = genesis_pinned_block(10);
+        let delegated_safe_head = block_info_of(&cfg, &block);
+        let mut state = engine_state_with_safe_head(test_block_info(12));
+        let finalized_before = state.sync_state.finalized_head();
+        let expected_sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(delegated_safe_head),
+            safe_head: Some(delegated_safe_head),
+            unsafe_head: Some(delegated_safe_head),
+            ..Default::default()
+        });
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_block_header_by_number(10, Some(other_chain_block(10)));
+        l2.expect_forkchoice_updated(
+            expected_sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Valid,
+        );
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::BlockInfo(delegated_safe_head),
+            Arc::new(NoopBlockSink),
+        );
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state.sync_state, expected_sync_state);
+        assert_eq!(state.sync_state.finalized_head(), finalized_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A delegated safe head behind the safe head is not judged against an execution layer that has
+    /// not applied the engine's last forkchoice, whether it is in its first sync or syncing again
+    /// after answering `SYNCING`: its canonical block there may predate the engine's labels, so no
+    /// lookup is made and the labels stay.
+    #[rstest::rstest]
+    #[case::initial_sync(false, false)]
+    #[case::syncing_again(true, false)]
+    #[tokio::test]
+    async fn delegated_safe_head_behind_safe_head_is_ignored_while_the_el_syncs(
+        #[case] el_sync_finished: bool,
+        #[case] el_applied_last_forkchoice: bool,
+    ) {
+        let (block, cfg) = genesis_pinned_block(10);
+        let delegated_safe_head = block_info_of(&cfg, &block);
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(20))
+            .with_safe_head(test_block_info(12))
+            .with_finalized_head(test_block_info(5))
+            .with_el_sync_finished(el_sync_finished)
+            .with_el_applied_last_forkchoice(el_applied_last_forkchoice)
+            .build();
+        let state_before = state;
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::BlockInfo(delegated_safe_head),
+            Arc::new(NoopBlockSink),
+        );
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state, state_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// An empty block at `number` whose hash differs from [`genesis_pinned_block`]'s at the same
+    /// height, standing for a block on another chain.
+    fn other_chain_block(number: u64) -> RpcBlock<Transaction> {
+        RpcBlock::new(
+            RpcHeader::new(alloy_consensus::Header { number, timestamp: 1, ..Default::default() }),
+            BlockTransactions::Full(vec![]),
+        )
+    }
+
+    /// A reorg onto a diverged delegated safe head that the execution layer refuses as an invalid
+    /// forkchoice state resets the engine, which rebuilds the labels from the execution layer.
+    #[tokio::test]
+    async fn rejected_reorg_onto_a_delegated_safe_head_resets_the_engine() {
+        let (block, cfg) = genesis_pinned_block(10);
+        let delegated_safe_head = block_info_of(&cfg, &block);
+        let mut state = engine_state_with_safe_head(test_block_info(12));
+        let state_before = state;
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_block_header_by_number(10, Some(other_chain_block(10)));
+        l2.expect_error_code(
+            "engine_forkchoiceUpdatedV3",
+            i64::from(alloy_rpc_types_engine::INVALID_FORK_CHOICE_STATE_ERROR),
+        );
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::BlockInfo(delegated_safe_head),
+            Arc::new(NoopBlockSink),
+        );
+
+        let err = task.execute(&mut state).await.unwrap_err();
+
+        assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Reset, "got {err:?}");
+        assert_eq!(state, state_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// Labels with the unsafe head rewound below the safe head are moved back into order by any
+    /// delegated safe head above finality instead of being kept: at or above the unsafe head the
+    /// engine reorgs onto it, and below it the matching block consolidates. Keeping them would let
+    /// a later finalization above the unsafe head fail fatally.
+    #[rstest::rstest]
+    #[case::at_or_above_unsafe_head(12, false)]
+    #[case::below_unsafe_head(8, true)]
+    #[tokio::test]
+    async fn delegated_safe_head_repairs_an_unsafe_head_below_the_safe_head(
+        #[case] delegated_number: u64,
+        #[case] is_below_unsafe_head: bool,
+    ) {
+        let (block, cfg) = genesis_pinned_block(delegated_number);
+        let delegated_safe_head = block_info_of(&cfg, &block);
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(10))
+            .with_safe_head(test_block_info(15))
+            .with_finalized_head(test_block_info(5))
+            .build();
+        let expected_sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(delegated_safe_head),
+            safe_head: Some(delegated_safe_head),
+            unsafe_head: (!is_below_unsafe_head).then_some(delegated_safe_head),
+            ..Default::default()
+        });
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        if is_below_unsafe_head {
+            l2.expect_params(
+                "eth_getBlockByNumber",
+                serde_json::json!([format!("{delegated_number:#x}"), true]),
+                block,
+            );
+        }
+        l2.expect_forkchoice_updated(
+            expected_sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Valid,
+        );
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::BlockInfo(delegated_safe_head),
+            Arc::new(NoopBlockSink),
+        );
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state.sync_state, expected_sync_state);
+        assert!(
+            state.sync_state.unsafe_head().block_info.number >=
+                state.sync_state.safe_head().block_info.number
+        );
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A delegated safe head whose block differs from the execution layer's is not treated as a
+    /// divergence while the execution layer has not applied the engine's last forkchoice: only the
+    /// safe labels move to it, and the unsafe head stays the sync target.
+    #[tokio::test]
+    async fn mismatched_delegated_safe_head_does_not_reorg_while_the_el_syncs() {
+        let (block, cfg) = genesis_pinned_block(15);
+        let delegated_safe_head = block_info_of(&cfg, &block);
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(20))
+            .with_safe_head(test_block_info(12))
+            .with_finalized_head(test_block_info(5))
+            .with_el_applied_last_forkchoice(false)
+            .build();
+        let expected_sync_state = with_safe_head(&state, delegated_safe_head);
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!(["0xf", true]),
+            other_chain_block(15),
+        );
+        l2.expect_forkchoice_updated(
+            expected_sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Syncing,
+        );
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::BlockInfo(delegated_safe_head),
             Arc::new(NoopBlockSink),
         );
 

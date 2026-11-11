@@ -70,6 +70,16 @@ impl RpcMock {
         );
     }
 
+    /// Expects a header-only `eth_getBlockByNumber` call for `number` and answers it with `block`,
+    /// or with null for `None`.
+    pub fn expect_block_header_by_number(&self, number: u64, block: Option<TestRpcBlock>) {
+        self.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([format!("{number:#x}"), false]),
+            block,
+        );
+    }
+
     /// Expects an `engine_forkchoiceUpdatedV3` call for `forkchoice` without payload attributes and
     /// answers it with `status`.
     pub fn expect_forkchoice_updated(
