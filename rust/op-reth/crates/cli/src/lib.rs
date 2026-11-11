@@ -32,10 +32,12 @@ use reth_cli_runner::CliRunner;
 use reth_db::DatabaseEnv;
 use reth_node_builder::{NodeBuilder, WithLaunchContext};
 use reth_node_core::{
-    args::{DefaultEngineValues, LogArgs, TraceArgs},
+    args::{LogArgs, TraceArgs},
     version::version_metadata,
 };
-use reth_optimism_node::args::RollupArgs;
+use reth_optimism_node::{
+    args::RollupArgs, init_op_engine_defaults, state_masking::STATE_MASKING_UNSUPPORTED,
+};
 
 // This allows us to manually enable node metrics features, required for proper jemalloc metric
 // reporting
@@ -152,11 +154,19 @@ const BAL_ARGS_UNSUPPORTED_HELP: &str = "Block access list options are not suppo
 ///
 /// op-reth runs with state masking off: it defaults the flag to 0, hides it, and rejects any
 /// nonzero value from the command line or `RETH_ENGINE_NUM_STATE_MASKING_BLOCKS`. Unlike
-/// `DENIED_ARGS`, an explicit 0 stays accepted. See [`STATE_MASKING_UNSUPPORTED_HELP`].
+/// `DENIED_ARGS`, an explicit 0 stays accepted. See [`state_masking_unsupported_help`].
 const STATE_MASKING_ARG: &str = "num_state_masking_blocks";
 
-/// Startup error for a nonzero state masking window.
-const STATE_MASKING_UNSUPPORTED_HELP: &str = "--engine.num-state-masking-blocks must be 0 on op-reth.\n\nState masking leaves the on-disk state trie behind the persisted tip. After an unclean shutdown\nwith masking on, op-reth releases before reth v2.6.0 cannot open the datadir, and upstream\nstill has open bugs in the masked-trie code paths.";
+/// Startup error for a nonzero state masking window: [`STATE_MASKING_UNSUPPORTED`] plus the
+/// reason.
+fn state_masking_unsupported_help() -> String {
+    format!(
+        "{STATE_MASKING_UNSUPPORTED}.\n\nState masking leaves the on-disk state trie behind the \
+         persisted tip. After an unclean shutdown\nwith masking on, op-reth releases before reth \
+         v2.6.0 cannot open the datadir, and upstream\nstill has open bugs in the masked-trie code \
+         paths."
+    )
+}
 
 impl Cli {
     /// Parses only the default CLI arguments, rejecting `DENIED_ARGS`
@@ -183,9 +193,10 @@ where
     /// Returns the clap command with all `DENIED_ARGS` and the state masking flag hidden from help
     /// output.
     pub fn command_with_denied_args_hidden() -> clap::Command {
-        // Default state masking to off before clap reads the global engine defaults. If another
-        // caller initialized them first, the post-parse check still rejects a nonzero value.
-        let _ = DefaultEngineValues::default().with_num_state_masking_blocks(0).try_init();
+        // Must run before clap reads the global engine defaults.
+        if let Err(err) = init_op_engine_defaults() {
+            eprintln!("Warning: {err}");
+        }
 
         <Self as clap::CommandFactory>::command().mut_subcommands(hide_denied_args)
     }
@@ -219,9 +230,8 @@ where
         if let Some(node) = matches.subcommand_matches("node") &&
             node.get_one::<u64>(STATE_MASKING_ARG).is_some_and(|blocks| *blocks != 0)
         {
-            return Err(
-                cmd.error(clap::error::ErrorKind::ValueValidation, STATE_MASKING_UNSUPPORTED_HELP)
-            );
+            return Err(cmd
+                .error(clap::error::ErrorKind::ValueValidation, state_masking_unsupported_help()));
         }
         <Self as clap::FromArgMatches>::from_arg_matches_mut(&mut matches)
     }
@@ -273,7 +283,7 @@ mod test {
     use clap::Parser;
     use reth_cli_commands::{NodeCommand, node::NoArgs};
     use reth_optimism_chainspec::{OP_DEV, OP_MAINNET};
-    use reth_optimism_node::args::RollupArgs;
+    use reth_optimism_node::{args::RollupArgs, init_op_engine_defaults};
 
     #[test]
     fn deny_minimal_on_parse() {
@@ -413,6 +423,7 @@ mod test {
 
     #[test]
     fn parse_dev() {
+        init_op_engine_defaults().unwrap();
         let cmd = NodeCommand::<OpChainSpecParser, NoArgs>::parse_from(["op-reth", "--dev"]);
         let chain = OP_DEV.clone();
         assert_eq!(cmd.chain.chain, chain.chain);
@@ -431,6 +442,7 @@ mod test {
 
     #[test]
     fn parse_node() {
+        init_op_engine_defaults().unwrap();
         let cmd = Cli::<OpChainSpecParser, RollupArgs>::parse_from([
             "op-reth",
             "node",

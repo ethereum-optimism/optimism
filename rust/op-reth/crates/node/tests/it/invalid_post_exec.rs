@@ -16,7 +16,7 @@ use reth_e2e_test_utils::{NodeHelperType, setup_engine_with_connection, wallet::
 use reth_optimism_node::{
     OpBuiltPayload, OpNode,
     payload::OpExecData,
-    utils::{advance_chain, setup},
+    utils::{advance_chain, setup, unmasked_tree_config},
 };
 use reth_optimism_primitives::OpTransactionSigned;
 use reth_rpc_api::clients::DebugApiClient;
@@ -29,7 +29,7 @@ async fn setup_lagoon(num_nodes: usize) -> eyre::Result<(Vec<NodeHelperType<OpNo
         num_nodes,
         crate::lagoon::chain_spec()?,
         false,
-        Default::default(),
+        unmasked_tree_config(),
         crate::lagoon::payload_attributes,
         // The buffered-child test must learn the parent only through its explicit newPayload.
         false,

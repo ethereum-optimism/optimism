@@ -9,7 +9,7 @@ use reth_node_builder::{EngineNodeLauncher, NodeBuilder, rpc::BasicEngineValidat
 use reth_optimism_node::{
     OpEngineApiBuilder, OpNode,
     node::{OpEngineValidatorBuilder, OpPoolBuilder},
-    utils::optimism_payload_attributes,
+    utils::{optimism_payload_attributes, unmasked_tree_config},
 };
 use reth_optimism_txpool::OpPooledTransaction;
 use reth_provider::providers::BlockchainProvider;
@@ -75,7 +75,7 @@ async fn run_ordering_test<Ordering>(
         )
         .launch_with_fn(|builder| {
             let launcher =
-                EngineNodeLauncher::new(runtime.clone(), builder.config.datadir(), Default::default());
+                EngineNodeLauncher::new(runtime.clone(), builder.config.datadir(), unmasked_tree_config());
             builder.launch_with(launcher)
         })
         .await

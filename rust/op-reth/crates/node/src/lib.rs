@@ -29,6 +29,10 @@ pub use head_metrics::{OpChainHeadMetrics, maintain_chain_head_metrics};
 pub mod node;
 pub use node::*;
 
+/// State masking defaults and the guard that rejects a masked engine config.
+pub mod state_masking;
+pub use state_masking::init_op_engine_defaults;
+
 /// OP payload-service configuration.
 pub mod payload_service;
 pub use payload_service::OpPayloadServiceBuilder;

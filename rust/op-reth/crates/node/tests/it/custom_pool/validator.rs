@@ -21,7 +21,7 @@ use reth_optimism_node::{
         OpNodeTypes, OpPayloadBuilder, OpPoolBuilder, OpValidatorWrapper,
     },
     txpool::OpTransactionValidator,
-    utils::optimism_payload_attributes,
+    utils::{optimism_payload_attributes, unmasked_tree_config},
 };
 use reth_optimism_txpool::OpPooledTransaction;
 use reth_primitives_traits::SealedBlock;
@@ -151,7 +151,7 @@ async fn custom_validator_wrapper_rejects_filtered_txs() {
         )
         .launch_with_fn(|builder| {
             let launcher =
-                EngineNodeLauncher::new(runtime.clone(), builder.config.datadir(), Default::default());
+                EngineNodeLauncher::new(runtime.clone(), builder.config.datadir(), unmasked_tree_config());
             builder.launch_with(launcher)
         })
         .await
@@ -216,7 +216,7 @@ async fn default_validator_admits_all_txs() {
         )
         .launch_with_fn(|builder| {
             let launcher =
-                EngineNodeLauncher::new(runtime.clone(), builder.config.datadir(), Default::default());
+                EngineNodeLauncher::new(runtime.clone(), builder.config.datadir(), unmasked_tree_config());
             builder.launch_with(launcher)
         })
         .await

@@ -8,10 +8,13 @@ use reth_db::test_utils::create_test_rw_db_with_path;
 use reth_e2e_test_utils::{
     node::NodeTestContext, transaction::TransactionTestContext, wallet::Wallet,
 };
-use reth_node_builder::{EngineNodeLauncher, Node, NodeBuilder, NodeConfig};
+use reth_node_builder::{EngineNodeLauncher, Node, NodeBuilder};
 use reth_node_core::args::DatadirArgs;
 use reth_optimism_chainspec::OpChainSpecBuilder;
-use reth_optimism_node::{OpNode, utils::optimism_payload_attributes};
+use reth_optimism_node::{
+    OpNode,
+    utils::{node_config, optimism_payload_attributes, unmasked_tree_config},
+};
 use reth_provider::{HeaderProvider, StageCheckpointReader, providers::BlockchainProvider};
 use reth_stages_types::StageId;
 use std::sync::Arc;
@@ -37,7 +40,7 @@ async fn test_op_node_custom_genesis_number() {
     let wallet = Arc::new(Mutex::new(Wallet::default().with_chain_id(chain_spec.chain().into())));
 
     // Configure and launch the node
-    let config = NodeConfig::new(chain_spec.clone()).with_datadir_args(DatadirArgs {
+    let config = node_config(chain_spec.clone()).with_datadir_args(DatadirArgs {
         datadir: reth_db::test_utils::tempdir_path().into(),
         ..Default::default()
     });
@@ -58,7 +61,7 @@ async fn test_op_node_custom_genesis_number() {
             let launcher = EngineNodeLauncher::new(
                 runtime.clone(),
                 builder.config.datadir(),
-                Default::default(),
+                unmasked_tree_config(),
             );
             builder.launch_with(launcher)
         })

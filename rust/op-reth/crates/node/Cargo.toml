@@ -30,6 +30,7 @@ reth-tasks.workspace = true
 reth-trie-common.workspace = true
 reth-node-core.workspace = true
 reth-rpc-engine-api.workspace = true
+reth-storage-overlay.workspace = true
 
 reth-rpc-api.workspace = true
 reth-rpc-builder.workspace = true
@@ -81,6 +82,7 @@ tokio.workspace = true
 clap.workspace = true
 serde.workspace = true
 eyre.workspace = true
+thiserror.workspace = true
 url.workspace = true
 futures-util.workspace = true
 
@@ -101,7 +103,6 @@ reth-rpc.workspace = true
 reth-rpc-eth-api.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-stages-types.workspace = true
-reth-storage-overlay.workspace = true
 reth-trie-db.workspace = true
 
 alloy-network.workspace = true
@@ -117,6 +118,7 @@ metrics-util = { workspace = true, features = ["debugging"] }
 # Fatal-signal handler in tests/it/crash_backtrace.rs.
 libc.workspace = true
 op-alloy-network.workspace = true
+rstest.workspace = true
 
 [features]
 default = ["reth-codec"]
