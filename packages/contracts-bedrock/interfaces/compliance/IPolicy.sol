@@ -4,15 +4,15 @@ pragma solidity ^0.8.0;
 import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 
 interface IPolicy {
-    function screenDeposit(
-        BridgeHookTypes.Item calldata _item,
-        address[] calldata _parties
-    )
-        external
-        returns (bool pass_);
+    struct Parties {
+        address sender;
+        address recipient;
+    }
+
+    function screenDeposit(BridgeHookTypes.Item calldata _item, Parties calldata _parties) external returns (bool pass_);
     function screenWithdrawal(
         BridgeHookTypes.Item calldata _item,
-        address[] calldata _parties,
+        Parties calldata _parties,
         uint64 _expiresAt,
         uint256 _finalizableAt
     )
@@ -20,7 +20,7 @@ interface IPolicy {
         returns (bool pass_);
     function screenRelease(
         BridgeHookTypes.Item calldata _item,
-        address[] calldata _parties,
+        Parties calldata _parties,
         uint64 _expiresAt
     )
         external

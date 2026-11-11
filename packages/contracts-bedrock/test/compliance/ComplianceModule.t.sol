@@ -270,16 +270,16 @@ contract ComplianceModule_Parties_Test is ComplianceModule_TestInit {
             ),
             nonce: 1
         });
-        address[] memory parties = new address[](2);
-        parties[0] = alice;
-        parties[1] = bob;
+        IPolicy.Parties memory parties = IPolicy.Parties({ sender: alice, recipient: bob });
 
         vm.mockCall(address(policy), abi.encodeCall(IPolicy.screenDeposit, (item, parties)), abi.encode(true));
         vm.expectCall(address(policy), abi.encodeCall(IPolicy.screenDeposit, (item, parties)), 1);
         vm.prank(address(optimismPortal2));
         module.screenDeposit(item);
 
-        assertEq(module.parties(item), parties);
+        IPolicy.Parties memory resolved = module.parties(item);
+        assertEq(resolved.sender, alice);
+        assertEq(resolved.recipient, bob);
     }
 
     /// @notice Tests that parties and screenDeposit use the unaliased sender and target.
@@ -297,16 +297,16 @@ contract ComplianceModule_Parties_Test is ComplianceModule_TestInit {
             data: hex"",
             nonce: 1
         });
-        address[] memory parties = new address[](2);
-        parties[0] = alice;
-        parties[1] = bob;
+        IPolicy.Parties memory parties = IPolicy.Parties({ sender: alice, recipient: bob });
 
         vm.mockCall(address(policy), abi.encodeCall(IPolicy.screenDeposit, (item, parties)), abi.encode(true));
         vm.expectCall(address(policy), abi.encodeCall(IPolicy.screenDeposit, (item, parties)), 1);
         vm.prank(address(optimismPortal2));
         module.screenDeposit(item);
 
-        assertEq(module.parties(item), parties);
+        IPolicy.Parties memory resolved = module.parties(item);
+        assertEq(resolved.sender, alice);
+        assertEq(resolved.recipient, bob);
     }
 }
 
@@ -376,9 +376,7 @@ contract ComplianceModule_ScreenDeposit_Test is ComplianceModule_TestInit {
             data: hex"",
             nonce: 1
         });
-        address[] memory parties = new address[](2);
-        parties[0] = alice;
-        parties[1] = bob;
+        IPolicy.Parties memory parties = IPolicy.Parties({ sender: alice, recipient: bob });
 
         vm.mockCall(address(policy), abi.encodeCall(IPolicy.screenDeposit, (item, parties)), abi.encode(_pass));
         vm.expectCall(address(policy), abi.encodeCall(IPolicy.screenDeposit, (item, parties)), 1);
@@ -510,9 +508,7 @@ contract ComplianceModule_ScreenWithdrawal_Test is ComplianceModule_TestInit {
             data: hex"",
             nonce: 1
         });
-        address[] memory parties = new address[](2);
-        parties[0] = alice;
-        parties[1] = bob;
+        IPolicy.Parties memory parties = IPolicy.Parties({ sender: alice, recipient: bob });
         _storeRecord(BridgeHookHashing.hashItem(item), 0, _expiresAt);
 
         bytes memory policyCall = abi.encodeCall(IPolicy.screenWithdrawal, (item, parties, _expiresAt, _finalizableAt));
@@ -619,9 +615,7 @@ contract ComplianceModule_ScreenWithdrawal_Test is ComplianceModule_TestInit {
             data: hex"",
             nonce: _nonce
         });
-        address[] memory parties = new address[](2);
-        parties[0] = alice;
-        parties[1] = bob;
+        IPolicy.Parties memory parties = IPolicy.Parties({ sender: alice, recipient: bob });
         vm.prank(moduleOwner);
         module.disable(_cutoff);
 
@@ -1370,7 +1364,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
     bytes internal reentryReturnData;
 
     /// @notice Approves the release as the policy. Calls the module first when reentry is set.
-    function screenRelease(BridgeHookTypes.Item calldata, address[] calldata, uint64) external returns (bool) {
+    function screenRelease(BridgeHookTypes.Item calldata, IPolicy.Parties calldata, uint64) external returns (bool) {
         if (reentry.length > 0) {
             bytes memory data = reentry;
             delete reentry;
@@ -1397,9 +1391,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             nonce: 1
         });
         bytes32 id = BridgeHookHashing.hashItem(item);
-        address[] memory parties = new address[](2);
-        parties[0] = alice;
-        parties[1] = bob;
+        IPolicy.Parties memory parties = IPolicy.Parties({ sender: alice, recipient: bob });
         _storeRecord(id, uint64(block.timestamp), _expiresAt);
         stdstore.target(address(optimismPortal2))
             .sig(IOptimismPortal2.heldDeposits.selector)
@@ -1978,9 +1970,7 @@ contract ComplianceModule_CompleteWithdrawal_Test is ComplianceModule_TestInit {
             nonce: 1
         });
         bytes32 id = BridgeHookHashing.hashItem(item);
-        address[] memory parties = new address[](2);
-        parties[0] = alice;
-        parties[1] = bob;
+        IPolicy.Parties memory parties = IPolicy.Parties({ sender: alice, recipient: bob });
         _storeRecord(id, uint64(block.timestamp), _expiresAt);
         stdstore.target(address(optimismPortal2))
             .sig(IOptimismPortal2.heldWithdrawals.selector)

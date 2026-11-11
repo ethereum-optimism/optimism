@@ -193,8 +193,8 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
     ///         canonical bridge and messenger messages. Otherwise uses the outer addresses and
     ///         unaliases an aliased deposit sender.
     /// @param _item The deposit or withdrawal item.
-    /// @return parties_ The sender, then the recipient.
-    function parties(BridgeHookTypes.Item calldata _item) external view returns (address[] memory parties_) {
+    /// @return parties_ The sender and recipient.
+    function parties(BridgeHookTypes.Item calldata _item) external view returns (IPolicy.Parties memory parties_) {
         parties_ = _parties(_item);
     }
 
@@ -397,12 +397,9 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
 
     /// @notice Resolves the sender and recipient for both screening and the parties view.
     /// @param _item The deposit or withdrawal item.
-    /// @return parties_ The sender, then the recipient.
-    function _parties(BridgeHookTypes.Item memory _item) internal view returns (address[] memory parties_) {
-        (address initiator, address recipient) =
+    /// @return parties_ The sender and recipient.
+    function _parties(BridgeHookTypes.Item memory _item) internal view returns (IPolicy.Parties memory parties_) {
+        (parties_.sender, parties_.recipient) =
             BridgeHookDecoder.resolveParties(_item, address(l1CrossDomainMessenger), address(bridge));
-        parties_ = new address[](2);
-        parties_[0] = initiator;
-        parties_[1] = recipient;
     }
 }

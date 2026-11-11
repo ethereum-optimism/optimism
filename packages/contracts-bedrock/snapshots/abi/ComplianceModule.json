@@ -532,9 +532,21 @@
     "name": "parties",
     "outputs": [
       {
-        "internalType": "address[]",
+        "components": [
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "recipient",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IPolicy.Parties",
         "name": "parties_",
-        "type": "address[]"
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",

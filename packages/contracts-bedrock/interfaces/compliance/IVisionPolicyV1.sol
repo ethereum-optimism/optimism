@@ -16,7 +16,7 @@ interface IVisionPolicyV1 is IPolicy {
 
     function screenDeposit(
         BridgeHookTypes.Item calldata _item,
-        address[] calldata _parties
+        Parties calldata _parties
     )
         external
         view
@@ -24,7 +24,7 @@ interface IVisionPolicyV1 is IPolicy {
         returns (bool pass_);
     function screenWithdrawal(
         BridgeHookTypes.Item calldata _item,
-        address[] calldata _parties,
+        Parties calldata _parties,
         uint64 _expiresAt,
         uint256 _finalizableAt
     )
@@ -34,7 +34,7 @@ interface IVisionPolicyV1 is IPolicy {
         returns (bool pass_);
     function screenRelease(
         BridgeHookTypes.Item calldata _item,
-        address[] calldata _parties,
+        Parties calldata _parties,
         uint64 _expiresAt
     )
         external
