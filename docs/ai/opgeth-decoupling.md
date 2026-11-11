@@ -400,11 +400,12 @@ Gates:
 - **Sources path:** `sources.L2Client` rejects synthetic txs in `InfoAndTxsBy*` and
   `HeaderAndTxsByHash` (§11).
 - **ethclient path:** a forbidigo rule in `.golangci.yaml` rejects
-  `ethclient.Client.{BlockByNumber,BlockByHash,BlockReceipts,TransactionInBlock}` under
-  `op-e2e/`, `op-devstack/`, `op-acceptance-tests/`, `op-deployer/pkg/deployer/integration_test/`
-  and `rust/kona/tests/`. An L1 body read carries `//nolint:forbidigo // L1: <reason>`. The rule
-  matches the receiver's static type, so a call through an interface or an embedding type is not
-  seen: don't wrap an L2 body read in one.
+  `ethclient.Client.{BlockByNumber,BlockByHash,BlockReceipts,TransactionInBlock,TransactionByHash}`
+  under `op-e2e/`, `op-devstack/`, `op-acceptance-tests/`,
+  `op-deployer/pkg/deployer/integration_test/` and `rust/kona/tests/`. An L1 read carries
+  `//nolint:forbidigo // L1: <reason>`, and an L2 read that can only return a user tx carries
+  `//nolint:forbidigo // L2 user tx: <reason>`. The rule matches the receiver's static type, so a
+  call through an interface or an embedding type is not seen: don't wrap an L2 read in one.
 
 New test code reads L2 headers with `HeaderBy*` and L2 bodies with `InfoAndUserTxsBy*`,
 `InfoAndDepositsBy*`, `InfoAndFirstDepositBy*` or `PayloadBy*`. No accessor returns `0x7D`, so a
