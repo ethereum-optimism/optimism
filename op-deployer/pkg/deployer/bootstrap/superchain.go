@@ -81,6 +81,9 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	logCfg := logcli.ReadCLIConfig(cliCtx)
 	l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
 	logcli.SetGlobalLogHandler(l.Handler())
+	if err := deployer.CheckUseForgeFlag(cliCtx, l); err != nil {
+		return err
+	}
 
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)

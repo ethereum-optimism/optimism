@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/urfave/cli/v2"
 )
@@ -31,6 +32,7 @@ const (
 	ContractNameFlagName      = flags.ContractNameFlagName
 	VerifierTypeFlagName      = flags.VerifierTypeFlagName
 	VerifierUrlFlagName       = flags.VerifierUrlFlagName
+	UseForgeFlagName          = flags.UseForgeFlagName
 	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
 
 	ReceiptQueryIntervalFlagName  = flags.ReceiptQueryIntervalFlagName
@@ -140,6 +142,13 @@ var (
 		EnvVars: PrefixEnvVar("NO_VERIFY"),
 		Value:   false,
 	}
+	// UseForgeFlag is kept, hidden, through the v0.9 line so that callers who pass it keep working.
+	UseForgeFlag = &cli.BoolFlag{
+		Name:    UseForgeFlagName,
+		Usage:   "deprecated: forge always runs the deployment scripts, so true has no effect and false is refused",
+		EnvVars: PrefixEnvVar("USE_FORGE"),
+		Hidden:  true,
+	}
 	ReceiptQueryIntervalFlag = &cli.DurationFlag{
 		Name:    ReceiptQueryIntervalFlagName,
 		Usage:   "for tests: how often to poll for each broadcast's receipt, from 50ms to 1s; 0 uses the default of 1s",
@@ -195,6 +204,7 @@ var ApplyFlags = []cli.Flag{
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,
+	UseForgeFlag,
 	ReceiptQueryIntervalFlag,
 	DeployMockSP1VerifierFlag,
 }
@@ -216,4 +226,18 @@ var VerifyFlags = []cli.Flag{
 
 func PrefixEnvVar(name string) []string {
 	return op_service.PrefixEnvVar(EnvVarPrefix, name)
+}
+
+// CheckUseForgeFlag warns that --use-forge has no effect. It refuses --use-forge=false, which asked
+// for the removed Go script host, rather than run forge against the caller's explicit choice.
+func CheckUseForgeFlag(cliCtx *cli.Context, l log.Logger) error {
+	if !cliCtx.IsSet(UseForgeFlagName) {
+		return nil
+	}
+	if !cliCtx.Bool(UseForgeFlagName) {
+		return fmt.Errorf("--%[1]s=false (or %[2]s=false) is no longer supported: the Go script host was removed and forge always runs the deployment scripts; drop --%[1]s or unset %[2]s",
+			UseForgeFlagName, UseForgeFlag.EnvVars[0])
+	}
+	l.Warn(fmt.Sprintf("--%s is deprecated and has no effect: forge always runs the deployment scripts. A later release removes the flag", UseForgeFlagName))
+	return nil
 }

@@ -178,6 +178,9 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	logCfg := logcli.ReadCLIConfig(cliCtx)
 	l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
 	logcli.SetGlobalLogHandler(l.Handler())
+	if err := deployer.CheckUseForgeFlag(cliCtx, l); err != nil {
+		return err
+	}
 
 	var cfg ImplementationsConfig
 	if err := cliutil.PopulateStruct(&cfg, cliCtx); err != nil {

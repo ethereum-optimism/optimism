@@ -84,6 +84,9 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		logCfg := logcli.ReadCLIConfig(cliCtx)
 		l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
 		logcli.SetGlobalLogHandler(l.Handler())
+		if err := CheckUseForgeFlag(cliCtx, l); err != nil {
+			return err
+		}
 
 		l1RPCUrl := cliCtx.String(L1RPCURLFlagName)
 		workdir := cliCtx.String(WorkdirFlagName)
