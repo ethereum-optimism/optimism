@@ -20,11 +20,17 @@ use tokio::{
 #[path = "queue_tests.rs"]
 mod queue_tests;
 
-/// How long a task waiting for the execution layer to sync waits between retries.
-///
-/// The wait is not a failure, so it does not grow the failure backoff, and each retry costs a few
-/// RPCs on an execution layer that is busy syncing.
-const WAIT_RETRY_INTERVAL: Duration = Duration::from_secs(2);
+/// The delay before the first retry after a dependency failure; a clean drain resets the backoff
+/// to it.
+pub(crate) const INITIAL_RETRY_DELAY: Duration = Duration::from_millis(100);
+
+/// The cap on the doubling retry delay, keeping recovery responsive.
+pub(crate) const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
+
+/// The interval between retries of a task waiting for the execution layer to sync. Each retry costs
+/// RPCs on an execution layer busy syncing, and a wait is not a failure, so it leaves the failure
+/// backoff alone.
+pub(crate) const WAIT_RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
@@ -103,7 +109,7 @@ where
             reset_pending: false,
             reset_waiters: Vec::new(),
             retry_at: Instant::now(),
-            retry_delay: Duration::from_millis(100),
+            retry_delay: INITIAL_RETRY_DELAY,
             rollup: config,
             unsafe_head_tx,
             waiting_retry_at: Instant::now(),
@@ -131,7 +137,7 @@ where
 
     fn defer_retry(&mut self) {
         self.retry_at = Instant::now() + self.retry_delay;
-        self.retry_delay = (self.retry_delay * 2).min(Duration::from_secs(5));
+        self.retry_delay = (self.retry_delay * 2).min(MAX_RETRY_DELAY);
     }
 
     /// Schedules the retry of a task waiting for the execution layer, leaving the failure backoff
@@ -171,7 +177,7 @@ where
         match self.reset().await {
             Ok(()) => {
                 self.reset_pending = false;
-                self.retry_delay = Duration::from_millis(100);
+                self.retry_delay = INITIAL_RETRY_DELAY;
                 if !self.el_sync_complete && self.engine.state().el_sync_finished {
                     self.mark_el_sync_complete_and_notify_derivation_actor().await?;
                 }
@@ -237,7 +243,7 @@ where
         match self.engine.drain(scope).await {
             Ok(_) => {
                 trace!(target: "engine", ?scope, "[ENGINE] tasks drained");
-                self.retry_delay = Duration::from_millis(100);
+                self.retry_delay = INITIAL_RETRY_DELAY;
             }
             Err(err) => {
                 match err.severity() {
@@ -278,7 +284,7 @@ where
                     // They all succeeded, so the failure backoff starts over too.
                     EngineTaskErrorSeverity::Wait => {
                         trace!(target: "engine", %err, "Engine task waits before its retry");
-                        self.retry_delay = Duration::from_millis(100);
+                        self.retry_delay = INITIAL_RETRY_DELAY;
                         self.defer_waiting_retry();
                     }
                 }
