@@ -41,7 +41,8 @@ pub trait DebugExecutionWitnessApi<Attributes> {
     ) -> RpcResult<ExecutionWitness>;
 }
 use reth_storage_api::{
-    BlockReaderIdExt, NodePrimitivesProvider, StateProviderFactory, TransactionVariant,
+    BlockReaderIdExt, NodePrimitivesProvider, StateProvider, StateProviderFactory,
+    TransactionVariant,
     errors::{ProviderError, ProviderResult},
 };
 use reth_tasks::Runtime;
@@ -146,17 +147,17 @@ impl<Pool, Provider, EvmConfig, Attrs> DebugExecutionWitnessApiServer<Attrs::Rpc
     for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
 where
     Pool: TransactionPool<
-            Transaction: OpPooledTx<Consensus = <Provider::Primitives as NodePrimitives>::SignedTx>,
+            Transaction: OpPooledTx<Consensus = <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::SignedTx>,
         > + 'static,
-    Provider: BlockReaderIdExt<Header = <Provider::Primitives as NodePrimitives>::BlockHeader>
+    Provider: BlockReaderIdExt<Header = <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::BlockHeader>
         + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>
         + StateProviderFactory
         + ChainSpecProvider<ChainSpec: OpHardforks>
         + Clone
         + 'static,
-    <Provider::Primitives as NodePrimitives>::SignedTx: From<Sealed<TxPostExec>>,
+    <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::SignedTx: From<Sealed<TxPostExec>>,
     EvmConfig: ConfigurePostExecEvm<
-            Primitives = Provider::Primitives,
+            Primitives = <Provider as NodePrimitivesProvider>::Primitives,
             NextBlockEnvCtx: BuildNextEnv<Attrs, Provider::Header, Provider::ChainSpec>,
         > + 'static,
     Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>, RpcPayloadAttributes: Send>,
@@ -187,35 +188,35 @@ where
 impl<Pool, Provider, EvmConfig, Attrs> OpDebugPostExecApiServer
     for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
 where
-    Provider::Primitives: OpPayloadPrimitives
+    <Provider as NodePrimitivesProvider>::Primitives: OpPayloadPrimitives
         + NodePrimitives<
             Block = AlloyBlock<
-                <Provider::Primitives as OpPayloadPrimitives>::_TX,
-                <Provider::Primitives as OpPayloadPrimitives>::_Header,
+                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_TX,
+                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_Header,
             >,
             BlockBody = alloy_consensus::BlockBody<
-                <Provider::Primitives as OpPayloadPrimitives>::_TX,
-                <Provider::Primitives as OpPayloadPrimitives>::_Header,
+                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_TX,
+                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_Header,
             >,
-            BlockHeader = <Provider::Primitives as OpPayloadPrimitives>::_Header,
-            SignedTx = <Provider::Primitives as OpPayloadPrimitives>::_TX,
+            BlockHeader = <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_Header,
+            SignedTx = <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_TX,
         >,
     Pool: TransactionPool<
-            Transaction: OpPooledTx<Consensus = <Provider::Primitives as NodePrimitives>::SignedTx>,
+            Transaction: OpPooledTx<Consensus = <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::SignedTx>,
         > + 'static,
     Provider: BlockReaderIdExt<
             Block = AlloyBlock<
-                <Provider::Primitives as OpPayloadPrimitives>::_TX,
-                <Provider::Primitives as OpPayloadPrimitives>::_Header,
+                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_TX,
+                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_Header,
             >,
-            Header = <Provider::Primitives as NodePrimitives>::BlockHeader,
+            Header = <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::BlockHeader,
         > + NodePrimitivesProvider
         + StateProviderFactory
         + ChainSpecProvider<ChainSpec: OpHardforks>
         + Clone
         + 'static,
     EvmConfig: ConfigurePostExecEvm<
-            Primitives = Provider::Primitives,
+            Primitives = <Provider as NodePrimitivesProvider>::Primitives,
             NextBlockEnvCtx: BuildNextEnv<Attrs, Provider::Header, Provider::ChainSpec>,
         > + Clone
         + 'static,
@@ -239,7 +240,7 @@ where
                     .provider
                     .state_by_block_hash(block.header().parent_hash())
                     .to_rpc_result()?;
-                let db = StateProviderDatabase::new(&state_provider);
+                let db = StateProviderDatabase::new((&state_provider).into_evm_state_provider());
                 replay_block(&this.inner.evm_config, db, &block, config)
                     .map_err(|err| internal_rpc_err(err.to_string()))
             };

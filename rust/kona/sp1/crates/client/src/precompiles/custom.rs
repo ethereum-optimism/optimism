@@ -106,7 +106,7 @@ impl Crypto for CustomCrypto {
         }
     }
 
-    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// UPSTREAM-MIRROR(override): revm-precompile@43.0.3
     /// `revm_precompile::interface::Crypto::bls12_381_g1_add`
     ///
     /// Must equal the default's `bls12_381::arkworks::p1_add_affine_bytes` bit for bit, errors
@@ -115,7 +115,7 @@ impl Crypto for CustomCrypto {
         bls12_381::g1_add(a, b)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// UPSTREAM-MIRROR(override): revm-precompile@43.0.3
     /// `revm_precompile::interface::Crypto::bls12_381_g1_msm`
     ///
     /// Must equal the default's `bls12_381::arkworks::p1_msm_bytes` bit for bit, errors included.
@@ -126,7 +126,7 @@ impl Crypto for CustomCrypto {
         bls12_381::g1_msm(pairs)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// UPSTREAM-MIRROR(override): revm-precompile@43.0.3
     /// `revm_precompile::interface::Crypto::bls12_381_g2_add`
     ///
     /// Must equal the default's `bls12_381::arkworks::p2_add_affine_bytes` bit for bit, errors
@@ -135,7 +135,7 @@ impl Crypto for CustomCrypto {
         bls12_381::g2_add(a, b)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// UPSTREAM-MIRROR(override): revm-precompile@43.0.3
     /// `revm_precompile::interface::Crypto::bls12_381_g2_msm`
     ///
     /// Must equal the default's `bls12_381::arkworks::p2_msm_bytes` bit for bit, errors included.
@@ -146,7 +146,7 @@ impl Crypto for CustomCrypto {
         bls12_381::g2_msm(pairs)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// UPSTREAM-MIRROR(override): revm-precompile@43.0.3
     /// `revm_precompile::interface::Crypto::bls12_381_pairing_check`
     ///
     /// Must equal the default's `bls12_381::arkworks::pairing_check_bytes` (via
@@ -158,7 +158,7 @@ impl Crypto for CustomCrypto {
         bls12_381::pairing_check(pairs)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// UPSTREAM-MIRROR(override): revm-precompile@43.0.3
     /// `revm_precompile::interface::Crypto::bls12_381_fp_to_g1`
     ///
     /// Must equal the default's `bls12_381::arkworks::map_fp_to_g1_bytes` bit for bit, errors
@@ -167,7 +167,7 @@ impl Crypto for CustomCrypto {
         bls12_381::map_fp_to_g1(fp)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// UPSTREAM-MIRROR(override): revm-precompile@43.0.3
     /// `revm_precompile::interface::Crypto::bls12_381_fp2_to_g2`
     ///
     /// Must equal the default's `bls12_381::arkworks::map_fp2_to_g2_bytes` bit for bit, errors
