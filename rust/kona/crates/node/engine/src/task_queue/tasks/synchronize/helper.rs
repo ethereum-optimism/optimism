@@ -100,6 +100,7 @@ async fn send_forkchoice(
 
     match &valid_response.payload_status.status {
         PayloadStatusEnum::Valid => {
+            state.el_applied_last_forkchoice = true;
             if !state.el_sync_finished {
                 info!(target: "engine", "Finished execution layer sync.");
                 state.el_sync_finished = true;
@@ -107,6 +108,7 @@ async fn send_forkchoice(
         }
         // If we're not building a new payload, we're driving EL sync.
         PayloadStatusEnum::Syncing => {
+            state.el_applied_last_forkchoice = false;
             debug!(target: "engine", "Attempting to update forkchoice state while EL syncing")
         }
         // Other codes are not expected.
