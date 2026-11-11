@@ -181,7 +181,7 @@ func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	l1RPC := forkedL1.RPCUrl()
 
 	loc, _ := testutil.LocalArtifacts(t)
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	testCacheDir := testutil.SharedCacheDir(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -250,7 +250,7 @@ func TestEndToEndApply(t *testing.T) {
 	l2ChainID1 := uint256.NewInt(1)
 	l2ChainID2 := uint256.NewInt(2)
 	loc, _ := testutil.LocalArtifacts(t)
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	testCacheDir := testutil.SharedCacheDir(t)
 	sp1Verifier := deployMockSP1Verifier(t, l1Client, pk)
 
 	t.Run("two chains one after another", func(t *testing.T) {
@@ -476,7 +476,7 @@ func TestEndToEndApply(t *testing.T) {
 		l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 		l2ChainID := uint256.NewInt(1)
 		loc, _ := testutil.LocalArtifacts(t)
-		testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+		testCacheDir := testutil.SharedCacheDir(t)
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		setSP1VerifierOverride(intent, deployMockSP1Verifier(t, l1Client, pk))
@@ -1167,7 +1167,7 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 
 	intent, st := shared.NewIntent(t, l1ChainIDBig, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	testCacheDir := testutil.SharedCacheDir(t)
 
 	opts := deployer.ApplyPipelineOpts{
 		DeploymentTarget:      deployer.DeploymentTargetGenesis,

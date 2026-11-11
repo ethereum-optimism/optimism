@@ -21,7 +21,6 @@ import (
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -545,7 +544,7 @@ func newContinuationEnvWithIntentMutator(
 	privateKey, key, dk := shared.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	loc, _ := testutil.LocalArtifacts(t)
-	cacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	cacheDir := testutil.SharedCacheDir(t)
 	intent, st := shared.NewIntent(t, l1ChainID, dk, uint256.NewInt(1), loc, loc, testCustomGasLimit)
 	for i := 1; i < len(gameTypes); i++ {
 		intent.Chains = append(
