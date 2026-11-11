@@ -14,8 +14,10 @@ use reth_rpc_eth_types::{
     error::FromEthApiError,
 };
 use reth_storage_api::{
-    BlockReaderIdExt, StateProviderBox, StateProviderFactory, errors::ProviderResult,
+    BlockReaderIdExt, StateProviderBox, StateProviderFactory,
+    errors::{ProviderError, ProviderResult},
 };
+use tracing::debug;
 
 #[inline]
 const fn pending_state_history_lookup_hash<N: NodePrimitives>(
@@ -57,6 +59,10 @@ where
     let speculative = pending_block.pending.parent_hash() != anchor;
     let tip = pending_block.pending.executed_block;
     if !speculative {
+        // reth's overlay resolves the anchor on its first read, so a missing anchor would only
+        // surface there, as an RPC error. Check it here instead, so it fails like
+        // `history_by_block_hash` in the speculative branch, before the caller falls back.
+        let _ = provider.block_number(anchor)?.ok_or(ProviderError::BlockHashNotFound(anchor))?;
         return provider.state_with_block_appended(anchor, tip);
     }
     let anchor_historical = provider.history_by_block_hash(anchor)?;
@@ -99,10 +105,23 @@ where
         let Ok(Some(pending_block)) = self.pending_flashblock().await else {
             return Ok(None);
         };
+        let anchor = pending_state_history_lookup_hash(&pending_block);
+        let tip = pending_block.pending.block().num_hash();
         // Callers resolve pending state before taking a blocking thread, so the reads that open it
         // take one here, as reth's default does.
         self.spawn_blocking_io(move |this| {
             pending_flashblock_state(this.provider(), pending_block)
+                // Callers treat an error as "no pending block" and serve latest, so this is the
+                // only trace that a pending block existed but its state could not be opened.
+                .inspect_err(|err| {
+                    debug!(
+                        target: "rpc::eth",
+                        %err,
+                        ?anchor,
+                        ?tip,
+                        "Flashblock pending state unavailable, pending queries fall back to latest"
+                    );
+                })
                 .map(Some)
                 .map_err(Self::Error::from_eth_err)
         })
