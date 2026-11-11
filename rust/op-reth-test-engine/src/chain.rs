@@ -75,6 +75,9 @@ pub struct EphemeralChain {
     /// overlay manager with the provider factory, which resolves the state of in-memory blocks
     /// through it.
     blocks: TreeState<OpPrimitives>,
+    /// The overlay manager `blocks` and the provider share, kept so tests can break that sharing.
+    #[cfg(test)]
+    overlay_manager: OverlayManager<OpPrimitives>,
 }
 
 impl EphemeralChain {
@@ -93,12 +96,28 @@ impl EphemeralChain {
             .with_overlay_manager(overlay_manager.clone());
         let genesis_hash = init_genesis(&factory)?;
         let provider = BlockchainProvider::new(factory)?;
+        #[cfg(test)]
+        let shared_overlay_manager = overlay_manager.clone();
         let blocks = TreeState::new(
             BlockNumHash::new(0, genesis_hash),
             EngineApiKind::OpStack,
             overlay_manager,
         );
-        Ok(Self { provider, chain_spec, genesis_hash, blocks })
+        Ok(Self {
+            provider,
+            chain_spec,
+            genesis_hash,
+            blocks,
+            #[cfg(test)]
+            overlay_manager: shared_overlay_manager,
+        })
+    }
+
+    /// Drop the recorded block `hash` from the overlay manager but keep it in `blocks`, breaking
+    /// the invariant that the provider can resolve every recorded block.
+    #[cfg(test)]
+    pub(crate) fn evict_from_overlay(&self, hash: B256) {
+        self.overlay_manager.remove_blocks([hash]);
     }
 
     /// The chain spec this chain was initialized with.
