@@ -840,6 +840,7 @@ const fn is_insert_task_err_fatal(err: &InsertTaskError) -> bool {
     match err {
         InsertTaskError::ForkchoiceUpdateFailed(synchronize_error) => match synchronize_error {
             SynchronizeTaskError::FinalizedAheadOfUnsafe(_, _) => true,
+            SynchronizeTaskError::FinalizedAheadOfSafe { .. } |
             SynchronizeTaskError::ForkchoiceUpdateFailed(_) |
             SynchronizeTaskError::InvalidForkchoiceState |
             SynchronizeTaskError::UnexpectedPayloadStatus(_) => false,

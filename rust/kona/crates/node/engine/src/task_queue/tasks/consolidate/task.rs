@@ -2,14 +2,16 @@
 
 use super::el_sync_progress::{ElSyncProgress, ElSyncReading, ElSyncWaitOutcome, ElSyncWaitStep};
 use crate::{
-    ConsolidateTaskError, DelegatedSafeHeads, EngineClient, EngineState, ExecutableEngineTask,
-    FinalityViolation, ImportedBlockSink,
+    ConsolidateTaskError, DelegatedRejection, DelegatedSafeHeads, EngineClient, EngineState,
+    EngineSyncState, ExecutableEngineTask, FinalityViolation, ImportedBlockSink,
+    SynchronizeTaskError,
     state::EngineSyncStateUpdate,
     task_queue::{
         ForkchoiceDelivery, ForkchoiceReply, build_and_import, record_forkchoice_reply,
-        send_forkchoice, synchronize,
+        restore_forkchoice, send_forkchoice, synchronize,
     },
 };
+use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use alloy_provider::Provider;
 use alloy_rpc_types_eth::Block;
@@ -209,6 +211,12 @@ impl ConsolidateTask {
     /// The safe label for delegated safe heads whose local-safe head is on the engine's chain: the
     /// cross-safe head when it advances the label, or when it replaces, at the label's height, a
     /// safe label that a reorg left on abandoned blocks, and `None`, which keeps the label.
+    ///
+    /// A cross-safe head below the safe label never replaces it. The execution layer answered
+    /// `VALID` to a forkchoice update carrying the label only if the label was a canonical
+    /// ancestor of the head, and a label it has not applied cannot be judged against its chain, so
+    /// no lookup can show such a label abandoned. A stale label instead makes the execution layer
+    /// reject the next forkchoice update.
     async fn safe_label_on_engine_chain(
         &self,
         state: &EngineState,
@@ -220,7 +228,6 @@ impl ConsolidateTask {
         }
         let safe = state.sync_state.safe_head();
         let cross_safe = heads.safe_head();
-        // Below the safe label the cross-safe head can neither advance nor replace it.
         if cross_safe.block_info.number < safe.block_info.number {
             return Ok(None);
         }
@@ -239,7 +246,7 @@ impl ConsolidateTask {
         }
         let is_proven_on_engine_chain = chain_hash.is_some();
         let replaces_stale_safe_label = is_proven_on_engine_chain &&
-            cross_safe.block_info.number == safe.block_info.number &&
+            cross_safe.block_info.number <= safe.block_info.number &&
             cross_safe.block_info.hash != safe.block_info.hash;
         Ok(if replaces_stale_safe_label {
             Some(cross_safe)
@@ -406,12 +413,18 @@ impl ConsolidateTask {
         update: EngineSyncStateUpdate,
         outcome: &'static str,
     ) -> Result<(), ConsolidateTaskError> {
-        synchronize(self.client.as_ref(), state, update, ForkchoiceDelivery::Always)
-            .await
-            .map_err(|e| {
-                warn!(target: "engine", ?e, ?heads, "Applying the delegated safe heads failed");
-                e
-            })?;
+        let previous = state.sync_state;
+        match synchronize(self.client.as_ref(), state, update, ForkchoiceDelivery::Always).await {
+            Ok(()) => {}
+            Err(SynchronizeTaskError::InvalidForkchoiceState) => {
+                let attempted = previous.with_update(update);
+                return Err(self.classify_rejected_forkchoice(&previous, &attempted, heads).await);
+            }
+            Err(err) => {
+                warn!(target: "engine", ?err, ?heads, "Applying the delegated safe heads failed");
+                return Err(err.into());
+            }
+        }
 
         info!(
             target: "engine",
@@ -423,6 +436,95 @@ impl ConsolidateTask {
         );
 
         Ok(())
+    }
+
+    /// Classifies a forkchoice update that followed delegated safe heads and that the execution
+    /// layer rejected. op-geth and reth make the requested head canonical before checking the
+    /// forkchoice, so a rejection that moved the head can leave the execution layer on the
+    /// delegate's chain.
+    ///
+    /// - An update that moved neither the head nor the safe label rejected the engine's own labels,
+    ///   so the engine resets.
+    /// - An update that moved only the safe label left the execution layer's chain alone. Its block
+    ///   may not be stored yet, so the heads are skipped for this poll only.
+    /// - An update that moved the head is permanent. An execution layer that no longer holds the
+    ///   engine's finalized block lost its chain, and only a reset can rebuild the labels.
+    ///   Otherwise the canonical block at the finalized height tells whether the delegate's chain
+    ///   contains the finalized block, and the engine's own forkchoice is sent again to restore the
+    ///   execution layer's chain.
+    async fn classify_rejected_forkchoice(
+        &self,
+        previous: &EngineSyncState,
+        attempted: &EngineSyncState,
+        heads: &DelegatedSafeHeads,
+    ) -> ConsolidateTaskError {
+        let rejection = ConsolidateTaskError::ForkchoiceUpdateFailed(
+            SynchronizeTaskError::InvalidForkchoiceState,
+        );
+        let moves_head = attempted.unsafe_head() != previous.unsafe_head();
+        let moves_safe_label = attempted.safe_head() != previous.safe_head();
+        if !moves_head && !moves_safe_label {
+            warn!(target: "engine", ?heads, "Execution layer rejected the engine's own forkchoice; resetting");
+            return rejection;
+        }
+        if !moves_head {
+            warn!(target: "engine", ?heads, "Execution layer rejected the delegated safe label; skipping it for this poll");
+            return ConsolidateTaskError::DelegatedForkchoiceRejected {
+                heads: *heads,
+                rejection: DelegatedRejection::SafeLabel,
+            };
+        }
+
+        let is_chain_below_finality = match previous.established_finalized_head() {
+            Some(finalized) => match self.is_off_finalized_chain(finalized).await {
+                Ok(Some(is_off_finalized_chain)) => is_off_finalized_chain,
+                Ok(None) => {
+                    warn!(target: "engine", ?finalized, ?heads, "Execution layer no longer holds the finalized block; resetting");
+                    return rejection;
+                }
+                Err(err) => return err,
+            },
+            None => false,
+        };
+        // A `SYNCING` answer leaves the execution layer's canonical chain on the delegate's head,
+        // so only a reset, which walks it and restores the engine's forkchoice, can recover.
+        match restore_forkchoice(self.client.as_ref(), previous).await {
+            Ok(ForkchoiceReply::Valid) => {}
+            Ok(ForkchoiceReply::Syncing) | Err(SynchronizeTaskError::InvalidForkchoiceState) => {
+                warn!(target: "engine", ?heads, "Execution layer did not apply the engine's restored forkchoice; resetting");
+                return rejection;
+            }
+            Err(err) => return err.into(),
+        }
+        let rejection = if is_chain_below_finality {
+            DelegatedRejection::ChainBelowFinality
+        } else {
+            DelegatedRejection::HeadLabels
+        };
+        warn!(target: "engine", ?heads, %rejection, "Execution layer rejected the delegated safe heads; restored the engine's forkchoice");
+        ConsolidateTaskError::DelegatedForkchoiceRejected { heads: *heads, rejection }
+    }
+
+    /// Whether the execution layer's canonical block at the `finalized` height differs from it,
+    /// after a rejected forkchoice update made the update's head canonical. `None` when the
+    /// execution layer no longer stores the finalized block at all.
+    async fn is_off_finalized_chain(
+        &self,
+        finalized: BlockNumHash,
+    ) -> Result<Option<bool>, ConsolidateTaskError> {
+        let lookup_failed = |err| {
+            warn!(target: "engine", ?err, ?finalized, "Failed to look up the finalized block");
+            ConsolidateTaskError::FailedToFetchFinalizedBlock(finalized.hash)
+        };
+        if !self.client.l2_block_is_stored(finalized.hash).await.map_err(lookup_failed)? {
+            return Ok(None);
+        }
+        debug!(target: "engine", number = finalized.number, "Looking up the canonical block at the finalized height");
+        let canonical =
+            self.client.get_l2_block(finalized.number.into()).await.map_err(lookup_failed)?;
+        let canonical_hash = canonical.map(|block| block.header.hash);
+        debug!(target: "engine", ?canonical_hash, "Looked up the canonical block at the finalized height");
+        Ok(Some(canonical_hash.is_some_and(|hash| hash != finalized.hash)))
     }
 
     /// Follows delegated safe heads below the engine's local-safe head. Only a different block at
@@ -798,21 +900,27 @@ impl ConsolidateTask {
         // The next attributes built are this block's child, and ask for its config.
         self.block_sink.block_imported(consensus_block, block_info);
 
-        synchronize(
-            self.client.as_ref(),
-            state,
-            EngineSyncStateUpdate {
-                local_safe_head: Some(block_info),
-                safe_head,
-                ..Default::default()
-            },
-            self.input.forkchoice_delivery(),
-        )
-        .await
-        .map_err(|e| {
-            warn!(target: "engine", ?e, "Consolidation failed");
-            e
-        })?;
+        let update = EngineSyncStateUpdate {
+            local_safe_head: Some(block_info),
+            safe_head,
+            ..Default::default()
+        };
+        if let ConsolidateInput::Delegated(heads) = &self.input {
+            return self
+                .apply_delegated_safe_heads(
+                    state,
+                    heads,
+                    update,
+                    "Updated safe head via L1 consolidation",
+                )
+                .await;
+        }
+        synchronize(self.client.as_ref(), state, update, self.input.forkchoice_delivery())
+            .await
+            .map_err(|e| {
+                warn!(target: "engine", ?e, "Consolidation failed");
+                e
+            })?;
 
         info!(
             target: "engine",
@@ -878,9 +986,9 @@ impl ExecutableEngineTask for ConsolidateTask {
 mod tests {
     use super::*;
     use crate::{
-        EngineSyncState, EngineTaskError,
+        DelegatedRejection, EngineSyncState, EngineTaskError,
         EngineTaskErrorSeverity::{self, Reset, Temporary, Wait},
-        FinalityViolation, ImportedBlockSink, NoopBlockSink, SealTaskError,
+        FinalityViolation, ImportedBlockSink, NoopBlockSink, SealTaskError, SynchronizeTaskError,
         test_utils::{
             RpcMock, TestAttributesBuilder, TestEngineStateBuilder, delegated_safe_heads,
             l1_info_deposit, test_block_info, test_engine_client, test_rpc_block_from_attributes,
@@ -1681,8 +1789,8 @@ mod tests {
         l2.expect_block_by_number(10, ElHas::EngineChain.block(10));
     }
 
-    /// A cross-safe head behind the safe label can neither advance nor replace it, so it is not
-    /// looked up.
+    /// A cross-safe head behind the safe label cannot advance it, so neither it nor the safe label
+    /// is looked up.
     fn cross_safe_behind_safe_label(l2: &RpcMock) {
         l2.expect_block_by_number(10, ElHas::EngineChain.block(10));
     }
@@ -1897,13 +2005,17 @@ mod tests {
         assert_eq!(state, state_before);
     }
 
-    /// A lagging delegate is not judged against an execution layer that has not applied the
-    /// engine's last forkchoice, even after its first sync finished: its canonical block at the
-    /// local-safe height may predate the engine's labels, so no lookup is made and a delegate on
-    /// another chain reorgs nothing.
+    /// A lagging delegate is not judged against an execution layer that did not apply the last
+    /// forkchoice update, during its first sync or after a later `SYNCING` answer: its canonical
+    /// block at the local-safe height may predate the engine's labels, so no lookup is made and a
+    /// delegate on another chain reorgs nothing.
+    #[rstest::rstest]
+    #[case::first_sync(false)]
+    #[case::syncing_after_first_sync(true)]
     #[tokio::test]
-    async fn lagging_delegate_is_not_judged_against_a_syncing_el() {
+    async fn lagging_delegate_is_not_judged_against_a_syncing_el(#[case] el_sync_finished: bool) {
         let mut state = engine_state_with_safe_labels(12, 12);
+        state.el_sync_finished = el_sync_finished;
         state.el_applied_last_forkchoice = false;
         let state_before = state;
 
@@ -2022,17 +2134,21 @@ mod tests {
         assert_eq!(state.sync_state, expected);
     }
 
-    /// While the execution layer has not finished syncing, its canonical blocks may be from before
-    /// the sync, so the cross-safe head is not checked against them and only advances the safe
-    /// label.
+    /// While the execution layer has not applied the last forkchoice update, during its first sync
+    /// or after a later `SYNCING` answer, its canonical blocks may be from before the sync, so the
+    /// cross-safe head is not checked against them and only advances the safe label.
+    #[rstest::rstest]
+    #[case::first_sync(false)]
+    #[case::syncing_after_first_sync(true)]
     #[tokio::test]
-    async fn cross_safe_head_is_not_judged_against_a_syncing_el() {
+    async fn cross_safe_head_is_not_judged_against_a_syncing_el(#[case] el_sync_finished: bool) {
         let (local_safe, cross_safe) = (engine_chain_block(20), engine_chain_block(17));
         let mut state = TestEngineStateBuilder::new()
             .with_unsafe_head(engine_chain_block(20))
             .with_safe_head(engine_chain_block(15))
             .with_finalized_head(engine_chain_block(5))
-            .with_el_sync_finished(false)
+            .with_el_sync_finished(el_sync_finished)
+            .with_el_applied_last_forkchoice(false)
             .build();
         let expected = labels_after_reorg(&state, local_safe, cross_safe);
 
@@ -2104,15 +2220,14 @@ mod tests {
     }
 
     /// Delegated heads at the unsafe head on the engine's chain, as when the engine has no unsafe
-    /// gossip, keep the safe label for a cross-safe head at or below it, so a lagging backend
-    /// behind a load balancer does not move safe back.
+    /// gossip, keep the safe label for a cross-safe head at or below it without a lookup, so a
+    /// lagging backend behind a load balancer does not move safe back.
     #[rstest::rstest]
-    #[case::at_safe_label(15, no_lookup)]
-    #[case::behind_safe_label(12, no_lookup)]
+    #[case::at_safe_label(15)]
+    #[case::behind_safe_label(12)]
     #[tokio::test]
     async fn delegated_heads_at_the_unsafe_head_keep_the_safe_label(
         #[case] cross_safe_number: u64,
-        #[case] expect_cross_safe_lookup: fn(&RpcMock),
     ) {
         let local_safe = engine_chain_block(20);
         let mut state = engine_state_with_safe_labels(15, 15);
@@ -2123,7 +2238,6 @@ mod tests {
         });
 
         run_delegated(&mut state, local_safe, engine_chain_block(cross_safe_number), |l2| {
-            expect_cross_safe_lookup(l2);
             l2.expect_forkchoice_updated(
                 expected.create_forkchoice_state(),
                 PayloadStatusEnum::Valid,
@@ -2134,9 +2248,6 @@ mod tests {
 
         assert_eq!(state.sync_state, expected);
     }
-
-    /// A cross-safe head at one of the engine's labels is not looked up.
-    const fn no_lookup(_: &RpcMock) {}
 
     /// The execution layer has the engine chain's block at 15, which the safe label alone cannot
     /// prove, since it can stay on blocks a reorg abandoned.
@@ -2151,25 +2262,310 @@ mod tests {
         );
     }
 
-    /// A forkchoice update for delegated safe heads, whether a reorg off the engine's chain or an
-    /// extension of it, that the execution layer refuses as an invalid forkchoice state resets the
-    /// engine, which rebuilds the labels from the execution layer.
+    /// The engine's finalized head at 5, which the execution layer still holds.
+    fn el_holds_finalized(l2: &RpcMock) {
+        l2.expect_block_header_by_hash(
+            engine_chain_block(5).block_info.hash,
+            ElHas::EngineChain.block(5),
+        );
+    }
+
+    /// After the rejected update made its head canonical, the execution layer's block at the
+    /// finalized height is the engine chain's or another chain's.
+    fn canonical_at_finalized_height(l2: &RpcMock, chain: ElHas) {
+        l2.expect_block_header_by_number(5, chain.block(5));
+    }
+
+    /// The execution layer answers the restoring forkchoice update for the labels in `state`.
+    fn expect_restore(l2: &RpcMock, state: &EngineState, status: PayloadStatusEnum) {
+        l2.expect_forkchoice_updated(state.sync_state.create_forkchoice_state(), status);
+    }
+
+    /// Delegated heads that reorg the engine onto another chain at the unsafe head.
+    fn reorg_at_unsafe_head() -> (L2BlockInfo, L2BlockInfo) {
+        (other_chain_block(20), other_chain_block(20))
+    }
+
+    /// Delegated heads above the unsafe head whose ancestry is unknown, so the engine reorgs.
+    fn unproven_extension() -> (L2BlockInfo, L2BlockInfo) {
+        (engine_chain_block(25), engine_chain_block(25))
+    }
+
+    /// A forkchoice update that moved the head onto delegated heads and that the execution layer
+    /// rejects while it still holds the engine's finalized block restores the engine's own
+    /// forkchoice and skips the heads permanently. The canonical block at the finalized height,
+    /// after the rejected head became canonical, tells whether the delegate's chain contains the
+    /// finalized block.
     #[rstest::rstest]
-    #[case::reorg(other_chain_block(20))]
-    #[case::extension(engine_chain_block(25))]
+    #[case::fork_below_finality(
+        reorg_at_unsafe_head(),
+        ElHas::OtherChain,
+        DelegatedRejection::ChainBelowFinality
+    )]
+    #[case::labels_on_the_finalized_chain(
+        unproven_extension(),
+        ElHas::EngineChain,
+        DelegatedRejection::HeadLabels
+    )]
     #[tokio::test]
-    async fn rejected_forkchoice_for_delegated_heads_resets_the_engine(
-        #[case] delegated: L2BlockInfo,
+    async fn rejected_head_is_restored_and_skipped(
+        #[case] (local_safe, cross_safe): (L2BlockInfo, L2BlockInfo),
+        #[case] canonical_after_rejection: ElHas,
+        #[case] expected: DelegatedRejection,
     ) {
         let mut state = engine_state_with_safe_labels(15, 15);
         let state_before = state;
 
-        let err = run_delegated(&mut state, delegated, delegated, expect_invalid_forkchoice_state)
-            .await
-            .unwrap_err();
+        let err = run_delegated(&mut state, local_safe, cross_safe, |l2| {
+            expect_invalid_forkchoice_state(l2);
+            el_holds_finalized(l2);
+            canonical_at_finalized_height(l2, canonical_after_rejection);
+            expect_restore(l2, &state_before, PayloadStatusEnum::Valid);
+        })
+        .await
+        .unwrap_err();
 
-        assert_eq!(err.severity(), EngineTaskErrorSeverity::Reset, "got {err:?}");
+        assert!(
+            matches!(
+                err,
+                ConsolidateTaskError::DelegatedForkchoiceRejected { rejection, .. }
+                    if rejection == expected
+            ),
+            "got {err:?}"
+        );
+        assert!(expected.is_permanent());
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Skip);
         assert_eq!(state, state_before);
+    }
+
+    /// Delegated heads below the unsafe head that the execution layer has, consolidated with an
+    /// advancing cross-safe head.
+    fn consolidation_lookups(l2: &RpcMock) {
+        l2.expect_block_by_number(10, ElHas::EngineChain.block(10));
+        l2.expect_block_header_by_number(8, ElHas::EngineChain.block(8));
+    }
+
+    /// A rejected update that moved only the safe label, from consolidation or from a lagging
+    /// delegate, left the execution layer's chain alone: nothing is restored or looked up, and the
+    /// heads are skipped for this poll only, since the execution layer may store the safe block
+    /// later.
+    #[rstest::rstest]
+    #[case::consolidation(
+        engine_chain_block(10),
+        engine_chain_block(8),
+        7,
+        7,
+        consolidation_lookups
+    )]
+    #[case::lagging_delegate(
+        engine_chain_block(10),
+        engine_chain_block(9),
+        12,
+        8,
+        el_has_local_safe_10_and_cross_safe_9
+    )]
+    #[tokio::test]
+    async fn rejected_safe_label_is_skipped_for_the_poll_without_restoring(
+        #[case] local_safe: L2BlockInfo,
+        #[case] cross_safe: L2BlockInfo,
+        #[case] engine_local_safe: u64,
+        #[case] engine_safe: u64,
+        #[case] expect_lookups: fn(&RpcMock),
+    ) {
+        let mut state = engine_state_with_safe_labels(engine_local_safe, engine_safe);
+        let state_before = state;
+
+        let err = run_delegated(&mut state, local_safe, cross_safe, |l2| {
+            expect_lookups(l2);
+            expect_invalid_forkchoice_state(l2);
+        })
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(
+                err,
+                ConsolidateTaskError::DelegatedForkchoiceRejected {
+                    rejection: DelegatedRejection::SafeLabel,
+                    ..
+                }
+            ),
+            "got {err:?}"
+        );
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Skip);
+        assert_eq!(state, state_before);
+    }
+
+    /// The execution layer no longer holds the engine's finalized block, so restoring cannot help.
+    fn el_lost_finality(l2: &RpcMock) {
+        l2.expect_block_header_by_hash(engine_chain_block(5).block_info.hash, None);
+    }
+
+    /// The execution layer lost the engine's finalized block, so restoring cannot help.
+    fn after_rejection_el_lost_finality(l2: &RpcMock, _: &EngineState) {
+        el_lost_finality(l2);
+    }
+
+    /// The execution layer holds the finalized block but rejects the engine's own forkchoice too.
+    fn restore_rejected(l2: &RpcMock, _: &EngineState) {
+        el_holds_finalized(l2);
+        canonical_at_finalized_height(l2, ElHas::OtherChain);
+        expect_invalid_forkchoice_state(l2);
+    }
+
+    /// The execution layer answers `SYNCING` to the engine's own forkchoice, so its canonical
+    /// chain stays on the delegate's head.
+    fn restore_syncing(l2: &RpcMock, state: &EngineState) {
+        el_holds_finalized(l2);
+        canonical_at_finalized_height(l2, ElHas::OtherChain);
+        expect_restore(l2, state, PayloadStatusEnum::Syncing);
+    }
+
+    /// A rejected update that moved the head resets the engine when restoring cannot help: the
+    /// execution layer lost the finalized block, rejects the engine's own forkchoice as well, or
+    /// answers it `SYNCING` and so does not apply it.
+    #[rstest::rstest]
+    #[case::el_lost_finality(after_rejection_el_lost_finality)]
+    #[case::restore_rejected(restore_rejected)]
+    #[case::restore_syncing(restore_syncing)]
+    #[tokio::test]
+    async fn rejected_head_resets_when_restoring_cannot_help(
+        #[case] expect_after_rejection: fn(&RpcMock, &EngineState),
+    ) {
+        let (local_safe, cross_safe) = reorg_at_unsafe_head();
+        let mut state = engine_state_with_safe_labels(15, 15);
+        let state_before = state;
+
+        let err = run_delegated(&mut state, local_safe, cross_safe, |l2| {
+            expect_invalid_forkchoice_state(l2);
+            expect_after_rejection(l2, &state_before);
+        })
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(
+                err,
+                ConsolidateTaskError::ForkchoiceUpdateFailed(
+                    SynchronizeTaskError::InvalidForkchoiceState
+                )
+            ),
+            "got {err:?}"
+        );
+        assert_eq!(err.severity(), Reset);
+        assert_eq!(state, state_before);
+    }
+
+    /// A finalized lookup that fails after a rejection, by hash or at the finalized height,
+    /// changes nothing and is retried on the failure backoff, which sends the delegated heads
+    /// again.
+    fn finalized_lookup_by_hash_fails(l2: &RpcMock) {
+        l2.expect_error("eth_getBlockByHash");
+    }
+
+    fn canonical_lookup_at_finalized_height_fails(l2: &RpcMock) {
+        el_holds_finalized(l2);
+        l2.expect_error("eth_getBlockByNumber");
+    }
+
+    #[rstest::rstest]
+    #[case::by_hash(finalized_lookup_by_hash_fails)]
+    #[case::at_finalized_height(canonical_lookup_at_finalized_height_fails)]
+    #[tokio::test]
+    async fn failed_finalized_lookup_after_a_rejection_is_retried(
+        #[case] expect_failing_lookup: fn(&RpcMock),
+    ) {
+        let (local_safe, cross_safe) = reorg_at_unsafe_head();
+        let mut state = engine_state_with_safe_labels(15, 15);
+        let state_before = state;
+
+        let err = run_delegated(&mut state, local_safe, cross_safe, |l2| {
+            expect_invalid_forkchoice_state(l2);
+            expect_failing_lookup(l2);
+        })
+        .await
+        .unwrap_err();
+
+        assert!(matches!(err, ConsolidateTaskError::FailedToFetchFinalizedBlock(_)), "got {err:?}");
+        assert_eq!(err.severity(), Temporary);
+        assert_eq!(state, state_before);
+    }
+
+    /// An update that moves only the local-safe label leaves the engine's own forkchoice, so its
+    /// rejection is not blamed on the delegate and resets the engine without further calls.
+    #[tokio::test]
+    async fn rejected_forkchoice_that_moved_no_forkchoice_label_resets_the_engine() {
+        let mut state = engine_state_with_safe_labels(9, 7);
+        let state_before = state;
+
+        let err = run_delegated(&mut state, engine_chain_block(10), engine_chain_block(6), |l2| {
+            l2.expect_block_by_number(10, ElHas::Missing.block(10));
+            expect_invalid_forkchoice_state(l2);
+        })
+        .await
+        .unwrap_err();
+
+        assert_eq!(err.severity(), Reset, "got {err:?}");
+        assert_eq!(state, state_before);
+    }
+
+    /// A cross-safe head below the safe label keeps the label without a lookup at the label's
+    /// height: a label the execution layer applied is on its canonical chain, so no lookup there
+    /// can show it abandoned.
+    #[tokio::test]
+    async fn cross_safe_head_below_the_safe_label_keeps_it_without_a_lookup() {
+        let (local_safe, cross_safe) = (engine_chain_block(20), engine_chain_block(12));
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(engine_chain_block(20))
+            .with_local_safe_head(engine_chain_block(15))
+            .with_safe_head(engine_chain_block(15))
+            .with_finalized_head(engine_chain_block(5))
+            .build();
+        let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(local_safe),
+            ..Default::default()
+        });
+
+        run_delegated(&mut state, local_safe, cross_safe, |l2| {
+            l2.expect_forkchoice_updated(
+                expected.create_forkchoice_state(),
+                PayloadStatusEnum::Valid,
+            );
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(state.sync_state, expected);
+    }
+
+    /// After a `SYNCING` answer the execution layer's canonical blocks may predate its sync, even
+    /// though its sync finished once, so a different block at the safe label's height does not
+    /// replace the label: nothing is looked up there.
+    #[tokio::test]
+    async fn safe_label_is_kept_while_the_el_did_not_apply_the_last_forkchoice() {
+        let (local_safe, cross_safe) = (engine_chain_block(20), engine_chain_block(12));
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(engine_chain_block(20))
+            .with_local_safe_head(other_chain_block(15))
+            .with_safe_head(other_chain_block(15))
+            .with_finalized_head(engine_chain_block(5))
+            .with_el_applied_last_forkchoice(false)
+            .build();
+        let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(local_safe),
+            ..Default::default()
+        });
+
+        run_delegated(&mut state, local_safe, cross_safe, |l2| {
+            l2.expect_forkchoice_updated(
+                expected.create_forkchoice_state(),
+                PayloadStatusEnum::Valid,
+            );
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(state.sync_state, expected);
     }
 
     /// A reorg whose cross-safe head breaks finality is skipped before the execution layer is
@@ -2216,6 +2612,9 @@ mod tests {
 
         assert_eq!(state.sync_state, expected);
     }
+
+    /// A cross-safe head at one of the engine's labels is not looked up.
+    const fn no_lookup(_: &RpcMock) {}
 
     /// A cross-safe head that is the engine's safe label leaves it in place without asking the
     /// execution layer. One that differs from the safe label at its height is checked against the

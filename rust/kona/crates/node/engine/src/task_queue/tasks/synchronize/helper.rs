@@ -1,7 +1,8 @@
 //! The `engine_forkchoiceUpdated` call, with no attributes, that the engine tasks share.
 
 use crate::{
-    EngineClient, EngineState, EngineSyncState, SynchronizeTaskError, state::EngineSyncStateUpdate,
+    EngineClient, EngineState, EngineSyncState, SafeLabel, SynchronizeTaskError,
+    state::EngineSyncStateUpdate,
 };
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
 use op_alloy_provider::ext::engine::OpEngineApi;
@@ -77,6 +78,8 @@ pub(in crate::task_queue) async fn synchronize(
         ));
     }
 
+    ensure_safe_labels_not_behind_finality(&new_sync_state)?;
+
     // Send the forkchoice update through the input.
     let forkchoice = new_sync_state.create_forkchoice_state();
     tracing::Span::current().record("forkchoice", tracing::field::debug(forkchoice));
@@ -87,6 +90,46 @@ pub(in crate::task_queue) async fn synchronize(
     state.sync_state = new_sync_state;
 
     Ok(())
+}
+
+/// Refuses a sync state whose safe or local-safe head sits below its finalized head.
+fn ensure_safe_labels_not_behind_finality(
+    sync_state: &EngineSyncState,
+) -> Result<(), SynchronizeTaskError> {
+    let labels = [
+        (SafeLabel::LocalSafe, sync_state.local_safe_head()),
+        (SafeLabel::Safe, sync_state.safe_head()),
+    ];
+    for (label, head) in labels {
+        if let Err(violation) = sync_state.ensure_not_behind_finality(head.block_info.number) {
+            debug!(target: "engine", %violation, %label, "Safe label would move below finality");
+            return Err(SynchronizeTaskError::FinalizedAheadOfSafe {
+                finalized_number: sync_state.finalized_head().block_info.number,
+                label,
+                label_number: head.block_info.number,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Sends the engine's own `sync_state` forkchoice again, to undo a forkchoice update that the
+/// execution layer made canonical before rejecting it. Neither the engine state nor its record of
+/// the execution layer's sync changes.
+pub(in crate::task_queue) async fn restore_forkchoice(
+    client: &EngineClient,
+    sync_state: &EngineSyncState,
+) -> Result<ForkchoiceReply, SynchronizeTaskError> {
+    warn!(
+        target: "engine",
+        forkchoice = ?sync_state.create_forkchoice_state(),
+        "Restoring the engine's forkchoice on the execution layer"
+    );
+    let reply = send_forkchoice(client, sync_state).await.inspect_err(|err| {
+        warn!(target: "engine", ?err, "Restoring the engine's forkchoice failed");
+    })?;
+    info!(target: "engine", ?reply, "Restored the engine's forkchoice on the execution layer");
+    Ok(reply)
 }
 
 /// Records how the execution layer answered the engine's forkchoice: whether it applied it, and

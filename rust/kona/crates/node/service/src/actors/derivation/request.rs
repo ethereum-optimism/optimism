@@ -1,5 +1,5 @@
 use kona_derive::Signal;
-use kona_engine::EngineSyncState;
+use kona_engine::{DelegatedRejection, DelegatedSafeHeads, EngineSyncState};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use thiserror::Error;
 
@@ -34,4 +34,12 @@ pub enum DerivationActorRequest {
     ProcessFinalizedL1Block(Box<BlockInfo>),
     /// Request to process the provided L1 head block update.
     ProcessL1HeadUpdateRequest(Box<BlockInfo>),
+    /// The execution layer rejected a forkchoice update for these delegated safe heads, and would
+    /// reject them again until the engine resets.
+    ProcessRejectedDelegatedSafeHeads {
+        /// The rejected delegated safe heads.
+        heads: Box<DelegatedSafeHeads>,
+        /// Why the execution layer rejected them.
+        rejection: DelegatedRejection,
+    },
 }

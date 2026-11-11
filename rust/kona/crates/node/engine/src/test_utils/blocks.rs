@@ -1,6 +1,6 @@
 //! L2 blocks, and their RPC form as the execution layer serves them.
 
-use super::l1_info_deposit;
+use super::{l1_info_deposit, l1_info_deposit_at};
 use alloy_consensus::transaction::Recovered;
 use alloy_primitives::{Address, B256, Bytes};
 use alloy_rpc_types_eth::{BlockTransactions, Header as RpcHeader};
@@ -14,13 +14,36 @@ pub type TestRpcBlock = alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transacti
 /// converts into an `L2BlockInfo` without being the configured genesis. Blocks with different
 /// `extra_data` share a height but not a hash.
 pub fn test_l2_block(number: u64, parent_hash: B256, extra_data: u8) -> OpBlock {
+    test_l2_block_at_l1_origin(number, parent_hash, extra_data, 0)
+}
+
+/// [`test_l2_block`] with its L1 origin at `l1_origin_number`.
+pub fn test_l2_block_at_l1_origin(
+    number: u64,
+    parent_hash: B256,
+    extra_data: u8,
+    l1_origin_number: u64,
+) -> OpBlock {
     let mut block = OpBlock::default();
     block.header.extra_data = Bytes::from(vec![extra_data]);
     block.header.number = number;
     block.header.parent_hash = parent_hash;
     block.header.timestamp = number * 2;
-    block.body.transactions.push(l1_info_deposit());
+    block.body.transactions.push(l1_info_deposit_at(l1_origin_number));
     block
+}
+
+/// Blocks `from..=to` built on `parent_hash` with [`test_l2_block`], all tagged `extra_data`, so
+/// that chains with different tags share heights but not hashes.
+pub fn test_l2_chain(parent_hash: B256, from: u64, to: u64, extra_data: u8) -> Vec<OpBlock> {
+    let mut parent_hash = parent_hash;
+    (from..=to)
+        .map(|number| {
+            let block = test_l2_block(number, parent_hash, extra_data);
+            parent_hash = block.header.hash_slow();
+            block
+        })
+        .collect()
 }
 
 /// `block` as the execution layer serves it over RPC.

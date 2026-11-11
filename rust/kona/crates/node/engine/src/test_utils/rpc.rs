@@ -1,8 +1,12 @@
 //! Scripted RPC expectations over Alloy's mock transport.
 
-use crate::{EngineClient, test_utils::TestRpcBlock};
+use crate::{
+    EngineClient,
+    test_utils::{TestRpcBlock, test_rpc_block},
+};
 use alloy_json_rpc::{ErrorPayload, RequestPacket, ResponsePacket};
 use alloy_network::Network;
+use alloy_primitives::B256;
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_engine::{
@@ -14,6 +18,7 @@ use alloy_transport::{
     mock::{Asserter, MockResponse, MockTransport},
 };
 use kona_genesis::RollupConfig;
+use op_alloy_consensus::OpBlock;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
@@ -78,6 +83,12 @@ impl RpcMock {
             serde_json::json!([format!("{number:#x}"), false]),
             block,
         );
+    }
+
+    /// Expects a header-only `eth_getBlockByHash` call for `hash` and answers it with `block`, or
+    /// with null for `None`.
+    pub fn expect_block_header_by_hash(&self, hash: B256, block: Option<TestRpcBlock>) {
+        self.expect_params("eth_getBlockByHash", serde_json::json!([hash, false]), block);
     }
 
     /// Expects an `eth_syncing` call answered with no sync in progress, then an `eth_blockNumber`
@@ -249,4 +260,31 @@ pub fn expect_sync_start(
     }
     l1.expect("eth_getBlockByHash", EthBlock::<EthTransaction>::default());
     l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
+}
+
+/// Expects a sync-start walk: the execution layer answering `finalized` for its finalized block
+/// and `latest` for its safe and latest blocks, an L1 origin lookup answered by `l1_origin`, and
+/// the parent lookups of the walk answered by `parents` in order.
+pub fn expect_sync_start_walk(
+    l1: &RpcMock,
+    l2: &RpcMock,
+    finalized: &OpBlock,
+    latest: &OpBlock,
+    l1_origin_is_available: bool,
+    parents: &[&OpBlock],
+) {
+    for (label, block) in [("finalized", finalized), ("safe", latest), ("latest", latest)] {
+        l2.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([label, true]),
+            test_rpc_block(block),
+        );
+    }
+    l1.expect(
+        "eth_getBlockByHash",
+        l1_origin_is_available.then(EthBlock::<EthTransaction>::default),
+    );
+    for parent in parents {
+        l2.expect("eth_getBlockByHash", test_rpc_block(parent));
+    }
 }
