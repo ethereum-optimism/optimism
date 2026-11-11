@@ -12,10 +12,7 @@ use sha2::{Digest, Sha256};
 
 /// Entrypoint to the super-aggregation program.
 ///
-/// Installs no guest hash seed (see `programs/foldhash-seeded`): this program builds no hash map,
-/// and a foldhash map created here panics. A hash map added on its path needs a seed installed
-/// first in `main`, from an input hash that no on-chain actor can predict or choose before the
-/// map's keys are fixed.
+/// Installs no guest hash seed: this program creates no hash map (see `programs/foldhash-seeded`).
 pub fn main() {
     println!("{}", kona_sp1_build_info::BUILD_MARKER);
 

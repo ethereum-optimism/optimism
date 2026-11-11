@@ -6,6 +6,7 @@ sp1_zkvm::entrypoint!(main);
 
 use std::sync::Arc;
 
+use alloy_primitives::Keccak256;
 use anyhow::anyhow;
 use kona_sp1_client_utils::{
     BlobStore,
@@ -33,23 +34,28 @@ pub fn main() {
     sp1_zkvm::io::commit(&outputs);
 }
 
-/// The hash that keys every hash map of this guest (see `programs/foldhash-seeded`). In each mode
-/// it exists only after every key the guest hashes is fixed, and no block the proof executes can
-/// read it, so no on-chain actor can predict or choose it.
+/// The hash that keys every hash map of this guest (see `programs/foldhash-seeded`).
 fn hash_seed(inputs: &SuperInteropInputs) -> u64 {
     let hash = match inputs {
         // The game's L1 head. Every batch and deposit the range derives is at or below it, and
         // each L2 block's L1 origin precedes the L1 block that includes its batch.
         SuperInteropInputs::Range(inputs) => inputs.l1_head,
-        // The super root that the consolidation proves at `span.end`. It commits to every
-        // chain's block at `span.end`, and no block in the span can read it.
-        SuperInteropInputs::Consolidation(inputs) => inputs
-            .transitions
-            .last()
-            .expect("consolidation input span contains no transitions")
-            .claimed_super_root_proof
-            .super_root
-            .hash(),
+        // The super root that the consolidation proves at `span.end`, which no block in the span
+        // can read, and every optimistic block hash in the span. The root commits to every
+        // chain's block at `span.end`; the block hashes commit to the transactions of the blocks
+        // that consolidation replaces, which the root omits.
+        SuperInteropInputs::Consolidation(inputs) => {
+            let last = inputs
+                .transitions
+                .last()
+                .expect("consolidation input span contains no transitions");
+            let mut hasher = Keccak256::new();
+            hasher.update(last.claimed_super_root_proof.super_root.hash());
+            for block in inputs.transitions.iter().flat_map(|t| &t.optimistic_blocks) {
+                hasher.update(block.block_hash);
+            }
+            hasher.finalize()
+        }
     };
     // Both are keccak hashes, so their first 8 bytes are uniform.
     u64::from_le_bytes(hash[..8].try_into().expect("8 bytes"))
@@ -94,4 +100,54 @@ async fn read_witness() -> anyhow::Result<(Arc<WitnessOracle>, BlobStore)> {
         .get_oracle_and_blob_provider()
         .await
         .map_err(|err| anyhow!("failed to load oracle and blob provider: {err}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::{B256, U256};
+    use kona_sp1_client_utils::super_root::{
+        SuperConsolidationInputs, SuperConsolidationTransitionInput, SuperInteropInputs,
+        SuperOptimisticBlock, SuperOutputRoot, SuperRootProof, TimestampSpan,
+    };
+
+    use super::hash_seed;
+
+    fn transition(timestamp: u64, block_fills: [u8; 2]) -> SuperConsolidationTransitionInput {
+        let block = |chain_id: u64, fill: u8| SuperOptimisticBlock {
+            chain_id: U256::from(chain_id),
+            block_hash: B256::from([fill; 32]),
+            output_root: B256::from([!fill; 32]),
+        };
+        SuperConsolidationTransitionInput {
+            optimistic_blocks: vec![block(10, block_fills[0]), block(20, block_fills[1])],
+            claimed_super_root_proof: SuperRootProof::new(
+                timestamp,
+                vec![
+                    SuperOutputRoot { chain_id: 10, output_root: B256::from([0x31; 32]) },
+                    SuperOutputRoot { chain_id: 20, output_root: B256::from([0x32; 32]) },
+                ],
+            ),
+        }
+    }
+
+    /// Pins that the consolidation seed changes with every optimistic block hash in the span,
+    /// including blocks before `span.end`.
+    #[test]
+    fn consolidation_seed_commits_to_every_optimistic_block() {
+        let inputs = SuperConsolidationInputs {
+            span: TimestampSpan::new(100, 101).expect("valid span"),
+            previous_super_root: B256::from([0xaa; 32]),
+            transitions: vec![transition(100, [0x11, 0x21]), transition(101, [0x41, 0x51])],
+        };
+        let seed = hash_seed(&SuperInteropInputs::Consolidation(inputs.clone()));
+        for (t, b) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+            let mut changed = inputs.clone();
+            changed.transitions[t].optimistic_blocks[b].block_hash = B256::from([0xee; 32]);
+            assert_ne!(
+                hash_seed(&SuperInteropInputs::Consolidation(changed)),
+                seed,
+                "optimistic block {b} of transition {t}"
+            );
+        }
+    }
 }

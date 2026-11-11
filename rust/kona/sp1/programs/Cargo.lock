@@ -1349,13 +1349,13 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 name = "foldhash"
 version = "0.2.0"
 dependencies = [
- "foldhash 0.2.0 (git+https://github.com/orlp/foldhash?rev=8f878c636fda9c9e93384824ea45e06d03f009f5)",
+ "foldhash 0.2.0 (git+https://github.com/ethereum-optimism/foldhash?tag=v0.2.0)",
 ]
 
 [[package]]
 name = "foldhash"
 version = "0.2.0"
-source = "git+https://github.com/orlp/foldhash?rev=8f878c636fda9c9e93384824ea45e06d03f009f5#8f878c636fda9c9e93384824ea45e06d03f009f5"
+source = "git+https://github.com/ethereum-optimism/foldhash?tag=v0.2.0#8f878c636fda9c9e93384824ea45e06d03f009f5"
 
 [[package]]
 name = "funty"
@@ -1979,6 +1979,7 @@ dependencies = [
 name = "kona-sp1-super-range"
 version = "0.0.1"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "foldhash 0.2.0",
  "kona-preimage",

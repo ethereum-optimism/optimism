@@ -26,14 +26,13 @@ unsafe impl Sync for SeedCell {}
 
 static SEED: SeedCell = SeedCell(UnsafeCell::new(upstream::SharedSeed::from_u64(0)));
 
-// Not 0: a zero per-hasher seed makes keys whose first and third words are zero collide under
-// every global seed.
-const FIRST_PER_HASHER_COUNTER: u64 = 1;
-static PER_HASHER_COUNTER: AtomicU64 = AtomicU64::new(FIRST_PER_HASHER_COUNTER);
+// A random nonzero salt. Unsalted, the first per-hasher seeds would be 0, `s0` and rotations of
+// `s0`, which make some keys collide whatever the global seed.
+const PER_HASHER_SALT: u64 = 0x812f_5a88_c308_1b20;
+static PER_HASHER_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Installs the global hash seed. Must be called once, before any hash map is created. `seed` must
-/// come from a hash in the guest's input that no on-chain actor can predict or choose before its
-/// keys are fixed (see `hash_seed` in the super-range guest).
+/// Installs the global hash seed (see the crate doc for its source). Must be called once, before
+/// any hash map is created.
 ///
 /// # Panics
 ///
@@ -61,13 +60,14 @@ fn shared_seed() -> &'static upstream::SharedSeed {
 
 /// A distinct unpredictable seed for each hasher builder. hashbrown goes quadratic when one table
 /// is filled in another's iteration order under the same seed.
-fn next_per_hasher_seed() -> u64 {
-    per_hasher_seed(PER_HASHER_COUNTER.fetch_add(1, Ordering::Relaxed), shared_seed())
+fn next_per_hasher_seed(shared: &upstream::SharedSeed) -> u64 {
+    per_hasher_seed(PER_HASHER_COUNTER.fetch_add(1, Ordering::Relaxed), shared)
 }
 
-/// `folded_multiply(n, s0)` for counter value `n`: unpredictable, because it depends on `s0`.
+/// `folded_multiply(n ^ PER_HASHER_SALT, s0)` for counter value `n`: unpredictable, because it
+/// depends on `s0`.
 fn per_hasher_seed(n: u64, shared: &upstream::SharedSeed) -> u64 {
-    let mut hasher = upstream::fast::FoldHasher::with_seed(0, shared);
+    let mut hasher = upstream::fast::FoldHasher::with_seed(PER_HASHER_SALT, shared);
     hasher.write_u64(n);
     hasher.finish()
 }
@@ -82,11 +82,13 @@ pub mod fast {
     #[derive(Clone, Copy, Debug)]
     pub struct RandomState {
         per_hasher_seed: u64,
+        shared_seed: &'static upstream::SharedSeed,
     }
 
     impl Default for RandomState {
         fn default() -> Self {
-            Self { per_hasher_seed: crate::next_per_hasher_seed() }
+            let shared_seed = crate::shared_seed();
+            Self { per_hasher_seed: crate::next_per_hasher_seed(shared_seed), shared_seed }
         }
     }
 
@@ -95,7 +97,7 @@ pub mod fast {
 
         #[inline(always)]
         fn build_hasher(&self) -> Self::Hasher {
-            FoldHasher::with_seed(self.per_hasher_seed, crate::shared_seed())
+            FoldHasher::with_seed(self.per_hasher_seed, self.shared_seed)
         }
     }
 }
@@ -106,7 +108,7 @@ mod tests {
 
     use core::hash::{BuildHasher, Hasher};
 
-    use super::{FIRST_PER_HASHER_COUNTER, fast::RandomState, per_hasher_seed};
+    use super::{fast::RandomState, per_hasher_seed};
 
     fn install_test_seed() {
         static ONCE: std::sync::Once = std::sync::Once::new();
@@ -121,6 +123,15 @@ mod tests {
         hasher.finish()
     }
 
+    /// Hashes `words` as the first builder does under the shared seed `0x5eed`.
+    fn first_builder_hash(words: [u64; 4]) -> u64 {
+        let shared = upstream::SharedSeed::from_u64(0x5eed);
+        hash_words(
+            upstream::fast::FoldHasher::with_seed(per_hasher_seed(0, &shared), &shared),
+            words,
+        )
+    }
+
     #[test]
     fn builders_hash_the_same_key_differently() {
         install_test_seed();
@@ -131,23 +142,25 @@ mod tests {
         );
     }
 
-    /// A zero per-hasher seed hashes every key whose first and third words are zero to 0.
+    /// Pins that the first builder does not hash zero-word keys to 0.
     #[test]
     fn keys_with_zero_words_do_not_collide() {
-        let shared = upstream::SharedSeed::from_u64(0x5eed);
-        let seed = per_hasher_seed(FIRST_PER_HASHER_COUNTER, &shared);
-        let hasher = || upstream::fast::FoldHasher::with_seed(seed, &shared);
-        let first = hash_words(hasher(), [0, 1, 0, 0]);
-        let second = hash_words(hasher(), [0, 2, 0, 0]);
-        assert_ne!(first, second);
+        let first = first_builder_hash([0, 1, 0, 0]);
+        assert_ne!(first, first_builder_hash([0, 2, 0, 0]));
         assert_ne!(first, 0);
     }
 
-    /// A per-hasher seed that the attacker can compute lets keys cancel it in the first word.
+    /// Pins that the first builder does not hash keys with their first two words swapped alike.
+    #[test]
+    fn keys_with_swapped_words_do_not_collide() {
+        assert_ne!(first_builder_hash([1, 2, 7, 9]), first_builder_hash([2, 1, 7, 9]));
+    }
+
+    /// Pins that per-hasher seeds change with the shared seed and differ from the counter.
     #[test]
     fn per_hasher_seeds_depend_on_the_shared_seed() {
         let (one, two) = (upstream::SharedSeed::from_u64(1), upstream::SharedSeed::from_u64(2));
-        for n in FIRST_PER_HASHER_COUNTER..FIRST_PER_HASHER_COUNTER + 4 {
+        for n in 0..4 {
             assert_ne!(per_hasher_seed(n, &one), per_hasher_seed(n, &two));
             assert_ne!(per_hasher_seed(n, &one), n);
         }

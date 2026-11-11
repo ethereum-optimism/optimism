@@ -10,8 +10,9 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-# On a foldhash bump: set `version` above and `rev` to `git.sha1` in the release's `.cargo_vcs_info.json`.
-upstream = { package = "foldhash", git = "https://github.com/orlp/foldhash", rev = "8f878c636fda9c9e93384824ea45e06d03f009f5", default-features = false }
+# Fork of orlp/foldhash. On a bump: set `version` above and `tag`; the tag's commit must be
+# `git.sha1` in the crates.io release's `.cargo_vcs_info.json`.
+upstream = { package = "foldhash", git = "https://github.com/ethereum-optimism/foldhash", tag = "v0.2.0", default-features = false }
 
 [lints]
 workspace = true
