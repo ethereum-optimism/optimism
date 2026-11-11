@@ -147,7 +147,9 @@ impl EphemeralChain {
         };
         // Every recorded block is in the overlay manager the provider shares, and its recorded
         // ancestors reach back to genesis, so the provider resolves the block's whole chain from
-        // its parent. A recorded ancestor it can't resolve is an inconsistency, so it errors.
+        // its parent. A recorded ancestor it can't resolve is an inconsistency. The provider
+        // resolves the chain lazily, so that fails the first read of the state rather than this
+        // call: during import, as `Error::Execution`, not as INVALID or SYNCING.
         let header = block.recovered_block().clone_sealed_header();
         let state = self.provider.state_with_block_appended(header.parent_hash(), block)?;
         Ok(Some((header, state)))
