@@ -196,6 +196,10 @@ func (s *interopE2ESystem) startBatcherForL2(id string) {
 	if s.config.BatcherUsesBlobs {
 		daType = batcherFlags.BlobsType
 	}
+	txMgrConfig := setuputils.NewTxMgrConfig(s.l1.UserRPC(), &batcherSecret)
+	// txmgr knows the Osaka time of public L1s only, and this L1 runs Osaka from genesis, so always
+	// send cell proofs. geth converts legacy sidecars on submission, but only for a transition period.
+	txMgrConfig.CellProofTime = 0
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 s.l1.UserRPC().RPC(),
 		L2EthRpc:                 []string{l2EL.UserRPC().RPC()},
@@ -208,7 +212,7 @@ func (s *interopE2ESystem) startBatcherForL2(id string) {
 		ApproxComprRatio:         0.4,
 		SubSafetyMargin:          4,
 		PollInterval:             50 * time.Millisecond,
-		TxMgrConfig:              setuputils.NewTxMgrConfig(s.l1.UserRPC(), &batcherSecret),
+		TxMgrConfig:              txMgrConfig,
 		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: log.FormatText,

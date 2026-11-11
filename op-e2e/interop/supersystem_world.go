@@ -127,8 +127,9 @@ func (s *interopE2ESystem) worldIntent(w WorldConfig) *state.Intent {
 	l1ID := eth.ChainIDFromUInt64(w.L1ChainID)
 	_, l1Cfg := builder.WithL1(l1ID)
 	l1Cfg.WithGasLimit(30_000_000)
-	// The interop migration runs on the L1 through an EIP-7702 delegation.
-	l1Cfg.WithL1ForkAtGenesis(forks.Prague)
+	// Osaka, the latest L1 fork on Ethereum mainnet that changes execution. The interop migration
+	// needs Prague or later, because it runs through an EIP-7702 delegation.
+	l1Cfg.WithL1ForkAtGenesis(forks.Osaka)
 
 	keyAddr := intentbuilder.KeyToAddrProvider(s.t, s.hdWallet)
 	l1Addr := intentbuilder.RoleToAddrProvider(s.t, s.hdWallet, l1ID)
