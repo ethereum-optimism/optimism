@@ -531,6 +531,22 @@ jobs:
       - apt-install:
           packages: "clang llvm-dev libclang-dev"
           extra_flags: "--no-install-recommends"
+      # The Rust base image ships sccache, this machine image doesn't. Install
+      # the same release, checked against upstream's sha256, so rust-prepare
+      # starts it and the native kona-host build uses the shared GCS cache
+      # (develop writes, other refs read).
+      - run:
+          name: Install sccache
+          command: |
+            set -euo pipefail
+            ASSET=sccache-v0.18.0-x86_64-unknown-linux-musl
+            curl -fsSL --retry 5 --retry-all-errors -o /tmp/sccache.tgz \
+              "https://github.com/mozilla/sccache/releases/download/v0.18.0/${ASSET}.tar.gz"
+            echo "45f1447fbe231e3037bde351ef70677dd212216c8d62ae7ca409fecc4d6acc89  /tmp/sccache.tgz" | sha256sum -c -
+            tar -xzf /tmp/sccache.tgz -C /tmp
+            sudo install "/tmp/${ASSET}/sccache" /usr/local/bin/sccache
+            rm -rf /tmp/sccache.tgz "/tmp/${ASSET}"
+            sccache --version
       - rust-prepare
       - run:
           name: Build cannon
@@ -564,6 +580,7 @@ jobs:
               $L2_HEAD \
               $L1_HEAD \
               $L2_CHAIN_ID
+      - rust-sccache-stats
 
   # Kona Rust CI - Lint (cannon target)
   kona-cargo-lint:
