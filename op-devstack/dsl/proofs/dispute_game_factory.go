@@ -248,6 +248,35 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	return f.GameAtIndex(initialCount)
 }
 
+// WaitForGameFrom waits for a new game whose L2 sequence number is at least minSequenceNumber,
+// skipping new games below it.
+func (f *DisputeGameFactory) WaitForGameFrom(minSequenceNumber uint64) *FaultDisputeGame {
+	nextIndex := f.GameCount()
+	timedCtx, cancel := context.WithTimeout(f.t.Ctx(), 10*time.Minute)
+	defer cancel()
+	var lastReadErr error
+	var found *FaultDisputeGame
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		count, readErr := contractio.Read(f.dgf.GameCount(), timedCtx)
+		lastReadErr = readErr
+		if readErr != nil {
+			f.log.Debug("Game count unavailable while waiting for new game", "next", nextIndex, "err", readErr)
+			return false, nil
+		}
+		for ; nextIndex < count.Int64(); nextIndex++ {
+			game := f.GameAtIndex(nextIndex)
+			if game.L2SequenceNumber() >= minSequenceNumber {
+				found = game
+				return true, nil
+			}
+			f.log.Info("Skipping game below L2 sequence number", "index", nextIndex, "gameSequenceNumber", game.L2SequenceNumber(), "minSequenceNumber", minSequenceNumber)
+		}
+		return false, nil
+	})
+	f.require.NoErrorf(err, "dispute game factory created no new game at or above L2 sequence number %d; last read error: %v", minSequenceNumber, lastReadErr)
+	return found
+}
+
 // WaitForZKGameAtIndex waits until the factory holds a ZK dispute game at the
 // given index, then returns that game.
 func (f *DisputeGameFactory) WaitForZKGameAtIndex(idx int64) *ZKGame {

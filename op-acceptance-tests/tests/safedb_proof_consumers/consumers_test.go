@@ -30,7 +30,9 @@ func TestProposerPublishesSuperRoot(gt *testing.T) {
 		),
 	)
 
-	game := system.DisputeGameFactory().WaitForGame()
+	// The genesis block's required L1 is fixed at 0 without a SafeDB read, so wait for a game past it.
+	rollupConfig := system.L2Chain.Escape().RollupConfig()
+	game := system.DisputeGameFactory().WaitForGameFrom(rollupConfig.Genesis.L2Time + rollupConfig.BlockTime)
 	game.VerifyGameType(gameTypes.SuperPermissionedGameType)
 	response := dsl.NewOpNodeSuperRoots(system.L2CL).AwaitSuperRootAtTimestamp(game.L2SequenceNumber())
 	require.Equal(game.RootClaimValue(), common.Hash(eth.SuperRoot(response.Data.Super)))
@@ -38,8 +40,6 @@ func TestProposerPublishesSuperRoot(gt *testing.T) {
 	chainOutput, ok := response.OptimisticAtTimestamp[system.L2Chain.ChainID()]
 	require.True(ok, "super root response must include the L2 chain")
 	block := system.L2EL.BlockRefByHash(chainOutput.Output.BlockHash)
-	// The genesis block's required L1 is fixed at 0 without a SafeDB read.
-	require.NotZero(block.Number, "the game must commit past L2 genesis")
 	require.Equal(system.L2CL.OutputAtBlock(block.Number).OutputRoot, chainOutput.OutputRoot)
 	requireFirstL1WithSafeHead(t, system.L2CL, block.Number, response.Data.VerifiedRequiredL1)
 }
