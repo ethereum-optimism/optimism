@@ -17,16 +17,31 @@ contract DeployVariations_Test is CommonTest {
         }
     }
 
+    /// @dev It should be possible to enable Fault Proofs without Alt-DA.
+    function test_enableFaultProofs_succeeds() public virtual {
+        enableAddOns(false);
+
+        super.setUp();
+    }
+
     /// @dev It should be possible to enable Fault Proofs with Alt-DA.
-    function testFuzz_enableFaultProofs_succeeds(bool _enableAltDa) public virtual {
-        enableAddOns(_enableAltDa);
+    function test_enableFaultProofsWithAltDa_succeeds() public virtual {
+        enableAddOns(true);
+
+        super.setUp();
+    }
+
+    /// @dev It should be possible to enable Fault Proofs and Interop without Alt-DA.
+    function test_enableInteropAndFaultProofs_succeeds() public virtual {
+        enableAddOns(false);
+        super.enableInterop();
 
         super.setUp();
     }
 
     /// @dev It should be possible to enable Fault Proofs and Interop with Alt-DA.
-    function test_enableInteropAndFaultProofs_succeeds(bool _enableAltDa) public virtual {
-        enableAddOns(_enableAltDa);
+    function test_enableInteropAndFaultProofsWithAltDa_succeeds() public virtual {
+        enableAddOns(true);
         super.enableInterop();
 
         super.setUp();
