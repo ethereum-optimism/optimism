@@ -107,6 +107,8 @@ struct RecordToDial {
     event: &'static str,
     /// The record.
     enr: Enr,
+    /// Whether the bootstore should save it, which the table filter decides.
+    save: bool,
 }
 
 /// The [`Discv5Driver`] drives the discovery service.
@@ -203,11 +205,17 @@ impl Discv5Driver {
     /// Returns the peer a discovery event brings, if our own gossip should dial it: only a peer
     /// discovery has had a session with, and only if the address gossip dials from its record has
     /// the IP the session's packets came from, as only that address has shown that the node runs
-    /// discovery. The driver then hands it to gossip and saves its record in the bootstore, which
+    /// discovery. The driver then hands it to gossip, and saves its record in the bootstore, which
     /// dials the same address after a restart; it doesn't send it to other nodes. Only a record
-    /// valid for `chain_id`, and that `table_filter` accepts, is dialed: a node that uses only
-    /// public addresses doesn't dial a private one even after a session with it. The record comes
-    /// from these events:
+    /// valid for `chain_id` is dialed.
+    ///
+    /// A record that `table_filter` rejects, such as a private one on a node that uses only public
+    /// addresses, is dialed, but not saved. Our lookups and bootnodes go through the filter, so
+    /// such a session is one the other node started, from the address we dial. Refusing the dial
+    /// wouldn't keep the two apart, as that node can dial us, and gossip accepts it. But after a
+    /// restart, the bootstore would dial the record without a session.
+    ///
+    /// The record comes from these events:
     ///
     /// - `SessionEstablished`: a session with the node started, in either direction. Our lookups
     ///   start one with each node they contact. discv5 only checked the record's UDP address of the
@@ -257,11 +265,11 @@ impl Discv5Driver {
             debug!(target: "discovery", event = kind, %socket, "Ignoring a record without a TCP address at the IP its session came from");
             return None;
         }
-        if !table_filter(&enr) {
-            debug!(target: "discovery", event = kind, %socket, "Ignoring a session at an address discovery doesn't use; --p2p.discovery.private allows private ones");
-            return None;
+        let save = table_filter(&enr);
+        if !save {
+            debug!(target: "discovery", event = kind, %socket, "Not saving a session at an address discovery doesn't use; --p2p.discovery.private allows private ones");
         }
-        Some(RecordToDial { event: kind, enr })
+        Some(RecordToDial { event: kind, enr, save })
     }
 
     /// Bootstraps the [`Discv5`] table with bootnodes.
@@ -535,12 +543,14 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        if let Some(RecordToDial { event: kind, enr }) =
+                        if let Some(RecordToDial { event: kind, enr, save }) =
                             Self::record_to_dial(event, chain_id, table_filter)
                         {
                             debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
-                            store.add_enr(enr.clone());
+                            if save {
+                                store.add_enr(enr.clone());
+                            }
                             let sender = enr_sender.clone();
                             spawn_in_current_span(async move {
                                 if let Err(e) = sender.send(enr).await {
@@ -659,7 +669,7 @@ mod tests {
         let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
         assert_eq!(
             Discv5Driver::record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID, accept_all),
-            expected.map(|event| RecordToDial { event, enr })
+            expected.map(|event| RecordToDial { event, enr, save: true })
         );
         assert_eq!(
             Discv5Driver::record_to_dial(
@@ -985,20 +995,20 @@ mod tests {
         true
     }
 
-    /// A session's record is dialed only if the table filter accepts it, as the records discovery
-    /// contacts are.
+    /// A session's record is dialed whatever the table filter, but saved only if the filter
+    /// accepts it, as the bootstore dials what it holds without a session.
     #[rstest]
-    #[case::public_only(crate::public_only, None)]
-    #[case::allowing_private(accept_all, Some("session_established"))]
-    fn test_record_to_dial_applies_the_table_filter(
+    #[case::public_only(crate::public_only, false)]
+    #[case::allowing_private(accept_all, true)]
+    fn test_record_to_dial_saves_only_what_the_table_filter_accepts(
         #[case] table_filter: fn(&Enr) -> bool,
-        #[case] expected: Option<&'static str>,
+        #[case] save: bool,
     ) {
         let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
         let event = session_from("127.0.0.1")(enr.clone());
         assert_eq!(
             Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, table_filter),
-            expected.map(|event| RecordToDial { event, enr })
+            Some(RecordToDial { event: "session_established", enr, save })
         );
     }
 
@@ -1009,6 +1019,9 @@ mod tests {
     /// not a host it pointed us at. Refusing the dial wouldn't keep the two apart either, as the
     /// private node can dial us, and gossip accepts it. Not saving the record keeps private
     /// addresses out of the bootstore, which dials what it holds after a restart.
+    ///
+    /// The driver dials a record by handing it over to gossip, which dials it. There's no gossip
+    /// here, so the test checks the handover.
     ///
     /// N has a public-only filter, and a bootstore with a public record. L has no filter, and has
     /// N as its bootnode, given by an enode URL on loopback, so L's bootstrap starts a session with
@@ -1035,7 +1048,7 @@ mod tests {
         let (_loopback, _) = loopback.start();
 
         // The driver also hands over the saved public record, at startup and every store interval.
-        let dialed = async {
+        let handed_over = async {
             loop {
                 let record = records.recv().await.expect("the driver runs");
                 if record.node_id() == loopback_id {
@@ -1043,17 +1056,17 @@ mod tests {
                 }
             }
         };
-        let dialed = tokio::time::timeout(Duration::from_secs(5), dialed)
+        let handed_over = tokio::time::timeout(Duration::from_secs(5), handed_over)
             .await
-            .expect("a public-only node didn't dial a session at a loopback address back");
+            .expect("a public-only node didn't hand a session at a loopback address to gossip");
 
-        // Wait for a save after the dial. A read while the driver writes can come back empty, so
-        // wait for one that holds the public record.
-        let dialed_at = std::time::SystemTime::now();
-        let saved_after_dial = async {
+        // Wait for a save after the handover. A read while the driver writes can come back empty,
+        // so wait for one that holds the public record.
+        let handed_over_at = std::time::SystemTime::now();
+        let saved_after_handover = async {
             loop {
                 let modified = std::fs::metadata(&path).and_then(|meta| meta.modified());
-                if modified.is_ok_and(|modified| modified > dialed_at) {
+                if modified.is_ok_and(|modified| modified > handed_over_at) {
                     let store: BootStore = BootStoreFile::Custom(path.clone())
                         .try_into()
                         .expect("the bootstore opens");
@@ -1065,10 +1078,10 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
         };
-        let saved = tokio::time::timeout(Duration::from_secs(5), saved_after_dial)
+        let saved = tokio::time::timeout(Duration::from_secs(5), saved_after_handover)
             .await
             .expect("the driver saves its bootstore every store interval");
-        assert!(!saved.contains(&dialed), "a public-only node saved a loopback record");
+        assert!(!saved.contains(&handed_over), "a public-only node saved a loopback record");
     }
 
     /// An enode bootnode is contacted only if the table filter accepts its address, or it has none.
