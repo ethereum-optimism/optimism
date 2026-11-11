@@ -539,9 +539,10 @@ jobs:
           name: Install sccache
           command: |
             set -euo pipefail
-            ASSET=sccache-v0.18.0-x86_64-unknown-linux-musl
+            VERSION=v0.18.0
+            ASSET=sccache-${VERSION}-x86_64-unknown-linux-musl
             curl -fsSL --retry 5 --retry-all-errors -o /tmp/sccache.tgz \
-              "https://github.com/mozilla/sccache/releases/download/v0.18.0/${ASSET}.tar.gz"
+              "https://github.com/mozilla/sccache/releases/download/${VERSION}/${ASSET}.tar.gz"
             echo "45f1447fbe231e3037bde351ef70677dd212216c8d62ae7ca409fecc4d6acc89  /tmp/sccache.tgz" | sha256sum -c -
             tar -xzf /tmp/sccache.tgz -C /tmp
             sudo install "/tmp/${ASSET}/sccache" /usr/local/bin/sccache
