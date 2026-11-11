@@ -91,8 +91,8 @@ where
     /// permit, so out-of-window requests never wait for one. Upstream also resolves the state
     /// before taking a blocking thread (`spawn_blocking_io_with_state`), as opening the pending
     /// state takes one itself; this resolves it inside the task. That is safe because `pending`
-    /// never gets this far: reth sets no canonical pending block on an OP node,
-    /// so `ensure_within_proofs_window` rejects it with `HeaderNotFound` first.
+    /// never gets this far: a pending block is past the canonical head, and so past
+    /// `window.latest`, so `ensure_within_proofs_window` rejects it whoever sets it.
     async fn get_proof_inner(
         &self,
         address: Address,
