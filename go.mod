@@ -2,7 +2,7 @@ module github.com/ethereum-optimism/optimism
 
 go 1.26.0
 
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
 	github.com/BurntSushi/toml v1.5.0
