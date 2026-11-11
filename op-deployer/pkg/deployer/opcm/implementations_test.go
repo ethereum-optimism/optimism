@@ -42,7 +42,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 
 		// We'll need some contracts already deployed for this to work
 		proxyAdminAddress, proxyAddress := deployDependencies(host1)
-		sp1Verifier, err := DeployMockSP1Verifier(host1, addresses.ScriptDeployer)
+		sp1Verifier, _, err := DeployMockSP1Verifier(host1, addresses.ScriptDeployer)
 		require.NoError(t, err)
 
 		deployImplementations, err := NewDeployImplementationsScript(host1)

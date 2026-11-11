@@ -11,6 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -26,7 +28,7 @@ const (
 // errTimeout represents a timeout
 var errTimeout = errors.New("timeout")
 
-func WaitForL1OriginOnL2(rollupCfg *rollup.Config, l1BlockNum uint64, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
+func WaitForL1OriginOnL2(rollupCfg *rollup.Config, l1BlockNum uint64, client *sources.EthClient, timeout time.Duration) (eth.BlockInfo, error) {
 	timeoutCh := time.After(timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -41,16 +43,16 @@ func WaitForL1OriginOnL2(rollupCfg *rollup.Config, l1BlockNum uint64, client *et
 	for {
 		select {
 		case head := <-headChan:
-			block, err := client.BlockByNumber(ctx, head.Number)
+			info, l1InfoDeposit, err := client.InfoAndFirstDepositByNumber(ctx, bigs.Uint64Strict(head.Number))
 			if err != nil {
 				return nil, err
 			}
-			l1Info, err := derive.L1BlockInfoFromBytes(rollupCfg, block.Time(), block.Transactions()[0].Data())
+			l1Info, err := derive.L1BlockInfoFromBytes(rollupCfg, info.Time(), l1InfoDeposit.Data)
 			if err != nil {
 				return nil, err
 			}
 			if l1Info.Number >= l1BlockNum {
-				return block, nil
+				return info, nil
 			}
 
 		case err := <-headSub.Err():
@@ -77,11 +79,11 @@ func WaitForTransaction(hash common.Hash, client *ethclient.Client, timeout time
 
 		select {
 		case <-ctx.Done():
-			tip, err := client.BlockByNumber(context.Background(), nil)
+			tip, err := client.HeaderByNumber(context.Background(), nil)
 			if err != nil {
 				return nil, err
 			}
-			return nil, fmt.Errorf("receipt for transaction %s not found. tip block number is %d: %w", hash.Hex(), tip.NumberU64(), errTimeout)
+			return nil, fmt.Errorf("receipt for transaction %s not found. tip block number is %d: %w", hash.Hex(), tip.Number, errTimeout)
 		case <-ticker.C:
 		}
 	}
@@ -141,7 +143,7 @@ type WaitForBlockOption func(*waitForBlockOptions)
 //
 // This function will also retry fetch errors up to three times before returning an error in order to
 // protect against transient network problems. This function uses polling rather than websockets.
-func WaitForBlock(number *big.Int, client *ethclient.Client, opts ...WaitForBlockOption) (*types.Block, error) {
+func WaitForBlock(number *big.Int, client *ethclient.Client, opts ...WaitForBlockOption) (*types.Header, error) {
 	defaultOpts := &waitForBlockOptions{
 		noChangeTimeout: 30 * time.Second,
 		absoluteTimeout: 3 * time.Minute,
@@ -161,7 +163,7 @@ func WaitForBlock(number *big.Int, client *ethclient.Client, opts ...WaitForBloc
 	var errCount int
 
 	for {
-		head, err := client.BlockByNumber(ctx, nil)
+		head, err := client.HeaderByNumber(ctx, nil)
 		if err != nil {
 			errCount++
 			if errCount >= waitForBlockMaxRetries {
@@ -172,12 +174,12 @@ func WaitForBlock(number *big.Int, client *ethclient.Client, opts ...WaitForBloc
 
 		errCount = 0
 
-		if head.Number().Cmp(number) >= 0 {
-			return client.BlockByNumber(ctx, number)
+		if head.Number.Cmp(number) >= 0 {
+			return client.HeaderByNumber(ctx, number)
 		}
 
-		if head.Number().Cmp(lastBlockNumber) != 0 {
-			lastBlockNumber = head.Number()
+		if head.Number.Cmp(lastBlockNumber) != 0 {
+			lastBlockNumber = head.Number
 			lastAdvancement = time.Now()
 		}
 
@@ -194,16 +196,16 @@ func WaitForBlock(number *big.Int, client *ethclient.Client, opts ...WaitForBloc
 	}
 }
 
-func WaitForBlockToBeFinalized(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
+func WaitForBlockToBeFinalized(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Header, error) {
 	return waitForBlockTag(number, client, timeout, rpc.FinalizedBlockNumber)
 }
 
-func WaitForBlockToBeSafe(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
+func WaitForBlockToBeSafe(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Header, error) {
 	return waitForBlockTag(number, client, timeout, rpc.SafeBlockNumber)
 }
 
-// waitForBlockTag polls for a block number to reach the specified tag & then returns that block at the number.
-func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Duration, tag rpc.BlockNumber) (*types.Block, error) {
+// waitForBlockTag polls for a block number to reach the specified tag & then returns the header at that number.
+func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Duration, tag rpc.BlockNumber) (*types.Header, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -216,7 +218,7 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 	for {
 		select {
 		case <-ticker.C:
-			block, err := client.BlockByNumber(ctx, tagBigInt)
+			header, err := client.HeaderByNumber(ctx, tagBigInt)
 			if err != nil {
 				// If block is not found (e.g. upon startup of chain, when there is no "finalized block" yet)
 				// then it may be found later. Keep wait loop running.
@@ -225,8 +227,8 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 				}
 				return nil, err
 			}
-			if block != nil && block.NumberU64() >= bigs.Uint64Strict(number) {
-				return client.BlockByNumber(ctx, number)
+			if header != nil && header.Number.Cmp(number) >= 0 {
+				return client.HeaderByNumber(ctx, number)
 			}
 		case <-ctx.Done():
 			return nil, ctx.Err()

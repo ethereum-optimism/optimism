@@ -127,24 +127,10 @@ op-devstack/dsl | missing go-ethereum/core/types.Transaction.RollupCostData | #2
 op-devstack/sysgo | missing go-ethereum/core/types.CustodyBitmap | upstream backport, in go-ethereum v1.17.7
 op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMempoolFiltering | #21744 in-process op-geth L2 EL
 op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMessageRPC | #21744 in-process op-geth L2 EL
-op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.L1Cost | #23405 test and DSL swaps to op-core
-op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.Receipt.FeeScalar | #23405 test and DSL swaps to op-core
-op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.Receipt.L1BaseFeeScalar | #23405 test and DSL swaps to op-core
-op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.Receipt.L1BlobBaseFee | #23405 test and DSL swaps to op-core
-op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.Receipt.L1BlobBaseFeeScalar | #23405 test and DSL swaps to op-core
-op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.Receipt.L1Fee | #23405 test and DSL swaps to op-core
-op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.Receipt.L1GasPrice | #23405 test and DSL swaps to op-core
-op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.Receipt.L1GasUsed | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers | changed signature of go-ethereum/consensus/misc/eip1559.CalcBaseFee | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers | changed signature of go-ethereum/core.NewEVMBlockContext | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers | changed signature of go-ethereum/core/types.NewBlock | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers | missing go-ethereum/core/types.DefaultBlockConfig | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers | missing go-ethereum/core/vm.Config.PrecompileOverrides | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers | missing go-ethereum/core/vm.PrecompileOverrides | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers | missing go-ethereum/eth/ethconfig.Config.RollupDisableTxPoolGossip | #23405 test and DSL swaps to op-core
-op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.FlzCompressLen | #23405 test and DSL swaps to op-core
-op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #23405 test and DSL swaps to op-core
-op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.RollupCostData | #23405 test and DSL swaps to op-core
+op-e2e/actions/helpers | changed signature of go-ethereum/consensus/misc/eip1559.CalcBaseFee | #20266 drop the op-geth-only argument at the flip (eip1559.CalcBaseFee(config, parent))
+op-e2e/actions/helpers | changed signature of go-ethereum/core.NewEVMBlockContext | #20266 drop the op-geth-only argument at the flip (core.NewEVMBlockContext(header, chain, author))
+op-e2e/actions/helpers | changed signature of go-ethereum/core/types.NewBlock | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, hasher))
+op-e2e/actions/helpers | missing go-ethereum/core/types.DefaultBlockConfig | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, hasher))
 op-e2e/e2eutils/geth | missing go-ethereum/beacon/engine.ExecutableData.BlockAccessList | upstream backport, in go-ethereum v1.17.7
 op-e2e/e2eutils/geth | missing go-ethereum/beacon/engine.PayloadAttributes.TargetGasLimit | upstream backport, in go-ethereum v1.17.7
 op-e2e/e2eutils/geth | missing go-ethereum/core/types.CustodyBitmap | upstream backport, in go-ethereum v1.17.7
@@ -183,20 +169,6 @@ op-e2e/opgeth (tests) | missing go-ethereum/params.ChainConfig.Optimism | #20275
 op-e2e/opgeth (tests) | missing go-ethereum/params.ChainConfig.RegolithTime | #20275 op-e2e/opgeth deletion
 op-e2e/opgeth (tests) | missing go-ethereum/params.OptimismTestConfig | #20275 op-e2e/opgeth deletion
 op-e2e/opgeth (tests) | missing go-ethereum/params.TransactionConditionalRejectedErrCode | #20275 op-e2e/opgeth deletion
-op-e2e/system/bridge | missing go-ethereum/core/types.Receipt.L1Fee | #23405 test and DSL swaps to op-core
-op-e2e/system/bridge (tests) | missing go-ethereum/core/types.DepositTx | #23405 test and DSL swaps to op-core
-op-e2e/system/bridge (tests) | missing go-ethereum/core/types.NewIsthmusSigner | #23405 test and DSL swaps to op-core
-op-e2e/system/bridge (tests) | missing go-ethereum/core/types.Receipt.L1Fee | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/consensus/misc/eip1559.EncodeHoloceneExtraData | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/core/types.MinTransactionSize | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/core/types.NewL1CostFunc | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/core/types.NewOperatorCostFunc | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/core/types.Receipt.FeeScalar | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/core/types.Receipt.L1Fee | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/core/types.Receipt.L1GasUsed | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeConstant | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeScalar | #23405 test and DSL swaps to op-core
-op-e2e/system/fees (tests) | missing go-ethereum/core/types.Transaction.RollupCostData | #23405 test and DSL swaps to op-core
 op-e2e/system/verifier (tests) | missing go-ethereum/miner.Config.RollupComputePendingBlock | #21744 in-process op-geth L2 EL
 op-interop-filter/filter (tests) | missing go-ethereum/params.InteropCrossL2InboxAddress | #23405 test and DSL swaps to op-core
 op-interop-mon/monitor (tests) | missing go-ethereum/params.InteropCrossL2InboxAddress | #23405 test and DSL swaps to op-core
@@ -242,10 +214,3 @@ op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPaylo
 op-test-sequencer/sequencer/backend/work/builders/fakepos | changed signature of go-ethereum/beacon/engine.ExecutableDataToBlockNoHash | #20266 cutover edit: drop the block-type argument, a no-op for L1 blocks
 op-test-sequencer/sequencer/backend/work/builders/fakepos | missing go-ethereum/beacon/engine.PayloadAttributes.TargetGasLimit | upstream backport, in go-ethereum v1.17.7
 packages/contracts-bedrock/scripts/go-ffi | missing go-ethereum/core/types.DepositTx | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | changed signature of go-ethereum/consensus/misc/eip1559.CalcBaseFee | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/consensus/misc/eip1559.EncodeHoloceneExtraData | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/consensus/misc/eip1559.EncodeJovianExtraData | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Block.WithdrawalsRoot | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.NewIsthmusSigner | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeConstant | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeScalar | #23405 test and DSL swaps to op-core

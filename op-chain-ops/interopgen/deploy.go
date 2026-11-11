@@ -186,7 +186,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)
 	}
 
-	sp1Verifier, err := opcm.DeployMockSP1Verifier(l1Host, superCfg.Deployer)
+	sp1Verifier, _, err := opcm.DeployMockSP1Verifier(l1Host, superCfg.Deployer)
 	if err != nil {
 		return nil, err
 	}

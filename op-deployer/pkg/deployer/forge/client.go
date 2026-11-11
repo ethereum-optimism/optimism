@@ -51,7 +51,7 @@ type Client struct {
 	// AnyCacheProfile lets a script run take the compile settings of the project profile that the
 	// compile cache was built with, such as a lite build's, instead of only the default profile's.
 	// Such a build can hold contracts above the EIP-170 code size limit, so set it only for runs
-	// that deploy no contract to a chain, such as an L2 genesis without a code size limit.
+	// that deploy no contract to a chain, such as an offline genesis run without a code size limit.
 	AnyCacheProfile bool
 }
 

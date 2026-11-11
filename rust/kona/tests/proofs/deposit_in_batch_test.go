@@ -40,7 +40,7 @@ func runDepositInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[bool]) {
 	sequencerBlock := env.Sequencer.ActL2EndBlock(t)
 	// Read the sequencer's L1 info deposit before derivation replaces block 1, so the check does
 	// not depend on the engine retaining the reorged-out block.
-	_, sequencerL1InfoTx, err := env.Engine.SourceClient(t, 10).InfoAndFirstDepositByHash(t.Ctx(), sequencerBlock.Hash)
+	_, sequencerL1InfoTx, err := env.Engine.SourceClient().InfoAndFirstDepositByHash(t.Ctx(), sequencerBlock.Hash)
 	require.NoError(t, err)
 
 	beneficiary := common.HexToAddress("0x00000000000000000000000000000000deadbeef")
@@ -80,7 +80,7 @@ func runDepositInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[bool]) {
 	if testCfg.Custom == bareDeposit && env.Sd.RollupCfg.IsHolocene(l2SafeHead.Time) {
 		// The engine rejects the batch transaction and the block is replaced by its deposits.
 		require.Equal(t, uint64(1), bigs.Uint64Strict(l2SafeHead.Number))
-		deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2SafeHead.Hash())
+		deposits, userTxs := env.Engine.BlockTxs(t, l2SafeHead.Hash())
 		require.Empty(t, userTxs, "only the L1 info deposit remains")
 		require.Len(t, deposits, 1, "only the L1 info deposit remains")
 		l1InfoTx := deposits[0]

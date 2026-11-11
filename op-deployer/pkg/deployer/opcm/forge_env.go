@@ -5,13 +5,16 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // ForgeEnv runs the deploy scripts with forge, against a live L1 or offline on a GenesisState.
 type ForgeEnv struct {
-	Client               *forge.Client
+	Client *forge.Client
+	// Artifacts are the contract artifacts of the bundle that Client runs.
+	Artifacts            foundry.StatDirFs
 	Context              context.Context
 	L1RPCUrl             string
 	PrivateKey           string

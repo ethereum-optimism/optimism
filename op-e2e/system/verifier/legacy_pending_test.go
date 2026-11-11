@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -92,13 +93,14 @@ func TestPendingBlockIsLatest(t *testing.T) {
 	l2Seq := sys.NodeClient("sequencer")
 
 	t.Run("block", func(t *testing.T) {
+		l2SeqSrc := sys.NodeSourceClient("sequencer")
 		for i := 0; i < 10; i++ {
-			pending, err := l2Seq.BlockByNumber(context.Background(), big.NewInt(rpc.PendingBlockNumber.Int64()))
+			pending, err := l2SeqSrc.PayloadByLabel(context.Background(), eth.BlockLabel(rpc.PendingBlockNumber.String()))
 			require.NoError(t, err)
-			latest, err := l2Seq.BlockByNumber(context.Background(), nil)
+			latest, err := l2SeqSrc.PayloadByLabel(context.Background(), eth.Unsafe)
 			require.NoError(t, err)
-			if pending.NumberU64() == latest.NumberU64() {
-				require.Equal(t, pending.Hash(), latest.Hash(), "pending must exactly match latest block")
+			if pending.ExecutionPayload.BlockNumber == latest.ExecutionPayload.BlockNumber {
+				require.Equal(t, pending.ExecutionPayload.BlockHash, latest.ExecutionPayload.BlockHash, "pending must exactly match latest block")
 				return
 			}
 			// re-try until we have the same number, as the requests are not an atomic bundle, and the sequencer may create a block.

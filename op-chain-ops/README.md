@@ -34,6 +34,7 @@ cmd/
 ├── check-lagoon                  - Lagoon conformance checks for Interop messaging/filter failsafe and SDM PostExec behavior.
 ├── check-prestate                - Checks a fault proof absolute prestate's chain compatibility. e.g: go run cmd/check-prestate --prestate-hash <HASH>
 ├── deposit-hash                  - Determine the L2 deposit tx hash, based on log event(s) emitted by an L1 tx.
+├── eth-liquidity-pause           - Read, sync (L1 -> L2) and, on devnets, drive the ETHLiquidity pause that stops SuperchainETHBridge.
 ├── interop-smoke                 - Interop smoke tests against two live chain RPCs: ETH bridging, valid/invalid executing messages.
 └── unclaimed-credits             - Utility to inspect credits of resolved fault-proof games.
 ```

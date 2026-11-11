@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -149,7 +148,7 @@ func TestImplementations(t *testing.T) {
 }
 
 func testImplementations(t *testing.T, forkRPCURL string) {
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	testCacheDir := testutil.SharedCacheDir(t)
 
 	if forkRPCURL == "" {
 		t.Skip("forkRPCURL not set")

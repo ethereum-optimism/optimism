@@ -31,7 +31,8 @@ type GenesisState struct {
 	Allocs *foundry.ForgeAllocs
 	// Sender sends the transactions of the scripts.
 	Sender common.Address
-	// NoCodeSizeLimit admits contracts over the EIP-170 limit, such as the lite profile's.
+	// NoCodeSizeLimit admits contracts over the EIP-170 limit, such as the lite profile's, and lets
+	// the scripts run a build of such a profile.
 	NoCodeSizeLimit bool
 }
 
@@ -66,7 +67,7 @@ func (g *GenesisState) Wipe(addr common.Address) {
 }
 
 // Create puts code at the sender's next CREATE address, as a deployment from the sender does. The
-// code must need no constructor and have no immutables.
+// code must need no init code: no constructor, immutables or initialized storage.
 func (g *GenesisState) Create(code []byte) common.Address {
 	sender := g.account(g.Sender)
 	addr := crypto.CreateAddress(g.Sender, sender.Nonce)
@@ -123,6 +124,9 @@ func (g *GenesisState) run(client *forge.Client, fn func(client *forge.Client, f
 		flags = append(flags, "--disable-code-size-limit")
 	}
 	runClient := client.WithEnv(env...)
+	// An offline run deploys to no chain, so without a code size limit it may run a build of another
+	// profile, such as a lite build.
+	runClient.AnyCacheProfile = g.NoCodeSizeLimit
 	// This replaces the project's fs_permissions, so client.FsPermissions must grant what the script
 	// reads.
 	runClient.FsPermissions = append(slices.Clone(client.FsPermissions), forge.FsPermission{Access: "read-write", Path: dir})

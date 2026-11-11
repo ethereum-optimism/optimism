@@ -111,12 +111,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			// Unfortunately this is not part of any Geth environment setup,
 			// we just have to apply it, like how the Geth block-builder worker does.
 			context := core.NewEVMBlockContext(header, s.l1Chain, nil, s.l1Chain.Config(), statedb)
-			// NOTE: Unlikely to be needed for the beacon block root, but we setup any precompile overrides anyways for forwards-compatibility
-			var precompileOverrides vm.PrecompileOverrides
-			if vmConfig := s.l1Chain.GetVMConfig(); vmConfig != nil && vmConfig.PrecompileOverrides != nil {
-				precompileOverrides = vmConfig.PrecompileOverrides
-			}
-			vmenv := vm.NewEVM(context, statedb, s.l1Chain.Config(), vm.Config{PrecompileOverrides: precompileOverrides})
+			vmenv := vm.NewEVM(context, statedb, s.l1Chain.Config(), vm.Config{})
 			core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv)
 
 			if s.l1Chain.Config().IsPrague(header.Number, header.Time) {

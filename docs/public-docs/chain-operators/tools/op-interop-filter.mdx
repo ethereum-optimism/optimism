@@ -78,8 +78,13 @@ Failsafe activates in one of two ways:
 How failsafe clears depends on why it triggered:
 
 *   A **manual** failsafe clears when the operator calls `admin_setFailsafeEnabled` with `false`.
+    The filter stores the manual failsafe in `failsafe.json` in `--data-dir`, so it stays on after a restart.
+    Without `--data-dir`, a restart clears it.
+    `--failsafe-enabled` enables the manual failsafe at every start.
+    If `failsafe.json` is unreadable, the filter does not start. Set `--failsafe-enabled` to ignore the file and start with the manual failsafe on.
 *   A **reorg-triggered** failsafe clears automatically only when `--reorg-recovery-enabled` is set: the filter rewinds each affected chain's logs database to its finalized block and clears the error.
-*   Any failsafe that is neither manual nor auto-resolved — a reorg with `--reorg-recovery-enabled` off, a database conflict, data corruption, an invalid executing message, or a cross-validation failure — has no admin RPC to clear it. Recover by wiping the filter's data directory and restarting the service.
+*   Any failsafe that is neither manual nor auto-resolved — a reorg with `--reorg-recovery-enabled` off, a database conflict, data corruption, an invalid executing message, or a cross-validation failure — has no admin RPC to clear it. Recover by deleting the `chain-*` logs database directories in `--data-dir` and restarting the service.
+    Keep `failsafe.json`: if you delete it, a manual failsafe turns off after the restart.
 
 Disabling the manual override with `admin_setFailsafeEnabled` does not clear an error-triggered failsafe; the underlying error has to be resolved first.
 
@@ -99,10 +104,11 @@ The full flag set is defined in [`op-interop-filter/flags/flags.go`](https://git
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--data-dir` | (temporary directory) | Directory for the LogsDB. Use a persistent path in production so backfill state survives restarts. |
+| `--data-dir` | (temporary directory) | Directory for the LogsDB and the stored manual failsafe. Use a persistent path in production so backfill state and the manual failsafe survive restarts. |
 | `--backfill-duration` | `24h` | How far back to backfill on startup. |
 | `--message-expiry-window` | `168h` (7 days) | Messages older than this window are treated as expired. |
 | `--poll-interval` | `2s` | How often to poll L2 RPCs for new blocks. |
+| `--failsafe-enabled` | off | If set, the filter enables the manual failsafe at start. The admin RPC can clear it, but the next start enables it again. |
 | `--reorg-recovery-enabled` | off | If set, the filter automatically clears reorg-triggered failsafe by rewinding to finalized. |
 | `--admin.rpc.addr` | (disabled) | Bind address for the JWT-protected admin RPC. When set, `--admin.jwt-secret` is also required. |
 

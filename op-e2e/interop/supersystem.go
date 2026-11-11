@@ -41,7 +41,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -81,7 +80,6 @@ type SuperSystem interface {
 	L2GethClient(network string, node string) *ethclient.Client
 	L2RollupEndpoint(network string, node string) endpoint.RPC
 	L2RollupClient(network string, node string) *sources.RollupClient
-	SendL2Tx(network string, node string, username string, applyTxOpts helpers.TxOptsFn) *types.Receipt
 	EmitData(ctx context.Context, network string, node string, username string, data string) *types.Receipt
 
 	// L2 level
@@ -449,6 +447,7 @@ func (s *interopE2ESystem) L1GethClient() *ethclient.Client {
 			return cl
 		})
 	nodeClient := ethclient.NewClient(rpcCl)
+	s.t.Cleanup(nodeClient.Close)
 	// register the client so it can be reused
 	s.l1GethClient = nodeClient
 	return nodeClient
@@ -476,31 +475,6 @@ func (s *interopE2ESystem) L2IDs() []string {
 	}
 	sort.Strings(ids)
 	return ids
-}
-
-// SendL2Tx sends an L2 transaction to the L2 with the given ID.
-// it acts as a wrapper around op-e2e.SendL2TxWithID
-// and uses the L2's chain ID, username key, and geth client.
-func (s *interopE2ESystem) SendL2Tx(
-	id string,
-	node string,
-	sender string,
-	applyTxOpts helpers.TxOptsFn,
-) *types.Receipt {
-	senderSecret := s.UserKey(id, sender)
-	require.NotNil(s.t, senderSecret, "no secret found for sender %s", sender)
-	nonce, err := s.L2GethClient(id, node).PendingNonceAt(context.Background(), crypto.PubkeyToAddress(senderSecret.PublicKey))
-	require.NoError(s.t, err, "failed to get nonce")
-	newApply := func(opts *helpers.TxOpts) {
-		applyTxOpts(opts)
-		opts.Nonce = nonce
-	}
-	return helpers.SendL2TxWithID(
-		s.t,
-		s.l2s[id].chainID,
-		s.L2GethClient(id, node),
-		&senderSecret,
-		newApply)
 }
 
 // ValidateMessage calls the CrossL2Inbox ValidateMessage function

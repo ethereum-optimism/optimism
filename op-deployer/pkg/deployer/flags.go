@@ -143,7 +143,7 @@ var (
 	}
 	UseForgeFlag = &cli.BoolFlag{
 		Name:    UseForgeFlagName,
-		Usage:   "run the deployment scripts with forge (a genesis deployment still runs its L1 scripts on the Go script host); false runs them on the Go script host, which a later release removes",
+		Usage:   "run the deployment scripts with forge; false runs them on the Go script host, which a later release removes",
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   true,
 	}
@@ -156,8 +156,8 @@ var (
 	}
 	DeployMockSP1VerifierFlag = &cli.BoolFlag{
 		Name: DeployMockSP1VerifierFlagName,
-		Usage: "with --deployment-target genesis, deploy a mock SP1 verifier for the ZK dispute game. " +
-			"Development only: the mock accepts every proof.",
+		Usage: "deploy a mock SP1 verifier for the ZK dispute game, on an L1 without a release verifier, " +
+			"in a genesis or live. Development only: the mock accepts every proof.",
 		EnvVars: PrefixEnvVar("DEPLOY_MOCK_SP1_VERIFIER"),
 		Value:   false,
 	}
