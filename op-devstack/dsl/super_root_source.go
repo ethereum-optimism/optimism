@@ -77,7 +77,18 @@ func (s *SuperRootQuerier) SuperRootAtTimestamp(timestamp uint64) eth.SuperRootA
 
 // AssertSuperRootAtTimestamp asserts that the super-root at the given timestamp matches the expected root claim.
 func (s *SuperRootQuerier) AssertSuperRootAtTimestamp(l2SequenceNumber uint64, rootClaim common.Hash) {
-	resp := s.SuperRootAtTimestamp(l2SequenceNumber)
+	s.requireSuperRootMatches(s.SuperRootAtTimestamp(l2SequenceNumber), l2SequenceNumber, rootClaim)
+}
+
+// AwaitSuperRootMatching waits for the super-root at the given timestamp, asserts that it matches
+// the expected root claim, and returns the response.
+func (s *SuperRootQuerier) AwaitSuperRootMatching(l2SequenceNumber uint64, rootClaim common.Hash) eth.SuperRootAtTimestampResponse {
+	resp := s.AwaitSuperRootAtTimestamp(l2SequenceNumber)
+	s.requireSuperRootMatches(resp, l2SequenceNumber, rootClaim)
+	return resp
+}
+
+func (s *SuperRootQuerier) requireSuperRootMatches(resp eth.SuperRootAtTimestampResponse, l2SequenceNumber uint64, rootClaim common.Hash) {
 	s.require.NotNilf(resp.Data, "super root does not exist at time %d", l2SequenceNumber)
 	superRoot := eth.SuperRoot(resp.Data.Super)
 	s.require.Equal(superRoot[:], rootClaim[:])
@@ -93,15 +104,18 @@ func (s *SuperRootQuerier) AwaitSuperRootAtTimestamp(timestamp uint64) eth.Super
 	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)
 	defer cancel()
 	var resp eth.SuperRootAtTimestampResponse
+	var lastErr error
 	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
 		var err error
 		resp, err = s.api.SuperRootAtTimestamp(ctx, timestamp)
 		if err != nil {
-			return false, nil // Ignore transient errors.
+			lastErr = err
+			s.log.Debug("Super-root query failed, retrying", "timestamp", timestamp, "err", err)
+			return false, nil // Retry: some errors are transient.
 		}
 		return resp.Data != nil, nil
 	})
-	s.require.NoError(err, "super-root at timestamp %d was not validated in time", timestamp)
+	s.require.NoError(err, "super-root at timestamp %d was not validated in time; last error: %v", timestamp, lastErr)
 	return resp
 }
 

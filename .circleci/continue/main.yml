@@ -2188,9 +2188,9 @@ jobs:
       # any skip: buildL2Genesis skips op-geth on Karst chains, which would
       # otherwise turn a fork-default change into silent loss of coverage.
       - run:
-          name: Run SafeDB resync tests with op-geth
+          name: Run SafeDB resync tests with an op-geth EL
           # Above go's -timeout, so a hang ends in go's goroutine dump, not a silent kill.
-          no_output_timeout: 15m
+          no_output_timeout: 25m
           command: |
             if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
               exit 0
@@ -2202,19 +2202,19 @@ jobs:
               --format testname \
               --jsonfile "$EVENTS_FILE" \
               --junitfile op-acceptance-tests/results/safedb-op-geth.xml \
-              -- -count=1 -p=1 -parallel=1 -timeout=10m \
+              -- -count=1 -p=2 -parallel=1 -timeout=20m \
               -run "^($(echo "$RESYNC_TESTS" | tr ' ' '|'))$" \
               ./op-acceptance-tests/tests/safeheaddb_elsync \
               ./op-acceptance-tests/tests/safeheaddb_clsync
             # test2json can drop a result event and leave a \u0016 marker on the result output line,
             # so the "--- PASS"/"--- SKIP" output lines count as well as the events.
             if grep -qE '"Action":"skip","Package":"[^"]*","Test":"|"Output":"(\\u0016)?--- SKIP: ' "$EVENTS_FILE"; then
-              echo "SafeDB resync tests were skipped under op-geth" >&2
+              echo "SafeDB resync tests were skipped with an op-geth EL and $DEVSTACK_L2CL_KIND" >&2
               exit 1
             fi
             for test_name in $RESYNC_TESTS; do
               if ! grep -qE "\"Action\":\"pass\",\"Package\":\"[^\"]*\",\"Test\":\"$test_name\"|\"Output\":\"(\\\\u0016)?--- PASS: $test_name \(" "$EVENTS_FILE"; then
-                echo "SafeDB resync test $test_name did not pass under op-geth" >&2
+                echo "SafeDB resync test $test_name did not pass with an op-geth EL and $DEVSTACK_L2CL_KIND" >&2
                 exit 1
               fi
             done

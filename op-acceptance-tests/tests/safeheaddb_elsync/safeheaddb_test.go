@@ -48,6 +48,7 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 
 	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
+	preResyncFloor := sys.L2CLB.SafeHeadDBFloor()
 
 	// Stop the verifier node. Since the sysgo EL uses in-memory storage this also wipes its database.
 	// With the EL reset to genesis, when the CL restarts it will use EL sync to resync the chain rather than
@@ -72,6 +73,8 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	sys.L2CLB.Advanced(safety.LocalSafe, 1, 90) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
+	// EL sync adopts heads that were not derived from L1, so the records from before it must be gone.
+	t.Require().Greater(sys.L2CLB.SafeHeadDBFloor(), preResyncFloor, "EL resync must truncate the safe head database")
 }
 
 func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {

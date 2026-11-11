@@ -3,6 +3,7 @@ package proofs
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"math"
 	"math/big"
 	"net/url"
@@ -229,52 +230,66 @@ func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
 }
 
 func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
-	initialCount := f.GameCount()
-	timedCtx, cancel := context.WithTimeout(f.t.Ctx(), 10*time.Minute)
-	defer cancel()
-	var lastReadErr error
-	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		count, readErr := contractio.Read(f.dgf.GameCount(), timedCtx)
-		lastReadErr = readErr
-		if readErr != nil {
-			f.log.Debug("Game count unavailable while waiting for new game", "current", initialCount, "err", readErr)
-			return false, nil
-		}
-		gameCount := count.Int64()
-		f.t.Logf("waiting for new game. current=%d new=%d", initialCount, gameCount)
-		return gameCount > initialCount, nil
-	})
-	f.require.NoErrorf(err, "dispute game factory did not create a new game beyond count %d; last read error: %v", initialCount, lastReadErr)
-	return f.GameAtIndex(initialCount)
+	idx, err := f.waitForNewGame(func(context.Context, int64) (bool, error) { return true, nil })
+	f.require.NoError(err, "dispute game factory did not create a new game")
+	return f.GameAtIndex(idx)
 }
 
-// WaitForGameFrom waits for a new game whose L2 sequence number is at least minSequenceNumber,
-// skipping new games below it.
-func (f *DisputeGameFactory) WaitForGameFrom(minSequenceNumber uint64) *FaultDisputeGame {
+// WaitForSuperGameFrom waits for a new super game whose L2 timestamp is at least minTimestamp,
+// skipping new games before it.
+func (f *DisputeGameFactory) WaitForSuperGameFrom(minTimestamp uint64) *SuperFaultDisputeGame {
+	idx, err := f.waitForNewGame(func(ctx context.Context, idx int64) (bool, error) {
+		gameInfo, err := contractio.Read(f.dgf.GameAtIndex(big.NewInt(idx)), ctx)
+		if err != nil {
+			return false, err
+		}
+		game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameInfo.Proxy), bindings.WithTest(f.t))
+		timestamp, err := contractio.Read(game.L2SequenceNumber(), ctx)
+		if err != nil {
+			return false, err
+		}
+		if bigs.Uint64Strict(timestamp) < minTimestamp {
+			f.log.Info("Skipping game before timestamp", "index", idx, "gameTimestamp", timestamp, "minTimestamp", minTimestamp)
+			return false, nil
+		}
+		return true, nil
+	})
+	f.require.NoErrorf(err, "dispute game factory did not create a new game at or after timestamp %d", minTimestamp)
+	return f.SuperGameAtIndex(idx)
+}
+
+// waitForNewGame checks games created after the call, in index order, until isWanted accepts
+// one, and returns its index. Read errors are retried until the timeout.
+func (f *DisputeGameFactory) waitForNewGame(isWanted func(ctx context.Context, idx int64) (bool, error)) (int64, error) {
 	nextIndex := f.GameCount()
 	timedCtx, cancel := context.WithTimeout(f.t.Ctx(), 10*time.Minute)
 	defer cancel()
 	var lastReadErr error
-	var found *FaultDisputeGame
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		count, readErr := contractio.Read(f.dgf.GameCount(), timedCtx)
-		lastReadErr = readErr
 		if readErr != nil {
+			lastReadErr = readErr
 			f.log.Debug("Game count unavailable while waiting for new game", "next", nextIndex, "err", readErr)
 			return false, nil
 		}
+		f.log.Info("Waiting for new game", "next", nextIndex, "count", count)
 		for ; nextIndex < count.Int64(); nextIndex++ {
-			game := f.GameAtIndex(nextIndex)
-			if game.L2SequenceNumber() >= minSequenceNumber {
-				found = game
+			wanted, readErr := isWanted(timedCtx, nextIndex)
+			if readErr != nil {
+				lastReadErr = readErr
+				f.log.Debug("Game unavailable while waiting for new game", "index", nextIndex, "err", readErr)
+				return false, nil
+			}
+			if wanted {
 				return true, nil
 			}
-			f.log.Info("Skipping game below L2 sequence number", "index", nextIndex, "gameSequenceNumber", game.L2SequenceNumber(), "minSequenceNumber", minSequenceNumber)
 		}
 		return false, nil
 	})
-	f.require.NoErrorf(err, "dispute game factory created no new game at or above L2 sequence number %d; last read error: %v", minSequenceNumber, lastReadErr)
-	return found
+	if err != nil {
+		return 0, errors.Join(err, lastReadErr)
+	}
+	return nextIndex, nil
 }
 
 // WaitForZKGameAtIndex waits until the factory holds a ZK dispute game at the
