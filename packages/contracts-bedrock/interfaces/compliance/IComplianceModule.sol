@@ -7,9 +7,8 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPolicy } from "interfaces/compliance/IPolicy.sol";
-import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
-interface IComplianceModule is IBridgeHook, IProxyAdminOwnedBase {
+interface IComplianceModule is IBridgeHook {
     struct Record {
         uint64 heldAt;
         uint64 expiresAt;
@@ -18,6 +17,7 @@ interface IComplianceModule is IBridgeHook, IProxyAdminOwnedBase {
     error ComplianceModule_CallerNotPortal();
     error ComplianceModule_NotActiveHook();
     error ComplianceModule_CallerNotPolicy();
+    error ComplianceModule_CallerNotProxyAdmin();
     error ComplianceModule_ItemNotHeld();
     error ComplianceModule_ItemNotCleared();
     error ComplianceModule_PolicyRefused();

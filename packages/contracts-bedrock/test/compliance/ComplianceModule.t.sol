@@ -31,7 +31,6 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 
@@ -73,7 +72,7 @@ abstract contract ComplianceModule_TestInit is CommonTest {
         );
 
         module = _newProxy();
-        vm.prank(custodian);
+        vm.prank(address(moduleProxyAdmin));
         module.initialize(moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
 
         vm.store(
@@ -128,7 +127,7 @@ contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
         vm.expectEmit(address(proxy));
         emit PolicySet(IPolicy(address(0)), policy);
 
-        vm.prank(custodian);
+        vm.prank(address(moduleProxyAdmin));
         proxy.initialize(moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
 
         assertEq(proxy.owner(), moduleOwner);
@@ -138,20 +137,53 @@ contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
         assertEq(address(proxy.bridge()), address(l1StandardBridge));
     }
 
-    /// @notice Tests that initialize reverts for a caller other than the ProxyAdmin or its owner.
-    function testFuzz_initialize_notProxyAdminOrOwner_reverts(address _caller) external {
-        vm.assume(_caller != address(moduleProxyAdmin) && _caller != custodian);
+    /// @notice Tests that initialize reverts for a caller other than the proxy admin.
+    function testFuzz_initialize_notProxyAdmin_reverts(address _caller) external {
+        vm.assume(_caller != address(moduleProxyAdmin));
         IComplianceModule proxy = _newProxy();
 
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+        vm.expectRevert(IComplianceModule.ComplianceModule_CallerNotProxyAdmin.selector);
         vm.prank(_caller);
         proxy.initialize(moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
+    }
+
+    /// @notice Tests proxy initialization and upgrades when the admin is not a ProxyAdmin.
+    function test_initialize_noProxyAdmin_succeeds() external {
+        IProxy proxy = IProxy(
+            DeployUtils.create1({
+                _name: "Proxy",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (custodian)))
+            })
+        );
+
+        vm.prank(custodian);
+        proxy.upgradeToAndCall(
+            address(impl),
+            abi.encodeCall(
+                IComplianceModule.initialize,
+                (moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge)
+            )
+        );
+
+        address newImpl = DeployUtils.create1({
+            _name: "ComplianceModule",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IComplianceModule.__constructor__, ()))
+        });
+        vm.prank(custodian);
+        proxy.upgradeTo(newImpl);
+
+        vm.prank(custodian);
+        assertEq(proxy.implementation(), newImpl);
+        IComplianceModule upgraded = IComplianceModule(address(proxy));
+        assertEq(upgraded.owner(), moduleOwner);
+        assertEq(address(upgraded.policy()), address(policy));
+        assertEq(address(upgraded.portal()), address(optimismPortal2));
     }
 
     /// @notice Tests that a second initialize reverts.
     function test_initialize_alreadyInitialized_reverts() external {
         vm.expectRevert(IComplianceModule.InvalidInitialization.selector);
-        vm.prank(custodian);
+        vm.prank(address(moduleProxyAdmin));
         module.initialize(moduleOwner, policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
     }
 
@@ -160,7 +192,7 @@ contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
         IComplianceModule proxy = _newProxy();
 
         vm.expectRevert(IComplianceModule.ComplianceModule_ZeroAddress.selector);
-        vm.prank(custodian);
+        vm.prank(address(moduleProxyAdmin));
         proxy.initialize(address(0), policy, optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
     }
 
@@ -169,7 +201,7 @@ contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
         IComplianceModule proxy = _newProxy();
 
         vm.expectRevert(IComplianceModule.ComplianceModule_ZeroAddress.selector);
-        vm.prank(custodian);
+        vm.prank(address(moduleProxyAdmin));
         proxy.initialize(moduleOwner, IPolicy(address(0)), optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
     }
 
@@ -183,7 +215,7 @@ contract ComplianceModule_Initialize_Test is ComplianceModule_TestInit {
         for (uint256 i; i < args.length; i++) {
             IComplianceModule proxy = _newProxy();
             vm.expectRevert(IComplianceModule.ComplianceModule_ZeroAddress.selector);
-            vm.prank(custodian);
+            vm.prank(address(moduleProxyAdmin));
             proxy.initialize(
                 moduleOwner,
                 policy,

@@ -605,32 +605,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "proxyAdmin",
-    "outputs": [
-      {
-        "internalType": "contract IProxyAdmin",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "proxyAdminOwner",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -1108,6 +1082,11 @@
   },
   {
     "inputs": [],
+    "name": "ComplianceModule_CallerNotProxyAdmin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ComplianceModule_ETHAmountMismatch",
     "type": "error"
   },
@@ -1191,36 +1170,6 @@
       }
     ],
     "name": "OwnableUnauthorizedAccount",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotProxyAdmin",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotProxyAdminOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotResolvedDelegateProxy",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotSharedProxyAdminOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProxyAdminOwnedBase_ProxyAdminNotFound",
     "type": "error"
   },
   {

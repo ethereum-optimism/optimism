@@ -2,13 +2,14 @@
 pragma solidity 0.8.25;
 
 // Contracts
-import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { Ownable } from "@openzeppelin/contracts-v5/access/Ownable.sol";
 import { Ownable2Step } from "@openzeppelin/contracts-v5/access/Ownable2Step.sol";
 
 // Libraries
 import { SafeERC20 } from "@openzeppelin/contracts-v5/token/ERC20/utils/SafeERC20.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Storage } from "src/libraries/Storage.sol";
 import { BridgeHookDecoder } from "src/libraries/BridgeHookDecoder.sol";
 import { BridgeHookHashing } from "src/libraries/BridgeHookHashing.sol";
 import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
@@ -26,7 +27,7 @@ import { IPolicy } from "interfaces/compliance/IPolicy.sol";
 /// @notice A bridge hook that uses a policy to screen deposits and withdrawals.
 ///         Holds assets when the policy requires a hold. Anyone can request completion of a held
 ///         item, but the policy must approve its release.
-contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, ISemver {
+contract ComplianceModule is Initializable, Ownable2Step, ISemver {
     using SafeERC20 for IERC20;
 
     /// @notice Hold status and clear verdict for an item. A withdrawal verdict can be recorded
@@ -77,6 +78,9 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
 
     /// @notice Thrown when the caller is not the policy.
     error ComplianceModule_CallerNotPolicy();
+
+    /// @notice Thrown when the caller is not the proxy admin.
+    error ComplianceModule_CallerNotProxyAdmin();
 
     /// @notice Thrown when the item is not held.
     error ComplianceModule_ItemNotHeld();
@@ -146,7 +150,7 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
         _disableInitializers();
     }
 
-    /// @notice Initializes the proxy once. Only its ProxyAdmin or the ProxyAdmin's owner can call.
+    /// @notice Initializes the proxy once. Only the proxy admin can call.
     ///         The module owner manages the policy and screening bypass, separately from proxy
     ///         upgrades. The Portal does not need to be initialized first.
     /// @param _owner                  The nonzero address that will own the module.
@@ -164,7 +168,9 @@ contract ComplianceModule is ProxyAdminOwnedBase, Initializable, Ownable2Step, I
         external
         initializer
     {
-        _assertOnlyProxyAdminOrProxyAdminOwner();
+        if (msg.sender != Storage.getAddress(Constants.PROXY_OWNER_ADDRESS)) {
+            revert ComplianceModule_CallerNotProxyAdmin();
+        }
         if (
             _owner == address(0) || address(_policy) == address(0) || address(_portal) == address(0)
                 || address(_l1CrossDomainMessenger) == address(0) || address(_l1StandardBridge) == address(0)
