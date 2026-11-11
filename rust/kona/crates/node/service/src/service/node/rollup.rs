@@ -276,7 +276,7 @@ impl RollupNode {
         (actor, engine_client.query_client(), engine_state_rx)
     }
 
-    /// Constructs the delegate derivation actor when a derivation delegate is given, and the
+    /// Constructs the delegate derivation actor when a derivation delegate URL is set, and the
     /// standard one otherwise.
     async fn build_derivation_actor(
         &self,
@@ -284,9 +284,9 @@ impl RollupNode {
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
         l1_head: watch::Receiver<Option<BlockInfo>>,
-        derivation_delegate: Option<HttpClient>,
     ) -> Result<ConfiguredDerivationActor, String> {
-        if let Some(derivation_delegate) = derivation_delegate {
+        if let Some(url) = &self.derivation_delegate_url {
+            let derivation_delegate = build_derivation_delegate_client(url)?;
             // L1 Provider for sanity checking Derivation Delegation
             let l1_provider = AlloyChainProvider::new(
                 self.l1_config.engine_provider.clone(),
@@ -611,23 +611,12 @@ impl RollupNode {
             unsafe_head_tx,
         );
 
-        let derivation_delegate = self
-            .derivation_delegate_url
-            .as_ref()
-            .map(|url| {
-                HttpClientBuilder::default()
-                    .request_timeout(DERIVATION_DELEGATE_REQUEST_TIMEOUT)
-                    .build(url)
-                    .map_err(|e| format!("Failed to build derivation delegate client: {e}"))
-            })
-            .transpose()?;
         let derivation = self
             .build_derivation_actor(
                 engine_actor_request_tx.clone(),
                 derivation_actor_request_rx,
                 derivation_origin_tx,
                 l1_head_updates_rx.clone(),
-                derivation_delegate,
             )
             .await?;
 
@@ -707,5 +696,39 @@ impl RollupNode {
             ]
         );
         Ok(())
+    }
+}
+
+/// Builds the HTTP client the delegate derivation actor polls for the delegate's sync status.
+///
+/// jsonrpsee accepts only `http` and `https` URLs, so any other scheme is a startup error.
+fn build_derivation_delegate_client(url: &Url) -> Result<HttpClient, String> {
+    HttpClientBuilder::default()
+        .request_timeout(DERIVATION_DELEGATE_REQUEST_TIMEOUT)
+        .build(url)
+        .map_err(|e| format!("Failed to build derivation delegate client: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case::http("http://localhost:9545", true)]
+    #[case::https("https://delegate.example.com", true)]
+    #[case::ws("ws://localhost:9545", false)]
+    #[case::wss("wss://delegate.example.com", false)]
+    fn derivation_delegate_client_rejects_non_http_schemes(
+        #[case] url: &str,
+        #[case] builds: bool,
+    ) {
+        let result = build_derivation_delegate_client(&url.parse().unwrap());
+        if builds {
+            assert!(result.is_ok(), "{url}: {:?}", result.err());
+        } else {
+            let err = result.expect_err(url);
+            assert!(err.contains("Failed to build derivation delegate client"), "{url}: {err}");
+        }
     }
 }
