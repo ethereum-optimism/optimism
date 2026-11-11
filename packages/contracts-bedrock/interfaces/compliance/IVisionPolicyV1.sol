@@ -7,13 +7,11 @@ import { IPolicy } from "interfaces/compliance/IPolicy.sol";
 
 interface IVisionPolicyV1 is IPolicy {
     error VisionPolicyV1_NotYetHoldable(uint256 holdableAt);
-    error VisionPolicyV1_HoldDelayTooLong(uint64 max);
     error VisionPolicyV1_InvalidExpiry();
     error VisionPolicyV1_OutOfBounds();
     error VisionPolicyV1_Unauthorized();
     error VisionPolicyV1_ZeroAddress();
     error VisionPolicyV1_OwnershipNotRenounceable();
-    error VisionPolicyV1_InvalidPartiesLength();
     error OwnableUnauthorizedAccount(address account);
     error OwnableInvalidOwner(address owner);
 

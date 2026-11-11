@@ -13,6 +13,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
+import { IPolicy } from "interfaces/compliance/IPolicy.sol";
 
 /// @title VisionPolicyV1
 /// @notice A ComplianceModule policy that screens items against a deny list, an allowlist, a
@@ -24,8 +25,8 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
     /// @notice The highest value of maxVerdictValidity.
     uint64 internal constant MAX_VERDICT_VALIDITY_CAP = 5 days;
 
-    /// @notice The highest value of holdDelay. The Portal's proof maturity delay can make the
-    ///         limit lower.
+    /// @notice The highest value of holdDelay. Must stay below the Portal's minimum proof maturity
+    ///         delay of 24 hours.
     uint64 internal constant HOLD_DELAY_CAP = 12 hours;
 
     /// @notice The module this policy screens for and records verdicts in.
@@ -52,10 +53,6 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
     /// @param holdableAt The time from which the withdrawal is held.
     error VisionPolicyV1_NotYetHoldable(uint256 holdableAt);
 
-    /// @notice Thrown when holdDelay is at or above the Portal's proof maturity delay.
-    /// @param max The Portal's proof maturity delay.
-    error VisionPolicyV1_HoldDelayTooLong(uint64 max);
-
     /// @notice Thrown when an expiry is not in the future or is more than maxVerdictValidity
     ///         seconds after the current block timestamp.
     error VisionPolicyV1_InvalidExpiry();
@@ -71,9 +68,6 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
 
     /// @notice Thrown when any caller tries to renounce ownership.
     error VisionPolicyV1_OwnershipNotRenounceable();
-
-    /// @notice Thrown when the module does not pass exactly two parties.
-    error VisionPolicyV1_InvalidPartiesLength();
 
     /// @notice Emitted when an address's allowlist status is set.
     /// @param account     The address.
@@ -98,7 +92,6 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
     /// @param holdDelay The new value, in seconds.
     event HoldDelaySet(uint64 holdDelay);
 
-    /// @notice Requires a module configured with its Portal to validate holdDelay.
     /// @param _module             The module this policy serves.
     /// @param _owner              The address that can change the lists, the parameters and the
     ///                            verdict writer.
@@ -134,11 +127,11 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
     }
 
     /// @notice Screens a deposit at submission. Only the module can call.
-    /// @param _parties The sender, then the recipient.
+    /// @param _parties The sender and recipient.
     /// @return pass_ True to proceed, or false to hold.
     function screenDeposit(
         BridgeHookTypes.Item calldata,
-        address[] calldata _parties
+        IPolicy.Parties calldata _parties
     )
         external
         view
@@ -147,17 +140,17 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
         _assertOnlyModule();
         if (_hasDeniedParty(_parties)) return false;
 
-        pass_ = allowlisted[_parties[0]];
+        pass_ = allowlisted[_parties.sender];
     }
 
     /// @notice Screens a withdrawal at finalization. Only the module can call.
-    /// @param _parties       The sender, then the recipient.
+    /// @param _parties       The sender and recipient.
     /// @param _expiresAt     The expiry of the recorded verdict, or zero if there is none.
     /// @param _finalizableAt The time when the withdrawal became finalizable.
     /// @return pass_ True to pay out, or false to hold.
     function screenWithdrawal(
         BridgeHookTypes.Item calldata,
-        address[] calldata _parties,
+        IPolicy.Parties calldata _parties,
         uint64 _expiresAt,
         uint256 _finalizableAt
     )
@@ -167,7 +160,7 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
     {
         _assertOnlyModule();
         if (_hasDeniedParty(_parties)) return false;
-        if (allowlisted[_parties[0]] || _isFeeVault(_parties[0])) return true;
+        if (allowlisted[_parties.sender] || _isFeeVault(_parties.sender)) return true;
         if (_expiresAt > block.timestamp) return true;
         // The writer already answered, so there is no reason to wait.
         if (_expiresAt != 0) return false;
@@ -181,12 +174,12 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
 
     /// @notice Screens a held item at completion. Only the module can call.
     ///         Allowlisted senders and Fee Vaults still need a valid verdict.
-    /// @param _parties   The sender, then the recipient.
+    /// @param _parties   The sender and recipient.
     /// @param _expiresAt The expiry of the recorded verdict.
     /// @return pass_ True to allow completion; false makes the module revert.
     function screenRelease(
         BridgeHookTypes.Item calldata,
-        address[] calldata _parties,
+        IPolicy.Parties calldata _parties,
         uint64 _expiresAt
     )
         external
@@ -282,21 +275,20 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
         revert VisionPolicyV1_OwnershipNotRenounceable();
     }
 
+    /// @notice Reverts unless the caller is the module.
     function _assertOnlyModule() internal view {
         if (msg.sender != address(MODULE)) revert VisionPolicyV1_Unauthorized();
     }
 
+    /// @notice Reverts unless the caller is the verdict writer.
     function _assertOnlyVerdictWriter() internal view {
         if (msg.sender != verdictWriter) revert VisionPolicyV1_Unauthorized();
     }
 
-    /// @notice Returns whether the sender or the recipient is on the deny list. Reverts unless
-    ///         there are exactly two parties.
-    /// @param _parties The sender, then the recipient.
-    function _hasDeniedParty(address[] calldata _parties) internal view returns (bool) {
-        if (_parties.length != 2) revert VisionPolicyV1_InvalidPartiesLength();
-
-        return denylisted[_parties[0]] || denylisted[_parties[1]];
+    /// @notice Returns whether the sender or the recipient is on the deny list.
+    /// @param _parties The sender and recipient.
+    function _hasDeniedParty(IPolicy.Parties calldata _parties) internal view returns (bool) {
+        return denylisted[_parties.sender] || denylisted[_parties.recipient];
     }
 
     /// @notice Identifies Fee Vaults so fee withdrawals do not depend on allowlist entries.
@@ -358,14 +350,9 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
         emit MaxVerdictValiditySet(_maxVerdictValidity);
     }
 
-    /// @notice Sets holdDelay. Reverts if it is at or above the Portal's proof maturity delay, or
-    ///         above HOLD_DELAY_CAP.
+    /// @notice Sets holdDelay. Reverts if it is above HOLD_DELAY_CAP.
     /// @param _holdDelay The new value, in seconds.
     function _setHoldDelay(uint64 _holdDelay) internal {
-        uint256 proofMaturityDelaySeconds = MODULE.portal().proofMaturityDelaySeconds();
-        if (_holdDelay >= proofMaturityDelaySeconds) {
-            revert VisionPolicyV1_HoldDelayTooLong(uint64(proofMaturityDelaySeconds));
-        }
         if (_holdDelay > HOLD_DELAY_CAP) revert VisionPolicyV1_OutOfBounds();
 
         holdDelay = _holdDelay;

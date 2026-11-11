@@ -474,9 +474,21 @@
         "type": "tuple"
       },
       {
-        "internalType": "address[]",
+        "components": [
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "recipient",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IPolicy.Parties",
         "name": "_parties",
-        "type": "address[]"
+        "type": "tuple"
       }
     ],
     "name": "screenDeposit",
@@ -555,9 +567,21 @@
         "type": "tuple"
       },
       {
-        "internalType": "address[]",
+        "components": [
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "recipient",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IPolicy.Parties",
         "name": "_parties",
-        "type": "address[]"
+        "type": "tuple"
       },
       {
         "internalType": "uint64",
@@ -641,9 +665,21 @@
         "type": "tuple"
       },
       {
-        "internalType": "address[]",
+        "components": [
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "recipient",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IPolicy.Parties",
         "name": "_parties",
-        "type": "address[]"
+        "type": "tuple"
       },
       {
         "internalType": "uint64",
@@ -876,24 +912,8 @@
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint64",
-        "name": "max",
-        "type": "uint64"
-      }
-    ],
-    "name": "VisionPolicyV1_HoldDelayTooLong",
-    "type": "error"
-  },
-  {
     "inputs": [],
     "name": "VisionPolicyV1_InvalidExpiry",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "VisionPolicyV1_InvalidPartiesLength",
     "type": "error"
   },
   {

@@ -15,7 +15,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IPolicy } from "interfaces/compliance/IPolicy.sol";
 import { IVisionPolicyV1 } from "interfaces/compliance/IVisionPolicyV1.sol";
 
 /// @title VisionPolicyV1_TestInit
@@ -34,7 +34,6 @@ abstract contract VisionPolicyV1_TestInit is Test {
     uint64 internal constant HOLD_DELAY_CAP = 12 hours;
 
     address internal module = makeAddr("module");
-    address internal portal = makeAddr("portal");
     address internal owner = makeAddr("owner");
     address internal verdictWriter = makeAddr("verdictWriter");
     address internal allowlistedSender = makeAddr("allowlistedSender");
@@ -45,8 +44,8 @@ abstract contract VisionPolicyV1_TestInit is Test {
     IVisionPolicyV1 internal policy;
 
     function setUp() public virtual {
-        vm.mockCall(module, abi.encodeCall(IComplianceModule.portal, ()), abi.encode(portal));
-        vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()), abi.encode(7 days));
+        // Lets void module calls succeed without a mock.
+        vm.etch(module, hex"00");
 
         address[] memory allowlist = new address[](1);
         allowlist[0] = allowlistedSender;
@@ -154,18 +153,10 @@ contract VisionPolicyV1_Constructor_Test is VisionPolicyV1_TestInit {
 
     /// @notice Tests that the constructor applies the setters' bounds to the parameters.
     function test_constructor_parameterOutOfBounds_reverts() external {
-        uint64[2][3] memory args = [
-            [MAX_VERDICT_VALIDITY_CAP + 1, uint64(1 hours)],
-            [uint64(3 days), HOLD_DELAY_CAP + 1],
-            [uint64(3 days), uint64(7 days)]
-        ];
-        bytes[3] memory errors = [
-            abi.encodePacked(IVisionPolicyV1.VisionPolicyV1_OutOfBounds.selector),
-            abi.encodePacked(IVisionPolicyV1.VisionPolicyV1_OutOfBounds.selector),
-            bytes.concat(IVisionPolicyV1.VisionPolicyV1_HoldDelayTooLong.selector, abi.encode(uint64(7 days)))
-        ];
+        uint64[2][2] memory args =
+            [[MAX_VERDICT_VALIDITY_CAP + 1, uint64(1 hours)], [uint64(3 days), HOLD_DELAY_CAP + 1]];
         for (uint256 i; i < args.length; i++) {
-            vm.expectRevert(errors[i]);
+            vm.expectRevert(IVisionPolicyV1.VisionPolicyV1_OutOfBounds.selector);
             DeployUtils.create1({
                 _name: "VisionPolicyV1",
                 _args: DeployUtils.encodeConstructor(
@@ -234,24 +225,14 @@ contract VisionPolicyV1_TransferOwnership_Test is VisionPolicyV1_TestInit {
 /// @title VisionPolicyV1_ScreenDeposit_Test
 /// @notice Tests the `screenDeposit` function of the `VisionPolicyV1` contract.
 contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
-    /// @notice Tests that caller authorization takes priority over party count validation.
+    /// @notice Tests that a caller other than the module causes Unauthorized.
     function testFuzz_screenDeposit_notModule_reverts(address _caller) external {
         vm.assume(_caller != module);
         BridgeHookTypes.Item memory item;
 
         vm.expectRevert(IVisionPolicyV1.VisionPolicyV1_Unauthorized.selector);
         vm.prank(_caller);
-        policy.screenDeposit(item, new address[](0));
-    }
-
-    /// @notice Tests that screenDeposit reverts unless there are two parties.
-    function testFuzz_screenDeposit_invalidPartiesLength_reverts(uint8 _length) external {
-        vm.assume(_length != 2);
-        BridgeHookTypes.Item memory item;
-
-        vm.expectRevert(IVisionPolicyV1.VisionPolicyV1_InvalidPartiesLength.selector);
-        vm.prank(module);
-        policy.screenDeposit(item, new address[](_length));
+        policy.screenDeposit(item, IPolicy.Parties(address(0), address(0)));
     }
 
     /// @notice Tests that a deny list entry takes priority over an allowlisted sender.
@@ -262,12 +243,12 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
         vm.prank(owner);
         policy.addToAllowlist(allowlist);
 
-        address[] memory deniedSender = new address[](2);
-        deniedSender[0] = deniedParty;
-        deniedSender[1] = recipient;
-        address[] memory deniedRecipient = new address[](2);
-        deniedRecipient[0] = allowlistedSender;
-        deniedRecipient[1] = deniedParty;
+        IPolicy.Parties memory deniedSender;
+        deniedSender.sender = deniedParty;
+        deniedSender.recipient = recipient;
+        IPolicy.Parties memory deniedRecipient;
+        deniedRecipient.sender = allowlistedSender;
+        deniedRecipient.recipient = deniedParty;
 
         vm.startPrank(module);
         assertFalse(policy.screenDeposit(item, deniedSender), "denied sender");
@@ -277,9 +258,9 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
     /// @notice Tests that an allowlisted sender gives true.
     function test_screenDeposit_allowlistedSender_succeeds() external {
         BridgeHookTypes.Item memory item;
-        address[] memory parties = new address[](2);
-        parties[0] = allowlistedSender;
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.sender = allowlistedSender;
+        parties.recipient = recipient;
 
         vm.prank(module);
         assertTrue(policy.screenDeposit(item, parties));
@@ -289,12 +270,12 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
     ///         recipient.
     function test_screenDeposit_notAllowlisted_succeeds() external {
         BridgeHookTypes.Item memory item;
-        address[] memory unlisted = new address[](2);
-        unlisted[0] = sender;
-        unlisted[1] = recipient;
-        address[] memory allowlistedRecipient = new address[](2);
-        allowlistedRecipient[0] = sender;
-        allowlistedRecipient[1] = allowlistedSender;
+        IPolicy.Parties memory unlisted;
+        unlisted.sender = sender;
+        unlisted.recipient = recipient;
+        IPolicy.Parties memory allowlistedRecipient;
+        allowlistedRecipient.sender = sender;
+        allowlistedRecipient.recipient = allowlistedSender;
 
         vm.startPrank(module);
         assertFalse(policy.screenDeposit(item, unlisted), "unlisted");
@@ -310,12 +291,12 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
             Predeploys.L1_FEE_VAULT,
             Predeploys.OPERATOR_FEE_VAULT
         ];
-        address[] memory parties = new address[](2);
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.recipient = recipient;
 
         vm.startPrank(module);
         for (uint256 i; i < vaults.length; i++) {
-            parties[0] = vaults[i];
+            parties.sender = vaults[i];
             assertFalse(policy.screenDeposit(item, parties), vm.toString(vaults[i]));
         }
     }
@@ -331,8 +312,8 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
         BridgeHookTypes.Item memory item;
         address[4] memory accounts = [sender, allowlistedSender, deniedParty, Predeploys.BASE_FEE_VAULT];
         address other = accounts[bound(_otherIndex, 0, 3)];
-        address[] memory parties = new address[](2);
-        (parties[0], parties[1]) = _deniedRecipient ? (other, deniedParty) : (deniedParty, other);
+        IPolicy.Parties memory parties;
+        (parties.sender, parties.recipient) = _deniedRecipient ? (other, deniedParty) : (deniedParty, other);
         if (_deniedAllowlisted) {
             address[] memory allowlist = new address[](1);
             allowlist[0] = deniedParty;
@@ -344,8 +325,8 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
         assertFalse(policy.screenDeposit(item, parties));
     }
 
-    /// @notice Tests that screenDeposit never reverts for the module with two parties.
-    function testFuzz_screenDeposit_twoParties_succeeds(
+    /// @notice Tests that screenDeposit never reverts for the module.
+    function testFuzz_screenDeposit_anyParties_succeeds(
         address _sender,
         address _recipient,
         bool _allowlistSender,
@@ -363,9 +344,9 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
         accounts[0] = _recipient;
         if (_denyRecipient) policy.addToDenylist(accounts);
         vm.stopPrank();
-        address[] memory parties = new address[](2);
-        parties[0] = _sender;
-        parties[1] = _recipient;
+        IPolicy.Parties memory parties;
+        parties.sender = _sender;
+        parties.recipient = _recipient;
 
         vm.prank(module);
         policy.screenDeposit(item, parties);
@@ -375,14 +356,14 @@ contract VisionPolicyV1_ScreenDeposit_Test is VisionPolicyV1_TestInit {
 /// @title VisionPolicyV1_ScreenWithdrawal_Test
 /// @notice Tests the `screenWithdrawal` function of the `VisionPolicyV1` contract.
 contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
-    /// @notice Tests that caller authorization takes priority over party count validation.
+    /// @notice Tests that a caller other than the module causes Unauthorized.
     function testFuzz_screenWithdrawal_notModule_reverts(address _caller) external {
         vm.assume(_caller != module);
         BridgeHookTypes.Item memory item;
 
         vm.expectRevert(IVisionPolicyV1.VisionPolicyV1_Unauthorized.selector);
         vm.prank(_caller);
-        policy.screenWithdrawal(item, new address[](0), 0, block.timestamp);
+        policy.screenWithdrawal(item, IPolicy.Parties(address(0), address(0)), 0, block.timestamp);
     }
 
     /// @notice Tests that the deny list takes priority over sender exemptions and valid verdicts.
@@ -393,17 +374,17 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         allowlist[0] = deniedParty;
         vm.prank(owner);
         policy.addToAllowlist(allowlist);
-        address[] memory parties = new address[](2);
+        IPolicy.Parties memory parties;
         uint64 live = uint64(block.timestamp + 1);
 
         vm.startPrank(module);
-        (parties[0], parties[1]) = (deniedParty, recipient);
+        (parties.sender, parties.recipient) = (deniedParty, recipient);
         assertFalse(policy.screenWithdrawal(item, parties, live, block.timestamp), "denied sender");
-        (parties[0], parties[1]) = (allowlistedSender, deniedParty);
+        (parties.sender, parties.recipient) = (allowlistedSender, deniedParty);
         assertFalse(policy.screenWithdrawal(item, parties, 0, block.timestamp), "allowlisted sender");
-        (parties[0], parties[1]) = (Predeploys.BASE_FEE_VAULT, deniedParty);
+        (parties.sender, parties.recipient) = (Predeploys.BASE_FEE_VAULT, deniedParty);
         assertFalse(policy.screenWithdrawal(item, parties, 0, block.timestamp), "Fee Vault sender");
-        (parties[0], parties[1]) = (sender, deniedParty);
+        (parties.sender, parties.recipient) = (sender, deniedParty);
         assertFalse(policy.screenWithdrawal(item, parties, live, block.timestamp), "live verdict");
         assertFalse(policy.screenWithdrawal(item, parties, 0, block.timestamp), "before Holdable Time");
     }
@@ -412,9 +393,9 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
     ///         verdict or an expired one.
     function test_screenWithdrawal_allowlistedSender_succeeds() external {
         BridgeHookTypes.Item memory item;
-        address[] memory parties = new address[](2);
-        parties[0] = allowlistedSender;
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.sender = allowlistedSender;
+        parties.recipient = recipient;
 
         vm.startPrank(module);
         assertTrue(policy.screenWithdrawal(item, parties, 0, block.timestamp), "no verdict");
@@ -431,12 +412,12 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
             Predeploys.L1_FEE_VAULT,
             Predeploys.OPERATOR_FEE_VAULT
         ];
-        address[] memory parties = new address[](2);
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.recipient = recipient;
 
         vm.startPrank(module);
         for (uint256 i; i < vaults.length; i++) {
-            parties[0] = vaults[i];
+            parties.sender = vaults[i];
             assertTrue(policy.screenWithdrawal(item, parties, 0, block.timestamp), vm.toString(vaults[i]));
             assertTrue(
                 policy.screenWithdrawal(item, parties, uint64(block.timestamp), block.timestamp),
@@ -451,9 +432,9 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         vm.assume(_sender != Predeploys.SEQUENCER_FEE_WALLET && _sender != Predeploys.BASE_FEE_VAULT);
         vm.assume(_sender != Predeploys.L1_FEE_VAULT && _sender != Predeploys.OPERATOR_FEE_VAULT);
         BridgeHookTypes.Item memory item;
-        address[] memory parties = new address[](2);
-        parties[0] = _sender;
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.sender = _sender;
+        parties.recipient = recipient;
         uint256 finalizableAt = block.timestamp;
         vm.warp(finalizableAt + policy.holdDelay());
 
@@ -465,9 +446,9 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
     ///         At expiry, screening returns false even before the Holdable Time.
     function test_screenWithdrawal_verdictExpiry_succeeds() external {
         BridgeHookTypes.Item memory item;
-        address[] memory parties = new address[](2);
-        parties[0] = sender;
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.sender = sender;
+        parties.recipient = recipient;
 
         vm.startPrank(module);
         assertTrue(policy.screenWithdrawal(item, parties, uint64(block.timestamp + 1), block.timestamp), "live");
@@ -478,9 +459,9 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
     ///         false at and after it.
     function testFuzz_screenWithdrawal_holdableTime_succeeds(uint256 _finalizableAt, uint64 _holdDelay) external {
         BridgeHookTypes.Item memory item;
-        address[] memory parties = new address[](2);
-        parties[0] = sender;
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.sender = sender;
+        parties.recipient = recipient;
         _holdDelay = uint64(bound(_holdDelay, 0, HOLD_DELAY_CAP));
         // Reserve room for any permitted hold delay so overflow cannot mask the screening rule.
         // Keep holdableAt between the limits so the test can check one second before and after it.
@@ -503,9 +484,9 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
     ///         Time.
     function test_screenWithdrawal_zeroHoldDelay_succeeds() external {
         BridgeHookTypes.Item memory item;
-        address[] memory parties = new address[](2);
-        parties[0] = sender;
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.sender = sender;
+        parties.recipient = recipient;
         vm.prank(owner);
         policy.setHoldDelay(0);
 
@@ -528,8 +509,8 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         BridgeHookTypes.Item memory item;
         address[4] memory accounts = [sender, allowlistedSender, deniedParty, Predeploys.BASE_FEE_VAULT];
         address other = accounts[bound(_otherIndex, 0, 3)];
-        address[] memory parties = new address[](2);
-        (parties[0], parties[1]) = _deniedRecipient ? (other, deniedParty) : (deniedParty, other);
+        IPolicy.Parties memory parties;
+        (parties.sender, parties.recipient) = _deniedRecipient ? (other, deniedParty) : (deniedParty, other);
         vm.startPrank(owner);
         if (_deniedAllowlisted) {
             address[] memory allowlist = new address[](1);
@@ -557,9 +538,9 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
     {
         BridgeHookTypes.Item memory item;
         address[4] memory accounts = [sender, allowlistedSender, deniedParty, Predeploys.BASE_FEE_VAULT];
-        address[] memory parties = new address[](2);
-        parties[0] = accounts[bound(_senderIndex, 0, 3)];
-        parties[1] = accounts[bound(_recipientIndex, 0, 3)];
+        IPolicy.Parties memory parties;
+        parties.sender = accounts[bound(_senderIndex, 0, 3)];
+        parties.recipient = accounts[bound(_recipientIndex, 0, 3)];
         // Reserve room for any permitted hold delay so overflow cannot mask the screening rule.
         _finalizableAt = bound(_finalizableAt, 0, type(uint256).max - HOLD_DELAY_CAP);
         vm.prank(owner);
@@ -568,7 +549,7 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
 
         vm.prank(module);
         try policy.screenWithdrawal(item, parties, _expiresAt, _finalizableAt) returns (bool pass_) {
-            if (pass_ && parties[0] != allowlistedSender && parties[0] != Predeploys.BASE_FEE_VAULT) {
+            if (pass_ && parties.sender != allowlistedSender && parties.sender != Predeploys.BASE_FEE_VAULT) {
                 assertGt(_expiresAt, block.timestamp);
             }
         } catch { }
@@ -588,9 +569,9 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
     {
         BridgeHookTypes.Item memory item;
         address[4] memory accounts = [sender, allowlistedSender, deniedParty, Predeploys.BASE_FEE_VAULT];
-        address[] memory parties = new address[](2);
-        parties[0] = accounts[bound(_senderIndex, 0, 3)];
-        parties[1] = accounts[bound(_recipientIndex, 0, 3)];
+        IPolicy.Parties memory parties;
+        parties.sender = accounts[bound(_senderIndex, 0, 3)];
+        parties.recipient = accounts[bound(_recipientIndex, 0, 3)];
         _holdDelay = uint64(bound(_holdDelay, 0, HOLD_DELAY_CAP));
         // Reserve room for any permitted hold delay so overflow cannot mask the screening rule.
         _finalizableAt = bound(_finalizableAt, 0, type(uint256).max - HOLD_DELAY_CAP);
@@ -614,25 +595,25 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
 /// @title VisionPolicyV1_ScreenRelease_Test
 /// @notice Tests the `screenRelease` function of the `VisionPolicyV1` contract.
 contract VisionPolicyV1_ScreenRelease_Test is VisionPolicyV1_TestInit {
-    /// @notice Tests that caller authorization takes priority over party count validation.
+    /// @notice Tests that a caller other than the module causes Unauthorized.
     function testFuzz_screenRelease_notModule_reverts(address _caller) external {
         vm.assume(_caller != module);
         BridgeHookTypes.Item memory item;
 
         vm.expectRevert(IVisionPolicyV1.VisionPolicyV1_Unauthorized.selector);
         vm.prank(_caller);
-        policy.screenRelease(item, new address[](0), uint64(block.timestamp + 1));
+        policy.screenRelease(item, IPolicy.Parties(address(0), address(0)), uint64(block.timestamp + 1));
     }
 
     /// @notice Tests that a deny list entry prevents release even with a valid verdict.
     function test_screenRelease_deniedParty_succeeds() external {
         BridgeHookTypes.Item memory item;
-        address[] memory deniedSender = new address[](2);
-        deniedSender[0] = deniedParty;
-        deniedSender[1] = recipient;
-        address[] memory deniedRecipient = new address[](2);
-        deniedRecipient[0] = sender;
-        deniedRecipient[1] = deniedParty;
+        IPolicy.Parties memory deniedSender;
+        deniedSender.sender = deniedParty;
+        deniedSender.recipient = recipient;
+        IPolicy.Parties memory deniedRecipient;
+        deniedRecipient.sender = sender;
+        deniedRecipient.recipient = deniedParty;
         uint64 live = uint64(block.timestamp + 1);
 
         vm.startPrank(module);
@@ -644,9 +625,9 @@ contract VisionPolicyV1_ScreenRelease_Test is VisionPolicyV1_TestInit {
     ///         expiry.
     function test_screenRelease_verdictExpiry_succeeds() external {
         BridgeHookTypes.Item memory item;
-        address[] memory parties = new address[](2);
-        parties[0] = sender;
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.sender = sender;
+        parties.recipient = recipient;
 
         vm.startPrank(module);
         assertTrue(policy.screenRelease(item, parties, uint64(block.timestamp + 1)), "live");
@@ -656,14 +637,14 @@ contract VisionPolicyV1_ScreenRelease_Test is VisionPolicyV1_TestInit {
     /// @notice Tests that an allowlisted or Fee Vault sender with an expired verdict gives false.
     function test_screenRelease_bypassSender_succeeds() external {
         BridgeHookTypes.Item memory item;
-        address[] memory parties = new address[](2);
-        parties[1] = recipient;
+        IPolicy.Parties memory parties;
+        parties.recipient = recipient;
         uint64 expired = uint64(block.timestamp);
 
         vm.startPrank(module);
-        parties[0] = allowlistedSender;
+        parties.sender = allowlistedSender;
         assertFalse(policy.screenRelease(item, parties, expired), "allowlisted sender");
-        parties[0] = Predeploys.BASE_FEE_VAULT;
+        parties.sender = Predeploys.BASE_FEE_VAULT;
         assertFalse(policy.screenRelease(item, parties, expired), "Fee Vault sender");
     }
 
@@ -680,8 +661,8 @@ contract VisionPolicyV1_ScreenRelease_Test is VisionPolicyV1_TestInit {
         BridgeHookTypes.Item memory item;
         address[4] memory accounts = [sender, allowlistedSender, deniedParty, Predeploys.BASE_FEE_VAULT];
         address other = accounts[bound(_otherIndex, 0, 3)];
-        address[] memory parties = new address[](2);
-        (parties[0], parties[1]) = _deniedRecipient ? (other, deniedParty) : (deniedParty, other);
+        IPolicy.Parties memory parties;
+        (parties.sender, parties.recipient) = _deniedRecipient ? (other, deniedParty) : (deniedParty, other);
         if (_deniedAllowlisted) {
             address[] memory allowlist = new address[](1);
             allowlist[0] = deniedParty;
@@ -705,9 +686,9 @@ contract VisionPolicyV1_ScreenRelease_Test is VisionPolicyV1_TestInit {
     {
         BridgeHookTypes.Item memory item;
         address[4] memory accounts = [sender, allowlistedSender, deniedParty, Predeploys.BASE_FEE_VAULT];
-        address[] memory parties = new address[](2);
-        parties[0] = accounts[bound(_senderIndex, 0, 3)];
-        parties[1] = accounts[bound(_recipientIndex, 0, 3)];
+        IPolicy.Parties memory parties;
+        parties.sender = accounts[bound(_senderIndex, 0, 3)];
+        parties.recipient = accounts[bound(_recipientIndex, 0, 3)];
         vm.warp(_timestamp);
 
         vm.prank(module);
@@ -1191,11 +1172,7 @@ contract VisionPolicyV1_SetHoldDelay_Test is VisionPolicyV1_TestInit {
 
     /// @notice Tests that setHoldDelay accepts zero and the cap, and emits even for an unchanged
     ///         value.
-    ///         The cap is one second below the Portal's proof maturity delay in this test.
     function test_setHoldDelay_succeeds() external {
-        vm.mockCall(
-            portal, abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()), abi.encode(HOLD_DELAY_CAP + 1)
-        );
         uint64[3] memory values = [0, HOLD_DELAY_CAP, HOLD_DELAY_CAP];
         vm.startPrank(owner);
         for (uint256 i; i < values.length; i++) {
@@ -1206,19 +1183,11 @@ contract VisionPolicyV1_SetHoldDelay_Test is VisionPolicyV1_TestInit {
         }
     }
 
-    /// @notice Tests that a delay at or above the Portal's proof maturity delay causes
-    ///         HoldDelayTooLong.
-    ///         This error takes priority when the delay also exceeds HOLD_DELAY_CAP.
-    function test_setHoldDelay_tooLong_reverts() external {
-        vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()), abi.encode(1 hours));
-        uint64[2] memory values = [uint64(1 hours), HOLD_DELAY_CAP + 1];
-        vm.startPrank(owner);
-        for (uint256 i; i < values.length; i++) {
-            vm.expectRevert(
-                bytes.concat(IVisionPolicyV1.VisionPolicyV1_HoldDelayTooLong.selector, abi.encode(uint64(1 hours)))
-            );
-            policy.setHoldDelay(values[i]);
-        }
+    /// @notice Tests that setHoldDelay reverts above the cap.
+    function test_setHoldDelay_aboveCap_reverts() external {
+        vm.expectRevert(IVisionPolicyV1.VisionPolicyV1_OutOfBounds.selector);
+        vm.prank(owner);
+        policy.setHoldDelay(HOLD_DELAY_CAP + 1);
     }
 }
 
