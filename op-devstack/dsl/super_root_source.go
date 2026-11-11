@@ -85,16 +85,24 @@ func (s *SuperRootQuerier) AssertSuperRootAtTimestamp(l2SequenceNumber uint64, r
 
 // AwaitValidatedTimestamp waits for the super-root at the given timestamp to be available.
 func (s *SuperRootQuerier) AwaitValidatedTimestamp(timestamp uint64) {
+	s.AwaitSuperRootAtTimestamp(timestamp)
+}
+
+// AwaitSuperRootAtTimestamp waits for the super-root at the given timestamp to be available and returns it.
+func (s *SuperRootQuerier) AwaitSuperRootAtTimestamp(timestamp uint64) eth.SuperRootAtTimestampResponse {
 	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)
 	defer cancel()
+	var resp eth.SuperRootAtTimestampResponse
 	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		resp, err := s.api.SuperRootAtTimestamp(ctx, timestamp)
+		var err error
+		resp, err = s.api.SuperRootAtTimestamp(ctx, timestamp)
 		if err != nil {
 			return false, nil // Ignore transient errors.
 		}
 		return resp.Data != nil, nil
 	})
 	s.require.NoError(err, "super-root at timestamp %d was not validated in time", timestamp)
+	return resp
 }
 
 // AwaitOptimisticBlockAtTimestamp waits for one chain's optimistic output to become available.

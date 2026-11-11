@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // L1ELNode wraps a stack.L1ELNode interface for DSL operations
@@ -87,6 +88,14 @@ func (el *L1ELNode) BlockRefByNumber(number uint64) eth.L1BlockRef {
 	defer cancel()
 	block, err := el.inner.EthClient().BlockRefByNumber(ctx, number)
 	el.require.NoError(err, "block not found using block number %d", number)
+	return block
+}
+
+func (el *L1ELNode) BlockRefByHash(hash common.Hash) eth.L1BlockRef {
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+	block, err := el.inner.EthClient().BlockRefByHash(ctx, hash)
+	el.require.NoError(err, "block not found using block hash %s", hash)
 	return block
 }
 

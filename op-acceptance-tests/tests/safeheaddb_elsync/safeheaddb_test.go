@@ -12,17 +12,17 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
-func newSingleChainMultiNodeELSync(t devtest.T) *presets.SingleChainMultiNode {
+func newSingleChainMultiNodeELSync(t devtest.T, extraOptions ...presets.Option) *presets.SingleChainMultiNode {
 	// The default preset sync check auto-detects ELSync mode on node B and
 	// uses a 4x CrossSafe budget (see singlechain_from_runtime.go), which is
 	// what this test needs.
-	return presets.NewSingleChainMultiNode(t,
-		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
+	options := append([]presets.Option{
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 			cfg.VerifierSyncMode = sync.ELSync
 			cfg.SafeDBPath = p.TempDir()
 		})),
-	)
+	}, extraOptions...)
+	return presets.NewSingleChainMultiNode(t, options...)
 }
 
 func TestTruncateDatabaseOnELResync(gt *testing.T) {
@@ -39,7 +39,8 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	// assertions.go:387:             	Messages:   	The peer was not connected
 	// assertions.go:387:
 	sysgo.SkipOnOpReth(t, "not supported (peering issue)")
-	sys := newSingleChainMultiNodeELSync(t)
+	// op-geth cannot run Karst chains, and this test only runs on op-geth.
+	sys := newSingleChainMultiNodeELSync(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
 
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(safety.LocalSafe, 1, 30),

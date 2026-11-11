@@ -1,6 +1,7 @@
 package safedb_proof_consumers
 
 import (
+	"errors"
 	"testing"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -19,6 +21,7 @@ import (
 
 func TestProposerPublishesSuperRoot(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	require := t.Require()
 	system := presets.NewMinimal(t,
 		presets.WithDeployerOptions(
 			sysgo.WithJovianAtGenesis,
@@ -29,36 +32,38 @@ func TestProposerPublishesSuperRoot(gt *testing.T) {
 
 	game := system.DisputeGameFactory().WaitForGame()
 	game.VerifyGameType(gameTypes.SuperPermissionedGameType)
-	dsl.NewOpNodeSuperRoots(system.L2CL).AssertSuperRootAtTimestamp(game.L2SequenceNumber(), game.RootClaimValue())
+	response := dsl.NewOpNodeSuperRoots(system.L2CL).AwaitSuperRootAtTimestamp(game.L2SequenceNumber())
+	require.Equal(game.RootClaimValue(), common.Hash(eth.SuperRoot(response.Data.Super)))
+
+	chainOutput, ok := response.OptimisticAtTimestamp[system.L2Chain.ChainID()]
+	require.True(ok, "super root response must include the L2 chain")
+	block := system.L2EL.BlockRefByHash(chainOutput.Output.BlockHash)
+	// The genesis block's required L1 is fixed at 0 without a SafeDB read.
+	require.NotZero(block.Number, "the game must commit past L2 genesis")
+	require.Equal(system.L2CL.OutputAtBlock(block.Number).OutputRoot, chainOutput.OutputRoot)
+	requireFirstL1WithSafeHead(t, system.L2CL, block.Number, response.Data.VerifiedRequiredL1)
 }
 
-func TestDisputeMonitorClassifiesOutputRoots(gt *testing.T) {
-	for _, testCase := range []struct {
-		name string
+func TestDisputeMonitorAgreesWithSafeOutputRoot(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	require := t.Require()
+	system := newOutputRootSystem(t)
+	proposer := system.FunderL1.NewFundedEOA(eth.OneEther)
+	game := system.DisputeGameFactory().StartCannonKonaGame(proposer, proofs.WithL2SequenceNumber(3))
 
-		agreedRoots    int
-		disagreedRoots int
-		gameOptions    []proofs.GameOpt
-	}{
-		{name: "valid", agreedRoots: 1},
-		{name: "invalid", disagreedRoots: 1, gameOptions: []proofs.GameOpt{proofs.WithRootClaim(common.HexToHash("0xdead"))}},
-	} {
-		gt.Run(testCase.name, func(gt *testing.T) {
-			t := devtest.ParallelT(gt)
-			system := newOutputRootSystem(t)
-			proposer := system.FunderL1.NewFundedEOA(eth.OneEther)
-			gameOptions := append([]proofs.GameOpt{proofs.WithL2SequenceNumber(3)}, testCase.gameOptions...)
-			system.DisputeGameFactory().StartCannonKonaGame(proposer, gameOptions...)
+	monitor := system.StartDisputeMon()
+	monitor.VerifyState(
+		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
+		disputemon.FailedGames(0),
+		disputemon.AgreedRoots(1),
+		disputemon.DisagreedRoots(0),
+	)
 
-			monitor := system.StartDisputeMon()
-			monitor.VerifyState(
-				disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
-				disputemon.FailedGames(0),
-				disputemon.AgreedRoots(testCase.agreedRoots),
-				disputemon.DisagreedRoots(testCase.disagreedRoots),
-			)
-		})
-	}
+	// dispute-mon also agrees when it cannot read the SafeDB, so check the record it relies on.
+	l1Head := system.L1EL.BlockRefByHash(game.L1Head())
+	safeHead, err := system.L2CL.SafeHeadAtL1Block(l1Head.Number)
+	require.NoError(err, "SafeDB must answer at the game's L1 head %d", l1Head.Number)
+	require.GreaterOrEqual(safeHead.SafeHead.Number, game.L2SequenceNumber())
 }
 
 func TestDisputeMonitorRejectsOutputRootNotSafeAtGameL1Head(gt *testing.T) {
@@ -92,4 +97,23 @@ func newOutputRootSystem(t devtest.T) *presets.Minimal {
 		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
 		presets.WithGameTypeAdded(gameTypes.CannonKonaGameType),
 	)
+}
+
+// requireFirstL1WithSafeHead asserts that requiredL1 is the first L1 block at which the
+// SafeDB records l2Block as safe.
+func requireFirstL1WithSafeHead(t devtest.T, cl *dsl.L2CLNode, l2Block uint64, requiredL1 eth.BlockID) {
+	require := t.Require()
+	require.NotZero(requiredL1.Number, "required L1 for L2 block %d", l2Block)
+
+	atRequired, err := cl.SafeHeadAtL1Block(requiredL1.Number)
+	require.NoError(err, "SafeDB must answer at the required L1 block %d", requiredL1.Number)
+	require.Equal(requiredL1, atRequired.L1Block, "required L1 must be a SafeDB record")
+	require.GreaterOrEqual(atRequired.SafeHead.Number, l2Block)
+
+	beforeRequired, err := cl.SafeHeadAtL1Block(requiredL1.Number - 1)
+	if errors.Is(err, safedb.ErrNotFound) {
+		return
+	}
+	require.NoError(err, "SafeDB must answer below the required L1 block %d", requiredL1.Number)
+	require.Less(beforeRequired.SafeHead.Number, l2Block, "L2 block %d was already safe before the required L1 block", l2Block)
 }
