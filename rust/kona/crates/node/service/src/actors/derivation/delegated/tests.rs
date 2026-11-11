@@ -86,6 +86,15 @@ impl Harness {
         self.engine_state.send_modify(|state| state.sync_state = sync_state);
     }
 
+    /// Publishes the engine's labels along with whether its execution layer applied the engine's
+    /// last forkchoice.
+    fn publish_engine_state(&self, sync_state: EngineSyncState, el_applied_last_forkchoice: bool) {
+        self.engine_state.send_modify(|state| {
+            state.sync_state = sync_state;
+            state.el_applied_last_forkchoice = el_applied_last_forkchoice;
+        });
+    }
+
     /// The engine requests sent since the last call, in order.
     fn forwarded(&mut self) -> Vec<Forwarded> {
         std::iter::from_fn(|| self.engine_requests.try_recv().ok()).map(Forwarded::from).collect()
@@ -331,4 +340,93 @@ async fn unchanged_status_is_resent_on_every_poll() {
     }
 
     assert_eq!(Instant::now() - first_poll, POLL_INTERVAL * (POLLS - 1));
+}
+
+/// A status whose labels are out of order is rejected whole: a finalized block ahead of the safe
+/// head would let a stale snapshot's safe head sit below finality, and a safe head ahead of the
+/// local safe head is not a state any delegate reaches.
+#[rstest]
+#[case::ordered(15, 20, 20, true)]
+#[case::finalized_at_safe(20, 20, 20, true)]
+#[case::safe_behind_local_safe(15, 18, 20, true)]
+#[case::finalized_ahead_of_safe(16, 15, 20, false)]
+#[case::safe_ahead_of_local_safe(15, 21, 20, false)]
+#[tokio::test(start_paused = true)]
+async fn poll_rejects_status_with_labels_out_of_order(
+    #[case] finalized: u64,
+    #[case] safe: u64,
+    #[case] local_safe: u64,
+    #[case] accepted: bool,
+) {
+    let status = SyncStatus {
+        finalized_l2: l2_block(finalized, FINALIZED_ORIGIN),
+        local_safe_l2: l2_block(local_safe, SAFE_ORIGIN),
+        safe_l2: l2_block(safe, SAFE_ORIGIN),
+        ..delegate_status()
+    };
+    let mut harness = Harness::new([Ok(status.clone())]);
+    harness.complete_engine_sync().await;
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_if(accepted, &status));
+    assert_eq!(harness.current_l1.borrow().is_some(), accepted);
+}
+
+/// A zero local safe head is a label the delegate has not derived or does not report, so it does
+/// not put the safe head out of order and the status is forwarded.
+#[tokio::test(start_paused = true)]
+async fn unreported_local_safe_head_does_not_order_the_labels() {
+    let status = SyncStatus { local_safe_l2: L2BlockInfo::default(), ..delegate_status() };
+    let mut harness = Harness::new([Ok(status.clone())]);
+    harness.complete_engine_sync().await;
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_for(&status));
+}
+
+/// An engine sync state with consistent labels: unsafe at 30, safe at `safe`, finalized at 15.
+fn engine_safe_at(safe: u64) -> EngineSyncState {
+    EngineSyncState::default().apply_update(EngineSyncStateUpdate {
+        finalized_head: Some(l2_block(15, FINALIZED_ORIGIN)),
+        local_safe_head: Some(l2_block(safe, SAFE_ORIGIN)),
+        safe_head: Some(l2_block(safe, SAFE_ORIGIN)),
+        unsafe_head: Some(l2_block(30, SAFE_ORIGIN)),
+    })
+}
+
+/// What a poll of `status` forwards when its safe head is held back: the finalized block alone.
+fn finalized_only(status: &SyncStatus) -> Vec<Forwarded> {
+    vec![Forwarded::Finalized(FinalizeBlockId::ByHash(status.finalized_l2.block_info.id()))]
+}
+
+/// A safe head behind the engine's is forwarded once while the execution layer applied the
+/// engine's forkchoice, since the engine's answer to it cannot change; finalized still goes out
+/// on every poll. A moved engine safe head, or an execution layer that did not apply the last
+/// forkchoice, sends it again.
+#[rstest]
+#[case::same_engine_view(true, 25, finalized_only)]
+#[case::el_not_applied(false, 25, forwarded_for)]
+#[case::engine_safe_moved(true, 26, forwarded_for)]
+#[tokio::test(start_paused = true)]
+async fn lagging_safe_head_is_forwarded_once_per_engine_view(
+    #[case] el_applied_last_forkchoice: bool,
+    #[case] engine_safe_on_second_poll: u64,
+    #[case] second_poll_forwards: fn(&SyncStatus) -> Vec<Forwarded>,
+) {
+    let status = delegate_status();
+    let mut harness = Harness::new([Ok(status.clone()), Ok(status.clone())]);
+    harness.complete_engine_sync_with(engine_safe_at(25)).await;
+    harness.publish_engine_state(engine_safe_at(25), el_applied_last_forkchoice);
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_for(&status));
+    harness.publish_engine_state(
+        engine_safe_at(engine_safe_on_second_poll),
+        el_applied_last_forkchoice,
+    );
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), second_poll_forwards(&status));
 }

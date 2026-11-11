@@ -6,7 +6,7 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
 use kona_derive::{ChainProvider, Signal};
-use kona_engine::{EngineState, FinalizeBlockId};
+use kona_engine::{EngineState, FinalityViolation, FinalizeBlockId};
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use thiserror::Error;
 use tokio::{
@@ -53,6 +53,15 @@ where
     has_engine_sync_completed: bool,
     /// Ticker driving periodic polls of the derivation delegate provider.
     delegated_derivation_ticker: time::Interval,
+
+    /// A safe head behind the engine's that was forwarded while the execution layer applied the
+    /// engine's forkchoice, with the engine's safe head at the time. The engine checks such a head
+    /// against its execution layer once; until either changes, sending it again repeats that
+    /// lookup to the same answer.
+    forwarded_lagging_safe_head: Option<(BlockNumHash, BlockNumHash)>,
+    /// The last rejection of a delegate status, so a delegate stuck on one inconsistency is
+    /// warned about once rather than on every poll.
+    last_rejection: Option<String>,
 }
 
 impl<DerivationEngineClient_, DelegateProvider, L1Provider>
@@ -84,6 +93,8 @@ where
             engine_l2_safe_head: L2BlockInfo::default(),
             has_engine_sync_completed: false,
             delegated_derivation_ticker,
+            forwarded_lagging_safe_head: None,
+            last_rejection: None,
         }
     }
 }
@@ -156,43 +167,40 @@ where
         Ok(())
     }
 
-    /// The id of an established finalized head. The default head means finality has not been
-    /// established yet, so any finalized block from the delegate may initialize it.
-    fn established_finalized_l2(finalized_head: L2BlockInfo) -> Option<BlockNumHash> {
-        (finalized_head != L2BlockInfo::default()).then(|| finalized_head.block_info.id())
-    }
-
-    /// Rejects a finalized L2 block behind, or at the same height as but different from, the
-    /// engine's. Either means the delegate lags or follows another chain, so none of its status
-    /// applies: its safe head would move the engine back or onto that chain too.
-    fn validate_finalized_l2_progress(
-        &self,
-        reported: BlockNumHash,
-    ) -> Result<(), DerivationDelegationError> {
-        let engine_finalized_head = self.engine_state_rx.borrow().sync_state.finalized_head();
-        let Some(engine) = Self::established_finalized_l2(engine_finalized_head) else {
-            return Ok(());
+    /// Rejects a status whose labels are out of order: its finalized block ahead of its safe head,
+    /// or its safe head ahead of its local safe head. No consistent delegate reports either, and a
+    /// finalized block ahead of the safe head would let a stale safe head sit below finality. A
+    /// zero local safe head is a label the delegate has not derived or does not report, so it does
+    /// not order anything.
+    fn validate_label_order(status: &SyncStatus) -> Result<(), DerivationDelegationError> {
+        let finalized = status.finalized_l2.block_info.number;
+        let safe = status.safe_l2.block_info.number;
+        let local_safe = if status.local_safe_l2 == L2BlockInfo::default() {
+            safe
+        } else {
+            status.local_safe_l2.block_info.number
         };
-        if reported.number < engine.number {
-            return Err(DerivationDelegationError::FinalizedL2Regressed { engine, reported });
+        if finalized > safe {
+            return Err(DerivationDelegationError::FinalizedAheadOfSafe { finalized, safe });
         }
-        if reported.number == engine.number && reported.hash != engine.hash {
-            return Err(DerivationDelegationError::FinalizedL2Conflict { engine, reported });
+        if safe > local_safe {
+            return Err(DerivationDelegationError::SafeAheadOfLocalSafe { local_safe, safe });
         }
         Ok(())
     }
 
-    /// Verifies that the finalized L2 block reported by the derivation delegate does not move back
-    /// from the engine's, and that its L1 info is consistent with the canonical L1 chain.
-    async fn validate_sync_status(&mut self, v: &SyncStatus) -> bool {
-        if let Err(err) = self.validate_finalized_l2_progress(v.finalized_l2.block_info.id()) {
-            warn!(
-                target: "derivation",
-                error = %err,
-                "Finalized L2 inconsistency detected at sync status from delegate"
-            );
-            return false;
-        }
+    /// Verifies that the labels reported by the derivation delegate are in order, that its
+    /// finalized L2 block does not move back from the engine's, and that its L1 info is consistent
+    /// with the canonical L1 chain.
+    async fn validate_sync_status(
+        &mut self,
+        v: &SyncStatus,
+    ) -> Result<(), DerivationDelegationError> {
+        Self::validate_label_order(v)?;
+        self.engine_state_rx
+            .borrow()
+            .sync_state
+            .ensure_respects_finality(v.finalized_l2.block_info.id())?;
 
         let checks = [
             ("L1 Origin of Safe L2", v.safe_l2.l1_origin.number, v.safe_l2.l1_origin.hash),
@@ -203,18 +211,52 @@ where
             ),
             ("Current L1", v.current_l1.number, v.current_l1.hash),
         ];
+        let mut validated_l1_blocks = Vec::with_capacity(checks.len());
         for (context, number, hash) in checks {
-            if let Err(err) = self.validate_l1_block(context, number, hash).await {
-                warn!(
-                    target: "derivation",
-                    context = context,
-                    error = %err,
-                    "L1 inconsistency detected at sync status from delegate"
-                );
-                return false;
+            // Labels often share an L1 origin, and one lookup proves it canonical for all of them.
+            if validated_l1_blocks.contains(&(number, hash)) {
+                continue;
             }
+            self.validate_l1_block(context, number, hash).await?;
+            validated_l1_blocks.push((number, hash));
         }
-        true
+        Ok(())
+    }
+
+    /// Logs a rejected delegate status at `warn!` when the reason changed, and at `debug!` while
+    /// the delegate keeps reporting the same inconsistency.
+    fn log_rejected_status(&mut self, err: &DerivationDelegationError) {
+        let reason = err.to_string();
+        if self.last_rejection.as_ref() == Some(&reason) {
+            debug!(target: "derivation", error = %err, "Sync status from delegate rejected again");
+        } else {
+            warn!(target: "derivation", error = %err, "Rejected sync status from delegate");
+            self.last_rejection = Some(reason);
+        }
+    }
+
+    /// Whether the delegated safe head is the lagging one already forwarded against the same
+    /// engine safe head, so the engine would repeat its lookup to the same answer.
+    fn is_lagging_safe_head_forwarded(&self, safe_l2: &L2BlockInfo) -> bool {
+        self.lagging_safe_head_to_remember(safe_l2) == self.forwarded_lagging_safe_head &&
+            self.forwarded_lagging_safe_head.is_some()
+    }
+
+    /// The pair to remember for a delegated safe head behind the engine's consistent safe head
+    /// while its execution layer applied the engine's forkchoice, or `None` for any other head,
+    /// which the engine must always see.
+    fn lagging_safe_head_to_remember(
+        &self,
+        safe_l2: &L2BlockInfo,
+    ) -> Option<(BlockNumHash, BlockNumHash)> {
+        let engine_state = self.engine_state_rx.borrow();
+        let engine_safe_head = engine_state.sync_state.safe_head().block_info;
+        let is_consistent =
+            engine_state.sync_state.unsafe_head().block_info.number >= engine_safe_head.number;
+        (engine_state.el_applied_last_forkchoice &&
+            is_consistent &&
+            safe_l2.block_info.number < engine_safe_head.number)
+            .then(|| (safe_l2.block_info.id(), engine_safe_head.id()))
     }
 
     /// Fetches, validates, and applies sync status from the derivation delegate.
@@ -227,18 +269,30 @@ where
             }
         };
 
-        if !self.validate_sync_status(&sync_status).await {
+        if let Err(err) = self.validate_sync_status(&sync_status).await {
             // Validation failures here are expected to be transient, so we skip processing
             // this sync status and continue delegating derivation instead of treating it as
             // fatal.
+            self.log_rejected_status(&err);
             return Ok(());
         }
+        self.last_rejection = None;
         self.derivation_origin_tx.send_replace(Some(sync_status.current_l1));
 
-        self.engine_client
-            .send_safe_l2_signal(sync_status.safe_l2.into())
-            .await
-            .map_err(|e| DerivationError::Sender(Box::new(e)))?;
+        if self.is_lagging_safe_head_forwarded(&sync_status.safe_l2) {
+            debug!(
+                target: "derivation",
+                safe_l2 = ?sync_status.safe_l2,
+                "Not forwarding a lagging safe head the engine already checked"
+            );
+        } else {
+            self.forwarded_lagging_safe_head =
+                self.lagging_safe_head_to_remember(&sync_status.safe_l2);
+            self.engine_client
+                .send_safe_l2_signal(sync_status.safe_l2.into())
+                .await
+                .map_err(|e| DerivationError::Sender(Box::new(e)))?;
+        }
 
         // Delegated polling supplies `(number, hash)`. Carry the hash through so the engine
         // finalizes the specific block we were asked to, not whatever it happens to have at the
@@ -291,13 +345,14 @@ where
 
 #[derive(Error, Debug)]
 enum DerivationDelegationError {
-    /// The delegate's finalized L2 block is a different block at the engine's finalized height.
-    #[error("Finalized L2 {reported:?} conflicts with the engine's finalized L2 {engine:?}")]
-    FinalizedL2Conflict { engine: BlockNumHash, reported: BlockNumHash },
+    /// The delegate's finalized L2 block is ahead of its own safe head.
+    #[error("Finalized L2 {finalized} is ahead of safe L2 {safe}")]
+    FinalizedAheadOfSafe { finalized: u64, safe: u64 },
 
-    /// The delegate's finalized L2 block is behind the engine's.
-    #[error("Finalized L2 {reported:?} is behind the engine's finalized L2 {engine:?}")]
-    FinalizedL2Regressed { engine: BlockNumHash, reported: BlockNumHash },
+    /// The delegate's finalized L2 block is behind the engine's, or a different block at its
+    /// height.
+    #[error("Finalized L2 moves the engine's finality back: {0}")]
+    FinalizedL2BreaksFinality(#[from] FinalityViolation),
 
     /// The L1 provider returned an error (network, RPC, etc.)
     #[error("L1 provider error: {0}")]
@@ -306,4 +361,8 @@ enum DerivationDelegationError {
     /// The hash provided by the derivation delegation does not match the canonical chain.
     #[error("L1 inconsistency in {context} at block {number}: expected {expected}, got {actual}")]
     L1ValidationFailed { context: String, number: u64, expected: BlockHash, actual: BlockHash },
+
+    /// The delegate's safe head is ahead of its own local safe head.
+    #[error("Safe L2 {safe} is ahead of local safe L2 {local_safe}")]
+    SafeAheadOfLocalSafe { local_safe: u64, safe: u64 },
 }
