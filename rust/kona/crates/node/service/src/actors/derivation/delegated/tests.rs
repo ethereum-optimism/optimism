@@ -1,15 +1,17 @@
 use super::{
     DelegateDerivationActor, DerivationDelegateClientError,
-    actor::DERIVATION_DELEGATE_POLL_INTERVAL as POLL_INTERVAL,
+    actor::{
+        CHAIN_BELOW_FINALITY_RETRY_INTERVAL, DERIVATION_DELEGATE_POLL_INTERVAL as POLL_INTERVAL,
+    },
     test_utils::{ScriptedDelegate, SyncStatusReply, sync_status},
 };
 use crate::{DerivationActorRequest, EngineActorRequest, NodeActor, QueuedDerivationEngineClient};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
-use kona_derive::test_utils::TestChainProvider;
+use kona_derive::{ResetSignal, Signal, test_utils::TestChainProvider};
 use kona_engine::{
-    ConsolidateInput, DelegatedSafeHeads, EngineState, EngineSyncState, EngineSyncStateUpdate,
-    FinalizeBlockId,
+    ConsolidateInput, DelegatedRejection, DelegatedSafeHeads, EngineState, EngineSyncState,
+    EngineSyncStateUpdate, FinalizeBlockId,
 };
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use rstest::rstest;
@@ -76,6 +78,12 @@ impl Harness {
     /// Publishes the engine's labels as the engine does after each task it runs.
     fn publish_engine_sync_state(&self, sync_state: EngineSyncState) {
         self.engine_state.send_modify(|state| state.sync_state = sync_state);
+    }
+
+    /// Hands the actor `request`, which it handles before its next poll.
+    async fn handle(&mut self, request: DerivationActorRequest) {
+        self.derivation_requests.send(request).await.unwrap();
+        self.actor.step().await.unwrap();
     }
 
     /// Publishes the engine's labels along with whether its execution layer applied the engine's
@@ -406,6 +414,175 @@ async fn poll_forwards_local_safe_and_cross_safe_heads_separately(
     assert_eq!(harness.forwarded()[0], Forwarded::Safe(Box::new(expected_heads)));
 }
 
+/// The safe heads of `status`.
+fn safe_heads_of(status: &SyncStatus) -> DelegatedSafeHeads {
+    DelegatedSafeHeads::try_new(status.local_safe_l2, status.safe_l2).unwrap()
+}
+
+/// What a poll of `status` forwards while its safe heads are rejected: the finalized block alone.
+fn forwarded_without_safe_heads(status: &SyncStatus) -> Vec<Forwarded> {
+    vec![Forwarded::Finalized(FinalizeBlockId::ByHash(status.finalized_l2.block_info.id()))]
+}
+
+/// The engine's report that it rejected the safe heads of `status` for `rejection`.
+fn rejected(status: &SyncStatus, rejection: DelegatedRejection) -> DerivationActorRequest {
+    DerivationActorRequest::ProcessRejectedDelegatedSafeHeads {
+        heads: Box::new(safe_heads_of(status)),
+        rejection,
+    }
+}
+
+/// Safe heads the engine rejected permanently are not sent again while the delegate keeps
+/// reporting them, but the finalized block still is; a reset rebuilds the engine's labels, after
+/// which they are sent again.
+#[tokio::test(start_paused = true)]
+async fn rejected_safe_heads_are_not_sent_again_until_a_reset() {
+    let status = delegate_status();
+    let mut harness = Harness::new((0..3).map(|_| Ok(status.clone())));
+    harness.complete_engine_sync().await;
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_for(&status));
+    harness.handle(rejected(&status, DelegatedRejection::HeadLabels)).await;
+
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_without_safe_heads(&status));
+
+    let reset = Signal::Reset(ResetSignal { l2_safe_head: L2BlockInfo::default() });
+    harness.handle(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(reset))).await;
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_for(&status));
+}
+
+/// Only the exact rejected safe heads are held back: a status with another cross-safe head is
+/// sent, since the rejection may have been that head's alone.
+#[tokio::test(start_paused = true)]
+async fn safe_heads_other_than_the_rejected_ones_are_sent() {
+    let rejected_status = delegate_status();
+    let next = sync_status(
+        canonical_l1_block(CURRENT_L1),
+        l2_block(20, SAFE_ORIGIN),
+        l2_block(18, SAFE_ORIGIN),
+        l2_block(15, FINALIZED_ORIGIN),
+    );
+    let mut harness = Harness::new([Ok(next.clone())]);
+    harness.complete_engine_sync().await;
+    harness.handle(rejected(&rejected_status, DelegatedRejection::HeadLabels)).await;
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_for(&next));
+}
+
+/// A status on a delegate chain with blocks tagged `chain`, with its local-safe and safe heads at
+/// `safe`, its unsafe head two blocks above and its finalized block at `finalized`. Each block's
+/// parent is the block below it on the same chain.
+fn chain_status(chain: u8, safe: u64, finalized: u64) -> SyncStatus {
+    let block = |number: u64, l1_origin: u64| L2BlockInfo {
+        block_info: BlockInfo {
+            hash: chain_hash(chain, number),
+            number,
+            parent_hash: chain_hash(chain, number - 1),
+            ..Default::default()
+        },
+        ..l2_block(number, l1_origin)
+    };
+    SyncStatus {
+        unsafe_l2: block(safe + 2, SAFE_ORIGIN),
+        ..sync_status(
+            canonical_l1_block(CURRENT_L1),
+            block(safe, SAFE_ORIGIN),
+            block(safe, SAFE_ORIGIN),
+            block(finalized, FINALIZED_ORIGIN),
+        )
+    }
+}
+
+fn chain_hash(chain: u8, number: u64) -> B256 {
+    let mut hash = B256::with_last_byte(number as u8);
+    hash.0[0] = chain;
+    hash
+}
+
+const FORK: u8 = 0xf0;
+const CANONICAL: u8 = 0xc0;
+
+/// The engine's finalized head when it rejects a delegate's chain below its finality.
+fn engine_finalized_below_the_fork() -> EngineSyncState {
+    engine_finalized_at(l2_block(10, FINALIZED_ORIGIN))
+}
+
+/// Polls `rejected_status`, whose chain the engine then reports below its finality.
+async fn reject_chain_below_finality(harness: &mut Harness, rejected_status: &SyncStatus) {
+    harness.complete_engine_sync_with(engine_finalized_below_the_fork()).await;
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_for(rejected_status));
+    harness.handle(rejected(rejected_status, DelegatedRejection::ChainBelowFinality)).await;
+}
+
+/// After the engine found a delegate's chain below its finality, the delegate's safe heads stay
+/// held back while it advances on that chain as a live delegate does: its unsafe head several
+/// blocks per poll, its safe heads a span batch at a time and its finality an epoch at a time, so
+/// no status shares a block with an earlier one. Its finalized block is still sent.
+#[tokio::test(start_paused = true)]
+async fn delegate_advancing_on_a_rejected_chain_is_held_back() {
+    let rejected_status = chain_status(FORK, 20, 15);
+    let advancing =
+        [chain_status(FORK, 26, 15), chain_status(FORK, 32, 15), chain_status(FORK, 38, 26)];
+    let mut harness = Harness::new(
+        std::iter::once(&rejected_status).chain(&advancing).map(|status| Ok(status.clone())),
+    );
+    reject_chain_below_finality(&mut harness, &rejected_status).await;
+
+    for status in &advancing {
+        harness.actor.step().await.unwrap();
+        assert_eq!(harness.forwarded(), forwarded_without_safe_heads(status));
+    }
+}
+
+/// The engine's finality moves only to a canonical finalized target, which shows the delegate is
+/// back on the engine's chain, so its safe heads are sent again.
+#[tokio::test(start_paused = true)]
+async fn engine_finality_moving_lifts_the_hold_on_a_rejected_chain() {
+    let rejected_status = chain_status(FORK, 20, 15);
+    let canonical = chain_status(CANONICAL, 26, 20);
+    let mut harness =
+        Harness::new([Ok(rejected_status.clone()), Ok(canonical.clone()), Ok(canonical.clone())]);
+    reject_chain_below_finality(&mut harness, &rejected_status).await;
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_without_safe_heads(&canonical));
+
+    harness.publish_engine_sync_state(engine_finalized_at(canonical.finalized_l2));
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_for(&canonical));
+}
+
+/// Without the engine's finality moving, the delegate's safe heads are sent once more after the
+/// retry interval, and held back again if the engine rejects the chain again.
+#[tokio::test(start_paused = true)]
+async fn delegate_on_a_rejected_chain_is_retried_after_the_interval() {
+    let rejected_status = chain_status(FORK, 20, 15);
+    let (held, retried, held_again) =
+        (chain_status(FORK, 26, 15), chain_status(FORK, 32, 15), chain_status(FORK, 38, 15));
+    let mut harness = Harness::new([
+        Ok(rejected_status.clone()),
+        Ok(held.clone()),
+        Ok(retried.clone()),
+        Ok(held_again.clone()),
+    ]);
+    reject_chain_below_finality(&mut harness, &rejected_status).await;
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_without_safe_heads(&held));
+
+    time::sleep(CHAIN_BELOW_FINALITY_RETRY_INTERVAL).await;
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_for(&retried));
+
+    harness.handle(rejected(&retried, DelegatedRejection::ChainBelowFinality)).await;
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_without_safe_heads(&held_again));
+}
+
 /// A zero local safe head is a label the delegate has not derived or does not report, so it does
 /// not put the safe head out of order and the status is forwarded.
 #[tokio::test(start_paused = true)]
@@ -430,17 +607,12 @@ fn engine_safe_at(safe: u64) -> EngineSyncState {
     })
 }
 
-/// What a poll of `status` forwards when its safe head is held back: the finalized block alone.
-fn finalized_only(status: &SyncStatus) -> Vec<Forwarded> {
-    vec![Forwarded::Finalized(FinalizeBlockId::ByHash(status.finalized_l2.block_info.id()))]
-}
-
 /// Safe heads behind the engine's are forwarded once while the execution layer applied the
 /// engine's forkchoice, since the engine's answer to it cannot change; finalized still goes out
 /// on every poll. A moved engine safe head, or an execution layer that did not apply the last
 /// forkchoice, sends it again.
 #[rstest]
-#[case::same_engine_view(true, 25, finalized_only)]
+#[case::same_engine_view(true, 25, forwarded_without_safe_heads)]
 #[case::el_not_applied(false, 25, forwarded_for)]
 #[case::engine_safe_moved(true, 26, forwarded_for)]
 #[tokio::test(start_paused = true)]

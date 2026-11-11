@@ -2,6 +2,7 @@ use super::{ForkchoiceDelivery, synchronize};
 use crate::{
     EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTaskError,
     EngineTaskErrorSeverity::{self, Reset, Temporary},
+    SafeLabel, SynchronizeTaskError,
     test_utils::{RpcMock, TestEngineStateBuilder, test_block_info, test_engine_client},
 };
 use alloy_rpc_types_engine::{ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
@@ -129,6 +130,38 @@ async fn synchronize_applies_labels_only_when_accepted(
     assert_eq!(result.as_ref().err().map(EngineTaskError::severity), error_severity, "{result:?}");
     assert_eq!(state.sync_state, expected_sync_state);
     assert_eq!(state.el_sync_finished, el_sync_finished);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// An update that would put a safe label below the finalized head is refused before the
+/// execution layer is asked, leaves the labels unchanged, and resets the engine rather than
+/// stopping it.
+#[rstest]
+#[case::safe_head(EngineSyncStateUpdate { safe_head: Some(test_block_info(4)), ..Default::default() }, SafeLabel::Safe)]
+#[case::local_safe_head(EngineSyncStateUpdate { local_safe_head: Some(test_block_info(4)), ..Default::default() }, SafeLabel::LocalSafe)]
+#[tokio::test]
+async fn synchronize_refuses_a_safe_label_below_finality(
+    #[case] update: EngineSyncStateUpdate,
+    #[case] expected_label: SafeLabel,
+) {
+    let mut state = engine_state();
+    let state_before = state;
+    let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+
+    let error =
+        synchronize(&client, &mut state, update, ForkchoiceDelivery::Always).await.unwrap_err();
+
+    assert!(
+        matches!(
+            error,
+            SynchronizeTaskError::FinalizedAheadOfSafe { finalized_number: 5, label, label_number: 4 }
+                if label == expected_label
+        ),
+        "{error:?}"
+    );
+    assert_eq!(error.severity(), Reset);
+    assert_eq!(state, state_before);
     l1.assert_finished();
     l2.assert_finished();
 }

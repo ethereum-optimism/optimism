@@ -249,6 +249,16 @@ Before interop both heads are the same block.
 Under interop, `kona-node` verifies no cross-chain dependencies itself, so its safe label is only
 as safe as the source's cross-safe head: the source must verify them.
 
+If the execution client rejects a forkchoice update that moved the head to the source's heads, for
+example because the source's chain does not descend from the node's finalized block, `kona-node`
+sends its own last forkchoice again to undo the rejected head and does not send those heads again
+until its next reset. A source whose chain does not descend from the node's finalized block is held
+back as a whole: its heads are sent again once the node's finality moves, which only a canonical
+finalized block from the source can cause, and otherwise once every five minutes. It resets
+instead when the execution client no longer holds the node's finalized block, or does not apply the
+node's own forkchoice. A rejected update that moved only the safe label is retried on the next
+poll.
+
 ## RPC Trust Flags
 
 The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies the block hashes of RPC responses. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).

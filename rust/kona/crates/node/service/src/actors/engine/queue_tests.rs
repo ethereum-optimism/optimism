@@ -6,11 +6,12 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadV1, ForkchoiceState, PayloadStatus, PayloadStatusEnum,
 };
 use kona_engine::{
-    EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink, ResetRequest,
+    ConsolidateInput, DelegatedRejection, DelegatedSafeHeads, EngineState, EngineSyncStateUpdate,
+    FinalizeBlockId, NoopBlockSink, ResetRequest,
     test_utils::{
         RpcMock, TestAttributesBuilder, TestEngineStateBuilder, TestRpcBlock, delegated_safe_heads,
         expect_sync_start, l1_info_deposit, test_block_info, test_engine_client, test_l2_block,
-        test_rpc_block, test_rpc_block_from_attributes,
+        test_l2_chain, test_rpc_block, test_rpc_block_from_attributes,
     },
 };
 use op_alloy_consensus::{OpBlock, OpTxEnvelope};
@@ -134,6 +135,130 @@ async fn delegated_safe_head_is_sent_on_every_poll() {
     assert_eq!(state_rx.borrow().sync_state.safe_head(), delegated_safe_head);
     l1.assert_finished();
     l2.assert_finished();
+}
+
+/// Runs the engine actor on one delegated poll of `heads` against an execution layer that
+/// `expect_engine_calls` scripts, and returns the rejected delegated safe heads it tells derivation
+/// about. The labels must end where they started.
+async fn rejections_reported_for(
+    state: EngineState,
+    heads: ConsolidateInput,
+    expect_engine_calls: impl FnOnce(&RpcMock),
+) -> Vec<(DelegatedSafeHeads, DelegatedRejection)> {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    expect_engine_calls(&l2);
+    let (state_tx, state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+
+    requests.send(EngineActorRequest::ProcessSafeL2Signal(heads)).await.unwrap();
+    time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
+    drop(requests);
+    assert!(matches!(actor.step().await, Err(EngineError::ChannelClosed)));
+
+    assert!(actor.engine.is_empty());
+    assert_eq!(state_rx.borrow().sync_state, state.sync_state);
+    l1.assert_finished();
+    l2.assert_finished();
+    std::iter::from_fn(|| derivation_rx.try_recv().ok())
+        .filter_map(|request| match request {
+            DerivationActorRequest::ProcessRejectedDelegatedSafeHeads { heads, rejection } => {
+                Some((*heads, rejection))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn expect_invalid_forkchoice_state(l2: &RpcMock) {
+    l2.expect_error_code(
+        "engine_forkchoiceUpdatedV3",
+        i64::from(alloy_rpc_types_engine::INVALID_FORK_CHOICE_STATE_ERROR),
+    );
+}
+
+/// A rejected update that moved the head onto delegated heads, restored while the execution layer
+/// holds the engine's finalized block, reaches derivation with why it was rejected: whether the
+/// canonical block at the finalized height, after the rejected head became canonical, is the
+/// finalized block.
+#[rstest::rstest]
+#[case::chain_below_finality(false, DelegatedRejection::ChainBelowFinality)]
+#[case::head_labels(true, DelegatedRejection::HeadLabels)]
+#[tokio::test(start_paused = true)]
+async fn permanently_rejected_delegated_safe_heads_reach_derivation(
+    #[case] finalized_stays_canonical: bool,
+    #[case] expected: DelegatedRejection,
+) {
+    let finalized = test_l2_block(5, B256::ZERO, 0);
+    let finalized_info =
+        L2BlockInfo::from_block_and_genesis(&finalized, &RollupConfig::default().genesis).unwrap();
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(20))
+        .with_safe_head(test_block_info(10))
+        .with_finalized_head(finalized_info)
+        .build();
+    let delegated = test_block_info(30);
+    let canonical_at_finalized_height =
+        if finalized_stays_canonical { finalized.clone() } else { test_l2_block(5, B256::ZERO, 1) };
+
+    let reported =
+        rejections_reported_for(state, delegated_safe_heads(delegated, delegated), |l2| {
+            expect_invalid_forkchoice_state(l2);
+            l2.expect_block_header_by_hash(
+                finalized_info.block_info.hash,
+                Some(test_rpc_block(&finalized)),
+            );
+            l2.expect_block_header_by_number(
+                5,
+                Some(test_rpc_block(&canonical_at_finalized_height)),
+            );
+            l2.expect_forkchoice_updated(
+                state.sync_state.create_forkchoice_state(),
+                PayloadStatusEnum::Valid,
+            );
+        })
+        .await;
+
+    assert_eq!(
+        reported,
+        vec![(DelegatedSafeHeads::try_new(delegated, delegated).unwrap(), expected)]
+    );
+}
+
+/// A rejected update that moved only the safe label, here from a lagging delegate, may be accepted
+/// on a later poll, so derivation is not told to hold the heads back.
+#[tokio::test(start_paused = true)]
+async fn rejected_safe_label_does_not_reach_derivation() {
+    let chain = test_l2_chain(B256::ZERO, 1, 20, 0);
+    let info = |number: usize| {
+        L2BlockInfo::from_block_and_genesis(&chain[number - 1], &RollupConfig::default().genesis)
+            .unwrap()
+    };
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(info(20))
+        .with_local_safe_head(info(12))
+        .with_safe_head(info(8))
+        .with_finalized_head(info(5))
+        .build();
+
+    let reported = rejections_reported_for(state, delegated_safe_heads(info(10), info(9)), |l2| {
+        l2.expect_block_header_by_number(10, Some(test_rpc_block(&chain[9])));
+        l2.expect_block_header_by_number(9, Some(test_rpc_block(&chain[8])));
+        expect_invalid_forkchoice_state(l2);
+    })
+    .await;
+
+    assert_eq!(reported, Vec::new());
 }
 
 /// A delegate poll while the execution layer syncs toward the unsafe head: the delegate's safe

@@ -2,7 +2,7 @@ use crate::{DerivationActorRequest, DerivationClientError, DerivationClientResul
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_derive::Signal;
-use kona_engine::EngineSyncState;
+use kona_engine::{DelegatedRejection, DelegatedSafeHeads, EngineSyncState};
 use kona_protocol::L2BlockInfo;
 use std::fmt::Debug;
 use tokio::sync::mpsc;
@@ -27,6 +27,16 @@ pub trait EngineDerivationClient: Debug + Send + Sync {
     /// Sends the [`crate::DerivationActor`] the provided [`Signal`].
     /// Note: Does not wait for the derivation client to process this message.
     async fn send_signal(&self, signal: Signal) -> DerivationClientResult<()>;
+
+    /// Tells the derivation actor that the execution layer permanently rejected a forkchoice
+    /// update for the delegated `heads`, for `rejection`, so they need not be sent again before a
+    /// reset.
+    /// Note: Does not wait for the derivation client to process this message.
+    async fn send_rejected_delegated_safe_heads(
+        &self,
+        heads: DelegatedSafeHeads,
+        rejection: DelegatedRejection,
+    ) -> DerivationClientResult<()>;
 }
 
 /// Client to use to send messages to the [`crate::DerivationActor`]'s inbound channel.
@@ -75,6 +85,26 @@ impl EngineDerivationClient for QueuedEngineDerivationClient {
 
         self.derivation_actor_request_tx
             .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(signal)))
+            .await
+            .map_err(|_| {
+                DerivationClientError::RequestError("request channel closed.".to_string())
+            })?;
+
+        Ok(())
+    }
+
+    async fn send_rejected_delegated_safe_heads(
+        &self,
+        heads: DelegatedSafeHeads,
+        rejection: DelegatedRejection,
+    ) -> DerivationClientResult<()> {
+        info!(target: "engine", ?heads, %rejection, "Sending rejected delegated safe heads to derivation actor");
+
+        self.derivation_actor_request_tx
+            .send(DerivationActorRequest::ProcessRejectedDelegatedSafeHeads {
+                heads: Box::new(heads),
+                rejection,
+            })
             .await
             .map_err(|_| {
                 DerivationClientError::RequestError("request channel closed.".to_string())

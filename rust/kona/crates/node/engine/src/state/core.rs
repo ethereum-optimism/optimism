@@ -77,7 +77,8 @@ impl EngineSyncState {
     }
 
     /// Applies the update to the provided sync state, using the current state values if the update
-    /// is not specified. Returns the new sync state.
+    /// is not specified, and records the updated labels in the block label metrics. Returns the
+    /// new sync state.
     pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
         if let Some(unsafe_head) = sync_state_update.unsafe_head {
             Self::update_block_label_metric(
@@ -101,6 +102,12 @@ impl EngineSyncState {
             );
         }
 
+        self.with_update(sync_state_update)
+    }
+
+    /// The sync state with the update applied, using the current state values if the update is
+    /// not specified, without recording anything in the block label metrics.
+    pub fn with_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
         Self {
             unsafe_head: sync_state_update.unsafe_head.unwrap_or(self.unsafe_head),
             local_safe_head: sync_state_update.local_safe_head.unwrap_or(self.local_safe_head),
