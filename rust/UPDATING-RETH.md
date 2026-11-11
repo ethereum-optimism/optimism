@@ -3,8 +3,10 @@
 The Rust workspace pins ~70 `reth-*` crates to a single git ref, from upstream
 `paradigmxyz/reth` or from an OP-maintained fork of it, in [`rust/Cargo.toml`](Cargo.toml): `tag = "vX.Y.Z"`
 for an upstream release, `tag = "op-<base>-<n>"` for a fork commit (see
-[The reth fork](#the-reth-fork)), or `rev = "<sha>"` for a commit without a
-tag yet. This guide describes how to bump that pin safely and keep
+[The reth fork](#the-reth-fork)). A `rev = "<sha>"` pin is for a draft PR
+only, while the fork commit it needs has no tag yet; the required
+`rust-reth-tag-pin` check stays red until it is replaced ([Pinning a fork
+change](#pinning-a-fork-change)). This guide describes how to bump that pin safely and keep
 the shared `revm`/`alloy` versions in sync with it.
 
 ## When to update
@@ -17,7 +19,9 @@ Prefer the latest upstream release tag when one exists that contains the
 changes you need. Tags are stable artifacts with corresponding upstream
 releases and the most predictable downstream behavior. Fall back to a merge
 commit on `main` only when no tagged release covers the needed change yet
-(e.g. urgently picking up a fix). Avoid pinning to an unmerged PR branch for
+(e.g. urgently picking up a fix); it lands through an
+`op-<reth-short-sha>-<n>` tag on an `op-<reth-short-sha>` fork branch ([Picking the right target
+commit](#picking-the-right-target-commit)). Avoid pinning to an unmerged PR branch for
 anything we want to land — the merge commit on `main` is at least the version
 main's CI actually validated.
 
@@ -91,7 +95,9 @@ main's CI actually validated.
 
 3. Update the pin in `rust/Cargo.toml`.
 
-   If no fork cherry-picks survive, prefer the upstream release tag. For an
+   If no fork cherry-picks survive and the target is an upstream release, pin
+   its tag; an untagged target needs an `op-<reth-short-sha>-<n>` fork tag
+   (e.g. `op-1a2b3c4-0`) on an `op-<reth-short-sha>` branch. For an
    existing upstream tag pin, replace the tag. For a fork rev pin, replace both
    the source and ref:
 
@@ -307,30 +313,50 @@ git fetch <upstream-remote> --tags
 git push git@github.com:ethereum-optimism/reth.git refs/tags/v<version>
 ```
 
-**Start** a branch from the upstream base. Cherry-pick the fork's CI commit
-first so every push runs the fork's CI, then carry over the previous branch's
-OP `.github/CODEOWNERS`, then the patches retained by the step 2 audit and any
-upstream fixes picked in the forward sweep (`docs/ai/reth-update-review.md`),
-oldest first. The first push may already carry all of them. Before it, check
-formatting and the build locally: after it, the ruleset turns every fix into a
-reviewed PR.
+**Start** a branch at the upstream base, and prepare it in one PR. Push
+`op-v<version>` at the base tag itself, with no commits on top. On a prep
+branch, cherry-pick the fork's CI commit first so the PR runs the fork's CI,
+then carry over the previous branch's OP `.github/CODEOWNERS`, then the
+patches retained by the step 2 audit and any upstream fixes picked in the
+forward sweep (`docs/ai/reth-update-review.md`), oldest first. Adaptations to
+the new base, such as CI fixes, are further commits on the same prep branch,
+not separate PRs.
 
 ```bash
-git switch -c op-v<version> v<version>
+git push git@github.com:ethereum-optimism/reth.git 'v<version>^{commit}:refs/heads/op-v<version>'
+git switch -c <you>/op-v<version>-prep v<version>
 git cherry-pick <ci-commit>
 git checkout <previous-branch> -- .github/CODEOWNERS
 git commit -m "chore: replace upstream CODEOWNERS with OP owners"
 git cherry-pick -x <retained-sha>...
 cargo +nightly-<date> fmt --all --check   # the nightly lint.yml pins
 cargo check --workspace --all-targets
-git push git@github.com:ethereum-optimism/reth.git op-v<version>
+git push git@github.com:ethereum-optimism/reth.git <you>/op-v<version>-prep
+gh pr create --repo ethereum-optimism/reth --base op-v<version> \
+  --head <you>/op-v<version>-prep
+```
+
+Merge the prep PR with **rebase-merge**. It lands each commit on the branch
+on its own, with its `-x` source line, which the next update's step 2 audit
+reads. A squash folds them into one commit, and a merge commit hides the
+branch's base from that audit. Rebase-merging rewrites the commits, so the
+prep PR's head commit is never on the branch, and fork CI has not run on the
+rewritten ones. Wait for fork CI to pass on the prep PR's `mergeCommit`, its
+last rebased commit, then tag it `op-v<version>-0` (see **Tag** below) and
+repin the update PR from its draft-time `rev` to that tag.
+
+```bash
+gh pr merge <pr> --repo ethereum-optimism/reth --rebase
+SHA=$(gh pr view <pr> --repo ethereum-optimism/reth --json mergeCommit --jq .mergeCommit.oid)
+gh api "repos/ethereum-optimism/reth/commits/$SHA/status" --jq .state   # success, then tag
 gh api 'repos/ethereum-optimism/reth/codeowners/errors?ref=op-v<version>' --jq '.errors'
 ```
 
 Upstream's CODEOWNERS names paradigm maintainers who have no access to the
-fork, so it requests no reviewers. Copy the file rather than cherry-picking
-it: upstream edits it often, so a cherry-pick would conflict. The errors check
-must print `[]`.
+fork, so it requests no reviewers. That includes the prep PR, which GitHub
+reviews against the base branch's file: request its reviewers by hand. Copy
+the file rather than cherry-picking it: upstream edits it often, so a
+cherry-pick would conflict. The errors check must print `[]`.
 
 Pick the patches with `-x`, which records each one's source commit for the
 next bump's step 2 audit.
@@ -405,7 +431,7 @@ passing fork CI.
 **Tag** each branch commit the monorepo pins as `<branch>-<n>`, counting from
 0 on each branch: `op-v2.6.0-0`, `op-v2.6.0-1`, and so on. Tag a commit once it
 is on the branch and fork CI passed on it; a PR's head commit is not, since
-merging squashes it into a new one. Commits the monorepo does not pin, such as
+a squash or rebase merge rewrites it. Commits the monorepo does not pin, such as
 CI-only fixes, get no tag. Annotate the tag with what changed since the
 previous one:
 
@@ -473,9 +499,19 @@ on the next base:
 This applies to any monorepo PR that needs a fork change, in a reth update or
 not. Prefer merging the fork PR first, tagging the result, and pinning the tag
 from the start. When the two PRs have to be developed together, pin the fork
-PR's head commit with `rev = "<sha>"` meanwhile. Once the fork PR merges, tag
-its merged commit and switch the monorepo PR to the tag before it merges, so
-a fork pin on `develop` is always a tag.
+PR's head commit with `rev = "<sha>"` meanwhile, and keep the monorepo PR in
+draft. Only when the fork branch is fully prepared and its tag exists, replace
+the `rev` with the tag; then the monorepo PR can leave draft. A fork PR's head
+commit is not on the branch once the PR squash- or rebase-merges, so a `rev`
+pin on `develop` names a commit no fork branch contains. A follow-up repin
+does not excuse merging one.
+
+The required `rust-reth-tag-pin` check (`just check-reth-tag-pin`) fails on a
+`rev` pin, on a tracked `Cargo.lock` that resolves reth from anything but that
+tag, and on an `op-<base>-<n>` tag whose commit is not on its `op-<base>`
+branch, which it asks GitHub's compare API. It stays red on the draft until
+the tag replaces the `rev`. Locally it uses `GITHUB_TOKEN` or `GH_TOKEN` when
+set, e.g. `GH_TOKEN=$(gh auth token) just check-reth-tag-pin`.
 
 ## After the monorepo PR merges
 
@@ -528,6 +564,10 @@ In order of preference:
 
 3. **Current `main` HEAD** — for periodic catch-up only when no suitable
    release exists.
+
+`develop` only takes tags, so for an untagged upstream commit start an
+`op-<reth-short-sha>` fork branch at it ([The reth fork](#the-reth-fork)) and
+pin its `op-<reth-short-sha>-<n>` tag.
 
 Avoid pinning to an unmerged PR branch tip for anything we want to land. It
 moves under us when the PR rebases, may sit on a much newer main than our
