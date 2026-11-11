@@ -85,8 +85,9 @@ async fn test_node_on_all_interfaces_learns_its_ip_from_votes() -> anyhow::Resul
         bootnode.check_in_discovery_table_with_retries(reachable.node_id().await?).await?;
     }
 
-    let mut builder =
-        builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(TWO_VOTES);
+    let mut builder = builder
+        .with_next_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED))
+        .with_next_ip_votes(TWO_VOTES);
     let node = builder.build(vec![bootnode_enr.clone()]).await;
 
     let enr = node.advertised_enr_with_retries().await?;
@@ -114,8 +115,9 @@ async fn test_node_on_all_interfaces_gets_no_votes_from_bootnodes() -> anyhow::R
     let bootnode_2 = builder.build(vec![]).await;
     let bootnodes = vec![bootnode_1.peer_enr().await?, bootnode_2.peer_enr().await?];
 
-    let mut builder =
-        builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(TWO_VOTES);
+    let mut builder = builder
+        .with_next_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED))
+        .with_next_ip_votes(TWO_VOTES);
     let node = builder.build(bootnodes).await;
 
     // Discovery has sessions with both bootnodes, so it reached them. Gossip connecting to them
@@ -162,7 +164,7 @@ async fn bootnode_relaying_loopback_node(
 ) -> anyhow::Result<(TestNetworkBuilder, TestNetwork, TestNetwork)> {
     let mut builder = TestNetworkBuilder::new()
         .with_discovery_interval(Duration::from_secs(3600))
-        .with_listen_ip(host_ip);
+        .with_next_listen_ip(host_ip);
     let bootnode = builder.build(vec![]).await;
     let relayed = builder.build(vec![bootnode.peer_enr().await?]).await;
     bootnode.check_in_discovery_table_with_retries(relayed.node_id().await?).await?;
@@ -184,7 +186,7 @@ async fn test_lan_node_finds_loopback_nodes_through_a_lan_bootnode() -> anyhow::
     };
     let (builder, bootnode, relayed) = bootnode_relaying_loopback_node(host_ip).await?;
 
-    let mut builder = builder.with_listen_ip(host_ip);
+    let mut builder = builder.with_next_listen_ip(host_ip);
     let node = builder.build(vec![bootnode.peer_enr().await?]).await;
     node.check_in_discovery_table_with_retries(relayed.node_id().await?).await?;
     node.check_connected_to_with_retries(&relayed).await?;
@@ -225,12 +227,12 @@ async fn test_sequencer_running_discovery_against_its_sentry_is_exposed() -> any
     };
     let mut builder = TestNetworkBuilder::new()
         .with_discovery_interval(Duration::from_millis(100))
-        .with_listen_ip(host_ip)
-        .with_table_filter(not_loopback);
+        .with_next_listen_ip(host_ip)
+        .with_next_table_filter(not_loopback);
     let sentry = builder.build(vec![]).await;
     let sentry_enr = sentry.peer_enr().await?;
 
-    let mut builder = builder.with_listen_ip(host_ip);
+    let mut builder = builder.with_next_listen_ip(host_ip);
     let external = builder.build(vec![sentry_enr.clone()]).await;
     sentry.check_in_discovery_table_with_retries(external.node_id().await?).await?;
 
@@ -265,18 +267,18 @@ async fn test_sequencer_with_its_sentry_as_static_peer_stays_hidden() -> anyhow:
     };
     let mut builder = TestNetworkBuilder::new()
         .with_discovery_interval(Duration::from_millis(100))
-        .with_listen_ip(host_ip)
-        .with_table_filter(not_loopback);
+        .with_next_listen_ip(host_ip)
+        .with_next_table_filter(not_loopback);
     let sentry = builder.build(vec![]).await;
     let sentry_enr = sentry.peer_enr().await?;
 
-    let mut builder = builder.with_listen_ip(host_ip);
+    let mut builder = builder.with_next_listen_ip(host_ip);
     let external = builder.build(vec![sentry_enr]).await;
     sentry.check_in_discovery_table_with_retries(external.node_id().await?).await?;
     external.check_connected_to_with_retries(&sentry).await?;
 
     let sentry_addr = PeerAddr::try_from(sentry.listen_addr().await?)?;
-    let mut builder = builder.without_discovery().with_static_peers(vec![sentry_addr]);
+    let mut builder = builder.without_discovery().with_next_static_peers(vec![sentry_addr]);
     let sequencer = builder.build(vec![]).await;
     let sequencer_id = sequencer.node_id().await?;
     sequencer.check_connected_to_with_retries(&sentry).await?;
@@ -326,7 +328,7 @@ async fn test_static_peer_connects_at_startup() -> anyhow::Result<()> {
     let node_1 = builder.build(vec![]).await;
 
     let static_peer = PeerAddr::try_from(node_1.listen_addr().await?)?;
-    let mut builder = builder.with_static_peers(vec![static_peer]);
+    let mut builder = builder.with_next_static_peers(vec![static_peer]);
     let node_2 = builder.build(vec![]).await;
 
     node_2.check_connected_to_with_retries(&node_1).await?;
@@ -357,7 +359,7 @@ async fn test_static_peer_is_not_discoverable() -> anyhow::Result<()> {
     let static_node = builder.build(vec![]).await;
     let static_peer = PeerAddr::try_from(static_node.listen_addr().await?)?;
 
-    let mut builder = builder.with_static_peers(vec![static_peer]);
+    let mut builder = builder.with_next_static_peers(vec![static_peer]);
     let node_1 = builder.build(vec![]).await;
     let node_2 = builder.build(vec![node_1.peer_enr().await?]).await;
 
@@ -416,7 +418,7 @@ async fn test_node_without_discovery_binds_no_udp_port() -> anyhow::Result<()> {
         [TestNetworkBuilder::new(), TestNetworkBuilder::new().with_chain_id(OP_MAINNET_CHAIN_ID)]
     {
         let udp_port = free_udp_port();
-        let mut builder = builder.without_discovery().with_udp_port(udp_port);
+        let mut builder = builder.without_discovery().with_next_udp_port(udp_port);
         let node = builder.build(vec![]).await;
 
         node.peers().await?;
@@ -437,8 +439,8 @@ async fn test_node_without_discovery_does_not_answer_discovery() -> anyhow::Resu
     let mut builder = TestNetworkBuilder::new()
         .with_discovery_interval(Duration::from_millis(100))
         .without_discovery()
-        .with_custom_keypair(keypair_a.clone())
-        .with_udp_port(udp_port_a);
+        .with_next_keypair(keypair_a.clone())
+        .with_next_udp_port(udp_port_a);
     let node_a = builder.build(vec![]).await;
     let tcp_port_a = tcp_port(&node_a.listen_addr().await?).expect("listens on TCP");
     let enr_a = builder.enr(&keypair_a, tcp_port_a, udp_port_a);
@@ -486,8 +488,9 @@ async fn test_node_without_discovery_starts_with_its_udp_port_taken() -> anyhow:
     let static_peer = PeerAddr::try_from(static_node.listen_addr().await?)?;
 
     let taken = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
-    let mut builder =
-        builder.with_static_peers(vec![static_peer]).with_udp_port(taken.local_addr()?.port());
+    let mut builder = builder
+        .with_next_static_peers(vec![static_peer])
+        .with_next_udp_port(taken.local_addr()?.port());
     let node = builder.build(vec![]).await;
 
     node.check_connected_to_with_retries(&static_node).await?;

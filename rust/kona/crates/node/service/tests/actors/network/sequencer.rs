@@ -128,12 +128,12 @@ async fn test_hub_relays_blocks_between_spokes() -> anyhow::Result<()> {
     let hub_peer = PeerAddr::try_from(hub.listen_addr().await?)?;
 
     // Static peers and the keypair only apply to the next node built, so they are set per spoke.
-    let builder = builder.with_static_peers(vec![hub_peer.clone()]);
-    let mut builder = builder.with_custom_keypair(sequencer_keypair);
+    let builder = builder.with_next_static_peers(vec![hub_peer.clone()]);
+    let mut builder = builder.with_next_keypair(sequencer_keypair);
     let spoke_a = builder.build(vec![]).await;
 
     // Spoke B gets a random key.
-    let mut builder = builder.with_static_peers(vec![hub_peer]);
+    let mut builder = builder.with_next_static_peers(vec![hub_peer]);
     let mut spoke_b = builder.build(vec![]).await;
 
     // Publish only once the block can travel the whole way, from A to the hub and on to B.
