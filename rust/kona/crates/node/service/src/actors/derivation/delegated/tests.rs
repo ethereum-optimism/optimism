@@ -5,7 +5,8 @@ use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_derive::test_utils::TestChainProvider;
 use kona_engine::{
-    ConsolidateInput, EngineState, EngineSyncState, EngineSyncStateUpdate, FinalizeBlockId,
+    ConsolidateInput, DelegatedSafeHeads, EngineState, EngineSyncState, EngineSyncStateUpdate,
+    FinalizeBlockId,
 };
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use rstest::rstest;
@@ -106,25 +107,27 @@ impl Harness {
 enum Forwarded {
     Finalized(FinalizeBlockId),
     Other(String),
-    Safe(L2BlockInfo),
+    Safe(Box<DelegatedSafeHeads>),
 }
 
 impl From<EngineActorRequest> for Forwarded {
     fn from(request: EngineActorRequest) -> Self {
         match request {
             EngineActorRequest::ProcessFinalizedL2Block(finalized) => Self::Finalized(*finalized),
-            EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::BlockInfo(safe)) => {
-                Self::Safe(safe)
+            EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::Delegated(heads)) => {
+                Self::Safe(heads)
             }
             other => Self::Other(format!("{other:?}")),
         }
     }
 }
 
-/// What one poll of `status` forwards: the safe head, then the finalized block pinned by hash.
+/// What one poll of `status` forwards: the safe heads, then the finalized block pinned by hash.
 fn forwarded_for(status: &SyncStatus) -> Vec<Forwarded> {
     vec![
-        Forwarded::Safe(status.safe_l2),
+        Forwarded::Safe(Box::new(
+            DelegatedSafeHeads::try_new(status.local_safe_l2, status.safe_l2).unwrap(),
+        )),
         Forwarded::Finalized(FinalizeBlockId::ByHash(status.finalized_l2.block_info.id())),
     ]
 }
@@ -268,6 +271,7 @@ enum DelegateReply {
     CurrentL1NotCanonical,
     FetchFailed,
     FinalizedOriginNotCanonical,
+    LocalSafeOriginNotCanonical,
     SafeOriginNotCanonical,
     Valid,
 }
@@ -284,6 +288,9 @@ impl DelegateReply {
             }
             Self::FinalizedOriginNotCanonical => {
                 status.finalized_l2.l1_origin = non_canonical(status.finalized_l2.l1_origin)
+            }
+            Self::LocalSafeOriginNotCanonical => {
+                status.local_safe_l2.l1_origin = non_canonical(status.local_safe_l2.l1_origin)
             }
             Self::SafeOriginNotCanonical => {
                 status.safe_l2.l1_origin = non_canonical(status.safe_l2.l1_origin)
@@ -311,6 +318,7 @@ async fn polls_wait_for_engine_sync_completion() {
 #[rstest]
 #[case::valid(DelegateReply::Valid, true)]
 #[case::fetch_failed(DelegateReply::FetchFailed, false)]
+#[case::local_safe_origin_not_canonical(DelegateReply::LocalSafeOriginNotCanonical, false)]
 #[case::safe_origin_not_canonical(DelegateReply::SafeOriginNotCanonical, false)]
 #[case::finalized_origin_not_canonical(DelegateReply::FinalizedOriginNotCanonical, false)]
 #[case::current_l1_not_canonical(DelegateReply::CurrentL1NotCanonical, false)]
@@ -373,6 +381,33 @@ async fn poll_rejects_status_with_labels_out_of_order(
     assert_eq!(harness.current_l1.borrow().is_some(), accepted);
 }
 
+/// The delegate's local-safe and cross-safe heads are forwarded as separate labels, so a cross-safe
+/// head that lags the local-safe head under interop is not raised to it, and before interop both
+/// carry the same block.
+#[rstest]
+#[case::pre_interop(20, 20)]
+#[case::cross_safe_lags_local_safe(18, 20)]
+#[tokio::test(start_paused = true)]
+async fn poll_forwards_local_safe_and_cross_safe_heads_separately(
+    #[case] safe: u64,
+    #[case] local_safe: u64,
+) {
+    let status = SyncStatus {
+        local_safe_l2: l2_block(local_safe, SAFE_ORIGIN),
+        safe_l2: l2_block(safe, SAFE_ORIGIN),
+        ..delegate_status()
+    };
+    let mut harness = Harness::new([Ok(status.clone())]);
+    harness.complete_engine_sync().await;
+
+    harness.actor.step().await.unwrap();
+
+    let expected_heads =
+        DelegatedSafeHeads::try_new(l2_block(local_safe, SAFE_ORIGIN), l2_block(safe, SAFE_ORIGIN))
+            .unwrap();
+    assert_eq!(harness.forwarded()[0], Forwarded::Safe(Box::new(expected_heads)));
+}
+
 /// A zero local safe head is a label the delegate has not derived or does not report, so it does
 /// not put the safe head out of order and the status is forwarded.
 #[tokio::test(start_paused = true)]
@@ -383,7 +418,8 @@ async fn unreported_local_safe_head_does_not_order_the_labels() {
 
     harness.actor.step().await.unwrap();
 
-    assert_eq!(harness.forwarded(), forwarded_for(&status));
+    let reported_as_safe = SyncStatus { local_safe_l2: status.safe_l2, ..status };
+    assert_eq!(harness.forwarded(), forwarded_for(&reported_as_safe));
 }
 
 /// An engine sync state with consistent labels: unsafe at 30, safe at `safe`, finalized at 15.
@@ -401,7 +437,7 @@ fn finalized_only(status: &SyncStatus) -> Vec<Forwarded> {
     vec![Forwarded::Finalized(FinalizeBlockId::ByHash(status.finalized_l2.block_info.id()))]
 }
 
-/// A safe head behind the engine's is forwarded once while the execution layer applied the
+/// Safe heads behind the engine's are forwarded once while the execution layer applied the
 /// engine's forkchoice, since the engine's answer to it cannot change; finalized still goes out
 /// on every poll. A moved engine safe head, or an execution layer that did not apply the last
 /// forkchoice, sends it again.
@@ -410,7 +446,7 @@ fn finalized_only(status: &SyncStatus) -> Vec<Forwarded> {
 #[case::el_not_applied(false, 25, forwarded_for)]
 #[case::engine_safe_moved(true, 26, forwarded_for)]
 #[tokio::test(start_paused = true)]
-async fn lagging_safe_head_is_forwarded_once_per_engine_view(
+async fn lagging_safe_heads_are_forwarded_once_per_engine_view(
     #[case] el_applied_last_forkchoice: bool,
     #[case] engine_safe_on_second_poll: u64,
     #[case] second_poll_forwards: fn(&SyncStatus) -> Vec<Forwarded>,

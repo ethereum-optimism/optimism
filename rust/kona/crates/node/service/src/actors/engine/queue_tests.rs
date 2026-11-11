@@ -5,11 +5,10 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadV1, ForkchoiceState, PayloadStatus, PayloadStatusEnum,
 };
 use kona_engine::{
-    ConsolidateInput, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
-    ResetRequest,
+    EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink, ResetRequest,
     test_utils::{
-        RpcMock, TestEngineStateBuilder, TestRpcBlock, expect_sync_start, test_block_info,
-        test_engine_client, test_l2_block, test_rpc_block,
+        RpcMock, TestEngineStateBuilder, TestRpcBlock, delegated_safe_heads, expect_sync_start,
+        test_block_info, test_engine_client, test_l2_block, test_rpc_block,
     },
 };
 use op_alloy_consensus::{OpBlock, OpTxEnvelope};
@@ -118,7 +117,8 @@ async fn delegated_safe_head_is_sent_on_every_poll() {
     // accepts the next poll.
     for _ in 0..3 {
         requests
-            .send(EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::BlockInfo(
+            .send(EngineActorRequest::ProcessSafeL2Signal(delegated_safe_heads(
+                delegated_safe_head,
                 delegated_safe_head,
             )))
             .await
@@ -143,6 +143,7 @@ async fn delegated_poll_during_el_sync_moves_safe_labels_and_skips_finalization(
     let (client, l1, l2) = test_engine_client(config.clone());
     let state = TestEngineStateBuilder::new()
         .with_unsafe_head(test_block_info(20))
+        .with_local_safe_head(test_block_info(5))
         .with_safe_head(test_block_info(5))
         .with_finalized_head(test_block_info(3))
         .build();
@@ -175,7 +176,8 @@ async fn delegated_poll_during_el_sync_moves_safe_labels_and_skips_finalization(
     // One poll: the safe head, then the finalized block pinned by hash. Each step drains the
     // previous request's task and then accepts the next request.
     requests
-        .send(EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::BlockInfo(
+        .send(EngineActorRequest::ProcessSafeL2Signal(delegated_safe_heads(
+            delegated_safe_head,
             delegated_safe_head,
         )))
         .await
@@ -319,7 +321,13 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
     requests.send(target_kind.finalize_request(target)).await.unwrap();
     actor.step().await.unwrap();
     assert!(second_reset_result.try_recv().unwrap().is_ok());
-    requests.send(EngineActorRequest::ProcessSafeL2Signal(restored_safe.into())).await.unwrap();
+    requests
+        .send(EngineActorRequest::ProcessSafeL2Signal(delegated_safe_heads(
+            restored_safe,
+            restored_safe,
+        )))
+        .await
+        .unwrap();
     actor.step().await.unwrap();
     assert_eq!(actor.engine.len(), 1, "only the safe head update may remain queued");
     assert!(!actor.reset_pending);

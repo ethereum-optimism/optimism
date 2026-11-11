@@ -228,6 +228,26 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 `kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
 flag group. `--interop.dependency-set` is the node's only interop flag.
 
+## Derivation Delegation Arguments
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--l2-follow-source <URL>` (alias `--l2.follow.source`) | `KONA_NODE_L2_FOLLOW_SOURCE` | RPC URL of an OP Stack consensus client exposing `optimism_syncStatus`. When set, `kona-node` derives nothing itself and follows that client's safe and finalized heads instead. Cannot be combined with `--safedb.path`. | - |
+
+Like op-node's follow-source mode, `kona-node` imports the source's local-safe and cross-safe
+heads separately. The local-safe head is the block the execution client must have, or sync to,
+and becomes the local-safe label; the cross-safe head becomes the safe label that forkchoice
+updates carry, and finalization never goes above it. The safe label moves back to a lower
+cross-safe head only when the source's chain has diverged from the node's, or when the unsafe head
+moves to a source block whose ancestry the node cannot check and the execution client does not hold
+the current safe label, and never below the finalized head. While the execution client has not
+applied kona-node's last forkchoice update, for example while it is still syncing, its canonical
+blocks do not count as evidence: a delegated block it lacks, or one that differs from its block,
+moves the safe label only forward.
+Before interop both heads are the same block.
+Under interop, `kona-node` verifies no cross-chain dependencies itself, so its safe label is only
+as safe as the source's cross-safe head: the source must verify them.
+
 ## RPC Trust Flags
 
 The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies the block hashes of RPC responses. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).

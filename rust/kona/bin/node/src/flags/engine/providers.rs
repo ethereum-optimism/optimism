@@ -104,6 +104,9 @@ impl Default for L2ClientArgs {
 #[derive(Clone, Debug, Default, clap::Args)]
 pub struct DerivationDelegateArgs {
     /// The source must be an OP Stack L2 CL RPC exposing `optimism_syncStatus`.
+    ///
+    /// Its local-safe and cross-safe heads become this node's local-safe and safe labels. Under
+    /// interop this node verifies no cross-chain dependencies itself, so the source must.
     #[arg(long, visible_alias = "l2.follow.source", env = "KONA_NODE_L2_FOLLOW_SOURCE")]
     pub l2_follow_source: Option<Url>,
 }
