@@ -1092,6 +1092,10 @@ jobs:
       - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      # Same check as the test jobs, so a merge queue entry without contract
+      # changes skips the build along with them.
+      - check-changed:
+          patterns: contracts-bedrock
       - install-contracts-dependencies
       - run:
           name: Print forge version
@@ -1169,15 +1173,15 @@ jobs:
           that build, and its profile must match test_profile.
         type: boolean
         default: false
+      parallelism:
+        description: Number of machines to split the test files across, by timing
+        type: integer
+        default: 1
+    parallelism: <<parameters.parallelism>>
     steps:
       - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
-      - when:
-          condition: << parameters.attach_build >>
-          steps:
-            - attach_workspace:
-                at: .
       - run:
           name: Check if test list is empty
           command: |
@@ -1189,6 +1193,13 @@ jobs:
           working_directory: packages/contracts-bedrock
       - check-changed:
           patterns: <<parameters.check_changed_patterns>>
+      # After check-changed: when it skips, the build job skipped too and
+      # persisted nothing.
+      - when:
+          condition: << parameters.attach_build >>
+          steps:
+            - attach_workspace:
+                at: .
       - install-solc-compilers
       - run:
           name: Print dependencies
@@ -3149,13 +3160,26 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
-      # On PRs, run tests with lite profile for better build times.
+      # On PRs, run tests with lite profile for better build times. Build once
+      # and share it, so each job's nodes only run tests.
+      - contracts-bedrock-build-tests:
+          name: contracts-bedrock-build-tests-liteci
+          profile: liteci
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              ignore: develop
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.features>>
           requires:
             - prep-go-modules
+            - contracts-bedrock-build-tests-liteci
           test_list: find test -name "*.t.sol"
           test_profile: liteci
+          attach_build: true
+          parallelism: 2
           features: <<matrix.features>>
           matrix:
             parameters:
@@ -3295,6 +3319,7 @@ workflows:
       # -----------------------------------------------------------------------
       - required-contracts-ci:
           requires:
+            - contracts-bedrock-build-tests-liteci: terminal
             - contracts-bedrock-tests main: terminal
             - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests INTEROP: terminal
