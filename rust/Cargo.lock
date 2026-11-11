@@ -14238,6 +14238,7 @@ dependencies = [
  "reth-errors",
  "reth-evm",
  "reth-metrics",
+ "reth-network-api",
  "reth-node-api",
  "reth-node-builder",
  "reth-optimism-chainspec",
