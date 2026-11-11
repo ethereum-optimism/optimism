@@ -36,8 +36,6 @@ contract ConfigureComplianceModule_TestInit is CommonTest {
         super.setUp();
         script = new ConfigureComplianceModule();
 
-        // Built by hand rather than with DeployComplianceModule, so the input checks can be tested
-        // without the ComplianceModule implementation.
         module = IComplianceModule(
             DeployUtils.create1({
                 _name: "Proxy",
@@ -115,8 +113,7 @@ contract ConfigureComplianceModule_Run_Test is ConfigureComplianceModule_TestIni
         assertTrue(policy.denylisted(denied), "denylist");
     }
 
-    /// @notice Tests that the custody admin can upgrade the module directly, with no ProxyAdmin
-    ///         contract in between.
+    /// @notice Tests that the custody admin can upgrade the module.
     function test_run_custodyAdminUpgrades_succeeds() public {
         (ConfigureComplianceModule.Input memory input,) = _deployAndConfigure();
         address newImpl = DeployUtils.create1({

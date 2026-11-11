@@ -17,9 +17,6 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 ///         proxy's admin for now. The proxy is the address to use as the chain's bridge hook. It
 ///         points at no implementation until ConfigureComplianceModule initializes it with the
 ///         chain's addresses, so any call into it reverts until then.
-///         The proxy's admin can upgrade the module, so it is the custodian of all held value.
-///         ConfigureComplianceModule hands it to its final address; no ProxyAdmin contract is
-///         involved.
 contract DeployComplianceModule is Script {
     /// @notice Output of the deployment.
     /// @custom:field moduleImpl The ComplianceModule implementation.

@@ -21,8 +21,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 /// @title ConfigureComplianceModule
 /// @notice Run by the temporary admin from DeployComplianceModule once the chain uses the module
 ///         as its bridge hook. Deploys the policy, initializes the module with its final owner,
-///         the policy and the chain's addresses, then hands the proxy to its final admin. The
-///         proxy's admin changes in one step.
+///         the policy and the chain's addresses, then hands the proxy to its final admin.
 contract ConfigureComplianceModule is Script {
     /// @notice Input for the configuration.
     /// @custom:field module             The ComplianceModule proxy, the chain's bridge hook.
@@ -67,9 +66,7 @@ contract ConfigureComplianceModule is Script {
         IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(systemConfig.l1CrossDomainMessenger());
         IProxy proxy = IProxy(payable(address(_input.module)));
 
-        // Deployed before the module is initialized, because initialize requires the policy. The
-        // policy's settings are checked against the chain, so it is deployed here rather than in
-        // DeployComplianceModule.
+        // Deployed first because initialize requires the policy.
         vm.broadcast(msg.sender);
         policy_ = IVisionPolicyV1(
             DeployUtils.create1({
@@ -92,7 +89,6 @@ contract ConfigureComplianceModule is Script {
         );
         vm.label(address(policy_), "VisionPolicyV1");
 
-        // The module only accepts initialize from the proxy's admin, which the broadcaster is.
         vm.broadcast(msg.sender);
         proxy.upgradeToAndCall(
             address(_input.moduleImpl),
@@ -143,10 +139,7 @@ contract ConfigureComplianceModule is Script {
         );
         require(_input.moduleOwner != msg.sender, "ConfigureComplianceModule: moduleOwner must not be the broadcaster");
 
-        // A withdrawal without a verdict must become holdable before it could be finalized, so the
-        // hold delay must be shorter than this Portal's proof maturity delay. The policy only
-        // enforces its own cap, which is below the standard minimum maturity but not below a
-        // custom one.
+        // A withdrawal without a verdict must become holdable before it could be finalized.
         require(
             _input.holdDelay < _input.portal.proofMaturityDelaySeconds(),
             "ConfigureComplianceModule: holdDelay must be below the Portal's proof maturity delay"
