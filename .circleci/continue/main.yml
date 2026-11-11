@@ -17,6 +17,11 @@ parameters:
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
+  # Set by the setup pipeline when a contracts test file changed. False runs
+  # heavy-fuzz-modified unsplit on one machine, as before the split.
+  c-contracts_tests_changed:
+    type: boolean
+    default: false
   # CircleCI forwards user-supplied setup params into continuation validation.
   # These aliases are transformed into c-* params by config.yml and are not
   # referenced by jobs in the continuation config.
@@ -1169,7 +1174,37 @@ jobs:
           that build, and its profile must match test_profile.
         type: boolean
         default: false
+      parallelism:
+        description: Number of machines to split the tests across
+        type: integer
+        default: 1
+      split_by_contract:
+        description: >-
+          Split by test contract instead of by test file, for test lists with
+          too few files to balance across the machines.
+        type: boolean
+        default: false
+      tests_changed:
+        description: >-
+          With split_by_contract, whether the setup pipeline saw a changed test
+          file. When false, the first machine runs every test contract and the
+          others stop before checkout.
+        type: boolean
+        default: true
+    parallelism: <<parameters.parallelism>>
     steps:
+      - when:
+          condition:
+            and:
+              - << parameters.split_by_contract >>
+              - not: << parameters.tests_changed >>
+          steps:
+            - run:
+                name: Stop extra machines when no test file changed
+                command: |
+                  if [ "$CIRCLE_NODE_INDEX" != 0 ]; then
+                    circleci-agent step halt
+                  fi
       - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
@@ -1213,7 +1248,30 @@ jobs:
           # `just test` partitions the shard between Amsterdam and default-EVM tests.
           command: |
             TEST_FILES=$(<<parameters.test_list>>)
-            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            if [ "<<parameters.split_by_contract>>" = "true" ]; then
+              # So that "Print failed test traces" reruns these files, not the whole suite,
+              # if the split itself fails.
+              mkdir -p cache
+              printf '%s\n' "$TEST_FILES" > cache/test-files
+              NODES=1
+              if [ "<<parameters.tests_changed>>" = "true" ]; then
+                NODES=$CIRCLE_NODE_TOTAL
+              fi
+              SHARE=$(TEST_FILES="$TEST_FILES" CIRCLE_NODE_TOTAL=$NODES ./scripts/ops/split-test-contracts.sh)
+              if [ -z "$SHARE" ]; then
+                echo "No test contracts for this node."
+                circleci-agent step halt
+                exit 0
+              fi
+              TEST_FILES=$(echo "$SHARE" | cut -f1 | sort -u)
+              # Solidity names can contain "$", a regex anchor.
+              FOUNDRY_MATCH_CONTRACT="^($(echo "$SHARE" | cut -f2 | sort -u | sed 's/[$]/\\$/g' | paste -sd'|' -))\$"
+              export FOUNDRY_MATCH_CONTRACT
+              # So that "Print failed test traces" reruns only this node's contracts.
+              printf 'export FOUNDRY_MATCH_CONTRACT=%q\n' "$FOUNDRY_MATCH_CONTRACT" >> "$BASH_ENV"
+            else
+              TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            fi
             export TEST_FILES
             JUNIT_TEST_DIR=results just test
           environment:
@@ -3130,6 +3188,9 @@ workflows:
             './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
+          parallelism: 2
+          split_by_contract: true
+          tests_changed: << pipeline.parameters.c-contracts_tests_changed >>
           features: <<matrix.features>>
           matrix:
             parameters:

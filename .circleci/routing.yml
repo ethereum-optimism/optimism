@@ -78,6 +78,8 @@ change_patterns:
     contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
     docs_changes_detected: "^docs/public-docs/"
     rust_changes_detected: "^(rust|op-e2e|op-core/nuts|\\.circleci)/|^mise\\.toml$"
+    # Only sets how many machines heavy-fuzz-modified uses. Its test list is computed in the job.
+    contracts_tests_changed: "^packages/contracts-bedrock/test/.*\\.t\\.sol$"
   # "all": c-<name> is true iff EVERY changed file matches (and there is at
   # least one). Used for the safe-by-default docs-only fast path: any path not
   # enumerated still falls through to the full main workflow.
@@ -92,3 +94,4 @@ passthrough_params:
   - c-base_image
   - c-go-cache-version
   - c-publish_contract_artifacts_ref
+  - c-contracts_tests_changed
