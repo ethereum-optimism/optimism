@@ -64,9 +64,10 @@ where
     let speculative = is_speculative(&pending_block);
     let tip = pending_block.pending.executed_block;
     if !speculative {
-        // reth's overlay resolves the anchor on its first read, so a missing anchor would only
-        // surface there, as an RPC error. Check it here instead, so it fails like
-        // `history_by_block_hash` in the speculative branch, before the caller falls back.
+        // reth's overlay resolves the anchor on its first read, so an anchor that is no longer
+        // canonical would only surface there, as an RPC error. Check it here instead, with the
+        // guard `history_by_block_hash` runs in the speculative branch, so both fail before the
+        // caller falls back.
         let _ = provider.block_number(anchor)?.ok_or(ProviderError::BlockHashNotFound(anchor))?;
         return provider.state_with_block_appended(anchor, tip);
     }
@@ -279,9 +280,9 @@ mod tests {
         );
     }
 
-    /// A pending tip whose canonical anchor the provider doesn't know, as after the anchor was
-    /// reorged out and evicted, fails before any state is read, on both branches. Callers rely on
-    /// that to fall back to latest instead of failing the RPC on its first read.
+    /// A pending tip whose anchor is not canonical, as after the anchor was reorged out, fails
+    /// before any state is read, on both branches. Callers rely on that to fall back to latest
+    /// instead of failing the RPC on its first read.
     #[rstest]
     #[case::canonical(false)]
     #[case::speculative(true)]
