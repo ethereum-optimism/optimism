@@ -274,7 +274,7 @@ async fn derived_block_missing_during_el_sync_waits_without_reset() {
     actor.step().await.unwrap();
     assert_eq!(actor.engine.len(), 2, "the consolidation waits behind the unsafe import");
     assert!(!actor.reset_pending);
-    assert_eq!(actor.retry_delay, Duration::from_millis(100), "waiting is not a failure");
+    assert_eq!(actor.retry_delay, INITIAL_RETRY_DELAY, "waiting is not a failure");
 
     // The unsafe import runs at the next step, well before the waiting consolidation's retry
     // elapses; the step then idles toward that retry.

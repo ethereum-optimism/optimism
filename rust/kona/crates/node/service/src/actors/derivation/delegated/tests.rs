@@ -1,8 +1,11 @@
-use super::{DelegateDerivationActor, DerivationDelegateClientError, DerivationDelegateProvider};
+use super::{
+    DelegateDerivationActor, DerivationDelegateClientError,
+    actor::DERIVATION_DELEGATE_POLL_INTERVAL as POLL_INTERVAL,
+    test_utils::{ScriptedDelegate, SyncStatusReply, sync_status},
+};
 use crate::{DerivationActorRequest, EngineActorRequest, NodeActor, QueuedDerivationEngineClient};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
-use async_trait::async_trait;
 use kona_derive::test_utils::TestChainProvider;
 use kona_engine::{
     ConsolidateInput, DelegatedSafeHeads, EngineState, EngineSyncState, EngineSyncStateUpdate,
@@ -10,37 +13,24 @@ use kona_engine::{
 };
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use rstest::rstest;
-use std::{collections::VecDeque, sync::Mutex};
 use tokio::{
     sync::{mpsc, watch},
-    time::{self, Duration, Instant},
+    time::{self, Instant},
 };
 
-const POLL_INTERVAL: Duration = Duration::from_secs(4);
+type HarnessActor =
+    DelegateDerivationActor<QueuedDerivationEngineClient, ScriptedDelegate, TestChainProvider>;
 
 const SAFE_ORIGIN: u64 = 1;
 const FINALIZED_ORIGIN: u64 = 2;
 const CURRENT_L1: u64 = 3;
 
-type SyncStatusReply = Result<SyncStatus, DerivationDelegateClientError>;
-
-/// Answers each sync status poll with the next scripted reply.
-#[derive(Debug)]
-struct ScriptedDelegate(Mutex<VecDeque<SyncStatusReply>>);
-
-#[async_trait]
-impl DerivationDelegateProvider for ScriptedDelegate {
-    async fn fetch_sync_status(&self) -> SyncStatusReply {
-        self.0.lock().unwrap().pop_front().expect("unexpected sync status poll")
-    }
-}
-
 /// A delegate actor over a canonical L1 chain, with the engine requests it sends and the
 /// `current_l1` it publishes.
 struct Harness {
-    actor:
-        DelegateDerivationActor<QueuedDerivationEngineClient, ScriptedDelegate, TestChainProvider>,
+    actor: HarnessActor,
     current_l1: watch::Receiver<Option<BlockInfo>>,
+    delegate: ScriptedDelegate,
     derivation_requests: mpsc::Sender<DerivationActorRequest>,
     engine_requests: mpsc::Receiver<EngineActorRequest>,
     engine_state: watch::Sender<EngineState>,
@@ -56,15 +46,16 @@ impl Harness {
         let (engine_request_tx, engine_requests) = mpsc::channel(8);
         let (current_l1_tx, current_l1) = watch::channel(None);
         let (engine_state, engine_state_rx) = watch::channel(EngineState::default());
-        let actor = DelegateDerivationActor::new(
+        let delegate = ScriptedDelegate::strict(replies);
+        let actor = HarnessActor::new(
             QueuedDerivationEngineClient::new(engine_request_tx),
             derivation_request_rx,
-            ScriptedDelegate(Mutex::new(replies.into_iter().collect())),
+            delegate.clone(),
             l1,
             current_l1_tx,
             engine_state_rx,
         );
-        Self { actor, current_l1, derivation_requests, engine_requests, engine_state }
+        Self { actor, current_l1, delegate, derivation_requests, engine_requests, engine_state }
     }
 
     async fn complete_engine_sync(&mut self) {
@@ -99,6 +90,14 @@ impl Harness {
     /// The engine requests sent since the last call, in order.
     fn forwarded(&mut self) -> Vec<Forwarded> {
         std::iter::from_fn(|| self.engine_requests.try_recv().ok()).map(Forwarded::from).collect()
+    }
+}
+
+impl Drop for Harness {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            self.delegate.assert_finished();
+        }
     }
 }
 
@@ -153,18 +152,17 @@ fn l2_block(number: u64, l1_origin: u64) -> L2BlockInfo {
     }
 }
 
-/// A sync status whose safe origin, finalized origin and `current_l1` are all canonical.
+/// A sync status whose safe origin, finalized origin and `current_l1` are all canonical, with an
+/// unsafe head above its safe heads.
 fn delegate_status() -> SyncStatus {
     SyncStatus {
-        current_l1: canonical_l1_block(CURRENT_L1),
-        current_l1_finalized: BlockInfo::default(),
-        finalized_l1: BlockInfo::default(),
-        finalized_l2: l2_block(15, FINALIZED_ORIGIN),
-        head_l1: BlockInfo::default(),
-        local_safe_l2: l2_block(20, SAFE_ORIGIN),
-        safe_l1: BlockInfo::default(),
-        safe_l2: l2_block(20, SAFE_ORIGIN),
         unsafe_l2: l2_block(25, SAFE_ORIGIN),
+        ..sync_status(
+            canonical_l1_block(CURRENT_L1),
+            l2_block(20, SAFE_ORIGIN),
+            l2_block(20, SAFE_ORIGIN),
+            l2_block(15, FINALIZED_ORIGIN),
+        )
     }
 }
 
