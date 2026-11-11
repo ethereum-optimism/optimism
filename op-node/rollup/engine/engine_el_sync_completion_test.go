@@ -1,6 +1,6 @@
-// Tests for insertUnsafePayload in EL-sync mode: whether EL sync starts or is skipped, and the
-// safe/finalized head decision at completion (offset retraction, preserving / trimming / clearing
-// the safedb).
+// Tests for insertUnsafePayload in EL-sync mode: whether EL sync starts or is skipped, how an
+// INVALID payload is handled while syncing, and the safe/finalized head decision at completion
+// (offset retraction, preserving / trimming / clearing the safedb).
 package engine
 
 import (
@@ -270,6 +270,38 @@ func TestInsertUnsafePayload_ELSync_skipsWhenFinalized(t *testing.T) {
 
 	require.Equal(t, syncStatusFinishedEL, ec.syncStatus)
 	require.Equal(t, refA2, ec.unsafeHead)
+}
+
+// TestInsertUnsafePayload_ELSync_invalidKeepsUnsafeHead covers an INVALID newPayload response
+// while EL sync is in progress. The unsafe head stays where earlier SYNCING responses put it: it
+// is not rewound to the EL's head, because a later invalid payload says nothing about the
+// payloads before it. No forkchoice update is sent, and the payload is reported invalid so the
+// unsafe payload queue drops it.
+func TestInsertUnsafePayload_ELSync_invalidKeepsUnsafeHead(t *testing.T) {
+	cfg, _, _, refA2, refA3, payload := buildELSyncTipChain(t)
+
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectNewPayload(payload.ExecutionPayload, nil, &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, nil)
+	// No ForkchoiceUpdate expectation: the mock fails the test on that call.
+
+	var emitted []event.Event
+	emitter := event.EmitterFunc(func(_ context.Context, ev event.Event) { emitted = append(emitted, ev) })
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg,
+		&sync.Config{SyncMode: sync.ELSync}, &testutils.MockL1Source{}, emitter, nil)
+	// Earlier payloads got SYNCING, which started EL sync and moved the unsafe head ahead of the EL.
+	ec.syncStatus = syncStatusStartedEL
+	ec.SetUnsafeHead(refA2)
+
+	err := ec.InsertUnsafePayload(context.Background(), payload, refA3)
+	require.ErrorIs(t, err, derive.ErrTemporary)
+	mockEngine.AssertExpectations(t)
+
+	require.Equal(t, refA2, ec.unsafeHead)
+	require.Equal(t, syncStatusStartedEL, ec.syncStatus)
+	require.Len(t, emitted, 1)
+	invalid, ok := emitted[0].(PayloadInvalidEvent)
+	require.True(t, ok)
+	require.Same(t, payload, invalid.Envelope)
 }
 
 // TestInsertUnsafePayload_ELSync_resumesFromSafeDBBelowFinalized covers restoring a safedb
