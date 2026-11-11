@@ -163,7 +163,7 @@ mod tests {
     use reth_chain_state::ExecutedBlock;
     use reth_chainspec::ChainSpecBuilder;
     use reth_db_common::init::init_genesis;
-    use reth_ethereum_primitives::{Block, EthPrimitives};
+    use reth_ethereum_primitives::{Block, EthPrimitives, Receipt};
     use reth_execution_types::BlockExecutionOutput;
     use reth_optimism_flashblocks::PendingFlashBlock;
     use reth_optimism_primitives::OpPrimitives;
@@ -176,13 +176,34 @@ mod tests {
     use reth_storage_api::{
         AccountReader, StateProvider, StateProviderFactory, errors::ProviderError,
     };
-    use reth_trie::{ComputedTrieData, HashedPostState, KeccakKeyHasher};
+    use reth_trie::{ComputedTrieData, HashedPostState, HashedPostStateSorted, KeccakKeyHasher};
     use revm::{
         database::{AccountStatus, BundleState},
         state::AccountInfo,
     };
     use rstest::rstest;
     use std::{collections::BTreeMap, sync::Arc, time::Instant};
+
+    /// A pending flashblock on `anchor` whose tip is `block`, executed to `output` and `hashed`.
+    fn pending_flash_block(
+        block: SealedBlock<Block>,
+        output: BlockExecutionOutput<Receipt>,
+        hashed: HashedPostStateSorted,
+        anchor: B256,
+    ) -> PendingFlashBlock<EthPrimitives> {
+        let executed = ExecutedBlock::<EthPrimitives>::new(
+            Arc::new(RecoveredBlock::new_sealed(block, Vec::new())),
+            Arc::new(output),
+            ComputedTrieData::new(Arc::new(hashed), Arc::default()),
+        );
+        PendingFlashBlock::new(
+            PendingBlock::with_executed_block(Instant::now(), executed),
+            anchor,
+            0,
+            B256::ZERO,
+            false,
+        )
+    }
 
     #[test]
     fn pending_state_prefers_canonical_anchor_over_parent_hash() {
@@ -252,17 +273,11 @@ mod tests {
         let mut bundle = bundle.build();
         bundle.state.get_mut(&destroyed).expect("in the bundle").status = AccountStatus::Destroyed;
         let hashed_state = HashedPostState::from_bundle_state::<KeccakKeyHasher>(bundle.state());
-        let executed = ExecutedBlock::<EthPrimitives>::new(
-            Arc::new(RecoveredBlock::new_sealed(tip.expect("at least one block"), Vec::new())),
-            Arc::new(BlockExecutionOutput { state: bundle, ..Default::default() }),
-            ComputedTrieData::new(Arc::new(hashed_state.into_sorted()), Arc::default()),
-        );
-        let pending = PendingFlashBlock::new(
-            PendingBlock::with_executed_block(Instant::now(), executed),
+        let pending = pending_flash_block(
+            tip.expect("at least one block"),
+            BlockExecutionOutput { state: bundle, ..Default::default() },
+            hashed_state.into_sorted(),
             anchor,
-            0,
-            B256::ZERO,
-            false,
         );
         assert_eq!(is_speculative(&pending), blocks > 1, "overlay serving the tip");
 
@@ -295,17 +310,11 @@ mod tests {
         let parent_hash = if speculative { B256::repeat_byte(0xbb) } else { anchor };
         let header = Header { number: 1, parent_hash, ..Default::default() };
         let block = SealedBlock::seal_slow(Block { header, body: Default::default() });
-        let executed = ExecutedBlock::<EthPrimitives>::new(
-            Arc::new(RecoveredBlock::new_sealed(block, Vec::new())),
-            Arc::new(BlockExecutionOutput::default()),
-            ComputedTrieData::new(Arc::default(), Arc::default()),
-        );
-        let pending = PendingFlashBlock::new(
-            PendingBlock::with_executed_block(Instant::now(), executed),
+        let pending = pending_flash_block(
+            block,
+            BlockExecutionOutput::default(),
+            HashedPostStateSorted::default(),
             anchor,
-            0,
-            B256::ZERO,
-            false,
         );
 
         let err = pending_flashblock_state(&provider, pending).err();
