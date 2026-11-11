@@ -507,15 +507,11 @@ pin on `develop` names a commit no fork branch contains. A follow-up repin
 does not excuse merging one.
 
 The required `rust-reth-tag-pin` check (`just check-reth-tag-pin`) fails on a
-`rev` pin, and on any reth crate a tracked `Cargo.lock` resolves without a
-tag, so it stays red on the draft until the tag replaces the `rev`.
-It does not check where the tag points. Before the PR leaves draft, confirm
-the tag's commit is on its `op-*` branch:
-
-```bash
-git fetch <fork-remote> --tags
-git merge-base --is-ancestor 'op-<base>-<n>^{commit}' <fork-remote>/op-<base> && echo on-branch
-```
+`rev` pin, on a tracked `Cargo.lock` that resolves reth from anything but that
+tag, and on an `op-<base>-<n>` tag whose commit is not on its `op-<base>`
+branch, which it asks GitHub's compare API. It stays red on the draft until
+the tag replaces the `rev`. Locally it uses `GITHUB_TOKEN` or `GH_TOKEN` when
+set, e.g. `GH_TOKEN=$(gh auth token) just check-reth-tag-pin`.
 
 ## After the monorepo PR merges
 
