@@ -9,3 +9,6 @@ pub use engine_state::TestEngineStateBuilder;
 
 mod misc;
 pub use misc::test_block_info;
+
+mod blocks;
+pub use blocks::{l1_info_deposit, rpc_l2_block};

@@ -1,15 +1,14 @@
 use super::*;
 use crate::QueuedEngineDerivationClient;
-use alloy_primitives::Sealed;
 use alloy_rpc_types_engine::{
     ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
 };
 use kona_engine::{
     NoopBlockSink,
-    test_utils::{TestEngineStateBuilder, test_block_info, test_engine_client},
+    test_utils::{TestEngineStateBuilder, l1_info_deposit, test_block_info, test_engine_client},
 };
 use kona_protocol::L1BlockInfoBedrock;
-use op_alloy_consensus::{OpBlock, OpTxEnvelope, TxDeposit};
+use op_alloy_consensus::OpBlock;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 
 /// Exercise the real actor request/drain loop with forty consecutive unsafe blocks, without
@@ -39,10 +38,7 @@ async fn healthy_unsafe_imports_keep_engine_queue_bounded() {
         block.header.number = number;
         block.header.timestamp = number * 2;
         block.header.parent_hash = expected_heads.last().unwrap().hash();
-        block.body.transactions.push(OpTxEnvelope::Deposit(Sealed::new(TxDeposit {
-            input: L1BlockInfoBedrock::default().encode_calldata(),
-            ..Default::default()
-        })));
+        block.body.transactions.push(l1_info_deposit(&L1BlockInfoBedrock::default()));
         let payload = ExecutionPayloadV1::from_block_slow(&block);
         let imported: OpBlock =
             OpExecutionPayloadEnvelope::V1(payload.clone()).try_into_block().unwrap();

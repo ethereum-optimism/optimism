@@ -4,12 +4,12 @@ use crate::actors::{
 };
 use alloy_consensus::{Block, SignableTransaction, TxEip1559, TxEnvelope};
 use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::{Sealed, Signature};
+use alloy_primitives::Signature;
 use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatusEnum};
 use alloy_transport::{RpcError, TransportErrorKind};
 use kona_derive::test_utils::TestAttributesBuilder;
 use mockall::Sequence;
-use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+use op_alloy_consensus::OpTxEnvelope;
 use rstest::rstest;
 
 fn sealed_payload(timestamp: u64) -> OpExecutionPayloadEnvelope {
@@ -630,10 +630,7 @@ async fn invalid_sequenced_payload_stops_without_rebuilding(#[case] deposits_onl
     let mut block = Block::<OpTxEnvelope>::default();
     block.header.number = 1;
     block.header.timestamp = 2;
-    block.body.transactions.push(OpTxEnvelope::Deposit(Sealed::new(TxDeposit {
-        input: kona_protocol::L1BlockInfoBedrock::default().encode_calldata(),
-        ..Default::default()
-    })));
+    block.body.transactions.push(kona_engine::test_utils::l1_info_deposit(&Default::default()));
     if !deposits_only {
         block.body.transactions.push(OpTxEnvelope::Eip1559(
             TxEip1559::default().into_signed(Signature::test_signature()),

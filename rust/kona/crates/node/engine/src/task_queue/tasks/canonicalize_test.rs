@@ -1,11 +1,14 @@
 use super::*;
-use crate::{InsertTaskError, NoopBlockSink, SynchronizeTaskError, test_utils::test_engine_client};
+use crate::{
+    InsertTaskError, NoopBlockSink, SynchronizeTaskError,
+    test_utils::{l1_info_deposit, test_engine_client},
+};
 use alloy_consensus::{Block, SignableTransaction, TxEip1559};
-use alloy_primitives::{Sealed, Signature};
+use alloy_primitives::Signature;
 use alloy_rpc_types_engine::{
     ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
 };
-use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+use op_alloy_consensus::OpTxEnvelope;
 
 #[derive(Debug, Default)]
 pub(crate) struct RecordingSink(pub(crate) std::sync::Mutex<Vec<L2BlockInfo>>);
@@ -106,10 +109,7 @@ async fn invalid_committed_payload_does_not_build_an_uncommitted_replacement(
 ) {
     let PayloadFixture { cfg, .. } = payload_fixture();
     let mut block = Block::<OpTxEnvelope>::default();
-    block.body.transactions.push(OpTxEnvelope::Deposit(Sealed::new(TxDeposit {
-        input: kona_protocol::L1BlockInfoBedrock::default().encode_calldata(),
-        ..Default::default()
-    })));
+    block.body.transactions.push(l1_info_deposit(&Default::default()));
     if !deposits_only {
         block.body.transactions.push(OpTxEnvelope::Eip1559(
             TxEip1559::default().into_signed(Signature::test_signature()),
