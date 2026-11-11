@@ -20,6 +20,13 @@ use tokio::{
 #[path = "queue_tests.rs"]
 mod queue_tests;
 
+/// The delay before the first retry after a dependency failure; a clean drain resets the backoff
+/// to it.
+pub(crate) const INITIAL_RETRY_DELAY: Duration = Duration::from_millis(100);
+
+/// The cap on the doubling retry delay, keeping recovery responsive.
+pub(crate) const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
+
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
 /// the [`Ord`] implementation of [`EngineTask`].
@@ -92,7 +99,7 @@ where
             reset_pending: false,
             reset_waiters: Vec::new(),
             retry_at: Instant::now(),
-            retry_delay: Duration::from_millis(100),
+            retry_delay: INITIAL_RETRY_DELAY,
         }
     }
 
@@ -110,7 +117,7 @@ where
 
     fn defer_retry(&mut self) {
         self.retry_at = Instant::now() + self.retry_delay;
-        self.retry_delay = (self.retry_delay * 2).min(Duration::from_secs(5));
+        self.retry_delay = (self.retry_delay * 2).min(MAX_RETRY_DELAY);
     }
 
     fn begin_reset(&mut self) {
@@ -126,7 +133,7 @@ where
         match self.reset().await {
             Ok(()) => {
                 self.reset_pending = false;
-                self.retry_delay = Duration::from_millis(100);
+                self.retry_delay = INITIAL_RETRY_DELAY;
                 if !self.el_sync_complete && self.engine.state().el_sync_finished {
                     self.mark_el_sync_complete_and_notify_derivation_actor().await?;
                 }
@@ -192,7 +199,7 @@ where
         match self.engine.drain().await {
             Ok(_) => {
                 trace!(target: "engine", "[ENGINE] tasks drained");
-                self.retry_delay = Duration::from_millis(100);
+                self.retry_delay = INITIAL_RETRY_DELAY;
             }
             Err(err) => {
                 match err.severity() {
