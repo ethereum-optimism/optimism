@@ -165,6 +165,76 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	})
 }
 
+// TestBootstrapImplementationsMockSP1Verifier tests that bootstrap implementations deploys the mock
+// SP1 verifier on a development L1 and wraps it in the SP1PlonkAdapter.
+func TestBootstrapImplementationsMockSP1Verifier(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	for _, useScriptHost := range []bool{false, true} {
+		t.Run(fmt.Sprintf("useScriptHost=%t", useScriptHost), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			lgr := testlog.Logger(t, slog.LevelDebug)
+			l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
+			pkHex, _, _ := shared.DefaultPrivkey(t)
+			loc, _ := testutil.LocalArtifacts(t)
+			testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+			superchainPAO := common.Address{'S', 'P', 'A', 'O'}
+
+			bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
+				L1RPCUrl:                  l1RPC,
+				PrivateKey:                pkHex,
+				Logger:                    lgr,
+				ArtifactsLocator:          loc,
+				CacheDir:                  testCacheDir,
+				SuperchainProxyAdminOwner: superchainPAO,
+				Guardian:                  common.Address{'G'},
+				ReceiptQueryInterval:      testReceiptQueryInterval,
+			})
+			require.NoError(t, err)
+
+			impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
+				L1RPCUrl:                           l1RPC,
+				PrivateKey:                         pkHex,
+				ArtifactsLocator:                   loc,
+				MIPSVersion:                        int(standard.MIPSVersion),
+				MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+				MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
+				MinProposalSizeBytes:               standard.MinProposalSizeBytes,
+				ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
+				MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
+				MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
+				MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
+				MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+				SuperchainConfigProxy:              bstrap.SuperchainConfigProxy,
+				L1ProxyAdminOwner:                  superchainPAO,
+				SuperchainProxyAdmin:               bstrap.SuperchainProxyAdmin,
+				CacheDir:                           testCacheDir,
+				Logger:                             lgr,
+				Challenger:                         common.Address{'C'},
+				FaultGameMaxGameDepth:              standard.DisputeMaxGameDepth,
+				FaultGameSplitDepth:                standard.DisputeSplitDepth,
+				FaultGameClockExtension:            standard.DisputeClockExtension,
+				FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
+				DeployMockSP1Verifier:              true,
+				UseScriptHost:                      useScriptHost,
+				ReceiptQueryInterval:               testReceiptQueryInterval,
+			})
+			require.NoError(t, err)
+
+			data, err := sp1VerifierMethod.EncodeArgs()
+			require.NoError(t, err)
+			res, err := l1Client.CallContract(ctx, ethereum.CallMsg{To: &impls.SP1PlonkAdapterSingleton, Data: data}, nil)
+			require.NoError(t, err)
+			var wrapped common.Address
+			require.NoError(t, sp1VerifierMethod.DecodeReturns(res, &wrapped))
+			require.NotEqual(t, common.Address{}, wrapped)
+			require.NotEmpty(t, ethClientCodeGetter(ctx, l1Client)(t, wrapped), "mock SP1 verifier must be deployed on L1")
+		})
+	}
+}
+
 // TestApplyDefaultsSP1VerifierOnSepolia pins that a live apply with no sp1Verifier override deploys
 // an SP1PlonkAdapter wrapping the release-approved raw verifier, and that the verifier implements
 // the circuit recorded in standard.SP1VerifierHashFor.
