@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import re
 import shutil
 import sys
 import subprocess
@@ -151,54 +152,111 @@ class WorkspaceParsingTests(unittest.TestCase):
                     with self.assertRaises(mirrors.ConfigError):
                         mirrors.reth_pin(manifest)
 
-    TAGGED_LOCK = textwrap.dedent("""
-        [[package]]
-        name = "reth-chainspec"
-        version = "2.7.0"
-        source = "git+https://github.com/ethereum-optimism/reth?tag=op-v2.7.0-0#{sha}"
-    """).format(sha="0" * 40)
+    @staticmethod
+    def write_pin(root: Path, ref: str, value: str, lock_sources: list[str]) -> None:
+        (root / "Cargo.toml").write_text(textwrap.dedent(f"""
+            [workspace.dependencies]
+            reth = {{ git = "https://github.com/ethereum-optimism/reth", {ref} = "{value}" }}
+        """))
+        (root / "Cargo.lock").write_text("".join(
+            textwrap.dedent(f"""
+                [[package]]
+                name = "reth-{index}"
+                version = "2.7.0"
+                source = "{source}#{'0' * 40}"
+            """)
+            for index, source in enumerate(lock_sources)
+        ))
 
     def test_tag_pin_rejects_rev(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
-            manifest = Path(temp) / "Cargo.toml"
-            lock = Path(temp) / "Cargo.lock"
-            lock.write_text(self.TAGGED_LOCK)
+            root = Path(temp)
             for ref, value in (("tag", "v2.7.0"), ("tag", "op-v2.7.0-0"), ("rev", "0447ceb")):
                 with self.subTest(ref=ref, value=value):
-                    manifest.write_text(textwrap.dedent(f"""
-                        [workspace.dependencies]
-                        reth = {{ git = "https://github.com/ethereum-optimism/reth", {ref} = "{value}" }}
-                    """))
+                    lock_source = f"git+https://github.com/ethereum-optimism/reth?{ref}={value}"
+                    self.write_pin(root, ref, value, [lock_source])
+                    lock = [root / "Cargo.lock"]
                     if ref == "tag":
-                        self.assertEqual(mirrors.tag_pin(manifest, [lock]), value)
+                        self.assertEqual(mirrors.tag_pin(root / "Cargo.toml", lock), value)
                     else:
                         with self.assertRaisesRegex(mirrors.ConfigError, "pinned by rev"):
-                            mirrors.tag_pin(manifest, [lock])
+                            mirrors.tag_pin(root / "Cargo.toml", lock)
 
-    def test_tag_pin_rejects_untagged_lock_sources(self) -> None:
+    def test_tag_pin_requires_every_locked_reth_source_to_match_the_pin(self) -> None:
+        pinned = "git+https://github.com/ethereum-optimism/reth?tag=op-v2.7.0-0"
         with tempfile.TemporaryDirectory() as temp:
-            manifest = Path(temp) / "Cargo.toml"
-            manifest.write_text(textwrap.dedent("""
-                [workspace.dependencies]
-                reth = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.7.0-0" }
-            """))
-            sha = "0" * 40
+            root = Path(temp)
             for source in (
-                f"git+https://github.com/ethereum-optimism/reth?rev=0447ceb#{sha}",
-                f"git+https://github.com/paradigmxyz/reth?branch=main#{sha}",
-                f"git+https://github.com/paradigmxyz/reth#{sha}",
-                f"git+https://github.com/ethereum-optimism/reth?tag=main#{sha}",
+                "git+https://github.com/ethereum-optimism/reth?rev=0447ceb",
+                "git+https://github.com/paradigmxyz/reth?branch=main",
+                "git+https://github.com/paradigmxyz/reth",
+                "git+https://github.com/ethereum-optimism/reth?tag=main",
+                "git+https://github.com/ethereum-optimism/reth?tag=op-v2.6.0-2",
+                "git+https://github.com/paradigmxyz/reth?tag=v2.7.0",
+                "git+ssh://git@github.com/ethereum-optimism/reth?rev=0447ceb",
+                "git+https://gitlab.com/ethereum-optimism/reth.git?tag=op-v2.7.0-0",
             ):
                 with self.subTest(source=source):
-                    lock = Path(temp) / "Cargo.lock"
-                    lock.write_text(self.TAGGED_LOCK + textwrap.dedent(f"""
-                        [[package]]
-                        name = "reth-trie"
-                        version = "2.7.0"
-                        source = "{source}"
-                    """))
-                    with self.assertRaisesRegex(mirrors.ConfigError, "reth-trie"):
-                        mirrors.tag_pin(manifest, [lock])
+                    self.write_pin(root, "tag", "op-v2.7.0-0", [pinned, source, source])
+                    with self.assertRaisesRegex(
+                        mirrors.ConfigError, rf"{re.escape(source)} \(2 crates\)"
+                    ):
+                        mirrors.tag_pin(root / "Cargo.toml", [root / "Cargo.lock"])
+
+    def test_tag_pin_reports_every_bad_lockfile(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.write_pin(
+                root, "tag", "op-v2.7.0-0",
+                ["git+https://github.com/ethereum-optimism/reth?rev=0447ceb"],
+            )
+            nested = root / "nested"
+            nested.mkdir()
+            (nested / "Cargo.lock").write_text((root / "Cargo.lock").read_text())
+            with self.assertRaises(mirrors.ConfigError) as raised:
+                mirrors.tag_pin(root / "Cargo.toml", [root / "Cargo.lock", nested / "Cargo.lock"])
+            self.assertIn(str(root / "Cargo.lock"), str(raised.exception))
+            self.assertIn(str(nested / "Cargo.lock"), str(raised.exception))
+
+    @unittest.skipUnless(shutil.which("git"), "git is not installed")
+    def test_tracked_lockfiles_finds_nested_locks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "a" / "b").mkdir(parents=True)
+            for rel in ("Cargo.lock", "a/b/Cargo.lock", "untracked.lock"):
+                (root / rel).write_text("")
+            (root / "a" / "Cargo.lock").write_text("")
+            subprocess.run(
+                ["git", "-C", str(root), "add", "Cargo.lock", "a/b/Cargo.lock"], check=True
+            )
+            self.assertEqual(
+                sorted(mirrors.tracked_lockfiles(root)),
+                [root / "Cargo.lock", root / "a/b/Cargo.lock"],
+            )
+
+    @unittest.skipUnless(shutil.which("git"), "git is not installed")
+    def test_check_tag_pin_cli_reads_the_tracked_lockfiles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            cases = (
+                ("rev", "0447ceb", "git+https://github.com/ethereum-optimism/reth?rev=0447ceb", 1),
+                ("tag", "op-v2.7.0-0",
+                 "git+https://github.com/ethereum-optimism/reth?rev=0447ceb", 1),
+                ("tag", "op-v2.7.0-0",
+                 "git+https://github.com/ethereum-optimism/reth?tag=op-v2.7.0-0", 0),
+            )
+            for ref, value, lock_source, code in cases:
+                with self.subTest(ref=ref, lock_source=lock_source):
+                    self.write_pin(root, ref, value, [lock_source])
+                    subprocess.run(["git", "-C", str(root), "add", "Cargo.lock"], check=True)
+                    with (
+                        mock.patch.object(mirrors, "RUST_ROOT", root),
+                        redirect_stdout(io.StringIO()),
+                        redirect_stderr(io.StringIO()),
+                    ):
+                        self.assertEqual(mirrors.main(["--check-tag-pin"]), code)
 
     def test_reth_pin_compares_complete_revisions(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

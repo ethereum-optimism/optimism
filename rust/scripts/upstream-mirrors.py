@@ -34,6 +34,7 @@ import tomllib
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 RUST_ROOT = Path(__file__).resolve().parent.parent
 
@@ -296,8 +297,9 @@ def reth_pin(manifest_path: Path | None = None) -> tuple[str, str]:
     return token, repo
 
 
-def tracked_lockfiles(root: Path = RUST_ROOT) -> list[Path]:
-    """Every `Cargo.lock` git tracks under `root`."""
+def tracked_lockfiles(root: Path | None = None) -> list[Path]:
+    """Every `Cargo.lock` git tracks under `root` (default: the Rust workspace)."""
+    root = root or RUST_ROOT
     files = subprocess.run(
         ["git", "ls-files", "-z", "*Cargo.lock"],
         cwd=root, stdout=subprocess.PIPE, text=True, check=True,
@@ -308,31 +310,41 @@ def tracked_lockfiles(root: Path = RUST_ROOT) -> list[Path]:
     return locks
 
 
-def untagged_reth_sources(lock_path: Path) -> list[str]:
-    """`name source` for each locked reth git package not resolved through a release or fork tag."""
+def locked_reth_sources(lock_path: Path) -> dict[str, int]:
+    """Crate count per reth git source in a lockfile, keyed by the source without its commit.
+
+    A reth source is any `git+` source whose path ends in `/reth`, whatever its host or scheme.
+    """
     with lock_path.open("rb") as lock_file:
         packages = tomllib.load(lock_file).get("package", [])
 
-    untagged = []
+    sources: dict[str, int] = {}
     for package in packages:
         source = package.get("source", "")
-        match = re.fullmatch(r"git\+https://github\.com/[\w.-]+/reth(?:\.git)?(?:\?(?P<query>[^#]*))?#.*", source)
-        if match is None:
+        if not source.startswith("git+"):
             continue
-        tag = re.fullmatch(r"tag=(?P<tag>[^&]+)", match.group("query") or "")
-        try:
-            kind = parse_reth_token(tag.group("tag"))[0] if tag else None
-        except ValueError:
-            kind = None
-        if kind not in ("tag", "fork"):
-            untagged.append(f"{package['name']} {source}")
-    return untagged
+        source = source.split("#", 1)[0]
+        path = urlsplit(source.removeprefix("git+")).path.removesuffix("/")
+        if path.removesuffix(".git").endswith("/reth"):
+            sources[source] = sources.get(source, 0) + 1
+    return sources
+
+
+def locked_source_matches(source: str, token: str, repo: str) -> bool:
+    """Whether a locked reth source resolves through exactly the workspace's tag and repository."""
+    url = urlsplit(source.removeprefix("git+"))
+    try:
+        locked_repo = normalized_repo(f"{url.scheme}://{url.netloc}{url.path}")
+    except ConfigError:
+        return False
+    return locked_repo == repo and parse_qs(url.query) == {"tag": [token]}
 
 
 def tag_pin(manifest_path: Path | None = None, lockfiles: list[Path] | None = None) -> str:
-    """Return the reth family's tag; raise `ConfigError` on a `rev` pin or an untagged locked source.
+    """Return the reth family's tag; raise `ConfigError` on a `rev` pin or a diverging lockfile.
 
-    The lockfiles also catch a reth crate a member manifest pins outside the workspace pin.
+    Every reth source in every lockfile must resolve through the workspace's tag and repository,
+    which also catches a member manifest that pins reth outside the workspace pin.
     """
     token, repo = reth_pin(manifest_path)
     if token.startswith("rev:"):
@@ -341,13 +353,17 @@ def tag_pin(manifest_path: Path | None = None, lockfiles: list[Path] | None = No
             "op-<base>-<n> fork tag before the PR leaves draft "
             "(rust/UPDATING-RETH.md, \"Pinning a fork change\")"
         )
-    for lock in tracked_lockfiles() if lockfiles is None else lockfiles:
-        untagged = untagged_reth_sources(lock)
-        if untagged:
-            raise ConfigError(
-                f"{lock} resolves reth crates without a release or fork tag: "
-                + "; ".join(untagged)
-            )
+    errors = [
+        f"{lock}: {source} ({count} crate{'' if count == 1 else 's'})"
+        for lock in (tracked_lockfiles() if lockfiles is None else lockfiles)
+        for source, count in sorted(locked_reth_sources(lock).items())
+        if not locked_source_matches(source, token, repo)
+    ]
+    if errors:
+        raise ConfigError(
+            f"lockfiles resolve reth from sources other than the workspace pin "
+            f"github.com/{repo} tag {token}:\n  " + "\n  ".join(errors)
+        )
     return token
 
 

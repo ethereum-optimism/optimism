@@ -36,12 +36,13 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
 
 3. **Execute the guide's procedure**, including the current-pin audit and
    `cd rust && just mirrors stale` before verification. If fork patches
-   survive the audit, the pin moves to a tag on a new `op-*` fork branch (the
-   guide's "The reth fork"). Push that branch at the upstream base and
-   prepare it in one prep PR: the CI commit and the OP `.github/CODEOWNERS`
-   carried over from the previous branch, every retained patch and
-   forward-sweep pick, and any fixes the new base needs, as separate commits.
-   Rebase-merge it, tag the PR's `mergeCommit` (its last rebased commit), and
+   survive the audit, or the target is not an upstream release tag, the pin
+   moves to a tag on a new `op-*` fork branch (the guide's "The reth fork").
+   Push that branch at the upstream base and prepare it in one prep PR: the
+   CI commit and the OP `.github/CODEOWNERS` carried over from the previous
+   branch, every retained patch and forward-sweep pick, and any fixes the new
+   base needs, as separate commits. Rebase-merge it, wait for fork CI to pass
+   on the PR's `mergeCommit` (its last rebased commit), tag that commit, and
    confirm the fork's `codeowners/errors` check is empty. Meanwhile, the
    update PR may pin the prep PR's head by `rev`, in draft only. Work every
    stale mirror and iterate the compile loop to green; don't ask the user to

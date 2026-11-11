@@ -62,7 +62,8 @@ jobs:
       # No cache save: downloads no crates.
 
   # Red while a draft PR pins reth by rev (rust/UPDATING-RETH.md, "Pinning a fork change").
-  # Runs the script without just or the Rust cache: it only reads rust/Cargo.toml.
+  # Runs the script without just or the Rust cache: it only reads rust/Cargo.toml and the
+  # Cargo.lock files git tracks, so it needs a git checkout.
   rust-reth-tag-pin:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>

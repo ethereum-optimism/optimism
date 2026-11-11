@@ -19,8 +19,8 @@ Prefer the latest upstream release tag when one exists that contains the
 changes you need. Tags are stable artifacts with corresponding upstream
 releases and the most predictable downstream behavior. Fall back to a merge
 commit on `main` only when no tagged release covers the needed change yet
-(e.g. urgently picking up a fix); it lands through a tag on an
-`op-<reth-short-sha>` fork branch ([Picking the right target
+(e.g. urgently picking up a fix); it lands through an
+`op-<reth-short-sha>-<n>` tag on an `op-<reth-short-sha>` fork branch ([Picking the right target
 commit](#picking-the-right-target-commit)). Avoid pinning to an unmerged PR branch for
 anything we want to land — the merge commit on `main` is at least the version
 main's CI actually validated.
@@ -96,7 +96,8 @@ main's CI actually validated.
 3. Update the pin in `rust/Cargo.toml`.
 
    If no fork cherry-picks survive and the target is an upstream release, pin
-   its tag; an untagged target needs an `op-<reth-short-sha>` fork tag. For an
+   its tag; an untagged target needs an `op-<reth-short-sha>-<n>` fork tag
+   (e.g. `op-1a2b3c4-0`) on an `op-<reth-short-sha>` branch. For an
    existing upstream tag pin, replace the tag. For a fork rev pin, replace both
    the source and ref:
 
@@ -339,12 +340,15 @@ Merge the prep PR with **rebase-merge**. It lands each commit on the branch
 on its own, with its `-x` source line, which the next update's step 2 audit
 reads. A squash folds them into one commit, and a merge commit hides the
 branch's base from that audit. Rebase-merging rewrites the commits, so the
-prep PR's head commit is never on the branch: tag the prep PR's
-`mergeCommit`, its last rebased commit, as `op-v<version>-0` (see **Tag** below) and repin the update PR from its
-draft-time `rev` to that tag.
+prep PR's head commit is never on the branch, and fork CI has not run on the
+rewritten ones. Wait for fork CI to pass on the prep PR's `mergeCommit`, its
+last rebased commit, then tag it `op-v<version>-0` (see **Tag** below) and
+repin the update PR from its draft-time `rev` to that tag.
 
 ```bash
 gh pr merge <pr> --repo ethereum-optimism/reth --rebase
+SHA=$(gh pr view <pr> --repo ethereum-optimism/reth --json mergeCommit --jq .mergeCommit.oid)
+gh api "repos/ethereum-optimism/reth/commits/$SHA/status" --jq .state   # success, then tag
 gh api 'repos/ethereum-optimism/reth/codeowners/errors?ref=op-v<version>' --jq '.errors'
 ```
 
@@ -567,7 +571,7 @@ In order of preference:
 
 `develop` only takes tags, so for an untagged upstream commit start an
 `op-<reth-short-sha>` fork branch at it ([The reth fork](#the-reth-fork)) and
-pin its tag.
+pin its `op-<reth-short-sha>-<n>` tag.
 
 Avoid pinning to an unmerged PR branch tip for anything we want to land. It
 moves under us when the PR rebases, may sit on a much newer main than our
