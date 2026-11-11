@@ -1088,14 +1088,18 @@ jobs:
         description: No-output timeout for the forge build step
         type: string
         default: 25m
+      check_changed_patterns:
+        description: >-
+          List of changed files to build on. The test jobs that attach this
+          build follow its decision.
+        type: string
+        default: contracts-bedrock
     steps:
       - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
-      # Same check as the test jobs, so a merge queue entry without contract
-      # changes skips the build along with them.
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: <<parameters.check_changed_patterns>>
       - install-contracts-dependencies
       - run:
           name: Print forge version
@@ -1170,7 +1174,9 @@ jobs:
         description: >-
           Attach the build persisted by an upstream contracts-bedrock-build-tests
           job, so forge test reuses it instead of compiling. The job must require
-          that build, and its profile must match test_profile.
+          that build, and its profile must match test_profile. The build's change
+          check then decides whether this job runs, in place of
+          check_changed_patterns.
         type: boolean
         default: false
       parallelism:
@@ -1179,6 +1185,19 @@ jobs:
         default: 1
     parallelism: <<parameters.parallelism>>
     steps:
+      # Before the checkout, so a node whose build skipped stops within seconds.
+      - when:
+          condition: << parameters.attach_build >>
+          steps:
+            - attach_workspace:
+                at: .
+            - run:
+                name: Check if the build ran
+                command: |
+                  if [ ! -d packages/contracts-bedrock/forge-artifacts ]; then
+                    echo "The build job found no contract changes. Exiting early."
+                    circleci-agent step halt
+                  fi
       - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
@@ -1191,15 +1210,11 @@ jobs:
               circleci-agent step halt
             fi
           working_directory: packages/contracts-bedrock
-      - check-changed:
-          patterns: <<parameters.check_changed_patterns>>
-      # After check-changed: when it skips, the build job skipped too and
-      # persisted nothing.
-      - when:
+      - unless:
           condition: << parameters.attach_build >>
           steps:
-            - attach_workspace:
-                at: .
+            - check-changed:
+                patterns: <<parameters.check_changed_patterns>>
       - install-solc-compilers
       - run:
           name: Print dependencies
@@ -1225,6 +1240,11 @@ jobs:
           command: |
             TEST_FILES=$(<<parameters.test_list>>)
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            # just test runs every file when TEST_FILES is empty.
+            if [ -z "$TEST_FILES" ]; then
+              echo "No test files on this node."
+              exit 0
+            fi
             export TEST_FILES
             JUNIT_TEST_DIR=results just test
           environment:
