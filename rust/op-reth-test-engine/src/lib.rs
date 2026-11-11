@@ -508,7 +508,7 @@ mod tests {
         ver.chain.evict_from_overlay(b1.payload.block_hash());
 
         let result = ver.new_payload(b3);
-        assert!(result.is_err(), "{result:?}");
+        assert!(matches!(result, Err(Error::Provider(_))), "{result:?}");
     }
 
     #[test]

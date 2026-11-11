@@ -166,11 +166,13 @@ impl EphemeralChain {
         };
         // Every recorded block is in the overlay manager the provider shares, and its recorded
         // ancestors reach back to genesis, so the provider resolves the block's whole chain from
-        // its parent. A recorded ancestor it can't resolve is an inconsistency. The provider
-        // resolves the chain lazily, so that fails the first read of the state rather than this
-        // call: during import, as `Error::Execution`, not as INVALID or SYNCING.
+        // its parent. A recorded ancestor it can't resolve is an inconsistency, so it errors.
         let header = block.recovered_block().clone_sealed_header();
         let state = self.provider.state_with_block_appended(header.parent_hash(), block)?;
+        // The provider resolves the chain on the first read and caches it for later reads. Read
+        // once here, so that the error surfaces from this call. During import the first read is
+        // a system call, whose errors alloy-evm reports as an INVALID block.
+        let _ = state.basic_account(&Address::ZERO)?;
         Ok(Some((header, state)))
     }
 
