@@ -2153,7 +2153,7 @@ jobs:
       resource_class:
         description: Docker resource class for this acceptance job
         type: string
-        default: 2xlarge+.gen2
+        default: 2xlarge.gen2
       image:
         description: "Docker image for this acceptance job. Must be the image that built the Rust binaries it consumes, so glibc matches."
         type: string
@@ -2236,12 +2236,12 @@ jobs:
               export ACCEPTANCE_TEST_JOBS="<<parameters.acceptance_test_jobs>>"
             fi
             LOG_LEVEL=info just acceptance-test
-      # memory.peak is this container's high-water mark. memory.events counts OOM kills,
-      # which can otherwise look like flaky tests.
+      # memory.events counts OOM kills, which can otherwise look like flaky tests. memory.peak
+      # includes page cache, so a peak near memory.max is not a problem without OOM kills.
       - run:
           name: Memory summary
           when: always
-          command: grep -H . /sys/fs/cgroup/memory.{peak,events,pressure} || true
+          command: grep -H . /sys/fs/cgroup/memory.{max,peak,events,pressure} || true
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2757,9 +2757,9 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # Both run on 16 vCPU / 32 GiB. op-node's peak RAM matches kona's: under 22 GiB in 99% of
-      # runs from September to November. If the Memory summary step shows OOM kills, move op-node
-      # back to 2xlarge+.gen2 (20 vCPU / 40 GiB).
+      # Both run on the job's default 2xlarge.gen2 (16 vCPU / 32 GiB). op-node's peak RAM matches
+      # kona's: under 22 GiB in 99% of runs from September to November. If the Memory summary
+      # step shows OOM kills, give op-node resource_class: 2xlarge+.gen2 (20 vCPU / 40 GiB).
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests: &memory_all_opn
           name: memory-all-opn-op-reth-<<matrix.l1_fork>>
@@ -2769,7 +2769,6 @@ workflows:
               l1_fork: &acceptance_l1_forks
                 - fusaka
           l2_el_kind: op-reth
-          resource_class: 2xlarge.gen2
           parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
@@ -2796,7 +2795,6 @@ workflows:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
-          resource_class: 2xlarge.gen2
           parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
