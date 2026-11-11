@@ -95,6 +95,7 @@ func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 	cl := engine.EthClient()
 	l2UserEnv := &helpers.BasicUserEnv[*helpers.L2Bindings]{
 		EthCl:          cl,
+		Receipts:       engine.SourceClient(),
 		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       helpers.NewL2Bindings(t, cl, engine.GethClient()),
@@ -247,11 +248,9 @@ func (a *L2AltDA) ActL1Blocks(t helpers.Testing, n uint64) {
 	}
 }
 
-func (a *L2AltDA) GetLastTxBlock(t helpers.Testing) *types.Block {
+func (a *L2AltDA) GetLastTxBlock(t helpers.Testing) *types.Header {
 	rcpt := a.alice.L2.LastTxReceipt(t)
-	blk, err := a.engine.EthClient().BlockByHash(t.Ctx(), rcpt.BlockHash)
-	require.NoError(t, err)
-	return blk
+	return a.engine.HeaderByHash(t, rcpt.BlockHash)
 }
 
 func (a *L2AltDA) ActL1Finalized(t helpers.Testing) {
@@ -294,7 +293,7 @@ func TestAltDA_ChallengeExpired(gt *testing.T) {
 	harness.sequencer.ActL2PipelineFull(t)
 
 	// get new block with same number to compare
-	newBlk, err := harness.engine.EthClient().BlockByNumber(t.Ctx(), blk.Number())
+	newBlk, err := harness.engine.EthClient().HeaderByNumber(t.Ctx(), blk.Number)
 	require.NoError(t, err)
 
 	// reorg happened even though data was available
@@ -422,7 +421,7 @@ func TestAltDA_ChallengeReorg(gt *testing.T) {
 	// derivation pipeline reorgs the commitment out of the chain
 	harness.sequencer.ActL2PipelineFull(t)
 
-	newBlk, err := harness.engine.EthClient().BlockByNumber(t.Ctx(), blk.Number())
+	newBlk, err := harness.engine.EthClient().HeaderByNumber(t.Ctx(), blk.Number)
 	require.NoError(t, err)
 
 	// confirm the reorg did happen
@@ -474,7 +473,7 @@ func TestAltDA_SequencerStalledMultiChallenges(gt *testing.T) {
 	a.sequencer.ActL1HeadSignal(t)
 
 	unsafe := a.sequencer.L2Unsafe()
-	unsafeBlk, err := a.engine.EthClient().BlockByHash(t.Ctx(), unsafe.Hash)
+	unsafeBlk, err := a.engine.EthClient().HeaderByHash(t.Ctx(), unsafe.Hash)
 	require.NoError(t, err)
 
 	// advance the pipeline until it errors out as it is still stuck
@@ -516,7 +515,7 @@ func TestAltDA_SequencerStalledMultiChallenges(gt *testing.T) {
 	a.sequencer.ActL2PipelineFull(t)
 
 	// verify that the chain did not reorg out
-	safeBlk, err := a.engine.EthClient().BlockByNumber(t.Ctx(), unsafeBlk.Number())
+	safeBlk, err := a.engine.EthClient().HeaderByNumber(t.Ctx(), unsafeBlk.Number)
 	require.NoError(t, err)
 	require.Equal(t, unsafeBlk.Hash(), safeBlk.Hash())
 }

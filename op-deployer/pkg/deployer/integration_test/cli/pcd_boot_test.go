@@ -28,10 +28,10 @@ func TestCLIPCDBoot(t *testing.T) {
 		devnet.WithTimestamp(requestedL1Timestamp),
 		devnet.WithHardfork("prague"),
 	)
-	l1Genesis, err := journey.l1Client.BlockByNumber(t.Context(), big.NewInt(0))
+	l1Genesis, err := journey.l1Client.HeaderByNumber(t.Context(), big.NewInt(0))
 	require.NoError(t, err)
-	require.Equal(t, requestedL1Timestamp, l1Genesis.Time(), "Anvil must use the requested back-dated timestamp")
-	t.Logf("PCD runtime inputs: op-reth=%s Anvil hardfork=prague requested_timestamp=%d observed_timestamp=%d", opRethPath, requestedL1Timestamp, l1Genesis.Time())
+	require.Equal(t, requestedL1Timestamp, l1Genesis.Time, "Anvil must use the requested back-dated timestamp")
+	t.Logf("PCD runtime inputs: op-reth=%s Anvil hardfork=prague requested_timestamp=%d observed_timestamp=%d", opRethPath, requestedL1Timestamp, l1Genesis.Time)
 
 	journey.bootstrapOPCM()
 	journey.runInit(opcm.GameTypeSuperCannonKona)
@@ -65,20 +65,20 @@ func TestCLIPCDBoot(t *testing.T) {
 	require.Equalf(
 		t,
 		result.genesisTime,
-		result.block0.Time(),
+		result.block0.Time,
 		"L2 block 0 timestamp differs for committed rollup artifact %s: expected %d, observed %d",
 		artifacts[0].rollupPath,
 		result.genesisTime,
-		result.block0.Time(),
+		result.block0.Time,
 	)
 	require.Equalf(
 		t,
 		result.genesisTime+result.l2BlockTime,
-		result.block1.Time(),
+		result.block1.Time,
 		"L2 block 1 timestamp differs for committed rollup artifact %s: expected %d, observed %d",
 		artifacts[0].rollupPath,
 		result.genesisTime+result.l2BlockTime,
-		result.block1.Time(),
+		result.block1.Time,
 	)
 	t.Logf(
 		"PCD runtime boot reached L2 block 1 in %s from genesis=%s rollup=%s depset=%s",
