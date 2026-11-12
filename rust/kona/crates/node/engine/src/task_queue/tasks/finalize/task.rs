@@ -33,11 +33,9 @@ impl FinalizeTask {
     /// while it catches up: the task is skipped rather than held at the head of the queue ahead
     /// of the imports that let it catch up. A missing by-number target is below the safe head, so
     /// the engine must already have it.
-    fn block_missing(&self) -> FinalizeTaskError {
+    const fn block_missing(&self) -> FinalizeTaskError {
         match self.block_id {
-            FinalizeBlockId::ByHash(target) => {
-                FinalizeTaskError::NotYetAvailable { target }
-            }
+            FinalizeBlockId::ByHash(target) => FinalizeTaskError::NotYetAvailable { target },
             FinalizeBlockId::ByNumber(number) => FinalizeTaskError::BlockNotFound(number),
         }
     }
@@ -124,7 +122,10 @@ impl ExecutableEngineTask for FinalizeTask {
         // finalizes a target skipped here, or a newer block.
         let safe_number = state.sync_state.safe_head().block_info.number;
         if safe_number < target_number {
-            return Err(FinalizeTaskError::BlockNotSafe { safe: safe_number, target: target_number });
+            return Err(FinalizeTaskError::BlockNotSafe {
+                safe: safe_number,
+                target: target_number,
+            });
         }
 
         let block_info = self.fetch_canonical_block_info().await?;
