@@ -33,8 +33,12 @@ impl TrieBuffer {
         }
     }
 
-    /// Insert a block into the buffer.
-    fn insert(&self, block: BlockWithParent, diff: BlockStateDiff) {
+    /// Insert a block into the buffer, and return it as buffered.
+    fn insert(
+        &self,
+        block: BlockWithParent,
+        diff: BlockStateDiff,
+    ) -> Arc<(BlockWithParent, BlockStateDiff)> {
         let hash = block.block.hash;
         let number = block.block.number;
         let state = Arc::new((block, diff));
@@ -43,11 +47,13 @@ impl TrieBuffer {
         let mut blocks = self.blocks.write();
         let mut numbers = self.numbers.write();
 
-        blocks.insert(hash, state);
+        blocks.insert(hash, Arc::clone(&state));
         numbers.insert(number, hash);
 
         #[cfg(feature = "metrics")]
         self.metrics.buffer_size.set(blocks.len() as f64);
+
+        state
     }
 
     /// Returns the number of buffered blocks.
@@ -109,9 +115,13 @@ impl TrieBufferState {
         Self { inner: Arc::new(TrieBuffer::new()) }
     }
 
-    /// Insert a block into the buffer.
-    pub(in crate::engine) fn insert(&self, block: BlockWithParent, diff: BlockStateDiff) {
-        self.inner.insert(block, diff);
+    /// Insert a block into the buffer, and return it as buffered.
+    pub(in crate::engine) fn insert(
+        &self,
+        block: BlockWithParent,
+        diff: BlockStateDiff,
+    ) -> Arc<(BlockWithParent, BlockStateDiff)> {
+        self.inner.insert(block, diff)
     }
 
     /// Returns the number of buffered blocks.

@@ -4,7 +4,7 @@ use reth_metrics::{
     metrics::{Gauge, Histogram},
 };
 
-#[derive(Metrics)]
+#[derive(Metrics, Clone)]
 #[metrics(scope = "optimism_trie.pruner")]
 pub(crate) struct Metrics {
     /// Pruning duration

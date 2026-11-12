@@ -19,10 +19,11 @@ mod error;
 pub use error::EngineError;
 
 mod handle;
-pub use handle::EngineHandle;
+pub use handle::{EngineConfig, EngineHandle};
 
 #[cfg(feature = "metrics")]
 mod metrics;
+mod prefetch;
 mod runner;
 mod service_guard;
 mod state;

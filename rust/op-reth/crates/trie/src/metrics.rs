@@ -23,6 +23,7 @@ use reth_trie_common::{BranchNodeCompact, Nibbles};
 use std::{
     fmt::Debug,
     future::Future,
+    ops::RangeInclusive,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -342,6 +343,22 @@ where
 
     fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
         Ok(OpProofsProviderRwWithMetrics::new(self.storage.provider_rw()?, self.metrics.clone()))
+    }
+
+    fn warm_for_write(
+        &self,
+        diff: &BlockStateDiff,
+        threads: usize,
+    ) -> OpProofsStorageResult<usize> {
+        self.storage.warm_for_write(diff, threads)
+    }
+
+    fn warm_for_prune(
+        &self,
+        blocks: RangeInclusive<u64>,
+        threads: usize,
+    ) -> OpProofsStorageResult<usize> {
+        self.storage.warm_for_prune(blocks, threads)
     }
 
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {

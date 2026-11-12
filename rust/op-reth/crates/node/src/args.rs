@@ -312,6 +312,18 @@ pub struct RollupArgs {
         default_value_t = 0
     )]
     pub proofs_history_verification_interval: u64,
+
+    /// Parallel readers that warm the proofs storage's page cache ahead of persistence (0 to
+    /// 64). `0` (default) disables warming. Warming reads the pages each buffered block and the
+    /// next prunes will touch, so the single-threaded persistence transaction waits on fewer disk
+    /// reads.
+    #[arg(
+        long = "proofs-history.prefetch-threads",
+        value_name = "THREADS",
+        default_value_t = 0,
+        value_parser = clap::value_parser!(u64).range(0..=64),
+    )]
+    pub proofs_history_prefetch_threads: u64,
 }
 
 impl Default for RollupArgs {
@@ -338,6 +350,7 @@ impl Default for RollupArgs {
             history: ProofsHistoryStorageArgs { storage_path: None, storage_version: None },
             proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
+            proofs_history_prefetch_threads: 0,
         }
     }
 }
@@ -380,6 +393,25 @@ mod tests {
             .unwrap_or_else(|| panic!("storage version {version} should be rejected"));
             assert!(err.to_string().contains("only `v2` is supported"), "unexpected error: {err}");
         }
+    }
+
+    #[test]
+    fn test_proofs_history_prefetch_threads() {
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--proofs-history.prefetch-threads",
+            "8",
+        ])
+        .args;
+        assert_eq!(args.proofs_history_prefetch_threads, 8);
+        assert!(
+            CommandParser::<RollupArgs>::try_parse_from([
+                "reth",
+                "--proofs-history.prefetch-threads",
+                "65",
+            ])
+            .is_err()
+        );
     }
 
     #[test]
