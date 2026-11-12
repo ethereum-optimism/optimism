@@ -159,9 +159,9 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 	}
 
 	// Get updated balance in operator fee vault to compute delta
-	vaultAfter, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, receipt.BlockNumber)
+	vaultAfter, err := l2EL.EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, receipt.BlockNumber)
 	of.require.NoError(err)
-	vaultBefore, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, big.NewInt(0).Sub(receipt.BlockNumber, big.NewInt(1)))
+	vaultBefore, err := l2EL.EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, big.NewInt(0).Sub(receipt.BlockNumber, big.NewInt(1)))
 	of.require.NoError(err)
 	vaultIncrease := new(big.Int).Sub(vaultAfter, vaultBefore)
 
@@ -171,7 +171,7 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 		// The test submits one user transaction but we loop over all user transactions
 		// to make the test robust to any other traffic on the chain.
 		for _, tx := range txs {
-			receipt, err := from.el.stackEL().EthClient().TransactionReceipt(of.ctx, tx.Hash())
+			receipt, err := l2EL.EthClient().TransactionReceipt(of.ctx, tx.Hash())
 			of.require.NoError(err)
 
 			operatorFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), big.NewInt(int64(expectedScalar)))

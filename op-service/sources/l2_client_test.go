@@ -47,11 +47,11 @@ func newL2ClientServing(t *testing.T, block *RPCBlock, method string, arg any) *
 	return s
 }
 
-// TestL2ClientInfoAndTxsRejectsSyntheticTxs pins that the L2Client accessors decoding a whole
-// block body reject a Lagoon-shaped L2 block — L1-info deposit, user tx, trailing post-exec tx —
-// and blocks holding only one of the two synthetic types, by their type bytes, while the user-tx
-// accessor serves the Lagoon-shaped block.
-func TestL2ClientInfoAndTxsRejectsSyntheticTxs(t *testing.T) {
+// TestL2ClientInfoAndTxsRejectsOpTxs pins that the L2Client accessors decoding a whole block
+// body reject a Lagoon-shaped L2 block — L1-info deposit, user tx, trailing post-exec tx — and
+// blocks holding only one of the two OP Stack transaction types, by their type bytes, while the
+// user-tx accessor serves the Lagoon-shaped block.
+func TestL2ClientInfoAndTxsRejectsOpTxs(t *testing.T) {
 	ctx := t.Context()
 
 	deposit, err := (&optypes.DepositTx{
@@ -111,7 +111,7 @@ func TestL2ClientInfoAndTxsRejectsSyntheticTxs(t *testing.T) {
 		}
 		for _, tc := range rejecting {
 			t.Run(rc.name+"/"+tc.name, func(t *testing.T) {
-				require.ErrorIs(t, tc.read(newL2ClientServing(t, rejected, tc.method, tc.arg)), ErrSyntheticTxInBody)
+				require.ErrorIs(t, tc.read(newL2ClientServing(t, rejected, tc.method, tc.arg)), ErrOpTxInBody)
 			})
 		}
 	}
@@ -125,7 +125,7 @@ func TestL2ClientInfoAndTxsRejectsSyntheticTxs(t *testing.T) {
 		require.Equal(t, userTx.Hash(), txs[0].Hash())
 	})
 
-	t.Run("decodes a body without synthetic txs", func(t *testing.T) {
+	t.Run("decodes a body without OP Stack txs", func(t *testing.T) {
 		userOnly := testRPCBlock(RawTransactions{user})
 		s := newL2ClientServing(t, userOnly, "eth_getBlockByHash", userOnly.Hash)
 		_, txs, err := s.InfoAndTxsByHash(ctx, userOnly.Hash)

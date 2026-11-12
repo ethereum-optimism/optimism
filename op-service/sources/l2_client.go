@@ -110,19 +110,19 @@ func (s *L2Client) RollupConfig() *rollup.Config {
 	return s.rollupCfg
 }
 
-// ErrSyntheticTxInBody is returned when a whole-body decode meets an OP Stack synthetic
-// transaction (0x7E deposit, 0x7D post-exec), which upstream go-ethereum cannot decode. Read L2
-// bodies via InfoAndUserTxsBy*, InfoAndDepositsBy*, InfoAndFirstDepositBy* or PayloadBy*.
-var ErrSyntheticTxInBody = errors.New("block holds an OP Stack synthetic transaction")
+// ErrOpTxInBody is returned when a whole-body decode meets a transaction of an OP Stack type
+// (0x7E deposit, 0x7D post-exec), which upstream go-ethereum cannot decode. Read L2 bodies via
+// InfoAndUserTxsBy*, InfoAndDepositsBy*, InfoAndFirstDepositBy* or PayloadBy*.
+var ErrOpTxInBody = errors.New("block holds a transaction of an OP Stack type")
 
-// HeaderAndTxsByHash shadows EthClient.HeaderAndTxsByHash, returning ErrSyntheticTxInBody
-// if the block holds an OP Stack synthetic transaction.
+// HeaderAndTxsByHash shadows EthClient.HeaderAndTxsByHash, returning ErrOpTxInBody
+// if the block holds a transaction of an OP Stack type.
 func (s *L2Client) HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error) {
 	header, rawTxs, err := s.headerAndRawTxsByHash(ctx, hash)
 	if err != nil {
 		return nil, nil, err
 	}
-	txs, err := decodeWithoutSynthetic(rawTxs)
+	txs, err := decodeWithoutOpTxs(rawTxs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -154,21 +154,21 @@ func (s *L2Client) infoAndTxsByID(ctx context.Context, id rpcBlockID) (eth.Block
 	if err != nil {
 		return nil, nil, err
 	}
-	txs, err := decodeWithoutSynthetic(rawTxs)
+	txs, err := decodeWithoutOpTxs(rawTxs)
 	if err != nil {
 		return nil, nil, err
 	}
 	return eth.HeaderBlockInfo(header), txs, nil
 }
 
-// decodeWithoutSynthetic decodes txs into go-ethereum transactions, or returns
-// ErrSyntheticTxInBody if any of them is an OP Stack synthetic transaction. It checks the type
-// bytes before decoding, so the rejection does not depend on which go-ethereum the build resolves.
-func decodeWithoutSynthetic(txs RawTransactions) (types.Transactions, error) {
+// decodeWithoutOpTxs decodes txs into go-ethereum transactions, or returns ErrOpTxInBody if any
+// of them has an OP Stack transaction type. It checks the type bytes before decoding, so the
+// rejection does not depend on which go-ethereum the build resolves.
+func decodeWithoutOpTxs(txs RawTransactions) (types.Transactions, error) {
 	for i, tx := range txs {
 		switch typ := tx.Type(); typ {
 		case optypes.DepositTxType, optypes.PostExecTxType:
-			return nil, fmt.Errorf("tx %d has type %#x: %w", i, typ, ErrSyntheticTxInBody)
+			return nil, fmt.Errorf("tx %d has type %#x: %w", i, typ, ErrOpTxInBody)
 		}
 	}
 	return txs.Geth()
