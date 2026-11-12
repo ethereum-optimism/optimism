@@ -655,6 +655,10 @@ mod tests {
         assert_eq!(handle.chain_id, OP_SEPOLIA_CHAIN_ID);
     }
 
+    /// The chain ID of the offline tests: not in the registry, so a node on it has no bootnodes of
+    /// its own.
+    const TEST_CHAIN_ID: u64 = 0xdead_beef;
+
     /// The socket a session in these tests is with.
     const SOCKET: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9223);
 
@@ -800,8 +804,8 @@ mod tests {
     /// whether the loopback one was left out, without waiting to see that it never comes.
     #[tokio::test]
     async fn test_public_node_leaves_out_saved_loopback_record() {
-        let loopback = localhost_enr(BOOTSTORE_CHAIN_ID);
-        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), BOOTSTORE_CHAIN_ID);
+        let loopback = localhost_enr(TEST_CHAIN_ID);
+        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
         let (driver, _dir) = public_driver_with_bootstore(&[loopback, public.clone()]);
         let (_handler, mut records) = driver.start();
 
@@ -817,7 +821,7 @@ mod tests {
     /// every store interval, for gossip to redial the peers it lost.
     #[tokio::test]
     async fn test_saved_records_are_handed_over_again() {
-        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), BOOTSTORE_CHAIN_ID);
+        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
         let (mut driver, _dir) = public_driver_with_bootstore(std::slice::from_ref(&public));
         driver.store_interval = Duration::from_millis(100);
         let (_handler, mut records) = driver.start();
@@ -836,26 +840,14 @@ mod tests {
     /// then every minute.
     #[tokio::test]
     async fn test_public_node_removes_saved_loopback_record() {
-        let loopback = localhost_enr(BOOTSTORE_CHAIN_ID);
-        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), BOOTSTORE_CHAIN_ID);
+        let loopback = localhost_enr(TEST_CHAIN_ID);
+        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
         let (driver, dir) = public_driver_with_bootstore(&[loopback.clone(), public.clone()]);
         let path = dir.path().join("bootstore.json");
         let (_handler, _records) = driver.start();
 
-        // Read while the driver may be writing, so a read can come back empty: wait for one that
-        // holds the public record too.
-        let saved_without_loopback = async {
-            loop {
-                let store: BootStore =
-                    BootStoreFile::Custom(path.clone()).try_into().expect("the bootstore opens");
-                let saved = store.valid_peers();
-                if saved.contains(&&public) && !saved.contains(&&loopback) {
-                    return;
-                }
-                tokio::time::sleep(Duration::from_millis(50)).await;
-            }
-        };
-        tokio::time::timeout(Duration::from_secs(5), saved_without_loopback)
+        // A read can come back empty, so wait for one that holds the public record too.
+        wait_for_saved(&path, |_, saved| saved.contains(&public) && !saved.contains(&loopback))
             .await
             .expect("a public node kept a saved loopback record");
     }
@@ -871,37 +863,49 @@ mod tests {
     async fn test_bootstore_saves_only_confirmed_records() {
         // Kept in the bootstore, and the documentation address is removed from it at startup, so
         // a read with the one and without the other was written after startup.
-        let kept = enr_at(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), BOOTSTORE_CHAIN_ID);
-        let removed = enr_at(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), BOOTSTORE_CHAIN_ID);
+        let kept = enr_at(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), TEST_CHAIN_ID);
+        let removed = enr_at(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), TEST_CHAIN_ID);
         let (driver, dir) = driver_with_bootstore(
             |enr| enr.ip4().is_some_and(|ip| ip.is_loopback()),
             &[kept.clone(), removed.clone()],
         );
         // As if another node had returned it to one of our lookups.
-        let unconfirmed = enr_at(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), BOOTSTORE_CHAIN_ID);
+        let unconfirmed = enr_at(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), TEST_CHAIN_ID);
         driver.disc.add_enr(unconfirmed.clone()).expect("the table takes the record");
         let path = dir.path().join("bootstore.json");
         let (_handler, _records) = driver.start();
 
-        let saved_after_startup = async {
+        let saved =
+            wait_for_saved(&path, |_, saved| saved.contains(&kept) && !saved.contains(&removed))
+                .await
+                .expect("the driver saves its bootstore at startup");
+        assert!(!saved.contains(&unconfirmed), "the bootstore saved an unconfirmed record");
+    }
+
+    /// Reads the bootstore at `path` until `done` holds for the file's modification time, taken
+    /// before the read, and the records it holds, and returns those, or `None` after 5s. The driver
+    /// truncates the file before it writes it, so a read can come back empty: `done` should
+    /// require a record the driver keeps.
+    async fn wait_for_saved(
+        path: &std::path::Path,
+        done: impl Fn(std::time::SystemTime, &[Enr]) -> bool,
+    ) -> Option<Vec<Enr>> {
+        let poll = async {
             loop {
-                let store: BootStore =
-                    BootStoreFile::Custom(path.clone()).try_into().expect("the bootstore opens");
-                let saved = store.valid_peers().into_iter().cloned().collect::<Vec<_>>();
-                if saved.contains(&kept) && !saved.contains(&removed) {
-                    return saved;
+                if let Ok(modified) = std::fs::metadata(path).and_then(|meta| meta.modified()) {
+                    let store: BootStore = BootStoreFile::Custom(path.to_path_buf())
+                        .try_into()
+                        .expect("the bootstore opens");
+                    let saved = store.valid_peers().into_iter().cloned().collect::<Vec<_>>();
+                    if done(modified, &saved) {
+                        return saved;
+                    }
                 }
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
         };
-        let saved = tokio::time::timeout(Duration::from_secs(5), saved_after_startup)
-            .await
-            .expect("the driver saves its bootstore at startup");
-        assert!(!saved.contains(&unconfirmed), "the bootstore saved an unconfirmed record");
+        tokio::time::timeout(Duration::from_secs(5), poll).await.ok()
     }
-
-    /// The chain ID of the bootstore tests: not in the registry, so it has no bootnodes of its own.
-    const BOOTSTORE_CHAIN_ID: u64 = 0xdead_beef;
 
     /// A driver with [`crate::public_only`] as its table filter, with a bootstore of `records`, see
     /// [`driver_with_bootstore`].
@@ -926,18 +930,7 @@ mod tests {
         store.sync().expect("the bootstore saves");
         drop(store);
 
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        let mut driver = Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
-            BOOTSTORE_CHAIN_ID,
-            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into())
-                .table_filter(table_filter)
-                .build(),
-        )
-        .build()
-        .expect("the driver builds");
+        let mut driver = loopback_driver(loopback_config().table_filter(table_filter).build());
         driver.bootstore = Some(BootStoreFile::Custom(path));
         (driver, dir)
     }
@@ -952,21 +945,10 @@ mod tests {
         let bootnode_enr = bootnode.disc.local_enr();
         let enode = loopback_enode(&bootnode_enr);
 
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        let node = Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
-            bootnode.chain_id,
-            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into())
-                .table_filter(crate::public_only)
-                .build(),
-        )
-        .build()
-        .expect("the node builds")
-        .init()
-        .await
-        .expect("the node starts");
+        let node = loopback_driver(loopback_config().table_filter(crate::public_only).build())
+            .init()
+            .await
+            .expect("the node starts");
 
         Discv5Driver::bootstrap_peers(
             None,
@@ -1098,20 +1080,9 @@ mod tests {
             .with(Protocol::Udp(silent.local_addr().expect("the socket is bound").port()))
             .with(silent_peer_id);
 
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
-        let mut node = Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
-            BOOTSTORE_CHAIN_ID,
-            ConfigBuilder::new(listen.into())
-                .request_timeout(Duration::from_secs(3))
-                .request_retries(0)
-                .build(),
-        )
-        .build()
-        .expect("the node builds");
+        let mut node = loopback_driver(
+            loopback_config().request_timeout(Duration::from_secs(3)).request_retries(0).build(),
+        );
         node.bootnodes = BootNodes(vec![BootNode::Enode(silent_enode)]);
         let node_enr = node.disc.local_enr();
         let (_node, mut records) = node.start();
@@ -1216,7 +1187,7 @@ mod tests {
     /// N from loopback, which L's record holds.
     #[tokio::test]
     async fn test_public_only_node_dials_a_private_session_back_without_saving_it() {
-        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), BOOTSTORE_CHAIN_ID);
+        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
         let (mut node, dir) = public_driver_with_bootstore(std::slice::from_ref(&public));
         node.store_interval = Duration::from_millis(100);
         let path = dir.path().join("bootstore.json");
@@ -1242,27 +1213,14 @@ mod tests {
             .await
             .expect("a public-only node didn't hand a session at a loopback address to gossip");
 
-        // Wait for a save after the handover. A read while the driver writes can come back empty,
-        // so wait for one that holds the public record.
+        // Wait for a save after the handover. A read can come back empty, so wait for one that
+        // holds the public record.
         let handed_over_at = std::time::SystemTime::now();
-        let saved_after_handover = async {
-            loop {
-                let modified = std::fs::metadata(&path).and_then(|meta| meta.modified());
-                if modified.is_ok_and(|modified| modified > handed_over_at) {
-                    let store: BootStore = BootStoreFile::Custom(path.clone())
-                        .try_into()
-                        .expect("the bootstore opens");
-                    let saved = store.valid_peers().into_iter().cloned().collect::<Vec<_>>();
-                    if saved.contains(&public) {
-                        return saved;
-                    }
-                }
-                tokio::time::sleep(Duration::from_millis(50)).await;
-            }
-        };
-        let saved = tokio::time::timeout(Duration::from_secs(5), saved_after_handover)
-            .await
-            .expect("the driver saves its bootstore every store interval");
+        let saved = wait_for_saved(&path, |modified, saved| {
+            modified > handed_over_at && saved.contains(&public)
+        })
+        .await
+        .expect("the driver saves its bootstore every store interval");
         assert!(!saved.contains(&handed_over), "a public-only node saved a loopback record");
     }
 
@@ -1288,20 +1246,27 @@ mod tests {
 
     /// Builds a driver listening on localhost that does not contact any remote peer.
     fn offline_driver() -> Discv5Driver {
-        // A chain ID that is not in the superchain registry has no default bootnodes.
-        const UNKNOWN_CHAIN_ID: u64 = 0xdead_beef;
+        loopback_driver(loopback_config().build())
+    }
 
+    /// A discv5 config that listens on a free port on loopback, for [`loopback_driver`].
+    fn loopback_config() -> ConfigBuilder {
+        ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into())
+    }
+
+    /// Builds a driver on [`TEST_CHAIN_ID`] that advertises loopback, with `config`, which should
+    /// listen there too, see [`loopback_config`]. It has no bootnodes.
+    fn loopback_driver(config: Config) -> Discv5Driver {
         let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
             unreachable!()
         };
-        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
         Discv5Driver::builder(
             LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
-            UNKNOWN_CHAIN_ID,
-            ConfigBuilder::new(socket.into()).build(),
+            TEST_CHAIN_ID,
+            config,
         )
         .build()
-        .expect("Failed to build discovery service")
+        .expect("the driver builds")
     }
 
     /// Only an unset TCP port of 0 is set to the gossip TCP port, and only once: another port is
@@ -1327,7 +1292,7 @@ mod tests {
         // support.
         let driver = Discv5Driver::builder(
             LocalNode::new(secret_key, ip, tcp_port, 0),
-            0xdead_beef,
+            TEST_CHAIN_ID,
             ConfigBuilder::new(ListenConfig::from_ip(ip, 30303)).build(),
         )
         .build()
