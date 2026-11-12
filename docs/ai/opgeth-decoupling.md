@@ -551,9 +551,8 @@ Invariants:
 
 - **Exact state-root parity before switching.** Genesis-target L1 and L2 genesis matched the Go
   host's state roots on reference intents before the switch; the differential test went with the
-  Go host. Since then, the genesis output has changed on purpose: genesis scripts see the chain
-  ID of the genesis, the CREATE2 deployer starts at nonce 1, and the L2 genesis keeps the
-  deployer when it is a funded dev account.
+  Go host. Genesis scripts see the chain ID of the genesis, forge's CREATE2 deployer starts at
+  nonce 1, and the L2 genesis keeps the deployer when it is a funded dev account.
 - **No runtime recompile.** forge runs against a prebuilt bundle; op-deployer stops forge when it
   starts to compile. Recompiles break the `prepare`→`continue` bundle digest. forge still reads the
   bundle's sources to check its compile cache, so CI jobs that run op-deployer from the checkout need
