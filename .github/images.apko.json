@@ -375,7 +375,7 @@
         "melange/pipelines/op-deployer/embed-artifacts.yaml",
         "melange/pipelines/op-deployer/install-forge.yaml"
       ],
-      "smoke_test": "op-deployer --version,forge --version"
+      "smoke_test": "op-deployer --version,forge --version,anvil --version"
     }
   }
 }

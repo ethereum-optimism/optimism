@@ -23,9 +23,10 @@ async fn parity_replays_report_settled_state_diffs() -> eyre::Result<()> {
             fixture.transaction_hash(index),
             HashSet::from_iter([TraceType::StateDiff, TraceType::Trace]),
         )
-        .await?;
+        .await?
+        .expect("transaction exists");
         assert_eq!(
-            settled_balance(replay.state_diff.as_ref(), fixture.sender),
+            settled_balance(replay.full_trace.state_diff.as_ref(), fixture.sender),
             fixture.replayed_balance(index, fixture.sender).await?,
             "trace_replayTransaction state diff of transaction {index}",
         );

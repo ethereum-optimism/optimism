@@ -14,9 +14,19 @@ interface IVisionPolicyV1 is IPolicy {
     event MaxClearanceAgeSet(uint64 maxClearanceAge);
     event HoldDelaySet(uint64 holdDelay);
 
-    function screen(
+    function screenDeposit(
         BridgeHookTypes.Item calldata _item,
-        address[] calldata _parties
+        Parties calldata _parties
+    )
+        external
+        view
+        override
+        returns (bool pass_);
+    function screenWithdrawal(
+        BridgeHookTypes.Item calldata _item,
+        Parties calldata _parties,
+        uint64 _expiresAt,
+        uint256 _finalizableAt
     )
         external
         view
@@ -24,9 +34,8 @@ interface IVisionPolicyV1 is IPolicy {
         returns (bool pass_);
     function screenRelease(
         BridgeHookTypes.Item calldata _item,
-        address[] calldata _parties,
-        uint64 _clearedAt,
-        uint256 _finalizableAt
+        Parties calldata _parties,
+        uint64 _expiresAt
     )
         external
         view

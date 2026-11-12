@@ -25,8 +25,9 @@ use reth_db_common::init::init_genesis;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_provider::{
-    DatabaseProviderFactory, HashedPostStateProvider, LatestStateProviderRef, StateRootProvider,
-    StorageSettingsCache, test_utils::create_test_provider_factory_with_chain_spec,
+    DatabaseProviderFactory, HashedPostStateProvider, LatestStateProviderRef, StateProvider,
+    StateRootProvider, StorageSettingsCache,
+    test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
 use reth_trie::{HashedPostState, StateRoot};
@@ -208,7 +209,9 @@ fn backfill_then_forward_write_preserves_state_roots() {
         // updates + hashed post-state needed to build a `BlockStateDiff`.
         let (exec, hashed_state, trie_updates) = {
             let provider = provider_factory.provider().unwrap();
-            let db = StateProviderDatabase::new(LatestStateProviderRef::new(&provider));
+            let db = StateProviderDatabase::new(
+                LatestStateProviderRef::new(&provider).into_evm_state_provider(),
+            );
             let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
             let block_executor = evm_config.batch_executor(db);
             let exec = block_executor.execute(&block).unwrap();

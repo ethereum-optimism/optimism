@@ -143,6 +143,12 @@ test-upstream-mirrors:
 check-upstream-mirrors: test-upstream-mirrors
   scripts/upstream-mirrors.py --check
 
+# Fail unless reth is pinned by a release or fork tag, in rust/Cargo.toml and every tracked
+# Cargo.lock, and a fork tag is on its op-<base> branch (asks the GitHub API). A `rev` pin is
+# for draft PRs only.
+check-reth-tag-pin:
+  scripts/upstream-mirrors.py --check-tag-pin
+
 # Check formatting (requires nightly)
 fmt-check:
   cargo +{{NIGHTLY}} fmt --all -- --check
