@@ -244,6 +244,7 @@ commands:
       - github-checkout:
           method: << parameters.checkout-method >>
       - utils/install-mise:
+          trusted_branch: develop
           enable_mise_cache: << parameters.enable-mise-cache >>
           mise_cache_key_prefix: << parameters.mise-cache-key-prefix >>
           mise_cache_checksum: << parameters.mise-cache-checksum >>
