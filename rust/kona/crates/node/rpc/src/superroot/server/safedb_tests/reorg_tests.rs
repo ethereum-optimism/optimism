@@ -7,7 +7,7 @@ use jsonrpsee::{
     server::{Server, ServerHandle},
     types::ErrorObjectOwned,
 };
-use kona_engine::{EngineClient, test_utils::RpcMock};
+use kona_engine::{EngineCaller, EngineClient, EngineRpc, test_utils::RpcMock};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use op_alloy_rpc_types::Transaction;
 use serde_json::Value;
@@ -178,10 +178,11 @@ async fn fixture(recorded_head: u64, mutation: Mutation) -> ReorgFixture {
     let config = Arc::new(config);
     let engine = EngineClient::new(
         RpcMock::default().l1_provider(),
-        EngineClient::rpc_client(
+        EngineRpc::new(
             format!("http://{address}").parse().unwrap(),
             JwtSecret::from_hex("00".repeat(32)).unwrap(),
-        ),
+        )
+        .provider(EngineCaller::Engine),
         config.clone(),
     );
     let sync_state = EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {

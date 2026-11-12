@@ -15,14 +15,13 @@ use anyhow::{Context as _, Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
-use kona_engine::EngineClient;
+use kona_engine::{EngineCaller, EngineRpc};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use kona_providers_alloy::AlloyChainProvider;
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use kona_safedb::{SafeDatabase, SafeDb};
-use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
 use std::{
@@ -271,11 +270,11 @@ impl NodeCommand {
     /// Builds the node's one authenticated engine connection and validates the JWT secret by
     /// exchanging capabilities over it. Since the engine rejects a request signed with the wrong
     /// secret, this ensures that the secret passed as a cli arg is correct before the node starts.
-    pub async fn connect_engine(&self) -> anyhow::Result<RootProvider<Optimism>> {
+    pub async fn connect_engine(&self) -> anyhow::Result<EngineRpc> {
         let jwt_secret = self.l2_jwt_secret()?;
 
-        let engine =
-            EngineClient::rpc_client(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
+        let rpc = EngineRpc::new(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
+        let engine = rpc.provider(EngineCaller::Engine);
 
         let exchange = || async {
             match engine.exchange_capabilities(vec![]).await {
@@ -305,7 +304,7 @@ impl NodeCommand {
                 debug!("Retrying engine capability handshake after {duration:?}");
             })
             .await?;
-        Ok(engine)
+        Ok(rpc)
     }
 
     /// Run the Node subcommand.
@@ -336,14 +335,14 @@ impl NodeCommand {
         // If metrics are enabled, initialize the global cli metrics.
         args.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
 
-        let engine = self.connect_engine().await?;
+        let engine_rpc = self.connect_engine().await?;
 
         self.p2p_flags.check_ports()?;
         let p2p_config = self.p2p_flags.clone().config(&cfg, args, Some(&l1_provider)).await?;
         let rpc_config = self.rpc_flags.clone().into();
 
         let engine_config =
-            EngineConfig { config: Arc::new(cfg.clone()), provider: engine, mode: self.node_mode };
+            EngineConfig { config: Arc::new(cfg.clone()), mode: self.node_mode, rpc: engine_rpc };
 
         let dependency_set = self.load_dependency_set(&cfg)?;
         let safe_db = self.open_safe_db()?;

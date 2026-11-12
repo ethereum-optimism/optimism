@@ -81,7 +81,7 @@ let sequencer_config = SequencerConfig {
 };
 
 // engine_config carries `mode: NodeMode::Sequencer` along with the node's
-// authenticated L2 engine connection, built once with `EngineClient::rpc_client`.
+// authenticated L2 engine connection, built once with `EngineRpc::new`.
 // The L1 client travels in l1_config_builder. A sequencer needs a block
 // signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
 // `version` is the string the node reports as its version over RPC.

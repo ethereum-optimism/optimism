@@ -10,7 +10,7 @@ use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::{ExecutionPayloadV1, JwtSecret, PayloadStatus};
 use alloy_rpc_types_eth::Block;
 use alloy_transport::{
-    RpcError, TransportError, TransportErrorKind, TransportFut, TransportResult,
+    BoxTransport, RpcError, TransportError, TransportErrorKind, TransportFut, TransportResult,
 };
 use alloy_transport_http::{
     AuthLayer, Http, HyperClient,
@@ -54,22 +54,76 @@ pub fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
     })
 }
 
+/// The node's authenticated connection to the L2 engine.
+///
+/// kona-node's `EngineConfig` accepts only this type, so every provider the node builds for the
+/// engine comes from here. Every provider it returns shares one HTTP connection pool, bounds each
+/// request by [`RPC_TIMEOUT`], and records each request in the engine request metrics and logs
+/// under its [`EngineCaller`].
+#[derive(Debug, Clone)]
+pub struct EngineRpc(BoxTransport);
+
+impl EngineRpc {
+    /// Creates the connection to the engine at `addr`, authenticated with `jwt`.
+    pub fn new(addr: Url, jwt: JwtSecret) -> Self {
+        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
+        let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper_client);
+        Self(BoxTransport::new(Http::with_client(HyperClient::with_service(service), addr)))
+    }
+
+    /// Returns a provider over this connection whose requests are recorded under `caller`.
+    pub fn provider(&self, caller: EngineCaller) -> RootProvider<Optimism> {
+        RootProvider::new(
+            ClientBuilder::default()
+                .layer(RequestObservabilityLayer(caller))
+                .layer(MapFutureLayer::new(with_deadline))
+                .transport(self.0.clone(), false),
+        )
+    }
+}
+
+/// The node component that sends a request to the L2 engine. It labels the request's metrics and
+/// logs, so the workloads that share the connection stay separable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EngineCaller {
+    /// The engine actor, and the RPC server's read-only engine queries.
+    Engine,
+    /// The derivation pipeline's L2 reads.
+    Derivation,
+    /// The sequencer's attributes builder's L2 reads.
+    Sequencer,
+}
+
+impl EngineCaller {
+    /// Returns the value of the `caller` metric label and log field.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Engine => "engine",
+            Self::Derivation => "derivation",
+            Self::Sequencer => "sequencer",
+        }
+    }
+}
+
 /// Records metrics and completion logs for L2 execution-layer requests, including failures.
-/// Both observations use the same duration and JSON-RPC method.
+/// Both observations use the same duration, JSON-RPC method and [`EngineCaller`].
 #[derive(Debug, Clone, Copy)]
-struct RequestObservabilityLayer;
+struct RequestObservabilityLayer(EngineCaller);
 
 impl<InnerService> Layer<InnerService> for RequestObservabilityLayer {
     type Service = RequestObservability<InnerService>;
 
     fn layer(&self, inner: InnerService) -> Self::Service {
-        RequestObservability(inner)
+        RequestObservability { inner, caller: self.0 }
     }
 }
 
 /// The transport service that a [`RequestObservabilityLayer`] wraps.
 #[derive(Debug, Clone)]
-struct RequestObservability<InnerService>(InnerService);
+struct RequestObservability<InnerService> {
+    inner: InnerService,
+    caller: EngineCaller,
+}
 
 impl<InnerService> Service<RequestPacket> for RequestObservability<InnerService>
 where
@@ -81,7 +135,7 @@ where
     type Future = TransportFut<'static>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.0.poll_ready(cx)
+        self.inner.poll_ready(cx)
     }
 
     fn call(&mut self, request: RequestPacket) -> Self::Future {
@@ -93,7 +147,8 @@ where
             RequestPacket::Single(request) => (Some(request.id().clone()), 1),
             RequestPacket::Batch(requests) => (None, requests.len()),
         };
-        let response = self.0.call(request);
+        let caller = self.caller.as_str();
+        let response = self.inner.call(request);
         Box::pin(async move {
             let start = Instant::now();
             let response = response.await;
@@ -102,6 +157,7 @@ where
                 Ok(packet) if packet.is_error() => {
                     warn!(
                         target: "engine_rpc",
+                        caller,
                         method,
                         ?id,
                         request_count,
@@ -112,9 +168,24 @@ where
                         "JSON-RPC request completed"
                     );
                 }
-                Ok(_) => {
+                // Engine API calls are rare and change the engine's state, so their completion
+                // is logged at info. Reads, which derivation sends several of per block, are not.
+                Ok(_) if method.starts_with("engine_") => {
                     info!(
                         target: "engine_rpc",
+                        caller,
+                        method,
+                        ?id,
+                        request_count,
+                        ?duration,
+                        result = "success",
+                        "JSON-RPC request completed"
+                    );
+                }
+                Ok(_) => {
+                    debug!(
+                        target: "engine_rpc",
+                        caller,
                         method,
                         ?id,
                         request_count,
@@ -126,6 +197,7 @@ where
                 Err(error) => {
                     warn!(
                         target: "engine_rpc",
+                        caller,
                         method,
                         ?id,
                         request_count,
@@ -136,8 +208,12 @@ where
                     );
                 }
             }
-            metrics::histogram!(Metrics::ENGINE_METHOD_REQUEST_DURATION, "method" => method)
-                .record(duration.as_secs_f64());
+            metrics::histogram!(
+                Metrics::ENGINE_METHOD_REQUEST_DURATION,
+                "method" => method,
+                "caller" => caller,
+            )
+            .record(duration.as_secs_f64());
             response
         })
     }
@@ -232,18 +308,6 @@ impl EngineClient {
     pub fn query_client(&self) -> EngineQueryClient {
         EngineQueryClient { cfg: self.cfg.clone(), engine: self.engine.clone() }
     }
-
-    /// Creates an authenticated L2 provider with request metrics, logs, and a deadline.
-    pub fn rpc_client(addr: Url, jwt: JwtSecret) -> RootProvider<Optimism> {
-        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-        let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper_client);
-        let http_hyper = Http::with_client(HyperClient::with_service(service), addr);
-        let rpc_client = ClientBuilder::default()
-            .layer(RequestObservabilityLayer)
-            .layer(MapFutureLayer::new(with_deadline))
-            .transport(http_hyper, false);
-        RootProvider::new(rpc_client)
-    }
 }
 
 /// Engine API calls use the L2 provider through OP Alloy's blanket implementation.
@@ -275,12 +339,16 @@ mod request_observability_tests {
         }
     }
 
-    /// Sends one request for `method` through a [`RequestObservabilityLayer`] over a transport that
-    /// answers with `response`.
-    fn send(method: &'static str, response: Result<ResponsePacket, TransportError>) {
+    /// Sends one request for `method` from `caller` through a [`RequestObservabilityLayer`] over a
+    /// transport that answers with `response`.
+    fn send(
+        caller: EngineCaller,
+        method: &'static str,
+        response: Result<ResponsePacket, TransportError>,
+    ) {
         let request = Request::new(method, Id::Number(1), ()).serialize().unwrap();
         let mut response = Some(response);
-        let mut service = RequestObservabilityLayer.layer(tower::service_fn(move |_| {
+        let mut service = RequestObservabilityLayer(caller).layer(tower::service_fn(move |_| {
             let response = response.take().expect("the transport is called once");
             async move { response }
         }));
@@ -295,7 +363,7 @@ mod request_observability_tests {
         let subscriber = tracing_subscriber::fmt()
             .without_time()
             .with_ansi(false)
-            .with_max_level(tracing::Level::INFO)
+            .with_max_level(tracing::Level::DEBUG)
             .with_writer(move || writer.clone())
             .finish();
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -303,6 +371,7 @@ mod request_observability_tests {
         let metrics = recorder.handle();
         metrics::with_local_recorder(&recorder, || {
             send(
+                EngineCaller::Engine,
                 "engine_newPayloadV3",
                 Ok(ResponsePacket::Single(Response {
                     id: Id::Number(1),
@@ -314,12 +383,18 @@ mod request_observability_tests {
                     ),
                 })),
             );
-            send("engine_getPayloadV3", Err(TransportErrorKind::custom_str("unreachable")));
             send(
+                EngineCaller::Engine,
+                "engine_getPayloadV3",
+                Err(TransportErrorKind::custom_str("unreachable")),
+            );
+            send(
+                EngineCaller::Derivation,
                 "eth_blockNumber",
                 Ok(serde_json::from_str(r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#).unwrap()),
             );
             send(
+                EngineCaller::Engine,
                 "engine_forkchoiceUpdatedV3",
                 Ok(serde_json::from_str(
                     r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"invalid params"}}"#,
@@ -328,14 +403,14 @@ mod request_observability_tests {
         });
 
         let rendered = metrics.render();
-        for method in [
-            "engine_newPayloadV3",
-            "engine_getPayloadV3",
-            "engine_forkchoiceUpdatedV3",
-            "eth_blockNumber",
+        for (method, caller) in [
+            ("engine_newPayloadV3", "engine"),
+            ("engine_getPayloadV3", "engine"),
+            ("engine_forkchoiceUpdatedV3", "engine"),
+            ("eth_blockNumber", "derivation"),
         ] {
             let count = format!(
-                "{}_count{{method=\"{method}\"}} 1",
+                "{}_count{{method=\"{method}\",caller=\"{caller}\"}} 1",
                 Metrics::ENGINE_METHOD_REQUEST_DURATION
             );
             assert!(rendered.contains(&count), "missing {count} in:\n{rendered}");
@@ -345,17 +420,18 @@ mod request_observability_tests {
         assert_eq!(requests.len(), 4, "{output}");
         assert!(!output.contains("bad state"), "method-specific payloads are opaque: {output}");
         assert!(!output.contains("payload_status="), "{output}");
-        for (method, result, detail) in [
-            ("engine_newPayloadV3", "success", "INFO"),
-            ("engine_getPayloadV3", "error", "unreachable"),
-            ("engine_forkchoiceUpdatedV3", "error", "code=-32602"),
-            ("eth_blockNumber", "success", "INFO"),
+        // A successful Engine API call logs at info; a successful read logs at debug.
+        for (method, caller, result, level, detail) in [
+            ("engine_newPayloadV3", "engine", "success", "INFO", "INFO"),
+            ("engine_getPayloadV3", "engine", "error", "WARN", "unreachable"),
+            ("engine_forkchoiceUpdatedV3", "engine", "error", "WARN", "code=-32602"),
+            ("eth_blockNumber", "derivation", "success", "DEBUG", "DEBUG"),
         ] {
             let log = requests.iter().find(|line| line.contains(method)).unwrap();
             assert!(log.contains(&format!("result=\"{result}\"")), "{log}");
+            assert!(log.contains(&format!("caller=\"{caller}\"")), "{log}");
             assert!(log.contains("duration="), "{log}");
             assert!(log.contains("id="), "{log}");
-            let level = if result == "error" { "WARN" } else { "INFO" };
             assert!(log.contains(level), "{log}");
             assert!(log.contains(detail), "{log}");
         }
@@ -404,7 +480,7 @@ mod request_observability_tests {
                     }
                     let provider = RootProvider::new(
                         ClientBuilder::default()
-                            .layer(RequestObservabilityLayer)
+                            .layer(RequestObservabilityLayer(EngineCaller::Engine))
                             .transport(l2.clone(), true),
                     );
                     let mut config = RollupConfig::default();
@@ -481,6 +557,8 @@ mod request_observability_tests {
 #[cfg(test)]
 mod deadline_tests {
     use super::*;
+    use kona_protocol::BatchValidationProvider;
+    use kona_providers_alloy::AlloyL2ChainProvider;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
@@ -528,32 +606,46 @@ mod deadline_tests {
         time::resume();
     }
 
+    /// Every caller of the engine connection, including derivation's and the sequencer's L2 reads
+    /// through [`AlloyL2ChainProvider`], gives up on a stalled engine at the deadline.
     #[rstest::rstest]
-    #[case::no_response(b"")]
-    #[case::stalled_body(
-        b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 64\r\n\r\n"
-    )]
     #[tokio::test]
-    async fn stalled_engine_requests_have_a_deadline(#[case] response: &'static [u8]) {
+    async fn stalled_engine_requests_have_a_deadline(
+        #[values(b"".as_slice(), b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 64\r\n\r\n".as_slice())]
+        response: &'static [u8],
+        #[values(EngineCaller::Engine, EngineCaller::Derivation, EngineCaller::Sequencer)]
+        caller: EngineCaller,
+    ) {
         let (answered_tx, mut answered) = mpsc::unbounded_channel();
-        let client = EngineClient::new(
-            AlloyChainProvider::new(
-                RootProvider::new_http("http://127.0.0.1:1".parse().unwrap()),
-                std::num::NonZeroUsize::new(8).unwrap(),
-                true,
-            ),
-            EngineClient::rpc_client(
-                stalled_endpoint(response, answered_tx).await,
-                JwtSecret::random(),
-            ),
-            Arc::new(RollupConfig::default()),
-        );
-
-        fails_at_deadline(
-            async move { client.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
-            &mut answered,
-        )
-        .await;
+        let rpc =
+            EngineRpc::new(stalled_endpoint(response, answered_tx).await, JwtSecret::random());
+        let config = Arc::new(RollupConfig::default());
+        match caller {
+            EngineCaller::Engine => {
+                let client = EngineClient::new(
+                    AlloyChainProvider::new(
+                        RootProvider::new_http("http://127.0.0.1:1".parse().unwrap()),
+                        std::num::NonZeroUsize::new(8).unwrap(),
+                        true,
+                    ),
+                    rpc.provider(caller),
+                    config,
+                );
+                fails_at_deadline(
+                    async move { client.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
+                    &mut answered,
+                )
+                .await;
+            }
+            EngineCaller::Derivation | EngineCaller::Sequencer => {
+                let mut provider = AlloyL2ChainProvider::new(rpc.provider(caller), config, 8);
+                fails_at_deadline(
+                    async move { provider.block_by_number(0).await.is_err() },
+                    &mut answered,
+                )
+                .await;
+            }
+        }
     }
 }
 
