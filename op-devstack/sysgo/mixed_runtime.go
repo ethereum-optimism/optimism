@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -404,6 +405,25 @@ func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
 	return out
 }
 
+// defaultMixedTxPoolMinimumPriorityFee is the priority fee, in wei, an op-reth node requires of
+// a dynamic fee transaction unless its config sets one.
+const defaultMixedTxPoolMinimumPriorityFee uint64 = 1
+
+// txPoolNodeArgs returns the node's transaction pool flags: the minimum priority fee, and
+// --txpool.nolocals unless the node keeps reth's local exemptions. op-reth rejects a repeated
+// flag, so these come from the config fields alone and must not also be passed as ExtraArgs.
+func txPoolNodeArgs(cfg *OpRethConfig) []string {
+	minimumPriorityFee := defaultMixedTxPoolMinimumPriorityFee
+	if cfg.TxPoolMinimumPriorityFee != nil {
+		minimumPriorityFee = *cfg.TxPoolMinimumPriorityFee
+	}
+	args := []string{"--txpool.minimum-priority-fee=" + strconv.FormatUint(minimumPriorityFee, 10)}
+	if !cfg.TxPoolLocalExemptions {
+		args = append(args, "--txpool.nolocals")
+	}
+	return args
+}
+
 // buildMixedOpRethNode constructs an OpReth node without starting it.
 func buildMixedOpRethNode(
 	t devtest.T,
@@ -457,14 +477,17 @@ func buildMixedOpRethNode(
 		"--nat=none",
 		"--p2p-secret-key=" + tempP2PPath,
 		"--port=0",
-		"--txpool.minimum-priority-fee=1",
-		"--txpool.nolocals",
 		"--with-unused-ports",
 		"--ws",
 		"--ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",
 		"--ws.addr=127.0.0.1",
 		"--ws.port=0",
 		"-vvvv",
+	}
+
+	args = append(args, txPoolNodeArgs(opRethCfg)...)
+	if opRethCfg.TxConditional {
+		args = append(args, "--rollup.enable-tx-conditional")
 	}
 
 	if areMetricsEnabled() {

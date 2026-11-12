@@ -35,6 +35,7 @@ func (c ErrorCode) IsGenericRPCError() bool {
 // Engine error codes used to be -3200x, but were rebased to -3800x:
 // https://github.com/ethereum/execution-apis/pull/214
 const (
+	TransactionRejected      ErrorCode = -32003 // EIP-1474: the node's pool refused the transaction.
 	MethodNotFound           ErrorCode = -32601 // RPC method not found or not available.
 	InvalidParams            ErrorCode = -32602
 	UnknownPayload           ErrorCode = -38001 // Payload does not exist / is not available.

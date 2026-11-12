@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/stretchr/testify/require"
 )
@@ -66,6 +68,53 @@ func TestOpRethPersistenceScheduleInterval(t *testing.T) {
 			require.Equal(t, tc.expectedInterval, schedule.PersistenceInterval())
 		})
 	}
+}
+
+func TestTxPoolNodeArgs(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		cfg      OpRethConfig
+		wantArgs []string
+	}{
+		{name: "defaults hold every origin to 1 wei", cfg: OpRethConfig{}, wantArgs: []string{"--txpool.minimum-priority-fee=1", "--txpool.nolocals"}},
+		{name: "explicit minimum replaces the default", cfg: OpRethConfig{TxPoolMinimumPriorityFee: ptr.New(uint64(1_000_000_000))}, wantArgs: []string{"--txpool.minimum-priority-fee=1000000000", "--txpool.nolocals"}},
+		{name: "explicit zero disables the minimum", cfg: OpRethConfig{TxPoolMinimumPriorityFee: ptr.New(uint64(0))}, wantArgs: []string{"--txpool.minimum-priority-fee=0", "--txpool.nolocals"}},
+		{name: "local exemptions drop nolocals", cfg: OpRethConfig{TxPoolLocalExemptions: true}, wantArgs: []string{"--txpool.minimum-priority-fee=1"}},
+		{name: "explicit minimum with local exemptions", cfg: OpRethConfig{TxPoolLocalExemptions: true, TxPoolMinimumPriorityFee: ptr.New(uint64(25))}, wantArgs: []string{"--txpool.minimum-priority-fee=25"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.wantArgs, txPoolNodeArgs(&tc.cfg), "unexpected transaction pool flags")
+		})
+	}
+}
+
+func TestOpRethWithTxPoolMinimumPriorityFee(t *testing.T) {
+	for _, wei := range []uint64{0, 25} {
+		t.Run(strconv.FormatUint(wei, 10), func(t *testing.T) {
+			cfg := DefaultOpRethConfig()
+			OpRethWithTxPoolMinimumPriorityFee(wei).Apply(nil, ComponentTarget{}, cfg)
+
+			require.NotNil(t, cfg.TxPoolMinimumPriorityFee, "an explicit minimum, zero included, must be set")
+			require.Equal(t, wei, *cfg.TxPoolMinimumPriorityFee)
+			require.Empty(t, cfg.ExtraArgs, "the minimum is a config field, not an extra arg")
+		})
+	}
+}
+
+func TestOpRethWithTxPoolLocalExemptions(t *testing.T) {
+	cfg := DefaultOpRethConfig()
+	OpRethWithTxPoolLocalExemptions().Apply(nil, ComponentTarget{}, cfg)
+
+	require.True(t, cfg.TxPoolLocalExemptions)
+	require.Empty(t, cfg.ExtraArgs, "the exemptions are a config field, not an extra arg")
+}
+
+func TestOpRethWithTxConditional(t *testing.T) {
+	cfg := DefaultOpRethConfig()
+	OpRethWithTxConditional().Apply(nil, ComponentTarget{}, cfg)
+
+	require.True(t, cfg.TxConditional)
+	require.Empty(t, cfg.ExtraArgs, "tx conditionals are a config field, not an extra arg")
 }
 
 func newStoppedOpReth(gt *testing.T, execPath string) *OpReth {
