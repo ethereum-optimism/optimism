@@ -350,7 +350,9 @@ impl Discv5Driver {
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Returns a [`Discv5Handler`] to communicate with the spawned task, and a receiver of the
-    /// valid ENRs it discovers.
+    /// records for gossip to dial: those of the peers discovery has a session with, at the address
+    /// the session came from, and the saved records, at startup and again every store interval, so
+    /// that gossip redials the peers it lost. It doesn't yield the results of lookups.
     ///
     /// The task is detached and stops when:
     /// - startup fails: [`Discv5`] does not start after `START_MAX_RETRIES` retries with
