@@ -206,6 +206,11 @@ impl TestNetworkBuilder {
 
     /// Builds and starts one node, which bootstraps discovery from `bootnodes`.
     pub(crate) async fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
+        self.build_with_bootnodes(bootnodes.into_iter().map(Into::into).collect()).await
+    }
+
+    /// Like [`Self::build`], but with bootnodes that can also be enode URLs.
+    pub(crate) async fn build_with_bootnodes(&mut self, bootnodes: Vec<BootNode>) -> TestNetwork {
         // A `/memory` address has no TCP port for the ENR to advertise, so the network would fail
         // to start.
         assert!(
@@ -252,7 +257,7 @@ impl TestNetworkBuilder {
             discovery_config,
         )
         .with_discovery_enabled(self.discovery_enabled)
-        .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into())
+        .with_bootnodes(bootnodes.into())
         .with_static_peers(std::mem::take(&mut self.static_peers));
         if let Some(interval) = self.discovery_interval {
             builder = builder.with_discovery_interval(interval);
@@ -365,7 +370,7 @@ fn secp256k1_secret(keypair: &Keypair) -> [u8; 32] {
 }
 
 /// The key a node with `keypair` signs its ENR with.
-fn local_node_key(keypair: &Keypair) -> enr::k256::ecdsa::SigningKey {
+pub(crate) fn local_node_key(keypair: &Keypair) -> enr::k256::ecdsa::SigningKey {
     enr::k256::ecdsa::SigningKey::from_bytes(&secp256k1_secret(keypair).into())
         .expect("libp2p secp256k1 secret is a valid k256 key")
 }

@@ -3,12 +3,16 @@ use std::{
     time::Duration,
 };
 
-use crate::actors::network::mocks::{TestNetwork, builder::TestNetworkBuilder};
+use crate::actors::network::mocks::{
+    TestNetwork,
+    builder::{TestNetworkBuilder, local_node_key},
+};
 use discv5::Enr;
 use enr::NodeId;
 use kona_genesis::OP_MAINNET_CHAIN_ID;
 use kona_gossip::PeerAddr;
 use kona_node_service::IpVotes;
+use kona_peers::BootNode;
 use kona_rpc::OpP2PApiServer;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 
@@ -300,6 +304,77 @@ async fn test_sequencer_with_its_sentry_as_static_peer_stays_hidden() -> anyhow:
     );
 
     Ok(())
+}
+
+/// Nodes of a chain find each other through a bootnode of no chain, as OP Mainnet's built-in enode
+/// bootnodes are: their records have no `opstack` key. Such a bootnode isn't a peer of any chain,
+/// so it isn't saved or dialed, but it stays in the nodes' discovery tables as an entry point for
+/// lookups, which find the nodes of every chain.
+///
+/// B is a bare discv5 node, given to N1 and N2 by enode URL.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_nodes_find_each_other_through_a_bootnode_of_no_chain() -> anyhow::Result<()> {
+    let (bootnode, enode) = start_bootnode_of_no_chain().await?;
+    let bootnode_id = bootnode.local_enr().node_id();
+
+    let mut builder = TestNetworkBuilder::new().with_discovery_interval(Duration::from_millis(100));
+    let node_1 = builder.build_with_bootnodes(vec![enode.clone()]).await;
+    let node_2 = builder.build_with_bootnodes(vec![enode]).await;
+
+    node_1.check_connected_to_with_retries(&node_2).await?;
+    node_1.check_in_discovery_table_with_retries(bootnode_id).await?;
+    node_2.check_in_discovery_table_with_retries(bootnode_id).await?;
+
+    Ok(())
+}
+
+/// Nodes of one chain find each other through a kona node of another chain as their bootnode: its
+/// discovery table holds the nodes of every chain, and its gossip dials only those of its own. The
+/// nodes don't dial it either, as it isn't a peer of their chain.
+///
+/// B is on one chain. N1 and N2 are on another, and have B's ENR as their bootnode.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_nodes_find_each_other_through_a_bootnode_of_another_chain() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().with_discovery_interval(Duration::from_millis(100));
+    let bootnode = builder.build(vec![]).await;
+    let bootnode_enr = bootnode.peer_enr().await?;
+
+    let mut builder = builder.with_chain_id(rand::random());
+    let node_1 = builder.build(vec![bootnode_enr.clone()]).await;
+    let node_2 = builder.build(vec![bootnode_enr]).await;
+
+    // TODO: fails today. `bootstrap_peers` adds a bootnode given by ENR to the table only if it is
+    // a peer of the node's chain, so N1 and N2 have no entry point and never find each other.
+    node_1.check_connected_to_with_retries(&node_2).await?;
+    for node in [&node_1, &node_2] {
+        assert!(
+            !node.is_connected_to(&bootnode).await?,
+            "a node dialed a bootnode of another chain"
+        );
+    }
+
+    Ok(())
+}
+
+/// Starts a bootnode of no chain, as OP Mainnet's built-in enode bootnodes are: a bare discv5 node
+/// on loopback, whose record has no `opstack` key and no TCP port. Returns it, to keep it running,
+/// with its enode URL.
+async fn start_bootnode_of_no_chain() -> anyhow::Result<(discv5::Discv5, BootNode)> {
+    let keypair = Keypair::generate_secp256k1();
+    let key = enr::CombinedKey::Secp256k1(local_node_key(&keypair));
+    let port = free_udp_port();
+    let enr = Enr::builder().ip4(Ipv4Addr::LOCALHOST).udp4(port).build(&key)?;
+    let config = discv5::ConfigBuilder::new(discv5::ListenConfig::from_ip(
+        IpAddr::V4(Ipv4Addr::LOCALHOST),
+        port,
+    ))
+    .build();
+    let mut bootnode = discv5::Discv5::new(enr, key, config).map_err(anyhow::Error::msg)?;
+    bootnode.start().await.map_err(|e| anyhow::anyhow!("{e:?}"))?;
+    let enode = Multiaddr::from(Ipv4Addr::LOCALHOST)
+        .with(Protocol::Udp(port))
+        .with(Protocol::P2p(keypair.public().to_peer_id()));
+    Ok((bootnode, BootNode::Enode(enode)))
 }
 
 /// Nodes gossiping over the in-memory transport, without discovery, connect through the
