@@ -16,7 +16,6 @@ dep-status:
 ########################################################
 
 # Core forge build command.
-
 forge-build *ARGS:
   forge build {{ARGS}}
 
