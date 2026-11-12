@@ -97,3 +97,17 @@ func TestForkchoiceUpdateSeedsLocalSafeWithGenesisSafe(t *testing.T) {
 	require.Equal(t, genesis, status.LocalSafeL2)
 	require.Equal(t, genesis, status.FinalizedL2)
 }
+
+func TestL1RefGetter(t *testing.T) {
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{})
+	rng := rand.New(rand.NewSource(1))
+	head, safe, finalized := testutils.RandomBlockRef(rng), testutils.RandomBlockRef(rng), testutils.RandomBlockRef(rng)
+	tracker.OnL1Unsafe(head)
+	tracker.OnL1Safe(safe)
+	tracker.OnL1Finalized(finalized)
+
+	require.Equal(t, head, tracker.L1RefGetter(eth.Unsafe)())
+	require.Equal(t, safe, tracker.L1RefGetter(eth.Safe)())
+	require.Equal(t, finalized, tracker.L1RefGetter(eth.Finalized)())
+	require.Panics(t, func() { tracker.L1RefGetter("pending") })
+}

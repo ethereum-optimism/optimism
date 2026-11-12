@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -147,16 +148,17 @@ func (st *StatusTracker) L1Head() eth.L1BlockRef {
 	return st.SyncStatus().HeadL1
 }
 
-// L1RefGetter returns a getter for the tracked L1 block with the given label.
-// Any label other than safe or finalized returns the L1 head.
+// L1RefGetter returns a getter for the tracked L1 block with the given label: latest, safe or finalized.
 func (st *StatusTracker) L1RefGetter(label eth.BlockLabel) func() eth.L1BlockRef {
 	switch label {
 	case eth.Safe:
 		return func() eth.L1BlockRef { return st.SyncStatus().SafeL1 }
 	case eth.Finalized:
 		return func() eth.L1BlockRef { return st.SyncStatus().FinalizedL1 }
-	default:
+	case eth.Unsafe:
 		return st.L1Head
+	default:
+		panic(fmt.Sprintf("unsupported L1 block label %q", label))
 	}
 }
 

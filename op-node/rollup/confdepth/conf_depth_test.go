@@ -34,7 +34,7 @@ func (ct *confTest) Run(t *testing.T) {
 	}
 	l1HeadGetter := func() eth.L1BlockRef { return l1Head }
 
-	cd := NewConfDepth(ct.depth, l1HeadGetter, l1Fetcher)
+	cd := NewConfDepth(ct.depth, eth.Unsafe, l1HeadGetter, l1Fetcher)
 	if ct.pass {
 		// no calls to the l1Fetcher are made if the confirmation depth of the request is not met
 		l1Fetcher.ExpectL1BlockRefByNumber(ct.req, mockL1BlockRef(ct.req), nil)
@@ -95,7 +95,7 @@ func (ct *labeledConfTest) Run(t *testing.T) {
 		l1Fetcher.ExpectL1BlockRefByNumber(ct.req, mockL1BlockRef(ct.req), nil)
 	}
 
-	cd := NewConfDepthFromLabel(ct.depth, ct.label, func() eth.L1BlockRef { return tracked }, l1Fetcher)
+	cd := NewConfDepth(ct.depth, ct.label, func() eth.L1BlockRef { return tracked }, l1Fetcher)
 	out, err := cd.L1BlockRefByNumber(context.Background(), ct.req)
 	l1Fetcher.AssertExpectations(t)
 	if ct.pass {
@@ -117,7 +117,6 @@ func TestConfDepthFromLabel(t *testing.T) {
 		{name: "safe not tracked fetches", label: eth.Safe, fetched: 10, req: 9, depth: 1, pass: true},
 		{name: "safe not tracked fetches and hides", label: eth.Safe, fetched: 10, req: 11, depth: 0, pass: false},
 		{name: "safe genesis", label: eth.Safe, tracked: 10, req: 0, depth: 4, pass: true},
-		{name: "empty label is latest", label: "", req: 10, depth: 4, pass: true},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, tc.Run)
@@ -129,7 +128,7 @@ func TestConfDepthFromLabelFetchError(t *testing.T) {
 	fetchErr := errors.New("rpc down")
 	l1Fetcher.ExpectL1BlockRefByLabel(eth.Safe, eth.L1BlockRef{}, fetchErr)
 
-	cd := NewConfDepthFromLabel(1, eth.Safe, func() eth.L1BlockRef { return eth.L1BlockRef{} }, l1Fetcher)
+	cd := NewConfDepth(1, eth.Safe, func() eth.L1BlockRef { return eth.L1BlockRef{} }, l1Fetcher)
 	_, err := cd.L1BlockRefByNumber(context.Background(), 5)
 	l1Fetcher.AssertExpectations(t)
 	require.ErrorIs(t, err, fetchErr)

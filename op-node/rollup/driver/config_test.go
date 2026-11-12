@@ -16,6 +16,14 @@ func TestConfigCheckL1BlockTag(t *testing.T) {
 		require.NoError(t, (&Config{SequencerL1BlockTag: label}).Check(), "label %q", label)
 	}
 	require.ErrorContains(t, (&Config{SequencerL1BlockTag: eth.Finalized}).Check(), "max sequencer drift")
-	require.ErrorContains(t, (&Config{VerifierL1BlockTag: "pending"}).Check(), "verifier")
-	require.ErrorContains(t, (&Config{SequencerL1BlockTag: "Safe"}).Check(), "sequencer")
+	require.ErrorContains(t, (&Config{VerifierL1BlockTag: "pending"}).Check(), "invalid verifier L1 block tag")
+	require.ErrorContains(t, (&Config{SequencerL1BlockTag: "Safe"}).Check(), "invalid sequencer L1 block tag")
+}
+
+func TestConfigL1Labels(t *testing.T) {
+	require.Equal(t, eth.BlockLabel(eth.Unsafe), (&Config{}).VerifierL1Label())
+	require.Equal(t, eth.BlockLabel(eth.Unsafe), (&Config{}).SequencerL1Label())
+	cfg := &Config{VerifierL1BlockTag: eth.Finalized, SequencerL1BlockTag: eth.Safe}
+	require.Equal(t, eth.BlockLabel(eth.Finalized), cfg.VerifierL1Label())
+	require.Equal(t, eth.BlockLabel(eth.Safe), cfg.SequencerL1Label())
 }

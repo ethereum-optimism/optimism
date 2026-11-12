@@ -22,16 +22,9 @@ type confDepth struct {
 	depth uint64
 }
 
-func NewConfDepth(depth uint64, l1Head func() eth.L1BlockRef, fetcher derive.L1Fetcher) *confDepth {
-	return NewConfDepthFromLabel(depth, eth.Unsafe, l1Head, fetcher)
-}
-
-// NewConfDepthFromLabel counts the confirmation depth from the L1 block with the given label,
-// as returned by l1Ref. An empty label is treated as latest.
-func NewConfDepthFromLabel(depth uint64, label eth.BlockLabel, l1Ref func() eth.L1BlockRef, fetcher derive.L1Fetcher) *confDepth {
-	if label == "" {
-		label = eth.Unsafe
-	}
+// NewConfDepth counts the confirmation depth from the L1 block with the given label (latest, safe or
+// finalized), as returned by l1Ref.
+func NewConfDepth(depth uint64, label eth.BlockLabel, l1Ref func() eth.L1BlockRef, fetcher derive.L1Fetcher) *confDepth {
 	return &confDepth{L1Fetcher: fetcher, l1Ref: l1Ref, label: label, depth: depth}
 }
 

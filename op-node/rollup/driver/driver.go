@@ -58,8 +58,9 @@ func NewDriver(
 	l1Tracker := status.NewL1Tracker(l1)
 
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
-	verifConfDepth := confdepth.NewConfDepthFromLabel(driverCfg.VerifierConfDepth, driverCfg.VerifierL1BlockTag,
-		statusTracker.L1RefGetter(driverCfg.VerifierL1BlockTag), l1)
+	verifLabel := driverCfg.VerifierL1Label()
+	warnIfSafeLabel(log, "verifier", verifLabel)
+	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, verifLabel, statusTracker.L1RefGetter(verifLabel), l1)
 
 	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, l1, sys.Register("engine-controller", nil), superAuthority)
 	// TODO(#17115): Refactor dependency cycles
@@ -109,8 +110,9 @@ func NewDriver(
 	if driverCfg.SequencerEnabled {
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, l2)
-		sequencerConfDepth := confdepth.NewConfDepthFromLabel(driverCfg.SequencerConfDepth, driverCfg.SequencerL1BlockTag,
-			statusTracker.L1RefGetter(driverCfg.SequencerL1BlockTag), l1)
+		seqLabel := driverCfg.SequencerL1Label()
+		warnIfSafeLabel(log, "sequencer", seqLabel)
+		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, seqLabel, statusTracker.L1RefGetter(seqLabel), l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
 
@@ -550,4 +552,14 @@ func (s *Driver) followUpstream() *sources.FollowStatus {
 		}
 	}
 	return status
+}
+
+// warnIfSafeLabel warns that counting confirmations from the L1 safe block only makes sense on an L1 with the
+// Fast Confirmation Rule. Without it, safe is the justified checkpoint, one to two epochs behind the head, and
+// a sequencer stops producing blocks whenever safe trails the head by more than the max sequencer drift.
+func warnIfSafeLabel(log log.Logger, role string, label eth.BlockLabel) {
+	if label == eth.Safe {
+		log.Warn("Counting L1 confirmations from the safe block. This requires an L1 that serves Fast Confirmation Rule safe blocks.",
+			"role", role)
+	}
 }

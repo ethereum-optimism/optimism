@@ -24,8 +24,8 @@ type Config struct {
 	SequencerConfDepth uint64 `json:"sequencer_conf_depth"`
 
 	// SequencerL1BlockTag is the L1 block (latest or safe) that SequencerConfDepth is counted from.
-	// An empty value means latest. Finalized is not supported: on Ethereum it trails the head by more than
-	// a typical rollup.Config.MaxSequencerDrift, so the sequencer could only produce deposit-only blocks.
+	// An empty value means latest. Finalized is not supported: on Ethereum it can trail the head by more than
+	// rollup.Config.MaxSequencerDrift, and the sequencer stops producing blocks while its next origin is hidden.
 	SequencerL1BlockTag eth.BlockLabel `json:"sequencer_l1_block_tag,omitempty"`
 
 	// SequencerEnabled is true when the driver should sequence new blocks.
@@ -47,25 +47,33 @@ type Config struct {
 	Finalizer *finality.Config `json:"finalizer,omitempty"`
 }
 
+// VerifierL1Label is the L1 block label that VerifierConfDepth is counted from.
+func (c *Config) VerifierL1Label() eth.BlockLabel {
+	return labelOrLatest(c.VerifierL1BlockTag)
+}
+
+// SequencerL1Label is the L1 block label that SequencerConfDepth is counted from.
+func (c *Config) SequencerL1Label() eth.BlockLabel {
+	return labelOrLatest(c.SequencerL1BlockTag)
+}
+
+func labelOrLatest(label eth.BlockLabel) eth.BlockLabel {
+	if label == "" {
+		return eth.Unsafe
+	}
+	return label
+}
+
 // Check verifies that the L1 block tags are supported.
 func (c *Config) Check() error {
-	if err := checkL1BlockTag(c.VerifierL1BlockTag); err != nil {
+	if err := eth.CheckConfirmationLabel(c.VerifierL1BlockTag); err != nil {
 		return fmt.Errorf("invalid verifier L1 block tag: %w", err)
 	}
-	if err := checkL1BlockTag(c.SequencerL1BlockTag); err != nil {
+	if err := eth.CheckConfirmationLabel(c.SequencerL1BlockTag); err != nil {
 		return fmt.Errorf("invalid sequencer L1 block tag: %w", err)
 	}
 	if c.SequencerL1BlockTag == eth.Finalized {
 		return fmt.Errorf("invalid sequencer L1 block tag: %q would exceed the max sequencer drift", eth.Finalized)
 	}
 	return nil
-}
-
-func checkL1BlockTag(label eth.BlockLabel) error {
-	switch label {
-	case "", eth.Unsafe, eth.Safe, eth.Finalized:
-		return nil
-	default:
-		return fmt.Errorf("%q is not one of %q, %q or %q", label, eth.Unsafe, eth.Safe, eth.Finalized)
-	}
 }
