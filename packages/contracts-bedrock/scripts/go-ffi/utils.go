@@ -7,12 +7,12 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type OutputRootWithChainId struct {
@@ -174,7 +174,7 @@ func makeDepositTx(
 	data []byte,
 	l1BlockHash common.Hash,
 	logIndex *big.Int,
-) optypes.DepositTx {
+) types.DepositTx {
 	// Create deposit transaction source
 	udp := derive.UserDepositSource{
 		L1BlockHash: l1BlockHash,
@@ -182,7 +182,7 @@ func makeDepositTx(
 	}
 
 	// Create deposit transaction
-	depositTx := optypes.DepositTx{
+	depositTx := types.DepositTx{
 		SourceHash:          udp.SourceHash(),
 		From:                from,
 		Value:               value,
