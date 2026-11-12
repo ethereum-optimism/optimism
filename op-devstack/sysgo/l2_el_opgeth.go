@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
@@ -39,6 +40,7 @@ type OpGeth struct {
 }
 
 var _ L2ELNode = (*OpGeth)(nil)
+var _ stack.Wipeable = (*OpGeth)(nil)
 
 func (n *OpGeth) UserRPC() string {
 	return n.userRPC
@@ -143,6 +145,14 @@ func (n *OpGeth) Stop() {
 	closeErr := n.l2Geth.Close()
 	n.logger.Info("Closed op-geth", "name", n.name, "chain", n.l2Net.ChainID(), "err", closeErr)
 	n.l2Geth = nil
+}
+
+// Wipe is a no-op beyond checking that the node is stopped: op-geth runs with
+// in-memory storage, so Stop already discards its chain data.
+func (n *OpGeth) Wipe() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().Nil(n.l2Geth, "op-geth %s must be stopped before wiping", n.name)
 }
 
 // Callers must hold n.mu.

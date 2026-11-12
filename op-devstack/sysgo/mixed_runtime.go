@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -408,7 +407,6 @@ func buildMixedOpRethNode(
 	t.Require().NoError(os.WriteFile(chainConfigPath, data, 0o640), "must write genesis file")
 
 	dataDirPath := filepath.Join(tempDir, "data")
-	t.Require().NoError(os.MkdirAll(dataDirPath, 0o755), "must create datadir")
 
 	logDirPath := filepath.Join(tempDir, "logs")
 	t.Require().NoError(os.MkdirAll(logDirPath, 0o755), "must create logs dir")
@@ -467,26 +465,23 @@ func buildMixedOpRethNode(
 		args = append(args, "--metrics=127.0.0.1:0")
 	}
 
-	initArgs := []string{
+	dataDirs := []string{dataDirPath}
+	initCmds := [][]string{{
 		"init",
 		"--datadir=" + dataDirPath,
 		"--chain=" + chainConfigPath,
-	}
-	initOut, err := exec.Command(execPath, initArgs...).CombinedOutput()
-	t.Require().NoError(err, "must init op-reth node: %s", string(initOut))
+	}}
 
 	if !opRethCfg.DisableProofsHistory {
 		proofHistoryDir := filepath.Join(tempDir, "proof-history")
-
-		initProofsArgs := []string{
+		dataDirs = append(dataDirs, proofHistoryDir)
+		initCmds = append(initCmds, []string{
 			"proofs",
 			"init",
 			"--datadir=" + dataDirPath,
 			"--chain=" + chainConfigPath,
 			"--proofs-history.storage-path=" + proofHistoryDir,
-		}
-		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
+		})
 
 		args = append(
 			args,
@@ -498,7 +493,7 @@ func buildMixedOpRethNode(
 
 	args = append(args, opRethCfg.ExtraArgs...)
 
-	return &OpReth{
+	node := &OpReth{
 		name:               key,
 		chainID:            l2Net.ChainID(),
 		jwtPath:            jwtPath,
@@ -508,9 +503,13 @@ func buildMixedOpRethNode(
 		execPath:           execPath,
 		args:               args,
 		env:                []string{},
+		dataDirs:           dataDirs,
+		initCmds:           initCmds,
 		p:                  t,
 		l2MetricsRegistrar: metricsRegistrar,
 	}
+	node.initData()
+	return node
 }
 
 func startMixedOpRethNode(

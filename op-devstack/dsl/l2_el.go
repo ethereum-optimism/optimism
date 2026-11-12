@@ -531,6 +531,15 @@ func (el *L2ELNode) Start() {
 	lifecycle.Start()
 }
 
+// Wipe discards the stopped node's chain data so the next Start begins from genesis.
+// Stop alone does not guarantee this: op-reth keeps its datadir across restarts.
+func (el *L2ELNode) Wipe() {
+	el.log.Info("Wiping", "name", el.inner.Name())
+	wipeable, ok := el.inner.(stack.Wipeable)
+	el.require.Truef(ok, "L2EL node %s is not wipeable", el.inner.Name())
+	wipeable.Wipe()
+}
+
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }
