@@ -90,10 +90,11 @@ export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
 | `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | 차단 기간: 차단된 피어는 연결이 끊기며, 차단이 만료되거나 [`opp2p_unblockPeer`](/ko/node-operators/kona-node/rpc/p2p#opp2p_unblockpeer)로 해제될 때까지 양방향 연결이 거부됩니다. 차단은 재시작 후에는 유지되지 않습니다 | `60` |
 | `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | 피어 탐색 간격 | `5` |
 | `--p2p.discovery.ip-votes <N>` | `KONA_NODE_P2P_DISCOVERY_IP_VOTES` | 노드가 외부 주소를 알리기 전에 같은 주소를 보고해야 하는 피어 수로, 최소 `2`입니다. `--p2p.advertise.ip`를 사용하면 무시됩니다. 투표 수가 적을수록 더 적은 피어가 주소를 결정하므로, 공개 네트워크에서는 기본값을 유지하십시오. op-node에는 이러한 플래그가 없으며 임계값이 `10`으로 고정되어 있습니다. [알리는 주소](#advertised-address)를 참고하십시오 | `10` |
+| `--p2p.discovery.private` | `KONA_NODE_P2P_DISCOVERY_PRIVATE` | devnet에서처럼, 탐색이 다른 노드의 레코드와 bootnode에 있는 loopback 및 LAN 주소 등 공개되지 않은 주소를 사용하도록 허용합니다. [탐색된 주소](#discovered-addresses)를 참조하십시오 | `false` |
 | `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | bootstore를 저장할 디렉터리 | - |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | 피어 재연결(redial) 임계값 | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | 피어 연결 시도 주기 | `60` |
-| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | bootnode ENR 또는 enode URL 목록 | - |
+| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | bootnode ENR 또는 enode URL 목록입니다. 공개되지 않은 주소에 있는 bootnode에는 `--p2p.discovery.private`가 필요합니다. [탐색된 주소](#discovered-addresses)를 참조하십시오 | - |
 | `--p2p.static-peers <MULTIADDR,...>` | `KONA_NODE_P2P_STATIC_PEERS` | 시작 시 연결하고 연결을 유지할 피어입니다. [정적 피어](#static-peers)를 참조하십시오. 별칭: `--p2p.static` | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | 토픽 점수 산정 활성화 | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | 탐색 결과에서 무작위 피어 제거 | - |
@@ -130,6 +131,29 @@ devnet이나 로컬 테스트 네트워크처럼 노드의 bootnode를 제외하
 op-node는 listen IP를 알리지 않습니다. `--p2p.advertise.ip`가 없으면 op-node는 임계값이 10으로 고정된 피어 투표를 통해 자신의 주소를 알아냅니다. 따라서 op-node는 특정 주소에서 수신 대기하는 경우에도 작은 네트워크에서는 `--p2p.advertise.ip`가 필요합니다.
 
 </Info>
+
+### 탐색된 주소 {#discovered-addresses}
+
+<Unreleased component="kona-node" />
+
+다른 노드가 이 노드에 전달하는 레코드에는 다른 호스트의 `127.0.0.1`처럼 이 노드가 접근할 수 없는 주소나, 아예 노드가 아닌 호스트가 담겨 있을 수 있습니다. 따라서 노드는 다음 두 가지 규칙을 따릅니다.
+
+- **bootnode를 제외하면, 노드는 탐색이 세션을 맺은 노드에만 연결하며, 그 레코드의 TCP 주소가 세션이 들어온 IP와 같은 경우에만 연결합니다.** 노드는 이러한 레코드와 자신의 체인의 bootnode를 bootstore에 저장하고(아래에서 설명하는 비공개 레코드는 제외), 시작 시와 이후 1분마다 gossip에 전달하여 잃어버린 피어에 다시 연결합니다. 다른 호스트를 가리키는 레코드는 버려집니다. 정적 피어와 [`opp2p_connectPeer`](/ko/node-operators/kona-node/rpc/p2p#opp2p_connectpeer)는 지정된 그대로 연결됩니다.
+- **`--p2p.discovery.private`가 설정되지 않으면 탐색은 공개 주소만 사용합니다.** "this network"(`0.0.0.0/8`), loopback, private, link-local, shared(`100.64.0.0/10`), IETF protocol assignment(`192.0.0.0/24`), benchmarking(`198.18.0.0/15`), reserved(`240.0.0.0/4`), multicast, broadcast 또는 documentation 주소를 가진 레코드는 연락 대상이 되지 않으며, 탐색 테이블에 보관되거나 저장되지도 않습니다. 단, 해당 노드가 이 노드와 세션을 시작한 경우는 예외이며(아래 참조), bootstore는 시작 시 이러한 레코드를 버립니다. 일부 클라우드와 실험 환경은 benchmarking 및 reserved 범위를 내부 주소로 사용합니다. 이 규칙은 ENR 또는 enode URL로 지정한 bootnode에도 적용되므로, loopback 또는 LAN bootnode를 사용하는 devnet에는 이 플래그가 필요합니다. anycast 및 NAT64 주소와 같은 그 밖의 특수 목적 범위는 공개 주소로 간주됩니다.
+
+`externalTrafficPolicy: Cluster`(기본값)를 사용하는 Kubernetes Service 뒤에서는 다른 노드의 패킷이 원래 IP가 아닌 클러스터 노드의 IP에서 이 노드에 도달합니다. 그러면 이 노드와 세션을 시작한 노드가 자신의 레코드와 일치하지 않으므로 연결 대상이 되지 않으며, 노드는 op-node보다 적은 피어를 찾게 됩니다. 노드가 직접 시작한 세션은 영향을 받지 않습니다. 송신자의 IP를 유지하려면 `externalTrafficPolicy: Local`을 설정하십시오.
+
+`--p2p.discovery.private`가 없으면 노드는 비공개 주소에 먼저 연락하지 않습니다. 비공개 주소에 있는 노드가 이 노드와 세션을 시작하면, 어차피 gossip을 통해 이 노드에 연결할 수 있으므로 세션이 들어온 주소로 다시 연결합니다. 하지만 이 노드는 저장되지 않으므로 재시작 후에는 연결되지 않습니다. VPC 내 이웃 노드와 같은 비공개 노드와 피어링하려면 이 플래그를 설정하거나 `--p2p.static-peers`에 해당 노드를 나열하십시오. 또한 탐색은 세션을 맺은 노드를 테이블에 보관하고, 해당 노드를 조회하는 노드에 그 레코드를 전달합니다. 레코드를 요청하는 노드와 대조하여 확인할 수 없기 때문입니다. 이러한 규칙을 따르는 노드는 이런 방식으로 받은 비공개 레코드에 연락하지 않습니다.
+
+<Info>
+
+sequencer와 같은 노드를 공개 sentry 노드 뒤에 두려면, 해당 노드를 `--p2p.no-discovery`로 실행하고, 그 노드의 `--p2p.static-peers`에 sentry를 나열하고, sentry의 `--p2p.static-peers`에 해당 노드를 나열하십시오. [정적 피어](#static-peers)와 [탐색 없이 실행하기](#running-without-discovery)를 참조하십시오. 정적 피어는 직접 연결되고, 1분마다 다시 연결되며, 탐색을 통해 전달되지 않습니다.
+
+노드가 대신 sentry를 대상으로 탐색을 실행하면 정보가 유출되며, sentry 뒤에 머물지도 못합니다. sentry는 이 노드를 테이블에 보관하고, 노드 ID와 LAN 주소가 담긴 레코드를 이 노드를 조회하는 모든 노드에 전달합니다. 또한 노드는 sentry를 통해 sentry의 다른 피어를 찾아 직접 연결합니다.
+
+</Info>
+
+Lighthouse와 마찬가지로 kona-node는 고정된 규칙을 사용합니다. 반면 op-node는 각 레코드를 해당 레코드를 반환한 노드와 대조하여 확인하므로, 플래그 없이도 LAN 이웃으로부터 받은 LAN 레코드를 수락합니다.
 
 ### 정적 피어 {#static-peers}
 

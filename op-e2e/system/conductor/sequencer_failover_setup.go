@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
@@ -82,9 +83,9 @@ func setupSequencerFailoverTest(t *testing.T) (*e2esys.System, map[string]*condu
 
 	// start sequencing on leader
 	lid, _ := findLeader(t, conductors)
-	unsafeHead, err := sys.NodeClient(lid).BlockByNumber(ctx, nil)
+	unsafeHead, err := sys.NodeClient(lid).HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
-	require.Equal(t, uint64(0), unsafeHead.NumberU64())
+	require.Equal(t, uint64(0), bigs.Uint64Strict(unsafeHead.Number))
 	require.NoError(t, sys.RollupClient(lid).StartSequencer(ctx, unsafeHead.Hash()))
 
 	// 1 batcher that listens to all 3 sequencers, in started mode.

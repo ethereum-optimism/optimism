@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -17,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -140,7 +140,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 		var sequencerFeeVaultInitialBalance *big.Int
 		var operatorFeeVaultInitialBalance *big.Int
 
-		var receipt *types.Receipt
+		var receipt *optypes.Receipt
 
 		switch testCfg.Custom {
 		case NormalTx, IsthmusTransitionBlock:
@@ -209,13 +209,13 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			require.NoError(t, err, "failed to RLP encode transaction")
 
 			unsafeHeader := env.Engine.LatestHeader(t)
-			_, l1InfoDeposit, err := env.Engine.SourceClient(t, 10).InfoAndFirstDepositByHash(t.Ctx(), unsafeHeader.Hash())
+			_, l1InfoDeposit, err := env.Engine.SourceClient().InfoAndFirstDepositByHash(t.Ctx(), unsafeHeader.Hash())
 			require.NoError(t, err)
-			nextBaseFee := eip1559.CalcBaseFee(
-				env.Sd.L2Cfg.Config.GethChainConfig(),
-				unsafeHeader,
-				unsafeHeader.Time+env.Sd.RollupCfg.BlockTime,
-			)
+			// The fee history of the unsafe head ends with the base fee of the block after it.
+			feeHistory, err := env.Engine.EthClient().FeeHistory(t.Ctx(), 1, unsafeHeader.Number, nil)
+			require.NoError(t, err)
+			require.Len(t, feeHistory.BaseFee, 2)
+			nextBaseFee := feeHistory.BaseFee[1]
 
 			l1BlockInfo, err := derive.L1BlockInfoFromBytes(env.Sd.RollupCfg, unsafeHeader.Time, l1InfoDeposit.Data)
 			require.NoError(t, err)
@@ -389,7 +389,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			reorgedUnsafe := env.Engine.LatestHeader(t)
 			require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(reorgedUnsafe), "reorged unsafe block is the same")
 
-			deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2SafeHead.Hash())
+			deposits, userTxs := env.Engine.BlockTxs(t, l2SafeHead.Hash())
 			require.Len(t, deposits, 1)
 			if env.Sd.RollupCfg.IsIsthmus(l2SafeHead.Time) {
 				require.Empty(t, userTxs)

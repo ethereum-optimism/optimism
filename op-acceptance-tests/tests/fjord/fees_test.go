@@ -30,7 +30,7 @@ func TestFees(gt *testing.T) {
 	fjordFees := dsl.NewFjordFees(t, sys.L2Chain)
 	result := fjordFees.ValidateTransaction(alice, bob, eth.OneHundredthEther.ToBig())
 
-	l2Client := sys.L2EL.Escape().EthClient()
+	l2Client := sys.L2EL.Escape().L2EthClient()
 	gpo := txib.NewGasPriceOracle(
 		txib.WithClient(l2Client),
 		txib.WithTo(predeploys.GasPriceOracleAddr),

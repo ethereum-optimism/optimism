@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -14,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -86,7 +86,7 @@ func TestOperatorFeeFixTransition(gt *testing.T) {
 			}
 		}
 
-		buildL2BlockWithSingleTx := func() (unsafeL2Head eth.L2BlockRef, receipt *types.Receipt) {
+		buildL2BlockWithSingleTx := func() (unsafeL2Head eth.L2BlockRef, receipt *optypes.Receipt) {
 			env.Sequencer.ActL2StartBlock(t)
 			env.Alice.L2.ActResetTxOpts(t)
 			env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)(t)

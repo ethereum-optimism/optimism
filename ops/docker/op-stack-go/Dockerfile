@@ -43,12 +43,12 @@ RUN <<-EOF
 
     [ "${ACTUAL_SHA}" == "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
 
-    # Extract the archive
-    tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
+    # Extract the archive. op-deployer runs forge, and anvil for `op-deployer prepare` and `continue`.
+    tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge anvil
 EOF
 
 # Display installed version for visibility
-RUN forge --version
+RUN forge --version && anvil --version
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
@@ -362,9 +362,8 @@ CMD ["op-test-sequencer"]
 
 FROM dhi.io/alpine-base:3.23 AS op-deployer-target
 USER 0
-COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/
+COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/anvil /usr/local/bin/
 COPY --from=op-deployer-builder /app/op-deployer/bin/op-deployer /usr/local/bin/
-ENV FORGE_ENV=alpine
 CMD ["op-deployer"]
 
 FROM $TARGET_BASE_IMAGE AS op-dripper-target

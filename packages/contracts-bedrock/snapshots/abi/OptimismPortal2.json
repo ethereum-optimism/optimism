@@ -1200,6 +1200,31 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "withdrawalHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "proofSubmitter",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "contract IDisputeGame",
+        "name": "disputeGameProxy",
+        "type": "address"
+      }
+    ],
+    "name": "WithdrawalProvenExtension2",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "ContentLengthMismatch",
     "type": "error"

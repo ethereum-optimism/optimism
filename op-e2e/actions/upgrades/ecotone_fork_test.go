@@ -86,41 +86,42 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	sequencer.ActBuildL2ToEcotone(t)
 
 	// get latest block
-	latestBlock, err := ethCl.BlockByNumber(context.Background(), nil)
+	latestBlock, err := ethCl.HeaderByNumber(context.Background(), nil)
 	require.NoError(t, err)
-	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.NumberU64())
+	require.Equal(t, sequencer.L2Unsafe().Number, bigs.Uint64Strict(latestBlock.Number))
 
-	transactions := latestBlock.Transactions()
+	_, deposits, err := engine.SourceClient().InfoAndDepositsByHash(context.Background(), latestBlock.Hash())
+	require.NoError(t, err)
+	_, receipts, err := engine.SourceClient().FetchReceipts(context.Background(), latestBlock.Hash())
+	require.NoError(t, err)
 	// L1Block: 1 set-L1-info + 2 deploys + 2 upgradeTo + 1 enable ecotone on GPO + 1 4788 deploy
 	// See [derive.EcotoneNetworkUpgradeTransactions]
-	require.Equal(t, 7, len(transactions))
+	require.Len(t, deposits, 7)
+	require.Len(t, receipts, 7, "the block carries only the deposits")
 
-	l1Info, err := derive.L1BlockInfoFromBytes(sd.RollupCfg, latestBlock.Time(), transactions[0].Data())
+	l1Info, err := derive.L1BlockInfoFromBytes(sd.RollupCfg, latestBlock.Time, deposits[0].Data)
 	require.NoError(t, err)
-	require.Equal(t, derive.L1InfoBedrockLen, len(transactions[0].Data()))
+	require.Equal(t, derive.L1InfoBedrockLen, len(deposits[0].Data))
 	require.Nil(t, l1Info.BlobBaseFee)
 
 	// All transactions are successful
 	for i := 1; i < 7; i++ {
-		txn := transactions[i]
-		receipt, err := ethCl.TransactionReceipt(context.Background(), txn.Hash())
-		require.NoError(t, err)
-		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx %d must pass", i)
-		require.NotEmpty(t, txn.Data(), "upgrade tx must provide input data")
+		require.Equal(t, types.ReceiptStatusSuccessful, receipts[i].Status, "tx %d must pass", i)
+		require.NotEmpty(t, deposits[i].Data, "upgrade tx must provide input data")
 	}
 
 	expectedL1BlockAddress := crypto.CreateAddress(derive.L1BlockDeployerAddress, 0)
 	expectedGasPriceOracleAddress := crypto.CreateAddress(derive.GasPriceOracleDeployerAddress, 0)
 
 	// Gas Price Oracle Proxy is updated
-	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestBlock.Number())
+	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestBlock.Number)
 	require.NoError(t, err)
 	require.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
 	require.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
 	verifyCodeHashMatches(t, ethCl, expectedGasPriceOracleAddress, gasPriceOracleCodeHash)
 
 	// L1Block Proxy is updated
-	updatedL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestBlock.Number())
+	updatedL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestBlock.Number)
 	require.NoError(t, err)
 	require.Equal(t, expectedL1BlockAddress, common.BytesToAddress(updatedL1BlockAddress))
 	require.NotEqualf(t, initialL1BlockAddress, updatedL1BlockAddress, "L1Block Proxy address should have changed")
@@ -163,8 +164,8 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 		require.Equal(t, expectedTime, bigs.Uint64Strict(timeBig), msg)
 	}
 	// The header will always have the beacon-block-root, at the very start.
-	require.NotNil(t, latestBlock.BeaconRoot())
-	require.Equal(t, *latestBlock.BeaconRoot(), common.Hash{},
+	require.NotNil(t, latestBlock.ParentBeaconRoot)
+	require.Equal(t, *latestBlock.ParentBeaconRoot, common.Hash{},
 		"L1 genesis block has zeroed parent-beacon-block-root, since it has no parent block, and that propagates into L2")
 	// Legacy check:
 	// > The first block is an exception in upgrade-networks,
@@ -173,18 +174,18 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	// > If the contract was permissionlessly deployed before, the contract storage will be updated however.
 	// > checkBeaconBlockRoot(latestBlock.Time(), common.Hash{}, 0, "ecotone activation block has no data yet (since contract wasn't there)")
 	// Note: 4788 is now installed as preinstall, and thus always there.
-	checkBeaconBlockRoot(latestBlock.Time(), common.Hash{}, latestBlock.Time(), "4788 lookup of first cancun block is 0 hash")
+	checkBeaconBlockRoot(latestBlock.Time, common.Hash{}, latestBlock.Time, "4788 lookup of first cancun block is 0 hash")
 
 	// Build empty L2 block, to pass ecotone activation
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
 
 	// Test the L2 block after activation: it should have data in the contract storage now
-	latestBlock, err = ethCl.BlockByNumber(context.Background(), nil)
+	latestBlock, err = ethCl.HeaderByNumber(context.Background(), nil)
 	require.NoError(t, err)
-	require.NotNil(t, latestBlock.BeaconRoot())
-	firstBeaconBlockRoot := *latestBlock.BeaconRoot()
-	checkBeaconBlockRoot(latestBlock.Time(), *latestBlock.BeaconRoot(), latestBlock.Time(), "post-activation")
+	require.NotNil(t, latestBlock.ParentBeaconRoot)
+	firstBeaconBlockRoot := *latestBlock.ParentBeaconRoot
+	checkBeaconBlockRoot(latestBlock.Time, *latestBlock.ParentBeaconRoot, latestBlock.Time, "post-activation")
 
 	// require.again, now that we are past activation
 	_, err = gasPriceOracle.Scalar(nil)
@@ -208,11 +209,11 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, l1BlockInfo, uint64(0))
 
-	l1OriginBlock, err := miner.EthClient().BlockByHash(context.Background(), sequencer.L2Unsafe().L1Origin.Hash)
+	l1OriginBlock, err := miner.EthClient().HeaderByHash(context.Background(), sequencer.L2Unsafe().L1Origin.Hash)
 	require.NoError(t, err)
 	l1Basefee, err := l1Block.Basefee(nil)
 	require.NoError(t, err)
-	require.Equal(t, bigs.Uint64Strict(l1OriginBlock.BaseFee()), bigs.Uint64Strict(l1Basefee), "basefee must match")
+	require.Equal(t, bigs.Uint64Strict(l1OriginBlock.BaseFee), bigs.Uint64Strict(l1Basefee), "basefee must match")
 
 	// calldataGas*(l1BaseFee*16*l1BaseFeeScalar + l1BlobBaseFee*l1BlobBaseFeeScalar)/16e6
 	// _getCalldataGas in GPO adds the cost of 68 non-zero bytes for signature/rlp overhead.
@@ -229,11 +230,11 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	sequencer.ActBuildToL1Head(t)
 
 	// Contract storage should be updated now, different than before
-	latestBlock, err = ethCl.BlockByNumber(context.Background(), nil)
+	latestBlock, err = ethCl.HeaderByNumber(context.Background(), nil)
 	require.NoError(t, err)
-	require.NotNil(t, latestBlock.BeaconRoot())
-	require.NotEqual(t, firstBeaconBlockRoot, *latestBlock.BeaconRoot())
-	checkBeaconBlockRoot(latestBlock.Time(), *latestBlock.BeaconRoot(), latestBlock.Time(), "updates on new L1 data")
+	require.NotNil(t, latestBlock.ParentBeaconRoot)
+	require.NotEqual(t, firstBeaconBlockRoot, *latestBlock.ParentBeaconRoot)
+	checkBeaconBlockRoot(latestBlock.Time, *latestBlock.ParentBeaconRoot, latestBlock.Time, "updates on new L1 data")
 }
 
 // TestEcotoneBeforeL1 tests that the L2 Ecotone fork can activate before L1 Dencun does

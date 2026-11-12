@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -111,12 +112,14 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	l2EthCl := engine.EthClient()
 	l1UserEnv := &helpers.BasicUserEnv[*helpers.L1Bindings]{
 		EthCl:          l1EthCl,
+		Receipts:       txplan.FromGethReceipts(l1EthCl),
 		Signer:         types.LatestSigner(sd.L1Cfg.Config),
 		AddressCorpora: addresses,
 		Bindings:       helpers.NewL1Bindings(t, l1EthCl, e2ecfg.DefaultAllocType),
 	}
 	l2UserEnv := &helpers.BasicUserEnv[*helpers.L2Bindings]{
 		EthCl:          l2EthCl,
+		Receipts:       engine.SourceClient(),
 		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       helpers.NewL2Bindings(t, l2EthCl, engine.GethClient()),

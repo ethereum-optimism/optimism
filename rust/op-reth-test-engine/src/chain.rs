@@ -10,7 +10,7 @@ use alloy_eips::{BlockHashOrNumber, BlockNumHash};
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256};
 use op_revm::constants::L1_BLOCK_CONTRACT;
-use reth_chain_state::{ExecutedBlock, MemoryOverlayStateProvider, NewCanonicalChain};
+use reth_chain_state::{ExecutedBlock, NewCanonicalChain};
 use reth_db::{DatabaseEnv, test_utils::TempDatabase};
 use reth_db_common::init::init_genesis;
 use reth_engine_tree::{engine::EngineApiKind, tree::state::TreeState};
@@ -136,7 +136,7 @@ impl EphemeralChain {
         &self,
         hash: B256,
     ) -> crate::Result<Option<(SealedHeader, StateProviderBox)>> {
-        let Some((anchor, overlay)) = self.blocks.blocks_by_hash(hash) else {
+        let Some(block) = self.blocks.executed_block_by_hash(hash).cloned() else {
             let Some(header) = self.sealed_header(hash)? else {
                 return Ok(None);
             };
@@ -145,11 +145,12 @@ impl EphemeralChain {
                 .ok_or_else(|| Error::Execution(format!("no state for canonical block {hash}")))?;
             return Ok(Some((header, state)));
         };
-        let header = overlay[0].recovered_block().clone_sealed_header();
-        let Some(anchor_state) = self.state_at(anchor)? else {
-            return Ok(None);
-        };
-        Ok(Some((header, MemoryOverlayStateProvider::new(anchor_state, overlay).boxed())))
+        // Every recorded block is in the overlay manager the provider shares, and its recorded
+        // ancestors reach back to genesis, so the provider resolves the block's whole chain from
+        // its parent. A recorded ancestor it can't resolve is an inconsistency, so it errors.
+        let header = block.recovered_block().clone_sealed_header();
+        let state = self.provider.state_with_block_appended(header.parent_hash(), block)?;
+        Ok(Some((header, state)))
     }
 
     /// Record a block that passed `new_payload` validation so a later forkchoice update can
@@ -227,7 +228,7 @@ impl EphemeralChain {
         let evm_config: OpEvmConfig =
             OpEvmConfig::new(self.chain_spec(), OpRethReceiptBuilder::default());
         let mut db = State::builder()
-            .with_database(StateProviderDatabase::new(&state))
+            .with_database(StateProviderDatabase::new(state.into_evm_state_provider()))
             .with_bundle_update()
             .build();
         // Assembling an OP block reads the DA-footprint scalar from the L1Block predeploy; a cold

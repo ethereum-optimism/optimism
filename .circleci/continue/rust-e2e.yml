@@ -6,7 +6,7 @@ version: 2.1
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge; commands used
 # only by this file's jobs are defined below.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.33
+  utils: ethereum-optimism/circleci-utils@1.0.34
 
 parameters:
   c-default_docker_image:
@@ -33,7 +33,7 @@ parameters:
 # RUST E2E COMMANDS
 # ============================================================================
 commands:
-  # Shared by kona-build-sp1-elfs and sp1-bls12-381-zkvm-check, which both build SP1 guests natively.
+  # Shared by kona-build-sp1-elfs and the zkVM check jobs, which build SP1 guests natively.
   sp1-toolchain-restore-or-install:
     description: "Restore the cached SP1 (succinct) toolchain, or install it, after checking SP1 version pins agree"
     steps:
@@ -137,6 +137,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-ci
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -185,6 +186,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-ci
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -221,6 +223,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: op-reth-e2e
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -259,6 +262,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-ci
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -393,6 +397,7 @@ jobs:
           directory: rust
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: sp1-super-range-elf-smoke
       - run:
@@ -496,6 +501,37 @@ jobs:
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
+  # Test-only: builds its own guest ELF and checks, inside SP1's CPU executor, that TSTORE keys
+  # built to collide under one guest hash seed cost no more than control keys under another.
+  # Catches the guest hash seed not reaching revm's maps (see rust/kona/sp1/README.md).
+  sp1-hashdos-zkvm-check:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    # The run peaks at ~7.2 GiB RSS (measured locally); the job also release-builds an sp1-sdk
+    # example, as sp1-bls12-381-zkvm-check does on the same class.
+    resource_class: 2xlarge.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - rust-prepare-and-restore-cache:
+          directory: rust
+      - rust-restore-build-cache:
+          directory: rust/kona/sp1/programs
+      - sp1-toolchain-restore-or-install
+      - run:
+          name: Build hash-collision zkVM check ELF
+          working_directory: rust/kona/sp1
+          no_output_timeout: 40m
+          command: just build-hashdos-check-elf
+      - run:
+          name: Run hash-collision zkVM check
+          working_directory: rust/kona/sp1
+          no_output_timeout: 30m
+          command: just run-hashdos-check
+      - notify-failures-on-develop:
+          mentions: "@proofs-team"
+
   # SP1 execute action tests (rust/kona/tests/proofs, TestSP1*). They skip without
   # KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH, which kona-proof-action-tests does not set, so this
   # is their only CI coverage, including the invalid-claim (soundness) path.
@@ -511,6 +547,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-sp1-action-tests
       - run:
@@ -682,7 +719,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -736,6 +773,11 @@ workflows:
             - sp1-elf-smoke-rust-binaries
             - kona-build-sp1-elfs
       - sp1-bls12-381-zkvm-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+            - slack
+      - sp1-hashdos-zkvm-check:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism

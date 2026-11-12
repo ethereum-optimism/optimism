@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -50,14 +52,49 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 func ForReceiptMaybe(ctx context.Context, client *ethclient.Client, hash common.Hash, status uint64, statusIgnore bool) (*types.Receipt, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
+	receipt, err := pollReceipt(ctx, hash, client.TransactionReceipt)
+	if err != nil || statusIgnore || receipt.Status == status {
+		return receipt, err
+	}
+	return receipt, statusError(ctx, client.Client(), hash, receipt.Status)
+}
+
+// ForOPReceiptOK waits for the receipt of an L2 transaction and checks that it succeeded.
+func ForOPReceiptOK(ctx context.Context, client *sources.EthClient, hash common.Hash) (*optypes.Receipt, error) {
+	return ForOPReceipt(ctx, client, hash, types.ReceiptStatusSuccessful)
+}
+
+// ForOPReceipt waits for the receipt of an L2 transaction and checks its status.
+func ForOPReceipt(ctx context.Context, client *sources.EthClient, hash common.Hash, status uint64) (*optypes.Receipt, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	receipt, err := pollReceipt(ctx, hash, client.TransactionReceipt)
+	if err != nil || receipt.Status == status {
+		return receipt, err
+	}
+	return receipt, statusError(ctx, client.RPC(), hash, receipt.Status)
+}
+
+// statusError reports an unexpected receipt status with the tx's call trace attached.
+func statusError(ctx context.Context, client rpcCaller, hash common.Hash, status uint64) error {
+	trace, err := DebugTraceTx(ctx, client, hash)
+	if err != nil {
+		return fmt.Errorf("unexpected receipt status %d for tx %s, error tracing tx: %w", status, hash, err)
+	}
+	return &ReceiptStatusError{Status: status, TxTrace: trace}
+}
+
+// pollReceipt polls fetch until the receipt of hash is available or ctx is done.
+func pollReceipt[R any](ctx context.Context, hash common.Hash, fetch func(context.Context, common.Hash) (R, error)) (R, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+	var noReceipt R
 	for {
-		receipt, err := client.TransactionReceipt(ctx, hash)
+		receipt, err := fetch(ctx, hash)
 		if errors.Is(err, ethereum.NotFound) || (err != nil && strings.Contains(err.Error(), "transaction indexing is in progress")) {
 			select {
 			case <-ctx.Done():
-				return nil, fmt.Errorf("timed out waiting for tx %s: %w: %w", hash, err, ctx.Err())
+				return noReceipt, fmt.Errorf("timed out waiting for tx %s: %w: %w", hash, err, ctx.Err())
 			case <-ticker.C:
 				continue
 			}
@@ -66,15 +103,7 @@ func ForReceiptMaybe(ctx context.Context, client *ethclient.Client, hash common.
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to get receipt for tx %s: %w", hash, err)
-		}
-		if !statusIgnore && receipt.Status != status {
-			trace, err := DebugTraceTx(ctx, client, hash)
-			if err != nil {
-				// still return receipt if trace couldn't be obtained
-				return receipt, fmt.Errorf("unexpected receipt status %d, error tracing tx: %w", receipt.Status, err)
-			}
-			return receipt, &ReceiptStatusError{Status: receipt.Status, TxTrace: trace}
+			return noReceipt, fmt.Errorf("failed to get receipt for tx %s: %w", hash, err)
 		}
 		return receipt, nil
 	}
@@ -108,15 +137,20 @@ func (rse *ReceiptStatusError) Error() string {
 	return fmt.Sprintf("unexpected receipt status %d (tx trace: %+v)", rse.Status, rse.TxTrace)
 }
 
+// rpcCaller is the raw JSON-RPC client that DebugTraceTx calls through.
+type rpcCaller interface {
+	CallContext(ctx context.Context, result any, method string, args ...any) error
+}
+
 // DebugTraceTx logs debug_traceTransaction output to aid in debugging unexpected receipt statuses
-func DebugTraceTx(ctx context.Context, client *ethclient.Client, txHash common.Hash) (*TxTrace, error) {
+func DebugTraceTx(ctx context.Context, client rpcCaller, txHash common.Hash) (*TxTrace, error) {
 	trace := new(TxTrace)
 	options := map[string]any{
 		"enableReturnData": true,
 		"tracer":           "callTracer",
 		"tracerConfig":     map[string]any{},
 	}
-	err := client.Client().CallContext(ctx, trace, "debug_traceTransaction", hexutil.Bytes(txHash.Bytes()), options)
+	err := client.CallContext(ctx, trace, "debug_traceTransaction", hexutil.Bytes(txHash.Bytes()), options)
 	if err != nil {
 		return nil, fmt.Errorf("calling debug_traceTransaction: %w", err)
 	}

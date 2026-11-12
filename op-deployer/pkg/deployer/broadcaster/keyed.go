@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
@@ -67,7 +66,6 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		receiptQueryInterval = DefaultReceiptQueryInterval
 	}
 	if receiptQueryInterval != DefaultReceiptQueryInterval {
-		// apply --use-forge --deployment-target=live also builds this broadcaster, so it warns even though Forge does its own sending.
 		cfg.Logger.Warn(
 			"using non-default receipt query interval, which is only meant for tests",
 			"interval", receiptQueryInterval,
@@ -122,7 +120,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 }
 
 func (t *KeyedBroadcaster) Hook(bcast Broadcast) {
-	if bcast.Type != BroadcastCreate2 && bcast.From != t.mgr.From() {
+	if bcast.From != t.mgr.From() {
 		panic(fmt.Sprintf("invalid from for broadcast:%v, expected:%v", bcast.From, t.mgr.From()))
 	}
 	t.mtx.Lock()
@@ -148,7 +146,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 
 		// A zero gas limit makes txmgr estimate against the target chain. Waiting
 		// for confirmation ensures the next estimate sees this transaction's state.
-		receipt, err := t.mgr.Send(ctx, asTxCandidate(bcast, 0))
+		receipt, err := t.mgr.Send(ctx, asTxCandidate(bcast))
 		outRes := BroadcastResult{Broadcast: bcast, Receipt: receipt, Err: err}
 		if err != nil {
 			t.lgr.Error(
@@ -192,34 +190,22 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 	return results, nil
 }
 
-func asTxCandidate(bcast Broadcast, gasLimit uint64) txmgr.TxCandidate {
+func asTxCandidate(bcast Broadcast) txmgr.TxCandidate {
 	value := ((*uint256.Int)(bcast.Value)).ToBig()
 	var candidate txmgr.TxCandidate
 	switch bcast.Type {
 	case BroadcastCall:
 		to := &bcast.To
 		candidate = txmgr.TxCandidate{
-			TxData:   bcast.Input,
-			To:       to,
-			Value:    value,
-			GasLimit: gasLimit,
+			TxData: bcast.Input,
+			To:     to,
+			Value:  value,
 		}
 	case BroadcastCreate:
 		candidate = txmgr.TxCandidate{
-			TxData:   bcast.Input,
-			To:       nil,
-			GasLimit: gasLimit,
-		}
-	case BroadcastCreate2:
-		txData := make([]byte, len(bcast.Salt)+len(bcast.Input))
-		copy(txData, bcast.Salt[:])
-		copy(txData[len(bcast.Salt):], bcast.Input)
-
-		candidate = txmgr.TxCandidate{
-			TxData:   txData,
-			To:       &predeploys.DeterministicDeploymentProxyAddr,
-			Value:    value,
-			GasLimit: gasLimit,
+			TxData: bcast.Input,
+			To:     nil,
+			Value:  value,
 		}
 	default:
 		panic(fmt.Sprintf("unrecognized broadcast type: '%s'", bcast.Type))

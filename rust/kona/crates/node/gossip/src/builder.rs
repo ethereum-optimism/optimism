@@ -33,7 +33,11 @@ pub type TransportBuilder = Box<
 /// The transport the gossip swarm listens and dials on.
 #[derive(Default, derive_more::Debug)]
 pub enum GossipTransport {
-    /// TCP, with DNS resolution of `/dns`, `/dns4` and `/dns6` addresses.
+    /// TCP, dialing IP addresses only.
+    ///
+    /// It has no DNS transport on purpose: one reads the system resolver configuration when the
+    /// swarm is built, and fails the build on hosts where that can't be parsed, such as macOS
+    /// listing a scoped link-local nameserver like `fe80::1%en0`.
     #[default]
     Tcp,
     /// A transport built by the caller, such as an in-memory one in tests.
@@ -263,7 +267,6 @@ impl GossipDriverBuilder {
         let custom_transport = matches!(transport, GossipTransport::Other(_));
         let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
         let swarm = match transport {
-            // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
             GossipTransport::Tcp => builder
                 .with_tcp(
                     TcpConfig::default().nodelay(true),
@@ -274,8 +277,6 @@ impl GossipDriverBuilder {
                     YamuxConfig::default,
                 )
                 .map_err(GossipDriverBuilderError::TcpError)?
-                .with_dns()
-                .map_err(GossipDriverBuilderError::DnsError)?
                 .with_behaviour(|_| behaviour)
                 .unwrap_or_else(|never: Infallible| match never {})
                 .with_swarm_config(|c| c.with_idle_connection_timeout(timeout))

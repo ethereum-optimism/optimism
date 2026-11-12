@@ -39,9 +39,9 @@ it as a performance note.
 | Witness encoding | About 2 GiB (2³¹ bytes) of rkyv archive | rkyv 0.8.17 without `pointer_width_64` stores each relative pointer as an `i32`, and panics in `rkyv::to_bytes` ("out of range integral type conversion attempted") when one overflows. The host encodes every witness through `archive_witness` (`kona-sp1-super-range-executor`), which first bounds the archive size from the preimage and blob sizes and refuses a witness over `MAX_ARCHIVED_WITNESS_BYTES` (`i32::MAX`). | The host returns `WitnessTooLarge` without calling rkyv. The request gets no stdin and no proof. The proposer bisects the span, then splits a single timestamp's range by chain; a single timestamp's consolidation, or one chain's range of a single timestamp, is `GameUnprovable`. |
 | Guest input region | 16 GiB | `INPUT_REGION_SIZE` default (`1 << 34`), `sp1-zkvm` build script | `read_vec_raw` panics: "Input region overflowed." All stdin uses this region. The witness-encoding limit applies to the witness first. |
 | Guest heap | Up to 112 GiB: `MAX_MEMORY` (`1 << 37`) minus the input region. The memory limit below applies first. | `sp1-zkvm` build script and embedded allocator | The allocator fails. Decoded copies of the witness use the heap. |
-| Executor and prover memory | 24 GiB RSS of the executor child process that SP1 starts. The guest memory, the stdin, and the child's own buffers share it, so the guest gets less than 24 GiB. | `DEFAULT_MEMORY_LIMIT` in `sp1-core-executor` (`SP1CoreOpts::memory_limit`, env `MEMORY_LIMIT`). The `zkvm-canary` default is the same value. The prover network applies the same limit on its side. The SDK does not send it. | SP1 stops the child. Local execution and the canary fail, and a network request gives no proof. |
+| Executor and prover memory | 24 GiB RSS of the executor child process that SP1 starts. The guest memory, the stdin, and the child's own buffers share it, so the guest gets less than 24 GiB. | `DEFAULT_MEMORY_LIMIT` in `sp1-core-executor` (`SP1CoreOpts::memory_limit`, env `MEMORY_LIMIT`). The `zkvm-canary` default is the same value. The prover network applies the same limit on its side. The SDK does not send it. The proposer's `local-cuda` pre-execution applies `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` (the same default), and passes it to each `sp1-gpu-server` as `MEMORY_LIMIT`. In `local-cuda` mode a breach is `Unexecutable` after 3 memory-monitor kills. | SP1 stops the child. Local execution and the canary fail, and a network request gives no proof. |
 | Range and consolidation request | 2 × 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_RANGE_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` in `config.rs` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE` (`EXCEEDED_GAS_LIMIT` or `EXCEEDED_CYCLE_LIMIT`). The proposer reads it as `Unexecutable` and does not resubmit it. It bisects a span of more than one timestamp, then splits a single timestamp's range by chain; a single timestamp's consolidation request, or one chain's range request, stays terminal until SIGUSR1. |
-| Aggregation request | 10⁹ PGU, 10¹² cycles. Its stdin embeds every child proof: one consolidation and at least one range proof per span. A game of T timestamps over N chains has at most T(N + 1) child proofs once every timestamp's range is split down to one chain, against 2T before the chain split. At 1,272,646 bytes per embedded proof, the 5 GB upload holds about 3,900 proofs before compression, and the guest verifies each one against the PGU budget. Such games could not be proved before the chain split. | Proposer `DEFAULT_AGG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | Over the PGU or cycle limit, the request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. A game over about 3,900 child proofs is unprovable, but nothing checks this: the upload fails with an ordinary error, which the proposer retries until the deadline. |
+| Aggregation request | 10⁹ PGU, 10¹² cycles. Its stdin embeds every child proof: one consolidation and at least one range proof per span. A game of T timestamps over N chains has at most T(N + 1) child proofs once every timestamp's range is split down to one chain, against 2T before the chain split. At 1,272,646 bytes per embedded proof, the 5 GB upload holds about 3,900 proofs before compression, and the guest verifies each one against the PGU budget. Such games could not be proved before the chain split. | Proposer `DEFAULT_AGG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | Over the PGU or cycle limit, the request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. A game over about 3,900 child proofs is unprovable, but nothing checks this: the upload fails with an ordinary error, which the proposer retries until the deadline. In `local-cuda` mode the cap is a 4 GiB stdin (about 3,370 proofs, the GPU server's 32-bit request frame), and an over-cap request is `ProverFailed` and retried until the deadline. `local-cuda` enforces no PGU limit. |
 | Log-commitment batch request | 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_LOG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. It splits a batch of several blocks into halves (`LogBatchProgress::split_after`); a one-block batch fails the game attempt. |
 | Request stdin | 5 GB of compressed stdin, with every compressed proof, in one upload (SP1 SDK). The proposer's own limit is lower: 1.5 GiB of encoded stdin by default, at most 2 GiB. One embedded compressed batch proof with its verifying key encodes to 1,272,646 bytes (measured on mainnet SPN proofs). | SP1 SDK 6.8.1 (`NetworkClient::create_artifact_with_content`). Proposer `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (`StdinByteLimit`, default `DEFAULT_MAX_STDIN_BYTES`), checked on the exact bincode 1 length of each range, consolidation, and log-commitment request's stdin, in mock mode too. The aggregation request is not checked: it carries no witness, only its child proofs (see its row). | The proposer refuses the request with `StdinTooLarge` before it submits it, and bisects the span, splits a single timestamp's range by chain, or splits the batch; a single timestamp's consolidation, one chain's range of a single timestamp, or a single block is `GameUnprovable`. |
 | Split | At most 128 chunks per game (default 16). Each chunk is one range request and one consolidation request, until it is bisected or a single timestamp's range is split by chain. At 128 chunks, the largest chunk holds ceil(span / 128) timestamps (29 for a 3,600 s game). On the table path, the game also has log-commitment batch requests. A batch holds at most 4,096 blocks (`MAX_ENTRIES_PER_BATCH`), `OP_ZK_PROPOSER_MAX_STDIN_BYTES` of receipts-trie witness, and 80% of `LOG_GAS_LIMIT` by estimate, unless it is one block. | `RangeSplitCount::MAX`, `RangeSplitCount::default`, `RangeSplitCount::split`, `batch_log_blocks`. A span over a size limit, over its estimate, or `Unexecutable` is halved at its timestamp midpoint (`prove_span` in `proving.rs`), and the halves are recorded on its `ChunkProgress`. The range request of a single timestamp over a size limit or `Unexecutable` is halved by chain, in super-root chain order (`prove_range`), and the halves are recorded on its `RangeProgress`. A batch of several blocks over the stdin limit or `Unexecutable` is halved by `LogBatch::halves` and recorded on its `LogBatchProgress`. | The proposer cannot split the consolidation of one timestamp, the range of one chain at one timestamp, or one block. |
@@ -208,6 +208,9 @@ Do this step first. Continue only if the diff adds or changes one of these items
   (`rust/op-revm/src/precompiles.rs`), precompile routing
   (`rust/kona/sp1/crates/client/src/precompiles/`), or the SP1 crypto patches (`[patch.crates-io]`
   in `rust/kona/sp1/programs/Cargo.toml`).
+- A hash map or hash set on a guest path, a hasher choice, a new hasher crate in the guest tree, or
+  a change to guest hash seeding (`programs/foldhash-seeded`, `hash_seed` in
+  `programs/super-range/src/main.rs`, or a guest `main` that installs no seed).
 
 Otherwise, report `No guest cost change` and one sentence of reason, and stop. Most diffs stop
 here.
@@ -248,6 +251,57 @@ Do not dismiss a candidate for these reasons:
 - Typical traffic is small. The attacker chooses the input.
 - The attacker must pay for the referenced data. Check whether any data in the window, from any
   user, is a valid reference.
+
+## Hash-based collections and colliding keys
+
+With attacker-chosen keys and a known seed, every insert and lookup in a hash table walks one probe
+chain, so the guest's computation, and the PGU it costs, grows with the square of the key count
+while the gas the attacker pays grows linearly. One cheap transaction can then make its block
+unprovable. The zkVM has no ASLR, clock or OS randomness, so an unseeded hasher's seed is a
+constant of the ELF, and the attacker can find colliding keys offline.
+
+"Guest hash seeding" in `rust/kona/sp1/README.md` is the one description of the defence: the
+seeded `foldhash` patch, each guest's seed source, why no guest may depend on hash order, and the
+gates that check them. Read it before applying these rules.
+
+Rules:
+
+1. A std `HashMap`/`HashSet` on a guest path is a finding unless its keys are trusted and bounded.
+   std's `RandomState` is keyed from SP1's fixed `sys_rand` seed. Use `BTreeMap`/`BTreeSet` or the
+   alloy/hashbrown maps, which hash with the seeded foldhash.
+2. An explicit hasher (`BuildHasherDefault<…>`, Fx, ahash, fnv, `FixedState`, a constant
+   `with_hasher`) over attacker-influenced keys is a finding.
+3. **Hash order.** A committed output, error class or control-flow decision that depends on
+   hash-map iteration order or hash values is a soundness finding. That includes data built by
+   iterating a map, such as revm's `BundleState::reverts` (built in hash order and unread today, so
+   reading it is a finding), and a map encoded (serde, bincode, rkyv) into committed output. A
+   witness read that depends on hash order is a completeness finding: the guest can request a
+   preimage that the host's witness lacks, and panic. Canonicalise by sorting, or use an ordered
+   collection. Examples of existing canonicalisations are `TrieDB::update_accounts` and
+   `MessageGraph::resolve`. Tests cannot prove the absence of such a dependency, so check every
+   hash-map iteration that the diff adds or reaches.
+4. A dependency bump that changes the foldhash version, or adds a hasher crate listed in
+   `check-sp1-guest-hashers` (`rust/justfile`), fails that gate. Seed the hasher; do not bypass the
+   gate. The list is not exhaustive, so check any new crate in the guest tree that hashes keys.
+5. Price the amplification by the gas per insert and per warm access. Inserts: TSTORE 100,
+   access-list storage key 1,900, cold SLOAD 2,100, access-list address 2,400, cold account 2,600.
+   A warm access to a key already in the table (TLOAD, warm SLOAD, warm BALANCE or EXTCODEHASH)
+   costs 100 and still walks the whole probe chain, so an attacker can fill a map with inserts and
+   then probe it at 100 gas per O(N) walk. `CacheAccount.storage` accumulates across a whole block.
+   These values are the L1 schedule up to Osaka, which every OP fork through Lagoon uses
+   (`OpSpecId::into_eth_spec` in `rust/op-revm/src/spec.rs`). EIP-8038 (Amsterdam) raises cold
+   account to 3,000, access-list address to 2,900 and access-list storage key to 2,000; use those
+   values for an OP fork that maps to Amsterdam.
+6. A guest's seed must be a hash in its input that no on-chain actor can predict or choose before
+   the guest's keys are fixed, and at least one input to it must be a value that no executed block
+   can read, so that no block can compute the seed. The prover knowing the seed is not a finding.
+   Seeding from a value known earlier (the previous super root, a pre-state root, an idle chain's
+   head), from a value that omits blocks whose data the guest reads (a super root alone omits the
+   transactions of a block that consolidation replaces), or only from values that a block in the
+   proof can read (the hash of a block that a later block in the same proof reads through
+   `BLOCKHASH` or the L1 info deposit) is a completeness finding: the attacker can build keys that
+   collide under it, for example in a deposit that the consolidation re-executes. A guest that
+   creates a hash map without installing a seed panics.
 
 ## Known case: interop receipts in consolidation
 
