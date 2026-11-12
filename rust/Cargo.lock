@@ -7448,7 +7448,6 @@ dependencies = [
  "enr 0.14.0",
  "ethereum_ssz",
  "futures",
- "hickory-resolver",
  "ipnet",
  "k256 0.13.4",
  "kona-genesis",

@@ -36,10 +36,9 @@ snap.workspace = true
 # Networking
 futures.workspace = true
 discv5.workspace = true
-hickory-resolver.workspace = true
 openssl = { workspace = true, features = ["vendored"] }
 libp2p-identity = { workspace = true, features = ["secp256k1"] }
-libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "dns", "noise", "gossipsub", "ping", "yamux", "identify", "metrics"] }
+libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "noise", "gossipsub", "ping", "yamux", "identify", "metrics"] }
 ipnet = { workspace = true, features = ["serde"] }
 
 # Misc
