@@ -13,7 +13,7 @@ repository.workspace = true
 alloy-primitives = { workspace = true, features = ["map-foldhash"] }
 foldhash.workspace = true
 kona-sp1-build-info.workspace = true
-op-revm = { path = "../../../../../op-revm", default-features = false }
+op-revm.workspace = true
 revm.workspace = true
 sp1-zkvm.workspace = true
 

@@ -356,10 +356,10 @@ check-sp1-guest-hashers:
     echo "error: no upstream foldhash tag found in rust/$shim_manifest" >&2
     exit 1
   fi
-  seeded_sources=(
-    "/rust/kona/sp1/programs/foldhash-seeded)"
-    "github.com/ethereum-optimism/foldhash?tag=$upstream_tag#"
-  )
+  shim_source="/rust/kona/sp1/programs/foldhash-seeded)"
+  # The fork that the shim wraps is unseeded, so only the shim may depend on it.
+  fork_url="https://github.com/ethereum-optimism/foldhash"
+  fork_source="$fork_url?tag=$upstream_tag#"
   banned_hashers=(
     rapidhash rustc-hash fxhash siphasher twox-hash xxhash-rust seahash gxhash wyhash highway
     metrohash t1ha fasthash
@@ -378,15 +378,24 @@ check-sp1-guest-hashers:
 
     while IFS= read -r line; do
       [[ "$line" == "foldhash v"* ]] || continue
-      seeded=false
-      for source in "${seeded_sources[@]}"; do
-        [[ "$line" == *"$source"* ]] && seeded=true
-      done
-      if [[ "$seeded" != true ]]; then
+      if [[ "$line" != *"$shim_source"* && "$line" != *"$fork_source"* ]]; then
         echo "error: $p resolves an unseeded foldhash: $line" >&2
         exit 1
       fi
     done <<< "$tree"
+
+    if grep -qF "$fork_source" <<< "$tree"; then
+      fork_dependents=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+        --target all --edges normal --invert "$fork_url#foldhash" --depth 1 --prefix none \
+        --format '{p}' | tail -n +2)
+      while IFS= read -r dependent; do
+        [[ -n "$dependent" ]] || continue
+        if [[ "$dependent" != "foldhash v"*"$shim_source"* ]]; then
+          echo "error: $p: $dependent depends on the unseeded foldhash fork; depend on crates.io foldhash, which the guest workspace patches to foldhash-seeded" >&2
+          exit 1
+        fi
+      done <<< "$fork_dependents"
+    fi
 
     # alloy's generic maps hash with foldhash only under `map-foldhash`; with `std` and no map
     # feature they fall back to std's SipHash, keyed from SP1's fixed `sys_rand` seed.

@@ -5,7 +5,8 @@
 //! deposit's source hash. Under source hash B:
 //! - keys `top_limb << 192 | i` whose `top_limb` is word 0 of source hash A's shared seed, which
 //!   collide under source hash A, must cost no more than control keys; under source hash A they
-//!   must still be quadratic, which shows the harness models the guest's hashing;
+//!   must still be quadratic, which shows that revm's maps hash with the installed seed and that
+//!   the harness models foldhash-seeded;
 //! - keys `i << 64`, whose first and third words are zero, must cost no more than control keys.
 //!   They collide under every seed if a map's per-hasher seed is zero.
 //!
@@ -50,6 +51,8 @@ async fn main() -> Result<()> {
     let run = async |source_hash: B256, top_limb: u64, step_limb: u64| -> Result<u64> {
         let mut stdin = SP1Stdin::new();
         stdin.write(&(source_hash, GAS, top_limb, step_limb));
+        // SP1 counts instructions only in its gas-estimating pass: with `calculate_gas(false)`
+        // every count is 0 and the checks below pass vacuously.
         let (mut committed, report) =
             client.execute(Elf::Dynamic(elf.clone()), stdin).calculate_gas(true).await?;
         ensure!(report.exit_code == 0, "guest exited with code {}", report.exit_code);
@@ -69,8 +72,9 @@ async fn main() -> Result<()> {
 
     ensure!(
         known >= 10 * control,
-        "positive control failed: keys colliding under the installed seed are not quadratic, so \
-         this harness no longer models the guest's foldhash seeding"
+        "keys colliding under the installed seed cost {known} instructions vs {control} for \
+         control keys, so they are not quadratic: either revm's maps no longer hash with the \
+         installed seed, or this harness no longer models foldhash-seeded"
     );
     ensure!(
         stale * 10 <= control * 12,
