@@ -1037,6 +1037,38 @@ mod tests {
             .with(peer_id)
     }
 
+    /// discv5 reports every record in a NODES answer as `Discovered`, up to 16 an answer, on an
+    /// event channel of 100, 30 with the reports off, that drops the events that don't fit. The
+    /// driver doesn't dial those records, so it should turn the reports off: otherwise they can
+    /// push out the `SessionEstablished` events that bring the peers it dials.
+    ///
+    /// N looks up through B, whose table holds O, so B's answer holds O.
+    #[tokio::test]
+    async fn test_driver_turns_off_discovered_reports() {
+        let other = offline_driver().init().await.expect("the other node starts");
+        let other_id = other.disc.local_enr().node_id();
+        let bootnode = offline_driver().init().await.expect("the bootnode starts");
+        bootnode.disc.add_enr(other.disc.local_enr()).expect("the bootnode takes the record");
+        let node = offline_driver().init().await.expect("the node starts");
+        let mut events = node.disc.event_stream().await.expect("the node has an event stream");
+        node.disc.add_enr(bootnode.disc.local_enr()).expect("the node takes the bootnode");
+
+        let found = node.disc.find_node(NodeId::random()).await.expect("the lookup runs");
+        assert!(
+            found.iter().any(|enr| enr.node_id() == other_id),
+            "the lookup didn't find the bootnode's other node"
+        );
+
+        // discv5 reports a record before the lookup that found it ends.
+        // TODO: fails today. The driver leaves discv5's `report_discovered_peers` on, its default.
+        while let Ok(event) = events.try_recv() {
+            assert!(
+                !matches!(event, discv5::Event::Discovered(_)),
+                "discv5 reported a discovered record: {event:?}"
+            );
+        }
+    }
+
     /// A table filter that accepts every record, for the tests of the other rules.
     fn accept_all(_: &Enr) -> bool {
         true
