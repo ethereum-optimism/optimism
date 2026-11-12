@@ -12,8 +12,9 @@ type L2BlockNumber = u64;
 /// The [`L2Finalizer`] is responsible for tracking L2 blocks derived from L1 blocks and
 /// determining which L2 blocks can be finalized when L1 blocks are finalized.
 ///
-/// It maintains a queue of derived L2 blocks that are awaiting finalization, and returns
-/// the L2 block numbers that can be finalized as new finalized L1 blocks are received.
+/// It maintains a queue of derived L2 blocks that are awaiting finalization, and returns the
+/// L2 block numbers that can be finalized when a new finalized L1 block is received, or when it is
+/// asked again against the highest finalized L1 block it already knows.
 #[derive(Debug, Default)]
 pub(crate) struct L2Finalizer {
     /// A map of `L1 block number -> highest derived L2 block number` within the L1 epoch, used to
@@ -46,7 +47,8 @@ impl L2Finalizer {
         self.awaiting_finalization.clear();
     }
 
-    /// Attempts to find L2 blocks that can be finalized based on the new finalized L1 block.
+    /// Records `new_finalized_l1_block` as the highest finalized L1 block, unless a higher one is
+    /// already known, and attempts to finalize against the highest one.
     ///
     /// Returns `Some(l2_block_number)` if there is an L2 block that can be finalized,
     /// or `None` if no blocks are ready for finalization.
@@ -54,8 +56,14 @@ impl L2Finalizer {
         &mut self,
         new_finalized_l1_block: BlockInfo,
     ) -> Option<L2BlockNumber> {
-        if self.finalized_l1_number.is_none_or(|known| known < new_finalized_l1_block.number) {
-            self.finalized_l1_number = Some(new_finalized_l1_block.number);
+        match self.finalized_l1_number {
+            Some(known) if new_finalized_l1_block.number < known => warn!(
+                target: "derivation",
+                known,
+                received = new_finalized_l1_block.number,
+                "Finalized L1 block moved backwards, ignoring it. Is the L1 provider corrupted?"
+            ),
+            _ => self.finalized_l1_number = Some(new_finalized_l1_block.number),
         }
         self.try_finalize_against_known_l1()
     }

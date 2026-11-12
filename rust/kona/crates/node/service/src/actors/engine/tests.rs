@@ -312,5 +312,5 @@ async fn derivation_is_handed_the_local_safe_head() {
     else {
         panic!("expected the sync completion second");
     };
-    assert_eq!(sent.local_safe_head(), local_safe_head);
+    assert_eq!(*sent, local_safe_head);
 }

@@ -25,8 +25,13 @@ pub enum FinalizeTaskError {
     /// The block is not safe yet, and therefore cannot be finalized. A reset can lower the safe
     /// head below a target that was safe when it was requested, and a delegate can run ahead of
     /// the local safe head.
-    #[error("Attempted to finalize a block that is not yet safe")]
-    BlockNotSafe,
+    #[error("Finalization target {target} is above the safe head {safe}")]
+    BlockNotSafe {
+        /// The number of the safe head.
+        safe: u64,
+        /// The number of the finalization target.
+        target: u64,
+    },
     /// The engine returned a block at a different height than the one requested.
     #[error("Requested block {requested} to finalize, but the engine returned block {returned}")]
     BlockNumberMismatch {
@@ -60,10 +65,8 @@ pub enum FinalizeTaskError {
         target: BlockNumHash,
     },
     /// The engine has no block at the pinned target's height yet, for example while it catches up.
-    #[error("The engine does not have finalization target {target:?} yet: {engine_answer}")]
+    #[error("The engine does not have finalization target {target:?} yet")]
     NotYetAvailable {
-        /// What the engine answered the lookup with: null, or an error response.
-        engine_answer: String,
         /// The finalization target.
         target: BlockNumHash,
     },
@@ -76,7 +79,7 @@ impl EngineTaskError for FinalizeTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::BehindFinalizedHead { .. } |
-            Self::BlockNotSafe |
+            Self::BlockNotSafe { .. } |
             Self::ConflictsWithFinalizedHead { .. } |
             Self::NotCanonical { .. } |
             Self::NotYetAvailable { .. } => EngineTaskErrorSeverity::Skip,

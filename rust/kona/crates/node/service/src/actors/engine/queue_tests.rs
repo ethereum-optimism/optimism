@@ -345,3 +345,47 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
     l1.assert_finished();
     l2.assert_finished();
 }
+
+/// A finalization the engine skips leaves the actor running, an identical repeat keeps the same
+/// skip in memory, and a reset forgets it.
+#[tokio::test(start_paused = true)]
+async fn skipped_finalization_keeps_the_actor_running_until_a_reset_forgets_it() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(30))
+        .with_safe_head(test_block_info(20))
+        .with_finalized_head(test_block_info(10))
+        .build();
+    let (state_tx, _state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    let stale_finalization =
+        || EngineActorRequest::ProcessFinalizedL2Block(Box::new(FinalizeBlockId::ByNumber(5)));
+
+    // Each step drains the previous request's task, then accepts the next request.
+    requests.send(stale_finalization()).await.unwrap();
+    time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
+    requests.send(stale_finalization()).await.unwrap();
+    time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
+    let first_skip = actor.last_skipped_task_error.clone();
+    assert!(first_skip.is_some(), "the skipped finalization is remembered");
+
+    requests.send(stale_finalization()).await.unwrap();
+    time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
+    assert_eq!(actor.last_skipped_task_error, first_skip);
+
+    actor.begin_reset();
+    assert_eq!(actor.last_skipped_task_error, None);
+    l1.assert_finished();
+    l2.assert_finished();
+}

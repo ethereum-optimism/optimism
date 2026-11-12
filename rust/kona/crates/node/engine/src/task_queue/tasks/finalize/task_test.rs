@@ -119,7 +119,7 @@ const fn is_number_mismatch(err: &FinalizeTaskError) -> bool {
 }
 
 const fn is_not_safe(err: &FinalizeTaskError) -> bool {
-    matches!(err, FinalizeTaskError::BlockNotSafe)
+    matches!(err, FinalizeTaskError::BlockNotSafe { .. })
 }
 
 const fn is_not_yet_available(err: &FinalizeTaskError) -> bool {
@@ -180,6 +180,23 @@ async fn finalize_task_skips_target_without_lookup(
 
     assert!(is_expected_error(&err), "{err:?}");
     assert_eq!(err.severity(), Skip);
+    assert_eq!(state, original_state);
+}
+
+/// A target above the safe head is refused before asking the execution layer for the block: the
+/// test engine expects no request at all.
+#[tokio::test]
+async fn finalize_task_refuses_target_above_safe_head_without_lookup() {
+    let mut state = engine_state(established());
+    let original_state = state;
+
+    let err = finalize(by_hash(&canonical(SAFE + 5)), &mut state, |_| {}).await.unwrap_err();
+
+    assert!(
+        matches!(err, FinalizeTaskError::BlockNotSafe { safe: SAFE, target } if target == SAFE + 5),
+        "{err:?}"
+    );
+    assert_eq!(err.severity(), EngineTaskErrorSeverity::Skip);
     assert_eq!(state, original_state);
 }
 
@@ -279,17 +296,17 @@ async fn finalize_task_stops_on_block_at_unrequested_height(
     assert_eq!(state, original_state);
 }
 
-/// While the execution layer catches up, it has no block at a pinned target's height yet, and may
-/// answer null or an error. Either way the target is skipped, so it neither stops the node nor
-/// holds the queue until its upstream resubmits it. A by-number target is below the safe head, so
-/// the engine must have it: its absence stops the node and an error response is retried.
+/// While the execution layer catches up, it answers null for a pinned target's height, and the
+/// target is skipped until its upstream resubmits it. An error response is a failed lookup and is
+/// retried for either kind of target. A by-number target is below the safe head, so the engine
+/// must have it: its absence stops the node.
 #[rstest]
 #[case::pinned_null(pinned_target(), Unavailable::Null, is_not_yet_available, Skip)]
 #[case::pinned_error_response(
     pinned_target(),
     Unavailable::ErrorResponse,
-    is_not_yet_available,
-    Skip
+    is_transport_error,
+    Temporary
 )]
 #[case::by_number_null(numbered_target(), Unavailable::Null, is_block_not_found, Critical)]
 #[case::by_number_error_response(

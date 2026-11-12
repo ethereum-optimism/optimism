@@ -2,11 +2,9 @@
 
 use crate::{
     EngineClient, EngineState, ExecutableEngineTask, FinalizeBlockId, FinalizeTaskError,
-    state::EngineSyncStateUpdate,
-    task_queue::{ForkchoiceDelivery, synchronize},
+    state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_eips::BlockNumHash;
-use alloy_transport::{RpcError, TransportErrorKind};
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
@@ -31,59 +29,13 @@ pub struct FinalizeTask {
 }
 
 impl FinalizeTask {
-    /// Rejects a target that would move finality backward.
-    const fn ensure_not_behind_finalized_head(
-        finalized_head: &L2BlockInfo,
-        target_number: u64,
-    ) -> Result<(), FinalizeTaskError> {
-        if target_number < finalized_head.block_info.number {
-            return Err(FinalizeTaskError::BehindFinalizedHead {
-                finalized: finalized_head.block_info.number,
-                target: target_number,
-            });
-        }
-        Ok(())
-    }
-
-    /// Rejects a different block at the finalized head's height.
-    ///
-    /// The default head means finality has not been established yet, so any target, including the
-    /// configured genesis, may initialize it.
-    fn ensure_no_conflict_with_finalized_head(
-        finalized_head: &L2BlockInfo,
-        target: BlockNumHash,
-    ) -> Result<(), FinalizeTaskError> {
-        let finalized = finalized_head.block_info.id();
-        if *finalized_head != L2BlockInfo::default() &&
-            target.number == finalized.number &&
-            target.hash != finalized.hash
-        {
-            return Err(FinalizeTaskError::ConflictsWithFinalizedHead { finalized, target });
-        }
-        Ok(())
-    }
-
-    /// While the execution layer catches up, it has no block at a pinned target's height yet and
-    /// may answer with an error instead of null. A pinned target is skipped, carrying the answer
-    /// and leaving the state unchanged for the next request; failing temporarily would hold this
-    /// task at the head of the queue and block the imports that let the execution layer catch up.
-    fn lookup_failed(&self, err: RpcError<TransportErrorKind>) -> FinalizeTaskError {
-        if let FinalizeBlockId::ByHash(target) = self.block_id &&
-            let Some(payload) = err.as_error_resp()
-        {
-            let engine_answer = format!("error {} ({})", payload.code, payload.message);
-            return FinalizeTaskError::NotYetAvailable { engine_answer, target };
-        }
-        FinalizeTaskError::TransportError(err)
-    }
-
-    /// A missing pinned target is not yet available, as for [`Self::lookup_failed`]. A missing
-    /// by-number target is below the safe head, so the engine must already have it.
-    fn block_missing(&self) -> FinalizeTaskError {
+    /// A pinned target the execution layer answers with null is not available yet, for example
+    /// while it catches up: the task is skipped rather than held at the head of the queue ahead
+    /// of the imports that let it catch up. A missing by-number target is below the safe head, so
+    /// the engine must already have it.
+    const fn block_missing(&self) -> FinalizeTaskError {
         match self.block_id {
-            FinalizeBlockId::ByHash(target) => {
-                FinalizeTaskError::NotYetAvailable { engine_answer: "null".to_string(), target }
-            }
+            FinalizeBlockId::ByHash(target) => FinalizeTaskError::NotYetAvailable { target },
             FinalizeBlockId::ByNumber(number) => FinalizeTaskError::BlockNotFound(number),
         }
     }
@@ -93,11 +45,16 @@ impl FinalizeTask {
         finalized_head: &L2BlockInfo,
         target: BlockNumHash,
     ) -> Result<bool, FinalizeTaskError> {
-        if target == finalized_head.block_info.id() {
+        let finalized = finalized_head.block_info.id();
+        if target == finalized {
             debug!(target: "engine", ?target, "Target is already finalized");
             return Ok(true);
         }
-        Self::ensure_no_conflict_with_finalized_head(finalized_head, target)?;
+        // The default head means finality has not been established yet, so any target, including
+        // the configured genesis, may initialize it.
+        if *finalized_head != L2BlockInfo::default() && target.number == finalized.number {
+            return Err(FinalizeTaskError::ConflictsWithFinalizedHead { finalized, target });
+        }
         Ok(false)
     }
 
@@ -115,7 +72,7 @@ impl FinalizeTask {
             .get_l2_block(requested.into())
             .full()
             .await
-            .map_err(|err| self.lookup_failed(err))?
+            .map_err(FinalizeTaskError::TransportError)?
             .ok_or_else(|| self.block_missing())?;
         let canonical = BlockNumHash { hash: block.header.hash, number: block.header.number };
         debug!(target: "engine", ?canonical, "Fetched the block to finalize");
@@ -149,7 +106,12 @@ impl ExecutableEngineTask for FinalizeTask {
 
         // A lagging source can report an older finalized block, or one from another chain. A
         // pinned hash is enough to detect either without asking the execution layer.
-        Self::ensure_not_behind_finalized_head(&finalized_head, target_number)?;
+        if target_number < finalized_head.block_info.number {
+            return Err(FinalizeTaskError::BehindFinalizedHead {
+                finalized: finalized_head.block_info.number,
+                target: target_number,
+            });
+        }
         if let FinalizeBlockId::ByHash(target) = self.block_id &&
             Self::is_already_finalized(&finalized_head, target)?
         {
@@ -158,8 +120,12 @@ impl ExecutableEngineTask for FinalizeTask {
 
         // Sanity check that the block that is being finalized is at least safe. A later request
         // finalizes a target skipped here, or a newer block.
-        if state.sync_state.safe_head().block_info.number < target_number {
-            return Err(FinalizeTaskError::BlockNotSafe);
+        let safe_number = state.sync_state.safe_head().block_info.number;
+        if safe_number < target_number {
+            return Err(FinalizeTaskError::BlockNotSafe {
+                safe: safe_number,
+                target: target_number,
+            });
         }
 
         let block_info = self.fetch_canonical_block_info().await?;
@@ -176,7 +142,6 @@ impl ExecutableEngineTask for FinalizeTask {
             self.client.as_ref(),
             state,
             EngineSyncStateUpdate { finalized_head: Some(block_info), ..Default::default() },
-            ForkchoiceDelivery::WhenChanged,
         )
         .await?;
 

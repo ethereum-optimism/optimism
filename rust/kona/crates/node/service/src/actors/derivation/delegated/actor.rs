@@ -165,6 +165,10 @@ where
     /// Rejects a finalized L2 block behind, or at the same height as but different from, the
     /// engine's. Either means the delegate lags or follows another chain, so none of its status
     /// applies: its safe head would move the engine back or onto that chain too.
+    ///
+    /// Only a fork at the engine's finalized height is caught here. A chain that forked below it
+    /// and reports a higher finalized block passes, and the execution layer rejects the forkchoice
+    /// update that would move onto it.
     fn validate_finalized_l2_progress(
         &self,
         reported: BlockNumHash,
@@ -182,9 +186,20 @@ where
         Ok(())
     }
 
-    /// Verifies that the finalized L2 block reported by the derivation delegate does not move back
-    /// from the engine's, and that its L1 info is consistent with the canonical L1 chain.
+    /// Verifies that the derivation delegate's finalized L2 block is not above its safe L2 block
+    /// and does not move back from the engine's, and that its L1 info is consistent with the
+    /// canonical L1 chain.
     async fn validate_sync_status(&mut self, v: &SyncStatus) -> bool {
+        // A finalized block above the safe head is an inconsistent snapshot; the engine would only
+        // refuse to finalize it.
+        if v.finalized_l2.block_info.number > v.safe_l2.block_info.number {
+            let err = DerivationDelegationError::FinalizedAheadOfSafe {
+                finalized: v.finalized_l2.block_info.number,
+                safe: v.safe_l2.block_info.number,
+            };
+            warn!(target: "derivation", error = %err, "Inconsistent sync status from delegate");
+            return false;
+        }
         if let Err(err) = self.validate_finalized_l2_progress(v.finalized_l2.block_info.id()) {
             warn!(
                 target: "derivation",
@@ -269,9 +284,9 @@ where
                 debug!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
                 self.engine_l2_safe_head = *safe_head;
             }
-            DerivationActorRequest::ProcessEngineSyncCompletionRequest(sync_state) => {
+            DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
-                self.engine_l2_safe_head = sync_state.local_safe_head();
+                self.engine_l2_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => match *signal {
@@ -291,6 +306,10 @@ where
 
 #[derive(Error, Debug)]
 enum DerivationDelegationError {
+    /// The delegate's finalized L2 block is above its safe L2 block.
+    #[error("Finalized L2 {finalized} is ahead of safe L2 {safe}")]
+    FinalizedAheadOfSafe { finalized: u64, safe: u64 },
+
     /// The delegate's finalized L2 block is a different block at the engine's finalized height.
     #[error("Finalized L2 {reported:?} conflicts with the engine's finalized L2 {engine:?}")]
     FinalizedL2Conflict { engine: BlockNumHash, reported: BlockNumHash },

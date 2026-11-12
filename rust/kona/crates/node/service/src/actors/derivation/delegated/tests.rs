@@ -75,7 +75,9 @@ impl Harness {
     async fn complete_engine_sync_with(&mut self, sync_state: EngineSyncState) {
         self.publish_engine_sync_state(sync_state);
         self.derivation_requests
-            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(sync_state)))
+            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(
+                sync_state.local_safe_head(),
+            )))
             .await
             .unwrap();
         self.actor.step().await.unwrap();
@@ -331,4 +333,35 @@ async fn unchanged_status_is_resent_on_every_poll() {
     }
 
     assert_eq!(Instant::now() - first_poll, POLL_INTERVAL * (POLLS - 1));
+}
+
+/// Before the engine establishes finality, any finalized block from the delegate may initialize
+/// it, including one at genesis height.
+#[tokio::test(start_paused = true)]
+async fn first_poll_accepts_finality_before_the_engine_establishes_it() {
+    let status = with_finalized_l2(l2_block(0, FINALIZED_ORIGIN));
+    let mut harness = Harness::new([Ok(status.clone())]);
+    harness.complete_engine_sync().await;
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_for(&status));
+}
+
+/// A status whose finalized block is above its safe block is inconsistent and rejected whole.
+#[rstest]
+#[case::at_safe_head(l2_block(20, FINALIZED_ORIGIN), true)]
+#[case::ahead_of_safe_head(l2_block(21, FINALIZED_ORIGIN), false)]
+#[tokio::test(start_paused = true)]
+async fn poll_rejects_status_whose_finalized_is_ahead_of_its_safe(
+    #[case] finalized_l2: L2BlockInfo,
+    #[case] accepted: bool,
+) {
+    let status = with_finalized_l2(finalized_l2);
+    let mut harness = Harness::new([Ok(status.clone())]);
+    harness.complete_engine_sync().await;
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_if(accepted, &status));
 }
