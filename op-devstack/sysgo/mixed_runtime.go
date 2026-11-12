@@ -98,14 +98,20 @@ func devstackL2CLKind() MixedL2CLKind {
 }
 
 // ResolveMixedL2CLKind returns the L2 CL kind requested via DEVSTACK_L2CL_KIND,
-// defaulting to op-node when the variable is unset. Tests that build explicit
-// MixedSingleChainNodeSpec lists use this so they honor the same env-driven CL
-// selection as the higher-level single-chain presets.
-func ResolveMixedL2CLKind() MixedL2CLKind {
-	if kind := devstackL2CLKind(); kind != "" {
+// defaulting to op-node when the variable is unset, and fails the test on any other
+// value before a node starts. Tests that build explicit MixedSingleChainNodeSpec lists
+// use this so they honor the same env-driven CL selection as the higher-level
+// single-chain presets.
+func ResolveMixedL2CLKind(t devtest.T) MixedL2CLKind {
+	switch kind := devstackL2CLKind(); kind {
+	case "":
+		return MixedL2CLOpNode
+	case MixedL2CLOpNode, MixedL2CLKona:
 		return kind
+	default:
+		t.Require().FailNowf("unsupported L2 CL kind", "DEVSTACK_L2CL_KIND=%q, want %q or %q", kind, MixedL2CLOpNode, MixedL2CLKona)
+		return "" // unreachable
 	}
-	return MixedL2CLOpNode
 }
 
 const (

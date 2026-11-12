@@ -77,11 +77,11 @@ func requireOpNodeSequencerCLKind(t devtest.T, sequencerCLKind MixedL2CLKind) {
 
 // resolveSequencerCLKind returns the L2 CL kind the environment requests for the sequencer,
 // pinned to op-node when the chain runs interop at genesis.
-func resolveSequencerCLKind(cfg PresetConfig) MixedL2CLKind {
+func resolveSequencerCLKind(t devtest.T, cfg PresetConfig) MixedL2CLKind {
 	if cfg.InteropAtGenesis {
 		return MixedL2CLOpNode
 	}
-	return ResolveMixedL2CLKind()
+	return ResolveMixedL2CLKind(t)
 }
 
 func newSingleChainNodeRuntime(name string, isSequencer bool, el L2ELNode, cl L2CLNode) *SingleChainNodeRuntime {
@@ -273,7 +273,7 @@ func NewMinimalRuntime(t devtest.T) *SingleChainRuntime {
 }
 
 func NewMinimalRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
-	return newMinimalRuntime(t, cfg, resolveSequencerCLKind(cfg))
+	return newMinimalRuntime(t, cfg, resolveSequencerCLKind(t, cfg))
 }
 
 func newMinimalRuntime(t devtest.T, cfg PresetConfig, sequencerCLKind MixedL2CLKind) *SingleChainRuntime {
@@ -294,7 +294,7 @@ func newMinimalRuntime(t devtest.T, cfg PresetConfig, sequencerCLKind MixedL2CLK
 // fault proofs. Skipping the challenger also avoids requiring cannon prestate
 // artifacts, which are expensive to build locally.
 func NewMinimalNoFaultProofsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
-	return newMinimalNoFaultProofsRuntime(t, cfg, resolveSequencerCLKind(cfg))
+	return newMinimalNoFaultProofsRuntime(t, cfg, resolveSequencerCLKind(t, cfg))
 }
 
 func newMinimalNoFaultProofsRuntime(t devtest.T, cfg PresetConfig, sequencerCLKind MixedL2CLKind) *SingleChainRuntime {

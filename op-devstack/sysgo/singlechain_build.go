@@ -138,7 +138,7 @@ func startL2CLForKey(
 			L2CLOptions:    l2CLOpts,
 		})
 	default:
-		t.Require().FailNow("unsupported L2 CL kind", "unknown L2 CL kind %q", clKind)
+		t.Require().FailNowf("unsupported L2 CL kind", "unknown L2 CL kind %q", clKind)
 		return nil // unreachable
 	}
 }
@@ -175,7 +175,7 @@ func startStoppedSequencerCL(
 			SequencerStopped: true,
 		})
 	default:
-		t.Require().FailNow("unsupported L2 CL kind", "unknown L2 CL kind %q", clKind)
+		t.Require().FailNowf("unsupported L2 CL kind", "unknown L2 CL kind %q", clKind)
 		return nil // unreachable
 	}
 }
