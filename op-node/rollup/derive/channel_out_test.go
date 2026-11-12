@@ -522,11 +522,11 @@ func testSpanChannelOut_MaxRLPBytesPerChannel(t *testing.T, algo CompressionAlgo
 	require.Greater(t, cout.inactiveRLP().Len(), maxRLPBytesPerChannel, "inactive RLP should be greater than max RLP limit")
 }
 
-// TestPayloadToSingularBatchParity pins the batch content rules on a payload
+// TestPayloadToSingularBatchKeepsNonDepositTxs pins the batch content rules on a payload
 // with the full L2 transaction-class shape: the L1-info deposit determines the
 // epoch, deposits are excluded from the batch, and all other transactions —
 // including a trailing post-exec (0x7D) transaction — pass through verbatim.
-func TestPayloadToSingularBatchParity(t *testing.T) {
+func TestPayloadToSingularBatchKeepsNonDepositTxs(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x543331))
 	batch := RandomSingularBatch(rng, 4, rollupCfg.L2ChainID)
 	l1InfoTx, err := L1InfoDepositBytes(&rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
