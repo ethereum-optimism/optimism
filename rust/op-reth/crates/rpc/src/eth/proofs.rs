@@ -22,7 +22,7 @@ use reth_rpc_server_types::constants::DEFAULT_MAX_PROOF_SLOTS;
 
 /// The `eth_` proof methods served from the historical proofs storage.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:e1bf972 `reth_rpc_eth_api::EthApi`
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-1 `reth_rpc_eth_api::EthApi`
 ///
 /// Re-declares the proof methods that are answered from historical proofs rather than live state.
 /// A proof method added to upstream's `EthApi` produces no diff here, so diff the two method sets
@@ -71,7 +71,7 @@ where
         Self { eth_api, preimage_store, metrics: EthApiExtMetrics::default() }
     }
 
-    /// UPSTREAM-MIRROR(copy): reth@rev:e1bf972
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1
     /// `reth_rpc_eth_api::helpers::state::EthState::get_proof`
     ///
     /// Uses the OP proofs-history state provider while preserving upstream permit and blocking-task

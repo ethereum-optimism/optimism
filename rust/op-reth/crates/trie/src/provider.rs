@@ -229,7 +229,7 @@ impl<'a, P> HashedPostStateProvider for OpProofsStateProviderRef<'a, P>
 where
     P: OpProofsProviderRO + Clone,
 {
-    /// UPSTREAM-MIRROR(copy): reth@rev:e1bf972
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1
     /// `reth_provider::LatestStateProviderRef::hashed_post_state`
     ///
     /// Mirrors the hashing/zeroing sequence, using historical OP proofs cursors instead of
