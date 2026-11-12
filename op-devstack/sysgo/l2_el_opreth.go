@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
@@ -132,7 +133,10 @@ type OpReth struct {
 	l2MetricsRegistrar L2MetricsRegistrar
 }
 
-var _ L2ELNode = (*OpReth)(nil)
+var (
+	_ L2ELNode                  = (*OpReth)(nil)
+	_ stack.UngracefulLifecycle = (*OpReth)(nil)
+)
 
 func (n *OpReth) Start() {
 	n.mu.Lock()
@@ -243,6 +247,23 @@ func (n *OpReth) Stop() {
 	n.clearProxyUpstreams()
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
+	n.sub = nil
+}
+
+// StopUngracefully ends the op-reth process with SIGKILL, the way a crash would, so whatever it
+// had not yet handed to the OS for its datadir is lost. It fails the test if op-reth had already
+// exited on its own, since that crash is not the stop the test asked for. Start brings the node
+// back on the same datadir.
+func (n *OpReth) StopUngracefully() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sub == nil {
+		n.p.Logger().Warn("op-reth already stopped")
+		return
+	}
+	n.p.Logger().Info("Stopping op-reth ungracefully", "name", n.name, "chain", n.chainID)
+	n.clearProxyUpstreams()
+	n.p.Require().NoError(n.sub.Kill(), "failed to kill op-reth")
 	n.sub = nil
 }
 

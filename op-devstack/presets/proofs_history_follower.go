@@ -13,6 +13,7 @@ const proofsHistoryReferenceEthProofWindow = 1_000_000
 // starts.
 type ProofsHistoryFollowerConfig struct {
 	DeployerOptions    []sysgo.DeployerOption
+	FollowerL2CLOpts   []sysgo.L2CLOption
 	FollowerOpRethOpts []sysgo.OpRethOption
 	// SequencerOpRethOpts apply after the options that turn the sequencer's proofs history off and
 	// open its eth_getProof window.
@@ -57,6 +58,7 @@ func NewProofsHistoryFollowerSystem(t devtest.T, configure ...func(*ProofsHistor
 				CLKind:     clKind,
 				ELKey:      "proofs-follower",
 				ELKind:     sysgo.MixedL2ELOpReth,
+				L2CLOpts:   cfg.FollowerL2CLOpts,
 				OpRethOpts: cfg.FollowerOpRethOpts,
 			},
 		},

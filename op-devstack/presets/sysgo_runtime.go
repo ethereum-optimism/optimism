@@ -66,6 +66,9 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 		if control, ok := lifecycle[0].(stack.ControlledLifecycle); ok {
 			l2EL.control = control
 		}
+		if ungraceful, ok := lifecycle[0].(stack.UngracefulLifecycle); ok {
+			l2EL.ungraceful = ungraceful
+		}
 	}
 	return l2EL
 }
