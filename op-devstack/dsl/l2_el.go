@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"strings"
 	"time"
 
@@ -276,6 +277,16 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	block, err := el.blockRefByNumber(num)
 	el.require.NoError(err, "block not found using block number %d", num)
 	return block
+}
+
+// NonceAt returns the nonce of address in this node's state at block, which counts the
+// transactions from address included up to and including that block.
+func (el *L2ELNode) NonceAt(address common.Address, block uint64) uint64 {
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+	nonce, err := el.inner.EthClient().NonceAt(ctx, address, new(big.Int).SetUint64(block))
+	el.require.NoErrorf(err, "failed to read the nonce of %s at block %d from %s", address, block, el.inner.Name())
+	return nonce
 }
 
 // GasLimitAtBlock returns the gas limit of the block at the given number.

@@ -203,6 +203,28 @@ func (el *L2ELNode) VerifyProofsMatchAt(reference *L2ELNode, block uint64, accou
 	el.verifyProofsMatchAt(reference, block, window, accounts, DefaultProofsCatchUpTimeout, false)
 }
 
+// VerifyWithdrawalsRootAt requires the header of block to carry, as its withdrawalsRoot, the
+// L2ToL1MessagePasser storage root this node's eth_getProof serves at that block, with the proof
+// verifying against the header's state root, and returns the header. Only valid from Isthmus on:
+// before it the field is the hash of an empty withdrawals list and the check fails.
+func (el *L2ELNode) VerifyWithdrawalsRootAt(block uint64) eth.BlockInfo {
+	header := el.awaitHeaderByNumber(block, DefaultProofsCatchUpTimeout)
+	el.require.NotNilf(header.WithdrawalsRoot(), "block %d on %s carries no withdrawalsRoot", block, el.inner.Name())
+	proof, _ := el.verifiedProofAt(header, ProofAccount{Address: predeploys.L2ToL1MessagePasserAddr}, DefaultProofsCatchUpTimeout, false)
+	el.requireWithdrawalsRootIsStorageRoot(header, proof.StorageHash)
+	el.log.Debug("Withdrawals root is the message passer's storage root", "name", el.inner.Name(), "block", block,
+		"withdrawals_root", proof.StorageHash)
+	return header
+}
+
+// requireWithdrawalsRootIsStorageRoot requires the header's withdrawalsRoot to be storageRoot, the
+// L2ToL1MessagePasser storage root this node serves at that block.
+func (el *L2ELNode) requireWithdrawalsRootIsStorageRoot(header eth.BlockInfo, storageRoot common.Hash) {
+	el.require.Equalf(*header.WithdrawalsRoot(), storageRoot,
+		"block %d (%s): the withdrawalsRoot on %s is not the L2ToL1MessagePasser storage root its eth_getProof serves",
+		header.NumberU64(), header.Hash(), el.inner.Name())
+}
+
 // verifyProofsMatchAt reports whether it skipped the block because the store pruned it while its
 // proofs were fetched, which only happens when skipPruned is set.
 func (el *L2ELNode) verifyProofsMatchAt(reference *L2ELNode, block uint64, window ProofsSyncStatus, accounts []ProofAccount,
@@ -227,28 +249,18 @@ func (el *L2ELNode) verifyProofsMatchAt(reference *L2ELNode, block uint64, windo
 func (el *L2ELNode) verifyAccountProofMatchesAt(reference *L2ELNode, header eth.BlockInfo, account ProofAccount,
 	catchUpTimeout time.Duration, skipPruned bool) (prunedDuringFetch bool) {
 	block := header.NumberU64()
-	proof, pruned := el.awaitProof(header, account, catchUpTimeout, skipPruned)
+	proof, pruned := el.verifiedProofAt(header, account, catchUpTimeout, skipPruned)
 	if pruned {
 		return true
 	}
-	referenceProof, _ := reference.awaitProof(header, account, catchUpTimeout, false)
-	NormalizeProofResponse(proof)
-	NormalizeProofResponse(referenceProof)
-
-	el.require.NoErrorf(VerifyAccountProof(proof, header.Root()),
-		"block %d account %s: eth_getProof from %s does not verify against state root %s",
-		block, account.Address, el.inner.Name(), header.Root())
-	el.require.NoErrorf(VerifyAccountProof(referenceProof, header.Root()),
-		"block %d account %s: eth_getProof from reference %s does not verify against state root %s",
-		block, account.Address, reference.inner.Name(), header.Root())
+	referenceProof, _ := reference.verifiedProofAt(header, account, catchUpTimeout, false)
 	el.require.Equalf(referenceProof, proof, "block %d account %s: eth_getProof from %s differs from reference %s",
 		block, account.Address, el.inner.Name(), reference.inner.Name())
 
 	// Isthmus made withdrawalsRoot the message passer's storage root. Before that the header
 	// carries the hash of an empty withdrawals list, which says nothing about the message passer.
 	if account.Address == predeploys.L2ToL1MessagePasserAddr && header.WithdrawalsRoot() != nil && *header.WithdrawalsRoot() != types.EmptyWithdrawalsHash {
-		el.require.Equalf(*header.WithdrawalsRoot(), proof.StorageHash,
-			"block %d: L2ToL1MessagePasser storage root from %s does not equal the header's withdrawalsRoot", block, el.inner.Name())
+		el.requireWithdrawalsRootIsStorageRoot(header, proof.StorageHash)
 	}
 	el.log.Debug("Historical proof matches the reference", "name", el.inner.Name(), "block", block,
 		"account", account.Address, "storage_keys", len(account.StorageKeys))
@@ -289,6 +301,21 @@ func (el *L2ELNode) awaitHeaderByNumber(number uint64, timeout time.Duration) et
 	})
 	el.require.NoErrorf(err, "%s did not serve the header of block %d within %s; last error: %v", el.inner.Name(), number, timeout, lastErr)
 	return header
+}
+
+// verifiedProofAt fetches this node's eth_getProof for account at header, normalized, and requires
+// it to verify against the header's state root. It reports pruned, without a proof, when awaitProof
+// does.
+func (el *L2ELNode) verifiedProofAt(header eth.BlockInfo, account ProofAccount, timeout time.Duration, skipPruned bool) (proof *eth.AccountResult, pruned bool) {
+	proof, pruned = el.awaitProof(header, account, timeout, skipPruned)
+	if pruned {
+		return nil, true
+	}
+	NormalizeProofResponse(proof)
+	el.require.NoErrorf(VerifyAccountProof(proof, header.Root()),
+		"block %d (%s) account %s: eth_getProof from %s does not verify against state root %s",
+		header.NumberU64(), header.Hash(), account.Address, el.inner.Name(), header.Root())
+	return proof, false
 }
 
 // awaitProof fetches eth_getProof by block hash, so a block that leaves the canonical chain while
