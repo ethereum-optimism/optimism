@@ -372,7 +372,7 @@ func (w *Withdrawal) Prove(user *EOA) {
 			return false
 		}
 		w.require.Equal(types.ReceiptStatusSuccessful, proveReceipt.Status, "prove withdrawal was not successful")
-		w.require.Equal(2, len(proveReceipt.Logs)) // emit WithdrawalProven, WithdrawalProvenExtension1
+		w.require.Equal(3, len(proveReceipt.Logs), "prove receipt must carry WithdrawalProven, WithdrawalProvenExtension1 and WithdrawalProvenExtension2")
 
 		w.proveParams = params
 		w.proveReceipt = proveReceipt

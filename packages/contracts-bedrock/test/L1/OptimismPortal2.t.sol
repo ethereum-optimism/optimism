@@ -1250,6 +1250,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProvenExtension1(_withdrawalHash, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProvenExtension2(_withdrawalHash, address(this), IDisputeGame(address(game)));
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -1261,7 +1263,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
 
         // Create a new game to re-prove against
-        _createDisputeGame(respectedGameType, _outputRoot, _proposedBlockNumber + 1);
+        IDisputeGame newGame = _createDisputeGame(respectedGameType, _outputRoot, _proposedBlockNumber + 1);
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 
         // Warp 1 second into the future so we're not in the same block as the dispute game.
@@ -1271,6 +1273,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProvenExtension1(_withdrawalHash, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProvenExtension2(_withdrawalHash, address(this), newGame);
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -1287,6 +1291,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProvenExtension1(_withdrawalHash, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProvenExtension2(_withdrawalHash, address(this), IDisputeGame(address(game)));
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -1316,6 +1322,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProvenExtension1(_withdrawalHash, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProvenExtension2(_withdrawalHash, address(this), newGame);
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex + 1,
@@ -1403,7 +1411,9 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
             abi.encode(Claim.wrap(_outputRoot))
         );
 
-        // Should succeed using rootClaimByChainId.
+        // Should succeed using rootClaimByChainId and name the game in the event.
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProvenExtension2(_withdrawalHash, address(this), IDisputeGame(address(game)));
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -1454,6 +1464,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProvenExtension1(_withdrawalHash, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProvenExtension2(_withdrawalHash, address(this), IDisputeGame(address(game)));
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
@@ -1645,6 +1657,8 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProvenExtension1(_withdrawalHash, address(0xb0b));
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProvenExtension2(_withdrawalHash, address(0xb0b), secondGame);
         vm.prank(address(0xb0b));
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
