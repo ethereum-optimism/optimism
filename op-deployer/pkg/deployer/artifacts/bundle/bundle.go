@@ -249,8 +249,8 @@ func isForgeConfig(rel string) bool {
 	return name == "foundry.toml" || name == "remappings.txt"
 }
 
-// stripAST returns the artifact without its "ast" field. Neither forge scripts nor the Go script
-// host read the AST, and forge's compile cache does not depend on it.
+// stripAST returns the artifact without its "ast" field. Neither forge scripts nor op-deployer
+// read the AST, and forge's compile cache does not depend on it.
 func stripAST(artifact []byte) ([]byte, error) {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(artifact, &fields); err != nil {

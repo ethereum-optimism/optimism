@@ -160,6 +160,14 @@ impl BootStore {
         peers.into_iter().for_each(|peer| self.add_rotate(peer));
     }
 
+    /// Keeps only the records `keep` accepts, and returns how many it removed. The file changes at
+    /// the next [`Self::sync`].
+    pub fn retain(&mut self, keep: impl FnMut(&Enr) -> bool) -> usize {
+        let len = self.peers.len();
+        self.peers.retain(keep);
+        len - self.peers.len()
+    }
+
     /// Syncs the [`BootStore`] with the contents on disk.
     pub fn sync(&mut self) -> Result<(), std::io::Error> {
         if let Some(file) = &mut self.file {

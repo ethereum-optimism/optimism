@@ -45,6 +45,32 @@ impl PoolTransactionError for InvalidCrossTx {
     }
 }
 
+/// The transaction's Jovian DA footprint (`estimated_da_size × daFootprintGasScalar`) exceeds the
+/// gas limit of the blocks this node builds. That is the block gas limit, or `miner_setGasLimit` if
+/// that is lower.
+///
+/// See <https://specs.optimism.io/protocol/jovian/exec-engine.html#da-footprint-block-limit>.
+#[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error("transaction DA footprint {footprint} exceeds gas limit {gas_limit}")]
+pub struct DaFootprintExceedsGasLimit {
+    /// The transaction's DA footprint.
+    pub footprint: u64,
+    /// The gas limit it was checked against.
+    pub gas_limit: u64,
+}
+
+impl PoolTransactionError for DaFootprintExceedsGasLimit {
+    /// The limit may be this node's own `miner_setGasLimit`, which other nodes don't share, so a
+    /// peer relaying the transaction isn't necessarily misbehaving. Don't penalize it.
+    fn is_bad_transaction(&self) -> bool {
+        false
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

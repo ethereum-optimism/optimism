@@ -531,6 +531,15 @@ func (el *L2ELNode) Start() {
 	lifecycle.Start()
 }
 
+// Wipe discards the stopped node's chain data so the next Start begins from genesis.
+// Stop alone does not guarantee this: op-reth keeps its datadir across restarts.
+func (el *L2ELNode) Wipe() {
+	el.log.Info("Wiping", "name", el.inner.Name())
+	wipeable, ok := el.inner.(stack.Wipeable)
+	el.require.Truef(ok, "L2EL node %s is not wipeable", el.inner.Name())
+	wipeable.Wipe()
+}
+
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }
@@ -718,29 +727,31 @@ func (el *L2ELNode) FinalizedHead() *BlockRefResult {
 }
 
 func (el *L2ELNode) AssertExecMessageNotInBlock(execMessage *ExecMessage) {
-	el.AssertTxNotInBlock(bigs.Uint64Strict(execMessage.BlockNumber()), execMessage.TxHash())
+	el.AssertUserTxNotInBlock(bigs.Uint64Strict(execMessage.BlockNumber()), execMessage.TxHash())
 }
 
-// AssertTxNotInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
-func (el *L2ELNode) AssertTxNotInBlock(blockNumber uint64, txHash common.Hash) {
+// AssertUserTxNotInBlock asserts that no user transaction with the given hash exists in the block
+// at the given number. Deposits and post-exec transactions are not checked.
+func (el *L2ELNode) AssertUserTxNotInBlock(blockNumber uint64, txHash common.Hash) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
 
-	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
+	_, txs, err := el.inner.L2EthClient().InfoAndUserTxsByNumber(ctx, blockNumber)
 	el.require.NoError(err, "failed to fetch block %d", blockNumber)
 
 	for _, tx := range txs {
-		el.require.NotEqualf(tx.Hash(), txHash, "transaction should not exist in block", "Found tx %v in block %v", tx.Hash(), blockNumber)
+		el.require.NotEqualf(tx.Hash(), txHash, "found tx %v in block %d", txHash, blockNumber)
 	}
 	el.log.Info("confirmed transaction not in block", "blockNumber", blockNumber, "txHash", txHash)
 }
 
-// AssertTxInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
-func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
+// AssertUserTxInBlock asserts that a user transaction with the given hash exists in the block at
+// the given number.
+func (el *L2ELNode) AssertUserTxInBlock(blockNumber uint64, txHash common.Hash) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
 
-	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
+	_, txs, err := el.inner.L2EthClient().InfoAndUserTxsByNumber(ctx, blockNumber)
 	el.require.NoError(err, "failed to fetch block %d", blockNumber)
 
 	for _, tx := range txs {
@@ -749,7 +760,7 @@ func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
 			return
 		}
 	}
-	el.require.Fail("transaction should exist in block", "blockNumber", blockNumber, "txHash", txHash)
+	el.require.Failf("transaction should exist in block", "tx %v not found in block %d", txHash, blockNumber)
 }
 
 // ResendUntilSafe broadcasts a transaction from makeTx and waits for it to derive onto this

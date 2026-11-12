@@ -19,9 +19,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
-// offlineScriptChainID is the chain ID of the Go script host's default context, so that offline forge
-// runs produce the same state. It matters for the L1 dev genesis, whose Permit2 preinstall has the
-// chain ID built in; L2Genesis sets the L2 chain ID itself.
+// offlineScriptChainID is the chain ID that offline forge runs see, the one that the genesis of
+// earlier releases was built with. It matters for the L1 dev genesis, whose Permit2 preinstall has
+// the chain ID built in; L2Genesis sets the L2 chain ID itself.
 const offlineScriptChainID = 1337
 
 // GenesisState is the L1 state of a genesis deployment. Each script runs offline in its own forge
@@ -107,7 +107,7 @@ func (g *GenesisState) run(client *forge.Client, fn func(client *forge.Client, f
 	// forge isolates the top-level calls of a script unless the config turns it off, and the
 	// contracts bundle turns it on for its tests. An isolated call runs as a transaction, so a call
 	// that the script pranks bumps the nonce of the pranked address, such as the L2 depositor, and
-	// leaves it in the state. The Go script host does not isolate calls.
+	// leaves it in the state. The genesis of earlier releases has no such account.
 	env := []string{
 		"OP_DEPLOYER_STATE_IN=" + stateIn,
 		"OP_DEPLOYER_STATE_OUT=" + stateOut,

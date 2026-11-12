@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -16,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 )
 
 type minBaseFeeEnv struct {
