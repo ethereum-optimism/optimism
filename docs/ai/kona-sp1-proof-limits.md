@@ -260,15 +260,9 @@ while the gas the attacker pays grows linearly. One cheap transaction can then m
 unprovable. The zkVM has no ASLR, clock or OS randomness, so an unseeded hasher's seed is a
 constant of the ELF, and the attacker can find colliding keys offline.
 
-The defence: the guest workspace patches `foldhash` to `programs/foldhash-seeded`, whose
-`RandomState` is keyed by a seed that the super-range guest takes from its input before it creates
-any map: the L1 head in range mode; in consolidation mode, the claimed super root at `span.end`
-hashed with every optimistic block hash in the span. Creating a map earlier panics. `log-commitment`
-and `super-aggregation` build no hash map and install no seed. `PreimageStore` is a `BTreeMap`.
-`just check-sp1-guest-hashers` fails if a guest links an unseeded foldhash or a listed hasher
-crate, or builds alloy-primitives without `map-foldhash`, and `just check-hashdos-zkvm` checks in
-the zkVM that the seed reaches revm's maps. std's `HashMap` is not used on guest paths, only in
-tests.
+"Guest hash seeding" in `rust/kona/sp1/README.md` is the one description of the defence: the
+seeded `foldhash` patch, each guest's seed source, why no guest may depend on hash order, and the
+gates that check them. Read it before applying these rules.
 
 Rules:
 
@@ -277,32 +271,37 @@ Rules:
    alloy/hashbrown maps, which hash with the seeded foldhash.
 2. An explicit hasher (`BuildHasherDefault<…>`, Fx, ahash, fnv, `FixedState`, a constant
    `with_hasher`) over attacker-influenced keys is a finding.
-3. **Hash order.** The guest hashes under a different seed from the native host run that produces
-   the claim and the witness, so a committed output, error class or control-flow decision that
-   depends on hash-map iteration order or hash values is a soundness finding. That includes data
-   built by iterating a map, such as revm's `BundleState::reverts` (built in hash order and unread
-   today, so reading it is a finding), and a map encoded (serde, bincode, rkyv) into committed
-   output. A witness read that depends on hash order is a completeness finding: the host collects
-   the witness natively under another seed, so the guest can request a preimage that the witness
-   lacks, and panic. Canonicalise by sorting, or use an ordered collection. The existing
-   canonicalisations are `TrieDB::update_accounts` and `MessageGraph::resolve`. Tests cannot prove
-   the absence of such a dependency, so check every hash-map iteration that the diff adds or
-   reaches.
+3. **Hash order.** A committed output, error class or control-flow decision that depends on
+   hash-map iteration order or hash values is a soundness finding. That includes data built by
+   iterating a map, such as revm's `BundleState::reverts` (built in hash order and unread today, so
+   reading it is a finding), and a map encoded (serde, bincode, rkyv) into committed output. A
+   witness read that depends on hash order is a completeness finding: the guest can request a
+   preimage that the host's witness lacks, and panic. Canonicalise by sorting, or use an ordered
+   collection. Examples of existing canonicalisations are `TrieDB::update_accounts` and
+   `MessageGraph::resolve`. Tests cannot prove the absence of such a dependency, so check every
+   hash-map iteration that the diff adds or reaches.
 4. A dependency bump that changes the foldhash version, or adds a hasher crate listed in
    `check-sp1-guest-hashers` (`rust/justfile`), fails that gate. Seed the hasher; do not bypass the
    gate. The list is not exhaustive, so check any new crate in the guest tree that hashes keys.
-5. Price the amplification by the gas per inserted key: TSTORE 100, access-list storage key 1,900,
-   cold SLOAD 2,100, access-list address 2,400, cold account 2,600. `CacheAccount.storage`
-   accumulates across a whole block.
+5. Price the amplification by the gas per insert and per warm access. Inserts: TSTORE 100,
+   access-list storage key 1,900, cold SLOAD 2,100, access-list address 2,400, cold account 2,600.
+   A warm access to a key already in the table (TLOAD, warm SLOAD, warm BALANCE or EXTCODEHASH)
+   costs 100 and still walks the whole probe chain, so an attacker can fill a map with inserts and
+   then probe it at 100 gas per O(N) walk. `CacheAccount.storage` accumulates across a whole block.
+   These values are the L1 schedule up to Osaka, which every OP fork through Lagoon uses
+   (`OpSpecId::into_eth_spec` in `rust/op-revm/src/spec.rs`). EIP-8038 (Amsterdam) raises cold
+   account to 3,000, access-list address to 2,900 and access-list storage key to 2,000; use those
+   values for an OP fork that maps to Amsterdam.
 6. A guest's seed must be a hash in its input that no on-chain actor can predict or choose before
-   the guest's keys are fixed, and that no block the proof executes can read (see `hash_seed` in the
-   super-range guest). The prover knowing the seed is not a finding. Seeding from a value known
-   earlier (the previous super root, a pre-state root, an idle chain's head), from a value that
-   omits blocks whose data the guest reads (a super root alone omits the transactions of a block
-   that consolidation replaces), or from the hash of a block that a later block in the same proof
-   can read through `BLOCKHASH` or the L1 info deposit, is a completeness finding: the attacker can
-   build keys that collide under it, for example in a deposit that the consolidation re-executes. A
-   guest that creates a hash map without installing a seed panics.
+   the guest's keys are fixed, and at least one input to it must be a value that no executed block
+   can read, so that no block can compute the seed. The prover knowing the seed is not a finding.
+   Seeding from a value known earlier (the previous super root, a pre-state root, an idle chain's
+   head), from a value that omits blocks whose data the guest reads (a super root alone omits the
+   transactions of a block that consolidation replaces), or only from values that a block in the
+   proof can read (the hash of a block that a later block in the same proof reads through
+   `BLOCKHASH` or the L1 info deposit) is a completeness finding: the attacker can build keys that
+   collide under it, for example in a deposit that the consolidation re-executes. A guest that
+   creates a hash map without installing a seed panics.
 
 ## Known case: interop receipts in consolidation
 

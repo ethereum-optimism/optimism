@@ -8187,7 +8187,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "foldhash 0.2.0",
  "httpmock",
  "jsonrpsee-core",
  "jsonrpsee-http-client",

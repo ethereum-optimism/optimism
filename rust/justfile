@@ -362,7 +362,7 @@ check-sp1-guest-hashers:
   fork_source="$fork_url?tag=$upstream_tag#"
   banned_hashers=(
     rapidhash rustc-hash fxhash siphasher twox-hash xxhash-rust seahash gxhash wyhash highway
-    metrohash t1ha fasthash
+    metrohash t1ha fasthash nohash-hasher hash32
   )
   # "<hasher> <allowed dependents...>".
   restricted_hashers=(
@@ -398,15 +398,17 @@ check-sp1-guest-hashers:
     fi
 
     # alloy's generic maps hash with foldhash only under `map-foldhash`; with `std` and no map
-    # feature they fall back to std's SipHash, keyed from SP1's fixed `sys_rand` seed.
-    if grep -q '^alloy-primitives v' <<< "$tree"; then
+    # feature they fall back to std's SipHash, keyed from SP1's fixed `sys_rand` seed. Feature
+    # lines carry no version, so check each resolved version on its own.
+    for version in $(sed -nE 's/^alloy-primitives v([^ ]+).*/\1/p' <<< "$tree" | sort -u); do
       features=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
-        --target all --edges normal,features --prefix none --format '{p}')
+        --target all --edges normal,features --invert "alloy-primitives@$version" --depth 1 \
+        --prefix none --format '{p}')
       if ! grep -q '^alloy-primitives feature "map-foldhash"' <<< "$features"; then
-        echo "error: $p builds alloy-primitives without map-foldhash, so its generic maps bypass the seeded hasher" >&2
+        echo "error: $p builds alloy-primitives $version without map-foldhash, so its generic maps bypass the seeded hasher" >&2
         exit 1
       fi
-    fi
+    done
 
     for hasher in "${banned_hashers[@]}"; do
       if grep -q "^$hasher v" <<< "$tree"; then
@@ -417,21 +419,24 @@ check-sp1-guest-hashers:
 
     for entry in "${restricted_hashers[@]}"; do
       read -r hasher allowed <<< "$entry"
-      grep -q "^$hasher v" <<< "$tree" || continue
-      dependents=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
-        --target all --edges normal --invert "$hasher" --depth 1 --prefix none --format '{p}' \
-        | tail -n +2)
-      while IFS= read -r dependent; do
-        [[ -n "$dependent" ]] || continue
-        ok=false
-        for crate in $allowed; do
-          [[ "$dependent" == "$crate v"* ]] && ok=true
-        done
-        if [[ "$ok" != true ]]; then
-          echo "error: $p: $dependent depends on hasher crate $hasher; seed it or allow it in check-sp1-guest-hashers" >&2
-          exit 1
-        fi
-      done <<< "$dependents"
+      # One query per resolved version: `--invert` on a bare name fails as ambiguous when two
+      # versions resolve.
+      for version in $(sed -nE "s/^$hasher v([^ ]+).*/\1/p" <<< "$tree" | sort -u); do
+        dependents=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+          --target all --edges normal --invert "$hasher@$version" --depth 1 --prefix none \
+          --format '{p}' | tail -n +2)
+        while IFS= read -r dependent; do
+          [[ -n "$dependent" ]] || continue
+          ok=false
+          for crate in $allowed; do
+            [[ "$dependent" == "$crate v"* ]] && ok=true
+          done
+          if [[ "$ok" != true ]]; then
+            echo "error: $p: $dependent depends on hasher crate $hasher; seed it or allow it in check-sp1-guest-hashers" >&2
+            exit 1
+          fi
+        done <<< "$dependents"
+      done
     done
   done
 

@@ -9,8 +9,9 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-# Feature anchor only: revm's maps hash with foldhash, as in the super-range guest.
-alloy-primitives = { workspace = true, features = ["map-foldhash"] }
+# Feature anchor only: `serde` lets the guest read its `B256` input. op-revm already brings
+# `map-foldhash`.
+alloy-primitives.workspace = true
 foldhash.workspace = true
 kona-sp1-build-info.workspace = true
 op-revm.workspace = true

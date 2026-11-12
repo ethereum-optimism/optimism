@@ -705,7 +705,6 @@ either = { version = "1.15.0", default-features = false }
 eyre = "0.6.12"
 fdlimit = "0.3.0"
 fixed-map = { version = "0.9", default-features = false }
-foldhash = { version = "0.2.0", default-features = false }
 glob = "0.3.3"
 http = "1.4.0"
 http-body = "1.0"

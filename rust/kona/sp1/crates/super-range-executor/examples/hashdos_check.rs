@@ -16,7 +16,10 @@
 use core::hash::Hasher;
 use std::sync::Arc;
 
-use alloy_primitives::B256;
+use alloy_primitives::{
+    B256,
+    map::foldhash::{SharedSeed, fast::FoldHasher},
+};
 use anyhow::{Context, Result, ensure};
 use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
 
@@ -33,8 +36,8 @@ const CONTROL_TOP_LIMB: u64 = 0x0123_4567_89AB_CDEF;
 /// `write_u128(1)` returns `folded_multiply(1, s0) = s0`.
 fn s0(source_hash: B256) -> u64 {
     let seed = u64::from_le_bytes(source_hash[..8].try_into().expect("8 bytes"));
-    let shared = foldhash::SharedSeed::from_u64(seed);
-    let mut hasher = foldhash::fast::FoldHasher::with_seed(0, &shared);
+    let shared = SharedSeed::from_u64(seed);
+    let mut hasher = FoldHasher::with_seed(0, &shared);
     hasher.write_u128(1);
     hasher.finish()
 }
@@ -51,8 +54,8 @@ async fn main() -> Result<()> {
     let run = async |source_hash: B256, top_limb: u64, step_limb: u64| -> Result<u64> {
         let mut stdin = SP1Stdin::new();
         stdin.write(&(source_hash, GAS, top_limb, step_limb));
-        // SP1 counts instructions only in its gas-estimating pass: with `calculate_gas(false)`
-        // every count is 0 and the checks below pass vacuously.
+        // SP1 counts instructions only in its gas-estimating pass, so `calculate_gas(false)`
+        // would report 0 for every count.
         let (mut committed, report) =
             client.execute(Elf::Dynamic(elf.clone()), stdin).calculate_gas(true).await?;
         ensure!(report.exit_code == 0, "guest exited with code {}", report.exit_code);
@@ -70,8 +73,9 @@ async fn main() -> Result<()> {
          zero-word keys {zero_words}"
     );
 
+    ensure!(control > 0, "the executor reported no instruction counts");
     ensure!(
-        known >= 10 * control,
+        known > 10 * control,
         "keys colliding under the installed seed cost {known} instructions vs {control} for \
          control keys, so they are not quadratic: either revm's maps no longer hash with the \
          installed seed, or this harness no longer models foldhash-seeded"
@@ -79,7 +83,7 @@ async fn main() -> Result<()> {
     ensure!(
         stale * 10 <= control * 12,
         "keys colliding under source hash A cost {stale} instructions under source hash B vs \
-         {control} for control keys: the guest hash seed is not applied"
+         {control} for control keys: the colliding keys are not specific to the seed"
     );
     ensure!(
         zero_words * 10 <= control * 12,
