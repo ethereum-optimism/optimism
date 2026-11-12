@@ -75,7 +75,7 @@ parameters:
 
 orbs:
   continuation: circleci/continuation@2.0.1
-  utils: ethereum-optimism/circleci-utils@1.0.33
+  utils: ethereum-optimism/circleci-utils@1.0.34
 
 commands:
   github-checkout:
@@ -180,6 +180,7 @@ jobs:
       # (e.g. to just yq) would freeze an incomplete toolset for every
       # continuation job and silently force them all to cold-install forever.
       - utils/install-mise:
+          trusted_branch: develop
           enable_mise_cache: true
       # mise shims re-resolve the tool on every invocation, which the yq/jq
       # loops in the routing scripts below pay hundreds of times (~9s of
