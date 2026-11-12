@@ -178,9 +178,8 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	require.Len(t, superV1.Chains, 1)
 	require.Equal(t, eth.ChainIDFromBig(sd.RollupCfg.L2ChainID), superV1.Chains[0].ChainID)
 	require.Equal(t, proposedL2.Time, superV1.Timestamp)
-	block, err := seqEngine.EthClient().BlockByNumber(t.Ctx(), new(big.Int).SetUint64(proposedL2.Number))
-	require.NoError(t, err)
-	require.Less(t, block.Time(), latestGame.Timestamp, "output is registered with L1 timestamp of proposal tx, past L2 block")
+	block := seqEngine.HeaderByNumber(t, proposedL2.Number)
+	require.Less(t, block.Time, latestGame.Timestamp, "output is registered with L1 timestamp of proposal tx, past L2 block")
 	require.Equal(t, outputComputed.OutputRoot, superV1.Chains[0].Output, "output roots must match")
 	require.Equal(t, eth.Bytes32(latestGame.RootClaim), eth.SuperRoot(superV1), "super roots must match")
 }

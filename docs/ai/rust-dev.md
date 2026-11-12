@@ -214,7 +214,7 @@ The OP fork → implied L1 (Ethereum) fork mapping is defined once, in `OpHardfo
 
 ## Updating the reth dependency
 
-The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before any change to the reth pin in `rust/Cargo.toml`. That covers an update to a new upstream base and a change to our fork on the current base: a fork change gets a new `op-<base>-<n>` tag, and the monorepo pins the fork PR's commit by `rev` only while that PR is still open, switching to the tag before the monorepo PR merges ([Pinning a fork change](../../rust/UPDATING-RETH.md#pinning-a-fork-change)). For an update, the `/update-reth` skill (`.claude/skills/update-reth/`) wraps the guide in an end-to-end agent workflow.
+The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before any change to the reth pin in `rust/Cargo.toml`. That covers an update to a new upstream base and a change to our fork on the current base: a fork change gets a new `op-<base>-<n>` tag, and the monorepo PR may pin the fork PR's commit by `rev` while that PR is open, but stays in draft until the tag replaces the `rev` (the required `rust-reth-tag-pin` check fails on a `rev`) ([Pinning a fork change](../../rust/UPDATING-RETH.md#pinning-a-fork-change)). For an update, the `/update-reth` skill (`.claude/skills/update-reth/`) wraps the guide in an end-to-end agent workflow.
 
 When **reviewing** a bump (rather than performing one), use [reth-update-review.md](reth-update-review.md) and the `reth-update-reviewer` agent — they surface upstream `reth`/`revm`/`alloy` changes that should have forced a change in our in-tree op- forks but produced no diff in our tree.
 

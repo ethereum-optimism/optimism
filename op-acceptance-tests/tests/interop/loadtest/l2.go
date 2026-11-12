@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -34,7 +35,7 @@ func (p *RoundRobin[T]) Get() T {
 }
 
 type L2 struct {
-	Config      *params.ChainConfig
+	Config      *opparams.ChainConfig
 	BlockTime   time.Duration
 	EL          *dsl.L2ELNode
 	EOAs        *RoundRobin[*dsl.SyncEOA]

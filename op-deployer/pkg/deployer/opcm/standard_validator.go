@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum"
@@ -28,6 +29,9 @@ type StandardValidatorInput struct {
 	L1PAOMultisig       common.Address
 	Challenger          common.Address
 	UseDevFeaturesInput bool
+	// BridgeHookConfigured expects the PORTAL-110 the validator reports for any hook.
+	// The caller must verify the hook address itself.
+	BridgeHookConfigured bool
 }
 
 type validationInput struct {
@@ -134,7 +138,8 @@ func ValidateStandardDeployment(
 		L1PAOMultisig: input.L1PAOMultisig,
 		Challenger:    input.Challenger,
 	}
-	args, err := method.Inputs.Pack(callInput, false, overrides)
+	// A hook's PORTAL-110 is an error to the validator, so it reverts unless failure is allowed.
+	args, err := method.Inputs.Pack(callInput, input.BridgeHookConfigured, overrides)
 	if err != nil {
 		return fmt.Errorf("failed to encode standard validator input: %w", err)
 	}
@@ -154,23 +159,25 @@ func ValidateStandardDeployment(
 	if !ok {
 		return fmt.Errorf("standard validator returned unexpected type %T", values[0])
 	}
-	if expected := expectedOverrideMarker(overrides); validationErr != expected {
-		return fmt.Errorf("standard validator reported errors: %s", validationErr)
+	if expected := expectedValidatorResult(overrides, input.BridgeHookConfigured); validationErr != expected {
+		return fmt.Errorf("standard validator reported errors: %s (expected %q)", validationErr, expected)
 	}
 	return nil
 }
 
-func expectedOverrideMarker(overrides validationOverrides) string {
-	switch {
-	case overrides.L1PAOMultisig != (common.Address{}) && overrides.Challenger != (common.Address{}):
-		return "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
-	case overrides.L1PAOMultisig != (common.Address{}):
-		return "OVERRIDES-L1PAOMULTISIG"
-	case overrides.Challenger != (common.Address{}):
-		return "OVERRIDES-CHALLENGER"
-	default:
-		return ""
+// expectedValidatorResult mirrors the validator's result: override markers, then error codes.
+func expectedValidatorResult(overrides validationOverrides, bridgeHookConfigured bool) string {
+	var markers []string
+	if overrides.L1PAOMultisig != (common.Address{}) {
+		markers = append(markers, "OVERRIDES-L1PAOMULTISIG")
 	}
+	if overrides.Challenger != (common.Address{}) {
+		markers = append(markers, "OVERRIDES-CHALLENGER")
+	}
+	if bridgeHookConfigured {
+		markers = append(markers, "PORTAL-110")
+	}
+	return strings.Join(markers, ",")
 }
 
 type ScriptHostCallBackend struct {

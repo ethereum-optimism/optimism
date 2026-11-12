@@ -8,6 +8,7 @@ pub mod transaction;
 
 mod block;
 mod call;
+mod memory_overlay;
 mod pending_block;
 
 use crate::{

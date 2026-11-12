@@ -74,7 +74,7 @@ The implementations fix the bounds each chain's withdrawal delays must fall with
 
 <Unreleased component="op-deployer" />
 
-The implementations include `ZKDisputeGame` and its `SP1PlonkAdapter`, which wraps a raw SP1 verifier. On Ethereum mainnet and Sepolia, op-deployer uses Succinct's release-approved verifier. On any other L1, pass `--sp1-verifier-address`, or the command fails.
+The implementations include `ZKDisputeGame` and its `SP1PlonkAdapter`, which wraps a raw SP1 verifier. On Ethereum mainnet and Sepolia, op-deployer uses Succinct's release-approved verifier. On any other L1, pass `--sp1-verifier-address`, or the command fails. On a development L1, such as a local devnet, `--deploy-mock-sp1-verifier` instead deploys a mock verifier that accepts every proof. op-deployer refuses the mock on Ethereum mainnet and Sepolia.
 
 ### Output
 

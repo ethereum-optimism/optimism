@@ -22,7 +22,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
@@ -30,18 +29,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
@@ -698,27 +694,7 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 	}
 	deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
 	intent.L1DevGenesisParams.Prefund[deployerAddr] = (*hexutil.U256)(millionEth)
-	wb.require.NoError(pipeline.ValidateInputs(intent, st))
-	bundle, err := artifacts.DownloadBundle(wb.p.Ctx(), intent.L1ContractsLocator, intent.L2ContractsLocator, ioutil.NoopProgressor(), opts.CacheDir)
-	wb.require.NoError(err)
-	host, err := env.DefaultScriptHost(broadcaster.NoopBroadcaster(), wb.logger, deployerAddr, bundle.L1, script.WithNoMaxCodeSize())
-	wb.require.NoError(err)
-	scripts, err := opcm.NewScripts(host)
-	wb.require.NoError(err)
-	pEnv := &pipeline.Env{
-		StateWriter: pipeline.NoopStateWriter(), L1ScriptHost: host, Logger: wb.logger,
-		Broadcaster: broadcaster.NoopBroadcaster(), Deployer: deployerAddr, Scripts: scripts,
-		IsGenesis: true, DeployMockSP1Verifier: opts.DeployMockSP1Verifier,
-		AllowUnoptimizedContracts: true, Context: wb.p.Ctx(),
-	}
-	// Preinstalls wipe the deployer; run them before CREATE consumes its nonces.
-	for _, stage := range []func(*pipeline.Env, *state.Intent, *state.State) error{
-		pipeline.InitGenesisStrategy, pipeline.PreinstallL1DevGenesis,
-		pipeline.DeploySuperchain, pipeline.DeployImplementations,
-		pipeline.PrefundL1DevGenesis, pipeline.SealL1DevGenesis,
-	} {
-		wb.require.NoError(stage(pEnv, intent, st))
-	}
+	wb.require.NoError(deployer.ApplyL1DevGenesis(wb.p.Ctx(), opts))
 	wb.output = st
 	wb.buildL1Genesis()
 	l1BlockTime := wb.builder.L1().BlockTime()
@@ -771,6 +747,10 @@ func (wb *worldBuilder) prepareAndDeployChains(opts deployer.ApplyPipelineOpts, 
 		_, err := client.HeaderByNumber(wb.p.Ctx(), big.NewInt(int64(rpc.SafeBlockNumber)))
 		return err == nil
 	}, 30*time.Second, 100*time.Millisecond, "L1 must publish a safe head before preparation")
+	// geth rejects receipt queries until its first indexing pass. prepare and continue run forge on an
+	// anvil fork of this L1, forge's receipt queries reach geth through the fork, and forge gives up
+	// after a few retries.
+	wb.require.NoError(geth.WaitUntilTransactionNotFound(client, common.Hash{}, 30*time.Second))
 
 	// Keep the safe anchor at genesis until preparation commits the L2 timestamp.
 	l1CL.fakepos.Stop()

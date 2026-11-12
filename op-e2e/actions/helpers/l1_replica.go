@@ -54,11 +54,10 @@ type L1Replica struct {
 // NewL1Replica constructs a L1Replica starting at the given genesis.
 func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 	ethCfg := &ethconfig.Config{
-		NetworkId:                 bigs.Uint64Strict(genesis.Config.ChainID),
-		Genesis:                   genesis,
-		RollupDisableTxPoolGossip: true,
-		StateScheme:               rawdb.HashScheme,
-		NoPruning:                 true,
+		NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
+		Genesis:     genesis,
+		StateScheme: rawdb.HashScheme,
+		NoPruning:   true,
 		BlobPool: blobpool.Config{
 			Datadir:   t.TempDir(),
 			Datacap:   blobpool.DefaultConfig.Datacap,

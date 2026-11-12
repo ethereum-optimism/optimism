@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 
 import { Constants } from "src/libraries/Constants.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
@@ -63,8 +64,10 @@ contract DeployOPChain is Script {
     /// @return output_ The output of the script.
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
         require(_input.length > 0, "DeployOPChain: input cannot be empty");
+        DeployState.load();
         Types.DeployOPChainInput memory input = abi.decode(_input, (Types.DeployOPChainInput));
         Output memory output_ = run(input);
+        DeployState.dump(msg.sender);
         return abi.encode(output_);
     }
 
@@ -197,7 +200,8 @@ contract DeployOPChain is Script {
             useCustomGasToken: _input.useCustomGasToken,
             proofMaturityDelaySeconds: _input.proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds: _input.disputeGameFinalityDelaySeconds,
-            withdrawalDelaySeconds: _input.withdrawalDelaySeconds
+            withdrawalDelaySeconds: _input.withdrawalDelaySeconds,
+            bridgeHook: _input.bridgeHook
         });
     }
 
@@ -384,6 +388,29 @@ contract DeployOPChain is Script {
         }
     }
 
+    /// @notice Checks the deployed portal proxy.
+    /// @param _i           The deploy input.
+    /// @param _proxies     The deployed proxies.
+    /// @param _portalImpl  The portal implementation, for its delay bounds.
+    function _checkOptimismPortalOutput(
+        Types.DeployOPChainInput memory _i,
+        Types.ContractSet memory _proxies,
+        address _portalImpl
+    )
+        internal
+        view
+    {
+        ChainAssertions.checkOptimismPortal2({
+            _contracts: _proxies,
+            _superchainConfig: _i.superchainConfig,
+            _opChainProxyAdminOwner: _i.opChainProxyAdminOwner,
+            _isProxy: true,
+            _minProofMaturityDelaySeconds: IOptimismPortal(payable(_portalImpl)).minProofMaturityDelaySeconds(),
+            _maxProofMaturityDelaySeconds: IOptimismPortal(payable(_portalImpl)).maxProofMaturityDelaySeconds(),
+            _bridgeHook: address(_i.bridgeHook)
+        });
+    }
+
     /// @notice Checks if the output is valid.
     /// @param _i The input to check.
     /// @param _o The output to check.
@@ -501,16 +528,7 @@ contract DeployOPChain is Script {
             IAnchorStateRegistry(implementations.anchorStateRegistryImpl).maxDisputeGameFinalityDelaySeconds()
         );
         ChainAssertions.checkL1CrossDomainMessenger(_o.l1CrossDomainMessengerProxy, vm, true);
-        ChainAssertions.checkOptimismPortal2({
-            _contracts: proxies,
-            _superchainConfig: _i.superchainConfig,
-            _opChainProxyAdminOwner: _i.opChainProxyAdminOwner,
-            _isProxy: true,
-            _minProofMaturityDelaySeconds: IOptimismPortal(payable(implementations.optimismPortalImpl))
-                .minProofMaturityDelaySeconds(),
-            _maxProofMaturityDelaySeconds: IOptimismPortal(payable(implementations.optimismPortalImpl))
-                .maxProofMaturityDelaySeconds()
-        });
+        _checkOptimismPortalOutput(_i, proxies, implementations.optimismPortalImpl);
         ChainAssertions.checkSystemConfigProxies(proxies, _i);
 
         DeployUtils.assertValidContractAddress(address(_o.l1CrossDomainMessengerProxy));

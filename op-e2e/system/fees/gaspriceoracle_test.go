@@ -65,7 +65,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 	require.NoError(t, err, "Waiting for sysconfig set gas config update tx")
 
-	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(receipt.BlockNumber), l2Seq, txTimeoutDuration)
+	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(receipt.BlockNumber), sys.NodeSourceClient("sequencer"), txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
 	baseFeeScalar, err := gpoContract.BaseFeeScalar(&bind.CallOpts{})
@@ -90,7 +90,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 	require.NoError(t, err, "Waiting for sysconfig set gas config update tx")
 
-	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(receipt.BlockNumber), l2Seq, txTimeoutDuration)
+	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(receipt.BlockNumber), sys.NodeSourceClient("sequencer"), txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
 	baseFeeScalar, err = gpoContract.BaseFeeScalar(&bind.CallOpts{})

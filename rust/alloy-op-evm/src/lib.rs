@@ -85,7 +85,7 @@ pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::N
     _tx: PhantomData<Tx>,
 }
 
-/// UPSTREAM-MIRROR(copy): revm-context@43.0.2 `revm_context::Evm::with_inspector`
+/// UPSTREAM-MIRROR(copy): revm-context@43.0.3 `revm_context::Evm::with_inspector`
 ///
 /// Rebuilds `evm` with its inspector replaced by `f(inspector)`. Upstream `with_inspector` takes
 /// the new inspector by value, so it cannot derive it from the old one.

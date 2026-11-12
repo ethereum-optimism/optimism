@@ -37,9 +37,9 @@ func TestTxGossip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Send a transaction to the verifier and it should be gossiped to the sequencer and included in a block.
-	helpers.SendL2Tx(t, cfg, verifClient, cfg.Secrets.Alice, func(opts *helpers.TxOpts) {
+	helpers.SendL2Tx(t, cfg, sys.NodeSourceClient("verifier"), cfg.Secrets.Alice, func(opts *helpers.TxOpts) {
 		opts.ToAddr = &common.Address{0xaa}
 		opts.Value = common.Big1
-		opts.VerifyOnClients(seqClient, verifClient)
+		opts.VerifyOnClients(sys.NodeSourceClient("sequencer"), sys.NodeSourceClient("verifier"))
 	})
 }

@@ -5,18 +5,26 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // ForgeEnv runs the deploy scripts with forge, against a live L1 or offline on a GenesisState.
 type ForgeEnv struct {
-	Client               *forge.Client
+	Client *forge.Client
+	// Artifacts are the contract artifacts of the bundle that Client runs.
+	Artifacts            foundry.StatDirFs
 	Context              context.Context
 	L1RPCUrl             string
 	PrivateKey           string
 	Logger               log.Logger
 	ReceiptQueryInterval time.Duration
+	// UnlockedSender, when set, makes forge itself send from this unlocked node account, such as
+	// one of an anvil fork, instead of txmgr sending with PrivateKey.
+	UnlockedSender common.Address
 	// sentBlock is the block of the last receipt of a send. Later scripts fork at it or after it, so
 	// that they see the send when a backend of a load-balanced RPC lags the one that served it.
 	sentBlock uint64
@@ -33,8 +41,8 @@ func (env *ForgeEnv) logger() log.Logger {
 
 type newScriptCaller[I, O any] func(*forge.Client) forge.ScriptCaller[I, O]
 
-// broadcastScript runs a script that sends transactions: to the live L1 through txmgr, or on the
-// genesis state.
+// broadcastScript runs a script that sends transactions: to the live L1 through txmgr, from the
+// unlocked sender of a fork, or on the genesis state.
 func broadcastScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
 	var out O
 	if env.Client == nil {
@@ -55,6 +63,10 @@ func broadcastScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], i
 
 	if env.L1RPCUrl == "" {
 		return out, errors.New("L1 RPC URL is required for Forge deployments")
+	}
+	if env.UnlockedSender != (common.Address{}) {
+		out, _, err := newCaller(env.Client)(ctx, input, "--rpc-url", env.L1RPCUrl, "--broadcast", "--unlocked", "--sender", env.UnlockedSender.Hex())
+		return out, err
 	}
 	return broadcastLiveScript(ctx, env, newCaller, input)
 }

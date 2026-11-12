@@ -29,18 +29,21 @@ const ENDPOINT_VERDICTS: &str = "optimism_transaction_pool.interop.endpoint.verd
 /// `EndpointMetrics` used to emit, so existing dashboards keep working.
 const ENDPOINT_QUERY_LATENCY: &str = "optimism_transaction_pool.interop.endpoint.query_latency";
 
-/// Fully-qualified name of the per-endpoint health gauge: `1` if the endpoint's last completed
-/// check returned a verdict (valid or invalid), `0` if it was a non-response. `sum(endpoint.up)`
-/// against [`quorum_min_responses`](InteropMetrics::quorum_min_responses) is the fail-closed
-/// headroom: it drops as endpoints stop answering, *before* quorum is lost.
+/// Fully-qualified name of the per-endpoint health gauge: `1` if the endpoint returned a verdict
+/// (valid or invalid) to its last completed check or replied to the failsafe poll, `0` if that
+/// request was a non-response. The poll runs with or without interop traffic, so the gauge stays
+/// current on an idle pool. It measures reachability: an out-of-sync endpoint still answers the
+/// poll. `sum(endpoint.up)` against
+/// [`quorum_min_responses`](InteropMetrics::quorum_min_responses) is the fail-closed headroom: it
+/// drops as endpoints stop answering, *before* quorum is lost.
 ///
-/// A check cancelled by fast-accept and a
+/// A check cancelled by fast-accept or by the poll's short-circuit, and a
 /// [too recent](InteropTxValidatorError::is_message_too_recent) answer leave it unchanged. That
 /// answer still misses quorum, so `rejected_no_quorum` can fire at full headroom, and a filter
 /// whose ingestion stalled keeps its last value; its `verdicts{verdict="valid"}` rate falls
 /// against its peers instead, and the filter's own
 /// `op_interop_filter_default_ingestion_lag_seconds` rises.
-const ENDPOINT_UP: &str = "optimism_transaction_pool.interop.endpoint.up";
+pub(crate) const ENDPOINT_UP: &str = "optimism_transaction_pool.interop.endpoint.up";
 
 /// `result` label values for [`InteropMetrics::record_decision`]. Every transaction that reaches
 /// the interop filter records exactly one of these. Low-cardinality and stable.
@@ -158,6 +161,12 @@ impl EndpointMetrics {
                 self.up.set(0.0);
             }
         }
+    }
+
+    /// Records whether this endpoint replied to a failsafe poll.
+    #[inline]
+    pub fn record_poll(&self, replied: bool) {
+        self.up.set(if replied { 1.0 } else { 0.0 });
     }
 }
 
@@ -317,9 +326,10 @@ fn describe_metrics() {
     );
     describe_gauge!(
         ENDPOINT_UP,
-        "1 if an interop endpoint's last completed check returned a verdict, 0 if a non-response; \
-         a too-recent-message answer leaves it unchanged but still misses quorum; sum vs \
-         quorum_min_responses is the fail-closed headroom (labels: endpoint)"
+        "1 if an interop endpoint returned a verdict to its last completed check or replied to \
+         the failsafe poll, 0 if a non-response; a too-recent-message answer leaves it unchanged \
+         but still misses quorum; sum vs quorum_min_responses is the fail-closed headroom \
+         (labels: endpoint)"
     );
 }
 

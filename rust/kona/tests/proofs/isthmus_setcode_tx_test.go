@@ -102,7 +102,7 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		GasTipCap: uint256.NewInt(2),
 		AuthList:  []types.SetCodeAuthorization{auth1, auth2},
 	}
-	signer := types.NewIsthmusSigner(chainID)
+	signer := types.NewPragueSigner(chainID)
 	tx := types.MustSignNewTx(aliceSecret, signer, txdata)
 
 	err = cl.SendTransaction(t.Ctx(), tx)
@@ -187,7 +187,7 @@ func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	sequencer.ActL2PipelineFull(t)
 
 	l2safe := sequencer.L2Safe()
-	deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2safe.Hash)
+	deposits, userTxs := env.Engine.BlockTxs(t, l2safe.Hash)
 	require.Len(t, deposits, 1, "safe head should only contain l1 info deposit")
 	require.Empty(t, userTxs, "safe head should only contain l1 info deposit")
 	require.Equal(t, u1, l2safe, "expected last block to be reorgd out due to setcode tx")
@@ -251,7 +251,7 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 
 	sequencer.ActL2EmptyBlock(t) // we'll inject the setcode tx in this block's batch
 
-	signer := types.NewIsthmusSigner(chainID)
+	signer := types.NewPragueSigner(chainID)
 
 	rng := rand.New(rand.NewSource(0))
 	tx := testutils.RandomSetCodeTx(rng, signer)
@@ -293,7 +293,7 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 	sequencer.ActL2PipelineFull(t)
 
 	l2safe := sequencer.L2Safe()
-	deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2safe.Hash)
+	deposits, userTxs := env.Engine.BlockTxs(t, l2safe.Hash)
 	require.Empty(t, deposits, "safe head should not contain either tx")
 	require.Empty(t, userTxs, "safe head should not contain either tx")
 	require.Equal(t, u1, l2safe, "expected last block to be reorgd out due to setcode tx")

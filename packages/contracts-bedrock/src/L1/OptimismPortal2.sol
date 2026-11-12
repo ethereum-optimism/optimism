@@ -324,9 +324,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.7.0
+    /// @custom:semver 7.7.1
     function version() public pure virtual returns (string memory) {
-        return "7.7.0";
+        return "7.7.1";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -1083,7 +1083,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _held[id_] = true;
 
         if (_item.asset == BridgeHookTypes.Asset.ERC20) {
-            _l1StandardBridge().holdERC20(_item.direction, _message);
+            _l1StandardBridge().holdERC20(id_, _item.direction, _message);
         }
     }
 
@@ -1102,7 +1102,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         if (_item.asset == BridgeHookTypes.Asset.ERC20) {
             (, bytes memory message) = BridgeHookDecoder.extractTokenMessage(_item);
-            _l1StandardBridge().restoreERC20(_item.direction, message);
+            _l1StandardBridge().restoreERC20(id, _item.direction, message);
         }
     }
 

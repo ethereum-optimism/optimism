@@ -186,7 +186,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)
 	}
 
-	sp1Verifier, err := opcm.DeployMockSP1Verifier(l1Host, superCfg.Deployer)
+	sp1Verifier, _, err := opcm.DeployMockSP1Verifier(l1Host, superCfg.Deployer)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +271,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(cfg.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
+		BridgeHook:                      common.Address{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)

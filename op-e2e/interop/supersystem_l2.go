@@ -74,6 +74,7 @@ func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Clien
 			return cl
 		})
 	node.gethClient = ethclient.NewClient(rpcCl)
+	s.t.Cleanup(node.gethClient.Close)
 	return node.gethClient
 }
 
