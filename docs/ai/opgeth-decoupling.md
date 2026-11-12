@@ -349,7 +349,7 @@ shedding. Instead, partition the `apis.EthClient` accessors by tx class:
 transactions-trie root is recomputed directly from those bytes (a typed tx's trie leaf *is* its
 opaque encoding), synthetic-tx detection is a type-byte check, and each class decodes on demand.
 `sources.L2Client` enforces the split: its `InfoAndTxsBy*` and `HeaderAndTxsByHash` check the raw
-type bytes and return `ErrSyntheticTxInBody` for a block holding a `0x7E` or `0x7D` tx, so an L2
+type bytes and return `ErrOpTxInBody` for a block holding a `0x7E` or `0x7D` tx, so an L2
 caller fails today the way it would under upstream go-ethereum.
 
 **Index-correlation caveat** (for §13): callers that iterate the full tx list and correlate by
@@ -402,7 +402,7 @@ The test suites read L2 data as §11 prescribes, and two gates keep them there. 
 
 Gates:
 
-- **Sources path:** `sources.L2Client` rejects synthetic txs in `InfoAndTxsBy*` and
+- **Sources path:** `sources.L2Client` rejects OP Stack txs in `InfoAndTxsBy*` and
   `HeaderAndTxsByHash` (§11).
 - **ethclient path:** a forbidigo rule in `.golangci.yaml` rejects
   `ethclient.Client.{BlockByNumber,BlockByHash,BlockReceipts,TransactionInBlock,TransactionByHash}`
