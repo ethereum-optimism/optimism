@@ -3,12 +3,14 @@ package bundle
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -106,9 +108,9 @@ func TestWrite(t *testing.T) {
 	require.Contains(t, files, "lib/dep/foundry.toml")
 	require.Contains(t, files, "lib/dep/remappings.txt")
 	require.Contains(t, files, "lib/dep/lib/sub/LICENSE-MIT")
-	require.NotContains(t, files, "lib/dep/src/Unused.sol")
+	require.Contains(t, files, "lib/dep/src/Unused.sol", "forge detects the remappings of a library from its Solidity files")
+	require.Contains(t, files, "lib/dep/lib/sub/contracts/Other.sol")
 	require.NotContains(t, files, "lib/dep/docs/README.md")
-	require.NotContains(t, files, "lib/dep/lib/sub/contracts/Other.sol")
 	for _, dir := range dirs {
 		require.NotRegexp(t, `^lib/.`, dir, "untar creates the library directories")
 	}
@@ -259,6 +261,60 @@ func TestWrite_ThroughLinkedProject(t *testing.T) {
 	require.NoError(t, Write(&buf, link, nil, ""))
 	files, _ := readArchive(t, buf.Bytes())
 	require.Equal(t, "contract A {}", files["src/A.sol"])
+}
+
+// TestWrite_ForgeRunsBundleWithoutCompiling checks that forge runs a script of an unpacked bundle
+// without compiling, also when the remappings that forge detects in a library depend on its files
+// that are not sources of the build.
+func TestWrite_ForgeRunsBundleWithoutCompiling(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	base := t.TempDir()
+	writeFiles(t, base, map[string]string{
+		"foundry.toml": "[profile.default]\nsrc = \"script\"\nremappings = [\"@dep/=lib/dep/contracts/\"]\n",
+		"lib/dep/contracts/Dep.sol": `// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+library Dep {
+    function one() internal pure returns (uint256) {
+        return 1;
+    }
+}
+`,
+		// Not a source of the build, but forge detects the remapping of the nested library from it.
+		"lib/dep/lib/sub/src/Sub.sol": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.13;\n",
+		"script/Dep.s.sol": `// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import {Dep} from "@dep/Dep.sol";
+
+contract DepScript {
+    function run(bytes memory) public pure returns (uint256) {
+        return Dep.one();
+    }
+}
+`,
+	})
+	build := forge.NewClient(forge.PathBinary())
+	build.Wd = base
+	build.Stdout = io.Discard
+	build.Stderr = io.Discard
+	require.NoError(t, build.Build(ctx))
+
+	var buf bytes.Buffer
+	require.NoError(t, Write(&buf, base, nil, ""))
+	files, _ := readArchive(t, buf.Bytes())
+	unpacked := t.TempDir()
+	writeFiles(t, unpacked, files)
+
+	cl := forge.NewClient(forge.PathBinary())
+	cl.Wd = unpacked
+	cl.Stdout = io.Discard
+	cl.Stderr = io.Discard
+	cl.FsPermissions = []forge.FsPermission{}
+	_, _, err := cl.RunScript(ctx, "script/Dep.s.sol:DepScript", "run(bytes)", nil)
+	require.NoError(t, err)
 }
 
 // TestScriptReadDir_IsWhatScriptsMayRead ties ScriptReadDir to the directory that op-deployer lets
