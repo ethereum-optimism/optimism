@@ -586,14 +586,6 @@ func (el *L2ELNode) RecordLogs(minLevel slog.Level) *LogRecorder {
 	return recorder
 }
 
-func (el *L2ELNode) PeerWith(peer *L2ELNode) {
-	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
-}
-
-func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
-	sysgo.DisconnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
-}
-
 // Enode returns the node's enode URL, which identifies it to its peers across restarts.
 func (el *L2ELNode) Enode() string {
 	var info p2p.NodeInfo

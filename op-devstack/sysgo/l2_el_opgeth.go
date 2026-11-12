@@ -30,6 +30,8 @@ type OpGeth struct {
 	supervisorRPC string
 	l2Geth        *geth.GethInstance
 	cfg           *L2ELConfig
+	// gethOptions apply after the node's own geth configuration.
+	gethOptions []geth.GethOption
 
 	authRPC string
 	userRPC string
@@ -121,6 +123,11 @@ func (n *OpGeth) Start() {
 					nodes = append(nodes, nn)
 				}
 				nodeCfg.P2P.TrustedNodes = nodes
+			}
+			for _, option := range n.gethOptions {
+				if err := option(ethCfg, nodeCfg); err != nil {
+					return err
+				}
 			}
 			return nil
 		})

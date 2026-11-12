@@ -17,6 +17,7 @@ import (
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -208,6 +209,7 @@ type MixedSingleChainPresetConfig struct {
 	LocalContractArtifactsPath string
 	DeployerOptions            []DeployerOption
 	BatcherOptions             []BatcherOption
+	OpGethOptions              []geth.GethOption
 	OpRethOptions              []OpRethOption
 	// InteropAtGenesis activates the Lagoon hardfork at genesis on the L2 chain and provides
 	// the resulting dependency set to op-node CL startup. Required by any test that exercises
@@ -278,7 +280,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		var el L2ELNode
 		switch spec.ELKind {
 		case MixedL2ELOpGeth:
-			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
+			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity, cfg.OpGethOptions...)
 		case MixedL2ELOpReth:
 			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, nodeOpRethOpts...)
 		default:

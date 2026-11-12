@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	opNodeFlags "github.com/ethereum-optimism/optimism/op-node/flags"
@@ -187,6 +188,7 @@ func startL2ELNode(
 	jwtSecret [32]byte,
 	key string,
 	identity *ELNodeIdentity,
+	gethOptions ...geth.GethOption,
 ) *OpGeth {
 	cfg := DefaultL2ELConfig()
 	cfg.P2PAddr = "127.0.0.1"
@@ -194,13 +196,14 @@ func startL2ELNode(
 	cfg.P2PNodeKeyHex = identity.KeyHex()
 
 	l2EL := &OpGeth{
-		name:      key,
-		p:         t,
-		logger:    t.Logger().New("component", "l2el-"+key),
-		l2Net:     l2Net,
-		jwtPath:   jwtPath,
-		jwtSecret: jwtSecret,
-		cfg:       cfg,
+		name:        key,
+		p:           t,
+		logger:      t.Logger().New("component", "l2el-"+key),
+		l2Net:       l2Net,
+		jwtPath:     jwtPath,
+		jwtSecret:   jwtSecret,
+		cfg:         cfg,
+		gethOptions: gethOptions,
 	}
 	l2EL.Start()
 	t.Cleanup(l2EL.Stop)
