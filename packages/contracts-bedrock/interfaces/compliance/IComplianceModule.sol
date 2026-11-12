@@ -9,20 +9,41 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPolicy } from "interfaces/compliance/IPolicy.sol";
 
 interface IComplianceModule is IBridgeHook {
+    struct Record {
+        uint64 heldAt;
+        uint64 expiresAt;
+    }
+
     error ComplianceModule_CallerNotPortal();
+    error ComplianceModule_NotActiveHook();
     error ComplianceModule_CallerNotPolicy();
+    error ComplianceModule_CallerNotProxyAdmin();
     error ComplianceModule_ItemNotHeld();
     error ComplianceModule_ItemNotCleared();
     error ComplianceModule_PolicyRefused();
     error ComplianceModule_ETHAmountMismatch();
     error ComplianceModule_ZeroAddress();
+    error ComplianceModule_InsufficientBalance();
+    error ComplianceModule_ZeroExpiry();
     error ComplianceModule_Paused();
+    error ComplianceModule_OwnershipNotRenounceable();
+    error InvalidInitialization();
+    error NotInitializing();
+    error OwnableUnauthorizedAccount(address account);
+    error OwnableInvalidOwner(address owner);
+    error SafeERC20FailedOperation(address token);
+    error AddressInsufficientBalance(address account);
+    error AddressEmptyCode(address target);
+    error FailedInnerCall();
 
+    event Initialized(uint64 version);
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event Held(bytes32 indexed id, BridgeHookTypes.Item item);
-    event VerdictRecorded(bytes32 indexed id, uint64 clearedAt);
+    event VerdictRecorded(bytes32 indexed id, uint64 expiresAt);
     event VerdictRevoked(bytes32 indexed id);
     event Completed(bytes32 indexed id);
-    event PolicySet(IPolicy indexed policy);
+    event PolicySet(IPolicy indexed previousPolicy, IPolicy indexed newPolicy);
     event Disabled(uint256 cutoffL2Nonce);
     event Enabled();
 
@@ -34,7 +55,12 @@ interface IComplianceModule is IBridgeHook {
         IL1StandardBridge _l1StandardBridge
     )
         external;
+    function version() external view returns (string memory);
     function owner() external view returns (address);
+    function pendingOwner() external view returns (address);
+    function transferOwnership(address newOwner) external; // nosemgrep
+    function acceptOwnership() external;
+    function renounceOwnership() external pure;
     function portal() external view returns (IOptimismPortal2);
     function bridge() external view returns (IL1StandardBridge);
     function l1CrossDomainMessenger() external view returns (IL1CrossDomainMessenger);
@@ -42,13 +68,13 @@ interface IComplianceModule is IBridgeHook {
     function disabled() external view returns (bool);
     function cutoffL2Nonce() external view returns (uint256);
     function paused() external view returns (bool);
-    function items(bytes32 _id) external view returns (uint64 heldAt_, uint64 clearedAt_);
-    function heldTokens(address _l1Token, address _l2Token) external view returns (uint256);
-    function parties(BridgeHookTypes.Item calldata _item) external view returns (address[] memory parties_);
+    function items(bytes32 _id) external view returns (Record memory);
+    function heldTokensTotal(address l1Token) external view returns (uint256 amount);
+    function parties(BridgeHookTypes.Item calldata _item) external view returns (IPolicy.Parties memory parties_);
     function setPolicy(IPolicy _policy) external;
     function disable(uint256 _cutoffL2Nonce) external;
     function enable() external;
-    function recordVerdict(bytes32 _id) external;
+    function recordVerdict(bytes32 _id, uint64 _expiresAt) external;
     function revokeVerdict(bytes32 _id) external;
     function completeDeposit(BridgeHookTypes.Item calldata _item) external;
     function completeWithdrawal(BridgeHookTypes.Item calldata _item) external;

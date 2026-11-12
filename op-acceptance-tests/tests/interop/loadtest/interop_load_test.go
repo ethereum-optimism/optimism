@@ -12,6 +12,7 @@ import (
 	"time"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -25,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -103,7 +103,7 @@ func setupL2s(t devtest.T) (*L2, *L2) {
 	return l2A, l2B
 }
 
-func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config *params.ChainConfig, el *dsl.L2ELNode, funder *dsl.FunderEOA) *L2 {
+func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config *opparams.ChainConfig, el *dsl.L2ELNode, funder *dsl.FunderEOA) *L2 {
 	budgetAmount := eth.OneEther
 	if budgetStr, exists := os.LookupEnv("NAT_INTEROP_LOADTEST_BUDGET"); exists {
 		ethAmt, err := strconv.ParseFloat(budgetStr, 64)

@@ -452,6 +452,9 @@ rules:
         - /packages/contracts-bedrock/src/dispute/zk/OptimisticZkGame.sol
         # DataAvailabilityChallenge is a beta/non-standard contract.
         - /packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
+        # ComplianceModule may have an admin that is not a ProxyAdmin, so it checks the
+        # EIP-1967 admin slot directly.
+        - /packages/contracts-bedrock/src/compliance/ComplianceModule.sol
 
   - id: sol-safety-use-deployutils-getcode
     languages: [solidity]

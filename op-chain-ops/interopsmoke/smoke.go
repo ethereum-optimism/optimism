@@ -96,7 +96,7 @@ type remoteChain struct {
 	name      string
 	url       string
 	rpc       opclient.RPC
-	ethClient apis.EthClient
+	ethClient apis.EthExtendedClient
 	chainID   eth.ChainID
 }
 
@@ -1397,12 +1397,12 @@ func waitForHeadProgress(ctx context.Context, stderr io.Writer, chain *remoteCha
 }
 
 func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {
-	_, txs, err := chain.ethClient.InfoAndTxsByNumber(ctx, blockNum)
+	envelope, err := chain.ethClient.PayloadByNumber(ctx, blockNum)
 	if err != nil {
 		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
 	}
-	for _, tx := range txs {
-		if tx.Hash() == txHash {
+	for _, tx := range envelope.ExecutionPayload.Transactions {
+		if sources.RawTransaction(tx).Hash() == txHash {
 			return nil
 		}
 	}
@@ -1410,12 +1410,12 @@ func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, t
 }
 
 func assertTxNotInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {
-	_, txs, err := chain.ethClient.InfoAndTxsByNumber(ctx, blockNum)
+	envelope, err := chain.ethClient.PayloadByNumber(ctx, blockNum)
 	if err != nil {
 		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
 	}
-	for _, tx := range txs {
-		if tx.Hash() == txHash {
+	for _, tx := range envelope.ExecutionPayload.Transactions {
+		if sources.RawTransaction(tx).Hash() == txHash {
 			return fmt.Errorf("tx %s still present in block %d on %s", txHash, blockNum, chain.name)
 		}
 	}

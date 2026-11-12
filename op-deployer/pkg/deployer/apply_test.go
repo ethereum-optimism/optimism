@@ -31,26 +31,29 @@ func TestApplyPipelineRejectsMockSP1VerifierOnReleaseL1(t *testing.T) {
 	}
 }
 
-// TestNewPipelineEnvForgeCacheProfile checks that only the L2 genesis, where contracts may exceed the
-// code size limit, runs a contracts build of another profile than the default.
+// TestNewPipelineEnvForgeCacheProfile checks that the forge clients run only a default-profile build,
+// even where contracts may exceed the code size limit. Only a GenesisState run, which deploys to no
+// chain, may run a build of another profile.
 func TestNewPipelineEnvForgeCacheProfile(t *testing.T) {
 	_, afs := testutil.LocalArtifacts(t)
 	bundle := artifacts.Bundle{L1: afs, L2: afs}
-	newEnv := func(t *testing.T, target DeploymentTarget, allowUnoptimized bool, anyCacheProfile bool) {
-		pEnv, err := newPipelineEnv(t.Context(), ApplyPipelineOpts{
-			DeploymentTarget:          target,
-			L1RPCUrl:                  "http://127.0.0.1:1",
-			Logger:                    testlog.Logger(t, slog.LevelInfo),
-			CacheDir:                  t.TempDir(),
-			AllowUnoptimizedContracts: allowUnoptimized,
-		}, bundle)
-		require.NoError(t, err)
-		require.Equal(t, anyCacheProfile, pEnv.L2Forge.AnyCacheProfile)
-		if pEnv.Forge != nil {
-			require.False(t, pEnv.Forge.Client.AnyCacheProfile, "a live deployment must run only a default-profile build")
-		}
+	for _, target := range []DeploymentTarget{DeploymentTargetLive, DeploymentTargetGenesis} {
+		t.Run(string(target), func(t *testing.T) {
+			pEnv, err := newPipelineEnv(t.Context(), ApplyPipelineOpts{
+				DeploymentTarget:          target,
+				L1RPCUrl:                  "http://127.0.0.1:1",
+				Logger:                    testlog.Logger(t, slog.LevelInfo),
+				CacheDir:                  t.TempDir(),
+				AllowUnoptimizedContracts: true,
+			}, bundle)
+			require.NoError(t, err)
+			require.False(t, pEnv.L2Forge.AnyCacheProfile)
+			require.False(t, pEnv.Forge.Client.AnyCacheProfile, "the L1 client runs live deployments")
+			if target == DeploymentTargetLive {
+				require.Nil(t, pEnv.Forge.Genesis, "a live deployment must not run offline")
+			} else {
+				require.True(t, pEnv.Forge.Genesis.NoCodeSizeLimit)
+			}
+		})
 	}
-	t.Run("live", func(t *testing.T) { newEnv(t, DeploymentTargetLive, false, false) })
-	t.Run("live, unoptimized contracts allowed", func(t *testing.T) { newEnv(t, DeploymentTargetLive, true, true) })
-	t.Run("genesis", func(t *testing.T) { newEnv(t, DeploymentTargetGenesis, false, true) })
 }
