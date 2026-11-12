@@ -43,7 +43,7 @@ pub struct OpPendingEnvBuilder {
 impl OpPendingEnvBuilder {
     /// Creates a builder for `chain`, from its alloy-chains block time hint.
     ///
-    /// UPSTREAM-MIRROR(copy): reth@rev:e1bf972 `reth_rpc_eth_types::simulate::sanitize_chain`
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1 `reth_rpc_eth_types::simulate::sanitize_chain`
     ///
     /// Derives the block time as upstream's `eth_simulateV1` derives the timestamp increment: the
     /// hint rounded up to whole seconds. A chain without a hint falls back to
