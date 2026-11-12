@@ -2,7 +2,7 @@
 
 use backon::{ExponentialBuilder, RetryableWithContext};
 use derive_more::Debug;
-use discv5::{Config, Discv5, Enr};
+use discv5::{Config, Discv5, Enr, NodeContact};
 use enr::NodeId;
 use kona_peers::{
     BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, peer_id_to_node_id,
@@ -58,30 +58,23 @@ fn holds_session_ip(enr: &Enr, session_ip: IpAddr) -> bool {
 }
 
 /// Returns whether `table_filter` accepts the address of `enode`, a bootnode's enode URL, so that
-/// discovery may contact it: it judges a record at that address, signed with a throwaway key. An
-/// enode URL without an IP address passes.
+/// discovery may contact it: it judges a record at that address, signed with a throwaway key.
 ///
 /// Discovery asks an enode bootnode for its record, which starts a session, and discv5 keeps a
-/// node it has a session with whatever its address, so the address is checked before contact.
-fn accepts_enode(table_filter: fn(&Enr) -> bool, enode: &Multiaddr) -> bool {
+/// node it has a session with whatever its address, so the address is checked before contact. It
+/// reads the address with the parse `Discv5::request_enr` does, so it judges the one discovery
+/// would contact, and fails with that parse's error for an enode URL discovery can't contact, such
+/// as one with a DNS name or without a UDP port.
+fn accepts_enode(table_filter: fn(&Enr) -> bool, enode: &Multiaddr) -> Result<bool, &'static str> {
+    let contact = NodeContact::try_from_multiaddr(enode.clone())?;
     let mut record = Enr::builder();
-    let mut has_ip = false;
-    for protocol in enode {
-        match protocol {
-            Protocol::Ip4(ip) => {
-                record.ip4(ip);
-            }
-            Protocol::Ip6(ip) => {
-                record.ip6(ip);
-            }
-            _ => continue,
-        }
-        has_ip = true;
-    }
-    !has_ip ||
-        record
-            .build(&enr::CombinedKey::generate_secp256k1())
-            .is_ok_and(|record| table_filter(&record))
+    match contact.socket_addr().ip() {
+        IpAddr::V4(ip) => record.ip4(ip),
+        IpAddr::V6(ip) => record.ip6(ip),
+    };
+    Ok(record
+        .build(&enr::CombinedKey::generate_secp256k1())
+        .is_ok_and(|record| table_filter(&record)))
 }
 
 /// Hands gossip the saved records, the bootnodes and the records a session confirmed, in a task of
@@ -295,9 +288,16 @@ impl Discv5Driver {
             let res = match bn {
                 BootNode::Enr(enr) => Ok(enr),
                 BootNode::Enode(enode) => {
-                    if !accepts_enode(table_filter, &enode) {
-                        warn!(target: "discovery::bootstrap", %enode, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
-                        continue;
+                    match accepts_enode(table_filter, &enode) {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            warn!(target: "discovery::bootstrap", %enode, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
+                            continue;
+                        }
+                        Err(err) => {
+                            warn!(target: "discovery::bootstrap", %enode, err, "Ignoring a boot node discovery can't contact");
+                            continue;
+                        }
                     }
                     disc.request_enr(enode).await
                 }
@@ -629,7 +629,7 @@ mod tests {
         LocalNode,
         test_utils::{enr_at, enr_with, localhost_enr},
     };
-    use discv5::{ConfigBuilder, ListenConfig, NodeContact};
+    use discv5::{ConfigBuilder, ListenConfig};
     use enr::{CombinedKey, CombinedPublicKey};
     use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
     use rstest::rstest;
@@ -1266,19 +1266,24 @@ mod tests {
         assert!(!saved.contains(&handed_over), "a public-only node saved a loopback record");
     }
 
-    /// An enode bootnode is contacted only if the table filter accepts its address, or it has none.
-    #[test]
-    fn test_accepts_enode() {
-        let enode = |addr: &str| addr.parse::<Multiaddr>().expect("a valid multiaddr");
-        let loopback = enode("/ip4/127.0.0.1/udp/9223");
-        let public = enode("/ip4/1.1.1.1/udp/9223");
-        let lan_v6 = enode("/ip6/fd00::1/udp/9223");
-        let dns = enode("/dns4/example.com/udp/9223");
-        assert!(!accepts_enode(crate::public_only, &loopback));
-        assert!(!accepts_enode(crate::public_only, &lan_v6));
-        assert!(accepts_enode(crate::public_only, &public));
-        assert!(accepts_enode(crate::public_only, &dns));
-        assert!(accepts_enode(|_| true, &loopback));
+    /// An enode bootnode is contacted only if the table filter accepts its address. One discovery
+    /// can't contact is an error, whatever the filter says.
+    #[rstest]
+    #[case::loopback(crate::public_only, "/ip4/127.0.0.1/udp/9223", Some(false))]
+    #[case::lan_v6(crate::public_only, "/ip6/fd00::1/udp/9223", Some(false))]
+    #[case::public(crate::public_only, "/ip4/1.1.1.1/udp/9223", Some(true))]
+    #[case::allowing_private(accept_all, "/ip4/127.0.0.1/udp/9223", Some(true))]
+    #[case::dns(accept_all, "/dns4/example.com/udp/9223", None)]
+    #[case::without_udp_port(accept_all, "/ip4/127.0.0.1/tcp/9222", None)]
+    fn test_accepts_enode(
+        #[case] table_filter: fn(&Enr) -> bool,
+        #[case] addr: &str,
+        #[case] expected: Option<bool>,
+    ) {
+        let peer_id = libp2p::identity::Keypair::generate_secp256k1().public().to_peer_id();
+        let enode =
+            addr.parse::<Multiaddr>().expect("a valid multiaddr").with(Protocol::P2p(peer_id));
+        assert_eq!(accepts_enode(table_filter, &enode).ok(), expected);
     }
 
     /// Builds a driver listening on localhost that does not contact any remote peer.
