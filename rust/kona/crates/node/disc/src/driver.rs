@@ -937,13 +937,7 @@ mod tests {
     async fn test_public_only_node_drops_loopback_enode_bootnode() {
         let bootnode = offline_driver().init().await.expect("the bootnode starts");
         let bootnode_enr = bootnode.disc.local_enr();
-        let peer_id = kona_peers::enr_to_multiaddr(&bootnode_enr)
-            .and_then(|addr| addr.iter().last().map(|protocol| protocol.acquire()))
-            .expect("the bootnode's record has a peer ID");
-        let enode = Multiaddr::from(Ipv4Addr::LOCALHOST)
-            .with(Protocol::Udp(bootnode_enr.udp4().expect("the bootnode has a UDP port")))
-            .with(Protocol::Tcp(0))
-            .with(peer_id);
+        let enode = loopback_enode(&bootnode_enr);
 
         let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
             unreachable!()
@@ -990,6 +984,47 @@ mod tests {
         );
     }
 
+    /// A bootnode whose record isn't valid for our chain should stay in the table, as an entry
+    /// point for lookups, though it isn't saved or dialed. OP Mainnet's built-in enode bootnodes
+    /// have no `opstack` key, so they are invalid for every chain, and a node with an empty
+    /// bootstore would have nobody to ask without them. An enode bootnode is in the table from the
+    /// session that fetched its record.
+    #[tokio::test]
+    async fn test_enode_bootnode_for_another_chain_stays_in_the_table() {
+        let bootnode = offline_driver().init().await.expect("the bootnode starts");
+        let bootnode_enr = bootnode.disc.local_enr();
+
+        let mut node = offline_driver();
+        node.chain_id = bootnode.chain_id + 1;
+        let node = node.init().await.expect("the node starts");
+
+        let store = Discv5Driver::bootstrap_peers(
+            None,
+            BootNodes(vec![BootNode::Enode(loopback_enode(&bootnode_enr))]),
+            node.chain_id,
+            node.table_filter,
+            &node.disc,
+        )
+        .await;
+
+        assert!(
+            node.disc.table_entries_enr().iter().any(|enr| enr.node_id() == bootnode_enr.node_id()),
+            "the node removed a bootnode for another chain from its table"
+        );
+        assert!(store.is_empty(), "the node saved a bootnode for another chain");
+    }
+
+    /// The enode URL of the node with `enr`, at its UDP port on loopback.
+    fn loopback_enode(enr: &Enr) -> Multiaddr {
+        let peer_id = kona_peers::enr_to_multiaddr(enr)
+            .and_then(|addr| addr.iter().last().map(|protocol| protocol.acquire()))
+            .expect("the record has a peer ID");
+        Multiaddr::from(Ipv4Addr::LOCALHOST)
+            .with(Protocol::Udp(enr.udp4().expect("the record has a UDP port")))
+            .with(Protocol::Tcp(0))
+            .with(peer_id)
+    }
+
     /// A table filter that accepts every record, for the tests of the other rules.
     fn accept_all(_: &Enr) -> bool {
         true
@@ -1033,13 +1068,7 @@ mod tests {
         node.store_interval = Duration::from_millis(100);
         let path = dir.path().join("bootstore.json");
         let node_enr = node.disc.local_enr();
-        let peer_id = kona_peers::enr_to_multiaddr(&node_enr)
-            .and_then(|addr| addr.iter().last().map(|protocol| protocol.acquire()))
-            .expect("the node's record has a peer ID");
-        let enode = Multiaddr::from(Ipv4Addr::LOCALHOST)
-            .with(Protocol::Udp(node_enr.udp4().expect("the node has a UDP port")))
-            .with(Protocol::Tcp(0))
-            .with(peer_id);
+        let enode = loopback_enode(&node_enr);
         let (_node, mut records) = node.start();
 
         let mut loopback = offline_driver();
