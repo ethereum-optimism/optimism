@@ -343,8 +343,6 @@ async fn test_nodes_find_each_other_through_a_bootnode_of_another_chain() -> any
     let node_1 = builder.build(vec![bootnode_enr.clone()]).await;
     let node_2 = builder.build(vec![bootnode_enr]).await;
 
-    // TODO: fails today. `bootstrap_peers` adds a bootnode given by ENR to the table only if it is
-    // a peer of the node's chain, so N1 and N2 have no entry point and never find each other.
     node_1.check_connected_to_with_retries(&node_2).await?;
     for node in [&node_1, &node_2] {
         assert!(

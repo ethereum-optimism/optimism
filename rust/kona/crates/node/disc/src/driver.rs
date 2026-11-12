@@ -311,19 +311,20 @@ impl Discv5Driver {
                 continue;
             }
 
-            // A bootnode that isn't a peer of our chain, such as OP Mainnet's built-in enode
-            // bootnodes, which have no `opstack` key, isn't saved, so that gossip doesn't dial it.
-            // But it isn't removed either: one given by enode URL is in the table already, from
-            // the session that fetched its record, and is an entry point for lookups, which find
-            // the nodes of every chain.
-            let validation = EnrValidation::validate(&enr, chain_id);
-            if validation.is_invalid() {
-                trace!(target: "discovery::bootstrap", ?enr, %validation, "Not saving a boot node that isn't a peer of this chain");
+            // Every bootnode is an entry point for lookups, which find the nodes of every chain, so
+            // it goes into the table whatever its chain. One given by enode URL is there already,
+            // from the session that fetched its record.
+            if let Err(e) = disc.add_enr(enr.clone()) {
+                debug!(target: "discovery::bootstrap", ?enr, "Failed to add boot node: {e}");
                 continue;
             }
 
-            if let Err(e) = disc.add_enr(enr.clone()) {
-                debug!(target: "discovery::bootstrap", ?enr, "Failed to add boot node: {e}");
+            // But only a peer of our chain is saved, and so dialed by gossip. OP Mainnet's built-in
+            // enode bootnodes, for one, have no `opstack` key, and its built-in ENRs are of other
+            // chains.
+            let validation = EnrValidation::validate(&enr, chain_id);
+            if validation.is_invalid() {
+                trace!(target: "discovery::bootstrap", ?enr, %validation, "Not saving a boot node that isn't a peer of this chain");
                 continue;
             }
 
@@ -989,13 +990,19 @@ mod tests {
         );
     }
 
-    /// A bootnode whose record isn't valid for our chain should stay in the table, as an entry
-    /// point for lookups, though it isn't saved or dialed. OP Mainnet's built-in enode bootnodes
-    /// have no `opstack` key, so they are invalid for every chain, and a node with an empty
-    /// bootstore would have nobody to ask without them. An enode bootnode is in the table from the
-    /// session that fetched its record.
+    /// A bootnode whose record isn't valid for our chain should be in the table, as an entry point
+    /// for lookups, though it isn't saved or dialed. OP Mainnet's built-in enode bootnodes have no
+    /// `opstack` key, so they are invalid for every chain, and a node with an empty bootstore would
+    /// have nobody to ask without them. Its built-in ENRs are of other chains. An enode bootnode is
+    /// in the table from the session that fetched its record, an ENR one only if the bootstrap
+    /// adds it.
+    #[rstest]
+    #[case::enode(|enr: &Enr| BootNode::Enode(loopback_enode(enr)))]
+    #[case::enr(|enr: &Enr| BootNode::Enr(enr.clone()))]
     #[tokio::test]
-    async fn test_enode_bootnode_for_another_chain_stays_in_the_table() {
+    async fn test_bootnode_for_another_chain_is_in_the_table(
+        #[case] bootnode_as: fn(&Enr) -> BootNode,
+    ) {
         let bootnode = offline_driver().init().await.expect("the bootnode starts");
         let bootnode_enr = bootnode.disc.local_enr();
 
@@ -1005,7 +1012,7 @@ mod tests {
 
         let store = Discv5Driver::bootstrap_peers(
             None,
-            BootNodes(vec![BootNode::Enode(loopback_enode(&bootnode_enr))]),
+            BootNodes(vec![bootnode_as(&bootnode_enr)]),
             node.chain_id,
             node.table_filter,
             &node.disc,
@@ -1014,7 +1021,7 @@ mod tests {
 
         assert!(
             node.disc.table_entries_enr().iter().any(|enr| enr.node_id() == bootnode_enr.node_id()),
-            "the node removed a bootnode for another chain from its table"
+            "a bootnode for another chain isn't in the node's table"
         );
         assert!(store.is_empty(), "the node saved a bootnode for another chain");
     }
@@ -1421,25 +1428,17 @@ mod tests {
         let file = tempdir().unwrap();
         let file = file.path().join("bootstore.json");
 
-        // Filter out ENRs that are not valid.
-        let mainnet = BootNodes::mainnet();
-        let mainnet: Vec<CombinedPublicKey> = mainnet
+        // Every bootnode goes into the table, those of other chains too.
+        let mainnet: Vec<CombinedPublicKey> = BootNodes::mainnet()
             .iter()
-            .filter_map(|node| {
-                if let BootNode::Enr(enr) = node &&
-                    EnrValidation::validate(enr, OP_MAINNET_CHAIN_ID).is_invalid()
-                {
-                    return None;
+            .map(|node| match node {
+                BootNode::Enr(enr) => enr.public_key(),
+                BootNode::Enode(enode) => {
+                    NodeContact::try_from_multiaddr(enode.clone()).unwrap().public_key()
                 }
-                let node_contact =
-                    NodeContact::try_from_multiaddr(node.to_multiaddr().unwrap()).unwrap();
-
-                Some(node_contact.public_key())
             })
             .collect();
-
-        // There should be 16 valid ENRs for the mainnet.
-        assert_eq!(mainnet.len(), 16);
+        assert_eq!(mainnet.len(), 24);
 
         let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
 
