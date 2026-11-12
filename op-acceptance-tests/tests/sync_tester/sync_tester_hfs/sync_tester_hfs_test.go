@@ -36,7 +36,6 @@ func simpleWithSyncTesterOpts() []presets.Option {
 
 func TestSyncTesterHardforks(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node inserts pre-Canyon payloads with engine_newPayloadV1, which op-reth does not serve")
 	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()
 	logger := t.Logger()
