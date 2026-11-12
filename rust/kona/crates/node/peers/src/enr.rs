@@ -4,23 +4,29 @@ use alloy_rlp::{Decodable, Encodable};
 use discv5::Enr;
 use unsigned_varint::{decode, encode};
 
-/// Validates the [`Enr`] for the OP Stack.
+/// Whether an [`Enr`] is a consensus-layer peer of an OP Stack chain, which gossip may dial and the
+/// bootstore may save: its `opstack` entry is there, decodes, has version 0, and names the chain.
+///
+/// An invalid record is only not a peer of that chain. It is still a well-formed, signed discovery
+/// record, and its node still answers lookups, which find the nodes of every chain, so it can stay
+/// in the discovery table. OP Mainnet's built-in enode bootnodes, for one, have no `opstack` entry.
 #[derive(Debug, derive_more::Display, Clone, Default, PartialEq, Eq)]
 pub enum EnrValidation {
-    /// Conversion error.
+    /// The record has no `opstack` entry, it doesn't decode, or it has another version.
     #[display("Conversion error: {_0}")]
     ConversionError(OpStackEnrError),
-    /// Invalid Chain ID.
+    /// The `opstack` entry names another chain.
     #[display("Invalid Chain ID: {_0}")]
     InvalidChainId(u64),
-    /// Valid ENR.
+    /// The record is a peer of the chain.
     #[default]
     #[display("Valid ENR")]
     Valid,
 }
 
 impl EnrValidation {
-    /// Validates the [`Enr`] for the OP Stack.
+    /// Checks whether `enr` is a consensus-layer peer of the chain `chain_id`, see
+    /// [`EnrValidation`].
     pub fn validate(enr: &Enr, chain_id: u64) -> Self {
         let opstack_enr = match OpStackEnr::try_from(enr) {
             Ok(opstack_enr) => opstack_enr,
@@ -34,12 +40,13 @@ impl EnrValidation {
         Self::Valid
     }
 
-    /// Returns `true` if the ENR is valid.
+    /// Returns `true` if the ENR is a peer of the chain.
     pub const fn is_valid(&self) -> bool {
         matches!(self, Self::Valid)
     }
 
-    /// Returns `true` if the ENR is invalid.
+    /// Returns `true` if the ENR isn't a peer of the chain. That says nothing about whether it can
+    /// stay in the discovery table, see [`EnrValidation`].
     pub const fn is_invalid(&self) -> bool {
         !self.is_valid()
     }

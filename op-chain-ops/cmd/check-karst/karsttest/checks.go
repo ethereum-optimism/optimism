@@ -442,12 +442,11 @@ func CheckEIP7825DepositBypass(
 	return bigs.Uint64Strict(l2Receipt.BlockNumber), nil
 }
 
-// LatestBlockFetcher fetches the latest block's info and transactions. It is
-// the minimum-surface interface satisfied by `apis.EthClient` (the acceptance
-// test passes one directly) and by a thin adapter the CLI builds around
-// `*ethclient.Client`.
+// LatestBlockFetcher fetches the payload of a labeled block. It is the
+// minimum-surface interface satisfied by `apis.L2EthClient` (the acceptance
+// test passes one directly) and by the `*sources.EthClient` the CLI builds.
 type LatestBlockFetcher interface {
-	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
+	PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 // CheckEIP7934BlockSizeDisabled verifies that the OP Stack disables the
@@ -465,23 +464,20 @@ func CheckEIP7934BlockSizeDisabled(
 	blockTime time.Duration,
 ) error {
 	for {
-		info, txs, err := l2.InfoAndTxsByLabel(ctx, eth.Unsafe)
+		envelope, err := l2.PayloadByLabel(ctx, eth.Unsafe)
 		if err != nil {
 			logger.Warn("EIP-7934: failed to fetch unsafe head, retrying", "err", err)
 		} else {
+			payload := envelope.ExecutionPayload
 			var totalTxSize int
-			for _, tx := range txs {
-				bin, marshalErr := tx.MarshalBinary()
-				if marshalErr != nil {
-					return fmt.Errorf("marshal tx %s: %w", tx.Hash(), marshalErr)
-				}
-				totalTxSize += len(bin)
+			for _, tx := range payload.Transactions {
+				totalTxSize += len(tx)
 			}
 			logger.Info("EIP-7934: checking L2 block",
-				"number", info.NumberU64(), "txDataSize", totalTxSize, "gasUsed", info.GasUsed())
+				"number", uint64(payload.BlockNumber), "txDataSize", totalTxSize, "gasUsed", uint64(payload.GasUsed))
 			if totalTxSize > params.MaxBlockSize {
 				logger.Info("EIP-7934: observed oversized block — block-size limit is disabled",
-					"number", info.NumberU64(), "txDataSize", totalTxSize, "limit", params.MaxBlockSize)
+					"number", uint64(payload.BlockNumber), "txDataSize", totalTxSize, "limit", params.MaxBlockSize)
 				return nil
 			}
 		}
@@ -496,7 +492,7 @@ func CheckEIP7934BlockSizeDisabled(
 type L2 interface {
 	apis.EthCode
 	apis.ReceiptFetcher
-	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
+	LatestBlockFetcher
 }
 
 // CheckAll runs every implemented post-Karst check in sequence. It is intended

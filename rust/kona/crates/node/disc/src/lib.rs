@@ -72,3 +72,9 @@ pub use handler::{DiscoveryStopped, Discv5Handler, HandlerRequest};
 
 mod metrics;
 pub use metrics::Metrics;
+
+mod filter;
+pub use filter::public_only;
+
+#[cfg(test)]
+mod test_utils;

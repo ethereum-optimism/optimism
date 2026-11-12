@@ -481,9 +481,12 @@ on the next base:
   `rpc/src/trace.rs`, which takes the backport's own `TracingCtx`;
   `Call::block_executor` had to name the database `StateCacheDb` wraps
   (`StateProviderDatabase<EvmStateProviderAdapter<StateProviderBox>>`), and its
-  e2e test moved to `test_setup_for(EthereumHardfork::Prague)`. On an evm2
-  base (`v2.9.0` and later), drop the backport and cherry-pick
-  `paradigmxyz/reth#28266` itself until a release contains it; there,
+  e2e test moved to `test_setup_for(EthereumHardfork::Prague)`. On v2.8.0
+  and v2.8.1, the plain replay loops that the backport replaces carry
+  `paradigmxyz/reth#27462`'s `is_cancelled()` checks: move them into the
+  executor loops, as ethereum-optimism/reth#44 did, or replays lose
+  cancellation with no compile error. On an evm2 base (`v2.9.0` and later),
+  drop the backport and cherry-pick `paradigmxyz/reth#28266` itself until a release contains it; there,
   upstream's `inspect_transaction_without_commit` installs the tracer through
   the EVM's inspector slot, which op-reth's `PostExecCompositeInspector`
   occupies, so `OpBlockExecutor` needs an override or composition for it.
@@ -493,6 +496,18 @@ on the next base:
   ethereum-optimism/reth#32 on `op-v2.6.0` and ethereum-optimism/reth#40 on
   `op-v2.7.0`, both picked from upstream with `-x`). No release up to v2.9.0
   contains it, so carry it until one does; the audit in step 2 drops it then.
+- **Forward fixes** (ethereum-optimism/reth#44 on `op-v2.7.0`, picked from
+  upstream with `-x`): `paradigmxyz/reth#28148` (first released in v2.9.0),
+  `paradigmxyz/reth#28253` (v2.10.0), and `paradigmxyz/reth#28314`,
+  `paradigmxyz/reth#27716`, `paradigmxyz/reth#28370`,
+  `paradigmxyz/reth#28403`, `paradigmxyz/reth#28423` and
+  `paradigmxyz/reth#28431` (v2.11.0). Carry each until the base contains it.
+  On an alloy-evm 0.39 base (`v2.8.1`), cherry-pick them from the current
+  branch, where `paradigmxyz/reth#28253` and `paradigmxyz/reth#28314` are
+  hand-ported from evm2; on an evm2 base, cherry-pick the upstream commits.
+  Op-reth keeps its own copies of the symbols `paradigmxyz/reth#27716` and
+  `paradigmxyz/reth#28431` patch (`UPSTREAM-MIRROR` tags in `rust/op-reth`),
+  so check those mirrors against each pick.
 
 ### Pinning a fork change
 

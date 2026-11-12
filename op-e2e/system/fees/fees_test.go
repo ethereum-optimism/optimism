@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -33,13 +32,6 @@ func TestMain(m *testing.M) {
 
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
-	t.Run("pre-regolith", func(t *testing.T) {
-		op_e2e.InitParallel(t)
-		cfg := e2esys.RegolithSystemConfig(t, nil, e2esys.WithL2ELKind(services.ELKindOpGeth))
-		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
-
-		testFees(t, cfg)
-	})
 	t.Run("regolith", func(t *testing.T) {
 		op_e2e.InitParallel(t)
 		cfg := e2esys.RegolithSystemConfig(t, new(hexutil.Uint64))
@@ -258,8 +250,8 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 		require.Greater(t, bigs.Uint64Strict(opfees.MinTransactionSize), uint64(99))
 		// Because of this, we don't need to do any adjustment as the GPO and cost func are both bounded to the minimum value.
 		// However, if the fastlz regression output is ever larger than the minimum, this will require an adjustment.
-	} else if sys.RollupConfig.IsRegolith(header.Time) {
-		// if post-regolith, adjust the GPO fee by removing the overhead it adds because of signature data
+	} else {
+		// adjust the GPO fee by removing the overhead it adds because of signature data
 		artificialGPOOverhead := big.NewInt(68 * 16) // it adds 68 bytes to cover signature and RLP data
 		l1BaseFee := big.NewInt(7)                   // we assume the L1 basefee is the minimum, 7
 		// in our case we already include that, so we subtract it, to do a 1:1 comparison
@@ -326,10 +318,6 @@ func l1Cost(rollupCfg *rollup.Config, blockTime uint64, rcd opfees.RollupCostDat
 	// The Ecotone activation block still carries Bedrock L1 attributes and is charged as Bedrock.
 	if !rollupCfg.IsEcotone(blockTime) || rollupCfg.IsEcotoneActivationBlock(blockTime) {
 		calldataGas := rcd.Zeroes*params.TxDataZeroGas + rcd.Ones*params.TxDataNonZeroGasEIP2028
-		if !rollupCfg.IsRegolith(blockTime) {
-			// Before Regolith, 68 non-zero bytes are charged on top for the signature and RLP overhead.
-			calldataGas += 68 * params.TxDataNonZeroGasEIP2028
-		}
 		overhead := new(big.Int).SetBytes(l1Info.L1FeeOverhead[:])
 		scalar := new(big.Int).SetBytes(l1Info.L1FeeScalar[:])
 		return opfees.L1CostBedrock(calldataGas, l1Info.BaseFee, overhead, scalar)
