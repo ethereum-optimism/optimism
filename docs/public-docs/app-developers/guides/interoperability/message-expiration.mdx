@@ -14,7 +14,7 @@ For messages using [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interop
 
 The expiry window is an offchain constant that defines how long a cross-chain message or event emitted remains valid. For any chain in the [Superchain interop cluster](/interop/explainer#superchain-interop-cluster), messages must be referenced within 7 days (604,800 seconds) of the log being created.
 
-Nobody can extend the expiry window. After the window, no transaction can relay the message. A deposit transaction cannot relay a message at any time, so a deposit cannot get a message past a sequencer that does not include its relay. The only recovery is to expire the message and undo the send.
+After the window, no transaction can relay the message. A deposit transaction cannot relay a message at any time, so a deposit cannot get a message past a sequencer that does not include its relay. The only recovery is to expire the message and undo the send.
 
 ## Undoing an expired message
 
