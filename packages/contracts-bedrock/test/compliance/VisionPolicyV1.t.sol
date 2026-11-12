@@ -442,17 +442,22 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         assertFalse(policy.screenWithdrawal(item, parties, 0, finalizableAt));
     }
 
-    /// @notice Tests that a verdict permits withdrawal one second before expiry.
-    ///         At expiry, screening returns false even before the Holdable Time.
+    /// @notice Tests that a verdict permits withdrawal one second before expiry, and that an
+    ///         expired one reverts before the Holdable Time and gives false at it.
     function test_screenWithdrawal_verdictExpiry_succeeds() external {
         BridgeHookTypes.Item memory item;
         IPolicy.Parties memory parties;
         parties.sender = sender;
         parties.recipient = recipient;
+        uint256 finalizableAt = block.timestamp;
+        uint256 holdableAt = finalizableAt + policy.holdDelay();
 
         vm.startPrank(module);
-        assertTrue(policy.screenWithdrawal(item, parties, uint64(block.timestamp + 1), block.timestamp), "live");
-        assertFalse(policy.screenWithdrawal(item, parties, uint64(block.timestamp), block.timestamp), "expired");
+        assertTrue(policy.screenWithdrawal(item, parties, uint64(block.timestamp + 1), finalizableAt), "live");
+        vm.expectRevert(bytes.concat(IVisionPolicyV1.VisionPolicyV1_NotYetHoldable.selector, abi.encode(holdableAt)));
+        policy.screenWithdrawal(item, parties, uint64(block.timestamp), finalizableAt);
+        vm.warp(holdableAt);
+        assertFalse(policy.screenWithdrawal(item, parties, uint64(finalizableAt), finalizableAt), "expired");
     }
 
     /// @notice Tests that a withdrawal with no verdict reverts before the Holdable Time and gives
@@ -555,7 +560,7 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         } catch { }
     }
 
-    /// @notice Tests that screenWithdrawal reverts only with NotYetHoldable, for no verdict
+    /// @notice Tests that screenWithdrawal reverts only with NotYetHoldable, for no live verdict
     ///         before the Holdable Time.
     function testFuzz_screenWithdrawal_revertsOnlyBeforeHoldableTime_succeeds(
         uint256 _senderIndex,
@@ -586,7 +591,7 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
             assertEq(
                 reason, bytes.concat(IVisionPolicyV1.VisionPolicyV1_NotYetHoldable.selector, abi.encode(holdableAt))
             );
-            assertEq(_expiresAt, 0, "verdict");
+            assertLe(_expiresAt, block.timestamp, "verdict");
             assertLt(block.timestamp, holdableAt, "holdable");
         }
     }

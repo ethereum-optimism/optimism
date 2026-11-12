@@ -162,8 +162,6 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable {
         if (_hasDeniedParty(_parties)) return false;
         if (allowlisted[_parties.sender] || _isFeeVault(_parties.sender)) return true;
         if (_expiresAt > block.timestamp) return true;
-        // The writer already answered, so there is no reason to wait.
-        if (_expiresAt != 0) return false;
 
         // Give the writer time to clear the withdrawal without a separate completion transaction.
         uint256 holdableAt = _finalizableAt + holdDelay;
