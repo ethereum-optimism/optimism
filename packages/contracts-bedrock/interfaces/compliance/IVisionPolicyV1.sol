@@ -25,7 +25,7 @@ interface IVisionPolicyV1 is IPolicy {
     function screenRelease(
         BridgeHookTypes.Item calldata _item,
         address[] calldata _parties,
-        uint64 _clearedAt,
+        uint64 _expiresAt,
         uint256 _finalizableAt
     )
         external
