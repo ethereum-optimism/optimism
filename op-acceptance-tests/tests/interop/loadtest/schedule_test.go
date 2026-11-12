@@ -47,6 +47,10 @@ func TestL2GasTarget(t *testing.T) {
 		_, err := l2GasTarget(forks, block(jovianTime, nil))
 		require.ErrorContains(t, err, "invalid EIP-1559 extraData")
 	})
+	t.Run("zero elasticity", func(t *testing.T) {
+		_, err := l2GasTarget(forks, block(holoceneTime, eip1559.EncodeHoloceneExtraData(250, 0)))
+		require.ErrorContains(t, err, "invalid EIP-1559 extraData")
+	})
 	t.Run("holocene extraData after jovian", func(t *testing.T) {
 		_, err := l2GasTarget(forks, block(jovianTime, eip1559.EncodeHoloceneExtraData(250, 4)))
 		require.ErrorContains(t, err, "invalid EIP-1559 extraData")

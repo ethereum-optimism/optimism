@@ -243,8 +243,8 @@ blobs: `NewL1ChainConfigFromCLI` replaces its config with one that prices every 
 the minimum, as op-geth's OP-chain shortcut did. Regressions fail the ratchet (§19).
 
 op-devstack splits the same way: `stack.L1Network.ChainConfig()` returns the go-ethereum config
-and `stack.L2Network.ChainConfig()` returns `*opparams.ChainConfig`, so a test's OP-value read off
-an L2 network's config either works or fails to compile. The `Optimism` EIP-1559 values on that
+and `stack.L2Network.ChainConfig()` returns `*opparams.ChainConfig`, so reading an OP value off an
+L2 network's config either works or fails to compile. The `Optimism` EIP-1559 values on that
 config are the genesis values; from Holocene the SystemConfig sets them, so a test that needs the
 parameters in effect decodes them from the block's extraData (`eip1559.DecodeOptimismExtraData`).
 
