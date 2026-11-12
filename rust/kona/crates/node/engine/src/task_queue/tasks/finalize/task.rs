@@ -5,7 +5,6 @@ use crate::{
     state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_eips::BlockNumHash;
-use alloy_transport::{RpcError, TransportErrorKind};
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
@@ -30,26 +29,14 @@ pub struct FinalizeTask {
 }
 
 impl FinalizeTask {
-    /// While the execution layer catches up, it has no block at a pinned target's height yet and
-    /// may answer with an error instead of null. A pinned target is skipped, carrying the answer
-    /// and leaving the state unchanged for the next request; failing temporarily would hold this
-    /// task at the head of the queue and block the imports that let the execution layer catch up.
-    fn lookup_failed(&self, err: RpcError<TransportErrorKind>) -> FinalizeTaskError {
-        if let FinalizeBlockId::ByHash(target) = self.block_id &&
-            let Some(payload) = err.as_error_resp()
-        {
-            let engine_answer = format!("error {} ({})", payload.code, payload.message);
-            return FinalizeTaskError::NotYetAvailable { engine_answer, target };
-        }
-        FinalizeTaskError::TransportError(err)
-    }
-
-    /// A missing pinned target is not yet available, as for [`Self::lookup_failed`]. A missing
-    /// by-number target is below the safe head, so the engine must already have it.
+    /// A pinned target the execution layer answers with null is not available yet, for example
+    /// while it catches up: the task is skipped rather than held at the head of the queue ahead
+    /// of the imports that let it catch up. A missing by-number target is below the safe head, so
+    /// the engine must already have it.
     fn block_missing(&self) -> FinalizeTaskError {
         match self.block_id {
             FinalizeBlockId::ByHash(target) => {
-                FinalizeTaskError::NotYetAvailable { engine_answer: "null".to_string(), target }
+                FinalizeTaskError::NotYetAvailable { target }
             }
             FinalizeBlockId::ByNumber(number) => FinalizeTaskError::BlockNotFound(number),
         }
@@ -87,7 +74,7 @@ impl FinalizeTask {
             .get_l2_block(requested.into())
             .full()
             .await
-            .map_err(|err| self.lookup_failed(err))?
+            .map_err(FinalizeTaskError::TransportError)?
             .ok_or_else(|| self.block_missing())?;
         let canonical = BlockNumHash { hash: block.header.hash, number: block.header.number };
         debug!(target: "engine", ?canonical, "Fetched the block to finalize");
@@ -135,8 +122,9 @@ impl ExecutableEngineTask for FinalizeTask {
 
         // Sanity check that the block that is being finalized is at least safe. A later request
         // finalizes a target skipped here, or a newer block.
-        if state.sync_state.safe_head().block_info.number < target_number {
-            return Err(FinalizeTaskError::BlockNotSafe);
+        let safe_number = state.sync_state.safe_head().block_info.number;
+        if safe_number < target_number {
+            return Err(FinalizeTaskError::BlockNotSafe { safe: safe_number, target: target_number });
         }
 
         let block_info = self.fetch_canonical_block_info().await?;
