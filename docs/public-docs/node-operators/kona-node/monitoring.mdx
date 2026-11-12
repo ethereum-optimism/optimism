@@ -46,10 +46,11 @@ to view debug logs from only `discv5` and `libp2p` targets.
 
 The node logs every request it sends to the L1 RPC and the L2
 engine under the `rpc_client` target, with a `client` field of
-`l1` or `engine`. Engine requests log at `INFO` when they succeed
-and L1 requests at `DEBUG`; failures log at `WARN` for both.
-`RUST_LOG=rpc_client=warn` keeps only the failures, and
-`RUST_LOG=rpc_client=debug` shows every L1 request.
+`l1` or `engine`. Engine API calls (`engine_*`) log at `INFO` when
+they succeed, and every other request at `DEBUG`, including the
+L2 reads that derivation sends over the engine connection;
+failures log at `WARN`. `RUST_LOG=rpc_client=warn` keeps only the
+failures, and `RUST_LOG=rpc_client=debug` shows every request.
 
 ## Metrics
 
