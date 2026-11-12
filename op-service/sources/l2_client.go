@@ -110,16 +110,13 @@ func (s *L2Client) RollupConfig() *rollup.Config {
 	return s.rollupCfg
 }
 
-// ErrSyntheticTxInBody is returned by the L2Client accessors that decode a whole block body
-// (InfoAndTxsBy*, HeaderAndTxsByHash) when the block holds an OP Stack synthetic transaction
-// (0x7E deposit or 0x7D post-exec), which upstream go-ethereum cannot decode. Read L2 block
-// bodies through the class-partitioned accessors (InfoAndUserTxsBy*, InfoAndDepositsBy*,
-// InfoAndFirstDepositBy*) or PayloadBy* instead.
+// ErrSyntheticTxInBody is returned when a whole-body decode meets an OP Stack synthetic
+// transaction (0x7E deposit, 0x7D post-exec), which upstream go-ethereum cannot decode. Read L2
+// bodies via InfoAndUserTxsBy*, InfoAndDepositsBy*, InfoAndFirstDepositBy* or PayloadBy*.
 var ErrSyntheticTxInBody = errors.New("block holds an OP Stack synthetic transaction")
 
-// HeaderAndTxsByHash shadows EthClient.HeaderAndTxsByHash. It returns ErrSyntheticTxInBody for
-// a block that holds an OP Stack synthetic transaction, so an L2 caller fails now rather than
-// only after the cutover to upstream go-ethereum.
+// HeaderAndTxsByHash shadows EthClient.HeaderAndTxsByHash, returning ErrSyntheticTxInBody
+// if the block holds an OP Stack synthetic transaction.
 func (s *L2Client) HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error) {
 	header, rawTxs, err := s.headerAndRawTxsByHash(ctx, hash)
 	if err != nil {
@@ -143,22 +140,17 @@ func (s *L2Client) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.
 
 // InfoAndTxsByNumber shadows EthClient.InfoAndTxsByNumber; see HeaderAndTxsByHash.
 func (s *L2Client) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error) {
-	// can't hit the cache when querying by number due to reorgs.
-	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", numberID(number))
-	if err != nil {
-		return nil, nil, err
-	}
-	txs, err := decodeWithoutSynthetic(rawTxs)
-	if err != nil {
-		return nil, nil, err
-	}
-	return eth.HeaderBlockInfo(header), txs, nil
+	return s.infoAndTxsByID(ctx, numberID(number))
 }
 
 // InfoAndTxsByLabel shadows EthClient.InfoAndTxsByLabel; see HeaderAndTxsByHash.
 func (s *L2Client) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
-	// can't hit the cache when querying the head due to reorgs / changes.
-	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", label)
+	return s.infoAndTxsByID(ctx, label)
+}
+
+// infoAndTxsByID reads a block by number or label, which can't hit the cache due to reorgs.
+func (s *L2Client) infoAndTxsByID(ctx context.Context, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
+	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", id)
 	if err != nil {
 		return nil, nil, err
 	}

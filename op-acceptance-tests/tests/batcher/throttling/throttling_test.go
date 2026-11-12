@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -54,7 +55,7 @@ func TestDABlockThrottling(gt *testing.T) {
 
 			var calldataSize uint64
 			for _, tx := range envelope.ExecutionPayload.Transactions {
-				switch tx[0] {
+				switch sources.RawTransaction(tx).Type() {
 				case optypes.DepositTxType, optypes.PostExecTxType:
 					continue
 				}

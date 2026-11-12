@@ -1,7 +1,6 @@
 package sources
 
 import (
-	"context"
 	"math/big"
 	"testing"
 
@@ -36,15 +35,16 @@ func testRPCBlock(txs RawTransactions) *RPCBlock {
 }
 
 // newL2ClientServing returns an L2Client whose RPC answers one block call, made with method and
-// block argument arg, with block.
-func newL2ClientServing(t *testing.T, block *RPCBlock, method string, arg any) (*L2Client, *mockRPC) {
+// block argument arg, with block. The test fails if that call is not made.
+func newL2ClientServing(t *testing.T, block *RPCBlock, method string, arg any) *L2Client {
 	m := new(mockRPC)
 	m.On("CallContext", mock.Anything, new(*RPCBlock), method, []any{arg, true}).Run(func(args mock.Arguments) {
 		*args[1].(**RPCBlock) = block
 	}).Return([]error{nil}).Once()
+	t.Cleanup(func() { m.AssertExpectations(t) })
 	s, err := NewL2Client(m, nil, nil, L2ClientSimpleConfig(&rollup.Config{}, false, 10, 10))
 	require.NoError(t, err)
-	return s, m
+	return s
 }
 
 // TestL2ClientInfoAndTxsRejectsSyntheticTxs pins that the L2Client accessors decoding a whole
@@ -52,7 +52,7 @@ func newL2ClientServing(t *testing.T, block *RPCBlock, method string, arg any) (
 // and blocks holding only one of the two synthetic types, by their type bytes, while the user-tx
 // accessor serves the Lagoon-shaped block.
 func TestL2ClientInfoAndTxsRejectsSyntheticTxs(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	deposit, err := (&optypes.DepositTx{
 		SourceHash: common.Hash{0x01},
@@ -76,11 +76,15 @@ func TestL2ClientInfoAndTxsRejectsSyntheticTxs(t *testing.T) {
 
 	block := testRPCBlock(RawTransactions{deposit, user, postExec})
 
-	for name, rejected := range map[string]*RPCBlock{
-		"lagoon block":   block,
-		"deposit only":   testRPCBlock(RawTransactions{deposit, user}),
-		"post-exec only": testRPCBlock(RawTransactions{user, postExec}),
+	for _, rc := range []struct {
+		name  string
+		block *RPCBlock
+	}{
+		{"lagoon block", block},
+		{"deposit only", testRPCBlock(RawTransactions{deposit, user})},
+		{"post-exec only", testRPCBlock(RawTransactions{user, postExec})},
 	} {
+		rejected := rc.block
 		byNumber := hexutil.EncodeUint64(uint64(rejected.Number))
 		rejecting := []struct {
 			name   string
@@ -106,31 +110,27 @@ func TestL2ClientInfoAndTxsRejectsSyntheticTxs(t *testing.T) {
 			}},
 		}
 		for _, tc := range rejecting {
-			t.Run(name+"/"+tc.name, func(t *testing.T) {
-				s, m := newL2ClientServing(t, rejected, tc.method, tc.arg)
-				require.ErrorIs(t, tc.read(s), ErrSyntheticTxInBody)
-				m.AssertExpectations(t)
+			t.Run(rc.name+"/"+tc.name, func(t *testing.T) {
+				require.ErrorIs(t, tc.read(newL2ClientServing(t, rejected, tc.method, tc.arg)), ErrSyntheticTxInBody)
 			})
 		}
 	}
 
 	t.Run("InfoAndUserTxsByHash", func(t *testing.T) {
-		s, m := newL2ClientServing(t, block, "eth_getBlockByHash", block.Hash)
+		s := newL2ClientServing(t, block, "eth_getBlockByHash", block.Hash)
 		info, txs, err := s.InfoAndUserTxsByHash(ctx, block.Hash)
 		require.NoError(t, err)
 		require.Equal(t, block.Hash, info.Hash())
 		require.Len(t, txs, 1)
 		require.Equal(t, userTx.Hash(), txs[0].Hash())
-		m.AssertExpectations(t)
 	})
 
 	t.Run("decodes a body without synthetic txs", func(t *testing.T) {
 		userOnly := testRPCBlock(RawTransactions{user})
-		s, m := newL2ClientServing(t, userOnly, "eth_getBlockByHash", userOnly.Hash)
+		s := newL2ClientServing(t, userOnly, "eth_getBlockByHash", userOnly.Hash)
 		_, txs, err := s.InfoAndTxsByHash(ctx, userOnly.Hash)
 		require.NoError(t, err)
 		require.Len(t, txs, 1)
 		require.Equal(t, userTx.Hash(), txs[0].Hash())
-		m.AssertExpectations(t)
 	})
 }

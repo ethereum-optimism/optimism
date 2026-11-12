@@ -62,8 +62,8 @@ type rpcELNode struct {
 
 var _ stack.ELNode = (*rpcELNode)(nil)
 
+// newRPCELNode expects t to already carry the chain ID in its context.
 func newRPCELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, ethCl apis.EthClient, userRPC string, timeout time.Duration) rpcELNode {
-	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}
@@ -161,6 +161,7 @@ type l2ELFrontend struct {
 var _ stack.L2ELNode = (*l2ELFrontend)(nil)
 
 func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl opclient.RPC, userRPC string, engineRPCCl opclient.RPC, rollupCfg *rollup.Config) *l2ELFrontend {
+	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	t.Require().NotNil(rollupCfg, "rollup config must be configured")
 	l2Client, err := sources.NewL2Client(userRPCCl, t.Logger(), nil, sources.L2ClientSimpleConfig(rollupCfg, false, 10, 10))
 	t.Require().NoError(err)

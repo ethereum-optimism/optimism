@@ -1402,7 +1402,7 @@ func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, t
 		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
 	}
 	for _, tx := range envelope.ExecutionPayload.Transactions {
-		if crypto.Keccak256Hash(tx) == txHash {
+		if sources.RawTransaction(tx).Hash() == txHash {
 			return nil
 		}
 	}
@@ -1415,7 +1415,7 @@ func assertTxNotInBlock(ctx context.Context, chain *remoteChain, blockNum uint64
 		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
 	}
 	for _, tx := range envelope.ExecutionPayload.Transactions {
-		if crypto.Keccak256Hash(tx) == txHash {
+		if sources.RawTransaction(tx).Hash() == txHash {
 			return fmt.Errorf("tx %s still present in block %d on %s", txHash, blockNum, chain.name)
 		}
 	}

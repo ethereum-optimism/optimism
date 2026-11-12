@@ -18,12 +18,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var emptyHash = common.Hash{}
@@ -731,7 +731,7 @@ func (el *L2ELNode) AssertTxNotInBlock(blockNumber uint64, txHash common.Hash) {
 	el.require.NoError(err, "failed to fetch block %d", blockNumber)
 
 	for _, tx := range envelope.ExecutionPayload.Transactions {
-		hash := crypto.Keccak256Hash(tx)
+		hash := sources.RawTransaction(tx).Hash()
 		el.require.NotEqualf(hash, txHash, "transaction should not exist in block", "Found tx %v in block %v", hash, blockNumber)
 	}
 	el.log.Info("confirmed transaction not in block", "blockNumber", blockNumber, "txHash", txHash)
@@ -746,7 +746,7 @@ func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
 	el.require.NoError(err, "failed to fetch block %d", blockNumber)
 
 	for _, tx := range envelope.ExecutionPayload.Transactions {
-		if crypto.Keccak256Hash(tx) == txHash {
+		if sources.RawTransaction(tx).Hash() == txHash {
 			el.log.Info("confirmed transaction in block", "blockNumber", blockNumber, "txHash", txHash)
 			return
 		}

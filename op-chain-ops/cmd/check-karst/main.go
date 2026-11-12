@@ -99,7 +99,10 @@ func resolveEnv(c *cli.Context) (*checkEnv, error) {
 		l2Cl.Close()
 		return nil, fmt.Errorf("failed to parse account private key: %w", err)
 	}
-	l2Source, err := sources.NewEthClient(client.NewBaseRPCClient(l2Cl.Client()), logger, nil, sources.DefaultEthClientConfig(10))
+	// A block over the EIP-7934 limit is ~17 MB of JSON, more than the default 10s call timeout allows
+	// for on a slow remote RPC.
+	l2RPC := client.NewBaseRPCClient(l2Cl.Client(), client.WithCallTimeout(time.Minute))
+	l2Source, err := sources.NewEthClient(l2RPC, logger, nil, sources.DefaultEthClientConfig(10))
 	if err != nil {
 		l2Cl.Close()
 		return nil, fmt.Errorf("failed to create L2 source client: %w", err)
