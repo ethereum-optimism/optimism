@@ -1,12 +1,9 @@
 //! Tests for the [`Discv5Driver`], one file per topic, with the helpers they share.
 
 use super::*;
-use crate::{
-    LocalNode,
-    test_utils::{enr_at, enr_with, localhost_enr},
-};
+use crate::test_utils::{enr_at, localhost_enr};
 use discv5::{ConfigBuilder, ListenConfig};
-use enr::{CombinedKey, CombinedPublicKey};
+use enr::CombinedKey;
 use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
 use tempfile::tempdir;
 

@@ -1,6 +1,7 @@
 //! Tests for the records the driver hands over to gossip to dial, and which of them it saves.
 
 use super::*;
+use crate::test_utils::enr_with;
 use rstest::rstest;
 
 /// The socket a session in these tests is with.

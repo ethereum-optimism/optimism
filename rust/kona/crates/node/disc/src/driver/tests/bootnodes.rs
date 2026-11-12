@@ -1,6 +1,7 @@
 //! Tests for bootstrapping from bootnodes, and which of them the driver contacts and keeps.
 
 use super::*;
+use enr::CombinedPublicKey;
 use rstest::rstest;
 
 /// An enode bootnode is contacted only if the table filter accepts its address. One discovery
