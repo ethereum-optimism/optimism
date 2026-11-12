@@ -2,8 +2,7 @@
 
 use crate::{
     EngineClient, EngineState, ExecutableEngineTask, FinalizeBlockId, FinalizeTaskError,
-    state::EngineSyncStateUpdate,
-    task_queue::{ForkchoiceDelivery, synchronize},
+    state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_eips::BlockNumHash;
 use alloy_transport::{RpcError, TransportErrorKind};
@@ -31,38 +30,6 @@ pub struct FinalizeTask {
 }
 
 impl FinalizeTask {
-    /// Rejects a target that would move finality backward.
-    const fn ensure_not_behind_finalized_head(
-        finalized_head: &L2BlockInfo,
-        target_number: u64,
-    ) -> Result<(), FinalizeTaskError> {
-        if target_number < finalized_head.block_info.number {
-            return Err(FinalizeTaskError::BehindFinalizedHead {
-                finalized: finalized_head.block_info.number,
-                target: target_number,
-            });
-        }
-        Ok(())
-    }
-
-    /// Rejects a different block at the finalized head's height.
-    ///
-    /// The default head means finality has not been established yet, so any target, including the
-    /// configured genesis, may initialize it.
-    fn ensure_no_conflict_with_finalized_head(
-        finalized_head: &L2BlockInfo,
-        target: BlockNumHash,
-    ) -> Result<(), FinalizeTaskError> {
-        let finalized = finalized_head.block_info.id();
-        if *finalized_head != L2BlockInfo::default() &&
-            target.number == finalized.number &&
-            target.hash != finalized.hash
-        {
-            return Err(FinalizeTaskError::ConflictsWithFinalizedHead { finalized, target });
-        }
-        Ok(())
-    }
-
     /// While the execution layer catches up, it has no block at a pinned target's height yet and
     /// may answer with an error instead of null. A pinned target is skipped, carrying the answer
     /// and leaving the state unchanged for the next request; failing temporarily would hold this
@@ -93,11 +60,16 @@ impl FinalizeTask {
         finalized_head: &L2BlockInfo,
         target: BlockNumHash,
     ) -> Result<bool, FinalizeTaskError> {
-        if target == finalized_head.block_info.id() {
+        let finalized = finalized_head.block_info.id();
+        if target == finalized {
             debug!(target: "engine", ?target, "Target is already finalized");
             return Ok(true);
         }
-        Self::ensure_no_conflict_with_finalized_head(finalized_head, target)?;
+        // The default head means finality has not been established yet, so any target, including
+        // the configured genesis, may initialize it.
+        if *finalized_head != L2BlockInfo::default() && target.number == finalized.number {
+            return Err(FinalizeTaskError::ConflictsWithFinalizedHead { finalized, target });
+        }
         Ok(false)
     }
 
@@ -149,7 +121,12 @@ impl ExecutableEngineTask for FinalizeTask {
 
         // A lagging source can report an older finalized block, or one from another chain. A
         // pinned hash is enough to detect either without asking the execution layer.
-        Self::ensure_not_behind_finalized_head(&finalized_head, target_number)?;
+        if target_number < finalized_head.block_info.number {
+            return Err(FinalizeTaskError::BehindFinalizedHead {
+                finalized: finalized_head.block_info.number,
+                target: target_number,
+            });
+        }
         if let FinalizeBlockId::ByHash(target) = self.block_id &&
             Self::is_already_finalized(&finalized_head, target)?
         {
@@ -176,7 +153,6 @@ impl ExecutableEngineTask for FinalizeTask {
             self.client.as_ref(),
             state,
             EngineSyncStateUpdate { finalized_head: Some(block_info), ..Default::default() },
-            ForkchoiceDelivery::WhenChanged,
         )
         .await?;
 

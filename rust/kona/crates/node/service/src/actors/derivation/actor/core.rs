@@ -374,9 +374,8 @@ where
 
                 self.attempt_derivation().await?;
             }
-            DerivationActorRequest::ProcessEngineSyncCompletionRequest(sync_state) => {
+            DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
-                let safe_head = Box::new(sync_state.local_safe_head());
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::ELSyncCompleted(safe_head.clone()))?;
                 self.truncate_safe_db(*safe_head, "EL sync completion")?;

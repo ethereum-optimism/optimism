@@ -251,7 +251,7 @@ where
         self.el_sync_complete = true;
 
         self.derivation_client
-            .notify_sync_completed(self.engine.state().sync_state)
+            .notify_sync_completed(self.engine.state().sync_state.local_safe_head())
             .await
             .map(|_| Ok(()))
             .map_err(|e| {

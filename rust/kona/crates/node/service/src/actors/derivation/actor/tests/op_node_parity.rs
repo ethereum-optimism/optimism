@@ -16,7 +16,7 @@ fn l1_head_update(number: u64) -> DerivationActorRequest {
 }
 
 fn el_sync_completed(head: u64) -> DerivationActorRequest {
-    engine_sync_completed_at(l2_block(head))
+    DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(l2_block(head)))
 }
 
 /// A reset whose pipeline signal fails once with a temporary provider error neither stops the
