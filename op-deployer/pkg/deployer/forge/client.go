@@ -366,6 +366,11 @@ func (c *Client) sandboxConfig(root string, dir string) (string, string, error) 
 	if err != nil {
 		return "", "", fmt.Errorf("failed to resolve the forge project: %w", err)
 	}
+	// forge splits a remapping at its first '=', so the absolute libs would garble the remappings it
+	// detects in a library's context, find the compile cache stale and compile.
+	if strings.Contains(libRoot, "=") {
+		return "", "", fmt.Errorf("the path of the forge project %s holds a '=', which forge cannot run scripts in; move the project, or use a cache directory without one", libRoot)
+	}
 	absLibs := make([]string, 0, len(libs))
 	for _, lib := range libs {
 		lib, ok := lib.(string)

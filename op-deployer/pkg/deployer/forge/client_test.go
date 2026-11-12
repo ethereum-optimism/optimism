@@ -587,6 +587,22 @@ contract DepScript {
 	require.NoError(t, err)
 }
 
+// TestClient_RunScriptRefusesEqualsInPath checks that a script run refuses a project whose path
+// holds a '=', in which forge would compile.
+func TestClient_RunScriptRefusesEqualsInPath(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "case=1")
+	require.NoError(t, os.Mkdir(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "foundry.toml"), []byte("[profile.default]\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "cache"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, compileCacheFile), []byte("{}"), 0o644))
+	cl := NewClient(PathBinary())
+	cl.Wd = dir
+	cl.FsPermissions = []FsPermission{}
+
+	_, _, err := cl.RunScript(context.Background(), "script/A.s.sol:A", "run()", nil)
+	require.ErrorContains(t, err, "holds a '='")
+}
+
 // TestClient_SandboxesScripts checks that a script can neither run commands nor read files outside
 // FsPermissions, whatever the project config allows.
 func TestClient_SandboxesScripts(t *testing.T) {

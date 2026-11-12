@@ -171,7 +171,9 @@ func TestBootstrapImplementationsMockSP1Verifier(t *testing.T) {
 	op_e2e.InitParallel(t)
 
 	for _, useScriptHost := range []bool{false, true} {
-		t.Run(fmt.Sprintf("useScriptHost=%t", useScriptHost), func(t *testing.T) {
+		// No '=' in the name: the cache directory is named after the test, and op-deployer refuses a
+		// forge project whose path holds one.
+		t.Run(fmt.Sprintf("useScriptHost-%t", useScriptHost), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
 
@@ -581,7 +583,8 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	for _, useScriptHost := range []bool{false, true} {
-		t.Run(fmt.Sprintf("mock SP1 verifier/useScriptHost=%t", useScriptHost), func(t *testing.T) {
+		// No '=' in the name, as in TestBootstrapImplementationsMockSP1Verifier.
+		t.Run(fmt.Sprintf("mock SP1 verifier/useScriptHost-%t", useScriptHost), func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
