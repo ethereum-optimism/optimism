@@ -27,6 +27,8 @@ zkVM programs that execute inside the SP1 prover:
   contiguous run of its chains, in chain-ID order.
 - **`tests/bls12-381-check`** (test-only): Differential check of `CustomCrypto`'s EIP-2537
   operations against revm's arkworks backend inside the zkVM; not part of `build-elfs`.
+- **`tests/hashdos-check`** (test-only): TSTORE hash-collision regression check of the guest hash
+  seed inside the zkVM (`just check-hashdos-zkvm`); not part of `build-elfs`.
 
 ### Crates (`crates/`)
 
@@ -244,6 +246,42 @@ backend for EIP-196/197 bn128 precompiles. The EIP-2537 BLS12-381 precompiles ru
 through `CustomCrypto` on `sp1_bls12_381`, which uses SP1's BLS12-381 field, G1 point, and
 bigint syscalls. `just check-bls12-381-zkvm` (scheduled in CI) checks them inside the zkVM
 against revm's arkworks backend and prints per-operation cycle counts.
+
+## Guest hash seeding
+
+The guest workspace also patches `foldhash` to `programs/foldhash-seeded`. Inside the zkVM a
+hasher's seed is otherwise a constant of the ELF, so attacker-chosen keys could be made to collide,
+and the quadratic cost of hash-map operations on colliding keys would make a block unprovable.
+`super-range` installs a seed before it creates any hash map (`hash_seed` in
+`programs/super-range/src/main.rs`); creating one earlier panics. The seed comes from hashes that
+the guest already reads: in range mode the game's L1 head, which every batch and deposit the range
+derives precedes; in consolidation mode the claimed super root at `span.end` together with every
+optimistic block hash in the span, which commits to the transactions of a block that consolidation
+replaces. Both exist only after every key is fixed, so no on-chain actor can predict or choose the
+seed, and no block in the proof can read the L1 head or the super root at `span.end`, so no block
+can compute the seed. The prover may know it. Any seed must meet both conditions: never seed from
+a value known earlier, such as the previous super root or an idle chain's head, and include at
+least one input that no executed block can read. Block hashes alone are not enough, because a
+later block in the same proof can read an earlier one through `BLOCKHASH`. `log-commitment`,
+`super-aggregation` and `tests/bls12-381-check` create no foldhash-backed map and install no seed,
+so such a map added there panics until the guest installs a seed from such a hash first in `main`.
+`tests/hashdos-check` seeds from its deposit's source hash.
+
+The guest hashes under a different seed from the native host run that produces the claim and the
+witness, so **no committed output, error class or control-flow decision of any guest may depend on
+hash-map iteration order or hash values**, including through data built by iterating a map. Sort
+before such a use, or use an ordered collection. A witness read that depends on them can make an
+honest proof fail, because the host collects the witness under another seed. A hash map on a guest
+path must not be std's `HashMap`/`HashSet` unless its keys are trusted and bounded: its SipHash keys
+come from SP1's fixed `sys_rand` seed, which the guest hash seed does not reach.
+No map on the EVM path, where an attacker chooses the keys, hashes with std's `RandomState`, and
+`PreimageStore` is a `BTreeMap`. The std `HashMap` that rkyv's `SharedValidator` creates in each
+`rkyv::from_bytes` has a fixed `FxHasher64`, but it stays empty.
+
+`just check-sp1-guest-hashers` (part of `just lint-sp1-guest`) fails if a guest links an
+unseeded foldhash or a listed hasher crate, or builds alloy-primitives without `map-foldhash`
+(which `rust/Cargo.toml` enables for every in-tree crate). `just check-hashdos-zkvm` (scheduled in
+CI as `sp1-hashdos-zkvm-check`) checks inside the zkVM that the seed reaches revm's maps.
 
 ## Usage
 

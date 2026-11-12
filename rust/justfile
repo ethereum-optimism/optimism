@@ -165,9 +165,9 @@ fmt-fix: fmt-fix-sp1-guest
 lint-clippy:
   cargo clippy --workspace --all-features --all-targets -- -D warnings
 
-# Lint-config + self-embed + lock + precompile-patch checks, fmt-check, and clippy for the SP1
-# guest program workspace. CI runs this after building the guest ELFs.
-lint-sp1-guest: check-no-self-embed check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
+# Lint-config + self-embed + lock + precompile-patch + hasher checks, fmt-check, and clippy for the
+# SP1 guest program workspace. CI runs this after building the guest ELFs.
+lint-sp1-guest: check-no-self-embed check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches check-sp1-guest-hashers fmt-check-sp1-guest lint-clippy-sp1-guest
 
 # Verify the nested guest workspace uses the root workspace's lint configuration.
 [script('bash')]
@@ -332,6 +332,119 @@ check-sp1-guest-precompile-patches:
 
   # The log-commitment guest hashes every log with keccak.
   verify_program_patches kona-sp1-log-commitment "${common_patches[@]}"
+
+# Every guest hash table must hash with the seeded foldhash-seeded crate (see
+# rust/kona/sp1/README.md). Cargo only warns when a [patch] goes unused, and any other hasher
+# bypasses the seed. To allow a new hasher crate: if it is unreachable at runtime, or its keys are
+# trusted and bounded, add it to `restricted_hashers` with the crates allowed to depend on it and
+# a one-line justification. Otherwise, seed it instead.
+[script('bash')]
+check-sp1-guest-hashers:
+  set -euo pipefail
+
+  # Every guest program: each guest workspace member other than the foldhash shim.
+  members=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --workspace --depth 0 \
+    --edges normal --prefix none --format '{p}')
+  packages=()
+  while IFS= read -r line; do
+    if [[ -n "$line" && "$line" != "foldhash v"* ]]; then
+      packages+=("${line%% *}")
+    fi
+  done <<< "$members"
+  if (( ${#packages[@]} == 0 )); then
+    echo "error: found no guest programs in rust/{{SP1_GUEST_MANIFEST}}" >&2
+    exit 1
+  fi
+  # The shim's Cargo.toml is the single source of truth for the upstream foldhash it wraps.
+  shim_manifest=kona/sp1/programs/foldhash-seeded/Cargo.toml
+  upstream_tag=$(sed -nE 's/^upstream = .*tag = "([^"]+)".*/\1/p' "$shim_manifest")
+  if [[ -z "$upstream_tag" ]]; then
+    echo "error: no upstream foldhash tag found in rust/$shim_manifest" >&2
+    exit 1
+  fi
+  shim_source="/rust/kona/sp1/programs/foldhash-seeded)"
+  # The fork that the shim wraps is unseeded, so only the shim may depend on it.
+  fork_url="https://github.com/ethereum-optimism/foldhash"
+  fork_source="$fork_url?tag=$upstream_tag#"
+  banned_hashers=(
+    rapidhash rustc-hash fxhash siphasher twox-hash xxhash-rust seahash gxhash wyhash highway
+    metrohash t1ha fasthash nohash-hasher hash32
+  )
+  # "<hasher> <allowed dependents...>".
+  restricted_hashers=(
+    # ark's hash tables (HashMapPippenger, sparse multilinear extensions) are never called at
+    # runtime.
+    "ahash ark-ec ark-poly"
+    "fnv ark-ec ark-poly"
+  )
+
+  for p in "${packages[@]}"; do
+    tree=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+      --target all --edges normal --prefix none --format '{p}')
+
+    while IFS= read -r line; do
+      [[ "$line" == "foldhash v"* ]] || continue
+      if [[ "$line" != *"$shim_source"* && "$line" != *"$fork_source"* ]]; then
+        echo "error: $p resolves an unseeded foldhash: $line" >&2
+        exit 1
+      fi
+    done <<< "$tree"
+
+    if grep -qF "$fork_source" <<< "$tree"; then
+      fork_dependents=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+        --target all --edges normal --invert "$fork_url#foldhash" --depth 1 --prefix none \
+        --format '{p}' | tail -n +2)
+      while IFS= read -r dependent; do
+        [[ -n "$dependent" ]] || continue
+        if [[ "$dependent" != "foldhash v"*"$shim_source"* ]]; then
+          echo "error: $p: $dependent depends on the unseeded foldhash fork; depend on crates.io foldhash, which the guest workspace patches to foldhash-seeded" >&2
+          exit 1
+        fi
+      done <<< "$fork_dependents"
+    fi
+
+    # alloy's generic maps hash with foldhash only under `map-foldhash`; with `std` and no map
+    # feature they fall back to std's SipHash, keyed from SP1's fixed `sys_rand` seed. Feature
+    # lines carry no version, so check each resolved version on its own.
+    for version in $(sed -nE 's/^alloy-primitives v([^ ]+).*/\1/p' <<< "$tree" | sort -u); do
+      features=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+        --target all --edges normal,features --invert "alloy-primitives@$version" --depth 1 \
+        --prefix none --format '{p}')
+      if ! grep -q '^alloy-primitives feature "map-foldhash"' <<< "$features"; then
+        echo "error: $p builds alloy-primitives $version without map-foldhash, so its generic maps bypass the seeded hasher" >&2
+        exit 1
+      fi
+    done
+
+    for hasher in "${banned_hashers[@]}"; do
+      if grep -q "^$hasher v" <<< "$tree"; then
+        echo "error: $p links hasher crate $hasher; seed it or allow it in check-sp1-guest-hashers" >&2
+        exit 1
+      fi
+    done
+
+    for entry in "${restricted_hashers[@]}"; do
+      read -r hasher allowed <<< "$entry"
+      # One query per resolved version: `--invert` on a bare name fails as ambiguous when two
+      # versions resolve.
+      for version in $(sed -nE "s/^$hasher v([^ ]+).*/\1/p" <<< "$tree" | sort -u); do
+        dependents=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+          --target all --edges normal --invert "$hasher@$version" --depth 1 --prefix none \
+          --format '{p}' | tail -n +2)
+        while IFS= read -r dependent; do
+          [[ -n "$dependent" ]] || continue
+          ok=false
+          for crate in $allowed; do
+            [[ "$dependent" == "$crate v"* ]] && ok=true
+          done
+          if [[ "$ok" != true ]]; then
+            echo "error: $p: $dependent depends on hasher crate $hasher; seed it or allow it in check-sp1-guest-hashers" >&2
+            exit 1
+          fi
+        done <<< "$dependents"
+      done
+    done
+  done
 
 # Resolves without --locked (minimal change), so it only touches entries that
 # actually moved rather than bumping unrelated guest deps.

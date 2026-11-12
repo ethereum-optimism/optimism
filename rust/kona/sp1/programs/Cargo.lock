@@ -1959,6 +1959,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-sp1-hashdos-check-guest"
+version = "0.0.1"
+dependencies = [
+ "alloy-primitives",
+ "foldhash 0.2.0",
+ "kona-sp1-build-info",
+ "op-revm",
+ "revm",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "kona-sp1-log-commitment"
 version = "0.0.1"
 dependencies = [
