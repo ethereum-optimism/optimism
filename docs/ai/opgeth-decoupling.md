@@ -151,10 +151,11 @@ Two wire facts worth keeping in mind (both encoded in the landed implementation)
 `optypes.DepositTx{...}.MarshalBinary()` — the `*types.Transaction` wrapper is eliminated, struct
 straight to bytes — and `UnmarshalDepositLogEvent` returns `*optypes.DepositTx`.
 
-**The test and test-support sites moved with §13**, together with the contracts-bedrock `go-ffi`
-helper, which encodes deposits for the Solidity tests with `optypes.DepositTx`. Test fixtures
-for L2 blocks are execution payloads with raw deposit bytes, never a `*types.Block` holding a
-deposit. Production code needs no fork transaction type: it uses the op-core types
+**Test and test-support code builds deposits with the op-core types** (§13): test fixtures for
+L2 blocks are execution payloads with raw deposit bytes, never a `*types.Block` holding a
+deposit. The one remaining fork use is the contracts-bedrock `go-ffi` helper, which encodes
+deposits for the Solidity tests with op-geth's `types.DepositTx` (#23405). Production code needs
+no fork transaction type: it uses the op-core types
 and the class-partitioned sources accessors (§11); `optypes.IsDepositTx` and its siblings are
 transition scaffolding (§2).
 
@@ -276,9 +277,8 @@ gaps ride #20270.
 
 ## 8. `consensus/misc/eip1559` – Holocene/Jovian helpers — **DONE** (#20268)
 
-`op-core/eip1559` landed and op-node is fully switched (no op-node production code imports geth's
-eip1559; one test file still does — a fork-comparison import that goes away at cutover).
-Signatures operate on `[]byte`/`uint64` only.
+op-node uses `op-core/eip1559` and imports no geth eip1559 code. Signatures operate on
+`[]byte`/`uint64` only.
 
 `op-core/eip1559` has no `EncodeOptimismExtraData`, `DecodeHoloceneExtraData` or OP
 `CalcBaseFee`, and nothing needs them: the tests encode with the fork-specific helpers, and the
@@ -372,10 +372,15 @@ Migrations landed with this issue: the `InfoAndUserTxsBy*`, `InfoAndDepositsBy*`
 
 ---
 
-## 13. Tests: `op-e2e`, `op-acceptance-tests`, `op-devstack` — **DONE** (#20265)
+## 13. Tests: `op-e2e`, `op-acceptance-tests`, `op-devstack` — open (#20265)
 
 The test suites read L2 data as §11 prescribes, and two gates keep them there. The ratchet
 (§19) cannot see this failure mode: the code compiles against upstream and only fails at runtime.
+
+Still open: op-devstack's L2 `ChainConfig()` (`stack.Network`, implemented by sysgo's L2 networks
+as `GethChainConfig()`) returns the go-ethereum config. That compiles after the flip, but its
+OP-valued methods then return Ethereum values — e.g. `ElasticityMultiplier()`, which the interop
+load test reads to size its gas target (#23655).
 
 - **op-e2e system tests** take an owned per-node sources client from `System.NodeSourceClient`.
   The geth and wait block helpers poll headers and return `*types.Header`;
@@ -391,9 +396,9 @@ The test suites read L2 data as §11 prescribes, and two gates keep them there. 
   from a `TransactionReceipt` re-fetch; `txplan`'s `Included` stays a geth receipt.
 - **L2 block fixtures** in the op-node, op-batcher and op-service tests are execution payloads
   with raw deposit bytes.
-- **`op-e2e/opgeth`** is deleted. Its FastLZ and Fjord-cost fuzzers live in `op-e2e/fastlz` and
-  run against `op-core/fees`, the Fjord one on an upstream simulated backend with the
-  `GasPriceOracle` and `L1Block` code from the forge artifacts.
+- **The FastLZ and Fjord-cost fuzzers** live in `op-e2e/fastlz` and check `op-core/fees` against
+  the C FastLZ build and the Solidity implementations; the Fjord one runs the `GasPriceOracle` and
+  `L1Block` code from the forge artifacts on an upstream simulated backend.
 
 Gates:
 
@@ -613,7 +618,7 @@ for uses in its test files) and what it needs from the fork, e.g.
 
 - **A use not on the allowlist fails the check.** Avoid it using this doc; if there is no way
   around it yet, add the entry by hand with a reason. Review of that line is the gate.
-- **Reasons start with the tracking issue** that removes the entry (e.g. `#23405 …`), so grepping
+- **Reasons start with the tracking issue** that removes the entry (e.g. `#21744 …`), so grepping
   the allowlist and its history for an issue number shows that workstream's remaining entries and
   its progress.
 - **An entry no longer used fails the check too**; `just opgeth-ratchet-update` removes it. The
@@ -634,9 +639,11 @@ for uses in its test files) and what it needs from the fork, e.g.
   allowlisted with reason "upstream backport" and are not decoupling work: they go when op-geth's
   upstream base catches up.
 
-#20266 is executable when the allowlist has only `#20266` entries: the op-core differential tests,
-the §2 scaffolding and the fork-changed signatures of §15. The flip PR removes or rewrites those,
-then deletes the tool, the allowlist, the CI job and the §13 forbidigo rule.
+#20266 is executable when every remaining entry is a cutover edit or an upstream backport that
+the target go-ethereum version contains. Cutover edits carry `#20266` (the op-core differential
+tests, the §2 scaffolding and the fork-changed signatures of §15) or `#23200` (the chain-config
+and genesis codec differential tests). The flip PR removes or rewrites them, then deletes the
+tool, the allowlist, the CI job and the §13 forbidigo rule.
 
 ---
 
@@ -744,7 +751,7 @@ monorepo-only (#22678).
 | Area | Target | Status |
 |------|--------|--------|
 | ProtocolVersions mechanism (§0) | deleted end-to-end | **done** |
-| `DepositTx` / `PostExecTx` types + helpers (§1, §2) | `op-core/types` | **done** (#20262, #20269, #20263); test sites done with §13 |
+| `DepositTx` / `PostExecTx` types + helpers (§1, §2) | `op-core/types` | **done** (#20262, #20269, #20263); the contracts-bedrock go-ffi helper still uses op-geth's (#23405) |
 | OP `Receipt` (§3) | `op-core/types.Receipt` | **done** (#20262); wiring landed with §11 (#20264) |
 | L1-cost / operator-fee math (§4) | `op-core/fees` | **done** (#20261); op-batcher site landed with §11 |
 | `OptimismConfig` / standalone `ChainConfig` / `GethChainConfig` (§5) | `op-core/params` | **done** (#20260, #20270) |
@@ -753,7 +760,7 @@ monorepo-only (#22678).
 | `PayloadID`, Engine-API types (§9, §10) | upstream / op-service | no change needed |
 | OP-aware eth client: class-partitioned accessors, `optypes.Receipt` returns, op-batcher + txinclude migration (§11) | `op-service/sources` / `apis.EthClient` | **done** (#20264) |
 | op-proposer / op-challenger / op-supernode / cannon (§12) | — | audited, no work; cannon test support's changed signature goes at the cutover (§15) |
-| Test migration: L2 reads via sources, wait-helper split, delete op-e2e/opgeth, fork-symbol swaps, runtime gates (§13) | `op-service/sources` + header-only variants + op-core | **done** (#20265) |
+| Test migration: L2 reads via sources, wait-helper split, fuzzers on `op-core/fees`, fork-symbol swaps, runtime gates, devstack L2 `ChainConfig()` (§13) | `op-service/sources` + header-only variants + op-core + `opparams.ChainConfig` | open (#20265): all done except the devstack L2 `ChainConfig()` (#23655) |
 | op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | **done** (#20415 Rust, #21196 Go) |
 | Kona proof tests' in-process EL (`rust/kona/tests/proofs`) | `op-reth-test-engine` subprocess | **done** (#21905) |
 | Genesis tooling (§14) | `op-core/genesis` on upstream geth + `opparams` | **done** (#21281) |
