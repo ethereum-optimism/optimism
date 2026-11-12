@@ -305,15 +305,20 @@ impl Discv5Driver {
 
             // A bootnode given by enode URL may be in the table already, from the session that
             // fetched its record, which skips the table filter: remove the ones not kept.
-            let validation = EnrValidation::validate(&enr, chain_id);
-            if validation.is_invalid() {
-                trace!(target: "discovery::bootstrap", "Ignoring Invalid Bootnode ENR: {:?}. {:?}", enr, validation);
-                disc.remove_node(&enr.node_id());
-                continue;
-            }
             if !table_filter(&enr) {
                 warn!(target: "discovery::bootstrap", ?enr, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
                 disc.remove_node(&enr.node_id());
+                continue;
+            }
+
+            // A bootnode that isn't a peer of our chain, such as OP Mainnet's built-in enode
+            // bootnodes, which have no `opstack` key, isn't saved, so that gossip doesn't dial it.
+            // But it isn't removed either: one given by enode URL is in the table already, from
+            // the session that fetched its record, and is an entry point for lookups, which find
+            // the nodes of every chain.
+            let validation = EnrValidation::validate(&enr, chain_id);
+            if validation.is_invalid() {
+                trace!(target: "discovery::bootstrap", ?enr, %validation, "Not saving a boot node that isn't a peer of this chain");
                 continue;
             }
 
