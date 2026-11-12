@@ -72,6 +72,18 @@ Periodic verification helps catch data corruption while maintaining good perform
   <Tab title="Default">`0`</Tab>
 </Tabs>
 
+### proofs-history.prefetch-threads
+
+Parallel readers that warm the proofs storage's page cache ahead of persistence.
+`0` (default) disables warming.
+Warming reads the pages each buffered block and the next prunes will touch, so the single-threaded persistence transaction waits on fewer disk reads.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.prefetch-threads <THREADS>`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Accepted values">`0` to `64`</Tab>
+</Tabs>
+
 
 ## Lifecycle and management commands
 

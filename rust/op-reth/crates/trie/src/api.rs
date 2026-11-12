@@ -16,7 +16,7 @@ use reth_trie::{
 use reth_trie_common::{
     BranchNodeCompact, HashedPostStateSorted, Nibbles, StoredNibbles, updates::TrieUpdatesSorted,
 };
-use std::{fmt::Debug, time::Duration};
+use std::{fmt::Debug, ops::RangeInclusive, time::Duration};
 
 /// Duration metrics for block processing.
 #[derive(Debug, Default, Clone)]
@@ -342,6 +342,29 @@ pub trait OpProofsStore: Send + Sync + Debug {
 
     /// Create an initialization provider for interacting with the proofs storage.
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>>;
+
+    /// Reads the pages that persisting `diff` will touch, from up to `threads` parallel
+    /// read-only transactions, so the write finds them cached. Best effort: the default does
+    /// nothing. Returns the number of keys read.
+    fn warm_for_write(
+        &self,
+        _diff: &BlockStateDiff,
+        _threads: usize,
+    ) -> OpProofsStorageResult<usize> {
+        Ok(0)
+    }
+
+    /// Reads the pages that pruning `blocks` will touch, from up to `threads` parallel
+    /// read-only transactions, so the prune finds them cached. Best effort: the default does
+    /// nothing. Returns the number of keys read, counting a key once for each block that changed
+    /// it.
+    fn warm_for_prune(
+        &self,
+        _blocks: RangeInclusive<u64>,
+        _threads: usize,
+    ) -> OpProofsStorageResult<usize> {
+        Ok(0)
+    }
 }
 
 /// Factory extension for stores that support backfill — extending the `earliest` block of

@@ -1,8 +1,8 @@
 //! [`Engine`] — the thin event-loop dispatcher.
 
 use super::{
-    CanonicalInMemoryStateProvider, DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD,
-    EngineAction, IDLE_FLUSH_INTERVAL, error::EngineError, state::EngineState as State,
+    CanonicalInMemoryStateProvider, EngineAction, EngineConfig, IDLE_FLUSH_INTERVAL,
+    error::EngineError, state::EngineState as State,
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
 use crossbeam_channel::Receiver;
@@ -66,26 +66,17 @@ where
         storage: Store,
         pruner: OpProofStoragePruner<Store, Provider>,
         incoming: Receiver<EngineAction<BlockTy<Evm::Primitives>>>,
+        config: EngineConfig,
     ) -> Self {
         Self {
-            state: State::new(evm_config, provider, storage, pruner),
+            state: State::new(evm_config, provider, storage, pruner, &config),
             incoming,
-            persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
-            backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
+            persistence_threshold: config.persistence_threshold,
+            backpressure_threshold: config.backpressure_threshold,
             sync_backoff: Duration::ZERO,
             #[cfg(feature = "metrics")]
             backpressure_since: None,
         }
-    }
-
-    pub(super) const fn with_persistence_threshold(mut self, threshold: u64) -> Self {
-        self.persistence_threshold = threshold;
-        self
-    }
-
-    pub(super) const fn with_backpressure_threshold(mut self, threshold: u64) -> Self {
-        self.backpressure_threshold = threshold;
-        self
     }
 
     /// Returns `true` if the engine is behind its sync target.
@@ -214,7 +205,7 @@ where
                 Ok(action) => action.execute(&mut self.state),
                 Err(_) => return ControlFlow::Break(()),
             },
-            recv(persist_rx) -> result => self.state.persistence.on_complete(result, &self.state.memory),
+            recv(persist_rx) -> result => self.state.on_persistence_complete(result),
             recv(sync_rx) -> _ => match self.advance_sync() {
                 Ok(()) => self.sync_backoff = Duration::ZERO,
                 Err(err) => {

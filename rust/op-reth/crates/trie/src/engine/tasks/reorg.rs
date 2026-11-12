@@ -82,7 +82,7 @@ where
     state.unwind(*first)?;
 
     for (block, trie_updates, hashed_state) in &block_updates {
-        state.memory.insert(
+        state.buffer_block(
             *block,
             BlockStateDiff {
                 sorted_trie_updates: (**trie_updates).clone(),

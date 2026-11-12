@@ -336,6 +336,7 @@ arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [
 arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] help: Deprecated: v2 is the only storage format, so `v2` is a no-op and any other value is rejected
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
 arg: --proofs-history.verification-interval <PROOFS_HISTORY_VERIFICATION_INTERVAL> [action: Set] [num-args: 1] [default: 0] help: Verification interval: perform full block execution every N blocks for data integrity. - 0: Disabled (Default) (always use fast path with pre-computed data from notifications) - 1: Always verify (always execute blocks, slowest) - N: Verify every Nth block (e.g., 100 = every 100 blocks)
+arg: --proofs-history.prefetch-threads <THREADS> [action: Set] [num-args: 1] [default: 0] help: Parallel readers that warm the proofs storage's page cache ahead of persistence (0 to 64). `0` (default) disables warming. Warming reads the pages each buffered block and the next prunes will touch, so the single-threaded persistence transaction waits on fewer disk reads
 
 == op-reth init
 about: Initialize the database from a genesis file
