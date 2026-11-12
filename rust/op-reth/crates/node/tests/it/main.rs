@@ -24,4 +24,6 @@ mod p2p_version;
 
 mod derived_attributes;
 
+mod payload_during_persistence;
+
 const fn main() {}

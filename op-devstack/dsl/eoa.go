@@ -279,6 +279,26 @@ func IncludedBlockNumber(t devtest.T, tx *txplan.PlannedTx) uint64 {
 	return bigs.Uint64Strict(receipt.BlockNumber)
 }
 
+// DeployStorageFiller deploys a contract that writes slotsPerCall storage slots it has never
+// written before on every call: slot 0 counts the slots written so far, and a call fills the
+// slotsPerCall slots above the count with the block number before raising the count, so every
+// call grows the contract's storage.
+func (u *EOA) DeployStorageFiller(slotsPerCall uint64) common.Address {
+	runtimeCode := program.New().Push0().Op(vm.SLOAD)
+	for slot := uint64(1); slot <= slotsPerCall; slot++ {
+		runtimeCode.Op(vm.NUMBER).Op(vm.DUP2).Push(slot).Op(vm.ADD).Op(vm.SSTORE)
+	}
+	runtimeCode.Push(slotsPerCall).Op(vm.ADD).Push0().Op(vm.SSTORE)
+	initCode := program.New().ReturnViaCodeCopy(runtimeCode.Bytes()).Bytes()
+	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(initCode))
+	_, err := tx.Success.Eval(u.ctx)
+	u.t.Require().NoError(err, "storage filler deployment must succeed")
+	res, err := tx.Included.Eval(u.ctx)
+	u.t.Require().NoError(err, "failed to read the storage filler deployment receipt")
+	u.log.Info("deployed storage filler", "chainID", tx.ChainID.Value(), "address", res.ContractAddress, "slots_per_call", slotsPerCall)
+	return res.ContractAddress
+}
+
 func (u *EOA) DeployWETH() common.Address {
 	// Use the e2e bindings which contain the WETH bytecode
 	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(common.FromHex(e2eBindings.WETHBin)))
