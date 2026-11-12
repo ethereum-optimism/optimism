@@ -22,8 +22,8 @@ func TestInteropMon(gt *testing.T) {
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	clients := map[eth.ChainID]*sources.EthClient{
-		sys.L2ELA.Escape().ChainID(): sys.L2ELA.Escape().EthClient().(*sources.EthClient),
-		sys.L2ELB.Escape().ChainID(): sys.L2ELB.Escape().EthClient().(*sources.EthClient),
+		sys.L2ELA.Escape().ChainID(): sys.L2ELA.Escape().L2EthClient().(*sources.L2Client).EthClient,
+		sys.L2ELB.Escape().ChainID(): sys.L2ELB.Escape().L2EthClient().(*sources.L2Client).EthClient,
 	}
 
 	require := t.Require()

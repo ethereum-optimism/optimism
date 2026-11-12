@@ -63,13 +63,12 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	if err != nil {
 		return err
 	}
-	// Record in memory. The stage runner persists state after its broadcast succeeds.
+	// Record in memory. The stage runner writes the state after the stage succeeds.
 	return RecordOPChainDeployment(st, result)
 }
 
 // ExecuteOPChainDeployment runs the deployment without recording state. impls are the
-// implementations of the OPCM in dci. Script-host execution queues transactions. The forge path
-// sends them before it returns.
+// implementations of the OPCM in dci. It sends the deployment's transactions before it returns.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
@@ -103,19 +102,9 @@ func ExecuteOPChainDeployment(
 		}
 	}
 
-	var dco opcm.DeployOPChainOutput
-	var err error
-	if env.Forge != nil {
-		lgr.Info("using Forge for DeployOPChain")
-		dco, err = opcm.DeployOPChainViaForge(env.Forge, dci)
-		if err != nil {
-			return result, err
-		}
-	} else {
-		dco, err = env.Scripts.DeployOPChain.Run(dci)
-		if err != nil {
-			return result, fmt.Errorf("error deploying OP chain: %w", err)
-		}
+	dco, err := opcm.DeployOPChain(env.Forge, dci)
+	if err != nil {
+		return result, err
 	}
 
 	return ReconcileOPChainDeployment(chainID, OpChainContractsFromDeployOutput(dco), impls), nil
