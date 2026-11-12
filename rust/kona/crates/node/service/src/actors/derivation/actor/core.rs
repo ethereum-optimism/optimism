@@ -352,17 +352,18 @@ where
             DerivationActorRequest::ProcessL1HeadUpdateRequest(l1_head) => {
                 info!(target: "derivation", l1_head = ?*l1_head, "Processing l1 head update");
 
-                // Like op-node's retry when derivation goes idle: a block that became safe after
-                // L1 finality last moved, or whose finalization the engine skipped because a
-                // reset lowered its safe head, is finalized without waiting for L1 finality to
-                // move again. The L1 head cadence batches the blocks confirmed since the last
-                // update, as op-node's finality delay does, instead of finalizing on every
-                // confirmation.
-                if let Some(l2_block_number) = self.finalizer.try_finalize_against_known_l1() {
+                self.derivation_state_machine.update(&DerivationStateUpdate::L1DataReceived)?;
+
+                // A block that became safe after L1 finality last moved is finalized on the next
+                // L1 head update instead of waiting for L1 finality to move again. This runs on
+                // every L1 head while derivation is idle, unlike op-node, which retries at most
+                // once per 64 L1 blocks of progress. Outside `Deriving` the queue can still hold
+                // blocks from before an engine reset that this actor has not been signaled yet.
+                if self.derivation_state_machine.current_state() == DerivationState::Deriving &&
+                    let Some(l2_block_number) = self.finalizer.try_finalize_against_known_l1()
+                {
                     self.finalize_l2_block_by_number(l2_block_number).await?;
                 }
-
-                self.derivation_state_machine.update(&DerivationStateUpdate::L1DataReceived)?;
 
                 self.attempt_derivation().await?;
             }

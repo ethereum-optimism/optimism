@@ -711,6 +711,36 @@ async fn a_block_derived_again_after_a_reset_is_finalized_on_the_next_l1_head() 
     .await;
 }
 
+/// An L1 head update finalizes against the known L1 block only once derivation is idle: while
+/// attributes await the engine's confirmation, the queued block is left for a later update.
+#[tokio::test]
+async fn an_l1_head_update_does_not_finalize_while_attributes_await_confirmation() {
+    let mut engine_client = engine_client_accepting_attributes();
+    engine_client.expect_send_finalized_l2_block().times(0);
+    let mut node = RecordingActor::new(engine_client);
+    node.actor.pipeline.attributes.push_back(OpAttributesWithParent {
+        parent: l2_block(DERIVED_HEAD),
+        ..derived_attributes()
+    });
+    node.complete_el_sync_at(RESUME_HEAD).await;
+    node.finalize_l1(DERIVED_FROM_L1).await;
+    node.confirm_safe_head(DERIVED_HEAD).await;
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingSafeHeadConfirmation
+    );
+
+    node.handle(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::new(l1_block(
+        DERIVED_FROM_L1 + 1,
+    ))))
+    .await;
+
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingSafeHeadConfirmation
+    );
+}
+
 mod database;
 
 mod op_node_parity;
