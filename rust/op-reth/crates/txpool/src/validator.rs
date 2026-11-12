@@ -1,4 +1,6 @@
-use crate::{InvalidCrossTx, OpPooledTx, interop_filter::InteropFilterClient};
+use crate::{
+    DaFootprintExceedsGasLimit, InvalidCrossTx, OpPooledTx, interop_filter::InteropFilterClient,
+};
 use alloy_consensus::{BlockHeader, Transaction};
 use alloy_primitives::U256;
 use op_revm::{L1BlockInfo, OpSpecId};
@@ -329,24 +331,24 @@ where
         if let Some(valid_tx) = outcome.as_valid_transaction() &&
             let Err(err) = self.check_da_footprint(valid_tx.transaction())
         {
-            return TransactionValidationOutcome::Invalid(valid_tx.transaction().clone(), err);
+            return TransactionValidationOutcome::Invalid(
+                valid_tx.transaction().clone(),
+                InvalidPoolTransactionError::other(err),
+            );
         }
         outcome
     }
 
     /// Rejects `tx` if its DA footprint alone exceeds the gas budget of the blocks this node
     /// builds.
-    ///
-    /// The verdict depends on this node's view of the limits, so it uses an error that isn't
-    /// reported as a bad transaction.
-    fn check_da_footprint(&self, tx: &Tx) -> Result<(), InvalidPoolTransactionError> {
+    fn check_da_footprint(&self, tx: &Tx) -> Result<(), DaFootprintExceedsGasLimit> {
         let Some(scalar) = self.block_info.l1_block_info.read().da_footprint_gas_scalar else {
             return Ok(());
         };
         let footprint = tx.estimated_da_size().saturating_mul(u64::from(scalar));
         let gas_limit = self.build_gas_limit();
         if footprint > gas_limit {
-            return Err(InvalidPoolTransactionError::MaxTxGasLimitExceeded(footprint, gas_limit));
+            return Err(DaFootprintExceedsGasLimit { footprint, gas_limit });
         }
         Ok(())
     }
@@ -710,8 +712,8 @@ mod tests {
 
     mod da_footprint {
         use crate::{
-            OpGasLimitConfig, OpL1BlockInfo, OpPooledTransaction, OpTransactionValidator,
-            estimated_da_size::DataAvailabilitySized,
+            DaFootprintExceedsGasLimit, OpGasLimitConfig, OpL1BlockInfo, OpPooledTransaction,
+            OpTransactionValidator, estimated_da_size::DataAvailabilitySized,
         };
         use alloy_consensus::{
             SignableTransaction, Transaction, TxEip1559, transaction::Recovered,
@@ -819,15 +821,14 @@ mod tests {
             )
         }
 
-        /// The footprint and limit the transaction was rejected with, if any.
+        /// The footprint error the transaction was rejected with, if any.
         fn footprint_error(
             outcome: &TransactionValidationOutcome<OpPooledTransaction>,
-        ) -> Option<(u64, u64)> {
+        ) -> Option<DaFootprintExceedsGasLimit> {
             match outcome {
-                TransactionValidationOutcome::Invalid(
-                    _,
-                    InvalidPoolTransactionError::MaxTxGasLimitExceeded(footprint, limit),
-                ) => Some((*footprint, *limit)),
+                TransactionValidationOutcome::Invalid(_, err) => {
+                    err.downcast_other_ref::<DaFootprintExceedsGasLimit>().copied()
+                }
                 _ => None,
             }
         }
@@ -843,7 +844,7 @@ mod tests {
 
             assert_eq!(
                 footprint_error(&outcome),
-                Some((footprint, BLOCK_GAS_LIMIT)),
+                Some(DaFootprintExceedsGasLimit { footprint, gas_limit: BLOCK_GAS_LIMIT }),
                 "got {outcome:?}"
             );
         }
@@ -865,7 +866,7 @@ mod tests {
             let over_limit = validate(tx, Some(DEFAULT_SCALAR), footprint - 1).await;
             assert_eq!(
                 footprint_error(&over_limit),
-                Some((footprint, footprint - 1)),
+                Some(DaFootprintExceedsGasLimit { footprint, gas_limit: footprint - 1 }),
                 "got {over_limit:?}"
             );
         }
@@ -979,9 +980,36 @@ mod tests {
 
             assert_eq!(
                 footprint_error(&outcome),
-                Some((footprint, BLOCK_GAS_LIMIT)),
+                Some(DaFootprintExceedsGasLimit { footprint, gas_limit: BLOCK_GAS_LIMIT }),
                 "got {outcome:?}"
             );
+        }
+
+        /// The error doesn't say whether the footprint exceeded the block gas limit or this node's
+        /// own `miner_setGasLimit`, so neither case penalizes the peer that relayed it.
+        #[rstest::rstest]
+        #[case::block_limit(false)]
+        #[case::operator_limit(true)]
+        #[tokio::test]
+        async fn footprint_above_limit_does_not_penalize_peers(#[case] operator_limit: bool) {
+            let tx = large_tx(Address::with_last_byte(1));
+            let footprint = tx.estimated_da_size() * u64::from(DEFAULT_SCALAR);
+            let (block_gas_limit, gas_limit_config) = if operator_limit {
+                (footprint, OpGasLimitConfig::new(footprint - 1))
+            } else {
+                (footprint - 1, OpGasLimitConfig::default())
+            };
+
+            let outcome = validator(&tx, U256::MAX, Some(DEFAULT_SCALAR), block_gas_limit)
+                .with_gas_limit_config(gas_limit_config)
+                .validate_one(TransactionOrigin::External, tx)
+                .await;
+
+            let TransactionValidationOutcome::Invalid(_, err) = outcome else {
+                panic!("got {outcome:?}");
+            };
+            assert!(err.is_other::<DaFootprintExceedsGasLimit>(), "got {err:?}");
+            assert!(!penalizes_peer(err));
         }
     }
 }
