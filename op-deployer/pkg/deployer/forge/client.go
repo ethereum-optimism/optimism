@@ -348,6 +348,11 @@ func (c *Client) sandboxConfig(root string, dir string) (string, string, error) 
 			return "", "", fmt.Errorf("the forge config of the project sets libs to %v; only a list of paths is allowed", value)
 		}
 	}
+	// forge resolves links in the root, so the libs must too.
+	libRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve the forge project: %w", err)
+	}
 	absLibs := make([]string, 0, len(libs))
 	for _, lib := range libs {
 		lib, ok := lib.(string)
@@ -355,7 +360,7 @@ func (c *Client) sandboxConfig(root string, dir string) (string, string, error) 
 			return "", "", fmt.Errorf("the forge config of the project sets libs to %v; only a list of paths is allowed", profile["libs"])
 		}
 		if !filepath.IsAbs(lib) {
-			lib = filepath.Join(root, lib)
+			lib = filepath.Join(libRoot, lib)
 		}
 		absLibs = append(absLibs, lib)
 	}

@@ -515,7 +515,10 @@ func TestClient_RunScriptKeepsLibRemappings(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	dir := t.TempDir()
+	// The project is reached through a link, as on macOS, whose temporary directories are under a
+	// link; forge resolves the link.
+	dir := filepath.Join(t.TempDir(), "project")
+	require.NoError(t, os.Symlink(t.TempDir(), dir))
 	dep := filepath.Join(dir, "lib", "dep", "src")
 	require.NoError(t, os.MkdirAll(dep, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dep, "Dep.sol"), []byte(`// SPDX-License-Identifier: UNLICENSED
