@@ -3146,15 +3146,12 @@ impl Proposer {
                 }
             ),
             async {
-                match self.config.proof_provider {
-                    ProofProviderKind::Network => {
-                        self.collect_gauge(
-                            ProposerGauge::ProveBalance,
-                            self.proof_engine.prove_balance(),
-                        )
-                        .await;
-                    }
-                    ProofProviderKind::Mock | ProofProviderKind::LocalCuda => {}
+                if self.config.proof_provider.has_prove_balance() {
+                    self.collect_gauge(
+                        ProposerGauge::ProveBalance,
+                        self.proof_engine.prove_balance(),
+                    )
+                    .await;
                 }
             },
         );

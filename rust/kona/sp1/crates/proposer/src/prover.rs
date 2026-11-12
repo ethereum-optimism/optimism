@@ -23,7 +23,7 @@ use sp1_sdk::{
 };
 use thiserror::Error;
 
-use crate::config::PrestatePrograms;
+use crate::config::{PrestatePrograms, ProofProviderKind};
 
 /// Placeholder on-chain proof bytes submitted by the mock provider. Only a
 /// deployment whose game verifier accepts arbitrary bytes (devstack's
@@ -257,12 +257,18 @@ impl ProofProvider {
         }
     }
 
+    /// Returns the configured kind of this provider.
+    pub const fn kind(&self) -> ProofProviderKind {
+        match self {
+            Self::Network(_) => ProofProviderKind::Network,
+            Self::Mock(_) => ProofProviderKind::Mock,
+            Self::LocalCuda(_) => ProofProviderKind::LocalCuda,
+        }
+    }
+
     /// Returns whether this provider makes real SP1 proofs.
     pub const fn proves_with_sp1(&self) -> bool {
-        match self {
-            Self::Network(_) | Self::LocalCuda(_) => true,
-            Self::Mock(_) => false,
-        }
+        self.kind().proves_with_sp1()
     }
 }
 

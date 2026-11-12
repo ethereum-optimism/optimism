@@ -305,10 +305,7 @@ const TX_SEND_OUTCOMES: [&str; 3] = ["confirmed", "reverted", "failed"];
 
 /// Registers metrics after installing the recorder, without treating unread balances as zero.
 pub fn register_metrics(provider: ProofProviderKind) {
-    let prove_balance = match provider {
-        ProofProviderKind::Network => true,
-        ProofProviderKind::Mock | ProofProviderKind::LocalCuda => false,
-    };
+    let prove_balance = provider.has_prove_balance();
     ProposerGauge::register_all();
     for metric in ProposerGauge::iter() {
         let initial = match metric {

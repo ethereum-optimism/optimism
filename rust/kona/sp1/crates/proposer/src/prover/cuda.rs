@@ -81,8 +81,8 @@ impl LocalCudaProofProvider {
             SP1CoreOpts { memory_limit: config.memory_limit_bytes.get(), ..Default::default() };
         let verifier = LightProver::new_with_opts(opts).await;
         let memory_limit = config.memory_limit_bytes.get();
-        let mut devices = Vec::with_capacity(config.devices.len());
-        for &id in &config.devices {
+        let mut devices = Vec::with_capacity(config.devices.ids().len());
+        for &id in config.devices.ids() {
             let server = GpuServer::start(path, id, memory_limit).await.with_context(|| {
                 format!("start sp1-gpu-server for CUDA device {id}; check the device and the {CUDA_IMAGE} image")
             })?;
@@ -195,12 +195,12 @@ fn server_command(path: &Path) -> Command {
 trait DeviceServer: Send + Sync + 'static {
     type Key: Send + Sync + 'static;
 
-    async fn setup(&self, elf: Elf) -> Result<Self::Key, ServerError>;
+    async fn setup(&mut self, elf: Elf) -> Result<Self::Key, ServerError>;
 
     fn vk_hash(key: &Self::Key) -> [u32; 8];
 
     async fn prove(
-        &self,
+        &mut self,
         key: &Self::Key,
         stdin: SP1Stdin,
         mode: ProofMode,
@@ -255,24 +255,23 @@ const fn response_name(response: &Response) -> &'static str {
 /// the bincode 1 encoding. A request whose response is not read leaves the socket out of step:
 /// the next request on it would read that response.
 struct Connection {
-    stream: tokio::sync::Mutex<UnixStream>,
+    stream: UnixStream,
 }
 
 impl Connection {
     /// Sends `request` and reads its response. The request and its encoding are dropped once
     /// sent, so a long proof does not hold copies of its stdin.
-    async fn call(&self, request: Request) -> Result<Response, ServerError> {
+    async fn call(&mut self, request: Request) -> Result<Response, ServerError> {
         let bytes = bincode1::serialize(&request).map_err(ServerError::Encode)?;
         drop(request);
         let len = u32::try_from(bytes.len()).map_err(|_| ServerError::TooLarge(bytes.len()))?;
-        let mut stream = self.stream.lock().await;
-        stream.write_all(&len.to_le_bytes()).await?;
-        stream.write_all(&bytes).await?;
+        self.stream.write_all(&len.to_le_bytes()).await?;
+        self.stream.write_all(&bytes).await?;
         drop(bytes);
         let mut len = [0; 4];
-        stream.read_exact(&mut len).await?;
+        self.stream.read_exact(&mut len).await?;
         let mut response = vec![0; u32::from_le_bytes(len) as usize];
-        stream.read_exact(&mut response).await?;
+        self.stream.read_exact(&mut response).await?;
         match bincode1::deserialize(&response).map_err(ServerError::Decode)? {
             Response::InternalError(err) | Response::ProverError(err) => {
                 Err(ServerError::Rejected(err))
@@ -318,10 +317,7 @@ impl GpuServer {
         }
         let mut child = command.spawn().with_context(|| format!("run {}", path.display()))?;
         let stream = connect(&socket, &mut child).await?;
-        Ok(Self {
-            connection: Connection { stream: tokio::sync::Mutex::new(stream) },
-            _child: child,
-        })
+        Ok(Self { connection: Connection { stream }, _child: child })
     }
 }
 
@@ -366,7 +362,7 @@ async fn connect(socket: &Path, child: &mut Child) -> Result<UnixStream> {
 impl DeviceServer for GpuServer {
     type Key = ServerKey;
 
-    async fn setup(&self, elf: Elf) -> Result<ServerKey, ServerError> {
+    async fn setup(&mut self, elf: Elf) -> Result<ServerKey, ServerError> {
         let request = Request::Setup {
             elf: elf.to_vec(),
             machine: SerializableRiscvMachine::from(RiscvAir::machine()),
@@ -382,7 +378,7 @@ impl DeviceServer for GpuServer {
     }
 
     async fn prove(
-        &self,
+        &mut self,
         key: &ServerKey,
         stdin: SP1Stdin,
         mode: ProofMode,
@@ -603,7 +599,7 @@ impl<S: DeviceServer> Device<S> {
         Ok(())
     }
 
-    async fn setup(&self, program: Program, keys: &PrestateKeys) -> Result<S::Key, Failure> {
+    async fn setup(&mut self, program: Program, keys: &PrestateKeys) -> Result<S::Key, Failure> {
         let expected = keys.programs.get(program);
         let key =
             self.server.setup(expected.elf.clone()).await.map_err(ServerError::into_failure)?;
@@ -1011,7 +1007,7 @@ mod tests {
     impl DeviceServer for ScriptedServer {
         type Key = [u32; 8];
 
-        async fn setup(&self, elf: Elf) -> Result<[u32; 8], ServerError> {
+        async fn setup(&mut self, elf: Elf) -> Result<[u32; 8], ServerError> {
             let hash =
                 if self.script.wrong_vk.load(Ordering::SeqCst) { [0; 8] } else { vk_hash(&elf) };
             self.script.setups.lock().push((self.id, hash));
@@ -1026,7 +1022,7 @@ mod tests {
         }
 
         async fn prove(
-            &self,
+            &mut self,
             _key: &[u32; 8],
             _stdin: SP1Stdin,
             _mode: ProofMode,
@@ -1217,30 +1213,26 @@ mod tests {
         );
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn cycle_limit_breach_is_unexecutable() {
-        let state = Harness::terminal_state(|_| {
-            Err(execution_error(ExecutionError::ExceededCycleLimit(1)))
-        })
-        .await;
-        assert_eq!(state, ProofTerminalState::Unexecutable);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn memory_limit_breach_is_unexecutable() {
-        let state =
-            Harness::terminal_state(|_| Err(execution_error(ExecutionError::TooMuchMemory())))
-                .await;
-        assert_eq!(state, ProofTerminalState::Unexecutable);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn memory_monitor_kill_is_unexecutable() {
-        let state = Harness::terminal_state(|_| {
-            Err(execution_error(ExecutionError::KilledByMemoryMonitor(1)))
-        })
-        .await;
-        assert_eq!(state, ProofTerminalState::Unexecutable);
+    /// Pins the failure class of each pre-execution error.
+    #[test]
+    fn execution_errors_classify() {
+        let cases = [
+            (execution_error(ExecutionError::ExceededCycleLimit(1)), true),
+            (execution_error(ExecutionError::TooMuchMemory()), true),
+            (execution_error(ExecutionError::KilledByMemoryMonitor(1)), true),
+            (execution_error(ExecutionError::UnsupportedSyscall(0)), true),
+            (execution_error(ExecutionError::ChildKilled()), false),
+            (execution_error(ExecutionError::Other("child terminated abnormally".into())), false),
+            (anyhow!("deferred proof failed"), false),
+        ];
+        for (err, unexecutable) in cases {
+            let text = format!("{err:#}");
+            match classify_execution_error(err) {
+                Failure::Unexecutable(_) => assert!(unexecutable, "{text}"),
+                Failure::ProverFailed(_) => assert!(!unexecutable, "{text}"),
+                Failure::Fatal(_) => panic!("fatal: {text}"),
+            }
+        }
     }
 
     #[tokio::test(start_paused = true)]
@@ -1248,8 +1240,13 @@ mod tests {
         let kill = |_| Err(execution_error(ExecutionError::KilledByMemoryMonitor(1)));
         let harness = Harness::with(1, Probe::open(), Probe::open(), kill, None);
         let proof_id = harness.request().await;
-        harness.core.wait(proof_id).await.unwrap_err();
+        let err = harness.core.wait(proof_id).await.unwrap_err();
+        assert!(
+            matches!(err, ProofWaitError::Terminal { state: ProofTerminalState::Unexecutable, .. }),
+            "{err:?}"
+        );
         assert_eq!(harness.executor.probe.calls(), MEMORY_MONITOR_ATTEMPTS);
+        assert_eq!(harness.script.prove.calls(), 0);
 
         let first_kill = |call| match call {
             0 => Err(execution_error(ExecutionError::KilledByMemoryMonitor(1))),
@@ -1259,26 +1256,6 @@ mod tests {
         let proof_id = harness.request().await;
         harness.core.wait(proof_id).await.unwrap();
         assert_eq!(harness.executor.probe.calls(), 2);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn deterministic_guest_fault_is_unexecutable() {
-        let state = Harness::terminal_state(|_| {
-            Err(execution_error(ExecutionError::UnsupportedSyscall(0)))
-        })
-        .await;
-        assert_eq!(state, ProofTerminalState::Unexecutable);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn other_execution_error_is_prover_failed() {
-        let state = Harness::terminal_state(|_| {
-            Err(execution_error(ExecutionError::Other("child terminated abnormally".into())))
-        })
-        .await;
-        assert_eq!(state, ProofTerminalState::ProverFailed);
-        let state = Harness::terminal_state(|_| Err(anyhow!("deferred proof failed"))).await;
-        assert_eq!(state, ProofTerminalState::ProverFailed);
     }
 
     #[test]
@@ -1340,13 +1317,6 @@ mod tests {
         })
         .await;
         assert_eq!(state, ProofTerminalState::Unexecutable);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn child_killed_is_prover_failed() {
-        let state =
-            Harness::terminal_state(|_| Err(execution_error(ExecutionError::ChildKilled()))).await;
-        assert_eq!(state, ProofTerminalState::ProverFailed);
     }
 
     #[tokio::test(start_paused = true)]
@@ -1694,7 +1664,7 @@ mod tests {
     }
 
     fn connection(stream: UnixStream) -> Connection {
-        Connection { stream: tokio::sync::Mutex::new(stream) }
+        Connection { stream }
     }
 
     /// Pins the u32-LE length and bincode 1 framing that `Connection::call` writes and reads.
@@ -1707,7 +1677,7 @@ mod tests {
             sp1_version: "v6.1.0".into(),
         };
         let requests = fake_server(server, vec![Response::Proof { proof }]);
-        let gpu = connection(client);
+        let mut gpu = connection(client);
         let mut stdin = SP1Stdin::new();
         stdin.write(&42u64);
         let key = ServerKey { id: [9; 32], vk_hash: [0; 8] };
@@ -1738,7 +1708,7 @@ mod tests {
             server,
             vec![Response::InternalError("oom".into()), Response::ProverError("bad".into())],
         );
-        let gpu = connection(client);
+        let mut gpu = connection(client);
 
         for expected in ["oom", "bad"] {
             let Err(ServerError::Rejected(message)) =

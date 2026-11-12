@@ -73,6 +73,11 @@ impl ProofProviderKind {
             Self::Mock => false,
         }
     }
+
+    /// Returns whether this provider pays for proofs from an SPN account's PROVE balance.
+    pub const fn has_prove_balance(self) -> bool {
+        matches!(self, Self::Network)
+    }
 }
 
 impl FromStr for ProofProviderKind {
@@ -582,8 +587,8 @@ impl ProofProviderConfig {
 /// Parsed in every mode; all values have defaults.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalCudaConfig {
-    /// CUDA device IDs, one `sp1-gpu-server` each. Non-empty, without duplicates.
-    pub devices: Vec<u32>,
+    /// CUDA device IDs (see [`CudaDevices`]).
+    pub devices: CudaDevices,
     /// RSS limit in bytes of each pre-execution's executor child process.
     pub memory_limit_bytes: NonZeroU64,
     /// The `sp1-gpu-server` binary; the `op-zk-proposer-cuda` image installs it at the default.
@@ -593,7 +598,7 @@ pub struct LocalCudaConfig {
 impl Default for LocalCudaConfig {
     fn default() -> Self {
         Self {
-            devices: vec![0],
+            devices: CudaDevices::default(),
             memory_limit_bytes: NonZeroU64::new(DEFAULT_MEMORY_LIMIT)
                 .expect("SP1's default memory limit is non-zero"),
             server_path: PathBuf::from("/usr/local/bin/sp1-gpu-server"),
@@ -605,17 +610,8 @@ impl LocalCudaConfig {
     /// Reads local CUDA prover settings from environment variables.
     pub fn from_env() -> Result<Self> {
         let defaults = Self::default();
-        let devices_name = env_var("CUDA_DEVICES");
-        // A set but empty list is an error, not the default.
-        let devices = match env::var(&devices_name) {
-            Ok(list) => {
-                parse_cuda_devices(&list).with_context(|| format!("invalid {devices_name}"))?
-            }
-            Err(env::VarError::NotPresent) => defaults.devices,
-            Err(err) => bail!("invalid {devices_name}: {err}"),
-        };
         Ok(Self {
-            devices,
+            devices: parsed_env_or("CUDA_DEVICES", defaults.devices)?,
             memory_limit_bytes: parsed_env_or(
                 "CUDA_MEMORY_LIMIT_BYTES",
                 defaults.memory_limit_bytes,
@@ -626,14 +622,36 @@ impl LocalCudaConfig {
     }
 }
 
-fn parse_cuda_devices(list: &str) -> Result<Vec<u32>> {
-    let mut devices = Vec::new();
-    for entry in list.split(',').map(str::trim) {
-        let device = entry.parse::<u32>().map_err(|err| anyhow!("device {entry:?}: {err}"))?;
-        anyhow::ensure!(!devices.contains(&device), "duplicate device {device}");
-        devices.push(device);
+/// CUDA device IDs, one `sp1-gpu-server` each: non-empty and without duplicates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CudaDevices(Vec<u32>);
+
+impl CudaDevices {
+    /// Returns the device IDs.
+    pub fn ids(&self) -> &[u32] {
+        &self.0
     }
-    Ok(devices)
+}
+
+impl Default for CudaDevices {
+    fn default() -> Self {
+        Self(vec![0])
+    }
+}
+
+impl FromStr for CudaDevices {
+    type Err = anyhow::Error;
+
+    /// Parses a comma-separated list. An empty entry fails to parse, so the list is never empty.
+    fn from_str(list: &str) -> Result<Self> {
+        let mut devices = Vec::new();
+        for entry in list.split(',').map(str::trim) {
+            let device = entry.parse::<u32>().map_err(|err| anyhow!("device {entry:?}: {err}"))?;
+            anyhow::ensure!(!devices.contains(&device), "duplicate device {device}");
+            devices.push(device);
+        }
+        Ok(Self(devices))
+    }
 }
 
 /// Splits defended super-root timestamp spans into 1 to 128 chunks.
@@ -1084,6 +1102,9 @@ mod tests {
             assert!(ProofProviderKind::Network.proves_with_sp1());
             assert!(ProofProviderKind::LocalCuda.proves_with_sp1());
             assert!(!ProofProviderKind::Mock.proves_with_sp1());
+            assert!(ProofProviderKind::Network.has_prove_balance());
+            assert!(!ProofProviderKind::LocalCuda.has_prove_balance());
+            assert!(!ProofProviderKind::Mock.has_prove_balance());
         }
 
         #[test]
@@ -1091,9 +1112,9 @@ mod tests {
         fn cuda_devices_default_to_zero() {
             clear_proposer_env();
             assert_eq!(LocalCudaConfig::from_env().unwrap(), LocalCudaConfig::default());
-            assert_eq!(LocalCudaConfig::default().devices, [0]);
+            assert_eq!(LocalCudaConfig::default().devices.ids(), [0]);
             set_proposer_env("CUDA_DEVICES", "1, 3");
-            assert_eq!(LocalCudaConfig::from_env().unwrap().devices, [1, 3]);
+            assert_eq!(LocalCudaConfig::from_env().unwrap().devices.ids(), [1, 3]);
             set_proposer_env("CUDA_SERVER_PATH", "/opt/gpu/sp1-gpu-server");
             assert_eq!(
                 LocalCudaConfig::from_env().unwrap().server_path,
@@ -1103,9 +1124,10 @@ mod tests {
 
         #[test]
         #[serial]
-        fn cuda_devices_reject_empty_and_duplicates() {
+        fn cuda_devices_reject_empty_entries_and_duplicates() {
             clear_proposer_env();
-            for invalid in ["", "0,0", "x"] {
+            assert!("".parse::<CudaDevices>().is_err());
+            for invalid in ["0,0", "x", "1,"] {
                 set_proposer_env("CUDA_DEVICES", invalid);
                 let err = LocalCudaConfig::from_env().unwrap_err().to_string();
                 assert!(err.contains("OP_ZK_PROPOSER_CUDA_DEVICES"), "{invalid:?}: {err}");
