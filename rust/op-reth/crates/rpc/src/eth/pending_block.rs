@@ -47,7 +47,7 @@ impl OpPendingEnvBuilder {
     ///
     /// Derives the block time as upstream's `eth_simulateV1` derives the timestamp increment: the
     /// hint rounded up to whole seconds. A chain without a hint falls back to
-    /// [`FALLBACK_BLOCK_TIME`] instead of upstream's 12 s.
+    /// `FALLBACK_BLOCK_TIME` instead of upstream's 12 s.
     pub fn new(chain: Chain) -> Self {
         let block_time = chain
             .average_blocktime_hint()
