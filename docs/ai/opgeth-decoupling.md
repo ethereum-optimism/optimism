@@ -153,9 +153,8 @@ straight to bytes — and `UnmarshalDepositLogEvent` returns `*optypes.DepositTx
 
 **Test and test-support code builds deposits with the op-core types** (§13): test fixtures for
 L2 blocks are execution payloads with raw deposit bytes, never a `*types.Block` holding a
-deposit. The one remaining fork use is the contracts-bedrock `go-ffi` helper, which encodes
-deposits for the Solidity tests with op-geth's `types.DepositTx` (#23405). Production code needs
-no fork transaction type: it uses the op-core types
+deposit, and the contracts-bedrock `go-ffi` helper encodes deposits for the Solidity tests with
+`optypes.DepositTx`. Production code needs no fork transaction type: it uses the op-core types
 and the class-partitioned sources accessors (§11); `optypes.IsDepositTx` and its siblings are
 transition scaffolding (§2).
 
@@ -378,15 +377,10 @@ Migrations landed with this issue: the `InfoAndUserTxsBy*`, `InfoAndDepositsBy*`
 
 ---
 
-## 13. Tests: `op-e2e`, `op-acceptance-tests`, `op-devstack` — open (#20265)
+## 13. Tests: `op-e2e`, `op-acceptance-tests`, `op-devstack` — **DONE** (#20265)
 
 The test suites read L2 data as §11 prescribes, and two gates keep them there. The ratchet
 (§19) cannot see this failure mode: the code compiles against upstream and only fails at runtime.
-
-Still open: op-devstack's L2 `ChainConfig()` (`stack.Network`, implemented by sysgo's L2 networks
-as `GethChainConfig()`) returns the go-ethereum config. That compiles after the flip, but its
-OP-valued methods then return Ethereum values — e.g. `ElasticityMultiplier()`, which the interop
-load test reads to size its gas target (#23655).
 
 - **op-e2e system tests** take an owned per-node sources client from `System.NodeSourceClient`.
   The geth and wait block helpers poll headers and return `*types.Header`;
@@ -757,7 +751,7 @@ monorepo-only (#22678).
 | Area | Target | Status |
 |------|--------|--------|
 | ProtocolVersions mechanism (§0) | deleted end-to-end | **done** |
-| `DepositTx` / `PostExecTx` types + helpers (§1, §2) | `op-core/types` | **done** (#20262, #20269, #20263); the contracts-bedrock go-ffi helper still uses op-geth's (#23405) |
+| `DepositTx` / `PostExecTx` types + helpers (§1, §2) | `op-core/types` | **done** (#20262, #20269, #20263); test sites done with §13 |
 | OP `Receipt` (§3) | `op-core/types.Receipt` | **done** (#20262); wiring landed with §11 (#20264) |
 | L1-cost / operator-fee math (§4) | `op-core/fees` | **done** (#20261); op-batcher site landed with §11 |
 | `OptimismConfig` / standalone `ChainConfig` / `GethChainConfig` (§5) | `op-core/params` | **done** (#20260, #20270) |
@@ -766,7 +760,7 @@ monorepo-only (#22678).
 | `PayloadID`, Engine-API types (§9, §10) | upstream / op-service | no change needed |
 | OP-aware eth client: class-partitioned accessors, `optypes.Receipt` returns, op-batcher + txinclude migration (§11) | `op-service/sources` / `apis.EthClient` | **done** (#20264) |
 | op-proposer / op-challenger / op-supernode / cannon (§12) | — | audited, no work; cannon test support's changed signature goes at the cutover (§15) |
-| Test migration: L2 reads via sources, wait-helper split, fuzzers on `op-core/fees`, fork-symbol swaps, runtime gates, devstack L2 `ChainConfig()` (§13) | `op-service/sources` + header-only variants + op-core + `opparams.ChainConfig` | open (#20265): all done except the devstack L2 `ChainConfig()` (#23655) |
+| Test migration: L2 reads via sources, wait-helper split, fuzzers on `op-core/fees`, fork-symbol swaps, runtime gates, devstack L2 `ChainConfig()` (§13) | `op-service/sources` + header-only variants + op-core + `opparams.ChainConfig` | **done** (#20265) |
 | op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | **done** (#20415 Rust, #21196 Go) |
 | Kona proof tests' in-process EL (`rust/kona/tests/proofs`) | `op-reth-test-engine` subprocess | **done** (#21905) |
 | Genesis tooling (§14) | `op-core/genesis` on upstream geth + `opparams` | **done** (#21281) |
