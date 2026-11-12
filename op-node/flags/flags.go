@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -258,11 +259,12 @@ var (
 	}
 	VerifierL1BlockTag = &cli.StringFlag{
 		Name: "verifier.l1-block-tag",
-		Usage: "L1 block that --verifier.l1-confs is counted from: latest, safe or finalized. " +
+		Usage: "L1 block that --verifier.l1-confs is counted from, also for runtime config reloads: latest, safe or finalized. " +
+			"Use safe only on an L1 with the Fast Confirmation Rule. " +
 			"The safe and finalized blocks are polled every --l1.epoch-poll-interval, so they can be up to one interval late; " +
 			"lower it when using safe.",
 		EnvVars:  prefixEnvVars("VERIFIER_L1_BLOCK_TAG"),
-		Value:    "latest",
+		Value:    eth.Unsafe,
 		Category: L1RPCCategory,
 	}
 	SequencerEnabledFlag = &cli.BoolFlag{
@@ -287,10 +289,10 @@ var (
 	SequencerL1BlockTag = &cli.StringFlag{
 		Name: "sequencer.l1-block-tag",
 		Usage: "L1 block that --sequencer.l1-confs is counted from: latest or safe. " +
-			"The safe block is polled every --l1.epoch-poll-interval, so it can be up to one interval late; " +
-			"lower it when using safe, and keep the total lag below the max sequencer drift.",
+			"Use safe only on an L1 with the Fast Confirmation Rule: the sequencer stops producing blocks while safe trails the head by more than the max sequencer drift. " +
+			"The safe block is polled every --l1.epoch-poll-interval, so it can be up to one interval late; lower it when using safe.",
 		EnvVars:  prefixEnvVars("SEQUENCER_L1_BLOCK_TAG"),
-		Value:    "latest",
+		Value:    eth.Unsafe,
 		Category: SequencerCategory,
 	}
 	SequencerRecoverMode = &cli.BoolFlag{

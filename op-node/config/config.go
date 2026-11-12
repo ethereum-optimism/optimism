@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -110,6 +111,15 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 
 var ErrMissingPectraBlobSchedule = errors.New("probably missing Pectra blob schedule")
 
+// checkL1BlockTagPolling rejects disabled L1 epoch polling when a confirmation depth is counted from the
+// safe or finalized block, because that block is then never tracked.
+func checkL1BlockTagPolling(driverCfg *driver.Config, epochPollInterval time.Duration) error {
+	if epochPollInterval <= 0 && (driverCfg.VerifierL1Label() != eth.Unsafe || driverCfg.SequencerL1Label() != eth.Unsafe) {
+		return fmt.Errorf("an L1 block tag other than %q needs a positive L1 epoch poll interval", eth.Unsafe)
+	}
+	return nil
+}
+
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
 	if err := cfg.L1.Check(); err != nil {
@@ -134,6 +144,9 @@ func (cfg *Config) Check() error {
 	}
 	if err := cfg.Driver.Check(); err != nil {
 		return fmt.Errorf("driver config error: %w", err)
+	}
+	if err := checkL1BlockTagPolling(&cfg.Driver, cfg.L1EpochPollInterval); err != nil {
+		return err
 	}
 	if !cfg.IgnoreMissingPectraBlobSchedule && cfg.Rollup.ProbablyMissingPectraBlobSchedule() {
 		log.Error("Your rollup config seems to be missing the Pectra blob schedule fix. " +
