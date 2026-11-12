@@ -19,10 +19,11 @@ import (
 // Write writes the contracts bundle of the built forge project at absBase to w as a tar
 // archive. The bundle leaves out the AST of each artifact: forge parses every artifact of a
 // script's build at the start of a run, and the AST is most of the artifacts' size and of forge's
-// memory. It also leaves out the Solidity files that are not sources of the build, and the other
-// files of the libraries except for license files and forge configs. It keeps the compile cache and
-// the build infos as they are, so that forge does not compile. exclude holds more glob patterns of
-// files to leave out. A commit that is not empty is written to the COMMIT file.
+// memory. It also leaves out the Solidity files outside the libraries that are not sources of the
+// build, and the files of the libraries other than Solidity files, license files and forge configs.
+// It keeps the compile cache and the build infos as they are, so that forge does not compile.
+// exclude holds more glob patterns of files to leave out. A commit that is not empty is written to
+// the COMMIT file.
 //
 // Write copies no link. It fails on a link that is, is in, or holds a part of the build, which the
 // bundle would miss, and skips every other link.
@@ -215,9 +216,10 @@ func (c *compileCache) inLibrary(rel string) bool {
 }
 
 // keeps reports whether the bundle keeps the file at rel. It keeps the sources of the build, which
-// include every file that a kept source imports, but no other Solidity file. Of the other files in a
-// library, it keeps the license files and the forge configs, which forge reads for the library's
-// remappings. It keeps no file named .env* or in a directory named so.
+// include every file that a kept source imports, but no other Solidity file outside the libraries.
+// In a library, it keeps the Solidity files and the forge configs, from which forge detects the
+// library's remappings: the compile cache records them, and forge compiles when they differ. It also
+// keeps a library's license files. It keeps no file named .env* or in a directory named so.
 func (c *compileCache) keeps(rel string) bool {
 	// A project's environment can hold secrets, and the bundle stays on disk.
 	if slices.ContainsFunc(strings.Split(rel, "/"), func(name string) bool { return strings.HasPrefix(name, ".env") }) {
@@ -226,10 +228,10 @@ func (c *compileCache) keeps(rel string) bool {
 	if c.isSource(rel) {
 		return true
 	}
-	if strings.HasSuffix(rel, ".sol") {
-		return false
+	if c.inLibrary(rel) {
+		return strings.HasSuffix(rel, ".sol") || isLicenseFile(rel) || isForgeConfig(rel)
 	}
-	return !c.inLibrary(rel) || isLicenseFile(rel) || isForgeConfig(rel)
+	return !strings.HasSuffix(rel, ".sol")
 }
 
 func isLicenseFile(rel string) bool {
