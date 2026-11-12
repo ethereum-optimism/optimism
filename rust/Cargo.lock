@@ -7594,12 +7594,14 @@ name = "kona-node"
 version = "1.0.0-rc.1"
 dependencies = [
  "alloy-chains",
+ "alloy-consensus 2.4.2",
  "alloy-genesis",
  "alloy-json-rpc 2.5.0",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-client",
  "alloy-rpc-types-engine",
+ "alloy-rpc-types-eth 2.4.2",
  "alloy-signer 2.5.0",
  "alloy-signer-local 2.4.2",
  "alloy-transport",

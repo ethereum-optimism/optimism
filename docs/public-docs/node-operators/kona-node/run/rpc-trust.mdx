@@ -26,7 +26,9 @@ The defaults match op-node: L1 trust is disabled (`false`), while L2 engine trus
 - Small performance overhead from the checks
 
 <Note>
-With `--l1-trust-rpc=false`, the L1 RPC must serve `eth_getProof` for recent blocks. Without it, `kona-node` cannot read the unsafe block signer and fails to start.
+With `--l1-trust-rpc=false`, the L1 RPC must serve `eth_getProof` for recent blocks. Without it, `kona-node` cannot read the unsafe block signer and fails to start. At startup, `kona-node` reads the signer at the L1 head and makes up to five attempts, 10 seconds apart, each at the then-current head.
+
+By default, Reth serves `eth_getProof` only for its head block (`--rpc.eth-proof-window` is 0), so a read fails whenever a new L1 block arrives before it completes. If your L1 RPC is Reth, set `--rpc.eth-proof-window` to a few blocks or more.
 </Note>
 
 ## Examples

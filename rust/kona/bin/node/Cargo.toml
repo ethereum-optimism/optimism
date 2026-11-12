@@ -76,6 +76,8 @@ backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
+alloy-consensus.workspace = true
+alloy-rpc-types-eth.workspace = true
 metrics-exporter-prometheus.workspace = true
 tokio = { workspace = true, features = ["net", "test-util"] }
 rstest.workspace = true
