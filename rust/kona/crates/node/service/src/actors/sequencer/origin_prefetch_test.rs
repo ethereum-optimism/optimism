@@ -173,10 +173,8 @@ impl Harness {
             head: head_rx.clone(),
             depth,
         };
-        let rpc = kona_providers_alloy::AlloyChainProvider::new(
+        let rpc = kona_engine::test_utils::trusted_l1_provider(
             alloy_provider::RootProvider::new_http("http://127.0.0.1:1".parse().unwrap()),
-            std::num::NonZeroUsize::new(8).unwrap(),
-            true,
         );
         let OriginPreparation { prefetcher: worker, origins: provider, attributes } =
             OriginPreparation::new(rpc, head_rx, depth);

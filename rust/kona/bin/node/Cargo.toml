@@ -63,6 +63,7 @@ libp2p.workspace = true
 derive_more.workspace = true
 anyhow.workspace = true
 metrics.workspace = true
+jsonrpsee-types.workspace = true
 reqwest.workspace = true
 tower.workspace = true
 tracing.workspace = true

@@ -103,6 +103,9 @@ impl Shared {
 
 impl AlloyChainProvider {
     /// Creates a new [`AlloyChainProvider`] with the given alloy provider and trust setting.
+    ///
+    /// The provider does not bound its requests. Give `inner` a transport with a per-request
+    /// deadline, or a stalled endpoint hangs every caller.
     pub fn new(inner: RootProvider, cache_size: NonZeroUsize, trust_rpc: bool) -> Self {
         Self {
             inner,
@@ -146,7 +149,7 @@ impl AlloyChainProvider {
         self
     }
 
-    /// Returns the latest L2 block number.
+    /// Returns the latest L1 block number.
     pub async fn latest_block_number(&self) -> Result<u64, RpcError<TransportErrorKind>> {
         self.inner.get_block_number().await
     }
