@@ -323,13 +323,9 @@
       "smoke_test": "op-zk-proposer --version"
     },
     "op-zk-proposer-cuda": {
-      "type": "rust",
       "needs_melange": [
         "op-stack-rust",
         "op-zk-proposer-cuda"
-      ],
-      "paths": [
-        "rust/**"
       ],
       "nexus_paths": [
         "melange/op-zk-proposer-cuda.yaml",

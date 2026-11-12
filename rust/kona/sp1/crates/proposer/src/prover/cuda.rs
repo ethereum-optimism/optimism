@@ -70,11 +70,13 @@ impl LocalCudaProofProvider {
         provider_config: ProofProviderConfig,
     ) -> Result<Self> {
         let path = config.server_path.as_path();
-        check_gpu_server(path).await?;
         ensure!(
             cfg!(target_arch = "x86_64"),
             "local CUDA proving needs an x86-64 host; run the {CUDA_IMAGE} image"
         );
+        check_gpu_server(path).await?;
+        remove_sp1_shm(Path::new(SHM_DIR))
+            .with_context(|| format!("remove stale SP1 segments from {SHM_DIR}"))?;
         let opts =
             SP1CoreOpts { memory_limit: config.memory_limit_bytes.get(), ..Default::default() };
         let verifier = LightProver::new_with_opts(opts).await;
@@ -145,6 +147,34 @@ async fn check_gpu_server(path: &Path) -> Result<()> {
         path.display(),
         version.trim()
     );
+    Ok(())
+}
+
+/// Where SP1 executors keep guest memory and its trace ring.
+const SHM_DIR: &str = "/dev/shm";
+
+/// Removes SP1's segments and semaphores from `dir`. SP1 removes them only when an executor ends
+/// cleanly, and a restarted container keeps a memory-backed `/dev/shm`, so segments of executors
+/// killed in an earlier run would keep its space.
+fn remove_sp1_shm(dir: &Path) -> io::Result<()> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err),
+    };
+    for entry in entries {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !(name.starts_with("sp1_") || name.starts_with("sem.sp1_")) {
+            continue;
+        }
+        match std::fs::remove_file(entry.path()) {
+            Ok(()) => {}
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+        }
+    }
     Ok(())
 }
 
@@ -265,8 +295,7 @@ struct GpuServer {
 }
 
 impl GpuServer {
-    /// Starts the server for device `id` and connects to its socket. The server's executor gets
-    /// the pre-execution memory limit, so both enforce the same one.
+    /// Starts the server for device `id` and connects to its socket.
     async fn start(path: &Path, id: u32, memory_limit: u64) -> Result<Self> {
         let socket = socket_path(id);
         // A socket file left by another server could take the connection.
@@ -405,6 +434,7 @@ impl PreExecutor for LightProver {
             .calculate_gas(true)
             .set_deferred_proof_verification(true)
             .build();
+        // Not the SDK's `execute` builder: it turns every error into `ExecutionError::Other`.
         let (_, _, report) = self.inner().execute(&elf, stdin, context).await?;
         Ok(report)
     }
@@ -499,8 +529,8 @@ enum Failure {
     Unexecutable(anyhow::Error),
     /// The request can be submitted again.
     ProverFailed(anyhow::Error),
-    /// A GPU server connection failed, or a task panicked while it held a device; the process
-    /// must exit.
+    /// A GPU server connection failed, the server is out of step with the proposer's SP1, or a
+    /// task panicked while it held a device; the process must exit.
     Fatal(anyhow::Error),
 }
 
@@ -520,8 +550,9 @@ const FINISHED_OUTCOME_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const MEMORY_MONITOR_ATTEMPTS: usize = 3;
 
 /// Execution errors are deterministic for the program and input, except an external kill and
-/// `Other`, which also covers a failed or abnormally ended child, such as a full `/dev/shm`. Both
-/// are retried.
+/// `Other`. `Other` covers a child that failed or ended abnormally, from a host failure such as a
+/// full `/dev/shm` or from a guest fault the executor does not classify; it is retried, since the
+/// two look the same.
 fn classify_execution_error(err: anyhow::Error) -> Failure {
     match err.downcast_ref::<ExecutionError>() {
         None | Some(ExecutionError::ChildKilled() | ExecutionError::Other(_)) => {
@@ -578,7 +609,7 @@ impl<S: DeviceServer> Device<S> {
             self.server.setup(expected.elf.clone()).await.map_err(ServerError::into_failure)?;
         let actual = S::vk_hash(&key);
         if actual != expected.vk_hash {
-            return Err(Failure::ProverFailed(anyhow!(
+            return Err(Failure::Fatal(anyhow!(
                 "CUDA device {} set up a {} verifying key {actual:?} that differs from the \
                  prestate's {:?}",
                 self.id,
@@ -690,8 +721,7 @@ impl<S: DeviceServer> Core<S> {
     }
 
     /// Starts a request once fewer than [`UNFINISHED_REQUESTS_PER_DEVICE`] per device are
-    /// unfinished, so a game that submits many requests waits here, as for an SPN upload. A stdin
-    /// that cannot fit the server frame fails without waiting.
+    /// unfinished. A stdin that cannot fit the server frame fails without waiting.
     async fn request(
         self: &Arc<Self>,
         program: Program,
@@ -1430,10 +1460,9 @@ mod tests {
         harness.script.wrong_vk.store(true, Ordering::SeqCst);
         let mut device = harness.core.devices.lease().await;
 
-        let Err(Failure::ProverFailed(err)) =
-            device.ensure_key(Program::Range, &prestate_keys()).await
+        let Err(Failure::Fatal(err)) = device.ensure_key(Program::Range, &prestate_keys()).await
         else {
-            panic!("expected a prover failure");
+            panic!("expected a fatal failure");
         };
 
         assert!(err.to_string().contains("super-range"), "{err}");
@@ -1549,6 +1578,24 @@ mod tests {
         }
     }
 
+    /// Pins that only SP1's segments and semaphores are removed from `/dev/shm`.
+    #[test]
+    fn stale_sp1_shm_is_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["sp1_abc_m", "sp1_abc_t", "sem.sp1_abc_filled", "other"] {
+            std::fs::write(dir.path().join(name), b"").unwrap();
+        }
+
+        remove_sp1_shm(dir.path()).unwrap();
+        remove_sp1_shm(&dir.path().join("missing")).unwrap();
+
+        let left: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(left, ["other"]);
+    }
+
     /// Pins that the `--version` run gets no `OP_ZK_PROPOSER_*` variable.
     #[tokio::test]
     #[serial_test::serial]
@@ -1585,6 +1632,7 @@ mod tests {
             format!("/v{SP1_CRATE_VERSION}/sp1_gpu_server_v{SP1_CRATE_VERSION}_x86_64.tar.gz"),
             format!("/{circuits}-plonk.tar.gz"),
             format!("\"$dir/{circuits}\""),
+            format!("\"$dir/{circuits}/.complete\""),
         ] {
             assert!(melange.contains(&pin), "melange/op-zk-proposer-cuda.yaml lacks {pin}");
         }
@@ -1649,7 +1697,7 @@ mod tests {
         Connection { stream: tokio::sync::Mutex::new(stream) }
     }
 
-    /// Pins the request and response framing of `sp1_cuda::client`.
+    /// Pins the u32-LE length and bincode 1 framing that `Connection::call` writes and reads.
     #[tokio::test]
     async fn prove_round_trips_the_wire_protocol() {
         let (client, server) = UnixStream::pair().unwrap();
