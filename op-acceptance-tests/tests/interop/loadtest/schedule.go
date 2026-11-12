@@ -3,12 +3,14 @@ package loadtest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -232,20 +234,22 @@ type InfoByLabel interface {
 }
 
 type Steady struct {
-	elasticityMultiplier uint64
-	blockTime            time.Duration
-	el                   InfoByLabel
-	opts                 []AIMDOption
+	forks     eip1559.ForkChecker
+	blockTime time.Duration
+	el        InfoByLabel
+	opts      []AIMDOption
 }
 
 var _ Schedule = (*Steady)(nil)
 
-func NewSteady(el InfoByLabel, elasticityMultiplier uint64, blockTime time.Duration, opts ...AIMDOption) *Steady {
+// NewSteady returns a Steady schedule for the L2 chain that el serves. forks is that chain's
+// fork schedule, which determines how its blocks' extraData encodes the EIP-1559 parameters.
+func NewSteady(el InfoByLabel, forks eip1559.ForkChecker, blockTime time.Duration, opts ...AIMDOption) *Steady {
 	return &Steady{
-		el:                   el,
-		elasticityMultiplier: elasticityMultiplier,
-		blockTime:            blockTime,
-		opts:                 opts,
+		el:        el,
+		forks:     forks,
+		blockTime: blockTime,
+		opts:      opts,
 	}
 }
 
@@ -278,7 +282,12 @@ func (s *Steady) Run(t devtest.T, spammer Spammer) {
 					t.Logger().Warn("Steady sampler failed to read unsafe head", "err", err)
 					continue
 				}
-				gasTarget := unsafe.GasLimit() / s.elasticityMultiplier
+				gasTarget, err := l2GasTarget(s.forks, unsafe)
+				if err != nil {
+					t.Errorf("Steady sampler cannot compute the gas target: %v", err)
+					cancel()
+					return
+				}
 				// Apply backpressure when we meet or exceed the gas target.
 				aimd.Adjust(unsafe.GasUsed() < gasTarget)
 			}
@@ -336,6 +345,20 @@ func logOnError(t devtest.T, err error) {
 	} else if err != nil {
 		t.Logger().Warn("Spammer error", "err", err)
 	}
+}
+
+// l2GasTarget returns the EIP-1559 gas target of an L2 block. The elasticity comes from the
+// block's own extraData rather than the chain config: from Holocene the SystemConfig sets it, so
+// the genesis value can be stale.
+func l2GasTarget(forks eip1559.ForkChecker, block eth.BlockInfo) (uint64, error) {
+	if !forks.IsHolocene(block.Time()) {
+		return 0, fmt.Errorf("block %d predates Holocene, so its extraData has no EIP-1559 parameters", block.NumberU64())
+	}
+	if err := eip1559.ValidateOptimismExtraData(forks, block.Time(), block.Extra()); err != nil {
+		return 0, fmt.Errorf("block %d has invalid EIP-1559 extraData %x: %w", block.NumberU64(), block.Extra(), err)
+	}
+	_, elasticity, _ := eip1559.DecodeOptimismExtraData(forks, block.Time(), block.Extra())
+	return block.GasLimit() / elasticity, nil
 }
 
 func setupAIMD(t devtest.T, blockTime time.Duration, aimdOpts ...AIMDOption) *AIMD {
