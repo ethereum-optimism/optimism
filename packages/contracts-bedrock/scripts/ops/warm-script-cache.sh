@@ -13,8 +13,8 @@ cd "$(dirname "$0")/../.."
 # scripts typically compile nothing. The run fails because the function does not exist, but only
 # after compiling: compiling happens before argument validation, and --skip-simulation keeps it from
 # running anything. --skip keeps tests out of the graph.
-out=$("$forge" script scripts/deploy/Deploy.s.sol --deny never --skip "/**/test/**" \
-  --sig "idonotexist()" --skip-simulation 2>&1 || true)
+out=$("$forge" script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" \
+  --skip-simulation 2>&1 || true)
 case "$out" in
   *"is not implemented in your script"*) ;;
   *)
@@ -33,7 +33,7 @@ if [ -z "$scripts" ]; then
   exit 1
 fi
 for script in $scripts; do
-  out=$("$forge" script "$script" --deny never --sig "idonotexist()" --skip-simulation 2>&1 || true)
+  out=$("$forge" script "$script" --sig "idonotexist()" --skip-simulation 2>&1 || true)
   case "$out" in
     *"No files changed, compilation skipped"*) ;;
     *)

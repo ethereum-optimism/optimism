@@ -229,9 +229,8 @@ contract ContractName is Initializable, ProxyAdminOwnedBase, ReinitializableBase
   go-ffi, profiles, and the script cache for you.
 - `just build` builds the contracts; `just build-dev` is the faster variant
   (`FOUNDRY_PROFILE=lite`) for local iteration. Builds must produce zero warnings
-  (`deny = "warnings"` in `foundry.toml`). Forge skips its compile cache at that deny level,
-  so `just build`, `just build-dev`, `just build-no-tests` and `just build-source` pass
-  `--deny never` to keep it, and don't fail on warnings. `just test` and `just check-fast` do.
+  (`--deny warnings` in the dev phase of `checks.yaml`, which `just check-fast` runs). Other
+  builds and tests only print warnings, as forge skips its compile cache when denying them.
 - `just test` runs the suite; `just test-dev` is the faster `lite`-profile variant for local
   iteration. Default 64 fuzz runs; CI uses 128.
 - `just lint` formats and checks (`forge fmt` under the hood: 120-char line length, bracket
