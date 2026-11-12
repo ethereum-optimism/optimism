@@ -66,7 +66,7 @@ func (k *KonaNode) Start() {
 		onLogEntry(e)
 	})
 	stdErrLogs := logpipe.LogCallback(func(line []byte) {
-		e := logpipe.ParseRustStructuredLogs(line)
+		e := logpipe.ParseRustStderr(line)
 		logErr(e)
 	})
 	k.sub = NewSubProcess(k.p, stdOutLogs, stdErrLogs)

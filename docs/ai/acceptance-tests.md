@@ -57,6 +57,22 @@ a list — `sysgo.SkipOnKonaNode`, `sysgo.SkipOnOpReth` and `sysgo.SkipOnOpGeth`
 a real client gap. A test that pins the CL kind of every node itself runs the same way in both
 CL variants; let it run twice rather than skipping one variant to save CI time.
 
+### Binaries From Outside the Tree
+
+A test that needs a binary no package in this repo builds (for example
+`op-acceptance-tests/tests/op_reth_upgrade`, which switches nodes between the previous op-reth
+release and this tree's op-reth) names it with `sysgo.OpRethWithBinary` and skips through
+`sysgo.SkipWithoutRustBinaryPath` unless `RUST_BINARY_PATH_<NAME>` points at a prebuilt copy.
+`RUST_SRC_DIR_<NAME>` does not provide it: it only builds a binary that a cargo package of the same
+name provides.
+
+```bash
+# "op-reth-previous" resolves through RUST_BINARY_PATH_OP_RETH_PREVIOUS
+cd op-acceptance-tests && RUST_BINARY_PATH_OP_RETH_PREVIOUS=/path/to/old/op-reth RUST_JIT_BUILD=1 mise exec -- just test ./op-acceptance-tests/tests/op_reth_upgrade/...
+```
+
+CI does not provide such binaries yet, so these tests skip there.
+
 ### Kona Prestate
 
 Some tests (e.g. superfaultproofs, interop fault proofs) require a kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`. There are two ways to build it:

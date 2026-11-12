@@ -1,8 +1,16 @@
 package sysgo
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/logpipe"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -11,4 +19,131 @@ func TestOpRethWithEthProofWindow(t *testing.T) {
 	OpRethWithEthProofWindow(1_000_000).Apply(nil, ComponentTarget{}, cfg)
 
 	require.Equal(t, []string{"--rpc.eth-proof-window=1000000"}, cfg.ExtraArgs)
+}
+
+func newStoppedOpReth(gt *testing.T, execPath string) *OpReth {
+	return &OpReth{name: "el", execPath: execPath, p: devtest.SerialT(gt)}
+}
+
+// writeStubOpReth writes a binary that logs one error naming itself, announces its RPC endpoints
+// the way op-reth does and then waits to be stopped. The error comes first so it has been observed
+// by the time Start returns on the announcements.
+func writeStubOpReth(gt *testing.T, name string) string {
+	path := filepath.Join(gt.TempDir(), name)
+	script := fmt.Sprintf(`#!/bin/sh
+echo '{"level":"ERROR","fields":{"message":"hello from %s"}}'
+echo '{"level":"INFO","fields":{"message":"RPC WS server started","url":"127.0.0.1:1"}}'
+echo '{"level":"INFO","fields":{"message":"RPC auth server started","url":"127.0.0.1:2"}}'
+exec /bin/sleep 1000
+`, name)
+	require.NoError(gt, os.WriteFile(path, []byte(script), 0o755))
+	return path
+}
+
+func TestOpRethStartRunsTheSwitchedBinaryAndKeepsItsObservers(gt *testing.T) {
+	// The stub never announces a metrics endpoint, which Start would wait for.
+	gt.Setenv(sysgoMetricsEnabledEnvVar, "false")
+	afterPath := writeStubOpReth(gt, "op-reth-after")
+	node := newStoppedOpReth(gt, writeStubOpReth(gt, "op-reth-before"))
+	var mu sync.Mutex
+	var errorsSeen []string
+	stop := node.ObserveLogs(func(e logpipe.LogEntry) {
+		if e.LogLevel() < log.LevelError {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		errorsSeen = append(errorsSeen, e.LogMessage())
+	})
+	defer stop()
+
+	node.Start()
+	node.Stop()
+	node.SwitchBinary(afterPath)
+	node.Start()
+	node.Stop()
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(gt, []string{"hello from op-reth-before", "hello from op-reth-after"}, errorsSeen)
+}
+
+func TestOpRethObserveLogsUntilStopped(gt *testing.T) {
+	node := newStoppedOpReth(gt, "/bin/op-reth")
+	var seen []string
+	stop := node.ObserveLogs(func(e logpipe.LogEntry) { seen = append(seen, e.LogMessage()) })
+
+	node.logObservers.notify(logpipe.StructuredRustLogEntry{Message: "first"})
+	stop()
+	node.logObservers.notify(logpipe.StructuredRustLogEntry{Message: "second"})
+
+	require.Equal(gt, []string{"first"}, seen)
+}
+
+func TestAwaitAnnouncementReturnsTheAnnouncedValue(gt *testing.T) {
+	sub, _ := newTestSubProcess(gt)
+	require.NoError(gt, sub.Start("/bin/sh", []string{"-c", "exec /bin/sleep 30"}, nil))
+	announced := make(chan string, 1)
+	announced <- "ws://127.0.0.1:1"
+
+	require.Equal(gt, "ws://127.0.0.1:1", awaitAnnouncement(sub.p, sub, newRecentLines(maxQuotedStderrLines), announced, "el", "user RPC"))
+}
+
+func TestAwaitAnnouncementReturnsWhatAnExitedProcessAnnounced(gt *testing.T) {
+	sub, _ := newTestSubProcess(gt)
+	require.NoError(gt, sub.Start("/bin/sh", []string{"-c", "exit 3"}, nil))
+	announced := make(chan string, 1)
+	announced <- "ws://127.0.0.1:1"
+	<-sub.Exited()
+
+	require.Equal(gt, "ws://127.0.0.1:1", awaitAnnouncement(sub.p, sub, newRecentLines(maxQuotedStderrLines), announced, "el", "user RPC"))
+}
+
+func TestAwaitAnnouncementFailsOnceTheProcessExitsWithoutAnnouncing(gt *testing.T) {
+	sub, _ := newTestSubProcess(gt)
+	require.NoError(gt, sub.Start("/bin/sh", []string{"-c", "exit 3"}, nil))
+	announced := make(chan string, 1)
+
+	require.PanicsWithValue(gt, "fail", func() {
+		awaitAnnouncement(sub.p, sub, newRecentLines(maxQuotedStderrLines), announced, "el", "user RPC")
+	})
+}
+
+func TestRequireRunningAfterAnnouncementsPassesWhileTheProcessRuns(gt *testing.T) {
+	sub, _ := newTestSubProcess(gt)
+	require.NoError(gt, sub.Start("/bin/sh", []string{"-c", "exec /bin/sleep 30"}, nil))
+
+	require.NotPanics(gt, func() { requireRunningAfterAnnouncements(sub.p, sub, newRecentLines(maxQuotedStderrLines), "el") })
+}
+
+func TestRequireRunningAfterAnnouncementsFailsOnceTheProcessExited(gt *testing.T) {
+	sub, _ := newTestSubProcess(gt)
+	require.NoError(gt, sub.Start("/bin/sh", []string{"-c", "exit 3"}, nil))
+	<-sub.Exited()
+
+	require.PanicsWithValue(gt, "fail", func() { requireRunningAfterAnnouncements(sub.p, sub, newRecentLines(maxQuotedStderrLines), "el") })
+}
+
+func TestAwaitAnnouncementFailureQuotesTheUnstructuredStderr(gt *testing.T) {
+	sub, capt := newTestSubProcess(gt)
+	require.NoError(gt, sub.Start("/bin/sh", []string{"-c", "exit 1"}, nil))
+	unstructuredStderr := newRecentLines(maxQuotedStderrLines)
+	unstructuredStderr.add("Error: wrong msgpack marker FixArray(14)")
+
+	require.PanicsWithValue(gt, "fail", func() {
+		awaitAnnouncement(sub.p, sub, unstructuredStderr, make(chan string, 1), "el", "user RPC")
+	})
+	require.NotNil(gt, capt.FindLog(
+		testlog.NewMessageContainsFilter("el exited during startup while waiting for its user RPC: exit status 1, last unstructured stderr lines:"),
+		testlog.NewMessageContainsFilter("Error: wrong msgpack marker FixArray(14)"),
+	))
+}
+
+func TestRecentLinesKeepsTheLastLines(gt *testing.T) {
+	lines := newRecentLines(2)
+	for _, line := range []string{"first", "second", "third"} {
+		lines.add(line)
+	}
+
+	require.Equal(gt, []string{"second", "third"}, lines.snapshot())
 }

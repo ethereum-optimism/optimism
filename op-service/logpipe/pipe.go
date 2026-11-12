@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -21,6 +22,10 @@ type StructuredRustLogEntry struct {
 	Level   slog.Level
 	Fields  map[string]any
 	Target  string
+
+	// Unstructured is set when the line was not a structured JSON log entry. The entry then holds
+	// the raw line under the "line" field.
+	Unstructured bool
 }
 
 func ParseRustStructuredLogs(line []byte) LogEntry {
@@ -29,9 +34,10 @@ func ParseRustStructuredLogs(line []byte) LogEntry {
 	var e rawRustJSONLog
 	if err := dec.Decode(&e); err != nil {
 		return StructuredRustLogEntry{
-			Message: "Invalid JSON",
-			Level:   slog.LevelWarn,
-			Fields:  map[string]any{"line": string(line)},
+			Message:      "Invalid JSON",
+			Level:        slog.LevelWarn,
+			Fields:       map[string]any{"line": string(line)},
+			Unstructured: true,
 		}
 	}
 	lvl, err := log.LevelFromString(e.Level)
@@ -47,6 +53,30 @@ func ParseRustStructuredLogs(line []byte) LogEntry {
 		Fields:  e.Fields,
 		Target:  e.Target,
 	}
+}
+
+// ParseRustStderr parses a line a Rust process wrote to stderr. An unstructured line that reports
+// a panic, an abort or an error returned from main is raised to ERROR; every other entry keeps
+// its level.
+func ParseRustStderr(line []byte) LogEntry {
+	e := ParseRustStructuredLogs(line)
+	r, ok := e.(StructuredRustLogEntry)
+	if !ok || !r.Unstructured || !isRustFailureLine(string(line)) {
+		return e
+	}
+	r.Level = log.LevelError
+	return r
+}
+
+// isRustFailureLine reports whether line is what the Rust runtime writes to stderr when a thread
+// panics or the process aborts, or what main prints when it returns an error.
+func isRustFailureLine(line string) bool {
+	if strings.Contains(line, "panicked at") {
+		return true
+	}
+	return slices.ContainsFunc([]string{"Error:", "fatal runtime error", "thread '"}, func(prefix string) bool {
+		return strings.HasPrefix(line, prefix)
+	})
 }
 
 func (e StructuredRustLogEntry) LogLevel() slog.Level {

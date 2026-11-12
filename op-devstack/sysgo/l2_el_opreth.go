@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
-	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 )
 
@@ -73,12 +74,30 @@ func OpRethWithExtraArgs(args ...string) OpRethOption {
 // OpRethWithBinary selects the EL binary to launch instead of the default "op-reth". The binary
 // must be a CLI superset of op-reth (it is invoked with op-reth's subcommands and flags). A binary
 // that lives outside this repo is resolved via the rustbin env overrides keyed off its name —
-// RUST_BINARY_PATH_<NAME> (or RUST_SRC_DIR_<NAME> + RUST_JIT_BUILD), with <NAME> the upper-snake-cased
-// binary name.
+// RUST_BINARY_PATH_<NAME>, with <NAME> the upper-snake-cased binary name. RUST_SRC_DIR_<NAME> +
+// RUST_JIT_BUILD builds it instead only from a cargo project with a package and a binary of that
+// name, which a release renamed for the test (e.g. "op-reth-previous") does not have.
 func OpRethWithBinary(binary string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.Binary = binary
 	})
+}
+
+// ResolveOpRethBinary locates the binary an op-reth node selected through OpRethWithBinary, or
+// this repo's op-reth when binary is empty, through the rustbin env overrides and build rules.
+// With RUST_JIT_BUILD set every call runs cargo, so resolve a binary once, before the chain
+// starts, and reuse the returned path.
+func ResolveOpRethBinary(t devtest.T, binary string) string {
+	if binary == "" {
+		binary = "op-reth"
+	}
+	execPath, err := rustbin.Spec{
+		SrcDir:  "rust",
+		Package: binary,
+		Binary:  binary,
+	}.EnsureExists(t.Ctx(), t.Logger())
+	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or set %s for a binary built from another repo)", binary, rustbin.PathOverrideEnvVar(binary))
+	return execPath
 }
 
 // OpRethWithoutProofsHistory disables the proofs-history subsystem for this node. The mixed runtime
@@ -131,11 +150,15 @@ type OpReth struct {
 	sub *SubProcess
 
 	l2MetricsRegistrar L2MetricsRegistrar
+
+	logObservers logObservers
 }
 
 var (
 	_ L2ELNode                  = (*OpReth)(nil)
 	_ stack.UngracefulLifecycle = (*OpReth)(nil)
+	_ stack.BinarySwitchable    = (*OpReth)(nil)
+	_ stack.LogObservable       = (*OpReth)(nil)
 )
 
 func (n *OpReth) Start() {
@@ -212,28 +235,111 @@ func (n *OpReth) Start() {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logOut(e)
 		onLogEntry(e)
+		n.logObservers.notify(e)
 	})
+	unstructuredStderr := newRecentLines(maxQuotedStderrLines)
 	stdErrLogs := logpipe.LogCallback(func(line []byte) {
-		e := logpipe.ParseRustStructuredLogs(line)
+		e := logpipe.ParseRustStderr(line)
+		if r, ok := e.(logpipe.StructuredRustLogEntry); ok && r.Unstructured {
+			unstructuredStderr.add(string(line))
+		}
 		logErr(e)
+		n.logObservers.notify(e)
 	})
 	n.sub = NewSubProcess(n.p, stdOutLogs, stdErrLogs)
 
 	err := n.sub.Start(n.execPath, n.args, n.env)
 	n.p.Require().NoError(err, "Must start")
 
-	var userRPCAddr, authRPCAddr string
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPCChan, &authRPCAddr), "need auth RPC")
+	userRPCAddr := awaitAnnouncement(n.p, n.sub, unstructuredStderr, userRPCChan, n.name, "user RPC")
+	authRPCAddr := awaitAnnouncement(n.p, n.sub, unstructuredStderr, authRPCChan, n.name, "auth RPC")
 
 	if areMetricsEnabled() {
-		var metricsTarget PrometheusMetricsTarget
-		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
+		metricsTarget := awaitAnnouncement(n.p, n.sub, unstructuredStderr, metricsTargetChan, n.name, "metrics endpoint")
 		n.l2MetricsRegistrar.RegisterL2MetricsTargets(n.name, metricsTarget)
 	}
+	requireRunningAfterAnnouncements(n.p, n.sub, unstructuredStderr, n.name)
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
+}
+
+// awaitAnnouncement returns the value a node logs once part of it is up, and fails the test as
+// soon as the process exits without logging it, so a binary that aborts at startup does not stall
+// the test until its deadline. The failure quotes unstructuredStderr, where the abort is reported.
+func awaitAnnouncement[E any](t devtest.CommonT, sub *SubProcess, unstructuredStderr *recentLines, announced chan E, name, what string) E {
+	var value E
+	select {
+	case value = <-announced:
+	case <-sub.Exited():
+		// Exited closes only once the process's output has been delivered, so an announcement it
+		// logged before exiting is already in announced.
+		select {
+		case value = <-announced:
+			return value
+		default:
+		}
+		t.Require().Failf("process exited at startup", "%s exited during startup while waiting for its %s: %s", name, what, describeExit(sub, unstructuredStderr))
+	case <-t.Ctx().Done():
+		t.Require().NoErrorf(t.Ctx().Err(), "waiting for %s to announce its %s", name, what)
+	}
+	return value
+}
+
+// requireRunningAfterAnnouncements fails the test if the process already exited by the time it
+// announced everything Start waits for, so a binary that aborts right after announcing is not
+// reported as started. A process that exits later is not caught here.
+func requireRunningAfterAnnouncements(t devtest.CommonT, sub *SubProcess, unstructuredStderr *recentLines, name string) {
+	select {
+	case <-sub.Exited():
+		t.Require().Failf("process exited at startup", "%s exited right after announcing its endpoints: %s", name, describeExit(sub, unstructuredStderr))
+	default:
+	}
+}
+
+// describeExit names how the process exited and quotes the last unstructured lines it wrote to
+// stderr. It must only be called once sub.Exited is closed, which is also when every complete
+// stderr line has been added to unstructuredStderr.
+func describeExit(sub *SubProcess, unstructuredStderr *recentLines) string {
+	exit := "exit status 0"
+	if err := sub.ExitErr(); err != nil {
+		exit = err.Error()
+	}
+	lines := unstructuredStderr.snapshot()
+	if len(lines) == 0 {
+		return exit + ", with no unstructured stderr output"
+	}
+	return fmt.Sprintf("%s, last unstructured stderr lines:\n%s", exit, strings.Join(lines, "\n"))
+}
+
+// maxQuotedStderrLines bounds how much of a process's unstructured stderr a startup failure
+// quotes: enough for a panic message, its location and the backtrace note.
+const maxQuotedStderrLines = 10
+
+// recentLines keeps the last lines added to it, up to a limit. It is safe for concurrent use.
+type recentLines struct {
+	limit int
+	lines []string
+	mu    sync.Mutex
+}
+
+func newRecentLines(limit int) *recentLines {
+	return &recentLines{limit: limit}
+}
+
+func (r *recentLines) add(line string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lines = append(r.lines, line)
+	if len(r.lines) > r.limit {
+		r.lines = r.lines[len(r.lines)-r.limit:]
+	}
+}
+
+func (r *recentLines) snapshot() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.lines)
 }
 
 // Stop stops the op-reth node.
@@ -265,6 +371,23 @@ func (n *OpReth) StopUngracefully() {
 	n.clearProxyUpstreams()
 	n.p.Require().NoError(n.sub.Kill(), "failed to kill op-reth")
 	n.sub = nil
+}
+
+// SwitchBinary makes the next Start run the executable at execPath on the node's existing
+// datadir, proofs store and arguments. The node must be stopped. ResolveOpRethBinary gives the
+// path of a binary selected by name.
+func (n *OpReth) SwitchBinary(execPath string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().Truef(n.sub == nil, "op-reth %s must be stopped before its binary is switched", n.name)
+	n.p.Logger().Info("Switching op-reth binary", "name", n.name, "chain", n.chainID, "from", n.execPath, "to", execPath)
+	n.execPath = execPath
+}
+
+// ObserveLogs registers observer for every stdout and stderr entry the op-reth process emits,
+// across restarts, until the returned function is called.
+func (n *OpReth) ObserveLogs(observer func(logpipe.LogEntry)) func() {
+	return n.logObservers.observe(observer)
 }
 
 // Callers must hold n.mu.
