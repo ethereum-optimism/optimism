@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type NewPayloadResult struct {
@@ -66,6 +67,19 @@ func (r *ForkchoiceUpdateResult) IsSyncing() *ForkchoiceUpdateResult {
 func (r *ForkchoiceUpdateResult) IsValid() *ForkchoiceUpdateResult {
 	r.IsForkchoiceUpdatedStatus(eth.ExecutionValid)
 	r.T.Require().NoError(r.Err)
+	return r
+}
+
+// IsInvalidForkchoiceState requires the update to have been refused with the engine API's
+// -38002 "Invalid forkchoice state" error, which an execution engine answers when a nonzero safe
+// or finalized hash is not on the head's chain, with any detail a client adds to the message. A
+// refused update carries no payload status.
+func (r *ForkchoiceUpdateResult) IsInvalidForkchoiceState() *ForkchoiceUpdateResult {
+	r.T.Require().Nil(r.Result, "a forkchoice update with an invalid state must be refused with an error, not answered with a status")
+	var rpcErr rpc.Error
+	r.T.Require().ErrorAs(r.Err, &rpcErr, "expected an engine error code, got: %v", r.Err)
+	r.T.Require().Equal(eth.InvalidForkchoiceState, eth.ErrorCode(rpcErr.ErrorCode()), "unexpected engine error: %v", r.Err)
+	r.T.Require().Contains(rpcErr.Error(), "Invalid forkchoice state", "unexpected engine error message")
 	return r
 }
 

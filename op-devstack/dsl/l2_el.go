@@ -267,6 +267,7 @@ func (el *L2ELNode) ReachedWithProgressFn(label, progressLabel eth.BlockLabel, t
 	}
 }
 
+// blockRefByNumber returns the block ref at num, or the lookup error instead of failing the test.
 func (el *L2ELNode) blockRefByNumber(num uint64) (eth.L2BlockRef, error) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
@@ -547,6 +548,16 @@ func (el *L2ELNode) StopUngracefully() {
 	lifecycle.StopUngracefully()
 }
 
+// WipeDatadir empties the node's storage and initializes it afresh, so the next Start runs the
+// node on an empty chain while whatever drives it keeps its own view of the chain. The node must
+// be stopped.
+func (el *L2ELNode) WipeDatadir() {
+	el.log.Info("Wiping datadir", "name", el.inner.Name())
+	wipeable, ok := el.inner.(stack.DatadirWipeable)
+	el.require.Truef(ok, "L2EL node %s cannot wipe its datadir", el.inner.Name())
+	wipeable.WipeDatadir()
+}
+
 func (el *L2ELNode) Start() {
 	lifecycle, ok := el.inner.(stack.Lifecycle)
 	el.require.Truef(ok, "L2EL node %s is not lifecycle-controllable", el.inner.Name())
@@ -616,6 +627,14 @@ func (el *L2ELNode) NewPayloadRaw(payload *eth.ExecutionPayloadEnvelope) *NewPay
 	el.log.Info("NewPayloadRaw", "number", payload.ExecutionPayload.BlockNumber)
 	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
 	return &NewPayloadResult{T: el.t, Status: status, Err: err}
+}
+
+// GetPayload fetches the payload a forkchoice update with attributes started building.
+func (el *L2ELNode) GetPayload(info eth.PayloadInfo) *eth.ExecutionPayloadEnvelope {
+	el.log.Info("GetPayload", "payload_id", info.ID, "timestamp", info.Timestamp, "node", el)
+	payload, err := el.inner.L2EngineClient().GetPayload(el.ctx, info)
+	el.require.NoError(err, "failed to get payload %s", info.ID)
+	return payload
 }
 
 // ForkchoiceUpdate fetches FCU target hashes from the reference EL node, and FCU update with attributes
