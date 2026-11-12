@@ -208,19 +208,18 @@ fn not_loopback(enr: &Enr) -> bool {
 
 /// The wrong way to keep a sequencer behind a sentry: running discovery against it. Here S, the
 /// sequencer, is on a private network, which loopback stands for, and B, its sentry, and E, an
-/// external node, are on the public one, which the host's own IP stands for, see
-/// [`not_loopback`]:
+/// external node, are on the public one, which the host's own IP stands for. All three use only
+/// public addresses, as kona does by default, see [`not_loopback`]:
 ///
-/// - B listens on the host's IP and uses only public addresses.
-/// - E listens on the host's IP, and joins through B. Like any node outside our control, it needn't
-///   follow our rules, so it uses every address.
+/// - B listens on the host's IP.
+/// - E listens on the host's IP, and joins through B.
 /// - S listens on loopback, and joins through B.
 ///
 /// S and B connect over gossip, as S dials B. But B keeps S in its discovery table, as discv5
-/// keeps every node it has a session with, whatever its table filter, and hands S's record out to
-/// the nodes that look it up. So E learns S's private address through B. On a real network, E
-/// couldn't reach that address, but S's address has leaked all the same. And the worse part: S
-/// learns E through B, and reaches out to E directly, so S is no longer behind its sentry.
+/// keeps every node it has a session with, whatever its table filter, and hands S's record, with
+/// its private address, out to the nodes that look it up. E drops that record. But S learns E
+/// through B, and contacts it directly. That session puts S into E's table, though E never
+/// contacts S itself, and the two connect over gossip: S is no longer behind its sentry.
 ///
 /// Skipped on a host with no address but loopback.
 #[tokio::test(flavor = "multi_thread")]
@@ -236,19 +235,23 @@ async fn test_sequencer_running_discovery_against_its_sentry_is_exposed() -> any
     let sentry = builder.build(vec![]).await;
     let sentry_enr = sentry.peer_enr().await?;
 
-    let mut builder = builder.with_next_listen_ip(host_ip);
+    let mut builder = builder.with_next_listen_ip(host_ip).with_next_table_filter(not_loopback);
     let external = builder.build(vec![sentry_enr.clone()]).await;
-    sentry.check_in_discovery_table_with_retries(external.node_id().await?).await?;
+    let external_id = external.node_id().await?;
+    sentry.check_in_discovery_table_with_retries(external_id).await?;
 
+    let mut builder = builder.with_next_table_filter(not_loopback);
     let sequencer = builder.build(vec![sentry_enr]).await;
     let sequencer_id = sequencer.node_id().await?;
 
     sequencer.check_connected_to_with_retries(&sentry).await?;
-    // The sentry keeps the sequencer, and hands it out to the external node.
+    // The sentry keeps the sequencer, and hands it out to the nodes that look it up.
     sentry.check_in_discovery_table_with_retries(sequencer_id).await?;
+    // The sequencer finds the external node through its sentry, and contacts it: the external
+    // node drops the sequencer's loopback record, so only the sequencer's session gets the
+    // sequencer into its table.
+    sequencer.check_in_discovery_table_with_retries(external_id).await?;
     external.check_in_discovery_table_with_retries(sequencer_id).await?;
-    // The sequencer finds the external node through its sentry, and the two connect directly.
-    sequencer.check_in_discovery_table_with_retries(external.node_id().await?).await?;
     sequencer.check_connected_to_with_retries(&external).await?;
 
     Ok(())
@@ -261,6 +264,9 @@ async fn test_sequencer_running_discovery_against_its_sentry_is_exposed() -> any
 /// S and B connect over gossip, but S never gets into B's discovery table, as kona never passes
 /// static peers on through discovery. So E never learns S, and the two never connect, however
 /// long discovery runs.
+///
+/// S runs no discovery, so this holds by construction: the test documents the setup, and isn't a
+/// regression test.
 ///
 /// Skipped on a host with no address but loopback.
 #[tokio::test(flavor = "multi_thread")]
