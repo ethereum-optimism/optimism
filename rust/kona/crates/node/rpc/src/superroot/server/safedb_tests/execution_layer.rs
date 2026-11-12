@@ -8,7 +8,7 @@ use jsonrpsee::{
     server::{Server, ServerHandle},
     types::ErrorObjectOwned,
 };
-use kona_engine::{EngineCaller, EngineClient, EngineQueryClient, EngineRpc, test_utils::RpcMock};
+use kona_engine::{EngineClient, EngineQueryClient, test_utils::RpcMock};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use op_alloy_rpc_types::Transaction;
 use serde_json::Value;
@@ -181,11 +181,10 @@ where
     let server = server.start(module);
     let engine = EngineClient::new(
         RpcMock::default().l1_provider(),
-        EngineRpc::new(
+        EngineClient::rpc_client(
             format!("http://{address}").parse().unwrap(),
             JwtSecret::from_hex("00".repeat(32)).unwrap(),
-        )
-        .provider(EngineCaller::Engine),
+        ),
         config,
     );
     (server, engine.query_client())
