@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -61,7 +60,6 @@ func setupClusterWithGenesis(t *testing.T, n int) (*Env, *state.Intent, *state.S
 	l2Forge, err := opcm.NewForgeClient(afacts, "", opcm.L2ForgeScripts)
 	require.NoError(t, err)
 	pEnv := &Env{Logger: lgr, Deployer: deployer, L2Forge: l2Forge}
-	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	ids := make([]common.Hash, 0, n)
 	for _, chain := range intent.Chains {
 		if chain.DeployOverrides == nil {
@@ -69,7 +67,7 @@ func setupClusterWithGenesis(t *testing.T, n int) (*Env, *state.Intent, *state.S
 		}
 		chain.DeployOverrides["respectedGameType"] = opcm.GameTypePermissionedCannon
 		st.PinChainAnchor(chain.ID, anchor, genesisTime)
-		require.NoError(t, GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID))
+		require.NoError(t, GenerateL2Genesis(pEnv, intent, st, chain.ID))
 		ids = append(ids, chain.ID)
 	}
 

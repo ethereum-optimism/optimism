@@ -1324,8 +1324,7 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 	l2Forge, err := opcm.NewForgeClient(afacts, "", opcm.L2ForgeScripts)
 	require.NoError(t, err)
 	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer, L2Forge: l2Forge}
-	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
-	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+	require.NoError(t, generateGenesisForChains(genesisEnv, intent, st))
 
 	chainState, err := st.Chain(chain.ID)
 	require.NoError(t, err)
@@ -1339,7 +1338,7 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 		"genesis header must carry the genesis time pinned at anchor selection")
 
 	allocsBefore := chainState.Allocs.Data
-	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+	require.NoError(t, generateGenesisForChains(genesisEnv, intent, st))
 	chainStateAfter, err := st.Chain(chain.ID)
 	require.NoError(t, err)
 	require.Same(t, allocsBefore, chainStateAfter.Allocs.Data, "re-running must not regenerate allocs")
@@ -1416,10 +1415,9 @@ func TestPrepare_RepredictionRebuildsL2Genesis(t *testing.T) {
 	l2Forge, err := opcm.NewForgeClient(afacts, "", opcm.L2ForgeScripts)
 	require.NoError(t, err)
 	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer, L2Forge: l2Forge}
-	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	prepareOnce := func() *state.ChainState {
 		require.NoError(t, prepareChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
-		require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+		require.NoError(t, generateGenesisForChains(genesisEnv, intent, st))
 		require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
 		chainState, err := st.Chain(chain.ID)
 		require.NoError(t, err)

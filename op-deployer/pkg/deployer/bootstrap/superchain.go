@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"os"
 	"strings"
@@ -33,8 +32,6 @@ type SuperchainConfig struct {
 	// ReceiptQueryInterval is how often to poll for each broadcast's receipt. Zero uses the broadcaster's default.
 	ReceiptQueryInterval time.Duration
 
-	privateKeyECDSA *ecdsa.PrivateKey
-
 	SuperchainProxyAdminOwner common.Address
 	Guardian                  common.Address
 	Paused                    bool
@@ -52,11 +49,9 @@ func (c *SuperchainConfig) Check() error {
 		return fmt.Errorf("private key must be specified")
 	}
 
-	privECDSA, err := crypto.HexToECDSA(strings.TrimPrefix(c.PrivateKey, "0x"))
-	if err != nil {
+	if _, err := crypto.HexToECDSA(strings.TrimPrefix(c.PrivateKey, "0x")); err != nil {
 		return fmt.Errorf("failed to parse private key: %w", err)
 	}
-	c.privateKeyECDSA = privECDSA
 
 	if c.Logger == nil {
 		return fmt.Errorf("logger must be specified")

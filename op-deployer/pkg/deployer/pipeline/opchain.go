@@ -63,7 +63,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	if err != nil {
 		return err
 	}
-	// Record in memory. The stage runner persists state after its broadcast succeeds.
+	// Record in memory. The stage runner writes the state after the stage succeeds.
 	return RecordOPChainDeployment(st, result)
 }
 

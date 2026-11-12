@@ -360,7 +360,7 @@ func ApplyPipeline(
 		}, pipelineStage{
 			fmt.Sprintf("generate-l2-genesis-%s", chainID.Hex()),
 			func() error {
-				return pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chainID)
+				return pipeline.GenerateL2Genesis(pEnv, intent, st, chainID)
 			},
 		})
 	}
@@ -430,7 +430,7 @@ func ApplyPipeline(
 	// Run through the pipeline.
 	for _, stage := range pline {
 		if err := stage.apply(); err != nil {
-			return fmt.Errorf("error in pipeline stage apply: %w", err)
+			return fmt.Errorf("error in pipeline stage %s: %w", stage.name, err)
 		}
 		if err := pEnv.StateWriter.WriteState(st); err != nil {
 			return fmt.Errorf("failed to write state: %w", err)

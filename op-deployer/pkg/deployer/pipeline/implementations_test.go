@@ -75,15 +75,6 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		require.ErrorContains(t, err, "sp1Verifier must be specified")
 	})
 
-	t.Run("explicit mock selection requires forge", func(t *testing.T) {
-		intent := &state.Intent{}
-		mockEnv := *env
-		mockEnv.IsGenesis = true
-		mockEnv.DeployMockSP1Verifier = true
-		err := DeployImplementations(&mockEnv, intent, newState())
-		require.ErrorContains(t, err, "without forge")
-	})
-
 	t.Run("explicit zero verifier is rejected", func(t *testing.T) {
 		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
 			"sp1Verifier": common.Address{},

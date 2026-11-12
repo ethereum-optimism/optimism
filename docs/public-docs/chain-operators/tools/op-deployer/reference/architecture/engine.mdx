@@ -29,8 +29,9 @@ return value that forge prints.
 
 OP Deployer runs forge in three ways:
 
-*   **On a live L1**, forge broadcasts the transactions of the script with the deployer key. It sends one transaction at
-    a time, and waits for its receipt before it sends the next.
+*   **On a live L1**, forge runs the script on a fork of the L1 head, as the deployer, without its key, and records the
+    transactions of the script. OP Deployer checks them, signs them with the deployer key and sends them itself. It
+    sends one transaction at a time, and waits for its receipt before it sends the next.
 *   **For a genesis deployment**, forge runs offline, on the L1 state of the deployment. Each script run loads the state
     that the previous run left (`vm.loadAllocs`) and dumps the state that it leaves (`vm.dumpState`). OP Deployer writes
     the final state into the L1 genesis.

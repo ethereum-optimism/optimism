@@ -261,9 +261,6 @@ func CheckMockSP1Verifier(l1ChainID uint64) error {
 // deployMockSP1Verifier deploys MockSP1Verifier: into the genesis state, or to the live L1 with
 // forge's deployer.
 func deployMockSP1Verifier(env *Env) (common.Address, error) {
-	if env.Forge == nil {
-		return common.Address{}, fmt.Errorf("cannot deploy MockSP1Verifier without forge")
-	}
 	if env.IsGenesis {
 		return opcm.DeployMockSP1VerifierGenesis(env.Forge)
 	}

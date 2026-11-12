@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -61,8 +60,6 @@ type ImplementationsConfig struct {
 	ReceiptQueryInterval time.Duration
 
 	Logger log.Logger
-
-	privateKeyECDSA *ecdsa.PrivateKey
 }
 
 func (c *ImplementationsConfig) Check() error {
@@ -76,11 +73,9 @@ func (c *ImplementationsConfig) Check() error {
 		return errors.New("private key must be specified")
 	}
 
-	privECDSA, err := crypto.HexToECDSA(strings.TrimPrefix(c.PrivateKey, "0x"))
-	if err != nil {
+	if _, err := crypto.HexToECDSA(strings.TrimPrefix(c.PrivateKey, "0x")); err != nil {
 		return fmt.Errorf("failed to parse private key: %w", err)
 	}
-	c.privateKeyECDSA = privECDSA
 
 	if c.Logger == nil {
 		return errors.New("logger must be specified")

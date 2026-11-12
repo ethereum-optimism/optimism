@@ -37,7 +37,7 @@ func (bt *BroadcastType) UnmarshalText(data []byte) error {
 }
 
 // Broadcast captures a transaction that a deploy script selected to be broadcast
-// via vm.broadcast(). Actually submitting the transaction is left up to a Broadcaster.
+// via vm.broadcast(). KeyedBroadcaster signs and sends it.
 type Broadcast struct {
 	From  common.Address `json:"from"`
 	To    common.Address `json:"to"`    // set to expected contract address, if this is a deployment

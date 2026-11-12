@@ -32,8 +32,8 @@ library DeployUtils {
     ///         bytecode is always returned.
     ///         If the name already contains a colon or slash (e.g., "File.sol:Contract" or an explicit path),
     ///         it is passed through to vm.getCode as-is since the caller has already provided disambiguation.
-    ///         The explicit path is wrapped in a try/catch so that hosts which don't support artifact paths
-    ///         gracefully fall back to vm.getCode(_name).
+    ///         The explicit path is wrapped in a try/catch because it only exists for a contract in a file
+    ///         of the same name. For any other bare name, it falls back to vm.getCode(_name).
     ///         Under coverage, forge-artifacts/ contains the default profile's (optimized) artifacts, not
     ///         the coverage profile's. Since coverage profiles have no additional_compiler_profiles, there
     ///         is no ambiguity, so we skip the explicit path and let vm.getCode resolve naturally.
@@ -49,18 +49,13 @@ library DeployUtils {
         }
         // Under coverage, forge-artifacts/ holds the default profile's artifacts, not the coverage
         // profile's. Coverage profiles have no additional_compiler_profiles (no ambiguity), so
-        // plain vm.getCode resolves correctly. The try/catch guards against hosts that don't
-        // implement vm.isContext.
-        try vm.isContext(VmSafe.ForgeContext.Coverage) returns (bool isCoverage_) {
-            if (isCoverage_) {
-                return vm.getCode(_name);
-            }
-        } catch {
-            // Intentionally empty: a host without vm.isContext falls through to the artifact-path
-            // resolution below.
+        // plain vm.getCode resolves correctly.
+        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            return vm.getCode(_name);
         }
-        // Try explicit default-profile artifact path for deterministic profile resolution.
-        // Falls back to vm.getCode(_name) for hosts that don't support artifact paths.
+        // Try explicit default-profile artifact path for deterministic profile resolution. The path
+        // only exists for a contract in a file of the same name; any other bare name falls back to
+        // vm.getCode(_name).
         try vm.getCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json")) returns (bytes memory code_) {
             return code_;
         } catch {
@@ -76,8 +71,8 @@ library DeployUtils {
     ///         If the name already contains a colon or slash, it is passed through as-is (the caller has
     ///         provided disambiguation). Under coverage, forge-artifacts/ holds the default profile's
     ///         artifacts (no ambiguity), so the explicit path is skipped. The path lookup is wrapped in
-    ///         try/catch so hosts without artifact-path support gracefully fall back to
-    ///         vm.getDeployedCode(_name).
+    ///         try/catch because the path only exists for a contract in a file of the same name. For
+    ///         any other bare name, it falls back to vm.getDeployedCode(_name).
     /// @param _name Name of the contract, or a qualified "File.sol:Contract" identifier.
     /// @return The deployed bytecode from the default profile artifact.
     function getDeployedCode(string memory _name) internal view returns (bytes memory) {
@@ -89,17 +84,13 @@ library DeployUtils {
             }
         }
         // Under coverage, forge-artifacts/ holds the default profile's artifacts; plain resolution is
-        // unambiguous. The try/catch guards hosts that don't implement vm.isContext.
-        try vm.isContext(VmSafe.ForgeContext.Coverage) returns (bool isCoverage_) {
-            if (isCoverage_) {
-                return vm.getDeployedCode(_name);
-            }
-        } catch {
-            // Intentionally empty: a host without vm.isContext falls through to the artifact-path
-            // resolution below.
+        // unambiguous.
+        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            return vm.getDeployedCode(_name);
         }
-        // Try explicit default-profile artifact path for deterministic profile resolution.
-        // Falls back to vm.getDeployedCode(_name) for hosts that don't support artifact paths.
+        // Try explicit default-profile artifact path for deterministic profile resolution. The path
+        // only exists for a contract in a file of the same name; any other bare name falls back to
+        // vm.getDeployedCode(_name).
         try vm.getDeployedCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json")) returns (
             bytes memory code_
         ) {
