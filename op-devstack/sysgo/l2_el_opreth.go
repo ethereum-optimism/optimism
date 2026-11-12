@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 )
 
@@ -31,6 +32,14 @@ type OpRethConfig struct {
 	// runtime otherwise enables proofs-history on every op-reth node; some CLI-superset binaries
 	// reject --proofs-history in the mode under test.
 	DisableProofsHistory bool
+	// TxConditional enables eth_sendRawTransactionConditional on the node.
+	TxConditional bool
+	// TxPoolLocalExemptions keeps reth's exemptions for transactions submitted over the node's own
+	// RPC: the node runs without --txpool.nolocals.
+	TxPoolLocalExemptions bool
+	// TxPoolMinimumPriorityFee is the priority fee, in wei, a dynamic fee transaction needs to
+	// enter the pool. Nil keeps the runtime's default; zero disables the minimum.
+	TxPoolMinimumPriorityFee *uint64
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -108,6 +117,29 @@ func ResolveOpRethBinary(t devtest.T, binary string) string {
 func OpRethWithoutProofsHistory() OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.DisableProofsHistory = true
+	})
+}
+
+// OpRethWithTxConditional enables eth_sendRawTransactionConditional on the node.
+func OpRethWithTxConditional() OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.TxConditional = true
+	})
+}
+
+// OpRethWithTxPoolLocalExemptions keeps reth's local transaction exemptions, so the node treats a
+// transaction submitted over its own RPC the way a production node does.
+func OpRethWithTxPoolLocalExemptions() OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.TxPoolLocalExemptions = true
+	})
+}
+
+// OpRethWithTxPoolMinimumPriorityFee sets the priority fee, in wei, a dynamic fee transaction
+// needs to enter the node's pool. Zero disables the minimum.
+func OpRethWithTxPoolMinimumPriorityFee(wei uint64) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.TxPoolMinimumPriorityFee = ptr.New(wei)
 	})
 }
 

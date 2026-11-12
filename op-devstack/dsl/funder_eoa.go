@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -16,9 +17,10 @@ import (
 // FunderEOA is a funded account that hands out ETH to test accounts.
 type FunderEOA struct {
 	commonImpl
-	eoa    *EOA
-	inner  *SyncEOA
-	wallet *HDWallet
+	eoa            *EOA
+	fundingOptions []txplan.Option
+	inner          *SyncEOA
+	wallet         *HDWallet
 }
 
 // NewFunderEOA wraps a prefunded EOA as a funder that mints child EOAs from wallet.
@@ -63,13 +65,21 @@ func (f *FunderEOA) AsFunder(el ELNode) *FunderEOA {
 	return &view
 }
 
+// WithFundingOptions returns a view of the same funder whose funding txs all carry opts, such as
+// the tip a node's pool requires. Views share the account's includer and nonce state.
+func (f *FunderEOA) WithFundingOptions(opts ...txplan.Option) *FunderEOA {
+	view := *f
+	view.fundingOptions = append(slices.Clone(f.fundingOptions), opts...)
+	return &view
+}
+
 // fund sends amount to addr, waiting for the funding tx to be included. It is safe
 // to call concurrently. Zero amounts are a no-op.
 func (f *FunderEOA) fund(addr common.Address, amount eth.ETH) {
 	if amount.IsZero() {
 		return
 	}
-	res, err := f.inner.Include(f.t, txplan.WithTo(&addr), txplan.WithValue(amount))
+	res, err := f.inner.Include(f.t, append([]txplan.Option{txplan.WithTo(&addr), txplan.WithValue(amount)}, f.fundingOptions...)...)
 	f.require.NoError(err, "must fund %s with %s", addr, amount)
 	f.require.Equal(types.ReceiptStatusSuccessful, res.Receipt.Status, "funding tx to %s reverted", addr)
 }
