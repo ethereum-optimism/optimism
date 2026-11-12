@@ -24,7 +24,7 @@ use jsonrpsee::{
     },
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::{Engine, EngineCaller, EngineQueryClient, EngineState};
+use kona_engine::{Engine, EngineQueryClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -184,14 +184,14 @@ impl RollupNode {
         self.rpc_builder.clone()
     }
 
-    /// Returns the L2 provider that `caller` derives from: the engine, behind the buffer of
+    /// Returns the L2 provider that derivation reads from: the engine, behind the buffer of
     /// blocks the engine has imported. Each call returns its own block cache over the node's one
     /// engine connection.
-    fn l2_derivation_provider(&self, caller: EngineCaller) -> BufferedAlloyL2ChainProvider {
+    fn l2_derivation_provider(&self) -> BufferedAlloyL2ChainProvider {
         BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new(
-                self.engine_config.rpc.provider(caller),
+                self.engine_config.provider.clone(),
                 self.config.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             ),
@@ -206,7 +206,7 @@ impl RollupNode {
         StatefulAttributesBuilder::new(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
-            self.l2_derivation_provider(EngineCaller::Sequencer),
+            self.l2_derivation_provider(),
             l1_derivation_provider,
             self.dependency_set.clone(),
         )
@@ -227,7 +227,7 @@ impl RollupNode {
             self.l1_config.chain_config.clone(),
             OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await?,
             l1_derivation_provider,
-            self.l2_derivation_provider(EngineCaller::Derivation),
+            self.l2_derivation_provider(),
             self.dependency_set.clone(),
         ))
     }
