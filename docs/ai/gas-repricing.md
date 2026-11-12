@@ -179,7 +179,6 @@ op-node and kona must agree on each item in this section.
 | Standard gas limit (60M) (`op-deployer/pkg/deployer/standard/standard.go`) | L2 | Limit bound | Standard chains must use this value. |
 | Genesis gas limit check (`op-chain-ops/genesis/config.go`) | L2 | Limit bound | The genesis gas limit must be at least `MaxResourceLimit` plus `SystemTxMaxGas`. |
 | Default gas limit of genesis blocks (`op-chain-ops/genesis/genesis.go`) | Both | Fixed gas | The default is 30M. |
-| Script host gas (`op-chain-ops/script/`, `op-deployer/pkg/deployer/opcm/standard_validator.go`) | Both | Fixed gas | Script calls run in an in-process EVM with `int64.max` gas. A repricing changes the reported gas used only. |
 | `check-karst` probes (`op-chain-ops/cmd/check-karst/karsttest/checks.go`) | Both | Fixed gas | The probes use exact gas budgets around precompile costs. Some assume 21000 intrinsic gas. |
 | `check-lagoon` checks (`op-chain-ops/cmd/check-lagoon/`) | L2 | Fixed gas | The relay check uses 300000 gas. The SDM check (`op-chain-ops/cmd/check-lagoon/sdmcheck/check.go`) uses 21000 gas, 1,000,000 gas for workload transactions, and 2,000,000 gas for deployment. The workload transactions write many storage slots, so an SSTORE or state gas repricing affects them most. |
 | `check-jovian` and SDM conformance (`op-chain-ops/cmd/check-jovian/main.go`, `op-chain-ops/pkg/sdm/conformance.go`) | L2 | Introspection | They assert exact gas used and DA footprint totals. |

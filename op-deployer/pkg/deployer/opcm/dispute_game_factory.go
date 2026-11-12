@@ -3,7 +3,6 @@ package opcm
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -16,18 +15,6 @@ type SetDisputeGameImplInput struct {
 	GameArgs            []byte
 }
 
-func SetDisputeGameImpl(
-	h *script.Host,
-	input SetDisputeGameImplInput,
-) error {
-	return RunScriptVoid[SetDisputeGameImplInput](
-		h,
-		input,
-		"SetDisputeGameImpl.s.sol",
-		"SetDisputeGameImpl",
-	)
-}
-
 func NewSetDisputeGameImplForgeCaller(client *forge.Client) forge.ScriptCaller[SetDisputeGameImplInput, forge.None] {
 	return forge.NewScriptCaller(
 		client,
@@ -38,8 +25,8 @@ func NewSetDisputeGameImplForgeCaller(client *forge.Client) forge.ScriptCaller[S
 	)
 }
 
-// SetDisputeGameImplViaForge registers a dispute game implementation on its factory using Forge
-func SetDisputeGameImplViaForge(env *ForgeEnv, input SetDisputeGameImplInput) error {
+// SetDisputeGameImpl registers a dispute game implementation on its factory using Forge
+func SetDisputeGameImpl(env *ForgeEnv, input SetDisputeGameImplInput) error {
 	if _, err := broadcastScript(env, NewSetDisputeGameImplForgeCaller, input); err != nil {
 		return fmt.Errorf("failed to set the dispute game implementation with Forge: %w", err)
 	}
