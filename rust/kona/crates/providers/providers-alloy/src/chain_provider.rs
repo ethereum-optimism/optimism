@@ -12,7 +12,10 @@ use alloy_eips::{
 use alloy_primitives::{Address, B256, Bytes, U256, b256, keccak256};
 use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{RpcError, TransportErrorKind};
-use alloy_trie::{EMPTY_ROOT_HASH, KECCAK_EMPTY, Nibbles, TrieAccount, proof::verify_proof};
+use alloy_trie::{
+    EMPTY_ROOT_HASH, KECCAK_EMPTY, Nibbles, TrieAccount,
+    proof::{ProofVerificationError, verify_proof},
+};
 use async_trait::async_trait;
 use cache::Cache;
 use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind, ResetError};
@@ -158,26 +161,22 @@ impl AlloyChainProvider {
 
         let state_root = self.header_by_hash(block_hash).await?.state_root;
         let proof = self.inner.get_proof(address, vec![slot]).hash_canonical(block_hash).await?;
-        let invalid = |reason: String| AlloyChainProviderError::InvalidStorageProof {
+        let invalid = |reason| AlloyChainProviderError::InvalidStorageProof {
             block_hash,
             address,
             slot,
             reason,
         };
         if proof.address != address {
-            return Err(invalid(format!("the proof is for address {}", proof.address)));
+            return Err(invalid(InvalidStorageProofReason::AddressMismatch(proof.address)));
         }
         let [storage] = proof.storage_proof.as_slice() else {
-            return Err(invalid(format!(
-                "expected one storage proof, got {}",
-                proof.storage_proof.len()
+            return Err(invalid(InvalidStorageProofReason::StorageProofCount(
+                proof.storage_proof.len(),
             )));
         };
         if storage.key.as_b256() != slot {
-            return Err(invalid(format!(
-                "the storage proof is for slot {}",
-                storage.key.as_b256()
-            )));
+            return Err(invalid(InvalidStorageProofReason::SlotMismatch(storage.key.as_b256())));
         }
 
         // Accounts with no nonce, balance, code or storage do not exist in the state trie
@@ -201,12 +200,12 @@ impl AlloyChainProvider {
             account,
             &proof.account_proof,
         )
-        .map_err(|error| invalid(format!("invalid account proof: {error}")))?;
+        .map_err(|error| invalid(InvalidStorageProofReason::AccountProof(error)))?;
 
         if absent {
             // An absent account has no storage.
             if !storage.value.is_zero() {
-                return Err(invalid("a value was reported for an absent account".into()));
+                return Err(invalid(InvalidStorageProofReason::ValueForAbsentAccount));
             }
             return Ok(U256::ZERO);
         }
@@ -214,7 +213,7 @@ impl AlloyChainProvider {
         // A zero value is not stored, so the proof must show the slot is absent.
         let value = (!storage.value.is_zero()).then(|| alloy_rlp::encode(storage.value));
         verify_proof(proof.storage_hash, Nibbles::unpack(keccak256(slot)), value, &storage.proof)
-            .map_err(|error| invalid(format!("invalid storage proof: {error}")))?;
+            .map_err(|error| invalid(InvalidStorageProofReason::StorageProof(error)))?;
         Ok(storage.value)
     }
 
@@ -426,6 +425,30 @@ fn verify_header(header: &Header, expected: B256) -> Result<(), AlloyChainProvid
     Ok(())
 }
 
+/// Why an `eth_getProof` response was rejected, in
+/// [`AlloyChainProviderError::InvalidStorageProof`].
+#[derive(Debug, thiserror::Error)]
+pub enum InvalidStorageProofReason {
+    /// The proof is for another account.
+    #[error("the proof is for address {0}")]
+    AddressMismatch(Address),
+    /// The response holds a number of storage proofs other than one.
+    #[error("expected one storage proof, got {0}")]
+    StorageProofCount(usize),
+    /// The storage proof is for another slot.
+    #[error("the storage proof is for slot {0}")]
+    SlotMismatch(B256),
+    /// The account proof does not hold against the block's state root.
+    #[error("invalid account proof: {0}")]
+    AccountProof(#[source] ProofVerificationError),
+    /// The proof shows the account is absent, yet the response reports a nonzero value.
+    #[error("a value was reported for an absent account")]
+    ValueForAbsentAccount,
+    /// The storage proof does not hold against the account's storage root.
+    #[error("invalid storage proof: {0}")]
+    StorageProof(#[source] ProofVerificationError),
+}
+
 /// An error for the [`AlloyChainProvider`].
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, thiserror::Error)]
@@ -471,7 +494,8 @@ pub enum AlloyChainProviderError {
         /// The storage slot that was read.
         slot: B256,
         /// Why the proof was rejected.
-        reason: String,
+        #[source]
+        reason: InvalidStorageProofReason,
     },
     /// The RPC returned transactions that do not match the block's transactions root.
     #[error("Transactions root mismatch for L1 block {hash}: expected {expected}, got {actual}")]
@@ -2177,8 +2201,13 @@ mod tests {
         let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
 
         assert!(
-            matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
-                if reason.starts_with("invalid storage proof")),
+            matches!(
+                error,
+                AlloyChainProviderError::InvalidStorageProof {
+                    reason: InvalidStorageProofReason::StorageProof(_),
+                    ..
+                }
+            ),
             "{error}"
         );
     }
@@ -2193,8 +2222,13 @@ mod tests {
         let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
 
         assert!(
-            matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
-                if reason.starts_with("invalid account proof")),
+            matches!(
+                error,
+                AlloyChainProviderError::InvalidStorageProof {
+                    reason: InvalidStorageProofReason::AccountProof(_),
+                    ..
+                }
+            ),
             "{error}"
         );
     }
@@ -2288,8 +2322,13 @@ mod tests {
         let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
 
         assert!(
-            matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
-                if reason.starts_with("invalid storage proof")),
+            matches!(
+                error,
+                AlloyChainProviderError::InvalidStorageProof {
+                    reason: InvalidStorageProofReason::StorageProof(_),
+                    ..
+                }
+            ),
             "{error}"
         );
     }

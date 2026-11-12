@@ -20,7 +20,9 @@ mod blobs;
 pub use blobs::{BlobWithCommitmentAndProof, BoxedBlob, OnlineBlobProvider};
 
 mod chain_provider;
-pub use chain_provider::{AlloyChainProvider, AlloyChainProviderError, BlockLabel};
+pub use chain_provider::{
+    AlloyChainProvider, AlloyChainProviderError, BlockLabel, InvalidStorageProofReason,
+};
 
 mod l2_chain_provider;
 pub use l2_chain_provider::{AlloyL2ChainProvider, AlloyL2ChainProviderError};
