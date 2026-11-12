@@ -5,8 +5,9 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use discv5::Enr;
 
 /// A [`discv5::Config::table_filter`] that accepts a record only if it has an IP address, and all
-/// its IP addresses are public: none is unspecified, loopback, private, link-local, shared
-/// (carrier-grade NAT, RFC 6598), benchmarking, reserved, multicast, broadcast or documentation.
+/// its IP addresses are public: none is unspecified, "this network", loopback, private,
+/// link-local, shared (carrier-grade NAT, RFC 6598), an IETF protocol assignment, benchmarking,
+/// reserved, multicast, broadcast or documentation.
 ///
 /// discv5 applies it to the records in other nodes' answers to our lookups, and to those added with
 /// `add_enr`, such as bootnodes. It keeps a record it rejects out of the table, so that it isn't
@@ -28,18 +29,23 @@ const fn is_public(ip: IpAddr) -> bool {
 
 const fn is_public_v4(ip: Ipv4Addr) -> bool {
     // `Ipv4Addr::is_shared`, `is_benchmarking` and `is_reserved` aren't stable yet.
-    let [first, second, ..] = ip.octets();
+    let [first, second, third, _] = ip.octets();
+    // 0.0.0.0/8, "this network", which only a host that doesn't know its address sends from.
+    let is_this_network = first == 0;
     // 100.64.0.0/10.
     let is_shared = first == 100 && second & 0b1100_0000 == 0b0100_0000;
+    // 192.0.0.0/24, IETF protocol assignments, such as DS-Lite's and NAT64's well-known addresses.
+    let is_protocol_assignment = first == 192 && second == 0 && third == 0;
     // 198.18.0.0/15, which labs and proxy tools use internally.
     let is_benchmarking = first == 198 && second & 0b1111_1110 == 18;
     // 240.0.0.0/4, which some clouds use for internal ranges, such as GKE's Class E pod ranges.
     let is_reserved = first & 0b1111_0000 == 0b1111_0000;
-    !(ip.is_unspecified() ||
+    !(is_this_network ||
         ip.is_loopback() ||
         ip.is_private() ||
         ip.is_link_local() ||
         is_shared ||
+        is_protocol_assignment ||
         is_benchmarking ||
         is_reserved ||
         ip.is_multicast() ||
@@ -102,6 +108,16 @@ mod tests {
     #[case::benchmarking_last("198.19.255.255", false)]
     #[case::before_benchmarking("198.17.255.255", true)]
     #[case::past_benchmarking("198.20.0.0", true)]
+    // "This network", which only a host that doesn't know its address sends from.
+    #[case::this_network("0.1.2.3", false)]
+    #[case::this_network_last("0.255.255.255", false)]
+    #[case::past_this_network("1.0.0.0", true)]
+    #[case::mapped_this_network("::ffff:0.0.0.1", false)]
+    // IETF protocol assignments.
+    #[case::protocol_assignment_first("192.0.0.0", false)]
+    #[case::protocol_assignment_last("192.0.0.255", false)]
+    #[case::before_protocol_assignment("191.255.255.255", true)]
+    #[case::past_protocol_assignment("192.0.1.0", true)]
     fn test_is_public(#[case] ip: IpAddr, #[case] expected: bool) {
         assert_eq!(is_public(ip), expected);
     }
