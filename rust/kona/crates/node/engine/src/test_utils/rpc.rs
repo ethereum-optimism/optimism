@@ -22,6 +22,12 @@ use std::{
 };
 use tower::Service;
 
+/// Builds an L1 provider over `provider` that trusts the RPC and caches a few blocks of each kind.
+pub fn trusted_l1_provider(provider: RootProvider) -> AlloyChainProvider {
+    const CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(8).unwrap();
+    AlloyChainProvider::new(provider, CACHE_SIZE, true)
+}
+
 /// Queues replies and checks the method and optional parameters of every outgoing RPC request.
 /// Unexpected requests panic rather than silently satisfying a different operation's reply.
 #[derive(Clone, Debug, Default)]
@@ -45,7 +51,7 @@ impl RpcMock {
 
     /// Builds a trusting L1 provider backed by this mock transport.
     pub fn l1_provider(&self) -> AlloyChainProvider {
-        AlloyChainProvider::new(self.provider(), NonZeroUsize::new(8).unwrap(), true)
+        trusted_l1_provider(self.provider())
     }
 
     /// Expects one call to `method` and returns the serialized response.

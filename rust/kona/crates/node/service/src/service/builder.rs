@@ -27,6 +27,9 @@ pub struct L1ConfigBuilder {
     /// The L1 chain configuration.
     pub chain_config: L1ChainConfig,
     /// The node's L1 client, shared by every component that reads L1.
+    ///
+    /// Its transport must give each request a deadline: the components that read L1 do not bound
+    /// their own reads.
     pub provider: AlloyChainProvider,
     /// The L1 beacon API.
     pub beacon: Url,

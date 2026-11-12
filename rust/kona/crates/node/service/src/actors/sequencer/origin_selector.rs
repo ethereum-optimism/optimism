@@ -373,11 +373,9 @@ mod test {
         let (_observations, state) =
             watch::channel(head.map(|number| BlockInfo { number, ..Default::default() }));
         let provider = DelayedL1OriginSelectorProvider::new(
-            AlloyChainProvider::new(
-                alloy_provider::RootProvider::new(RpcClient::mocked(responses.clone())),
-                std::num::NonZeroUsize::new(8).unwrap(),
-                true,
-            ),
+            kona_engine::test_utils::trusted_l1_provider(alloy_provider::RootProvider::new(
+                RpcClient::mocked(responses.clone()),
+            )),
             state,
             depth,
         );
@@ -405,11 +403,9 @@ mod test {
         responses.push_success(&block);
         let (observations, state) = watch::channel(None);
         let provider = DelayedL1OriginSelectorProvider::new(
-            AlloyChainProvider::new(
-                alloy_provider::RootProvider::new(RpcClient::mocked(responses.clone())),
-                std::num::NonZeroUsize::new(8).unwrap(),
-                true,
-            ),
+            kona_engine::test_utils::trusted_l1_provider(alloy_provider::RootProvider::new(
+                RpcClient::mocked(responses.clone()),
+            )),
             state,
             2,
         );

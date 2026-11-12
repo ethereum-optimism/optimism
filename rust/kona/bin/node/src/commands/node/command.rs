@@ -34,9 +34,29 @@ use std::{
 use strum::IntoEnumIterator;
 use tower::util::MapFutureLayer;
 use tracing::{debug, error, info};
+use url::Url;
 
 /// How many headers, receipt sets and blocks the node's L1 client caches.
 const L1_PROVIDER_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
+
+/// Builds the node's one L1 client. Every component reads L1 through a clone, sharing its caches
+/// and trust setting.
+///
+/// Every request is bounded by [`kona_engine::RPC_TIMEOUT`], so a stalled endpoint fails its
+/// caller instead of hanging it. This is the only bound on L1 reads: the components do not bound
+/// their own. Metrics wrap the deadline, so a timeout is recorded as a transport error.
+fn l1_provider(url: Url, trust_rpc: bool) -> AlloyChainProvider {
+    AlloyChainProvider::new(
+        RootProvider::new(
+            ClientBuilder::default()
+                .layer(RpcMetricsLayer::new("l1"))
+                .layer(MapFutureLayer::new(kona_engine::with_deadline))
+                .http(url),
+        ),
+        L1_PROVIDER_CACHE_SIZE,
+        trust_rpc,
+    )
+}
 
 /// A JWT token validation error.
 #[derive(Debug, thiserror::Error)]
@@ -304,21 +324,9 @@ impl NodeCommand {
             "Hardfork schedule"
         );
 
-        // The node's one L1 client: every component reads L1 through a clone, sharing its caches
-        // and trust setting. Every request is bounded, so a stalled endpoint fails its caller
-        // instead of hanging it. Metrics wrap the deadline, so a timeout is recorded as a
-        // transport error.
         middleware::describe();
-        let l1_provider = AlloyChainProvider::new(
-            RootProvider::new(
-                ClientBuilder::default()
-                    .layer(RpcMetricsLayer::new("l1"))
-                    .layer(MapFutureLayer::new(kona_engine::with_deadline))
-                    .http(self.l1_rpc_args.l1_eth_rpc.clone()),
-            ),
-            L1_PROVIDER_CACHE_SIZE,
-            self.l1_rpc_args.l1_trust_rpc,
-        );
+        let l1_provider =
+            l1_provider(self.l1_rpc_args.l1_eth_rpc.clone(), self.l1_rpc_args.l1_trust_rpc);
         let l1_config = L1ConfigBuilder {
             chain_config: self.get_l1_config(cfg.l1_chain_id)?,
             provider: l1_provider.clone(),
@@ -509,5 +517,38 @@ impl NodeCommand {
             },
             |content| Ok(JwtSecret::from_hex(content)?),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kona_engine::RPC_TIMEOUT;
+    use kona_providers_alloy::BlockLabel;
+    use std::{net::TcpListener, time::Duration};
+    use tokio::time::{self, Instant};
+
+    #[tokio::test(start_paused = true)]
+    async fn l1_requests_to_a_stalled_endpoint_fail_at_the_deadline() {
+        // Nothing ever answers, so the request fails at its deadline at whatever stage it is
+        // pending: connecting, sending, or waiting for the response.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap()).parse().unwrap();
+        let provider = l1_provider(url, true);
+
+        let started = Instant::now();
+        let result =
+            time::timeout(RPC_TIMEOUT * 2, provider.block_info_by_label(BlockLabel::Latest))
+                .await
+                .expect("L1 request has no deadline");
+
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("deadline has elapsed"), "{error}");
+        // Timers round up to the next millisecond.
+        let waited = started.elapsed();
+        assert!(
+            waited >= RPC_TIMEOUT && waited <= RPC_TIMEOUT + Duration::from_millis(1),
+            "{waited:?}"
+        );
     }
 }

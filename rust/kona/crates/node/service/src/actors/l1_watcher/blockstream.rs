@@ -4,6 +4,7 @@ use async_stream::stream;
 use futures::Stream;
 use kona_protocol::BlockInfo;
 use kona_providers_alloy::{AlloyChainProvider, BlockLabel};
+use tokio::time::MissedTickBehavior;
 
 /// Polls the L1 block at a [`BlockLabel`] and yields it whenever it changes.
 ///
@@ -30,11 +31,14 @@ impl BlockStream {
     }
 
     /// Creates a [`Stream`] of [`BlockInfo`]. A failed poll is logged and retried at the next
-    /// interval.
+    /// interval. Polls are at least one interval apart, even after a slow poll.
     pub fn into_stream(self) -> impl Stream<Item = BlockInfo> + Unpin + Send {
         let Self { l1_provider, label, poll_interval } = self;
         Box::pin(stream! {
             let mut interval = tokio::time::interval(poll_interval);
+            // The default, `Burst`, would follow a poll that outlasts several intervals with one
+            // poll per missed tick, back to back, while the endpoint is already slow.
+            interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
             let mut last_block = None;
             loop {
                 interval.tick().await;
@@ -50,5 +54,42 @@ impl BlockStream {
                 }
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::StreamExt;
+    use kona_engine::test_utils::RpcMock;
+    use tokio::time::Instant;
+
+    #[tokio::test(start_paused = true)]
+    async fn a_slow_poll_does_not_cause_a_burst_of_polls() {
+        const POLL_INTERVAL: Duration = Duration::from_secs(4);
+        const SLOW_POLL: Duration = Duration::from_secs(10);
+
+        // Each poll answers with a new block. The first outlasts two intervals; the others answer
+        // at once, so each later block is yielded when its poll starts.
+        let rpc = RpcMock::default();
+        for (number, delay) in [(1, SLOW_POLL), (2, Duration::ZERO), (3, Duration::ZERO)] {
+            let mut block =
+                alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+            block.header.inner.number = number;
+            rpc.expect_with_delay("eth_getBlockByNumber", block, delay);
+        }
+        let mut stream =
+            BlockStream::new_as_stream(rpc.l1_provider(), BlockLabel::Latest, POLL_INTERVAL);
+
+        let mut yielded = Vec::new();
+        for _ in 0..3 {
+            stream.next().await.unwrap();
+            yielded.push(Instant::now());
+        }
+
+        // The tick missed during the slow poll fires once, as soon as it ends. Another poll must
+        // then wait a full interval rather than fire for the second missed tick.
+        assert!(yielded[2] - yielded[1] >= POLL_INTERVAL, "blocks yielded at {yielded:?}");
+        rpc.assert_finished();
     }
 }

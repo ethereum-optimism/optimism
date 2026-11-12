@@ -2,6 +2,10 @@
 
 use alloy_json_rpc::{RequestPacket, ResponsePacket, RpcError};
 use alloy_transport::{TransportError, TransportErrorKind, TransportFut, TransportResult};
+use jsonrpsee_types::error::{
+    INTERNAL_ERROR_CODE, INVALID_PARAMS_CODE, INVALID_REQUEST_CODE, METHOD_NOT_FOUND_CODE,
+    PARSE_ERROR_CODE,
+};
 use std::{
     borrow::Cow,
     task::{Context, Poll},
@@ -106,14 +110,18 @@ fn classify(response: &TransportResult<ResponsePacket>) -> (&'static str, Cow<'s
 /// Names a JSON-RPC error code. The reserved codes are named individually, and the range reserved
 /// for server errors, which includes geth's "header not found" and providers' rate limits, is
 /// grouped.
-const fn rpc_error(code: i64) -> &'static str {
+fn rpc_error(code: i64) -> &'static str {
+    // jsonrpsee's codes are `i32`, so a code outside that range is none of them.
+    let Ok(code) = i32::try_from(code) else { return "other" };
     match code {
-        -32700 => "parse",
-        -32600 => "invalid_request",
-        -32601 => "method_not_found",
-        -32602 => "invalid_params",
-        -32603 => "internal",
+        PARSE_ERROR_CODE => "parse",
+        INVALID_REQUEST_CODE => "invalid_request",
+        METHOD_NOT_FOUND_CODE => "method_not_found",
+        INVALID_PARAMS_CODE => "invalid_params",
+        INTERNAL_ERROR_CODE => "internal",
+        // The JSON-RPC 2.0 specification reserves this range for implementation-defined errors.
         -32099..=-32000 => "server",
+        // The code that geth and other execution clients give a reverted `eth_call`.
         3 => "execution_reverted",
         _ => "other",
     }
@@ -216,6 +224,8 @@ mod tests {
             (3, "execution_reverted"),
             (-32100, "other"),
             (42, "other"),
+            // Truncated to `i32`, this would be -32601.
+            (-32601 - (1 << 32), "other"),
         ] {
             assert_eq!(
                 classify(&Ok(rpc_error_packet(code))),

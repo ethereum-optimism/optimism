@@ -2,7 +2,7 @@ mod attributes;
 pub use attributes::TestAttributesBuilder;
 
 mod rpc;
-pub use rpc::{RpcMock, test_engine_client};
+pub use rpc::{RpcMock, test_engine_client, trusted_l1_provider};
 
 mod engine_state;
 pub use engine_state::TestEngineStateBuilder;

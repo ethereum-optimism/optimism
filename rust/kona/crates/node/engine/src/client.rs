@@ -171,7 +171,6 @@ pub enum EngineClientError {
 #[derive(Clone, Debug)]
 pub struct EngineClient {
     engine: RootProvider<Optimism>,
-    /// The node's shared L1 client.
     l1: AlloyChainProvider,
     cfg: Arc<RollupConfig>,
 }
@@ -437,11 +436,7 @@ mod request_observability_tests {
                     config.hardforks.ecotone_time = Some(0);
                     let config = Arc::new(config);
                     let engine = EngineClient::new(
-                        AlloyChainProvider::new(
-                            l1.provider(),
-                            std::num::NonZeroUsize::new(8).unwrap(),
-                            true,
-                        ),
+                        crate::test_utils::trusted_l1_provider(l1.provider()),
                         provider,
                         config.clone(),
                     );
@@ -565,11 +560,9 @@ mod deadline_tests {
         let client = EngineClientBuilder {
             l2: stalled_endpoint(response, answered_tx).await,
             l2_jwt: JwtSecret::random(),
-            l1: AlloyChainProvider::new(
-                RootProvider::new_http("http://127.0.0.1:1".parse().unwrap()),
-                std::num::NonZeroUsize::new(8).unwrap(),
-                true,
-            ),
+            l1: crate::test_utils::trusted_l1_provider(RootProvider::new_http(
+                "http://127.0.0.1:1".parse().unwrap(),
+            )),
             cfg: Arc::new(RollupConfig::default()),
         }
         .build();
