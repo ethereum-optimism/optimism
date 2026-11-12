@@ -21,6 +21,53 @@ func TestOpRethWithEthProofWindow(t *testing.T) {
 	require.Equal(t, []string{"--rpc.eth-proof-window=1000000"}, cfg.ExtraArgs)
 }
 
+func TestOpRethWithPersistenceSchedule(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		schedule     OpRethPersistenceSchedule
+		expectedArgs []string
+	}{
+		{
+			name:         "reth_derived_backpressure",
+			schedule:     OpRethPersistenceSchedule{MemoryBlockBufferTarget: 5, PersistenceThreshold: 50},
+			expectedArgs: []string{"--engine.memory-block-buffer-target=5", "--engine.persistence-threshold=50"},
+		},
+		{
+			name:     "pinned_backpressure",
+			schedule: OpRethPersistenceSchedule{MemoryBlockBufferTarget: 5, PersistenceBackpressureThreshold: 8, PersistenceThreshold: 7},
+			expectedArgs: []string{
+				"--engine.memory-block-buffer-target=5",
+				"--engine.persistence-backpressure-threshold=8",
+				"--engine.persistence-threshold=7",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := DefaultOpRethConfig()
+			OpRethWithPersistenceSchedule(tc.schedule).Apply(nil, ComponentTarget{}, cfg)
+
+			require.Equal(t, tc.expectedArgs, cfg.ExtraArgs)
+		})
+	}
+}
+
+func TestOpRethPersistenceScheduleInterval(t *testing.T) {
+	for _, tc := range []struct {
+		persistenceThreshold uint64
+		expectedInterval     uint64
+	}{
+		{persistenceThreshold: 5, expectedInterval: 1},
+		{persistenceThreshold: 7, expectedInterval: 3},
+		{persistenceThreshold: 50, expectedInterval: 46},
+	} {
+		t.Run(fmt.Sprintf("threshold_%d", tc.persistenceThreshold), func(t *testing.T) {
+			schedule := OpRethPersistenceSchedule{MemoryBlockBufferTarget: 5, PersistenceThreshold: tc.persistenceThreshold}
+
+			require.Equal(t, tc.expectedInterval, schedule.PersistenceInterval())
+		})
+	}
+}
+
 func newStoppedOpReth(gt *testing.T, execPath string) *OpReth {
 	return &OpReth{name: "el", execPath: execPath, p: devtest.SerialT(gt)}
 }
