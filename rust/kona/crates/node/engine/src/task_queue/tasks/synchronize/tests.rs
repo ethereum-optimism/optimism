@@ -1,4 +1,4 @@
-use super::{ForkchoiceDelivery, synchronize};
+use super::{synchronize, synchronize_unconditionally};
 use crate::{
     EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTaskError,
     EngineTaskErrorSeverity::{self, Reset, Temporary},
@@ -72,16 +72,13 @@ fn expect_reply(l2: &RpcMock, forkchoice: ForkchoiceState, reply: Reply) {
     }
 }
 
-/// An update that leaves the labels unchanged is skipped only when the caller allows it.
+/// `synchronize` skips an update that leaves the labels unchanged.
 #[rstest]
-#[case::changed_labels_are_sent(true, ForkchoiceDelivery::WhenChanged, 1)]
-#[case::unchanged_labels_are_skipped(false, ForkchoiceDelivery::WhenChanged, 0)]
-#[case::changed_labels_are_sent_always(true, ForkchoiceDelivery::Always, 1)]
-#[case::unchanged_labels_are_sent_always(false, ForkchoiceDelivery::Always, 1)]
+#[case::changed_labels_are_sent(true, 1)]
+#[case::unchanged_labels_are_skipped(false, 0)]
 #[tokio::test]
-async fn synchronize_skips_unchanged_labels_only_when_allowed(
+async fn synchronize_skips_unchanged_labels(
     #[case] moves_safe_head: bool,
-    #[case] delivery: ForkchoiceDelivery,
     #[case] forkchoice_updates: usize,
 ) {
     let mut state = engine_state();
@@ -95,7 +92,29 @@ async fn synchronize_skips_unchanged_labels_only_when_allowed(
         );
     }
 
-    synchronize(&client, &mut state, update, delivery).await.unwrap();
+    synchronize(&client, &mut state, update).await.unwrap();
+
+    assert_eq!(state.sync_state, expected_sync_state);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// `synchronize_unconditionally` sends the update even when it leaves the labels unchanged.
+#[rstest]
+#[case::changed_labels_are_sent(true)]
+#[case::unchanged_labels_are_sent(false)]
+#[tokio::test]
+async fn synchronize_unconditionally_sends_unchanged_labels(#[case] moves_safe_head: bool) {
+    let mut state = engine_state();
+    let update = state_update(moves_safe_head);
+    let expected_sync_state = state.sync_state.apply_update(update);
+    let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+    l2.expect_forkchoice_updated(
+        expected_sync_state.create_forkchoice_state(),
+        PayloadStatusEnum::Valid,
+    );
+
+    synchronize_unconditionally(&client, &mut state, update).await.unwrap();
 
     assert_eq!(state.sync_state, expected_sync_state);
     l1.assert_finished();
@@ -124,7 +143,7 @@ async fn synchronize_applies_labels_only_when_accepted(
     let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
     expect_reply(&l2, moved_sync_state.create_forkchoice_state(), reply);
 
-    let result = synchronize(&client, &mut state, update, ForkchoiceDelivery::WhenChanged).await;
+    let result = synchronize(&client, &mut state, update).await;
 
     assert_eq!(result.as_ref().err().map(EngineTaskError::severity), error_severity, "{result:?}");
     assert_eq!(state.sync_state, expected_sync_state);

@@ -5,7 +5,7 @@ use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
     find_starting_forkchoice,
-    task_queue::{EngineTaskErrors, ForkchoiceDelivery, synchronize},
+    task_queue::{EngineTaskErrors, synchronize_unconditionally},
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -118,7 +118,7 @@ impl Engine {
         // One attempt. The actor retains the reset request and retries transient failures. The
         // execution layer may have lost or changed its forkchoice, so the reset sends one even when
         // the recovered labels equal the current ones.
-        synchronize(
+        synchronize_unconditionally(
             client.as_ref(),
             &mut self.state,
             EngineSyncStateUpdate {
@@ -127,7 +127,6 @@ impl Engine {
                 safe_head: Some(start.safe),
                 finalized_head: Some(start.finalized),
             },
-            ForkchoiceDelivery::Always,
         )
         .await?;
 

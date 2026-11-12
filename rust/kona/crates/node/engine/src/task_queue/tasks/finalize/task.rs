@@ -2,8 +2,7 @@
 
 use crate::{
     EngineClient, EngineState, ExecutableEngineTask, FinalizeBlockId, FinalizeTaskError,
-    state::EngineSyncStateUpdate,
-    task_queue::{ForkchoiceDelivery, synchronize},
+    state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_eips::BlockId;
 use async_trait::async_trait;
@@ -72,7 +71,6 @@ impl ExecutableEngineTask for FinalizeTask {
             self.client.as_ref(),
             state,
             EngineSyncStateUpdate { finalized_head: Some(block_info), ..Default::default() },
-            ForkchoiceDelivery::WhenChanged,
         )
         .await?;
 

@@ -3,7 +3,7 @@
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink,
     state::EngineSyncStateUpdate,
-    task_queue::{ForkchoiceDelivery, build_and_import, synchronize},
+    task_queue::{build_and_import, synchronize, synchronize_unconditionally},
 };
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
@@ -56,16 +56,6 @@ impl ConsolidateInput {
     const fn is_intermediate_span_block(&self) -> bool {
         matches!(self, Self::Attributes(attributes) if !attributes.is_last_in_span)
     }
-
-    /// Derived attributes move the safe head on every consolidation, so an unchanged forkchoice was
-    /// already sent. A delegated safe head can repeat a forkchoice the execution layer answered
-    /// `SYNCING` or lost, so it is always sent.
-    const fn forkchoice_delivery(&self) -> ForkchoiceDelivery {
-        match self {
-            Self::Attributes(_) => ForkchoiceDelivery::WhenChanged,
-            Self::BlockInfo(_) => ForkchoiceDelivery::Always,
-        }
-    }
 }
 
 /// The [`ConsolidateTask`] attempts to consolidate the engine state
@@ -110,96 +100,6 @@ impl ConsolidateTask {
         Ok(())
     }
 
-    /// This provides symmetric fallback behavior with `build_and_import`.
-    async fn reconcile_to_safe_head(
-        &self,
-        state: &mut EngineState,
-        safe_l2: &L2BlockInfo,
-    ) -> Result<(), ConsolidateTaskError> {
-        warn!(
-            target: "engine",
-            safe_l2 = %safe_l2,
-            "Apply safe head"
-        );
-
-        // We intentionally set the unsafe head to safe_l2 to ensure the engine observes a
-        // self-consistent head state. This is required to correctly handle reorgs (where unsafe
-        // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
-        // lags behind the safe head.
-        self.apply_delegated_safe_head(
-            state,
-            safe_l2,
-            EngineSyncStateUpdate {
-                local_safe_head: Some(*safe_l2),
-                safe_head: Some(*safe_l2),
-                unsafe_head: Some(*safe_l2),
-                ..Default::default()
-            },
-            "Updated safe head via follow safe",
-        )
-        .await
-    }
-
-    /// Moves the safe labels to a delegated safe head that the execution layer does not have yet,
-    /// leaving the unsafe head in place.
-    ///
-    /// A block missing below the unsafe head means the execution layer is still syncing toward the
-    /// unsafe head. Resetting would restart that sync from the execution layer's old labels, and
-    /// moving the unsafe head back would retarget it. Like op-node's follow-source mode, only the
-    /// safe labels follow the delegate, and the forkchoice update carries them to the execution
-    /// layer.
-    async fn follow_safe_head_during_el_sync(
-        &self,
-        state: &mut EngineState,
-        safe_l2: &L2BlockInfo,
-    ) -> Result<(), ConsolidateTaskError> {
-        warn!(
-            target: "engine",
-            safe_l2 = %safe_l2,
-            unsafe_number = state.sync_state.unsafe_head().block_info.number,
-            "Execution layer does not have the delegated safe head yet; keeping its sync target"
-        );
-
-        self.apply_delegated_safe_head(
-            state,
-            safe_l2,
-            EngineSyncStateUpdate {
-                local_safe_head: Some(*safe_l2),
-                safe_head: Some(*safe_l2),
-                ..Default::default()
-            },
-            "Updated safe head while the execution layer syncs",
-        )
-        .await
-    }
-
-    /// Applies `update`, whose labels follow the delegated `safe_l2`, and always sends its
-    /// forkchoice update: the execution layer may have answered `SYNCING` to the same labels
-    /// before, or lost them in a restart.
-    async fn apply_delegated_safe_head(
-        &self,
-        state: &mut EngineState,
-        safe_l2: &L2BlockInfo,
-        update: EngineSyncStateUpdate,
-        outcome: &'static str,
-    ) -> Result<(), ConsolidateTaskError> {
-        synchronize(self.client.as_ref(), state, update, ForkchoiceDelivery::Always)
-            .await
-            .map_err(|e| {
-                warn!(target: "engine", ?e, safe_l2 = %safe_l2, "Applying the delegated safe head failed");
-                e
-            })?;
-
-        info!(
-            target: "engine",
-            hash = %safe_l2.block_info.hash,
-            number = safe_l2.block_info.number,
-            "{outcome}"
-        );
-
-        Ok(())
-    }
-
     /// Handles the fallback case when the block doesn't match the input or does not exist.
     async fn reconcile_unsafe_to_safe(
         &self,
@@ -210,7 +110,37 @@ impl ConsolidateTask {
                 self.build_and_import_attributes(state, attributes).await
             }
             ConsolidateInput::BlockInfo(safe_l2) => {
-                self.reconcile_to_safe_head(state, safe_l2).await
+                warn!(target: "engine", safe_l2 = %safe_l2, "Apply safe head");
+
+                // We intentionally set the unsafe head to safe_l2 to ensure the engine observes a
+                // self-consistent head state. This is required to correctly handle reorgs (where
+                // unsafe may be ahead on a non-canonical fork) and to trigger EL sync when the
+                // local unsafe head lags behind the safe head. The forkchoice update is always
+                // sent: the execution layer may have answered `SYNCING` to the same labels before,
+                // or lost them in a restart.
+                synchronize_unconditionally(
+                    self.client.as_ref(),
+                    state,
+                    EngineSyncStateUpdate {
+                        local_safe_head: Some(*safe_l2),
+                        safe_head: Some(*safe_l2),
+                        unsafe_head: Some(*safe_l2),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .map_err(|e| {
+                    warn!(target: "engine", ?e, safe_l2 = %safe_l2, "Applying the delegated safe head failed");
+                    e
+                })?;
+
+                info!(
+                    target: "engine",
+                    hash = %safe_l2.block_info.hash,
+                    number = safe_l2.block_info.number,
+                    "Updated safe head via follow safe"
+                );
+                Ok(())
             }
         }
     }
@@ -230,7 +160,39 @@ impl ConsolidateTask {
             Ok(Some(block)) => block,
             Ok(None) => {
                 if let ConsolidateInput::BlockInfo(safe_l2) = &self.input {
-                    return self.follow_safe_head_during_el_sync(state, safe_l2).await;
+                    // A block missing below the unsafe head means the execution layer is still
+                    // syncing toward the unsafe head. Resetting would restart that sync from the
+                    // execution layer's old labels, and moving the unsafe head back would retarget
+                    // it. Like op-node's follow-source mode, only the safe labels follow the
+                    // delegate, and the forkchoice update, sent even when unchanged, carries them
+                    // to the execution layer.
+                    warn!(
+                        target: "engine",
+                        safe_l2 = %safe_l2,
+                        unsafe_number = state.sync_state.unsafe_head().block_info.number,
+                        "Execution layer does not have the delegated safe head yet; keeping its sync target"
+                    );
+                    synchronize_unconditionally(
+                        self.client.as_ref(),
+                        state,
+                        EngineSyncStateUpdate {
+                            local_safe_head: Some(*safe_l2),
+                            safe_head: Some(*safe_l2),
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .map_err(|e| {
+                        warn!(target: "engine", ?e, safe_l2 = %safe_l2, "Applying the delegated safe head failed");
+                        e
+                    })?;
+                    info!(
+                        target: "engine",
+                        hash = %safe_l2.block_info.hash,
+                        number = safe_l2.block_info.number,
+                        "Updated safe head while the execution layer syncs"
+                    );
+                    return Ok(());
                 }
                 warn!(target: "engine", "Received `None` block for {}", block_num);
                 return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
@@ -278,18 +240,24 @@ impl ConsolidateTask {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
-                    synchronize(
-                        self.client.as_ref(),
-                        state,
-                        EngineSyncStateUpdate {
-                            safe_head: Some(block_info),
-                            local_safe_head: Some(block_info),
-                            ..Default::default()
-                        },
-                        self.input.forkchoice_delivery(),
-                    )
-                    .await
-                    .map_err(|e| {
+                    let update = EngineSyncStateUpdate {
+                        safe_head: Some(block_info),
+                        local_safe_head: Some(block_info),
+                        ..Default::default()
+                    };
+                    let synchronized = match &self.input {
+                        // Derived attributes move the safe head on every consolidation, so an
+                        // unchanged forkchoice was already sent.
+                        ConsolidateInput::Attributes(_) => {
+                            synchronize(self.client.as_ref(), state, update).await
+                        }
+                        // A delegated safe head can repeat a forkchoice the execution layer
+                        // answered `SYNCING` or lost, so it is always sent.
+                        ConsolidateInput::BlockInfo(_) => {
+                            synchronize_unconditionally(self.client.as_ref(), state, update).await
+                        }
+                    };
+                    synchronized.map_err(|e| {
                         warn!(target: "engine", ?e, "Consolidation failed");
                         e
                     })?;
