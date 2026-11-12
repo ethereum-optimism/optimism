@@ -160,6 +160,7 @@ type l2ELFrontend struct {
 
 	binarySwitch stack.BinarySwitchable
 	logs         stack.LogObservable
+	wipeable     stack.DatadirWipeable
 }
 
 var (
@@ -167,6 +168,7 @@ var (
 	_ stack.UngracefulLifecycle = (*l2ELFrontend)(nil)
 	_ stack.BinarySwitchable    = (*l2ELFrontend)(nil)
 	_ stack.LogObservable       = (*l2ELFrontend)(nil)
+	_ stack.DatadirWipeable     = (*l2ELFrontend)(nil)
 )
 
 func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl opclient.RPC, userRPC string, engineRPCCl opclient.RPC, rollupCfg *rollup.Config) *l2ELFrontend {
@@ -211,6 +213,11 @@ func (r *l2ELFrontend) StopUngracefully() {
 func (r *l2ELFrontend) SwitchBinary(execPath string) {
 	r.require().NotNil(r.binarySwitch, "L2EL node %s cannot switch its binary", r.Name())
 	r.binarySwitch.SwitchBinary(execPath)
+}
+
+func (r *l2ELFrontend) WipeDatadir() {
+	r.require().NotNil(r.wipeable, "L2EL node %s cannot wipe its datadir", r.Name())
+	r.wipeable.WipeDatadir()
 }
 
 func (r *l2ELFrontend) ObserveLogs(observer func(logpipe.LogEntry)) func() {

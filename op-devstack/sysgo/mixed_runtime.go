@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -470,32 +469,17 @@ func buildMixedOpRethNode(
 		args = append(args, "--metrics=127.0.0.1:0")
 	}
 
-	initArgs := []string{
-		"init",
-		"--datadir=" + dataDirPath,
-		"--chain=" + chainConfigPath,
-	}
-	initOut, err := exec.Command(execPath, initArgs...).CombinedOutput()
-	t.Require().NoError(err, "must init op-reth node: %s", string(initOut))
+	initOpRethDatadir(t, execPath, dataDirPath, chainConfigPath)
 
+	var proofsHistoryDir string
 	if !opRethCfg.DisableProofsHistory {
-		proofHistoryDir := filepath.Join(tempDir, "proof-history")
-
-		initProofsArgs := []string{
-			"proofs",
-			"init",
-			"--datadir=" + dataDirPath,
-			"--chain=" + chainConfigPath,
-			"--proofs-history.storage-path=" + proofHistoryDir,
-		}
-		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
-
+		proofsHistoryDir = filepath.Join(tempDir, "proof-history")
+		initOpRethProofsStore(t, execPath, dataDirPath, chainConfigPath, proofsHistoryDir)
 		args = append(
 			args,
 			"--proofs-history",
 			"--proofs-history.window=10000",
-			"--proofs-history.storage-path="+proofHistoryDir,
+			"--proofs-history.storage-path="+proofsHistoryDir,
 		)
 	}
 
@@ -508,6 +492,9 @@ func buildMixedOpRethNode(
 		jwtSecret:          jwtSecret,
 		authRPC:            "",
 		userRPC:            "",
+		chainConfigPath:    chainConfigPath,
+		dataDirPath:        dataDirPath,
+		proofsHistoryDir:   proofsHistoryDir,
 		execPath:           execPath,
 		args:               args,
 		env:                []string{},
