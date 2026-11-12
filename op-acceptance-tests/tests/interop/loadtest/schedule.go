@@ -284,8 +284,8 @@ func (s *Steady) Run(t devtest.T, spammer Spammer) {
 				}
 				gasTarget, err := l2GasTarget(s.forks, unsafe)
 				if err != nil {
-					t.Errorf("Steady sampler cannot compute the gas target: %v", err)
 					cancel()
+					t.Errorf("Steady sampler cannot compute the gas target: %v", err)
 					return
 				}
 				// Apply backpressure when we meet or exceed the gas target.
@@ -347,9 +347,7 @@ func logOnError(t devtest.T, err error) {
 	}
 }
 
-// l2GasTarget returns the EIP-1559 gas target of an L2 block. The elasticity comes from the
-// block's own extraData rather than the chain config: from Holocene the SystemConfig sets it, so
-// the genesis value can be stale.
+// l2GasTarget returns block's EIP-1559 gas target, using the elasticity encoded in its own extraData.
 func l2GasTarget(forks eip1559.ForkChecker, block eth.BlockInfo) (uint64, error) {
 	if !forks.IsHolocene(block.Time()) {
 		return 0, fmt.Errorf("block %d predates Holocene, so its extraData has no EIP-1559 parameters", block.NumberU64())

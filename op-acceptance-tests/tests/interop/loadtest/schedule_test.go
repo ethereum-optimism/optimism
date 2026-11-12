@@ -14,6 +14,7 @@ import (
 )
 
 func TestL2GasTarget(t *testing.T) {
+	t.Parallel()
 	const (
 		holoceneTime = 100
 		jovianTime   = 200
