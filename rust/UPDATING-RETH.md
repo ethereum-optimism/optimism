@@ -493,6 +493,15 @@ on the next base:
   ethereum-optimism/reth#32 on `op-v2.6.0` and ethereum-optimism/reth#40 on
   `op-v2.7.0`, both picked from upstream with `-x`). No release up to v2.9.0
   contains it, so carry it until one does; the audit in step 2 drops it then.
+- **Forward fixes** (ethereum-optimism/reth#44 on `op-v2.7.0`, picked from
+  upstream with `-x`): `paradigmxyz/reth#28148` (first released in v2.9.0),
+  `#28253` (v2.10.0), and `#28314`, `#27716`, `#28370`, `#28403`, `#28423`
+  and `#28431` (v2.11.0). Carry each until the base contains it. On an
+  alloy-evm 0.39 base (`v2.8.1`), cherry-pick them from the current branch,
+  where `#28253` and `#28314` are hand-ported from evm2; on an evm2 base,
+  cherry-pick the upstream commits. Op-reth keeps its own copies of the
+  symbols `#27716` and `#28431` patch (`UPSTREAM-MIRROR` tags in
+  `rust/op-reth`), so check those mirrors against each pick.
 
 ### Pinning a fork change
 
