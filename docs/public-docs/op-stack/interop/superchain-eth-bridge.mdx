@@ -107,6 +107,13 @@ If the destination never relays the message, it [expires](/app-developers/guides
 
 Only the address that called `sendETH` can claim the refund. A contract that sends on a user's behalf must call `refundETH` itself and pass the ETH on. A relayed interop message cannot call `sendETH`: the relay reverts. A message from L1 can, but the send's sender is then the `L2CrossDomainMessenger`, which cannot spend a refund, so that ETH is lost if the send expires. To send ETH from L1 refundably, deposit it to your own address through the portal and call `sendETH` from there.
 
+<Warning>
+  `sendETH` does not check that the destination chain is in the same interop cluster as the source chain.
+  ETH sent to a chain outside the interop cluster can't be relayed or refunded, and is lost.
+</Warning>
+
+See the [known limitations of expiry](/app-developers/guides/interoperability/message-expiration#known-limitations) for all the cases where a refund can't reach its owner.
+
 ## L1 Treasury
 
 Every ETH in circulation on OP Stack chains—excluding ETH held by `ETHLiquidity`—must be backed by ETH on L1.
