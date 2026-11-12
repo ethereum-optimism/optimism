@@ -40,6 +40,10 @@ type L2CLConfig struct {
 
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
+	// SupportsPostFinalizationELSync lets an op-node in EL sync mode EL-sync even when its EL
+	// already has a finalized block past genesis. When false, such a node goes straight to CL sync.
+	// It is off unless set, whatever the EL, while production op-node turns it on for op-reth.
+	SupportsPostFinalizationELSync bool
 
 	// AltDAServerURL is the DA server the node reads alt-DA inputs from. Empty disables alt-DA.
 	AltDAServerURL string
@@ -54,6 +58,24 @@ func L2CLSequencer() L2CLOption {
 func L2CLFollowSource(source string) L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.FollowSource = source
+	})
+}
+
+// L2CLVerifierSyncMode sets the sync mode a verifier runs: CL sync has op-node fill unsafe gaps
+// from its peers, EL sync hands the forkchoice target to the EL and lets it sync from its own
+// peers.
+func L2CLVerifierSyncMode(mode nodeSync.Mode) L2CLOption {
+	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.VerifierSyncMode = mode
+	})
+}
+
+// L2CLPostFinalizationELSync sets whether an op-node in EL sync mode EL-syncs a restart even though
+// its EL has a finalized block past genesis. Production op-node enables it for an op-reth or
+// op-erigon EL and disables it for op-geth.
+func L2CLPostFinalizationELSync(enabled bool) L2CLOption {
+	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.SupportsPostFinalizationELSync = enabled
 	})
 }
 

@@ -23,6 +23,7 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/p2p"
 )
 
 var emptyHash = common.Hash{}
@@ -525,6 +526,15 @@ func (el *L2ELNode) Stop() {
 	lifecycle.Stop()
 }
 
+// StopUngracefully ends the node's process without a shutdown, the way a crash would, so state
+// it held only in memory is lost. Start brings the node back.
+func (el *L2ELNode) StopUngracefully() {
+	el.log.Info("Stopping ungracefully", "name", el.inner.Name())
+	lifecycle, ok := el.inner.(stack.UngracefulLifecycle)
+	el.require.Truef(ok, "L2EL node %s cannot be stopped ungracefully", el.inner.Name())
+	lifecycle.StopUngracefully()
+}
+
 func (el *L2ELNode) Start() {
 	lifecycle, ok := el.inner.(stack.Lifecycle)
 	el.require.Truef(ok, "L2EL node %s is not lifecycle-controllable", el.inner.Name())
@@ -537,6 +547,22 @@ func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 
 func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
 	sysgo.DisconnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
+}
+
+// Enode returns the node's enode URL, which identifies it to its peers across restarts.
+func (el *L2ELNode) Enode() string {
+	var info p2p.NodeInfo
+	el.require.NoErrorf(el.inner.L2EthClient().RPC().CallContext(el.ctx, &info, "admin_nodeInfo"),
+		"admin_nodeInfo on %s failed", el)
+	return info.Enode
+}
+
+// ForgetPeer drops this node's peer entry for peerEnode, trusted status included, and waits until
+// the peer is no longer connected. The peer may be down.
+func (el *L2ELNode) ForgetPeer(peerEnode string) {
+	el.log.Info("Forgetting peer", "node", el, "peer_enode", peerEnode)
+	sysgo.ForgetP2PPeer(el.ctx, el.require, el.inner.L2EthClient().RPC(), peerEnode)
+	el.log.Info("Forgot peer", "node", el, "peer_enode", peerEnode)
 }
 
 func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope {

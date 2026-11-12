@@ -140,6 +140,7 @@ func TestKonaL2CLConfigRejectsUnsupportedOptions(t *testing.T) {
 		{"role override", true, func(cfg *L2CLConfig) { cfg.IsSequencer = false }, "unsupported L2CL option"},
 		{"sequencer sync", true, func(cfg *L2CLConfig) { cfg.SequencerSyncMode = nodeSync.Mode(99) }, "unknown effective sync mode"},
 		{"verifier sync", false, func(cfg *L2CLConfig) { cfg.VerifierSyncMode = nodeSync.Mode(99) }, "unknown effective sync mode"},
+		{"post-finalization EL sync", false, func(cfg *L2CLConfig) { cfg.SupportsPostFinalizationELSync = true }, "unsupported L2CL option"},
 		{"verifier conductor", false, func(cfg *L2CLConfig) { cfg.ConductorRPC = "http://conductor:8547" }, "unsupported L2CL option"},
 		{"zero conductor timeout", true, func(cfg *L2CLConfig) { cfg.ConductorRPC = "http://conductor:8547" }, "timeout must be positive"},
 		{"fractional conductor timeout", true, func(cfg *L2CLConfig) {

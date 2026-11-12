@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -142,6 +143,62 @@ func (sp *SubProcess) stop(ctx context.Context, interrupt bool, interruptWait ti
 	return sp.completeStopLocked(interrupt, sp.waitErr)
 }
 
+// Kill ends the process with SIGKILL, so none of its shutdown logic runs: a crash, not a power
+// loss. A process that had already exited on its own is released, and Kill returns that exit as
+// an error.
+func (sp *SubProcess) Kill() error {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if sp.cmd == nil {
+		return nil // already stopped
+	}
+
+	select {
+	case <-sp.exited:
+		return sp.releaseExitedBeforeKillLocked()
+	default:
+	}
+
+	sp.p.Logger().Info("Killing sub-process", "pid", sp.cmd.Process.Pid)
+	killErr := sp.cmd.Process.Kill()
+	if killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+		sp.p.Logger().Error("Failed to kill sub-process", "pid", sp.cmd.Process.Pid, "err", killErr)
+		return fmt.Errorf("failed to kill sub-process: %w", killErr)
+	}
+	if !waitProcess(context.Background(), sp.exited, controlledKillWait) {
+		sp.p.Logger().Error("Sub-process did not exit after SIGKILL", "pid", sp.cmd.Process.Pid, "wait", controlledKillWait)
+		return fmt.Errorf("sub-process did not exit within %s of SIGKILL", controlledKillWait)
+	}
+	// The process can also exit on its own after the check above: Wait either reaps it before the
+	// signal (ErrProcessDone) or reaps it after the signal landed on the zombie, changing nothing.
+	if errors.Is(killErr, os.ErrProcessDone) || !terminatedBySIGKILL(sp.waitErr) {
+		return sp.releaseExitedBeforeKillLocked()
+	}
+	sp.p.Logger().Info("Sub-process killed", "exit", sp.waitErr)
+	sp.releaseLocked()
+	return nil
+}
+
+// releaseExitedBeforeKillLocked releases a process that exited on its own and returns the error
+// naming that exit.
+func (sp *SubProcess) releaseExitedBeforeKillLocked() error {
+	sp.p.Logger().Error("Sub-process exited before it could be killed", "exit", sp.waitErr)
+	sp.releaseLocked()
+	if sp.waitErr == nil {
+		return errors.New("sub-process exited with status 0 before it could be killed")
+	}
+	return fmt.Errorf("sub-process exited before it could be killed: %w", sp.waitErr)
+}
+
+func terminatedBySIGKILL(waitErr error) bool {
+	var exitErr *exec.ExitError
+	if !errors.As(waitErr, &exitErr) {
+		return false
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	return ok && status.Signaled() && status.Signal() == syscall.SIGKILL
+}
+
 func (sp *SubProcess) completeStopLocked(interrupt bool, waitErr error) error {
 	var exitErr *exec.ExitError
 	if waitErr != nil && !(interrupt && errors.As(waitErr, &exitErr)) {
@@ -151,7 +208,12 @@ func (sp *SubProcess) completeStopLocked(interrupt bool, waitErr error) error {
 	} else {
 		sp.p.Logger().Info("Sub-process gracefully exited")
 	}
+	sp.releaseLocked()
+	return nil
+}
 
+// releaseLocked closes the log pipes and forgets the exited process so Start can run a new one.
+func (sp *SubProcess) releaseLocked() {
 	if sp.stdOutProc != nil {
 		_ = sp.stdOutProc.Close()
 		sp.stdOutProc = nil
@@ -161,7 +223,6 @@ func (sp *SubProcess) completeStopLocked(interrupt bool, waitErr error) error {
 		sp.stdErrProc = nil
 	}
 	sp.cmd = nil
-	return nil
 }
 
 func waitProcess(ctx context.Context, exited <-chan struct{}, timeout time.Duration) bool {

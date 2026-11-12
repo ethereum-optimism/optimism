@@ -9,12 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/core/vm/program"
 )
 
 const (
@@ -99,27 +96,6 @@ func newProofsHistorySystem(t devtest.T, c proofsHistoryCase) *proofsHistorySyst
 	}
 }
 
-// deployBlockRecorder deploys a contract that writes the block number to slot 0 and the block
-// timestamp to slot 1 on every call, so every call changes its storage.
-func deployBlockRecorder(t devtest.T, deployer *dsl.EOA) common.Address {
-	runtimeCode := program.New().
-		Op(vm.NUMBER).Push(0).Op(vm.SSTORE).
-		Op(vm.TIMESTAMP).Push(1).Op(vm.SSTORE).
-		Bytes()
-	initCode := program.New().ReturnViaCodeCopy(runtimeCode).Bytes()
-
-	tx := deployer.Transact(deployer.Plan(), txplan.WithData(initCode))
-	receipt, err := tx.Included.Eval(t.Ctx())
-	t.Require().NoError(err, "block recorder deployment must be included")
-	return receipt.ContractAddress
-}
-
-func includedBlock(t devtest.T, tx *txplan.PlannedTx) uint64 {
-	receipt, err := tx.Included.Eval(t.Ctx())
-	t.Require().NoError(err, "transaction must be included")
-	return bigs.Uint64Strict(receipt.BlockNumber)
-}
-
 // TestProofsHistoryFollowerServesMatchingHistoricalProofs runs transfers, withdrawals and contract
 // writes against a sequencer that serves eth_getProof from its own historical state, then sweeps a
 // proofs-history follower from its window's first block to the last workload block: each of the
@@ -132,7 +108,7 @@ func TestProofsHistoryFollowerServesMatchingHistoricalProofs(gt *testing.T) {
 
 		alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
 		bob := sys.FunderL2.NewFundedEOA(eth.OneEther)
-		recorder := deployBlockRecorder(t, alice)
+		recorder := alice.DeployBlockRecorder()
 		var lastWorkloadBlock uint64
 		for round := range workloadRounds {
 			if round == workloadRounds-1 {
@@ -144,7 +120,7 @@ func TestProofsHistoryFollowerServesMatchingHistoricalProofs(gt *testing.T) {
 			alice.Transfer(bob.Address(), eth.OneHundredthEther)
 			bob.Transfer(alice.Address(), eth.OneHundredthEther)
 			sys.Bridge.InitiateWithdrawal(eth.OneHundredthEther, bob)
-			lastWorkloadBlock = includedBlock(t, alice.Transact(alice.Plan(), txplan.WithTo(&recorder)))
+			lastWorkloadBlock = dsl.IncludedBlockNumber(t, alice.Transact(alice.Plan(), txplan.WithTo(&recorder)))
 		}
 
 		sys.ProofsFollower.VerifyHistoricalProofsMatch(sys.Reference, func(opts *dsl.HistoricalProofsOpts) {

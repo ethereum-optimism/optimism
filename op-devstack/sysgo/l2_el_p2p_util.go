@@ -162,6 +162,30 @@ func DisconnectP2P(ctx context.Context, require *testreq.Assertions, initiator R
 	require.NoError(err, "The peer was not removed")
 }
 
+// ForgetP2PPeer drops node's peer entry for peerEnode and waits until node no longer lists that
+// peer. It needs only node to be reachable, so it can forget a peer that is down. The trusted
+// status goes first: reth's admin_removePeer leaves a trusted entry in place. Reth answers both
+// removals with true whether or not it held the entry, so only admin_peers shows the outcome.
+func ForgetP2PPeer(ctx context.Context, require *testreq.Assertions, node RpcCaller, peerEnode string) {
+	forgottenNode, err := enode.ParseV4(peerEnode)
+	require.NoError(err, "failed to parse the enode of the peer to forget")
+	forgottenID := forgottenNode.ID().String()
+
+	for _, method := range []string{"admin_removeTrustedPeer", "admin_removePeer"} {
+		var removed bool
+		require.NoErrorf(node.CallContext(ctx, &removed, method, peerEnode), "%s failed", method)
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	err = forPeerList(waitCtx, node, func(peers []peer) bool {
+		return !slices.ContainsFunc(peers, func(p peer) bool {
+			return strings.TrimPrefix(strings.ToLower(p.ID), "0x") == forgottenID
+		})
+	})
+	require.NoError(err, "the forgotten peer is still connected")
+}
+
 type peer struct {
 	ID string `json:"id"`
 }

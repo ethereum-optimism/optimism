@@ -155,9 +155,13 @@ type l2ELFrontend struct {
 	l2EngineClient *sources.EngineClient
 	lifecycle      stack.Lifecycle
 	control        stack.ControlledLifecycle
+	ungraceful     stack.UngracefulLifecycle
 }
 
-var _ stack.L2ELNode = (*l2ELFrontend)(nil)
+var (
+	_ stack.L2ELNode            = (*l2ELFrontend)(nil)
+	_ stack.UngracefulLifecycle = (*l2ELFrontend)(nil)
+)
 
 func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl opclient.RPC, userRPC string, engineRPCCl opclient.RPC, rollupCfg *rollup.Config) *l2ELFrontend {
 	t.Require().NotNil(rollupCfg, "rollup config must be configured")
@@ -191,6 +195,11 @@ func (r *l2ELFrontend) Start() {
 func (r *l2ELFrontend) Stop() {
 	r.require().NotNil(r.lifecycle, "L2EL node %s is not lifecycle-controllable", r.Name())
 	r.lifecycle.Stop()
+}
+
+func (r *l2ELFrontend) StopUngracefully() {
+	r.require().NotNil(r.ungraceful, "L2EL node %s cannot be stopped ungracefully", r.Name())
+	r.ungraceful.StopUngracefully()
 }
 
 func (r *l2ELFrontend) StartControlled(ctx context.Context) error {
