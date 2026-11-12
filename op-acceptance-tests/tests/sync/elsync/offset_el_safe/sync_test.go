@@ -52,6 +52,7 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	sys.L2CL.Advanced(safety.LocalUnsafe, 3, 30)
 
 	sys.L2ELB.Start()
+	t.Require().Zero(sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number, "EL resync must start from genesis")
 	sys.L2CLB.Start()
 	sys.L2ELB.WaitForOnline()
 	sys.L2ELB.PeerWith(sys.L2EL)

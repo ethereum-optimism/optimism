@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
@@ -45,6 +46,7 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	sys.L2CL.Advanced(safety.LocalSafe, 3, 30)
 
 	sys.L2ELB.Start()
+	t.Require().Zero(sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number, "EL resync must start from genesis")
 	sys.L2CLB.Start()
 	// Wait for the restarted EL to be ready to accept RPC/P2P connections
 	// before attempting to peer. Without this, PeerWith may waste its 30s

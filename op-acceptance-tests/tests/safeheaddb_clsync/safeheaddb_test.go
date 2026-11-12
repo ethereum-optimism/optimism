@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
@@ -40,6 +41,7 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	sys.L2CL.Advanced(safety.LocalSafe, 3, 30)
 
 	sys.L2ELB.Start()
+	t.Require().Zero(sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number, "EL resync must start from genesis")
 	sys.L2CLB.Start()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
