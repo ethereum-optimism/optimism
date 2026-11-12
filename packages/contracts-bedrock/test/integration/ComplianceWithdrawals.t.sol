@@ -93,6 +93,41 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
         _assertReleased(id);
     }
 
+    /// @notice Tests that a held ETH withdrawal through the bridge completes through the Portal,
+    ///         the messenger and the bridge, and pays its recipient the same amount as a
+    ///         withdrawal that is paid at finalization.
+    function test_bridgeETHWithdrawal_heldThenCompleted_succeeds() external {
+        Types.WithdrawalTransaction memory withdrawal = _bridgeETHWithdrawal(0, alice, bob, AMOUNT);
+        (bytes32 id,) = _itemOf(withdrawal);
+        _proveAndWarpToHoldable(withdrawal);
+        uint256 bobBalance = bob.balance;
+
+        uint256 snapshot = vm.snapshotState();
+        _clear(id);
+        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        uint256 direct = bob.balance;
+        vm.revertToState(snapshot);
+
+        (bytes32 heldId, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
+
+        assertEq(heldId, id);
+        _assertHeldWithdrawal(id);
+        assertEq(module.parties(item).sender, alice);
+        assertEq(module.parties(item).recipient, bob);
+        assertEq(address(module).balance, AMOUNT);
+        assertEq(bob.balance, bobBalance);
+
+        _clear(id);
+        vm.prank(anyone);
+        module.completeWithdrawal(item);
+
+        assertEq(bob.balance, direct);
+        assertEq(direct, bobBalance + AMOUNT);
+        assertEq(address(module).balance, 0);
+        assertTrue(l1CrossDomainMessenger.successfulMessages(keccak256(withdrawal.data)));
+        _assertReleased(id);
+    }
+
     /// @notice Tests that a held token withdrawal moves its tokens from the bridge's escrow to
     ///         the module and pays its recipient at completion, as a cleared one does at
     ///         finalization.

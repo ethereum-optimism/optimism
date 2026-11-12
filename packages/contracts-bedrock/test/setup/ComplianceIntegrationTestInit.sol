@@ -230,6 +230,14 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
         optimismPortal2.depositTransaction{ value: _value }(_to, _value, DEPOSIT_GAS_LIMIT, false, hex"");
     }
 
+    /// @notice Deposits ETH through the L1StandardBridge.
+    function _depositBridgeETH(address _from, address _to, uint256 _value) internal {
+        vm.getRecordedLogs();
+        vm.deal(_from, _from.balance + _value);
+        vm.prank(_from, _from);
+        l1StandardBridge.bridgeETHTo{ value: _value }(_to, MESSAGE_GAS_LIMIT, hex"");
+    }
+
     /// @notice Deposits L1Token, which the bridge escrows, through the L1StandardBridge.
     function _depositERC20(address _from, address _to, uint256 _amount) internal {
         _depositToken(address(L1Token), address(L2Token), _from, _to, _amount);
@@ -365,6 +373,26 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
                 ICrossDomainMessenger.relayMessage, (nonce, _sender, _target, _value, MESSAGE_GAS_LIMIT, _message)
             )
         });
+    }
+
+    /// @notice Builds a withdrawal of ETH through the standard bridges.
+    function _bridgeETHWithdrawal(
+        uint256 _nonce,
+        address _from,
+        address _to,
+        uint256 _amount
+    )
+        internal
+        view
+        returns (Types.WithdrawalTransaction memory)
+    {
+        return _messageWithdrawal(
+            _nonce,
+            Predeploys.L2_STANDARD_BRIDGE,
+            address(l1StandardBridge),
+            _amount,
+            abi.encodeCall(IStandardBridge.finalizeBridgeETH, (_from, _to, _amount, hex""))
+        );
     }
 
     /// @notice Builds a withdrawal of L1Token through the standard bridges.

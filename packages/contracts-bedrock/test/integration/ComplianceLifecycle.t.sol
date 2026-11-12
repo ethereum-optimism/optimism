@@ -160,14 +160,21 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
     }
 
     /// @notice Tests that disabling the module pays withdrawals initiated at or after the cutoff
-    ///         with no verdict, while a withdrawal initiated before it is still screened.
+    ///         with no verdict, while a withdrawal initiated before it is still screened and a
+    ///         withdrawal held before the disable still needs a verdict. Enabling the module
+    ///         restores screening for new withdrawals.
     function test_disable_withdrawals_succeeds() external {
+        Types.WithdrawalTransaction memory heldBefore = _withdrawal(4, alice, bob, AMOUNT);
         Types.WithdrawalTransaction memory beforeCutoff = _withdrawal(5, alice, bob, AMOUNT);
         Types.WithdrawalTransaction memory atCutoff = _withdrawal(6, alice, bob, AMOUNT);
-        (bytes32 id,) = _itemOf(beforeCutoff);
+        Types.WithdrawalTransaction memory afterEnable = _withdrawal(7, alice, bob, AMOUNT);
+        _prove(heldBefore);
         _prove(beforeCutoff);
-        uint256 holdableAt = _warpToFinalizable(_prove(atCutoff)) + HOLD_DELAY;
+        _prove(atCutoff);
+        // Past the hold delay, the policy holds every withdrawal it screens without a verdict.
+        _proveAndWarpToHoldable(afterEnable);
         uint256 bobBalance = bob.balance;
+        (bytes32 heldId, BridgeHookTypes.Item memory held) = _holdWithdrawal(heldBefore);
 
         vm.prank(moduleOwner);
         module.disable(atCutoff.nonce);
@@ -175,12 +182,21 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
         optimismPortal2.finalizeWithdrawalTransaction(atCutoff);
         assertEq(bob.balance, bobBalance + AMOUNT);
 
-        vm.expectRevert(abi.encodeWithSelector(IVisionPolicyV1.VisionPolicyV1_NotYetHoldable.selector, holdableAt));
-        optimismPortal2.finalizeWithdrawalTransaction(beforeCutoff);
+        _holdWithdrawal(beforeCutoff);
+        vm.expectRevert(IComplianceModule.ComplianceModule_ItemNotCleared.selector);
+        module.completeWithdrawal(held);
 
-        _clear(id);
-        optimismPortal2.finalizeWithdrawalTransaction(beforeCutoff);
+        vm.prank(moduleOwner);
+        module.enable();
+
+        _holdWithdrawal(afterEnable);
+
+        _clear(heldId);
+        module.completeWithdrawal(held);
+
         assertEq(bob.balance, bobBalance + 2 * AMOUNT);
+        assertEq(address(module).balance, 2 * AMOUNT);
+        _assertReleased(heldId);
     }
 
     /// @notice Holds an ETH deposit, a token deposit and an ETH withdrawal to bob, and records a

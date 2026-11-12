@@ -46,6 +46,33 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         assertEq(_ethVault().balance, vault + AMOUNT);
     }
 
+    /// @notice Tests that a held ETH deposit through the bridge completes as the same L2
+    ///         transaction as one that proceeds, and that the policy screens the depositor and the
+    ///         recipient of the bridge message, not the messenger that calls the Portal.
+    function test_bridgeETHDeposit_heldThenCompleted_succeeds() external {
+        uint256 snapshot = vm.snapshotState();
+        _allowlist(alice);
+        _depositBridgeETH(alice, bob, AMOUNT);
+        bytes32 direct = _publishedDeposit();
+        vm.revertToState(snapshot);
+
+        uint256 vault = _ethVault().balance;
+        _depositBridgeETH(alice, bob, AMOUNT);
+        (bytes32 id, BridgeHookTypes.Item memory item) = _heldDeposit();
+
+        _assertHeldDeposit(id);
+        assertEq(module.parties(item).sender, alice);
+        assertEq(module.parties(item).recipient, bob);
+        assertEq(address(module).balance, AMOUNT);
+        assertEq(_ethVault().balance, vault);
+
+        _clear(id);
+        assertEq(_completeDeposit(item), direct);
+        _assertReleased(id);
+        assertEq(address(module).balance, 0);
+        assertEq(_ethVault().balance, vault + AMOUNT);
+    }
+
     /// @notice Tests that a held deposit from a contract completes with the same aliased sender
     ///         as one that proceeds, while the policy screens the contract's own address.
     function test_contractDeposit_heldThenCompleted_succeeds() external {
