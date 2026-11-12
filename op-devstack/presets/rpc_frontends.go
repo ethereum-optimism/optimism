@@ -54,7 +54,7 @@ type rpcELNode struct {
 	presetCommon
 
 	client    opclient.RPC
-	ethClient *sources.EthClient
+	ethClient apis.EthClient
 	chainID   eth.ChainID
 	userRPC   string
 	txTimeout time.Duration
@@ -62,10 +62,8 @@ type rpcELNode struct {
 
 var _ stack.ELNode = (*rpcELNode)(nil)
 
-func newRPCELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string, timeout time.Duration) rpcELNode {
-	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
-	ethCl, err := sources.NewEthClient(rpcCl, t.Logger(), nil, sources.DefaultEthClientConfig(10))
-	t.Require().NoError(err)
+// newRPCELNode expects t to already carry the chain ID in its context.
+func newRPCELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, ethCl apis.EthClient, userRPC string, timeout time.Duration) rpcELNode {
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}
@@ -102,8 +100,11 @@ type l1ELFrontend struct {
 var _ stack.L1ELNode = (*l1ELFrontend)(nil)
 
 func newPresetL1ELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string) *l1ELFrontend {
+	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
+	ethCl, err := sources.NewEthClient(rpcCl, t.Logger(), nil, sources.DefaultEthClientConfig(10))
+	t.Require().NoError(err)
 	return &l1ELFrontend{
-		rpcELNode: newRPCELNode(t, name, chainID, rpcCl, userRPC, 0),
+		rpcELNode: newRPCELNode(t, name, chainID, rpcCl, ethCl, userRPC, 0),
 	}
 }
 
@@ -160,6 +161,7 @@ type l2ELFrontend struct {
 var _ stack.L2ELNode = (*l2ELFrontend)(nil)
 
 func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl opclient.RPC, userRPC string, engineRPCCl opclient.RPC, rollupCfg *rollup.Config) *l2ELFrontend {
+	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	t.Require().NotNil(rollupCfg, "rollup config must be configured")
 	l2Client, err := sources.NewL2Client(userRPCCl, t.Logger(), nil, sources.L2ClientSimpleConfig(rollupCfg, false, 10, 10))
 	t.Require().NoError(err)
@@ -169,7 +171,7 @@ func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl 
 	engineClient, err := sources.NewEngineClient(engineRPCCl, t.Logger(), nil, engineClientCfg)
 	t.Require().NoError(err)
 	return &l2ELFrontend{
-		rpcELNode:      newRPCELNode(t, name, chainID, userRPCCl, userRPC, 0),
+		rpcELNode:      newRPCELNode(t, name, chainID, userRPCCl, l2Client, userRPC, 0),
 		l2Client:       l2Client,
 		l2EngineClient: engineClient,
 	}
