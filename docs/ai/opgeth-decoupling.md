@@ -242,6 +242,12 @@ go-ethereum types, not OP-hardfork reads, and they stay. An L3's L1 is an OP cha
 blobs: `NewL1ChainConfigFromCLI` replaces its config with one that prices every block's blobs at
 the minimum, as op-geth's OP-chain shortcut did. Regressions fail the ratchet (§19).
 
+op-devstack splits the same way: `stack.L1Network.ChainConfig()` returns the go-ethereum config
+and `stack.L2Network.ChainConfig()` returns `*opparams.ChainConfig`, so reading an OP value off an
+L2 network's config either works or fails to compile. The `Optimism` EIP-1559 values on that
+config are the genesis values; from Holocene the SystemConfig sets them, so a test that needs the
+parameters in effect decodes them from the block's extraData (`eip1559.DecodeOptimismExtraData`).
+
 ---
 
 ## 6. `params/superchain.go` – `LoadOPStackChainConfig` — **DONE**
@@ -430,8 +436,8 @@ adds — from Isthmus the header's `WithdrawalsHash` is the storage root of the
 `L2ToL1MessagePasser` predeploy (upstream `state`/`triedb`) instead of the empty hash.
 `GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum:
 the in-process op-geth ELs of op-e2e and op-devstack (§17). op-e2e's action-test
-`SetupData.L2Cfg` is the `Genesis` itself. op-devstack's `L2Network.ChainConfig()` still
-returns the go-ethereum config `GethChainConfig()` derives (§13).
+`SetupData.L2Cfg` is the `Genesis` itself. op-devstack's `L2Network.ChainConfig()` returns the
+`Genesis`'s own `opparams.ChainConfig` (§5).
 
 `opparams.ChainConfig`'s JSON codec writes the go-ethereum config `GethChainConfig()` derives,
 embedded, with the OP fields declared directly: `encoding/json` lets a direct field dominate a
@@ -529,7 +535,7 @@ parsing) is extended to every use:
 
 | Use | Mechanism |
 |---|---|
-| Live deploys (`apply` live, `bootstrap`) | `forge script --broadcast` |
+| Live deploys (`apply` live, `bootstrap`) | keyless `forge script` dry run; op-deployer sends the transactions that forge records through txmgr, which keeps rebroadcasts and fee bumps |
 | Genesis-target L1 (op-e2e, sysgo, `apply --deployment-target genesis`) | offline `forge script`, one process per stage, chained by a state-in/state-out hook (`vm.loadAllocs` / `vm.dumpState`) in the deploy scripts' `runWithBytes`; `SetPreinstalls` runs in forge, while geth-param preinstalls, prefund, mock SP1 verifier and seal stay Go-side alloc edits |
 | L2 genesis | offline `forge script` dump wrapper around `L2Genesis.s.sol` |
 | `prepare` / `continue` | keyless forge dry-run; `continue` preflight on an ephemeral `anvil --fork-url` |
@@ -555,7 +561,7 @@ Invariants:
 - **forge (and anvil, for `continue`) is a runtime dependency.** Shipped in the op-deployer image;
   auto-downloaded (pinned, checksummed) on Linux and macOS; on PATH via mise in CI and devstack.
 - **Per-invocation isolation.** Concurrent forge runs (devstack) get their own `FOUNDRY_BROADCAST`
-  directory, and their own state files inside the bundle's `fs_permissions`.
+  directory, and their own state files in a temp directory that only their `fs_permissions` grant.
 
 **No interim module split.** Splitting op-chain-ops+op-deployer into their own Go module that
 keeps the op-geth replace was considered and rejected: the epic's value only materialises when we
@@ -577,11 +583,9 @@ with no compile error to warn us. The in-process **L1** geth miner is unaffected
 semantics are exactly right for it under upstream) and stays.
 
 Plan: make op-reth the **only** L2 EL kind — delete `ELKindOpGeth`, `geth.InitL2`,
-`l2_el_opgeth.go`, and the geth-only knob plumbing (`GethOptions`); resolve each geth-pinned test
-case by case (migrate or delete with rationale; derive the pin list by grepping `ELKindOpGeth` /
-`GethOption`). The pre-Regolith tests (#21451: op-reth returns `IsSystemTx` as a string on
-pre-Regolith blocks) fold into this — likely resolved by deleting them and requiring
-bedrock/regolith co-activation. Precedent: #21182 (acceptance tests op-reth-only for Karst+).
+`l2_el_opgeth.go`, and the geth-only knob plumbing (`GethOptions`). No op-e2e system test pins
+op-geth. System tests don't cover pre-Regolith L2 blocks, since every live chain activated
+Regolith together with Bedrock. Precedent: #21182 (acceptance tests op-reth-only for Karst+).
 
 ---
 
@@ -764,7 +768,7 @@ monorepo-only (#22678).
 | One-off fork symbols (§15) | per-symbol swaps | `SetBlobTxSidecar`/`LogForStorage` **done**; test sites ride §13 (#23405) |
 | Remaining non-test fork uses (§5, §15, §18, op-test-sequencer) | swap or delete | **done**; op-test-sequencer's is a cutover edit |
 | `op-chain-ops/script` + op-deployer (§16) | upstream forge only; delete Go host + interopgen | open (#23300) |
-| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open (#21744) |
+| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only | open (#21744) |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | **done** (#21746) |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | **done** (#23217) |

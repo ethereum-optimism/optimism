@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
@@ -181,7 +182,12 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	// assertions.go:387:             	Test:       	TestFollowL2_WithoutCLP2P
 	// assertions.go:387:             	Messages:   	single-chain test sequencer requires an op-node CL nod
 	sysgo.SkipOnKonaNode(t, "not supported")
-	sys := newSingleChainTwoVerifiersFollowL2(t)
+	// Without CL P2P, L2CLC learns of new blocks only from its follow source, polled every two
+	// L2 blocks. When the source's local-safe head is past L2CLC's unsafe head, op-node has its
+	// EL sync to it, gets SYNCING back and resets local-safe to the finalized head. It recovers
+	// at the next poll that finds the source's head unchanged. With L1 blocks of 4s or less the
+	// source's safe head moves at almost every poll, so L2CLC keeps resetting. Keep 6s L1 blocks.
+	sys := newSingleChainTwoVerifiersFollowL2(t, presets.WithL1BlockTime(6))
 	require := t.Require()
 	logger := t.Logger()
 

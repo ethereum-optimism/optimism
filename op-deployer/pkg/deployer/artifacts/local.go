@@ -1,0 +1,367 @@
+package artifacts
+
+import (
+	"archive/tar"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/gofrs/flock"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts/bundle"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+)
+
+const (
+	// bundleFormat names the bundles that bundle.Write writes, so that a change to it repacks.
+	bundleFormat = "op-deployer-bundle-v4"
+	// keptBundles is the number of the most recently used bundles that eviction keeps.
+	keptBundles = 4
+	// packingPrefix starts the name of a bundle that a process is still packing.
+	packingPrefix = "packing-"
+	// staleAfter is the age after which a pack that has not finished has stopped.
+	staleAfter = 24 * time.Hour
+	// lockPollInterval is how often a process that waits for a lock tries it again.
+	lockPollInterval = 100 * time.Millisecond
+	// packLockSuffix and useLockSuffix end the names of the locks of a bundle.
+	packLockSuffix = ".pack.lock"
+	useLockSuffix  = ".use.lock"
+)
+
+// openLocal returns the artifacts at dir: a forge project, or the artifacts directory of one. It
+// packs a built forge project into a bundle, as bundle.Write packs it, so that forge runs on the
+// bundle: without the AST, a run takes a fraction of the memory and time. The bundles are in the
+// bundles directory of cacheDir, or of op-deployer's default cache directory when cacheDir is empty,
+// shared by the processes that use it, and keyed by the project and its build: a rebuild of the
+// project gets a new bundle, and a bundle in use stays as it was. A directory that is not a built
+// forge project, or that op-deployer cannot bundle, is used as it is.
+func openLocal(dir string, cacheDir string) fs.FS {
+	return openProject(dir, cacheDir, true)
+}
+
+// openProject returns the artifacts at dir as openLocal does. With shared false, the bundles are in
+// a new directory of this process, as processBundlesDir makes it, not in the shared one.
+func openProject(dir string, cacheDir string, shared bool) fs.FS {
+	dir = filepath.Clean(dir)
+	project, artifactsDir := dir, filepath.Join(dir, bundle.ScriptReadDir)
+	if _, err := os.Stat(artifactsDir); err != nil {
+		// TODO(#18346): Accept this for now but in the future we should error
+		project, artifactsDir = filepath.Dir(dir), dir
+	}
+	// A bundle is keyed by the project's path, and its pack walks the project.
+	resolved, err := filepath.EvalSymlinks(project)
+	if err != nil {
+		log.Debug("Using the local artifacts as they are", "dir", dir, "err", err)
+		return os.DirFS(artifactsDir)
+	}
+	rel, err := filepath.Rel(project, artifactsDir)
+	if err != nil {
+		log.Debug("Using the local artifacts as they are", "dir", dir, "err", err)
+		return os.DirFS(artifactsDir)
+	}
+	// op-deployer lets scripts read only bundle.ScriptReadDir, so a build with other artifacts is not
+	// one that it runs.
+	if buildArtifactsDir, err := bundle.ArtifactsDir(resolved); err != nil || buildArtifactsDir != bundle.ScriptReadDir || filepath.ToSlash(rel) != buildArtifactsDir {
+		log.Debug("Using the local artifacts as they are: not a forge build that op-deployer copies",
+			"dir", dir, "artifacts", buildArtifactsDir, "err", err)
+		return os.DirFS(artifactsDir)
+	}
+	if _, err := os.Stat(filepath.Join(resolved, "foundry.toml")); err != nil {
+		log.Debug("Using the local artifacts as they are: not a forge project", "dir", dir, "err", err)
+		return os.DirFS(artifactsDir)
+	}
+
+	// The shared directory can fail where one of this process works, as without a home or without
+	// file locks on a network home.
+	if shared {
+		bundleDir, err := bundleIn(sharedBundlesDir, cacheDir, resolved, rel)
+		if err == nil {
+			return os.DirFS(filepath.Join(bundleDir, rel))
+		}
+		log.Warn("Cannot use the shared copy of the contracts build; copying it for this process", "project", resolved, "err", err)
+	}
+	bundleDir, err := bundleIn(processBundlesDir, cacheDir, resolved, rel)
+	if err == nil {
+		return os.DirFS(filepath.Join(bundleDir, rel))
+	}
+	log.Warn("Cannot copy the contracts build without the AST; forge runs on the build and takes several times the memory",
+		"project", resolved, "err", err)
+	return os.DirFS(artifactsDir)
+}
+
+// bundleIn returns the bundle of the forge project at project in the bundles directory that
+// bundlesDir returns for cacheDir, as localBundle does.
+func bundleIn(bundlesDir func(cacheDir string) (string, error), cacheDir string, project string, artifactsDir string) (string, error) {
+	root, err := bundlesDir(cacheDir)
+	if err != nil {
+		return "", err
+	}
+	return localBundle(project, root, artifactsDir)
+}
+
+// sharedBundlesDir returns the bundles directory of cacheDir, or of op-deployer's default cache
+// directory, ~/.op-deployer/cache, when cacheDir is empty. The processes that use the cache directory
+// share it.
+func sharedBundlesDir(cacheDir string) (string, error) {
+	if cacheDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		cacheDir = filepath.Join(home, ".op-deployer", "cache")
+	}
+	dir := filepath.Join(cacheDir, "bundles")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create the bundles directory: %w", err)
+	}
+	return dir, nil
+}
+
+// processBundlesDir returns a new directory for the bundles of this process in cacheDir, or in the
+// temporary directory when cacheDir is empty. The process removes it when it exits.
+func processBundlesDir(cacheDir string) (string, error) {
+	dir, err := os.MkdirTemp(cacheDir, "op-deployer-bundles-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create the bundles directory: %w", err)
+	}
+	RegisterForCleanup(dir)
+	return dir, nil
+}
+
+// pack writes the bundle of a forge project into a directory. Tests replace it to count the packs.
+var pack = packBundle
+
+// lockTimeout bounds the wait for a lock of a bundle: a pack takes seconds, and a process that hung
+// while it held the lock must not hold up the later ones. Tests shorten it.
+var lockTimeout = 5 * time.Minute
+
+// lockWithin takes l, exclusive or shared, and waits up to timeout while another process holds it.
+func lockWithin(l *flock.Flock, exclusive bool, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	try := l.TryRLockContext
+	if exclusive {
+		try = l.TryLockContext
+	}
+	if _, err := try(ctx, lockPollInterval); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("another process held the lock %s for more than %s", l.Path(), timeout)
+		}
+		return fmt.Errorf("failed to lock %s: %w", l.Path(), err)
+	}
+	return nil
+}
+
+// usedBundles holds the use locks of the bundles that this process uses, by directory.
+var usedBundles = struct {
+	sync.Mutex
+	locks map[string]*flock.Flock
+}{locks: make(map[string]*flock.Flock)}
+
+// localBundle returns the bundle of the build of the forge project at project in root, and packs it
+// when root has none. A bundle has two locks. Its pack lock is exclusive while a process packs it, so
+// that a process that finds another one packing the same build waits and uses its bundle. Its use
+// lock is shared while a process uses it, until the process exits, and evictBundles removes only a
+// bundle whose use lock it can take exclusive. Every op-deployer that shares a bundle directory
+// follows these locks, so a change to them needs another directory.
+func localBundle(project string, root string, artifactsDir string) (string, error) {
+	key, err := buildKey(project)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(root, key)
+	usedBundles.Lock()
+	defer usedBundles.Unlock()
+	if _, ok := usedBundles.locks[dir]; ok {
+		touchBundle(dir)
+		return dir, nil
+	}
+	use := flock.New(dir + useLockSuffix)
+	if err := lockWithin(use, false, lockTimeout); err != nil {
+		return "", err
+	}
+	// An eviction can have removed the bundle before this process took the use lock.
+	exists, err := bundleExists(dir)
+	if err == nil && !exists {
+		err = packOnce(project, root, key, artifactsDir)
+	}
+	if err != nil {
+		_ = use.Close()
+		return "", err
+	}
+	touchBundle(dir)
+	usedBundles.locks[dir] = use
+	return dir, nil
+}
+
+// packOnce packs the build key of the forge project at project into root, unless another process
+// packed it while this one waited for the pack lock, and then evicts the bundles beyond keptBundles.
+func packOnce(project string, root string, key string, artifactsDir string) error {
+	dir := filepath.Join(root, key)
+	packLock := flock.New(dir + packLockSuffix)
+	defer packLock.Close()
+	if err := lockWithin(packLock, true, lockTimeout); err != nil {
+		return err
+	}
+	if exists, err := bundleExists(dir); err != nil || exists {
+		return err
+	}
+	// The pack goes to a new directory and is renamed into place, so that a pack that stops leaves no
+	// partial bundle.
+	packing, err := os.MkdirTemp(root, packingPrefix+"*")
+	if err != nil {
+		return fmt.Errorf("failed to create the bundle directory: %w", err)
+	}
+	if err := pack(project, packing); err != nil {
+		_ = os.RemoveAll(packing)
+		return err
+	}
+	// A build that changed during the pack can have mixed the two builds.
+	if after, err := buildKey(project); err != nil || after != key {
+		_ = os.RemoveAll(packing)
+		return fmt.Errorf("the forge project %s changed while op-deployer copied it; run op-deployer again after the build", project)
+	}
+	if err := checkBundle(packing, artifactsDir); err != nil {
+		_ = os.RemoveAll(packing)
+		return fmt.Errorf("the bundle of the forge project %s is incomplete: %w", project, err)
+	}
+	if err := os.Rename(packing, dir); err != nil {
+		_ = os.RemoveAll(packing)
+		return fmt.Errorf("failed to store the bundle: %w", err)
+	}
+	evictBundles(root, dir)
+	return nil
+}
+
+// bundleExists reports whether there is a bundle at dir.
+func bundleExists(dir string) (bool, error) {
+	_, err := os.Stat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// checkBundle checks that the bundle at dir has the files that forge needs.
+func checkBundle(dir string, artifactsDir string) error {
+	for name, wantDir := range map[string]bool{bundle.CompileCacheFile: false, "foundry.toml": false, artifactsDir: true} {
+		info, err := os.Stat(filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+		if info.IsDir() != wantDir {
+			return fmt.Errorf("%s has the wrong type", name)
+		}
+	}
+	return nil
+}
+
+// touchBundle marks the bundle at dir as used now, for evictBundles.
+func touchBundle(dir string) {
+	now := time.Now()
+	_ = os.Chtimes(dir, now, now)
+}
+
+// buildKey returns the key of the bundle of the forge project at project. The path keeps projects
+// apart. The compile cache identifies the build: it holds the hash, time and settings of each source
+// and the ids of the build infos. The forge config adds the settings of a run.
+func buildKey(project string) (string, error) {
+	h := sha256.New()
+	h.Write([]byte(bundleFormat))
+	h.Write([]byte{0})
+	h.Write([]byte(project))
+	for _, name := range []string{bundle.CompileCacheFile, "foundry.toml"} {
+		data, err := os.ReadFile(filepath.Join(project, name))
+		if err != nil {
+			return "", fmt.Errorf("failed to read the build of the forge project: %w", err)
+		}
+		h.Write([]byte{0})
+		h.Write(data)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// packBundle writes the bundle of the forge project at project into dir.
+func packBundle(project string, dir string) error {
+	pr, pw := io.Pipe()
+	written := make(chan error, 1)
+	go func() {
+		err := bundle.Write(pw, project, nil, "")
+		pw.CloseWithError(err)
+		written <- err
+	}()
+	// When bundle.Write fails, Untar fails with its error.
+	err := ioutil.Untar(dir, tar.NewReader(pr))
+	// Unblocks bundle.Write when Untar stopped early.
+	pr.CloseWithError(errors.New("bundle extraction stopped"))
+	if writeErr := <-written; err == nil {
+		err = writeErr
+	}
+	if err != nil {
+		return fmt.Errorf("failed to bundle the forge project %s: %w", project, err)
+	}
+	return nil
+}
+
+// evictBundles removes the bundles in root, other than keep, beyond the keptBundles most recently
+// used, unless a process uses them, and the packs that stopped more than staleAfter ago. The empty
+// lock files stay, so that processes that wait for a lock still exclude each other.
+func evictBundles(root string, keep string) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return
+	}
+	type usedBundle struct {
+		path string
+		used time.Time
+	}
+	var bundles []usedBundle
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil || !entry.IsDir() {
+			continue
+		}
+		p := filepath.Join(root, entry.Name())
+		if strings.HasPrefix(entry.Name(), packingPrefix) {
+			if time.Since(info.ModTime()) > staleAfter {
+				_ = os.RemoveAll(p)
+			}
+			continue
+		}
+		if p != keep {
+			bundles = append(bundles, usedBundle{path: p, used: info.ModTime()})
+		}
+	}
+	slices.SortFunc(bundles, func(a, b usedBundle) int { return b.used.Compare(a.used) })
+	// keep is one of the keptBundles.
+	for _, b := range bundles[min(len(bundles), keptBundles-1):] {
+		evictBundle(b.path)
+	}
+}
+
+// evictBundle removes the bundle at dir unless a process uses it. It moves the bundle out of the way
+// first, so that a removal that stops leaves no partial bundle at dir.
+func evictBundle(dir string) {
+	use := flock.New(dir + useLockSuffix)
+	defer use.Close()
+	if ok, err := use.TryLock(); err != nil || !ok {
+		return
+	}
+	trash, err := os.MkdirTemp(filepath.Dir(dir), packingPrefix+"evicted-*")
+	if err != nil {
+		return
+	}
+	_ = os.Rename(dir, filepath.Join(trash, "bundle"))
+	_ = os.RemoveAll(trash)
+}

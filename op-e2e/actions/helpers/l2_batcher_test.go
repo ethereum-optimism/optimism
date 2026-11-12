@@ -26,7 +26,7 @@ func TestL2BatcherModifierDoesNotPoisonCache(gt *testing.T) {
 	env.Seq.ActL2EndBlock(t)
 	head := env.Seq.L2Unsafe()
 	// The engine's SourceClient has its own cache, so this is the block as the engine has it.
-	want, err := env.SeqEngine.SourceClient(t, 10).PayloadByHash(t.Ctx(), head.Hash)
+	want, err := env.SeqEngine.SourceClient().PayloadByHash(t.Ctx(), head.Hash)
 	require.NoError(t, err)
 
 	engCl := env.SeqEngine.EngineClient(t, env.SetupData.RollupCfg)

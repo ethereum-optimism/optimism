@@ -39,6 +39,7 @@ type Config struct {
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
 	FailsafeLogInterval         time.Duration // Interval for re-logging the active failsafe reason (default: 1m)
 	ReorgRecoveryEnabled        bool          // If true, automatically rewinds reorg-triggered failsafe to finalized
+	FailsafeEnabled             bool          // If true, enables the manual failsafe at start
 	Passthrough                 bool          // If true, all transactions pass through without filtering
 	LegacyCheckAccessListFormat bool          // If true, allows access list requests that omit executing chainID
 	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
@@ -184,6 +185,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		ValidationInterval:          validationInterval,
 		FailsafeLogInterval:         failsafeLogInterval,
 		ReorgRecoveryEnabled:        ctx.Bool(flags.ReorgRecoveryEnabledFlag.Name),
+		FailsafeEnabled:             ctx.Bool(flags.FailsafeEnabledFlag.Name),
 		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
 		LegacyCheckAccessListFormat: ctx.Bool(flags.SupportLegacyCheckAccessListFormatFlag.Name),
 		RPCConcurrency:              rpcConcurrency,

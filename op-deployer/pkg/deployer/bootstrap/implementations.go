@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -58,8 +58,11 @@ type ImplementationsConfig struct {
 	SuperchainProxyAdmin               common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                         common.Address     `cli:"challenger"`
 	CacheDir                           string             `cli:"cache-dir"`
-	UseForge                           bool               `cli:"use-forge"`
-	ForgeSlowBroadcast                 bool               `cli:"forge-slow-broadcast"`
+	// DeployMockSP1Verifier deploys an accept-all SP1 verifier on an L1 without a release verifier,
+	// in place of SP1Verifier.
+	DeployMockSP1Verifier bool
+	// UseScriptHost runs the script on the Go script host instead of forge.
+	UseScriptHost bool
 	// ReceiptQueryInterval is how often to poll for each broadcast's receipt. Zero uses the broadcaster's default.
 	ReceiptQueryInterval time.Duration
 
@@ -142,6 +145,9 @@ func (c *ImplementationsConfig) Check() error {
 	if c.Challenger == (common.Address{}) {
 		return errors.New("challenger must be specified")
 	}
+	if c.DeployMockSP1Verifier && c.SP1Verifier != (common.Address{}) {
+		return fmt.Errorf("--%s and --%s are mutually exclusive", deployer.DeployMockSP1VerifierFlagName, SP1VerifierAddressFlagName)
+	}
 	return nil
 }
 
@@ -158,12 +164,16 @@ func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) error {
 		)
 	}
 	chainIDUint64 := bigs.Uint64Strict(chainID)
+	if c.DeployMockSP1Verifier {
+		return pipeline.CheckMockSP1Verifier(chainIDUint64)
+	}
 	verifier, err := standard.SP1VerifierFor(chainIDUint64)
 	if err != nil {
 		return fmt.Errorf(
-			"no default SP1 verifier for L1 chain ID %d; specify --%s",
+			"no default SP1 verifier for L1 chain ID %d; specify --%s, or --%s on a development L1",
 			chainIDUint64,
 			SP1VerifierAddressFlagName,
+			deployer.DeployMockSP1VerifierFlagName,
 		)
 	}
 	c.SP1Verifier = verifier
@@ -184,6 +194,8 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	}
 	cfg.ReceiptQueryInterval = cliCtx.Duration(deployer.ReceiptQueryIntervalFlagName)
 	cfg.Logger = l
+	cfg.UseScriptHost = !cliCtx.Bool(deployer.UseForgeFlagName)
+	cfg.DeployMockSP1Verifier = cliCtx.Bool(deployer.DeployMockSP1VerifierFlagName)
 
 	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	artifactsLocator := new(artifacts.Locator)
@@ -263,12 +275,27 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	}
 
 	lgr := cfg.Logger
-	lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
-
 	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {
 		return dio, fmt.Errorf("failed to download artifacts: %w", err)
 	}
+
+	forgeEnv := &opcm.ForgeEnv{
+		Artifacts:            artifactsFS,
+		Context:              ctx,
+		L1RPCUrl:             cfg.L1RPCUrl,
+		PrivateKey:           cfg.PrivateKey,
+		Logger:               lgr,
+		ReceiptQueryInterval: cfg.ReceiptQueryInterval,
+	}
+	if cfg.DeployMockSP1Verifier {
+		lgr.Warn("deploying the accept-all mock SP1 verifier to a live L1; development use only")
+		// The script host below forks the L1 after this deployment, so both paths see it.
+		if cfg.SP1Verifier, err = opcm.DeployMockSP1VerifierLive(forgeEnv); err != nil {
+			return dio, err
+		}
+	}
+	lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
 
 	input := opcm.DeployImplementationsInput{
 		MinWithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.MinWithdrawalDelaySeconds),
@@ -292,20 +319,14 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		SP1Verifier:                        cfg.SP1Verifier,
 	}
 
-	if cfg.UseForge {
+	if !cfg.UseScriptHost {
 		lgr.Info("using Forge for DeployImplementations")
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
+		forgeClient, err := opcm.NewForgeClient(artifactsFS, cfg.CacheDir, []opcm.ForgeScript{opcm.DeployImplementationsForgeScript})
 		if err != nil {
 			return dio, fmt.Errorf("failed to create forge client: %w", err)
 		}
-		forgeClient.SlowBroadcast = cfg.ForgeSlowBroadcast
 
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     forgeClient,
-			Context:    ctx,
-			L1RPCUrl:   cfg.L1RPCUrl,
-			PrivateKey: cfg.PrivateKey,
-		}
+		forgeEnv.Client = forgeClient
 		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
 		if err != nil {
 			return dio, err

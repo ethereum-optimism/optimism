@@ -356,7 +356,7 @@ func (g *SplitGameHelper) WaitForInactivity(ctx context.Context, numInactiveBloc
 			} else if lastActiveBlock+uint64(numInactiveBlocks) < bigs.Uint64Strict(head.Number) {
 				return
 			}
-			block, err := g.Client.BlockByNumber(ctx, head.Number)
+			block, err := g.Client.BlockByNumber(ctx, head.Number) //nolint:forbidigo // L1: counts the game's transactions in the block
 			g.Require.NoError(err)
 			numActions := 0
 			for _, tx := range block.Transactions() {

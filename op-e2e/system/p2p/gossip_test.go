@@ -80,8 +80,8 @@ func TestSystemMockP2P(t *testing.T) {
 
 	require.NoError(t, rollupClient.StartSequencer(context.Background(), sys.L2GenesisCfg.ToBlock().Hash()))
 
-	l2Seq := sys.NodeClient("sequencer")
-	l2Verif := sys.NodeClient("verifier")
+	l2Seq := sys.NodeSourceClient("sequencer")
+	l2Verif := sys.NodeSourceClient("verifier")
 
 	// Transactor Account
 	ethPrivKey := cfg.Secrets.Alice
@@ -173,10 +173,10 @@ func TestSystemDenseTopology(t *testing.T) {
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 
-	l2Seq := sys.NodeClient("sequencer")
-	l2Verif := sys.NodeClient("verifier")
-	l2Verif2 := sys.NodeClient("verifier2")
-	l2Verif3 := sys.NodeClient("verifier3")
+	l2Seq := sys.NodeSourceClient("sequencer")
+	l2Verif := sys.NodeSourceClient("verifier")
+	l2Verif2 := sys.NodeSourceClient("verifier2")
+	l2Verif3 := sys.NodeSourceClient("verifier3")
 
 	// Transactor Account
 	ethPrivKey := cfg.Secrets.Alice

@@ -105,6 +105,9 @@ parameters:
   c-run_scheduled_daily_tests:
     type: boolean
     default: false
+  c-run_scheduled_shipped_binaries:
+    type: boolean
+    default: false
   c-run_contracts_feature_tests:
     type: boolean
     default: false
@@ -605,7 +608,7 @@ commands:
         type: string
         default: *rust-cache-version
       profile:
-        description: "Profile to build the binary with"
+        description: "Profile to build the binary with. release skips LTO, because these builds only feed CI tests."
         type: string
         default: "debug"
       features:
@@ -626,6 +629,8 @@ commands:
           and every other binary instead. Package selection stays the same, so
           feature unification and the sccache keys match a full build.
           Workspace builds only: can't be combined with package or binary.
+          A binary whose required-features are disabled fails the build instead
+          of being skipped; leave it out here.
         type: string
         default: ""
       save_cache:
@@ -660,6 +665,12 @@ commands:
             # Debug profile is specified as "debug" in the config/target, but cargo build expects "dev"
             if [ "<< parameters.profile >>" = "debug" ]; then
               export PROFILE="--profile dev"
+            fi
+
+            # These release builds only feed CI jobs. Release images are built in
+            # GitHub Actions with the maxperf profile, so skip LTO to save build time.
+            if [ "<< parameters.profile >>" = "release" ]; then
+              export CARGO_PROFILE_RELEASE_LTO=off
             fi
 
             export PACKAGE="--workspace"
@@ -697,11 +708,6 @@ commands:
               # Assignments, not a `for ... in $(...)`, so a failure stops the job.
               METADATA=$(cargo metadata --no-deps --format-version 1 --locked)
               ALL_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select(.kind | index("bin")) | .name')
-              GATED_BINS=$(echo "$METADATA" | jq -r '.packages[].targets[] | select((.kind | index("bin")) and ((.["required-features"] // []) | length > 0)) | .name')
-              if [ -n "$GATED_BINS" ]; then
-                echo "ERROR: binaries with required-features need their own build here:" $GATED_BINS >&2
-                exit 1
-              fi
               export BINARY="--lib"
               for bin in $ALL_BINS; do
                 case " << parameters.exclude_binary >> " in
@@ -780,7 +786,7 @@ jobs:
         type: string
         default: *rust-cache-version
       profile:
-        description: "Profile to build the binary with"
+        description: "Profile to build the binary with. release skips LTO, because these builds only feed CI tests."
         type: string
         default: "debug"
       features:
@@ -894,6 +900,30 @@ jobs:
           paths:
             - "rust/target/release/op-reth"
             - "rust/target/release/op-reth-test-engine"
+
+  # Stands in for rust-kona-binaries and rust-op-reth-binary with the binaries
+  # from the images published for this commit, so op-acceptance-tests runs what
+  # we ship (maxperf, Wolfi rustc) rather than CI's release build.
+  shipped-rust-binaries:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    # Mostly waits and downloads.
+    resource_class: small.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: Fetch shipped Rust binaries
+          command: bash .circleci/scripts/fetch-shipped-rust-binaries.sh
+      - persist_to_workspace:
+          root: "."
+          paths:
+            - ".circleci-cache/shipped-rust-binaries"
+            - "rust/target/release/op-reth"
+            - "rust/target/release/kona-node"
+            - "rust/target/release/kona-host"
+            - "rust/target/release/op-zk-proposer"
 
   initialize:
     docker:
@@ -1197,6 +1227,12 @@ jobs:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           when: on_fail
+      - run:
+          name: Add test file paths to JUnit
+          # Lets `circleci tests split --split-by=timings` find timing history.
+          command: python3 ../../.circleci/scripts/forge-junit-add-file.py results
+          working_directory: packages/contracts-bedrock
+          when: always
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
@@ -1614,12 +1650,15 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: go-lint
+      # Scoped by branch like the shared Go caches (see helpers.yml).
       - restore_cache:
           keys:
-            - golangci-v1-{{ checksum ".golangci.yaml" }}
+            - golangci-v1-{{ .Branch }}:{{ checksum ".golangci.yaml" }}
+            - golangci-v1-develop:{{ checksum ".golangci.yaml" }}
             # Fall back to the latest golangci cache so a config change reuses
             # the prior analysis cache instead of a full cold lint.
-            - golangci-v1-
+            - "golangci-v1-{{ .Branch }}:"
+            - "golangci-v1-develop:"
       - run:
           name: run Go linter
           command: |
@@ -1632,7 +1671,7 @@ jobs:
       - save_cache:
           # Warm the analysis cache even when linting fails, so a branch with
           # lint errors doesn't repeatedly cold-start golangci-lint.
-          key: golangci-v1-{{ checksum ".golangci.yaml" }}
+          key: golangci-v1-{{ .Branch }}:{{ checksum ".golangci.yaml" }}
           when: always
           paths:
             - "/home/circleci/.cache/golangci-lint"
@@ -1691,19 +1730,22 @@ jobs:
       # with an empty module cache and compare what it adds to the shared one.
       # The fallback restores the upstream modules across go.mod changes that
       # rarely touch them; an old go-ethereum version then lingers in the cache
-      # until c-go-cache-version is bumped.
+      # until c-go-cache-version is bumped. Scoped by branch like the shared Go
+      # caches (see helpers.yml).
       - restore_cache:
           name: Restore upstream go-ethereum modules
           keys:
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:{{ checksum "go.mod" }}
+            - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:"
+            - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:"
       - run:
           name: Check op-geth-only API uses against the allowlist
           command: |
             just opgeth-ratchet
       - save_cache:
           name: Save upstream go-ethereum modules
-          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
+          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
           paths:
             - ~/go/pkg/mod/cache/download/github.com/ethereum/go-ethereum
             - ~/go/pkg/mod/cache/download/github.com/pion/stun/v2
@@ -1769,6 +1811,13 @@ jobs:
             # (INTERNAL_ERROR). Retry with exponential backoff so a flaky
             # download doesn't fail this shared prep job and everything behind
             # it.
+            # Count before running any go command: a go.mod toolchain bump
+            # makes the first one (even "go env") download the toolchain into
+            # the module cache, and that download must count as new.
+            # restore-go-mod-cache sets GOMODCACHE.
+            dl="${GOMODCACHE:?}/cache/download"
+            count_files() { if [ -d "$dl" ]; then find "$dl" -type f | wc -l; else echo 0; fi; }
+            before=$(count_files)
             n=0
             until go mod download; do
               n=$((n+1))
@@ -1780,6 +1829,15 @@ jobs:
               echo "go mod download failed (attempt $n); retrying in ${backoff}s..." >&2
               sleep "$backoff"
             done
+            # The module cache is saved per branch. If nothing was downloaded,
+            # the restored cache already had every module, and the jobs after
+            # this one restore a cache that has them too. So skip the save
+            # rather than have every branch upload its own copy of develop's.
+            # The halt ends the job, so keep the save as its last step.
+            if (( $(count_files) == before )); then
+              echo "No modules downloaded; nothing new to save"
+              circleci-agent step halt
+            fi
       - save-go-mod-cache
 
   check-nut-locks:
@@ -1812,6 +1870,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: check-nut-prefork-states
       - run:
@@ -1885,6 +1944,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       # op-deployer/pkg/deployer/forge's tests compile a test project with forge. Without
       # an installed solc, forge downloads the newest matching release on every run.
       - install-solc-compilers
@@ -1964,6 +2024,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-actions-tests
       - run:
@@ -2032,6 +2093,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-tests-with-fault-proof-deps
       # Build the superchain-configs.zip op-e2e/faultproofs //go:embeds (no prep-superchain job here).
@@ -2091,7 +2153,7 @@ jobs:
       resource_class:
         description: Docker resource class for this acceptance job
         type: string
-        default: 2xlarge+.gen2
+        default: 2xlarge.gen2
       image:
         description: "Docker image for this acceptance job. Must be the image that built the Rust binaries it consumes, so glibc matches."
         type: string
@@ -2104,6 +2166,10 @@ jobs:
           leaves the justfile default in place"
         type: string
         default: ""
+      notify_on_fail:
+        description: "Post failures on develop to Slack. Off where a ci-gate posts instead."
+        type: boolean
+        default: true
     docker:
       - image: <<parameters.image>>
     resource_class: <<parameters.resource_class>>
@@ -2128,6 +2194,7 @@ jobs:
             fi
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
@@ -2169,6 +2236,12 @@ jobs:
               export ACCEPTANCE_TEST_JOBS="<<parameters.acceptance_test_jobs>>"
             fi
             LOG_LEVEL=info just acceptance-test
+      # memory.events counts OOM kills, which can otherwise look like flaky tests. memory.peak
+      # includes page cache, so a peak near memory.max is not a problem without OOM kills.
+      - run:
+          name: Memory summary
+          when: always
+          command: grep -H . /sys/fs/cgroup/memory.{max,peak,events,pressure} || true
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2232,8 +2305,9 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
+      # notify-failures-on-develop posts only when the job fails.
       - when:
-          condition: on_fail
+          condition: << parameters.notify_on_fail >>
           steps:
             - notify-failures-on-develop:
                 mentions: "@protocol-oncall"
@@ -2318,8 +2392,12 @@ jobs:
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
       SEMGREP_BRANCH: << pipeline.git.branch >>
       SEMGREP_COMMIT: << pipeline.git.revision >>
+    # Pinned: semgrep-scan-local and semgrep-test gate ci-gate, so a floating tag
+    # would let an upstream release fail every PR without a change in this repo.
+    # Keep the version in step with "pipx:semgrep" in mise.toml, which local runs
+    # use; a new tag needs its new digest too.
     docker:
-      - image: returntocorp/semgrep
+      - image: returntocorp/semgrep:1.182.1@sha256:451b3d875c00dac7ed5db5293e584a07de11449a409c10b3c2d2652f429630b6
     resource_class: xlarge.gen2
     steps:
       - github-checkout: # no need to use mise here since the docker image contains the only dependency
@@ -2715,10 +2793,11 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # OP Node retains 20 vCPU / 40 GiB after a 38.5 GiB observed peak; Kona trials
-      # 16 vCPU / 32 GiB after a 21.3 GiB observed peak.
+      # Both run on the job's default 2xlarge.gen2 (16 vCPU / 32 GiB). op-node's peak RAM matches
+      # kona's: under 22 GiB in 99% of runs from September to November. If the Memory summary
+      # step shows OOM kills, give op-node resource_class: 2xlarge+.gen2 (20 vCPU / 40 GiB).
       # IN-MEMORY - op-node/op-reth
-      - op-acceptance-tests:
+      - op-acceptance-tests: &memory_all_opn
           name: memory-all-opn-op-reth-<<matrix.l1_fork>>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
@@ -2744,7 +2823,7 @@ workflows:
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
       # IN-MEMORY - kona/op-reth
-      - op-acceptance-tests:
+      - op-acceptance-tests: &memory_all_kona
           name: memory-all-kona-op-reth-<<matrix.l1_fork>>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
@@ -2752,7 +2831,6 @@ workflows:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
-          resource_class: 2xlarge.gen2
           parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
@@ -2998,6 +3076,91 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
+            - slack
+
+  # memory-all against the op-reth and kona binaries we ship, from the images
+  # build-images.apko.yaml publishes for the scheduled develop commit.
+  scheduled-shipped-binaries:
+    when: << pipeline.parameters.c-run_scheduled_shipped_binaries >>
+    jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-build:
+          build_args: --deny-warnings --skip test
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+      - cannon-prestate:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - prep-superchain:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - go-binaries-for-sysgo:
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-sp1-super-range-executor:
+          name: rust-sp1-super-range-executor
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      # If the images never appear, it posts to Slack without a mention and
+      # cancels the workflow, so the gate doesn't page.
+      - shipped-rust-binaries:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
+            - slack
+      - op-acceptance-tests:
+          <<: *memory_all_opn
+          name: shipped-memory-all-opn-op-reth-<<matrix.l1_fork>>
+          matrix:
+            alias: shipped-memory-all-opn
+            parameters:
+              l1_fork: *acceptance_l1_forks
+          notify_on_fail: false
+          requires: &shipped_memory_all_requires
+            - contracts-bedrock-build
+            - cannon-prestate
+            - shipped-rust-binaries
+            - rust-sp1-super-range-executor
+            - go-binaries-for-sysgo
+            - prep-go-modules
+            - prep-superchain
+      - op-acceptance-tests:
+          <<: *memory_all_kona
+          name: shipped-memory-all-kona-op-reth-<<matrix.l1_fork>>
+          matrix:
+            alias: shipped-memory-all-kona
+            parameters:
+              l1_fork: *acceptance_l1_forks
+          notify_on_fail: false
+          requires: *shipped_memory_all_requires
+      # Pages on-call once if any job here fails, including a build job that
+      # stops the memory-all jobs from running at all. The one exception: when
+      # the images never appear, shipped-rust-binaries cancels the workflow first.
+      - ci-gate:
+          name: shipped-memory-all-requires
+          requires:
+            - contracts-bedrock-build: terminal
+            - cannon-prestate: terminal
+            - shipped-rust-binaries: terminal
+            - rust-sp1-super-range-executor: terminal
+            - go-binaries-for-sysgo: terminal
+            - prep-go-modules: terminal
+            - prep-superchain: terminal
+            - shipped-memory-all-opn: terminal
+            - shipped-memory-all-kona: terminal
+          post-steps:
+            - notify-failures-on-develop:
+                mentions: "<!subteam^S09D13R3HJ7>" # @protocol-oncall
+          context:
+            - circleci-api-token
             - slack
 
   contracts-feature-tests:

@@ -7,13 +7,13 @@ diataxis: how-to
 OP Deployer는 사전 빌드된 바이너리와 소스 모두에서 설치할 수 있습니다. 이 가이드에서는 두 가지
 방법을 모두 안내합니다.
 
-## 바이너리에서 설치
+## 바이너리에서 설치 {#install-from-binaries}
 
 사전 빌드된 바이너리로 OP Deployer를 설치하는 것이 가장 쉽고 권장되는 시작 방법입니다. 바이너리에서
 설치하려면 [릴리스 페이지](https://github.com/ethereum-optimism/optimism/releases?q=op-deployer&expanded=true)에서 최신 릴리스를 다운로드하고, 바이너리를
 `$PATH`에 포함된 디렉터리에 압축 해제하십시오.
 
-## 소스에서 설치
+## 소스에서 설치 {#install-from-source}
 
 소스에서 설치하려면 Go, `just`, `git`이 필요합니다. 그런 다음 다음 명령을 실행하십시오.
 
@@ -23,3 +23,21 @@ cd optimism/op-deployer
 just build
 cp ./bin/op-deployer /usr/local/bin/op-deployer # or any other directory in your $PATH
 ```
+
+## 런타임 의존성 {#runtime-dependencies}
+
+OP Deployer는 [forge](https://getfoundry.sh)로 Solidity 배포 스크립트를 실행합니다. live `apply`와 `bootstrap`은
+각 스크립트를 deployer 키 없이 forge dry run으로 실행한 다음, forge가 기록한 트랜잭션을 txmgr로 서명하고 전송합니다.
+txmgr는 정체된 트랜잭션을 재브로드캐스트하고 수수료를 인상합니다. 최신 상태의 L1 RPC 엔드포인트를 사용하십시오. 각 dry run은
+현재 head에서 L1을 fork하며, 엔드포인트가 해당 블록을 제공하지 못하면 실패합니다. OP Deployer는
+[`version.json`](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/pkg/deployer/forge/version.json)에
+하나의 Foundry 버전을 고정합니다.
+
+*   해당 버전의 `forge`가 `PATH`에 있으면 OP Deployer는 이를 사용합니다.
+*   없으면 OP Deployer는 처음 사용할 때 해당 Foundry 릴리스를 캐시 디렉터리(`--cache-dir`, 기본값
+    `~/.op-deployer/cache`)에 다운로드하고, 다운로드한 파일의 체크섬을 검증합니다. 다운로드는 Linux와
+    macOS에서만 지원됩니다.
+*   네트워크에 접근할 수 없는 경우, 고정된 Foundry 버전을 설치하고 `forge`를 `PATH`에 추가하십시오.
+
+OP Deployer Docker 이미지에는 `forge`가 포함되어 있습니다. devstack 테스트와 같이 OP Deployer 패키지를 사용하는
+Go 프로그램에도 동일한 런타임 의존성이 적용됩니다.

@@ -94,7 +94,7 @@ func TestFirstLogFrom(t *testing.T) {
 
 // stubEthClient answers BlockRefByLabel from refs; every other method nil-panics.
 type stubEthClient struct {
-	apis.EthClient
+	apis.EthExtendedClient
 	refs func() (eth.BlockRef, error)
 }
 

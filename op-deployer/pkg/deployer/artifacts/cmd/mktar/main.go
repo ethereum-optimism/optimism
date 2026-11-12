@@ -1,18 +1,18 @@
 package main
 
 import (
-	"archive/tar"
+	"errors"
 	"flag"
-	"io"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/klauspost/compress/zstd"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts/bundle"
 )
 
 type multiFlag []string
@@ -44,7 +44,9 @@ func init() {
 //
 // Example: mktar -base ../packages/contracts-bedrock -out ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
 //
-// The output file will be a zstd-compressed tarball of the given base directory.
+// The base directory must be a built forge project. The tarball is its bundle, as
+// bundle.Write writes it.
+//
 // Do not confuse this script with the ops/publish-artifacts.sh script, which is
 // used to publish the tarball to GCS.
 func main() {
@@ -53,208 +55,59 @@ func main() {
 	if *baseDir == "" || *outFile == "" {
 		log.Fatalf("usage: mktar -base DIR -out FILE")
 	}
+	if err := run(*baseDir, *outFile, exclude); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("wrote %s", *outFile)
+}
 
-	absBase, err := filepath.Abs(*baseDir)
+func run(baseDir string, outFile string, exclude []string) (err error) {
+	absBase, err := filepath.Abs(baseDir)
 	if err != nil {
-		log.Fatalf("resolve base: %v", err)
+		return fmt.Errorf("resolve base: %w", err)
 	}
 
 	info, err := os.Stat(absBase)
 	if err != nil {
-		log.Fatalf("stat base: %v", err)
+		return fmt.Errorf("stat base: %w", err)
 	}
 	if !info.IsDir() {
-		log.Fatalf("base must be a directory: %s", absBase)
+		return fmt.Errorf("base must be a directory: %s", absBase)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(*outFile), 0o755); err != nil {
-		log.Fatalf("create output directory: %v", err)
+	if err := os.MkdirAll(filepath.Dir(outFile), 0o755); err != nil {
+		return fmt.Errorf("create output directory: %w", err)
 	}
 
-	f, err := os.Create(*outFile)
+	f, err := os.Create(outFile)
 	if err != nil {
-		log.Fatalf("create output file: %v", err)
-	}
-	defer f.Close()
-
-	gz, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(22)))
-	if err != nil {
-		log.Fatalf("create zstd writer: %v", err)
+		return fmt.Errorf("create output file: %w", err)
 	}
 	defer func() {
-		if err := gz.Close(); err != nil {
-			log.Fatalf("close zstd: %v", err)
-		}
+		err = errors.Join(err, f.Close())
 	}()
 
-	tw := tar.NewWriter(gz)
-	defer func() {
-		if err := tw.Close(); err != nil {
-			log.Fatalf("close tar: %v", err)
-		}
-	}()
-
-	if err := filepath.WalkDir(absBase, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-
-		rel, err := filepath.Rel(absBase, path)
-		if err != nil {
-			return err
-		}
-
-		if shouldExclude(rel, d) {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		if rel == "." {
-			return nil
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-
-		hdr, err := tar.FileInfoHeader(info, linkTarget(path, info))
-		if err != nil {
-			return err
-		}
-
-		hdr.Name = filepath.ToSlash(rel)
-		hdr.ModTime = info.ModTime()
-		hdr.AccessTime = info.ModTime()
-
-		// tar-like progress output
-		log.Printf("a %s", hdr.Name)
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-
-		if info.Mode().IsRegular() {
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			defer file.Close()
-
-			if _, err := io.Copy(tw, file); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}); err != nil {
-		log.Fatalf("walk: %v", err)
-	}
-
-	// Add COMMIT file if git is available
-	if commit := getGitCommit(absBase); commit != "" {
-		if err := addCommitFile(tw, commit); err != nil {
-			log.Fatalf("failed to add COMMIT file: %v", err)
-		}
-	}
-
-	if err := tw.Flush(); err != nil {
-		log.Fatalf("flush tar: %v", err)
-	}
-
-	log.Printf("wrote %s", *outFile)
-}
-
-func shouldExclude(rel string, d os.DirEntry) bool {
-	if rel == "." {
-		return false
-	}
-
-	rel = filepath.ToSlash(rel)
-
-	for _, pattern := range exclude {
-		pattern = filepath.ToSlash(pattern)
-		if matchPattern(pattern, rel) {
-			return true
-		}
-	}
-
-	if strings.HasPrefix(rel, "book/") || rel == "book" {
-		return true
-	}
-	if strings.HasPrefix(rel, "snapshots/") || rel == "snapshots" {
-		return true
-	}
-
-	if !d.IsDir() {
-		if strings.HasSuffix(d.Name(), ".t.sol") {
-			return true
-		}
-	}
-
-	return false
-}
-
-func matchPattern(pattern, rel string) bool {
-	matched, err := path.Match(pattern, rel)
+	zw, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(22)))
 	if err != nil {
-		log.Fatalf("invalid --exclude pattern %q: %v", pattern, err)
+		return fmt.Errorf("create zstd writer: %w", err)
 	}
-	if matched {
-		return true
+	if err := bundle.Write(zw, absBase, exclude, gitCommit(absBase)); err != nil {
+		_ = zw.Close()
+		return err
 	}
-
-	if !strings.HasSuffix(pattern, "/") {
-		pattern = pattern + "/"
+	if err := zw.Close(); err != nil {
+		return fmt.Errorf("close zstd: %w", err)
 	}
-	matched, err = path.Match(pattern+"*", rel+"/")
-	if err != nil {
-		log.Fatalf("invalid --exclude pattern %q: %v", pattern, err)
-	}
-	return matched
+	return nil
 }
 
-func linkTarget(path string, info os.FileInfo) string {
-	if info.Mode()&os.ModeSymlink == 0 {
-		return ""
-	}
-	target, err := os.Readlink(path)
-	if err != nil {
-		log.Fatalf("readlink %s: %v", path, err)
-	}
-	return target
-}
-
-func getGitCommit(baseDir string) string {
+// gitCommit returns the commit of the git checkout at dir, or "" when there is none.
+func gitCommit(dir string) string {
 	cmd := exec.Command("git", "rev-parse", "HEAD")
-	cmd.Dir = baseDir
+	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(string(output))
-}
-
-func addCommitFile(tw *tar.Writer, commit string) error {
-	hdr := &tar.Header{
-		Name:       "COMMIT",
-		Size:       int64(len(commit)),
-		Mode:       0644,
-		ModTime:    time.Now(),
-		AccessTime: time.Now(),
-		ChangeTime: time.Now(),
-		Typeflag:   tar.TypeReg,
-	}
-
-	if err := tw.WriteHeader(hdr); err != nil {
-		return err
-	}
-
-	if _, err := tw.Write([]byte(commit)); err != nil {
-		return err
-	}
-
-	log.Printf("a COMMIT")
-	return nil
 }

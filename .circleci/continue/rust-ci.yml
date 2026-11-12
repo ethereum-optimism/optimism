@@ -61,6 +61,22 @@ jobs:
           command: <<parameters.command>>
       # No cache save: downloads no crates.
 
+  # Red while a draft PR pins reth by rev (rust/UPDATING-RETH.md, "Pinning a fork change").
+  # Runs the script without just or the Rust cache: it reads rust/Cargo.toml and the
+  # Cargo.lock files git tracks, so it needs a git checkout, and asks the GitHub API whether a
+  # fork tag is on its branch, authenticated by the context's MISE_GITHUB_TOKEN.
+  rust-reth-tag-pin:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: small.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Check reth is pinned by tag
+          working_directory: rust
+          command: python3 scripts/upstream-mirrors.py --check-tag-pin
+
   # Shared clippy lint job
   rust-ci-clippy:
     parameters:
@@ -531,6 +547,23 @@ jobs:
       - apt-install:
           packages: "clang llvm-dev libclang-dev"
           extra_flags: "--no-install-recommends"
+      # The Rust base image ships sccache, this machine image doesn't. Install
+      # the same release, checked against upstream's sha256, so rust-prepare
+      # starts it and the native kona-host build uses the shared GCS cache
+      # (develop writes, other refs read).
+      - run:
+          name: Install sccache
+          command: |
+            set -euo pipefail
+            VERSION=v0.18.0
+            ASSET=sccache-${VERSION}-x86_64-unknown-linux-musl
+            curl -fsSL --retry 5 --retry-all-errors -o /tmp/sccache.tgz \
+              "https://github.com/mozilla/sccache/releases/download/${VERSION}/${ASSET}.tar.gz"
+            echo "45f1447fbe231e3037bde351ef70677dd212216c8d62ae7ca409fecc4d6acc89  /tmp/sccache.tgz" | sha256sum -c -
+            tar -xzf /tmp/sccache.tgz -C /tmp
+            sudo install "/tmp/${ASSET}/sccache" /usr/local/bin/sccache
+            rm -rf /tmp/sccache.tgz "/tmp/${ASSET}"
+            sccache --version
       - rust-prepare
       - run:
           name: Build cannon
@@ -564,6 +597,7 @@ jobs:
               $L2_HEAD \
               $L1_HEAD \
               $L2_CHAIN_ID
+      - rust-sccache-stats
 
   # Kona Rust CI - Lint (cannon target)
   kona-cargo-lint:
@@ -967,6 +1001,10 @@ workflows:
             # GCS compile cache (rust-sccache-setup). Restricted to this project.
             - sccache-gcs-optimism
 
+      - rust-reth-tag-pin:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
       - rust-ci-clippy:
           name: rust-clippy
           directory: rust
@@ -1109,6 +1147,7 @@ workflows:
       - required-rust-ci:
           requires:
             - rust-fmt: terminal
+            - rust-reth-tag-pin: terminal
             - rust-clippy: terminal
             - rust-deny: terminal
             - rust-typos: terminal
