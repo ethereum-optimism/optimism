@@ -69,6 +69,8 @@ impl DiscCommand {
                 ip: Ipv4Addr::UNSPECIFIED,
                 port: self.disc_port,
             })
+            // As kona-node without `--p2p.discovery.private`.
+            .table_filter(kona_disc::public_only)
             .build(),
         );
         let mut discovery = discovery_builder.build()?;

@@ -25,7 +25,7 @@ import (
 
 const (
 	// bundleFormat names the bundles that bundle.Write writes, so that a change to it repacks.
-	bundleFormat = "op-deployer-bundle-v4"
+	bundleFormat = "op-deployer-bundle-v5"
 	// keptBundles is the number of the most recently used bundles that eviction keeps.
 	keptBundles = 4
 	// packingPrefix starts the name of a bundle that a process is still packing.

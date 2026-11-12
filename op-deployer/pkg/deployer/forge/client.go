@@ -305,7 +305,6 @@ var sandboxKeys = []string{
 	"use_literal_content", "ast", "model_checker", "extra_output", "extra_output_files", "build_info",
 	"build_info_path", "additional_compiler_profiles", "compilation_restrictions", "sparse_mode",
 	"dynamic_test_linking", "ignored_error_codes", "ignored_error_codes_from", "ignored_warnings_from",
-	"deny",
 	"gas_limit", "memory_limit", "code_size_limit", "disable_block_gas_limit", "enable_tx_gas_limit",
 	"isolate",
 }
@@ -319,10 +318,10 @@ var solcVersionRegexp = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 // sandboxConfig writes the forge config of a script run into dir: a contracts bundle is a forge
 // project, so its config is not trusted. It keeps only the sandboxKeys and a pinned compiler version
 // of the project's default profile, with AnyCacheProfile the compile settings of the profile that
-// the compile cache was built with, so no extends, RPC URL or sender, and it turns ffi off and
-// grants only FsPermissions. It sets root, because forge otherwise takes the root from the config's
-// directory and recompiles; forge warns that root is unknown, but uses it. It also returns which
-// profile the compile cache matches, if it can tell.
+// the compile cache was built with, so no extends, RPC URL or sender, and it turns ffi off, grants
+// only FsPermissions, denies nothing and makes libs absolute. It sets root, because forge otherwise
+// takes the root from the config's directory and recompiles; forge warns that root is unknown, but
+// uses it. It also returns which profile the compile cache matches, if it can tell.
 func (c *Client) sandboxConfig(root string, dir string) (string, string, error) {
 	if err := c.checkFsPermissions(root); err != nil {
 		return "", "", err
@@ -340,6 +339,8 @@ func (c *Client) sandboxConfig(root string, dir string) (string, string, error) 
 		"root":           root,
 		"ffi":            false,
 		"fs_permissions": append([]FsPermission{}, c.FsPermissions...),
+		// forge ignores its compile cache when it denies warnings, so it would compile the project.
+		"deny": "never",
 	}
 	for key, value := range settings {
 		if slices.Contains(solcVersionKeys, key) {
@@ -351,6 +352,37 @@ func (c *Client) sandboxConfig(root string, dir string) (string, string, error) 
 		}
 		profile[key] = value
 	}
+	// forge detects the remappings of relative libs from the config's directory, not the root; without
+	// them it finds the compile cache stale and compiles.
+	libs := []any{"lib"} // forge's default when the project has a lib directory
+	if value, set := profile["libs"]; set {
+		var ok bool
+		if libs, ok = value.([]any); !ok {
+			return "", "", fmt.Errorf("the forge config of the project sets libs to %v; only a list of paths is allowed", value)
+		}
+	}
+	// forge resolves links in the root, so the libs must too.
+	libRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve the forge project: %w", err)
+	}
+	// forge splits a remapping at its first '=', so the absolute libs would garble the remappings it
+	// detects in a library's context, find the compile cache stale and compile.
+	if strings.Contains(libRoot, "=") {
+		return "", "", fmt.Errorf("the path of the forge project %s holds a '=', which forge cannot run scripts in; move the project, or use a cache directory without one", libRoot)
+	}
+	absLibs := make([]string, 0, len(libs))
+	for _, lib := range libs {
+		lib, ok := lib.(string)
+		if !ok {
+			return "", "", fmt.Errorf("the forge config of the project sets libs to %v; only a list of paths is allowed", profile["libs"])
+		}
+		if !filepath.IsAbs(lib) {
+			lib = filepath.Join(libRoot, lib)
+		}
+		absLibs = append(absLibs, lib)
+	}
+	profile["libs"] = absLibs
 
 	path := filepath.Join(dir, "foundry.toml")
 	f, err := os.Create(path)

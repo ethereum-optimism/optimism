@@ -74,6 +74,9 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event WithdrawalProofDeleted(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
+    event WithdrawalProvenExtension2(
+        bytes32 indexed withdrawalHash, address indexed proofSubmitter, IDisputeGame indexed disputeGameProxy
+    );
 
     receive() external payable;
 

@@ -25,7 +25,8 @@ import (
 //  5. Assert safe/finalized are behind unsafe.
 func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpReth(t, "not supported (peering issue)")
+	// TODO(#23828): remove once kona-node supports OffsetELSafe.
+	sysgo.SkipOnKonaNode(t, "kona-node does not support OffsetELSafe")
 	sys := newOffsetELSafeSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -39,6 +40,7 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 
 	// Stop verifier and wipe its EL to force a full EL sync on restart.
 	sys.L2ELB.Stop()
+	sys.L2ELB.Wipe()
 	sys.L2CLB.Stop()
 
 	// Stop the batcher so new sequencer blocks are unsafe-only.
@@ -50,7 +52,9 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	sys.L2CL.Advanced(safety.LocalUnsafe, 3, 30)
 
 	sys.L2ELB.Start()
+	t.Require().Zero(sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number, "EL resync must start from genesis")
 	sys.L2CLB.Start()
+	sys.L2ELB.WaitForOnline()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
 	// Wait for the verifier CL to advance LocalSafe, which confirms:
@@ -59,7 +63,9 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	//  - Derivation began processing old batched data
 	// Because the batcher is stopped, derivation can only reach the last batched
 	// block — the gap between safe and unsafe is permanent.
-	sys.L2CLB.Advanced(safety.LocalSafe, 1, 30)
+	// A full EL sync after a wipe is slower than the initial sync, so allow the
+	// same budget as TestTruncateDatabaseOnELResync.
+	sys.L2CLB.Advanced(safety.LocalSafe, 1, 90)
 
 	unsafeHead := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
 	safeHead := sys.L2ELB.SafeHead().BlockRef

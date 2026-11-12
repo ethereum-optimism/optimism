@@ -77,45 +77,6 @@ func TestCLIBootstrap(t *testing.T) {
 		require.NotContains(t, stdout, "Forge client working directory")
 	})
 
-	t.Run("bootstrap on the Go script host", func(t *testing.T) {
-		// --use-forge=false keeps the Go script host until a later release removes it.
-		runner := NewCLITestRunnerWithNetwork(t)
-		workDir := runner.GetWorkDir()
-
-		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_script_host.json")
-		runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "superchain",
-			"--outfile", superchainOutputFile,
-			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--guardian", guardian.Hex(),
-			"--use-forge=false",
-		}, nil)
-		var superchainOutput opcm.DeploySuperchainOutput
-		data, err := os.ReadFile(superchainOutputFile)
-		require.NoError(t, err)
-		require.NoError(t, json.Unmarshal(data, &superchainOutput))
-		require.NoError(t, addresses.CheckNoZeroAddresses(superchainOutput))
-
-		implsOutputFile := filepath.Join(workDir, "bootstrap_implementations_script_host.json")
-		runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "implementations",
-			"--outfile", implsOutputFile,
-			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
-			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
-			"--challenger", challenger.Hex(),
-			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
-			"--use-forge=false",
-		}, nil)
-		var implsOutput opcm.DeployImplementationsOutput
-		data, err = os.ReadFile(implsOutputFile)
-		require.NoError(t, err)
-		require.NoError(t, json.Unmarshal(data, &implsOutput))
-		require.NotEqual(t, common.Address{}, implsOutput.OpcmV2, "OpcmV2 should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.MipsSingleton, "MipsSingleton should be set")
-	})
-
 	t.Run("bootstrap superchain paused", func(t *testing.T) {
 		runner := NewCLITestRunnerWithNetwork(t)
 		workDir := runner.GetWorkDir()

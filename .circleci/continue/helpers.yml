@@ -4,15 +4,16 @@
 commands:
   # forge reads every source, lib/ included, to check the compile cache of the prebuilt artifacts.
   # Jobs that run op-deployer from the checkout (op-e2e, sysgo, kona proof tests) need these
-  # submodules; the embedded bundle has its own lib/. Top-level submodules only, so no --recursive,
-  # and no history: forge reads only the sources.
+  # submodules; the embedded bundle has its own lib/. Recursive, as forge detects remappings in the
+  # nested libs and finds the cache stale when they differ from the build's. No history: forge reads
+  # only the sources.
   checkout-contracts-lib:
     steps:
       - run:
           name: Check out the contracts-bedrock lib submodules
           command: |
             attempt=1
-            until git submodule update --init --depth 1 --single-branch --force -j 8 -- packages/contracts-bedrock/lib; do
+            until git submodule update --init --recursive --depth 1 --single-branch --force -j 8 -- packages/contracts-bedrock/lib; do
               [ "$attempt" -ge 3 ] && exit 1
               attempt=$((attempt+1))
               echo "submodule update failed; attempt $attempt/3 in 5s" >&2
@@ -243,6 +244,7 @@ commands:
       - github-checkout:
           method: << parameters.checkout-method >>
       - utils/install-mise:
+          trusted_branch: develop
           enable_mise_cache: << parameters.enable-mise-cache >>
           mise_cache_key_prefix: << parameters.mise-cache-key-prefix >>
           mise_cache_checksum: << parameters.mise-cache-checksum >>
