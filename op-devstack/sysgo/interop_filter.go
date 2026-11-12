@@ -102,8 +102,8 @@ func startInteropFilter(
 		L2RPCs:              l2RPCs,
 		RollupConfigs:       rollupConfigs,
 		DataDir:             t.TempDirWithPrefix(name),
-		BackfillDuration:    7 * 24 * time.Hour,
-		MessageExpiryWindow: 7 * 24 * 3600, // 7 days in seconds
+		BackfillDuration:    filter.DefaultMessageExpiryWindow,
+		MessageExpiryWindow: uint64(filter.DefaultMessageExpiryWindow.Seconds()),
 		PollInterval:        500 * time.Millisecond,
 		ValidationInterval:  200 * time.Millisecond,
 		RPCConcurrency:      filterflags.DefaultRPCConcurrency,

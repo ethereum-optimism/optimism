@@ -105,7 +105,7 @@ The full flag set is defined in [`op-interop-filter/flags/flags.go`](https://git
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--data-dir` | (temporary directory) | Directory for the LogsDB and the stored manual failsafe. Use a persistent path in production so backfill state and the manual failsafe survive restarts. |
-| `--backfill-duration` | `24h` | How far back to backfill on startup. |
+| `--backfill-duration` | `168h` | How far back to backfill on startup. Must be at least `--message-expiry-window`. |
 | `--message-expiry-window` | `168h` (7 days) | Messages older than this window are treated as expired. |
 | `--poll-interval` | `2s` | How often to poll L2 RPCs for new blocks. |
 | `--failsafe-enabled` | off | If set, the filter enables the manual failsafe at start. The admin RPC can clear it, but the next start enables it again. |
