@@ -269,9 +269,9 @@ where
                 debug!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
                 self.engine_l2_safe_head = *safe_head;
             }
-            DerivationActorRequest::ProcessEngineSyncCompletionRequest(sync_state) => {
+            DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
-                self.engine_l2_safe_head = sync_state.local_safe_head();
+                self.engine_l2_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => match *signal {

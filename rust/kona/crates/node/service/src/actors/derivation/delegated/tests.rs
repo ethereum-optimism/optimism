@@ -70,7 +70,9 @@ impl Harness {
     async fn complete_engine_sync_with(&mut self, sync_state: EngineSyncState) {
         self.publish_engine_sync_state(sync_state);
         self.derivation_requests
-            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(sync_state)))
+            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(
+                sync_state.local_safe_head(),
+            )))
             .await
             .unwrap();
         self.actor.step().await.unwrap();

@@ -135,7 +135,7 @@ fn engine_reset_request() -> DerivationActorRequest {
 }
 
 fn sync_completion_request() -> DerivationActorRequest {
-    engine_sync_completed_at(l2_block(RESUME_HEAD))
+    DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(l2_block(RESUME_HEAD)))
 }
 
 #[rstest]
