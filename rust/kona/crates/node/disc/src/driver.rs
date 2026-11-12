@@ -211,8 +211,7 @@ impl Discv5Driver {
     /// discovery has had a session with, and only if the address gossip dials from its record has
     /// the IP the session's packets came from, as only that address has shown that the node runs
     /// discovery. The driver then hands it to gossip, and saves its record in the bootstore, which
-    /// dials the same address after a restart; it doesn't send it to other nodes. Only a record
-    /// valid for `chain_id` is dialed.
+    /// dials the same address after a restart. Only a record valid for `chain_id` is dialed.
     ///
     /// A record that `table_filter` rejects, such as a private one on a node that uses only public
     /// addresses, is dialed, but not saved. Our lookups and bootnodes go through the filter, so
