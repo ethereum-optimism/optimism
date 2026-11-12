@@ -36,16 +36,7 @@ func simpleWithSyncTesterOpts() []presets.Option {
 
 func TestSyncTesterHardforks(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with op-reth:
-	//
-	// assertions.go:387:             ERROR[03-31|10:08:04.055]
-	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/check.go:26
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_hfs/sync_tester_hfs_test.go:54
-	// assertions.go:387:             	Error:      	Received unexpected error:
-	// assertions.go:387:             	            	operation failed permanently after 42 attempts: expected head to advance: unsafe
-	// assertions.go:387:             	Test:       	TestSyncTesterHardforks
-	sysgo.SkipOnOpReth(t, "not supported")
-
+	sysgo.SkipOnKonaNode(t, "kona-node inserts pre-Canyon payloads with engine_newPayloadV1, which op-reth does not serve")
 	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()
 	logger := t.Logger()
