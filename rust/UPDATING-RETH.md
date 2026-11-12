@@ -341,9 +341,11 @@ on its own, with its `-x` source line, which the next update's step 2 audit
 reads. A squash folds them into one commit, and a merge commit hides the
 branch's base from that audit. Rebase-merging rewrites the commits, so the
 prep PR's head commit is never on the branch, and fork CI has not run on the
-rewritten ones. Wait for fork CI to pass on the prep PR's `mergeCommit`, its
-last rebased commit, then tag it `op-v<version>-0` (see **Tag** below) and
-repin the update PR from its draft-time `rev` to that tag.
+rewritten ones. Before merging, sweep forward again from the tip the forward
+sweep recorded (`docs/ai/reth-update-review.md`, "Forward sweep"). Wait for
+fork CI to pass on the prep PR's `mergeCommit`, its last rebased commit, then
+tag it `op-v<version>-0` (see **Tag** below) and repin the update PR from its
+draft-time `rev` to that tag.
 
 ```bash
 gh pr merge <pr> --repo ethereum-optimism/reth --rebase

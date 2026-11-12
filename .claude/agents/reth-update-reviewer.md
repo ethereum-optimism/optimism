@@ -19,8 +19,10 @@ reports with the funnel's findings before the triage handoff. The funnel alone i
 complete review.
 
 Run the guide's forward sweep the same way, over each family's range from the target to
-upstream's latest commit, and report its fixes with the cherry-pick-or-retarget
-recommendation so the human can decide before the bump merges.
+upstream's latest commit. Record that tip, give every fix in range a verdict, and report
+the findings with the cherry-pick-or-retarget recommendation so the human can decide
+before the bump merges. For a fork PR that picks fixes, also apply the guide's
+"Reviewing a fork pick PR" checklist.
 
 When the bump touches transaction execution, gas, or receipts, also run the
 [`deposit-reviewer`](deposit-reviewer.md) agent as a separate review.

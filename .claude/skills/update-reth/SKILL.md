@@ -41,7 +41,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    Push that branch at the upstream base and prepare it in one prep PR: the
    CI commit and the OP `.github/CODEOWNERS` carried over from the previous
    branch, every retained patch and forward-sweep pick, and any fixes the new
-   base needs, as separate commits. Rebase-merge it, wait for fork CI to pass
+   base needs, as separate commits. Re-run the forward sweep from its
+   recorded upstream tip, then rebase-merge it, wait for fork CI to pass
    on the PR's `mergeCommit` (its last rebased commit), tag that commit, and
    confirm the fork's `codeowners/errors` check is empty. Meanwhile, the
    update PR may pin the prep PR's head by `rev`, in draft only. Work every
