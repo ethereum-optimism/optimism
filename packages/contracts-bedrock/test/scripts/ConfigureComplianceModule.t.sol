@@ -108,6 +108,8 @@ contract ConfigureComplianceModule_Run_Test is ConfigureComplianceModule_TestIni
 
         assertEq(address(policy.module()), address(deployed), "policy module");
         assertEq(policy.owner(), policyOwner, "policy owner");
+        assertEq(policy.verdictWriter(), verdictWriter, "policy verdict writer");
+        assertEq(policy.maxVerdictValidity(), input.maxVerdictValidity, "policy max verdict validity");
         assertEq(policy.holdDelay(), input.holdDelay, "policy hold delay");
         assertTrue(policy.allowlisted(allowed), "allowlist");
         assertTrue(policy.denylisted(denied), "denylist");

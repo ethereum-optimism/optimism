@@ -152,8 +152,8 @@ contract ConfigureComplianceModule is Script {
         );
     }
 
-    /// @notice Asserts that the module is initialized and wired to the chain and the policy, and
-    ///         that ownership has been handed over.
+    /// @notice Asserts that the module is initialized and wired to the chain and the policy, that
+    ///         the policy has the input's roles and delays, and that ownership has been handed over.
     /// @param _input     The input parameters.
     /// @param _policy    The deployed policy.
     /// @param _messenger The chain's L1CrossDomainMessenger.
@@ -194,5 +194,13 @@ contract ConfigureComplianceModule is Script {
 
         require(address(_policy.module()) == address(module), "ConfigureComplianceModule: policy module mismatch");
         require(_policy.owner() == _input.policyOwner, "ConfigureComplianceModule: policy owner mismatch");
+        require(
+            _policy.verdictWriter() == _input.verdictWriter, "ConfigureComplianceModule: policy verdictWriter mismatch"
+        );
+        require(
+            _policy.maxVerdictValidity() == _input.maxVerdictValidity,
+            "ConfigureComplianceModule: policy maxVerdictValidity mismatch"
+        );
+        require(_policy.holdDelay() == _input.holdDelay, "ConfigureComplianceModule: policy holdDelay mismatch");
     }
 }
