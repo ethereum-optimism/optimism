@@ -82,6 +82,9 @@ func (c *Config) Check() error {
 		result = errors.Join(result, fmt.Errorf("message-expiry-window %ds exceeds protocol window %ds",
 			c.MessageExpiryWindow, depset.MessageExpiryTimeSecondsInterop))
 	}
+	if expiryWindow := time.Duration(c.MessageExpiryWindow) * time.Second; c.BackfillDuration < expiryWindow {
+		result = errors.Join(result, backfillTooShortError(c.BackfillDuration, expiryWindow))
+	}
 	if c.PollInterval <= 0 {
 		result = errors.Join(result, errors.New("poll-interval must be positive"))
 	}
@@ -104,6 +107,13 @@ func (c *Config) Check() error {
 	result = errors.Join(result, c.MetricsConfig.Check())
 	result = errors.Join(result, c.PprofConfig.Check())
 	return result
+}
+
+// backfillTooShortError reports a backfill that does not reach back to the oldest
+// initiating message a valid executing message can reference. Lookups of older
+// blocks fail, so the filter would reject valid transactions.
+func backfillTooShortError(backfill, expiryWindow time.Duration) error {
+	return fmt.Errorf("backfill-duration %s must be at least message-expiry-window %s", backfill, expiryWindow)
 }
 
 func NewConfig(ctx *cli.Context, version string) (*Config, error) {
@@ -131,6 +141,9 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	// Check the duration before it is truncated to whole seconds below.
 	if maxWindow := time.Duration(depset.MessageExpiryTimeSecondsInterop) * time.Second; messageExpiryWindow > maxWindow {
 		return nil, fmt.Errorf("message-expiry-window %s exceeds protocol window %s", messageExpiryWindow, maxWindow)
+	}
+	if backfillDuration < messageExpiryWindow {
+		return nil, backfillTooShortError(backfillDuration, messageExpiryWindow)
 	}
 
 	pollInterval := ctx.Duration(flags.PollIntervalFlag.Name)
