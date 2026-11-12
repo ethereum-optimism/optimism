@@ -319,7 +319,7 @@ func startZKProposer(
 		onLogEntry(e)
 	})
 	stdErrLogs := logpipe.LogCallback(func(line []byte) {
-		e := logpipe.ParseRustStructuredLogs(line)
+		e := logpipe.ParseRustStderr(line)
 		logErr(e)
 		onLogEntry(e)
 	})

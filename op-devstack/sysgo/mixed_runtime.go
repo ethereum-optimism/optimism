@@ -77,6 +77,15 @@ func SkipOnKonaNode(t devtest.T, reason string) {
 	}
 }
 
+// SkipWithoutRustBinaryPath skips the test unless RUST_BINARY_PATH_<NAME> names a prebuilt copy of
+// binary, which no package in this repo builds. RUST_SRC_DIR_<NAME> does not count: it only builds
+// a binary that a cargo package of the same name provides.
+func SkipWithoutRustBinaryPath(t devtest.T, binary, reason string) {
+	if os.Getenv(rustbin.PathOverrideEnvVar(binary)) == "" {
+		t.Skipf("skipping without %s: set %s to a prebuilt binary; %s", binary, rustbin.PathOverrideEnvVar(binary), reason)
+	}
+}
+
 func FlakyOnKonaNode(t devtest.T, reason string) {
 	if devstackL2CLKind() == MixedL2CLKona {
 		t.MarkFlaky(reason)
@@ -423,17 +432,7 @@ func buildMixedOpRethNode(
 	// superset binary. cfg.ExtraArgs is appended to the CLI further below.
 	opRethCfg := DefaultOpRethConfig()
 	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
-	elBinary := opRethCfg.Binary
-	if elBinary == "" {
-		elBinary = "op-reth"
-	}
-
-	execPath, err := rustbin.Spec{
-		SrcDir:  "rust",
-		Package: elBinary,
-		Binary:  elBinary,
-	}.EnsureExists(t.Ctx(), t.Logger())
-	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or set RUST_BINARY_PATH_<NAME> for a binary built from another repo)", elBinary)
+	execPath := ResolveOpRethBinary(t, opRethCfg.Binary)
 
 	args := []string{
 		"node",

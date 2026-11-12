@@ -19,3 +19,11 @@ type ControlledLifecycle interface {
 type UngracefulLifecycle interface {
 	StopUngracefully()
 }
+
+// BinarySwitchable is implemented by components that run an external binary and can run another
+// one on their next Start, keeping their data and configuration.
+type BinarySwitchable interface {
+	// SwitchBinary makes the next Start run the executable at execPath. The component must be
+	// stopped.
+	SwitchBinary(execPath string)
+}
