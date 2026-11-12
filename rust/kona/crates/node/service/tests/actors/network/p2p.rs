@@ -7,6 +7,7 @@ use crate::actors::network::mocks::{
     TestNetwork,
     builder::{TestNetworkBuilder, local_node_key},
 };
+use anyhow::Context;
 use discv5::Enr;
 use enr::NodeId;
 use kona_genesis::OP_MAINNET_CHAIN_ID;
@@ -146,11 +147,20 @@ async fn test_node_on_all_interfaces_gets_no_votes_from_bootnodes() -> anyhow::R
 ///
 /// Connecting a UDP socket only picks the route to an address, and sends nothing, so this connects
 /// to a documentation address (RFC 5737), which no host has.
-fn host_ip() -> Option<IpAddr> {
-    let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
-    socket.connect((Ipv4Addr::new(192, 0, 2, 1), 9)).ok()?;
-    let ip = socket.local_addr().ok()?.ip();
-    (!ip.is_loopback() && !ip.is_unspecified()).then_some(ip)
+///
+/// Fails on a host without such a route, such as a sandbox or an IPv6-only host, rather than let
+/// the tests that need it pass without running.
+fn host_ip() -> anyhow::Result<IpAddr> {
+    let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
+    socket
+        .connect((Ipv4Addr::new(192, 0, 2, 1), 9))
+        .context("this test needs an IPv4 route off loopback, for the host's IP")?;
+    let ip = socket.local_addr()?.ip();
+    anyhow::ensure!(
+        !ip.is_loopback() && !ip.is_unspecified(),
+        "this test needs an IPv4 address other than loopback, but the host sends from {ip}"
+    );
+    Ok(ip)
 }
 
 /// Starts B (`bootnode`), which listens on, and advertises, the host's own IP, and R (`relayed`),
@@ -181,13 +191,10 @@ async fn bootnode_relaying_loopback_node(
 /// loopback, see [`bootnode_relaying_loopback_node`]. P's lookups through B return R, P's discovery
 /// contacts R, and gossip dials it at the address that session came from.
 ///
-/// Skipped on a host with no address but loopback.
+/// Fails on a host with no IPv4 address but loopback, see [`host_ip`].
 #[tokio::test(flavor = "multi_thread")]
 async fn test_lan_node_finds_loopback_nodes_through_a_lan_bootnode() -> anyhow::Result<()> {
-    let Some(host_ip) = host_ip() else {
-        eprintln!("skipping, this host has no address but loopback");
-        return Ok(());
-    };
+    let host_ip = host_ip()?;
     let (builder, bootnode, relayed) = bootnode_relaying_loopback_node(host_ip).await?;
 
     let mut builder = builder.with_next_listen_ip(host_ip);
@@ -221,13 +228,10 @@ fn not_loopback(enr: &Enr) -> bool {
 /// through B, and contacts it directly. That session puts S into E's table, though E never
 /// contacts S itself, and the two connect over gossip: S is no longer behind its sentry.
 ///
-/// Skipped on a host with no address but loopback.
+/// Fails on a host with no IPv4 address but loopback, see [`host_ip`].
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_running_discovery_against_its_sentry_is_exposed() -> anyhow::Result<()> {
-    let Some(host_ip) = host_ip() else {
-        eprintln!("skipping, this host has no address but loopback");
-        return Ok(());
-    };
+    let host_ip = host_ip()?;
     let mut builder = TestNetworkBuilder::new()
         .with_discovery_interval(Duration::from_millis(100))
         .with_next_listen_ip(host_ip)
@@ -268,13 +272,10 @@ async fn test_sequencer_running_discovery_against_its_sentry_is_exposed() -> any
 /// S runs no discovery, so this holds by construction: the test documents the setup, and isn't a
 /// regression test.
 ///
-/// Skipped on a host with no address but loopback.
+/// Fails on a host with no IPv4 address but loopback, see [`host_ip`].
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_with_its_sentry_as_static_peer_stays_hidden() -> anyhow::Result<()> {
-    let Some(host_ip) = host_ip() else {
-        eprintln!("skipping, this host has no address but loopback");
-        return Ok(());
-    };
+    let host_ip = host_ip()?;
     let mut builder = TestNetworkBuilder::new()
         .with_discovery_interval(Duration::from_millis(100))
         .with_next_listen_ip(host_ip)
