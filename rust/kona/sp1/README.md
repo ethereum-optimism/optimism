@@ -374,11 +374,14 @@ segments that the killed processes left there. Give the proposer its own
 `/dev/shm`: this removes the segments of any other SP1 process too. Proof
 progress is in memory and is lost, and the proposer rebuilds its state from L1.
 A server that crashes on one input therefore restarts the proposer each time it
-reaches that input. A server that stops answering is not detected: its device
-proves nothing more, and only `op_zk_proposer_proving_timeout_error` grows. That
-metric also grows when a request's time in the queue and on the GPU together is
-longer than `SP1_TIMEOUT_SECONDS`, so compare it with the finished proofs before
-you treat it as a hung server.
+reaches that input, and every game loses its progress each time, not only the
+game with that input. This is a known limit of local mode: restarting only the
+failed server would need a way to free that server's `/dev/shm` segments while
+the other servers prove. A server that stops answering is not detected: its
+device proves nothing more, and only `op_zk_proposer_proving_timeout_error`
+grows. That metric also grows when a request's time in the queue and on the GPU
+together is longer than `SP1_TIMEOUT_SECONDS`, so compare it with the finished
+proofs before you treat it as a hung server.
 
 Sizing, per GPU: 24 GB of VRAM, compute capability 8.6 or higher, a driver for
 CUDA 12.8 (R570 or later), 8 CPU cores, and about 32 GB of host RAM, up to about
