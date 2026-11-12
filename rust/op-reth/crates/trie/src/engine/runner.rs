@@ -43,6 +43,9 @@ where
     backpressure_threshold: u64,
     /// Current retry delay for the sync arm; grows on failure, resets on success.
     sync_backoff: Duration,
+    /// When the current backpressure episode started, if one is in progress.
+    #[cfg(feature = "metrics")]
+    backpressure_since: Option<Instant>,
 }
 
 impl<Evm, Provider, Store> Engine<Evm, Provider, Store>
@@ -70,6 +73,8 @@ where
             persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
             backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
             sync_backoff: Duration::ZERO,
+            #[cfg(feature = "metrics")]
+            backpressure_since: None,
         }
     }
 
@@ -87,6 +92,20 @@ where
     fn needs_sync(&self) -> bool {
         let current_tip = self.state.get_tip().map(|t| t.number).unwrap_or(0);
         self.state.sync_target > current_tip
+    }
+
+    /// Records one backpressure episode, from the event loop iteration where backpressure turns on
+    /// to the one where it turns off.
+    #[cfg(feature = "metrics")]
+    fn track_backpressure(&mut self, active: bool) {
+        match (active, self.backpressure_since) {
+            (true, None) => self.backpressure_since = Some(Instant::now()),
+            (false, Some(since)) => {
+                self.state.metrics.backpressure_duration_seconds.record(since.elapsed());
+                self.backpressure_since = None;
+            }
+            _ => {}
+        }
     }
 
     /// Returns `true` if the buffer is above the backpressure threshold with a save in-flight.
@@ -162,6 +181,8 @@ where
     /// Returns [`ControlFlow::Break`] when the action channel disconnects.
     fn process_next_event(&mut self) -> ControlFlow<()> {
         let backpressure = self.backpressure_active();
+        #[cfg(feature = "metrics")]
+        self.track_backpressure(backpressure);
         let save_in_flight = self.state.persistence.in_flight.is_some();
 
         let persist_rx =
