@@ -192,6 +192,7 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 		l:       l.New("service", name),
 		metr:    m,
 	}
+	warnConfirmationsBlockTag(mgr.l, conf)
 
 	// Initialize the BlobTipOracle if BTOConfig is provided
 	if conf.BTOConfig != nil {
@@ -937,9 +938,9 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 		m.metr.RecordBlobBaseFee(blobFee)
 	}
 
-	// The confirmations are counted from the configured L1 block, which is the tip by default.
-	if label := m.cfg.NumConfirmationsBlockTag; label == eth.Safe || label == eth.Finalized {
-		tip, err = m.backend.HeaderByNumber(ctx, confirmationsBlockNumber(label))
+	confBlock := tip
+	if label := m.cfg.ConfirmationsBlockTag; label == eth.Safe || label == eth.Finalized {
+		confBlock, err = m.backend.HeaderByNumber(ctx, confirmationsBlockNumber(label))
 		if err != nil {
 			m.metr.RPCError()
 			m.l.Error("Unable to fetch confirmations block", "label", label, "err", err)
@@ -949,17 +950,18 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 
 	m.l.Debug("Transaction mined, checking confirmations", "tx", txHash,
 		"block", eth.ReceiptBlockID(receipt), "tip", eth.HeaderBlockID(tip),
-		"numConfirmations", m.cfg.NumConfirmations, "numConfirmationsBlockTag", m.cfg.NumConfirmationsBlockTag)
+		"confBlock", eth.HeaderBlockID(confBlock), "confirmationsBlockTag", m.cfg.ConfirmationsBlockTag,
+		"numConfirmations", m.cfg.NumConfirmations)
 
 	// The transaction is considered confirmed when
-	// txHeight+numConfirmations-1 <= tipHeight. Note that the -1 is
+	// txHeight+numConfirmations-1 <= confHeight. Note that the -1 is
 	// needed to account for the fact that confirmations have an
 	// inherent off-by-one, i.e. when using 1 confirmation the
 	// transaction should be confirmed when txHeight is equal to
-	// tipHeight. The equation is rewritten in this form to avoid
+	// confHeight. The equation is rewritten in this form to avoid
 	// underflows.
-	tipHeight := bigs.Uint64Strict(tip.Number)
-	if txHeight+m.cfg.NumConfirmations <= tipHeight+1 {
+	confHeight := bigs.Uint64Strict(confBlock.Number)
+	if txHeight+m.cfg.NumConfirmations <= confHeight+1 {
 		m.l.Info("Transaction confirmed", "tx", txHash,
 			"block", eth.ReceiptBlockID(receipt),
 			"effectiveGasPrice", receipt.EffectiveGasPrice)
@@ -967,12 +969,26 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	}
 
 	// Safe to subtract since we know the LHS above is greater.
-	confsRemaining := (txHeight + m.cfg.NumConfirmations) - (tipHeight + 1)
+	confsRemaining := (txHeight + m.cfg.NumConfirmations) - (confHeight + 1)
 	m.l.Debug("Transaction not yet confirmed", "tx", txHash, "confsRemaining", confsRemaining)
 	return nil
 }
 
-// confirmationsBlockNumber returns the block number argument that selects the given label.
+// minFinalizationDelay is the shortest time Ethereum takes to finalize a block: two epochs of 32 12s slots.
+const minFinalizationDelay = 2 * 32 * 12 * time.Second
+
+func warnConfirmationsBlockTag(l log.Logger, conf *Config) {
+	switch conf.ConfirmationsBlockTag {
+	case eth.Safe:
+		l.Warn("Counting tx confirmations from the safe block. This requires an L1 that serves Fast Confirmation Rule safe blocks.")
+	case eth.Finalized:
+		if conf.TxSendTimeout != 0 && conf.TxSendTimeout < minFinalizationDelay {
+			l.Warn("Tx send timeout is shorter than the finalization delay, so sends can time out after the tx was mined",
+				"txSendTimeout", conf.TxSendTimeout, "finalizationDelay", minFinalizationDelay)
+		}
+	}
+}
+
 func confirmationsBlockNumber(label eth.BlockLabel) *big.Int {
 	if label == eth.Finalized {
 		return big.NewInt(int64(rpc.FinalizedBlockNumber))

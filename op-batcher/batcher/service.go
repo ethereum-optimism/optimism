@@ -350,6 +350,11 @@ func (bs *BatcherService) initTxManager(_ context.Context, cfg *CLIConfig) error
 		return err
 	}
 
+	if txmgrConfig.ConfirmationsBlockTag == eth.Finalized && bs.MaxPendingTransactions == 1 {
+		// The next tx is only sent once the previous one is finalized, which is further apart than the channel timeout.
+		bs.Log.Warn("Counting tx confirmations from the finalized block with one pending tx: channels that span several txs time out. Raise --max-pending-tx.")
+	}
+
 	txManager, err := txmgr.NewSimpleTxManagerFromConfig("batcher", bs.Log, bs.Metrics, txmgrConfig)
 	if err != nil {
 		return err

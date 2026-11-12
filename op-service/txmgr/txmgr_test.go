@@ -1030,7 +1030,7 @@ func TestWaitMinedConfsFromBlockTag(t *testing.T) {
 			t.Parallel()
 
 			cfg := configWithNumConfs(1)
-			cfg.NumConfirmationsBlockTag = label
+			cfg.ConfirmationsBlockTag = label
 			h := newTestHarnessWithConfig(t, cfg)
 			// Only the configured label trails the tip, so reading the other label confirms too early.
 			if label == eth.Safe {
@@ -1045,23 +1045,31 @@ func TestWaitMinedConfsFromBlockTag(t *testing.T) {
 
 			// One confirmation from the tip, but the labeled block is 2 blocks behind.
 			for i := 0; i < 2; i++ {
-				ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-				receipt, err := h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
-				cancel()
-				require.ErrorIs(t, err, context.DeadlineExceeded)
-				require.Nil(t, receipt)
+				require.Nil(t, h.mgr.queryReceipt(context.Background(), txHash, NewSendState(10, time.Hour)))
 				h.backend.mine(nil, nil, nil)
 			}
 
 			// The labeled block has now reached the tx block.
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
-			receipt, err := h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
-			require.NoError(t, err)
+			receipt := h.mgr.queryReceipt(context.Background(), txHash, NewSendState(10, time.Hour))
 			require.NotNil(t, receipt)
 			require.Equal(t, txHash, receipt.TxHash)
 		})
 	}
+}
+
+// TestConfigCheckConfirmationsBlockTag ensures that Config.Check accepts only
+// the block tags that confirmations can be counted from.
+func TestConfigCheckConfirmationsBlockTag(t *testing.T) {
+	newCfg := func(label eth.BlockLabel) *Config {
+		cfg := configWithNumConfs(1)
+		cfg.Backend = newMockBackend(newGasPricer(3))
+		cfg.ConfirmationsBlockTag = label
+		return cfg
+	}
+	for _, label := range []eth.BlockLabel{"", eth.Unsafe, eth.Safe, eth.Finalized} {
+		require.NoError(t, newCfg(label).Check(), "label %q", label)
+	}
+	require.ErrorContains(t, newCfg("pending").Check(), "invalid ConfirmationsBlockTag")
 }
 
 // TestQueryReceiptBlockTagError ensures that a tx is not confirmed when the
@@ -1070,7 +1078,7 @@ func TestQueryReceiptBlockTagError(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithNumConfs(1)
-	cfg.NumConfirmationsBlockTag = eth.Safe
+	cfg.ConfirmationsBlockTag = eth.Safe
 	h := newTestHarnessWithConfig(t, cfg)
 	h.backend.labelErr = errors.New("safe block not available")
 
