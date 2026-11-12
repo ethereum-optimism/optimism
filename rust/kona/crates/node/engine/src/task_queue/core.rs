@@ -144,7 +144,7 @@ impl Engine {
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
     /// an error along the way, the error is returned and the task is not popped from the queue (in
-    /// case it must be retried), unless it is a flush error.
+    /// case it must be retried), unless it is a flush or skip error.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         loop {
@@ -155,9 +155,13 @@ impl Engine {
             let result = task.execute(&mut self.state).await;
 
             // A flush reports that the task replaced its block with a deposits-only block, so the
-            // task is done; retrying it would replace that block again.
+            // task is done; retrying it would replace that block again. A skip reports a task that
+            // no longer applies, so retrying it cannot succeed either.
             if let Err(err) = &result &&
-                err.severity() != EngineTaskErrorSeverity::Flush
+                !matches!(
+                    err.severity(),
+                    EngineTaskErrorSeverity::Flush | EngineTaskErrorSeverity::Skip
+                )
             {
                 return result;
             }
@@ -197,7 +201,8 @@ impl EngineResetError {
 mod recovery_tests {
     use super::*;
     use crate::{
-        ConsolidateInput, ConsolidateTask, InsertTask, NoopBlockSink,
+        ConsolidateInput, ConsolidateTask, FinalizeBlockId, FinalizeTask, InsertTask,
+        NoopBlockSink,
         test_utils::{
             TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
         },
@@ -376,6 +381,32 @@ mod recovery_tests {
 
         engine.reset(Arc::new(client), config).await.unwrap();
 
+        assert_eq!(engine.state().sync_state, state.sync_state);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    // A skipped task is dropped instead of being kept for a retry, so it cannot hold the queue.
+    #[tokio::test]
+    async fn skipped_task_is_dropped_from_the_queue() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(20))
+            .with_finalized_head(test_block_info(10))
+            .build();
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.enqueue(EngineTask::Finalize(Box::new(FinalizeTask::new(
+            Arc::new(client),
+            config,
+            FinalizeBlockId::ByNumber(5),
+        ))));
+
+        let error = engine.drain().await.unwrap_err();
+
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Skip, "got {error:?}");
+        assert!(engine.is_empty());
         assert_eq!(engine.state().sync_state, state.sync_state);
         l1.assert_finished();
         l2.assert_finished();
