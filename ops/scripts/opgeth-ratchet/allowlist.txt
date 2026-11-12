@@ -109,7 +109,6 @@ op-e2e/e2eutils/geth | missing go-ethereum/beacon/engine.ExecutableData.BlockAcc
 op-e2e/e2eutils/geth | missing go-ethereum/beacon/engine.PayloadAttributes.TargetGasLimit | upstream backport, in go-ethereum v1.17.7
 op-e2e/e2eutils/geth | missing go-ethereum/core/types.CustodyBitmap | upstream backport, in go-ethereum v1.17.7
 op-e2e/e2eutils/geth | missing go-ethereum/eth/ethconfig.Config.RollupDisableTxPoolAdmission | #21744 in-process op-geth L2 EL
-op-e2e/e2eutils/geth | missing go-ethereum/eth/ethconfig.Config.RollupDisableTxPoolGossip | #21744 in-process op-geth L2 EL
 op-e2e/e2eutils/geth | missing go-ethereum/eth/ethconfig.Config.RollupSequencerHTTP | #21744 in-process op-geth L2 EL
 op-e2e/e2eutils/geth (tests) | missing go-ethereum/beacon/engine.ExecutableData.BlockAccessList | upstream backport, in go-ethereum v1.17.7
 op-e2e/opgeth | missing go-ethereum/params.ChainConfig.CanyonTime | #20275 op-e2e/opgeth deletion
@@ -143,7 +142,6 @@ op-e2e/opgeth (tests) | missing go-ethereum/params.ChainConfig.Optimism | #20275
 op-e2e/opgeth (tests) | missing go-ethereum/params.ChainConfig.RegolithTime | #20275 op-e2e/opgeth deletion
 op-e2e/opgeth (tests) | missing go-ethereum/params.OptimismTestConfig | #20275 op-e2e/opgeth deletion
 op-e2e/opgeth (tests) | missing go-ethereum/params.TransactionConditionalRejectedErrCode | #20275 op-e2e/opgeth deletion
-op-e2e/system/verifier (tests) | missing go-ethereum/miner.Config.RollupComputePendingBlock | #21744 in-process op-geth L2 EL
 op-interop-filter/filter (tests) | missing go-ethereum/params.InteropCrossL2InboxAddress | #23405 test and DSL swaps to op-core
 op-interop-mon/monitor (tests) | missing go-ethereum/params.InteropCrossL2InboxAddress | #23405 test and DSL swaps to op-core
 op-node/rollup/derive (tests) | missing go-ethereum/consensus/misc/eip1559.EncodeOptimismExtraData | #23405 test and DSL swaps to op-core
