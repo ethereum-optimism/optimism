@@ -268,8 +268,9 @@ impl AlloyChainProvider {
 
     /// Verifies that an empty raw receipt response belongs to an existing empty block.
     async fn verify_empty_raw_receipts(&self, hash: B256) -> Result<(), AlloyChainProviderError> {
-        // An unknown hash fails here as a missing block, which signals a possible L1 reorg.
-        let header = self.header_by_hash(hash).await?;
+        // Ask the RPC even when the header is cached. Traversal usually caches it first, and a
+        // cached header would hide that the block has since been reorged out of the RPC's chain.
+        let header = self.fetch_header_by_hash(hash).await?;
         if !header.transaction_root_is_empty() {
             return Err(AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
                 hash,
@@ -618,6 +619,13 @@ impl AlloyChainProvider {
         if let Some(header) = self.shared.cache.header(hash) {
             return Ok(header);
         }
+        self.fetch_header_by_hash(hash).await
+    }
+
+    /// Fetches the header with the given hash from the RPC, bypassing the cache, and caches it.
+    ///
+    /// An unknown hash fails as a missing block, which signals a possible L1 reorg.
+    async fn fetch_header_by_hash(&self, hash: B256) -> Result<Header, AlloyChainProviderError> {
         let block = self
             .inner
             .get_block_by_hash(hash)
@@ -1253,6 +1261,44 @@ mod tests {
             asserter.read_q().is_empty(),
             "a confirmed missing block must reset without requesting fallback receipts"
         );
+    }
+
+    #[tokio::test]
+    async fn empty_raw_receipts_for_a_cached_block_that_was_reorged_out_reset() {
+        // Traversal cached the header before the block, empty or not, was reorged out of the
+        // RPC's chain. The RPC is still asked whether the block exists.
+        let empty = alloy_consensus::EMPTY_ROOT_HASH;
+        let nonempty = B256::repeat_byte(0x11);
+        for (transactions_root, trust_rpc) in
+            [(empty, true), (empty, false), (nonempty, true), (nonempty, false)]
+        {
+            let header = Header { transactions_root, ..Default::default() };
+            let hash = header.hash_slow();
+            let asserter = Asserter::new();
+            asserter.push_success(&Vec::<Bytes>::new());
+            asserter.push_success(&Option::<EthereumBlock>::None);
+            let provider = AlloyChainProvider::new(
+                RootProvider::new(RpcClient::mocked(asserter.clone())),
+                CACHE_SIZE,
+                trust_rpc,
+            );
+            provider.shared.cache.insert_header(hash, header);
+
+            let error = provider.receipts_by_hash(hash).await.unwrap_err();
+
+            assert!(
+                matches!(&error, AlloyChainProviderError::BlockNotFound(id) if *id == hash.into()),
+                "transactions root {transactions_root}, trust_rpc {trust_rpc}: {error}"
+            );
+            assert!(matches!(
+                PipelineErrorKind::from(error),
+                PipelineErrorKind::Reset(ResetError::BlockNotFound(id)) if id == hash.into()
+            ));
+            assert!(
+                asserter.read_q().is_empty(),
+                "a confirmed missing block must reset without requesting fallback receipts"
+            );
+        }
     }
 
     #[tokio::test]
