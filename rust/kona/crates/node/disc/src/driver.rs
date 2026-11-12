@@ -1033,6 +1033,107 @@ mod tests {
         assert!(store.is_empty(), "the node saved a bootnode for another chain");
     }
 
+    /// An enode URL holds only an address, so the bootstrap should check the record it fetches
+    /// from that address too: a record the table filter rejects should be neither saved nor kept
+    /// in the table, where the session that fetched it put it.
+    ///
+    /// The filter accepts a record only on `127.0.0.1` and without IPv6, as `public_only` rejects
+    /// a dual-stack record with a private IPv6 address. B's enode URL is on `127.0.0.1`, and its
+    /// record also holds `::1`.
+    #[tokio::test]
+    async fn test_enode_bootnode_with_a_record_the_filter_rejects_is_dropped() {
+        fn ipv4_loopback_only(enr: &Enr) -> bool {
+            enr.ip4() == Some(Ipv4Addr::LOCALHOST) && enr.ip6().is_none()
+        }
+
+        let key = CombinedKey::generate_secp256k1();
+        let port = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))
+            .and_then(|socket| socket.local_addr())
+            .expect("a free UDP port")
+            .port();
+        let record = Enr::builder()
+            .ip4(Ipv4Addr::LOCALHOST)
+            .udp4(port)
+            .tcp4(port)
+            .ip6(Ipv6Addr::LOCALHOST)
+            .build(&key)
+            .expect("the record builds");
+        let listen = ListenConfig::from_ip(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+        let mut bootnode = Discv5::new(record.clone(), key, ConfigBuilder::new(listen).build())
+            .expect("the bootnode builds");
+        bootnode.start().await.expect("the bootnode starts");
+
+        let (node, _dir) = driver_with_bootstore(ipv4_loopback_only, &[]);
+        let node = node.init().await.expect("the node starts");
+        let store = Discv5Driver::bootstrap_peers(
+            None,
+            BootNodes(vec![BootNode::Enode(loopback_enode(&record))]),
+            node.chain_id,
+            node.table_filter,
+            &node.disc,
+        )
+        .await;
+
+        assert!(
+            !node.disc.table_entries_enr().iter().any(|enr| enr.node_id() == record.node_id()),
+            "the node kept a bootnode whose record the filter rejects"
+        );
+        assert!(store.is_empty(), "the node saved a bootnode whose record the filter rejects");
+    }
+
+    /// The driver should take discv5's event stream before it bootstraps, which can take seconds
+    /// when bootnodes don't answer: discv5 drops the events it has no stream for, so a node that
+    /// starts a session with us meanwhile would never be dialed.
+    ///
+    /// N's only bootnode is a socket that never answers, so N's bootstrap waits for its request to
+    /// time out, 3s here. P has N as its bootnode, and contacts N in its first lookup, during N's
+    /// bootstrap.
+    #[tokio::test]
+    async fn test_driver_reports_sessions_started_during_bootstrap() {
+        let silent = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("a free UDP port");
+        let silent_peer_id = kona_peers::enr_to_multiaddr(&localhost_enr(OP_SEPOLIA_CHAIN_ID))
+            .and_then(|addr| addr.iter().last().map(|protocol| protocol.acquire()))
+            .expect("the record has a peer ID");
+        let silent_enode = Multiaddr::from(Ipv4Addr::LOCALHOST)
+            .with(Protocol::Udp(silent.local_addr().expect("the socket is bound").port()))
+            .with(silent_peer_id);
+
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+        let mut node = Discv5Driver::builder(
+            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
+            BOOTSTORE_CHAIN_ID,
+            ConfigBuilder::new(listen.into())
+                .request_timeout(Duration::from_secs(3))
+                .request_retries(0)
+                .build(),
+        )
+        .build()
+        .expect("the node builds");
+        node.bootnodes = BootNodes(vec![BootNode::Enode(silent_enode)]);
+        let node_enr = node.disc.local_enr();
+        let (_node, mut records) = node.start();
+
+        let mut peer = offline_driver();
+        peer.bootnodes = BootNodes(vec![BootNode::Enr(node_enr)]);
+        peer.interval = Duration::from_millis(100);
+        let peer_id = peer.disc.local_enr().node_id();
+        let (_peer, _) = peer.start();
+
+        let handed_over = async {
+            loop {
+                if records.recv().await.expect("the driver runs").node_id() == peer_id {
+                    return;
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), handed_over)
+            .await
+            .expect("the node didn't hand over a peer that started a session during its bootstrap");
+    }
+
     /// The enode URL of the node with `enr`, at its UDP port on loopback.
     fn loopback_enode(enr: &Enr) -> Multiaddr {
         let peer_id = kona_peers::enr_to_multiaddr(enr)
