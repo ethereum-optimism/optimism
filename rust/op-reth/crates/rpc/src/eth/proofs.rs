@@ -43,6 +43,15 @@ pub trait EthApiOverride {
 }
 
 /// Rejects a proof request for more storage keys than [`DEFAULT_MAX_PROOF_SLOTS`].
+///
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1
+/// `reth_rpc_eth_api::helpers::state::EthState::get_proof`
+///
+/// Copies the key-count check that opens upstream's `get_proof` (paradigmxyz/reth#27716), which
+/// upstream writes inline rather than as a function we could call. Keep the limit, the
+/// `InvalidParams` variant and the message identical to upstream's; the test below pins the
+/// message. On a bump, diff the checks upstream's `get_proof` runs before taking its permit, for
+/// a changed limit or a new early rejection that should also apply here.
 fn ensure_proof_key_count(key_count: usize) -> Result<(), EthApiError> {
     if key_count > DEFAULT_MAX_PROOF_SLOTS {
         return Err(EthApiError::InvalidParams(format!(
@@ -75,14 +84,14 @@ where
     /// `reth_rpc_eth_api::helpers::state::EthState::get_proof`
     ///
     /// Uses the OP proofs-history state provider while preserving upstream permit and blocking-task
-    /// behavior, including upstream's cap of [`DEFAULT_MAX_PROOF_SLOTS`] on the requested keys,
-    /// checked first. Upstream's `ensure_within_proof_window` bounds the distance from the tip by
-    /// `max_proof_window`; a proofs-history node instead serves its proofs storage window. Unlike
-    /// upstream, which takes the permit first and then checks its window, this checks the window
-    /// before taking the permit, so out-of-window requests never wait for one. Upstream also
-    /// resolves the state before taking a blocking thread (`spawn_blocking_io_with_state`), as
-    /// opening the pending state takes one itself; this resolves it inside the task. That is safe
-    /// because `pending` never gets this far: reth sets no canonical pending block on an OP node,
+    /// behavior, checking upstream's key-count cap (`ensure_proof_key_count`) first. Upstream's
+    /// `ensure_within_proof_window` bounds the distance from the tip by `max_proof_window`; a
+    /// proofs-history node instead serves its proofs storage window. Unlike upstream, which takes
+    /// the permit first and then checks its window, this checks the window before taking the
+    /// permit, so out-of-window requests never wait for one. Upstream also resolves the state
+    /// before taking a blocking thread (`spawn_blocking_io_with_state`), as opening the pending
+    /// state takes one itself; this resolves it inside the task. That is safe because `pending`
+    /// never gets this far: reth sets no canonical pending block on an OP node,
     /// so `ensure_within_proofs_window` rejects it with `HeaderNotFound` first.
     async fn get_proof_inner(
         &self,
