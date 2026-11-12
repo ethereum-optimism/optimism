@@ -8,6 +8,7 @@ import { ComplianceIntegration_TestInit } from "test/setup/ComplianceIntegration
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Libraries
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 
 // Interfaces
@@ -39,13 +40,35 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         assertEq(_ethVault().balance, vault);
 
         _clear(id);
-        vm.prank(anyone);
-        module.completeDeposit(item);
-
-        assertEq(_publishedDeposit(), direct);
+        assertEq(_completeDeposit(item), direct);
         _assertReleased(id);
         assertEq(address(module).balance, 0);
         assertEq(_ethVault().balance, vault + AMOUNT);
+    }
+
+    /// @notice Tests that a held deposit from a contract completes with the same aliased sender
+    ///         as one that proceeds, while the policy screens the contract's own address.
+    function test_contractDeposit_heldThenCompleted_succeeds() external {
+        address depositor = makeAddr("depositorContract");
+        vm.etch(depositor, hex"00");
+
+        uint256 snapshot = vm.snapshotState();
+        _allowlist(depositor);
+        _depositETH(depositor, bob, AMOUNT);
+        bytes32 direct = _publishedDeposit();
+        vm.revertToState(snapshot);
+
+        _depositETH(depositor, bob, AMOUNT);
+        (bytes32 id, BridgeHookTypes.Item memory item) = _heldDeposit();
+
+        _assertHeldDeposit(id);
+        assertTrue(item.aliased);
+        assertEq(item.from, AddressAliasHelper.applyL1ToL2Alias(depositor));
+        assertEq(module.parties(item).sender, depositor);
+
+        _clear(id);
+        assertEq(_completeDeposit(item), direct);
+        _assertReleased(id);
     }
 
     /// @notice Tests that a held token deposit completes as the same L2 transaction as a deposit
@@ -66,10 +89,7 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         _assertTokenCustody({ _escrowed: 0, _held: AMOUNT });
 
         _clear(id);
-        vm.prank(anyone);
-        module.completeDeposit(item);
-
-        assertEq(_publishedDeposit(), direct);
+        assertEq(_completeDeposit(item), direct);
         _assertReleased(id);
         _assertTokenCustody({ _escrowed: AMOUNT, _held: 0 });
         assertEq(L1Token.allowance(address(module), address(l1StandardBridge)), 0);
@@ -91,10 +111,7 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         assertEq(address(module).balance, 0);
 
         _clear(id);
-        vm.prank(anyone);
-        module.completeDeposit(item);
-
-        assertEq(_publishedDeposit(), direct);
+        assertEq(_completeDeposit(item), direct);
         _assertReleased(id);
     }
 
@@ -110,10 +127,7 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         assertEq(module.heldTokensTotal(mintable), 0);
 
         _clear(id);
-        vm.prank(anyone);
-        module.completeDeposit(item);
-
-        _publishedDeposit();
+        _completeDeposit(item);
         _assertReleased(id);
         assertEq(ERC20(mintable).totalSupply(), 0);
     }
@@ -144,9 +158,9 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         _assertTokenCustody({ _escrowed: AMOUNT, _held: 0 });
     }
 
-    /// @notice Tests that a batch with one deposit that cannot complete rolls back entirely. The
-    ///         other deposit keeps its hold and its value, and gets no verdict.
-    function test_clearAndCompleteDeposit_batchWithDeniedParty_reverts() external {
+    /// @notice Tests that one deposit that cannot complete reverts the whole batch, and that the
+    ///         other deposit completes when the writer sends the batch again without it.
+    function test_clearAndCompleteDeposit_batchResentWithoutDenied_succeeds() external {
         address carol = makeAddr("carol");
         bytes[] memory calls = new bytes[](2);
         bytes32[] memory ids = new bytes32[](2);
@@ -163,11 +177,18 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         vm.expectRevert(IComplianceModule.ComplianceModule_PolicyRefused.selector);
         vm.prank(verdictWriter);
         policy.multicall(calls);
+        // Foundry records the logs of the reverted batch, so discard them.
+        vm.getRecordedLogs();
 
-        _assertHeldDeposit(ids[0]);
+        bytes[] memory resent = new bytes[](1);
+        resent[0] = calls[0];
+        vm.prank(verdictWriter);
+        policy.multicall(resent);
+
+        assertEq(_publishedDepositCount(), 1);
+        _assertReleased(ids[0]);
         _assertHeldDeposit(ids[1]);
-        assertEq(module.items(ids[0]).expiresAt, 0);
-        assertEq(address(module).balance, 2 * AMOUNT);
+        assertEq(address(module).balance, AMOUNT);
     }
 
     /// @notice Tests that the deny list beats both the allowlist and a clear verdict. A refused
@@ -188,9 +209,7 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         assertEq(address(module).balance, AMOUNT);
 
         _undeny(bob);
-        module.completeDeposit(item);
-
-        _publishedDeposit();
+        _completeDeposit(item);
         _assertReleased(id);
     }
 
@@ -215,9 +234,7 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         assertEq(address(module).balance, AMOUNT);
 
         _clear(id);
-        module.completeDeposit(item);
-
-        _publishedDeposit();
+        _completeDeposit(item);
         _assertReleased(id);
     }
 
@@ -231,8 +248,7 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         assertNotEq(firstId, secondId);
 
         _clear(firstId);
-        module.completeDeposit(first);
-        _publishedDeposit();
+        _completeDeposit(first);
 
         // A new verdict cannot run the completed deposit again.
         _clear(firstId);
@@ -243,9 +259,7 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         assertEq(address(module).balance, AMOUNT);
 
         _clear(secondId);
-        module.completeDeposit(second);
-
-        _publishedDeposit();
+        _completeDeposit(second);
         assertEq(address(module).balance, 0);
     }
 
@@ -264,17 +278,13 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
             vm.roll(block.number + 1);
         }
 
-        module.completeDeposit(items[0]);
+        _completeDeposit(items[0]);
         vm.expectRevert(IResourceMetering.OutOfGas.selector);
         module.completeDeposit(items[1]);
 
-        _publishedDeposit();
-        _assertHeldDeposit(ids[1]);
-
         vm.roll(block.number + 1);
-        module.completeDeposit(items[1]);
+        _completeDeposit(items[1]);
 
-        _publishedDeposit();
         _assertReleased(ids[1]);
     }
 }

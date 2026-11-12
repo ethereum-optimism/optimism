@@ -220,11 +220,13 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
     //                           Deposits                         //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Deposits ETH straight into the Portal from an EOA.
+    /// @notice Deposits ETH straight into the Portal. A sender without code deposits as an EOA.
+    ///         A sender with code deposits as a contract, so the Portal aliases it.
     function _depositETH(address _from, address _to, uint256 _value) internal {
         vm.getRecordedLogs();
         vm.deal(_from, _from.balance + _value);
-        vm.prank(_from, _from);
+        if (_from.code.length == 0) vm.prank(_from, _from);
+        else vm.prank(_from);
         optimismPortal2.depositTransaction{ value: _value }(_to, _value, DEPOSIT_GAS_LIMIT, false, hex"");
     }
 
@@ -271,6 +273,24 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
             _find(vm.getRecordedLogs(), address(optimismPortal2), TRANSACTION_DEPOSITED);
         assertEq(published, 1, "deposits published");
         return keccak256(abi.encode(log.topics, log.data));
+    }
+
+    /// @notice Completes a held deposit as an address with no role. Asserts that the Portal
+    ///         published exactly one deposit, with the terms of the held item, and returns its
+    ///         hash.
+    function _completeDeposit(BridgeHookTypes.Item memory _item) internal returns (bytes32 published_) {
+        vm.getRecordedLogs();
+        vm.prank(anyone);
+        module.completeDeposit(_item);
+        published_ = _publishedDeposit();
+
+        bytes32[] memory topics = new bytes32[](4);
+        topics[0] = TRANSACTION_DEPOSITED;
+        topics[1] = bytes32(uint256(uint160(_item.from)));
+        topics[2] = bytes32(uint256(uint160(_item.to)));
+        bytes memory opaqueData =
+            abi.encodePacked(_item.ethAmount, _item.l2Value, uint64(_item.gasLimit), _item.isCreation, _item.data);
+        assertEq(published_, keccak256(abi.encode(topics, abi.encode(opaqueData))), "published deposit");
     }
 
     /// @notice Returns the number of deposits the Portal published since the last deposit or log
@@ -402,6 +422,20 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
         (, item_) = _itemOf(_tx);
         item_.asset = BridgeHookTypes.Asset.ERC20;
         id_ = BridgeHookHashing.hashItem(item_);
+    }
+
+    /// @notice Finalizes a withdrawal that the policy holds, and returns its item as the module
+    ///         emitted it. Asserts that exactly one item was held.
+    function _holdWithdrawal(Types.WithdrawalTransaction memory _tx)
+        internal
+        returns (bytes32 id_, BridgeHookTypes.Item memory item_)
+    {
+        vm.getRecordedLogs();
+        optimismPortal2.finalizeWithdrawalTransaction(_tx);
+        (uint256 held, Vm.Log memory log) = _find(vm.getRecordedLogs(), address(module), Held.selector);
+        assertEq(held, 1, "items held");
+        id_ = log.topics[1];
+        item_ = abi.decode(log.data, (BridgeHookTypes.Item));
     }
 
     /// @notice Proves a withdrawal and funds the ETH it pays. Several withdrawals can be proven

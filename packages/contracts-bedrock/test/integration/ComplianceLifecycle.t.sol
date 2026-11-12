@@ -155,8 +155,7 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
         _heldDeposit();
 
         _clear(id);
-        module.completeDeposit(item);
-        _publishedDeposit();
+        _completeDeposit(item);
         _assertReleased(id);
     }
 
@@ -189,8 +188,7 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
     function _holdAndClearItems() internal returns (HeldItems memory held_) {
         Types.WithdrawalTransaction memory withdrawal = _withdrawal(0, alice, bob, AMOUNT);
         _proveAndWarpToHoldable(withdrawal);
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
-        (held_.ids[2], held_.ethWithdrawal) = _itemOf(withdrawal);
+        (held_.ids[2], held_.ethWithdrawal) = _holdWithdrawal(withdrawal);
 
         _depositETH(alice, bob, AMOUNT);
         (held_.ids[0], held_.ethDeposit) = _heldDeposit();
@@ -215,18 +213,16 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
         _assertTokenCustody({ _escrowed: 0, _held: AMOUNT });
     }
 
-    /// @notice Completes every item and asserts that its value reached its destination.
+    /// @notice Completes every item and asserts that each deposit was published on its held terms
+    ///         and that the value reached its destination.
     function _completeItems(HeldItems memory _held) internal {
         uint256 vault = _ethVault().balance;
         uint256 bobBalance = bob.balance;
 
-        vm.startPrank(anyone);
-        module.completeDeposit(_held.ethDeposit);
-        _publishedDeposit();
-        module.completeDeposit(_held.erc20Deposit);
-        _publishedDeposit();
+        _completeDeposit(_held.ethDeposit);
+        _completeDeposit(_held.erc20Deposit);
+        vm.prank(anyone);
         module.completeWithdrawal(_held.ethWithdrawal);
-        vm.stopPrank();
 
         for (uint256 i; i < _held.ids.length; i++) {
             _assertReleased(_held.ids[i]);

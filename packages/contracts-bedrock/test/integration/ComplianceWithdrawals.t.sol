@@ -63,7 +63,7 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
     ///         withdrawal that is paid at finalization, and that its ETH waits in the module.
     function test_ethWithdrawal_heldThenCompleted_succeeds() external {
         Types.WithdrawalTransaction memory withdrawal = _withdrawal(0, alice, address(recorder), AMOUNT);
-        (bytes32 id, BridgeHookTypes.Item memory item) = _itemOf(withdrawal);
+        (bytes32 id,) = _itemOf(withdrawal);
         bytes32 withdrawalHash = _proveAndWarpToHoldable(withdrawal);
 
         uint256 snapshot = vm.snapshotState();
@@ -72,8 +72,9 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
         bytes32 direct = recorder.lastCall();
         vm.revertToState(snapshot);
 
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        (bytes32 heldId, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
 
+        assertEq(heldId, id);
         _assertHeldWithdrawal(id);
         assertTrue(optimismPortal2.finalizedWithdrawals(withdrawalHash));
         assertEq(recorder.calls(), 0);
@@ -98,7 +99,7 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
     function test_erc20Withdrawal_heldThenCompleted_succeeds() external {
         _escrow(AMOUNT);
         Types.WithdrawalTransaction memory withdrawal = _erc20Withdrawal(0, alice, bob, AMOUNT);
-        (bytes32 id, BridgeHookTypes.Item memory item) = _tokenItemOf(withdrawal);
+        (bytes32 id,) = _tokenItemOf(withdrawal);
         _proveAndWarpToHoldable(withdrawal);
 
         uint256 snapshot = vm.snapshotState();
@@ -108,8 +109,9 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
         _assertTokenCustody({ _escrowed: 0, _held: 0 });
         vm.revertToState(snapshot);
 
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        (bytes32 heldId, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
 
+        assertEq(heldId, id);
         _assertHeldWithdrawal(id);
         _assertTokenCustody({ _escrowed: 0, _held: AMOUNT });
         assertEq(L1Token.balanceOf(bob), 0);
@@ -128,7 +130,7 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
     ///         target as a message that is relayed at finalization.
     function test_messageWithdrawal_heldThenCompleted_succeeds() external {
         Types.WithdrawalTransaction memory withdrawal = _messageWithdrawal(0, alice, address(recorder), 0, hex"1234");
-        (bytes32 id, BridgeHookTypes.Item memory item) = _itemOf(withdrawal);
+        (bytes32 id,) = _itemOf(withdrawal);
         _proveAndWarpToHoldable(withdrawal);
 
         uint256 snapshot = vm.snapshotState();
@@ -137,8 +139,9 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
         bytes32 direct = recorder.lastCall();
         vm.revertToState(snapshot);
 
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        (bytes32 heldId, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
 
+        assertEq(heldId, id);
         _assertHeldWithdrawal(id);
         assertEq(recorder.calls(), 0);
 
@@ -163,11 +166,9 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
 
         _prove(ethWithdrawal);
         _proveAndWarpToHoldable(erc20Withdrawal);
-        optimismPortal2.finalizeWithdrawalTransaction(ethWithdrawal);
-        optimismPortal2.finalizeWithdrawalTransaction(erc20Withdrawal);
-        (ids[0], item) = _itemOf(ethWithdrawal);
+        (ids[0], item) = _holdWithdrawal(ethWithdrawal);
         calls[0] = abi.encodeCall(policy.clearAndCompleteWithdrawal, (item, _expiry()));
-        (ids[1], item) = _tokenItemOf(erc20Withdrawal);
+        (ids[1], item) = _holdWithdrawal(erc20Withdrawal);
         calls[1] = abi.encodeCall(policy.clearAndCompleteWithdrawal, (item, _expiry()));
         uint256 bobBalance = bob.balance;
 
@@ -210,12 +211,11 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
     ///         hold delay, and completes only once the entry is removed.
     function test_completeWithdrawal_afterRecipientUndenied_succeeds() external {
         Types.WithdrawalTransaction memory withdrawal = _withdrawal(0, alice, bob, AMOUNT);
-        (bytes32 id, BridgeHookTypes.Item memory item) = _itemOf(withdrawal);
         _warpToFinalizable(_prove(withdrawal));
         _deny(bob);
         uint256 bobBalance = bob.balance;
 
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        (bytes32 id, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
         _assertHeldWithdrawal(id);
 
         _clear(id);
@@ -236,15 +236,16 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
     ///         hold delay, and completes on a new verdict.
     function test_completeWithdrawal_afterVerdictRenewed_succeeds() external {
         Types.WithdrawalTransaction memory withdrawal = _withdrawal(0, alice, bob, AMOUNT);
-        (bytes32 id, BridgeHookTypes.Item memory item) = _itemOf(withdrawal);
+        (bytes32 id,) = _itemOf(withdrawal);
         _warpToFinalizable(_prove(withdrawal));
         uint256 bobBalance = bob.balance;
 
         vm.prank(verdictWriter);
         policy.clear(id, uint64(block.timestamp + 1));
         vm.warp(block.timestamp + 1);
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        (bytes32 heldId, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
 
+        assertEq(heldId, id);
         _assertHeldWithdrawal(id);
         assertEq(bob.balance, bobBalance);
 
@@ -271,9 +272,8 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
     ///         completed again after completion, even with a new verdict.
     function test_completeWithdrawal_twice_reverts() external {
         Types.WithdrawalTransaction memory withdrawal = _withdrawal(0, alice, address(recorder), AMOUNT);
-        (bytes32 id, BridgeHookTypes.Item memory item) = _itemOf(withdrawal);
         _proveAndWarpToHoldable(withdrawal);
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        (bytes32 id, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
 
         vm.expectRevert(IOptimismPortal2.OptimismPortal_AlreadyFinalized.selector);
         optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
@@ -296,9 +296,8 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
         address target = makeAddr("target");
         vm.etch(target, REVERTING_CODE);
         Types.WithdrawalTransaction memory withdrawal = _withdrawal(0, alice, target, AMOUNT);
-        (bytes32 id, BridgeHookTypes.Item memory item) = _itemOf(withdrawal);
         _proveAndWarpToHoldable(withdrawal);
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        (bytes32 id, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
         _clear(id);
         uint64 expiry = _expiry();
 
@@ -323,10 +322,9 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
         address target = makeAddr("target");
         vm.etch(target, REVERTING_CODE);
         Types.WithdrawalTransaction memory withdrawal = _messageWithdrawal(0, alice, target, AMOUNT, hex"");
-        (bytes32 id, BridgeHookTypes.Item memory item) = _itemOf(withdrawal);
         bytes32 messageHash = keccak256(withdrawal.data);
         _proveAndWarpToHoldable(withdrawal);
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        (bytes32 id, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
 
         _clear(id);
         module.completeWithdrawal(item);
@@ -349,9 +347,8 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
     ///         deposits, and that the withdrawal completes after the pause ends.
     function test_completeWithdrawal_afterUnpause_succeeds() external {
         Types.WithdrawalTransaction memory withdrawal = _withdrawal(0, alice, bob, AMOUNT);
-        (bytes32 id, BridgeHookTypes.Item memory item) = _itemOf(withdrawal);
         _proveAndWarpToHoldable(withdrawal);
-        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+        (bytes32 id, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
         _clear(id);
         _depositETH(alice, bob, AMOUNT);
         (bytes32 depositId, BridgeHookTypes.Item memory deposit) = _heldDeposit();
@@ -363,9 +360,7 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
 
         vm.expectRevert(IComplianceModule.ComplianceModule_Paused.selector);
         module.completeWithdrawal(item);
-        module.completeDeposit(deposit);
-
-        _publishedDeposit();
+        _completeDeposit(deposit);
         _assertHeldWithdrawal(id);
 
         vm.prank(superchainConfig.guardian());
@@ -379,7 +374,6 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
     /// @notice Escrows L1Token in the bridge with a deposit that proceeds, so that a token
     ///         withdrawal has something to pay from.
     function _escrow(uint256 _amount) internal {
-        address depositor = makeAddr("depositor");
         _allowlist(depositor);
         _depositERC20(depositor, depositor, _amount);
     }
