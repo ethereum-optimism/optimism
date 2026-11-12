@@ -116,6 +116,41 @@ func OpRethWithEthProofWindow(blocks uint64) OpRethOption {
 	return OpRethWithExtraArgs(fmt.Sprintf("--rpc.eth-proof-window=%d", blocks))
 }
 
+// OpRethPinnedMemoryBlockBufferTarget is a memory block buffer target to pin in an
+// OpRethPersistenceSchedule, so how many blocks reth keeps in memory after a save does not move
+// with reth's defaults.
+const OpRethPinnedMemoryBlockBufferTarget = 5
+
+// OpRethPersistenceSchedule is reth's persistence schedule: reth persists once more than
+// PersistenceThreshold blocks sit in memory and keeps the newest MemoryBlockBufferTarget of them.
+type OpRethPersistenceSchedule struct {
+	MemoryBlockBufferTarget uint64
+	// PersistenceBackpressureThreshold is how many blocks beyond the memory buffer may await
+	// persistence while a save runs before reth stops taking engine API calls. Zero leaves it to
+	// reth, which derives it from PersistenceThreshold.
+	PersistenceBackpressureThreshold uint64
+	PersistenceThreshold             uint64
+}
+
+// PersistenceInterval is how many blocks apart reth starts its saves once it is in its steady
+// state, and so how many blocks each save persists: a save keeps MemoryBlockBufferTarget blocks in
+// memory, and the next starts once more than PersistenceThreshold sit there again. It requires a
+// PersistenceThreshold of at least MemoryBlockBufferTarget: below that it is zero or wraps around.
+func (s OpRethPersistenceSchedule) PersistenceInterval() uint64 {
+	return s.PersistenceThreshold + 1 - s.MemoryBlockBufferTarget
+}
+
+// OpRethWithPersistenceSchedule pins reth's persistence schedule, so it does not depend on reth's
+// defaults.
+func OpRethWithPersistenceSchedule(schedule OpRethPersistenceSchedule) OpRethOption {
+	args := []string{fmt.Sprintf("--engine.memory-block-buffer-target=%d", schedule.MemoryBlockBufferTarget)}
+	if schedule.PersistenceBackpressureThreshold != 0 {
+		args = append(args, fmt.Sprintf("--engine.persistence-backpressure-threshold=%d", schedule.PersistenceBackpressureThreshold))
+	}
+	args = append(args, fmt.Sprintf("--engine.persistence-threshold=%d", schedule.PersistenceThreshold))
+	return OpRethWithExtraArgs(args...)
+}
+
 // OpRethWithInteropURL wires the op-reth node to the given interop filter HTTP endpoint.
 // An empty interopURL is a no-op so callers can pass the value unconditionally.
 func OpRethWithInteropURL(interopURL string) OpRethOption {

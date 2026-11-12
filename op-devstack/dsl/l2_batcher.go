@@ -3,9 +3,11 @@ package dsl
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/stretchr/testify/require"
 )
@@ -57,4 +59,39 @@ func (b *L2Batcher) Start() {
 		return err
 	})
 	require.NoError(b.t, err, fmt.Sprintf("Expected to be able to call StartBatcher API on chain %s, but got error", b.inner.ChainID()))
+}
+
+// flushRecheckInterval is how long FlushUntilSafe waits after each flush before it reads the safe
+// head again.
+const flushRecheckInterval = 2 * time.Second
+
+// FlushUntilSafe asks the batcher to close its open channel and submit what it has loaded, rather
+// than when the channel fills or times out, and repeats the request every flushRecheckInterval
+// until node's safe head reaches target, reading the safe head up to attempts times. The batcher
+// drops a flush that arrives while a publish is already queued, so a single flush may post
+// nothing. It fails at once if the batcher is stopped, since no flush can then post anything.
+func (b *L2Batcher) FlushUntilSafe(node *L2ELNode, target uint64, attempts int) {
+	logger := b.log.With("name", b.inner.Name(), "chain", b.inner.ChainID(), "node", node, "target", target)
+	logger.Info("Flushing batcher until the safe head reaches target")
+	err := retry.Do0(b.ctx, attempts, &retry.FixedStrategy{Dur: flushRecheckInterval}, func() error {
+		safe, err := node.blockRefByLabel(eth.Safe)
+		if err != nil {
+			logger.Warn("Safe head lookup failed; will retry", "err", err)
+			return fmt.Errorf("safe head lookup failed: %w", err)
+		}
+		if safe.Number >= target {
+			logger.Info("Safe head reached target", "safe", safe.Number)
+			return nil
+		}
+		logger.Info("Safe head below target; flushing batcher", "safe", safe.Number)
+		if err := b.inner.ActivityAPI().FlushBatcher(b.ctx); err != nil {
+			require.NotContainsf(b.t, err.Error(), "batcher is not running",
+				"Expected the batcher on chain %s to be running while flushing it until %s is safe through %d", b.inner.ChainID(), node, target)
+			logger.Warn("FlushBatcher call failed; will retry", "err", err)
+		} else {
+			logger.Debug("Batcher flushed")
+		}
+		return fmt.Errorf("safe head at %d, below target %d", safe.Number, target)
+	})
+	require.NoErrorf(b.t, err, "Expected flushing the batcher on chain %s to make %s safe through %d", b.inner.ChainID(), node, target)
 }
