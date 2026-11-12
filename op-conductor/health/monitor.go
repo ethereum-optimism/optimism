@@ -221,6 +221,7 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error
 		hm.log.Error("health monitor failed to get sync status", "err", err)
 		return ErrSequencerConnectionDown
 	}
+	hm.metrics.RecordNodeUnsafeHead(status.UnsafeL2.Number)
 
 	now := hm.timeProviderFn()
 
