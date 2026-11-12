@@ -99,6 +99,14 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 
 	// Make sure verifier safe head is also advanced from reorgL2Block or matched
 	sys.L2ELB.Reached(eth.Safe, l2BlockBeforeReorg.Number, 3)
+	// The follow-source verifier must hold the block about to be reorged as local-safe, so the
+	// recovery checks below start from a real safe head rather than from genesis.
+	require.NoError(sys.L2CLC.ReachedWithProgressFn(
+		safety.LocalSafe, safety.LocalUnsafe, l2BlockBeforeReorg.Number,
+		2*time.Minute, 30*time.Second,
+	)())
+	require.Equal(l2BlockBeforeReorg.Hash, sys.L2ELC.BlockRefByNumber(l2BlockBeforeReorg.Number).Hash,
+		"follow-source verifier must hold the deriving verifier's block before the L1 reorg")
 
 	// Reorg L1 block which safe block L1 Origin points to
 	l1BlockBeforeReorg := sys.L1EL.BlockRefByNumber(l2BlockBeforeReorg.L1Origin.Number)
@@ -131,6 +139,18 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 		return true
 	}, 60*time.Second, 2*time.Second)
 	logger.Info("Triggered L2 reorg", "l2", l2BlockAfterReorg)
+
+	sys.L2ELC.ReorgTriggered(l2BlockBeforeReorg, 60)
+	// A local-safe head past the reorged height shows the follow-source verifier recovered; the
+	// in-sync checks below also pass when both verifiers sit at genesis. Waiting for the EL reorg
+	// first means the unsafe head that bounds this wait is already climbing on the new chain.
+	require.NoError(sys.L2CLC.ReachedWithProgressFn(
+		safety.LocalSafe, safety.LocalUnsafe, l2BlockBeforeReorg.Number+1,
+		5*time.Minute, time.Minute,
+	)())
+	require.Equal(sys.L2ELB.BlockRefByNumber(l2BlockBeforeReorg.Number).Hash,
+		sys.L2ELC.BlockRefByNumber(l2BlockBeforeReorg.Number).Hash,
+		"follow-source verifier must replace the reorged block with the deriving verifier's")
 
 	attempts := 30
 	dsl.CheckAll(t,
@@ -210,6 +230,14 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 		sys.L2CLC.InSyncFn(sys.L2CLB, safety.LocalSafe, attempts),
 		sys.L2CLC.InSyncFn(sys.L2CLB, safety.LocalUnsafe, attempts),
 	)
+
+	// The deriving verifier finalizes past genesis first, so the comparison cannot pass with both
+	// nodes at genesis.
+	require.NoError(sys.L2CLB.ReachedWithProgressFn(
+		safety.Finalized, safety.LocalSafe, 1,
+		5*time.Minute, time.Minute,
+	)())
+	sys.L2CLC.InSync(sys.L2CLB, safety.Finalized, attempts)
 
 	t.Cleanup(func() {
 		sys.L2CLC.ConnectPeer(sys.L2CLB)
