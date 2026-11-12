@@ -148,7 +148,9 @@ func (s *interopE2ESystem) prepareHDWallet() *devkeys.MnemonicDevKeys {
 func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstance) {
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	genesisTimestampL1 := s.l1Genesis.Timestamp
-	blockTimeL1 := uint64(6)
+	// 3s, not 6s: the tests mostly wait on L1 blocks. 3s still gives about half of the epochs more
+	// than one 2s L2 block, which 2s would not (same choice as sysgo in #24040).
+	blockTimeL1 := uint64(3)
 	blobPath := s.t.TempDir()
 	bcn := fakebeacon.NewBeacon(s.logger.New("role", "l1_cl"),
 		blobstore.New(), genesisTimestampL1, blockTimeL1)
