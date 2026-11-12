@@ -30,7 +30,8 @@ of three fates:
    fork-only EVM hooks. op-acceptance-tests sequences op-reth-only for Karst+ (#21182);
    op-e2e/actions and the kona proof tests (`rust/kona/tests/proofs`) run on an
    op-reth-test-engine subprocess EL (#20415, #21196, #21905);
-   op-e2e system tests and op-devstack/sysgo retire their in-process op-geth L2 EL (§17); and
+   op-e2e system tests run op-reth as their only L2 EL and op-devstack/sysgo retires its
+   in-process op-geth L2 EL (§17); and
    op-deployer runs all its scripts on upstream forge; `op-chain-ops/script` is deleted (§16).
 3. **Delete** — geth-as-library tools with no remaining need, to be reimplemented in Rust against
    op-reth if ever needed again: op-simulate and op-run-block (#21282), `op-wheel/cheat`, the
@@ -438,7 +439,7 @@ is rejected. `Genesis.ToBlock()` computes the genesis block on upstream go-ether
 adds — from Isthmus the header's `WithdrawalsHash` is the storage root of the
 `L2ToL1MessagePasser` predeploy (upstream `state`/`triedb`) instead of the empty hash.
 `GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum:
-the in-process op-geth ELs of op-e2e and op-devstack (§17). op-e2e's action-test
+op-devstack/sysgo's in-process op-geth L2 EL (§17). op-e2e's action-test
 `SetupData.L2Cfg` is the `Genesis` itself. op-devstack's `L2Network.ChainConfig()` returns the
 `Genesis`'s own `opparams.ChainConfig` (§5).
 
@@ -577,19 +578,21 @@ own op-geth — outside this repo, flagged to that team.)
 
 ---
 
-## 17. In-process op-geth L2 EL in op-e2e system tests and op-devstack/sysgo — open (#21744)
+## 17. In-process op-geth L2 EL in op-devstack/sysgo — open (#21744)
 
-Beyond op-e2e/actions (§ scope fate 2, #21196), op-e2e *system* tests and op-devstack/sysgo can
-run op-geth **in-process as the L2 EL**: `op-e2e/e2eutils/geth.InitL2` behind the
-`e2eutils/el.InitL2` factory's `ELKindOpGeth`, and `op-devstack/sysgo/l2_el_opgeth.go`. After the
-go.mod flip these would silently run *upstream* geth as the L2 EL — wrong OP state transition,
-with no compile error to warn us. The in-process **L1** geth miner is unaffected (plain Ethereum
+Beyond op-e2e/actions (§ scope fate 2, #21196), op-devstack/sysgo can run op-geth **in-process as
+the L2 EL**: `op-devstack/sysgo/l2_el_opgeth.go`, built on `op-e2e/e2eutils/geth.InitL2`. After the
+go.mod flip it would silently run *upstream* geth as the L2 EL — wrong OP state transition, with
+no compile error to warn us. The in-process **L1** geth miner is unaffected (plain Ethereum
 semantics are exactly right for it under upstream) and stays.
 
-Plan: make op-reth the **only** L2 EL kind — delete `ELKindOpGeth`, `geth.InitL2`,
-`l2_el_opgeth.go`, and the geth-only knob plumbing (`GethOptions`). No op-e2e system test pins
-op-geth. System tests don't cover pre-Regolith L2 blocks, since every live chain activated
-Regolith together with Bedrock. Precedent: #21182 (acceptance tests op-reth-only for Karst+).
+op-e2e system tests run op-reth as their only L2 EL: `op-e2e/e2eutils/reth.InitL2` starts it as an
+external process, and no test can select another EL. System tests don't cover pre-Regolith L2
+blocks, since every live chain activated Regolith together with Bedrock.
+
+Left: make op-reth the only sysgo L2 EL kind — delete `l2_el_opgeth.go`, its EL-kind selector and
+skip helpers, and with them `geth.InitL2`. Precedent: #21182 (acceptance tests op-reth-only for
+Karst+).
 
 ---
 
@@ -775,7 +778,7 @@ monorepo-only (#22678).
 | One-off fork symbols (§15) | per-symbol swaps | **done**, except the fork-changed signatures the cutover rewrites |
 | Remaining non-test fork uses (§5, §15, §18, op-test-sequencer) | swap or delete | **done**; op-test-sequencer's is a cutover edit |
 | `op-chain-ops/script` + op-deployer (§16) | upstream forge only; delete Go host + interopgen | **done** (#23300) |
-| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only | open (#21744) |
+| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only | system tests **done**; sysgo open (#21744) |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | **done** (#21746) |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | **done** (#23217) |
