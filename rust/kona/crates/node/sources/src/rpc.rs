@@ -28,7 +28,6 @@ use tower::{
     layer::util::{Identity, Stack},
     util::MapFutureLayer,
 };
-use tracing::Level;
 use url::Url;
 
 /// Deadline for each request the node sends to an execution-layer RPC, on L1 or to the Engine API.
@@ -37,7 +36,7 @@ use url::Url;
 /// of a reset, so a long but healthy operation is not cut off.
 pub const TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Identifier for the histogram of outgoing JSON-RPC request durations, labelled by `client`,
+/// Identifier for the histogram of outgoing JSON-RPC request durations, labeled by `client`,
 /// `method`, `outcome` and `error`. Its count also gives the number of requests and errors.
 pub const REQUEST_DURATION: &str = "kona_rpc_client_request_duration_seconds";
 
@@ -50,19 +49,19 @@ pub fn describe() {
     );
 }
 
-/// Builds the node's L1 client for the HTTP endpoint at `url`, recorded as `l1`. Its successful
-/// requests log at debug: derivation reads several L1 blocks a second while it catches up.
+/// Builds the node's L1 client for the HTTP endpoint at `url`, recorded as `l1`.
 pub fn l1(url: Url) -> RootProvider {
-    RootProvider::new(layered("l1", Level::DEBUG).http(url))
+    RootProvider::new(layered("l1").http(url))
 }
 
 /// Builds the node's L2 engine connection to the HTTP endpoint at `url`, signing each request
-/// with `jwt`, recorded as `engine`. Its successful requests log at info, one per Engine API call.
+/// with `jwt`, recorded as `engine`. It carries L2 `eth_` reads, from derivation's providers and
+/// the engine's own block lookups, as well as the Engine API calls.
 pub fn engine(url: Url, jwt: JwtSecret) -> RootProvider<Optimism> {
     let hyper = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
     let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper);
     let transport = Http::with_client(HyperClient::with_service(service), url);
-    RootProvider::new(layered("engine", Level::INFO).transport(transport, false))
+    RootProvider::new(layered("engine").transport(transport, false))
 }
 
 /// The layers under every client. [`Observe`] wraps the deadline, so a timeout is recorded as a
@@ -72,12 +71,9 @@ type Layers = Stack<
     Stack<Observe, Identity>,
 >;
 
-/// A client builder with [`Layers`] applied, recording as `client` with successes logged at
-/// `success`.
-fn layered(client: &'static str, success: Level) -> ClientBuilder<Layers> {
-    ClientBuilder::default()
-        .layer(Observe::new(client, success))
-        .layer(MapFutureLayer::new(with_deadline))
+/// A client builder with [`Layers`] applied, recording as `client`.
+fn layered(client: &'static str) -> ClientBuilder<Layers> {
+    ClientBuilder::default().layer(Observe::new(client)).layer(MapFutureLayer::new(with_deadline))
 }
 
 /// Bounds one request on an alloy transport by [`TIMEOUT`].
@@ -95,20 +91,22 @@ pub fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
 }
 
 /// Records the duration and outcome of every request sent through a JSON-RPC transport, in
-/// [`REQUEST_DURATION`] and a completion log under the `rpc_client` target, both labelled with
-/// the client and the JSON-RPC method. A failed request logs at warn.
+/// [`REQUEST_DURATION`] and a completion log under the `rpc_client` target, both labeled with
+/// the client and the JSON-RPC method.
+///
+/// A failed request logs at warn. A successful Engine API call (`engine_*`) logs at info, and
+/// any other successful request at debug: while the node catches up, derivation reads several
+/// L1 and L2 blocks a second.
 #[derive(Debug, Clone, Copy)]
 pub struct Observe {
     /// The `client` label on the recorded metrics and logs.
     client: &'static str,
-    /// The level a successful request logs at.
-    success: Level,
 }
 
 impl Observe {
-    /// Creates a layer that records as `client`, logging successful requests at `success`.
-    pub const fn new(client: &'static str, success: Level) -> Self {
-        Self { client, success }
+    /// Creates a layer that records as `client`.
+    pub const fn new(client: &'static str) -> Self {
+        Self { client }
     }
 }
 
@@ -141,7 +139,7 @@ where
     }
 
     fn call(&mut self, request: RequestPacket) -> Self::Future {
-        let Observe { client, success } = self.observe;
+        let Observe { client } = self.observe;
         let (method, id, request_count) = match &request {
             RequestPacket::Single(request) => {
                 (request.method().to_string(), Some(request.id().clone()), 1)
@@ -176,13 +174,8 @@ where
                     code = packet.first_error_code(),
                     error = packet.first_error_message(),
                 ),
-                Ok(_) => match success {
-                    Level::TRACE => completed!(trace,),
-                    Level::DEBUG => completed!(debug,),
-                    Level::INFO => completed!(info,),
-                    Level::WARN => completed!(warn,),
-                    _ => completed!(error,),
-                },
+                Ok(_) if method.starts_with("engine_") => completed!(info,),
+                Ok(_) => completed!(debug,),
                 Err(error) => completed!(warn, %error,),
             }
             metrics::histogram!(
@@ -267,6 +260,7 @@ mod tests {
     use alloy_provider::Provider;
     use alloy_rpc_client::RpcClient;
     use metrics_exporter_prometheus::PrometheusBuilder;
+    use rstest::rstest;
     use serde_json::value::RawValue;
     use std::{
         io,
@@ -278,6 +272,7 @@ mod tests {
         sync::mpsc,
         time,
     };
+    use tracing::Level;
 
     #[derive(Clone, Default)]
     struct LogWriter(Arc<Mutex<Vec<u8>>>);
@@ -359,7 +354,7 @@ mod tests {
     #[test]
     fn records_each_request_by_client_method_outcome_and_error() {
         let (logs, _guard) = capture_logs(Level::DEBUG);
-        let observe = Observe::new("l1", Level::DEBUG);
+        let observe = Observe::new("l1");
         let recorder = PrometheusBuilder::new().build_recorder();
         let metrics = recorder.handle();
         metrics::with_local_recorder(&recorder, || {
@@ -402,8 +397,8 @@ mod tests {
 
     #[test]
     fn logs_each_request_with_its_outcome() {
-        let (logs, _guard) = capture_logs(Level::INFO);
-        let observe = Observe::new("engine", Level::INFO);
+        let (logs, _guard) = capture_logs(Level::DEBUG);
+        let observe = Observe::new("engine");
         let recorder = PrometheusBuilder::new().build_recorder();
         let metrics = recorder.handle();
         metrics::with_local_recorder(&recorder, || {
@@ -452,7 +447,8 @@ mod tests {
             ("engine_newPayloadV3", "ok", "INFO", "outcome=\"ok\""),
             ("engine_getPayloadV3", "transport_error", "WARN", "unreachable"),
             ("engine_forkchoiceUpdatedV3", "rpc_error", "WARN", "code=-32602"),
-            ("eth_blockNumber", "ok", "INFO", "outcome=\"ok\""),
+            // The engine connection also carries derivation's L2 reads, which log at debug.
+            ("eth_blockNumber", "ok", "DEBUG", "outcome=\"ok\""),
         ] {
             let log = requests.iter().find(|line| line.contains(method)).unwrap();
             assert!(log.contains(&format!("outcome=\"{outcome}\"")), "{log}");
@@ -465,64 +461,58 @@ mod tests {
     }
 
     #[test]
-    fn classifies_responses_and_rpc_errors() {
+    fn classifies_a_successful_response() {
         assert_eq!(
             classify(&Ok(packet(r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#))),
             ("ok", Cow::Borrowed("none"))
         );
-        for (code, error) in [
-            (-32700, "parse"),
-            (-32600, "invalid_request"),
-            (-32601, "method_not_found"),
-            (-32602, "invalid_params"),
-            (-32603, "internal"),
-            (-32000, "server"),
-            (-32005, "server"),
-            (-32099, "server"),
-            (3, "execution_reverted"),
-            (-32100, "other"),
-            (42, "other"),
-        ] {
-            assert_eq!(
-                classify(&Ok(rpc_error_packet(code))),
-                ("rpc_error", Cow::Borrowed(error)),
-                "code {code}"
-            );
-        }
     }
 
-    #[test]
-    fn classifies_transport_errors() {
-        for (error, expected) in [
-            (TransportErrorKind::http_error(429, String::new()), "http_429"),
-            (
-                TransportErrorKind::http_error_with_retry_after(
-                    503,
-                    String::new(),
-                    Some(Duration::from_secs(1)),
-                ),
-                "http_503",
-            ),
-            (
-                TransportError::deser_err(serde_json::from_str::<u8>("x").unwrap_err(), "x"),
-                "decode",
-            ),
-            (TransportErrorKind::custom_str("unreachable"), "other"),
-            (TransportErrorKind::backend_gone(), "other"),
-            // Errors nested the way alloy's hyper transport and JWT layer nest them.
-            (
-                TransportErrorKind::custom(TransportErrorKind::http_error(502, String::new())),
-                "http_502",
-            ),
-            (
-                TransportErrorKind::custom(TransportErrorKind::custom(
-                    TransportErrorKind::custom_str("x"),
-                )),
-                "other",
-            ),
-        ] {
-            assert_eq!(classify(&Err(error)), ("transport_error", Cow::Borrowed(expected)));
-        }
+    #[rstest]
+    #[case::parse(-32700, "parse")]
+    #[case::invalid_request(-32600, "invalid_request")]
+    #[case::method_not_found(-32601, "method_not_found")]
+    #[case::invalid_params(-32602, "invalid_params")]
+    #[case::internal(-32603, "internal")]
+    #[case::server_upper(-32000, "server")]
+    #[case::server_inner(-32005, "server")]
+    #[case::server_lower(-32099, "server")]
+    #[case::execution_reverted(3, "execution_reverted")]
+    #[case::below_server_range(-32100, "other")]
+    #[case::unreserved(42, "other")]
+    fn classifies_rpc_errors(#[case] code: i64, #[case] error: &str) {
+        assert_eq!(classify(&Ok(rpc_error_packet(code))), ("rpc_error", Cow::Borrowed(error)));
+    }
+
+    #[rstest]
+    #[case::http_status(TransportErrorKind::http_error(429, String::new()), "http_429")]
+    #[case::http_status_with_retry_after(
+        TransportErrorKind::http_error_with_retry_after(
+            503,
+            String::new(),
+            Some(Duration::from_secs(1)),
+        ),
+        "http_503"
+    )]
+    #[case::decode(
+        TransportError::deser_err(serde_json::from_str::<u8>("x").unwrap_err(), "x"),
+        "decode"
+    )]
+    #[case::custom(TransportErrorKind::custom_str("unreachable"), "other")]
+    #[case::backend_gone(TransportErrorKind::backend_gone(), "other")]
+    // Errors nested the way alloy's hyper transport and JWT layer nest them.
+    #[case::nested_http_status(
+        TransportErrorKind::custom(TransportErrorKind::http_error(502, String::new())),
+        "http_502"
+    )]
+    #[case::nested_custom(
+        TransportErrorKind::custom(TransportErrorKind::custom(TransportErrorKind::custom_str(
+            "x"
+        ),)),
+        "other"
+    )]
+    fn classifies_transport_errors(#[case] error: TransportError, #[case] expected: &str) {
+        assert_eq!(classify(&Err(error)), ("transport_error", Cow::Borrowed(expected)));
     }
 
     #[tokio::test(start_paused = true)]
@@ -537,7 +527,7 @@ mod tests {
         assert_eq!(classify(&response), ("transport_error", Cow::Borrowed("timeout")));
     }
 
-    #[rstest::rstest]
+    #[rstest]
     #[tokio::test]
     async fn a_refused_connection_is_classified_as_a_connect_error(
         #[values(CLIENTS[0], CLIENTS[1])] client: (&str, Build),
@@ -593,7 +583,7 @@ mod tests {
         time::resume();
     }
 
-    #[rstest::rstest]
+    #[rstest]
     #[case::no_response(b"")]
     #[case::stalled_body(
         b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 64\r\n\r\n"

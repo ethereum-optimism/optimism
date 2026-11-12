@@ -172,8 +172,7 @@ async fn the_l1_client_bounds_each_request_and_records_its_timeout() {
     let l1 = command::l1_client(url, true);
     assert!(l1.block_info_by_label(BlockLabel::Latest).await.is_err());
 
-    // The metrics layer sits outside the deadline, so it records the timeout, under the label
-    // the dashboards read.
+    // The metrics layer sits outside the deadline, so it records the timeout.
     let rendered = metrics.render();
     let timeout = r#"kona_rpc_client_request_duration_seconds_count{client="l1",method="eth_getBlockByNumber",outcome="transport_error",error="timeout"} 1"#;
     assert!(rendered.contains(timeout), "missing {timeout} in:\n{rendered}");

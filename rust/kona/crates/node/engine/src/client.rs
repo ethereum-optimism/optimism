@@ -181,7 +181,7 @@ mod request_log_tests {
                     }
                     let provider = RootProvider::new(
                         ClientBuilder::default()
-                            .layer(rpc::Observe::new("engine", tracing::Level::INFO))
+                            .layer(rpc::Observe::new("engine"))
                             .transport(l2.clone(), true),
                     );
                     let mut config = RollupConfig::default();

@@ -8007,7 +8007,6 @@ dependencies = [
 name = "kona-sources"
 version = "0.1.2"
 dependencies = [
- "alloy-eips 2.5.0",
  "alloy-json-rpc 2.5.0",
  "alloy-primitives",
  "alloy-provider",
