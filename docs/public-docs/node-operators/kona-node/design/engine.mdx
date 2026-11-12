@@ -222,11 +222,12 @@ The `EngineActor` receives all state-mutating input through a single inbound req
 ```rust
 // Connect to the authenticated L2 engine once. Every request over this
 // connection has a deadline and is recorded in the engine request metrics
-// and logs. kona-node shares it with the derivation providers that read L2.
-let engine = EngineClient::rpc_client(l2_engine_url, jwt_secret);
+// and logs under its caller. kona-node shares it with the derivation
+// providers that read L2.
+let engine = EngineRpc::new(l2_engine_url, jwt_secret);
 
 // Create the concrete engine client over the node's shared `AlloyChainProvider`.
-let client = EngineClient::new(l1_provider, engine, rollup_config);
+let client = EngineClient::new(l1_provider, engine.provider(EngineCaller::Engine), rollup_config);
 
 // Initialize engine state
 let state = EngineState::default();

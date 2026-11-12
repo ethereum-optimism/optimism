@@ -61,7 +61,7 @@ impl Metrics {
     pub const FINALIZE_TASK_LABEL: &str = "finalize";
 
     /// Identifier for the histogram that tracks the duration of requests to the L2 execution
-    /// layer, labeled by JSON-RPC method.
+    /// layer, labeled by JSON-RPC method and caller.
     pub const ENGINE_METHOD_REQUEST_DURATION: &str = "kona_node_engine_method_request_duration";
 
     /// Identifier for the counter that tracks the number of times the engine has been reset.
@@ -90,7 +90,7 @@ impl Metrics {
         metrics::describe_histogram!(
             Self::ENGINE_METHOD_REQUEST_DURATION,
             metrics::Unit::Seconds,
-            "Duration of requests to the L2 execution layer, by JSON-RPC method"
+            "Duration of requests to the L2 execution layer, by JSON-RPC method and caller"
         );
 
         // Engine reset counter
