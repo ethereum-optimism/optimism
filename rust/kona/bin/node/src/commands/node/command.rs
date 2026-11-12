@@ -12,7 +12,7 @@ use anyhow::{Context as _, Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
-use kona_engine::EngineClient;
+use kona_engine::{DEFAULT_EL_SYNC_SAFE_OFFSET, EngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
@@ -25,6 +25,7 @@ use std::{
     io::{Read, Write},
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
@@ -126,6 +127,17 @@ pub struct NodeCommand {
     /// Reorgs are supported, but may be slow to recover from.
     #[arg(long = "verifier.l1-confs", env = "KONA_NODE_VERIFIER_L1_CONFS", default_value_t = 0)]
     pub verifier_l1_confs: u64,
+    /// After execution-layer sync, set the safe and finalized heads this far behind the synced tip
+    /// (converted to L2 blocks with ceiling division). Mirrors op-node's
+    /// `--syncmode.offset-el-safe`. kona-node has no consensus-layer sync mode, so this applies on
+    /// any start where the execution layer has no finalized block beyond genesis.
+    #[arg(
+        long = "syncmode.offset-el-safe",
+        env = "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE",
+        default_value = "12h",
+        value_parser = humantime::parse_duration,
+    )]
+    pub el_sync_safe_offset: Duration,
     /// P2P CLI arguments.
     #[command(flatten)]
     pub p2p_flags: P2PArgs,
@@ -148,6 +160,7 @@ impl Default for NodeCommand {
             interop_dependency_set: None,
             safedb_path: None,
             verifier_l1_confs: 0,
+            el_sync_safe_offset: DEFAULT_EL_SYNC_SAFE_OFFSET,
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
             rpc_flags: RpcArgs::default(),
@@ -352,6 +365,7 @@ impl NodeCommand {
         .with_dependency_set(dependency_set)
         .with_safe_db(safe_db)
         .with_verifier_l1_confs(self.verifier_l1_confs)
+        .with_el_sync_safe_offset(self.el_sync_safe_offset)
         .build()
         .start()
         .await

@@ -20,6 +20,17 @@ pub enum SyncStartError {
     /// A block could not be found.
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
+    /// The execution layer has no block at the height where EL sync places safe and finalized.
+    #[error(
+        "Execution layer has no block {number}, {offset:?} behind the EL-synced tip; it may have \
+         been pruned. Lower --syncmode.offset-el-safe or keep more block history"
+    )]
+    ElSyncOffsetBlockUnavailable {
+        /// The L2 block number at the EL-sync safe offset.
+        number: u64,
+        /// The configured EL-sync safe offset.
+        offset: std::time::Duration,
+    },
     /// Invalid L1 genesis hash.
     #[error("Invalid L1 genesis hash. Expected {0}, Got {1}")]
     InvalidL1GenesisHash(B256, B256),

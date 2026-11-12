@@ -54,6 +54,7 @@ op-alloy-network.workspace = true
 # general
 url.workspace = true
 dirs.workspace = true
+humantime.workspace = true
 strum.workspace = true
 discv5.workspace = true
 enr.workspace = true

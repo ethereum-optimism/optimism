@@ -48,6 +48,7 @@ func resolveKonaL2CLConfig(t devtest.T, key string, chainID eth.ChainID, isSeque
 	unsupported.VerifierSyncMode = baseCfg.VerifierSyncMode
 	unsupported.SafeDBPath = ""
 	unsupported.VerifierL1Confs = 0
+	unsupported.OffsetELSafe = 0
 	unsupported.NoDiscovery = baseCfg.NoDiscovery
 	unsupported.FollowSource = ""
 	if isSequencer {
@@ -57,6 +58,7 @@ func resolveKonaL2CLConfig(t devtest.T, key string, chainID eth.ChainID, isSeque
 	unsupported.ConductorRPCTimeout = 0
 	t.Require().Equal(baseCfg, unsupported, "unsupported L2CL option for kona-node")
 
+	t.Require().GreaterOrEqual(cfg.OffsetELSafe, time.Duration(0), "EL-sync safe offset must not be negative")
 	if cfg.ConductorRPC != "" {
 		t.Require().Positive(cfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
 		t.Require().Zero(cfg.ConductorRPCTimeout%time.Second, "Kona conductor RPC timeout must use whole seconds")
@@ -68,6 +70,18 @@ func konaL2CLEnv(cfg *L2CLConfig, sequencerStopped bool) []string {
 	extraEnv := []string{
 		fmt.Sprintf("KONA_NODE_P2P_NO_DISCOVERY=%t", cfg.NoDiscovery),
 		fmt.Sprintf("KONA_NODE_VERIFIER_L1_CONFS=%d", cfg.VerifierL1Confs),
+	}
+	// kona-node has no CL-sync mode: it completes EL sync whenever its execution layer has no
+	// finality yet. Like op-node, apply the offset only to a node configured for EL sync. Any
+	// other node keeps kona-node's 12h default, which on a young devnet places safe and
+	// finalized at genesis instead of marking unsafe blocks final.
+	syncMode := cfg.VerifierSyncMode
+	if cfg.IsSequencer {
+		syncMode = cfg.SequencerSyncMode
+	}
+	if syncMode == nodeSync.ELSync {
+		extraEnv = append(extraEnv,
+			fmt.Sprintf("KONA_NODE_SYNCMODE_OFFSET_EL_SAFE=%dms", cfg.OffsetELSafe.Milliseconds()))
 	}
 	if cfg.SafeDBPath != "" {
 		extraEnv = append(extraEnv, "KONA_NODE_SAFEDB_PATH="+cfg.SafeDBPath)
