@@ -28,6 +28,7 @@ In the specialized topology, **light nodes** are started with `--l2.follow.sourc
 *   **Light nodes** are `op-node` instances started with `--l2.follow.source=<source RPC endpoint>`. They stop deriving from L1 themselves and receive the safe chain from the designated source — an op-node RPC for non-interop chains, an op-supernode RPC (with the chain's `/<chainID>` path prefix) for interop chains.
 *   `op-node` is **not** being deprecated, and the homogeneous topology is **not** being removed. For chains where interop has not activated, this is a recommended operational upgrade rather than a required migration. For OP Mainnet, Unichain, and their Sepolia testnets, it becomes required at interop activation (see the Warning above).
 *   Only the derivation role changes. Light nodes continue to serve RPC, participate in gossip, and drive their connected execution client as before.
+*   **A light node trusts its source.** It checks that the source's safe, local-safe, and finalized heads are consistent with each other and that their L1 origins are on its own L1 chain, but it does not re-derive the L2 blocks, and it reorgs onto the source's chain if they diverge. Point `--l2.follow.source` only at a source you operate or explicitly trust. Optimism does not operate a public follow-source endpoint.
 
 ## Why this matters
 
@@ -54,13 +55,13 @@ Future upgrades — including interop — will require more sophisticated deriva
 Plan a migration from a homogeneous fleet of derivation-enabled `op-node` instances to a specialized topology:
 
 1.  Stand up the **source tier**. For chains without interop, designate one or more `op-node` instances as sources, configured with full L1 derivation. For chains in an interop dependency set, the source tier is one or more `op-supernode` instances covering every chain in the set. Either way, size and monitor the source tier with redundancy for failover.
-2.  Provision the remaining `op-node` instances as **light nodes** by setting `--l2.follow.source=<source op-node RPC endpoint>` (env: `OP_NODE_L2_FOLLOW_SOURCE`). Ensure light nodes can reach the source endpoint over a reliable, low-latency network path.
+2.  Provision the remaining `op-node` instances as **light nodes** by setting `--l2.follow.source=<source RPC endpoint>` (env: `OP_NODE_L2_FOLLOW_SOURCE`): a source `op-node` RPC for non-interop chains, or `<op-supernode RPC>/<chainID>` for interop chains. Ensure light nodes can reach the source endpoint over a reliable, low-latency network path.
 3.  Validate that light nodes track the safe chain correctly against the source before shifting production traffic.
 4.  Update dashboards and alerting so the source tier's health is treated as a dependency of the light-node tier.
 
 #### Highly available topology with consensus-aware proxyd
 
-For production deployments, we recommend placing the derivation tier behind a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) and exposing light nodes to users through a separate RPC-serving tier:
+For production deployments, we recommend placing the derivation tier behind a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-layer-routing-for-follow-sources) and exposing light nodes to users through a separate RPC-serving tier:
 
 <img src="/public/img/notices/light-node-topology.png" alt="Specialized op-node topology: three source op-nodes with EL (Reth) feed a consensus-aware proxyd via CL API, which fans out to two light op-nodes via --l2.follow.source" style={{ width: '100%', height: 'auto' }} />
 
@@ -86,5 +87,5 @@ of the Sequencer is to maintain and extend the Unsafe Chain.
 ## Resources
 
 *   [Interop prep notice](/notices/interop-prep) — node-operator action checklist for the OP Mainnet and Unichain interop activation, where this topology is required rather than recommended.
-*   `--l2.follow.source` flag (env: `OP_NODE_L2_FOLLOW_SOURCE`) — configures an `op-node` as a light node pointed at a source `op-node` RPC endpoint.
+*   `--l2.follow.source` flag (env: `OP_NODE_L2_FOLLOW_SOURCE`) — configures an `op-node` as a light node pointed at a source RPC endpoint: an `op-node`, an `op-supernode` per-chain path (`/<chainID>`), or a consensus-aware `proxyd` in front of either.
 *   `--l2.follow.source.rpc-timeout` flag (env: `OP_NODE_L2_FOLLOW_SOURCE_RPC_TIMEOUT`) — tunes the RPC call timeout used when talking to the source (default `10s`).

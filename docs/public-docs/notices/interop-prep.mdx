@@ -47,12 +47,63 @@ This notice applies to anyone running OP Sepolia or Unichain Sepolia nodes after
 
 Every op-node in the fleet, whether a replica, an RPC node, or any other op-node deployment, must run as a Light CL pointed at an op-supernode that derives both chains.
 Each operator stands up at least one op-supernode for the dependency set and reconfigures every op-node in their fleet to follow it.
-If you run only one of the two chains today, you now run both: the supernode needs an execution client for each chain in the dependency set, so plan the second chain's execution client and its sync time into the migration.
+
+<Warning>
+  **If you run only one of the two chains today, you now run both.**
+  The supernode needs an execution client for every chain in the dependency set, even if you serve RPC for only one of them.
+  For example, an operator that serves only OP Mainnet RPC also runs a Unichain op-reth behind its supernode.
+  Plan that second execution client, and its sync time, into the migration.
+</Warning>
 
 This rollout is scoped to OP Mainnet and Unichain, with OP Sepolia and Unichain Sepolia as the testnet pair.
 Other OP Stack chains activate the same Lagoon hardfork on their own schedule, set in their chain config in the superchain-registry, and still need the Lagoon-aware releases by their own timestamp.
 A chain with no dependencies gets a dependency set containing only itself, so there is nothing to cross-validate and those operators can keep running plain op-node.
 Other OP Stack chains move to the supernode topology only when they join an interop set.
+
+### What the topology does not allow
+
+*   **Skipping the other chain's execution client.** Each supernode drives one execution client per chain in the dependency set. The one for the chain you don't serve can stay private: it doesn't need to serve RPC to anyone.
+*   **Following a supernode you don't operate or trust.** Optimism does not operate a public follow-source endpoint. A Light CL trusts its source for its `safe` and `finalized` view and does not re-derive L2 blocks (see [how a light node trusts its source](/notices/specialized-node-topology#what-this-means)), so point `--l2.follow.source` only at supernodes you operate or explicitly trust.
+*   **Backing a chain with a remote or read-only RPC.** The supernode drives each execution client over the authenticated engine API (`--authrpc.*` and a JWT secret), the same way op-node does. An `eth_*` RPC endpoint from a provider cannot stand in for it.
+*   **Leaving an op-node on the old topology.** An op-node without `--l2.follow.source` keeps running after activation, but it promotes blocks to safe without checking their cross-chain messages, so its `safe` and `finalized` labels can't be trusted.
+
+## When the safe head lags on one chain
+
+The supernode verifies one L2 timestamp at a time, and moves on only once **every** chain in the dependency set has a local-safe block at that timestamp.
+The safe and finalized heads of OP Mainnet and Unichain therefore advance together: if the safe head lags on either chain, it lags on both, including for blocks with no cross-chain messages.
+New blocks are not affected: both chains keep producing and gossiping blocks as usual.
+
+Two different things can make one chain's safe head lag:
+
+*   **The chain's safe head lags for everyone.** For example, its batcher stops posting to L1, so no node can derive new safe blocks for it. Every operator sees the lag.
+*   **Your supernode's safe head lags for that chain.** For example, the execution client behind your supernode for that chain is down, still syncing, or out of disk. Only your fleet sees the lag, so the execution client for each chain in the dependency set is on the critical path for the chain you serve.
+
+While the safe head is lagging:
+
+*   The unsafe head of both chains keeps advancing over P2P, so `latest` keeps moving.
+*   `safe` and `finalized` stop advancing on both chains. Anything that reads those block tags, such as an exchange crediting deposits at `finalized`, waits.
+*   No action is needed to recover: once the lagging chain catches up, the supernode verifies the backlog and both safe heads move forward again.
+
+Monitor the per-chain safe head on your supernodes (the `op_node_supernode_refs_number{layer="l2",type="l2_safe"}` gauge, labelled by `virtual_node_chain_id`), and alert when either chain's safe head stops moving, so you can tell a local execution-client problem apart from a lag every operator sees.
+
+## Choose a topology
+
+Pick the smallest topology that meets your availability needs.
+All three are valid; they differ in how many processes you run and what fails when one of them goes down.
+
+| Topology | What you run | Use it when |
+| -------- | ------------ | ----------- |
+| **Minimal** | One op-supernode, plus one op-reth per chain. No separate op-node. Serve `eth_*` RPC from the op-reth of the chain you serve, and op-node RPC methods from the supernode's `/<chainID>` path. | You run a single node, or you're evaluating the setup. The supernode is a single point of failure. |
+| **Fleet** | The minimal setup, plus Light CL op-nodes that follow the supernode. Each Light CL drives its own op-reth. | You serve RPC from several nodes and want to add or remove them without touching derivation. The supernode is still a single point of failure for `safe` and `finalized`. |
+| **High availability** | At least three supernodes, each with its own op-reth per chain, behind a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-layer-routing-for-follow-sources) for each chain you serve, with Light CLs following the proxyd. | Production. Recommended before mainnet activation. |
+
+For example, an operator that serves OP Mainnet RPC from two nodes today and doesn't run Unichain would run:
+
+*   **Minimal:** one supernode, one OP Mainnet op-reth, and one Unichain op-reth: three processes, but only one OP Mainnet RPC backend.
+*   **Fleet:** the minimal setup, plus two Light CLs, each with its own OP Mainnet op-reth: seven processes.
+*   **High availability:** three supernodes with two op-reth each, one proxyd for OP Mainnet (Unichain has no Light CLs, so it needs none), plus two Light CLs, each with its own op-reth: 14 processes.
+
+The [specialized op-node topology notice](/notices/specialized-node-topology#why-this-matters) explains why separating the derivation tier from the RPC tier pays off as a fleet grows.
 
 ## Required components
 
@@ -103,7 +154,9 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   Each execution client needs its own JWT secret file (a single file shared across both ELs is fine; see the note at the end of this step) and its own engine-API listen address.
   ELs can start unsynced; they wait until the supernode connects before they know what chain head to sync to.
   The supernode then drives each EL through its initial sync via the engine API, and tolerates the common case where one chain's EL is already synced and the other isn't.
-  Configure each EL's history retention so the supernode can backfill initiating-message logs after restarts or downtime; the [EL retention recommendation](/node-operators/guides/configuration/supernode#configure-el-retention-for-supernode-backfill) in the supernode guide covers the retention window, the relevant op-reth pruning flags, and the extra requirements that apply if you also run op-challenger.
+  Configure each EL's history retention so the supernode can backfill initiating-message logs after restarts or downtime; the [EL retention recommendation](/node-operators/guides/configuration/supernode#configure-el-retention-for-supernode-backfill) in the supernode guide covers the retention window, the relevant op-reth pruning flags, and what changes if you also serve historical queries, withdrawal proofs, or run op-challenger.
+  Bootstrapping a chain you haven't run before is the longest step: a mature chain's data directory runs to hundreds of gigabytes, and syncing from scratch takes days.
+  Check that chain's snapshot provider (see [Restore from a snapshot](/node-operators/guides/management/restore-from-snapshot)); if no snapshot is available, start the EL early and let the supernode drive its sync.
 
   <CodeGroup>
   ```bash Sepolia
@@ -286,6 +339,41 @@ If you scrape Prometheus, the equivalent gauge on a Light CL is `op_node_default
 * **Safe head advances but RPC consumers report invalid blocks.** The op-node isn't following an op-supernode (`--l2.follow.source` is unset, or it points at a non-supernode source), so safe-head promotion skips cross-chain validation. Point `--l2.follow.source` at a supernode that derives both chains.
 * **Blobs missing for L1 blocks older than ~18 days.** The primary beacon node has pruned them. Configure `--l1.beacon-fallbacks` against a non-pruning beacon or an archiver service. See the [blob archiver guide](/node-operators/guides/management/blobs#configuring-a-blob-archiver) for options.
 * **Light CL safe head lags the supernode by more than a few blocks.** Check the network path between Light CL and supernode (or supernode `proxyd`). The Light CL polls `optimism_syncStatus` over RPC; a high-latency or rate-limited path here directly delays safe-head propagation.
+* **Safe and finalized stop advancing on both chains while unsafe keeps moving.** One chain in the dependency set is behind. Check the supernode's per-chain safe head to see which one, then check that chain's execution client. See [When the safe head lags on one chain](#when-the-safe-head-lags-on-one-chain).
+
+## FAQ
+
+### I only serve OP Mainnet RPC. Do I need to run Unichain?
+
+Yes, you need a Unichain execution client behind your supernode, but you don't need to serve Unichain RPC from it. See [What the topology does not allow](#what-the-topology-does-not-allow).
+
+### Can I follow a supernode operated by Optimism or another provider?
+
+Only one you operate or explicitly trust. Optimism does not operate a public follow-source endpoint, and a Light CL trusts its follow source for its `safe` and `finalized` view.
+
+### Can the supernode use a remote or read-only RPC for the other chain?
+
+No. The supernode drives each chain's execution client over the authenticated engine API, so it needs an execution client it controls.
+
+### How much history does the other chain's execution client need?
+
+At least 7 days of block and receipt history; no archive. See [Configure EL retention for supernode backfill](/node-operators/guides/configuration/supernode#configure-el-retention-for-supernode-backfill) for what changes if you serve historical queries or withdrawal proofs.
+
+### Do I still need op-node?
+
+No. The [minimal topology](#choose-a-topology) is a supernode and one op-reth per chain, with no separate op-node. Add Light CL op-nodes when you want to scale RPC serving independently of derivation.
+
+### Do I need historical proofs?
+
+Only if you serve `eth_getProof` for L2-to-L1 withdrawal proving or run op-challenger. If you use your nodes for RPC calls such as fetching blocks and broadcasting transactions, you don't.
+
+### If OP Mainnet stops syncing, does Unichain's safe head lag too?
+
+Yes. Unichain keeps producing blocks and its unsafe head keeps advancing, but its `safe` and `finalized` heads lag until OP Mainnet catches up, and the same holds the other way around. See [When the safe head lags on one chain](#when-the-safe-head-lags-on-one-chain).
+
+### What happens to an op-node I don't migrate?
+
+It keeps running, but it promotes blocks to safe without checking their cross-chain messages, so it can't serve as a verifier or a trustworthy RPC source after activation.
 
 ## Resources
 
@@ -296,4 +384,4 @@ If you scrape Prometheus, the equivalent gauge on a Light CL is `op_node_default
 * [Specialized op-node topology notice](/notices/specialized-node-topology) — operator-facing pattern for running Light CL fleets behind a safe source.
 * [Interop reorg awareness](/op-stack/interop/reorg) — how the safety model handles equivocation and L1 reorgs.
 * [Cross-chain security measures](/op-stack/security/interop-security) — how the safety level for inbound cross-chain messages is configured at the chain level.
-* [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) — only relevant if you also run op-challenger; configures the supernode's ELs to serve historical proofs.
+* [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) — only relevant if you serve `eth_getProof` for withdrawal proving or run op-challenger; configures op-reth to serve historical proofs.
