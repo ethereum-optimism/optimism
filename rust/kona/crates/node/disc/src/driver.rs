@@ -1049,7 +1049,9 @@ mod tests {
     /// driver doesn't dial those records, so it should turn the reports off: otherwise they can
     /// push out the `SessionEstablished` events that bring the peers it dials.
     ///
-    /// N looks up through B, whose table holds O, so B's answer holds O.
+    /// N looks up O through B, whose table holds O. A lookup asks each node for the nodes at its
+    /// distance to the target, so B's answer holds O only for a target O shares a bucket with:
+    /// O's own ID is one.
     #[tokio::test]
     async fn test_driver_turns_off_discovered_reports() {
         let other = offline_driver().init().await.expect("the other node starts");
@@ -1060,7 +1062,7 @@ mod tests {
         let mut events = node.disc.event_stream().await.expect("the node has an event stream");
         node.disc.add_enr(bootnode.disc.local_enr()).expect("the node takes the bootnode");
 
-        let found = node.disc.find_node(NodeId::random()).await.expect("the lookup runs");
+        let found = node.disc.find_node(other_id).await.expect("the lookup runs");
         assert!(
             found.iter().any(|enr| enr.node_id() == other_id),
             "the lookup didn't find the bootnode's other node"
