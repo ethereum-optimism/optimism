@@ -259,6 +259,10 @@ impl Discv5Builder {
         let chain_id = self.chain_id;
 
         let mut config = self.discovery_config;
+        // The driver doesn't dial the records discv5 reports as discovered, and the reports, up to
+        // 16 for each NODES answer, can fill discv5's event channel, which drops the events that
+        // don't fit, such as the session events that bring the peers the driver dials.
+        config.report_discovered_peers = false;
 
         let mut local_node = self.local_node;
         let key = local_node.signing_key.clone();

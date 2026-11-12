@@ -128,6 +128,9 @@ struct RecordToDial {
 #[derive(Debug)]
 pub struct Discv5Driver {
     /// The [`Discv5`] discovery service.
+    ///
+    /// discv5 has one event stream, which the driver takes when it starts: a stream taken from
+    /// here before then closes at that point.
     #[debug(skip)]
     pub disc: Discv5,
     /// The optional [`BootStoreFile`] to use for the bootstore.
@@ -163,7 +166,9 @@ impl Discv5Driver {
     }
 
     /// Instantiates a new [`Discv5Driver`]. `table_filter` must be the one `disc` was built with,
-    /// as the driver also drops the saved records it rejects.
+    /// as the driver also drops the saved records it rejects. `disc` should be built with
+    /// `report_discovered_peers` off, as [`Discv5Builder`] does: the driver doesn't use those
+    /// reports, and they can push the events it does use out of discv5's event channel.
     pub const fn new(
         disc: Discv5,
         table_filter: fn(&Enr) -> bool,
@@ -235,17 +240,18 @@ impl Discv5Driver {
     /// A `Discovered` record, from another node's answer to one of our lookups, isn't dialed:
     /// discv5 sends it before any check, and nothing shows that the node is at the address in it.
     /// The lookup that found it contacts it, if the table filter lets it, and a session follows.
+    /// [`Discv5Builder`] turns these reports off, so the driver warns if they arrive.
     fn record_to_dial(
         event: discv5::Event,
         chain_id: u64,
         table_filter: fn(&Enr) -> bool,
     ) -> Option<RecordToDial> {
         let (kind, enr, socket) = match event {
-            discv5::Event::Discovered(enr) => {
-                if EnrValidation::validate(&enr, chain_id).is_valid() {
-                    metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "discovered")
-                        .increment(1);
-                }
+            discv5::Event::Discovered(_) => {
+                static WARNED: std::sync::Once = std::sync::Once::new();
+                WARNED.call_once(|| {
+                    warn!(target: "discovery", "discv5 reports discovered records, which the driver expects to be off: they can fill discv5's event channel and push out the session events that bring the peers to dial; turn off report_discovered_peers, as Discv5Builder does");
+                });
                 return None;
             }
             discv5::Event::SessionEstablished(enr, socket) => ("session_established", enr, socket),
@@ -1060,7 +1066,6 @@ mod tests {
         );
 
         // discv5 reports a record before the lookup that found it ends.
-        // TODO: fails today. The driver leaves discv5's `report_discovered_peers` on, its default.
         while let Ok(event) = events.try_recv() {
             assert!(
                 !matches!(event, discv5::Event::Discovered(_)),
