@@ -86,7 +86,7 @@ op-deployer bootstrap implementations \
 
 <Unreleased component="op-deployer" />
 
-Ethereum mainnet과 Sepolia 이외의 L1에서는 릴리스의 `SP1PlonkAdapter`에 사용할 원시(raw) SP1 verifier를 `--sp1-verifier-address`로 함께 전달해야 하며, 그렇지 않으면 명령이 실패합니다. `op-deployer apply`는 intent의 `globalDeployOverrides.sp1Verifier`로 동일한 입력을 받습니다.
+Ethereum mainnet과 Sepolia 이외의 L1에서는 릴리스의 `SP1PlonkAdapter`에 사용할 원시(raw) SP1 verifier를 `--sp1-verifier-address`로 함께 전달해야 하며, 그렇지 않으면 명령이 실패합니다. 개발용 L1에서는 대신 `--deploy-mock-sp1-verifier`로 모든 증명을 수락하는 mock verifier를 배포할 수 있습니다. `op-deployer apply`는 intent의 `globalDeployOverrides.sp1Verifier`로 동일한 입력을 받습니다.
 
 `bootstrap superchain` 명령과 마찬가지로, 이 명령은 관련 컨트랙트의 주소가 포함된 JSON 파일을 출력합니다.
 이 파일도 잘 보관하십시오.
