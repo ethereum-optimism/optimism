@@ -51,7 +51,7 @@ sequenceDiagram
 
     <Warning>
       `sendMessage` does not check that the destination chain is in the same [interop cluster](/op-stack/interop/explainer#superchain-interop-cluster) as the source chain.
-      If the destination is outside the interop cluster, nobody can relay the message and nobody can [expire](/app-developers/guides/interoperability/message-expiration#messages-that-cant-be-expired) it.
+      If the destination is outside the interop cluster, nobody can relay the message and nobody can [expire](/app-developers/guides/interoperability/message-expiration#the-destination-is-outside-the-interop-cluster) it.
       Any assets that the send burned or locked are lost, for example ETH sent through `SuperchainETHBridge`.
       Applications must check the destination chain ID before they send.
     </Warning>

@@ -112,6 +112,8 @@ Only the address that called `sendETH` can claim the refund. A contract that sen
   ETH sent to a chain outside the interop cluster can't be relayed or refunded, and is lost.
 </Warning>
 
+See the [known limitations of expiry](/app-developers/guides/interoperability/message-expiration#known-limitations) for all the cases where a refund can't reach its owner.
+
 ## L1 Treasury
 
 Every ETH in circulation on OP Stack chains—excluding ETH held by `ETHLiquidity`—must be backed by ETH on L1.
