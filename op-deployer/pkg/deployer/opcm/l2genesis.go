@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -65,13 +66,13 @@ func L2Genesis(
 	noCodeSizeLimit bool,
 	input L2GenesisInput,
 ) (*foundry.ForgeAllocs, error) {
-	genesis := NewGenesisState(deployer, noCodeSizeLimit)
+	if !input.L2ChainID.IsUint64() {
+		return nil, fmt.Errorf("L2 chain ID %s does not fit in 64 bits", input.L2ChainID)
+	}
+	genesis := NewGenesisState(deployer, bigs.Uint64Strict(input.L2ChainID), noCodeSizeLimit)
 	env := &ForgeEnv{Client: client, Context: ctx, Genesis: genesis}
 	if _, err := broadcastScript(env, NewL2GenesisForgeCaller, input); err != nil {
 		return nil, fmt.Errorf("failed to generate the L2 genesis with Forge: %w", err)
 	}
-	// The script sends nothing from the deployer, so the deployer gets no L2 genesis account, even
-	// when it is a dev account that the script funds.
-	genesis.Wipe(deployer)
 	return genesis.Allocs, nil
 }

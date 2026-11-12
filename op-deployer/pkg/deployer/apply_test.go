@@ -45,6 +45,7 @@ func TestNewPipelineEnvForgeCacheProfile(t *testing.T) {
 				Logger:                    testlog.Logger(t, slog.LevelInfo),
 				CacheDir:                  t.TempDir(),
 				AllowUnoptimizedContracts: true,
+				Intent:                    &state.Intent{L1ChainID: 900},
 			}, bundle)
 			require.NoError(t, err)
 			require.False(t, pEnv.L2Forge.AnyCacheProfile)
@@ -53,6 +54,7 @@ func TestNewPipelineEnvForgeCacheProfile(t *testing.T) {
 				require.Nil(t, pEnv.Forge.Genesis, "a live deployment must not run offline")
 			} else {
 				require.True(t, pEnv.Forge.Genesis.NoCodeSizeLimit)
+				require.Equal(t, uint64(900), pEnv.Forge.Genesis.ChainID, "the L1 genesis scripts must see the L1 chain ID")
 			}
 		})
 	}

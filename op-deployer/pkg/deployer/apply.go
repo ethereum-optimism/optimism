@@ -264,7 +264,7 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 		ReceiptQueryInterval: opts.ReceiptQueryInterval,
 	}
 	if isGenesis {
-		pEnv.Forge.Genesis = opcm.NewGenesisState(deployer, true)
+		pEnv.Forge.Genesis = opcm.NewGenesisState(deployer, opts.Intent.L1ChainID, true)
 	}
 	pEnv.L2Forge, err = opcm.NewForgeClient(bundle.L2, opts.CacheDir, opcm.L2ForgeScripts)
 	if err != nil {

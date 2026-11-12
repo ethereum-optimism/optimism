@@ -20,7 +20,7 @@ func newTestGenesisEnv(t *testing.T) *ForgeEnv {
 		Client:    client,
 		Artifacts: afs,
 		Context:   context.Background(),
-		Genesis:   NewGenesisState(common.Address{'D'}, true),
+		Genesis:   NewGenesisState(common.Address{'D'}, testChainID, true),
 	}
 }
 
