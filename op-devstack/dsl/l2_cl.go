@@ -563,6 +563,12 @@ func (cl *L2CLNode) SafeHeadAtL1Block(l1BlockNum uint64) (*eth.SafeHeadResponse,
 	return cl.inner.RollupAPI().SafeHeadAtL1Block(ctx, l1BlockNum)
 }
 
+// SafeHeadRecordAtL1Block returns the safe head recorded at or before the given L1 block, or nil
+// when the SafeDB has no record there. Any other error fails the test.
+func (cl *L2CLNode) SafeHeadRecordAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
+	return cl.safeHeadAtL1Block(l1BlockNum)
+}
+
 func (cl *L2CLNode) safeHeadAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
 	resp, err := cl.SafeHeadAtL1Block(l1BlockNum)
 	if errors.Is(err, safedb.ErrNotFound) {
