@@ -23,7 +23,6 @@ op-acceptance-tests/tests/fjord (tests) | missing go-ethereum/core/types.FlzComp
 op-acceptance-tests/tests/fjord (tests) | missing go-ethereum/core/types.Receipt.L1Fee | #23405 test and DSL swaps to op-core
 op-acceptance-tests/tests/fjord (tests) | missing go-ethereum/core/types.RollupCostData | #23405 test and DSL swaps to op-core
 op-acceptance-tests/tests/fjord (tests) | missing go-ethereum/core/types.Transaction.RollupCostData | #23405 test and DSL swaps to op-core
-op-acceptance-tests/tests/interop/upgrade (tests) | missing go-ethereum/params.ChainConfig.LagoonTime | #23405 test and DSL swaps to op-core
 op-acceptance-tests/tests/jovian | missing go-ethereum/consensus/misc/eip1559.EncodeJovianExtraData | #23405 test and DSL swaps to op-core
 op-acceptance-tests/tests/jovian | missing go-ethereum/core/types.Transaction.IsDepositTx | #23405 test and DSL swaps to op-core
 op-acceptance-tests/tests/jovian | missing go-ethereum/core/types.Transaction.RollupCostData | #23405 test and DSL swaps to op-core
@@ -33,7 +32,6 @@ op-acceptance-tests/tests/jovian/bpo2/joviantest | missing go-ethereum/core/type
 op-acceptance-tests/tests/sdm (tests) | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
 op-acceptance-tests/tests/sdm (tests) | missing go-ethereum/core/types.PostExecTx | #23405 test and DSL swaps to op-core
 op-acceptance-tests/tests/sdm/sdmtest | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
-op-acceptance-tests/tests/sync_tester/sync_tester_hfs (tests) | missing go-ethereum/params.ChainConfig.JovianTime | #23405 test and DSL swaps to op-core
 op-batcher/batcher | missing go-ethereum/core/types.Header.BlockAccessListHash | upstream backport, in go-ethereum v1.17.7
 op-batcher/batcher (tests) | changed signature of go-ethereum/core/types.NewBlock | #23405 test and DSL swaps to op-core
 op-batcher/batcher (tests) | missing go-ethereum/core/types.DefaultBlockConfig | #23405 test and DSL swaps to op-core

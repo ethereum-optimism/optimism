@@ -242,6 +242,12 @@ go-ethereum types, not OP-hardfork reads, and they stay. An L3's L1 is an OP cha
 blobs: `NewL1ChainConfigFromCLI` replaces its config with one that prices every block's blobs at
 the minimum, as op-geth's OP-chain shortcut did. Regressions fail the ratchet (§19).
 
+op-devstack splits the same way: `stack.L1Network.ChainConfig()` returns the go-ethereum config
+and `stack.L2Network.ChainConfig()` returns `*opparams.ChainConfig`, so reading an OP value off an
+L2 network's config either works or fails to compile. The `Optimism` EIP-1559 values on that
+config are the genesis values; from Holocene the SystemConfig sets them, so a test that needs the
+parameters in effect decodes them from the block's extraData (`eip1559.DecodeOptimismExtraData`).
+
 ---
 
 ## 6. `params/superchain.go` – `LoadOPStackChainConfig` — **DONE**
@@ -430,8 +436,8 @@ adds — from Isthmus the header's `WithdrawalsHash` is the storage root of the
 `L2ToL1MessagePasser` predeploy (upstream `state`/`triedb`) instead of the empty hash.
 `GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum:
 the in-process op-geth ELs of op-e2e and op-devstack (§17). op-e2e's action-test
-`SetupData.L2Cfg` is the `Genesis` itself. op-devstack's `L2Network.ChainConfig()` still
-returns the go-ethereum config `GethChainConfig()` derives (§13).
+`SetupData.L2Cfg` is the `Genesis` itself. op-devstack's `L2Network.ChainConfig()` returns the
+`Genesis`'s own `opparams.ChainConfig` (§5).
 
 `opparams.ChainConfig`'s JSON codec writes the go-ethereum config `GethChainConfig()` derives,
 embedded, with the OP fields declared directly: `encoding/json` lets a direct field dominate a
