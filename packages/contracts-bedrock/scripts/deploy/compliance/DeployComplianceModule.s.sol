@@ -16,7 +16,11 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 /// @notice Deploys a ComplianceModule proxy and its implementation, with the deployer as the
 ///         proxy's admin for now. The proxy is the address to use as the chain's bridge hook. It
 ///         points at no implementation until ConfigureComplianceModule initializes it with the
-///         chain's addresses, so any call into it reverts until then.
+///         chain's addresses, so any call into it reverts until then. Once the Portal uses it as
+///         its hook, every deposit except the chain ProxyAdmin owner's, and every withdrawal
+///         finalization, reverts until ConfigureComplianceModule runs. A new chain has no users
+///         yet. On an existing chain this is a bridge outage, so run ConfigureComplianceModule
+///         right after the upgrade that sets the hook.
 contract DeployComplianceModule is Script {
     /// @notice Output of the deployment.
     /// @custom:field moduleImpl The ComplianceModule implementation.

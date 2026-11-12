@@ -152,6 +152,15 @@ contract ConfigureComplianceModule_Run_Test is ConfigureComplianceModule_TestIni
         script.run(input);
     }
 
+    /// @notice Tests that the custody admin cannot be the chain's ProxyAdmin, whose owner could
+    ///         then upgrade the module through it.
+    function test_run_custodyAdminIsChainProxyAdmin_reverts() public {
+        ConfigureComplianceModule.Input memory input = _input();
+        input.custodyAdmin = address(optimismPortal2.proxyAdmin());
+        vm.expectRevert("ConfigureComplianceModule: custodyAdmin must not be the chain ProxyAdmin");
+        script.run(input);
+    }
+
     /// @notice Tests that custody cannot stay with the temporary key.
     function test_run_custodyAdminIsBroadcaster_reverts() public {
         ConfigureComplianceModule.Input memory input = _input();

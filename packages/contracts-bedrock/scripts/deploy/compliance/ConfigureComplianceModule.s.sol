@@ -21,7 +21,9 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 /// @title ConfigureComplianceModule
 /// @notice Run by the temporary admin from DeployComplianceModule once the chain uses the module
 ///         as its bridge hook. Deploys the policy, initializes the module with its final owner,
-///         the policy and the chain's addresses, then hands the proxy to its final admin.
+///         the policy and the chain's addresses, then hands the proxy to its final admin. Until it
+///         runs, the Portal's deposits and withdrawal finalizations revert, so on an existing chain
+///         run it right after the upgrade that sets the hook.
 contract ConfigureComplianceModule is Script {
     /// @notice Input for the configuration.
     /// @custom:field module             The ComplianceModule proxy, the chain's bridge hook.
@@ -129,10 +131,14 @@ contract ConfigureComplianceModule is Script {
         );
 
         // The custody admin can take all held value, so it must be neither the chain's upgrade
-        // authority nor the temporary key.
+        // authority, directly or through its ProxyAdmin, nor the temporary key.
         require(
             _input.custodyAdmin != _input.portal.proxyAdminOwner(),
             "ConfigureComplianceModule: custodyAdmin must not be the chain ProxyAdmin owner"
+        );
+        require(
+            _input.custodyAdmin != address(_input.portal.proxyAdmin()),
+            "ConfigureComplianceModule: custodyAdmin must not be the chain ProxyAdmin"
         );
         require(
             _input.custodyAdmin != msg.sender, "ConfigureComplianceModule: custodyAdmin must not be the broadcaster"
