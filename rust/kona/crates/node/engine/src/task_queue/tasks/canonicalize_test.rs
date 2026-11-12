@@ -63,7 +63,7 @@ async fn failed_forkchoice_update_is_relayed_and_retry_imports_the_same_payload(
     let PayloadFixture { payload, cfg } = payload_fixture();
     let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
     let (client, l1, l2) = test_engine_client(cfg.clone());
-    l2.expect("engine_newPayloadV1", valid());
+    l2.expect("engine_newPayloadV2", valid());
     l2.expect_error("engine_forkchoiceUpdatedV3");
     let client = Arc::new(client);
     let sink = Arc::new(RecordingSink::default());
@@ -87,7 +87,7 @@ async fn failed_forkchoice_update_is_relayed_and_retry_imports_the_same_payload(
     assert_eq!(state, original);
     assert!(sink.0.lock().unwrap().is_empty());
 
-    l2.expect("engine_newPayloadV1", valid());
+    l2.expect("engine_newPayloadV2", valid());
     l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
     task.execute(&mut state).await.unwrap();
     rx.recv().await.unwrap().unwrap();
@@ -120,7 +120,7 @@ async fn invalid_committed_payload_does_not_build_an_uncommitted_replacement(
     let payload = OpExecutionPayloadEnvelope::V1(payload_v1.clone());
     let (client, l1, l2) = test_engine_client(cfg.clone());
     l2.expect_params(
-        "engine_newPayloadV1",
+        "engine_newPayloadV2",
         serde_json::json!([payload_v1]),
         PayloadStatus::from_status(PayloadStatusEnum::Invalid {
             validation_error: "invalid transaction".into(),
@@ -162,7 +162,7 @@ async fn unsafe_head_is_published_before_the_canonicalization_response() {
     let PayloadFixture { payload, cfg } = payload_fixture();
     let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
     let (client, l1, l2) = test_engine_client(cfg.clone());
-    l2.expect("engine_newPayloadV1", valid());
+    l2.expect("engine_newPayloadV2", valid());
     l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
     let client = Arc::new(client);
     let (tx, mut rx) = mpsc::channel(1);
@@ -196,7 +196,7 @@ async fn unsafe_head_is_published_before_the_canonicalization_response() {
 async fn invalid_forkchoice_state_is_relayed_as_a_reset_error() {
     let PayloadFixture { payload, cfg } = payload_fixture();
     let (client, l1, l2) = test_engine_client(cfg.clone());
-    l2.expect("engine_newPayloadV1", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+    l2.expect("engine_newPayloadV2", PayloadStatus::from_status(PayloadStatusEnum::Valid));
     l2.expect_error_code("engine_forkchoiceUpdatedV3", -38002);
     let (tx, mut rx) = mpsc::channel(1);
     let mut state = EngineState::default();

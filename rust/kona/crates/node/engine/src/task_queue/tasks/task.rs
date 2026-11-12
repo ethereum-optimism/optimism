@@ -310,7 +310,7 @@ mod tests {
         });
         let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
         let (client, l1, l2) = test_engine_client(config.clone());
-        l2.expect("engine_newPayloadV1", valid());
+        l2.expect("engine_newPayloadV2", valid());
         l2.expect(
             "engine_forkchoiceUpdatedV3",
             alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
@@ -342,7 +342,7 @@ mod tests {
         let config = Arc::new(RollupConfig::default());
         let (client, l1, l2) = test_engine_client(config.clone());
         l2.expect(
-            "engine_newPayloadV1",
+            "engine_newPayloadV2",
             PayloadStatus::from_status(PayloadStatusEnum::Invalid {
                 validation_error: "invalid transaction".into(),
             }),

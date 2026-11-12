@@ -51,7 +51,7 @@ async fn healthy_unsafe_imports_keep_engine_queue_bounded() {
                 .unwrap(),
         );
         l2.expect_params(
-            "engine_newPayloadV1",
+            "engine_newPayloadV2",
             serde_json::json!([payload]),
             PayloadStatus::from_status(PayloadStatusEnum::Valid),
         );
