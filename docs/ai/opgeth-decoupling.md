@@ -578,10 +578,8 @@ semantics are exactly right for it under upstream) and stays.
 
 Plan: make op-reth the **only** L2 EL kind — delete `ELKindOpGeth`, `geth.InitL2`,
 `l2_el_opgeth.go`, and the geth-only knob plumbing (`GethOptions`). No op-e2e system test pins
-op-geth: the remaining `ELKindOpGeth` user in op-e2e is `op-e2e/opgeth`, which is deleted rather
-than migrated (§13 item 7). System tests don't cover pre-Regolith L2 blocks, since every live chain
-activated Regolith together with Bedrock. Precedent: #21182 (acceptance tests op-reth-only for
-Karst+).
+op-geth. System tests don't cover pre-Regolith L2 blocks, since every live chain activated
+Regolith together with Bedrock. Precedent: #21182 (acceptance tests op-reth-only for Karst+).
 
 ---
 
