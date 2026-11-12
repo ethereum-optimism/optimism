@@ -142,6 +142,20 @@ async fn finalize_task_skips_target_without_lookup(
     assert_eq!(state, original_state);
 }
 
+/// A target above the safe head is refused before asking the execution layer for the block: the
+/// test engine expects no request at all.
+#[tokio::test]
+async fn finalize_task_refuses_target_above_safe_head_without_lookup() {
+    let mut state = engine_state(established());
+    let original_state = state;
+
+    let err = finalize(by_hash(&canonical(SAFE + 5)), &mut state, |_| {}).await.unwrap_err();
+
+    assert!(matches!(err, FinalizeTaskError::BlockNotSafe), "{err:?}");
+    assert_eq!(err.severity(), EngineTaskErrorSeverity::Critical);
+    assert_eq!(state, original_state);
+}
+
 /// A target whose block differs from the engine's canonical block is skipped. A pinned hash is
 /// never replaced by the canonical block at its height, even above the finalized head, where a
 /// delegate on another fork names a block the engine does not consider canonical.
