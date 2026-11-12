@@ -243,8 +243,9 @@ mod tests {
     use super::*;
     use crate::{EngineBuildError, SynchronizeTaskError, test_utils::test_engine_client};
     use alloy_consensus::Block;
-    use alloy_primitives::Bytes;
-    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
+    use alloy_eips::eip4895::Withdrawal;
+    use alloy_primitives::{Address, Bytes};
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatus};
     use kona_genesis::RollupConfig;
     use op_alloy_consensus::OpTxEnvelope;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -362,6 +363,39 @@ mod tests {
             .await
             .expect("invalid unsafe payload task should not retry")
             .unwrap();
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    #[tokio::test]
+    async fn canyon_payload_insert_carries_its_withdrawals() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let payload = ExecutionPayloadV2 {
+            payload_inner: ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default()),
+            withdrawals: vec![Withdrawal {
+                index: 1,
+                validator_index: 2,
+                address: Address::repeat_byte(0x11),
+                amount: 3,
+            }],
+        };
+        l2.expect_params(
+            "engine_newPayloadV2",
+            serde_json::json!([payload]),
+            PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+                validation_error: "invalid block".into(),
+            }),
+        );
+        let task = EngineTask::Insert(Box::new(InsertTask::new(
+            Arc::new(client),
+            config,
+            OpExecutionPayloadEnvelope::V2(payload),
+            false,
+            Arc::new(crate::NoopBlockSink),
+        )));
+
+        task.execute(&mut EngineState::default()).await.unwrap();
         l1.assert_finished();
         l2.assert_finished();
     }

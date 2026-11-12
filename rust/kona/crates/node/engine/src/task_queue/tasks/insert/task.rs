@@ -89,8 +89,8 @@ pub(in crate::task_queue) async fn insert_payload(
     // Insert the new payload.
     // Form the new unsafe block ref from the execution payload.
     let response = match payload.clone() {
-        // A pre-Canyon payload, which has no withdrawals, goes through engine_newPayloadV2: it
-        // accepts a V1 payload, and op-reth serves no engine_newPayloadV1.
+        // A V1 envelope has no withdrawals, so it is a pre-Canyon payload. It goes through
+        // engine_newPayloadV2, which accepts a V1 payload; op-reth serves no engine_newPayloadV1.
         OpExecutionPayloadEnvelope::V1(payload) => {
             let payload_input =
                 ExecutionPayloadInputV2 { execution_payload: payload, withdrawals: None };
