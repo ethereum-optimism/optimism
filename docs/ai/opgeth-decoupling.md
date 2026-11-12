@@ -577,11 +577,11 @@ with no compile error to warn us. The in-process **L1** geth miner is unaffected
 semantics are exactly right for it under upstream) and stays.
 
 Plan: make op-reth the **only** L2 EL kind — delete `ELKindOpGeth`, `geth.InitL2`,
-`l2_el_opgeth.go`, and the geth-only knob plumbing (`GethOptions`); resolve each geth-pinned test
-case by case (migrate or delete with rationale; derive the pin list by grepping `ELKindOpGeth` /
-`GethOption`). The pre-Regolith tests (#21451: op-reth returns `IsSystemTx` as a string on
-pre-Regolith blocks) fold into this — likely resolved by deleting them and requiring
-bedrock/regolith co-activation. Precedent: #21182 (acceptance tests op-reth-only for Karst+).
+`l2_el_opgeth.go`, and the geth-only knob plumbing (`GethOptions`). No op-e2e system test pins
+op-geth: the remaining `ELKindOpGeth` user in op-e2e is `op-e2e/opgeth`, which is deleted rather
+than migrated (§13 item 7). System tests don't cover pre-Regolith L2 blocks, since every live chain
+activated Regolith together with Bedrock. Precedent: #21182 (acceptance tests op-reth-only for
+Karst+).
 
 ---
 
@@ -764,7 +764,7 @@ monorepo-only (#22678).
 | One-off fork symbols (§15) | per-symbol swaps | `SetBlobTxSidecar`/`LogForStorage` **done**; test sites ride §13 (#23405) |
 | Remaining non-test fork uses (§5, §15, §18, op-test-sequencer) | swap or delete | **done**; op-test-sequencer's is a cutover edit |
 | `op-chain-ops/script` + op-deployer (§16) | upstream forge only; delete Go host + interopgen | open (#23300) |
-| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open (#21744) |
+| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only | open (#21744) |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | **done** (#21746) |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | **done** (#23217) |
