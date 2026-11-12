@@ -59,11 +59,6 @@ A relayed interop message that targets `SuperchainETHBridge` can't call `sendETH
 ### The target has no code on the destination
 
 If the target of a message has no code when the message is relayed, the relay succeeds and does nothing. For example, the target contract is not deployed on the destination yet. The relay uses up the message. Nobody can relay it again after the contract is deployed, and nobody can expire it. Any assets that the send burned or locked are lost. `SuperchainETHBridge` sends always target `SuperchainETHBridge`, so this case does not apply to them.
-
-### The message was sent before the expiry upgrade
-
-`L2ToL2CrossDomainMessenger` records the send time of each message. Expiry uses this time. Messages sent before the upgrade that added expiry have no send time, so they can never expire.
-
 ## Next steps
 
 *   Learn how to [pass messages between blockchains](/app-developers/tutorials/interoperability/message-passing)
