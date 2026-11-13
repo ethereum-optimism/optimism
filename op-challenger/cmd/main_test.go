@@ -56,7 +56,7 @@ func TestL2Experimental(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:8888"
 		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--l2-experimental-eth-rpc="+url))
-		require.Equal(t, url, cfg.CannonKona.L2Experimental)
+		require.Equal(t, url, cfg.Cannon.L2Experimental)
 	})
 }
 
@@ -210,18 +210,18 @@ func TestGameTypes(t *testing.T) {
 func TestMultipleGameTypes(t *testing.T) {
 	t.Run("WithAllOptions", func(t *testing.T) {
 		argsMap := requiredArgs(gameTypes.CannonKonaGameType)
-		// Add super-cannon-kona required flags
 		addRequiredSuperCannonKonaArgs(argsMap)
 		args := toArgList(argsMap)
 		// Add extra game types (cannon-kona is already specified)
 		args = append(args,
-			"--game-types", gameTypes.SuperCannonKonaGameType.String())
+			"--game-types", gameTypes.SuperCannonKonaGameType.String(),
+			"--game-types", gameTypes.AlphabetGameType.String(),
+			"--game-types", gameTypes.ZKDisputeGameType.String())
 		cfg := configForArgs(t, args)
-		require.Equal(t, []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}, cfg.GameTypes)
+		require.Equal(t, []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType, gameTypes.AlphabetGameType, gameTypes.ZKDisputeGameType}, cfg.GameTypes)
 	})
 	t.Run("PreservesFlagOrder", func(t *testing.T) {
 		argsMap := requiredArgs(gameTypes.SuperCannonKonaGameType)
-		// Add cannon-kona required flags
 		addRequiredCannonKonaArgs(argsMap)
 		args := toArgList(argsMap)
 		// Add extra game types (super-cannon-kona is already specified)

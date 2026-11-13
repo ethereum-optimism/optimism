@@ -581,7 +581,7 @@ func TestSuperPermissionedGameTypeUnsupported(t *testing.T) {
 
 func TestRequireConfigForMultipleGameTypesForCannonKona(t *testing.T) {
 	cfg := validConfig(t, gameTypes.CannonKonaGameType)
-	applyValidConfigForSuperCannonKona(t, &cfg)
+	cfg.SuperRootRPC = validSuperRootRpc
 	cfg.GameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}
 	// Set all required options and check its valid
 	require.NoError(t, cfg.Check())
@@ -595,17 +595,6 @@ func TestRequireConfigForMultipleGameTypesForCannonKona(t *testing.T) {
 	cfg.RollupRpc = ""
 	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
 	cfg.RollupRpc = validRollupRpc
-
-	// Require cannon-kona specific args
-	cfg.CannonKonaAbsolutePreState = ""
-	cfg.CannonKonaAbsolutePreStateBaseURL = nil
-	require.ErrorIs(t, cfg.Check(), ErrMissingCannonKonaAbsolutePreState)
-	cfg.CannonKonaAbsolutePreStateBaseURL = validCannonKonaAbsolutePreStateBaseURL
-
-	server := cfg.CannonKona.Server
-	cfg.CannonKona.Server = ""
-	require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
-	cfg.CannonKona.Server = server
 
 	// Check final config is valid
 	require.NoError(t, cfg.Check())

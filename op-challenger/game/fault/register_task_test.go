@@ -131,7 +131,7 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			for _, gameType := range []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.SuperCannonKonaGameType} {
+			for _, gameType := range []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType} {
 				t.Run(fmt.Sprintf("%v", gameType), func(t *testing.T) {
 					gameFactoryAddr := common.Address{0xaa}
 					gameImplAddr := common.Address{0xbb}
@@ -139,7 +139,7 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 					oracleAddr := common.Address{0xdd}
 					rpc := test.NewAbiBasedRpc(t, gameFactoryAddr, snapshots.LoadDisputeGameFactoryABI())
 					rpc.SetResponse(gameFactoryAddr, "version", rpcblock.Latest, nil, []interface{}{testCase.version})
-					if gameType == gameTypes.CannonGameType {
+					if gameType == gameTypes.CannonKonaGameType {
 						rpc.AddContract(gameImplAddr, snapshots.LoadFaultDisputeGameABI())
 					} else if gameType == gameTypes.SuperCannonKonaGameType {
 						rpc.AddContract(gameImplAddr, snapshots.LoadSuperFaultDisputeGameABI())
