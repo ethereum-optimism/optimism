@@ -569,6 +569,11 @@ func TestSpanBatchTxsRejectsWrongChainIDForProtectedTx(t *testing.T) {
 	require.ErrorContains(t, err, "protected tx has chain ID 902, but expected chain ID 901")
 }
 
+func TestSpanBatchTxsRejectsDepositTx(t *testing.T) {
+	_, err := newSpanBatchTxs([][]byte{{optypes.DepositTxType, 0xc0}}, big.NewInt(1))
+	require.Error(t, err)
+}
+
 func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x321))
 	chainID := big.NewInt(rng.Int63n(1000))
