@@ -92,3 +92,39 @@ async fn test_bootstore_saves_only_confirmed_records() {
             .expect("the driver saves its bootstore at startup");
     assert!(!saved.contains(&unconfirmed), "the bootstore saved an unconfirmed record");
 }
+
+/// The default bootstore, `~/.kona/<chain_id>/bootstore.json`, is in a directory that nothing
+/// creates, and a path given with `--p2p.bootstore` may be too. The driver should create the
+/// directory and save the bootstore there, not keep it only in memory, which loses its records
+/// at every restart.
+///
+/// The node saves its bootnode, at startup.
+#[tokio::test]
+async fn test_bootstore_is_saved_in_a_missing_directory() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("datadir").join("bootstore.json");
+    let bootnode = localhost_enr(TEST_CHAIN_ID);
+    let driver = loopback_builder(loopback_config().build())
+        .with_bootstore_file(Some(BootStoreFile::Custom(path.clone())))
+        .with_bootnodes(BootNodes(vec![BootNode::Enr(bootnode.clone())]))
+        .build()
+        .expect("the driver builds");
+    let (_handler, _records) = driver.start();
+
+    wait_for_saved(&path, |_, saved| saved.contains(&bootnode))
+        .await
+        .expect("the driver didn't save the bootstore in a directory it had to create");
+}
+
+/// A bootstore that can't be opened, here because its path is a directory as in our docker
+/// recipes, should stop the node from starting, as op-node's stores do. Otherwise the node
+/// runs with a bootstore that it never saves, and nothing says so.
+#[tokio::test]
+async fn test_bootstore_that_cannot_be_opened_fails_the_build() {
+    let dir = tempdir().unwrap();
+    let result = loopback_builder(loopback_config().build())
+        .with_bootstore_file(Some(BootStoreFile::Custom(dir.path().to_path_buf())))
+        .build();
+
+    result.expect_err("the driver built with a bootstore it can't open");
+}

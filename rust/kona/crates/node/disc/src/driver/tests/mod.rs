@@ -38,6 +38,11 @@ fn loopback_config() -> ConfigBuilder {
 /// Builds a driver on [`TEST_CHAIN_ID`] that advertises loopback, with `config`, which should
 /// listen there too, see [`loopback_config`]. It has no bootnodes.
 fn loopback_driver(config: Config) -> Discv5Driver {
+    loopback_builder(config).build().expect("the driver builds")
+}
+
+/// A builder of the driver [`loopback_driver`] builds, for the settings it leaves out.
+fn loopback_builder(config: Config) -> Discv5Builder {
     let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
         unreachable!()
     };
@@ -46,8 +51,6 @@ fn loopback_driver(config: Config) -> Discv5Driver {
         TEST_CHAIN_ID,
         config,
     )
-    .build()
-    .expect("the driver builds")
 }
 
 /// A driver with [`crate::public_only`] as its table filter, with a bootstore of `records`, see
