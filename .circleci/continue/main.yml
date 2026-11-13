@@ -2520,6 +2520,17 @@ jobs:
             # Respect the tool versions specified by the ref being published.
             mise install -v -y
       - install-contracts-dependencies
+      # The build below takes about 12 minutes, and the artifacts for this exact contract code are
+      # usually already published. publish-artifacts.sh makes the same check, after the build.
+      - run:
+          name: Skip if already published
+          command: |
+            # An older publish ref has a script without --check, which would build and publish here.
+            if grep -q -- '--check' scripts/ops/publish-artifacts.sh &&
+              bash scripts/ops/publish-artifacts.sh --check; then
+              circleci-agent step halt
+            fi
+          working_directory: packages/contracts-bedrock
       - install-zstd
       - run:
           name: Build contracts
