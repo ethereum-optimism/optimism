@@ -100,8 +100,9 @@ type L2FeesConfigurator interface {
 
 type L2HardforkConfigurator interface {
 	WithForkAtGenesis(fork opforks.Name)
-	// WithForkAtOffset configures fork to activate at offset. A nil offset
-	// deactivates fork and every subsequent fork, so calls are order-sensitive.
+	// WithForkAtOffset configures fork to activate at offset, or deactivates it
+	// when offset is nil. It deactivates every subsequent fork either way, so
+	// calls are order-sensitive: schedule later forks with later calls.
 	WithForkAtOffset(fork opforks.Name, offset *uint64)
 	WithKeepKarstUpgradeGas()
 }
@@ -546,13 +547,12 @@ func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 	// inherits the default schedule.
 	c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
 
-	// If we are deactivating a fork, then we need to also deactivate all subsequent forks.
-	if offset == nil {
-		for _, opFork := range opforks.From(fork) {
-			key, ok := genesis.ForkOffsetKey(opFork)
-			require.True(c.t, ok, "fork %q has no deploy-config time offset", opFork)
-			c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(nil)
-		}
+	// Deactivate every subsequent fork. Otherwise a later fork that the default schedule
+	// activates at genesis would precede this one, which op-deployer rejects.
+	for _, opFork := range opforks.From(fork)[1:] {
+		key, ok := genesis.ForkOffsetKey(opFork)
+		require.True(c.t, ok, "fork %q has no deploy-config time offset", opFork)
+		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(nil)
 	}
 }
 

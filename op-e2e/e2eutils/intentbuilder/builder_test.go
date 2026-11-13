@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -223,6 +224,23 @@ func TestWithForkAtGenesisBedrock(t *testing.T) {
 	require.Contains(t, overrides, "l2GenesisLagoonTimeOffset")
 	for k, v := range overrides {
 		require.Nil(t, v, "fork override %s should be deactivated at Bedrock genesis", k)
+	}
+}
+
+// TestWithForkAtOffsetDeactivatesLaterForks checks that scheduling a fork at an offset leaves no
+// later fork to inherit a genesis activation from op-deployer's default schedule.
+func TestWithForkAtOffsetDeactivatesLaterForks(t *testing.T) {
+	b, l2 := New().WithL2(eth.ChainIDFromUInt64(420))
+	offset := uint64(10)
+	l2.WithForkAtOffset(opforks.Jovian, &offset)
+
+	overrides := b.(*intentBuilder).intent.Chains[0].DeployOverrides
+	require.Equal(t, (*hexutil.Uint64)(&offset), overrides["l2GenesisJovianTimeOffset"])
+	for _, fork := range opforks.From(opforks.Karst) {
+		key, ok := genesis.ForkOffsetKey(fork)
+		require.True(t, ok)
+		require.Contains(t, overrides, key)
+		require.Nil(t, overrides[key], "fork %s should be deactivated", fork)
 	}
 }
 
