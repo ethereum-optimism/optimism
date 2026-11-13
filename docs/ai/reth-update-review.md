@@ -236,11 +236,13 @@ also says which bumps break which crate).
    fork's `op-<base>` branch (UPDATING-RETH, "Pinning a fork change"). Report a
    `rev` pin, a tag off that branch, or open fork PRs the pin needs as the first
    finding, marked **blocks merge**, whatever the PR says about tagging later.
-3. Redo UPDATING-RETH step 2's audit of the old pin, including its check of the
-   old branch past its last tag and of the open fork PRs into it. For a new fork
-   pin, confirm its upstream base (`git merge-base <new-pin> <upstream>/main`) is
-   the selected target and list `<base>..<new-pin>`. Report any old cherry-pick
-   that is absent from both the target and the new fork pin.
+3. Redo UPDATING-RETH step 2's audit of the old pin, including its recheck of
+   the pin `develop` has now, of the old branch past that tag and of the open
+   fork PRs into it. For a new fork pin, confirm the selected target is an
+   ancestor of it (`git merge-base --is-ancestor <target> <new-pin>`) and that
+   `<target>..<new-pin>` holds only the fork's own commits. A release tag usually
+   sits off `main`, so a merge base with `main` is not the target. Report any old cherry-pick that is absent from both the target and the new
+   fork pin.
 4. Inspect every `UPSTREAM-MIRROR` tag changed or removed since the PR's merge
    base. For an advanced tag, review the upstream symbol from the old token to
    the new pin; do not accept a clean head worklist as proof.

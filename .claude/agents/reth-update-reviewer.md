@@ -14,15 +14,15 @@ follow them exactly — scope (the lockfile-delta funnel), the change-driven app
 precondition question, the risk taxonomy, the review process, the succinct output format,
 and the all-severities triage → investigation handoff. Do not restate them; execute them.
 
-Run the guide's full-range sweep yourself: spawn one sub-agent per partition of every
+Run the review guide's full-range sweep yourself: spawn one sub-agent per partition of every
 bumped family's `<old>..<new>` range, in parallel, and consolidate their per-commit
 reports with the funnel's findings before the triage handoff. The funnel alone is not a
 complete review.
 
 Run the forward sweep ([rust/UPDATING-RETH.md](../../rust/UPDATING-RETH.md#forward-sweep))
 the same way, with one sub-agent per partition, so the human can decide on its
-recommendation before the bump merges. For a fork PR that picks fixes, also apply the guide's
-"Reviewing a fork pick PR" checklist.
+recommendation before the bump merges. For a fork PR that picks fixes, also apply the
+review guide's "Reviewing a fork pick PR" checklist.
 
 When the bump touches transaction execution, gas, or receipts, also run the
 [`deposit-reviewer`](deposit-reviewer.md) agent as a separate review.

@@ -26,8 +26,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    `rust/Cargo.toml`. Reuse or clone that source, ensure a remote points to
    `https://github.com/paradigmxyz/reth`, then fetch upstream `main`, tags, the
    old pin, and the selected target. Validate reused remotes before diffing.
-   Skim upstream fixes newer than the candidate target (the guide's "Forward
-   sweep") so a retarget decision comes before the adaptation work.
+   Run the guide's "Forward sweep" from the candidate target so a retarget
+   decision comes before the adaptation work.
 
 2. **Isolate.** Work in a fresh git worktree (or jj workspace) based on latest
    `develop` — never on the main checkout's working copy. Run `mise trust` in the
@@ -37,10 +37,9 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    `cd rust && just mirrors stale` before verification. If fork patches
    survive the audit, or the target is not an upstream release tag, the pin
    moves to a tag on a new `op-*` fork branch: follow the guide's "The reth
-   fork" from the prep PR through the tag, including its re-sweep before the
-   merge. Meanwhile, the update PR may pin the prep PR's head by `rev`, in
-   draft only. Work every stale mirror and iterate the compile loop to green;
-   don't ask the user to confirm each adaptation.
+   fork" through tagging, including its re-sweep before the merge. Work every
+   stale mirror and iterate the compile loop to green; don't ask the user to
+   confirm each adaptation.
 
 4. **Compound.** If the bump taught you something the guide doesn't cover, fold
    it into `rust/UPDATING-RETH.md` before review.
@@ -50,8 +49,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    including its partitioned full-range sweep over every bumped family; the
    mirror funnel alone does not clear a bump. Include its forward sweep for
    upstream fixes newer than the target, and get the user's decision:
-   cherry-pick the fixes onto the fork branch (UPDATING-RETH, "The reth
-   fork", then back to step 3 here), or retarget to a newer upstream release or commit (back to
+   cherry-pick the fixes onto the fork branch (the guide's "The reth fork",
+   then back to step 3 here), or retarget to a newer upstream release or commit (back to
    step 1 here with the new target, reusing the worktree). Complete its
    all-severities triage and selected investigations. Fix findings, then
    rerun every matching reviewer until the candidate is clean.
