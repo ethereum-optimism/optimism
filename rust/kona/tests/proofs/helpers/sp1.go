@@ -63,7 +63,7 @@ func RunSuperRangeExecutor(
 	writeConfig(t, workDir, "l1chain", l1chainConfig, l1chainConfigPath)
 
 	depsetPath := filepath.Join(workDir, "depset.json")
-	writeDepset(t, depsetPath, fixtureInputs.DependencySet, rollupCfgs)
+	writeDepset(t, depsetPath, fixtureInputs.DependencySet)
 
 	args := []string{
 		"--supernode-address", fixtureInputs.SupernodeAddress,

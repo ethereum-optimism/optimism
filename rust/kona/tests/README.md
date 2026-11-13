@@ -61,9 +61,7 @@ Where:
 
 - `just build-reth`: Builds the op-reth binary.
 
-- `just action-tests-single`: Builds kona-host and op-reth-test-engine (the L2 execution engine the tests run on), then runs action tests for the single-chain client program.
-
-- `just action-tests-interop`: Runs action tests for the interop client program.
+- `just action-tests-single`: Builds kona-host and op-reth-test-engine (the L2 execution engine the tests run on), then runs the action tests, which prove one chain with the interop program (`kona-host super`) and that chain's dependency set.
 
 ## Environment Variables
 

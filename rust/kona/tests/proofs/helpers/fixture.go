@@ -34,8 +34,8 @@ type FixtureInputs struct {
 
 	L2Sources []*FaultProofProgramL2Source
 
-	// DependencySet is the dependency set that the sequencer derives with. When it is nil, the
-	// programs get a dependency set of the L2Sources chains. Not part of the serialized fixture.
+	// DependencySet is the dependency set that the sequencer derives with. The programs get
+	// exactly this set. Not part of the serialized fixture.
 	DependencySet depset.DependencySet `toml:"-"`
 
 	// SupernodeAddress is an HTTP endpoint serving `superroot_atTimestamp`. Only the kona-sp1

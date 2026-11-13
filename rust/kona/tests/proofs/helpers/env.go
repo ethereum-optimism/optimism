@@ -81,13 +81,14 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	// Synthesise a depset when interop is scheduled; the sequencer's
-	// FetchingAttributesBuilder constructor panics otherwise.
+	// Every chain gets the dependency set the sequencer derives with: the
+	// FetchingAttributesBuilder needs one once Lagoon is scheduled, and kona-host super passes it
+	// to the program.
 	require.True(t, len(testCfg.DependencySetPeers) == 0 || sd.RollupCfg.LagoonTime != nil,
 		"DependencySetPeers needs Lagoon to be scheduled")
 	require.True(t, len(testCfg.DependencySetPeers) == 0 || sd.DependencySet == nil,
 		"DependencySetPeers needs the env to build the dependency set")
-	if sd.RollupCfg.LagoonTime != nil && sd.DependencySet == nil {
+	if sd.DependencySet == nil {
 		deps := map[eth.ChainID]*depset.StaticConfigDependency{
 			eth.ChainIDFromBig(sd.RollupCfg.L2ChainID): {},
 		}
