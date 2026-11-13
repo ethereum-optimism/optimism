@@ -42,7 +42,7 @@ Available components:
   - `L1ELNode`: L1 execution-layer node, like geth or reth.
   - `L1CLNode`: L1 consensus-layer node. A full beacon node or a mock consensus replacement for testing.
 - `L2Network`: a L2 chain configuration and registered L2 components
-  - `L2ELNode`: L2 execution-engine, op-reth
+  - `L2ELNode`: L2 execution-engine: op-reth, or the op-sync-tester mock
   - `L2CLNode`: op-node service, or equivalent
   - `L2Batcher`: op-batcher, or equivalent
   - `L2Proposer`: op-proposer, or equivalent

@@ -74,7 +74,7 @@ acceptance-test:
     fi
 
     # Each ParallelT acceptance test spins its own full devstack (L1 geth +
-    # op-node + op-reth/op-geth + batcher + proposer + challenger), so the real
+    # op-node + op-reth + batcher + proposer + challenger), so the real
     # cost driver is concurrent ParallelT goroutines, bounded by jobs * -parallel.
     # The previous unbounded default (-p = CPU_COUNT ~= 20, -parallel = ~10)
     # saturated CPU+RAM and triggered mass "context deadline exceeded" failures

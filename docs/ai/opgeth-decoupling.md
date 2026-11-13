@@ -27,10 +27,10 @@ of three fates:
    `engine.ExecutableDataToBlockNoHash` signature (a cutover edit); and the **fork's infrastructure
    extensions** to geth's `log`/`rpc` packages, re-homed into owned op-service layers (§15).
 2. **Migrate execution to op-reth / Rust** — anything that builds or executes blocks, or needs
-   fork-only EVM hooks. op-acceptance-tests sequences op-reth-only for Karst+ (#21182);
-   op-e2e/actions and the kona proof tests (`rust/kona/tests/proofs`) run on an
-   op-reth-test-engine subprocess EL (#20415, #21196, #21905);
-   op-e2e system tests and op-devstack/sysgo run op-reth as their only L2 EL (§17); and
+   fork-only EVM hooks. op-e2e/actions and the kona proof tests (`rust/kona/tests/proofs`) run on
+   an op-reth-test-engine subprocess EL (#20415, #21196, #21905);
+   op-e2e system tests and op-devstack/sysgo, which op-acceptance-tests runs on, have op-reth as
+   their only L2 EL (§17); and
    op-deployer runs all its scripts on upstream forge; `op-chain-ops/script` is deleted (§16).
 3. **Delete** — geth-as-library tools with no remaining need, to be reimplemented in Rust against
    op-reth if ever needed again: op-simulate and op-run-block (#21282), `op-wheel/cheat`, the
