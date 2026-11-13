@@ -11,7 +11,7 @@ impl Metrics {
     /// Identifier for the gauge that tracks libp2p gossipsub events.
     pub const GOSSIPSUB_EVENT: &str = "kona_node_gossipsub_events";
 
-    /// Identifier for the gauge that tracks libp2p gossipsub connections.
+    /// Identifier for the counter that tracks libp2p gossipsub connections.
     pub const GOSSIPSUB_CONNECTION: &str = "kona_node_gossipsub_connection";
 
     /// Identifier for the gauge that tracks unsafe blocks published.
@@ -20,10 +20,10 @@ impl Metrics {
     /// Identifier for the gauge that tracks the number of connected peers.
     pub const GOSSIP_PEER_COUNT: &str = "kona_node_swarm_peer_count";
 
-    /// Identifier for the gauge that tracks the number of dialed peers.
+    /// Identifier for the counter that tracks the number of dialed peers.
     pub const DIAL_PEER: &str = "kona_node_dial_peer";
 
-    /// Identifier for the gauge that tracks the number of errors when dialing peers.
+    /// Identifier for the counter that tracks the number of errors when dialing peers.
     pub const DIAL_PEER_ERROR: &str = "kona_node_dial_peer_error";
 
     /// Identifier for a gauge that tracks the number of banned peers.
@@ -93,7 +93,8 @@ impl Metrics {
             Self::GOSSIPSUB_EVENT,
             "Events received by the libp2p gossipsub Swarm"
         );
-        metrics::describe_gauge!(Self::DIAL_PEER, "Number of peers dialed by the libp2p Swarm");
+        metrics::describe_counter!(Self::DIAL_PEER, "Number of peers dialed by the libp2p Swarm");
+        metrics::describe_counter!(Self::DIAL_PEER_ERROR, "Number of errors when dialing peers");
         metrics::describe_gauge!(
             Self::UNSAFE_BLOCK_PUBLISHED,
             "Number of execution payload envelopes gossiped out through the libp2p swarm"
@@ -102,7 +103,7 @@ impl Metrics {
             Self::GOSSIP_PEER_COUNT,
             "Number of peers connected to the libp2p gossip Swarm"
         );
-        metrics::describe_gauge!(
+        metrics::describe_counter!(
             Self::GOSSIPSUB_CONNECTION,
             "Connections made to the libp2p Swarm"
         );
@@ -160,8 +161,8 @@ impl Metrics {
         metrics::gauge!(Self::GOSSIP_EVENT, "type" => "not_supported").set(0);
 
         // Peer dials
-        metrics::gauge!(Self::DIAL_PEER).set(0);
-        metrics::gauge!(Self::DIAL_PEER_ERROR).set(0);
+        metrics::counter!(Self::DIAL_PEER).absolute(0);
+        metrics::counter!(Self::DIAL_PEER_ERROR).absolute(0);
 
         // Unsafe Blocks
         metrics::gauge!(Self::UNSAFE_BLOCK_PUBLISHED).set(0);
@@ -170,10 +171,10 @@ impl Metrics {
         metrics::gauge!(Self::GOSSIP_PEER_COUNT).set(0);
 
         // Connection
-        metrics::gauge!(Self::GOSSIPSUB_CONNECTION, "type" => "connected").set(0);
-        metrics::gauge!(Self::GOSSIPSUB_CONNECTION, "type" => "outgoing_error").set(0);
-        metrics::gauge!(Self::GOSSIPSUB_CONNECTION, "type" => "incoming_error").set(0);
-        metrics::gauge!(Self::GOSSIPSUB_CONNECTION, "type" => "closed").set(0);
+        metrics::counter!(Self::GOSSIPSUB_CONNECTION, "type" => "connected").absolute(0);
+        metrics::counter!(Self::GOSSIPSUB_CONNECTION, "type" => "outgoing_error").absolute(0);
+        metrics::counter!(Self::GOSSIPSUB_CONNECTION, "type" => "incoming_error").absolute(0);
+        metrics::counter!(Self::GOSSIPSUB_CONNECTION, "type" => "closed").absolute(0);
 
         // Gossipsub Events
         metrics::gauge!(Self::GOSSIPSUB_EVENT, "type" => "subscribed").set(0);

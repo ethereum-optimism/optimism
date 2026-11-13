@@ -108,11 +108,10 @@ fn dial_errors(f: impl FnOnce()) -> Vec<(String, usize)> {
         .filter(|(key, ..)| key.key().name() == crate::Metrics::DIAL_PEER_ERROR)
         .filter_map(|(key, _, _, value)| {
             let kind = key.key().labels().find(|l| l.key() == "type")?.value().to_owned();
-            // Recorded as a gauge that only goes up (#23699), so it holds a whole count.
-            let metrics_util::debugging::DebugValue::Gauge(count) = value else {
+            let metrics_util::debugging::DebugValue::Counter(count) = value else {
                 return None;
             };
-            Some((kind, count.into_inner() as usize))
+            Some((kind, count as usize))
         })
         .collect()
 }
