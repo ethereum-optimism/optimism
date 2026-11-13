@@ -150,7 +150,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 fn canonicalized_result_gas_applies_refund_exactly_once() {
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut executor =
         build_policy_executor::<FixedRefundPolicy>(&mut db, &receipt_builder, &hardforks);
 
@@ -347,7 +347,7 @@ fn fixed_policy_producer_verifier_roundtrip() {
     let tx = observer_test_tx();
     let mut producer_db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut producer =
         build_policy_executor::<FixedRefundPolicy>(&mut producer_db, &receipt_builder, &hardforks);
 
@@ -416,7 +416,7 @@ where
 
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
 
     let entries = {
         let mut producer = build_policy_executor_with::<R>(
@@ -494,7 +494,7 @@ fn fixed_policy_settlement_conserves_total_eth_supply() {
 fn fixed_policy_tracks_pre_refund_gas() {
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut executor =
         build_policy_executor::<FixedRefundPolicy>(&mut db, &receipt_builder, &hardforks);
 
@@ -664,7 +664,7 @@ fn excessive_producer_refund_is_zeroed_and_verifies() {
     let tx = observer_test_tx();
     let mut producer_db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut producer =
         build_policy_executor::<FaultyRefundPolicy>(&mut producer_db, &receipt_builder, &hardforks);
 
@@ -699,7 +699,7 @@ fn faulty_policy_refund_for_deposit_is_ignored() {
     let deposit = recovered_deposit();
     let mut producer_db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut producer =
         build_policy_executor::<FaultyRefundPolicy>(&mut producer_db, &receipt_builder, &hardforks);
 
@@ -1441,17 +1441,13 @@ mod warm_set_leak {
     /// Activates every fork through Lagoon at `JOVIAN_TIMESTAMP`. Lagoon gates SDM, so the Produce
     /// path exercised here runs on a genuinely SDM-active fork rather than being forced on a
     /// pre-SDM one.
-    fn hardforks() -> OpChainHardforks {
-        let forks = OpHardfork::op_mainnet()
-            .into_iter()
-            .filter(|(fork, _)| fork.idx() < OpHardfork::Jovian.idx())
-            .chain(
-                OpHardfork::Jovian
-                    .forks_from()
-                    .take_while(|fork| fork.idx() <= OpHardfork::Lagoon.idx())
-                    .map(|fork| (fork, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))),
-            );
-        OpChainHardforks::new(forks)
+    fn sdm_hardforks() -> OpChainHardforks {
+        let schedule: Vec<_> = OpHardfork::Jovian
+            .forks_from()
+            .take_while(|fork| fork.idx() <= OpHardfork::Lagoon.idx())
+            .map(|fork| (fork, JOVIAN_TIMESTAMP))
+            .collect();
+        hardforks(OpHardfork::Isthmus, &schedule)
     }
 
     fn probe_tx() -> Recovered<OpTxEnvelope> {
@@ -1464,7 +1460,7 @@ mod warm_set_leak {
     fn probe_b_canonical_gas(mode: PostExecMode, include_failing_a: bool) -> u64 {
         let mut db = nonce_too_low_db();
         let receipt_builder = OpAlloyReceiptBuilder::default();
-        let op_chain_hardforks = hardforks();
+        let op_chain_hardforks = sdm_hardforks();
         let mut executor = build_policy_executor_with::<FixedRefundPolicy>(
             &mut db,
             &receipt_builder,
@@ -1496,7 +1492,7 @@ mod warm_set_leak {
         a_error_context: &str,
     ) {
         let receipt_builder = OpAlloyReceiptBuilder::default();
-        let op_chain_hardforks = hardforks();
+        let op_chain_hardforks = sdm_hardforks();
 
         // ---- Builder (SDM Produce): A is attempted, fails, and is skipped; B is included.
         let mut producer_db = make_db();
@@ -1815,7 +1811,7 @@ mod warm_set_leak {
     {
         let mut db = make_db();
         let receipt_builder = OpAlloyReceiptBuilder::default();
-        let op_chain_hardforks = hardforks();
+        let op_chain_hardforks = sdm_hardforks();
         let mut executor = build_policy_executor_with::<R>(
             &mut db,
             &receipt_builder,
@@ -1898,7 +1894,7 @@ mod warm_set_leak {
     fn declined_candidate_leaves_no_fee_vault_touch_in_journaling_policy() {
         let mut db = nonce_too_low_db();
         let receipt_builder = OpAlloyReceiptBuilder::default();
-        let op_chain_hardforks = hardforks();
+        let op_chain_hardforks = sdm_hardforks();
         let mut executor = build_policy_executor_with::<JournalingTouchPolicy>(
             &mut db,
             &receipt_builder,

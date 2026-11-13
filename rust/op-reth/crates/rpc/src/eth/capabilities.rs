@@ -63,9 +63,11 @@ fn raise_oldest_block(mut capabilities: EthCapabilities, floor: u64) -> EthCapab
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_op_hardforks::OP_MAINNET_BEDROCK_BLOCK as BEDROCK;
     use alloy_primitives::B256;
     use reth_rpc_eth_types::{EthCapabilitiesHead, EthCapabilitiesResource};
+
+    /// Any non-zero Bedrock block; this is OP Mainnet's.
+    const BEDROCK: u64 = 105_235_063;
 
     #[test]
     fn raises_oldest_block_to_bedrock() {

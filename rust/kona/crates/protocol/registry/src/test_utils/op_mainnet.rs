@@ -2,11 +2,6 @@
 
 use alloy_chains::Chain;
 use alloy_eips::BlockNumHash;
-use alloy_op_hardforks::{
-    OP_MAINNET_CANYON_TIMESTAMP, OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_FJORD_TIMESTAMP,
-    OP_MAINNET_GRANITE_TIMESTAMP, OP_MAINNET_HOLOCENE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP,
-    OP_MAINNET_JOVIAN_TIMESTAMP, OP_MAINNET_KARST_TIMESTAMP,
-};
 use alloy_primitives::{address, b256, uint};
 #[cfg(feature = "rollup_config_override")]
 use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
@@ -55,16 +50,16 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
     alt_da_config: None,
     hardforks: HardForkConfig {
         regolith_time: None,
-        canyon_time: Some(OP_MAINNET_CANYON_TIMESTAMP),
+        canyon_time: Some(1_704_992_401),
         delta_time: Some(1_708_560_000_u64),
-        ecotone_time: Some(OP_MAINNET_ECOTONE_TIMESTAMP),
-        fjord_time: Some(OP_MAINNET_FJORD_TIMESTAMP),
-        granite_time: Some(OP_MAINNET_GRANITE_TIMESTAMP),
-        holocene_time: Some(OP_MAINNET_HOLOCENE_TIMESTAMP),
+        ecotone_time: Some(1_710_374_401),
+        fjord_time: Some(1_720_627_201),
+        granite_time: Some(1_726_070_401),
+        holocene_time: Some(1_736_445_601),
         pectra_blob_schedule_time: None,
-        isthmus_time: Some(OP_MAINNET_ISTHMUS_TIMESTAMP),
-        jovian_time: Some(OP_MAINNET_JOVIAN_TIMESTAMP),
-        karst_time: Some(OP_MAINNET_KARST_TIMESTAMP),
+        isthmus_time: Some(1_746_806_401),
+        jovian_time: Some(1_764_691_201),
+        karst_time: Some(1_783_526_401),
         keep_karst_upgrade_gas: true,
         lagoon_time: None,
     },
