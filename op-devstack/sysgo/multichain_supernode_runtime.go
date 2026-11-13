@@ -457,6 +457,12 @@ func buildMultiL2RuntimeWorld(
 			t.Require().NoError(err, "need frozen pre-Lagoon predeploy state")
 			wb.preForkPredeployAllocs = preForkAllocs
 		}
+	} else {
+		// The chains share one dependency set, so with Lagoon active they would form an interop
+		// cluster. Deactivate Lagoon in case the default schedule activates it at genesis.
+		for _, l2Cfg := range wb.builder.L2s() {
+			l2Cfg.WithForkAtOffset(opforks.Lagoon, nil)
+		}
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
 	l1Net := wb.Build(startL1)
