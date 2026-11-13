@@ -45,13 +45,43 @@ type singleChainPrimaryRuntime struct {
 	CL L2CLNode
 }
 
+type singleChainPrimaryStartFunc func(
+	t devtest.T,
+	keys devkeys.Keys,
+	world singleChainRuntimeWorld,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	jwtPath string,
+	jwtSecret [32]byte,
+	cfg PresetConfig,
+	sequencerCLKind MixedL2CLKind,
+) singleChainPrimaryRuntime
+
 type singleChainRuntimeSpec struct {
 	BuildWorld      func(t devtest.T, keys devkeys.Keys, cfg PresetConfig, startL1 func(*L1Network) (*L1Geth, *L1CLNode)) singleChainRuntimeWorld
-	StartPrimary    func(t devtest.T, keys devkeys.Keys, world singleChainRuntimeWorld, l1EL *L1Geth, l1CL *L1CLNode, jwtPath string, jwtSecret [32]byte, cfg PresetConfig) singleChainPrimaryRuntime
+	SequencerCLKind MixedL2CLKind
+	StartPrimary    singleChainPrimaryStartFunc
+
 	StartBatcher    bool
-	StartProposer   bool
 	StartChallenger bool
-	TestSequencer   string
+	StartProposer   bool
+
+	TestSequencer string
+}
+
+// requireOpNodeSequencerCLKind fails unless the sequencer runs on op-node, which the single-chain
+// interop sequencer requires.
+func requireOpNodeSequencerCLKind(t devtest.T, sequencerCLKind MixedL2CLKind) {
+	t.Require().Equal(MixedL2CLOpNode, sequencerCLKind, "single-chain interop sequencer requires op-node")
+}
+
+// resolveSequencerCLKind returns the L2 CL kind the environment requests for the sequencer,
+// pinned to op-node when the chain runs interop at genesis.
+func resolveSequencerCLKind(t devtest.T, cfg PresetConfig) MixedL2CLKind {
+	if cfg.InteropAtGenesis {
+		return MixedL2CLOpNode
+	}
+	return ResolveMixedL2CLKind(t)
 }
 
 func newSingleChainNodeRuntime(name string, isSequencer bool, el L2ELNode, cl L2CLNode) *SingleChainNodeRuntime {
@@ -94,6 +124,7 @@ func startDefaultSingleChainPrimary(
 	jwtPath string,
 	jwtSecret [32]byte,
 	cfg PresetConfig,
+	sequencerCLKind MixedL2CLKind,
 ) singleChainPrimaryRuntime {
 	safeDBPath := filepath.Join(t.TempDirWithPrefix("l2-safe-db-"+world.L2Network.ChainID().String()), "safe-head.db")
 	l2CLOptions := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
@@ -104,6 +135,7 @@ func startDefaultSingleChainPrimary(
 	sequencerELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
 	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
 	if world.Interop != nil {
+		requireOpNodeSequencerCLKind(t, sequencerCLKind)
 		l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:           "sequencer",
 			IsSequencer:   true,
@@ -113,7 +145,7 @@ func startDefaultSingleChainPrimary(
 		})
 		return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
 	}
-	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLOptions)
+	l2CL := startL2CLForKey(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, sequencerCLKind, "sequencer", "sequencer", true, "", l2CLOptions)
 	return singleChainPrimaryRuntime{
 		EL: l2EL,
 		CL: l2CL,
@@ -132,6 +164,7 @@ func startStoppedSingleChainPrimary(
 	jwtPath string,
 	jwtSecret [32]byte,
 	cfg PresetConfig,
+	sequencerCLKind MixedL2CLKind,
 ) singleChainPrimaryRuntime {
 	t.Require().Nil(world.Interop, "conductor primary does not support interop")
 	safeDBPath := filepath.Join(t.TempDirWithPrefix("l2-safe-db-"+world.L2Network.ChainID().String()), "safe-head.db")
@@ -144,7 +177,7 @@ func startStoppedSingleChainPrimary(
 	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
 	l2CL := startStoppedSequencerCL(
 		t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret,
-		"sequencer", l2CLOptions,
+		sequencerCLKind, "sequencer", l2CLOptions,
 	)
 	return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
 }
@@ -174,7 +207,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 		return l1EL, l1CL
 	})
 
-	primary := spec.StartPrimary(t, keys, world, l1EL, l1CL, jwtPath, jwtSecret, cfg)
+	primary := spec.StartPrimary(t, keys, world, l1EL, l1CL, jwtPath, jwtSecret, cfg, spec.SequencerCLKind)
 	primaryNode := newSingleChainNodeRuntime("sequencer", true, primary.EL, primary.CL)
 
 	var l2Batcher *L2Batcher
@@ -239,12 +272,18 @@ func NewMinimalRuntime(t devtest.T) *SingleChainRuntime {
 }
 
 func NewMinimalRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	return newMinimalRuntime(t, cfg, resolveSequencerCLKind(t, cfg))
+}
+
+func newMinimalRuntime(t devtest.T, cfg PresetConfig, sequencerCLKind MixedL2CLKind) *SingleChainRuntime {
 	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
 		BuildWorld:      newDefaultSingleChainWorld,
+		SequencerCLKind: sequencerCLKind,
 		StartPrimary:    startDefaultSingleChainPrimary,
+
 		StartBatcher:    true,
-		StartProposer:   true,
 		StartChallenger: true,
+		StartProposer:   true,
 	})
 }
 
@@ -254,12 +293,18 @@ func NewMinimalRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRunt
 // fault proofs. Skipping the challenger also avoids requiring cannon prestate
 // artifacts, which are expensive to build locally.
 func NewMinimalNoFaultProofsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	return newMinimalNoFaultProofsRuntime(t, cfg, resolveSequencerCLKind(t, cfg))
+}
+
+func newMinimalNoFaultProofsRuntime(t devtest.T, cfg PresetConfig, sequencerCLKind MixedL2CLKind) *SingleChainRuntime {
 	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
 		BuildWorld:      newDefaultSingleChainWorld,
+		SequencerCLKind: sequencerCLKind,
 		StartPrimary:    startDefaultSingleChainPrimary,
+
 		StartBatcher:    true,
-		StartProposer:   false,
 		StartChallenger: false,
+		StartProposer:   false,
 	})
 }
 

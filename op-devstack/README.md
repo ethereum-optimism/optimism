@@ -110,7 +110,7 @@ and returns a typed output that the test then may use.
 - `DEVSTACK_MONOREPO_ROOT`: Absolute path to a monorepo checkout. Used by out-of-tree acceptance suites (which depend on this module by git rev) so contract-artifact resolution can find `packages/contracts-bedrock` outside the cwd-relative walk. In-tree runs don't need it.
 
 ### Rust stack env vars:
-- `DEVSTACK_L2CL_KIND=kona-node` to select kona-node as default L2 CL node
+- `DEVSTACK_L2CL_KIND=kona-node` to select kona-node as default L2 CL node. Any value other than `op-node` or `kona-node` fails the test before a node starts. Some presets pin nodes to op-node whatever the variable says, such as the sequencer of a chain with interop at genesis, and the sequencer and deriving verifier of the two-verifiers preset.
 - `DEVSTACK_L2EL_KIND=op-reth` to select op-reth as default L2 EL node
 - `RUST_BINARY_PATH_KONA_NODE=/home/USERHERE/projects/kona/target/debug/kona-node` to select the kona-node executable to run (skips the build; the path must exist)
 - `RUST_BINARY_PATH_OP_RETH=/home/USERHERE/projects/reth/target/release/op-reth` to select the op-reth executable to run (skips the build; the path must exist)

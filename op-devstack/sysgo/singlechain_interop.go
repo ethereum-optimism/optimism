@@ -31,8 +31,10 @@ func startSingleChainInteropPrimaryNoSupernode(
 	jwtPath string,
 	jwtSecret [32]byte,
 	cfg PresetConfig,
+	sequencerCLKind MixedL2CLKind,
 ) singleChainPrimaryRuntime {
 	t.Require().NotNil(world.Interop, "single-chain interop runtime requires interop support")
+	requireOpNodeSequencerCLKind(t, sequencerCLKind)
 
 	sequencerIdentity := NewELNodeIdentity(0)
 	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerIdentity, ResolveMixedL2ELOpts(t)...)
@@ -55,10 +57,12 @@ func startSingleChainInteropPrimaryNoSupernode(
 func NewMinimalInteropNoSupernodeRuntime(t devtest.T) *SingleChainRuntime {
 	return newSingleChainRuntimeWithConfig(t, PresetConfig{}, singleChainRuntimeSpec{
 		BuildWorld:      newSingleChainInteropWorldNoSupernode,
+		SequencerCLKind: MixedL2CLOpNode,
 		StartPrimary:    startSingleChainInteropPrimaryNoSupernode,
+
 		StartBatcher:    true,
-		StartProposer:   true,
 		StartChallenger: false,
+		StartProposer:   true,
 	})
 }
 
@@ -71,10 +75,12 @@ func NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t devtest.T, cfg
 	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.SuperCannonKonaGameType)
 	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
 		BuildWorld:      newSingleChainInteropWorldNoSupernode,
+		SequencerCLKind: MixedL2CLOpNode,
 		StartPrimary:    startDefaultSingleChainPrimary,
+
 		StartBatcher:    true,
-		StartProposer:   false,
 		StartChallenger: true,
+		StartProposer:   false,
 	})
 }
 
@@ -89,9 +95,11 @@ func NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig(t devtest.T, cfg
 	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.ZKDisputeGameType)
 	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
 		BuildWorld:      newSingleChainInteropWorldNoSupernode,
+		SequencerCLKind: MixedL2CLOpNode,
 		StartPrimary:    startDefaultSingleChainPrimary,
+
 		StartBatcher:    true,
-		StartProposer:   false,
 		StartChallenger: true,
+		StartProposer:   false,
 	})
 }

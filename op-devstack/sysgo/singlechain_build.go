@@ -108,11 +108,7 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 	}
 }
 
-// startL2CLForKey starts an L2 CL node for the given key, respecting DEVSTACK_L2CL_KIND.
-// This is the env-aware dispatch point for preset runtimes that don't build explicit node
-// specs. Runtimes constructed from explicit MixedSingleChainNodeSpec.CLKind values (e.g.
-// NewMixedSingleChainRuntime) don't route through here; they resolve the env up front via
-// ResolveMixedL2CLKind instead.
+// startL2CLForKey starts an L2 CL node of the given kind for the given key.
 func startL2CLForKey(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -122,17 +118,18 @@ func startL2CLForKey(
 	l1CL *L1CLNode,
 	l2EL L2ELNode,
 	jwtSecret [32]byte,
+	clKind MixedL2CLKind,
 	clKey, elKey string,
 	isSequencer bool,
 	followSource string,
 	l2CLOpts []L2CLOption,
 ) L2CLNode {
-	switch devstackL2CLKind() {
+	switch clKind {
 	case MixedL2CLKona:
 		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, konaNodeStartConfig{
 			L2CLConfig: resolveKonaL2CLConfig(t, clKey, l2Net.ChainID(), isSequencer, followSource, l2CLOpts),
 		})
-	default: // op-node
+	case MixedL2CLOpNode:
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
 			IsSequencer:    isSequencer,
@@ -140,10 +137,13 @@ func startL2CLForKey(
 			L2FollowSource: followSource,
 			L2CLOptions:    l2CLOpts,
 		})
+	default:
+		t.Require().FailNowf("unsupported L2 CL kind", "unknown L2 CL kind %q", clKind)
+		return nil // unreachable
 	}
 }
 
-// startStoppedSequencerCL starts the env-selected sequencer CL in the stopped
+// startStoppedSequencerCL starts a sequencer CL of the given kind in the stopped
 // state required while a conductor cluster is being assembled.
 func startStoppedSequencerCL(
 	t devtest.T,
@@ -154,10 +154,11 @@ func startStoppedSequencerCL(
 	l1CL *L1CLNode,
 	l2EL L2ELNode,
 	jwtSecret [32]byte,
+	clKind MixedL2CLKind,
 	key string,
 	l2CLOpts []L2CLOption,
 ) L2CLNode {
-	switch devstackL2CLKind() {
+	switch clKind {
 	case MixedL2CLKona:
 		return startMixedKonaNode(
 			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, konaNodeStartConfig{
@@ -165,7 +166,7 @@ func startStoppedSequencerCL(
 				SequencerStopped: true,
 			},
 		)
-	default: // op-node
+	case MixedL2CLOpNode:
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:              key,
 			IsSequencer:      true,
@@ -173,6 +174,9 @@ func startStoppedSequencerCL(
 			L2CLOptions:      l2CLOpts,
 			SequencerStopped: true,
 		})
+	default:
+		t.Require().FailNowf("unsupported L2 CL kind", "unknown L2 CL kind %q", clKind)
+		return nil // unreachable
 	}
 }
 
@@ -243,20 +247,6 @@ func connectL2CLPeers(t devtest.T, logger log.Logger, l2CL1, l2CL2 L2CLNode) {
 	require.True(ok1, "peer register invalid (cl1 missing cl2)")
 	_, ok2 := peerDump2.Peers[p.peerInfo1.PeerID.String()]
 	require.True(ok2, "peer register invalid (cl2 missing cl1)")
-}
-
-func startSequencerCL(
-	t devtest.T,
-	keys devkeys.Keys,
-	l1Net *L1Network,
-	l2Net *L2Network,
-	l1EL L1ELNode,
-	l1CL *L1CLNode,
-	l2EL L2ELNode,
-	jwtSecret [32]byte,
-	l2CLOpts []L2CLOption,
-) L2CLNode {
-	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, "sequencer", "sequencer", true, "", l2CLOpts)
 }
 
 type l2CLNodeStartConfig struct {
