@@ -214,10 +214,12 @@ library DeployUtils {
         return create2AndSave(_save, _name, _name, _args, _salt);
     }
 
-    /// @notice Deploys a contract with the given name using CREATE2. If the contract is already deployed, logs its
-    /// name and address and reuses it.
+    /// @notice Deploys a contract with the given name using CREATE2, or reuses it if it is already deployed. Logs the
+    /// name and address of the contract, and whether it was deployed or reused.
     /// @param _name Name of the contract to deploy.
     /// @param _args ABI-encoded constructor arguments.
+    /// @param _salt Salt for the CREATE2 operation.
+    /// @return addr_ Address of the deployed or reused contract.
     function createDeterministic(
         string memory _name,
         bytes memory _args,
@@ -234,12 +236,16 @@ library DeployUtils {
         } else {
             vm.broadcast(msg.sender);
             addr_ = create2asm(initCode, _salt);
+            console.log("%s deployed at %s", _name, addr_);
         }
     }
 
-    /// @notice Deploys a blueprint contract using CREATE2. Logs the address of each already deployed blueprint part
-    /// and reuses it.
+    /// @notice Deploys a blueprint contract using CREATE2. Code larger than one blueprint is split into two parts. Each
+    /// part is deployed, or reused if it is already deployed.
     /// @param _rawBytecode Raw bytecode of the contract the blueprint will deploy.
+    /// @param _salt Salt for the CREATE2 operation.
+    /// @return newContract1_ Address of the blueprint, or of its first part.
+    /// @return newContract2_ Address of the second part, or address(0) if the code fits in one blueprint.
     function createDeterministicBlueprint(
         bytes memory _rawBytecode,
         bytes32 _salt
@@ -249,34 +255,38 @@ library DeployUtils {
     {
         uint32 maxSize = Blueprint.maxInitCodeSize();
         if (_rawBytecode.length <= maxSize) {
-            bytes memory bpBytecode = Blueprint.blueprintDeployerBytecode(_rawBytecode);
-            newContract1_ = vm.computeCreate2Address(_salt, keccak256(bpBytecode));
-            if (newContract1_.code.length == 0) {
-                (address deployedContract) = Blueprint.deploySmallBytecode(bpBytecode, _salt);
-                require(deployedContract == newContract1_, "DeployUtils: unexpected blueprint address");
-            } else {
-                console.log("Blueprint already deployed at %s", newContract1_);
-            }
-            newContract2_ = address(0);
+            newContract1_ = createDeterministicBlueprintPart(_rawBytecode, _salt, "Blueprint");
         } else {
-            bytes memory part1Slice = Bytes.slice(_rawBytecode, 0, maxSize);
-            bytes memory part2Slice = Bytes.slice(_rawBytecode, maxSize, _rawBytecode.length - maxSize);
-            bytes memory bp1Bytecode = Blueprint.blueprintDeployerBytecode(part1Slice);
-            bytes memory bp2Bytecode = Blueprint.blueprintDeployerBytecode(part2Slice);
-            newContract1_ = vm.computeCreate2Address(_salt, keccak256(bp1Bytecode));
-            if (newContract1_.code.length == 0) {
-                address deployedContract = Blueprint.deploySmallBytecode(bp1Bytecode, _salt);
-                require(deployedContract == newContract1_, "DeployUtils: unexpected part 1 blueprint address");
-            } else {
-                console.log("Blueprint part 1 already deployed at %s", newContract1_);
-            }
-            newContract2_ = vm.computeCreate2Address(_salt, keccak256(bp2Bytecode));
-            if (newContract2_.code.length == 0) {
-                address deployedContract = Blueprint.deploySmallBytecode(bp2Bytecode, _salt);
-                require(deployedContract == newContract2_, "DeployUtils: unexpected part 2 blueprint address");
-            } else {
-                console.log("Blueprint part 2 already deployed at %s", newContract2_);
-            }
+            newContract1_ =
+                createDeterministicBlueprintPart(Bytes.slice(_rawBytecode, 0, maxSize), _salt, "Blueprint part 1");
+            newContract2_ = createDeterministicBlueprintPart(
+                Bytes.slice(_rawBytecode, maxSize, _rawBytecode.length - maxSize), _salt, "Blueprint part 2"
+            );
+        }
+    }
+
+    /// @notice Deploys one blueprint using CREATE2, or reuses it if it is already deployed. Logs the label and address
+    /// of the blueprint, and whether it was deployed or reused.
+    /// @param _rawBytecode Raw bytecode of the contract the blueprint will deploy.
+    /// @param _salt Salt for the CREATE2 operation.
+    /// @param _label Name of the blueprint in the log and in the revert message.
+    /// @return addr_ Address of the deployed or reused blueprint.
+    function createDeterministicBlueprintPart(
+        bytes memory _rawBytecode,
+        bytes32 _salt,
+        string memory _label
+    )
+        private
+        returns (address addr_)
+    {
+        bytes memory bpBytecode = Blueprint.blueprintDeployerBytecode(_rawBytecode);
+        addr_ = vm.computeCreate2Address(_salt, keccak256(bpBytecode));
+        if (addr_.code.length > 0) {
+            console.log("%s already deployed at %s", _label, addr_);
+        } else {
+            address deployedContract = Blueprint.deploySmallBytecode(bpBytecode, _salt);
+            require(deployedContract == addr_, string.concat("DeployUtils: unexpected address for ", _label));
+            console.log("%s deployed at %s", _label, addr_);
         }
     }
 
