@@ -504,9 +504,12 @@ matches op-reth's definitive interop rejection instead), `types.NewIsthmusSigner
 - Fork-changed signatures whose upstream form does not compile while the build resolves op-geth:
   `core.NewEVMBlockContext(header, chain, author, config, statedb)` (cannon's
   `mipsevm/testutil`, op-e2e's in-process L1 miner), `types.NewBlock(…, *BlockConfig)` with
-  `DefaultBlockConfig` (`op-service/testutils`, the L1 miner) and
+  `DefaultBlockConfig` (the L1 miner) and
   `eip1559.CalcBaseFee(config, parent, time)` (the L1 miner). At these L1 or pre-Isthmus sites the
-  extra argument changes nothing, so their entries carry `#20266` and the cutover drops it.
+  extra argument changes nothing, so their entries carry `#20266` and the cutover drops it. Code
+  that only assembles a block from a header and body builds on both with
+  `types.NewBlockWithHeader(header).WithBody(body)`, deriving the header's roots and bloom itself
+  (`op-service/testutils.RandomBlockPrependTxsWithTime`).
 
 The ratchet allowlist (§19) lists the current sites.
 

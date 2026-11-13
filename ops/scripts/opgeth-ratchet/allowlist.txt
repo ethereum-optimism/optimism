@@ -92,8 +92,6 @@ op-e2e/e2eutils/geth | missing go-ethereum/eth/ethconfig.Config.RollupSequencerH
 op-e2e/e2eutils/geth (tests) | missing go-ethereum/beacon/engine.ExecutableData.BlockAccessList | upstream backport, in go-ethereum v1.17.7
 op-service/sources | missing go-ethereum/core/types.Header.BlockAccessListHash | upstream backport, in go-ethereum v1.17.7
 op-service/sources (tests) | missing go-ethereum/core/types.Header.BlockAccessListHash | upstream backport, in go-ethereum v1.17.7
-op-service/testutils | changed signature of go-ethereum/core/types.NewBlock | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, trie.NewStackTrie(nil)))
-op-service/testutils | missing go-ethereum/core/types.DefaultBlockConfig | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, trie.NewStackTrie(nil)))
 op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.EIP1559Params | #20266 op-geth differential test, removed at the cutover
 op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.GasLimit | #20266 op-geth differential test, removed at the cutover
 op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.MinBaseFee | #20266 op-geth differential test, removed at the cutover
