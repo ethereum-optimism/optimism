@@ -8,11 +8,11 @@ use super::*;
 /// dials, or while the node ran on loopback, and nothing says the node it names is on this
 /// host.
 ///
-/// At startup, the driver hands the bootstore's records to gossip one by one, in the order they
-/// were saved, and this node has no bootnodes or peers to find others through: here the
-/// loopback record, then the public one. If it hands over the loopback record, gossip gets that
-/// one first. If it leaves it out, gossip gets the public one first. So the first record shows
-/// whether the loopback one was left out, without waiting to see that it never comes.
+/// At startup, the driver hands the bootstore's records to gossip all at once, without waiting
+/// in between, and this node has no bootnodes or peers to find others through. On this
+/// single-threaded runtime, the whole batch is in the channel once the test gets the first
+/// record. So the batch shows whether the loopback record was left out, without waiting to see
+/// that it never comes.
 #[tokio::test]
 async fn test_public_node_leaves_out_saved_loopback_record() {
     let loopback = localhost_enr(TEST_CHAIN_ID);
@@ -24,7 +24,40 @@ async fn test_public_node_leaves_out_saved_loopback_record() {
         .await
         .expect("the driver hands over the saved public record")
         .expect("the driver runs");
-    assert_eq!(first, public, "a public node dialed a saved loopback record");
+    let mut batch = vec![first];
+    while let Ok(record) = records.try_recv() {
+        batch.push(record);
+    }
+    assert_eq!(batch, [public], "a public node dialed a saved loopback record");
+}
+
+/// The driver doesn't wait for room in the channel to gossip, so the saved records that don't fit
+/// are dropped until the next store interval. It hands them over in a random order, so that
+/// over a few intervals each gets through, rather than only the oldest ones every time.
+///
+/// With room for one of three records, the chance that one of them is left out of 50 rounds is
+/// `3 * (2/3)^50`, about 5 in a billion.
+#[test]
+fn test_saved_records_take_turns_in_a_full_channel() {
+    let mut store = BootStore::in_memory();
+    let saved: Vec<Enr> = (1..=3)
+        .map(|host| enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, host)), TEST_CHAIN_ID))
+        .collect();
+    for record in &saved {
+        store.add_enr(record.clone());
+    }
+    let (sender, mut receiver) = mpsc::channel(1);
+
+    let mut handed_over = Vec::new();
+    for _ in 0..50 {
+        forward_saved(&store, TEST_CHAIN_ID, &sender);
+        let record = receiver.try_recv().expect("the driver hands over a record");
+        assert!(receiver.try_recv().is_err(), "the channel holds only one");
+        if !handed_over.contains(&record) {
+            handed_over.push(record);
+        }
+    }
+    assert_eq!(handed_over.len(), saved.len(), "a saved record never got through");
 }
 
 /// Gossip redials a peer only when discovery hands it over again, and discovery reports a
