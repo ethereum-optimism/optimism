@@ -12,6 +12,10 @@ pub const BASE_MAINNET_CHAIN_ID: u64 = 8453;
 /// Base Sepolia chain ID.
 pub const BASE_SEPOLIA_CHAIN_ID: u64 = 84532;
 
+/// Chain ids of the L1s whose [`L1ChainConfig`] `kona-registry` embeds: Ethereum mainnet,
+/// Sepolia and Holesky.
+pub const REGISTRY_L1_CHAIN_IDS: [u64; 3] = [1, 11155111, 17000];
+
 mod addresses;
 pub use addresses::AddressList;
 

@@ -226,16 +226,11 @@ mod tests {
     #[test]
     fn test_every_registry_chain_has_a_depset() {
         for chain in &CHAINS.chains {
-            let depset = DEPENDENCY_SETS.get(&chain.chain_id).unwrap_or_else(|| {
-                panic!(
-                    "no embedded depset for `{}` (chain id {})",
-                    chain.identifier, chain.chain_id
-                )
-            });
             assert!(
-                depset.dependencies.contains_key(&chain.chain_id),
-                "depset for `{}` does not contain the chain itself",
-                chain.identifier
+                DEPENDENCY_SETS.contains_key(&chain.chain_id),
+                "no embedded depset for `{}` (chain id {})",
+                chain.identifier,
+                chain.chain_id
             );
         }
     }

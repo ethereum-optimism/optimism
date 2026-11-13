@@ -363,22 +363,27 @@ generate_challenger_prestate() {
     # https://docs.optimism.io/notices/archive/op-geth-deprecation
     #
     # Because this chain is not in the public Superchain Registry, the build
-    # must embed the chain configuration. Stage chainList.json, configs.json
-    # and depsets.json for your chain (see
+    # must embed the chain configuration. Stage chainList.json and configs.json
+    # for your chain (see
     # https://docs.optimism.io/chain-operators/tutorials/kona-custom-prestate)
     # and point KONA_CUSTOM_CONFIGS_DIR at the directory containing them.
     KONA_CUSTOM_CONFIGS_DIR="${KONA_CUSTOM_CONFIGS_DIR:-$ROLLUP_DIR/challenger/custom-configs}"
-    # This chain is never in an interop cluster, so its dependency set holds the chain alone.
-    if [ -d "$KONA_CUSTOM_CONFIGS_DIR" ] && [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/depsets.json" ]; then
-        jq -n --arg id "$CHAIN_ID" '[{dependencies: {($id): {}}, overrideMessageExpiryWindow: null}]' > "$KONA_CUSTOM_CONFIGS_DIR/depsets.json"
-        log_info "Wrote self-only dependency set for chain $CHAIN_ID to $KONA_CUSTOM_CONFIGS_DIR/depsets.json"
-    fi
-    if [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/chainList.json" ] || [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/configs.json" ] || [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/depsets.json" ]; then
+    if [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/chainList.json" ] || [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/configs.json" ]; then
         log_error "Custom chain config staging not found in $KONA_CUSTOM_CONFIGS_DIR"
-        log_error "Create chainList.json, configs.json and depsets.json for chain $CHAIN_ID following:"
+        log_error "Create chainList.json and configs.json for chain $CHAIN_ID following:"
         log_error "https://docs.optimism.io/chain-operators/tutorials/kona-custom-prestate"
         log_error "(or set KONA_CUSTOM_CONFIGS_DIR to a directory that contains them)"
         return 1
+    fi
+    # The build also needs depsets.json. This chain is never in an interop cluster, so when the
+    # staging holds only this chain, its dependency set holds the chain alone.
+    if [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/depsets.json" ]; then
+        if [ "$(jq -c '[.[].chainId]' "$KONA_CUSTOM_CONFIGS_DIR/chainList.json")" != "[$CHAIN_ID]" ]; then
+            log_error "Create depsets.json in $KONA_CUSTOM_CONFIGS_DIR covering every chain in chainList.json"
+            return 1
+        fi
+        jq -n --arg id "$CHAIN_ID" '[{dependencies: {($id): {}}, overrideMessageExpiryWindow: null}]' > "$KONA_CUSTOM_CONFIGS_DIR/depsets.json"
+        log_info "Wrote self-only dependency set for chain $CHAIN_ID to $KONA_CUSTOM_CONFIGS_DIR/depsets.json"
     fi
     # The prestate build requires an absolute path
     KONA_CUSTOM_CONFIGS_DIR="$(cd "$KONA_CUSTOM_CONFIGS_DIR" && pwd)"

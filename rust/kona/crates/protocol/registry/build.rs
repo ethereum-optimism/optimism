@@ -7,10 +7,14 @@ use std::{
 };
 
 use kona_genesis::{
-    Chain, ChainConfig, ChainList, DependencySet, Superchain, SuperchainConfig, Superchains,
-    aggregate_clusters, with_single_chain_defaults,
+    Chain, ChainConfig, ChainList, DependencySet, REGISTRY_L1_CHAIN_IDS, Superchain,
+    SuperchainConfig, Superchains, aggregate_clusters, with_single_chain_defaults,
 };
 use serde::de::DeserializeOwned;
+
+#[path = "build_checks.rs"]
+mod build_checks;
+use build_checks::{CustomConfigError, check_dependency_sets, check_l1s};
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
@@ -192,9 +196,11 @@ fn merge_custom_configs(custom_configs_dir: Option<&Path>, etc_dir: &Path) {
 
     let custom_chain_list_path = custom_configs_dir.join("chainList.json");
     let custom_configs_path = custom_configs_dir.join("configs.json");
+    let custom_depsets_path = custom_configs_dir.join("depsets.json");
 
     println!("cargo:rerun-if-changed={}", custom_chain_list_path.display());
     println!("cargo:rerun-if-changed={}", custom_configs_path.display());
+    println!("cargo:rerun-if-changed={}", custom_depsets_path.display());
 
     let target_chain_list = etc_dir.join("chainList.json");
     let target_superchains = etc_dir.join("configs.json");
@@ -204,9 +210,51 @@ fn merge_custom_configs(custom_configs_dir: Option<&Path>, etc_dir: &Path) {
 
     merge_chain_list(&custom_chain_list_path, &target_chain_list);
     merge_superchain_configs(&custom_configs_path, &target_superchains);
-    merge_custom_depsets(custom_configs_dir, &target_depsets);
+    merge_custom_depsets(&custom_depsets_path, &target_depsets);
     validate_chain_configs(&target_chain_list, &target_superchains);
-    validate_depsets(&target_depsets, &target_chain_list);
+
+    let chain_list: ChainList = read_json(&target_chain_list);
+    let superchains: Superchains = read_json(&target_superchains);
+    let depsets: Vec<DependencySet> = read_json(&target_depsets);
+    let custom_chain_ids: BTreeSet<u64> = read_json::<ChainList>(&custom_chain_list_path)
+        .chains
+        .iter()
+        .map(|chain| chain.chain_id)
+        .collect();
+    check_dependency_sets(&depsets, &chain_list, &superchains)
+        .and_then(|()| check_l1s(&superchains, &custom_chain_ids))
+        .unwrap_or_else(|error| fail_custom_configs(error, custom_configs_dir));
+}
+
+/// Panics with a message that names the custom file to fix: the registry's own configs always
+/// pass the checks.
+fn fail_custom_configs(error: CustomConfigError, custom_configs_dir: &Path) -> ! {
+    let file = |name: &str| custom_configs_dir.join(name).display().to_string();
+    match error {
+        CustomConfigError::UnknownChain(chain_id) => panic!(
+            "Chain id {chain_id} in {} is in neither the registry nor {}",
+            file("depsets.json"),
+            file("chainList.json")
+        ),
+        CustomConfigError::NoDependencySet { identifier, chain_id } => panic!(
+            "Chain `{identifier}` (chain id {chain_id}) has no dependency set; add one to {}",
+            file("depsets.json")
+        ),
+        CustomConfigError::InconsistentInterop(error) => {
+            panic!("Invalid `interop` sections in {}: {error}", file("configs.json"))
+        }
+        CustomConfigError::ClusterWithoutSet(chain_ids) => panic!(
+            "The `interop` sections in {} declare the cluster {chain_ids:?}, but no set in {} \
+             lists exactly these chains",
+            file("configs.json"),
+            file("depsets.json")
+        ),
+        CustomConfigError::UnsupportedL1 { group, l1_chain_id } => panic!(
+            "Chain group `{group}` in {} has L1 chain id {l1_chain_id}, which kona-registry has \
+             no L1 config for; custom chains must be on one of the L1s {REGISTRY_L1_CHAIN_IDS:?}",
+            file("configs.json")
+        ),
+    }
 }
 
 fn merge_chain_list(custom_path: &Path, target_path: &Path) {
@@ -398,15 +446,9 @@ fn write_depsets(target: &Path, depsets: &[DependencySet]) {
     fs::write(target, json).unwrap_or_else(|e| panic!("Failed to write {}: {e}", target.display()));
 }
 
-fn merge_custom_depsets(custom_dir: &Path, target: &Path) {
-    let path = custom_dir.join("depsets.json");
-    println!("cargo:rerun-if-changed={}", path.display());
-    assert!(
-        path.exists(),
-        "Custom depsets {} does not exist. Every custom chain needs a dependency set; a chain outside an interop cluster uses a self-only set",
-        path.display()
-    );
-    let custom: Vec<DependencySet> = read_json(&path);
+fn merge_custom_depsets(custom_path: &Path, target: &Path) {
+    assert!(custom_path.exists(), "Custom depsets {} does not exist", custom_path.display());
+    let custom: Vec<DependencySet> = read_json(custom_path);
     let mut existing: Vec<DependencySet> = read_json(target);
     for new_ds in custom {
         for existing_ds in &existing {
@@ -426,31 +468,4 @@ fn merge_custom_depsets(custom_dir: &Path, target: &Path) {
         }
     }
     write_depsets(target, &existing);
-}
-
-fn validate_depsets(target: &Path, chain_list_path: &Path) {
-    let depsets: Vec<DependencySet> = read_json(target);
-    let chain_list: ChainList = read_json(chain_list_path);
-    let known: BTreeSet<u64> = chain_list.chains.iter().map(|c| c.chain_id).collect();
-    for ds in &depsets {
-        for id in ds.dependencies.keys() {
-            assert!(
-                known.contains(id),
-                "Depset references chain id {id} which is not in {}",
-                chain_list_path.display()
-            );
-        }
-    }
-
-    let covered: BTreeSet<u64> =
-        depsets.iter().flat_map(|ds| ds.dependencies.keys().copied()).collect();
-    for chain in &chain_list.chains {
-        assert!(
-            covered.contains(&chain.chain_id),
-            "Chain `{}` (chain id {}) has no dependency set in {}",
-            chain.identifier,
-            chain.chain_id,
-            target.display()
-        );
-    }
 }

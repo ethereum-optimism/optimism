@@ -45,7 +45,7 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
 
 <Steps>
   <Step title="Check out a kona-node release tag">
-    Use the same `kona-node/v<VERSION>` tag that your chain's nodes are running. The native `KONA_CUSTOM_CONFIGS_DIR` support documented below requires **`kona-node/v1.5.2` or later**; on older tags, additional justfile patches are needed.
+    Use the same `kona-node/v<VERSION>` tag that your chain's nodes are running. The native `KONA_CUSTOM_CONFIGS_DIR` support documented below requires **`kona-node/v1.5.2` or later**; on older tags, additional justfile patches are needed. Release tags from before `depsets.json` became required do not check for it: a build without it succeeds, but onchain games cannot prove a step in the resulting prestate, so make sure the file is present.
 
     ```bash
     git clone https://github.com/ethereum-optimism/optimism.git
@@ -63,7 +63,7 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
 
     Add three files inside it — `chainList.json` (lightweight chain entry), `configs.json` (full rollup config) and `depsets.json` (dependency set). Replace every `<PLACEHOLDER>` with your chain's value. Notes:
 
-    - **`<CHAIN_GROUP>`**: `mainnet` if your L1 is Ethereum mainnet, `sepolia` if your L1 is Sepolia. The bucket groups chains by L1 network, not by governance — your custom-chain status is expressed via `governedByOptimism: false` and `superchainLevel: 0`.
+    - **`<CHAIN_GROUP>`**: `mainnet` if your L1 is Ethereum mainnet, `sepolia` if your L1 is Sepolia. The bucket groups chains by L1 network, not by governance — your custom-chain status is expressed via `governedByOptimism: false` and `superchainLevel: 0`. `kona-client` embeds L1 configs only for Ethereum mainnet, Sepolia and Holesky, so your L1 must be one of them.
     - **`faultProofs.status`**: `permissionless` for chains running the `cannon-kona` game type publicly, `permissioned` for chains that only allow whitelisted challengers.
 
     <Tabs>
@@ -202,7 +202,7 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
         ]
         ```
 
-        This is the self-only set of a chain outside an interop cluster. Chains in an interop cluster list every member, and the set must equal op-node's `--interop.dependency-set`.
+        This is the self-only set of a chain outside an interop cluster. Chains in an interop cluster use one entry that lists every member. Each entry must be identical to the JSON object in the cluster's dependency-set file: op-supernode's `--dependency-set` if set, otherwise op-node's `--interop.dependency-set`. For every chain, op-challenger's depset config (`--depset-config`, or `--super-cannon-kona-depset-config` / `--cannon-kona-depset-config`) must hold the same object.
       </Tab>
     </Tabs>
 
