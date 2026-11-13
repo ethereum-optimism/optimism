@@ -99,7 +99,7 @@ build-lokahi-debug:
 
 # Run all outer-workspace tests. SP1 guests require generated vkeys and are tested by CI after
 # their ELFs are built.
-test: test-unit test-beacon-blob-stack test-docs
+test: test-unit test-beacon-blob-stack test-docs test-custom-embeds
 
 # Run unit tests (excluding online tests)
 test-unit *args="-E '!test(test_online)'":
@@ -109,6 +109,10 @@ test-unit *args="-E '!test(test_online)'":
 test-beacon-blob-stack:
   cargo test --profile fast-build --locked -p kona-providers-alloy \
     test_filtered_beacon_blobs_deserializes_on_small_stack
+
+# Build kona-registry with the custom chain configuration fixture and run its tests.
+test-custom-embeds:
+  just --justfile {{KONA_DIR}}/justfile test-custom-embeds
 
 # Run online tests only
 test-online:

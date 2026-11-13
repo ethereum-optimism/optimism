@@ -4,7 +4,7 @@ use alloc::{collections::BTreeMap, string::String};
 use alloy_eips::eip7840::BlobParams;
 use alloy_genesis::EthashConfig;
 use core::{fmt::Display, ops::Deref};
-use kona_genesis::L1ChainConfig;
+use kona_genesis::{L1ChainConfig, REGISTRY_L1_CHAIN_IDS};
 
 use alloy_chains::NamedChain;
 use alloy_primitives::{Address, U256, address, map::HashMap};
@@ -247,13 +247,16 @@ impl L1Config {
         })
     }
 
-    /// Build the l1 chain configurations from the genesis dump files.
+    /// Build the configs of the L1s in [`REGISTRY_L1_CHAIN_IDS`].
     pub fn build_l1_configs() -> HashMap<u64, L1ChainConfig> {
-        let mut l1_configs = HashMap::default();
-        l1_configs.insert(NamedChain::Mainnet.into(), Self::mainnet().0);
-        l1_configs.insert(NamedChain::Sepolia.into(), Self::sepolia().0);
-        l1_configs.insert(NamedChain::Holesky.into(), Self::holesky().0);
-        l1_configs
+        REGISTRY_L1_CHAIN_IDS
+            .into_iter()
+            .map(|chain_id| {
+                let config = Self::get_l1_genesis(chain_id)
+                    .unwrap_or_else(|e| panic!("no config for registry L1 {chain_id}: {e}"));
+                (chain_id, config.0)
+            })
+            .collect()
     }
 }
 
