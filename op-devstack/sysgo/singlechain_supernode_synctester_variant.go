@@ -100,6 +100,7 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 		depSetStatic, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
 			depSetStatic.Dependencies(), *cfg.MessageExpiryWindow)
 		require.NoError(overrideErr, "failed to override message expiry window")
+		l2Net.depSet = depSetStatic
 	}
 
 	verifierSyncMode := nodeSync.CLSync

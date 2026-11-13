@@ -236,12 +236,24 @@ func TestWithForkAtOffsetDeactivatesLaterForks(t *testing.T) {
 
 	overrides := b.(*intentBuilder).intent.Chains[0].DeployOverrides
 	require.Equal(t, (*hexutil.Uint64)(&offset), overrides["l2GenesisJovianTimeOffset"])
-	for _, fork := range opforks.From(opforks.Karst) {
+	for _, fork := range opforks.From(opforks.Jovian)[1:] {
 		key, ok := genesis.ForkOffsetKey(fork)
 		require.True(t, ok)
 		require.Contains(t, overrides, key)
 		require.Nil(t, overrides[key], "fork %s should be deactivated", fork)
 	}
+}
+
+// Later calls schedule later forks: WithHardforkSequentialActivation relies on this.
+func TestWithForkAtOffsetKeepsLaterCallsScheduled(t *testing.T) {
+	b, l2 := New().WithL2(eth.ChainIDFromUInt64(420))
+	karstOffset, lagoonOffset := uint64(10), uint64(20)
+	l2.WithForkAtOffset(opforks.Karst, &karstOffset)
+	l2.WithForkAtOffset(opforks.Lagoon, &lagoonOffset)
+
+	overrides := b.(*intentBuilder).intent.Chains[0].DeployOverrides
+	require.Equal(t, (*hexutil.Uint64)(&karstOffset), overrides["l2GenesisKarstTimeOffset"])
+	require.Equal(t, (*hexutil.Uint64)(&lagoonOffset), overrides["l2GenesisLagoonTimeOffset"])
 }
 
 func TestL1ForkAtGenesis(t *testing.T) {

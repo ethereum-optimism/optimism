@@ -548,7 +548,8 @@ func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 	c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
 
 	// Deactivate every subsequent fork. Otherwise a later fork that the default schedule
-	// activates at genesis would precede this one, which op-deployer rejects.
+	// activates at genesis would precede this fork or outlive its deactivation, which
+	// op-deployer rejects.
 	for _, opFork := range opforks.From(fork)[1:] {
 		key, ok := genesis.ForkOffsetKey(opFork)
 		require.True(c.t, ok, "fork %q has no deploy-config time offset", opFork)

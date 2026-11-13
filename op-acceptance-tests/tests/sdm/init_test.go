@@ -60,9 +60,8 @@ func newSDMRethSystemWithLagoonOffset(
 	var deployerOpts []sysgo.DeployerOption
 	if lagoonOffset != nil {
 		offset := *lagoonOffset
-		// Take the InteropAtGenesis path so the runtime builds an interop
-		// dependency set for op-node; then override the Lagoon fork offset
-		// to schedule activation in the future rather than at genesis.
+		// Take the InteropAtGenesis path, then override the Lagoon fork
+		// offset to schedule activation in the future rather than at genesis.
 		deployerOpts = append(deployerOpts, func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
 				l2Cfg.WithForkAtOffset(forks.Lagoon, &offset)

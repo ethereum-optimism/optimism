@@ -22,9 +22,10 @@ type L2Network struct {
 	opcmImpl   common.Address
 	mipsImpl   common.Address
 	keys       devkeys.Keys
-	// depSet is the interop dependency set that op-deployer recorded for the deployment. A CL
-	// node needs it to start once the rollup config schedules Lagoon, and a chain outside the
-	// superchain-registry has no other source for it.
+	// depSet is the interop dependency set that op-deployer recorded for the deployment, with any
+	// message expiry override the runtime applies. A CL node needs it to start once the rollup
+	// config schedules Lagoon, and a chain outside the superchain-registry has no other source
+	// for it.
 	depSet depset.DependencySet
 }
 

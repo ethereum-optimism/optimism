@@ -189,6 +189,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 		depSetStatic, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
 			depSetStatic.Dependencies(), *cfg.MessageExpiryWindow)
 		require.NoError(overrideErr, "failed to override message expiry window")
+		l2Net.depSet = depSetStatic
 	}
 
 	var interopActivationTimestamp *uint64

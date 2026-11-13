@@ -418,9 +418,9 @@ func WithConductorFastHealthChecks() Option {
 	}
 }
 
-// WithInteropAtGenesis activates the Lagoon hardfork at genesis on the L2 chain and provisions
-// a DependencySet for op-node startup without a supervisor. Required by presets that exercise
-// interop-gated consensus features (e.g. SDM PostExec).
+// WithInteropAtGenesis activates the Lagoon hardfork at genesis on the L2 chain, with interop
+// enabled. Required by presets that exercise interop-gated consensus features (e.g. SDM
+// PostExec).
 func WithInteropAtGenesis() Option {
 	return option{
 		kinds: optionKindInteropAtGenesis,
