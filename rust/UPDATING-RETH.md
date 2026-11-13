@@ -336,18 +336,18 @@ onto it:
 4. For each reth finding, test whether it cherry-picks cleanly and builds on
    the pin, and list the commits it depends on. For revm and alloy findings,
    check whether a semver-compatible release contains the fix.
-5. Recommend, for a human to decide: cherry-pick the fixes onto the fork
-   branch (or take the patch release), or move the target to a newer upstream
-   release or commit that contains them, preferring a release ([Picking the
-   right target commit](#picking-the-right-target-commit)). Weigh the number
-   and size of the picks against the extra range a retarget adds to review.
+5. Decide between cherry-picking the fixes onto the fork branch (or taking
+   the patch release) and moving the target to a newer upstream release or
+   commit that contains them, preferring a release ([Picking the right target
+   commit](#picking-the-right-target-commit)). Weigh the number and size of the
+   picks against the extra range a retarget adds to review.
 6. Before the fork PR merges, sweep again from the recorded tip to the current
    `<upstream>/main`.
 
-**Pick bar.** Keep the fork small. Recommend a pick by default only for a fix
-that affects consensus or realistic node stability, or that closes a high- or
+**Pick bar.** Keep the fork small. By default, pick only a fix that affects
+consensus or realistic node stability, or that closes a high- or
 critical-severity vulnerability, and argue any other important fix case by
-case. A real but unlikely bug can be a watch item instead, with its pick set
+case in the fork PR. A real but unlikely bug can be a watch item instead, with its pick set
 ready.
 
 Picks go on the fork's `op-*` branch after its CI commit, with `-x` ([The reth
