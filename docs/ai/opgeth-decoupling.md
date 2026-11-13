@@ -399,6 +399,9 @@ The test suites read L2 data as §11 prescribes, and two gates keep them there. 
 - **The FastLZ and Fjord-cost fuzzers** live in `op-core/fees/fuzz` and check `op-core/fees` against
   the C FastLZ build and the Solidity implementations; the Fjord one runs the `GasPriceOracle` and
   `L1Block` code from the forge artifacts on an upstream simulated backend.
+- **No test drives an L2 EL through the Engine API in-process.** On op-reth,
+  `eth_sendRawTransactionConditional` (#24087) and the historical fork-boundary execution rules
+  (#24088) have no end-to-end test.
 
 Gates:
 
@@ -413,9 +416,9 @@ Gates:
   call through an interface or an embedding type is not seen: don't wrap an L2 read in one.
 
 New test code reads L2 headers with `HeaderBy*` and L2 bodies with `InfoAndUserTxsBy*`,
-`InfoAndDepositsBy*`, `InfoAndFirstDepositBy*` or `PayloadBy*`. No accessor returns `0x7D`, so a
-test that counts the txs of a Lagoon block must allow for one. Never put a deposit into a
-`*types.Transaction` or `*types.Block`.
+`InfoAndDepositsBy*`, `InfoAndFirstDepositBy*` or `PayloadBy*`. No accessor returns a decoded
+`0x7D` tx (`PayloadBy*` keeps its raw bytes), so a test that counts the txs of a Lagoon block
+must allow for one. Never put a deposit into a `*types.Transaction` or `*types.Block`.
 
 ---
 

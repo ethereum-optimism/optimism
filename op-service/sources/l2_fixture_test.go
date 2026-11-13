@@ -57,9 +57,11 @@ func TestRPCBlockDecodesOpRethFixtures(t *testing.T) {
 
 	seen := make(map[byte]bool)
 	var seenMint, seenCreation, seenRevertedDeposit bool
+	ran := 0
 	for _, path := range entries {
 		name := strings.TrimSuffix(strings.TrimPrefix(path, l2FixturesDir+"/"), "_block.json")
 		t.Run(name, func(t *testing.T) {
+			ran++
 			data, err := blocksTestdata.ReadFile(path)
 			require.NoError(t, err)
 
@@ -126,6 +128,18 @@ func TestRPCBlockDecodesOpRethFixtures(t *testing.T) {
 			require.NoError(t, json.Unmarshal(receiptsData, &receipts))
 			id := eth.BlockID{Hash: block.Hash, Number: uint64(block.Number)}
 			require.NoError(t, validateReceipts(id, block.ReceiptHash, block.Transactions.Hashes(), receipts))
+			// Re-encode the receipts and compare each OP field with op-reth's object, so a misnamed
+			// JSON tag fails here instead of decoding to nil.
+			var wireReceipts, ourReceipts []map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(receiptsData, &wireReceipts))
+			reencoded, err := json.Marshal(receipts)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(reencoded, &ourReceipts))
+			for i := range wireReceipts {
+				for _, field := range []string{"depositNonce", "depositReceiptVersion", "l1GasPrice", "l1GasUsed", "l1Fee", "l1BaseFeeScalar", "l1BlobBaseFee", "l1BlobBaseFeeScalar", "operatorFeeScalar", "operatorFeeConstant", "daFootprintGasScalar"} {
+					require.Equal(t, string(wireReceipts[i][field]), string(ourReceipts[i][field]), "receipt %d %s", i, field)
+				}
+			}
 			for i, r := range receipts {
 				switch block.Transactions[i].Type() {
 				case optypes.DepositTxType:
@@ -141,6 +155,10 @@ func TestRPCBlockDecodesOpRethFixtures(t *testing.T) {
 		})
 	}
 
+	// The checks below hold for the whole fixture set, not for a -run filter that selects a subset.
+	if ran < len(entries) {
+		return
+	}
 	require.True(t, seen[optypes.DepositTxType], "the fixtures must hold a deposit tx")
 	require.True(t, seen[optypes.PostExecTxType], "the fixtures must hold a post-exec tx")
 	require.True(t, seenMint, "the fixtures must hold a deposit with a nonzero mint")

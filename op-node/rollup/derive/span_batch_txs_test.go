@@ -570,8 +570,11 @@ func TestSpanBatchTxsRejectsWrongChainIDForProtectedTx(t *testing.T) {
 }
 
 func TestSpanBatchTxsRejectsDepositTx(t *testing.T) {
-	_, err := newSpanBatchTxs([][]byte{{optypes.DepositTxType, 0xc0}}, big.NewInt(1))
-	require.Error(t, err)
+	deposit, err := (&optypes.DepositTx{SourceHash: common.Hash{1}, Gas: 21_000}).MarshalBinary()
+	require.NoError(t, err)
+	_, err = newSpanBatchTxs([][]byte{deposit}, big.NewInt(1))
+	// The deposit decodes as a protected tx with chain ID 0.
+	require.ErrorContains(t, err, "protected tx has chain ID 0, but expected chain ID 1")
 }
 
 func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {

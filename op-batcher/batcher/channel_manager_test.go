@@ -421,7 +421,8 @@ func TestChannelManager_TxData(t *testing.T) {
 			m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 			require.Equal(t, tc.chooseBlobsWhenChannelCreated, m.defaultCfg.UseBlobs)
 
-			// Seed channel manager with a block
+			// Seed channel manager with a block that leaves room in the channel: its txs must
+			// stay below the max frame size, or the first TxData call returns a frame, not EOF.
 			rng := rand.New(rand.NewSource(99))
 			blockA := derivetest.RandomL2Payload(rng, 150, defaultTestRollupConfig.L2ChainID, 0)
 			m.blocks = queue.Queue[SizedBlock]{ToSizedBlock(blockA)}
@@ -760,7 +761,8 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 	cfg := newFakeDynamicEthChannelConfig(l, 1000)
 	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
-	// Seed channel manager with a block
+	// Seed channel manager with a block that leaves room in the channel: its txs must stay
+	// below the max frame size, or the first TxData call returns a frame, not EOF.
 	rng := rand.New(rand.NewSource(99))
 	blockA := derivetest.RandomL2Payload(rng, 150, defaultTestRollupConfig.L2ChainID, 0)
 	m.blocks = queue.Queue[SizedBlock]{ToSizedBlock(blockA)}
