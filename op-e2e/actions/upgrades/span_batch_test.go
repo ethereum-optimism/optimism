@@ -59,7 +59,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 		BatcherKey:           dp.Secrets.Batcher,
 		ForceSubmitSpanBatch: true,
 		DataAvailabilityType: batcherFlags.CalldataType,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// Alice makes a L2 tx
 	cl := seqEngine.EthClient()
@@ -110,15 +110,15 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	require.Equal(t, uint64(1), verifier.SyncStatus().SafeL2.L1Origin.Number)
 
 	verifCl := verifEngine.EthClient()
-	for i := int64(1); i < int64(verifier.L2Safe().Number); i++ {
-		block, _ := verifCl.BlockByNumber(t.Ctx(), big.NewInt(i))
-		require.NoError(t, err)
+	for i := uint64(1); i < verifier.L2Safe().Number; i++ {
+		deposits, userTxs := verifEngine.BlockTxs(t, verifEngine.HeaderByNumber(t, i).Hash())
 		// because verifier drops every span batch, it should generate empty blocks.
 		// so every block has only L1 attribute deposit transaction.
-		require.Equal(t, block.Transactions().Len(), 1)
+		require.Len(t, deposits, 1)
+		require.Empty(t, userTxs)
 	}
 	// check that the tx from alice is not included in verifier's chain
-	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash())
+	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash()) //nolint:forbidigo // L2 user tx: alice's transfer, expected absent
 	require.ErrorIs(t, err, ethereum.NotFound)
 }
 
@@ -158,7 +158,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 		BatcherKey:           dp.Secrets.Batcher,
 		ForceSubmitSpanBatch: true,
 		DataAvailabilityType: batcherFlags.CalldataType,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// Alice makes a L2 tx
 	cl := seqEngine.EthClient()
@@ -225,15 +225,15 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	require.Equal(t, uint64(2), verifier.SyncStatus().SafeL2.L1Origin.Number)
 
 	verifCl := verifEngine.EthClient()
-	for i := int64(1); i < int64(verifier.L2Safe().Number); i++ {
-		block, _ := verifCl.BlockByNumber(t.Ctx(), big.NewInt(i))
-		require.NoError(t, err)
+	for i := uint64(1); i < verifier.L2Safe().Number; i++ {
+		deposits, userTxs := verifEngine.BlockTxs(t, verifEngine.HeaderByNumber(t, i).Hash())
 		// Because verifier drops every span batch, it should generate empty blocks.
 		// So every block has only L1 attribute deposit transaction.
-		require.Equal(t, block.Transactions().Len(), 1)
+		require.Len(t, deposits, 1)
+		require.Empty(t, userTxs)
 	}
 	// Check that the tx from alice is not included in verifier's chain
-	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash())
+	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash()) //nolint:forbidigo // L2 user tx: alice's transfer, expected absent
 	require.ErrorIs(t, err, ethereum.NotFound)
 }
 
@@ -266,7 +266,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 		BatcherKey:               dp.Secrets.Batcher,
 		ForceSubmitSingularBatch: true,
 		DataAvailabilityType:     batcherFlags.CalldataType,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// Alice makes a L2 tx
 	cl := seqEngine.EthClient()
@@ -318,7 +318,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 
 	// check that the tx from alice made it into the L2 chain
 	verifCl := verifEngine.EthClient()
-	vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), tx.Hash())
+	vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), tx.Hash()) //nolint:forbidigo // L2 user tx: alice's transfer
 	require.NoError(t, err)
 	require.False(t, isPending)
 	require.NotNil(t, vTx)
@@ -385,7 +385,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 			ForceSubmitSingularBatch: i%2 == 1, // Submit SingularBatch for even numbered batches
 			DataAvailabilityType:     batcherFlags.CalldataType,
 		}
-		batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, &batcherCfg, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, &batcherCfg, rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 		// Submit all new blocks
 		batcher.ActSubmitAll(t)
 
@@ -410,7 +410,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 	// Check that the tx from alice made it into the L2 chain
 	verifCl := verifEngine.EthClient()
 	for _, txHash := range txHashes {
-		vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), txHash)
+		vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), txHash) //nolint:forbidigo // L2 user tx: alice's transfers
 		require.NoError(t, err)
 		require.False(t, isPending)
 		require.NotNil(t, vTx)
@@ -438,7 +438,7 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
-		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -502,7 +502,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
-		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 	cl := seqEngine.EthClient()
 
 	const numTestUsers = 5
@@ -640,7 +640,7 @@ func TestBatchEquivalence(gt *testing.T) {
 		BatcherKey:           dp.Secrets.Batcher,
 		ForceSubmitSpanBatch: true,
 		DataAvailabilityType: batcherFlags.CalldataType,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sdDeltaActivated.RollupCfg))
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sdDeltaActivated.RollupCfg))
 
 	// Setup SingularBatcher
 	singularBatcher := actionsHelpers.NewL2Batcher(log, sdDeltaDeactivated.RollupCfg, &actionsHelpers.BatcherCfg{
@@ -649,7 +649,7 @@ func TestBatchEquivalence(gt *testing.T) {
 		BatcherKey:               dp.Secrets.Batcher,
 		ForceSubmitSingularBatch: true,
 		DataAvailabilityType:     batcherFlags.CalldataType,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sdDeltaDeactivated.RollupCfg))
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sdDeltaDeactivated.RollupCfg))
 
 	const numTestUsers = 5
 	var privKeys [numTestUsers]*ecdsa.PrivateKey

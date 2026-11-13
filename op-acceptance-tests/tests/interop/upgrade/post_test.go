@@ -49,7 +49,7 @@ func TestPostInteropUpgradeComprehensive(gt *testing.T) {
 	sys.L2A.WaitForBlock()
 	sys.L2B.WaitForBlock()
 
-	lagoonTime := sys.L2A.Escape().ChainConfig().LagoonTime
+	lagoonTime := sys.L2A.Escape().RollupConfig().LagoonTime
 	require.NotNil(lagoonTime, "Lagoon activation time must be set")
 
 	logger.Info("Starting comprehensive post-interop upgrade tests", "lagoonTime", *lagoonTime)
@@ -77,7 +77,7 @@ func testActivationCrossSafe(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 
 	devtest.RunParallel(t, []*dsl.L2Network{sys.L2A, sys.L2B}, func(t devtest.T, net *dsl.L2Network) {
 		// Gate test to not time out before upgrade happens
-		forkTimestamp := net.Escape().ChainConfig().LagoonTime
+		forkTimestamp := net.Escape().RollupConfig().LagoonTime
 		t.Gate().NotNil(forkTimestamp, "Must have fork configured")
 		t.Gate().Greater(*forkTimestamp, uint64(0), "Must not start fork at genesis")
 		upgradeTime := time.Unix(int64(*forkTimestamp), 0)
@@ -138,6 +138,11 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.TwoL2SupernodeInterop
 
 	// Wait for chain A to advance so supernode indexes the init message
 	sys.L2A.WaitForBlock()
+
+	initResult, err := initMsg.Tx.Result.Eval(t.Ctx())
+	t.Require().NoError(err)
+	t.Require().NotEmpty(initResult.Entries)
+	sys.L2ELB.ValidateExecMessageRequiresAccessList(initResult.Entries[0])
 
 	execMsg := bob.SendExecMessage(initMsg)
 

@@ -23,7 +23,7 @@ use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
+    EngineClientResult, IpVotes, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
 };
 use kona_registry::ROLLUP_CONFIGS;
 use libp2p::{Multiaddr, identity::Keypair};
@@ -101,8 +101,7 @@ impl GossipCommand {
         };
 
         let disc_ip = Ipv4Addr::UNSPECIFIED;
-        let disc_addr =
-            LocalNode::new(secret_key, IpAddr::V4(disc_ip), self.disc_port, self.disc_port);
+        let disc_addr = LocalNode::new(secret_key, IpAddr::V4(disc_ip), 0, self.disc_port);
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
@@ -116,11 +115,15 @@ impl GossipCommand {
             discovery_address: disc_addr,
             gossip_address: gossip_addr,
             unsafe_block_signer: signer,
-            discovery_config: discv5::ConfigBuilder::new(discv5::ListenConfig::Ipv4 {
-                ip: disc_ip,
-                port: self.disc_port,
-            })
-            .build(),
+            // As the node configures discovery, without `--p2p.advertise.ip` or
+            // `--p2p.discovery.private`.
+            discovery_config: discv5::Config {
+                table_filter: kona_disc::public_only,
+                ..NetworkConfig::discv5_config(
+                    discv5::ListenConfig::Ipv4 { ip: disc_ip, port: self.disc_port },
+                    Some(IpVotes::DEFAULT),
+                )
+            },
             discovery_interval: Duration::from_secs(self.interval),
             discovery_randomize: None,
             discovery_enabled: true,
@@ -135,7 +138,6 @@ impl GossipCommand {
             static_peers: Default::default(),
             rollup_config: rollup_config.clone(),
             gossip_signer: None,
-            enr_update: true,
         }
         .into();
 

@@ -1,0 +1,38 @@
+---
+title: Artifacts Locator
+description: OP Deployer가 artifacts locator를 사용하여 컨트랙트 artifact를 가리키는 방식을 알아봅니다.
+diataxis: reference
+---
+
+OP Deployer는 사전 컴파일된 컨트랙트 artifact를 호출합니다. 이를 위해 OP Deployer는 artifacts locator를 사용하여
+컨트랙트 artifact의 위치를 가리킵니다. locator는 URL에 불과하지만, 여기에서 설명하는 몇 가지 추가 동작을
+담고 있습니다.
+
+## Locator 유형 {#locator-types}
+
+locator는 다음 세 가지 유형 중 하나입니다. 이전 릴리스의 `tag://` locator는 더 이상 허용되지 않습니다.
+
+*   `embedded`(기본값): OP Deployer 바이너리에 컴파일되어 포함된 컨트랙트 artifact를 사용합니다. 각 OP Deployer
+    릴리스는 지원하는 컨트랙트 릴리스의 artifact를 포함하므로, 실행 시점에 아무것도 다운로드하거나 검증하지 않습니다.
+    *   예: `embedded`
+*   `https://` locator: 웹상의 컨트랙트 artifact tarball을 가리킵니다. HTTP locator는 반복적인 다운로드를 피하기 위해
+    디스크에 캐시됩니다.
+    *   예: `https://<url-to-remote-forge-artifacts>`
+*   `file://` locator: artifact가 포함된 로컬 디스크의 디렉터리를 가리킵니다.
+    *   예: `file://<path-to-repo-root>/packages/contracts-bedrock/forge-artifacts`
+    *   OP Deployer는 컴파일된 forge 프로젝트 또는 그 artifact 디렉터리의 사본에 대해 forge를 실행하며, 이 사본에는
+        artifact의 Solidity AST가 없어 메모리를 훨씬 적게 사용합니다. 사본은 캐시 디렉터리(`--cache-dir`, 기본값
+        `~/.op-deployer/cache`)의 `bundles/`에 저장됩니다. OP Deployer는 각 빌드를 한 번만 복사하며, 최근에 사용한
+        몇 개 빌드의 사본을 보관합니다. 실행은 시작 시점에 찾은 빌드를 사용하므로, 실행 중에 컨트랙트를 다시 빌드해도
+        반영되지 않습니다.
+
+OP Deployer는 forge로 artifact의 배포 스크립트를 실행하며, 이를 컴파일하지 않습니다. 따라서 artifact는
+동일한 OP Deployer 릴리스의 컨트랙트 릴리스에서 가져와야 하며, 해당 컴파일 캐시와 함께 컴파일되어 있어야 합니다.
+스크립트에 `runWithBytes` 진입점이 없거나 forge가 컴파일을 해야 하는 경우, OP Deployer는 오류와 함께 중단됩니다.
+기본 locator인 `embedded`는 OP Deployer가 빌드될 때 사용된 artifact를 사용합니다. `file://` locator용 artifact를
+빌드하려면 `packages/contracts-bedrock`에서 `just build-no-tests`를 실행하십시오.
+
+컨트랙트 번들은 사용자의 머신에서 실행되며, OP Deployer가 사용자의 키로 무엇을 배포할지 결정하는 코드입니다. OP Deployer는
+FFI cheatcode 없이, artifact에 대한 읽기 권한만으로, forge에 필요한 환경 변수만으로, 그리고 스크립트를 컴파일하거나
+실행하는 forge config 설정만으로 스크립트를 실행합니다. 신뢰할 수 있는 번들만 사용하십시오. 즉, `embedded` 또는
+직접 빌드한 번들만 사용하십시오.

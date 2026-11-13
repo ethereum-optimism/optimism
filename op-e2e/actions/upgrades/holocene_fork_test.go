@@ -1,17 +1,14 @@
 package upgrades
 
 import (
-	"context"
-	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -136,7 +133,6 @@ func TestHoloceneLateActivationAndReset(gt *testing.T) {
 func TestHoloceneInvalidPayload(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	env := helpers.SetupEnv(t, helpers.WithActiveGenesisFork(forks.Holocene))
-	ctx := context.Background()
 
 	requireDepositOnlyLogs := func(role string, expNumLogs int) {
 		t.Helper()
@@ -165,18 +161,18 @@ func TestHoloceneInvalidPayload(gt *testing.T) {
 	l2Unsafe := env.Seq.L2Unsafe()
 	const invalidNum = 3
 	require.EqualValues(t, invalidNum, l2Unsafe.Number)
-	b, err := env.SeqEngine.EthClient().BlockByNumber(ctx, big.NewInt(invalidNum))
-	require.NoError(t, err)
-	require.Len(t, b.Transactions(), 2)
+	deposits, userTxs := env.SeqEngine.BlockTxs(t, l2Unsafe.Hash)
+	require.Len(t, deposits, 1)
+	require.Len(t, userTxs, 1)
 
 	// buffer into the batcher, invalidating the tx via signature zeroing
-	env.Batcher.ActL2BatchBuffer(t, helpers.WithBlockModifier(func(block *types.Block) *types.Block {
+	env.Batcher.ActL2BatchBuffer(t, helpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
 		// Replace the tx with one that has a bad signature.
-		txs := block.Transactions()
-		newTx, err := txs[1].WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
+		i := helpers.PayloadUserTxIndexes(payload)[0]
+		newTx, err := helpers.DecodePayloadTx(t, payload, i).WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
 		require.NoError(t, err)
-		txs[1] = newTx
-		return block
+		payload.Transactions[i] = helpers.EncodeTx(t, newTx)
+		return payload
 	}))
 
 	// generate two more empty blocks
@@ -197,9 +193,9 @@ func TestHoloceneInvalidPayload(gt *testing.T) {
 		"block-3 should have been replaced by deposit-only version")
 	requireDepositOnlyLogs(e2esys.RoleSeq, 2)
 	require.Equal(t, l2Safe, env.Seq.L2Unsafe(), "unsafe chain should have reorg'd")
-	b, err = env.SeqEngine.EthClient().BlockByNumber(ctx, big.NewInt(invalidNum))
-	require.NoError(t, err)
-	require.Len(t, b.Transactions(), 1)
+	deposits, userTxs = env.SeqEngine.BlockTxs(t, l2Safe.Hash)
+	require.Len(t, deposits, 1)
+	require.Empty(t, userTxs)
 
 	// test that building on top of reorg'd chain and deriving further works
 

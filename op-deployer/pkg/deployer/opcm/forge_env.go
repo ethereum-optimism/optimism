@@ -2,48 +2,71 @@ package opcm
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
-// ForgeEnv contains the forge-related configuration needed to run forge scripts
+// ForgeEnv runs the deploy scripts with forge, against a live L1 or offline on a GenesisState.
 type ForgeEnv struct {
-	Client     *forge.Client
-	Context    context.Context
-	L1RPCUrl   string
-	PrivateKey string
+	Client *forge.Client
+	// Artifacts are the contract artifacts of the bundle that Client runs.
+	Artifacts            foundry.StatDirFs
+	Context              context.Context
+	L1RPCUrl             string
+	PrivateKey           string
+	Logger               log.Logger
+	ReceiptQueryInterval time.Duration
+	// UnlockedSender, when set, makes forge itself send from this unlocked node account, such as
+	// one of an anvil fork, instead of txmgr sending with PrivateKey.
+	UnlockedSender common.Address
+	// sentBlock is the block of the last receipt of a send. Later scripts fork at it or after it, so
+	// that they see the send when a backend of a load-balanced RPC lags the one that served it.
+	sentBlock uint64
+	// Genesis, when set, is the offline L1 state that the scripts run on.
+	Genesis *GenesisState
 }
 
-// buildForgeOpts constructs the standard forge options for deployments
-func (e *ForgeEnv) buildForgeOpts() []string {
-	return []string{
-		"--rpc-url", e.L1RPCUrl,
-		"--broadcast",
-		"--private-key", e.PrivateKey,
+func (env *ForgeEnv) logger() log.Logger {
+	if env.Logger == nil {
+		return log.Root()
 	}
+	return env.Logger
 }
 
-// buildForgeOptsReadOnly constructs forge options for read-only operations (no broadcast)
-func (e *ForgeEnv) buildForgeOptsReadOnly() []string {
-	return []string{
-		"--rpc-url", e.L1RPCUrl,
-	}
-}
+type newScriptCaller[I, O any] func(*forge.Client) forge.ScriptCaller[I, O]
 
-// validate checks that all required fields are set
-func (e *ForgeEnv) validate(requirePrivateKey bool) error {
-	if e.Client == nil {
-		return fmt.Errorf("Forge client is nil")
+// broadcastScript runs a script that sends transactions: to the live L1 through txmgr, from the
+// unlocked sender of a fork, or on the genesis state.
+func broadcastScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
+	var out O
+	if env.Client == nil {
+		return out, errors.New("forge client is nil")
 	}
-	if e.Context == nil {
-		e.Context = context.Background()
+	ctx := env.Context
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if e.L1RPCUrl == "" {
-		return fmt.Errorf("L1 RPC URL is required for Forge deployments")
+	if env.Genesis != nil {
+		err := env.Genesis.run(env.Client, func(client *forge.Client, flags []string) error {
+			var err error
+			out, _, err = newCaller(client)(ctx, input, flags...)
+			return err
+		})
+		return out, err
 	}
-	if requirePrivateKey && e.PrivateKey == "" {
-		return fmt.Errorf("private key is required for Forge deployments")
+
+	if env.L1RPCUrl == "" {
+		return out, errors.New("L1 RPC URL is required for Forge deployments")
 	}
-	return nil
+	if env.UnlockedSender != (common.Address{}) {
+		out, _, err := newCaller(env.Client)(ctx, input, "--rpc-url", env.L1RPCUrl, "--broadcast", "--unlocked", "--sender", env.UnlockedSender.Hex())
+		return out, err
+	}
+	return broadcastLiveScript(ctx, env, newCaller, input)
 }

@@ -4,15 +4,15 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -115,6 +115,9 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return err
 	}
+	if err := checkNoPrivateChains(intent); err != nil {
+		return err
+	}
 
 	// A state produced by the apply pipeline MUST NOT be prepared.
 	if err := st.CheckNotApplied(); err != nil {
@@ -193,32 +196,29 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 	st.ImplementationsDeployment = impls
 
-	l1Host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		cfg.Logger,
-		deployer,
-		bundle.L1,
-		l1RPC,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create forked L1 script host: %w", err)
-	}
-
-	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
-		&pipeline.Env{Logger: cfg.Logger, L1ScriptHost: l1Host},
-		opcmAddr,
-		*intent.SuperchainConfigProxy,
-	)
+	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(ctx, l1Client, *intent.SuperchainConfigProxy)
 	if err != nil {
 		return fmt.Errorf("failed to read superchain deployment: %w", err)
 	}
 	st.SuperchainDeployment = superDeployment
 	st.SuperchainRoles = superRoles
 
-	deployScript, err := opcm.NewDeployOPChainScript(l1Host)
+	forgeClient, err := opcm.NewForgeClient(bundle.L1, cfg.CacheDir, prepareForgeScripts)
 	if err != nil {
-		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
+		return err
+	}
+	// Predict the addresses by deploying the chains, in order, on an L1 fork.
+	fork, err := startPredictionFork(ctx, l1Client, cfg.L1RPCUrl, deployer, forgeClient, cfg.CacheDir)
+	if err != nil {
+		return fmt.Errorf("failed to fork L1 for the address prediction: %w", err)
+	}
+	defer func() {
+		if err := fork.stop(); err != nil {
+			cfg.Logger.Warn("failed to stop the L1 fork", "err", err)
+		}
+	}()
+	predict := func(dci opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		return opcm.DeployOPChain(fork.forge, dci)
 	}
 
 	// Fetch safe block once, so all unpinned chains without an override share one anchor.
@@ -232,7 +232,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return selectAnchorBlock(ctx, l1RPC, safe, overrideHash)
 	}
 
-	if err := prepareChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
+	if err := prepareChains(cfg.Logger, intent, st, predict, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
 		return err
 	}
 	st.PreparedDeployment, err = pipeline.NewPreparedDeployment(intent, st, deployer, opcmAddr, bundle)
@@ -241,11 +241,15 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	// Build L2 genesis from the addresses and genesis time just committed.
+	l2Forge, err := opcm.NewForgeClient(bundle.L2, cfg.CacheDir, opcm.L2ForgeScripts)
+	if err != nil {
+		return fmt.Errorf("failed to create L2 Forge client: %w", err)
+	}
 	genesisEnv := &pipeline.Env{
-		Logger: cfg.Logger, Deployer: deployer,
+		Logger: cfg.Logger, Deployer: deployer, Context: ctx, L2Forge: l2Forge,
 		AllowUnoptimizedContracts: cfg.AllowUnoptimizedContracts,
 	}
-	if err := generateGenesisForChains(genesisEnv, intent, bundle, st); err != nil {
+	if err := generateGenesisForChains(genesisEnv, intent, st); err != nil {
 		return err
 	}
 
@@ -259,6 +263,32 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	return nil
+}
+
+// prepareForgeScripts are the scripts that prepare runs.
+var prepareForgeScripts = []opcm.ForgeScript{
+	{File: "DeployOPChain.s.sol", Contract: "DeployOPChain"},
+}
+
+// startPredictionFork starts the prediction fork and funds the deployer, which may hold no ETH yet.
+func startPredictionFork(
+	ctx context.Context,
+	l1Client *ethclient.Client,
+	l1RPCURL string,
+	deployer common.Address,
+	forgeClient *forge.Client,
+	cacheDir string,
+) (*l1Fork, error) {
+	fork, err := startL1Fork(ctx, l1Client, l1RPCURL, deployer, forgeClient, cacheDir)
+	if err != nil {
+		return nil, err
+	}
+	balance := new(big.Int).Lsh(big.NewInt(1), 128)
+	if err := fork.client.Client().CallContext(ctx, nil, "anvil_setBalance", deployer, (*hexutil.Big)(balance)); err != nil {
+		_ = fork.stop()
+		return nil, fmt.Errorf("failed to fund the deployer on the L1 fork: %w", err)
+	}
+	return fork, nil
 }
 
 // Validate the dependency set before mutating chain state.
@@ -486,9 +516,9 @@ func predictChains(
 
 // generateGenesisForChains builds each chain's L2 genesis allocs from the addresses and genesis
 // time predictChains just committed.
-func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, bundle artifacts.Bundle, st *state.State) error {
+func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, st *state.State) error {
 	for _, chain := range intent.Chains {
-		if err := pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID); err != nil {
+		if err := pipeline.GenerateL2Genesis(pEnv, intent, st, chain.ID); err != nil {
 			return fmt.Errorf("failed to generate L2 genesis for chain %s: %w", chain.ID.Hex(), err)
 		}
 	}
@@ -522,6 +552,21 @@ func checkReservedOverrides(intent *state.Intent, st *state.State) error {
 				"chain %s: deployOverrides key %q is reserved by the prepare flow: set the anchor block via l1StartBlockHash and the genesis time via --%s",
 				chain.ID.Hex(), key, GenesisTimeOffsetFlagName,
 			)
+		}
+	}
+	return nil
+}
+
+// checkNoPrivateChains refuses OP Private private chains, which prepare does not support yet.
+// TODO(#23980): support private chains in prepare.
+func checkNoPrivateChains(intent *state.Intent) error {
+	for _, chain := range intent.Chains {
+		_, private, err := pipeline.PrivateChainSettlement(intent, chain)
+		if err != nil {
+			return err
+		}
+		if private {
+			return fmt.Errorf("private chain %s: prepare does not support OP Private private chains; use apply", chain.ID.Hex())
 		}
 	}
 	return nil

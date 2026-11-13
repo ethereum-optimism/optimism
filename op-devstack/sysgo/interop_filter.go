@@ -58,10 +58,10 @@ func (f *InteropFilter) WaitForReady(t devtest.T, timeout time.Duration) {
 
 // SetFailsafeEnabled toggles failsafe mode directly on the backend.
 // No admin RPC or JWT needed — this is the in-process advantage.
-func (f *InteropFilter) SetFailsafeEnabled(enabled bool) {
+func (f *InteropFilter) SetFailsafeEnabled(enabled bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.service.SetFailsafeEnabled(enabled)
+	return f.service.SetFailsafeEnabled(enabled)
 }
 
 // FailsafeEnabled returns the current failsafe state.
@@ -102,8 +102,8 @@ func startInteropFilter(
 		L2RPCs:              l2RPCs,
 		RollupConfigs:       rollupConfigs,
 		DataDir:             t.TempDirWithPrefix(name),
-		BackfillDuration:    30 * time.Second,
-		MessageExpiryWindow: 7 * 24 * 3600, // 7 days in seconds
+		BackfillDuration:    filter.DefaultMessageExpiryWindow,
+		MessageExpiryWindow: uint64(filter.DefaultMessageExpiryWindow.Seconds()),
 		PollInterval:        500 * time.Millisecond,
 		ValidationInterval:  200 * time.Millisecond,
 		RPCConcurrency:      filterflags.DefaultRPCConcurrency,

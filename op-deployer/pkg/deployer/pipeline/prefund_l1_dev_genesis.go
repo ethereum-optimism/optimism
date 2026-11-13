@@ -21,7 +21,7 @@ func PrefundL1DevGenesis(env *Env, intent *state.Intent, st *state.State) error 
 		return nil
 	}
 	for addr, amount := range prefundMap {
-		env.L1ScriptHost.SetBalance(addr, (*uint256.Int)(amount))
+		env.Forge.Genesis.SetBalance(addr, (*uint256.Int)(amount).ToBig())
 	}
 	lgr.Info("Prefunded dev accounts on L1", "accounts", len(prefundMap))
 	return nil

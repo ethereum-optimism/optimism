@@ -283,15 +283,20 @@ impl NodeCommand {
     /// Run the Node subcommand.
     pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
         let cfg = self.get_l2_config(args)?;
+        if cfg.is_alt_da_enabled() {
+            bail!("kona-node does not support alt-DA chains");
+        }
 
         info!(
             target: "rollup_node",
             chain_id = cfg.l2_chain_id.id(),
             "Starting rollup node services"
         );
-        for hf in cfg.hardforks.to_string().lines() {
-            info!(target: "rollup_node", "{hf}");
-        }
+        info!(
+            target: "rollup_node",
+            hardforks = %cfg.hardforks,
+            "Hardfork schedule"
+        );
 
         let l1_config = L1ConfigBuilder {
             chain_config: self.get_l1_config(cfg.l1_chain_id)?,

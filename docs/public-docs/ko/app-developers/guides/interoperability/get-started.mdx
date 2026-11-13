@@ -1,0 +1,59 @@
+---
+title: "OP Stack devnet에서 상호운용 가능한 앱 구축하기"
+description: "OP Stack 체인에서 애플리케이션을 구축하는 데 도움이 되는 컨트랙트 배포, 크로스체인 메시징, 튜토리얼에 대해 알아봅니다."
+diataxis: how-to
+---
+
+OP Stack interop으로 앱을 새롭게 구상하여 사용자가 기대하는 통합된 UX를 제공하십시오. Interop devnet에서 완전히 새롭고 과감한 사용 사례를 개발해 보십시오.
+
+<Info>
+  [Superchain Dev Console](https://console.optimism.io/?utm_source=op-docs&utm_medium=docs)을 살펴보고 OP Stack 체인에서 앱을 구축, 출시, 성장시키십시오.
+</Info>
+
+## OP Stack Interop에 연결하기
+
+앱을 구축하고 테스트하며 빠르게 반복 개발할 수 있는 개발 환경을 선택하십시오.
+
+| 환경           | 목적                                   | 시작하기                                            |
+| --------------------- | ----------------------------------------- | ---------------------------------------------------------- |
+| **로컬 개발** | Supersim을 사용한 빠른 반복 개발 및 테스트 | [Supersim 설정 가이드](/ko/app-developers/tutorials/development/supersim/installation) |
+| **Interop devnet**    | testnet에서의 대규모 테스트           | [네트워크 사양](/ko/app-developers/guides/building-apps)                     |
+
+## 상호운용 가능한 앱 구축을 위한 도구 및 리소스
+
+| 도구                                                                                       | 설명                                                             |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| [Superchain Faucet](https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs) | 모든 OP Stack 네트워크의 testnet ETH를 한 곳에서 받을 수 있습니다.           |
+| [Supersim](/ko/app-developers/tools-sdks/supersim)                                                        | 스마트 컨트랙트를 위한 로컬 멀티체인 테스트 환경입니다.              |
+| [Super CLI](https://github.com/ethereum-optimism/super-cli)                                | 원활한 멀티체인 앱 배포 및 테스트를 위한 커맨드라인 도구입니다.   |
+| [Superchain Relayer](https://github.com/ethereum-optimism/superchain-relayer)              | 크로스체인 트랜잭션을 모니터링하고 관리하기 위한 UI입니다.                |
+| [Interop 문서](/ko/op-stack/interop/explainer)                                                         | Optimism Docs의 종합적인 Interop 정보입니다.                 |
+| [Developer Console](https://console.optimism.io/?utm_source=op-docs&utm_medium=docs)  | OP Stack 체인에서 앱을 구축, 출시, 성장시키기 위한 종합 도구입니다. |
+| [Developer Support GitHub](https://github.com/ethereum-optimism/developers/discussions)    | 빠르고 간편한 개발자 지원을 제공합니다.                                       |
+
+## 유용한 단계별 가이드
+
+<CardGroup cols={2}>
+  <Card title="Supersim 튜토리얼" icon="flask" href="/ko/app-developers/tutorials/development/supersim/first-steps">
+    
+  </Card>
+  <Card title="Interop 튜토리얼" icon="network-wired" href="/ko/app-developers/guides/interoperability/get-started">
+    
+  </Card>
+  <Card title="트랜잭션 튜토리얼" icon="arrow-right-arrow-left" href="/ko/app-developers/tutorials/transactions/sdk-estimate-costs">
+    
+  </Card>
+  <Card title="브리징 튜토리얼" icon="bridge-water" href="/ko/app-developers/tutorials/bridging/standard-bridge-standard-token">
+    
+  </Card>
+</CardGroup>
+
+## OP Stack Interop으로 완전히 새로운 사용 사례 발견 및 구축하기
+
+브리지 추상화 외에도 할 수 있는 일이 훨씬 많습니다. OP Stack Interop으로만 가능한 다양한 최첨단 애플리케이션을 개발해 보십시오. 시작하는 데 도움이 될 몇 가지 아이디어는 다음과 같습니다.
+
+| Superloans                                                                         | Superlend                                                                                                           | SuperCDP                                                                                                         |
+| :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------- |
+| ChainA와 ChainB의 담보를 사용하여 ChainA에서 차익 거래 기회를 실행합니다. | 최적의 수익을 위해 여러 체인의 대출 프로토콜에 ETH를 입금하고, 최적 금리에 따라 자동으로 리밸런싱합니다. | 자산을 보유하고 사용자가 선호하는 체인에서 크로스체인 토큰을 발행하는 담보 기반 크로스체인 부채 프로토콜입니다. |
+
+

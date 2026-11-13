@@ -12,7 +12,6 @@ import (
 	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -44,14 +43,15 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	miner.ActEmptyBlock(t)
 	require.EqualValues(gt, 1, bigs.Uint64Strict(miner.L1Chain().CurrentBlock().Number))
 
-	ref, err := derive.L2BlockToBlockRef(sequencer.RollupCfg, seqEngine.GenesisBlock(t))
+	engCl := seqEngine.EngineClient(t, sd.RollupCfg)
+	ref, err := engCl.L2BlockRefByNumber(t.Ctx(), 0)
 	require.NoError(gt, err)
 	require.EqualValues(gt, 0, ref.L1Origin.Number)
 
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActBuildToL1Head(t)
 	l2BlockNum := bigs.Uint64Strict(seqEngine.LatestHeader(t).Number)
-	ref, err = derive.L2BlockToBlockRef(sequencer.RollupCfg, seqEngine.BlockByNumber(t, l2BlockNum))
+	ref, err = engCl.L2BlockRefByNumber(t.Ctx(), l2BlockNum)
 	require.NoError(gt, err)
 	require.EqualValues(gt, 1, ref.L1Origin.Number)
 
@@ -64,7 +64,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	}, rollupSeqCl, miner.EthClient(), engCl)
 
 	batcher.ActSubmitAll(t)
 	require.EqualValues(gt, l2BlockNum, batcher.L2BufferedBlock.Number)

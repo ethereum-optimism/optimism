@@ -1,0 +1,46 @@
+---
+title: 스크립팅 엔진
+description: "OP Deployer가 live L1 또는 제네시스 배포의 상태에서 forge로 Solidity 배포 스크립트를 실행하는 방식과, Go 코드가 스크립트에 입력을 전달하고 출력을 읽는 방식을 설명합니다."
+diataxis: explanation
+---
+
+OP Deployer는 온체인 작업을 Solidity 스크립트로 수행하며, 이 스크립트를 [forge](https://getfoundry.sh)로 실행합니다.
+스크립트는 OP Deployer가 사용하는 컨트랙트 번들에 포함되어 있습니다(
+[Artifacts Locator](/ko/chain-operators/tools/op-deployer/reference/artifacts-locators) 참고). 스크립트는
+`vm.broadcast`로 전송할 각 트랜잭션을 알립니다.
+
+## Solidity 스크립트를 사용하는 이유 {#why-use-solidity-scripts}
+
+복잡한 온체인 상호작용에서는 Solidity 스크립트가 Go 코드보다 훨씬 사용하기 편리합니다. Solidity 스크립트는
+다음을 가능하게 합니다.
+
+*   기존 Solidity 기반 도구 및 라이브러리와의 손쉬운 통합.
+*   간단한 ABI 인코딩/디코딩.
+*   컨트랙트 간 호출과 이를 구동하는 기반 RPC 호출 간의 명확한 관심사 분리.
+
+대안은 모든 온체인 상호작용을 Go 코드로 작성하는 것입니다. 이는 가능하지만 훨씬 장황하며, Go와
+Solidity ABI 간의 바인딩을 작성해야 합니다. 이러한 바인딩은 오류가 발생하기 쉽고 유지 관리가 어렵습니다.
+
+## OP Deployer가 스크립트를 실행하는 방식 {#how-op-deployer-runs-a-script}
+
+각 배포 스크립트에는 `runWithBytes(bytes)` 진입점이 있습니다. 입력은 스크립트의 `Input` 구조체를 ABI 인코딩한
+값이며, 반환값은 `Output` 구조체를 ABI 인코딩한 값입니다. OP Deployer는 두 구조체를 동일한 필드를 동일한 순서로
+가진 Go 구조체로 정의합니다. 그런 다음 입력을 인코딩하고, `forge script --sig 'runWithBytes(bytes)'`를 실행하고,
+forge가 출력한 반환값을 디코딩합니다.
+
+OP Deployer는 다음 세 가지 방식으로 forge를 실행합니다.
+
+*   **live L1에서**는 forge가 L1 head의 fork 위에서 deployer로서, deployer 키 없이 스크립트를 실행하고 스크립트의
+    트랜잭션을 기록합니다. OP Deployer는 이 트랜잭션을 검사하고, deployer 키로 서명한 뒤 직접 전송합니다. 트랜잭션은
+    한 번에 하나씩 전송하며, 다음 트랜잭션을 전송하기 전에 영수증을 기다립니다.
+*   **제네시스 배포에서**는 forge가 배포의 L1 상태 위에서 오프라인으로 실행됩니다. 각 스크립트 실행은 이전 실행이
+    남긴 상태를 로드하고(`vm.loadAllocs`) 자신이 남긴 상태를 덤프합니다(`vm.dumpState`). OP Deployer는 최종 상태를
+    L1 제네시스에 기록합니다.
+*   **`prepare`와 `continue`에서**는 forge가 L1의 임시 anvil fork 위에서 deployer로서, deployer 키 없이 배포를
+    시뮬레이션합니다. 그런 다음 `continue`는 시뮬레이션된 트랜잭션과 그 결과 컨트랙트를 검사한 후 동일한 트랜잭션을
+    L1에 전송합니다.
+
+OP Deployer는 컨트랙트를 컴파일하지 않습니다. 컴파일된 번들에 대해 forge를 실행하며, 컴파일이 배포되는 바이트코드를
+바꿀 수 있으므로 forge가 컴파일을 시작하면 오류와 함께 중단됩니다. 따라서 실행에 solc 컴파일러가 필요하지 않습니다.
+각 forge 실행은 컴파일 캐시의 자체 사본과 자체 broadcast 디렉터리를 사용하므로, 하나의 번들에서 동시에 실행되는
+작업이 서로 간섭하지 않습니다.

@@ -1,15 +1,17 @@
 //! The `engine_forkchoiceUpdated` call, with no attributes, that the engine tasks share.
 
-use crate::{EngineClient, EngineState, SynchronizeTaskError, state::EngineSyncStateUpdate};
+use crate::{
+    EngineClient, EngineState, EngineSyncState, SynchronizeTaskError, state::EngineSyncStateUpdate,
+};
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
 use op_alloy_provider::ext::engine::OpEngineApi;
 
 /// Applies `state_update` to the engine's sync state and synchronizes the execution layer's
-/// forkchoice with it, using an `engine_forkchoiceUpdated` call without payload attributes.
+/// forkchoice with it, using an `engine_forkchoiceUpdated` call without payload attributes. An
+/// update that leaves the labels unchanged is skipped.
 ///
-/// Engine tasks call this whenever they move the unsafe, safe, or finalized head, and the engine
-/// calls it during a reset to establish the initial forkchoice state. Forkchoice updates that
-/// start a block build are made by `start_build` instead.
+/// Engine tasks call this whenever they move the unsafe, safe, or finalized head. Forkchoice
+/// updates that start a block build are made by `start_build` instead.
 #[tracing::instrument(
     name = "synchronize",
     target = "engine",
@@ -22,13 +24,10 @@ pub(in crate::task_queue) async fn synchronize(
     state: &mut EngineState,
     state_update: EngineSyncStateUpdate,
 ) -> Result<(), SynchronizeTaskError> {
-    // Apply the sync state update to the engine state.
     let new_sync_state = state.sync_state.apply_update(state_update);
 
-    // Check if a forkchoice update is not needed, return early.
-    // A forkchoice update is not needed if...
-    // 1. The engine state is not default (initial forkchoice state has been emitted), and
-    // 2. The new sync state is the same as the current sync state (no changes to the sync state).
+    // A forkchoice update is not needed once the initial forkchoice state has been emitted and the
+    // update leaves the labels unchanged.
     //
     // NOTE:
     // We shouldn't retry the synchronization here. Since the `sync_state` is only updated inside
@@ -39,6 +38,36 @@ pub(in crate::task_queue) async fn synchronize(
         return Ok(());
     }
 
+    send_forkchoice(client, state, new_sync_state).await
+}
+
+/// Like [`synchronize`], but sends the forkchoice update even when it leaves the labels unchanged.
+///
+/// Unchanged labels do not prove that the execution layer holds their forkchoice: a `SYNCING`
+/// answer moves the labels too, and an execution layer that restarts can lose its forkchoice.
+#[tracing::instrument(
+    name = "synchronize_unconditionally",
+    target = "engine",
+    level = "info",
+    skip_all,
+    fields(?state_update, forkchoice = tracing::field::Empty)
+)]
+pub(in crate::task_queue) async fn synchronize_unconditionally(
+    client: &EngineClient,
+    state: &mut EngineState,
+    state_update: EngineSyncStateUpdate,
+) -> Result<(), SynchronizeTaskError> {
+    let new_sync_state = state.sync_state.apply_update(state_update);
+    send_forkchoice(client, state, new_sync_state).await
+}
+
+/// Sends the forkchoice of `new_sync_state` and, once the execution layer accepts it, makes it the
+/// engine's sync state.
+async fn send_forkchoice(
+    client: &EngineClient,
+    state: &mut EngineState,
+    new_sync_state: EngineSyncState,
+) -> Result<(), SynchronizeTaskError> {
     // Check if the head is behind the finalized head.
     if new_sync_state.unsafe_head().block_info.number <
         new_sync_state.finalized_head().block_info.number

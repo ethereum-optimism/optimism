@@ -254,7 +254,7 @@ func (h *FactoryHelper) StartSuperCannonGameWithCorrectRoot(ctx context.Context,
 	cfg := NewGameCfg(opts...)
 	b, err := wait.ForNextSafeBlock(ctx, h.Client)
 	require.NoError(h.T, err)
-	l2Timestamp := b.Time()
+	l2Timestamp := b.Time
 	h.WaitForSuperTimestamp(l2Timestamp, cfg)
 	return h.startSuperCannonGameOfType(ctx, l2Timestamp, superCannonKonaGameType, opts...)
 }
@@ -268,9 +268,9 @@ func (h *FactoryHelper) StartSuperCannonGameWithCorrectRootAtTimestamp(ctx conte
 func (h *FactoryHelper) StartSuperCannonGame(ctx context.Context, opts ...GameOpt) *SuperCannonGameHelper {
 	// Can't create a game at L1 genesis!
 	require.NoError(h.T, wait.ForBlock(ctx, h.Client, 1))
-	b, err := h.Client.BlockByNumber(ctx, nil)
+	b, err := h.Client.HeaderByNumber(ctx, nil)
 	require.NoError(h.T, err)
-	return h.startSuperCannonGameOfType(ctx, b.Time(), superCannonKonaGameType, opts...)
+	return h.startSuperCannonGameOfType(ctx, b.Time, superCannonKonaGameType, opts...)
 }
 
 func (h *FactoryHelper) StartSuperCannonGameAtTimestamp(ctx context.Context, timestamp uint64, opts ...GameOpt) *SuperCannonGameHelper {

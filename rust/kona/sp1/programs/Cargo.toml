@@ -1,9 +1,11 @@
 [workspace]
 members = [
+  "foldhash-seeded",
   "log-commitment",
   "super-range",
   "super-aggregation",
   "tests/bls12-381-check",
+  "tests/hashdos-check",
 ]
 resolver = "2"
 
@@ -20,13 +22,13 @@ repository = "https://github.com/ethereum-optimism/optimism"
 # this workspace must remain separate to isolate the SP1 crypto patches.
 # BEGIN SHARED WORKSPACE LINTS
 [workspace.lints.rust]
-missing-debug-implementations = "warn"
-missing-docs = "warn"
-unreachable-pub = "warn"
-unused-must-use = "deny"
-rust-2018-idioms = { level = "deny", priority = -1 }
-unnameable-types = "warn"
-rust-2024-incompatible-pat = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+unreachable_pub = "warn"
+unused_must_use = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+unnameable_types = "warn"
+rust_2024_incompatible_pat = "warn"
 
 [workspace.lints.rustdoc]
 all = "warn"
@@ -66,7 +68,7 @@ manual_clamp = "warn"
 manual_is_variant_and = "warn"
 manual_string_new = "warn"
 match_same_arms = "warn"
-missing-const-for-fn = "warn"
+missing_const_for_fn = "warn"
 mutex_integer = "warn"
 naive_bytecount = "warn"
 needless_bitwise_bool = "warn"
@@ -75,11 +77,11 @@ needless_for_each = "warn"
 needless_pass_by_ref_mut = "warn"
 nonstandard_macro_braces = "warn"
 option_as_ref_cloned = "warn"
-option-if-let-else = "warn"
+option_if_let_else = "warn"
 or_fun_call = "warn"
 path_buf_push_overwrite = "warn"
 read_zero_byte_vec = "warn"
-redundant-clone = "warn"
+redundant_clone = "warn"
 redundant_else = "warn"
 single_char_pattern = "warn"
 string_lit_as_bytes = "warn"
@@ -98,7 +100,7 @@ unnecessary_struct_initialization = "warn"
 unnested_or_patterns = "warn"
 unused_peekable = "warn"
 unused_rounding = "warn"
-use-self = "warn"
+use_self = "warn"
 useless_let_if_seq = "warn"
 while_float = "warn"
 zero_sized_map_values = "warn"
@@ -124,6 +126,7 @@ too_long_first_doc_paragraph = "allow"
 alloy-primitives = { version = "1.6.1", default-features = false, features = ["serde"] }
 kona-preimage = { path = "../../crates/proof/preimage", default-features = false }
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc"] }
+foldhash = { version = "0.2.0", default-features = false }
 # Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
 kona-proof = { path = "../../crates/proof/proof", version = "0.3.0", default-features = false }
 kona-sp1-bls12-381-check = { path = "../crates/bls12-381-check" }
@@ -132,6 +135,7 @@ kona-sp1-client-utils = { path = "../crates/client" }
 kona-sp1-ethereum-client-utils = { path = "../crates/ethereum/client" }
 kona-sp1-log-commitment-vkey = { path = "../crates/log-commitment-vkey" }
 kona-sp1-range-vkeys = { path = "../crates/range-vkeys" }
+op-revm = { path = "../../../op-revm", default-features = false }
 
 # Feature anchor only: revm's `bn` forwards to revm-precompile/bn so the guest
 # build uses the SP1-patched substrate-bn backend for bn128.
@@ -154,3 +158,5 @@ crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag 
 k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.10.0" }
 p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.10.0" }
 substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.10.0-substrate-bn" }
+# Seeds guest hash maps from their inputs; see foldhash-seeded/src/lib.rs.
+foldhash = { path = "foldhash-seeded" }

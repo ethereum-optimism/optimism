@@ -1,0 +1,116 @@
+---
+title: Legacy Geth 구성
+description: 업그레이드된 OP Stack 네트워크에서 과거 실행 트레이스를 제공하기 위해 Legacy Geth를 구성하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+import OpGethEol from "/ko/snippets/op-geth-eol.mdx"
+
+Legacy Geth(`l2geth`)는 사전 구성된 데이터 디렉터리를 대상으로 실행되는 Bedrock 이전의 구 OVM 클라이언트입니다.
+OP Mainnet과 같이 업그레이드된 네트워크에서 Bedrock 업그레이드 이전의 실행 트레이스와 체인 데이터를 제공하는 경우에만 필요합니다.
+Bedrock 업그레이드 이후에 체인 genesis가 있는 node를 실행하는 경우에는 Legacy Geth가 필요하지 않습니다.
+
+<Info>
+Legacy Geth(`l2geth`)는 Bedrock 이전의 OVM 클라이언트이며, op-geth의 지원 중단과는 관련이 없습니다. l2geth는 Bedrock 이후에 어떤 실행 클라이언트(op-reth 또는 op-geth)를 실행하는지와 관계없이 OP Mainnet archive node에 필요합니다.
+</Info>
+
+<Info>
+Bedrock 이후 블록에 대한 state proof가 필요한 경우(예: 출금 증명용) [과거 증명 구성](/ko/node-operators/reference/op-reth-historical-proof-config)을 참조하십시오. 이는 별개의 기능입니다.
+</Info>
+
+## Legacy Geth가 필요합니까?
+
+op-reth는 Bedrock 이전 블록을 대상으로 하는 RPC 요청을 Legacy Geth로 라우팅합니다.
+여기에는 `eth_call` 및 `debug_trace*` 메서드와 같이 Bedrock 이전 트랜잭션을 실행해야 하는 메서드인 *과거 실행(historical execution)*과, `eth_getBlockByNumber` 및 `eth_getTransactionReceipt`와 같은 Bedrock 이전 블록 및 트랜잭션 데이터 읽기가 포함됩니다.
+Bedrock 이후의 모든 요청은 op-reth가 직접 처리합니다.
+Bedrock 이전 블록에 대한 RPC 접근이 전혀 필요하지 않다면 Legacy Geth를 실행할 필요가 없습니다.
+
+Legacy Geth로 라우팅되는 RPC 메서드의 정확한 목록은 [Legacy Geth 구성 레퍼런스](/ko/node-operators/reference/legacy-geth-config#rpc-methods-routed-to-legacy-geth)를 참조하십시오.
+
+## 설정
+
+### 1. 사전 구성된 데이터 디렉터리 다운로드
+
+[datadirs.optimism.io](https://datadirs.optimism.io)에서 제공되는 Legacy Geth 데이터 디렉터리를 다운로드하고 압축을 해제합니다.
+
+```bash
+# Download the data directory
+curl -o legacy-geth-datadir.tar -sL <URL-to-legacy-datadir>
+
+# Extract it
+tar -xvf legacy-geth-datadir.tar -C /data/legacy-geth
+```
+
+### 2. Legacy Geth 구성
+
+필요한 최소 구성으로 Legacy Geth를 실행합니다.
+
+```bash
+USING_OVM=true \
+  ETH1_SYNC_SERVICE_ENABLE=false \
+  RPC_API=eth,rollup,net,web3,debug \
+  RPC_ADDR=0.0.0.0 \
+  RPC_CORS_DOMAIN=* \
+  RPC_ENABLE=true \
+  RPC_PORT=8545 \
+  RPC_VHOSTS=* \
+  geth --datadir /data/legacy-geth
+```
+
+<Warning>
+반드시 `USING_OVM=true` 환경 변수를 지정해야 합니다.
+이를 지정하지 않으면 `l2geth`가 잘못된 실행 트레이스를 반환하거나 시작 시 panic이 발생합니다.
+</Warning>
+
+Legacy Geth가 허용하는 전체 환경 변수와 기본값은 [Legacy Geth 구성 레퍼런스](/ko/node-operators/reference/legacy-geth-config#environment-variables)에 정리되어 있습니다.
+
+### 3. Legacy Geth로 라우팅하도록 실행 클라이언트 구성
+
+`--rollup.historicalrpc` 플래그를 사용하여 실행 클라이언트가 Legacy Geth를 가리키도록 설정합니다. op-reth와 op-geth는 동일한 플래그를 사용합니다([라우팅 플래그 레퍼런스](/ko/node-operators/reference/legacy-geth-config#execution-client-routing-flag) 참조).
+
+<Tabs>
+  <Tab title="op-reth">
+    ```bash
+    op-reth node \
+      --datadir=/data/optimism \
+      --rollup.historicalrpc=http://localhost:8545 \
+      # ... other flags
+    ```
+  </Tab>
+
+  <Tab title="op-geth">
+    <OpGethEol />
+
+    ```bash
+    geth \
+      --datadir=/data/optimism \
+      --rollup.historicalrpc=http://localhost:8545 \
+      # ... other flags
+    ```
+  </Tab>
+</Tabs>
+
+## 문제 해결
+
+<Warning>
+  `l2geth`는 트레이스 기능이 불안정한 구 버전의 geth를 기반으로 합니다. 
+  더 이상 유지 관리되지 않으며 업데이트되지 않습니다.
+</Warning>
+
+### Legacy Geth가 시작되지 않음
+
+**문제**: `l2geth`가 시작 시 panic이 발생하거나 오류를 반환합니다
+
+**해결 방법**: 환경 변수에 `USING_OVM=true`가 설정되어 있는지 확인하십시오
+
+### 잘못된 실행 트레이스
+
+**문제**: Legacy Geth가 유효하지 않거나 잘못된 트레이스 데이터를 반환합니다
+
+**해결 방법**: `USING_OVM=true`가 설정되어 있고 데이터 디렉터리가 완전하며 손상되지 않았는지 확인하십시오
+
+### 실행 클라이언트가 Legacy Geth로 라우팅하지 않음
+
+**문제**: 과거 실행 요청이 Legacy Geth로 라우팅되지 않습니다
+
+**해결 방법**: 실행 클라이언트(op-reth 또는 op-geth)에 Legacy Geth의 올바른 URL과 함께 `--rollup.historicalrpc`가 설정되어 있는지 확인하십시오

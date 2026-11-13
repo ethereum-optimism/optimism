@@ -17,17 +17,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	opdenv "github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -476,7 +472,6 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 
 	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
-	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	anvil, err := devnet.NewAnvil(lgr)
 	require.NoError(t, err)
@@ -494,30 +489,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	l1ChainID, err := l1Client.ChainID(ctx)
 	require.NoError(t, err)
 	require.NotEqualValues(t, 1337, bigs.Uint64Strict(l1ChainID))
-
-	host, err := opdenv.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		lgr,
-		common.Address{'D'},
-		afacts,
-		script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
-			src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, l1RPC, *cfg.BlockNumber)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create RPC fork source: %w", err)
-			}
-			return forking.Cache(src), nil
-		}),
-	)
+	deployerKey, err := crypto.HexToECDSA(privateKey)
 	require.NoError(t, err)
-
-	latest, err := l1Client.HeaderByNumber(ctx, nil)
-	require.NoError(t, err)
-
-	_, err = host.CreateSelectFork(
-		script.ForkWithURLOrAlias("main"),
-		script.ForkWithBlockNumberU256(latest.Number),
-	)
-	require.NoError(t, err)
+	_, afacts := testutil.LocalArtifacts(t)
+	sp1Verifier := testutil.DeployMockSP1Verifier(t, l1Client, deployerKey, afacts)
 
 	superchainIntent := &state.Intent{
 		SuperchainRoles: &addresses.SuperchainRoles{
@@ -529,19 +504,24 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	superchainState := &state.State{Version: 1}
 
 	pEnv := &pipeline.Env{
-		Logger:       lgr,
-		Scripts:      &opcm.Scripts{},
-		ForgeClient:  forgeClient,
-		UseForge:     true,
-		Context:      ctx,
-		Broadcaster:  broadcaster.NoopBroadcaster(),
-		StateWriter:  pipeline.NoopStateWriter(),
-		L1ScriptHost: host,
-		L1RPCUrl:     l1RPCUrl,
-		PrivateKey:   privateKey,
+		Logger:      lgr,
+		Forge:       &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
+		Context:     ctx,
+		StateWriter: pipeline.NoopStateWriter(),
 	}
 
 	require.NoError(t, pipeline.DeploySuperchain(pEnv, superchainIntent, superchainState))
+
+	// Prepare reads the superchain deployment with eth_calls, and finds what DeploySuperchain recorded.
+	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
+		ctx,
+		l1Client,
+		superchainState.SuperchainDeployment.SuperchainConfigProxy,
+	)
+	require.NoError(t, err)
+	require.Equal(t, *superchainState.SuperchainDeployment, *superDeployment)
+	require.Equal(t, superchainIntent.SuperchainRoles.SuperchainProxyAdminOwner, superRoles.SuperchainProxyAdminOwner)
+	require.Equal(t, superchainIntent.SuperchainRoles.SuperchainGuardian, superRoles.SuperchainGuardian)
 
 	tests := []struct {
 		name             string
@@ -559,8 +539,8 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 		{
 			name:     "L2_CHAIN_ID_1337",
 			gameType: opcm.GameTypeSuperCannonKona,
-			// The script host defaults to chain ID 1337. This remains a valid L2 chain ID
-			// because the fork context must use the actual, non-1337 Anvil L1 chain ID.
+			// 1337 was the chain ID that genesis runs saw. The prediction runs on an L1 fork, so it
+			// sees the L1 chain ID, and 1337 is a valid L2 chain ID.
 			chainID: common.HexToHash("0x0539"),
 			salt:    common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901236"),
 		},
@@ -569,7 +549,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deployIntent := &state.Intent{
-				GlobalDeployOverrides: map[string]any{"devFeatureBitmap": tt.devFeatureBitmap},
+				GlobalDeployOverrides: map[string]any{
+					"devFeatureBitmap": tt.devFeatureBitmap,
+					"sp1Verifier":      sp1Verifier,
+				},
 			}
 			deployState := &state.State{
 				Version:              1,
@@ -595,26 +578,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			}
 			predictState := &state.State{Version: 1, Create2Salt: tt.salt}
 
-			runPrediction := func(
-				beforePredict func(*script.Host),
-				mutate func(*opcm.DeployOPChainInput),
-			) opcm.DeployOPChainOutput {
-				predictHost, err := opdenv.DefaultForkedScriptHost(
-					ctx,
-					broadcaster.NoopBroadcaster(),
-					lgr,
-					common.Address{'D'},
-					afacts,
-					l1RPC,
-				)
+			runPrediction := func(mutate func(*opcm.DeployOPChainInput)) opcm.DeployOPChainOutput {
+				fork, err := startPredictionFork(ctx, l1Client, l1RPCUrl, common.Address{'D'}, forgeClient, "")
 				require.NoError(t, err)
-
-				if beforePredict != nil {
-					beforePredict(predictHost)
-				}
-
-				deployScript, err := opcm.NewDeployOPChainScript(predictHost)
-				require.NoError(t, err)
+				defer func() { require.NoError(t, fork.stop()) }()
 
 				dci, err := makePredictionInput(predictIntent, predictState, chain)
 				require.NoError(t, err)
@@ -622,12 +589,12 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 					mutate(&dci)
 				}
 
-				out, err := deployScript.Run(dci)
+				out, err := opcm.DeployOPChain(fork.forge, dci)
 				require.NoError(t, err)
 				return out
 			}
 
-			out := runPrediction(nil, nil)
+			out := runPrediction(nil)
 			require.NotEqual(t, common.Address{}, out.SystemConfigProxy)
 			require.NotEqual(t, common.Address{}, out.OptimismPortalProxy)
 			require.NotEqual(t, common.Address{}, out.DisputeGameFactoryProxy)
@@ -637,31 +604,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			require.NotEqual(t, common.Address{}, out.PermissionedDisputeGame)
 
 			// A different placeholder anchor root must produce identical predicted addresses.
-			outDifferentRoot := runPrediction(nil, func(dci *opcm.DeployOPChainInput) {
+			outDifferentRoot := runPrediction(func(dci *opcm.DeployOPChainInput) {
 				dci.StartingAnchorRoot.Root = common.Hash{0xaa}
 			})
 			require.Equal(t, out, outDifferentRoot)
-
-			// Prepare reads the live superchain deployment on the prediction host before
-			// predicting
-			outAfterSuperchainRead := runPrediction(func(predictHost *script.Host) {
-				superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
-					&pipeline.Env{Logger: lgr, L1ScriptHost: predictHost},
-					opcmAddr,
-					superchainConfigProxy,
-				)
-				require.NoError(t, err)
-				require.Equal(t, superchainConfigProxy, superDeployment.SuperchainConfigProxy)
-				require.NotEqual(t, common.Address{}, superDeployment.SuperchainProxyAdminImpl)
-				require.NotEqual(t, common.Address{}, superDeployment.SuperchainConfigImpl)
-				require.Equal(
-					t,
-					superchainIntent.SuperchainRoles.SuperchainProxyAdminOwner,
-					superRoles.SuperchainProxyAdminOwner,
-				)
-				require.Equal(t, superchainIntent.SuperchainRoles.SuperchainGuardian, superRoles.SuperchainGuardian)
-			}, nil)
-			require.Equal(t, out, outAfterSuperchainRead)
 		})
 	}
 }
@@ -1375,9 +1321,10 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 		Time:   hexutil.Uint64(uint64(genesisTime) - 100),
 	}, genesisTime)
 
-	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
-	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
-	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+	l2Forge, err := opcm.NewForgeClient(afacts, "", opcm.L2ForgeScripts)
+	require.NoError(t, err)
+	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer, L2Forge: l2Forge}
+	require.NoError(t, generateGenesisForChains(genesisEnv, intent, st))
 
 	chainState, err := st.Chain(chain.ID)
 	require.NoError(t, err)
@@ -1391,7 +1338,7 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 		"genesis header must carry the genesis time pinned at anchor selection")
 
 	allocsBefore := chainState.Allocs.Data
-	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+	require.NoError(t, generateGenesisForChains(genesisEnv, intent, st))
 	chainStateAfter, err := st.Chain(chain.ID)
 	require.NoError(t, err)
 	require.Same(t, allocsBefore, chainStateAfter.Allocs.Data, "re-running must not regenerate allocs")
@@ -1465,11 +1412,12 @@ func TestPrepare_RepredictionRebuildsL2Genesis(t *testing.T) {
 	}
 	const genesisTimeOffset = 600
 
-	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
-	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
+	l2Forge, err := opcm.NewForgeClient(afacts, "", opcm.L2ForgeScripts)
+	require.NoError(t, err)
+	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer, L2Forge: l2Forge}
 	prepareOnce := func() *state.ChainState {
 		require.NoError(t, prepareChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
-		require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+		require.NoError(t, generateGenesisForChains(genesisEnv, intent, st))
 		require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
 		chainState, err := st.Chain(chain.ID)
 		require.NoError(t, err)

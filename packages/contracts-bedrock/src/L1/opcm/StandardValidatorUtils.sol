@@ -181,8 +181,14 @@ contract StandardValidatorUtils {
         _errors = internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SCDG-SHAPE", _errors);
         _errors =
             internalRequire(address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0), "SPDG-SHAPE", _errors);
-        _errors =
-            internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0), "SCKDG-SHAPE", _errors);
+        // At least one permissionless super game must be registered: SUPER_CANNON_KONA or
+        // ZK_DISPUTE_GAME.
+        _errors = internalRequire(
+            address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0)
+                || address(dgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0),
+            "DF-60",
+            _errors
+        );
         return _errors;
     }
 
@@ -204,8 +210,8 @@ contract StandardValidatorUtils {
         _errors = internalRequire(
             address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0), "SCKDG-NOSHAPE", _errors
         );
-        // TODO(#21529): add ZKDG-NOSHAPE check here once the super-root ZKDisputeGame is ready to be used
-        // after interop migration. After that, ZK_DISPUTE_GAME must never be registered on non-super-root chains.
+        _errors =
+            internalRequire(address(dgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0), "ZKDG-NOSHAPE", _errors);
         _errors = internalRequire(
             address(dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0), "PDDG-NOSHAPE", _errors
         );
@@ -317,7 +323,8 @@ contract StandardValidatorUtils {
             "PORTAL-100",
             _errors
         );
-        // TODO(optimism-private#744): assert the portal's bridge hook once OPCM configures hooks.
+        // A portal with a bridge hook is always reported as non-standard.
+        _errors = internalRequire(address(_portal.bridgeHook()) == address(0), "PORTAL-110", _errors);
         return _errors;
     }
 

@@ -4,7 +4,7 @@ version: 2.1
 # This file contains all Rust CI commands, parameterized jobs, crate-specific jobs, and workflows.
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.33
+  utils: ethereum-optimism/circleci-utils@1.0.34
   gcp-cli: circleci/gcp-cli@3.0.1
 
 parameters:
@@ -50,7 +50,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
@@ -60,6 +60,22 @@ jobs:
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
       # No cache save: downloads no crates.
+
+  # Red while a draft PR pins reth by rev (rust/UPDATING-RETH.md, "Pinning a fork change").
+  # Runs the script without just or the Rust cache: it reads rust/Cargo.toml and the
+  # Cargo.lock files git tracks, so it needs a git checkout, and asks the GitHub API whether a
+  # fork tag is on its branch, authenticated by the context's MISE_GITHUB_TOKEN.
+  rust-reth-tag-pin:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: small.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Check reth is pinned by tag
+          working_directory: rust
+          command: python3 scripts/upstream-mirrors.py --check-tag-pin
 
   # Shared clippy lint job
   rust-ci-clippy:
@@ -75,7 +91,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &clippy-cache-args
           directory: <<parameters.directory>>
@@ -103,7 +119,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
@@ -131,7 +147,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
@@ -152,7 +168,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
@@ -177,7 +193,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &no-std-cache-args
           directory: <<parameters.directory>>
@@ -203,7 +219,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &docs-cache-args
           directory: <<parameters.directory>>
@@ -229,7 +245,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &doctest-cache-args
           directory: <<parameters.directory>>
@@ -262,7 +278,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &tests-cache-args
           directory: <<parameters.directory>>
@@ -340,7 +356,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &interop-diff-cache-args
           directory: rust
@@ -373,7 +389,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &udeps-cache-args
           directory: <<parameters.directory>>
@@ -402,7 +418,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
@@ -426,7 +442,7 @@ jobs:
     resource_class: large.gen2
     parallelism: <<parameters.parallelism>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-cache-args
           directory: rust
@@ -470,7 +486,7 @@ jobs:
     # This job frequently gets killed for smaller resource_class
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: rust
@@ -525,12 +541,29 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - install-zstd
       - apt-install:
           packages: "clang llvm-dev libclang-dev"
           extra_flags: "--no-install-recommends"
+      # The Rust base image ships sccache, this machine image doesn't. Install
+      # the same release, checked against upstream's sha256, so rust-prepare
+      # starts it and the native kona-host build uses the shared GCS cache
+      # (develop writes, other refs read).
+      - run:
+          name: Install sccache
+          command: |
+            set -euo pipefail
+            VERSION=v0.18.0
+            ASSET=sccache-${VERSION}-x86_64-unknown-linux-musl
+            curl -fsSL --retry 5 --retry-all-errors -o /tmp/sccache.tgz \
+              "https://github.com/mozilla/sccache/releases/download/${VERSION}/${ASSET}.tar.gz"
+            echo "45f1447fbe231e3037bde351ef70677dd212216c8d62ae7ca409fecc4d6acc89  /tmp/sccache.tgz" | sha256sum -c -
+            tar -xzf /tmp/sccache.tgz -C /tmp
+            sudo install "/tmp/${ASSET}/sccache" /usr/local/bin/sccache
+            rm -rf /tmp/sccache.tgz "/tmp/${ASSET}"
+            sccache --version
       - rust-prepare
       - run:
           name: Build cannon
@@ -564,6 +597,7 @@ jobs:
               $L2_HEAD \
               $L1_HEAD \
               $L2_CHAIN_ID
+      - rust-sccache-stats
 
   # Kona Rust CI - Lint (cannon target)
   kona-cargo-lint:
@@ -576,7 +610,7 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           needs_clang: false
@@ -600,7 +634,7 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare:
           needs_clang: false
@@ -622,7 +656,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: rust
@@ -659,7 +693,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: rust
@@ -694,7 +728,7 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       # No sccache here: the prestates are built reproducibly in Docker
       # (just build-kona-reproducible-prestate), so the host never compiles and
@@ -777,9 +811,9 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
-      # utils/checkout-with-mise provides cargo-prove and just. rust-prepare
+      # checkout-with-mise provides cargo-prove and just. rust-prepare
       # puts cargo on PATH, which check-sp1-guest-lock and cargo-prove need.
       # No sccache: the guests are built in Docker so the host never compiles,
       # and the sccache-gcs-optimism context would define
@@ -967,6 +1001,10 @@ workflows:
             # GCS compile cache (rust-sccache-setup). Restricted to this project.
             - sccache-gcs-optimism
 
+      - rust-reth-tag-pin:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
       - rust-ci-clippy:
           name: rust-clippy
           directory: rust
@@ -1036,8 +1074,8 @@ workflows:
           directory: rust
           context: *rust-ci-context
 
-      # No release build here on purpose: rust-e2e-ci's rust-workspace-release
-      # is the same `rust-build-binary` invocation plus persist_to_workspace,
+      # No release build here on purpose: rust-e2e-ci builds the release
+      # workspace (split across rust-e2e-binaries and rust-workspace-release),
       # and compute-workflow-conditions.sh only ever runs rust_ci and
       # rust_e2e_ci as a pair, so a copy in this workflow is duplicated work.
       # It is gated through required-rust-e2e.
@@ -1109,6 +1147,7 @@ workflows:
       - required-rust-ci:
           requires:
             - rust-fmt: terminal
+            - rust-reth-tag-pin: terminal
             - rust-clippy: terminal
             - rust-deny: terminal
             - rust-typos: terminal

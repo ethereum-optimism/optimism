@@ -29,6 +29,9 @@ import { Constants } from "src/libraries/Constants.sol";
 ///     used to schedule it.
 ///     Note: this guard does not apply a delay to transactions executed by modules which are
 ///     installed on the Safe.
+///     WARNING: this guard does not apply a delay to EIP-1271 signatures validated by the Safe's
+///     fallback handler. A Safe that owns other Safes can act through them with no delay. See
+///     https://github.com/ethereum-optimism/optimism/issues/23976
 /// Cancelling transactions:
 ///     Once a transaction has been scheduled, so long as it has not already been executed, it can
 ///     be cancelled by calling cancelTransaction() on this contract.

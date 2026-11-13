@@ -1,0 +1,137 @@
+---
+title: op-node 구성 옵션
+description: 모든 op-node 명령줄 플래그와 환경 변수에 대한 전체 레퍼런스입니다.
+diataxis: reference
+---
+
+import OpNodeFlags from '/ko/snippets/generated/op-node-flags.mdx';
+import { ConfigReferencePreamble } from '/ko/snippets/config-reference-preamble.mdx';
+
+이 페이지에서는 OP Stack 체인의 합의 계층(rollup node) 클라이언트인
+op-node의 모든 구성 옵션을 정리합니다.
+
+<ConfigReferencePreamble component="op-node" />
+
+하드웨어, 동기화 전략, 모니터링 등 node 운영에 대한 안내는
+[노드 운영자 가이드](/ko/node-operators/tutorials/run-node-from-source)를 참조하십시오.
+
+## 플래그
+
+<OpNodeFlags />
+
+## 주요 플래그 참고 사항
+
+### network 및 rollup.config
+
+위의 필수 플래그 외에도 op-node에 어떤 체인을 제공할지 알려 주어야 합니다.
+`--network`(superchain-registry에 포함된 체인, 예: `op-mainnet`) 또는
+`--rollup.config`(커스텀 체인용 rollup 구성 파일) 중 정확히 하나를 설정하십시오.
+둘 다 설정하거나 둘 다 설정하지 않으면 시작 오류가 발생합니다.
+
+### l1.trustrpc
+
+<Info>
+  L1 제공자로 Erigon Ethereum 실행 클라이언트를 실행하는 경우
+  `--l1.trustrpc`를 포함해야 합니다. 이 글을 작성하는 시점에 Erigon은
+  op-node가 일부 처리를 위해 L1 데이터를 불러올 때 선호하는 `eth_getProof` 메서드를
+  지원하지 않습니다. trustrpc 플래그를 사용하면 Erigon이 지원하는 다른 방법을 사용하지만,
+  op-node는 그 정확성을 검증할 수 없습니다.
+</Info>
+
+### syncmode.offset-el-safe
+
+`--syncmode=execution-layer`에서만 적용됩니다. 실행 계층 동기화가
+완료된 후 safe 헤드와 finalized 헤드는 동기화된 tip보다 이 기간만큼 뒤로 설정됩니다
+(rollup 블록 시간을 사용하여 L2 블록 수로 변환됩니다). 기본값
+`12h`는 OP Mainnet의 시퀀싱 윈도우(sequencing window)와 일치합니다.
+
+이 값을 `0`으로 설정하면 safe와 finalized가 동기화된 tip에 그대로 남습니다. 이는
+**권장하지 않으며 위험합니다**. 이 오프셋은 L1이 EL 동기화 tip을 확인할 시간을 갖기 전까지
+node가 이를 safe/finalized로 표시하지 않도록 보장합니다.
+`0`으로 설정하면 나중에 reorg된(비정식) 브랜치에 있는 것으로 판명된 EL 동기화 tip이
+safe/finalized로 표시될 수 있으며, safe/finalized는
+reorg되어서는 안 됩니다. 바디 프루닝 불일치는 대신 EL이 보관하는 바디 범위를 늘려
+해결하십시오. 아래 경고를 참조하십시오.
+
+<Warning>
+  op-node는 tip에서 이만큼 뒤에 놓인 헤드의 블록 바디에서 L1-info 입금(디파짓)
+  트랜잭션을 읽으므로, 실행 클라이언트는 최소한 이만큼 이전까지의
+  블록 바디를 보관해야 합니다. 바디 프루닝(op-reth의 `--minimal`
+  모드 또는 `--prune.bodies.distance`)은 지원되지 않습니다. 그래도 활성화하는 경우
+  보관되는 바디 범위를 이 오프셋(블록 단위)보다 충분히 크게 유지하십시오.
+  그렇지 않으면 EL 동기화가 `l2 block is missing L1 info deposit tx` 오류로 실패합니다.
+  [op-reth 프루닝](/ko/node-operators/guides/management/archive-node#pruning-op-reth)을 참조하십시오.
+</Warning>
+
+### sequencer.l1-confs
+
+<Warning>
+  `sequencer.l1-confs`의 최댓값은 sequencer
+  drift를 초과할 수 없으며, 현재 sequencer drift는 30분(1800초 또는 150블록)으로 설정되어 있습니다. 이 한도보다
+  높은 값을 설정하면 sequencer가 시퀀스 윈도우 내에서 블록을 생성할 수 없게 됩니다.
+</Warning>
+
+### verifier.l1-confs
+
+<Info>
+  `verifier.l1-confs`에는 엄격한 제한이 없지만, 최적의 성능을 위해 이 값을
+  12~13분(일반적으로 10~20블록) 이내로 유지하는 것이 좋습니다.
+  이 범위를 초과하면 verifier의 데이터 처리 효율에 영향을 줄 수 있습니다.
+</Info>
+
+### altda.*
+
+`altda.*` 플래그는 OP Stack의 Beta 기능인 Alt-DA 모드를 구성합니다.
+핵심 기여자들의 초기 검토를 거쳤지만 아직
+테스트 중이며 버그나 기타 문제가 있을 수 있습니다. 설정 방법은
+[Alt-DA 모드 가이드](/ko/chain-operators/guides/features/alt-da-mode-guide)를
+참조하십시오.
+
+### interop.*
+
+`interop.*` 플래그는 OP Stack interop 네트워크를 구성합니다. 상호운용성(interoperability)은 매우
+실험적인 기능이며, 이 플래그는 interop이 활성화된 네트워크에만 적용됩니다. supervisor
+서비스를 실행하지 않는 경우 interop RPC(`--interop.rpc.addr`)를
+활성화하지 마십시오.
+
+### version
+
+<Info>
+  소스에서 빌드한 node는 GitHub 릴리스 페이지에 표시된 올바른 버전 번호를
+  출력하지 않습니다.
+</Info>
+
+## node 로그 레벨
+
+node 로그 레벨은 로그 메시지의 상세 수준을 결정하며, 운영자가 중요도와 세부 수준에 따라 메시지를 필터링할 수 있게 해 줍니다. Optimism에서 사용하는 `op-node`의 로그 레벨은
+다음과 같습니다.
+
+1.  Silent (0): 로그 메시지를 표시하지 않습니다. node 상태에 대한 피드백을
+    전혀 제공하지 않으므로 거의 사용되지 않습니다.
+
+2.  Error (1): 오류 메시지만 표시합니다. 즉각적인 주의가 필요한 심각한
+    문제에 집중할 때 사용합니다.
+
+3.  Warn (2): 오류 메시지와 경고를 표시합니다. 당장 심각하지는 않지만
+    주의가 필요한 잠재적 문제를 파악하는 데 도움이 됩니다.
+
+4.  Info (3): 오류 메시지, 경고, 일반 활동 로그를 표시합니다. 이것이
+    기본 레벨이며, 지나치게 장황하지 않으면서 node 동작을 균형 있게
+    보여 줍니다.
+
+5.  Debug (4): 모든 info 레벨 메시지와 추가 디버깅 정보를 표시합니다. 문제를
+    해결하거나 node 소프트웨어를 개발할 때 사용합니다.
+
+6.  Detail (5): 가장 상세한 레벨로, 자세한 디버깅 정보와
+    저수준 시스템 동작을 포함합니다. 매우 많은 양의 로그 데이터를 생성하므로
+    일반적으로 심층적인 문제 해결에만 사용합니다.
+
+로그 레벨을 설정하려면 `op-node` 명령을 실행할 때 `--log.level` 플래그를 사용하십시오. 예를 들어
+로그 레벨을 debug로 설정하려면 다음과 같이 합니다.
+
+```bash
+op-node --log.level=debug
+```
+
+로그 레벨을 조정하면 운영자는 기록되는 정보의 양과 유형을 제어할 수 있습니다.
+이를 통해 로그 데이터 양을 관리하고 다양한 운영 상황에서 관련 세부 정보에 집중할 수 있습니다.

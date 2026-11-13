@@ -232,6 +232,11 @@
             "internalType": "uint256",
             "name": "withdrawalDelaySeconds",
             "type": "uint256"
+          },
+          {
+            "internalType": "contract IBridgeHook",
+            "name": "bridgeHook",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
@@ -835,6 +840,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerV2_BridgeHookNotSupported",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerV2_CannotUpgradeToCustomGasToken",
     "type": "error"
   },
@@ -847,6 +857,11 @@
       }
     ],
     "name": "OPContractsManagerV2_DuplicateUpgradeInstruction",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_InvalidBridgeHook",
     "type": "error"
   },
   {

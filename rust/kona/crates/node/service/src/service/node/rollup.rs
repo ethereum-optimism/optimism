@@ -289,6 +289,7 @@ impl RollupNode {
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
+        engine_state_rx: watch::Receiver<EngineState>,
         l1_head: watch::Receiver<Option<BlockInfo>>,
     ) -> Result<ConfiguredDerivationActor, String> {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
@@ -303,6 +304,7 @@ impl RollupNode {
                 provider,
                 l1_provider,
                 derivation_origin_tx,
+                engine_state_rx,
             ))))
         } else {
             let pipeline = self
@@ -621,6 +623,7 @@ impl RollupNode {
                 engine_actor_request_tx.clone(),
                 derivation_actor_request_rx,
                 derivation_origin_tx,
+                engine_state_rx.clone(),
                 l1_head_updates_rx.clone(),
             )
             .await?;

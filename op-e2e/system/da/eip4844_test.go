@@ -124,7 +124,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	require.NoError(t, err)
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
-	helpers.SendDepositTx(t, cfg, l1Client, l2Verif, opts, nil)
+	helpers.SendDepositTx(t, cfg, l1Client, sys.NodeSourceClient("verifier"), opts, nil)
 
 	// Confirm balance
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 20*time.Second)
@@ -136,7 +136,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 
 	// Submit TX to L2 sequencer node
-	receipt := helpers.SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *helpers.TxOpts) {
+	receipt := helpers.SendL2Tx(t, cfg, sys.NodeSourceClient("sequencer"), ethPrivKey, func(opts *helpers.TxOpts) {
 		opts.Value = big.NewInt(1_000_000_000)
 		opts.Nonce = 1 // Already have deposit
 		opts.ToAddr = &common.Address{0xff, 0xff}
@@ -144,25 +144,25 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 		opts.Data = testutils.RandomData(rand.New(rand.NewSource(420)), 400)
 		opts.Gas, err = core.IntrinsicGas(opts.Data, nil, nil, false, true, true, false)
 		require.NoError(t, err)
-		opts.VerifyOnClients(l2Verif)
+		opts.VerifyOnClients(sys.NodeSourceClient("verifier"))
 	})
 
 	// Verify blocks match after batch submission on verifiers and sequencers
-	verifBlock, err := l2Verif.BlockByNumber(context.Background(), receipt.BlockNumber)
+	verifBlock, err := l2Verif.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, verifBlock.Hash(), receipt.BlockHash, "must be same block")
-	seqBlock, err := l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
+	seqBlock, err := l2Seq.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "must be same block")
-	require.Equal(t, verifBlock.NumberU64(), seqBlock.NumberU64(), "Verifier and sequencer blocks not the same after including a batch tx")
-	require.Equal(t, verifBlock.ParentHash(), seqBlock.ParentHash(), "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
+	require.Equal(t, verifBlock.Number, seqBlock.Number, "Verifier and sequencer blocks not the same after including a batch tx")
+	require.Equal(t, verifBlock.ParentHash, seqBlock.ParentHash, "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
 
 	rollupClient := sys.RollupClient("sequencer")
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.NoError(t, err)
-	require.LessOrEqual(t, seqBlock.NumberU64(), seqStatus.UnsafeL2.Number)
+	require.LessOrEqual(t, bigs.Uint64Strict(seqBlock.Number), seqStatus.UnsafeL2.Number)
 	// basic check that version endpoint works
 	seqVersion, err := rollupClient.Version(context.Background())
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	}, time.Second*20, time.Second, "expected L2 to be batch-submitted and labeled as safe")
 
 	// check that the L2 tx is still canonical
-	seqBlock, err = l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
+	seqBlock, err = l2Seq.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "receipt block must match canonical block at tx inclusion height")
 
@@ -245,8 +245,6 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 // gas price. The L1 blob gas limit is set to a low value to speed up this process.
 func TestBatcherAutoDA(t *testing.T) {
 	op_e2e.InitParallel(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	// System setup
 	cfg := e2esys.HoloceneSystemConfig(t, new(hexutil.Uint64))
@@ -267,6 +265,9 @@ func TestBatcherAutoDA(t *testing.T) {
 	cfg.DisableBatcher = true // disable batcher because we start it manually later
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
+	// The deadline starts after the setup, which may build the package's genesis allocs.
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
@@ -293,7 +294,7 @@ func TestBatcherAutoDA(t *testing.T) {
 	requireEventualBatcherTxType := func(txType uint8, timeout time.Duration, strict bool) {
 		var foundOtherTxType bool
 		require.Eventually(t, func() bool {
-			b, err := l1Client.BlockByNumber(ctx, nil)
+			b, err := l1Client.BlockByNumber(ctx, nil) //nolint:forbidigo // L1: looks for the batcher's transaction type
 			require.NoError(t, err)
 			for _, tx := range b.Transactions() {
 				if tx.To() == nil || tx.To().Cmp(cfg.DeployConfig.BatchInboxAddress) != 0 {
@@ -351,9 +352,9 @@ func TestBatcherAutoDA(t *testing.T) {
 		t.Logf("Tx confirmed[%d]: L1 block num: %v, gas used: %d", i, rec.BlockNumber, rec.GasUsed)
 		if rec.BlockNumber.Int64() > int64(blockNum) {
 			blockNum = int(rec.BlockNumber.Int64())
-			block, err := l1Client.BlockByNumber(ctx, rec.BlockNumber)
+			header, err := l1Client.HeaderByNumber(ctx, rec.BlockNumber)
 			require.NoError(t, err)
-			t.Logf("gas used %d/%d", block.GasUsed(), block.GasLimit())
+			t.Logf("gas used %d/%d", header.GasUsed, header.GasLimit)
 			_, _, _, feeRatio = mustGetFees()
 			if feeRatio < 16.0 {
 				break

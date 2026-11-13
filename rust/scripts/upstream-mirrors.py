@@ -20,19 +20,24 @@ Usage:
   upstream-mirrors.py --stale-only    only the stale bump worklist
   upstream-mirrors.py --json          machine-readable, for CI comments
   upstream-mirrors.py --check         exit 1 on tag or workspace metadata errors
+  upstream-mirrors.py --check-tag-pin exit 1 unless reth is pinned by tag, lockfiles included
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 import tomllib
+import urllib.request
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
+from urllib.parse import parse_qs, quote, urlsplit
 
 RUST_ROOT = Path(__file__).resolve().parent.parent
 
@@ -295,6 +300,125 @@ def reth_pin(manifest_path: Path | None = None) -> tuple[str, str]:
     return token, repo
 
 
+def tracked_lockfiles(root: Path | None = None) -> list[Path]:
+    """Every `Cargo.lock` git tracks under `root` (default: the Rust workspace)."""
+    root = root or RUST_ROOT
+    files = subprocess.run(
+        ["git", "ls-files", "-z", "*Cargo.lock"],
+        cwd=root, stdout=subprocess.PIPE, text=True, check=True,
+    ).stdout.split("\0")
+    locks = [root / rel for rel in filter(None, files)]
+    if not locks:
+        raise ConfigError(f"no tracked Cargo.lock under {root}")
+    return locks
+
+
+def locked_reth_sources(lock_path: Path) -> dict[str, int]:
+    """Crate count per reth git source in a lockfile, keyed by the source without its commit.
+
+    A reth source is any `git+` source whose path ends in `/reth`, whatever its host or scheme.
+    """
+    with lock_path.open("rb") as lock_file:
+        packages = tomllib.load(lock_file).get("package", [])
+
+    sources: dict[str, int] = {}
+    for package in packages:
+        source = package.get("source", "")
+        if not source.startswith("git+"):
+            continue
+        source = source.split("#", 1)[0]
+        path = urlsplit(source.removeprefix("git+")).path.removesuffix("/")
+        if path.removesuffix(".git").endswith("/reth"):
+            sources[source] = sources.get(source, 0) + 1
+    return sources
+
+
+def locked_source_matches(source: str, token: str, repo: str) -> bool:
+    """Whether a locked reth source resolves through exactly the workspace's tag and repository."""
+    url = urlsplit(source.removeprefix("git+"))
+    try:
+        locked_repo = normalized_repo(f"{url.scheme}://{url.netloc}{url.path}")
+    except ConfigError:
+        return False
+    return locked_repo == repo and parse_qs(url.query) == {"tag": [token]}
+
+
+def fork_tag_branch(tag: str) -> str:
+    """The `op-<base>` branch an `op-<base>-<n>` fork tag belongs to."""
+    parse_fork_tag(tag)
+    return tag.rsplit("-", 1)[0]
+
+
+def compare_status(repo: str, base: str, head: str, attempts: int = 3) -> str:
+    """GitHub's compare status of `head` against `base` (`ahead`, `identical`, `behind`, ...).
+
+    Authenticates with `GITHUB_TOKEN`, `GH_TOKEN` or `MISE_GITHUB_TOKEN` when set, retries
+    transient failures, and raises `ConfigError` once the attempts are used up.
+    """
+    url = f"https://api.github.com/repos/{repo}/compare/{quote(base, safe='')}...{quote(head, safe='')}"
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "upstream-mirrors"}
+    token = next(
+        (os.environ[name] for name in ("GITHUB_TOKEN", "GH_TOKEN", "MISE_GITHUB_TOKEN")
+         if os.environ.get(name)),
+        None,
+    )
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
+                return json.load(response)["status"]
+        except (OSError, ValueError, KeyError) as caught:
+            error = caught
+            if attempt + 1 < attempts:
+                time.sleep(2 ** attempt)
+    raise ConfigError(f"cannot compare {base}...{head} on {repo}: {error}")
+
+
+def tag_pin(manifest_path: Path | None = None, lockfiles: list[Path] | None = None) -> str:
+    """Return the reth family's tag; raise `ConfigError` unless every check below holds.
+
+    The workspace pins a tag, not a `rev`. Every reth source in every lockfile resolves through
+    that tag and repository, which also catches a member manifest pinning reth outside the
+    workspace pin, and at least one does. A fork tag's commit is on its `op-<base>` branch.
+    """
+    token, repo = reth_pin(manifest_path)
+    if token.startswith("rev:"):
+        raise ConfigError(
+            f"reth is pinned by rev {token[4:]} on {repo}: pin a v<semver> release tag or an "
+            "op-<base>-<n> fork tag before the PR leaves draft "
+            "(rust/UPDATING-RETH.md, \"Pinning a fork change\")"
+        )
+    locked = {
+        lock: locked_reth_sources(lock)
+        for lock in (tracked_lockfiles() if lockfiles is None else lockfiles)
+    }
+    if not any(locked.values()):
+        raise ConfigError(f"no reth git source in any tracked lockfile: {sorted(map(str, locked))}")
+    errors = [
+        f"{lock}: {source} ({count} crate{'' if count == 1 else 's'})"
+        for lock, sources in locked.items()
+        for source, count in sorted(sources.items())
+        if not locked_source_matches(source, token, repo)
+    ]
+    if errors:
+        raise ConfigError(
+            f"lockfiles resolve reth from sources other than the workspace pin "
+            f"github.com/{repo} tag {token}:\n  " + "\n  ".join(errors)
+        )
+    if parse_reth_token(token)[0] == "fork":
+        branch = fork_tag_branch(token)
+        status = compare_status(repo, token, branch)
+        if status not in ("ahead", "identical"):
+            raise ConfigError(
+                f"fork tag {token} is not on branch {branch} of {repo} (compare status "
+                f"{status!r}): tag a commit that is on the branch once fork CI passed on it "
+                "(rust/UPDATING-RETH.md, \"The reth fork\")"
+            )
+    return token
+
+
 def workspace_requirements(manifest_path: Path | None = None) -> dict[str, str]:
     """The version requirement each crates.io dependency is declared with in the workspace."""
     path = manifest_path or RUST_ROOT / "Cargo.toml"
@@ -491,7 +615,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="exit 1 on malformed/ahead/unknown/ambiguous tags (not on stale)",
     )
+    parser.add_argument(
+        "--check-tag-pin",
+        action="store_true",
+        help="exit 1 unless the reth family is pinned by a release or fork tag",
+    )
     args = parser.parse_args(argv)
+
+    if args.check_tag_pin:
+        try:
+            print(f"reth pinned by tag {tag_pin()}")
+        except (
+            ConfigError, OSError, subprocess.CalledProcessError, tomllib.TOMLDecodeError
+        ) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        return 0
 
     try:
         mirrors = classify(find_tags())

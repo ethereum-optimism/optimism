@@ -1,0 +1,126 @@
+---
+title: Upgrade 16a 프로토콜 업그레이드
+description: Upgrade 16a 프로토콜 변경 사항에 대비하는 방법을 알아봅니다.
+diataxis: reference
+content_type: notice
+date: 2025-10-02
+---
+
+
+
+Upgrade 16a는 **Upgrade 16을 대체하는 유지보수 릴리스**입니다. Upgrade 15를 사용 중이라면 Upgrade 16은 **건너뛰고** 바로 이 업그레이드를 적용하시기 바랍니다. 이 업그레이드는 Upgrade 16에서 도입되었으나 사용되지 않는 interop 출금 증명 코드를 일시적으로 제거하고, 유연성과 배포 안전성을 높이기 위해 시스템 수준의 기능 토글을 추가합니다. 이러한 변경 사항은 Superchain 로드맵을 향한 추진력을 유지하면서 위험을 줄여 줍니다.
+
+<Info>
+  **Sepolia** Superchain의 Upgrade 16a 프로토콜 업그레이드는 **Mon, Sept 22, 2025**에 실행되며, **Mainnet** Superchain은 **Thur, Oct 2, 2025**에 활성화됩니다.
+  업그레이드는 다음 체인에서 실행됩니다: `OP`, `Base`, `Soneium`, `Ink`, `Unichain`.
+  실행 시점은 각 체인의 현재 상태에 따라 달라질 수 있습니다.
+</Info>
+
+## Upgrade 16a에 포함된 내용
+
+Upgrade 16a는 다음과 같은 변경 사항을 도입합니다.
+
+**interop 출금 증명 코드 제거**: 파트너 피드백에 따라 Upgrade 16에서 추가된 interop 출금용 코드 경로가 제거되었습니다. 이미 U16을 실행 중인 체인에서는 ETHLockbox가 계속 지원됩니다. U15에서 U16a로 바로 이동하는 체인은 향후 업그레이드 전까지 ETHLockbox를 도입하지 않습니다.
+
+**시스템 수준 기능 토글**
+`SystemConfig` 컨트랙트를 통해 추가되었습니다. ETHLockbox가 토글 뒤에 배치된 첫 번째 기능입니다. 이 메커니즘을 통해 체인별 구성과 보다 안전한 반복적 업그레이드가 가능합니다.
+
+**개발 전용 기능 플래그**
+프로덕션이 아닌 환경에서 interop 기능을 테스트할 수 있도록 도입되었습니다. 이 플래그는 프로덕션 체인에서는 활성화할 수 없습니다.
+
+**OP Contracts Manager(OPCM) 업데이트**
+`U15 → U16a`와 `U16 → U16a` 두 가지 업그레이드 경로를 모두 지원하도록 업데이트되었습니다.
+
+## 영향 요약
+
+*   체인 다운타임은 예상되지 않지만, U15에서 업그레이드하는 경우 출금이 무효화됩니다(아래 참조).
+*   U16에서 생성된 출금 증명은 계속 유효합니다.
+*   아직 U15에 있는 체인은 Upgrade 16 공지에 설명된 것과 동일한 방식으로 영향을 받습니다.
+*   U15에서 U16a로 바로 업그레이드하는 체인은 향후 릴리스 전까지 ETHLockbox를 도입하지 않습니다.
+*   시스템 수준 토글은 운영자의 제어력을 높이고 향후 업그레이드 배포를 더 쉽게 만듭니다.
+
+## 체인 운영자를 위한 안내
+
+<Info>출금 무효화는 아직 U15에 있는 체인에만 영향을 미칩니다.
+해당 체인에서 업그레이드 실행 전에 최종 확정되지 않은 대기 중인 L1 출금은 업그레이드 완료 후 다시 증명해야 합니다. 사용자는 업그레이드 후 증명 트랜잭션을 다시 제출해야 합니다.
+이미 U16에 있는 체인은 영향을 받지 않습니다. 자금이 위험에 처하지는 않습니다.</Info>
+
+
+
+### 체인 운영자는 다음 작업을 완료해야 합니다.
+
+*   `op-challenger`를 [op-challenger/v1.5.1](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.5.1)로 업데이트
+*   자체 `op-challenger` 소프트웨어를 빌드하는 경우 `--cannon-bin` 플래그가 `cannon/v1.6.0 build`로 설정되어 있는지 확인하십시오. 공식 Optimism docker 이미지를 사용하는 경우에는 조치가 필요하지 않습니다.
+
+
+### 무허가(permissionless) 결함 증명이 활성화된 체인
+
+무허가 결함 증명(fault proof)을 실행하는 체인은 새로운 absolute prestate로 새 분쟁 게임(dispute game) 컨트랙트를 배포해야 합니다.
+
+<Steps>
+  ### 새 absolute prestate 검증
+
+  <Info>
+    Upgrade 14부터 64비트 멀티스레드 버전의 cannon이 사용됩니다.
+  </Info>
+
+  absolute prestate는 [op-program/v1.6.1-rc.1](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.1-rc.1)(`op-program/v1.6.1-rc.1` 기준)로 생성됩니다. 다음 체인에는 이 새로운 absolute prestate `0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8`을 사용할 수 있습니다.
+
+  *   Mainnet 및 Sepolia: `OP`, `Base`, `Soneium`, `Ink`, `Unichain`
+
+  `op-program/v1.6.1-rc.1` 태그에서 monorepo 루트에 있는 상태로 다음 [명령](https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132)(`d6fb90d` 기준)을 실행하여 이 absolute prestate를 검증할 수 있습니다.
+
+  ```shell
+  make reproducible-prestate
+  ```
+
+  계산된 prestate가 다음과 비슷한 형태로 출력됩니다.
+
+  ```shell
+  -------------------- Production Prestates --------------------
+
+
+  Cannon64 Absolute prestate hash: 
+  0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
+
+  -------------------- Experimental Prestates --------------------
+
+  CannonInterop Absolute prestate hash: 
+  0x03fc3b4d091527d53f1ff369ea8ed65e5e17cc7fc98ebf75380238151cdc949c
+
+  Cannon64Next Absolute prestate hash: 
+  0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
+  ```
+
+  *   "Cannon64" 해시가 64비트 prestate입니다.
+
+  대상 prestate가 예상대로 계산되었는지, 그리고
+  [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)의 해당 항목과 일치하는지 확인하십시오.
+
+  ### 새 preimage 파일 업로드
+
+  이전 단계에서 absolute prestate의 preimage도 함께 생성되었습니다. 이는 op-program을 바이너리 파일로 직렬화한 것입니다. 새 파일은 `optimism/op-program/bin/prestate-mt64.bin.gz`에 있습니다. 파일 이름을 absolute prestate 해시로 변경하여 `PRESTATEHASH.bin.gz`와 같은 형태가 되도록 합니다.
+
+  다른 absolute preimage 파일을 보관하는 위치에 이 파일을 업로드합니다. 이 위치는 `--cannon-prestates-url`이 가리키는 위치여야 합니다. `op-challenger`는 게임에 이의를 제기해야 할 때 이 파일을 가져와 사용합니다.
+
+  ### 업그레이드 실행
+
+  `op-challenger`가 새 preimage로 준비되면 업그레이드 트랜잭션을 실행할 수 있습니다. 이는 OP Contract Manager([레지스트리](https://github.com/ethereum-optimism/superchain-registry/blob/6621a0f13ce523fe1bb8deea739fe37abe20f90d/validation/standard/standard-versions-mainnet.toml#L22)에 나열된 주소, `6621a0f` 기준)의 `upgrade()` 함수에 delegatecall을 수행하는 방식으로 진행해야 합니다.
+
+  트랜잭션을 실행하기 전에 예상 출력을 시뮬레이션하고 검증하시기 바랍니다.
+</Steps>
+
+### 출금 흐름 변경
+
+1.  L1에서 생성된 모든 대기 중인 출금 증명이 일회성으로 무효화됩니다.
+
+2.  업그레이드가 실행되기 전에 대기 중인 출금을 완료하십시오.
+
+3.  제때 실행 가능해지지 않을 새 출금 증명을 생성하지 마십시오.
+
+4.  출금이 무효화된 경우 L1에서 두 번째 출금 증명 트랜잭션을 제출하십시오.
+
+이 무효화로 인해 ETH나 ERC-20 토큰이 위험에 처하지는 않습니다.
+
+
+

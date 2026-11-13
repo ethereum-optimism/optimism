@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/setup/DisputeGameFactoryTestInit.sol";
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -60,7 +60,6 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
 
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
         vm.deal(flipProposer, 100 ether);

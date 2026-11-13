@@ -439,6 +439,7 @@ func TestProposerProvesChunkAgreeingOnReplacedBlockInside(gt *testing.T) {
 
 // TestProposerProvesChunksInsideReplacementIdleGap covers chunk boundaries between idle timestamps after replacement.
 func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
+	gt.Parallel()
 	const rangeSplitCount uint64 = 128
 	for _, testCase := range []struct {
 		name         string
@@ -449,7 +450,7 @@ func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
 		{"replacement_at_agreed", 0, zkproposer.LogBatchesSubmitted(0)},
 	} {
 		gt.Run(testCase.name, func(gt *testing.T) {
-			t := devtest.ParallelT(gt)
+			t := devtest.SerialT(gt)
 			sys, hidden := newReplacedBlockSystem(t,
 				presets.WithL2BlockTimes(map[eth.ChainID]uint64{sysgo.DefaultL2AID: 1, sysgo.DefaultL2BID: 4}),
 				presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(rangeSplitCount)),

@@ -1,0 +1,68 @@
+---
+title: op-challenger
+description: OP Stack 분쟁 게임 이의 제기 서비스인 op-challenger의 정식 허브입니다. op-challenger가 하는 일, 운영 주체, 그리고 가이드, 릴리스, 소스, 사양의 위치를 안내합니다.
+diataxis: explanation
+---
+
+op-challenger는 OP Stack의 분쟁 게임(dispute game) 이의 제기 서비스로, L1의 결함 분쟁 게임(fault
+dispute game)을 모니터링하고, 유효한 output 제안을 방어하며, 유효하지 않은 제안에 이의를
+제기합니다.
+
+## 개요
+
+op-challenger는 `DisputeGameFactory`를 통해 생성된 게임을 감시합니다(결함 증명 체인에서는 모든
+output 제안이 분쟁 게임입니다). 신뢰할 수 있고 동기화된 rollup node와 각 주장을 비교하여, 동의하는
+제안은 방어하고, 동의하지 않는 제안에는 반박 주장(counterclaim)을 게시하며, 게임 시계가 만료되면
+주장과 게임을 해결(resolve)하고, 자신에게 지급되는 본드(bond)를 수령합니다. 분쟁이 이분 탐색을 통해
+단일 VM 명령어까지 좁혀지면, op-challenger는 결함 증명 VM인 [cannon](/ko/op-stack/components/cannon)을
+실행하여(kona-host가 preimage 데이터를 제공하는 상태에서 kona-client를 실행) 해당 명령어를 온체인에서
+증명합니다. 이 동작에 대한 자세한 설명은
+[OP-Challenger 설명](/ko/op-stack/fault-proofs/challenger)을 참조하십시오.
+
+op-challenger가 존재하는 이유는 게임 시계가 만료되기 전에 누군가가 유효하지 않은 주장에 실제로
+대응해야만 결함 증명이 출금을 보호할 수 있기 때문입니다. op-challenger는 분쟁 프로토콜의
+*정직한 행위자(honest actor)*를 구현한 것입니다. 게임이 올바른 상태로 해결되도록 보장하여 체인을
+방어하며, `OptimismPortal`은 출금 시 궁극적으로 이 결과를 신뢰합니다.
+
+**운영 주체:** 체인 운영자는 자신의 체인을 방어하기 위해 최소 하나의 challenger를 운영하며, 무허가
+결함 증명 체인에서는 누구나 운영할 수 있습니다. challenger에는 주장을 검증하기 위한 동기화되고
+신뢰할 수 있는 rollup node와, 본드를 게시할 자금이 있는 계정이 필요합니다.
+
+## 시작하기
+
+*   [challenger 구동](/ko/chain-operators/tutorials/create-l2-rollup/op-challenger-setup):
+    OP Stack 체인 구축의 일부로 op-challenger를 설정하고 구성합니다.
+
+## 사용 방법 가이드
+
+*   [체인에 맞게 challenger를 구성하는 방법](/ko/chain-operators/guides/configuration/op-challenger-config-guide):
+    프로덕션에서 중요한 구성 옵션을 다룹니다.
+*   [결함 증명 challenger 실행](/ko/use-cases/run-a-fault-proof-challenger):
+    본드 예산 책정, prestate 선택, 인프라, 구성, 모니터링까지 전체 운영 경로를 한 번에 다룹니다.
+*   [절대 prestate 및 preimage 파일 생성](/ko/chain-operators/tutorials/absolute-prestate):
+    op-challenger가 분쟁 시점에 실행하는 prestate를 빌드하고 검증합니다.
+*   [무허가 결함 증명으로 마이그레이션](/ko/chain-operators/tutorials/migrating-permissionless):
+    마이그레이션의 일부로 op-challenger를 업그레이드하고 테스트합니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   [Challenger 구성 레퍼런스](/ko/chain-operators/reference/challenger-configuration):
+    페이지에 명시된 op-challenger 릴리스에서 생성된 플래그 표와 함께 모든 CLI 플래그와 환경 변수를
+    다룹니다. 위의
+    [구성 가이드](/ko/chain-operators/guides/configuration/op-challenger-config-guide)는 프로덕션과
+    관련된 옵션을 다룹니다.
+
+## 릴리스
+
+*   [op-challenger 릴리스 이력](/ko/releases/op-challenger)
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `op-challenger/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-challenger).
+    [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-challenger/README.md)에
+    빠른 시작과 수동 테스트용 하위 명령(`create-game`, `move`, `resolve`, `list-games`, `run-trace` 등)이
+    문서화되어 있습니다.
+*   [정직한 challenger 사양](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html):
+    op-challenger가 구현하는 규범적 동작입니다.
+*   [결함 분쟁 게임 사양](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html):
+    op-challenger가 참여하는 게임입니다.

@@ -1,10 +1,10 @@
-//! A builder for the [`GossipDriver`].
+//! A builder for the [`GossipDriver`](crate::GossipDriver).
 
 use alloy_primitives::Address;
 use kona_genesis::RollupConfig;
 use kona_peers::{PeerMonitoring, PeerScoreLevel};
 use libp2p::{
-    Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
+    Multiaddr, PeerId, SwarmBuilder,
     core::{muxing::StreamMuxerBox, transport::Boxed},
     gossipsub::Config,
     identity::Keypair,
@@ -16,8 +16,8 @@ use std::{convert::Infallible, error::Error, time::Duration};
 use tokio::sync::watch;
 
 use crate::{
-    Behaviour, BlockHandler, ConnectionGate, GaterConfig, GossipDriver, GossipDriverBuilderError,
-    PeerAddr,
+    Behaviour, BlockHandler, ConnectionGate, GaterConfig, GossipDriverBuilderError,
+    GossipDriverConfig, GossipDriverStarter, PeerAddr,
 };
 
 /// How long a connection with no open streams stays open, unless set with
@@ -33,7 +33,11 @@ pub type TransportBuilder = Box<
 /// The transport the gossip swarm listens and dials on.
 #[derive(Default, derive_more::Debug)]
 pub enum GossipTransport {
-    /// TCP, with DNS resolution of `/dns`, `/dns4` and `/dns6` addresses.
+    /// TCP, dialing IP addresses only.
+    ///
+    /// It has no DNS transport on purpose: one reads the system resolver configuration when the
+    /// swarm is built, and fails the build on hosts where that can't be parsed, such as macOS
+    /// listing a scoped link-local nameserver like `fe80::1%en0`.
     #[default]
     Tcp,
     /// A transport built by the caller, such as an in-memory one in tests.
@@ -44,7 +48,7 @@ pub enum GossipTransport {
     Other(#[debug(skip)] TransportBuilder),
 }
 
-/// A builder for the [`GossipDriver`].
+/// A builder for the [`GossipDriver`](crate::GossipDriver).
 #[derive(Debug)]
 pub struct GossipDriverBuilder {
     /// The [`RollupConfig`] for the network.
@@ -55,27 +59,22 @@ pub struct GossipDriverBuilder {
     gossip_addr: Multiaddr,
     /// The unsafe block signer [`Address`] that gossiped blocks must be signed by.
     signer: watch::Receiver<Address>,
-    /// The idle connection timeout, [`DEFAULT_IDLE_CONNECTION_TIMEOUT`] if not set.
-    timeout: Option<Duration>,
-    /// Sets the [`PeerScoreLevel`] for the [`Behaviour`].
+    /// The idle connection timeout.
+    timeout: Duration,
+    /// Sets the [`PeerScoreLevel`] for the [`Behaviour`]. Without one, peer scoring is off.
     scoring: Option<PeerScoreLevel>,
-    /// The [`Config`] for the [`Behaviour`].
-    config: Option<Config>,
-    /// If set, the gossip layer will monitor peer scores and ban peers that are below a given
-    /// threshold.
-    peer_monitoring: Option<PeerMonitoring>,
+    /// The gossipsub [`Config`] for the [`Behaviour`].
+    gossipsub_config: Config,
     /// The configuration for the connection gater.
-    gater_config: Option<GaterConfig>,
+    gater_config: GaterConfig,
+    /// How the driver behaves once it runs.
+    driver_config: GossipDriverConfig,
     /// Topic scoring. Disabled by default.
     topic_scoring: bool,
     /// The transport the swarm listens and dials on. TCP by default.
     transport: GossipTransport,
     /// The peers to dial at startup and keep connected.
     static_peers: Vec<PeerAddr>,
-    /// How often static peers that aren't connected are dialed again, once a minute if not set.
-    static_peer_redial_interval: Option<Duration>,
-    /// How soon a static peer is dialed again after its connection closes, a second if not set.
-    static_peer_reconnect_delay: Option<Duration>,
 }
 
 impl GossipDriverBuilder {
@@ -90,20 +89,18 @@ impl GossipDriverBuilder {
         keypair: Keypair,
     ) -> Self {
         Self {
-            timeout: None,
+            timeout: DEFAULT_IDLE_CONNECTION_TIMEOUT,
             keypair,
             gossip_addr,
             signer: watch::channel(signer).1,
             scoring: None,
-            config: None,
-            peer_monitoring: None,
-            gater_config: None,
+            gossipsub_config: crate::default_config(),
+            gater_config: GaterConfig::default(),
+            driver_config: GossipDriverConfig::default(),
             rollup_config,
             topic_scoring: false,
             transport: GossipTransport::default(),
             static_peers: Vec::new(),
-            static_peer_redial_interval: None,
-            static_peer_reconnect_delay: None,
         }
     }
 
@@ -121,19 +118,19 @@ impl GossipDriverBuilder {
 
     /// Sets how often static peers that aren't connected are dialed again.
     pub const fn with_static_peer_redial_interval(mut self, interval: Duration) -> Self {
-        self.static_peer_redial_interval = Some(interval);
+        self.driver_config.static_peer_redial_interval = interval;
         self
     }
 
     /// Sets how soon a static peer is dialed again after its connection closes.
     pub const fn with_static_peer_reconnect_delay(mut self, delay: Duration) -> Self {
-        self.static_peer_reconnect_delay = Some(delay);
+        self.driver_config.static_peer_reconnect_delay = delay;
         self
     }
 
     /// Sets the configuration for the connection gater.
     pub const fn with_gater_config(mut self, config: GaterConfig) -> Self {
-        self.gater_config = Some(config);
+        self.gater_config = config;
         self
     }
 
@@ -159,7 +156,7 @@ impl GossipDriverBuilder {
 
     /// Sets the [`PeerMonitoring`] configuration for the gossip driver.
     pub const fn with_peer_monitoring(mut self, peer_monitoring: Option<PeerMonitoring>) -> Self {
-        self.peer_monitoring = peer_monitoring;
+        self.driver_config.peer_monitoring = peer_monitoring;
         self
     }
 
@@ -178,7 +175,7 @@ impl GossipDriverBuilder {
 
     /// Sets the swarm's idle connection timeout.
     pub const fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = Some(timeout);
+        self.timeout = timeout;
         self
     }
 
@@ -188,14 +185,18 @@ impl GossipDriverBuilder {
         self
     }
 
-    /// Sets the [`Config`] for the [`Behaviour`].
+    /// Sets the gossipsub [`Config`] for the [`Behaviour`].
     pub fn with_config(mut self, config: Config) -> Self {
-        self.config = Some(config);
+        self.gossipsub_config = config;
         self
     }
 
-    /// Builds the [`GossipDriver`].
-    pub fn build(self) -> Result<GossipDriver<crate::ConnectionGater>, GossipDriverBuilderError> {
+    /// Builds the swarm, and returns the [`GossipDriverStarter`] whose
+    /// [`start`](GossipDriverStarter::start) returns the running
+    /// [`GossipDriver`](crate::GossipDriver).
+    pub fn build(
+        self,
+    ) -> Result<GossipDriverStarter<crate::ConnectionGater>, GossipDriverBuilderError> {
         // Unpacked without `..`, so a new builder field that is never used fails to compile.
         let Self {
             rollup_config,
@@ -204,30 +205,25 @@ impl GossipDriverBuilder {
             signer: signer_rx,
             timeout,
             scoring,
-            config,
-            peer_monitoring,
+            gossipsub_config: config,
             gater_config,
+            driver_config,
             topic_scoring,
             transport,
             static_peers,
-            static_peer_redial_interval,
-            static_peer_reconnect_delay,
         } = self;
 
-        let timeout = timeout.unwrap_or(DEFAULT_IDLE_CONNECTION_TIMEOUT);
         let mut static_peers = PeerAddr::group_by_peer(static_peers);
         // Lets a cluster share one list.
         if let Some(addrs) = static_peers.remove(&keypair.public().to_peer_id()) {
             info!(target: "gossip", ?addrs, "Static peer list contains this node's own ID, ignoring it");
         }
-        let l2_chain_id = rollup_config.l2_chain_id;
         let block_time = rollup_config.block_time;
 
         // Block Handler setup
         let handler = BlockHandler::new(rollup_config, signer_rx);
 
         // Construct the gossip behaviour
-        let config = config.unwrap_or_else(crate::default_config);
         info!(
             target: "gossip",
             "CONFIG: [Mesh D: {}] [Mesh L: {}] [Mesh H: {}] [Gossip Lazy: {}] [Flood Publish: {}]",
@@ -267,21 +263,10 @@ impl GossipDriverBuilder {
             }
         }
 
-        // Let's setup the sync request/response protocol stream.
-        let mut sync_handler = behaviour.sync_req_resp.new_control();
-
-        let protocol = format!("/opstack/req/payload_by_number/{l2_chain_id}/0/");
-        let sync_protocol_name = StreamProtocol::try_from_owned(protocol)
-            .map_err(GossipDriverBuilderError::SetupSyncReqRespError)?;
-        let sync_protocol = sync_handler
-            .accept(sync_protocol_name)
-            .map_err(GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
-
         debug!(target: "gossip", "Building Swarm with Peer ID: {}", keypair.public().to_peer_id());
         let custom_transport = matches!(transport, GossipTransport::Other(_));
         let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
         let swarm = match transport {
-            // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
             GossipTransport::Tcp => builder
                 .with_tcp(
                     TcpConfig::default().nodelay(true),
@@ -292,8 +277,6 @@ impl GossipDriverBuilder {
                     YamuxConfig::default,
                 )
                 .map_err(GossipDriverBuilderError::TcpError)?
-                .with_dns()
-                .map_err(GossipDriverBuilderError::DnsError)?
                 .with_behaviour(|_| behaviour)
                 .unwrap_or_else(|never: Infallible| match never {})
                 .with_swarm_config(|c| c.with_idle_connection_timeout(timeout))
@@ -307,7 +290,7 @@ impl GossipDriverBuilder {
                 .build(),
         };
 
-        let mut gate = crate::ConnectionGater::new(gater_config.unwrap_or_default());
+        let mut gate = crate::ConnectionGater::new(gater_config);
         // Static peers are exempt from the redial limit.
         for peer_id in static_peers.keys() {
             gate.protect_peer(*peer_id);
@@ -316,22 +299,21 @@ impl GossipDriverBuilder {
             gate = gate.allowing_addrs_without_ip();
         }
 
-        let mut driver = GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate);
-        driver.peer_monitoring = peer_monitoring;
-        driver.static_peers = static_peers;
-        if let Some(interval) = static_peer_redial_interval {
-            driver.static_peer_redial_interval = interval;
-        }
-        if let Some(delay) = static_peer_reconnect_delay {
-            driver.static_peer_reconnect_delay = delay;
-        }
-        Ok(driver)
+        Ok(GossipDriverStarter {
+            swarm,
+            addr,
+            handler,
+            connection_gate: gate,
+            static_peers,
+            config: driver_config,
+        })
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::GossipDriver;
     use libp2p::{
         Transport,
         core::{transport::MemoryTransport, upgrade::Version},
@@ -341,7 +323,7 @@ pub(crate) mod tests {
 
     /// An in-process transport with the upgrades `with_tcp` applies: lazy protocol negotiation,
     /// Noise, then Yamux.
-    fn memory_transport() -> GossipTransport {
+    pub(crate) fn memory_transport() -> GossipTransport {
         GossipTransport::Other(Box::new(|keypair| {
             Ok(MemoryTransport::default()
                 .upgrade(Version::V1Lazy)
@@ -353,7 +335,7 @@ pub(crate) mod tests {
 
     /// Builds a gossip driver whose swarm uses the in-memory transport, listening on a free
     /// `/memory` port once started.
-    pub(crate) fn memory_driver() -> GossipDriver<crate::ConnectionGater> {
+    pub(crate) fn memory_driver() -> GossipDriverStarter<crate::ConnectionGater> {
         memory_driver_builder().build().expect("build gossip driver")
     }
 
@@ -410,7 +392,7 @@ pub(crate) mod tests {
             .build()
             .expect("build gossip driver");
 
-        let monitoring = driver.peer_monitoring.as_ref().expect("peer monitoring is set");
+        let monitoring = driver.config.peer_monitoring.as_ref().expect("peer monitoring is set");
         assert_eq!(monitoring.ban_threshold, -10.0);
         assert_eq!(
             driver.static_peers,
@@ -462,8 +444,7 @@ pub(crate) mod tests {
         let addr = Multiaddr::empty().with(Protocol::Memory(rand::random::<u64>()));
         let builder = || memory_driver_builder_at(Keypair::generate_secp256k1(), addr.clone());
 
-        let mut driver = builder().build().expect("build");
-        driver.start().await.expect("listen");
+        let driver = builder().build().expect("build").start().await.expect("listen");
         drop(driver);
 
         builder().build().expect("build").start().await.expect("listen on the same address");
@@ -473,16 +454,13 @@ pub(crate) mod tests {
     /// and connect over `/memory` addresses.
     #[tokio::test]
     async fn test_other_transport_connects_swarms() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-
         // Port 0 binds a free memory port, the way it binds a free TCP port.
-        let addr_2 = driver_2.start().await.expect("listen");
-        assert!(matches!(addr_2.iter().next(), Some(Protocol::Memory(port)) if port != 0));
-        driver_1.start().await.expect("listen");
+        let mut driver_2 = memory_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
+        assert!(matches!(addr_2.addr().iter().next(), Some(Protocol::Memory(port)) if port != 0));
+        let mut driver_1 = memory_driver().start().await.expect("listen");
 
-        let peer_2 = *driver_2.local_peer_id();
-        driver_1.swarm.dial(addr_2.with(Protocol::P2p(peer_2))).expect("dial");
+        driver_1.dial_multiaddr(addr_2).expect("dial");
 
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }

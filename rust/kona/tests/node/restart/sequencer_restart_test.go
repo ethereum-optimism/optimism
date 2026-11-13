@@ -1,13 +1,10 @@
 package node_restart
 
 import (
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
@@ -38,17 +35,9 @@ func TestSequencerRestart(gt *testing.T) {
 
 	var stopCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
-		// Ensure that the node is no longer connected to the sequencer
-		nodePeers := node.Peers()
-		_, err := retry.Do(t.Ctx(), 5, &retry.ExponentialStrategy{Max: 10 * time.Second, Min: 1 * time.Second, MaxJitter: 250 * time.Millisecond}, func() (any, error) {
-			for _, peer := range nodePeers.Peers {
-				if peer.PeerID == seqPeerId {
-					return nil, fmt.Errorf("expected node %s to be disconnected from sequencer %s", node.Escape().Name(), sequencer.Escape().Name())
-				}
-			}
-			return nil, nil
-		})
-		t.Require().NoError(err)
+		// Ensure that the node is no longer connected to the sequencer.
+		// The node drops the connection only once it notices the sequencer is gone, so wait for it.
+		node.WaitForPeerIDDropped(seqPeerId)
 
 		// Ensure that the other nodes are not advancing.
 		// The local safe head may advance (for the next l1 block to be processed), but the unsafe head should not.

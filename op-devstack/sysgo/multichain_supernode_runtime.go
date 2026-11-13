@@ -15,7 +15,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
@@ -170,7 +169,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	}
 	var l1EL *L1Geth
 	var l1CL *L1CLNode
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
+	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
 		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
 			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 			return l1EL, l1CL
@@ -323,12 +322,7 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		interopActivationTimestamp = &activationTime
 	}
 
-	var depSet *depset.StaticConfigDependencySet
-	if wb.outFullCfgSet.DependencySet != nil {
-		cast, ok := wb.outFullCfgSet.DependencySet.(*depset.StaticConfigDependencySet)
-		require.True(ok, "expected static dependency set")
-		depSet = cast
-	}
+	depSet := wb.output.InteropDepSet
 	if cfg.MessageExpiryWindow != nil && depSet != nil {
 		depSet, err = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
 			depSet.Dependencies(), *cfg.MessageExpiryWindow)
@@ -338,8 +332,6 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 	var runtimeDepSet depset.DependencySet
 	if depSet != nil {
 		runtimeDepSet = depSet
-	} else {
-		runtimeDepSet = wb.outFullCfgSet.DependencySet
 	}
 
 	supernode, supernodeCLs := startSharedSupernode(
@@ -450,7 +442,7 @@ func buildMultiL2RuntimeWorld(
 	}
 	if enableInterop {
 		deployerOpts = append([]DeployerOption{
-			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+			WithUseInterop(),
 		}, deployerOpts...)
 		for _, l2Cfg := range wb.builder.L2s() {
 			if delaySeconds > 0 {
@@ -858,7 +850,7 @@ func startTestSequencerForL2Chains(
 					Beacon:            l1CL.beacon,
 					FinalizedDistance: 20,
 					SafeDistance:      10,
-					BlockTime:         6,
+					BlockTime:         l1Net.blockTime,
 				},
 			},
 		},

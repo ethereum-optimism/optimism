@@ -19,13 +19,12 @@ type OPChainDeploymentResult struct {
 	chainID         common.Hash
 	contracts       addresses.OpChainContracts
 	outputContracts addresses.OpChainContracts
-	readback        opcm.ReadImplementationAddressesOutput
 	initialized     bool
 }
 
 // Contracts returns the addresses emitted by DeployOPChain, matching the set
 // recorded by prepare. RecordOPChainDeployment uses a separate set whose dispute
-// game implementations are replaced with addresses read back from their proxies.
+// game implementations are the ones the OPCM installs.
 func (r OPChainDeploymentResult) Contracts() addresses.OpChainContracts {
 	return r.outputContracts
 }
@@ -43,26 +42,39 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
+	settlementID, private, err := PrivateChainSettlement(intent, thisIntent)
+	if err != nil {
+		return err
+	}
+	if private {
+		if err := reuseSettlementContracts(st, chainID, settlementID); err != nil {
+			return err
+		}
+		lgr.Info("opchain deployment not needed, the private chain shares its settlement chain's L1 contracts", "settlement", settlementID.Hex())
+		return nil
+	}
+
 	dci, err := makeDCI(intent, thisIntent, chainID, st)
 	if err != nil {
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
 
-	result, err := ExecuteOPChainDeployment(env, st, chainID, dci)
+	result, err := ExecuteOPChainDeployment(env, st, chainID, dci, st.ImplementationsDeployment)
 	if err != nil {
 		return err
 	}
-	// Record in memory. The stage runner persists state after its broadcast succeeds.
+	// Record in memory. The stage runner writes the state after the stage succeeds.
 	return RecordOPChainDeployment(st, result)
 }
 
-// ExecuteOPChainDeployment runs the deployment without recording state.
-// Script-host execution queues transactions. Forge broadcasts directly.
+// ExecuteOPChainDeployment runs the deployment without recording state. impls are the
+// implementations of the OPCM in dci. It sends the deployment's transactions before it returns.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
 	chainID common.Hash,
 	dci opcm.DeployOPChainInput,
+	impls *addresses.ImplementationsContracts,
 ) (OPChainDeploymentResult, error) {
 	var result OPChainDeploymentResult
 	if dci.L2ChainId == nil {
@@ -74,6 +86,9 @@ func ExecuteOPChainDeployment(
 			dci.L2ChainId,
 			chainID.Big(),
 		)
+	}
+	if impls == nil || impls.OpcmV2Impl != dci.Opcm || impls.MipsImpl == (common.Address{}) {
+		return result, fmt.Errorf("the implementations of OPCM %s are unknown", dci.Opcm)
 	}
 
 	lgr := env.Logger.New("stage", "deploy-opchain")
@@ -87,90 +102,28 @@ func ExecuteOPChainDeployment(
 		}
 	}
 
-	var dco opcm.DeployOPChainOutput
-	var err error
-	if env.UseForge {
-		lgr.Info("using Forge for DeployOPChain")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dco, err = opcm.DeployOPChainViaForge(forgeEnv, dci)
-		if err != nil {
-			return result, err
-		}
-	} else {
-		dco, err = env.Scripts.DeployOPChain.Run(dci)
-		if err != nil {
-			return result, fmt.Errorf("error deploying OP chain: %w", err)
-		}
+	dco, err := opcm.DeployOPChain(env.Forge, dci)
+	if err != nil {
+		return result, err
 	}
 
-	return readOPChainDeployment(env, chainID, OpChainContractsFromDeployOutput(dco), dci.Opcm)
+	return ReconcileOPChainDeployment(chainID, OpChainContractsFromDeployOutput(dco), impls), nil
 }
 
-// ReconcileOPChainDeployment reads the implementation addresses needed to
-// produce the same recorded state as a freshly receipted deployment.
+// ReconcileOPChainDeployment returns the result that a freshly receipted deployment of contracts
+// records, given the implementations of its OPCM. OPCM.deploy points the proxies of the chain at
+// those implementations.
 func ReconcileOPChainDeployment(
-	env *Env,
 	chainID common.Hash,
-	expected addresses.OpChainContracts,
-	pinnedOPCM common.Address,
-) (OPChainDeploymentResult, error) {
-	return readOPChainDeployment(env, chainID, expected, pinnedOPCM)
-}
-
-func readOPChainDeployment(
-	env *Env,
-	chainID common.Hash,
-	outputContracts addresses.OpChainContracts,
-	pinnedOPCM common.Address,
-) (OPChainDeploymentResult, error) {
-	readInput := opcm.ReadImplementationAddressesInput{
-		AddressManager:                    outputContracts.AddressManagerImpl,
-		L1ERC721BridgeProxy:               outputContracts.L1Erc721BridgeProxy,
-		SystemConfigProxy:                 outputContracts.SystemConfigProxy,
-		OptimismMintableERC20FactoryProxy: outputContracts.OptimismMintableErc20FactoryProxy,
-		L1StandardBridgeProxy:             outputContracts.L1StandardBridgeProxy,
-		OptimismPortalProxy:               outputContracts.OptimismPortalProxy,
-		DisputeGameFactoryProxy:           outputContracts.DisputeGameFactoryProxy,
-		Opcm:                              pinnedOPCM,
-	}
-
-	var impls opcm.ReadImplementationAddressesOutput
-	var err error
-	if env.UseForge {
-		env.Logger.Info("using Forge for ReadImplementationAddresses", "stage", "deploy-opchain")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:   env.ForgeClient,
-			Context:  env.Context,
-			L1RPCUrl: env.L1RPCUrl,
-		}
-		impls, err = opcm.ReadImplementationAddressesViaForge(forgeEnv, readInput)
-		if err != nil {
-			return OPChainDeploymentResult{}, err
-		}
-	} else {
-		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
-		if err != nil {
-			return OPChainDeploymentResult{}, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
-		}
-
-		impls, err = readImplementations.Run(readInput)
-		if err != nil {
-			return OPChainDeploymentResult{}, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
-		}
-	}
-
+	contracts addresses.OpChainContracts,
+	impls *addresses.ImplementationsContracts,
+) OPChainDeploymentResult {
 	return OPChainDeploymentResult{
 		chainID:         chainID,
-		contracts:       chainContractsForRecordedState(impls, outputContracts),
-		outputContracts: outputContracts,
-		readback:        impls,
+		contracts:       chainContractsForRecordedState(impls, contracts),
+		outputContracts: contracts,
 		initialized:     true,
-	}, nil
+	}
 }
 
 // RecordOPChainDeployment updates in-memory state and is safe to repeat.
@@ -180,32 +133,6 @@ func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) er
 	}
 
 	st.SetChainContracts(result.chainID, result.contracts, true)
-
-	// Continuation deployments may reference an existing OPCM without carrying
-	// its implementation addresses in state. Full apply deployments do carry
-	// them, so refresh the recorded addresses only when that record exists.
-	if st.ImplementationsDeployment != nil {
-		impls := result.readback
-		st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
-		st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
-		st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
-		st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
-		st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.AnchorStateRegistry
-		st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
-		st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
-		st.ImplementationsDeployment.L1StandardBridgeImpl = impls.L1StandardBridge
-		st.ImplementationsDeployment.OptimismMintableErc20FactoryImpl = impls.OptimismMintableERC20Factory
-		st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.DisputeGameFactory
-		st.ImplementationsDeployment.MipsImpl = impls.MipsSingleton
-		st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
-		st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
-		st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
-		st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
-		st.ImplementationsDeployment.SP1PlonkAdapterImpl = impls.SP1PlonkAdapter
-		st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
-		st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.SuperFaultDisputeGame
-		st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.SuperPermissionedDisputeGame
-	}
 	return nil
 }
 
@@ -565,6 +492,7 @@ func BuildDeployOPChainInput(
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
+		BridgeHook:                      chain.GetBridgeHook(),
 	}
 }
 
@@ -590,14 +518,14 @@ func OpChainContractsFromDeployOutput(dco opcm.DeployOPChainOutput) addresses.Op
 }
 
 func chainContractsForRecordedState(
-	impls opcm.ReadImplementationAddressesOutput,
+	impls *addresses.ImplementationsContracts,
 	opChainContracts addresses.OpChainContracts,
 ) addresses.OpChainContracts {
-	if (impls.PermissionedDisputeGame != common.Address{}) {
-		opChainContracts.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
+	if (impls.PermissionedDisputeGameImpl != common.Address{}) {
+		opChainContracts.PermissionedDisputeGameImpl = impls.PermissionedDisputeGameImpl
 	}
-	if (impls.FaultDisputeGame != common.Address{}) {
-		opChainContracts.FaultDisputeGameImpl = impls.FaultDisputeGame
+	if (impls.FaultDisputeGameImpl != common.Address{}) {
+		opChainContracts.FaultDisputeGameImpl = impls.FaultDisputeGameImpl
 	}
 
 	return opChainContracts

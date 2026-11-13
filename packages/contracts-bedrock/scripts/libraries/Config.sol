@@ -312,6 +312,21 @@ library Config {
         return vm.envString("NUT_BUNDLE_PATH");
     }
 
+    /// @notice Returns the genesis state file that an op-deployer script run loads, or "".
+    function opDeployerStateIn() internal view returns (string memory) {
+        return vm.envOr("OP_DEPLOYER_STATE_IN", string(""));
+    }
+
+    /// @notice Returns the file to which an op-deployer script run dumps the genesis state, or "".
+    function opDeployerStateOut() internal view returns (string memory) {
+        return vm.envOr("OP_DEPLOYER_STATE_OUT", string(""));
+    }
+
+    /// @notice Returns the file to which an op-deployer run writes the sender's nonce and balance.
+    function opDeployerSenderOut() internal view returns (string memory) {
+        return vm.envString("OP_DEPLOYER_SENDER_OUT");
+    }
+
     /// @notice Returns the L2 block number to fork at. Defaults to 0 (latest).
     ///         If L2CM activation test is enabled, returns the block before the fork.
     function l2ForkBlockNumber() internal view returns (uint256) {
@@ -326,11 +341,6 @@ library Config {
         return vm.envOr("L2_FORK_CHAIN", string("op"));
     }
 
-    /// @notice Returns true if the development feature interop is enabled.
-    function devFeatureInterop() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
-    }
-
     /// @notice Returns true if the development feature BRIDGE_HOOK is enabled.
     function devFeatureBridgeHook() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__BRIDGE_HOOK", false);
@@ -339,11 +349,6 @@ library Config {
     /// @notice Returns true if the development feature OP_PRIVATE is enabled.
     function devFeatureOpPrivate() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__OP_PRIVATE", false);
-    }
-
-    /// @notice Returns true if the development feature ZK_DISPUTE_GAME is enabled.
-    function devFeatureZkDisputeGame() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);
     }
 
     /// @notice Returns true if the development feature super root games migration is enabled.
@@ -355,6 +360,11 @@ library Config {
     /// @notice Returns true if the system feature custom_gas_token is enabled.
     function sysFeatureCustomGasToken() internal view returns (bool) {
         return vm.envOr("SYS_FEATURE__CUSTOM_GAS_TOKEN", false);
+    }
+
+    /// @notice Returns true if the system feature interop is enabled.
+    function sysFeatureInterop() internal view returns (bool) {
+        return vm.envOr("SYS_FEATURE__INTEROP", false);
     }
 
     /// @notice Returns true if running in kontrol context.

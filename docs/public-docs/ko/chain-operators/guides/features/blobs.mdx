@@ -1,0 +1,133 @@
+---
+title: 배치 데이터를 blob으로 게시하기
+description: 체인의 batcher가 배치 데이터를 blob으로 게시하도록 전환하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+이 가이드에서는 체인에서 blob을 사용하도록 전환하는 방법을 안내합니다. 
+이 기능은 Ecotone 네트워크 업그레이드에서 도입되었습니다.
+
+## blob 사용으로 전환하기
+
+<Steps>
+  <Step title="blob 사용을 위한 scalar 값 결정">
+  Blob으로 데이터를 제출하도록 전환하는 첫 번째 단계는 사용자에게 수수료를 부과하는
+    공식에 설정할 scalar 값을 계산하는 것입니다.
+    scalar 값은 체인이 하루 평균 처리하는 트랜잭션 수, 체인에서 발생하는 트랜잭션 유형, `op-batcher`에 설정한 [`OP_BATCHER_MAX_CHANNEL_DURATION`](/ko/chain-operators/guides/configuration/batcher#set-your--op_batcher_max_channel_duration), 그리고 L1 비용에 더해 사용자에게 부과하려는 목표 마진에 따라 달라집니다.
+    측정된 batcher 지출을 기준으로 scalar 크기를 정하는 방법은 batcher 비용 조정 가이드의 [fee scalar로 지출 회수하기](/ko/use-cases/tune-batcher-costs#step-5-recover-the-spend-with-fee-scalars)를 참고하십시오.
+    fee scalar에 대한 자세한 내용은 [트랜잭션 수수료의 Ecotone 섹션](/ko/op-stack/transactions/fees#ecotone)을 참고하십시오.
+  
+    #### 마진 변경을 위한 수수료 조정
+  
+    체인 운영자는 체인의 처리량이 변하여 blob을 훨씬 더 많이 또는 적게 채우게 되었거나, 단순히 운영 비용을 충당하기 위해 마진을 늘리고 싶은 경우 scalar 값을 높이거나 낮추고 싶을 수 있습니다.
+    L1 데이터 비용에 대한 마진을 늘리거나 줄이려면 `l1baseFeeScalar`와 `l1blobBaseFeeScalar`를 같은 배수로 조정하기만 하면 됩니다.
+  
+    예를 들어 L1 데이터 비용에 대한 마진을 \~10% 늘리려면 다음과 같이 합니다.
+  
+    ```
+    newBaseFeeScalar = prevBaseFeeScalar * 1.1
+    newBlobBaseFeeScalar = prevBlobBaseFeeScalar * 1.1
+    ```
+  </Step>
+
+  <Step title="blob용 scalar 값 업데이트">
+  이상적인 `BaseFeeScalar`와 `BlobBaseFeeScalar`를 결정했다면 이 값들을 체인에 적용해야 합니다. 첫 번째 단계는 두 값을 L1 Config에 설정할 단일 값으로 인코딩하는 것입니다.
+  
+    L1 SystemConfigProxy.setGasConfigEcotone에 트랜잭션을 보내 Scalar 값을 설정할 수 있습니다. 
+  
+    ```bash
+    cast send \
+    --private-key $GS_ADMIN_PRIVATE_KEY \
+    --rpc-url $ETH_RPC_URL \
+    <CONTRACT_ADDRESS> \
+    "setGasConfigEcotone(uint32,uint32)" \
+    <basefeeScalar> <blobbasefeeScalar> 
+    ```
+  
+    L2의 gas price oracle이 `baseFeeScalar`와 `blobBaseFeeScalar`에 대해 예상한 값을 반환하는지 확인하십시오(\~1분 대기).
+  
+    <Info>
+      이 확인은 L2에서 수행되므로 체인의 RPC URL을 사용하고 있는지 확인하십시오. 이 호출을 할 때 geth에 `gas-price`도 제공해야 합니다.
+    </Info>
+  
+    <Tabs>
+      <Tab title="baseFeeScalar">
+        ```shell
+        cast call 0x420000000000000000000000000000000000000F 'baseFeeScalar()(uint256)' --rpc-url YOUR_L2_RPC_URL
+        ```
+      </Tab>
+  
+      <Tab title="blobBaseFeeScalar">
+        ```shell
+        cast call 0x420000000000000000000000000000000000000F 'blobBaseFeeScalar()(uint256)' --rpc-url YOUR_L2_RPC_URL
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="blob을 게시하도록 batcher 업데이트">
+  수수료 구성이 업데이트되었으므로 즉시 batcher를 구성해야 합니다!
+  
+    <Info>
+      scalar 값을 업데이트한 시점부터 Batcher를 업데이트하기 전까지 체인이 사용자에게 수수료를 적게 부과할 수 있으므로, scalar 값 업데이트 직후에 바로 수행하십시오.
+    </Info>
+  
+    batcher 구성 단계:
+  
+    *   `OP_BATCHER_DATA_AVAILABILITY_TYPE=blobs`를 구성하십시오. 적용하려면 batcher를 재시작해야 합니다.
+    *   수수료 절감을 극대화하도록 `OP_BATCHER_MAX_CHANNEL_DURATION`이 적절히 설정되어 있는지 확인하십시오. 자세한 내용은 [OP Batcher 최대 채널 구성](/ko/chain-operators/guides/configuration/batcher#set-your--op_batcher_max_channel_duration)을 참고하십시오.
+    *   선택적으로 batcher가 다중 blob을 지원하도록 구성할 수 있습니다. 자세한 내용은 [다중 blob batcher 구성](/ko/chain-operators/guides/configuration/batcher#configure-your-batcher-to-use-multiple-blobs)을 참고하십시오.
+  </Step>
+</Steps>
+
+## calldata 사용으로 되돌리기
+
+체인 운영자로서 `blobBaseFee`가 충분히 비싸고, 체인이 구성된 batcher
+`OP_BATCHER_MAX_CHANNEL_DURATION` 내에 blob을 의미 있게 채울 만큼 충분한 트랜잭션을
+처리하지 않는 경우, calldata로 데이터를 게시하는 방식으로 되돌리고 싶을 수 있습니다. 트랜잭션이 blob과 calldata 중 어느 쪽이 더 저렴할지 판단하려면 현재 blob base fee와 L1 base fee를 비교하거나, `OP_BATCHER_DATA_AVAILABILITY_TYPE=auto`를 설정하여 batcher가 자동으로 비교하도록 하십시오. 장단점은 batcher 비용 조정 가이드의 [데이터 가용성 유형 선택](/ko/use-cases/tune-batcher-costs#step-3-choose-a-data-availability-type)을 참고하십시오. 체인은 다음 단계에 따라
+blob에서 calldata 사용으로 다시 전환할 수 있습니다.
+
+<Steps>
+  <Step title="calldata 사용을 위한 scalar 값 결정">
+  calldata를 사용하는 경우, Ecotone 이전에 "scalar"를 설정했던 것과 비슷하게
+    `BaseFeeScalar`를 설정할 수 있습니다. 다만 "overhead" 구성 요소가 제거된 것을
+    보상하기 위해 5-10% 정도 높여야 합니다.
+    측정된 batcher 지출을 기준으로 scalar 크기를 정하는 방법은 batcher 비용 조정 가이드의 [fee scalar로 지출 회수하기](/ko/use-cases/tune-batcher-costs#step-5-recover-the-spend-with-fee-scalars)를 참고하십시오.
+  
+    <Info>
+    L1의 Pectra 업그레이드 이후, calldata DA만 사용하는 체인은 BaseFeeScalar를 10/4배로 높여야 합니다. [이 공지](/ko/notices/archive/pectra-changes)를 참고하십시오.
+    </Info>
+  
+    체인은 수수료를 업데이트하여 마진을 늘리거나 줄일 수 있습니다. calldata를 사용하는 경우, 원하는 마진을 달성하도록 `BaseFeeScalar`를 조정해야 합니다.
+    예를 들어 L1 Fee 마진을 10% 늘리려면 다음과 같이 합니다.
+  
+    ```
+    BaseFeeScalar = BaseFeeScalar * 1.1
+    BlobBaseFeeScalar = 0
+    ```
+  </Step>
+
+  <Step title="calldata용 scalar 값 업데이트">
+  scalar 값을 설정하려면 [blob용 Scalar 값 업데이트](#update-your-scalar-values-for-blobs)에 설명된 것과 동일한 절차를 따르십시오.
+  </Step>
+
+  <Step title="calldata를 게시하도록 batcher 업데이트">
+  수수료 구성이 업데이트되었으므로 즉시 batcher를 구성해야 합니다.
+  
+    <Info>
+      다시 한번 강조하지만, scalar 값을 업데이트한 시점부터 Batcher를 업데이트하기 전까지 체인이 사용자에게 수수료를 적게 부과할 수 있으므로, scalar 값 업데이트 직후에 바로 수행하십시오.
+    </Info>
+  
+    *   `OP_BATCHER_DATA_AVAILABILITY_TYPE=calldata`를 구성하십시오. 적용하려면 batcher를 재시작해야 합니다.
+    *   절감 효과를 극대화하도록 `OP_BATCHER_MAX_CHANNEL_DURATION`이 적절히 설정되어 있는지 확인하십시오. **참고:** 여기서 높은 값을 설정하면 비용이 낮아지지만, blob을 사용하는 처리량이 낮은 체인에 비해서는 효과가 덜합니다. 자세한 내용은 [OP Batcher 최대 채널 구성](/ko/chain-operators/guides/configuration/batcher#set-your--op_batcher_max_channel_duration)을 참고하십시오.
+  </Step>
+</Steps>
+
+## batcher에서 auto DA 모드 사용하기
+이제 batcher는 어떤 DA 유형이 더 저렴한지에 따라 blob과 calldata 사이를 자동으로 전환하는 기능을 지원합니다. 이는 체인의 DA 수익 마진을 약간 개선할 수 있는 최적화입니다.
+이 모드를 활성화하려면 `OP_BATCHER_DATA_AVAILABILITY_TYPE=auto`를 설정하십시오.
+
+## 기타 고려 사항
+
+*   Ecotone 업그레이드와 관련된 L1 Data Fee 변경 사항에 대한 정보는 [트랜잭션 수수료 페이지](/ko/op-stack/transactions/fees#ecotone)를 참고하십시오.
+*   아카이브 node를 활성화하려면 blob archiver 서비스에 접근해야 합니다. [Optimism의 서비스](/ko/op-mainnet/network-information/snapshots)를 사용하거나 [직접 운영](/ko/chain-operators/tools/explorer#create-an-archive-node)할 수 있습니다.

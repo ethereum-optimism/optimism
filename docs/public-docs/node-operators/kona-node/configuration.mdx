@@ -70,8 +70,8 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.no-discovery` | `KONA_NODE_P2P_NO_DISCOVERY` | Disable Discv5 (node discovery), see [running without discovery](#running-without-discovery) | `false` |
 | `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | Hex-encoded 32-byte private key for peer ID | - |
-| `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers | - |
-| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | `0` |
+| `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers. If not set, a specific `--p2p.listen.ip`; on `0.0.0.0` or `::`, none until discovery learns it from peers, see [advertised address](#advertised-address) | - |
+| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise. If `0`, the port LibP2P binds | `0` |
 | `--p2p.advertise.udp <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port to advertise | `0` |
 | `--p2p.listen.ip <IP>` | `KONA_NODE_P2P_LISTEN_IP` | IP to bind LibP2P/Discv5 to | `0.0.0.0` |
 | `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to bind LibP2P to | `9222` |
@@ -87,12 +87,14 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.scoring <none or light>` | `KONA_NODE_P2P_SCORING` | Peer scoring strategy | `light` |
 | `--p2p.ban.peers` | `KONA_NODE_P2P_BAN_PEERS` | Enable peer banning | `false` |
 | `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |
-| `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration | `60` |
+| `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration: a banned peer is disconnected, and its connections are refused in both directions until the ban expires or [`opp2p_unblockPeer`](/node-operators/kona-node/rpc/p2p#opp2p_unblockpeer) lifts it. Bans don't survive a restart | `60` |
 | `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5` |
+| `--p2p.discovery.ip-votes <N>` | `KONA_NODE_P2P_DISCOVERY_IP_VOTES` | How many peers must report the same external address before the node advertises it, at least `2`. Ignored with `--p2p.advertise.ip`. Fewer votes let fewer peers decide the address, so keep the default on public networks. op-node has no such flag: its threshold is fixed at `10`. See [advertised address](#advertised-address) | `10` |
+| `--p2p.discovery.private` | `KONA_NODE_P2P_DISCOVERY_PRIVATE` | Let discovery use non-public addresses, such as loopback and LAN ones, in other nodes' records and bootnodes, as on a devnet. See [discovered addresses](#discovered-addresses) | `false` |
 | `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
-| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs | - |
+| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs. A bootnode at a non-public address needs `--p2p.discovery.private`, see [discovered addresses](#discovered-addresses) | - |
 | `--p2p.static-peers <MULTIADDR,...>` | `KONA_NODE_P2P_STATIC_PEERS` | Peers to dial at startup and keep connected, see [static peers](#static-peers). Alias: `--p2p.static` | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
@@ -100,6 +102,58 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.sequencer.key.path <PATH>` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH` | Path to a file with the hex-encoded private key that signs gossiped blocks | - |
 | `--p2p.signer.endpoint <URL>` | `KONA_NODE_P2P_SIGNER_ENDPOINT` | Remote op-signer that signs gossiped blocks. Requires `--p2p.signer.address` | - |
 | `--p2p.signer.address <ADDRESS>` | `KONA_NODE_P2P_SIGNER_ADDRESS` | Address of the remote signer's key | - |
+
+### Advertised address
+
+<Unreleased component="kona-node" />
+
+Other nodes find the node through the record that discovery publishes, its ENR. The record holds the TCP port for gossip, the UDP port for discovery, and the IP to reach both at, once the node knows it:
+
+| `--p2p.listen.ip` | `--p2p.advertise.ip` | Advertised IP |
+|-------------------|----------------------|---------------|
+| Any | Set | The advertise IP, which never changes. |
+| A specific address, such as `10.0.0.5` or `127.0.0.1` | Not set | The listen IP at first. Discovery replaces it once enough peers agree on another address. |
+| All interfaces, `0.0.0.0` (the default) or `::` | Not set | None at first. Discovery adds one once enough peers agree on an address. |
+
+The TCP port is `--p2p.advertise.tcp` if set, and otherwise the port LibP2P binds: `--p2p.listen.tcp`, or the port picked for a listen port of `0`. The UDP port is `--p2p.advertise.udp` if set, and otherwise the port discovery listens on.
+
+Without `--p2p.advertise.ip`, discovery learns the node's address from the peers it finds through its bootnodes: each one it contacts reports the address it sees the node at. The bootnodes themselves don't count. Once `--p2p.discovery.ip-votes` of them, 10 by default, report the same address, the node advertises it. Until then, a node without an IP in its record can't be contacted, so other nodes don't keep it. The peers it reached before then add it once they start a new session with it, or learn its record from another node.
+
+On a network with fewer reachable nodes than that, not counting the node's bootnodes, such as a devnet or a local test network, a node listening on all interfaces never learns its address, and other nodes can't find it. Nodes that listen on all interfaces count only once they've learned their own address, so on a small network where most nodes do, none of them may. On such a network:
+
+- Set `--p2p.advertise.ip` to the address other nodes reach it at, or listen on that address with `--p2p.listen.ip`.
+- Or lower `--p2p.discovery.ip-votes`. Fewer votes let fewer peers decide the address: two colluding peers could make the node unreachable, or point other nodes at another host. So keep the default on public networks.
+
+On a chain without built-in bootnodes, the node logs a warning at startup if it listens on all interfaces without `--p2p.advertise.ip`.
+
+<Info>
+
+op-node never advertises its listen IP: without `--p2p.advertise.ip`, it learns its address from the peers' votes, with a fixed threshold of 10. So op-node needs `--p2p.advertise.ip` on small networks too, even when it listens on a specific address.
+
+</Info>
+
+### Discovered addresses
+
+<Unreleased component="kona-node" />
+
+Other nodes hand the node records that can name an address it can't reach, such as another host's `127.0.0.1`, or a host that isn't a node at all. So the node follows two rules:
+
+- **Apart from its bootnodes, it dials only nodes discovery has had a session with, and only if the TCP address in their record has the IP the session came from.** It saves such records and the bootnodes of its chain in its bootstore, apart from private ones, see below, and hands them to gossip at startup and every minute after, so that it redials the peers it lost. A record that names another host is dropped. Static peers and [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer) are dialed as given.
+- **Discovery uses only public addresses, unless `--p2p.discovery.private` is set.** A record with a "this network" (`0.0.0.0/8`), loopback, private, link-local, shared (`100.64.0.0/10`), IETF protocol assignment (`192.0.0.0/24`), benchmarking (`198.18.0.0/15`), reserved (`240.0.0.0/4`), multicast, broadcast or documentation address isn't contacted, kept in the discovery table, or saved, unless it starts a session with the node, see below, and the bootstore drops it at startup. Some clouds and labs use the benchmarking and reserved ranges for internal addresses. This applies to bootnodes, given as ENRs or enode URLs, so a devnet that uses loopback or LAN bootnodes needs the flag. The other special-purpose ranges, such as anycast and NAT64 addresses, count as public.
+
+Behind a Kubernetes Service with `externalTrafficPolicy: Cluster`, the default, packets from other nodes reach the node from a cluster node's IP rather than their own. A node that starts a session with it then doesn't match its record, so it isn't dialed, and the node finds fewer peers than op-node does. Sessions the node starts itself are unaffected. Set `externalTrafficPolicy: Local` to keep the senders' IPs.
+
+Without `--p2p.discovery.private`, the node never reaches out to a private address first. A node at a private address that starts a session with it is dialed back, at the address the session came from, as it could dial this node over gossip anyway, but it isn't saved, so it isn't dialed after a restart. To peer with private nodes, such as neighbours in a VPC, set the flag, or list them in `--p2p.static-peers`. Discovery also keeps a node it has a session with in its table, and passes its record on to nodes that look it up, as it can't check a record against the node asking for it. Nodes that follow these rules don't contact a private record they get this way.
+
+<Info>
+
+To keep a node, such as a sequencer, behind public sentry nodes, run it with `--p2p.no-discovery`, list the sentries in its `--p2p.static-peers`, and list it in theirs, see [static peers](#static-peers) and [running without discovery](#running-without-discovery). Static peers are dialed directly, redialed every minute, and never passed on through discovery.
+
+A node that ran discovery against its sentry instead would leak, and wouldn't stay behind it: the sentry keeps it in its table, and passes its record, with its node ID and LAN address, on to every node that looks it up. The node also finds the sentry's other peers through it, and connects to them directly.
+
+</Info>
+
+Like Lighthouse, kona-node uses a fixed rule. op-node instead checks each record against the node that returned it, so it accepts a LAN record from a LAN neighbour without a flag.
 
 ### Static peers
 
@@ -129,7 +183,7 @@ The node treats its static peers as follows:
 
 - It dials them at startup, and once a minute dials those that aren't connected. A static peer that disconnects is dialed again about a second later.
 - Static peers are exempt from the redial limit (`--p2p.redial`), are never banned for a low score, and stay protected after `opp2p_unprotectPeer`.
-- A static peer blocked with `opp2p_blockPeer`, or at a blocked address or subnet, isn't dialed until it's unblocked.
+- A static peer blocked with `opp2p_blockPeer`, or at a blocked address or subnet, is disconnected and isn't dialed again until it's unblocked. Once unblocked, it's dialed at the next check, within a minute. To connect it at once, call [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer). The node logs a warning when a block covers a static peer: by its peer ID, by an IP address it's configured with, or by the address of its open connection. It can't tell for a static peer given by DNS name that isn't connected.
 - The node never passes its static peers on through discovery, so other nodes can't find a static peer through it. A static peer can still be found if it runs discovery itself.
 
 <Info>
