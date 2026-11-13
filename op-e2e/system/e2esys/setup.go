@@ -318,7 +318,7 @@ type SystemConfig struct {
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
 
-	// Explicitly disable setting `RollupSequencerHTTP` to forward txs from sentry nodes
+	// Explicitly disable forwarding txs from the non-sequencer nodes to the sequencer
 	DisableTxForwarder bool
 
 	// Configure data-availability type that is used by the batcher.

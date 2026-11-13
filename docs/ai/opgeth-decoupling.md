@@ -30,8 +30,8 @@ of three fates:
    fork-only EVM hooks. op-acceptance-tests sequences op-reth-only for Karst+ (#21182);
    op-e2e/actions and the kona proof tests (`rust/kona/tests/proofs`) run on an
    op-reth-test-engine subprocess EL (#20415, #21196, #21905);
-   op-e2e system tests run op-reth as their only L2 EL and op-devstack/sysgo retires its
-   in-process op-geth L2 EL (§17); and
+   op-e2e system tests run op-reth as their only L2 EL; op-devstack/sysgo still has an
+   in-process op-geth L2 EL to retire (§17); and
    op-deployer runs all its scripts on upstream forge; `op-chain-ops/script` is deleted (§16).
 3. **Delete** — geth-as-library tools with no remaining need, to be reimplemented in Rust against
    op-reth if ever needed again: op-simulate and op-run-block (#21282), `op-wheel/cheat`, the
