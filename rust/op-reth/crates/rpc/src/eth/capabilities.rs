@@ -66,6 +66,7 @@ mod tests {
     use alloy_primitives::B256;
     use reth_rpc_eth_types::{EthCapabilitiesHead, EthCapabilitiesResource};
 
+    /// Any non-zero Bedrock block; this is OP Mainnet's.
     const BEDROCK: u64 = 105_235_063;
 
     #[test]

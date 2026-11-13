@@ -147,6 +147,7 @@ async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
     Ok(())
 }
 
+/// Any non-zero Bedrock block; this is OP Mainnet's.
 const BEDROCK_BLOCK: u64 = 105_235_063;
 
 #[tokio::test]

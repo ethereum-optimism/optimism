@@ -410,20 +410,27 @@ mod tests {
         }
     }
 
-    /// Builds a chain config where every fork up to and including `forks[idx]` is active at
-    /// timestamp 1, mirroring a real chain that has progressed through the schedule. This is what
-    /// exercises the newest-first precedence in `spec_by_timestamp_after_bedrock`: with several
-    /// forks simultaneously active, the resolver must return the newest one.
-    fn cumulative_hardforks(idx: usize) -> OpChainHardforks {
-        let activations = FORK_CHRONOLOGY.iter().take(idx + 1).map(|(fork, _)| {
-            let cond = if *fork == OpHardfork::Bedrock {
-                ForkCondition::Block(0)
-            } else {
-                ForkCondition::Timestamp(1)
-            };
-            (*fork, cond)
-        });
+    /// Builds a chain config scheduling every fork up to and including `FORK_CHRONOLOGY[last]`,
+    /// fork `idx` at timestamp `activation(idx)` (Bedrock at block 0).
+    fn chronology_hardforks(last: usize, activation: impl Fn(usize) -> u64) -> OpChainHardforks {
+        let activations =
+            FORK_CHRONOLOGY.iter().take(last + 1).enumerate().map(|(idx, (fork, _))| {
+                let cond = if *fork == OpHardfork::Bedrock {
+                    ForkCondition::Block(0)
+                } else {
+                    ForkCondition::Timestamp(activation(idx))
+                };
+                (*fork, cond)
+            });
         OpChainHardforks::new(activations)
+    }
+
+    /// Every fork up to and including `FORK_CHRONOLOGY[idx]` active at timestamp 1, mirroring a
+    /// real chain that has progressed through the schedule. This is what exercises the
+    /// newest-first precedence in `spec_by_timestamp_after_bedrock`: with several forks
+    /// simultaneously active, the resolver must return the newest one.
+    fn cumulative_hardforks(idx: usize) -> OpChainHardforks {
+        chronology_hardforks(idx, |_| 1)
     }
 
     /// Locks in the corrected newest-first fork ordering: when forks are activated cumulatively
@@ -446,15 +453,7 @@ mod tests {
     /// active, never to one that is scheduled but still in the future.
     #[test]
     fn test_spec_skips_scheduled_future_forks() {
-        let chain =
-            OpChainHardforks::new(FORK_CHRONOLOGY.iter().enumerate().map(|(idx, (fork, _))| {
-                let cond = if *fork == OpHardfork::Bedrock {
-                    ForkCondition::Block(0)
-                } else {
-                    ForkCondition::Timestamp(100 * idx as u64)
-                };
-                (*fork, cond)
-            }));
+        let chain = chronology_hardforks(FORK_CHRONOLOGY.len() - 1, |idx| 100 * idx as u64);
         for (idx, window) in FORK_CHRONOLOGY.windows(2).enumerate() {
             let [(_, previous), (fork, expected)] = window else { unreachable!() };
             let activation = 100 * (idx as u64 + 1);
