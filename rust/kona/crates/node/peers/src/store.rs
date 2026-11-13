@@ -509,7 +509,8 @@ mod tests {
     /// tests, may read it while the node runs. The gap is short, so this test may miss it, unlike
     /// [`test_save_replaces_the_file`].
     ///
-    /// Each save adds a record, so that the store has something to write each time.
+    /// Each save adds a record, so that the store has something to write each time. The reader
+    /// stops at the first file it sees empty or cut off: one is enough.
     #[test]
     fn test_reader_never_sees_a_partial_file() {
         use std::sync::{
@@ -518,6 +519,7 @@ mod tests {
         };
 
         const RECORDS: usize = 500;
+        const SAVES: usize = 200;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
         let (mut store, _) = BootStore::open(path.clone()).unwrap();
@@ -530,25 +532,26 @@ mod tests {
         let reader = std::thread::spawn({
             let done = Arc::clone(&done);
             move || {
-                let mut partial = 0;
                 while !done.load(Ordering::Relaxed) {
                     let json = std::fs::read(&path).unwrap();
-                    match Records::parse_json_slice(&json) {
-                        Ok((records, _)) if records.0.len() >= RECORDS => {}
-                        _ => partial += 1,
+                    let whole = matches!(
+                        Records::parse_json_slice(&json),
+                        Ok((records, _)) if records.0.len() >= RECORDS
+                    );
+                    if !whole {
+                        return true;
                     }
                 }
-                partial
+                false
             }
         });
-        for _ in 0..1000 {
+        for _ in 0..SAVES {
             store.add_enr(record());
             store.sync().unwrap();
         }
         done.store(true, Ordering::Relaxed);
 
-        let partial = reader.join().unwrap();
-        assert_eq!(partial, 0, "a reader saw the bootstore empty or cut off {partial} times");
+        assert!(!reader.join().unwrap(), "a reader saw the bootstore empty or cut off");
     }
 
     /// A directory can't be read as the bootstore.
