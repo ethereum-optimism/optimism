@@ -19,27 +19,6 @@ use tracing::Instrument;
 
 use crate::{AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
 
-/// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
-/// started in, such as the one each test node runs in.
-fn spawn_in_current_span<F>(future: F) -> JoinHandle<F::Output>
-where
-    F: Future + Send + 'static,
-    F::Output: Send + 'static,
-{
-    tokio::spawn(future.in_current_span())
-}
-
-/// Spawns discv5's own tasks like [`spawn_in_current_span`]. discv5's default executor spawns them
-/// outside any span.
-#[derive(Clone, Debug)]
-pub(crate) struct CurrentSpanExecutor;
-
-impl discv5::Executor for CurrentSpanExecutor {
-    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        spawn_in_current_span(future);
-    }
-}
-
 /// The number of times to retry starting the [`Discv5`] service, with exponential backoff.
 const START_MAX_RETRIES: usize = 3;
 
@@ -51,108 +30,6 @@ const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 
 /// The number of records the channel to gossip holds.
 const ENR_CHANNEL_CAPACITY: usize = 1024;
-
-/// Returns whether the TCP address gossip dials from `enr`, see [`kona_peers::enr_tcp_socket`], has
-/// `session_ip`, the IP that a session with the node came from. Then the session has confirmed the
-/// address gossip dials, which is also the one it dials after a restart, once the bootstore has
-/// saved the record.
-fn holds_session_ip(enr: &Enr, session_ip: IpAddr) -> bool {
-    kona_peers::enr_tcp_socket(enr)
-        .is_some_and(|socket| socket.ip().to_canonical() == session_ip.to_canonical())
-}
-
-/// Returns whether `table_filter` accepts the address of `enode`, a bootnode's enode URL, so that
-/// discovery may contact it: it judges a record at that address, signed with a throwaway key.
-///
-/// Discovery asks an enode bootnode for its record, which starts a session, and discv5 keeps a
-/// node it has a session with whatever its address, so the address is checked before contact. It
-/// reads the address with the parse `Discv5::request_enr` does, so it judges the one discovery
-/// would contact, and fails with that parse's error for an enode URL discovery can't contact, such
-/// as one with a DNS name or without a UDP port.
-fn accepts_enode(table_filter: fn(&Enr) -> bool, enode: &Multiaddr) -> Result<bool, &'static str> {
-    let contact = NodeContact::try_from_multiaddr(enode.clone())?;
-    let mut record = Enr::builder();
-    match contact.socket_addr().ip() {
-        IpAddr::V4(ip) => record.ip4(ip),
-        IpAddr::V6(ip) => record.ip6(ip),
-    };
-    Ok(record
-        .build(&enr::CombinedKey::generate_secp256k1())
-        .is_ok_and(|record| table_filter(&record)))
-}
-
-/// Saves `store` on a blocking thread, and returns what [`BootStore::sync`] returned, or `None` if
-/// the runtime is shutting down.
-///
-/// A save writes a file and syncs it to disk, which can take a while on a slow disk, so it runs
-/// off the runtime's thread, which runs discv5's and gossip's tasks too. The caller waits for it,
-/// so nothing changes the store meanwhile.
-async fn sync_on_blocking_thread(store: &mut BootStore) -> Option<Result<bool, BootStoreError>> {
-    let mut saving = std::mem::replace(store, BootStore::in_memory());
-    let saved = tokio::task::spawn_blocking(move || {
-        let result = saving.sync();
-        (saving, result)
-    })
-    .await;
-    match saved {
-        Ok((saved, result)) => {
-            *store = saved;
-            Some(result)
-        }
-        Err(err) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
-        Err(_) => None,
-    }
-}
-
-/// Returns how many saved records [`forward_saved`] may hand over now: the room left in the
-/// channel to gossip beyond half of its capacity. That half stays free for the records of the
-/// sessions that start before gossip catches up, which are handed over only once.
-fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
-    sender.capacity().saturating_sub(sender.max_capacity() / 2)
-}
-
-/// Hands gossip the saved records, the bootnodes and the records a session confirmed. Gossip dials
-/// those it isn't connected to. It redials a peer only when discovery hands it over again, and
-/// discovery reports a session only when it starts, which discv5 keeps going for as long as it
-/// pings the node.
-///
-/// Doesn't wait for room in the channel, which would pile up tasks waiting to send: it hands over
-/// only as many as [`room_for_saved`] allows, and the rest at a later store interval. They are
-/// handed over in a random order, so that each interval gets a different part of them through.
-fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>) {
-    let mut enrs = store.valid_peers_with_chain_id(chain_id);
-    enrs.shuffle(&mut rand::rng());
-    let room = room_for_saved(sender);
-    if enrs.len() > room {
-        debug!(target: "discovery", saved = enrs.len(), room, "Handing over part of the saved records, keeping room in the channel to gossip for session records");
-        enrs.truncate(room);
-    }
-    for enr in enrs {
-        // Nothing else sends meanwhile, so they all fit, and only a closed channel refuses them.
-        if sender.try_send(enr.clone()).is_err() {
-            return;
-        }
-    }
-}
-
-/// Hands gossip the record of a node that discovery has just had a session with, for gossip to
-/// dial.
-///
-/// Doesn't wait for room in the channel: nodes that start sessions with us decide how many arrive,
-/// and tasks waiting to send them would pile up. A dropped record is handed over again when the
-/// node's session starts again, or with the saved records if the bootstore saved it.
-fn forward_session(enr: Enr, sender: &mpsc::Sender<Enr>) {
-    match sender.try_send(enr) {
-        Ok(()) => {}
-        Err(TrySendError::Full(_)) => {
-            debug!(target: "discovery", "The channel to gossip is full, dropping a session's record");
-            metrics::counter!(crate::Metrics::DROPPED_ENRS).increment(1);
-        }
-        Err(TrySendError::Closed(_)) => {
-            debug!(target: "discovery", "The channel to gossip is closed, dropping a session's record");
-        }
-    }
-}
 
 /// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
 #[derive(Debug, PartialEq, Eq)]
@@ -673,6 +550,129 @@ impl Discv5Driver {
         });
 
         (Discv5Handler::new(chain_id, req_sender), enr_recv, task)
+    }
+}
+
+/// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
+/// started in, such as the one each test node runs in.
+fn spawn_in_current_span<F>(future: F) -> JoinHandle<F::Output>
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    tokio::spawn(future.in_current_span())
+}
+
+/// Spawns discv5's own tasks like [`spawn_in_current_span`]. discv5's default executor spawns them
+/// outside any span.
+#[derive(Clone, Debug)]
+pub(crate) struct CurrentSpanExecutor;
+
+impl discv5::Executor for CurrentSpanExecutor {
+    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
+        spawn_in_current_span(future);
+    }
+}
+
+/// Returns whether the TCP address gossip dials from `enr`, see [`kona_peers::enr_tcp_socket`], has
+/// `session_ip`, the IP that a session with the node came from. Then the session has confirmed the
+/// address gossip dials, which is also the one it dials after a restart, once the bootstore has
+/// saved the record.
+fn holds_session_ip(enr: &Enr, session_ip: IpAddr) -> bool {
+    kona_peers::enr_tcp_socket(enr)
+        .is_some_and(|socket| socket.ip().to_canonical() == session_ip.to_canonical())
+}
+
+/// Returns whether `table_filter` accepts the address of `enode`, a bootnode's enode URL, so that
+/// discovery may contact it: it judges a record at that address, signed with a throwaway key.
+///
+/// Discovery asks an enode bootnode for its record, which starts a session, and discv5 keeps a
+/// node it has a session with whatever its address, so the address is checked before contact. It
+/// reads the address with the parse `Discv5::request_enr` does, so it judges the one discovery
+/// would contact, and fails with that parse's error for an enode URL discovery can't contact, such
+/// as one with a DNS name or without a UDP port.
+fn accepts_enode(table_filter: fn(&Enr) -> bool, enode: &Multiaddr) -> Result<bool, &'static str> {
+    let contact = NodeContact::try_from_multiaddr(enode.clone())?;
+    let mut record = Enr::builder();
+    match contact.socket_addr().ip() {
+        IpAddr::V4(ip) => record.ip4(ip),
+        IpAddr::V6(ip) => record.ip6(ip),
+    };
+    Ok(record
+        .build(&enr::CombinedKey::generate_secp256k1())
+        .is_ok_and(|record| table_filter(&record)))
+}
+
+/// Saves `store` on a blocking thread, and returns what [`BootStore::sync`] returned, or `None` if
+/// the runtime is shutting down.
+///
+/// A save writes a file and syncs it to disk, which can take a while on a slow disk, so it runs
+/// off the runtime's thread, which runs discv5's and gossip's tasks too. The caller waits for it,
+/// so nothing changes the store meanwhile.
+async fn sync_on_blocking_thread(store: &mut BootStore) -> Option<Result<bool, BootStoreError>> {
+    let mut saving = std::mem::replace(store, BootStore::in_memory());
+    let saved = tokio::task::spawn_blocking(move || {
+        let result = saving.sync();
+        (saving, result)
+    })
+    .await;
+    match saved {
+        Ok((saved, result)) => {
+            *store = saved;
+            Some(result)
+        }
+        Err(err) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
+        Err(_) => None,
+    }
+}
+
+/// Returns how many saved records [`forward_saved`] may hand over now: the room left in the
+/// channel to gossip beyond half of its capacity. That half stays free for the records of the
+/// sessions that start before gossip catches up, which are handed over only once.
+fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
+    sender.capacity().saturating_sub(sender.max_capacity() / 2)
+}
+
+/// Hands gossip the saved records, the bootnodes and the records a session confirmed. Gossip dials
+/// those it isn't connected to. It redials a peer only when discovery hands it over again, and
+/// discovery reports a session only when it starts, which discv5 keeps going for as long as it
+/// pings the node.
+///
+/// Doesn't wait for room in the channel, which would pile up tasks waiting to send: it hands over
+/// only as many as [`room_for_saved`] allows, and the rest at a later store interval. They are
+/// handed over in a random order, so that each interval gets a different part of them through.
+fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>) {
+    let mut enrs = store.valid_peers_with_chain_id(chain_id);
+    enrs.shuffle(&mut rand::rng());
+    let room = room_for_saved(sender);
+    if enrs.len() > room {
+        debug!(target: "discovery", saved = enrs.len(), room, "Handing over part of the saved records, keeping room in the channel to gossip for session records");
+        enrs.truncate(room);
+    }
+    for enr in enrs {
+        // Nothing else sends meanwhile, so they all fit, and only a closed channel refuses them.
+        if sender.try_send(enr.clone()).is_err() {
+            return;
+        }
+    }
+}
+
+/// Hands gossip the record of a node that discovery has just had a session with, for gossip to
+/// dial.
+///
+/// Doesn't wait for room in the channel: nodes that start sessions with us decide how many arrive,
+/// and tasks waiting to send them would pile up. A dropped record is handed over again when the
+/// node's session starts again, or with the saved records if the bootstore saved it.
+fn forward_session(enr: Enr, sender: &mpsc::Sender<Enr>) {
+    match sender.try_send(enr) {
+        Ok(()) => {}
+        Err(TrySendError::Full(_)) => {
+            debug!(target: "discovery", "The channel to gossip is full, dropping a session's record");
+            metrics::counter!(crate::Metrics::DROPPED_ENRS).increment(1);
+        }
+        Err(TrySendError::Closed(_)) => {
+            debug!(target: "discovery", "The channel to gossip is closed, dropping a session's record");
+        }
     }
 }
 
