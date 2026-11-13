@@ -63,6 +63,20 @@ run-bls12-381-check:
 # Build + run the BLS12-381 zkVM differential check (requires `just install-sp1-toolchain`).
 check-bls12-381-zkvm: build-bls12-381-check-elf run-bls12-381-check
 
+# Build the test-only hash-collision regression check guest into elf/ (not part of build-elfs).
+build-hashdos-check-elf:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export KONA_SP1_GIT_SHA="$(just _git-sha)"
+    just _build-elf hashdos-check native "" tests/hashdos-check
+
+# Execute elf/hashdos-check-elf in SP1's CPU executor with colliding and control TSTORE keys.
+run-hashdos-check:
+    cd ../.. && KONA_SP1_ELF_DIR="{{justfile_directory()}}/elf" cargo run --release --locked -p kona-sp1-super-range-executor --example hashdos_check
+
+# Build + run the zkVM hash-collision regression check (requires `just install-sp1-toolchain`).
+check-hashdos-zkvm: build-hashdos-check-elf run-hashdos-check
+
 [private]
 _build-elf NAME MODE features="" DIR="":
     #!/usr/bin/env bash

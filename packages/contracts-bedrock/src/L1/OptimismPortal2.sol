@@ -214,6 +214,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param proofSubmitter Address of the proof submitter.
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
 
+    /// @notice Emitted when a withdrawal transaction is proven. Exists as a separate event to
+    ///         allow for backwards compatibility for tooling that observes the WithdrawalProven
+    ///         and WithdrawalProvenExtension1 events.
+    /// @param withdrawalHash   Hash of the withdrawal transaction.
+    /// @param proofSubmitter   Address of the proof submitter.
+    /// @param disputeGameProxy Dispute game the withdrawal was proven against.
+    event WithdrawalProvenExtension2(
+        bytes32 indexed withdrawalHash, address indexed proofSubmitter, IDisputeGame indexed disputeGameProxy
+    );
+
     /// @notice Emitted when a withdrawal transaction is finalized.
     /// @param withdrawalHash Hash of the withdrawal transaction.
     /// @param success        Whether the withdrawal transaction was successful.
@@ -324,9 +334,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.7.0
+    /// @custom:semver 7.8.0
     function version() public pure virtual returns (string memory) {
-        return "7.7.0";
+        return "7.8.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -593,6 +603,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Emit a WithdrawalProven events.
         emit WithdrawalProven(withdrawalHash, _tx.sender, _tx.target);
         emit WithdrawalProvenExtension1(withdrawalHash, msg.sender);
+        emit WithdrawalProvenExtension2(withdrawalHash, msg.sender, disputeGameProxy);
     }
 
     /// @notice Finalizes a withdrawal transaction. If a bridge hook is set, the hook can hold the
@@ -1083,7 +1094,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _held[id_] = true;
 
         if (_item.asset == BridgeHookTypes.Asset.ERC20) {
-            _l1StandardBridge().holdERC20(_item.direction, _message);
+            _l1StandardBridge().holdERC20(id_, _item.direction, _message);
         }
     }
 
@@ -1102,7 +1113,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         if (_item.asset == BridgeHookTypes.Asset.ERC20) {
             (, bytes memory message) = BridgeHookDecoder.extractTokenMessage(_item);
-            _l1StandardBridge().restoreERC20(_item.direction, message);
+            _l1StandardBridge().restoreERC20(id, _item.direction, message);
         }
     }
 

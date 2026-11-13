@@ -409,3 +409,28 @@ func TestP2PMocknet(t *testing.T) {
 	require.Equal(t, hostA.Network().Connectedness(hostC.ID()), network.Connected)
 	require.Equal(t, hostB.Network().Connectedness(hostC.ID()), network.Connected)
 }
+
+// TestStaticPeerRedialUsesConfiguredAddrs covers a static peer whose configured address has expired from
+// the peerstore while the peer moved: only an old address it advertised is left. The reconnect has to dial
+// the configured /dns4 address again instead of retrying the old one forever.
+func TestStaticPeerRedialUsesConfiguredAddrs(t *testing.T) {
+	hostB, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = hostB.Close() })
+	port, err := hostB.Addrs()[0].ValueForProtocol(ma.P_TCP)
+	require.NoError(t, err)
+
+	hostA, err := libp2p.New(libp2p.NoListenAddrs)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = hostA.Close() })
+	e := &extraHost{Host: hostA, log: testlog.Logger(t, log.LevelError)}
+
+	static := &peer.AddrInfo{ID: hostB.ID(), Addrs: []ma.Multiaddr{ma.StringCast("/dns4/localhost/tcp/" + port)}}
+	stale := ma.StringCast("/ip4/127.0.0.1/tcp/1")
+	hostA.Peerstore().AddAddr(hostB.ID(), stale, time.Hour)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, e.dialStaticPeer(ctx, static))
+	require.Equal(t, network.Connected, hostA.Network().Connectedness(hostB.ID()))
+}

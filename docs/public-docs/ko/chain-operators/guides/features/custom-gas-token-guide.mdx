@@ -15,7 +15,7 @@ Custom Gas Token v2는 레거시 CGT 체인과 호환되지 않는 새로운 구
 현재 레거시 CGT에서 CGT v2로의 마이그레이션 경로는 없으며, 향후 마련될 예정입니다.
 </Warning>
 
-## 사전 요구 사항
+## 사전 요구 사항 {#prerequisites}
 
 CGT 체인을 배포하기 전에 다음을 갖추었는지 확인하십시오.
 
@@ -25,7 +25,7 @@ CGT 체인을 배포하기 전에 다음을 갖추었는지 확인하십시오.
 *   **토큰 설계**: 네이티브 자산에 대한 명확한 계획(공급량, 분배, 브리징 메커니즘)
 *   **보안 감사**: 배포하려는 모든 승인된 minter 또는 bridge 컨트랙트에 대한 철저한 검토
 
-## 배포 단계
+## 배포 단계 {#deployment-steps}
 
 CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Token 관련 파라미터에 대한 추가 구성이 필요합니다.
 
@@ -51,8 +51,8 @@ CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Toke
     l1ChainID = 11155111
     fundDevAccounts = false
     useInterop = false
-    l1ContractsLocator = "tag://op-contracts/v6.0.0"
-    l2ContractsLocator = "tag://op-contracts/v6.0.0"
+    l1ContractsLocator = "embedded"
+    l2ContractsLocator = "embedded"
 
     [superchainRoles]
       SuperchainProxyAdminOwner = "0xYourMultisigAddress"
@@ -137,7 +137,8 @@ CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Toke
       --deploy-mock-sp1-verifier
     ```
 
-    genesis 구성은 `intent.toml`을 기반으로 적용됩니다.
+    genesis 구성은 `intent.toml`을 기반으로 적용됩니다. 생성된 genesis에는 SP1 verifier가 포함되어 있지 않으므로,
+    `--deploy-mock-sp1-verifier`가 모든 증명을 수락하는 mock을 배포합니다. 개발 용도로만 사용하십시오.
   </Step>
 
   <Step title="체인 서비스 시작">
@@ -181,9 +182,9 @@ CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Toke
   </Step>
 </Steps>
 
-## 배포 후 고려 사항
+## 배포 후 고려 사항 {#post-deployment-considerations}
 
-### 공급량 관리
+### 공급량 관리 {#supply-management}
 
 배포 후 다음 작업을 수행할 수 있습니다.
 
@@ -192,14 +193,14 @@ CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Toke
 *   **minter 권한 취소**: 손상되었거나 더 이상 사용되지 않는 컨트랙트의 권한을 제거합니다
 *   **속도 제한 구현**: 발행 속도를 제어하기 위한 안전장치를 추가합니다
 
-### 수수료 파라미터 조정
+### 수수료 파라미터 조정 {#fee-parameter-adjustments}
 
 체인의 운영 비용을 모니터링하고 필요에 따라 수수료 파라미터를 조정하십시오.
 
 *   **minBaseFee**: L1 gas 비용과 토큰 가치에 따라 `SystemConfig.setMinBaseFee()`를 사용하여 조정합니다
 *   **operatorFee**: 데이터 가용성 비용에 따라 `SystemConfig.setOperatorFeeScalars()`를 사용하여 조정합니다
 
-### 개발자 문서
+### 개발자 문서 {#developer-documentation}
 
 사용자를 위해 다음 내용을 다루는 명확한 문서를 작성하십시오.
 
@@ -208,15 +209,15 @@ CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Toke
 *   수수료 구조와 토큰 이코노믹스
 *   지갑 구성(RPC 엔드포인트, chain ID, 토큰 메타데이터)
 
-## 문제 해결
+## 문제 해결 {#troubleshooting}
 
-### 플래그 불일치 오류
+### 플래그 불일치 오류 {#flag-mismatch-errors}
 
 **증상**: "custom gas token mismatch" 오류와 함께 트랜잭션이 실패합니다
 
 **해결 방법**: L1의 `SystemConfig.isCustomGasToken()`과 L2의 `L1Block.isCustomGasToken()`이 동일한 값을 반환하는지 확인하십시오. 일치하지 않으면 심각한 구성 오류가 있음을 의미합니다.
 
-### 수수료 파라미터 문제
+### 수수료 파라미터 문제 {#fee-parameter-issues}
 
 **증상**: 체인 운영자가 트랜잭션 비용에서 손실을 보거나, 사용자가 과도한 수수료에 대해 불만을 제기합니다
 
@@ -226,7 +227,7 @@ CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Toke
 *   데이터 가용성 비용
 *   사용자를 위한 목표 수수료 구조
 
-### 유동성 고갈
+### 유동성 고갈 {#liquidity-depletion}
 
 **증상**: 유동성 부족으로 발행 트랜잭션이 실패합니다
 
@@ -236,7 +237,7 @@ CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Toke
 *   bridge 로직을 검토하여 소각이 올바르게 이루어지고 있는지 확인하십시오
 *   향후 배포에서는 초기 유동성 공급량을 늘리는 것을 고려하십시오
 
-### 승인되지 않은 발행 시도
+### 승인되지 않은 발행 시도 {#unauthorized-minting-attempts}
 
 **증상**: 승인되지 않은 주소가 네이티브 자산 발행을 시도합니다
 
@@ -246,7 +247,7 @@ CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Toke
 *   아직 적용되지 않았다면 속도 제한을 구현하십시오
 *   추가 안전장치와 함께 권한을 취소하고 다시 승인하는 것을 고려하십시오
 
-## 참고 자료
+## 참고 자료 {#resources}
 
 *   [Custom Gas Token 기능 개요](/ko/op-stack/features/custom-gas-token)
 *   [OP Deployer 문서](/ko/chain-operators/tools/op-deployer/overview)

@@ -42,19 +42,6 @@ func TestContinueCLIColdStart(t *testing.T) {
 	op_e2e.InitParallel(t)
 	fixture := newContinueCLIFixture(t)
 
-	t.Run("use-forge is rejected by the parser", func(t *testing.T) {
-		workdir := copyCommittedCLIWorkdir(t, fixture.preparedWorkdir)
-		runner := NewCLITestRunner(t)
-		nonceBefore := continueCLINonce(t, fixture)
-
-		runner.ExpectErrorContains(t, append(
-			continueCLIArgs(fixture, workdir),
-			"--use-forge",
-		), nil, "flag provided but not defined: -use-forge")
-
-		require.Equal(t, nonceBefore, continueCLINonce(t, fixture))
-	})
-
 	t.Run("frozen value changed on disk is rejected", func(t *testing.T) {
 		workdir := copyCommittedCLIWorkdir(t, fixture.preparedWorkdir)
 		intent, err := pipeline.ReadIntent(workdir)

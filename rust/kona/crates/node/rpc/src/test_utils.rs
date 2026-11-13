@@ -28,6 +28,8 @@ pub(crate) fn query_client(config: Arc<RollupConfig>) -> kona_engine::EngineQuer
     kona_engine::test_utils::test_engine_client(config).0.query_client()
 }
 
+/// A query client whose EL serves `output`'s block on the chain through `record`'s safe head,
+/// for one successful read.
 pub(crate) fn recorded_query_client(
     config: Arc<RollupConfig>,
     output: Option<BlockOutput>,
@@ -35,54 +37,59 @@ pub(crate) fn recorded_query_client(
 ) -> kona_engine::EngineQueryClient {
     let (engine, _, transport) = kona_engine::test_utils::test_engine_client(config);
     if let (Some(output), Some(record)) = (output, record) {
-        let block = rpc_block(output);
-        let anchor = if record.safe_head.number == output.block.block_info.number {
-            block.clone()
-        } else {
-            fixture_rpc_block(record.safe_head.number)
-        };
-        let attempts = if anchor.header.hash == record.safe_head.hash { 1 } else { 3 };
-        for _ in 0..attempts {
-            transport.expect_params(
-                "eth_getBlockByNumber",
-                serde_json::json!([format!("0x{:x}", record.safe_head.number), false]),
-                &anchor,
-            );
-        }
-        if anchor.header.hash == record.safe_head.hash {
-            for number in (output.block.block_info.number..record.safe_head.number).rev() {
-                let parent = fixture_rpc_block(number);
-                transport.expect_params(
-                    "eth_getBlockByHash",
-                    serde_json::json!([parent.header.hash, false]),
-                    parent,
-                );
-            }
+        let target = rpc_block(output);
+        if record.safe_head.number == output.block.block_info.number {
+            expect_canonical_check(&transport, &target);
             transport.expect_params(
                 "eth_getBlockByHash",
-                serde_json::json!([block.header.hash, true]),
-                &block,
+                serde_json::json!([record.safe_head.hash, true]),
+                &target,
             );
-            transport.expect_params(
-                "eth_getProof",
-                serde_json::json!([
-                    kona_protocol::Predeploys::L2_TO_L1_MESSAGE_PASSER,
-                    [],
-                    block.header.hash
-                ]),
-                alloy_rpc_types_eth::EIP1186AccountProofResponse {
-                    storage_hash: output.output.bridge_storage_root,
-                    ..Default::default()
-                },
-            );
+            expect_proof(&transport, &target, output.output.bridge_storage_root);
+            expect_canonical_check(&transport, &target);
+        } else {
+            let recorded_head = fixture_rpc_block(record.safe_head.number);
+            expect_canonical_check(&transport, &recorded_head);
             transport.expect_params(
                 "eth_getBlockByNumber",
-                serde_json::json!([format!("0x{:x}", record.safe_head.number), false]),
-                anchor,
+                serde_json::json!([format!("0x{:x}", output.block.block_info.number), true]),
+                &target,
             );
+            expect_proof(&transport, &target, output.output.bridge_storage_root);
+            expect_canonical_check(&transport, &recorded_head);
         }
     }
     engine.query_client()
+}
+
+fn expect_canonical_check(
+    transport: &kona_engine::test_utils::RpcMock,
+    canonical: &alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction>,
+) {
+    transport.expect_params(
+        "eth_getBlockByNumber",
+        serde_json::json!([format!("0x{:x}", canonical.header.number), false]),
+        canonical,
+    );
+}
+
+fn expect_proof(
+    transport: &kona_engine::test_utils::RpcMock,
+    block: &alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction>,
+    storage_root: B256,
+) {
+    transport.expect_params(
+        "eth_getProof",
+        serde_json::json!([
+            kona_protocol::Predeploys::L2_TO_L1_MESSAGE_PASSER,
+            [],
+            block.header.hash
+        ]),
+        alloy_rpc_types_eth::EIP1186AccountProofResponse {
+            storage_hash: storage_root,
+            ..Default::default()
+        },
+    );
 }
 
 fn fixture_rpc_block(number: u64) -> alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction> {

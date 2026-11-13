@@ -120,7 +120,7 @@ func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 		defer wg.Done()
 		defer cancelInvalid()
 		observer := aimdObserver(l2B.EL.ChainID())
-		s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier(), l2B.BlockTime, WithAIMDObserver(observer))
+		s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config, l2B.BlockTime, WithAIMDObserver(observer))
 		s.Run(t, NewRelaySpammer(l2A, l2B))
 	}()
 

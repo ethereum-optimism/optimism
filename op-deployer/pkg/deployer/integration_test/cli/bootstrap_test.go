@@ -62,6 +62,21 @@ func TestCLIBootstrap(t *testing.T) {
 		require.NoError(t, addresses.CheckNoZeroAddresses(superchainOutput))
 	})
 
+	t.Run("bootstrap superchain keeps forge output off stdout", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		stdout := runner.ExpectStdoutWithNetwork(t, []string{
+			"bootstrap", "superchain",
+			"--outfile", "-",
+			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
+			"--guardian", guardian.Hex(),
+		}, nil)
+
+		// op-deployer writes the result to stdout; forge's output goes to stderr.
+		require.Contains(t, stdout, `"superchainConfigProxyAddress"`)
+		require.NotContains(t, stdout, "== Return ==")
+		require.NotContains(t, stdout, "Forge client working directory")
+	})
+
 	t.Run("bootstrap superchain paused", func(t *testing.T) {
 		runner := NewCLITestRunnerWithNetwork(t)
 		workDir := runner.GetWorkDir()
@@ -123,8 +138,7 @@ func TestCLIBootstrap(t *testing.T) {
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(), // Use proxy admin owner as upgrade controller
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
-			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
-		}, nil)
+		}, map[string]string{"DEPLOYER_DEPLOY_MOCK_SP1_VERIFIER": "true"})
 		requireFastReceiptPoll(t, output)
 
 		t.Logf("Bootstrap implementations output:\n%s", output)

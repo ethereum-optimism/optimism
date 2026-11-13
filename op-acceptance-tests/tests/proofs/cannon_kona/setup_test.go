@@ -11,9 +11,7 @@ func cannonOpts() []presets.Option {
 	return []presets.Option{
 		presets.WithGameTypeAdded(gameTypes.CannonKonaGameType),
 		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
-		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
-			cfg.SafeDBPath = p.TempDir()
-		})),
+		presets.WithTimeTravelEnabled(),
 	}
 }
 

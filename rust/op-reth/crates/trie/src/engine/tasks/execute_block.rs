@@ -10,7 +10,7 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_primitives_traits::{AlloyBlockHeader, BlockBody, NodePrimitives, RecoveredBlock};
 use reth_provider::{
     BlockHashReader, BlockReader, DatabaseProviderFactory, HashedPostStateProvider,
-    StageCheckpointReader, StateRootProvider,
+    StageCheckpointReader, StateProvider, StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
 use reth_trie_common::EMPTY_ROOT_HASH;
@@ -114,7 +114,7 @@ where
     );
     let state_provider = state.memory.state_provider(block.parent_hash(), inner_provider);
 
-    let db = StateProviderDatabase::new(&state_provider);
+    let db = StateProviderDatabase::new((&state_provider).into_evm_state_provider());
     let block_executor = state.evm_config.batch_executor(db);
     let execution_result = block_executor.execute(block)?;
     let execution_duration = start.elapsed();

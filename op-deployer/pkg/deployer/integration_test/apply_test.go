@@ -13,15 +13,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 
 	"github.com/ethereum/go-ethereum"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
@@ -37,6 +34,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
@@ -84,7 +82,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	sp1Verifier := deployMockSP1Verifier(t, l1Client, pk)
 
 	apply := func(t *testing.T, loc *artifacts.Locator) {
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
 		bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
@@ -164,6 +162,71 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	})
 }
 
+// TestBootstrapImplementationsMockSP1Verifier tests that bootstrap implementations deploys the mock
+// SP1 verifier on a development L1 and wraps it in the SP1PlonkAdapter.
+func TestBootstrapImplementationsMockSP1Verifier(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
+	pkHex, _, _ := shared.DefaultPrivkey(t)
+	loc, _ := testutil.LocalArtifacts(t)
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	superchainPAO := common.Address{'S', 'P', 'A', 'O'}
+
+	bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
+		L1RPCUrl:                  l1RPC,
+		PrivateKey:                pkHex,
+		Logger:                    lgr,
+		ArtifactsLocator:          loc,
+		CacheDir:                  testCacheDir,
+		SuperchainProxyAdminOwner: superchainPAO,
+		Guardian:                  common.Address{'G'},
+		ReceiptQueryInterval:      testReceiptQueryInterval,
+	})
+	require.NoError(t, err)
+
+	impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
+		L1RPCUrl:                           l1RPC,
+		PrivateKey:                         pkHex,
+		ArtifactsLocator:                   loc,
+		MIPSVersion:                        int(standard.MIPSVersion),
+		MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+		MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
+		MinProposalSizeBytes:               standard.MinProposalSizeBytes,
+		ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
+		MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
+		MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
+		MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
+		MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+		SuperchainConfigProxy:              bstrap.SuperchainConfigProxy,
+		L1ProxyAdminOwner:                  superchainPAO,
+		SuperchainProxyAdmin:               bstrap.SuperchainProxyAdmin,
+		CacheDir:                           testCacheDir,
+		Logger:                             lgr,
+		Challenger:                         common.Address{'C'},
+		FaultGameMaxGameDepth:              standard.DisputeMaxGameDepth,
+		FaultGameSplitDepth:                standard.DisputeSplitDepth,
+		FaultGameClockExtension:            standard.DisputeClockExtension,
+		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
+		DeployMockSP1Verifier:              true,
+		ReceiptQueryInterval:               testReceiptQueryInterval,
+	})
+	require.NoError(t, err)
+
+	data, err := sp1VerifierMethod.EncodeArgs()
+	require.NoError(t, err)
+	res, err := l1Client.CallContract(ctx, ethereum.CallMsg{To: &impls.SP1PlonkAdapterSingleton, Data: data}, nil)
+	require.NoError(t, err)
+	var wrapped common.Address
+	require.NoError(t, sp1VerifierMethod.DecodeReturns(res, &wrapped))
+	require.NotEqual(t, common.Address{}, wrapped)
+	require.NotEmpty(t, ethClientCodeGetter(ctx, l1Client)(t, wrapped), "mock SP1 verifier must be deployed on L1")
+}
+
 // TestApplyDefaultsSP1VerifierOnSepolia pins that a live apply with no sp1Verifier override deploys
 // an SP1PlonkAdapter wrapping the release-approved raw verifier, and that the verifier implements
 // the circuit recorded in standard.SP1VerifierHashFor.
@@ -180,7 +243,7 @@ func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	l1RPC := forkedL1.RPCUrl()
 
 	loc, _ := testutil.LocalArtifacts(t)
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	testCacheDir := testutil.SharedCacheDir(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -249,11 +312,11 @@ func TestEndToEndApply(t *testing.T) {
 	l2ChainID1 := uint256.NewInt(1)
 	l2ChainID2 := uint256.NewInt(2)
 	loc, _ := testutil.LocalArtifacts(t)
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	testCacheDir := testutil.SharedCacheDir(t)
 	sp1Verifier := deployMockSP1Verifier(t, l1Client, pk)
 
 	t.Run("two chains one after another", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
@@ -299,8 +362,96 @@ func TestEndToEndApply(t *testing.T) {
 		requireOPCMImplementations(t, ctx, l1Client, st)
 	})
 
+	t.Run("with alt-da and additional dispute games", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Minute)
+		defer cancel()
+
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
+		// The deployer registers the games, so it must own the factory and be the guardian.
+		deployerAddr := crypto.PubkeyToAddress(pk.PublicKey)
+		intent.Chains[0].Roles.L1ProxyAdminOwner = deployerAddr
+		intent.SuperchainRoles.SuperchainGuardian = deployerAddr
+		intent.GlobalDeployOverrides = map[string]any{"preimageOracleChallengePeriod": 1}
+		setSP1VerifierOverride(intent, sp1Verifier)
+		intent.Chains[0].DangerousAltDAConfig = genesis.AltDADeployConfig{
+			UseAltDA:                   true,
+			DACommitmentType:           altda.KeccakCommitmentString,
+			DAChallengeWindow:          10,
+			DAResolveWindow:            10,
+			DABondSize:                 100,
+			DAResolverRefundPercentage: 50,
+		}
+		gameParams := state.ChainProofParams{
+			DisputeAbsolutePrestate:                 standard.DisputeAbsolutePrestate,
+			DisputeMaxGameDepth:                     50,
+			DisputeSplitDepth:                       14,
+			DisputeClockExtension:                   1,
+			DisputeMaxClockDuration:                 10,
+			DangerouslyAllowCustomDisputeParameters: true,
+		}
+		cannon, alphabet := gameParams, gameParams
+		cannon.DisputeGameType = 254
+		alphabet.DisputeGameType = 255
+		// The game constructor refuses a clock extension that the max clock duration cannot hold.
+		invalidAlphabet := alphabet
+		invalidAlphabet.DisputeClockExtension = 100
+		intent.Chains[0].AdditionalDisputeGames = []state.AdditionalDisputeGame{
+			{ChainProofParams: cannon, VMType: state.VMTypeCannon},
+			{ChainProofParams: invalidAlphabet, VMType: state.VMTypeAlphabet, MakeRespected: true},
+		}
+		workdir := t.TempDir()
+		opts := deployer.ApplyPipelineOpts{
+			DeploymentTarget:     deployer.DeploymentTargetLive,
+			L1RPCUrl:             l1RPC,
+			DeployerPrivateKey:   pk,
+			Intent:               intent,
+			State:                st,
+			Logger:               lgr,
+			StateWriter:          pipeline.WorkdirStateWriter(workdir),
+			CacheDir:             testCacheDir,
+			ReceiptQueryInterval: testReceiptQueryInterval,
+		}
+
+		// The cannon game is registered on L1, but the stage fails, so the state does not record it.
+		require.ErrorContains(t, deployer.ApplyPipeline(ctx, opts), "failed to deploy additional dispute game")
+		st, err := pipeline.ReadState(workdir)
+		require.NoError(t, err)
+		require.Empty(t, st.Chains[0].AdditionalDisputeGames)
+
+		// A rerun from the written state registers both games.
+		intent.Chains[0].AdditionalDisputeGames[1].ChainProofParams = alphabet
+		opts.State = st
+		require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+
+		chainState := st.Chains[0]
+		for _, contract := range []common.Address{chainState.AltDAChallengeProxy, chainState.AltDAChallengeImpl} {
+			code, err := l1Client.CodeAt(ctx, contract, nil)
+			require.NoError(t, err)
+			require.NotEmpty(t, code, "alt-DA contract %s has no code", contract)
+		}
+		require.Len(t, chainState.AdditionalDisputeGames, 2)
+		gameImpls := w3.MustNewFunc("gameImpls(uint32)", "address")
+		for _, game := range chainState.AdditionalDisputeGames {
+			calldata, err := gameImpls.EncodeArgs(game.GameType)
+			require.NoError(t, err)
+			ret, err := l1Client.CallContract(ctx, ethereum.CallMsg{To: &chainState.DisputeGameFactoryProxy, Data: calldata}, nil)
+			require.NoError(t, err)
+			var impl common.Address
+			require.NoError(t, gameImpls.DecodeReturns(ret, &impl))
+			require.Equal(t, game.GameAddress, impl, "game type %d is not registered on L1", game.GameType)
+		}
+		respectedGameType := w3.MustNewFunc("respectedGameType()", "uint32")
+		calldata, err := respectedGameType.EncodeArgs()
+		require.NoError(t, err)
+		ret, err := l1Client.CallContract(ctx, ethereum.CallMsg{To: &chainState.AnchorStateRegistryProxy, Data: calldata}, nil)
+		require.NoError(t, err)
+		var respected uint32
+		require.NoError(t, respectedGameType.DecodeReturns(ret, &respected))
+		require.Equal(t, alphabet.DisputeGameType, respected)
+	})
+
 	t.Run("with custom gas token", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
@@ -362,7 +513,7 @@ func TestEndToEndApply(t *testing.T) {
 		l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 		l2ChainID := uint256.NewInt(1)
 		loc, _ := testutil.LocalArtifacts(t)
-		testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+		testCacheDir := testutil.SharedCacheDir(t)
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		setSP1VerifierOverride(intent, deployMockSP1Verifier(t, l1Client, pk))
@@ -394,6 +545,47 @@ func TestEndToEndApply(t *testing.T) {
 		require.NotEmpty(t, opcmV2Code, "OPCMV2 should have code deployed")
 
 		require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OpcmV2Impl should be set")
+	})
+
+	t.Run("mock SP1 verifier", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		lgr := testlog.Logger(t, slog.LevelDebug)
+		l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
+		_, pk, dk := shared.DefaultPrivkey(t)
+		l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
+		loc, _ := testutil.LocalArtifacts(t)
+
+		intent, st := shared.NewIntent(t, l1ChainID, dk, uint256.NewInt(1), loc, loc, testCustomGasLimit)
+
+		require.NoError(t, deployer.ApplyPipeline(
+			ctx,
+			deployer.ApplyPipelineOpts{
+				DeploymentTarget:      deployer.DeploymentTargetLive,
+				L1RPCUrl:              l1RPC,
+				DeployerPrivateKey:    pk,
+				Intent:                intent,
+				State:                 st,
+				Logger:                lgr,
+				StateWriter:           pipeline.NoopStateWriter(),
+				CacheDir:              testutils.IsolatedTestDirWithAutoCleanup(t),
+				ReceiptQueryInterval:  testReceiptQueryInterval,
+				DeployMockSP1Verifier: true,
+			},
+		))
+
+		require.NotNil(t, st.SP1Verifier)
+		require.NotEmpty(t, ethClientCodeGetter(ctx, l1Client)(t, *st.SP1Verifier), "mock SP1 verifier must be deployed on L1")
+
+		data, err := sp1VerifierMethod.EncodeArgs()
+		require.NoError(t, err)
+		adapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
+		res, err := l1Client.CallContract(ctx, ethereum.CallMsg{To: &adapter, Data: data}, nil)
+		require.NoError(t, err)
+		var wrapped common.Address
+		require.NoError(t, sp1VerifierMethod.DecodeReturns(res, &wrapped))
+		require.Equal(t, *st.SP1Verifier, wrapped, "SP1PlonkAdapter must wrap the mock verifier")
 	})
 }
 
@@ -554,30 +746,29 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	_, st, chainID := newContinuationInputs(t, uint256.NewInt(2))
 	require.Nil(t, st.ImplementationsDeployment)
 	require.Nil(t, st.SuperchainDeployment)
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		opts.Logger,
-		deployerAddress,
-		l1Artifacts,
-		script.WithNoMaxCodeSize(),
-	)
-	require.NoError(t, err)
-	host.ImportState(l1StateDump)
-	scripts, err := opcm.NewScripts(host)
+	// Continue on an L1 that holds the state of phase one.
+	l1RPCURL, l1Client := devnet.DefaultAnvilRPC(t, opts.Logger)
+	shared.LoadAllocs(t, l1Client.Client(), l1StateDump)
+	require.NoError(t, l1Client.Client().Call(nil, "anvil_setBalance", deployerAddress, (*hexutil.Big)(big.NewInt(params.Ether))))
+	forgeClient, err := opcm.NewForgeClient(l1Artifacts, "", opcm.L1ForgeScripts)
 	require.NoError(t, err)
 	pEnv := &pipeline.Env{
-		StateWriter:  pipeline.NoopStateWriter(),
-		L1ScriptHost: host,
-		Broadcaster:  broadcaster.NoopBroadcaster(),
-		Deployer:     deployerAddress,
-		Logger:       opts.Logger,
-		Scripts:      scripts,
-		Context:      ctx,
+		StateWriter: pipeline.NoopStateWriter(),
+		L1Client:    l1Client,
+		Deployer:    deployerAddress,
+		Logger:      opts.Logger,
+		Forge: &opcm.ForgeEnv{
+			Client:     forgeClient,
+			Context:    ctx,
+			L1RPCUrl:   l1RPCURL,
+			PrivateKey: hexutil.Encode(crypto.FromECDSA(opts.DeployerPrivateKey)),
+		},
+		Context: ctx,
 	}
 
 	dci, err := pipeline.BuildContinuationDCI(chainID, st)
 	require.NoError(t, err)
-	impls, err := opcm.ReadImplementations(ctx, opcm.NewScriptHostCallBackend(host), dci.Opcm)
+	impls, err := opcm.ReadImplementations(ctx, l1Client, dci.Opcm)
 	require.NoError(t, err)
 	result, err := pipeline.ExecuteOPChainDeployment(pEnv, st, chainID, dci, impls)
 	require.NoError(t, err)
@@ -590,12 +781,14 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, *chainState.Deployed)
 
-	caller := &shared.HostCaller{Host: host}
+	call := func(to common.Address, data []byte) ([]byte, error) {
+		return l1Client.CallContract(ctx, ethereum.CallMsg{To: &to, Data: data}, nil)
+	}
 	gameImpls := w3.MustNewFunc("gameImpls(uint32)", "address")
 	readGameImpl := func(gameType opcm.GameType) common.Address {
 		callData, err := gameImpls.EncodeArgs(uint32(gameType))
 		require.NoError(t, err)
-		ret, err := caller.Call(chainState.DisputeGameFactoryProxy, callData)
+		ret, err := call(chainState.DisputeGameFactoryProxy, callData)
 		require.NoError(t, err)
 		var implementation common.Address
 		require.NoError(t, gameImpls.DecodeReturns(ret, &implementation))
@@ -610,7 +803,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	readAbsolutePrestate := func(gameType opcm.GameType) common.Hash {
 		callData, err := gameArgs.EncodeArgs(uint32(gameType))
 		require.NoError(t, err)
-		ret, err := caller.Call(chainState.DisputeGameFactoryProxy, callData)
+		ret, err := call(chainState.DisputeGameFactoryProxy, callData)
 		require.NoError(t, err)
 		var args []byte
 		require.NoError(t, gameArgs.DecodeReturns(ret, &args))
@@ -625,7 +818,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	)
 	callData, err := getStartingAnchorRoot.EncodeArgs()
 	require.NoError(t, err)
-	ret, err := caller.Call(chainState.AnchorStateRegistryProxy, callData)
+	ret, err := call(chainState.AnchorStateRegistryProxy, callData)
 	require.NoError(t, err)
 	var actualAnchor opcm.Proposal
 	require.NoError(t, getStartingAnchorRoot.DecodeReturns(ret, &actualAnchor))
@@ -639,7 +832,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	respectedGameType := w3.MustNewFunc("respectedGameType()", "uint32")
 	callData, err = respectedGameType.EncodeArgs()
 	require.NoError(t, err)
-	ret, err = caller.Call(chainState.AnchorStateRegistryProxy, callData)
+	ret, err = call(chainState.AnchorStateRegistryProxy, callData)
 	require.NoError(t, err)
 	var actualGameType uint32
 	require.NoError(t, respectedGameType.DecodeReturns(ret, &actualGameType))
@@ -1009,7 +1202,7 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 
 	intent, st := shared.NewIntent(t, l1ChainIDBig, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	testCacheDir := testutil.SharedCacheDir(t)
 
 	opts := deployer.ApplyPipelineOpts{
 		DeploymentTarget:      deployer.DeploymentTargetGenesis,
@@ -1047,6 +1240,7 @@ var (
 	chugSplashImplementationMethod = w3.MustNewFunc("getImplementation()", "address")
 	addressManagerGetAddressMethod = w3.MustNewFunc("getAddress(string)", "address")
 	gameImplsMethod                = w3.MustNewFunc("gameImpls(uint32)", "address")
+	sp1VerifierMethod              = w3.MustNewFunc("sp1Verifier()", "address")
 )
 
 // requireOPCMImplementations checks that the state records the implementations of its OPCM, and

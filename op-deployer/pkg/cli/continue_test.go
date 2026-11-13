@@ -19,6 +19,5 @@ func TestContinueCommandRegistered(t *testing.T) {
 			flags[name] = true
 		}
 	}
-	require.False(t, flags[deployer.UseForgeFlagName])
 	require.False(t, flags[deployer.DeploymentTargetFlag.Name])
 }

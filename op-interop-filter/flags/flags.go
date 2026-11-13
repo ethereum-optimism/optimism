@@ -48,7 +48,7 @@ var (
 	}
 	BackfillDurationFlag = &cli.DurationFlag{
 		Name:    "backfill-duration",
-		Usage:   "Duration to backfill on startup (e.g., 168h, 30m, 1h30m)",
+		Usage:   "Duration to backfill on startup, at least message-expiry-window (e.g., 168h)",
 		EnvVars: prefixEnvVars("BACKFILL_DURATION"),
 		Value:   168 * time.Hour,
 	}
@@ -115,6 +115,11 @@ var (
 		Usage:   "Automatically resolve reorg-triggered failsafe by rewinding logs DBs to finalized.",
 		EnvVars: prefixEnvVars("REORG_RECOVERY_ENABLED"),
 	}
+	FailsafeEnabledFlag = &cli.BoolFlag{
+		Name:    "failsafe-enabled",
+		Usage:   "Enable the manual failsafe at start and ignore the stored failsafe state file. The admin RPC can clear it, but the next start enables it again.",
+		EnvVars: prefixEnvVars("FAILSAFE_ENABLED"),
+	}
 	FailsafeLogIntervalFlag = &cli.DurationFlag{
 		Name:    "failsafe-log-interval",
 		Usage:   "Interval at which the active failsafe reason is re-logged while failsafe is enabled (e.g., 1m, 30s)",
@@ -164,6 +169,7 @@ var optionalFlags = []cli.Flag{
 	PollIntervalFlag,
 	ValidationIntervalFlag,
 	ReorgRecoveryEnabledFlag,
+	FailsafeEnabledFlag,
 	FailsafeLogIntervalFlag,
 	RPCConcurrencyFlag,
 	FetchConcurrencyFlag,

@@ -16,7 +16,7 @@ var ErrNotFound = errors.New("not found")
 // FindBlock finds the first block for which the predicate [pred] matches
 // and returns it. It starts at [from] and iterates until [to], inclusively,
 // using the provided [client]. It supports both search directions, forwards
-// and backwards.
+// and backwards. It decodes full blocks, so [client] must be an L1 client.
 func FindBlock(client *ethclient.Client,
 	from, to int, timeout time.Duration,
 	pred func(*types.Block) (bool, error),
@@ -29,7 +29,7 @@ func FindBlock(client *ethclient.Client,
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	for n := from; ; n += dir {
-		b, err := client.BlockByNumber(ctx, big.NewInt(int64(n)))
+		b, err := client.BlockByNumber(ctx, big.NewInt(int64(n))) //nolint:forbidigo // L1: the predicate inspects the block's transactions
 		if err != nil {
 			return nil, fmt.Errorf("fetching block[%d]: %w", n, err)
 		}

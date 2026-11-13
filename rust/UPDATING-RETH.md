@@ -3,8 +3,10 @@
 The Rust workspace pins ~70 `reth-*` crates to a single git ref, from upstream
 `paradigmxyz/reth` or from an OP-maintained fork of it, in [`rust/Cargo.toml`](Cargo.toml): `tag = "vX.Y.Z"`
 for an upstream release, `tag = "op-<base>-<n>"` for a fork commit (see
-[The reth fork](#the-reth-fork)), or `rev = "<sha>"` for a commit without a
-tag yet. This guide describes how to bump that pin safely and keep
+[The reth fork](#the-reth-fork)). A `rev = "<sha>"` pin is for a draft PR
+only, while the fork commit it needs has no tag yet; the required
+`rust-reth-tag-pin` check stays red until it is replaced ([Pinning a fork
+change](#pinning-a-fork-change)). This guide describes how to bump that pin safely and keep
 the shared `revm`/`alloy` versions in sync with it.
 
 ## When to update
@@ -17,7 +19,9 @@ Prefer the latest upstream release tag when one exists that contains the
 changes you need. Tags are stable artifacts with corresponding upstream
 releases and the most predictable downstream behavior. Fall back to a merge
 commit on `main` only when no tagged release covers the needed change yet
-(e.g. urgently picking up a fix). Avoid pinning to an unmerged PR branch for
+(e.g. urgently picking up a fix); it lands through an
+`op-<reth-short-sha>-<n>` tag on an `op-<reth-short-sha>` fork branch ([Picking the right target
+commit](#picking-the-right-target-commit)). Avoid pinning to an unmerged PR branch for
 anything we want to land — the merge commit on `main` is at least the version
 main's CI actually validated.
 
@@ -41,20 +45,59 @@ main's CI actually validated.
    upstream base, and list its cherry-picks:
 
    ```bash
-   git fetch <upstream-remote> main
-   OLD_PIN=<old-pin>
+   git fetch <upstream-remote> main --tags
+   OLD_PIN=<old-pin>    # the fork tag rust/Cargo.toml pins, e.g. op-v2.6.0-1
    OLD_BASE=$(git merge-base "$OLD_PIN" <upstream-remote>/main)
-   git log --reverse --oneline "$OLD_BASE..$OLD_PIN"
+   git log --reverse --format='%h %s%n%b' "$OLD_BASE..$OLD_PIN" \
+     | grep -E '^[0-9a-f]{9,} |^\(cherry picked from commit'
    ```
 
-   For each commit, decide whether the selected target contains it or an
-   equivalent. Drop patches already present there; preserve every other patch.
-   If a rewritten or squashed equivalent makes that unclear, ask rather than
-   guess.
+   Patches are picked with `-x` ("The reth fork"), so each is followed by the
+   commit it came from. Some list more than one; check each that names an
+   upstream commit against the target, e.g. `v2.7.0`:
+
+   ```bash
+   git merge-base --is-ancestor <source-sha> <target> && echo contained || echo carry
+   ```
+
+   Drop contained patches and preserve every other one. Skip `ci:` commits:
+   the CI squash carries them whatever their sources say. Any other commit
+   without an upstream source is a fork-only patch, or was picked without
+   `-x`; decide it by hand. If a rewritten or squashed equivalent makes that
+   unclear, as upstream `paradigmxyz/reth#28015` did for
+   ethereum-optimism/reth#19, ask rather than guess.
+
+   If any patch survives, build the fork branch now: follow
+   [The reth fork](#the-reth-fork) through tagging, then return to step 3 with
+   the tag.
+
+   The audit stops at the pinned tag, and both the old branch and `develop` keep
+   moving during an update. For example, `op-v2.7.0` was built while `develop`
+   pinned `op-v2.6.0-1`. By step 3, `develop` pinned `op-v2.6.0-2`, and the
+   `op-v2.6.0` branch had `-3` and `-4` on top of that. Check again right before
+   step 3, and again before the update PR leaves draft:
+
+   ```bash
+   # In the monorepo: has develop moved to a newer tag?
+   git fetch origin develop
+   git show origin/develop:rust/Cargo.toml | grep -m1 'ethereum-optimism/reth'
+
+   # In the reth fork: what is past that tag, merged or still on the way?
+   git fetch <fork-remote> --tags
+   OLD_PIN=<old-pin>        # the tag develop pins now, e.g. op-v2.6.0-2
+   OLD_BRANCH=<old-branch>  # the branch that tag is on, e.g. op-v2.6.0
+   git log --format='%h %s' "$OLD_PIN..<fork-remote>/$OLD_BRANCH"
+   gh pr list --repo ethereum-optimism/reth --base "$OLD_BRANCH"
+   ```
+
+   Audit anything new the same way. A patch `develop` already pins has to reach
+   the new branch before the update merges. Decide the rest with their authors.
 
 3. Update the pin in `rust/Cargo.toml`.
 
-   If no fork cherry-picks survive, prefer the upstream release tag. For an
+   If no fork cherry-picks survive and the target is an upstream release, pin
+   its tag; an untagged target needs an `op-<reth-short-sha>-<n>` fork tag
+   (e.g. `op-1a2b3c4-0`) on an `op-<reth-short-sha>` branch. For an
    existing upstream tag pin, replace the tag. For a fork rev pin, replace both
    the source and ref:
 
@@ -65,9 +108,7 @@ main's CI actually validated.
    grep -nE '<OLD_TAG>|<OLD_REV>|github.com/<OLD_OWNER>/reth' Cargo.toml  # no matches
    ```
 
-   If patches must survive, build a new `op-*` branch in the
-   `ethereum-optimism/reth` fork as described in
-   [The reth fork](#the-reth-fork), tag its tip and pin it with
+   If patches survive, pin the fork tag from step 2 with
    `tag = "op-<base>-<n>"` (or a temporary `rev`, see
    [Pinning a fork change](#pinning-a-fork-change)). Verify every reth
    workspace dependency uses the same repository and ref; the mirror checker
@@ -205,8 +246,24 @@ main's CI actually validated.
 
    Only the `just` recipes use the repo-pinned nightly rustfmt — a bare
    `cargo fmt` on the stable toolchain reformats unrelated files and fails
-   CI's `rust-fmt` gate. Also run the test suites of any vendored-workspace
-   crate whose source you touched.
+   CI's `rust-fmt` gate.
+
+   `just test` covers only the main workspace. The SP1 guest programs
+   (`kona/sp1/programs`) are a nested workspace with their own `Cargo.lock`,
+   which step 5 refreshes, so check them even when no guest source changed:
+
+   ```bash
+   just check-sp1-guest-lock                # the guest lockfile matches its manifests
+   just check-sp1-guest-precompile-patches  # every crypto crate resolves to its SP1 fork
+   ```
+
+   An SP1 patch only covers the version it names, so a bump that pulls in a new
+   line of a crypto crate (`sha2`, `k256`, ...) fails the second check. Leave the
+   guest tests and lints to CI, which builds the guest ELFs in Docker first
+   (`kona-build-sp1-elfs`). Build them locally (`cd kona/sp1 && just build-elfs`)
+   only to debug a failure there. The bump changes code the guests run, so their
+   ELFs and verification keys change: say so in the PR description, as for a
+   kona prestate change.
 
 9. Regenerate the CLI surface snapshot. Most reth bumps add, remove, or
    re-default upstream CLI flags, and op-reth inherits them silently. The
@@ -256,33 +313,116 @@ git fetch <upstream-remote> --tags
 git push git@github.com:ethereum-optimism/reth.git refs/tags/v<version>
 ```
 
-**Start** a branch from the upstream base. Cherry-pick the fork's CI commit
-first so every push runs the fork's CI, then carry over the previous branch's
-OP `.github/CODEOWNERS`, then the patches retained by the step 2 audit and any
-upstream fixes picked in the forward sweep (`docs/ai/reth-update-review.md`),
-oldest first. The first push may already carry all of them:
+**Start** a branch at the upstream base, and prepare it in one PR. Push
+`op-v<version>` at the base tag itself, with no commits on top. On a prep
+branch, cherry-pick the fork's CI commit first so the PR runs the fork's CI,
+then carry over the previous branch's OP `.github/CODEOWNERS`, then the
+patches retained by the step 2 audit and any upstream fixes picked in the
+forward sweep (`docs/ai/reth-update-review.md`), oldest first. Adaptations to
+the new base, such as CI fixes, are further commits on the same prep branch,
+not separate PRs.
 
 ```bash
-git switch -c op-v<version> v<version>
+git push git@github.com:ethereum-optimism/reth.git 'v<version>^{commit}:refs/heads/op-v<version>'
+git switch -c <you>/op-v<version>-prep v<version>
 git cherry-pick <ci-commit>
 git checkout <previous-branch> -- .github/CODEOWNERS
 git commit -m "chore: replace upstream CODEOWNERS with OP owners"
-git cherry-pick <retained-sha>...
-git push git@github.com:ethereum-optimism/reth.git op-v<version>
+git cherry-pick -x <retained-sha>...
+cargo +nightly-<date> fmt --all --check   # the nightly lint.yml pins
+cargo check --workspace --all-targets
+git push git@github.com:ethereum-optimism/reth.git <you>/op-v<version>-prep
+gh pr create --repo ethereum-optimism/reth --base op-v<version> \
+  --head <you>/op-v<version>-prep
+```
+
+Merge the prep PR with **rebase-merge**. It lands each commit on the branch
+on its own, with its `-x` source line, which the next update's step 2 audit
+reads. A squash folds them into one commit, and a merge commit hides the
+branch's base from that audit. Rebase-merging rewrites the commits, so the
+prep PR's head commit is never on the branch, and fork CI has not run on the
+rewritten ones. Wait for fork CI to pass on the prep PR's `mergeCommit`, its
+last rebased commit, then tag it `op-v<version>-0` (see **Tag** below) and
+repin the update PR from its draft-time `rev` to that tag.
+
+```bash
+gh pr merge <pr> --repo ethereum-optimism/reth --rebase
+SHA=$(gh pr view <pr> --repo ethereum-optimism/reth --json mergeCommit --jq .mergeCommit.oid)
+gh api "repos/ethereum-optimism/reth/commits/$SHA/status" --jq .state   # success, then tag
 gh api 'repos/ethereum-optimism/reth/codeowners/errors?ref=op-v<version>' --jq '.errors'
 ```
 
 Upstream's CODEOWNERS names paradigm maintainers who have no access to the
-fork, so it requests no reviewers. Copy the file rather than cherry-picking
-it: upstream edits it often, so a cherry-pick would conflict. The errors check
-must print `[]`.
+fork, so it requests no reviewers. That includes the prep PR, which GitHub
+reviews against the base branch's file: request its reviewers by hand. Copy
+the file rather than cherry-picking it: upstream edits it often, so a
+cherry-pick would conflict. The errors check must print `[]`.
 
-`<ci-commit>` is the previous branch's CI commit squashed with every later CI
-fix on that branch, so the chain of CI commits does not grow. It may need
-adapting to the new base; its comments name what to re-check. Check the fork's
-lockfile advisories separately: downstream lockfile fixes do not repair the
-fork's CI. `<previous-branch>` is the fork's prior `op-*` branch, fetched from
-the fork.
+Pick the patches with `-x`, which records each one's source commit for the
+next bump's step 2 audit.
+
+`<previous-branch>` is the fork's prior `op-*` branch, fetched from the fork.
+`<ci-commit>` is its CI commit squashed with every later CI fix on that
+branch, so the chain of CI commits does not grow. List them from the branch
+tip, not its last tag: CI-only fixes get no tag.
+
+```bash
+git log --reverse --oneline v<old-version>..<previous-branch> --grep='^ci'
+```
+
+Pick them oldest first, then squash them into one commit on top of the base:
+
+```bash
+git cherry-pick <ci-commit> <later-ci-fix>...
+git log --reverse --format='=== %h%n%B' v<version>..HEAD > ci-msg.txt
+git reset --soft v<version>
+git commit -F ci-msg.txt   # after merging the messages into one
+```
+
+The squash may need adapting to the new base. Before the first push, read
+the code comments in the files it adds, starting with `.circleci/config.yml`:
+some are instructions for this replay, naming what to compare against the new
+base's workflows and which pins to move. Work each one.
+
+Upstream edits its workflows in most releases, so expect conflicts there.
+Resolve each hunk to upstream's side (`HEAD`) and re-apply only our edits on
+top: our side also carries the old base's lines, such as its action pins.
+Resolve hunk by hunk rather than taking a whole file, which would discard the
+hunks that merged cleanly.
+
+Upstream also adds steps and workflows in lines we don't edit, which merge
+without conflict, so the replay never flags them. The fork's CI runs upstream's
+workflows in CircleCI through [`act`](https://github.com/nektos/act), which
+cannot run everything GitHub Actions can. Before the first push, look for what
+`act` cannot run. A job that newly grants `id-token: write` asks GitHub for an
+OIDC token, which `act` never receives. A new pull-request workflow belongs
+either in `.circleci/config.yml`'s matrix or in its exclusion list.
+
+```bash
+git diff v<old-version> v<version> -- .github/workflows/ | grep -cE '^\+ *id-token: write'
+git diff v<old-version> v<version> -- .github/workflows/ .github/actions/ \
+  | grep -E '^\+.*uses:' | sed -E 's/^\+ *(- )?uses: *//; s/@.*//' | sort | uniq -c | sort -rn
+git diff --name-status v<old-version> v<version> -- .github/workflows/
+```
+
+Stub what `act` cannot run in `.circleci/config.yml`; the comments there explain
+the existing stubs.
+
+A `Cargo.lock` hunk conflicts whenever the base moved. Keep the new base's
+lockfile (during a cherry-pick, `--ours` is the branch being built), then,
+before the squash commit, update the crates that `cargo deny` reports to the
+version on each advisory's `Solution: Upgrade to` line:
+
+```bash
+git checkout --ours Cargo.lock && git add Cargo.lock && git cherry-pick --continue
+cargo deny --all-features check --hide-inclusion-graph advisories 2>&1 \
+  | grep -E '^(error|warning)\[|^ *[0-9]+ │ [a-z]|├ (ID|Solution):'
+cargo update -p <crate> --precise <upgrade-to>   # per reported crate
+git add Cargo.lock
+```
+
+Check the fork's lockfile advisories separately: downstream lockfile fixes do
+not repair the fork's CI.
 
 **Work** on the branch through pull requests into it afterwards. The `op-*`
 ruleset forbids force-pushes and deletion and requires a reviewed PR with
@@ -291,7 +431,7 @@ passing fork CI.
 **Tag** each branch commit the monorepo pins as `<branch>-<n>`, counting from
 0 on each branch: `op-v2.6.0-0`, `op-v2.6.0-1`, and so on. Tag a commit once it
 is on the branch and fork CI passed on it; a PR's head commit is not, since
-merging squashes it into a new one. Commits the monorepo does not pin, such as
+a squash or rebase merge rewrites it. Commits the monorepo does not pin, such as
 CI-only fixes, get no tag. Annotate the tag with what changed since the
 previous one:
 
@@ -300,20 +440,93 @@ git tag -a op-v<version>-<n> <reth-sha> -m "..."
 git push git@github.com:ethereum-optimism/reth.git op-v<version>-<n>
 ```
 
-Tags are immutable, so a tag pin is as reproducible as a rev pin.
+For an update, return to [Procedure](#procedure) step 3 and pin the tag.
+
+Tags are immutable, so a tag pin is as reproducible as a rev pin. The org's
+tag ruleset also forbids deleting or re-annotating one, so a tag on the wrong
+commit stays forever with its misleading annotation (`op-v2.6.0-3` is one).
+Tag only after the PR that carries the change is merged, and take the commit
+from the PR, never from the branch tip:
+
+```bash
+gh pr view <pr> --repo ethereum-optimism/reth --json state,mergeCommit \
+  --jq '"\(.state) \(.mergeCommit.oid)"'
+```
+
+Before pushing, compare the commit's subject with the annotation you wrote.
+Do not chain the tag push after a merge command in one script: a failed merge
+must stop the script, not leave the tag pointing at the old tip.
+
+Always use the full 40-character commit id, in `rev = "..."` pins, in
+`git tag -a`, and in `gh` flags such as `--match-head-commit`, which rejects
+abbreviated ids.
 
 **Maintain** the branch until the next update: later backports to the same base
 are PRs into it, tagged when the monorepo pins them. Keep old branches as a
 historical record.
+
+### Carried patches
+
+Patches the current branch carries beyond upstream, and what to do with each
+on the next base:
+
+- **RPC replay through the block executor** (ethereum-optimism/reth#37 on
+  `op-v2.6.0`, ethereum-optimism/reth#41 on `op-v2.7.0`: a backport of
+  `paradigmxyz/reth#28266`). Op-reth's SDM refund settlement is only visible to
+  `debug_*`, `trace_*` and `ots_*` replays through it, and
+  `rust/op-reth/crates/node/tests/it/rpc_replay_settlement/` fails without
+  it. On a base that still uses alloy-evm 0.39 (`v2.7.0` through `v2.8.1`),
+  cherry-pick the backport from the current branch. Onto v2.7.0 it conflicted
+  in the imports of `helpers/call.rs` and in the replay callback of
+  `rpc/src/trace.rs`, which takes the backport's own `TracingCtx`;
+  `Call::block_executor` had to name the database `StateCacheDb` wraps
+  (`StateProviderDatabase<EvmStateProviderAdapter<StateProviderBox>>`), and its
+  e2e test moved to `test_setup_for(EthereumHardfork::Prague)`. On v2.8.0
+  and v2.8.1, the plain replay loops that the backport replaces carry
+  `paradigmxyz/reth#27462`'s `is_cancelled()` checks: move them into the
+  executor loops, as ethereum-optimism/reth#44 did, or replays lose
+  cancellation with no compile error. On an evm2 base (`v2.9.0` and later),
+  drop the backport and cherry-pick `paradigmxyz/reth#28266` itself until a release contains it; there,
+  upstream's `inspect_transaction_without_commit` installs the tracer through
+  the EVM's inspector slot, which op-reth's `PostExecCompositeInspector`
+  occupies, so `OpBlockExecutor` needs an override or composition for it.
+  Upstream's BAL branch skips per-transaction settlement; op-reth rejects
+  computed BALs, keep that invariant under test.
+- **Trie iterator seek boundary** (`paradigmxyz/reth#28264`, carried as
+  ethereum-optimism/reth#32 on `op-v2.6.0` and ethereum-optimism/reth#40 on
+  `op-v2.7.0`, both picked from upstream with `-x`). No release up to v2.9.0
+  contains it, so carry it until one does; the audit in step 2 drops it then.
+- **Forward fixes** (ethereum-optimism/reth#44 on `op-v2.7.0`, picked from
+  upstream with `-x`): `paradigmxyz/reth#28148` (first released in v2.9.0),
+  `paradigmxyz/reth#28253` (v2.10.0), and `paradigmxyz/reth#28314`,
+  `paradigmxyz/reth#27716`, `paradigmxyz/reth#28370`,
+  `paradigmxyz/reth#28403`, `paradigmxyz/reth#28423` and
+  `paradigmxyz/reth#28431` (v2.11.0). Carry each until the base contains it.
+  On an alloy-evm 0.39 base (`v2.8.1`), cherry-pick them from the current
+  branch, where `paradigmxyz/reth#28253` and `paradigmxyz/reth#28314` are
+  hand-ported from evm2; on an evm2 base, cherry-pick the upstream commits.
+  Op-reth keeps its own copies of the symbols `paradigmxyz/reth#27716` and
+  `paradigmxyz/reth#28431` patch (`UPSTREAM-MIRROR` tags in `rust/op-reth`),
+  so check those mirrors against each pick.
 
 ### Pinning a fork change
 
 This applies to any monorepo PR that needs a fork change, in a reth update or
 not. Prefer merging the fork PR first, tagging the result, and pinning the tag
 from the start. When the two PRs have to be developed together, pin the fork
-PR's head commit with `rev = "<sha>"` meanwhile. Once the fork PR merges, tag
-its merged commit and switch the monorepo PR to the tag before it merges, so
-a fork pin on `develop` is always a tag.
+PR's head commit with `rev = "<sha>"` meanwhile, and keep the monorepo PR in
+draft. Only when the fork branch is fully prepared and its tag exists, replace
+the `rev` with the tag; then the monorepo PR can leave draft. A fork PR's head
+commit is not on the branch once the PR squash- or rebase-merges, so a `rev`
+pin on `develop` names a commit no fork branch contains. A follow-up repin
+does not excuse merging one.
+
+The required `rust-reth-tag-pin` check (`just check-reth-tag-pin`) fails on a
+`rev` pin, on a tracked `Cargo.lock` that resolves reth from anything but that
+tag, and on an `op-<base>-<n>` tag whose commit is not on its `op-<base>`
+branch, which it asks GitHub's compare API. It stays red on the draft until
+the tag replaces the `rev`. Locally it uses `GITHUB_TOKEN` or `GH_TOKEN` when
+set, e.g. `GH_TOKEN=$(gh auth token) just check-reth-tag-pin`.
 
 ## After the monorepo PR merges
 
@@ -366,6 +579,10 @@ In order of preference:
 
 3. **Current `main` HEAD** — for periodic catch-up only when no suitable
    release exists.
+
+`develop` only takes tags, so for an untagged upstream commit start an
+`op-<reth-short-sha>` fork branch at it ([The reth fork](#the-reth-fork)) and
+pin its `op-<reth-short-sha>-<n>` tag.
 
 Avoid pinning to an unmerged PR branch tip for anything we want to land. It
 moves under us when the PR rebases, may sit on a much newer main than our

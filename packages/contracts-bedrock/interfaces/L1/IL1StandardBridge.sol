@@ -10,6 +10,11 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 
 interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     error ReinitializableBase_ZeroInitVersion();
+    error L1StandardBridge_NotPortal();
+    error L1StandardBridge_NoBridgeHook();
+    error L1StandardBridge_InvalidTokenTransfer();
+    error L1StandardBridge_InsufficientDeposits();
+    error L1StandardBridge_TransferNotHeld();
 
     event ERC20DepositInitiated(
         address indexed l1Token,
@@ -29,6 +34,8 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     );
     event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes extraData);
     event ETHWithdrawalFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
+    event ERC20Held(bytes32 indexed id, address indexed l1Token, address indexed l2Token, uint256 amount);
+    event ERC20Restored(bytes32 indexed id, address indexed l1Token, address indexed l2Token, uint256 amount);
 
     function initVersion() external view returns (uint8);
     function depositERC20(
@@ -72,8 +79,9 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     function systemConfig() external view returns (ISystemConfig);
     function version() external view returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);
-    function holdERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external;
-    function restoreERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external;
+    function heldTokenKinds(bytes32) external view returns (BridgeHookTypes.TokenKind);
+    function holdERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external;
+    function restoreERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external;
 
     function __constructor__() external;
 }

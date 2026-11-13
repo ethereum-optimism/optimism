@@ -246,6 +246,13 @@ pub struct P2PArgs {
         env = "KONA_NODE_P2P_DISCOVERY_IP_VOTES"
     )]
     pub discovery_ip_votes: IpVotes,
+    /// Lets discovery use non-public addresses, such as loopback and LAN ones, in other nodes'
+    /// records, as on a devnet.
+    ///
+    /// Without it, discovery uses only public addresses, and skips bootnodes at other addresses. A
+    /// node on a public network can't reach other hosts' private addresses, so leave it off there.
+    #[arg(long = "p2p.discovery.private", env = "KONA_NODE_P2P_DISCOVERY_PRIVATE")]
+    pub discovery_private: bool,
     /// The directory to store the bootstore.
     #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
     pub bootstore: Option<PathBuf>,
@@ -530,8 +537,11 @@ impl P2PArgs {
         });
 
         let discovery_listening_address = SocketAddr::new(self.listen_ip, self.listen_udp_port);
-        let discovery_config =
+        let mut discovery_config =
             NetworkConfig::discv5_config(discovery_listening_address.into(), ip_votes);
+        if !self.discovery_private {
+            discovery_config.table_filter = kona_disc::public_only;
+        }
 
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
@@ -726,6 +736,22 @@ mod tests {
             network_config(&["--p2p.discovery.ip-votes", "3", "--p2p.advertise.ip", "127.0.0.1"])
                 .await;
         assert!(!config.discovery_config.enr_update);
+    }
+
+    /// Discovery's table filter accepts only public records, unless `--p2p.discovery.private`
+    /// allows private ones.
+    #[tokio::test]
+    async fn test_discovery_private_reaches_discovery() {
+        let loopback = discv5::Enr::builder()
+            .ip4(std::net::Ipv4Addr::LOCALHOST)
+            .build(&enr::CombinedKey::generate_secp256k1())
+            .expect("the record builds");
+
+        let config = network_config(&[]).await;
+        assert!(!(config.discovery_config.table_filter)(&loopback));
+
+        let config = network_config(&["--p2p.discovery.private"]).await;
+        assert!((config.discovery_config.table_filter)(&loopback));
     }
 
     #[test]

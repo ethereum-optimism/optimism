@@ -120,9 +120,15 @@ var (
 	}
 	SP1VerifierAddressFlag = &cli.StringFlag{
 		Name:    SP1VerifierAddressFlagName,
-		Usage:   "Raw SP1 verifier wrapped by the release's SP1PlonkAdapter. Defaults to Succinct's v6.1.0 PLONK verifier on Ethereum mainnet and Sepolia; required on every other L1.",
+		Usage:   "Raw SP1 verifier wrapped by the release's SP1PlonkAdapter. Defaults to Succinct's v6.1.0 PLONK verifier on Ethereum mainnet and Sepolia; required on every other L1, unless --" + deployer.DeployMockSP1VerifierFlagName + " is set.",
 		EnvVars: deployer.PrefixEnvVar("SP1_VERIFIER_ADDRESS"),
 		Value:   common.Address{}.Hex(),
+	}
+	DeployMockSP1VerifierFlag = &cli.BoolFlag{
+		Name: deployer.DeployMockSP1VerifierFlagName,
+		Usage: "deploy a mock SP1 verifier for the ZK dispute game, on an L1 without a release verifier. " +
+			"Development only: the mock accepts every proof.",
+		EnvVars: deployer.PrefixEnvVar("DEPLOY_MOCK_SP1_VERIFIER"),
 	}
 	ProxyOwnerFlag = &cli.StringFlag{
 		Name:    ProxyOwnerFlagName,
@@ -183,6 +189,7 @@ var ImplementationsFlags = []cli.Flag{
 	MIPSVersionFlag,
 	DevFeatureBitmapFlag,
 	SP1VerifierAddressFlag,
+	DeployMockSP1VerifierFlag,
 	MinWithdrawalDelaySecondsFlag,
 	MaxWithdrawalDelaySecondsFlag,
 	MinProposalSizeBytesFlag,
@@ -204,7 +211,6 @@ var ImplementationsFlags = []cli.Flag{
 	deployer.VerifierUrlFlag,
 	deployer.VerifierAPIKeyFlag,
 	deployer.UseForgeFlag,
-	deployer.ForgeSlowBroadcastFlag,
 	deployer.ReceiptQueryIntervalFlag,
 }
 
@@ -229,7 +235,6 @@ var SuperchainFlags = []cli.Flag{
 	deployer.VerifierUrlFlag,
 	deployer.VerifierAPIKeyFlag,
 	deployer.UseForgeFlag,
-	deployer.ForgeSlowBroadcastFlag,
 	deployer.ReceiptQueryIntervalFlag,
 }
 
