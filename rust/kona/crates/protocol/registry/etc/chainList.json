@@ -1108,7 +1108,7 @@
   },
   {
     "name": "sepolia-devnet-4",
-    "identifier": "sepolia-devnet-4/sepolia-devnet-4",
+    "identifier": "sepolia-devnet-4-5/sepolia-devnet-4",
     "chainId": 420130019,
     "rpc": [
       "https://sepolia-devnet-4.optimism.io/rpc"
@@ -1120,7 +1120,7 @@
     "dataAvailabilityType": "eth-da",
     "parent": {
       "type": "L2",
-      "chain": "sepolia-devnet-4"
+      "chain": "sepolia-devnet-4-5"
     },
     "faultProofs": {
       "status": "permissionless"
@@ -1128,7 +1128,7 @@
   },
   {
     "name": "sepolia-devnet-5",
-    "identifier": "sepolia-devnet-5/sepolia-devnet-5",
+    "identifier": "sepolia-devnet-4-5/sepolia-devnet-5",
     "chainId": 420130020,
     "rpc": [
       "https://sepolia-devnet-5.optimism.io/rpc"
@@ -1140,7 +1140,7 @@
     "dataAvailabilityType": "eth-da",
     "parent": {
       "type": "L2",
-      "chain": "sepolia-devnet-5"
+      "chain": "sepolia-devnet-4-5"
     },
     "faultProofs": {
       "status": "permissionless"
