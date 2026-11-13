@@ -43,7 +43,7 @@ contract DeployUtils_CreateDeterministic_Test is DeployUtils_TestInit {
             vm.etch(expected, hex"00");
         }
 
-        address deployed = DeployUtils.createDeterministic("AddressManager", hex"", salt);
+        address deployed = DeployUtils.createDeterministic({ _name: "AddressManager", _args: hex"", _salt: salt });
 
         assertEq(deployed, expected);
         if (_reuse) {
