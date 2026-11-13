@@ -45,59 +45,75 @@ const (
 // bundles directory of cacheDir, or of op-deployer's default cache directory when cacheDir is empty,
 // shared by the processes that use it, and keyed by the project and its build: a rebuild of the
 // project gets a new bundle, and a bundle in use stays as it was. A directory that is not a built
-// forge project, or that op-deployer cannot bundle, is used as it is.
-func openLocal(dir string, cacheDir string) fs.FS {
+// forge project is rejected. A valid project that op-deployer cannot bundle is used as it is.
+func openLocal(dir string, cacheDir string) (fs.FS, error) {
 	return openProject(dir, cacheDir, true)
 }
 
 // openProject returns the artifacts at dir as openLocal does. With shared false, the bundles are in
 // a new directory of this process, as processBundlesDir makes it, not in the shared one.
-func openProject(dir string, cacheDir string, shared bool) fs.FS {
-	dir = filepath.Clean(dir)
-	project, artifactsDir := dir, filepath.Join(dir, bundle.ScriptReadDir)
-	if _, err := os.Stat(artifactsDir); err != nil {
-		// TODO(#18346): Accept this for now but in the future we should error
-		project, artifactsDir = filepath.Dir(dir), dir
+func openProject(dir string, cacheDir string, shared bool) (fs.FS, error) {
+	project := filepath.Clean(dir)
+	if filepath.Base(project) == bundle.ScriptReadDir {
+		if _, err := os.Stat(filepath.Join(project, "foundry.toml")); errors.Is(err, fs.ErrNotExist) {
+			project = filepath.Dir(project)
+		}
+	}
+	artifactsDir, err := projectArtifacts(project)
+	if err != nil {
+		return nil, err
 	}
 	// A bundle is keyed by the project's path, and its pack walks the project.
 	resolved, err := filepath.EvalSymlinks(project)
 	if err != nil {
-		log.Debug("Using the local artifacts as they are", "dir", dir, "err", err)
-		return os.DirFS(artifactsDir)
+		return nil, fmt.Errorf("failed to resolve forge project: %w", err)
 	}
-	rel, err := filepath.Rel(project, artifactsDir)
-	if err != nil {
-		log.Debug("Using the local artifacts as they are", "dir", dir, "err", err)
-		return os.DirFS(artifactsDir)
-	}
-	// op-deployer lets scripts read only bundle.ScriptReadDir, so a build with other artifacts is not
-	// one that it runs.
-	if buildArtifactsDir, err := bundle.ArtifactsDir(resolved); err != nil || buildArtifactsDir != bundle.ScriptReadDir || filepath.ToSlash(rel) != buildArtifactsDir {
-		log.Debug("Using the local artifacts as they are: not a forge build that op-deployer copies",
-			"dir", dir, "artifacts", buildArtifactsDir, "err", err)
-		return os.DirFS(artifactsDir)
-	}
-	if _, err := os.Stat(filepath.Join(resolved, "foundry.toml")); err != nil {
-		log.Debug("Using the local artifacts as they are: not a forge project", "dir", dir, "err", err)
-		return os.DirFS(artifactsDir)
-	}
+	const rel = bundle.ScriptReadDir
 
 	// The shared directory can fail where one of this process works, as without a home or without
 	// file locks on a network home.
 	if shared {
 		bundleDir, err := bundleIn(sharedBundlesDir, cacheDir, resolved, rel)
 		if err == nil {
-			return os.DirFS(filepath.Join(bundleDir, rel))
+			return os.DirFS(filepath.Join(bundleDir, rel)), nil
 		}
 		log.Warn("Cannot use the shared copy of the contracts build; copying it for this process", "project", resolved, "err", err)
 	}
 	bundleDir, err := bundleIn(processBundlesDir, cacheDir, resolved, rel)
 	if err == nil {
-		return os.DirFS(filepath.Join(bundleDir, rel))
+		return os.DirFS(filepath.Join(bundleDir, rel)), nil
 	}
 	log.Warn("Cannot copy the contracts build without the AST; forge runs on the build and takes several times the memory",
 		"project", resolved, "err", err)
-	return os.DirFS(artifactsDir)
+	return os.DirFS(artifactsDir), nil
+}
+
+// projectArtifacts rejects artifacts-only layouts. The returned filesystem path remains rooted at
+// forge-artifacts for artifact readers; forge runs from its parent, the complete project directory.
+func projectArtifacts(project string) (string, error) {
+	config, err := os.Stat(filepath.Join(project, "foundry.toml"))
+	if err != nil {
+		return "", fmt.Errorf("contracts must be a built forge project with foundry.toml, sources and forge-artifacts; artifacts-only directories are not supported: %w", err)
+	}
+	if !config.Mode().IsRegular() {
+		return "", fmt.Errorf("forge project foundry.toml is not a regular file")
+	}
+	artifactsDir := filepath.Join(project, bundle.ScriptReadDir)
+	info, err := os.Stat(artifactsDir)
+	if err != nil {
+		return "", fmt.Errorf("forge project is missing %s: %w", bundle.ScriptReadDir, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("forge project %s is not a directory", bundle.ScriptReadDir)
+	}
+	buildArtifactsDir, err := bundle.ArtifactsDir(project)
+	if err != nil {
+		return "", fmt.Errorf("contracts must be a built forge project: %w", err)
+	}
+	if buildArtifactsDir != bundle.ScriptReadDir {
+		return "", fmt.Errorf("forge project uses artifacts directory %q; op-deployer requires %q", buildArtifactsDir, bundle.ScriptReadDir)
+	}
+	return artifactsDir, nil
 }
 
 // bundleIn returns the bundle of the forge project at project in the bundles directory that

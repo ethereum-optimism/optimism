@@ -27,58 +27,29 @@ func ExtractEmbedded(destDir string) (foundry.StatDirFs, error) {
 		return nil, fmt.Errorf("could not open embedded artifacts %q: %w", embeddedArtifactsZstdShort, err)
 	}
 	defer f.Close()
-
-	zr, zerr := zstd.NewReader(f)
-	if zerr != nil {
-		return nil, fmt.Errorf("could not create zstd reader: %w", zerr)
-	}
-	defer zr.Close()
-	reader := io.NopCloser(zr)
-
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to ensure destination dir: %w", err)
-	}
-	untarPath, err := os.MkdirTemp(destDir, "bundle-*")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp untar dir: %w", err)
-	}
-
-	// Register for automatic cleanup on process exit
-	RegisterForCleanup(untarPath)
-
-	tr := tar.NewReader(reader)
-	if err := ioutil.Untar(untarPath, tr); err != nil {
-		return nil, fmt.Errorf("failed to untar embedded artifacts: %w", err)
-	}
-
-	forgeArtifactsDir := filepath.Join(untarPath, "forge-artifacts")
-	if _, err := os.Stat(forgeArtifactsDir); err != nil {
-		return nil, fmt.Errorf("forge-artifacts directory not found within embedded artifacts: %w", err)
-	}
-
-	// TODO(#18346): Change this to provide the parent directory of the forge-artifacts directory
-	return os.DirFS(forgeArtifactsDir).(foundry.StatDirFs), nil
+	return extractZstdBundle(destDir, f)
 }
 
 func ExtractFromFile(destDir string, tarFilePath string) (foundry.StatDirFs, error) {
+	if !strings.HasSuffix(tarFilePath, ".tzst") {
+		return nil, fmt.Errorf("unsupported file format: expected .tzst file, got %q", tarFilePath)
+	}
 	f, err := os.Open(tarFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("could not open tar file: %w", err)
 	}
 	defer f.Close()
+	return extractZstdBundle(destDir, f)
+}
 
-	if !strings.HasSuffix(tarFilePath, ".tzst") {
-		return nil, fmt.Errorf("unsupported file format: expected .tzst file, got %q", tarFilePath)
-	}
-
-	zr, zerr := zstd.NewReader(f)
-	if zerr != nil {
-		return nil, fmt.Errorf("could not create zstd reader: %w", zerr)
+func extractZstdBundle(destDir string, r io.Reader) (foundry.StatDirFs, error) {
+	zr, err := zstd.NewReader(r)
+	if err != nil {
+		return nil, fmt.Errorf("could not create zstd reader: %w", err)
 	}
 	defer zr.Close()
-	reader := io.NopCloser(zr)
 
-	// Untar into a unique subdirectory to avoid collisions with pre-existing paths
+	// Untar into a unique subdirectory to avoid collisions with pre-existing paths.
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to ensure destination dir: %w", err)
 	}
@@ -86,20 +57,14 @@ func ExtractFromFile(destDir string, tarFilePath string) (foundry.StatDirFs, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp untar dir: %w", err)
 	}
-
-	// Register for automatic cleanup on process exit
 	RegisterForCleanup(untarPath)
 
-	tr := tar.NewReader(reader)
-	if err := ioutil.Untar(untarPath, tr); err != nil {
-		return nil, fmt.Errorf("failed to untar embedded artifacts: %w", err)
+	if err := ioutil.Untar(untarPath, tar.NewReader(zr)); err != nil {
+		return nil, fmt.Errorf("failed to untar artifacts: %w", err)
 	}
-
-	forgeArtifactsDir := filepath.Join(untarPath, "out")
-	if _, err := os.Stat(forgeArtifactsDir); err != nil {
-		return nil, fmt.Errorf("forge-artifacts directory not found within embedded artifacts: %w", err)
+	artifactsDir, err := projectArtifacts(untarPath)
+	if err != nil {
+		return nil, err
 	}
-
-	// TODO(#18346): Change this to provide the parent directory of the forge-artifacts directory
-	return os.DirFS(forgeArtifactsDir).(foundry.StatDirFs), nil
+	return os.DirFS(artifactsDir).(foundry.StatDirFs), nil
 }

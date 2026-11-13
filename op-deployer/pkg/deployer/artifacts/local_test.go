@@ -1,9 +1,7 @@
 package artifacts
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"fmt"
 	"io/fs"
@@ -85,7 +83,8 @@ func TestOpenLocal(t *testing.T) {
 			t.Setenv("HOME", home)
 			project := writeProject(t)
 
-			fsys := openLocal(locate(project), "")
+			fsys, err := openLocal(locate(project), "")
+			require.NoError(t, err)
 			require.NotContains(t, readArtifact(t, fsys), `"ast"`)
 			bundles := bundlesIn(t, home)
 			require.Len(t, bundles, 1)
@@ -93,7 +92,8 @@ func TestOpenLocal(t *testing.T) {
 			require.FileExists(t, filepath.Join(bundles[0], "foundry.toml"))
 
 			// A later caller uses the same bundle.
-			again := openLocal(locate(project), "")
+			again, err := openLocal(locate(project), "")
+			require.NoError(t, err)
 			require.Equal(t, readArtifact(t, fsys), readArtifact(t, again))
 			require.Equal(t, bundles, bundlesIn(t, home))
 
@@ -102,12 +102,22 @@ func TestOpenLocal(t *testing.T) {
 				"forge-artifacts/A.sol/A.json": `{"abi":[1]}`,
 				bundle.CompileCacheFile:        testCompileCache + " ",
 			})
-			rebuilt := openLocal(locate(project), "")
+			rebuilt, err := openLocal(locate(project), "")
+			require.NoError(t, err)
 			require.Equal(t, `{"abi":[1]}`, readArtifact(t, rebuilt))
 			require.NotContains(t, readArtifact(t, fsys), `[1]`)
 			require.Len(t, bundlesIn(t, home), 2)
 		})
 	}
+}
+
+func TestOpenLocal_ProjectNamedForgeArtifacts(t *testing.T) {
+	project := writeProject(t)
+	renamed := filepath.Join(t.TempDir(), "forge-artifacts")
+	require.NoError(t, os.Rename(project, renamed))
+	fsys, err := openLocal(renamed, t.TempDir())
+	require.NoError(t, err)
+	require.NotContains(t, readArtifact(t, fsys), `"ast"`)
 }
 
 func TestLocalBundle_UsesExistingBundle(t *testing.T) {
@@ -229,7 +239,7 @@ func TestEvictBundles(t *testing.T) {
 	require.ElementsMatch(t, []string{"keep", "used-1", "used-2", "used-3", "in-use", packingPrefix + "2"}, left)
 }
 
-func TestOpenLocal_UsesOtherDirectoryAsItIs(t *testing.T) {
+func TestOpenLocal_RejectsNonForgeDirectories(t *testing.T) {
 	tests := []struct {
 		name  string
 		files map[string]string
@@ -257,8 +267,9 @@ func TestOpenLocal_UsesOtherDirectoryAsItIs(t *testing.T) {
 			t.Setenv("HOME", home)
 			project := t.TempDir()
 			writeFiles(t, project, tt.files)
-			fsys := openLocal(filepath.Join(project, tt.dir), "")
-			require.Contains(t, readArtifact(t, fsys), `"ast"`)
+			fsys, err := openLocal(filepath.Join(project, tt.dir), "")
+			require.Error(t, err)
+			require.Nil(t, fsys)
 			require.Empty(t, bundlesIn(t, home))
 		})
 	}
@@ -282,7 +293,8 @@ func TestOpenLocal_ResolvesLinks(t *testing.T) {
 	require.NoError(t, os.Symlink(project, link))
 
 	for _, dir := range []string{link, filepath.Join(link, "forge-artifacts"), project + "/forge-artifacts/"} {
-		fsys := openLocal(dir, "")
+		fsys, err := openLocal(dir, "")
+		require.NoError(t, err)
 		require.NotContains(t, readArtifact(t, fsys), `"ast"`, dir)
 	}
 	require.Len(t, bundlesIn(t, home), 1, "the link and the project share the bundle")
@@ -307,31 +319,9 @@ func TestDownload_RepacksHTTPBundleInProcessDirectory(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	project := writeProject(t)
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	tw := tar.NewWriter(gz)
-	require.NoError(t, filepath.WalkDir(project, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(project, path)
-		if err != nil {
-			return err
-		}
-		if err := tw.WriteHeader(&tar.Header{Name: filepath.ToSlash(rel), Mode: 0o644, Size: int64(len(data))}); err != nil {
-			return err
-		}
-		_, err = tw.Write(data)
-		return err
-	}))
-	require.NoError(t, tw.Close())
-	require.NoError(t, gz.Close())
+	data := archiveProject(t, project, "gzip")
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write(buf.Bytes())
+		_, _ = w.Write(data)
 	}))
 	defer ts.Close()
 
@@ -378,7 +368,8 @@ func TestOpenLocal_LinksInTheProject(t *testing.T) {
 		moved := filepath.Join(t.TempDir(), "forge-artifacts")
 		require.NoError(t, os.Rename(filepath.Join(project, "forge-artifacts"), moved))
 		require.NoError(t, os.Symlink(moved, filepath.Join(project, "forge-artifacts")))
-		fsys := openLocal(project, "")
+		fsys, err := openLocal(project, "")
+		require.NoError(t, err)
 		require.Contains(t, readArtifact(t, fsys), `"ast"`, "a project that cannot be bundled is used as it is")
 		require.Empty(t, bundlesIn(t, home))
 	})
@@ -389,7 +380,8 @@ func TestOpenLocal_LinksInTheProject(t *testing.T) {
 		writeFiles(t, project, map[string]string{"other/A.sol": "contract A {}"})
 		require.NoError(t, os.Remove(filepath.Join(project, "src", "A.sol")))
 		require.NoError(t, os.Symlink("../other/A.sol", filepath.Join(project, "src", "A.sol")))
-		fsys := openLocal(project, "")
+		fsys, err := openLocal(project, "")
+		require.NoError(t, err)
 		require.Contains(t, readArtifact(t, fsys), `"ast"`, "a bundle copies no link, so the build is used as it is")
 		require.Empty(t, bundlesIn(t, home))
 	})
@@ -400,7 +392,8 @@ func TestOpenLocal_LinksInTheProject(t *testing.T) {
 		source := filepath.Join(t.TempDir(), "A.sol")
 		require.NoError(t, os.Rename(filepath.Join(project, "src", "A.sol"), source))
 		require.NoError(t, os.Symlink(source, filepath.Join(project, "src", "A.sol")))
-		fsys := openLocal(project, "")
+		fsys, err := openLocal(project, "")
+		require.NoError(t, err)
 		require.Contains(t, readArtifact(t, fsys), `"ast"`, "a project that cannot be bundled is used as it is")
 		require.Empty(t, bundlesIn(t, home))
 	})
@@ -426,7 +419,8 @@ func TestOpenLocal_FallsBackToProcessDirectory(t *testing.T) {
 		t.Setenv("HOME", "")
 		tmp := t.TempDir()
 		t.Setenv("TMPDIR", tmp)
-		fsys := openLocal(writeProject(t), "")
+		fsys, err := openLocal(writeProject(t), "")
+		require.NoError(t, err)
 		require.NotContains(t, readArtifact(t, fsys), `"ast"`)
 		bundles, err := filepath.Glob(filepath.Join(tmp, "op-deployer-bundles-*"))
 		require.NoError(t, err)
@@ -447,7 +441,8 @@ func TestOpenLocal_FallsBackToProcessDirectory(t *testing.T) {
 		lockTimeout = 300 * time.Millisecond
 		t.Cleanup(func() { lockTimeout = 5 * time.Minute })
 
-		fsys := openLocal(project, cacheDir)
+		fsys, err := openLocal(project, cacheDir)
+		require.NoError(t, err)
 		require.NotContains(t, readArtifact(t, fsys), `"ast"`)
 		bundles, err := filepath.Glob(filepath.Join(cacheDir, "op-deployer-bundles-*"))
 		require.NoError(t, err)
@@ -461,7 +456,8 @@ func TestOpenLocal_UsesCacheDir(t *testing.T) {
 	project := writeProject(t)
 	cacheDir := filepath.Join(t.TempDir(), "cache")
 
-	fsys := openLocal(project, cacheDir)
+	fsys, err := openLocal(project, cacheDir)
+	require.NoError(t, err)
 	require.NotContains(t, readArtifact(t, fsys), `"ast"`)
 	bundles, err := filepath.Glob(filepath.Join(cacheDir, "bundles", "*"))
 	require.NoError(t, err)
@@ -470,7 +466,8 @@ func TestOpenLocal_UsesCacheDir(t *testing.T) {
 	require.Empty(t, bundlesIn(t, home), "the default cache directory is not used")
 
 	// An empty cache directory means the default one.
-	fsys = openLocal(project, "")
+	fsys, err = openLocal(project, "")
+	require.NoError(t, err)
 	require.NotContains(t, readArtifact(t, fsys), `"ast"`)
 	require.Len(t, bundlesIn(t, home), 1)
 }
