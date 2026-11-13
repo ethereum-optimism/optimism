@@ -2142,10 +2142,6 @@ jobs:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
         default: "op-node"
-      l2_el_kind:
-        description: "L2 execution layer client (op-geth or op-reth)"
-        type: string
-        default: "op-reth"
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -2220,7 +2216,6 @@ jobs:
           command: |
             echo "export DEVSTACK_L1_FORK=<<parameters.l1_fork>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
-            echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules (downloaded once by prep-go-modules) plus the
       # per-job build cache. Modules are already present, so the test run below
       # does not need a separate `go mod download`.
@@ -2779,7 +2774,6 @@ workflows:
             parameters:
               l1_fork: &acceptance_l1_forks
                 - fusaka
-          l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
@@ -2805,7 +2799,6 @@ workflows:
             parameters:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
-          l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
