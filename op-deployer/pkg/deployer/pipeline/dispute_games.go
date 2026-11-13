@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -152,7 +151,6 @@ func deployDisputeGame(
 	}
 	lgr.Info("vm deployed", "vmAddr", vmAddr)
 
-	var gameArgs []byte
 	args := gameargs.GameArgs{
 		AbsolutePrestate:    game.DisputeAbsolutePrestate,
 		Vm:                  vmAddr,
@@ -162,11 +160,7 @@ func deployDisputeGame(
 		Proposer:            thisIntent.Roles.Proposer,
 		Challenger:          thisIntent.Roles.Challenger,
 	}
-	if game.DisputeGameType == uint32(gameTypes.PermissionedGameType) {
-		gameArgs = args.PackPermissioned()
-	} else {
-		gameArgs = args.PackPermissionless()
-	}
+	gameArgs := args.PackPermissionless()
 
 	lgr.Info("deploying dispute game")
 

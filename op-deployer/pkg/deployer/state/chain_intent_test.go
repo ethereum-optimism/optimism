@@ -211,7 +211,9 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := validBaseChainIntent()
-			c.AdditionalDisputeGames = []AdditionalDisputeGame{tt.game}
+			game := tt.game
+			game.DisputeGameType = 10 // ZK_DISPUTE_GAME
+			c.AdditionalDisputeGames = []AdditionalDisputeGame{game}
 			err := c.Check()
 			if tt.expectErr != nil {
 				require.ErrorIs(t, err, tt.expectErr)
@@ -219,6 +221,19 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+func TestChainIntentCheck_RejectsCannonAndPermissionedCannonAdditionalGames(t *testing.T) {
+	for _, gameType := range []uint32{0, 1} {
+		c := validBaseChainIntent()
+		c.AdditionalDisputeGames = []AdditionalDisputeGame{{
+			ChainProofParams: ChainProofParams{DisputeGameType: gameType},
+			VMType:           VMTypeCannon,
+		}}
+		err := c.Check()
+		require.ErrorIs(t, err, ErrIncompatibleValue)
+		require.ErrorContains(t, err, "no longer supported")
 	}
 }
 

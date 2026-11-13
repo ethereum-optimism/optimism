@@ -177,6 +177,14 @@ func (c *ChainIntent) Check() error {
 		return fmt.Errorf("%w: bridgeHook is not supported with a custom gas token, chainId=%s", ErrIncompatibleValue, c.ID)
 	}
 
+	for _, game := range c.AdditionalDisputeGames {
+		// CANNON (0) and PERMISSIONED_CANNON (1) are deprecated. A CANNON_KONA chain gets its
+		// PERMISSIONED_CANNON guardian fallback from the OP chain deployment, not from an additional game.
+		if game.DisputeGameType == 0 || game.DisputeGameType == 1 {
+			return fmt.Errorf("%w: dangerousAdditionalDisputeGames entry has respectedGameType %d; CANNON (0) and PERMISSIONED_CANNON (1) are no longer supported as additional dispute games, chainId=%s", ErrIncompatibleValue, game.DisputeGameType, c.ID)
+		}
+	}
+
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)
 	}

@@ -19,6 +19,20 @@ func TestValidConfigIsValid(t *testing.T) {
 	require.NoError(t, cfg.Check())
 }
 
+func TestRejectsGameTypeZero(t *testing.T) {
+	cfg := validConfig()
+	cfg.DisputeGameType = 0
+	require.ErrorIs(t, cfg.Check(), ErrUnsupportedGameType)
+}
+
+// TestAcceptsPermissionedCannonGameType guards the PERMISSIONED_CANNON guardian fallback that every
+// CANNON_KONA deployment has.
+func TestAcceptsPermissionedCannonGameType(t *testing.T) {
+	cfg := validConfig()
+	cfg.DisputeGameType = 1
+	require.NoError(t, cfg.Check())
+}
+
 func TestNewConfigReadsSuperRootRpcs(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -169,7 +183,7 @@ func validConfig() *CLIConfig {
 		PprofConfig:                  oppprof.DefaultCLIConfig(),
 		DGFAddress:                   common.Address{0xaa, 0xbb, 0xcc}.Hex(),
 		ProposalInterval:             50,
-		DisputeGameType:              0,
+		DisputeGameType:              8,
 		ActiveSequencerCheckDuration: 0,
 		WaitNodeSync:                 false,
 	}
