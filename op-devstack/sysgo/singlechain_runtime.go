@@ -39,7 +39,7 @@ type singleChainRuntimeWorld struct {
 	Migration *interopMigrationState
 	Interop   *SingleChainInteropSupport
 	// DependencySet is the dependency set op-deployer generated (state.InteropDepSet): the chain alone.
-	DependencySet depset.DependencySet
+	DependencySet *depset.StaticConfigDependencySet
 }
 
 type singleChainPrimaryRuntime struct {
@@ -80,10 +80,7 @@ func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig
 		DependencySet: depSet,
 	}
 	if cfg.InteropAtGenesis {
-		world.Interop = &SingleChainInteropSupport{
-			Migration:     migration,
-			DependencySet: depSet,
-		}
+		world.Interop = &SingleChainInteropSupport{Migration: migration}
 	}
 	return world
 }
@@ -111,7 +108,7 @@ func startDefaultSingleChainPrimary(
 			Key:           "sequencer",
 			IsSequencer:   true,
 			NoDiscovery:   true,
-			DependencySet: world.Interop.DependencySet,
+			DependencySet: world.DependencySet,
 			L2CLOptions:   l2CLOptions,
 		})
 		return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
@@ -428,7 +425,7 @@ func startMinimalChallenger(
 	l1CL *L1CLNode,
 	l2EL L2ELNode,
 	l2CL L2CLNode,
-	dependencySet depset.DependencySet,
+	dependencySet *depset.StaticConfigDependencySet,
 	addedGameTypes []gameTypes.GameType,
 ) (*L2Challenger, *StallableProxy) {
 	require := t.Require()
@@ -467,10 +464,8 @@ func startMinimalChallenger(
 			sharedchallenger.WithSuperRootRPC(zkChallengerSuperRootRPCProxy.URL()),
 		)
 	case superCannonKonaEnabled:
-		staticDepSet, ok := dependencySet.(*depset.StaticConfigDependencySet)
-		require.True(ok, "expected static dependency set for the single-chain challenger")
 		options = append(options,
-			sharedchallenger.WithDepset(staticDepSet),
+			sharedchallenger.WithDepset(dependencySet),
 			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 			sharedchallenger.WithSuperCannonKonaGameType(),
 			sharedchallenger.WithSuperRootRPC(l2CL.UserRPC()),

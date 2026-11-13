@@ -59,8 +59,7 @@ type SyncTesterRuntime struct {
 }
 
 type SingleChainInteropSupport struct {
-	Migration     *interopMigrationState
-	DependencySet coredepset.DependencySet
+	Migration *interopMigrationState
 }
 
 type SingleChainRuntime struct {

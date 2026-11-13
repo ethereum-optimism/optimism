@@ -16,10 +16,7 @@ func newSingleChainInteropWorldNoSupernode(t devtest.T, keys devkeys.Keys, cfg P
 		L2Network:     l2Net,
 		Migration:     migration,
 		DependencySet: depSet,
-		Interop: &SingleChainInteropSupport{
-			Migration:     migration,
-			DependencySet: depSet,
-		},
+		Interop:       &SingleChainInteropSupport{Migration: migration},
 	}
 }
 
@@ -41,7 +38,7 @@ func startSingleChainInteropPrimaryNoSupernode(
 		Key:            "sequencer",
 		IsSequencer:    true,
 		NoDiscovery:    true,
-		DependencySet:  world.Interop.DependencySet,
+		DependencySet:  world.DependencySet,
 		L2FollowSource: "",
 		L2CLOptions:    cfg.GlobalL2CLOptions,
 	})
