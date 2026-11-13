@@ -134,9 +134,9 @@ lint: fmt-check lint-clippy lint-docs check-upstream-mirrors
 mirrors *ARGS:
   scripts/upstream-mirrors.py {{ replace_regex(ARGS, '(^|\s)stale(\s|$)', '${1}--stale-only${2}') }}
 
-# Run the upstream-mirror checker's contract tests.
+# Run the contract tests of the upstream-mirror checker and the reth forward-sweep prefilter.
 test-upstream-mirrors:
-  python3 -m unittest scripts/test_upstream_mirrors.py
+  python3 -m unittest scripts/test_upstream_mirrors.py scripts/test_reth_forward_prefilter.py
 
 # Fail on malformed tags, ambiguous dependency metadata, unknown crates, or versions ahead of
 # their pin. Staleness is a review worklist, not a defect.

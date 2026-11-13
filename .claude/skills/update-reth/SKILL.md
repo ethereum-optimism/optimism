@@ -26,9 +26,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    `rust/Cargo.toml`. Reuse or clone that source, ensure a remote points to
    `https://github.com/paradigmxyz/reth`, then fetch upstream `main`, tags, the
    old pin, and the selected target. Validate reused remotes before diffing.
-   Skim upstream fixes newer than the candidate target (the forward sweep in
-   `docs/ai/reth-update-review.md`) so a retarget decision comes before the
-   adaptation work.
+   Skim upstream fixes newer than the candidate target (the guide's "Forward
+   sweep") so a retarget decision comes before the adaptation work.
 
 2. **Isolate.** Work in a fresh git worktree (or jj workspace) based on latest
    `develop` — never on the main checkout's working copy. Run `mise trust` in the
@@ -41,7 +40,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    Push that branch at the upstream base and prepare it in one prep PR: the
    CI commit and the OP `.github/CODEOWNERS` carried over from the previous
    branch, every retained patch and forward-sweep pick, and any fixes the new
-   base needs, as separate commits. Rebase-merge it, wait for fork CI to pass
+   base needs, as separate commits. Re-run the forward sweep from its
+   recorded upstream tip, then rebase-merge it, wait for fork CI to pass
    on the PR's `mergeCommit` (its last rebased commit), tag that commit, and
    confirm the fork's `codeowners/errors` check is empty. Meanwhile, the
    update PR may pin the prep PR's head by `rev`, in draft only. Work every
