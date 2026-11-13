@@ -217,17 +217,14 @@ mod tests {
         assert_eq!(DEPENDENCY_SETS.get(&test1_chain_id), DEPENDENCY_SETS.get(&test2_chain_id));
     }
 
-    /// Custom-config chains keep the preimage-oracle fallback, so they are exempt from the
-    /// registry depset invariants below.
+    /// Custom-config chains take their dependency sets from the custom `depsets.json`, which may
+    /// group chains that have no `interop` config.
     fn custom_configs_baked_in() -> bool {
         CUSTOM_CONFIGS == Some("true") || CUSTOM_CONFIGS_CFG
     }
 
     #[test]
     fn test_every_registry_chain_has_a_depset() {
-        if custom_configs_baked_in() {
-            return;
-        }
         for chain in &CHAINS.chains {
             let depset = DEPENDENCY_SETS.get(&chain.chain_id).unwrap_or_else(|| {
                 panic!(

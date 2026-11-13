@@ -38,6 +38,13 @@ lazy statics.
    - `chainList.json` containing additional [`Chain`][chains] entries.
    - `configs.json` containing [`Superchain`][superchains] structures with matching `ChainConfig`s and
      `RollupConfig`s for the new chain ids.
+   - `depsets.json` containing a JSON array of dependency sets that covers every custom chain. A
+     chain outside an interop cluster uses a self-only set:
+     ```json
+     [{"dependencies": {"<L2_CHAIN_ID>": {}}, "overrideMessageExpiryWindow": null}]
+     ```
+     Chains in an interop cluster share one set that lists every member and equals op-node's
+     `--interop.dependency-set`.
 2. Point the build to those files by setting the following environment variables during `cargo build`
    (or `cargo test`):
    ```sh
@@ -49,9 +56,12 @@ lazy statics.
    custom files there before compiling the crate. The committed files under `etc/` remain unchanged.
    Attempting to override existing chain ids will result in build failures.
 
-Both JSON files must stay in lockstep: every chain listed in `configs.json` must also appear in
-`chainList.json`, and chain identifiers must map to a single chain id. The build script validates
-those invariants and will fail fast if it detects duplicates or mismatches. When publishing another
+All three JSON files must stay in lockstep: every chain listed in `configs.json` must also appear in
+`chainList.json`, chain identifiers must map to a single chain id, and every chain in the merged
+`chainList.json` must appear in a dependency set. The build script validates those invariants and
+will fail fast if it detects duplicates or mismatches: a missing `depsets.json` fails with
+`Custom depsets <dir>/depsets.json does not exist`, and a chain without a set fails with
+``Chain `<identifier>` (chain id <id>) has no dependency set``. When publishing another
 crate that depends on `kona-registry`, you can check the custom artifacts into your workspace and set
 `KONA_CUSTOM_CONFIGS_DIR` via a build script or `just` recipe so that consumers automatically embed
 the additional definitions.

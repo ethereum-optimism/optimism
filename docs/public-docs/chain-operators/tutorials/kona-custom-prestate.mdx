@@ -31,10 +31,11 @@ KONA_CUSTOM_CONFIGS=true
 KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/your/configs
 ```
 
-When set, the build script reads two files from `KONA_CUSTOM_CONFIGS_DIR`:
+When set, the build script reads three files from `KONA_CUSTOM_CONFIGS_DIR`:
 
 - `chainList.json` — light-weight `Chain` entries for your custom chains
 - `configs.json` — full `ChainConfig` + `RollupConfig` entries grouped under a `Superchain` bucket
+- `depsets.json` — the dependency set of every custom chain
 
 The full schema and an end-to-end example are documented in the [`kona-registry` README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry#custom-chain-configurations).
 
@@ -60,7 +61,7 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
     mkdir -p rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>
     ```
 
-    Add two files inside it — `chainList.json` (lightweight chain entry) and `configs.json` (full rollup config). Replace every `<PLACEHOLDER>` with your chain's value. Notes:
+    Add three files inside it — `chainList.json` (lightweight chain entry), `configs.json` (full rollup config) and `depsets.json` (dependency set). Replace every `<PLACEHOLDER>` with your chain's value. Notes:
 
     - **`<CHAIN_GROUP>`**: `mainnet` if your L1 is Ethereum mainnet, `sepolia` if your L1 is Sepolia. The bucket groups chains by L1 network, not by governance — your custom-chain status is expressed via `governedByOptimism: false` and `superchainLevel: 0`.
     - **`faultProofs.status`**: `permissionless` for chains running the `cannon-kona` game type publicly, `permissioned` for chains that only allow whitelisted challengers.
@@ -190,6 +191,18 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
           ]
         }
         ```
+      </Tab>
+      <Tab title="depsets.json">
+        ```json
+        [
+          {
+            "dependencies": { "<YOUR_L2_CHAIN_ID>": {} },
+            "overrideMessageExpiryWindow": null
+          }
+        ]
+        ```
+
+        This is the self-only set of a chain outside an interop cluster. Chains in an interop cluster list every member, and the set must equal op-node's `--interop.dependency-set`.
       </Tab>
     </Tabs>
 

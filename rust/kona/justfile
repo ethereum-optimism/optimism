@@ -37,10 +37,11 @@ test-online:
 
 # Test custom embedded chain configuration functionality
 test-custom-embeds:
-  cargo test --release --package kona-registry custom_chain_is_loaded_when_enabled \
+  cargo test --release --package kona-registry \
       --config 'env.KONA_CUSTOM_CONFIGS="true"' \
       --config "env.KONA_CUSTOM_CONFIGS_DIR=\"{{justfile_directory()}}/crates/protocol/registry/tests/fixtures/custom\"" \
-      --config 'env.KONA_CUSTOM_CONFIGS_TEST="true"'
+      --config 'env.KONA_CUSTOM_CONFIGS_TEST="true"' \
+      -- custom_chain_is_loaded_when_enabled test_every_registry_chain_has_a_depset
 
 # Runs the tests with llvm-cov
 llvm-cov-tests:
@@ -55,7 +56,7 @@ llvm-cov-tests:
     --all-features \
     --ignore-run-fail \
     --package kona-registry \
-    -E 'test(custom_chain_is_loaded_when_enabled)' \
+    -E 'test(custom_chain_is_loaded_when_enabled) | test(test_every_registry_chain_has_a_depset)' \
     --config 'env.KONA_CUSTOM_CONFIGS="true"' \
     --config "env.KONA_CUSTOM_CONFIGS_DIR=\"{{justfile_directory()}}/crates/protocol/registry/tests/fixtures/custom\"" \
     --config 'env.KONA_CUSTOM_CONFIGS_TEST="true"'

@@ -401,9 +401,11 @@ fn write_depsets(target: &Path, depsets: &[DependencySet]) {
 fn merge_custom_depsets(custom_dir: &Path, target: &Path) {
     let path = custom_dir.join("depsets.json");
     println!("cargo:rerun-if-changed={}", path.display());
-    if !path.exists() {
-        return;
-    }
+    assert!(
+        path.exists(),
+        "Custom depsets {} does not exist. Every custom chain needs a dependency set; a chain outside an interop cluster uses a self-only set",
+        path.display()
+    );
     let custom: Vec<DependencySet> = read_json(&path);
     let mut existing: Vec<DependencySet> = read_json(target);
     for new_ds in custom {
@@ -438,5 +440,17 @@ fn validate_depsets(target: &Path, chain_list_path: &Path) {
                 chain_list_path.display()
             );
         }
+    }
+
+    let covered: BTreeSet<u64> =
+        depsets.iter().flat_map(|ds| ds.dependencies.keys().copied()).collect();
+    for chain in &chain_list.chains {
+        assert!(
+            covered.contains(&chain.chain_id),
+            "Chain `{}` (chain id {}) has no dependency set in {}",
+            chain.identifier,
+            chain.chain_id,
+            target.display()
+        );
     }
 }
