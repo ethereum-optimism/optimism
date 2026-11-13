@@ -785,6 +785,7 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 	// The channel should be full and ready to send
 	require.Len(t, m.channelQueue, 1)
 	require.True(t, m.channelQueue[0].IsFull())
+	require.ErrorIs(t, m.channelQueue[0].FullErr(), ErrTerminated)
 }
 
 func newBlock(parent *eth.ExecutionPayload, numTransactions int) *eth.ExecutionPayload {
