@@ -37,7 +37,8 @@ pub enum FaultProofProgramError {
     Driver(#[from] DriverError<ExecutorError>),
     /// The registry's dependency set for the chain has members other than the chain itself.
     /// The single-chain program does not validate executing messages, so it only runs a chain
-    /// whose dependency set is self-only.
+    /// whose dependency set is self-only. Every claim for such a chain fails, including claims
+    /// before Lagoon, so a chain moves to a super-root game before it joins an interop cluster.
     #[error(
         "dependency set for chain {0} is not self-only; prove this chain with the interop program"
     )]
@@ -136,9 +137,7 @@ where
         da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
-        // The registry's self-only dependency set for this chain, the one op-node loads. A chain
-        // the registry does not know has none, so the StatefulAttributesBuilder constructor
-        // panics if it schedules Lagoon.
+        // None panics the StatefulAttributesBuilder constructor if the chain schedules Lagoon.
         dependency_set,
     )
     .await?;

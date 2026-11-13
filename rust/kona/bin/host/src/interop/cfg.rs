@@ -146,7 +146,8 @@ pub enum InteropHostError {
     #[error(
         "No dependency set for chain {chain_id}, the first chain of the agreed pre-state: it is \
          not in the superchain-registry and --depset-cfg was not provided. Supply the \
-         dependency-set JSON file matching op-node's --interop.dependency-set."
+         dependency-set JSON file the super roots are derived with (op-supernode \
+         --dependency-set, or op-node --interop.dependency-set)."
     )]
     MissingDependencySet {
         /// The first chain of the agreed pre-state.
@@ -190,8 +191,8 @@ impl InteropHost {
         }
     }
 
-    /// Refuses to start with a configured dependency set that cannot be read or parsed, even when
-    /// the superchain-registry's set wins, rather than serving the client no dependency set later.
+    /// Refuses to start with a `--depset-cfg` that cannot be read or parsed, even when the
+    /// registry's set wins.
     fn require_readable_dependency_set(&self) -> Result<(), InteropHostError> {
         self.read_dependency_set().transpose()?;
         Ok(())
@@ -199,8 +200,9 @@ impl InteropHost {
 
     /// Starts the preimage server, communicating with the client over the provided channels.
     ///
-    /// Refuses to start when the host cannot resolve the dependency set the client loads (see
-    /// [`Self::dependency_set`]) or when a configured `--depset-cfg` cannot be read or parsed.
+    /// Refuses to start when a `--rollup-config-paths` file cannot be read or parsed, when the
+    /// host cannot resolve the dependency set the client loads (see [`Self::dependency_set`]), or
+    /// when a configured `--depset-cfg` cannot be read or parsed.
     pub async fn start_server<C>(
         &self,
         hint: C,
@@ -209,6 +211,7 @@ impl InteropHost {
     where
         C: Channel + Send + Sync + 'static,
     {
+        self.read_rollup_configs().transpose()?;
         self.dependency_set()?;
         self.require_readable_dependency_set()?;
 
@@ -336,11 +339,8 @@ impl InteropHost {
         }
         let pre_state = PreState::decode(&mut self.agreed_l2_pre_state.as_ref())
             .map_err(InteropHostError::InvalidAgreedPreState)?;
-        let output_roots = match &pre_state {
-            PreState::SuperRoot(super_root) => &super_root.output_roots,
-            PreState::TransitionState(transition) => &transition.pre_state.output_roots,
-        };
-        let chain_id = output_roots
+        let chain_id = pre_state
+            .output_roots()
             .first()
             .ok_or(InteropHostError::Other("the agreed pre-state has no output roots"))?
             .chain_id;
@@ -424,6 +424,7 @@ mod tests {
     use super::*;
     use alloy_primitives::b256;
     use kona_interop::{MESSAGE_EXPIRY_WINDOW, OutputRootWithChain, SuperRoot};
+    use kona_proof_interop::{OptimisticBlock, TransitionState};
 
     const OP_SEPOLIA: u64 = 11155420;
 
@@ -489,6 +490,40 @@ mod tests {
         assert_eq!(host.dependency_set().unwrap(), None);
     }
 
+    #[test]
+    fn a_transition_state_keys_on_its_first_chain() {
+        let dir = tempfile::tempdir().unwrap();
+        let super_root = SuperRoot::new(
+            1,
+            vec![
+                OutputRootWithChain::new(901, B256::ZERO),
+                OutputRootWithChain::new(OP_SEPOLIA, B256::ZERO),
+            ],
+        );
+        // Step 1: the active chain is OP Sepolia, but the client keys on the first chain (901).
+        let pre_state = PreState::TransitionState(TransitionState::new(
+            super_root,
+            vec![OptimisticBlock::new(B256::ZERO, B256::ZERO)],
+            1,
+        ));
+        let host = InteropHost {
+            agreed_l2_pre_state: alloy_rlp::encode(pre_state).into(),
+            dependency_set_path: Some(write_dependency_set(&dir)),
+            ..Default::default()
+        };
+
+        let dependency_set = host.dependency_set().unwrap().unwrap();
+        assert_eq!(dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [901]);
+    }
+
+    #[test]
+    fn an_undecodable_pre_state_is_an_error() {
+        let host =
+            InteropHost { agreed_l2_pre_state: Bytes::from_static(&[0xff]), ..Default::default() };
+
+        assert!(matches!(host.dependency_set(), Err(InteropHostError::InvalidAgreedPreState(_))));
+    }
+
     #[tokio::test]
     async fn start_server_refuses_a_missing_dependency_set() {
         let host = InteropHost {
@@ -502,6 +537,40 @@ mod tests {
         let err = host.start_server(hint.host, preimage.host).await.unwrap_err();
 
         assert!(matches!(err, InteropHostError::MissingDependencySet { chain_id: 901 }));
+    }
+
+    #[tokio::test]
+    async fn start_server_refuses_an_unreadable_rollup_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let host = InteropHost {
+            server: true,
+            agreed_l2_pre_state: super_root_pre_state(&[OP_SEPOLIA]),
+            rollup_config_paths: Some(vec![dir.path().join("missing.json")]),
+            ..Default::default()
+        };
+        let hint = BidirectionalChannel::new().unwrap();
+        let preimage = BidirectionalChannel::new().unwrap();
+
+        let err = host.start_server(hint.host, preimage.host).await.unwrap_err();
+
+        assert!(matches!(err, InteropHostError::IOError(_)));
+    }
+
+    #[tokio::test]
+    async fn start_server_refuses_an_unreadable_set_when_the_registry_wins() {
+        let dir = tempfile::tempdir().unwrap();
+        let host = InteropHost {
+            server: true,
+            agreed_l2_pre_state: super_root_pre_state(&[OP_SEPOLIA]),
+            dependency_set_path: Some(dir.path().join("missing.json")),
+            ..Default::default()
+        };
+        let hint = BidirectionalChannel::new().unwrap();
+        let preimage = BidirectionalChannel::new().unwrap();
+
+        let err = host.start_server(hint.host, preimage.host).await.unwrap_err();
+
+        assert!(matches!(err, InteropHostError::UnreadableDependencySet { .. }));
     }
 
     #[test]

@@ -114,14 +114,8 @@ impl BootInfo {
             l2_claim_block
         );
 
-        let chain_ids: Vec<_> = match agreed_pre_state {
-            PreState::SuperRoot(ref super_root) => {
-                super_root.output_roots.iter().map(|r| r.chain_id).collect()
-            }
-            PreState::TransitionState(ref transition_state) => {
-                transition_state.pre_state.output_roots.iter().map(|r| r.chain_id).collect()
-            }
-        };
+        let chain_ids: Vec<_> =
+            agreed_pre_state.output_roots().iter().map(|r| r.chain_id).collect();
 
         // Attempt to load the rollup config from the chain ID. If there is no config for the chain,
         // fall back to loading the config from the preimage oracle.

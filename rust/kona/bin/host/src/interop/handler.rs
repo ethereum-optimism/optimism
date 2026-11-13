@@ -546,12 +546,10 @@ impl HintHandler for InteropHintHandler {
                     )
                     .start(),
                 );
-                // Re-execution mirrors the client's `sub_transition` pipeline, so it uses the set
-                // the client loads: the one for the first chain of the agreed pre-state, not for
-                // the re-executed chain.
+                // Same set as the client's sub_transition: see InteropHost::dependency_set.
                 let dependency_set = cfg
                     .dependency_set()
-                    .map_err(|e| anyhow!("failed to read interop dep-set: {e}"))?
+                    .map_err(|e| anyhow!("failed to resolve the client's dependency set: {e}"))?
                     .map(Arc::new);
                 let client_task = task::spawn({
                     let l1_head = cfg.l1_head;

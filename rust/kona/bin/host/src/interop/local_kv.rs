@@ -40,13 +40,13 @@ impl KeyValueStore for InteropLocalInputs {
                 serde_json::to_vec(&l1_config).ok()
             }
             DEPENDENCY_SET_KEY => {
-                // Served only from `--depset-cfg`. `start_server` refuses to start when the client
-                // needs this key and the file is missing or unreadable.
+                // The set `InteropHost::dependency_set` resolves, so a client whose embedded
+                // registry lacks the first chain still gets the set op-node loads.
                 let dependency_set = self
                     .cfg
-                    .read_dependency_set()?
+                    .dependency_set()
                     .inspect_err(|e| error!(target: "host", "dependency set unavailable: {e}"))
-                    .ok()?;
+                    .ok()??;
                 serde_json::to_vec(&dependency_set).ok()
             }
             _ => None,
@@ -61,19 +61,40 @@ impl KeyValueStore for InteropLocalInputs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kona_interop::MESSAGE_EXPIRY_WINDOW;
+    use alloy_primitives::Bytes;
+    use kona_interop::{DependencySet, MESSAGE_EXPIRY_WINDOW, OutputRootWithChain, SuperRoot};
+    use kona_proof_interop::PreState;
+    use kona_registry::DEPENDENCY_SETS;
     use std::path::PathBuf;
 
-    fn dependency_set_preimage(dependency_set_path: Option<PathBuf>) -> Option<Vec<u8>> {
-        let inputs =
-            InteropLocalInputs::new(InteropHost { dependency_set_path, ..Default::default() });
+    const OP_SEPOLIA: u64 = 11155420;
+
+    fn dependency_set_preimage(
+        first_chain: u64,
+        dependency_set_path: Option<PathBuf>,
+    ) -> Option<Vec<u8>> {
+        let output_roots = vec![OutputRootWithChain::new(first_chain, B256::ZERO)];
+        let agreed_l2_pre_state: Bytes =
+            alloy_rlp::encode(PreState::SuperRoot(SuperRoot::new(1, output_roots))).into();
+        let inputs = InteropLocalInputs::new(InteropHost {
+            agreed_l2_pre_state,
+            dependency_set_path,
+            ..Default::default()
+        });
         let key = PreimageKey::new_local(DEPENDENCY_SET_KEY.to());
         inputs.get(B256::from(key))
     }
 
     #[test]
     fn test_dependency_set_preimage_no_path_is_not_served() {
-        assert_eq!(dependency_set_preimage(None), None);
+        assert_eq!(dependency_set_preimage(901, None), None);
+    }
+
+    #[test]
+    fn test_dependency_set_preimage_registry_chain_is_served_the_registry_set() {
+        let preimage = dependency_set_preimage(OP_SEPOLIA, None).unwrap();
+        let dependency_set: DependencySet = serde_json::from_slice(&preimage).unwrap();
+        assert_eq!(dependency_set, DEPENDENCY_SETS[&OP_SEPOLIA]);
     }
 
     #[test]
@@ -88,6 +109,6 @@ mod tests {
             ),
         )
         .unwrap();
-        assert_eq!(dependency_set_preimage(Some(path)), None);
+        assert_eq!(dependency_set_preimage(901, Some(path)), None);
     }
 }
