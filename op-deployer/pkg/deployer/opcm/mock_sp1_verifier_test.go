@@ -20,7 +20,7 @@ func TestDeployMockSP1VerifierGenesis(t *testing.T) {
 	for name, immutables := range map[string]string{"absent": "", "empty": `,"immutableReferences":{}`, "null": `,"immutableReferences":null`} {
 		t.Run(name, func(t *testing.T) {
 			sender := common.Address{0x5e}
-			genesis := NewGenesisState(sender, false)
+			genesis := NewGenesisState(sender, testChainID, false)
 			verifier, err := DeployMockSP1VerifierGenesis(&ForgeEnv{
 				Genesis: genesis,
 				Artifacts: mockSP1VerifierArtifacts(`{"abi":[],"bytecode":{"object":"0x6002"},` +
@@ -46,7 +46,7 @@ func TestDeployMockSP1VerifierGenesisRefusesInitCode(t *testing.T) {
 			`"storageLayout":{"storage":[{"astId":7,"contract":"MockSP1Verifier","label":"x","offset":0,"slot":"0","type":"t_uint256"}]}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			genesis := NewGenesisState(common.Address{0x5e}, false)
+			genesis := NewGenesisState(common.Address{0x5e}, testChainID, false)
 			_, err := DeployMockSP1VerifierGenesis(&ForgeEnv{Genesis: genesis, Artifacts: mockSP1VerifierArtifacts(artifact)})
 			require.ErrorContains(t, err, "MockSP1Verifier needs its init code")
 			require.NotContains(t, genesis.Allocs.Accounts, common.Address{0x5e}, "the refused deployment used a nonce")

@@ -28,7 +28,7 @@ func TestGenesisMockSP1VerifierArtifactAndDeployment(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, artifact.Bytecode.Object, "genesis MockSP1Verifier must have bytecode in op-deployer artifacts")
 
-	genesis := opcm.NewGenesisState(common.Address{0xdd}, true)
+	genesis := opcm.NewGenesisState(common.Address{0xdd}, 900, true)
 	verifier, err := deployMockSP1Verifier(&Env{
 		Forge:     &opcm.ForgeEnv{Genesis: genesis, Artifacts: artifactsFS},
 		IsGenesis: true,

@@ -682,6 +682,51 @@ func TestApplyGenesisStrategy(t *testing.T) {
 	})
 }
 
+// TestApplyGenesisL2Deployer checks the deployer's account in the L2 genesis. The deployer is the
+// first account of the test mnemonic, a dev account, so funding the dev accounts funds it too.
+// Otherwise it has no account, even when it owns the L2 ProxyAdmin.
+func TestApplyGenesisL2Deployer(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	tests := []struct {
+		name             string
+		fundDevAccounts  bool
+		ownsL2ProxyAdmin bool
+	}{
+		{name: "funded dev accounts", fundDevAccounts: true},
+		{name: "owns the L2 ProxyAdmin", ownsL2ProxyAdmin: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
+			deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+			require.Contains(t, genesis.DevAccounts, deployerAddr, "the deployer must be a dev account")
+			intent.FundDevAccounts = tt.fundDevAccounts
+			if tt.ownsL2ProxyAdmin {
+				intent.Chains[0].Roles.L2ProxyAdminOwner = deployerAddr
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+			defer cancel()
+			require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+
+			allocs := st.Chains[0].Allocs.Data.Accounts
+			account, ok := allocs[deployerAddr]
+			if !tt.fundDevAccounts {
+				require.False(t, ok, "the deployer must have no L2 genesis account")
+				return
+			}
+			require.True(t, ok, "the deployer must have an L2 genesis account")
+			otherDevAccount := genesis.DevAccounts[0]
+			require.NotEqual(t, deployerAddr, otherDevAccount)
+			other, ok := allocs[otherDevAccount]
+			require.True(t, ok, "another dev account must have an L2 genesis account")
+			require.Zero(t, other.Balance.Cmp(account.Balance), "the deployer must be funded as the other dev accounts are")
+			require.Zero(t, account.Nonce)
+			require.Empty(t, account.Code)
+		})
+	}
+}
+
 func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	op_e2e.InitParallel(t)
 
