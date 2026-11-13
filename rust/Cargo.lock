@@ -624,7 +624,6 @@ dependencies = [
 name = "alloy-op-hardforks"
 version = "0.5.0"
 dependencies = [
- "alloy-chains",
  "alloy-hardforks",
  "alloy-primitives",
  "auto_impl",
@@ -7938,7 +7937,6 @@ dependencies = [
  "alloy-eips 2.5.0",
  "alloy-genesis",
  "alloy-hardforks",
- "alloy-op-hardforks",
  "alloy-primitives",
  "kona-genesis",
  "lazy_static",

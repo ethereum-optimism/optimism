@@ -2,11 +2,6 @@
 
 use alloy_chains::Chain;
 use alloy_eips::BlockNumHash;
-use alloy_op_hardforks::{
-    OP_SEPOLIA_CANYON_TIMESTAMP, OP_SEPOLIA_ECOTONE_TIMESTAMP, OP_SEPOLIA_FJORD_TIMESTAMP,
-    OP_SEPOLIA_GRANITE_TIMESTAMP, OP_SEPOLIA_HOLOCENE_TIMESTAMP, OP_SEPOLIA_ISTHMUS_TIMESTAMP,
-    OP_SEPOLIA_JOVIAN_TIMESTAMP, OP_SEPOLIA_KARST_TIMESTAMP,
-};
 use alloy_primitives::{address, b256, uint};
 #[cfg(feature = "rollup_config_override")]
 use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
@@ -55,16 +50,16 @@ pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     alt_da_config: None,
     hardforks: HardForkConfig {
         regolith_time: None,
-        canyon_time: Some(OP_SEPOLIA_CANYON_TIMESTAMP),
+        canyon_time: Some(1_699_981_200),
         delta_time: Some(1703203200),
-        ecotone_time: Some(OP_SEPOLIA_ECOTONE_TIMESTAMP),
-        fjord_time: Some(OP_SEPOLIA_FJORD_TIMESTAMP),
-        granite_time: Some(OP_SEPOLIA_GRANITE_TIMESTAMP),
-        holocene_time: Some(OP_SEPOLIA_HOLOCENE_TIMESTAMP),
+        ecotone_time: Some(1_708_534_800),
+        fjord_time: Some(1_716_998_400),
+        granite_time: Some(1_723_478_400),
+        holocene_time: Some(1_732_633_200),
         pectra_blob_schedule_time: Some(1742486400),
-        isthmus_time: Some(OP_SEPOLIA_ISTHMUS_TIMESTAMP),
-        jovian_time: Some(OP_SEPOLIA_JOVIAN_TIMESTAMP),
-        karst_time: Some(OP_SEPOLIA_KARST_TIMESTAMP),
+        isthmus_time: Some(1_744_905_600),
+        jovian_time: Some(1_763_568_001),
+        karst_time: Some(1_781_712_001),
         keep_karst_upgrade_gas: true,
         lagoon_time: None,
     },

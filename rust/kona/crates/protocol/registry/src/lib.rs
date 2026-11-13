@@ -87,7 +87,6 @@ mod tests {
         holesky::{HOLESKY_BPO1_TIMESTAMP, HOLESKY_BPO2_TIMESTAMP},
         sepolia::{SEPOLIA_BPO1_TIMESTAMP, SEPOLIA_BPO2_TIMESTAMP},
     };
-    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
 
     #[test]
     fn test_hardcoded_rollup_configs() {
@@ -123,21 +122,6 @@ mod tests {
 
         assert_eq!(rollup_config_by_ident, rollup_config_by_id);
         assert_eq!(rollup_config_by_alloy_ident, rollup_config_by_id);
-    }
-
-    #[test]
-    fn test_jovian_timestamps() {
-        let op_mainnet_config_by_ident = scr_rollup_config_by_ident("mainnet/op").unwrap();
-        assert_eq!(
-            op_mainnet_config_by_ident.hardforks.jovian_time,
-            Some(OP_MAINNET_JOVIAN_TIMESTAMP)
-        );
-
-        let op_sepolia_config_by_ident = scr_rollup_config_by_ident("sepolia/op").unwrap();
-        assert_eq!(
-            op_sepolia_config_by_ident.hardforks.jovian_time,
-            Some(OP_SEPOLIA_JOVIAN_TIMESTAMP)
-        );
     }
 
     #[test]

@@ -50,9 +50,9 @@ pub use traits::{NoopTrieDBProvider, TrieDBProvider};
 /// use alloy_op_evm::{
 ///     OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvmFactory, block::OpAlloyReceiptBuilder,
 /// };
-/// use alloy_op_hardforks::OpChainHardforks;
 /// use alloy_primitives::{B256, Bytes};
 /// use kona_executor::{NoopTrieDBProvider, TrieDB};
+/// use kona_genesis::RollupConfig;
 /// use kona_mpt::NoopTrieHinter;
 /// use revm::database::{State, states::bundle_state::BundleRetention};
 ///
@@ -61,7 +61,7 @@ pub use traits::{NoopTrieDBProvider, TrieDBProvider};
 ///     TrieDB::new(mock_parent_block_header.seal_slow(), NoopTrieDBProvider, NoopTrieHinter);
 /// let executor_factory = OpBlockExecutorFactory::new(
 ///     OpAlloyReceiptBuilder::default(),
-///     OpChainHardforks::op_mainnet(),
+///     RollupConfig::default(),
 ///     OpEvmFactory::<alloy_op_evm::OpTx>::default(),
 /// );
 /// let mut state = State::builder().with_database(trie_db).with_bundle_update().build();

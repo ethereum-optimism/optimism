@@ -184,13 +184,7 @@ mod tests {
     #[cfg(feature = "engine")]
     use alloy_consensus::{Block, BlockBody};
     use alloy_hardforks::EthereumHardfork;
-    use alloy_op_hardforks::{
-        EthereumHardforks, ForkCondition, OP_MAINNET_CANYON_TIMESTAMP,
-        OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_FJORD_TIMESTAMP, OP_MAINNET_GRANITE_TIMESTAMP,
-        OP_MAINNET_HOLOCENE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
-        OP_MAINNET_REGOLITH_TIMESTAMP, OpChainHardforks, OpHardfork,
-    };
-    use alloy_primitives::BlockTimestamp;
+    use alloy_op_hardforks::{EthereumHardforks, ForkCondition, OpChainHardforks, OpHardfork};
     #[cfg(feature = "engine")]
     use alloy_primitives::{Address, B256, U256};
     #[cfg(feature = "engine")]
@@ -373,22 +367,6 @@ mod tests {
         assert_eq!(actual_spec, expected_spec);
     }
 
-    #[test_case::test_case(OP_MAINNET_JOVIAN_TIMESTAMP, OpSpecId::JOVIAN; "Jovian")]
-    #[test_case::test_case(OP_MAINNET_ISTHMUS_TIMESTAMP, OpSpecId::ISTHMUS; "Isthmus")]
-    #[test_case::test_case(OP_MAINNET_HOLOCENE_TIMESTAMP, OpSpecId::HOLOCENE; "Holocene")]
-    #[test_case::test_case(OP_MAINNET_GRANITE_TIMESTAMP, OpSpecId::GRANITE; "Granite")]
-    #[test_case::test_case(OP_MAINNET_FJORD_TIMESTAMP, OpSpecId::FJORD; "Fjord")]
-    #[test_case::test_case(OP_MAINNET_ECOTONE_TIMESTAMP, OpSpecId::ECOTONE; "Ecotone")]
-    #[test_case::test_case(OP_MAINNET_CANYON_TIMESTAMP, OpSpecId::CANYON; "Canyon")]
-    #[test_case::test_case(OP_MAINNET_REGOLITH_TIMESTAMP, OpSpecId::REGOLITH; "Regolith")]
-    fn test_op_spec_maps_hardfork_successfully(timestamp: BlockTimestamp, expected_spec: OpSpecId) {
-        let fork = OpChainHardforks::op_mainnet();
-        let header = Header { timestamp, ..Default::default() };
-        let actual_spec = spec(&fork, &header);
-
-        assert_eq!(actual_spec, expected_spec);
-    }
-
     /// The OP fork chronology, oldest first. `Lagoon` is the newest fork.
     const FORK_CHRONOLOGY: [(OpHardfork, OpSpecId); 11] = [
         (OpHardfork::Bedrock, OpSpecId::BEDROCK),
@@ -461,6 +439,28 @@ mod tests {
                 actual_spec, *expected_spec,
                 "with forks active up to {fork:?}, expected newest spec {expected_spec:?}",
             );
+        }
+    }
+
+    /// With every fork scheduled at `100 * idx`, a header resolves to the newest fork already
+    /// active, never to one that is scheduled but still in the future.
+    #[test]
+    fn test_spec_skips_scheduled_future_forks() {
+        let chain =
+            OpChainHardforks::new(FORK_CHRONOLOGY.iter().enumerate().map(|(idx, (fork, _))| {
+                let cond = if *fork == OpHardfork::Bedrock {
+                    ForkCondition::Block(0)
+                } else {
+                    ForkCondition::Timestamp(100 * idx as u64)
+                };
+                (*fork, cond)
+            }));
+        for (idx, window) in FORK_CHRONOLOGY.windows(2).enumerate() {
+            let [(_, previous), (fork, expected)] = window else { unreachable!() };
+            let activation = 100 * (idx as u64 + 1);
+            let at = |timestamp| spec(&chain, &Header { timestamp, ..Default::default() });
+            assert_eq!(at(activation), *expected, "{fork:?} at its activation");
+            assert_eq!(at(activation - 1), *previous, "{fork:?} one second early");
         }
     }
 

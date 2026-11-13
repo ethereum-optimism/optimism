@@ -24,7 +24,6 @@ alloy-genesis.workspace = true
 alloy-eips.workspace = true 
 alloy-hardforks.workspace = true
 alloy-chains = { workspace = true, features = ["serde"] }
-alloy-op-hardforks = { workspace = true }
 
 # `serde`
 serde = { workspace = true, features = ["derive", "alloc"] }
