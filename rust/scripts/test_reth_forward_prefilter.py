@@ -38,11 +38,11 @@ class PrefilterTest(unittest.TestCase):
         self.git("commit", "-q", "-m", subject)
         return self.git("rev-parse", "HEAD")
 
-    def rows(self, pin, upstream):
+    def rows(self, pin, upstream, **env):
         out = subprocess.run(
             [sys.executable, str(SCRIPT), pin, upstream],
             cwd=self.repo,
-            env={**os.environ, **GIT_ENV},
+            env={**os.environ, **GIT_ENV, **env},
             check=True,
             capture_output=True,
             text=True,
@@ -82,6 +82,17 @@ class PrefilterTest(unittest.TestCase):
         self.assertEqual((rows["fix: three"]["picked"], rows["fix: three"]["apply"]), ("picked", "-"))
         self.assertEqual(rows["fix(net): other"]["release"], "main-only")
         self.assertEqual(rows["fix(net): other"]["files"], "0/1")
+
+    def test_ignores_user_diff_config(self):
+        self.commit("a.txt", "1\n", "init")
+        self.git("tag", "pin")
+        self.commit("a.txt", "2\n", "fix: b")
+        self.git("config", "diff.external", "false")
+
+        rows = self.rows("pin", "main", GIT_CONFIG_PARAMETERS="'color.ui'='always'")
+
+        self.assertEqual(set(rows), {"fix: b"})
+        self.assertEqual((rows["fix: b"]["files"], rows["fix: b"]["apply"]), ("1/1", "clean"))
 
     def test_no_candidates(self):
         self.commit("a.txt", "1\n", "init")

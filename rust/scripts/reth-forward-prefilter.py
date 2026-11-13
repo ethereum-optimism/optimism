@@ -42,10 +42,14 @@ def git(*args, input=None, env=None, check=True):
 
 def patch_ids(*rev_args):
     """Maps patch id -> commit for the non-merge commits of a rev range."""
-    log = git("log", "--no-merges", "-p", "--format=commit %H", *rev_args).stdout
+    log = git(
+        "log", "--no-merges", "--no-color", "--no-ext-diff", "-p", "--format=commit %H", *rev_args
+    ).stdout
     if not log:
         return {}
     out = git("patch-id", "--stable", input=log).stdout
+    if not out:
+        sys.exit(f"git patch-id read no patches from `git log {' '.join(rev_args)}`")
     ids = {}
     for line in out.splitlines():
         pid, sha = line.split()
