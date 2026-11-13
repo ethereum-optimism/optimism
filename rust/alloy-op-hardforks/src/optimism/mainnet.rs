@@ -24,3 +24,5 @@ pub const OP_MAINNET_ISTHMUS_TIMESTAMP: u64 = 1_746_806_401;
 pub const OP_MAINNET_JOVIAN_TIMESTAMP: u64 = 1_764_691_201;
 /// Karst hardfork activation timestamp is `1_783_526_401` # Wed 8 Jul 2026 16:00:01 UTC
 pub const OP_MAINNET_KARST_TIMESTAMP: u64 = 1_783_526_401;
+/// Lagoon hardfork activation timestamp is `1_799_683_201` # Mon 11 Jan 2027 16:00:01 UTC
+pub const OP_MAINNET_LAGOON_TIMESTAMP: u64 = 1_799_683_201;

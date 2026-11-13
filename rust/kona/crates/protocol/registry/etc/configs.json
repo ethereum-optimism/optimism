@@ -48,7 +48,8 @@
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
             "karst_time": 1783526401,
-            "keep_karst_upgrade_gas": true
+            "keep_karst_upgrade_gas": true,
+            "lagoon_time": 1799683201
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -135,7 +136,8 @@
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
             "karst_time": 1783526401,
-            "keep_karst_upgrade_gas": true
+            "keep_karst_upgrade_gas": true,
+            "lagoon_time": 1799683201
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -1397,7 +1399,8 @@
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
             "karst_time": 1783526401,
-            "keep_karst_upgrade_gas": true
+            "keep_karst_upgrade_gas": true,
+            "lagoon_time": 1799683201
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -2161,7 +2164,8 @@
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
             "karst_time": 1783526401,
-            "keep_karst_upgrade_gas": true
+            "keep_karst_upgrade_gas": true,
+            "lagoon_time": 1799683201
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -2958,7 +2962,8 @@
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
             "karst_time": 1781712001,
-            "keep_karst_upgrade_gas": true
+            "keep_karst_upgrade_gas": true,
+            "lagoon_time": 1796918401
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -3134,7 +3139,8 @@
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
             "karst_time": 1781712001,
-            "keep_karst_upgrade_gas": true
+            "keep_karst_upgrade_gas": true,
+            "lagoon_time": 1796918401
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -3979,7 +3985,8 @@
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
             "karst_time": 1781712001,
-            "keep_karst_upgrade_gas": true
+            "keep_karst_upgrade_gas": true,
+            "lagoon_time": 1796918401
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -4322,7 +4329,8 @@
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
             "karst_time": 1781712001,
-            "keep_karst_upgrade_gas": true
+            "keep_karst_upgrade_gas": true,
+            "lagoon_time": 1796918401
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -4593,7 +4601,8 @@
             "holocene_time": 0,
             "isthmus_time": 0,
             "jovian_time": 0,
-            "karst_time": 0
+            "karst_time": 0,
+            "lagoon_time": 1796054401
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -4700,7 +4709,8 @@
             "holocene_time": 0,
             "isthmus_time": 0,
             "jovian_time": 0,
-            "karst_time": 0
+            "karst_time": 0,
+            "lagoon_time": 1796054401
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -4807,7 +4817,8 @@
             "holocene_time": 0,
             "isthmus_time": 0,
             "jovian_time": 0,
-            "karst_time": 0
+            "karst_time": 0,
+            "lagoon_time": 1794603601
           },
           "optimism": {
             "eip1559Elasticity": 2,
@@ -4914,7 +4925,8 @@
             "holocene_time": 0,
             "isthmus_time": 0,
             "jovian_time": 0,
-            "karst_time": 0
+            "karst_time": 0,
+            "lagoon_time": 1794603601
           },
           "optimism": {
             "eip1559Elasticity": 12,
@@ -5021,7 +5033,8 @@
             "holocene_time": 0,
             "isthmus_time": 0,
             "jovian_time": 0,
-            "karst_time": 0
+            "karst_time": 0,
+            "lagoon_time": 1796054401
           },
           "optimism": {
             "eip1559Elasticity": 2,

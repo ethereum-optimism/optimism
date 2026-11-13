@@ -61,7 +61,8 @@ mod tests {
     use super::*;
     use alloy_op_hardforks::{
         OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OP_MAINNET_KARST_TIMESTAMP,
-        OP_SEPOLIA_ISTHMUS_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP, OP_SEPOLIA_KARST_TIMESTAMP,
+        OP_MAINNET_LAGOON_TIMESTAMP, OP_SEPOLIA_ISTHMUS_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP,
+        OP_SEPOLIA_KARST_TIMESTAMP, OP_SEPOLIA_LAGOON_TIMESTAMP,
     };
     use alloy_primitives::address;
 
@@ -117,5 +118,15 @@ mod tests {
 
         let op_sepolia_config = superchains.rollup_configs.get(&11155420).unwrap();
         assert_eq!(op_sepolia_config.hardforks.karst_time, Some(OP_SEPOLIA_KARST_TIMESTAMP));
+    }
+
+    #[test]
+    fn test_lagoon_timestamps() {
+        let superchains = Registry::from_chain_list();
+        let op_mainnet_config = superchains.rollup_configs.get(&10).unwrap();
+        assert_eq!(op_mainnet_config.hardforks.lagoon_time, Some(OP_MAINNET_LAGOON_TIMESTAMP));
+
+        let op_sepolia_config = superchains.rollup_configs.get(&11155420).unwrap();
+        assert_eq!(op_sepolia_config.hardforks.lagoon_time, Some(OP_SEPOLIA_LAGOON_TIMESTAMP));
     }
 }
