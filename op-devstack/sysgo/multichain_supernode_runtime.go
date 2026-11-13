@@ -327,6 +327,10 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		depSet, err = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
 			depSet.Dependencies(), *cfg.MessageExpiryWindow)
 		require.NoError(err, "failed to override message expiry window")
+		// A CL started without an explicit set falls back to its network's set.
+		for _, l2Net := range l2Nets {
+			l2Net.depSet = depSet
+		}
 	}
 
 	var runtimeDepSet depset.DependencySet
