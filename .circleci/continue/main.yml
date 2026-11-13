@@ -2289,6 +2289,9 @@ jobs:
   cannon-prestate:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
+    # The acceptance, Go and Rust e2e jobs wait for this build. Measured on gen1 large it takes about
+    # 4.2 min, on large.gen2 about 3.2 min, with the same prestate hashes.
+    resource_class: large.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
