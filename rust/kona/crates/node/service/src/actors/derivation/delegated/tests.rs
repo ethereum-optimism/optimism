@@ -15,7 +15,7 @@ use rstest::rstest;
 use std::{collections::VecDeque, sync::Mutex};
 use tokio::{
     sync::{mpsc, watch},
-    time::{self, Duration, Instant},
+    time::{self, Instant},
 };
 
 const SAFE_ORIGIN: u64 = 1;
