@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -20,6 +21,42 @@ import (
 
 // testChainID is the chain ID of the genesis states of the tests.
 const testChainID = 900
+
+// TestGenesisStateSetBalanceZero checks that clearing a balance drops only empty accounts.
+func TestGenesisStateSetBalanceZero(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		account *types.Account
+		keep    bool
+	}{
+		{name: "absent"},
+		{name: "balance only", account: &types.Account{Balance: big.NewInt(42)}},
+		{name: "nonce", account: &types.Account{Balance: big.NewInt(42), Nonce: 1}, keep: true},
+		{name: "code", account: &types.Account{Balance: big.NewInt(42), Code: []byte{0x00}}, keep: true},
+		{name: "storage", account: &types.Account{
+			Balance: big.NewInt(42),
+			Storage: map[common.Hash]common.Hash{{0x01}: {0x02}},
+		}, keep: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			addr := common.Address{0xaa}
+			genesis := NewGenesisState(common.Address{0x5e}, testChainID, false)
+			if tt.account != nil {
+				genesis.Allocs.Accounts[addr] = *tt.account
+			}
+			genesis.SetBalance(addr, new(big.Int))
+			account, ok := genesis.Allocs.Accounts[addr]
+			require.Equal(t, tt.keep, ok)
+			if tt.keep {
+				expected := *tt.account
+				expected.Balance = new(big.Int)
+				require.Equal(t, expected, account)
+			}
+		})
+	}
+}
 
 // TestGenesisStateReadOnlyBundle runs a genesis script on forge in a read-only bundle: the state
 // files must stay out of the bundle, and forge must still be allowed to write them.

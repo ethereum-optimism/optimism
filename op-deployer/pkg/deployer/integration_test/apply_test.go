@@ -659,6 +659,11 @@ func TestApplyGenesisStrategy(t *testing.T) {
 		cg := stateDumpCodeGetter(st)
 		validateSuperchainDeployment(t, st, cg, true)
 		validateOPChainDeployment(t, cg, st, intent, false)
+		deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+		for _, allocs := range []types.GenesisAlloc{st.L1StateDump.Data.Accounts, st.L1DevGenesis.Alloc} {
+			_, ok := allocs[deployerAddr]
+			require.False(t, ok, "without a prefund, the deployer must have no L1 genesis account")
+		}
 		return st
 	}
 
@@ -680,6 +685,61 @@ func TestApplyGenesisStrategy(t *testing.T) {
 		expectedPragueTimestamp := l1GenesisParams.BlockParams.Timestamp + *l1GenesisParams.PragueTimeOffset
 		require.EqualValues(t, expectedPragueTimestamp, *st.L1DevGenesis.Config.PragueTime)
 	})
+}
+
+// TestApplyGenesisL1Deployer checks that explicit prefunds survive the preinstall stage's deployer
+// cleanup, without retaining the deployment nonce or introducing empty accounts for zero prefunds.
+func TestApplyGenesisL1Deployer(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	for _, tt := range []struct {
+		name    string
+		balance *uint256.Int
+	}{
+		{name: "funded deployer", balance: uint256.NewInt(123_456_789)},
+		{name: "other account only"},
+		{name: "zero deployer prefund", balance: uint256.NewInt(0)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
+			deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+			otherAddr, emptyAddr := common.Address{0xaa}, common.Address{0xbb}
+			otherBalance := uint256.NewInt(987_654_321)
+			intent.L1DevGenesisParams = &state.L1DevGenesisParams{
+				BlockParams: state.L1DevGenesisBlockParams{Timestamp: 1_700_000_000},
+				Prefund: map[common.Address]*hexutil.U256{
+					otherAddr: (*hexutil.U256)(otherBalance),
+					emptyAddr: (*hexutil.U256)(uint256.NewInt(0)),
+				},
+			}
+			if tt.balance != nil {
+				intent.L1DevGenesisParams.Prefund[deployerAddr] = (*hexutil.U256)(tt.balance)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+			defer cancel()
+			require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+
+			for _, allocs := range []types.GenesisAlloc{st.L1StateDump.Data.Accounts, st.L1DevGenesis.Alloc} {
+				other, ok := allocs[otherAddr]
+				require.True(t, ok, "the other prefunded account must be present")
+				require.Equal(t, otherBalance.ToBig(), other.Balance)
+				_, ok = allocs[emptyAddr]
+				require.False(t, ok, "a zero prefund must not introduce an empty account")
+
+				account, ok := allocs[deployerAddr]
+				if tt.balance == nil || tt.balance.IsZero() {
+					require.False(t, ok, "the unfunded deployer must have no L1 genesis account")
+					continue
+				}
+				require.True(t, ok, "the deployer's explicit L1 prefund must survive cleanup")
+				require.Equal(t, tt.balance.ToBig(), account.Balance)
+				require.Zero(t, account.Nonce)
+				require.Empty(t, account.Code)
+				require.Empty(t, account.Storage)
+			}
+			require.Equal(t, st.L1DevGenesis.ToBlock().Hash(), st.Chains[0].StartBlock.Hash)
+		})
+	}
 }
 
 // TestApplyGenesisL2Deployer checks the deployer's account in the L2 genesis. The deployer is the
