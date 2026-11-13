@@ -94,8 +94,9 @@ impl MdbxProofsStorage {
     }
 
     /// Reads the pages pruning `blocks` reads: their changesets, and the first history shard of
-    /// each key they changed, which the prune edits. Up to `threads` readers each take a
-    /// contiguous share of `blocks`. Returns the number of changeset entries.
+    /// each key they changed, which the prune edits unless it sweeps the history. Up to
+    /// `threads` readers each take a contiguous share of `blocks`. Returns the number of
+    /// changeset entries.
     pub(super) fn warm_prune(
         &self,
         blocks: RangeInclusive<BlockNumber>,
@@ -114,11 +115,12 @@ impl MdbxProofsStorage {
     }
 
     /// Reads the changesets of `blocks` and, for each entry, the part of its key's history the
-    /// prune reads.
+    /// prune reads. A prune that sweeps the history reads none of it by key.
     fn warm_prune_blocks(
         &self,
         blocks: RangeInclusive<BlockNumber>,
     ) -> OpProofsStorageResult<usize> {
+        let per_key = !self.sweep_history;
         let tx = self.env.tx()?;
         // The storage changesets of every address in `blocks`.
         let storages = BlockNumberHashedAddress((*blocks.start(), B256::ZERO))..=
@@ -128,7 +130,9 @@ impl MdbxProofsStorage {
         let mut history = tx.cursor_read::<V2AccountsTrieHistory>()?;
         for change in tx.cursor_dup_read::<V2AccountTrieChangeSets>()?.walk_range(blocks.clone())? {
             let path = StoredNibbles(change?.1.nibbles.0);
-            read_first_shard(&mut history, AccountTrieShardedKey::new(path, 0))?;
+            if per_key {
+                read_first_shard(&mut history, AccountTrieShardedKey::new(path, 0))?;
+            }
             keys += 1;
         }
 
@@ -138,14 +142,18 @@ impl MdbxProofsStorage {
         {
             let (key, change) = change?;
             let path = StoredNibbles(change.nibbles.0);
-            read_first_shard(&mut history, StorageTrieShardedKey::new(key.0.1, path, 0))?;
+            if per_key {
+                read_first_shard(&mut history, StorageTrieShardedKey::new(key.0.1, path, 0))?;
+            }
             keys += 1;
         }
 
         let mut history = tx.cursor_read::<V2HashedAccountsHistory>()?;
         for change in tx.cursor_dup_read::<V2HashedAccountChangeSets>()?.walk_range(blocks)? {
             let address = change?.1.hashed_address;
-            read_first_shard(&mut history, HashedAccountShardedKey::new(address, 0))?;
+            if per_key {
+                read_first_shard(&mut history, HashedAccountShardedKey::new(address, 0))?;
+            }
             keys += 1;
         }
 
@@ -156,7 +164,9 @@ impl MdbxProofsStorage {
                 hashed_address: key.0.1,
                 sharded_key: ShardedKey::new(change.key, 0),
             };
-            read_first_shard(&mut history, slot)?;
+            if per_key {
+                read_first_shard(&mut history, slot)?;
+            }
             keys += 1;
         }
 

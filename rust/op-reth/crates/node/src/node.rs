@@ -434,7 +434,8 @@ pub async fn launch_node(
         info!(target: "reth::cli", "Using on-disk storage for proofs history");
         let mdbx = Arc::new(
             MdbxProofsStorage::new(&path)
-                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?
+                .with_history_sweep(node.args.proofs_history_sweep_prune),
         );
         if mdbx.holds_only_legacy_v1_data()? {
             eyre::bail!(

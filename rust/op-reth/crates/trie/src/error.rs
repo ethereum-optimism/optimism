@@ -90,6 +90,13 @@ pub enum OpProofsStorageError {
         /// The current earliest block hash
         earliest_block_hash: B256,
     },
+    /// Attempted to backfill a database whose history a prune has swept. Such a history holds
+    /// block numbers from before the proof window, which backfill would bring back into it.
+    #[error(
+        "Cannot backfill: this database has been pruned with --proofs-history.sweep-prune, \
+         which leaves block numbers from before the proof window in its history"
+    )]
+    BackfillOverSweptHistory,
     /// Attempted to prune to a block at or before the earliest stored block
     #[error(
         "Attempted to prune to block {target_block_number} but earliest stored block is already {earliest_block_number}"

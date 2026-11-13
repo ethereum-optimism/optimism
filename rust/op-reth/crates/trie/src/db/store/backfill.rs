@@ -12,8 +12,8 @@ use crate::{
             TrieChangeSetsEntry, V2AccountTrieChangeSets, V2AccountsTrieHistory,
             V2AccountsTrieSnapshot, V2HashedAccountChangeSets, V2HashedAccountsHistory,
             V2HashedAccountsSnapshot, V2HashedStorageChangeSets, V2HashedStoragesHistory,
-            V2HashedStoragesSnapshot, V2SnapshotMeta, V2StorageTrieChangeSets,
-            V2StoragesTrieHistory, V2StoragesTrieSnapshot,
+            V2HashedStoragesSnapshot, V2HistorySweepProgress, V2SnapshotMeta,
+            V2StorageTrieChangeSets, V2StoragesTrieHistory, V2StoragesTrieSnapshot,
         },
     },
 };
@@ -40,6 +40,9 @@ use tracing::debug;
 /// less than every value already stored for this key. The existing
 /// `append_history_indices_batched` (in `super::write`) only touches the last/sentinel
 /// shard; this function instead seeks the **first** shard and prepends there.
+///
+/// A prune that sweeps the history breaks this: it leaves lower block numbers in place. That is
+/// why [`OpProofsBackfillProvider::prepend_block`] refuses a swept database.
 ///
 /// When the first shard is already at [`NUM_OF_INDICES_IN_SHARD`] entries, a fresh
 /// singleton shard is created at key `(_, block_number)`. Subsequent prepends fill that
@@ -465,6 +468,14 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsBackfillProvide
                 earliest_block_number: proof_window.earliest.number,
                 earliest_block_hash: proof_window.earliest.hash,
             });
+        }
+
+        // A prune that sweeps the history leaves block numbers from before the proof window in
+        // it, and backfill cannot work over them. The prepend below takes every stored number
+        // to be above the block it adds. And if this block's diff lacks a key that still holds
+        // the block's number, that number is back inside the window without a changeset.
+        if self.tx.entries::<V2HistorySweepProgress>()? > 0 {
+            return Err(OpProofsStorageError::BackfillOverSweptHistory);
         }
 
         if self.changeset_exists_for_block(block_number)? {

@@ -84,6 +84,25 @@ Warming reads the pages each buffered block and the next prunes will touch, so t
   <Tab title="Accepted values">`0` to `64`</Tab>
 </Tabs>
 
+### proofs-history.sweep-prune
+
+Prune the history index with a rolling sweep instead of one lookup per pruned key.
+Off by default.
+
+With this flag, a prune only deletes the changesets of the pruned blocks.
+Their block numbers stay in the history index, where reads ignore them.
+Each prune removes them from a share of the index in key order, and gets through all of it about once per proof window.
+This cuts the disk reads and page writes of a prune.
+The index holds up to one more window of block numbers.
+
+A proofs DB that has been pruned with this flag cannot be backfilled: `op-reth proofs backfill` refuses it, also after the flag has been turned off again.
+Do not backfill such a DB with an older `op-reth` version either, because older versions do not check for this.
+Turning the flag off also stops the sweep, so the block numbers it had not removed yet stay in the index.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.sweep-prune`</Tab>
+</Tabs>
+
 
 ## Lifecycle and management commands
 

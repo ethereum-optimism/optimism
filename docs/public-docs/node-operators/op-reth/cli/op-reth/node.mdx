@@ -1310,6 +1310,9 @@ Rollup:
 
           [default: 0]
 
+      --proofs-history.sweep-prune
+          Prune the proofs storage's history index with a rolling sweep instead of one lookup per pruned key. A prune then leaves the pruned block numbers in the index, where reads ignore them, and removes them from a share of the index in key order, getting through all of it about once per proof window. This cuts a prune's disk reads and page writes, and the index holds up to one more window of block numbers
+
 Logging:
       --log.stdout.format <FORMAT>
           The format to use for logs written to stdout
