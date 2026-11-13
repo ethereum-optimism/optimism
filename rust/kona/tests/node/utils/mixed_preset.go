@@ -165,22 +165,21 @@ func mixedOpKonaFromRuntime(t devtest.T, runtime *sysgo.MixedSingleChainRuntime)
 
 func mixedOpKonaNodeSpecs(cfg L2NodeConfig) []sysgo.MixedSingleChainNodeSpec {
 	var specs []sysgo.MixedSingleChainNodeSpec
-	appendSpecs := func(count int, elPrefix, clPrefix string, elKind sysgo.MixedL2ELKind, clKind sysgo.MixedL2CLKind, isSequencer bool) {
+	appendSpecs := func(count int, elPrefix, clPrefix string, clKind sysgo.MixedL2CLKind, isSequencer bool) {
 		for i := 0; i < count; i++ {
 			specs = append(specs, sysgo.MixedSingleChainNodeSpec{
 				ELKey:       fmt.Sprintf("%s-%d", elPrefix, i),
 				CLKey:       fmt.Sprintf("%s-%d", clPrefix, i),
-				ELKind:      elKind,
 				CLKind:      clKind,
 				IsSequencer: isSequencer,
 			})
 		}
 	}
 
-	appendSpecs(cfg.OpSequencerNodesWithReth, "el-reth-op-sequencer", "cl-reth-op-sequencer", sysgo.MixedL2ELOpReth, sysgo.MixedL2CLOpNode, true)
-	appendSpecs(cfg.KonaSequencerNodesWithReth, "el-reth-kona-sequencer", "cl-reth-kona-sequencer", sysgo.MixedL2ELOpReth, sysgo.MixedL2CLKona, true)
-	appendSpecs(cfg.OpNodesWithReth, "el-reth-op-validator", "cl-reth-op-validator", sysgo.MixedL2ELOpReth, sysgo.MixedL2CLOpNode, false)
-	appendSpecs(cfg.KonaNodesWithReth, "el-reth-kona-validator", "cl-reth-kona-validator", sysgo.MixedL2ELOpReth, sysgo.MixedL2CLKona, false)
+	appendSpecs(cfg.OpSequencerNodesWithReth, "el-reth-op-sequencer", "cl-reth-op-sequencer", sysgo.MixedL2CLOpNode, true)
+	appendSpecs(cfg.KonaSequencerNodesWithReth, "el-reth-kona-sequencer", "cl-reth-kona-sequencer", sysgo.MixedL2CLKona, true)
+	appendSpecs(cfg.OpNodesWithReth, "el-reth-op-validator", "cl-reth-op-validator", sysgo.MixedL2CLOpNode, false)
+	appendSpecs(cfg.KonaNodesWithReth, "el-reth-kona-validator", "cl-reth-kona-validator", sysgo.MixedL2CLKona, false)
 
 	return specs
 }

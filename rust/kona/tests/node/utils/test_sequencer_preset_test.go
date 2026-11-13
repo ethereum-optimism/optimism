@@ -16,7 +16,7 @@ func TestWithRequiredOpSequencerForTestSequencerAddsDefaultOpRethSequencer(t *te
 	require.Equal(t, 1, cfg.KonaSequencerNodesWithReth)
 
 	specs := mixedOpKonaNodeSpecs(cfg)
-	require.True(t, hasNodeSpec(specs, sysgo.MixedL2ELOpReth, sysgo.MixedL2CLOpNode, true))
+	require.True(t, hasNodeSpec(specs, sysgo.MixedL2CLOpNode, true))
 }
 
 func TestWithRequiredOpSequencerForTestSequencerPreservesExistingOpSequencer(t *testing.T) {
@@ -27,9 +27,9 @@ func TestWithRequiredOpSequencerForTestSequencerPreservesExistingOpSequencer(t *
 	require.Equal(t, 2, cfg.OpSequencerNodesWithReth)
 }
 
-func hasNodeSpec(specs []sysgo.MixedSingleChainNodeSpec, elKind sysgo.MixedL2ELKind, clKind sysgo.MixedL2CLKind, isSequencer bool) bool {
+func hasNodeSpec(specs []sysgo.MixedSingleChainNodeSpec, clKind sysgo.MixedL2CLKind, isSequencer bool) bool {
 	for _, spec := range specs {
-		if spec.ELKind == elKind && spec.CLKind == clKind && spec.IsSequencer == isSequencer {
+		if spec.CLKind == clKind && spec.IsSequencer == isSequencer {
 			return true
 		}
 	}

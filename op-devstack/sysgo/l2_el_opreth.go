@@ -249,8 +249,7 @@ func (n *OpReth) Stop() {
 }
 
 // Wipe deletes the node's chain data and re-initializes it from genesis, so the
-// next Start begins with an empty chain. Unlike op-geth, op-reth keeps its
-// datadir across Stop/Start.
+// next Start begins with an empty chain. Stop/Start alone keeps the datadir.
 func (n *OpReth) Wipe() {
 	n.mu.Lock()
 	defer n.mu.Unlock()

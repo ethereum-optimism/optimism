@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -31,14 +30,8 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 // (light op-node CL sequencer) analogue of TestSupernodeInteropInvalidMessageReplacement:
 // the light CLs sequence on their own ELs and follow the shared supernode's safe head via
 // EL sync. See https://github.com/ethereum-optimism/optimism/issues/21119.
-//
-// op-reth only. On op-geth the follower never adopts the replacement (cross-safe stalls,
-// follow-source reorgs forever); the virtual variant passes there, so it's specific to the
-// light-sequencer path. op-geth is being deprecated, so we skip rather than block on it.
 func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// op-reth only: on op-geth the follower never adopts the deposits-only replacement.
-	sysgo.SkipOnOpGeth(t, "op-geth does not adopt the invalid-message replacement on the light path (#21119)")
 	// Bootstrap via the supernode VN sequencer and hand off to the light ELSync sequencers, then
 	// run the invalid-message scenario on the live chain.
 	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0, presets.WithSupernodeVNSequencerForBootstrap())

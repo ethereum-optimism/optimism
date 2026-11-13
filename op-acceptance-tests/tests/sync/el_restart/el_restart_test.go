@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -17,7 +16,6 @@ import (
 // and the rollup node must reconnect and keep following the chain without a reset.
 func TestVerifierResumesWithoutResetAfterELRestart(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "the sysgo op-geth keeps its chain in memory, so a restart loses it")
 	sys := presets.NewSingleChainMultiNode(t)
 	require := t.Require()
 
