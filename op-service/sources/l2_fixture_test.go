@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
@@ -17,13 +18,18 @@ import (
 
 // l2FixturesDir holds op-reth's eth_getBlockByNumber(n, true) responses, as
 // l2_<chainID>_<number>_block.json, each optionally with the block's eth_getBlockReceipts(n)
-// response as l2_<chainID>_<number>_receipts.json, pretty-printed and otherwise verbatim. They pin
-// the RPC wire format of the OP transaction and receipt types independently of this package's own
-// codec. Every block file is checked; a new fixture needs no test change.
+// response as l2_<chainID>_<number>_receipts.json, pretty-printed with every value unchanged.
+// They pin the RPC wire format of the OP transaction and receipt types independently of this
+// package's own codec. Every block file is checked; a new fixture needs no test change.
 //
 // l2_901_8 is a Lagoon block with a trailing post-exec tx, from the SDM acceptance system
 // (newFixedPolicySDMRethSystem in op-acceptance-tests/tests/sdm) on op-reth: the block
 // sdmtest.MustFindRepeatedSlotBlock returns, read from the sequencer's op-reth.
+//
+// l2_901_12 holds three user deposits after the L1-info deposit, all from one L1 block of the
+// minimal system without fault proofs (presets.NewMinimalNoFaultProofs) on op-reth, each sent
+// through OptimismPortal2.depositTransaction with a nonzero mint and value: a contract creation,
+// a plain value transfer to an EOA, and a call that reverts on L2.
 const l2FixturesDir = "testdata/l2"
 
 // wireTx holds the transaction-object fields the fixtures are checked against.
@@ -50,6 +56,7 @@ func TestRPCBlockDecodesOpRethFixtures(t *testing.T) {
 	require.NotEmpty(t, entries)
 
 	seen := make(map[byte]bool)
+	var seenMint, seenCreation, seenRevertedDeposit bool
 	for _, path := range entries {
 		name := strings.TrimSuffix(strings.TrimPrefix(path, l2FixturesDir+"/"), "_block.json")
 		t.Run(name, func(t *testing.T) {
@@ -87,6 +94,8 @@ func TestRPCBlockDecodesOpRethFixtures(t *testing.T) {
 					require.Equal(t, uint64(w.Gas), dep.Gas, "tx %d gas", i)
 					require.Equal(t, w.IsSystemTx, dep.IsSystemTransaction, "tx %d isSystemTx", i)
 					require.Equal(t, []byte(w.Input), dep.Data, "tx %d input", i)
+					seenMint = seenMint || bigOrZero(w.Mint).Sign() != 0
+					seenCreation = seenCreation || dep.To == nil
 				case optypes.PostExecTxType:
 					require.Equal(t, len(block.Transactions)-1, i, "the post-exec tx comes last")
 					pe, err := optypes.UnmarshalPostExecTx(raw)
@@ -121,6 +130,7 @@ func TestRPCBlockDecodesOpRethFixtures(t *testing.T) {
 				switch block.Transactions[i].Type() {
 				case optypes.DepositTxType:
 					require.NotNil(t, r.DepositNonce, "deposit receipt %d depositNonce", i)
+					seenRevertedDeposit = seenRevertedDeposit || r.Status == types.ReceiptStatusFailed
 				case optypes.PostExecTxType:
 				default:
 					require.NotNil(t, r.L1Fee, "user receipt %d l1Fee", i)
@@ -133,6 +143,9 @@ func TestRPCBlockDecodesOpRethFixtures(t *testing.T) {
 
 	require.True(t, seen[optypes.DepositTxType], "the fixtures must hold a deposit tx")
 	require.True(t, seen[optypes.PostExecTxType], "the fixtures must hold a post-exec tx")
+	require.True(t, seenMint, "the fixtures must hold a deposit with a nonzero mint")
+	require.True(t, seenCreation, "the fixtures must hold a contract-creation deposit")
+	require.True(t, seenRevertedDeposit, "the fixtures must hold a deposit whose receipt has status failed")
 }
 
 func bigOrZero(b *hexutil.Big) *big.Int {
