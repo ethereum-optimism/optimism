@@ -41,6 +41,19 @@
   },
   {
     "inputs": [],
+    "name": "pauseOverride",
+    "outputs": [
+      {
+        "internalType": "enum ETHLiquidity.PauseOverride",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "paused",
     "outputs": [
       {
@@ -92,16 +105,16 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "proxyAdminOwnerPaused",
-    "outputs": [
+    "inputs": [
       {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
+        "internalType": "enum ETHLiquidity.PauseOverride",
+        "name": "_pauseOverride",
+        "type": "uint8"
       }
     ],
-    "stateMutability": "view",
+    "name": "setPauseOverride",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -118,19 +131,6 @@
       }
     ],
     "name": "setPaused",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bool",
-        "name": "_paused",
-        "type": "bool"
-      }
-    ],
-    "name": "setProxyAdminOwnerPaused",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -210,6 +210,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "enum ETHLiquidity.PauseOverride",
+        "name": "pauseOverride",
+        "type": "uint8"
+      }
+    ],
+    "name": "PauseOverrideSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "bool",
         "name": "paused",
         "type": "bool"
@@ -222,19 +235,6 @@
       }
     ],
     "name": "PausedSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "paused",
-        "type": "bool"
-      }
-    ],
-    "name": "ProxyAdminOwnerPausedSet",
     "type": "event"
   },
   {

@@ -38,8 +38,8 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
     /// @notice Emitted when the pause state synced from L1 is applied.
     event PausedSet(bool paused, uint256 messageNonce);
 
-    /// @notice Emitted when the L2 ProxyAdmin owner sets its pause.
-    event ProxyAdminOwnerPausedSet(bool paused);
+    /// @notice Emitted when the L2 ProxyAdmin owner sets its override of the synced pause.
+    event PauseOverrideSet(IETHLiquidity.PauseOverride pauseOverride);
 
     /// @notice Gas limit the L1CrossDomainMessenger gives `setPaused` on L2.
     uint32 internal constant SET_PAUSED_GAS_LIMIT = 200_000;
@@ -62,7 +62,7 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
         assertFalse(ethLiquidity.paused());
         assertFalse(ethLiquidity.l1Paused());
-        assertFalse(ethLiquidity.proxyAdminOwnerPaused());
+        assertEq(uint8(ethLiquidity.pauseOverride()), uint8(IETHLiquidity.PauseOverride.None));
         assertEq(ethLiquidity.pausedMessageNonce(), 0);
     }
 
@@ -118,12 +118,13 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
         assertEq(ethLiquidity.l1Paused(), _paused);
     }
 
-    /// @notice Sets the L2 ProxyAdmin owner's pause to `_paused`, and checks that it applied.
-    /// @param _paused Whether to pause the contract.
-    function _setProxyAdminOwnerPaused(bool _paused) internal {
+    /// @notice Sets the L2 ProxyAdmin owner's override to `_pauseOverride`, and checks that it
+    ///         applied.
+    /// @param _pauseOverride The override to set.
+    function _setPauseOverride(IETHLiquidity.PauseOverride _pauseOverride) internal {
         vm.prank(ethLiquidity.proxyAdminOwner());
-        ethLiquidity.setProxyAdminOwnerPaused(_paused);
-        assertEq(ethLiquidity.proxyAdminOwnerPaused(), _paused);
+        ethLiquidity.setPauseOverride(_pauseOverride);
+        assertEq(uint8(ethLiquidity.pauseOverride()), uint8(_pauseOverride));
     }
 }
 
@@ -204,24 +205,26 @@ contract ETHLiquidity_Burn_Test is ETHLiquidity_TestInit {
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE + _amount);
     }
 
-    /// @notice Tests that the burn function reverts while the L2 ProxyAdmin owner has paused the
-    ///         contract, even for the authorized caller, and works again once it lifts the pause.
+    /// @notice Tests that the burn function reverts while the L2 ProxyAdmin owner's override
+    ///         pauses the contract, with L1 unpaused, and works once the owner force-unpauses it
+    ///         with L1 paused.
     /// @param _amount Amount of ETH (in wei) to call the burn function with.
-    function testFuzz_burn_whileProxyAdminOwnerPaused_reverts(uint256 _amount) public {
+    function testFuzz_burn_pauseOverride_succeeds(uint256 _amount) public {
         // Assume
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Arrange
         vm.deal(address(superchainETHBridge), _amount);
-        _setProxyAdminOwnerPaused(true);
+        _setPauseOverride(IETHLiquidity.PauseOverride.Paused);
 
         // Act
         vm.prank(address(superchainETHBridge));
         vm.expectRevert(IETHLiquidity.ETHLiquidity_Paused.selector);
         ethLiquidity.burn{ value: _amount }();
 
-        // Assert: lifting the pause lets the same burn through.
-        _setProxyAdminOwnerPaused(false);
+        // Assert: a force-unpause lets the same burn through while L1 is paused.
+        _setPaused(true);
+        _setPauseOverride(IETHLiquidity.PauseOverride.Unpaused);
         vm.prank(address(superchainETHBridge));
         ethLiquidity.burn{ value: _amount }();
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE + _amount);
@@ -326,23 +329,25 @@ contract ETHLiquidity_Mint_Test is ETHLiquidity_TestInit {
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE - _amount);
     }
 
-    /// @notice Tests that the mint function reverts while the L2 ProxyAdmin owner has paused the
-    ///         contract, even for the authorized caller, and works again once it lifts the pause.
+    /// @notice Tests that the mint function reverts while the L2 ProxyAdmin owner's override
+    ///         pauses the contract, with L1 unpaused, and works once the owner force-unpauses it
+    ///         with L1 paused.
     /// @param _amount Amount of ETH (in wei) to call the mint function with.
-    function testFuzz_mint_whileProxyAdminOwnerPaused_reverts(uint256 _amount) public {
+    function testFuzz_mint_pauseOverride_succeeds(uint256 _amount) public {
         // Assume
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Arrange
-        _setProxyAdminOwnerPaused(true);
+        _setPauseOverride(IETHLiquidity.PauseOverride.Paused);
 
         // Act
         vm.prank(address(superchainETHBridge));
         vm.expectRevert(IETHLiquidity.ETHLiquidity_Paused.selector);
         ethLiquidity.mint(_amount);
 
-        // Assert: lifting the pause lets the same mint through.
-        _setProxyAdminOwnerPaused(false);
+        // Assert: a force-unpause lets the same mint through while L1 is paused.
+        _setPaused(true);
+        _setPauseOverride(IETHLiquidity.PauseOverride.Unpaused);
         vm.prank(address(superchainETHBridge));
         ethLiquidity.mint(_amount);
         assertEq(address(superchainETHBridge).balance, _amount);
@@ -601,95 +606,133 @@ contract ETHLiquidity_SetPaused_Test is ETHLiquidity_TestInit {
     }
 }
 
-/// @title ETHLiquidity_SetProxyAdminOwnerPaused_Test
-/// @notice Tests the `setProxyAdminOwnerPaused` function of the `ETHLiquidity` contract.
-contract ETHLiquidity_SetProxyAdminOwnerPaused_Test is ETHLiquidity_TestInit {
-    /// @notice Tests that the L2 ProxyAdmin owner can set and lift its pause, and that each is
-    ///         reported.
-    function test_setProxyAdminOwnerPaused_fromProxyAdminOwner_succeeds() public {
-        address owner = ethLiquidity.proxyAdminOwner();
+/// @title ETHLiquidity_SetPauseOverride_Test
+/// @notice Tests the `setPauseOverride` function of the `ETHLiquidity` contract.
+contract ETHLiquidity_SetPauseOverride_Test is ETHLiquidity_TestInit {
+    /// @notice Tests that the L2 ProxyAdmin owner can set each override, and that each is stored
+    ///         and reported.
+    /// @param _pauseOverride The override to set, bounded to a valid value.
+    function testFuzz_setPauseOverride_fromProxyAdminOwner_succeeds(uint8 _pauseOverride) public {
+        IETHLiquidity.PauseOverride pauseOverride = IETHLiquidity.PauseOverride(bound(_pauseOverride, 0, 2));
 
         vm.expectEmit(address(ethLiquidity));
-        emit ProxyAdminOwnerPausedSet(true);
-        vm.prank(owner);
-        ethLiquidity.setProxyAdminOwnerPaused(true);
-        assertTrue(ethLiquidity.proxyAdminOwnerPaused());
-        assertTrue(ethLiquidity.paused());
-        assertFalse(ethLiquidity.l1Paused());
+        emit PauseOverrideSet(pauseOverride);
+        vm.prank(ethLiquidity.proxyAdminOwner());
+        ethLiquidity.setPauseOverride(pauseOverride);
 
-        vm.expectEmit(address(ethLiquidity));
-        emit ProxyAdminOwnerPausedSet(false);
-        vm.prank(owner);
-        ethLiquidity.setProxyAdminOwnerPaused(false);
-        assertFalse(ethLiquidity.proxyAdminOwnerPaused());
-        assertFalse(ethLiquidity.paused());
+        assertEq(uint8(ethLiquidity.pauseOverride()), uint8(pauseOverride));
     }
 
-    /// @notice Tests that no caller but the L2 ProxyAdmin owner can set its pause.
-    /// @param _caller Address of the caller.
-    /// @param _paused Value to set.
-    function testFuzz_setProxyAdminOwnerPaused_notProxyAdminOwner_reverts(address _caller, bool _paused) public {
+    /// @notice Tests `paused()` for every override with each synced L1 pause: `None` follows L1,
+    ///         `Paused` and `Unpaused` ignore it, and none of them changes the synced state.
+    function test_setPauseOverride_allStates_succeeds() public {
+        bool[2] memory l1States = [false, true];
+        for (uint256 i; i < l1States.length; i++) {
+            _setPaused(l1States[i]);
+
+            _setPauseOverride(IETHLiquidity.PauseOverride.None);
+            assertEq(ethLiquidity.paused(), l1States[i], "None follows L1");
+
+            _setPauseOverride(IETHLiquidity.PauseOverride.Paused);
+            assertTrue(ethLiquidity.paused(), "Paused ignores L1");
+
+            _setPauseOverride(IETHLiquidity.PauseOverride.Unpaused);
+            assertFalse(ethLiquidity.paused(), "Unpaused ignores L1");
+
+            assertEq(ethLiquidity.l1Paused(), l1States[i], "the override leaves the synced state alone");
+        }
+    }
+
+    /// @notice Tests that a sync from L1 applied while an override is set is recorded, with its
+    ///         nonce and event, but doesn't change `paused()`, and that clearing the override then
+    ///         follows the latest sync.
+    function test_setPauseOverride_syncWhileOverridden_succeeds() public {
+        _setPauseOverride(IETHLiquidity.PauseOverride.Unpaused);
+        uint256 pauseNonce = _nextNonce();
+        vm.expectEmit(address(ethLiquidity));
+        emit PausedSet(true, pauseNonce);
+        _relaySetPaused(true, pauseNonce, 1_000_000);
+        assertTrue(ethLiquidity.l1Paused());
+        assertEq(ethLiquidity.pausedMessageNonce(), pauseNonce);
+        assertFalse(ethLiquidity.paused());
+
+        _setPauseOverride(IETHLiquidity.PauseOverride.Paused);
+        _setPaused(false);
+        assertTrue(ethLiquidity.paused());
+
+        _setPaused(true);
+        _setPauseOverride(IETHLiquidity.PauseOverride.None);
+        assertTrue(ethLiquidity.paused());
+    }
+
+    /// @notice Tests that no caller but the L2 ProxyAdmin owner can set the override.
+    /// @param _caller        Address of the caller.
+    /// @param _pauseOverride The override to set, bounded to a valid value.
+    function testFuzz_setPauseOverride_notProxyAdminOwner_reverts(address _caller, uint8 _pauseOverride) public {
         vm.assume(_caller != ethLiquidity.proxyAdminOwner());
+        IETHLiquidity.PauseOverride pauseOverride = IETHLiquidity.PauseOverride(bound(_pauseOverride, 0, 2));
 
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
         vm.prank(_caller);
-        ethLiquidity.setProxyAdminOwnerPaused(_paused);
+        ethLiquidity.setPauseOverride(pauseOverride);
     }
 
     /// @notice Tests that a message relayed through the L2CrossDomainMessenger can't set the
-    ///         L2 ProxyAdmin owner's pause, even from this chain's L1CrossDomainMessenger.
-    function test_setProxyAdminOwnerPaused_fromL1Messenger_fails() public {
+    ///         override, even from this chain's L1CrossDomainMessenger.
+    function test_setPauseOverride_fromL1Messenger_fails() public {
         bytes32 hash = _relayFromL1(
             _nextNonce(),
             address(l1CrossDomainMessenger),
             Predeploys.ETH_LIQUIDITY,
             0,
             SET_PAUSED_GAS_LIMIT,
-            abi.encodeCall(IETHLiquidity.setProxyAdminOwnerPaused, (true)),
+            abi.encodeCall(IETHLiquidity.setPauseOverride, (IETHLiquidity.PauseOverride.Paused)),
             1_000_000
         );
 
         assertTrue(l2CrossDomainMessenger.failedMessages(hash));
-        assertFalse(ethLiquidity.proxyAdminOwnerPaused());
+        assertEq(uint8(ethLiquidity.pauseOverride()), uint8(IETHLiquidity.PauseOverride.None));
         assertFalse(ethLiquidity.paused());
     }
 
-    /// @notice Tests that the L2 ProxyAdmin owner's pause and the pause synced from L1 are
-    ///         independent: the contract is paused while either is set, and lifting one leaves
-    ///         the other in place.
-    function test_setProxyAdminOwnerPaused_independentOfL1Pause_succeeds() public {
-        // A sync of the L1 unpause doesn't lift the ProxyAdmin owner's pause.
-        _setProxyAdminOwnerPaused(true);
-        _setPaused(false);
-        assertTrue(ethLiquidity.paused());
+    /// @notice Tests that a value outside the enum reverts, even from the L2 ProxyAdmin owner.
+    /// @param _pauseOverride The raw value, bounded outside the enum.
+    function testFuzz_setPauseOverride_invalidValue_reverts(uint256 _pauseOverride) public {
+        _pauseOverride = bound(_pauseOverride, 3, type(uint256).max);
 
-        // The ProxyAdmin owner lifting its pause doesn't lift the L1 pause.
-        _setPaused(true);
-        _setProxyAdminOwnerPaused(false);
-        assertTrue(ethLiquidity.paused());
+        vm.prank(ethLiquidity.proxyAdminOwner());
+        // abi.encodeCall can't encode a value outside the enum.
+        // nosemgrep: sol-style-use-abi-encodecall
+        (bool success, bytes memory returnData) =
+            address(ethLiquidity).call(abi.encodeWithSelector(IETHLiquidity.setPauseOverride.selector, _pauseOverride));
 
-        // With both pauses set, lifting either leaves the contract paused.
-        _setProxyAdminOwnerPaused(true);
-        _setPaused(false);
-        assertTrue(ethLiquidity.paused());
-        _setPaused(true);
-        _setProxyAdminOwnerPaused(false);
-        assertTrue(ethLiquidity.paused());
-
-        // Lifting both unpauses it.
-        _setPaused(false);
-        assertFalse(ethLiquidity.paused());
+        // The ABI decoder's revert carries no data.
+        assertFalse(success);
+        assertEq(returnData.length, 0);
+        assertEq(uint8(ethLiquidity.pauseOverride()), uint8(IETHLiquidity.PauseOverride.None));
     }
 
-    /// @notice Tests that the L2 ProxyAdmin owner's pause flag lives at storage slot 2, where the
-    ///         storage layout snapshot puts it.
-    function test_setProxyAdminOwnerPaused_storageSlot_succeeds() public {
+    /// @notice Tests that a contract upgraded from a version without the override, with this
+    ///         chain paused on L1 as last synced, stays paused: slot 2 reads as `None`, so
+    ///         `paused()` follows the synced pause in slot 0.
+    function test_setPauseOverride_upgradedWhileL1Paused_succeeds() public {
+        vm.store(address(ethLiquidity), bytes32(uint256(0)), bytes32(uint256(1)));
+        vm.store(address(ethLiquidity), bytes32(uint256(2)), bytes32(0));
+
+        assertTrue(ethLiquidity.l1Paused());
+        assertEq(uint8(ethLiquidity.pauseOverride()), uint8(IETHLiquidity.PauseOverride.None));
+        assertTrue(ethLiquidity.paused());
+    }
+
+    /// @notice Tests that the override lives at storage slot 2, where the storage layout snapshot
+    ///         puts it, and leaves the synced pause in slot 0 alone.
+    function test_setPauseOverride_storageSlot_succeeds() public {
         assertEq(vm.load(address(ethLiquidity), bytes32(uint256(2))), bytes32(0));
 
-        _setProxyAdminOwnerPaused(true);
+        _setPauseOverride(IETHLiquidity.PauseOverride.Unpaused);
 
         assertEq(vm.load(address(ethLiquidity), bytes32(uint256(0))), bytes32(0));
-        assertEq(vm.load(address(ethLiquidity), bytes32(uint256(2))), bytes32(uint256(1)));
+        assertEq(vm.load(address(ethLiquidity), bytes32(uint256(2))), bytes32(uint256(2)));
     }
 }
 

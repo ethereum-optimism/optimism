@@ -21,15 +21,24 @@ import { InvalidAmount } from "src/libraries/errors/CommonErrors.sol";
 /// @title ETHLiquidity
 /// @notice The ETHLiquidity contract allows other contracts to access ETH liquidity without
 ///         needing to modify the EVM to generate new ETH. Contract comes "pre-loaded" with
-///         uint128.max balance to prevent liquidity shortages. It mirrors the chain's pause on
-///         L1: while that is paused, ETH can't be burned or minted, so the SuperchainETHBridge
-///         can't send, relay or refund ETH. Anyone can sync the pause from L1 through
-///         `L1CrossDomainMessenger.syncETHLiquidityPause`. The L2 ProxyAdmin owner can also pause
-///         it directly, independently of L1: the contract is paused while either pause is set,
-///         and neither can lift the other. A pause longer than the message expiry window leaves
-///         sends in flight to expire, and only senders that can call `refundETH` get that ETH
-///         back.
+///         uint128.max balance to prevent liquidity shortages. While it is paused, ETH can't be
+///         burned or minted, so the SuperchainETHBridge can't send, relay or refund ETH. By
+///         default it follows the chain's pause on L1, which anyone can sync through
+///         `L1CrossDomainMessenger.syncETHLiquidityPause`. The L2 ProxyAdmin owner can override
+///         that, pausing or unpausing the contract regardless of L1. A pause longer than the
+///         message expiry window leaves sends in flight to expire, and only senders that can call
+///         `refundETH` get that ETH back.
 contract ETHLiquidity is ProxyAdminOwnedBase, ISemver {
+    /// @notice The L2 ProxyAdmin owner's override of the pause synced from L1.
+    /// @custom:value None     The contract follows the pause synced from L1.
+    /// @custom:value Paused   The contract is paused, whatever L1's pause.
+    /// @custom:value Unpaused The contract is unpaused, whatever L1's pause.
+    enum PauseOverride {
+        None,
+        Paused,
+        Unpaused
+    }
+
     /// @notice Thrown when burning or minting ETH liquidity while the contract is paused.
     error ETHLiquidity_Paused();
 
@@ -46,13 +55,13 @@ contract ETHLiquidity is ProxyAdminOwnedBase, ISemver {
     event LiquidityFunded(address indexed funder, uint256 amount);
 
     /// @notice Emitted when the pause state synced from L1 is applied.
-    /// @param paused       Whether the contract is now paused.
+    /// @param paused       Whether this chain was paused on L1.
     /// @param messageNonce Nonce of the L1CrossDomainMessenger message that sent it.
     event PausedSet(bool paused, uint256 messageNonce);
 
-    /// @notice Emitted when the L2 ProxyAdmin owner sets its pause.
-    /// @param paused Whether the L2 ProxyAdmin owner's pause is now set.
-    event ProxyAdminOwnerPausedSet(bool paused);
+    /// @notice Emitted when the L2 ProxyAdmin owner sets its override of the synced pause.
+    /// @param pauseOverride The override now set.
+    event PauseOverrideSet(PauseOverride pauseOverride);
 
     /// @notice Semantic version.
     /// @custom:semver 2.1.0
@@ -66,8 +75,8 @@ contract ETHLiquidity is ProxyAdminOwnedBase, ISemver {
     ///         update from an earlier message is ignored.
     uint256 public pausedMessageNonce;
 
-    /// @notice Whether the L2 ProxyAdmin owner has paused burning and minting ETH liquidity.
-    bool public proxyAdminOwnerPaused;
+    /// @notice The L2 ProxyAdmin owner's override of the pause synced from L1.
+    PauseOverride public pauseOverride;
 
     /// @notice Allows an address to lock ETH liquidity into this contract.
     function burn() external payable {
@@ -96,7 +105,9 @@ contract ETHLiquidity is ProxyAdminOwnedBase, ISemver {
     ///         L1CrossDomainMessenger through `L1CrossDomainMessenger.syncETHLiquidityPause`. That
     ///         messenger sends it as itself, which no message it relays can be, so no one else
     ///         can. An update from an earlier message than the applied one changes nothing, so
-    ///         replaying an older failed message can't undo a newer state.
+    ///         replaying an older failed message can't undo a newer state. While the L2
+    ///         ProxyAdmin owner's override is set, the synced state is recorded but doesn't change
+    ///         `paused()`.
     /// @param _paused       Whether this chain is paused on L1.
     /// @param _messageNonce Nonce of the L1CrossDomainMessenger message that sends this.
     function setPaused(bool _paused, uint256 _messageNonce) external {
@@ -115,21 +126,23 @@ contract ETHLiquidity is ProxyAdminOwnedBase, ISemver {
         emit PausedSet(_paused, _messageNonce);
     }
 
-    /// @notice Sets or lifts the L2 ProxyAdmin owner's pause. It is separate from the pause synced
-    ///         from L1, so it neither lifts nor is lifted by it.
-    /// @param _paused Whether to pause burning and minting ETH liquidity.
-    function setProxyAdminOwnerPaused(bool _paused) external {
+    /// @notice Sets the L2 ProxyAdmin owner's override of the pause synced from L1. `None` hands
+    ///         the pause back to the synced state.
+    /// @param _pauseOverride The override to set.
+    function setPauseOverride(PauseOverride _pauseOverride) external {
         _assertOnlyProxyAdminOwner();
 
-        proxyAdminOwnerPaused = _paused;
+        pauseOverride = _pauseOverride;
 
-        emit ProxyAdminOwnerPausedSet(_paused);
+        emit PauseOverrideSet(_pauseOverride);
     }
 
-    /// @notice Whether burning and minting ETH liquidity is paused: while this chain was paused on
-    ///         L1 as last synced, or while the L2 ProxyAdmin owner has paused it.
+    /// @notice Whether burning and minting ETH liquidity is paused: as the L2 ProxyAdmin owner's
+    ///         override says if it is set, otherwise as this chain was paused on L1 when last
+    ///         synced.
     /// @return Whether burning and minting ETH liquidity is paused.
     function paused() public view returns (bool) {
-        return l1Paused || proxyAdminOwnerPaused;
+        if (pauseOverride == PauseOverride.None) return l1Paused;
+        return pauseOverride == PauseOverride.Paused;
     }
 }
