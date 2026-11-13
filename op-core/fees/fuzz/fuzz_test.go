@@ -1,6 +1,6 @@
 //go:build cgo_test
 
-package fastlz_test
+package fuzz_test
 
 import (
 	"math/big"
@@ -16,9 +16,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
+	"github.com/ethereum-optimism/optimism/op-core/fees/fuzz"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-e2e/fastlz"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
@@ -65,7 +64,7 @@ func FuzzFjordCostFunction(f *testing.F) {
 		f.Add(seed)
 	}
 
-	artifacts := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
+	artifacts := foundry.OpenArtifactsDir("../../../packages/contracts-bedrock/forge-artifacts")
 	gpoArtifact, err := artifacts.ReadArtifact("GasPriceOracle.sol", "GasPriceOracle")
 	require.NoError(f, err)
 	l1BlockArtifact, err := artifacts.ReadArtifact("L1Block.sol", "L1Block")
@@ -89,31 +88,23 @@ func FuzzFjordCostFunction(f *testing.F) {
 		require.NoError(f, backend.Close())
 	}()
 
-	gpo, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, backend.Client())
-	require.NoError(f, err)
+	gpo := bind.NewBoundContract(predeploys.GasPriceOracleAddr, gpoArtifact.ABI, backend.Client(), nil, nil)
+	callGPO := func(t testing.TB, method string, args ...any) any {
+		var out []any
+		require.NoError(t, gpo.Call(&bind.CallOpts{Context: t.Context()}, &out, method, args...), method)
+		return out[0]
+	}
 
 	// Read the parameters back through the predeploys, so a storage packing mistake fails here
 	// rather than as a fee mismatch.
-	opts := &bind.CallOpts{Context: f.Context()}
-	isFjord, err := gpo.IsFjord(opts)
-	require.NoError(f, err)
-	require.True(f, isFjord)
-	l1BaseFee, err := gpo.L1BaseFee(opts)
-	require.NoError(f, err)
-	require.Equal(f, fjordL1FeeParams.L1BaseFee.String(), l1BaseFee.String())
-	blobBaseFee, err := gpo.BlobBaseFee(opts)
-	require.NoError(f, err)
-	require.Equal(f, fjordL1FeeParams.L1BlobBaseFee.String(), blobBaseFee.String())
-	baseFeeScalar, err := gpo.BaseFeeScalar(opts)
-	require.NoError(f, err)
-	require.Equal(f, bigs.Uint64Strict(fjordL1FeeParams.BaseFeeScalar), uint64(baseFeeScalar))
-	blobBaseFeeScalar, err := gpo.BlobBaseFeeScalar(opts)
-	require.NoError(f, err)
-	require.Equal(f, bigs.Uint64Strict(fjordL1FeeParams.BlobFeeScalar), uint64(blobBaseFeeScalar))
+	require.True(f, callGPO(f, "isFjord").(bool))
+	require.Equal(f, fjordL1FeeParams.L1BaseFee.String(), callGPO(f, "l1BaseFee").(*big.Int).String())
+	require.Equal(f, fjordL1FeeParams.L1BlobBaseFee.String(), callGPO(f, "blobBaseFee").(*big.Int).String())
+	require.Equal(f, bigs.Uint64Strict(fjordL1FeeParams.BaseFeeScalar), uint64(callGPO(f, "baseFeeScalar").(uint32)))
+	require.Equal(f, bigs.Uint64Strict(fjordL1FeeParams.BlobFeeScalar), uint64(callGPO(f, "blobBaseFeeScalar").(uint32)))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		l1FeeSolidity, err := gpo.GetL1Fee(&bind.CallOpts{Context: t.Context()}, data)
-		require.NoError(t, err)
+		l1FeeSolidity := callGPO(t, "getL1Fee", data).(*big.Int)
 
 		// GetL1Fee prices unsigned tx data: it adds 68 bytes to the FastLZ size for the signature.
 		costData := opfees.NewRollupCostData(data)
@@ -184,7 +175,7 @@ func FuzzFastLzCgo(f *testing.F) {
 			t.Skip()
 		}
 
-		out, err := fastlz.Compress(data)
+		out, err := fuzz.Compress(data)
 		require.NoError(t, err)
 		require.Equal(t, len(out), int(opfees.FlzCompressLen(data)))
 	})

@@ -396,7 +396,7 @@ The test suites read L2 data as §11 prescribes, and two gates keep them there. 
   from a `TransactionReceipt` re-fetch; `txplan`'s `Included` stays a geth receipt.
 - **L2 block fixtures** in the op-node, op-batcher and op-service tests are execution payloads
   with raw deposit bytes.
-- **The FastLZ and Fjord-cost fuzzers** live in `op-e2e/fastlz` and check `op-core/fees` against
+- **The FastLZ and Fjord-cost fuzzers** live in `op-core/fees/fuzz` and check `op-core/fees` against
   the C FastLZ build and the Solidity implementations; the Fjord one runs the `GasPriceOracle` and
   `L1Block` code from the forge artifacts on an upstream simulated backend.
 
