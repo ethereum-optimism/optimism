@@ -103,7 +103,7 @@ services:
       --p2p.listen.tcp ${KONA_NODE_DISCOVERY_PORT:-9223}
       --p2p.listen.udp ${KONA_NODE_DISCOVERY_PORT:-9223}
       --p2p.scoring light
-      --p2p.bootstore /db
+      --p2p.bootstore /db/bootstore.json
 
 
 

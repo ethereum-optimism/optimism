@@ -17,6 +17,9 @@ impl Metrics {
     /// Identifier for the gauge that tracks the number of peers in the discovery service.
     pub const DISCOVERY_PEER_COUNT: &str = "kona_node_discovery_peer_count";
 
+    /// Counter for the session records discovery dropped because the channel to gossip was full.
+    pub const DROPPED_ENRS: &str = "kona_node_discovery_dropped_enrs";
+
     /// Initializes metrics for the discovery service.
     ///
     /// This does two things:
@@ -42,6 +45,10 @@ impl Metrics {
             Self::FIND_NODE_REQUEST,
             "Requests made to find a node through the discv5 peer discovery service"
         );
+        metrics::describe_counter!(
+            Self::DROPPED_ENRS,
+            "Session records discovery dropped because the channel to gossip was full"
+        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
@@ -54,5 +61,8 @@ impl Metrics {
         // Peer Counts
         metrics::gauge!(Self::DISCOVERY_PEER_COUNT).set(0);
         metrics::gauge!(Self::FIND_NODE_REQUEST).set(0);
+
+        // Dropped records
+        metrics::counter!(Self::DROPPED_ENRS).absolute(0);
     }
 }
