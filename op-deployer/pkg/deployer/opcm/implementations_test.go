@@ -1,6 +1,7 @@
 package opcm
 
 import (
+	"bytes"
 	"math/big"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestDeployImplementations(t *testing.T) {
 	sp1Verifier, err := DeployMockSP1VerifierGenesis(env)
 	require.NoError(t, err)
 
-	output, err := DeployImplementations(env, DeployImplementationsInput{
+	input := DeployImplementationsInput{
 		MinWithdrawalDelaySeconds:          big.NewInt(1),
 		MaxWithdrawalDelaySeconds:          big.NewInt(2),
 		MinProposalSizeBytes:               big.NewInt(2),
@@ -41,7 +42,26 @@ func TestDeployImplementations(t *testing.T) {
 		L1ProxyAdminOwner:                  common.BigToAddress(big.NewInt(13)),
 		Challenger:                         common.BigToAddress(big.NewInt(14)),
 		SP1Verifier:                        sp1Verifier,
-	})
+	}
+	// A Solidity test cannot see console calls: vm.expectCall and state-diff recording both miss
+	// them. So this test checks the deployment messages in the forge output.
+	var logs bytes.Buffer
+	env.Client.Stdout = &logs
+	output, err := DeployImplementations(env, input)
 	require.NoError(t, err)
 	requireCode(t, env, output.OpcmV2)
+	require.Contains(t, logs.String(), "SystemConfig deployed at "+output.SystemConfigImpl.Hex())
+	require.Contains(t, logs.String(), "Blueprint deployed at ")
+	require.NotContains(t, logs.String(), "SystemConfig already deployed at ")
+	require.NotContains(t, logs.String(), "Blueprint already deployed at ")
+
+	logs.Reset()
+	reused, err := DeployImplementations(env, input)
+	require.NoError(t, err)
+	require.Equal(t, output, reused)
+	require.Contains(t, logs.String(), "SystemConfig already deployed at "+output.SystemConfigImpl.Hex())
+	require.Contains(t, logs.String(), "L1CrossDomainMessenger already deployed at "+output.L1CrossDomainMessengerImpl.Hex())
+	require.Contains(t, logs.String(), "Blueprint already deployed at ")
+	require.NotContains(t, logs.String(), "SystemConfig deployed at ")
+	require.NotContains(t, logs.String(), "Blueprint deployed at ")
 }
