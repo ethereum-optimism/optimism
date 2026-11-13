@@ -1,4 +1,7 @@
-use super::{DelegateDerivationActor, DerivationDelegateClientError, DerivationDelegateProvider};
+use super::{
+    DelegateDerivationActor, DerivationDelegateClientError, DerivationDelegateProvider,
+    actor::DERIVATION_DELEGATE_POLL_INTERVAL,
+};
 use crate::{DerivationActorRequest, EngineActorRequest, NodeActor, QueuedDerivationEngineClient};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
@@ -14,8 +17,6 @@ use tokio::{
     sync::{mpsc, watch},
     time::{self, Duration, Instant},
 };
-
-const POLL_INTERVAL: Duration = Duration::from_secs(4);
 
 const SAFE_ORIGIN: u64 = 1;
 const FINALIZED_ORIGIN: u64 = 2;
@@ -292,7 +293,9 @@ impl DelegateReply {
 async fn polls_wait_for_engine_sync_completion() {
     let mut harness = Harness::new([]);
 
-    assert!(time::timeout(POLL_INTERVAL * 3, harness.actor.step()).await.is_err());
+    assert!(
+        time::timeout(DERIVATION_DELEGATE_POLL_INTERVAL * 3, harness.actor.step()).await.is_err()
+    );
 
     assert_eq!(harness.forwarded(), Vec::new());
     assert_eq!(*harness.current_l1.borrow(), None);
@@ -332,7 +335,7 @@ async fn unchanged_status_is_resent_on_every_poll() {
         assert_eq!(harness.forwarded(), forwarded_for(&delegate_status()));
     }
 
-    assert_eq!(Instant::now() - first_poll, POLL_INTERVAL * (POLLS - 1));
+    assert_eq!(Instant::now() - first_poll, DERIVATION_DELEGATE_POLL_INTERVAL * (POLLS - 1));
 }
 
 /// Before the engine establishes finality, any finalized block from the delegate may initialize

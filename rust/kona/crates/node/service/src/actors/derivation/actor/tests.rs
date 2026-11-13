@@ -689,18 +689,20 @@ async fn a_block_safe_after_its_l1_finalized_is_finalized_on_the_next_l1_head() 
     }
 }
 
-/// A reset clears the finalization queue but keeps the finalized L1 block, so a block derived
-/// again after the reset is finalized on the next L1 head update.
+/// A reset clears the finalization queue but keeps the finalized L1 block. A block sent for
+/// finalization before the reset, which the engine may skip once the reset lowers its safe head, is
+/// sent again on the next L1 head update after it is derived again.
 #[tokio::test]
 async fn a_block_derived_again_after_a_reset_is_finalized_on_the_next_l1_head() {
     let mut engine_client = engine_client_accepting_attributes();
     engine_client
         .expect_send_finalized_l2_block()
         .withf(|block| matches!(block, FinalizeBlockId::ByNumber(DERIVED_HEAD)))
-        .times(1)
+        .times(2)
         .returning(|_| Ok(()));
     let mut node = RecordingActor::new(engine_client);
     node.complete_el_sync_at(RESUME_HEAD).await;
+    node.confirm_safe_head(DERIVED_HEAD).await;
     node.finalize_l1(DERIVED_FROM_L1).await;
     node.reset_to_resume_head().await;
     node.confirm_safe_head(DERIVED_HEAD).await;

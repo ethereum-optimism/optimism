@@ -122,8 +122,9 @@ const fn is_not_safe(err: &FinalizeTaskError) -> bool {
     matches!(err, FinalizeTaskError::BlockNotSafe { .. })
 }
 
-const fn is_not_yet_available(err: &FinalizeTaskError) -> bool {
-    matches!(err, FinalizeTaskError::NotYetAvailable { .. })
+fn is_not_yet_available(err: &FinalizeTaskError) -> bool {
+    let pinned_id = l2_block_info(&canonical(ADVANCED)).block_info.id();
+    matches!(err, FinalizeTaskError::NotYetAvailable { target } if *target == pinned_id)
 }
 
 const fn is_block_not_found(err: &FinalizeTaskError) -> bool {
@@ -149,12 +150,14 @@ fn numbered_target() -> FinalizeBlockId {
 enum Unavailable {
     ErrorResponse,
     Null,
+    TransportFailure,
 }
 
 fn expect_unavailable_block(l2: &RpcMock, number: u64, answer: Unavailable) {
     match answer {
         Unavailable::ErrorResponse => l2.expect_error_code("eth_getBlockByNumber", -32000),
         Unavailable::Null => l2.expect_block_by_number(number, None),
+        Unavailable::TransportFailure => l2.expect_transport_error("eth_getBlockByNumber"),
     }
 }
 
@@ -297,14 +300,20 @@ async fn finalize_task_stops_on_block_at_unrequested_height(
 }
 
 /// While the execution layer catches up, it answers null for a pinned target's height, and the
-/// target is skipped until its upstream resubmits it. An error response is a failed lookup and is
-/// retried for either kind of target. A by-number target is below the safe head, so the engine
-/// must have it: its absence stops the node.
+/// target is skipped until its upstream resubmits it. An error response or a transport failure is a
+/// failed lookup and is retried for either kind of target. A by-number target is below the safe
+/// head, so the engine must have it: its absence stops the node.
 #[rstest]
 #[case::pinned_null(pinned_target(), Unavailable::Null, is_not_yet_available, Skip)]
 #[case::pinned_error_response(
     pinned_target(),
     Unavailable::ErrorResponse,
+    is_transport_error,
+    Temporary
+)]
+#[case::pinned_transport_failure(
+    pinned_target(),
+    Unavailable::TransportFailure,
     is_transport_error,
     Temporary
 )]

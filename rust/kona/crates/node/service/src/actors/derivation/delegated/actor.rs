@@ -15,6 +15,9 @@ use tokio::{
     time,
 };
 
+/// How often the derivation delegate is polled for its sync status.
+pub(super) const DERIVATION_DELEGATE_POLL_INTERVAL: time::Duration = time::Duration::from_secs(4);
+
 /// The [`NodeActor`] for the delegate derivation sub-routine.
 ///
 /// This actor is responsible for receiving messages from [`NodeActor`]s and polls
@@ -71,8 +74,7 @@ where
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
         engine_state_rx: watch::Receiver<EngineState>,
     ) -> Self {
-        let mut delegated_derivation_ticker =
-            time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
+        let mut delegated_derivation_ticker = time::interval(DERIVATION_DELEGATE_POLL_INTERVAL);
         delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         Self {
             inbound_request_rx,
@@ -127,10 +129,6 @@ where
     DelegateProvider: DerivationDelegateProvider + 'static,
     L1Provider: ChainProvider + 'static,
 {
-    /// Hardcoded poll interval for Derivation Delegation
-    const DERIVATION_DELEGATE_POLL_INTERVAL: std::time::Duration =
-        std::time::Duration::from_secs(4);
-
     /// Validates a single L1 block height and hash against the canonical L1 chain.
     async fn validate_l1_block(
         &mut self,
