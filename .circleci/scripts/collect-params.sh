@@ -9,11 +9,12 @@
 #
 # str/bool read c-* env vars (CircleCI pipeline params). detect/detect_all read
 # their ERE patterns from routing.yml so the patterns are declarative data.
-# Each invocation appends to /tmp/pipeline-parameters.json.
+# Each invocation appends to ${OUTPUT} (default /tmp/pipeline-parameters.json;
+# overridable so tests can use an isolated file).
 set -euo pipefail
 
 MODE="${1:?Usage: collect-params.sh <str|bool|detect|detect_all>}"
-OUTPUT="/tmp/pipeline-parameters.json"
+OUTPUT="${OUTPUT:-/tmp/pipeline-parameters.json}"
 ROUTING="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/routing.yml"
 
 [ -f "${OUTPUT}" ] || echo '{}' > "${OUTPUT}"
@@ -44,10 +45,17 @@ case "${MODE}" in
   detect | detect_all)
     [[ "${MODE}" == "detect_all" ]] && section=".change_patterns.all" || section=".change_patterns.any"
 
-    CHANGED=$(git diff --name-only --no-renames "origin/${BASE_REVISION}...HEAD" 2> /dev/null \
-      || git diff --name-only --no-renames HEAD~1 HEAD || true)
-    echo "=== Changed files ==="
-    echo "${CHANGED:-<none>}"
+    # A failed base diff must not shrink the change set, or path gating would skip jobs (and
+    # pass their required gates) for changes it never saw. Treat every path as changed instead:
+    # every "any" pattern matches and no "all" fast path applies, so the full CI runs.
+    echo "=== Changed files (origin/${BASE_REVISION}...HEAD) ==="
+    if CHANGED=$(git diff --name-only --no-renames "origin/${BASE_REVISION}...HEAD"); then
+      every_path_changed=false
+      echo "${CHANGED:-<none>}"
+    else
+      every_path_changed=true
+      echo "WARNING: diff against origin/${BASE_REVISION} failed; treating every path as changed" >&2
+    fi
     echo "====================="
 
     while IFS= read -r name; do
@@ -55,7 +63,9 @@ case "${MODE}" in
       pattern=$(yq -r "${section}.\"${name}\"" "${ROUTING}")
       # Here-strings, not pipes: `grep -q` exits on the first hit, and under pipefail the
       # writer's SIGPIPE would turn a large file list into a false result.
-      if [ -z "${CHANGED}" ]; then
+      if ${every_path_changed}; then
+        [[ "${MODE}" == "detect" ]] && result=true || result=false
+      elif [ -z "${CHANGED}" ]; then
         result=false
       elif [[ "${MODE}" == "detect_all" ]]; then
         # True iff every changed file matches the pattern (i.e., no file fails to match).
