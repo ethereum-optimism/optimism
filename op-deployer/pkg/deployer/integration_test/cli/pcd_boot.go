@@ -15,11 +15,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/el"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	e2egeth "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/reth"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	nodesync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -116,12 +115,8 @@ func bootPCDFromArtifacts(t *testing.T, cfg pcdBootConfig) pcdBootResult {
 	jwtSecret := readPCDJWTSecret(t, jwtPath)
 	elCtx, cancelEL := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancelEL()
-	l2EL, err := el.InitL2(elCtx, el.L2Config{
-		Kind:            services.ELKindOpReth,
-		Name:            "pcd-boot",
+	l2EL, err := reth.InitL2(elCtx, lgr.New("role", "l2_el"), "pcd-boot", nil, jwtPath, reth.Config{
 		GenesisJSONPath: cfg.genesisPath,
-		JWTPath:         jwtPath,
-		Logger:          lgr.New("role", "l2_el"),
 		DataDir:         t.TempDir(),
 	})
 	require.NoErrorf(t, err, "start op-reth from committed genesis artifact %s", cfg.genesisPath)

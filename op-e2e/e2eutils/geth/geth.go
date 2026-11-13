@@ -84,14 +84,6 @@ func WithAuth(jwtPath string) GethOption {
 	}
 }
 
-func WithSequencerHTTP(sequencerHTTP string) GethOption {
-	return func(ethCfg *ethconfig.Config, _ *node.Config) error {
-		ethCfg.RollupSequencerHTTP = sequencerHTTP
-		ethCfg.RollupDisableTxPoolAdmission = true
-		return nil
-	}
-}
-
 type gethBackend struct {
 	chain *core.BlockChain
 }

@@ -29,6 +29,10 @@ cargo target directory, and otherwise fail with instructions. `RUST_JIT_BUILD=1`
 the release build themselves; a cold build takes long, so pass a `-timeout` that covers it (e.g.
 `-timeout 60m`).
 
+The system tests run op-reth as their L2 execution engine, also as a subprocess. They use the
+binary that `RUST_BINARY_PATH_OP_RETH` names, otherwise the newest build in the cargo target
+directory (`just build-op-reth` in `rust/`); `RUST_JIT_BUILD=1` makes them build it themselves.
+
 ## Overview
 
 `op-e2e` can be categorized as following:
