@@ -306,6 +306,75 @@ mod tests {
         assert_eq!(std::fs::read_to_string(path).unwrap(), contents);
     }
 
+    /// A reader that opened the file before a save reads the file as it was when it opened it,
+    /// whole, rather than what the save left, which is empty or cut off while the save writes it.
+    /// So a save replaces the file rather than writing over it, which also keeps the old file if
+    /// the node crashes during a save.
+    #[test]
+    fn test_save_replaces_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bootstore.json");
+        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        store.add_enr(record());
+        store.sync().unwrap();
+        let before = std::fs::read(&path).unwrap();
+        let mut reader = File::open(&path).unwrap();
+
+        store.add_enr(record());
+        store.sync().unwrap();
+
+        let mut read = Vec::new();
+        reader.read_to_end(&mut read).unwrap();
+        assert_eq!(read, before, "a save wrote over the file a reader had open");
+    }
+
+    /// A reader never sees the file empty or cut off while the store saves it, as can happen when
+    /// the store truncates the file before it writes it: an operator's tools, or the node's own
+    /// tests, may read it while the node runs. The gap is short, so this test may miss it, unlike
+    /// [`test_save_replaces_the_file`].
+    ///
+    /// Each save adds a record, so that the store has something to write each time.
+    #[test]
+    fn test_reader_never_sees_a_partial_file() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+
+        const RECORDS: usize = 500;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bootstore.json");
+        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        for _ in 0..RECORDS {
+            store.add_enr(record());
+        }
+        store.sync().unwrap();
+
+        let done = Arc::new(AtomicBool::new(false));
+        let reader = std::thread::spawn({
+            let done = Arc::clone(&done);
+            move || {
+                let mut partial = 0;
+                while !done.load(Ordering::Relaxed) {
+                    let json = std::fs::read(&path).unwrap();
+                    match Records::parse_json_slice(&json) {
+                        Ok((records, _)) if records.0.len() >= RECORDS => {}
+                        _ => partial += 1,
+                    }
+                }
+                partial
+            }
+        });
+        for _ in 0..1000 {
+            store.add_enr(record());
+            store.sync().unwrap();
+        }
+        done.store(true, Ordering::Relaxed);
+
+        let partial = reader.join().unwrap();
+        assert_eq!(partial, 0, "a reader saw the bootstore empty or cut off {partial} times");
+    }
+
     /// A directory can't be opened as the bootstore.
     #[test]
     fn test_open_directory_fails() {
