@@ -256,9 +256,9 @@ impl Discv5Builder {
 
     /// Builds a [`Discv5Driver`].
     ///
-    /// Opens the bootstore, if one is set, and saves it, so that a bootstore that can't be read,
-    /// isn't a list of records, or can't be written fails here, rather than leaving the node
-    /// without its saved records, or with records it never saves.
+    /// Opens the bootstore, if one is set, and creates it if it is missing, so that a bootstore
+    /// that can't be read, isn't a list of records, or can't be created fails here, rather than
+    /// leaving the node without its saved records, or with records it never saves.
     pub fn build(self) -> Result<Discv5Driver, Discv5BuilderError> {
         let chain_id = self.chain_id;
 

@@ -82,7 +82,7 @@ pub struct SkippedEntry {
     pub error: serde_json::Error,
 }
 
-/// An error opening a [`BootStore`].
+/// An error opening or saving a [`BootStore`].
 #[derive(Debug, thiserror::Error)]
 pub enum BootStoreError {
     /// The default bootstore path is in the home directory, and there is none.
@@ -191,12 +191,11 @@ impl BootStore {
 
     /// Opens the store saved at `path`, and returns it with the entries it skipped because they
     /// aren't valid records, for the caller to log. They count as a change, so the next
-    /// [`Self::sync`] writes the file without them. A
-    /// missing file holds no records.
+    /// [`Self::sync`] writes the file without them. A missing file holds no records.
     ///
     /// Only reads the file, so that other readers can open it while the node saves it. If the file
     /// is missing, the first [`Self::sync`] creates it, and its directory. The node saves the store
-    /// once it has opened it, so that a bootstore it can't write stops it from starting.
+    /// once it has opened it, so that a bootstore it can't create stops it from starting.
     ///
     /// Fails if the file can't be read, or isn't a JSON list, which is left as it is.
     pub fn open(path: PathBuf) -> Result<(Self, Vec<SkippedEntry>), BootStoreError> {
@@ -255,7 +254,8 @@ impl BootStore {
     /// A store with a file writes them to a temporary file next to it, creating the directory if
     /// it is missing, and renames that over it, so that a reader sees either the old file or the
     /// new one, whole, and a crash during a save keeps the old one. A temporary file left by a
-    /// failed write is removed, and the next save tries again.
+    /// failed write is removed, and the next save tries again. The directory isn't synced after
+    /// the rename, so after a power loss the file may be the one from before the save.
     pub fn sync(&mut self) -> Result<bool, BootStoreError> {
         if !self.dirty {
             return Ok(false);
