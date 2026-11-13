@@ -116,10 +116,15 @@ func parseL1Fork(value string) (forks.Fork, error) {
 	return 0, fmt.Errorf("unsupported L1 fork %q", value)
 }
 
+// WithKarstAtOffset activates Karst at the offset and deactivates every later fork, so the
+// default schedule cannot activate one before Karst. A nil offset deactivates Karst too.
 func WithKarstAtOffset(offset *uint64) DeployerOption {
 	return func(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
 			l2Cfg.WithForkAtOffset(opforks.Karst, offset)
+			if next := opforks.Next(opforks.Karst); offset != nil && next != opforks.None {
+				l2Cfg.WithForkAtOffset(next, nil)
+			}
 		}
 	}
 }
