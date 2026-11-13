@@ -92,6 +92,13 @@ func OpRethWithoutProofsHistory() OpRethOption {
 	})
 }
 
+// OpRethWithEthProofWindow lets eth_getProof answer for blocks up to the given distance behind the
+// head from reth's own historical state. reth's default window is zero, so a node without proofs
+// history rejects every historical proof request unless it gets this option.
+func OpRethWithEthProofWindow(blocks uint64) OpRethOption {
+	return OpRethWithExtraArgs(fmt.Sprintf("--rpc.eth-proof-window=%d", blocks))
+}
+
 // OpRethWithInteropURL wires the op-reth node to the given interop filter HTTP endpoint.
 // An empty interopURL is a no-op so callers can pass the value unconditionally.
 func OpRethWithInteropURL(interopURL string) OpRethOption {
