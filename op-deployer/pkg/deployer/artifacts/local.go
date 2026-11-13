@@ -88,8 +88,8 @@ func openProject(dir string, cacheDir string, shared bool) (fs.FS, error) {
 	return os.DirFS(artifactsDir), nil
 }
 
-// projectArtifacts rejects artifacts-only layouts. The returned filesystem path remains rooted at
-// forge-artifacts for artifact readers; forge runs from its parent, the complete project directory.
+// projectArtifacts returns the forge-artifacts directory of the built forge project at project, or
+// an error if project is not one. Artifact readers use that directory; forge runs from project.
 func projectArtifacts(project string) (string, error) {
 	config, err := os.Stat(filepath.Join(project, "foundry.toml"))
 	if err != nil {

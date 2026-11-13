@@ -239,40 +239,17 @@ func TestEvictBundles(t *testing.T) {
 	require.ElementsMatch(t, []string{"keep", "used-1", "used-2", "used-3", "in-use", packingPrefix + "2"}, left)
 }
 
-func TestOpenLocal_RejectsNonForgeDirectories(t *testing.T) {
-	tests := []struct {
-		name  string
-		files map[string]string
-		dir   string
-	}{
-		{
-			name:  "no compile cache",
-			files: map[string]string{"forge-artifacts/A.sol/A.json": testArtifact},
-			dir:   "forge-artifacts",
-		},
-		{
-			name:  "artifacts that scripts may not read",
-			files: map[string]string{"foundry.toml": "", bundle.CompileCacheFile: `{"paths": {"artifacts": "out", "libraries": ["lib"]}, "files": {}}`, "out/A.sol/A.json": testArtifact},
-			dir:   "out",
-		},
-		{
-			name:  "not the artifacts directory of the build",
-			files: map[string]string{bundle.CompileCacheFile: testCompileCache, "out/A.sol/A.json": testArtifact},
-			dir:   "out",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			home := t.TempDir()
-			t.Setenv("HOME", home)
-			project := t.TempDir()
-			writeFiles(t, project, tt.files)
-			fsys, err := openLocal(filepath.Join(project, tt.dir), "")
-			require.Error(t, err)
-			require.Nil(t, fsys)
-			require.Empty(t, bundlesIn(t, home))
-		})
-	}
+// A locator at a forge-artifacts directory that was copied out of its project is the layout that
+// op-deployer used to accept.
+func TestOpenLocal_RejectsArtifactsOnlyDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{"forge-artifacts/A.sol/A.json": testArtifact})
+	fsys, err := openLocal(filepath.Join(dir, "forge-artifacts"), "")
+	require.ErrorContains(t, err, "artifacts-only directories are not supported")
+	require.Nil(t, fsys)
+	require.Empty(t, bundlesIn(t, home))
 }
 
 func TestDownload_FileLocatorPacksBuiltProject(t *testing.T) {

@@ -81,6 +81,13 @@ func TestNewForgeVerifier_FileLocator(t *testing.T) {
 	require.NoError(t, err, "should successfully initialize forge verifier with file locator")
 }
 
+func TestNewForgeVerifier_RejectsArtifactsOutsideProject(t *testing.T) {
+	artifactsDir := filepath.Join(t.TempDir(), "forge-artifacts")
+	require.NoError(t, os.Mkdir(artifactsDir, 0o755))
+	_, err := createTestForgeVerifier(os.DirFS(artifactsDir).(foundry.StatDirFs))
+	require.ErrorContains(t, err, "not a forge project")
+}
+
 func writeTestForgeProject(t *testing.T) string {
 	t.Helper()
 	project := t.TempDir()

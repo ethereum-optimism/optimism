@@ -123,7 +123,7 @@ func TestDownload_RequiresForgeProject(t *testing.T) {
 			if tt.change != nil {
 				tt.change(t, project)
 			}
-			for _, transport := range []string{"file", "gzip", "zstd", "tzst file", "embedded extraction"} {
+			for _, transport := range []string{"file", "gzip", "zstd", "embedded extraction"} {
 				t.Run(transport, func(t *testing.T) {
 					var fsys fs.FS
 					var err error
@@ -131,10 +131,6 @@ func TestDownload_RequiresForgeProject(t *testing.T) {
 					switch transport {
 					case "file":
 						fsys, err = Download(context.Background(), MustNewFileLocator(project), nil, cache)
-					case "tzst file":
-						path := filepath.Join(t.TempDir(), "artifacts.tzst")
-						require.NoError(t, os.WriteFile(path, archiveProject(t, project, "zstd"), 0o600))
-						fsys, err = ExtractFromFile(cache, path)
 					case "embedded extraction":
 						fsys, err = extractZstdBundle(cache, bytes.NewReader(archiveProject(t, project, "zstd")))
 					default:

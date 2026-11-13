@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/klauspost/compress/zstd"
 
@@ -25,18 +24,6 @@ func ExtractEmbedded(destDir string) (foundry.StatDirFs, error) {
 	f, err := embedDir.Open(filepath.Join("forge-artifacts", embeddedArtifactsZstdShort))
 	if err != nil {
 		return nil, fmt.Errorf("could not open embedded artifacts %q: %w", embeddedArtifactsZstdShort, err)
-	}
-	defer f.Close()
-	return extractZstdBundle(destDir, f)
-}
-
-func ExtractFromFile(destDir string, tarFilePath string) (foundry.StatDirFs, error) {
-	if !strings.HasSuffix(tarFilePath, ".tzst") {
-		return nil, fmt.Errorf("unsupported file format: expected .tzst file, got %q", tarFilePath)
-	}
-	f, err := os.Open(tarFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("could not open tar file: %w", err)
 	}
 	defer f.Close()
 	return extractZstdBundle(destDir, f)
