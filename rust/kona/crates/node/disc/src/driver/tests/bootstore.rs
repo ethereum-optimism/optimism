@@ -60,6 +60,24 @@ fn test_saved_records_take_turns_in_a_full_channel() {
     assert_eq!(handed_over.len(), saved.len(), "a saved record never got through");
 }
 
+/// Session records go through the same channel to gossip, and the driver hands a session's
+/// record over only once, when the session starts. So the saved records should leave half of
+/// the channel free, rather than fill it at every store interval, which drops the session records
+/// that arrive until gossip catches up.
+#[test]
+fn test_saved_records_leave_room_for_session_records() {
+    let mut store = BootStore::in_memory();
+    for host in 1..=4 {
+        store.add_enr(enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, host)), TEST_CHAIN_ID));
+    }
+    let (sender, _receiver) = mpsc::channel(4);
+
+    forward_saved(&store, TEST_CHAIN_ID, &sender);
+
+    let free = sender.capacity();
+    assert_eq!(free, 2, "the saved records left {free} of 4 places in the channel free");
+}
+
 /// Gossip redials a peer only when discovery hands it over again, and discovery reports a
 /// session only once, when it starts. So the driver should hand the saved records over again
 /// every store interval, for gossip to redial the peers it lost.
