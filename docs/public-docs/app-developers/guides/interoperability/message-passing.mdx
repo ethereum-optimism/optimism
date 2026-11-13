@@ -16,6 +16,13 @@ The [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism
 
 For high-level interoperability, both messages use the `L2ToL2CrossDomainMessenger` contract on their respective chains.
 
+<Warning>
+  **Deposit transactions cannot relay or validate interop messages.**
+  Executing a message calls `CrossL2Inbox.validateMessage`, which requires an EIP-2930 access list entry for the message checksum.
+  Deposit transactions cannot carry access lists, so any `validateMessage` call inside a deposit always reverts with `NotInAccessList`.
+  Relayers and applications must submit executing messages as ordinary L2 transactions, not as deposits.
+</Warning>
+
 ## Initiating message
 
 ```mermaid
