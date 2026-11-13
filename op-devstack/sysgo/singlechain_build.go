@@ -264,8 +264,9 @@ type l2CLNodeStartConfig struct {
 	IsSequencer    bool
 	NoDiscovery    bool
 	L2FollowSource string
-	DependencySet  depset.DependencySet
-	L2CLOptions    []L2CLOption
+	// DependencySet overrides the L2 network's dependency set.
+	DependencySet depset.DependencySet
+	L2CLOptions   []L2CLOption
 	// SyncMode overrides the sequencer and verifier sync modes; defaults to CLSync if unset.
 	SyncMode nodeSync.Mode
 	// SequencerStopped starts the sequencer in the stopped state (it must be
@@ -321,6 +322,11 @@ func startL2CLNode(
 	}
 
 	logger := t.Logger().New("component", "l2cl-"+startCfg.Key)
+
+	depSet := startCfg.DependencySet
+	if depSet == nil {
+		depSet = l2Net.DependencySet()
+	}
 
 	var altDACfg altda.CLIConfig
 	if cfg.AltDAServerURL != "" {
@@ -401,7 +407,7 @@ func startL2CLNode(
 			VerifierConfDepth:  cfg.VerifierL1Confs,
 		},
 		Rollup:        *l2Net.rollupCfg,
-		DependencySet: startCfg.DependencySet,
+		DependencySet: depSet,
 		P2PSigner:     p2pSignerSetup,
 		RPC: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",
@@ -556,6 +562,7 @@ func startTestSequencer(
 			L2CL: endpoint.MustRPC{
 				Value: endpoint.HttpURL(l2CL.UserRPC()),
 			},
+			DependencySet: l2Net.DependencySet(),
 		},
 	}
 	ensemble.Signers[sidL2] = &workconfig.SignerEntry{

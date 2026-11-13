@@ -207,7 +207,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 		l2Challenger, zkChallengerSuperRootRPCProxy = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, cfg.AddedGameTypes)
 	}
 
-	testSequencer := startTestSequencerForRPCs(t, keys, "test-sequencer", jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, world.L2Network.ChainID(), primary.EL.UserRPC(), primary.CL.UserRPC())
+	testSequencer := startTestSequencerForRPCs(t, keys, "test-sequencer", jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, world.L2Network, primary.EL.UserRPC(), primary.CL.UserRPC())
 	testSequencerRuntime := newTestSequencerRuntime(testSequencer, spec.TestSequencer)
 
 	return &SingleChainRuntime{

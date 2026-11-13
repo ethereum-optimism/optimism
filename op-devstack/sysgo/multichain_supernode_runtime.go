@@ -479,6 +479,7 @@ func l2NetworkFromWorldBuilder(t devtest.T, wb *worldBuilder, l1ChainID eth.Chai
 	require.Truef(ok, "missing L2 rollup config for chain %s", chainSpec.ID)
 	l2Dep, ok := wb.outL2Deployment[chainSpec.ID]
 	require.Truef(ok, "missing L2 deployment for chain %s", chainSpec.ID)
+	require.NotNil(wb.output.InteropDepSet, "op-deployer must record the interop dependency set")
 
 	return &L2Network{
 		name:       chainSpec.Name,
@@ -490,6 +491,7 @@ func l2NetworkFromWorldBuilder(t devtest.T, wb *worldBuilder, l1ChainID eth.Chai
 		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
+		depSet:     wb.output.InteropDepSet,
 	}
 }
 

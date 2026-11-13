@@ -89,6 +89,7 @@ func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool,
 	l1Net := wb.Build(startL1)
 
 	t.Require().Len(wb.l2Chains, 1, "expected exactly one L2 chain")
+	t.Require().NotNil(wb.output.InteropDepSet, "op-deployer must record the interop dependency set")
 	l2ID := wb.l2Chains[0]
 	l1ID := l1Net.ChainID()
 	l2Net := &L2Network{
@@ -101,10 +102,7 @@ func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool,
 		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
+		depSet:     wb.output.InteropDepSet,
 	}
-	var depSet coredepset.DependencySet
-	if wb.output.InteropDepSet != nil {
-		depSet = wb.output.InteropDepSet
-	}
-	return newInteropMigrationState(wb), l1Net, l2Net, depSet
+	return newInteropMigrationState(wb), l1Net, l2Net, l2Net.depSet
 }

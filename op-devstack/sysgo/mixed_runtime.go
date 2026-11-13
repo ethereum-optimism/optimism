@@ -360,7 +360,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 			l1Net,
 			l1EL,
 			l1CL,
-			l2Net.ChainID(),
+			l2Net,
 			sequencerNode.el.UserRPC(),
 			sequencerNode.cl.UserRPC(),
 		)
@@ -600,8 +600,12 @@ func startMixedKonaNode(
 	// When Interop/Lagoon is scheduled, kona-node refuses to start without an interop
 	// dependency set (to avoid silent state divergence at activation). Mirror the depset
 	// op-node receives by serializing it to JSON — the format matches what kona expects.
-	if startCfg.DependencySet != nil {
-		depSetData, err := json.Marshal(startCfg.DependencySet)
+	depSet := startCfg.DependencySet
+	if depSet == nil {
+		depSet = l2Net.DependencySet()
+	}
+	if depSet != nil {
+		depSetData, err := json.Marshal(depSet)
 		t.Require().NoError(err, "must marshal interop dependency set")
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
 		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
@@ -657,12 +661,13 @@ func startTestSequencerForRPCs(
 	l1Net *L1Network,
 	l1EL *L1Geth,
 	l1CL *L1CLNode,
-	l2ChainID eth.ChainID,
+	l2Net *L2Network,
 	l2ELRPC string,
 	l2CLRPC string,
 ) *testSequencer {
 	require := t.Require()
 	logger := t.Logger().New("component", "test-sequencer")
+	l2ChainID := l2Net.ChainID()
 
 	l1ELClient, err := ethclient.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err, "failed to dial L1 EL RPC for test-sequencer")
@@ -740,6 +745,7 @@ func startTestSequencerForRPCs(
 			L2CL: endpoint.MustRPC{
 				Value: endpoint.HttpURL(l2CLRPC),
 			},
+			DependencySet: l2Net.DependencySet(),
 		},
 	}
 	ensemble.Signers[sidL2] = &workconfig.SignerEntry{

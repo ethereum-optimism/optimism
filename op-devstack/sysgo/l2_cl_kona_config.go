@@ -12,6 +12,7 @@ import (
 )
 
 type konaNodeStartConfig struct {
+	// DependencySet overrides the L2 network's dependency set.
 	DependencySet    coredepset.DependencySet
 	L2CLConfig       *L2CLConfig
 	SequencerStopped bool
