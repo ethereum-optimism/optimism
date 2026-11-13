@@ -294,6 +294,42 @@ func TestValidateCustomValues_BridgeHookInterop(t *testing.T) {
 	}
 }
 
+func TestValidateCustomValues_CustomGasTokenInterop(t *testing.T) {
+	tests := []struct {
+		name       string
+		cgt        bool
+		useInterop bool
+		err        error
+	}{
+		{name: "custom gas token without interop", cgt: true},
+		{name: "interop without custom gas token", useInterop: true},
+		{name: "custom gas token with interop", cgt: true, useInterop: true, err: ErrIncompatibleValue},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			intent, err := NewIntentCustom(11155111, []common.Hash{common.HexToHash("0x336")})
+			require.NoError(t, err)
+			setSuperchainRoles(&intent)
+			setChainRoles(&intent)
+			setEip1559Params(&intent)
+			setFeeAddresses(&intent)
+
+			if tt.cgt {
+				setCustomGasToken(&intent)
+			}
+			intent.UseInterop = tt.useInterop
+
+			err = intent.Check()
+			if tt.err == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.err)
+				require.ErrorContains(t, err, "custom gas token is not supported with useInterop")
+			}
+		})
+	}
+}
+
 func setSuperchainRoles(intent *Intent) {
 	intent.SuperchainRoles = &addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: common.HexToAddress("0xa"),

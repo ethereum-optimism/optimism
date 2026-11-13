@@ -485,21 +485,14 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         }
     }
 
-    /// @notice Tests the L2CM genesis path with both CGT and interop active.
-    function test_run_l2cmCgtAndInteropAtGenesis_succeeds() external {
+    /// @notice Tests that run refuses interop on a custom gas token chain, whether interop is active
+    ///         at genesis or scheduled for a later fork.
+    function testFuzz_run_cgtWithInterop_reverts(uint256 _fork) external {
         _setInputCGTEnabled();
         _setInputInteropEnabled();
-        input.fork = uint256(Fork.LAGOON);
-        runGenesisAndAssertL2CM();
-
-        testProxyAdmin();
-        testPredeploys();
-        testVaults();
-        testGovernance();
-        testFactories();
-        testForks();
-        testCGT();
-        testInterop();
+        input.fork = bound(_fork, uint256(Fork.DELTA), uint256(LATEST_FORK));
+        vm.expectRevert("L2Genesis: interop is not supported with custom gas token");
+        genesis.run(input);
     }
 
     /// @notice Tests that run refuses a messenger expiry period override when interop is not active

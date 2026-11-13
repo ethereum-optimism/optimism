@@ -295,11 +295,4 @@ contract Predeploys_UncategorizedInterop_Test is Predeploys_TestInit {
     function test_predeploys_succeeds() external {
         _test_predeploys(Fork.LAGOON, false, true);
     }
-
-    /// @notice Tests that the predeploy addresses are set correctly. They have code and the
-    ///         proxied accounts have the correct admin. Using interop with custom gas token.
-    function test_predeploys_customGasToken_succeeds() external {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
-        _test_predeploys(Fork.LAGOON, true, true);
-    }
 }
