@@ -16,6 +16,7 @@ use kona_proof::{
     l1::{OracleBlobProvider, OraclePipeline},
     sync::{DerivationInputs, SyncStartError, prepare_derivation},
 };
+use kona_registry::DEPENDENCY_SETS;
 use thiserror::Error;
 use tracing::{error, info};
 
@@ -111,10 +112,10 @@ where
         da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
-        // Single-chain fault proof: no interop dependency set. If this chain
-        // ever schedules interop, the StatefulAttributesBuilder constructor
-        // will panic.
-        None,
+        // The superchain-registry's dependency set for this chain, the one op-node loads: a chain
+        // outside an interop cluster depends only on itself. A chain the registry does not know
+        // has none, so the StatefulAttributesBuilder constructor panics if it schedules Lagoon.
+        DEPENDENCY_SETS.get(&boot.chain_id).cloned().map(Arc::new),
     )
     .await?;
 

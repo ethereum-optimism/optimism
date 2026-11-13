@@ -30,7 +30,39 @@ func TestDefaultHardforkSchedule(t *testing.T) {
 	require.NotNil(t, sched.IsthmusTime(0))
 	require.NotNil(t, sched.JovianTime(0))
 	require.NotNil(t, sched.KarstTime(0))
+	// The default stops at maxDefaultHardfork even when OP Mainnet schedules Lagoon.
 	require.Nil(t, sched.LagoonTime(0))
+}
+
+func TestDefaultHardforkFor(t *testing.T) {
+	tests := []struct {
+		name   string
+		config superchain.HardforkConfig
+		want   forks.Name
+	}{
+		{
+			name: "fork up to the cap is kept",
+			config: superchain.HardforkConfig{
+				CanyonTime: ptr.New(uint64(0)),
+				JovianTime: ptr.New(uint64(0)),
+			},
+			want: forks.Jovian,
+		},
+		{
+			name: "fork after the cap is capped",
+			config: superchain.HardforkConfig{
+				KarstTime:  ptr.New(uint64(0)),
+				LagoonTime: ptr.New(uint64(1)),
+			},
+			want: forks.Karst,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, defaultHardforkFor(tt.config))
+		})
+	}
 }
 
 func TestLatestScheduledMainlineFork(t *testing.T) {

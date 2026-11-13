@@ -20,6 +20,7 @@ use kona_preimage::{
 };
 use kona_proof_interop::HintType;
 use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
+use kona_registry::DEPENDENCY_SETS;
 use kona_std_fpvm::{FileChannel, FileDescriptor};
 use op_alloy_network::Optimism;
 use serde::Serialize;
@@ -330,6 +331,19 @@ impl InteropHost {
         )
     }
 
+    /// Returns the [`DependencySet`] the client derives for a proof of `chain_id`. The client
+    /// takes the superchain-registry's set for the chain when there is one, and otherwise the set
+    /// the host serves from `--depset-cfg`.
+    pub fn dependency_set_for(
+        &self,
+        chain_id: u64,
+    ) -> Result<Option<DependencySet>, InteropHostError> {
+        if let Some(dependency_set) = DEPENDENCY_SETS.get(&chain_id) {
+            return Ok(Some(dependency_set.clone()));
+        }
+        self.read_dependency_set().transpose()
+    }
+
     /// Creates the key-value store for the host backend.
     ///
     /// If the data directory contains a `kvformat` marker file, the recorded format is used to
@@ -490,6 +504,36 @@ mod tests {
             }
             other => panic!("expected InteropWithoutDependencySet, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_registry_chain_uses_the_registry_dependency_set() {
+        const OP_SEPOLIA: u64 = 11155420;
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("depset.json");
+        std::fs::write(&file, r#"{"dependencies":{"901":{}}}"#).unwrap();
+
+        // The client takes the embedded set before the one the host serves, so the host must too.
+        for dependency_set_path in [None, Some(file)] {
+            let host = InteropHost { dependency_set_path, ..Default::default() };
+            assert_eq!(
+                host.dependency_set_for(OP_SEPOLIA).unwrap(),
+                Some(DEPENDENCY_SETS[&OP_SEPOLIA].clone())
+            );
+        }
+    }
+
+    #[test]
+    fn a_chain_outside_the_registry_uses_the_configured_dependency_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("depset.json");
+        std::fs::write(&file, r#"{"dependencies":{"901":{}}}"#).unwrap();
+
+        let host = InteropHost { dependency_set_path: Some(file), ..Default::default() };
+        let dependency_set = host.dependency_set_for(901).unwrap().unwrap();
+        assert_eq!(dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [901]);
+
+        assert_eq!(InteropHost::default().dependency_set_for(901).unwrap(), None);
     }
 
     #[test]

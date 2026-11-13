@@ -24,8 +24,8 @@ let l1_cfg: Arc<L1ChainConfig> = todo!();
 let cfg = Arc::new(RollupConfig::default());
 // `dependency_set` must be `Some` when the rollup uses interop.
 // The constructor panics at build time otherwise;
-// turning silent state divergence into a startup crash. Live-node
-// operators populate it from `--interop.dependency-set`.
+// turning silent state divergence into a startup crash. Live nodes take
+// it from `--interop.dependency-set` or the superchain-registry.
 let dependency_set = None;
 let attributes = StatefulAttributesBuilder::new(
    cfg.clone(),

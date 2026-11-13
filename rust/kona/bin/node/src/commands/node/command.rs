@@ -16,7 +16,7 @@ use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
-use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
+use kona_registry::{DEPENDENCY_SETS, L1Config, scr_rollup_config_by_alloy_ident};
 use kona_safedb::{SafeDatabase, SafeDb};
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
@@ -112,10 +112,11 @@ pub struct NodeCommand {
     #[arg(long, visible_alias = "rollup-l1-cfg", env = "KONA_NODE_L1_CHAIN_CONFIG")]
     pub l1_config_file: Option<PathBuf>,
     /// Path to a JSON file describing the interop dependency set for this
-    /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
-    /// rollup config schedules the Lagoon hardfork; the inner
-    /// `StatefulAttributesBuilder` constructor panics otherwise; turning a
-    /// silent state-divergence bug into a startup crash.
+    /// chain. Mirrors op-node's `--interop.dependency-set`. When unset, the
+    /// dependency set comes from the superchain-registry. Required when the
+    /// rollup config schedules the Lagoon hardfork and the registry has no
+    /// dependency set for the chain; the node refuses to start otherwise,
+    /// rather than risk silent state divergence at Lagoon activation.
     #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
     pub interop_dependency_set: Option<PathBuf>,
     /// Path of the database recording the L2 safe head reached as of each L1 block, as served
@@ -378,31 +379,39 @@ impl NodeCommand {
         Ok(Some(Arc::new(db)))
     }
 
-    /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
+    /// Loads the interop [`DependencySet`] from `--interop.dependency-set`, or else from the
+    /// superchain-registry, as op-node does.
     ///
     /// Enforces the invariant that when the rollup config schedules the
-    /// Lagoon hardfork, the operator must supply a dependency-set JSON file.
-    /// Errors rather than panicking so the operator sees a clear message.
-    fn load_dependency_set(&self, cfg: &RollupConfig) -> Result<Option<Arc<DependencySet>>> {
-        match &self.interop_dependency_set {
-            Some(path) => {
-                let file = File::open(path).map_err(|e| {
-                    anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
-                })?;
-                let dep_set: DependencySet = from_reader(file).map_err(|e| {
-                    anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
-                })?;
-                Ok(Some(Arc::new(dep_set)))
-            }
-            None if cfg.hardforks.lagoon_time.is_some() => bail!(
-                "Lagoon is scheduled for this chain (lagoon_time = {:?}), but \
-                 --interop.dependency-set was not provided. Supply the dependency-set \
-                 JSON file matching op-node's --interop.dependency-set to avoid silent \
-                 state divergence on Lagoon activation.",
-                cfg.hardforks.lagoon_time,
-            ),
-            None => Ok(None),
+    /// Lagoon hardfork, a chain without a registry dependency set needs a
+    /// dependency-set JSON file. Errors rather than panicking so the operator
+    /// sees a clear message.
+    pub(super) fn load_dependency_set(
+        &self,
+        cfg: &RollupConfig,
+    ) -> Result<Option<Arc<DependencySet>>> {
+        if let Some(path) = &self.interop_dependency_set {
+            let file = File::open(path).map_err(|e| {
+                anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
+            })?;
+            let dep_set: DependencySet = from_reader(file).map_err(|e| {
+                anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
+            })?;
+            return Ok(Some(Arc::new(dep_set)));
         }
+        if let Some(dep_set) = DEPENDENCY_SETS.get(&cfg.l2_chain_id.id()) {
+            return Ok(Some(Arc::new(dep_set.clone())));
+        }
+        if let Some(lagoon_time) = cfg.hardforks.lagoon_time {
+            bail!(
+                "Lagoon is scheduled for chain {} (lagoon_time = {lagoon_time}), but the \
+                 superchain-registry has no dependency set for it and --interop.dependency-set \
+                 was not provided. Supply the dependency-set JSON file matching op-node's \
+                 --interop.dependency-set to avoid silent state divergence on Lagoon activation.",
+                cfg.l2_chain_id.id(),
+            );
+        }
+        Ok(None)
     }
 
     /// Parses an L1 chain config from either a direct config or a genesis document.
