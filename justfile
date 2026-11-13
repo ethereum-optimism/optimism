@@ -446,7 +446,7 @@ go-tests-fraud-proofs-ci:
       --rerun-fails=3 \
       --rerun-fails-max-failures=50 \
       --packages="{{FRAUD_PROOF_TEST_PKGS}}" \
-      -- -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}}
+      -- -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} ${FAULT_PROOF_TEST_ARGS:-}
 
 # Runs comprehensive Go tests (alias for go-tests).
 test: go-tests
