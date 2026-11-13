@@ -4781,9 +4781,9 @@
       ]
     },
     {
-      "name": "sepolia-devnet-4",
+      "name": "sepolia-devnet-4-5",
       "config": {
-        "name": "sepolia-devnet-4",
+        "name": "sepolia-devnet-4-5",
         "l1": {
           "chain_id": 11155111,
           "public_rpc": "https://ethereum-sepolia-rpc.publicnode.com",
@@ -4882,26 +4882,11 @@
           },
           "interop": {
             "dependencies": {
-              "420130019": {}
+              "420130019": {},
+              "420130020": {}
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "sepolia-devnet-5",
-      "config": {
-        "name": "sepolia-devnet-5",
-        "l1": {
-          "chain_id": 11155111,
-          "public_rpc": "https://ethereum-sepolia-rpc.publicnode.com",
-          "explorer": ""
         },
-        "hardforks": {},
-        "superchain_config_addr": "0x289d2a1b1ae6e0470d8b72e53b6e3f485f251dbb",
-        "op_contracts_manager_proxy_addr": null
-      },
-      "chains": [
         {
           "Name": "sepolia-devnet-5",
           "PublicRPC": "https://sepolia-devnet-5.optimism.io/rpc",
@@ -4990,6 +4975,7 @@
           },
           "interop": {
             "dependencies": {
+              "420130019": {},
               "420130020": {}
             }
           }

@@ -325,12 +325,7 @@
   },
   {
     "dependencies": {
-      "420130019": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
+      "420130019": {},
       "420130020": {}
     },
     "overrideMessageExpiryWindow": null
