@@ -224,7 +224,7 @@ mod recovery_tests {
         let config = Arc::new(config);
         let (client, l1, l2) = test_engine_client(config.clone());
         let client = Arc::new(client);
-        l2.expect_error("engine_newPayloadV1");
+        l2.expect_error("engine_newPayloadV2");
         let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
         let mut engine = Engine::new(EngineState::default(), state_tx);
         engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
@@ -261,7 +261,7 @@ mod recovery_tests {
             ))));
         }
         for _ in 0..4 {
-            l2.expect("engine_newPayloadV1", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+            l2.expect("engine_newPayloadV2", PayloadStatus::from_status(PayloadStatusEnum::Valid));
             l2.expect(
                 "engine_forkchoiceUpdatedV3",
                 ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
