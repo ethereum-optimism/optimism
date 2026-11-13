@@ -12,6 +12,11 @@ use tempfile::NamedTempFile;
 /// The maximum number of peers that can be stored in the bootstore.
 const MAX_PEERS: usize = 2048;
 
+/// The mode the bootstore file is created with before the umask applies: the one
+/// [`std::fs::File::create`] uses, so that it is readable like any other file the node writes.
+#[cfg(unix)]
+const FILE_MODE: u32 = 0o666;
+
 /// The records a bootstore holds, oldest first: the contents of its file, and nothing else.
 ///
 /// When the number of records exceeds `MAX_PEERS`, the oldest are removed to make room for new
@@ -165,10 +170,17 @@ fn dir_of(path: &Path) -> &Path {
 /// Creates a temporary file next to the bootstore file at `path`, for a save to rename over it.
 /// Its name starts with the bootstore's, so that one left by a crash is easy to tell, and it is
 /// removed when dropped, unless persisted.
+///
+/// `tempfile` would create it readable by its owner only, which the rename keeps, so it gets
+/// [`FILE_MODE`] instead.
 fn temp_file(path: &Path) -> io::Result<NamedTempFile> {
     let mut prefix = path.file_name().unwrap_or_default().to_owned();
     prefix.push(".");
-    tempfile::Builder::new().prefix(&prefix).suffix(".tmp").tempfile_in(dir_of(path))
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(&prefix).suffix(".tmp");
+    #[cfg(unix)]
+    builder.permissions(std::os::unix::fs::PermissionsExt::from_mode(FILE_MODE));
+    builder.tempfile_in(dir_of(path))
 }
 
 impl BootStore {
@@ -412,7 +424,7 @@ mod tests {
 
     /// A saved bootstore is readable by other users, such as a sidecar or an operator's tools
     /// running under another user, as a file the node writes directly would be: the records it
-    /// holds are public.
+    /// holds are public. The umask decides that mode, so the test compares with such a file.
     #[cfg(unix)]
     #[test]
     fn test_saved_file_is_readable_by_others() {
@@ -423,9 +435,15 @@ mod tests {
         let (mut store, _) = BootStore::open(path.clone()).unwrap();
         store.add_enr(record());
         store.sync().unwrap();
+        let written = dir.path().join("written");
+        File::create(&written).unwrap();
 
-        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-        assert_eq!(mode, 0o644, "the saved bootstore has mode {mode:o}");
+        let mode = |path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(
+            mode(&path),
+            mode(&written),
+            "the saved bootstore has another mode than a file the node writes directly"
+        );
     }
 
     /// A save writes the file only if the store changed since it was opened or last saved, so
