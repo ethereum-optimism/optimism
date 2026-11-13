@@ -56,7 +56,7 @@ func TestL2Experimental(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:8888"
 		cfg := configForArgs(t, addRequiredArgs(gameTypes.AlphabetGameType, "--l2-experimental-eth-rpc="+url))
-		require.Equal(t, url, cfg.Cannon.L2Experimental)
+		require.Equal(t, url, cfg.CannonKona.L2Experimental)
 	})
 }
 
@@ -209,38 +209,36 @@ func TestGameTypes(t *testing.T) {
 
 func TestMultipleGameTypes(t *testing.T) {
 	t.Run("WithAllOptions", func(t *testing.T) {
-		argsMap := requiredArgs(gameTypes.CannonGameType)
+		argsMap := requiredArgs(gameTypes.CannonKonaGameType)
+		// Add super-cannon-kona required flags
+		addRequiredSuperCannonKonaArgs(argsMap)
+		args := toArgList(argsMap)
+		// Add extra game types (cannon-kona is already specified)
+		args = append(args,
+			"--game-types", gameTypes.SuperCannonKonaGameType.String())
+		cfg := configForArgs(t, args)
+		require.Equal(t, []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}, cfg.GameTypes)
+	})
+	t.Run("PreservesFlagOrder", func(t *testing.T) {
+		argsMap := requiredArgs(gameTypes.SuperCannonKonaGameType)
 		// Add cannon-kona required flags
 		addRequiredCannonKonaArgs(argsMap)
 		args := toArgList(argsMap)
-		// Add extra game types (cannon is already specified)
-		args = append(args,
-			"--game-types", gameTypes.AlphabetGameType.String())
-		args = append(args,
-			"--game-types", gameTypes.PermissionedGameType.String())
+		// Add extra game types (super-cannon-kona is already specified)
 		args = append(args,
 			"--game-types", gameTypes.CannonKonaGameType.String())
 		cfg := configForArgs(t, args)
-		require.Equal(t, []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AlphabetGameType, gameTypes.PermissionedGameType, gameTypes.CannonKonaGameType}, cfg.GameTypes)
-	})
-	t.Run("WithSomeOptions", func(t *testing.T) {
-		argsMap := requiredArgs(gameTypes.CannonGameType)
-		args := toArgList(argsMap)
-		// Add extra game types (cannon is already specified)
-		args = append(args,
-			"--game-types", gameTypes.AlphabetGameType.String())
-		cfg := configForArgs(t, args)
-		require.Equal(t, []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.AlphabetGameType}, cfg.GameTypes)
+		require.Equal(t, []gameTypes.GameType{gameTypes.SuperCannonKonaGameType, gameTypes.CannonKonaGameType}, cfg.GameTypes)
 	})
 
 	t.Run("SpecifySameOptionMultipleTimes", func(t *testing.T) {
-		argsMap := requiredArgs(gameTypes.CannonGameType)
+		argsMap := requiredArgs(gameTypes.CannonKonaGameType)
 		args := toArgList(argsMap)
-		// Add cannon game type again
-		args = append(args, "--game-types", gameTypes.CannonGameType.String())
+		// Add cannon-kona game type again
+		args = append(args, "--game-types", gameTypes.CannonKonaGameType.String())
 		// We're fine with the same option being listed multiple times, just deduplicate them.
 		cfg := configForArgs(t, args)
-		require.Equal(t, []gameTypes.GameType{gameTypes.CannonGameType}, cfg.GameTypes)
+		require.Equal(t, []gameTypes.GameType{gameTypes.CannonKonaGameType}, cfg.GameTypes)
 	})
 }
 
@@ -289,7 +287,7 @@ func TestNetwork(t *testing.T) {
 		addr := common.Address{0xbb, 0xcc, 0xdd}
 		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-factory-address", "--network=1234", "--game-factory-address="+addr.Hex()))
 		require.Equal(t, addr, cfg.GameFactoryAddress)
-		require.Equal(t, []string{"1234"}, cfg.Cannon.Networks)
+		require.Equal(t, []string{"1234"}, cfg.CannonKona.Networks)
 	})
 }
 
@@ -360,7 +358,7 @@ func TestMaxPendingTx(t *testing.T) {
 
 func TestPollInterval(t *testing.T) {
 	t.Run("UsesDefault", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonKonaGameType))
 		require.Equal(t, config.DefaultPollInterval, cfg.PollInterval)
 	})
 
@@ -380,7 +378,7 @@ func TestPollInterval(t *testing.T) {
 
 func TestMinUpdateInterval(t *testing.T) {
 	t.Run("DefaultsToZero", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonKonaGameType))
 		require.Equal(t, time.Duration(0), cfg.MinUpdateInterval)
 	})
 
@@ -849,7 +847,7 @@ func TestDepsetConfig(t *testing.T) {
 		} else {
 			t.Run("NotRequired-"+gameType.String(), func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
-				require.Equal(t, "", cfg.Cannon.DepsetConfigPath)
+				require.Equal(t, "", cfg.CannonKona.DepsetConfigPath)
 			})
 		}
 	}
@@ -865,7 +863,7 @@ func TestDataDir(t *testing.T) {
 	}
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.CannonGameType, "--datadir", "--datadir=/foo/bar/cannon"))
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.CannonKonaGameType, "--datadir", "--datadir=/foo/bar/cannon"))
 		require.Equal(t, "/foo/bar/cannon", cfg.Datadir)
 	})
 }
@@ -886,7 +884,7 @@ func TestRollupRpc(t *testing.T) {
 	}
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonKonaGameType))
 		require.Equal(t, rollupRpc, cfg.RollupRpc)
 	})
 }
@@ -915,17 +913,17 @@ func TestUnsafeAllowInvalidPrestate(t *testing.T) {
 	})
 
 	t.Run("EnabledWithNoValue", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType, "--unsafe-allow-invalid-prestate"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonKonaGameType, "--unsafe-allow-invalid-prestate"))
 		require.True(t, cfg.AllowInvalidPrestate)
 	})
 
 	t.Run("EnabledWithTrue", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType, "--unsafe-allow-invalid-prestate=true"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonKonaGameType, "--unsafe-allow-invalid-prestate=true"))
 		require.True(t, cfg.AllowInvalidPrestate)
 	})
 
 	t.Run("DisabledWithFalse", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonGameType, "--unsafe-allow-invalid-prestate=false"))
+		cfg := configForArgs(t, addRequiredArgs(gameTypes.CannonKonaGameType, "--unsafe-allow-invalid-prestate=false"))
 		require.False(t, cfg.AllowInvalidPrestate)
 	})
 }

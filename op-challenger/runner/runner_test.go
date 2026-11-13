@@ -64,7 +64,7 @@ func TestRunOnceAppliesTimeout(t *testing.T) {
 				traceProviderCreator: mockCreator,
 			}
 
-			err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonGameType, nil, utils.LocalGameInputs{}, "")
+			err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonKonaGameType, nil, utils.LocalGameInputs{}, "")
 			require.NoError(t, err)
 
 			_, hasDeadline := capturedCtx.Deadline()
@@ -137,7 +137,7 @@ func TestRunOnceReturnsTimeoutError(t *testing.T) {
 		traceProviderCreator: mockCreator,
 	}
 
-	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonGameType, nil, utils.LocalGameInputs{}, "")
+	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonKonaGameType, nil, utils.LocalGameInputs{}, "")
 	require.ErrorIs(t, err, ErrVMTimeout)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
@@ -162,7 +162,7 @@ func TestRunOnceReturnsTimeoutErrorWhenCreatingTraceProvider(t *testing.T) {
 		traceProviderCreator: slowCreator,
 	}
 
-	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonGameType, nil, utils.LocalGameInputs{}, "")
+	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonKonaGameType, nil, utils.LocalGameInputs{}, "")
 	require.ErrorIs(t, err, ErrVMTimeout)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
@@ -187,7 +187,7 @@ func TestRunOnceDoesNotReportTimeoutForOtherFailures(t *testing.T) {
 		traceProviderCreator: failingCreator,
 	}
 
-	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonGameType, nil, utils.LocalGameInputs{}, "")
+	err := r.runOnce(context.Background(), log.New(), "test", gameTypes.CannonKonaGameType, nil, utils.LocalGameInputs{}, "")
 	require.ErrorIs(t, err, expectedErr)
 	require.NotErrorIs(t, err, ErrVMTimeout)
 }

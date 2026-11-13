@@ -232,12 +232,15 @@ func TestLastStepCacheAccuracy(t *testing.T) {
 	require.NoError(t, err)
 	logger := testlog.Logger(t, log.LevelInfo)
 	vmCfg := vm.Config{
-		VmType:          gameTypes.CannonGameType,
+		VmType:          gameTypes.CannonKonaGameType,
 		VmBin:           filepath.Join(monorepoRoot, "cannon/bin/cannon"),
 		InfoFreq:        10_000,
 		SnapshotFreq:    config.DefaultCannonSnapshotFreq,
 		BinarySnapshots: true,
 		Server:          "/usr/bin/true", // Preimages aren't required, just need something with a 0 exit code.
+		// The kona executor requires exactly one L2 and a rollup config path or network. Neither is read because the server is /usr/bin/true.
+		L2s:               []string{"http://localhost:8545"},
+		RollupConfigPaths: []string{"rollup.json"},
 	}
 	localInputs := utils.LocalGameInputs{
 		L1Head:           common.Hash{0x01},
@@ -260,7 +263,7 @@ func TestLastStepCacheAccuracy(t *testing.T) {
 			logger,
 			metrics.NoopMetrics.ToTypedVmMetrics("cannon"),
 			vmCfg,
-			vm.NewOpProgramServerExecutor(logger),
+			vm.NewKonaExecutor(),
 			nil,
 			prestate,
 			localInputs,

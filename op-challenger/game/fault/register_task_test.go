@@ -63,6 +63,19 @@ func TestCannonRegisterTask_BottomPrestateProvider(t *testing.T) {
 	})
 }
 
+func TestCannonKonaRegisterTask_BottomPrestateProvider(t *testing.T) {
+	baseURL, err := url.Parse("file:///nonexistent-prestates/")
+	require.NoError(t, err)
+	cfg := &config.Config{
+		Datadir:                           t.TempDir(),
+		CannonKona:                        vm.Config{VmType: gameTypes.CannonKonaGameType},
+		CannonKonaAbsolutePreStateBaseURL: baseURL,
+	}
+	task := NewCannonKonaRegisterTask(gameTypes.CannonKonaGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+	_, err = task.getBottomPrestateProvider(context.Background(), common.Hash{0xaa})
+	require.ErrorIs(t, err, prestates.ErrPrestateUnavailable)
+}
+
 func TestRegisterOracle_MissingGameImpl(t *testing.T) {
 	// Test versions with and without game args support
 	for _, factoryVersion := range []string{"1.2.0", "1.3.0"} {
@@ -183,12 +196,10 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 }
 
 func TestNewCannonKonaRegisterTask_UsesCannonKonaVMForPrestateConversion(t *testing.T) {
-	cannonHash := common.Hash{0xca}
 	cannonKonaHash := common.Hash{0xcb}
 	prestatePath := filepath.Join(t.TempDir(), "prestate.bin.gz")
 	cfg := &config.Config{
 		Datadir:                    t.TempDir(),
-		Cannon:                     vm.Config{VmBin: buildFakeCannonVM(t, cannonHash)},
 		CannonKona:                 vm.Config{VmType: gameTypes.CannonKonaGameType, VmBin: buildFakeCannonVM(t, cannonKonaHash)},
 		CannonKonaAbsolutePreState: prestatePath,
 	}

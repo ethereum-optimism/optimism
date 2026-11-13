@@ -26,10 +26,10 @@ func TestParseRunArg(t *testing.T) {
 		{arg: "alphabet", err: ErrNotTraceGameType},
 		{arg: "fast/test1", err: ErrNotTraceGameType},
 		{arg: "permissioned/test1/0x1234", err: ErrNotTraceGameType},
-		{arg: "cannon/test1", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: "test1"}},
-		{arg: "cannon/test1/0x1234", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: "test1", Prestate: common.HexToHash("0x1234")}},
-		{arg: "cannon/test1/0xinvalid", err: ErrInvalidPrestateHash},
-		{arg: "cannon/test1/develop.bin.gz", expected: runner.RunConfig{GameType: gameTypes.CannonGameType, Name: "test1", PrestateFilename: "develop.bin.gz"}},
+		{arg: "cannon-kona/test1", expected: runner.RunConfig{GameType: gameTypes.CannonKonaGameType, Name: "test1"}},
+		{arg: "cannon-kona/test1/0x1234", expected: runner.RunConfig{GameType: gameTypes.CannonKonaGameType, Name: "test1", Prestate: common.HexToHash("0x1234")}},
+		{arg: "cannon-kona/test1/0xinvalid", err: ErrInvalidPrestateHash},
+		{arg: "cannon-kona/test1/develop.bin.gz", expected: runner.RunConfig{GameType: gameTypes.CannonKonaGameType, Name: "test1", PrestateFilename: "develop.bin.gz"}},
 	}
 	for _, test := range tests {
 		test := test
@@ -52,10 +52,9 @@ func TestDefaultRunConfigs(t *testing.T) {
 		err        error
 	}{
 		{
-			name:       "AllTraceTypes",
-			configured: []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType},
+			name:       "KonaTraceTypes",
+			configured: []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType},
 			expected: []runner.RunConfig{
-				{GameType: gameTypes.CannonGameType},
 				{GameType: gameTypes.CannonKonaGameType},
 				{GameType: gameTypes.SuperCannonKonaGameType},
 			},
