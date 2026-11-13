@@ -379,7 +379,10 @@ func RandomBlockPrependTxsWithTime(rng *rand.Rand, txCount int, t uint64, ptxs .
 		receipts = append(receipts, r)
 	}
 	header.GasUsed = cumulativeGasUsed
-	header.GasLimit = cumulativeGasUsed + uint64(rng.Int63n(int64(cumulativeGasUsed)))
+	header.GasLimit = cumulativeGasUsed
+	if cumulativeGasUsed > 0 {
+		header.GasLimit += uint64(rng.Int63n(int64(cumulativeGasUsed)))
+	}
 	header.TxHash = types.DeriveSha(types.Transactions(txs), trie.NewStackTrie(nil))
 	header.ReceiptHash = types.DeriveSha(types.Receipts(receipts), trie.NewStackTrie(nil))
 	header.Bloom = types.MergeBloom(receipts)
