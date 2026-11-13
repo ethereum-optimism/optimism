@@ -195,12 +195,18 @@ async fn test_public_only_node_dials_a_private_session_back_without_saving_it() 
         .await
         .expect("a public-only node didn't hand a session at a loopback address to gossip");
 
-    // Wait for a save after the handover.
-    let handed_over_at = std::time::SystemTime::now();
-    let saved = wait_for_saved(&path, |modified, _| modified > handed_over_at)
+    // A store tick saves the bootstore, if the session's record was added to it, and then hands
+    // the saved public record over again. So by the time the public record comes after the
+    // handover, the record would be saved.
+    let next_tick = async { while records.recv().await.expect("the driver runs") != public {} };
+    tokio::time::timeout(Duration::from_secs(5), next_tick)
         .await
-        .expect("the driver saves its bootstore every store interval");
-    assert!(!saved.contains(&handed_over), "a public-only node saved a loopback record");
+        .expect("the driver hands its saved records over every store interval");
+    let (saved, _) = BootStore::open(path).expect("the bootstore opens");
+    assert!(
+        !saved.iter().any(|enr| enr == &handed_over),
+        "a public-only node saved a loopback record"
+    );
 }
 
 /// The driver should take discv5's event stream before it bootstraps, which can take seconds

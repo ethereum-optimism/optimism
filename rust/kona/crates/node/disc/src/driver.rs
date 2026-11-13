@@ -606,16 +606,18 @@ impl Discv5Driver {
                         // confirmed. discv5's table also holds records from other nodes' answers
                         // to our lookups, which nothing confirmed, and the bootstore would dial
                         // them at the address in them after a restart.
-                        if let Err(e) = store.sync() {
-                            warn!(target: "discovery", "Failed to sync bootstore: {:?}", e);
+                        match store.sync() {
+                            Ok(true) => {
+                                let elapsed = start.elapsed();
+                                debug!(target: "discovery", "Bootstore ENRs stored in {:?}", elapsed);
+                                metrics::histogram!(crate::Metrics::ENR_STORE_TIME, "store_time" => "store_time").record(elapsed.as_secs_f64());
+                            }
+                            Ok(false) => {}
+                            Err(e) => warn!(target: "discovery", "Failed to sync bootstore: {:?}", e),
                         }
                         if self.forward {
                             forward_saved(&store, chain_id, &enr_sender);
                         }
-
-                        let elapsed = start.elapsed();
-                        debug!(target: "discovery", "Bootstore ENRs stored in {:?}", elapsed);
-                        metrics::histogram!(crate::Metrics::ENR_STORE_TIME, "store_time" => "store_time").record(elapsed.as_secs_f64());
                         metrics::gauge!(crate::Metrics::DISCOVERY_PEER_COUNT).set(self.disc.connected_peers() as f64);
                     }
                     // Only enabled when a removal interval is configured.

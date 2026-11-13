@@ -90,7 +90,7 @@ async fn test_public_node_removes_saved_loopback_record() {
     let path = dir.path().join("bootstore.json");
     let (_handler, _records) = driver.start();
 
-    wait_for_saved(&path, |_, saved| saved.contains(&public) && !saved.contains(&loopback))
+    wait_for_bootstore(&path, |saved| saved.contains(&public) && !saved.contains(&loopback))
         .await
         .expect("a public node kept a saved loopback record");
 }
@@ -119,7 +119,7 @@ async fn test_bootstore_saves_only_confirmed_records() {
     let (_handler, _records) = driver.start();
 
     let saved =
-        wait_for_saved(&path, |_, saved| saved.contains(&kept) && !saved.contains(&removed))
+        wait_for_bootstore(&path, |saved| saved.contains(&kept) && !saved.contains(&removed))
             .await
             .expect("the driver saves its bootstore at startup");
     assert!(!saved.contains(&unconfirmed), "the bootstore saved an unconfirmed record");
@@ -144,7 +144,7 @@ async fn test_bootstore_is_saved_in_a_missing_directory() {
     assert!(path.is_file(), "building the driver didn't create the bootstore");
     let (_handler, _records) = driver.start();
 
-    wait_for_saved(&path, |_, saved| saved.contains(&bootnode))
+    wait_for_bootstore(&path, |saved| saved.contains(&bootnode))
         .await
         .expect("the driver didn't save the bootstore in a directory it had to create");
 }

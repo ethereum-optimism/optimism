@@ -79,20 +79,18 @@ fn driver_with_bootstore(
     (driver, dir)
 }
 
-/// Reads the bootstore at `path` until `done` holds for the file's modification time, taken
-/// before the read, and the records it holds, and returns those, or `None` after 5s.
-async fn wait_for_saved(
+/// Reads the bootstore at `path` until `done` holds for the records it holds, and returns those,
+/// or `None` after 5s. A missing file holds no records.
+async fn wait_for_bootstore(
     path: &std::path::Path,
-    done: impl Fn(std::time::SystemTime, &[Enr]) -> bool,
+    done: impl Fn(&[Enr]) -> bool,
 ) -> Option<Vec<Enr>> {
     let poll = async {
         loop {
-            if let Ok(modified) = std::fs::metadata(path).and_then(|meta| meta.modified()) {
-                let (store, _) = BootStore::open(path.to_path_buf()).expect("the bootstore opens");
-                let saved = store.iter().cloned().collect::<Vec<_>>();
-                if done(modified, &saved) {
-                    return saved;
-                }
+            let (store, _) = BootStore::open(path.to_path_buf()).expect("the bootstore opens");
+            let saved = store.iter().cloned().collect::<Vec<_>>();
+            if done(&saved) {
+                return saved;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }

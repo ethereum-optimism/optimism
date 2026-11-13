@@ -35,7 +35,9 @@ impl Records {
         let entries: Vec<serde_json::Value> = serde_json::from_slice(json)?;
         for entry in entries {
             match Enr::deserialize(&entry) {
-                Ok(enr) => records.add(enr),
+                Ok(enr) => {
+                    records.add(enr);
+                }
                 Err(error) => skipped.push(SkippedEntry { entry, error }),
             }
         }
@@ -48,10 +50,10 @@ impl Records {
     }
 
     /// Adds `enr`, unless it is there already, and removes the oldest record if there are then
-    /// too many.
-    fn add(&mut self, enr: Enr) {
+    /// too many. Returns whether the records changed.
+    fn add(&mut self, enr: Enr) -> bool {
         if self.0.contains(&enr) {
-            return;
+            return false;
         }
 
         debug!(target: "bootstore", "Adding enr to the boot store: {}", enr);
@@ -61,6 +63,7 @@ impl Records {
             debug!(target: "bootstore", "Boot store exceeded maximum peers, removing oldest peer");
             self.0.pop_front();
         }
+        true
     }
 }
 
@@ -118,6 +121,9 @@ pub struct BootStore {
     path: Option<PathBuf>,
     /// The records.
     records: Records,
+    /// Whether the file differs from the records: they changed since they were last saved, the
+    /// file is missing, or it holds entries that aren't records.
+    dirty: bool,
 }
 
 /// Where the bootstore file is.
@@ -168,33 +174,35 @@ fn temp_file(path: &Path) -> io::Result<NamedTempFile> {
 impl BootStore {
     /// Returns an empty store that keeps its records only in memory.
     pub fn in_memory() -> Self {
-        Self { path: None, records: Records::default() }
+        Self { path: None, records: Records::default(), dirty: false }
     }
 
     /// Opens the store saved at `path`, and returns it with the entries it skipped because they
-    /// aren't valid records, for the caller to log, as the store's next save leaves them out. A
+    /// aren't valid records, for the caller to log. They count as a change, so the next
+    /// [`Self::sync`] writes the file without them. A
     /// missing file holds no records.
     ///
-    /// Only reads the file, so that other readers can open it while the node saves it: the first
-    /// [`Self::sync`] creates it, and its directory. The node saves the store once it has opened
-    /// it, so that a bootstore it can't write stops it from starting.
+    /// Only reads the file, so that other readers can open it while the node saves it. If the file
+    /// is missing, the first [`Self::sync`] creates it, and its directory. The node saves the store
+    /// once it has opened it, so that a bootstore it can't write stops it from starting.
     ///
     /// Fails if the file can't be read, or isn't a JSON list, which is left as it is.
     pub fn open(path: PathBuf) -> Result<(Self, Vec<SkippedEntry>), BootStoreError> {
-        let json = match std::fs::read(&path) {
-            Ok(json) => json,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => Vec::new(),
+        let (json, missing) = match std::fs::read(&path) {
+            Ok(json) => (json, false),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => (Vec::new(), true),
             Err(source) => return Err(BootStoreError::Open { path, source }),
         };
         let (records, skipped) = Records::parse_json_slice(&json)
             .map_err(|source| BootStoreError::Parse { path: path.clone(), source })?;
-        Ok((Self { path: Some(path), records }, skipped))
+        let dirty = missing || !skipped.is_empty();
+        Ok((Self { path: Some(path), records, dirty }, skipped))
     }
 
     /// Adds an [`Enr`] to the store, removing the oldest if there are then too many. The file
     /// changes at the next [`Self::sync`].
     pub fn add_enr(&mut self, enr: Enr) {
-        self.records.add(enr);
+        self.dirty |= self.records.add(enr);
     }
 
     /// Returns the records, oldest first.
@@ -224,21 +232,28 @@ impl BootStore {
     pub fn retain(&mut self, keep: impl FnMut(&Enr) -> bool) -> usize {
         let len = self.records.0.len();
         self.records.0.retain(keep);
-        len - self.records.0.len()
+        let removed = len - self.records.0.len();
+        self.dirty |= removed > 0;
+        removed
     }
 
-    /// Saves the records to the store's file, if it has one, creating its directory if it is
-    /// missing.
+    /// Saves the records, if they changed since they were last saved or the file is missing, and
+    /// returns whether they did, whether or not the store has a file to save them to.
     ///
-    /// Writes them to a temporary file next to it, and renames that over it, so that a reader
-    /// sees either the old file or the new one, whole, and a crash during a save keeps the old
-    /// one. A temporary file left by a failed write is removed.
-    pub fn sync(&mut self) -> Result<(), BootStoreError> {
-        let Some(path) = &self.path else {
-            return Ok(());
-        };
-        Self::save(path, &self.records)
-            .map_err(|source| BootStoreError::Save { path: path.clone(), source })
+    /// A store with a file writes them to a temporary file next to it, creating the directory if
+    /// it is missing, and renames that over it, so that a reader sees either the old file or the
+    /// new one, whole, and a crash during a save keeps the old one. A temporary file left by a
+    /// failed write is removed, and the next save tries again.
+    pub fn sync(&mut self) -> Result<bool, BootStoreError> {
+        if !self.dirty {
+            return Ok(false);
+        }
+        if let Some(path) = &self.path {
+            Self::save(path, &self.records)
+                .map_err(|source| BootStoreError::Save { path: path.clone(), source })?;
+        }
+        self.dirty = false;
+        Ok(true)
     }
 
     /// Saves `records` at `path`, see [`Self::sync`].
@@ -279,7 +294,7 @@ mod tests {
         assert!(skipped.is_empty());
         assert!(!path.parent().unwrap().exists(), "opening the store wrote to the disk");
 
-        store.sync().unwrap();
+        assert!(store.sync().unwrap(), "a save didn't create the missing file");
         assert!(path.is_file());
     }
 
@@ -328,11 +343,17 @@ mod tests {
         let json = serde_json::json!(["enr:-not-base64!", kept.to_base64(), 42]);
         std::fs::write(&path, json.to_string()).unwrap();
 
-        let (store, skipped) = BootStore::open(path).unwrap();
+        let (mut store, skipped) = BootStore::open(path.clone()).unwrap();
 
         assert_eq!(store.iter().collect::<Vec<_>>(), [&kept]);
         let skipped: Vec<_> = skipped.into_iter().map(|skipped| skipped.entry).collect();
         assert_eq!(skipped, [serde_json::json!("enr:-not-base64!"), serde_json::json!(42)]);
+
+        // The next save writes the file without them.
+        assert!(store.sync().unwrap(), "skipped entries weren't a change to save");
+        let saved: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        assert_eq!(saved, serde_json::json!([kept.to_base64()]));
     }
 
     /// An empty file, which an earlier version left after a crash, holds no records.
@@ -416,6 +437,35 @@ mod tests {
 
         store.sync().unwrap();
         assert_eq!(inode(), changed, "a save rewrote the file it had just saved");
+    }
+
+    /// A save says whether there were changes to save, whether or not the store has a file: so a
+    /// caller can tell the same way for either.
+    #[rstest::rstest]
+    #[case::in_memory(false)]
+    #[case::file(true)]
+    fn test_save_says_whether_there_were_changes(#[case] file: bool) {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = if file {
+            BootStore::open(dir.path().join("bootstore.json")).unwrap().0
+        } else {
+            BootStore::in_memory()
+        };
+        // A missing file is a change to save, so that it gets created.
+        assert_eq!(store.sync().unwrap(), file);
+
+        let added = record();
+        store.add_enr(added.clone());
+        assert!(store.sync().unwrap(), "an added record wasn't a change");
+        assert!(!store.sync().unwrap(), "a save without changes said it had some");
+
+        store.add_enr(added);
+        assert!(!store.sync().unwrap(), "a record added again was a change");
+
+        store.retain(|_| true);
+        assert!(!store.sync().unwrap(), "keeping every record was a change");
+        store.retain(|_| false);
+        assert!(store.sync().unwrap(), "a removed record wasn't a change");
     }
 
     /// A reader never sees the file empty or cut off while the store saves it, as can happen when
