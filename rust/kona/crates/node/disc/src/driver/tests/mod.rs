@@ -80,18 +80,15 @@ fn driver_with_bootstore(
 }
 
 /// Reads the bootstore at `path` until `done` holds for the file's modification time, taken
-/// before the read, and the records it holds, and returns those, or `None` after 5s. The driver
-/// truncates the file before it writes it, so a read can come back empty, or cut off, which
-/// fails to parse and is read again: `done` should require a record the driver keeps.
+/// before the read, and the records it holds, and returns those, or `None` after 5s.
 async fn wait_for_saved(
     path: &std::path::Path,
     done: impl Fn(std::time::SystemTime, &[Enr]) -> bool,
 ) -> Option<Vec<Enr>> {
     let poll = async {
         loop {
-            if let Ok(modified) = std::fs::metadata(path).and_then(|meta| meta.modified()) &&
-                let Ok((store, _)) = BootStore::open(path.to_path_buf())
-            {
+            if let Ok(modified) = std::fs::metadata(path).and_then(|meta| meta.modified()) {
+                let (store, _) = BootStore::open(path.to_path_buf()).expect("the bootstore opens");
                 let saved = store.iter().cloned().collect::<Vec<_>>();
                 if done(modified, &saved) {
                     return saved;

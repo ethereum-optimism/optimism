@@ -38,6 +38,7 @@ dirs.workspace = true
 serde.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
+tempfile.workspace = true
 lazy_static.workspace = true
 unsigned-varint.workspace = true
 serde_json = { workspace = true, features = ["std"] }
@@ -49,7 +50,6 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 [dev-dependencies]
 discv5 = { workspace = true, features = ["libp2p"] }
 arbtest.workspace = true
-tempfile.workspace = true
 rstest.workspace = true
 multihash.workspace = true
 serde_json.workspace = true

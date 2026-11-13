@@ -90,7 +90,6 @@ async fn test_public_node_removes_saved_loopback_record() {
     let path = dir.path().join("bootstore.json");
     let (_handler, _records) = driver.start();
 
-    // A read can come back empty, so wait for one that holds the public record too.
     wait_for_saved(&path, |_, saved| saved.contains(&public) && !saved.contains(&loopback))
         .await
         .expect("a public node kept a saved loopback record");
@@ -142,6 +141,7 @@ async fn test_bootstore_is_saved_in_a_missing_directory() {
         .with_bootnodes(BootNodes(vec![BootNode::Enr(bootnode.clone())]))
         .build()
         .expect("the driver builds");
+    assert!(path.is_file(), "building the driver didn't create the bootstore");
     let (_handler, _records) = driver.start();
 
     wait_for_saved(&path, |_, saved| saved.contains(&bootnode))

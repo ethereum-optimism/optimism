@@ -1,7 +1,13 @@
 //! Bootnode Store
 
 use discv5::Enr;
-use std::{collections::VecDeque, fs::File, io::Read, path::PathBuf};
+use serde::Deserialize;
+use std::{
+    collections::VecDeque,
+    io::{self, Write},
+    path::{Path, PathBuf},
+};
+use tempfile::NamedTempFile;
 
 /// The maximum number of peers that can be stored in the bootstore.
 const MAX_PEERS: usize = 2048;
@@ -15,22 +21,22 @@ struct Records(VecDeque<Enr>);
 
 impl Records {
     /// Parses the contents of a bootstore file, a JSON list of records, and returns the records
-    /// with the number of entries it skipped.
+    /// with the entries it skipped.
     ///
     /// An entry that isn't a valid record is skipped, so that one bad entry doesn't lose the
     /// others. Empty contents hold no records: an earlier version truncated the file before it
     /// wrote it, and a crash in between left it empty.
-    fn parse_json_slice(json: &[u8]) -> Result<(Self, usize), serde_json::Error> {
+    fn parse_json_slice(json: &[u8]) -> Result<(Self, Vec<SkippedEntry>), serde_json::Error> {
         let mut records = Self::default();
+        let mut skipped = Vec::new();
         if json.iter().all(u8::is_ascii_whitespace) {
-            return Ok((records, 0));
+            return Ok((records, skipped));
         }
         let entries: Vec<serde_json::Value> = serde_json::from_slice(json)?;
-        let mut skipped = 0;
         for entry in entries {
-            match serde_json::from_value::<Enr>(entry) {
+            match Enr::deserialize(&entry) {
                 Ok(enr) => records.add(enr),
-                Err(_) => skipped += 1,
+                Err(error) => skipped.push(SkippedEntry { entry, error }),
             }
         }
         Ok((records, skipped))
@@ -58,15 +64,34 @@ impl Records {
     }
 }
 
+/// An entry of a bootstore file that isn't a node record, which [`BootStore::open`] skips. The
+/// store's next save leaves it out.
+#[derive(Debug)]
+pub struct SkippedEntry {
+    /// The entry, as it is in the file.
+    pub entry: serde_json::Value,
+    /// Why it isn't a node record.
+    pub error: serde_json::Error,
+}
+
 /// An error opening a [`BootStore`].
 #[derive(Debug, thiserror::Error)]
 pub enum BootStoreError {
     /// The default bootstore path is in the home directory, and there is none.
     #[error("no home directory for the default bootstore path")]
     NoHomeDirectory,
-    /// The bootstore file, or its directory, can't be created, read or written.
-    #[error("cannot open the bootstore {}", path.display())]
+    /// The bootstore file can't be read.
+    #[error("cannot read the bootstore {}", path.display())]
     Open {
+        /// The path of the bootstore file.
+        path: PathBuf,
+        /// The reason.
+        #[source]
+        source: std::io::Error,
+    },
+    /// The bootstore file can't be saved.
+    #[error("cannot save the bootstore {}", path.display())]
+    Save {
         /// The path of the bootstore file.
         path: PathBuf,
         /// The reason.
@@ -123,33 +148,44 @@ impl BootStoreFile {
     }
 }
 
+/// Returns the directory of the bootstore file at `path`, where a save writes its temporary file.
+fn dir_of(path: &Path) -> &Path {
+    match path.parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => dir,
+        _ => Path::new("."),
+    }
+}
+
+/// Creates a temporary file next to the bootstore file at `path`, for a save to rename over it.
+/// Its name starts with the bootstore's, so that one left by a crash is easy to tell, and it is
+/// removed when dropped, unless persisted.
+fn temp_file(path: &Path) -> io::Result<NamedTempFile> {
+    let mut prefix = path.file_name().unwrap_or_default().to_owned();
+    prefix.push(".");
+    tempfile::Builder::new().prefix(&prefix).suffix(".tmp").tempfile_in(dir_of(path))
+}
+
 impl BootStore {
     /// Returns an empty store that keeps its records only in memory.
     pub fn in_memory() -> Self {
         Self { path: None, records: Records::default() }
     }
 
-    /// Opens the store saved at `path`, and returns it with the number of entries it skipped
-    /// because they aren't valid records.
+    /// Opens the store saved at `path`, and returns it with the entries it skipped because they
+    /// aren't valid records, for the caller to log, as the store's next save leaves them out. A
+    /// missing file holds no records.
     ///
-    /// The file, and its directory, are created if they are missing, so that a path that can't
-    /// be written fails here rather than at every [`Self::sync`].
+    /// Only reads the file, so that other readers can open it while the node saves it: the first
+    /// [`Self::sync`] creates it, and its directory. The node saves the store once it has opened
+    /// it, so that a bootstore it can't write stops it from starting.
     ///
-    /// Fails if the file can't be created or read, or isn't a JSON list, which is left as it is.
-    pub fn open(path: PathBuf) -> Result<(Self, usize), BootStoreError> {
-        let open_error = |source| BootStoreError::Open { path: path.clone(), source };
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(open_error)?;
-        }
-        let mut file = File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&path)
-            .map_err(open_error)?;
-        let mut json = Vec::new();
-        file.read_to_end(&mut json).map_err(open_error)?;
+    /// Fails if the file can't be read, or isn't a JSON list, which is left as it is.
+    pub fn open(path: PathBuf) -> Result<(Self, Vec<SkippedEntry>), BootStoreError> {
+        let json = match std::fs::read(&path) {
+            Ok(json) => json,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => Vec::new(),
+            Err(source) => return Err(BootStoreError::Open { path, source }),
+        };
         let (records, skipped) = Records::parse_json_slice(&json)
             .map_err(|source| BootStoreError::Parse { path: path.clone(), source })?;
         Ok((Self { path: Some(path), records }, skipped))
@@ -164,14 +200,6 @@ impl BootStore {
     /// Returns the records, oldest first.
     pub fn iter(&self) -> impl Iterator<Item = &Enr> {
         self.records.0.iter()
-    }
-
-    /// Returns the number of peers in the bootstore that
-    /// have the [`crate::OpStackEnr::OP_CL_KEY`] in the ENR.
-    pub fn valid_peers(&self) -> Vec<&Enr> {
-        self.iter()
-            .filter(|enr| enr.get_raw_rlp(crate::OpStackEnr::OP_CL_KEY.as_bytes()).is_some())
-            .collect()
     }
 
     /// Returns the number of peers that contain the
@@ -191,11 +219,6 @@ impl BootStore {
         self.records.0.is_empty()
     }
 
-    /// Merges the given list of [`Enr`]s with the current list of peers.
-    pub fn merge(&mut self, peers: impl IntoIterator<Item = Enr>) {
-        peers.into_iter().for_each(|peer| self.records.add(peer));
-    }
-
     /// Keeps only the records `keep` accepts, and returns how many it removed. The file changes at
     /// the next [`Self::sync`].
     pub fn retain(&mut self, keep: impl FnMut(&Enr) -> bool) -> usize {
@@ -204,11 +227,27 @@ impl BootStore {
         len - self.records.0.len()
     }
 
-    /// Writes the records to the store's file, if it has one.
-    pub fn sync(&mut self) -> Result<(), std::io::Error> {
-        if let Some(path) = &self.path {
-            std::fs::write(path, self.records.to_json_vec()?)?;
-        }
+    /// Saves the records to the store's file, if it has one, creating its directory if it is
+    /// missing.
+    ///
+    /// Writes them to a temporary file next to it, and renames that over it, so that a reader
+    /// sees either the old file or the new one, whole, and a crash during a save keeps the old
+    /// one. A temporary file left by a failed write is removed.
+    pub fn sync(&mut self) -> Result<(), BootStoreError> {
+        let Some(path) = &self.path else {
+            return Ok(());
+        };
+        Self::save(path, &self.records)
+            .map_err(|source| BootStoreError::Save { path: path.clone(), source })
+    }
+
+    /// Saves `records` at `path`, see [`Self::sync`].
+    fn save(path: &Path, records: &Records) -> io::Result<()> {
+        std::fs::create_dir_all(dir_of(path))?;
+        let mut file = temp_file(path)?;
+        file.write_all(&records.to_json_vec()?)?;
+        file.as_file().sync_all()?;
+        file.persist(path)?;
         Ok(())
     }
 }
@@ -217,6 +256,7 @@ impl BootStore {
 mod tests {
     use super::*;
     use enr::CombinedKey;
+    use std::{fs::File, io::Read};
 
     /// A new record with an IPv4 address.
     fn record() -> Enr {
@@ -227,18 +267,37 @@ mod tests {
             .unwrap()
     }
 
-    /// A store opened at a path whose directory doesn't exist is empty, and creates the directory
-    /// and the file, so that a path it couldn't write would fail here.
+    /// A store opened at a path whose directory doesn't exist is empty, and writes nothing until
+    /// it saves, which creates the directory and the file.
     #[test]
-    fn test_open_creates_the_file_and_its_directory() {
+    fn test_save_creates_the_directory() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("datadir").join("bootstore.json");
 
-        let (store, skipped) = BootStore::open(path.clone()).unwrap();
-
+        let (mut store, skipped) = BootStore::open(path.clone()).unwrap();
         assert!(store.is_empty());
-        assert_eq!(skipped, 0);
+        assert!(skipped.is_empty());
+        assert!(!path.parent().unwrap().exists(), "opening the store wrote to the disk");
+
+        store.sync().unwrap();
         assert!(path.is_file());
+    }
+
+    /// Opening and saving leave no temporary file behind, only the bootstore.
+    #[test]
+    fn test_open_and_save_leave_no_temporary_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bootstore.json");
+
+        let (mut store, _) = BootStore::open(path).unwrap();
+        store.add_enr(record());
+        store.sync().unwrap();
+
+        let files: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(files, ["bootstore.json"]);
     }
 
     /// The records a store saves are the ones it opens again.
@@ -256,10 +315,11 @@ mod tests {
         let (store, skipped) = BootStore::open(path).unwrap();
 
         assert_eq!(store.iter().cloned().collect::<Vec<_>>(), records);
-        assert_eq!(skipped, 0);
+        assert!(skipped.is_empty());
     }
 
-    /// An entry that isn't a record is skipped and counted, and the others are kept.
+    /// An entry that isn't a record is skipped, and returned with the reason, and the others are
+    /// kept.
     #[test]
     fn test_open_skips_entries_that_are_not_records() {
         let dir = tempfile::tempdir().unwrap();
@@ -271,7 +331,8 @@ mod tests {
         let (store, skipped) = BootStore::open(path).unwrap();
 
         assert_eq!(store.iter().collect::<Vec<_>>(), [&kept]);
-        assert_eq!(skipped, 2);
+        let skipped: Vec<_> = skipped.into_iter().map(|skipped| skipped.entry).collect();
+        assert_eq!(skipped, [serde_json::json!("enr:-not-base64!"), serde_json::json!(42)]);
     }
 
     /// An empty file, which an earlier version left after a crash, holds no records.
@@ -286,7 +347,7 @@ mod tests {
         let (store, skipped) = BootStore::open(path).unwrap();
 
         assert!(store.is_empty());
-        assert_eq!(skipped, 0);
+        assert!(skipped.is_empty());
     }
 
     /// A file that isn't a JSON list fails to open, and is left as it is: it may be another file
@@ -375,7 +436,7 @@ mod tests {
         assert_eq!(partial, 0, "a reader saw the bootstore empty or cut off {partial} times");
     }
 
-    /// A directory can't be opened as the bootstore.
+    /// A directory can't be read as the bootstore.
     #[test]
     fn test_open_directory_fails() {
         let dir = tempfile::tempdir().unwrap();

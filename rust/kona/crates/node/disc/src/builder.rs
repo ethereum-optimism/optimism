@@ -2,7 +2,7 @@
 
 use discv5::{Config, Discv5, Enr, ListenConfig};
 use enr::k256;
-use kona_peers::{BootNodes, BootStore, BootStoreFile, OpStackEnr};
+use kona_peers::{BootNodes, BootStore, BootStoreFile, OpStackEnr, SkippedEntry};
 use socket2::{Domain, Protocol, Socket, Type};
 use std::{
     net::{IpAddr, SocketAddr},
@@ -256,18 +256,21 @@ impl Discv5Builder {
 
     /// Builds a [`Discv5Driver`].
     ///
-    /// Opens the bootstore, if one is set, so that a bootstore that can't be opened, or isn't a
-    /// list of records, fails here rather than leaving the node with one it never saves.
+    /// Opens the bootstore, if one is set, and saves it, so that a bootstore that can't be read,
+    /// isn't a list of records, or can't be written fails here, rather than leaving the node
+    /// without its saved records, or with records it never saves.
     pub fn build(self) -> Result<Discv5Driver, Discv5BuilderError> {
         let chain_id = self.chain_id;
 
         let bootstore = match &self.bootstore {
             Some(file) => {
                 let path = file.path()?;
-                let (bootstore, skipped) = BootStore::open(path.clone())?;
-                if skipped > 0 {
-                    warn!(target: "discovery", path = %path.display(), skipped, "Skipped bootstore entries that aren't node records");
+                let (mut bootstore, skipped) = BootStore::open(path.clone())?;
+                // The save below leaves them out, so this is the only record of them.
+                for SkippedEntry { entry, error } in skipped {
+                    warn!(target: "discovery", path = %path.display(), %entry, %error, "Dropping a bootstore entry that isn't a node record");
                 }
+                bootstore.sync()?;
                 bootstore
             }
             None => BootStore::in_memory(),
