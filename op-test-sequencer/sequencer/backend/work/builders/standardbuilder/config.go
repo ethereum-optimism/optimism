@@ -26,6 +26,10 @@ type Config struct {
 	L2CL endpoint.MustRPC `yaml:"l2CL"`
 
 	L1ChainConfig *params.ChainConfig
+
+	// DependencySet is the interop dependency set to build with once Lagoon is scheduled. When
+	// nil, the builder fetches it from the L2 CL, which kona-node does not serve.
+	DependencySet depset.DependencySet `yaml:"-"`
 }
 
 func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.ServiceOpts) (work.Builder, error) {
@@ -64,9 +68,9 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 		return nil, err
 	}
 
-	var depSet depset.DependencySet
+	depSet := c.DependencySet
 	// Dependency set is only required if interop is scheduled and the RPC may not be available before then.
-	if cfg.LagoonTime != nil {
+	if depSet == nil && cfg.LagoonTime != nil {
 		depSet, err = retry.Do(ctx, 10, retry.Exponential(), func() (depset.DependencySet, error) {
 			opts.Log.Info("Fetching dependency set for block-building")
 			depSet, err := rolCl.DependencySet(ctx)
