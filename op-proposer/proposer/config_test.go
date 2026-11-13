@@ -25,8 +25,7 @@ func TestRejectsGameTypeZero(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrUnsupportedGameType)
 }
 
-// TestAcceptsPermissionedCannonGameType guards the PERMISSIONED_CANNON guardian fallback that every
-// CANNON_KONA deployment has.
+// TestAcceptsPermissionedCannonGameType pins type 1 as valid for the CANNON_KONA guardian fallback.
 func TestAcceptsPermissionedCannonGameType(t *testing.T) {
 	cfg := validConfig()
 	cfg.DisputeGameType = 1

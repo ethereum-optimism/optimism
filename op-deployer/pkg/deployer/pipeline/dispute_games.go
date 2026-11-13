@@ -157,8 +157,6 @@ func deployDisputeGame(
 		AnchorStateRegistry: thisState.OpChainContracts.AnchorStateRegistryProxy,
 		Weth:                thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
 		L2ChainID:           eth.ChainIDFromBytes32(thisIntent.ID),
-		Proposer:            thisIntent.Roles.Proposer,
-		Challenger:          thisIntent.Roles.Challenger,
 	}
 	gameArgs := args.PackPermissionless()
 
