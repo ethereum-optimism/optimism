@@ -374,9 +374,9 @@ func lagoonAllFlags() []cli.Flag {
 		altsrc.NewStringFlag(AllSDMContractA),
 		altsrc.NewStringFlag(AllSDMContractB),
 		altsrc.NewBoolFlag(SDMOptIn),
-		altsrc.NewBoolFlag(SDMCheckRPC),
 		// BoolFlag.Apply mutates Value for environment inputs; keep defaults
 		// isolated across command instances and repeated app runs.
+		altsrc.NewBoolFlag(ptr.New(*SDMCheckRPC)),
 		altsrc.NewBoolFlag(ptr.New(*SDMRPCJS)),
 		altsrc.NewBoolFlag(ptr.New(*SDMRPCOTS)),
 		altsrc.NewBoolFlag(AllJSON),
@@ -560,7 +560,7 @@ func sdmCheckFlags() []cli.Flag {
 		altsrc.NewStringFlag(SDMEndpointL2),
 		altsrc.NewStringFlag(SDMVerifierL2),
 		altsrc.NewStringFlag(SDMRollupRPC),
-		altsrc.NewBoolFlag(SDMCheckRPC),
+		altsrc.NewBoolFlag(ptr.New(*SDMCheckRPC)),
 		altsrc.NewBoolFlag(ptr.New(*SDMRPCJS)),
 		altsrc.NewBoolFlag(ptr.New(*SDMRPCOTS)),
 		altsrc.NewBoolFlag(SDMJSON),

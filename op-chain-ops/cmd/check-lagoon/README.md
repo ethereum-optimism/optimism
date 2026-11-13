@@ -77,9 +77,11 @@ The StateBloat workload never reads balances, but a block from `sdm block` or
 
 ### sdm rpc — canonical RPC replay settlement
 
-Read-only regression gate for [protocol-team#485](https://github.com/ethereum-optimism/protocol-team/issues/485).
+Read-only regression gate for generic trace and replay RPCs on SDM blocks.
 Correct receipts do not establish correct traces: generic replay can omit SDM
-settlement even when consensus, receipts and stored state are correct.
+settlement even when consensus, receipts and stored state are correct. A node
+with this fault traces a refunded transaction at its pre-refund gas and reports
+balance changes without the refund, while its receipt shows the refunded gas.
 
 ```bash
 # No private key, funding, transactions, or operator opt-in changes.
@@ -140,10 +142,12 @@ Checks cover:
   deltas against the transaction-boundary oracle, execution status and frame
   structure. **Parity frame gas is not canonical receipt gas** and is not
   incorrectly compared to it.
-- `trace_transaction`, `trace_get`, `trace_block`, and `trace_filter`: complete
-  frame-tree agreement with single-transaction replay, block/transaction
-  identities, ordering and filter pagination. These are wrapper-consistency
-  checks, not independent proof of every call frame's EVM behavior.
+- `trace_transaction`, `trace_block`, and `trace_filter`: complete frame-tree
+  agreement with single-transaction replay, block/transaction identities,
+  ordering and filter pagination. `trace_get(hash, [0])`: the root frame only
+  (reth returns the n-th flattened frame, so index 0 is the root). These are
+  wrapper-consistency checks, not independent proof of every call frame's EVM
+  behavior.
 - `trace_call` and `trace_callMany`: read-only balance probes at the committed
   block boundary (these APIs do not accept an interior transaction index).
 - `debug_traceTransaction` with a JavaScript tracer: returned execution gas,
@@ -196,7 +200,7 @@ extensions, OTS explorer/search APIs, arbitrary JS tracers, per-slot storage dif
 or timeout/error behavior for every endpoint. It does not generate a
 refund-dependent insufficient-balance workload, a reverted transaction or a
 retained bad block, nor independently prove `debug_accountAt` correct.
-Do not equate passing this gate with completing the issue or fleet rollout.
+A pass covers the selected nodes and block only, not every node in a fleet.
 
 ## Config
 
