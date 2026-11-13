@@ -18,10 +18,12 @@ bumped family's `<old>..<new>` range, in parallel, and consolidate their per-com
 reports with the funnel's findings before the triage handoff. The funnel alone is not a
 complete review.
 
-Run the guide's forward sweep the same way, over each family's range from the target to
-upstream's latest commit. Record that tip, give every fix in range a verdict, and report
-the findings with the cherry-pick-or-retarget recommendation so the human can decide
-before the bump merges. For a fork PR that picks fixes, also apply the guide's
+Run the forward sweep the same way, over each family's range from the target to
+upstream's latest commit. Its steps, verdicts and pick bar are in
+[rust/UPDATING-RETH.md, "Forward sweep"](../../rust/UPDATING-RETH.md#forward-sweep);
+the guide adds how a review reads the range. Record that tip, give every fix in range a
+verdict, and report the findings with the cherry-pick-or-retarget recommendation so the
+human can decide before the bump merges. For a fork PR that picks fixes, also apply the guide's
 "Reviewing a fork pick PR" checklist.
 
 When the bump touches transaction execution, gas, or receipts, also run the

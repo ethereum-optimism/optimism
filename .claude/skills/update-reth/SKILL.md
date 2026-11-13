@@ -26,9 +26,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    `rust/Cargo.toml`. Reuse or clone that source, ensure a remote points to
    `https://github.com/paradigmxyz/reth`, then fetch upstream `main`, tags, the
    old pin, and the selected target. Validate reused remotes before diffing.
-   Skim upstream fixes newer than the candidate target (the forward sweep in
-   `docs/ai/reth-update-review.md`) so a retarget decision comes before the
-   adaptation work.
+   Skim upstream fixes newer than the candidate target (the guide's "Forward
+   sweep") so a retarget decision comes before the adaptation work.
 
 2. **Isolate.** Work in a fresh git worktree (or jj workspace) based on latest
    `develop` — never on the main checkout's working copy. Run `mise trust` in the
