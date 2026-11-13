@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -99,16 +98,9 @@ func TestCostOracleOPCost(t *testing.T) {
 		}
 		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.NoError(t, oracle.SetParams(context.Background()))
-		tx := types.NewTx(&types.DynamicFeeTx{})
-		got := oracle.OPCost(tx)
-		raw, err := tx.MarshalBinary()
-		require.NoError(t, err)
-		want := opfees.L1CostFjord(opfees.NewRollupCostData(raw), opfees.L1FeeParams{
-			L1BaseFee:     big.NewInt(102),
-			L1BlobBaseFee: big.NewInt(104),
-			BaseFeeScalar: big.NewInt(103),
-			BlobFeeScalar: big.NewInt(105),
-		})
-		require.Equal(t, want, got)
+		got := oracle.OPCost(types.NewTx(&types.DynamicFeeTx{}))
+		// The empty tx is below the Fjord 100-byte floor:
+		// 100e6 * (103*102*16 + 105*104) / 1e12 = 17.9016 -> 17.
+		require.Equal(t, big.NewInt(17), got)
 	})
 }

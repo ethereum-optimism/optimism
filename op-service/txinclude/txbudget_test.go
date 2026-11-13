@@ -111,26 +111,18 @@ func TestTxBudgetIncluded(t *testing.T) {
 			Type:              types.DynamicFeeTxType,
 		},
 		L1GasPrice:          l1GasPrice,
-		L1BaseFeeScalar:     ptr(uint64(1)),
+		L1BaseFeeScalar:     ptr(uint64(2)),
 		L1BlobBaseFee:       l1BlobBaseFee,
-		L1BlobBaseFeeScalar: ptr(uint64(1)),
+		L1BlobBaseFeeScalar: ptr(uint64(3)),
 		OperatorFeeScalar:   ptr(uint64(operatorScalar)),
 		OperatorFeeConstant: ptr(uint64(operatorConstant)),
 	}
 
 	// The cost AfterIncluded must compute from the receipt: gas + L1 DA fee + Jovian operator
-	// fee. (The L1 term is built from the same Fjord function because it depends on the tx's
-	// FastLZ-compressed size, which isn't practical to hand-pin.)
+	// fee. The tx is below the Fjord 100-byte floor, so its L1 DA fee is
+	// 100e6 * (2*1_000_000*16 + 3*1) / 1e12 = 3200.0003 -> 3200.
 	actualCost := new(big.Int).SetUint64(gasUsed * effectiveGasPrice)
-	raw, err := tx.MarshalBinary()
-	require.NoError(t, err)
-	l1Cost := opfees.L1CostFjord(opfees.NewRollupCostData(raw), opfees.L1FeeParams{
-		L1BaseFee:     l1GasPrice,
-		L1BlobBaseFee: l1BlobBaseFee,
-		BaseFeeScalar: big.NewInt(1),
-		BlobFeeScalar: big.NewInt(1),
-	})
-	actualCost.Add(actualCost, l1Cost)
+	actualCost.Add(actualCost, big.NewInt(3200))
 	actualCost.Add(actualCost, opfees.OperatorCostJovian(gasUsed, operatorScalar, operatorConstant))
 
 	// The budget reserved overReserved wei beyond the actual cost; AfterIncluded must refund
