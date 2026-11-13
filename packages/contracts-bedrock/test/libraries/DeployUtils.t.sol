@@ -13,6 +13,9 @@ import { Bytes } from "src/libraries/Bytes.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
+// Interfaces
+import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
+
 /// @title DeployUtils_TestInit
 /// @notice Reusable test initialization for `DeployUtils` tests.
 abstract contract DeployUtils_TestInit is Test {
@@ -43,7 +46,11 @@ contract DeployUtils_CreateDeterministic_Test is DeployUtils_TestInit {
             vm.etch(expected, hex"00");
         }
 
-        address deployed = DeployUtils.createDeterministic({ _name: "AddressManager", _args: hex"", _salt: salt });
+        address deployed = DeployUtils.createDeterministic({
+            _name: "AddressManager",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IAddressManager.__constructor__, ())),
+            _salt: salt
+        });
 
         assertEq(deployed, expected);
         if (_reuse) {
