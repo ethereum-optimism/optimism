@@ -4,7 +4,9 @@ use backon::{ExponentialBuilder, RetryableWithContext};
 use derive_more::Debug;
 use discv5::{Config, Discv5, Enr, NodeContact};
 use enr::NodeId;
-use kona_peers::{BootNode, BootNodes, BootStore, EnrValidation, peer_id_to_node_id};
+use kona_peers::{
+    BootNode, BootNodes, BootStore, BootStoreError, EnrValidation, peer_id_to_node_id,
+};
 use libp2p::{Multiaddr, multiaddr::Protocol};
 use rand::seq::SliceRandom;
 use std::{net::IpAddr, pin::Pin};
@@ -77,6 +79,29 @@ fn accepts_enode(table_filter: fn(&Enr) -> bool, enode: &Multiaddr) -> Result<bo
     Ok(record
         .build(&enr::CombinedKey::generate_secp256k1())
         .is_ok_and(|record| table_filter(&record)))
+}
+
+/// Saves `store` on a blocking thread, and returns what [`BootStore::sync`] returned, or `None` if
+/// the runtime is shutting down.
+///
+/// A save writes a file and syncs it to disk, which can take a while on a slow disk, so it runs
+/// off the runtime's thread, which runs discv5's and gossip's tasks too. The caller waits for it,
+/// so nothing changes the store meanwhile.
+async fn sync_on_blocking_thread(store: &mut BootStore) -> Option<Result<bool, BootStoreError>> {
+    let mut saving = std::mem::replace(store, BootStore::in_memory());
+    let saved = tokio::task::spawn_blocking(move || {
+        let result = saving.sync();
+        (saving, result)
+    })
+    .await;
+    match saved {
+        Ok((saved, result)) => {
+            *store = saved;
+            Some(result)
+        }
+        Err(err) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
+        Err(_) => None,
+    }
 }
 
 /// Returns how many saved records [`forward_saved`] may hand over now: the room left in the
@@ -614,7 +639,11 @@ impl Discv5Driver {
                         // confirmed. discv5's table also holds records from other nodes' answers
                         // to our lookups, which nothing confirmed, and the bootstore would dial
                         // them at the address in them after a restart.
-                        match store.sync() {
+                        let Some(saved) = sync_on_blocking_thread(&mut store).await else {
+                            debug!(target: "discovery", "The runtime is shutting down, stopping discovery");
+                            return;
+                        };
+                        match saved {
                             Ok(true) => {
                                 let elapsed = start.elapsed();
                                 debug!(target: "discovery", "Bootstore ENRs stored in {:?}", elapsed);
