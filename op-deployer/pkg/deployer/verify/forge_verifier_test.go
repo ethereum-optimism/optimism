@@ -1,8 +1,8 @@
 package verify
 
 import (
+	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,6 +12,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts/bundle"
+	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -24,17 +26,15 @@ out = 'forge-artifacts'
 `
 
 func TestNewForgeVerifier_HTTPLocator(t *testing.T) {
-	testTzstPath := filepath.Join("testdata", "test-with-foundry.toml.tar.zst")
-	f, err := os.Open(testTzstPath)
+	var archive bytes.Buffer
+	zw, err := zstd.NewWriter(&archive)
 	require.NoError(t, err)
-	defer f.Close()
+	require.NoError(t, bundle.Write(zw, writeTestForgeProject(t), nil, ""))
+	require.NoError(t, zw.Close())
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, err := io.Copy(w, f)
-		require.NoError(t, err)
-		_, err = f.Seek(0, 0)
-		require.NoError(t, err)
+		_, _ = w.Write(archive.Bytes())
 	}))
 	defer ts.Close()
 
@@ -68,17 +68,7 @@ func TestNewForgeVerifier_EmbeddedLocator(t *testing.T) {
 func TestNewForgeVerifier_FileLocator(t *testing.T) {
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
-	projectDir := filepath.Join(testCacheDir, "test-project")
-	forgeArtifactsDir := filepath.Join(projectDir, "forge-artifacts")
-	require.NoError(t, os.MkdirAll(forgeArtifactsDir, 0755))
-
-	foundryTomlPath := filepath.Join(projectDir, "foundry.toml")
-	require.NoError(t, os.WriteFile(foundryTomlPath, []byte(testFoundryTomlContent), 0644))
-
-	artifactDir := filepath.Join(forgeArtifactsDir, "Test.sol")
-	require.NoError(t, os.MkdirAll(artifactDir, 0755))
-	artifactFile := filepath.Join(artifactDir, "Test.json")
-	require.NoError(t, os.WriteFile(artifactFile, []byte(`{"abi":[]}`), 0644))
+	projectDir := writeTestForgeProject(t)
 
 	loc, err := artifacts.NewFileLocator(projectDir)
 	require.NoError(t, err)
@@ -89,6 +79,29 @@ func TestNewForgeVerifier_FileLocator(t *testing.T) {
 
 	_, err = createTestForgeVerifier(artifactsFS)
 	require.NoError(t, err, "should successfully initialize forge verifier with file locator")
+}
+
+func TestNewForgeVerifier_RejectsArtifactsOutsideProject(t *testing.T) {
+	artifactsDir := filepath.Join(t.TempDir(), "forge-artifacts")
+	require.NoError(t, os.Mkdir(artifactsDir, 0o755))
+	_, err := createTestForgeVerifier(os.DirFS(artifactsDir).(foundry.StatDirFs))
+	require.ErrorContains(t, err, "not a forge project")
+}
+
+func writeTestForgeProject(t *testing.T) string {
+	t.Helper()
+	project := t.TempDir()
+	for name, content := range map[string]string{
+		"foundry.toml":                       testFoundryTomlContent,
+		bundle.CompileCacheFile:              `{"paths":{"artifacts":"forge-artifacts"},"files":{"src/Test.sol":{}}}`,
+		"src/Test.sol":                       "contract Test {}",
+		"forge-artifacts/Test.sol/Test.json": `{"abi":[]}`,
+	} {
+		path := filepath.Join(project, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	}
+	return project
 }
 
 // createTestForgeVerifier creates a ForgeVerifier with standard test options
