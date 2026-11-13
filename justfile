@@ -459,6 +459,79 @@ update-op-geth:
 build-rust-release:
   cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth
 
+# Go test flags for the proofs-history ExEx acceptance packages; each cell runs a devnet, so keep
+# the parallelism at what the machine can host (about three cores per devnet).
+PROOF_EXEX_GO_FLAGS := env("PROOF_EXEX_GO_FLAGS", "-parallel 2 -timeout 60m")
+
+# Go test flags for the non-ExEx reth-bump acceptance packages, with the same devnet-per-cell cost.
+RETH_BUMP_GO_FLAGS := env("RETH_BUMP_GO_FLAGS", "-parallel 2 -timeout 60m")
+
+# Builds the contract artifacts a local devstack needs: the source tree without tests, plus the
+# MockSP1Verifier the deployer installs on every dev chain, which lives under test/ and so is
+# skipped by build-no-tests.
+
+# Build the contract artifacts a local devstack needs (build-no-tests plus MockSP1Verifier).
+build-devstack-contracts:
+  cd packages/contracts-bedrock && just install && just build-no-tests && forge build test/dispute/zk/MockSP1Verifier.sol
+
+# The proofs-history ExEx coverage, run locally and not wired into CI: the Rust suites of the
+# trie, ExEx, RPC and CLI crates, the acceptance packages, and the proofs e2e suite. The recipe
+# builds the contracts and the release Rust binaries first and skips the kona prestates, which
+# these tests never use. Pick the L2 CL with DEVSTACK_L2CL_KIND (op-node or kona-node). The
+# acceptance step runs whichever proofs_history_* packages exist and is skipped when there are
+# none. Every test step runs even when an earlier one fails; the recipe fails at the end and names
+# the failed steps. Expect about 25 minutes after a warm build.
+
+# Run the proofs-history ExEx test coverage (Rust suites, acceptance packages, proofs e2e suite).
+[script('bash')]
+test-proof-exex:
+  set -euo pipefail
+  echo "Building the contracts and the release Rust binaries"
+  just build-devstack-contracts
+  just build-rust-release
+  set +e
+  failed=""
+  echo "Rust: proofs-history ExEx crates"
+  (cd rust && cargo nextest run --no-fail-fast -p reth-optimism-trie -p reth-optimism-exex -p reth-optimism-rpc -p reth-optimism-cli --all-features) || failed="$failed rust"
+  packages=(./op-acceptance-tests/tests/proofs_history_*/)
+  if [ -d "${packages[0]}" ]; then
+    echo "Acceptance: ${#packages[@]} proofs-history packages ({{PROOF_EXEX_GO_FLAGS}})"
+    go test -count=1 {{PROOF_EXEX_GO_FLAGS}} "${packages[@]}" || failed="$failed acceptance"
+  else
+    echo "Acceptance: no proofs_history_* packages in op-acceptance-tests/tests, skipping"
+  fi
+  echo "Proofs e2e suite (rust/op-reth/tests/proofs/core)"
+  (cd rust/op-reth/tests && just test-e2e-sysgo) || failed="$failed e2e"
+  if [ -n "$failed" ]; then
+    echo "test-proof-exex: failed steps:$failed" >&2
+    exit 1
+  fi
+  echo "test-proof-exex: all steps passed"
+
+# The reth-bump coverage outside the proofs-history ExEx, run locally and not wired into CI: the
+# acceptance packages for a sequencer op-reth crash, the sequencer's block schedule and the
+# withdrawals root across persistence runs, stale forkchoice updates, op-reth/op-geth peering, the
+# txpool minimum priority fee and an upgrade with rollback over a live datadir. Builds the same
+# dependencies as test-proof-exex; pick the L2 CL with DEVSTACK_L2CL_KIND. Runs whichever
+# op_reth_* packages exist and does nothing when there are none. Expect about 20 minutes after a
+# warm build.
+
+# Run the non-ExEx reth-bump acceptance coverage.
+[script('bash')]
+test-reth-bump:
+  set -euo pipefail
+  echo "Building the contracts and the release Rust binaries"
+  just build-devstack-contracts
+  just build-rust-release
+  packages=(./op-acceptance-tests/tests/op_reth_*/)
+  if [ ! -d "${packages[0]}" ]; then
+    echo "test-reth-bump: no op_reth_* packages in op-acceptance-tests/tests, nothing to run"
+    exit 0
+  fi
+  echo "Acceptance: ${#packages[@]} reth-bump packages ({{RETH_BUMP_GO_FLAGS}})"
+  go test -count=1 {{RETH_BUMP_GO_FLAGS}} "${packages[@]}"
+  echo "test-reth-bump: all packages passed"
+
 # Checks that locked NUT bundles have not been modified.
 check-nut-locks:
   go run ./ops/scripts/check-nut-locks
