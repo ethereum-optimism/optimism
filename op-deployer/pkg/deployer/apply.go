@@ -376,19 +376,17 @@ func ApplyPipeline(
 			})
 		}
 
-		// Preinstallation wipes the deployer after all deployments. Apply explicit prefunds
-		// afterwards so they survive cleanup without retaining the deployment nonce.
-		pline = append(pline, pipelineStage{
-			"preinstall-l1-dev-genesis",
-			func() error {
-				return pipeline.PreinstallL1DevGenesis(pEnv, intent, st)
-			},
-		})
-
 		pline = append(pline, pipelineStage{
 			"prefund-l1-dev-genesis",
 			func() error {
 				return pipeline.PrefundL1DevGenesis(pEnv, intent, st)
+			},
+		})
+
+		pline = append(pline, pipelineStage{
+			"preinstall-l1-dev-genesis",
+			func() error {
+				return pipeline.PreinstallL1DevGenesis(pEnv, intent, st)
 			},
 		})
 

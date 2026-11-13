@@ -37,13 +37,14 @@ supported CLI arg.
 
 <Unreleased component="op-deployer" />
 
-For the `genesis` target, `l1DevGenesisParams.prefund` sets L1 account balances in wei, including an explicitly
-prefunded deployer. Funding is applied after deployment cleanup, so the deployer's nonce is zero and its account
-is absent unless explicitly funded with a nonzero balance.
+For the `genesis` target, `l1DevGenesisParams.prefund` sets L1 account balances in wei, including the deployer's.
+A deployer with a nonzero prefund keeps the nonce that its deployments into the genesis reached, so its next contract
+creation on the L1 doesn't collide with a contract it deployed there. A deployer without one has no account in the
+genesis: if you fund it later instead, it starts at nonce zero, and its first contract creations collide.
 
-Earlier versions discarded the deployer's explicit L1 prefund. Regenerate affected dev-genesis files and derived
-rollup configurations when adopting this fix: the restored balance changes the L1 genesis state root and hash.
-Live deployments are unaffected.
+Earlier versions discarded the deployer's L1 prefund. If your intent prefunds the deployer, regenerate the
+dev-genesis files and the rollup configurations derived from them: the deployer's balance and nonce change the L1
+genesis state root and hash. Live deployments are unaffected.
 
 ### `--deploy-mock-sp1-verifier`
 

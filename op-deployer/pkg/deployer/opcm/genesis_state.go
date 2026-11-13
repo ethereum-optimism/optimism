@@ -44,12 +44,11 @@ func NewGenesisState(sender common.Address, chainID uint64, noCodeSizeLimit bool
 	}
 }
 
-// SetBalance sets the balance of an account, dropping it if it becomes empty.
+// SetBalance sets the balance of an account.
 func (g *GenesisState) SetBalance(addr common.Address, balance *big.Int) {
 	acc := g.account(addr)
 	acc.Balance = new(big.Int).Set(balance)
 	g.Allocs.Accounts[addr] = acc
-	g.normalize()
 }
 
 // Wipe removes the code, nonce and balance of an account.

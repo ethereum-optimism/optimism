@@ -139,7 +139,6 @@ func (s *interopE2ESystem) worldIntent(w WorldConfig) *state.Intent {
 	superCfg.WithProxyAdminOwner(proxyAdminOwner).
 		WithGuardian(l1Addr(devkeys.SuperchainConfigGuardianKey)).
 		WithChallenger(l1Addr(devkeys.ChallengerRole))
-	// Not the deployer: op-deployer wipes it from the genesis.
 	for _, role := range []devkeys.Role{
 		devkeys.SuperchainProxyAdminOwner,
 		devkeys.SuperchainConfigGuardianKey,
