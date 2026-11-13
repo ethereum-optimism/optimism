@@ -410,6 +410,24 @@ mod tests {
         assert_eq!(read, before, "a save wrote over the file a reader had open");
     }
 
+    /// A saved bootstore is readable by other users, such as a sidecar or an operator's tools
+    /// running under another user, as a file the node writes directly would be: the records it
+    /// holds are public.
+    #[cfg(unix)]
+    #[test]
+    fn test_saved_file_is_readable_by_others() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bootstore.json");
+        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        store.add_enr(record());
+        store.sync().unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o644, "the saved bootstore has mode {mode:o}");
+    }
+
     /// A save writes the file only if the store changed since it was opened or last saved, so
     /// that a node doesn't rewrite its bootstore every store interval for nothing. A save that
     /// writes replaces the file, which then has a new inode.
