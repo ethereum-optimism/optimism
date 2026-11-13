@@ -389,6 +389,35 @@ mod tests {
         assert_eq!(read, before, "a save wrote over the file a reader had open");
     }
 
+    /// A save writes the file only if the store changed since it was opened or last saved, so
+    /// that a node doesn't rewrite its bootstore every store interval for nothing. A save that
+    /// writes replaces the file, which then has a new inode.
+    #[cfg(unix)]
+    #[test]
+    fn test_save_without_changes_leaves_the_file() {
+        use std::os::unix::fs::MetadataExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bootstore.json");
+        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        store.add_enr(record());
+        store.sync().unwrap();
+        let inode = || std::fs::metadata(&path).unwrap().ino();
+
+        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        let opened = inode();
+        store.sync().unwrap();
+        assert_eq!(inode(), opened, "a save rewrote the file it had just opened");
+
+        store.add_enr(record());
+        store.sync().unwrap();
+        let changed = inode();
+        assert_ne!(changed, opened, "a save didn't write a change");
+
+        store.sync().unwrap();
+        assert_eq!(inode(), changed, "a save rewrote the file it had just saved");
+    }
+
     /// A reader never sees the file empty or cut off while the store saves it, as can happen when
     /// the store truncates the file before it writes it: an operator's tools, or the node's own
     /// tests, may read it while the node runs. The gap is short, so this test may miss it, unlike
