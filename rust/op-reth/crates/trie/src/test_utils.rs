@@ -400,36 +400,33 @@ pub(crate) fn build_chain_with_partial_state_trie(
     (target, num_blocks, last_hash)
 }
 
-/// Fixtures for `HashedPostStateProvider` tests over the proofs storage: persisted storage
-/// seeding, bundles with destroyed accounts, and a provider whose storage reads fail.
-pub(crate) mod destroyed_accounts {
+/// Helpers over a bare proofs store: seeding it, storing blocks, shaping plain slots and storage
+/// as the store keys them, and reading it through the proofs state provider.
+pub(crate) mod proofs_store {
     use crate::{
-        OpProofsStorageError, OpProofsStorageResult,
         api::{
-            BlockStateDiff, OpProofsInitProvider, OpProofsProviderRO, OpProofsStore,
-            ProofWindowRange,
+            BlockStateDiff, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
+            OpProofsStore,
         },
-        in_memory::{
-            InMemoryAccountCursor, InMemoryProofsProvider, InMemoryProofsStorage,
-            InMemoryTrieCursor,
-        },
+        engine::buffer::{overlay::MemoryOverlayOpProofsStateProviderRef, state::TrieBufferState},
+        provider::OpProofsStateProviderRef,
     };
-    use alloy_eips::{BlockNumHash, NumHash};
+    use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
     use alloy_primitives::{Address, B256, U256, keccak256};
-    use reth_db::DatabaseError;
-    use reth_provider::{ProviderError, ProviderResult};
-    use reth_revm::{
-        db::{AccountStatus, BundleAccount, BundleState, states::StorageSlot},
-        state::AccountInfo,
-    };
-    use reth_trie::{
-        HashedPostState, HashedStorage,
-        hashed_cursor::{HashedCursor, HashedStorageCursor},
-    };
+    use reth_provider::noop::NoopProvider;
+    use reth_trie::{HashedPostState, HashedStorage};
+
+    /// Anchor of the initial state [`seed_initial_storage`] commits.
+    pub(crate) const INITIAL_ANCHOR: BlockNumHash = BlockNumHash::new(0, B256::ZERO);
+
+    /// Storage key of the plain slot `slot`.
+    pub(crate) fn plain_slot(slot: u64) -> B256 {
+        B256::from(U256::from(slot))
+    }
 
     /// Hashed storage key of the plain slot `slot`.
     pub(crate) fn hashed_slot(slot: u64) -> B256 {
-        keccak256(B256::from(U256::from(slot)))
+        keccak256(plain_slot(slot))
     }
 
     /// Non-wiped [`HashedStorage`] holding the plain `(slot, value)` pairs.
@@ -439,7 +436,16 @@ pub(crate) mod destroyed_accounts {
         )
     }
 
-    /// Commits `storages` as the initial state of `store`, anchored at block 0.
+    /// Block diff writing the plain `(slot, value)` storage of each address.
+    pub(crate) fn storage_diff(storages: &[(Address, &[(u64, u64)])]) -> BlockStateDiff {
+        let mut post_state = HashedPostState::default();
+        for (address, slots) in storages {
+            post_state.storages.insert(keccak256(address), hashed_storage(slots));
+        }
+        BlockStateDiff { sorted_post_state: post_state.into_sorted(), ..Default::default() }
+    }
+
+    /// Commits `storages` as the initial state of `store`, anchored at [`INITIAL_ANCHOR`].
     pub(crate) fn seed_initial_storage<S: OpProofsStore>(
         store: &S,
         storages: &[(Address, &[(u64, u64)])],
@@ -451,19 +457,67 @@ pub(crate) mod destroyed_accounts {
             slots.sort_unstable();
             provider.store_hashed_storages(keccak256(address), slots).unwrap();
         }
-        provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).unwrap();
+        provider.set_initial_state_anchor(INITIAL_ANCHOR).unwrap();
         provider.commit_initial_state().unwrap();
         OpProofsInitProvider::commit(provider).unwrap();
     }
 
-    /// Block diff writing the plain `(slot, value)` storage of each address.
-    pub(crate) fn storage_diff(storages: &[(Address, &[(u64, u64)])]) -> BlockStateDiff {
-        let mut post_state = HashedPostState::default();
-        for (address, slots) in storages {
-            post_state.storages.insert(keccak256(address), hashed_storage(slots));
-        }
-        BlockStateDiff { sorted_post_state: post_state.into_sorted(), ..Default::default() }
+    /// Stores `diff` as `block` in `store` and commits it.
+    pub(crate) fn store_block<S: OpProofsStore>(
+        store: &S,
+        block: BlockWithParent,
+        diff: BlockStateDiff,
+    ) {
+        let provider = store.provider_rw().expect("provider rw");
+        provider.store_trie_updates(block, diff).expect("store trie updates");
+        OpProofsProviderRw::commit(provider).expect("commit");
     }
+
+    /// Proofs state provider reading `provider` at `block_number`, with no reth state behind it.
+    pub(crate) fn state_provider<P>(
+        provider: P,
+        block_number: u64,
+    ) -> OpProofsStateProviderRef<'static, P> {
+        OpProofsStateProviderRef::new(Box::new(NoopProvider::default()), provider, block_number)
+    }
+
+    /// Overlay state provider over `inner` at the tip of a fresh engine buffer holding `blocks`.
+    pub(crate) fn buffered_state_provider<'a, P: OpProofsProviderRO + Clone>(
+        inner: OpProofsStateProviderRef<'a, P>,
+        blocks: impl IntoIterator<Item = (BlockWithParent, BlockStateDiff)>,
+    ) -> MemoryOverlayOpProofsStateProviderRef<'a, P> {
+        let buffer = TrieBufferState::new();
+        for (block, diff) in blocks {
+            buffer.insert(block, diff);
+        }
+        let tip = buffer.tip().expect("a buffered block");
+        buffer.state_provider(tip.hash, inner)
+    }
+}
+
+/// Fixtures for `HashedPostStateProvider` tests over the proofs storage: bundles with destroyed
+/// accounts and a provider whose storage reads fail.
+pub(crate) mod destroyed_accounts {
+    use crate::{
+        OpProofsStorageError, OpProofsStorageResult,
+        api::{BlockStateDiff, OpProofsProviderRO, OpProofsStore, ProofWindowRange},
+        in_memory::{
+            InMemoryAccountCursor, InMemoryProofsProvider, InMemoryProofsStorage,
+            InMemoryTrieCursor,
+        },
+    };
+    use alloy_eips::NumHash;
+    use alloy_primitives::{Address, B256, U256};
+    use reth_db::DatabaseError;
+    use reth_provider::{ProviderError, ProviderResult};
+    use reth_revm::{
+        db::{AccountStatus, BundleAccount, BundleState, states::StorageSlot},
+        state::AccountInfo,
+    };
+    use reth_trie::{
+        HashedPostState,
+        hashed_cursor::{HashedCursor, HashedStorageCursor},
+    };
 
     /// Bundle holding `accounts`.
     pub(crate) fn bundle(

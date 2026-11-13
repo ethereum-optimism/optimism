@@ -110,7 +110,7 @@ impl TrieBufferState {
     }
 
     /// Insert a block into the buffer.
-    pub(in crate::engine) fn insert(&self, block: BlockWithParent, diff: BlockStateDiff) {
+    pub(crate) fn insert(&self, block: BlockWithParent, diff: BlockStateDiff) {
         self.inner.insert(block, diff);
     }
 
@@ -135,7 +135,7 @@ impl TrieBufferState {
     }
 
     /// Returns the highest buffered block as a [`NumHash`], or `None` if the buffer is empty.
-    pub(in crate::engine) fn tip(&self) -> Option<NumHash> {
+    pub(crate) fn tip(&self) -> Option<NumHash> {
         let numbers = self.inner.numbers.read();
         numbers.iter().next_back().map(|(&num, &hash)| NumHash::new(num, hash))
     }

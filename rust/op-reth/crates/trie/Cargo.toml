@@ -70,6 +70,7 @@ reth-trie = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-node-api.workspace = true
 alloy-consensus.workspace = true
+alloy-rlp.workspace = true
 alloy-genesis.workspace = true
 reth-chainspec.workspace = true
 reth-db-common.workspace = true
@@ -78,6 +79,7 @@ reth-evm-ethereum.workspace = true
 reth-storage-errors.workspace = true
 secp256k1 = { workspace = true, features = ["rand", "std"] }
 mockall.workspace = true
+rstest.workspace = true
 eyre.workspace = true
 
 # misc

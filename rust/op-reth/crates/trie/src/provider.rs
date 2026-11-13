@@ -297,12 +297,11 @@ mod tests {
             create_storage,
             destroyed_accounts::{
                 FailingStorageProvider, StorageFailure, assert_injected_error, bundle,
-                created_and_destroyed, destroyed, destroyed_and_recreated, hashed_storage,
-                seed_initial_storage,
+                created_and_destroyed, destroyed, destroyed_and_recreated,
             },
+            proofs_store::{hashed_storage, seed_initial_storage, state_provider},
         },
     };
-    use reth_provider::noop::NoopProvider;
 
     const DESTROYED: Address = Address::repeat_byte(0x01);
     const DESTROYED_TOO: Address = Address::repeat_byte(0x02);
@@ -312,8 +311,7 @@ mod tests {
         provider: P,
         bundle: &BundleState,
     ) -> ProviderResult<HashedPostState> {
-        OpProofsStateProviderRef::new(Box::new(NoopProvider::default()), provider, 0)
-            .hashed_post_state(bundle)
+        state_provider(provider, 0).hashed_post_state(bundle)
     }
 
     /// Persisted slots of pre-existing destroyed accounts come back as explicit zeros, for every
@@ -395,6 +393,8 @@ mod tests {
     #[cfg(not(feature = "metrics"))]
     #[test]
     fn test_op_proofs_state_provider_ref_debug() {
+        use reth_provider::noop::NoopProvider;
+
         let latest: Box<dyn StateProvider + Send> = Box::new(NoopProvider::default());
         let storage: crate::OpProofsStorage<InMemoryProofsStorage> = InMemoryProofsStorage::new();
         // Create a provider from the store (in memory storage implements OpProofsStore)
