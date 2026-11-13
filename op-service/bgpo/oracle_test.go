@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -85,7 +84,7 @@ func createBlock(blockNum uint64, baseFee *big.Int, txs []*types.Transaction) *t
 		BaseFee: baseFee,
 		Time:    uint64(time.Now().Unix()),
 	}
-	return types.NewBlock(header, &types.Body{Transactions: txs}, nil, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+	return types.NewBlockWithHeader(header).WithBody(types.Body{Transactions: txs})
 }
 
 func TestNewBlobGasPriceOracle(t *testing.T) {

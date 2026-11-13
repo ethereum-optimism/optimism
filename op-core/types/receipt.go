@@ -8,6 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+// CanyonDepositReceiptVersion is the DepositReceiptVersion of deposit receipts from Canyon on.
+const CanyonDepositReceiptVersion = uint64(1)
+
 // Receipt extends go-ethereum's receipt with the OP Stack fields that L2
 // endpoints include in eth_getTransactionReceipt responses. The full op-geth
 // field set is carried — not just the fields the monorepo services read — so

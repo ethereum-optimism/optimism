@@ -29,7 +29,7 @@ test-external NAME: pre-test
 
 # Run workspace tests
 test-ws: pre-test
-    {{_go_test}} {{_go_test_flags}} ./system/... ./e2eutils/... ./opgeth/... ./interop/...
+    {{_go_test}} {{_go_test_flags}} ./system/... ./e2eutils/... ./interop/...
 
 # Run action tests. They spawn op-reth-test-engine: unless RUST_BINARY_PATH_OP_RETH_TEST_ENGINE
 # names a prebuilt binary, build it in release mode and point the tests at it (honouring the cargo
@@ -46,7 +46,7 @@ test-actions: pre-test
 
 # Run tests over HTTP
 test-http: pre-test
-    OP_E2E_USE_HTTP=true {{_go_test}} {{_go_test_flags}} ./system/... ./e2eutils/... ./opgeth/... ./interop/...
+    OP_E2E_USE_HTTP=true {{_go_test}} {{_go_test_flags}} ./system/... ./e2eutils/... ./interop/...
 
 # Run cannon tests
 test-cannon: pre-test
@@ -62,11 +62,6 @@ pre-test:
 # Clean build artifacts
 clean:
     rm -rf ../.devnet
-
-# Run fuzz tests. `-parallel=1` keeps one fuzz worker per target so the concurrent
-# `parallel` doesn't oversubscribe the CPU.
-fuzz:
-    parallel --line-buffer --tag -N1 "go test -run NOTAREALTEST -parallel=1 -tags cgo_test -v -fuzztime 10s -fuzz {} ./opgeth" ::: FuzzFjordCostFunction FuzzFastLzGethSolidity FuzzFastLzCgo
 
 # Generate contract bindings
 gen-binding CONTRACT:
