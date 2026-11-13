@@ -2241,7 +2241,7 @@ jobs:
       - run:
           name: Memory summary
           when: always
-          command: grep -H . /sys/fs/cgroup/memory.{max,peak,events,pressure} || true
+          command: grep -H . /sys/fs/cgroup/memory.{max,peak,events,pressure} /sys/fs/cgroup/pids.{max,peak} || true
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2757,9 +2757,11 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # Both run on the job's default 2xlarge.gen2 (16 vCPU / 32 GiB). op-node's peak RAM matches
-      # kona's: under 22 GiB in 99% of runs from September to November. If the Memory summary
-      # step shows OOM kills, give op-node resource_class: 2xlarge+.gen2 (20 vCPU / 40 GiB).
+      # Both run on the job's default 2xlarge.gen2 (16 vCPU / 32 GiB). The tests mostly wait on
+      # blocks, so 4 nodes running 16 at once take as long as 8 nodes running 8. At 16, anonymous
+      # memory peaked at about 11.4 GiB of 32 per node (Nov 2026 bench). memory.peak reads 32 GiB
+      # from page cache, which is fine without OOM kills. If the Memory summary step shows OOM
+      # kills, give op-node resource_class: 2xlarge+.gen2 (20 vCPU / 40 GiB).
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests: &memory_all_opn
           name: memory-all-opn-op-reth-<<matrix.l1_fork>>
@@ -2769,8 +2771,8 @@ workflows:
               l1_fork: &acceptance_l1_forks
                 - fusaka
           l2_el_kind: op-reth
-          parallelism: 8
-          acceptance_test_jobs: "8"
+          parallelism: 4
+          acceptance_test_jobs: "16"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2795,8 +2797,8 @@ workflows:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
-          parallelism: 8
-          acceptance_test_jobs: "8"
+          parallelism: 4
+          acceptance_test_jobs: "16"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
