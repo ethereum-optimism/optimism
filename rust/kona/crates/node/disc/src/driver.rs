@@ -4,9 +4,7 @@ use backon::{ExponentialBuilder, RetryableWithContext};
 use derive_more::Debug;
 use discv5::{Config, Discv5, Enr, NodeContact};
 use enr::NodeId;
-use kona_peers::{
-    BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, peer_id_to_node_id,
-};
+use kona_peers::{BootNode, BootNodes, BootStore, EnrValidation, peer_id_to_node_id};
 use libp2p::{Multiaddr, multiaddr::Protocol};
 use std::{net::IpAddr, pin::Pin};
 use tokio::{
@@ -126,8 +124,9 @@ pub struct Discv5Driver {
     /// here before then closes at that point.
     #[debug(skip)]
     pub disc: Discv5,
-    /// The optional [`BootStoreFile`] to use for the bootstore.
-    pub bootstore: Option<BootStoreFile>,
+    /// The bootstore, which saves the bootnodes and the records a session confirmed, so that
+    /// the node can dial them again after a restart.
+    pub bootstore: BootStore,
     /// Bootnodes used to bootstrap the discovery service.
     pub bootnodes: BootNodes,
     /// The chain ID of the network.
@@ -167,7 +166,7 @@ impl Discv5Driver {
         table_filter: fn(&Enr) -> bool,
         interval: Duration,
         chain_id: u64,
-        bootstore: Option<BootStoreFile>,
+        bootstore: BootStore,
         bootnodes: BootNodes,
     ) -> Result<Self, std::io::Error> {
         Ok(Self {
@@ -270,18 +269,14 @@ impl Discv5Driver {
         Some(RecordToDial { event: kind, enr, save })
     }
 
-    /// Bootstraps the [`Discv5`] table with bootnodes.
+    /// Bootstraps the [`Discv5`] table with bootnodes, and adds those of our chain to `store`.
     async fn bootstrap_peers(
-        bootstore: Option<BootStoreFile>,
+        store: &mut BootStore,
         bootnodes: BootNodes,
         chain_id: u64,
         table_filter: fn(&Enr) -> bool,
         disc: &Discv5,
-    ) -> BootStore {
-        // Note: if the bootstore file cannot be created, we use a default bootstore.
-        let mut store = bootstore
-            .map_or_else(BootStore::default, |bootstore| bootstore.try_into().unwrap_or_default());
-
+    ) {
         let initial_store_length = store.len();
 
         for bn in bootnodes.0.into_iter().chain(BootNodes::from_chain_id(chain_id).0) {
@@ -343,8 +338,6 @@ impl Discv5Driver {
             total=%new_store_len,
             "Added new ENRs to discv5 bootstore"
         );
-
-        store
     }
 
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
@@ -460,14 +453,9 @@ impl Discv5Driver {
             };
 
             // Step 3: Bootstrap the discovery table with bootnodes.
-            let mut store = Self::bootstrap_peers(
-                self.bootstore,
-                self.bootnodes,
-                chain_id,
-                table_filter,
-                &self.disc,
-            )
-            .await;
+            let mut store = self.bootstore;
+            Self::bootstrap_peers(&mut store, self.bootnodes, chain_id, table_filter, &self.disc)
+                .await;
 
             let enrs = self.disc.table_entries_enr();
             info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());

@@ -5,6 +5,7 @@ use crate::test_utils::{enr_at, localhost_enr};
 use discv5::{ConfigBuilder, ListenConfig};
 use enr::CombinedKey;
 use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
+use kona_peers::{BootStoreError, BootStoreFile};
 use tempfile::tempdir;
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -67,35 +68,31 @@ fn driver_with_bootstore(
     records: &[Enr],
 ) -> (Discv5Driver, tempfile::TempDir) {
     let dir = tempdir().unwrap();
-    let path = dir.path().join("bootstore.json");
-    let mut store: BootStore =
-        BootStoreFile::Custom(path.clone()).try_into().expect("the bootstore opens");
+    let (mut store, _) =
+        BootStore::open(dir.path().join("bootstore.json")).expect("the bootstore opens");
     for record in records {
         store.add_enr(record.clone());
     }
-    store.sync().expect("the bootstore saves");
-    drop(store);
 
     let mut driver = loopback_driver(loopback_config().table_filter(table_filter).build());
-    driver.bootstore = Some(BootStoreFile::Custom(path));
+    driver.bootstore = store;
     (driver, dir)
 }
 
 /// Reads the bootstore at `path` until `done` holds for the file's modification time, taken
 /// before the read, and the records it holds, and returns those, or `None` after 5s. The driver
-/// truncates the file before it writes it, so a read can come back empty: `done` should
-/// require a record the driver keeps.
+/// truncates the file before it writes it, so a read can come back empty, or cut off, which
+/// fails to parse and is read again: `done` should require a record the driver keeps.
 async fn wait_for_saved(
     path: &std::path::Path,
     done: impl Fn(std::time::SystemTime, &[Enr]) -> bool,
 ) -> Option<Vec<Enr>> {
     let poll = async {
         loop {
-            if let Ok(modified) = std::fs::metadata(path).and_then(|meta| meta.modified()) {
-                let store: BootStore = BootStoreFile::Custom(path.to_path_buf())
-                    .try_into()
-                    .expect("the bootstore opens");
-                let saved = store.valid_peers().into_iter().cloned().collect::<Vec<_>>();
+            if let Ok(modified) = std::fs::metadata(path).and_then(|meta| meta.modified()) &&
+                let Ok((store, _)) = BootStore::open(path.to_path_buf())
+            {
+                let saved = store.iter().cloned().collect::<Vec<_>>();
                 if done(modified, &saved) {
                     return saved;
                 }

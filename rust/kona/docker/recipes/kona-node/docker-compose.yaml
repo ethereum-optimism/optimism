@@ -86,7 +86,7 @@ services:
       --rpc.port 5060
       --p2p.listen.tcp 9223
       --p2p.listen.udp 9223
-      --p2p.bootstore /db
+      --p2p.bootstore /db/bootstore.json
 
 volumes:
   prometheus_data:

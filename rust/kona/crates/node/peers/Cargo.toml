@@ -50,6 +50,7 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 discv5 = { workspace = true, features = ["libp2p"] }
 arbtest.workspace = true
 tempfile.workspace = true
+rstest.workspace = true
 multihash.workspace = true
 serde_json.workspace = true
 

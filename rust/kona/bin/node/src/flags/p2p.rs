@@ -253,7 +253,9 @@ pub struct P2PArgs {
     /// node on a public network can't reach other hosts' private addresses, so leave it off there.
     #[arg(long = "p2p.discovery.private", env = "KONA_NODE_P2P_DISCOVERY_PRIVATE")]
     pub discovery_private: bool,
-    /// The directory to store the bootstore.
+    /// The bootstore file, which saves peers' records so that the node can dial them again after
+    /// a restart. Its directory is created if missing. The node doesn't start if the file can't be
+    /// opened, or isn't a JSON list of records. Defaults to `~/.kona/<chain_id>/bootstore.json`.
     #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
     pub bootstore: Option<PathBuf>,
     /// Disables the bootstore.

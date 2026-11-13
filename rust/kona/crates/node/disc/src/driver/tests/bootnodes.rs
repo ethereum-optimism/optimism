@@ -39,7 +39,7 @@ async fn test_public_only_node_drops_loopback_enode_bootnode() {
         .expect("the node starts");
 
     Discv5Driver::bootstrap_peers(
-        None,
+        &mut BootStore::in_memory(),
         BootNodes(vec![BootNode::Enode(enode)]),
         node.chain_id,
         node.table_filter,
@@ -83,8 +83,9 @@ async fn test_bootnode_for_another_chain_is_in_the_table(
     node.chain_id = bootnode.chain_id + 1;
     let node = node.init().await.expect("the node starts");
 
-    let store = Discv5Driver::bootstrap_peers(
-        None,
+    let mut store = BootStore::in_memory();
+    Discv5Driver::bootstrap_peers(
+        &mut store,
         BootNodes(vec![bootnode_as(&bootnode_enr)]),
         node.chain_id,
         node.table_filter,
@@ -131,8 +132,9 @@ async fn test_enode_bootnode_with_a_record_the_filter_rejects_is_dropped() {
 
     let (node, _dir) = driver_with_bootstore(ipv4_loopback_only, &[]);
     let node = node.init().await.expect("the node starts");
-    let store = Discv5Driver::bootstrap_peers(
-        None,
+    let mut store = BootStore::in_memory();
+    Discv5Driver::bootstrap_peers(
+        &mut store,
         BootNodes(vec![BootNode::Enode(loopback_enode(&record))]),
         node.chain_id,
         node.table_filter,
@@ -149,11 +151,6 @@ async fn test_enode_bootnode_with_a_record_the_filter_rejects_is_dropped() {
 
 #[tokio::test]
 async fn test_online_discv5_driver_bootstrap_testnet() {
-    // Use a test file to make sure bootstore
-    // doesn't conflict with a local bootstore.
-    let file = tempdir().unwrap();
-    let file = file.path().join("bootstore.json");
-
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
     let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
         unreachable!()
@@ -165,14 +162,12 @@ async fn test_online_discv5_driver_bootstrap_testnet() {
     )
     .build()
     .expect("Failed to build discovery service");
-    discovery.bootstore = Some(BootStoreFile::Custom(file));
-
     discovery = discovery.init().await.expect("Failed to initialize discovery service");
 
     // There are no ENRs for `OP_SEPOLIA_CHAIN_ID` in the bootstore.
     // If an ENR is added, this check will fail.
     Discv5Driver::bootstrap_peers(
-        discovery.bootstore,
+        &mut discovery.bootstore,
         discovery.bootnodes,
         OP_SEPOLIA_CHAIN_ID,
         discovery.table_filter,
@@ -221,11 +216,6 @@ async fn test_online_discv5_driver_bootstrap_testnet() {
 async fn test_online_discv5_driver_bootstrap_mainnet() {
     kona_cli::init_test_tracing();
 
-    // Use a test file to make sure bootstore
-    // doesn't conflict with a local bootstore.
-    let file = tempdir().unwrap();
-    let file = file.path().join("bootstore.json");
-
     // Every bootnode goes into the table, those of other chains too.
     let mainnet: Vec<CombinedPublicKey> = BootNodes::mainnet()
         .iter()
@@ -251,14 +241,12 @@ async fn test_online_discv5_driver_bootstrap_mainnet() {
     )
     .build()
     .expect("Failed to build discovery service");
-    discovery.bootstore = Some(BootStoreFile::Custom(file));
-
     discovery = discovery.init().await.expect("Failed to initialize discovery service");
 
     // There are no ENRs for op mainnet in the bootstore.
     // If an ENR is added, this check will fail.
     Discv5Driver::bootstrap_peers(
-        discovery.bootstore,
+        &mut discovery.bootstore,
         discovery.bootnodes,
         OP_MAINNET_CHAIN_ID,
         discovery.table_filter,

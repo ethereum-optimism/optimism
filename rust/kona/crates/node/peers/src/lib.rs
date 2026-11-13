@@ -19,7 +19,7 @@ mod nodes;
 pub use nodes::{BootNodes, OP_RAW_BOOTNODES, OP_RAW_TESTNET_BOOTNODES};
 
 mod store;
-pub use store::{BootStore, BootStoreFile};
+pub use store::{BootStore, BootStoreError, BootStoreFile};
 
 mod score;
 pub use score::PeerScoreLevel;

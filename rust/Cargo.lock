@@ -7730,6 +7730,7 @@ dependencies = [
  "libp2p",
  "libp2p-identity 0.3.0",
  "multihash",
+ "rstest",
  "secp256k1 0.31.1",
  "serde",
  "serde_json",

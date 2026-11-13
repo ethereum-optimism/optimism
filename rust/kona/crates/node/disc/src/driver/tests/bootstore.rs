@@ -126,5 +126,9 @@ async fn test_bootstore_that_cannot_be_opened_fails_the_build() {
         .with_bootstore_file(Some(BootStoreFile::Custom(dir.path().to_path_buf())))
         .build();
 
-    result.expect_err("the driver built with a bootstore it can't open");
+    let err = result.expect_err("the driver built with a bootstore it can't open");
+    assert!(
+        matches!(err, crate::Discv5BuilderError::Bootstore(BootStoreError::Open { .. })),
+        "{err}"
+    );
 }
