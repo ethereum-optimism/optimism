@@ -10,11 +10,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -185,6 +186,7 @@ func buildIngester(t *testing.T, spec seedSpec, ethClient EthClient, m metrics.M
 	rollupCfg.ActivateAtGenesis(forks.Lagoon)
 	return &LogsDBChainIngester{
 		log:              testlog.Logger(t, log.LevelError),
+		clock:            clock.SystemClock,
 		metrics:          m,
 		chainID:          eth.ChainIDFromUInt64(spec.ChainID),
 		ethClient:        ethClient,
@@ -258,7 +260,7 @@ func buildExecMsgLog(index uint, em seedExecMsg) *gethTypes.Log {
 		payloadHash = common.Hash{0xee, byte(index), byte(em.TargetBlock)}
 	}
 	return &gethTypes.Log{
-		Address: params.InteropCrossL2InboxAddress,
+		Address: predeploys.CrossL2InboxAddr,
 		Topics: []common.Hash{
 			messages.ExecutingMessageEventTopic,
 			payloadHash,

@@ -42,7 +42,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	ethPrivKey := cfg.Secrets.Alice
 
 	// Submit TX to L2 sequencer node
-	receipt := helpers.SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *helpers.TxOpts) {
+	receipt := helpers.SendL2Tx(t, cfg, sys.NodeSourceClient("sequencer"), ethPrivKey, func(opts *helpers.TxOpts) {
 		opts.ToAddr = &common.Address{0xff, 0xff}
 		opts.Value = big.NewInt(1_000_000_000)
 	})
@@ -63,7 +63,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	// Assert that the reconciliation process did an L2 reorg on the sequencer to remove the invalid block
 	ctx2, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	block, err := l2Seq.BlockByNumber(ctx2, receipt.BlockNumber)
+	block, err := l2Seq.HeaderByNumber(ctx2, receipt.BlockNumber)
 	if err != nil {
 		require.Equal(t, "not found", err.Error(), "A not found error indicates the chain must have re-orged back before it")
 	} else {

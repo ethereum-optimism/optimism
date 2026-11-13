@@ -1,5 +1,6 @@
 use super::*;
 use crate::post_exec::{NullRefundPolicy, RevertToCheckpointError};
+use op_revm::constants::OPERATOR_FEE_RECIPIENT;
 
 fn recovered_post_exec(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<OpTxEnvelope> {
     Recovered::new_unchecked(
@@ -182,6 +183,89 @@ fn canonicalized_result_gas_applies_refund_exactly_once() {
     let canonical_gas_used = output.canonical_gas_used;
     executor.commit_transaction(output);
     assert_eq!(executor.gas_used, canonical_gas_used, "block must accumulate canonical gas");
+}
+
+/// A replay of an imported block runs in Verify mode with a tracer attached and reads each
+/// transaction's result before committing it, so that result must already carry the recorded
+/// refund in both its gas and its state: the sender keeps the refunded gas at the transaction's
+/// price plus the operator fee the lower canonical gas saves, compared with the same transaction
+/// run without post-exec accounting, and the uncommitted state equals what a commit writes.
+#[test]
+fn verify_mode_result_is_settled_before_commit_with_inspector() {
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    // The settlement reads the fork from these hardforks at the block timestamp.
+    let hardforks = jovian_hardforks(JOVIAN_TIMESTAMP);
+    let gas_price = 1u128;
+    let beneficiary = Address::repeat_byte(0xbe);
+    let payload = PostExecPayload {
+        block_number: 0,
+        gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+        version: 1,
+    };
+    // Operator fees are only charged on transactions that carry calldata.
+    let priced_tx = recovered_legacy(TxLegacy {
+        gas_limit: 200_000,
+        gas_price,
+        input: Bytes::from_static(&[0x01]),
+        to: TxKind::Call(OBSERVER_TEST_CONTRACT),
+        ..Default::default()
+    });
+    let balance_in = |state: &EvmState, address: Address| {
+        state.get(&address).map(|account| account.info.balance).unwrap_or_default()
+    };
+
+    let uncommitted = |mode: PostExecMode| {
+        let mut db = prepare_observer_db();
+        let mut executor = build_policy_executor_with::<NullRefundPolicy>(
+            &mut db,
+            &receipt_builder,
+            &hardforks,
+            1,
+            beneficiary,
+            Inspect::Enabled,
+        );
+        executor.set_post_exec_mode(mode);
+        let output =
+            executor.execute_transaction_without_commit(&priced_tx).expect("transaction executes");
+        let result_gas = output.inner.result.result.gas().tx_gas_used();
+        (output.canonical_gas_used, output.evm_gas_used, result_gas, output.inner.result.state)
+    };
+    let (canonical_gas, evm_gas, result_gas, verify_state) =
+        uncommitted(PostExecMode::Verify(payload.clone()));
+    let (_, _, _, disabled_state) = uncommitted(PostExecMode::Disabled);
+
+    assert_eq!(canonical_gas, evm_gas - 1, "the refund entry lowers canonical gas by one");
+    assert_eq!(result_gas, canonical_gas, "result gas must be the canonical gas");
+    let operator_fee_saved = balance_in(&disabled_state, OPERATOR_FEE_RECIPIENT) -
+        balance_in(&verify_state, OPERATOR_FEE_RECIPIENT);
+    assert_eq!(operator_fee_saved, U256::from(500), "1 gas * scalar 5 * Jovian multiplier 100");
+    assert_eq!(
+        balance_in(&verify_state, Address::ZERO) - balance_in(&disabled_state, Address::ZERO),
+        U256::from(gas_price) + operator_fee_saved,
+        "uncommitted state must credit the refunded gas and the saved operator fee to the sender"
+    );
+
+    let mut committed_db = prepare_observer_db();
+    let mut committing = build_policy_executor_with::<NullRefundPolicy>(
+        &mut committed_db,
+        &receipt_builder,
+        &hardforks,
+        1,
+        beneficiary,
+        Inspect::Enabled,
+    );
+    committing.set_post_exec_mode(PostExecMode::Verify(payload));
+    committing.execute_transaction(&priced_tx).expect("refunded transaction commits");
+    drop(committing);
+    let committed_balance = revm::Database::basic(&mut committed_db, Address::ZERO)
+        .expect("sender is readable")
+        .expect("sender exists")
+        .balance;
+    assert_eq!(
+        balance_in(&verify_state, Address::ZERO),
+        committed_balance,
+        "uncommitted state must equal what a commit writes"
+    );
 }
 
 #[test]

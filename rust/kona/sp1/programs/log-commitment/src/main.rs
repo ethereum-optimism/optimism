@@ -8,6 +8,8 @@ use alloy_primitives::B256;
 use kona_sp1_client_utils::log_commitment::log_commitment_public_values;
 
 /// Entrypoint to the log-commitment program.
+///
+/// Installs no guest hash seed: this program creates no hash map (see `programs/foldhash-seeded`).
 pub fn main() {
     println!("{}", kona_sp1_build_info::BUILD_MARKER);
 

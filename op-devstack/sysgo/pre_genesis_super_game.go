@@ -22,9 +22,9 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// Budget (in L1 blocks) for migration + dispute game creation. At blockTime=6s,
-// 10 gives ~60s, above the ~40s worst case observed on CI. See #20869.
-const preGenesisRollupStartBlockDelay = uint64(10)
+// Budget for migration + dispute game creation, above the ~40s worst case
+// observed on CI. See #20869.
+const preGenesisRollupStartDelay = 60 * time.Second
 
 var preGenesisStartingAnchorRoot = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000042")
 
@@ -62,8 +62,9 @@ func preparePreGenesisSuperGame(
 	require.NotNil(latestL1Header, "latest L1 header must be available")
 	require.NotNil(latestL1Header.Number, "latest L1 header must include a block number")
 
-	plannedRollupStartBlockNumber := bigs.Uint64Strict(latestL1Header.Number) + preGenesisRollupStartBlockDelay
-	plannedGenesisTime := latestL1Header.Time + preGenesisRollupStartBlockDelay*l1Net.blockTime
+	startBlockDelay := (uint64(preGenesisRollupStartDelay.Seconds()) + l1Net.blockTime - 1) / l1Net.blockTime
+	plannedRollupStartBlockNumber := bigs.Uint64Strict(latestL1Header.Number) + startBlockDelay
+	plannedGenesisTime := latestL1Header.Time + startBlockDelay*l1Net.blockTime
 	claimedTimestamp := plannedGenesisTime + blockTime
 
 	t.Logger().Info("preparing pre-genesis super game",
@@ -142,7 +143,6 @@ func preparePreGenesisSuperGame(
 		chainState.StartBlock = state.BlockRefJsonFromHeader(startBlockHeader)
 	}
 	wb.buildL2Genesis()
-	wb.buildFullConfigSet()
 	for _, l2Net := range l2Nets {
 		l2Net.genesis = wb.outL2Genesis[l2Net.ChainID()]
 		l2Net.rollupCfg = wb.outL2RollupCfg[l2Net.ChainID()]

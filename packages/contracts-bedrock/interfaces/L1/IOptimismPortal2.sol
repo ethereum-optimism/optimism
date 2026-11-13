@@ -7,6 +7,7 @@ import { GameType } from "src/dispute/lib/LibUDT.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
@@ -42,6 +43,10 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_InvalidInteropState();
     error OptimismPortal_InvalidLockboxState();
     error OptimismPortal_InvalidBridgeHookState();
+    error OptimismPortal_NotBridgeHook();
+    error OptimismPortal_NotHeld();
+    error OptimismPortal_ValueMismatch();
+    error OptimismPortal_TargetCallFailed();
     error OptimismPortal_ZeroAddress();
     error OptimismPortal_LockboxNotAuthorizedForPortal();
     error OptimismPortal_DisputeGameNotInvalidated();
@@ -56,6 +61,8 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
     event BridgeHookSet(IBridgeHook indexed bridgeHook);
     event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
+    event DepositHeld(bytes32 indexed id);
+    event WithdrawalHeld(bytes32 indexed id, bytes32 indexed withdrawalHash);
     event PortalMigrated(
         IETHLockbox oldLockbox,
         IETHLockbox newLockbox,
@@ -67,6 +74,9 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event WithdrawalProofDeleted(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
+    event WithdrawalProvenExtension2(
+        bytes32 indexed withdrawalHash, address indexed proofSubmitter, IDisputeGame indexed disputeGameProxy
+    );
 
     receive() external payable;
 
@@ -113,6 +123,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function minimumGasLimit(uint64 _byteCount) external pure returns (uint64);
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256);
     function params() external view returns (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum); // nosemgrep
+    function publishedParams() external view returns (IResourceMetering.PublishedParams memory);
     function paused() external view returns (bool);
     function proofMaturityDelaySeconds() external view returns (uint256);
     function proofSubmitters(bytes32, uint256) external view returns (address);

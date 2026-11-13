@@ -18,21 +18,32 @@ bumped family's `<old>..<new>` range, in parallel, and consolidate their per-com
 reports with the funnel's findings before the triage handoff. The funnel alone is not a
 complete review.
 
-Run the guide's forward sweep the same way, over each family's range from the target to
-upstream's latest commit, and report its fixes with the cherry-pick-or-retarget
-recommendation so the human can decide before the bump merges.
+Run the forward sweep the same way, over each family's range from the target to
+upstream's latest commit. Its steps, verdicts and pick bar are in
+[rust/UPDATING-RETH.md, "Forward sweep"](../../rust/UPDATING-RETH.md#forward-sweep);
+the guide adds how a review reads the range. Record that tip, give every fix in range a
+verdict, and report the findings with the cherry-pick-or-retarget recommendation so the
+human can decide before the bump merges. For a fork PR that picks fixes, also apply the guide's
+"Reviewing a fork pick PR" checklist.
 
 When the bump touches transaction execution, gas, or receipts, also run the
 [`deposit-reviewer`](deposit-reviewer.md) agent as a separate review.
 
 Before reading the upstream diff:
 
+0. Check the pin's form (UPDATING-RETH, "Pinning a fork change"). A fork pin must
+   be one `tag = "op-<base>-<n>"` whose commit is on the fork's `op-<base>` branch.
+   Report a `rev` pin, a tag off that branch, or open fork PRs the pin needs as the
+   first finding, marked **blocks merge**, whatever the PR description says about
+   tagging later.
 1. Determine the PR's merge base. Inspect every `UPSTREAM-MIRROR` tag changed or
    removed since that base; the old token is the review baseline even when the
    head tag already names the new pin.
 2. Run `cd rust && just mirrors stale` for mirrors the author did not advance.
 3. Compare the old and new reth fork pins against their respective selected
    upstream bases. Report any old cherry-pick absent from both the selected
-   target and the new fork pin.
+   target and the new fork pin. Compare from the old branch's tip, not only the
+   old pin: fixes merged after its last tag count. List the open fork PRs into
+   the old branch too.
 
 Then follow the symbol-level review in `docs/ai/reth-update-review.md`.

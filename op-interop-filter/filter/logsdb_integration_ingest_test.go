@@ -7,10 +7,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -84,7 +84,7 @@ func TestIntegration_Ingest_InvalidExecutingMessageDecode_ErrorInvalidExecutingM
 	t.Parallel()
 
 	malformed := &gethTypes.Log{
-		Address: params.InteropCrossL2InboxAddress,
+		Address: predeploys.CrossL2InboxAddr,
 		Topics: []common.Hash{
 			messages.ExecutingMessageEventTopic,
 			{0xab, 0xcd},

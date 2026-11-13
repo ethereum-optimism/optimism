@@ -42,6 +42,18 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
+	settlementID, private, err := PrivateChainSettlement(intent, thisIntent)
+	if err != nil {
+		return err
+	}
+	if private {
+		if err := reuseSettlementContracts(st, chainID, settlementID); err != nil {
+			return err
+		}
+		lgr.Info("opchain deployment not needed, the private chain shares its settlement chain's L1 contracts", "settlement", settlementID.Hex())
+		return nil
+	}
+
 	dci, err := makeDCI(intent, thisIntent, chainID, st)
 	if err != nil {
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
@@ -51,13 +63,12 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	if err != nil {
 		return err
 	}
-	// Record in memory. The stage runner persists state after its broadcast succeeds.
+	// Record in memory. The stage runner writes the state after the stage succeeds.
 	return RecordOPChainDeployment(st, result)
 }
 
 // ExecuteOPChainDeployment runs the deployment without recording state. impls are the
-// implementations of the OPCM in dci. Script-host execution queues transactions. Forge broadcasts
-// directly.
+// implementations of the OPCM in dci. It sends the deployment's transactions before it returns.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
@@ -91,25 +102,9 @@ func ExecuteOPChainDeployment(
 		}
 	}
 
-	var dco opcm.DeployOPChainOutput
-	var err error
-	if env.UseForge {
-		lgr.Info("using Forge for DeployOPChain")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dco, err = opcm.DeployOPChainViaForge(forgeEnv, dci)
-		if err != nil {
-			return result, err
-		}
-	} else {
-		dco, err = env.Scripts.DeployOPChain.Run(dci)
-		if err != nil {
-			return result, fmt.Errorf("error deploying OP chain: %w", err)
-		}
+	dco, err := opcm.DeployOPChain(env.Forge, dci)
+	if err != nil {
+		return result, err
 	}
 
 	return ReconcileOPChainDeployment(chainID, OpChainContractsFromDeployOutput(dco), impls), nil
@@ -497,6 +492,7 @@ func BuildDeployOPChainInput(
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
+		BridgeHook:                      chain.GetBridgeHook(),
 	}
 }
 

@@ -11,20 +11,17 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
@@ -36,6 +33,7 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 	chainID := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000300")
 	salt := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
 	superchainConfig := common.HexToAddress("0x3333333333333333333333333333333333333333")
+	bridgeHook := common.HexToAddress("0x4444444444444444444444444444444444444444")
 
 	baseIntent := &state.Intent{
 		GlobalDeployOverrides: make(map[string]any),
@@ -51,7 +49,8 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			Proposer:          common.HexToAddress("0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"),
 			Challenger:        common.HexToAddress("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
 		},
-		GasLimit: 60_000_000,
+		GasLimit:   60_000_000,
+		BridgeHook: &bridgeHook,
 	}
 
 	tests := []struct {
@@ -124,6 +123,7 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			require.Equal(t, common.Hash{}, got.CannonAbsolutePrestate)
 			require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 			require.Equal(t, common.Big0, got.StartingAnchorRoot.L2SequenceNumber)
+			require.Equal(t, bridgeHook, got.BridgeHook)
 		})
 	}
 }
@@ -392,9 +392,12 @@ func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			intent, chain, st := continuationDCITestInputs(chainID, tt.gameType)
+			bridgeHook := common.HexToAddress("0x6666666666666666666666666666666666666666")
+			chain.BridgeHook = &bridgeHook
 
 			got, err := BuildContinuationDCI(chainID, st)
 			require.NoError(t, err)
+			require.Equal(t, bridgeHook, got.BridgeHook)
 			require.Equal(t, uint32(tt.gameType), got.DisputeGameType)
 			require.Equal(t, st.Chains[0].Prestate, got.DisputeAbsolutePrestate)
 			require.Equal(t, st.Chains[0].StartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
@@ -1120,7 +1123,6 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 
 	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
-	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	anvil, err := devnet.NewAnvil(lgr)
 	require.NoError(t, err)
@@ -1135,33 +1137,6 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	l1RPC, err := rpc.Dial(l1RPCUrl)
 	require.NoError(t, err)
 	l1Client := ethclient.NewClient(l1RPC)
-
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		lgr,
-		common.Address{'D'},
-		afacts,
-		script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
-			src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, l1RPC, *cfg.BlockNumber)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create RPC fork source: %w", err)
-			}
-			return forking.Cache(src), nil
-		}),
-	)
-	require.NoError(t, err)
-
-	latest, err := l1Client.HeaderByNumber(ctx, nil)
-	require.NoError(t, err)
-
-	_, err = host.CreateSelectFork(
-		script.ForkWithURLOrAlias("main"),
-		script.ForkWithBlockNumberU256(latest.Number),
-	)
-	require.NoError(t, err)
-
-	// Load scripts
-	opcmScripts := &opcm.Scripts{}
 
 	chainID := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000300")
 	salt := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
@@ -1196,20 +1171,21 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	}
 
 	pEnv := &Env{
-		Logger:       lgr,
-		Scripts:      opcmScripts,
-		ForgeClient:  forgeClient,
-		UseForge:     true,
-		Context:      ctx,
-		Broadcaster:  broadcaster.NoopBroadcaster(),
-		StateWriter:  NoopStateWriter(),
-		L1ScriptHost: host,
-		L1RPCUrl:     l1RPCUrl,
-		PrivateKey:   privateKey,
+		Logger:      lgr,
+		L1Client:    l1Client,
+		Forge:       &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
+		Context:     ctx,
+		StateWriter: NoopStateWriter(),
 	}
 
 	err = DeploySuperchain(pEnv, intent, st)
 	require.NoError(t, err)
+
+	// DeployImplementations requires a raw SP1 verifier contract on the L1 that Forge broadcasts to.
+	deployerKey, err := crypto.HexToECDSA(privateKey)
+	require.NoError(t, err)
+	_, afacts := testutil.LocalArtifacts(t)
+	intent.GlobalDeployOverrides["sp1Verifier"] = testutil.DeployMockSP1Verifier(t, l1Client, deployerKey, afacts)
 
 	err = DeployImplementations(pEnv, intent, st)
 	require.NoError(t, err)
@@ -1263,6 +1239,7 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(standard.WithdrawalDelaySeconds),
+		BridgeHook:                      common.Address{},
 	}
 	beforeExecution, err := json.Marshal(st)
 	require.NoError(t, err)

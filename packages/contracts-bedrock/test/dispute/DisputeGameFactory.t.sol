@@ -9,7 +9,6 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 
 // Libraries
 import { LibClone } from "@solady/utils/LibClone.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
@@ -496,8 +495,10 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_TestInit 
             disputeGameFactory.create(GameType.wrap(gameType), Claim.wrap(bytes32(i)), abi.encode(i));
         }
 
-        // Ensure that the correct number of games are returned.
-        uint256 start = _numGames == 0 ? 0 : _numGames - 1;
+        // Ensure that the correct number of games are returned. Search from the newest game:
+        // on a fork the factory already holds the chain's own games before the new ones.
+        uint256 gameCount = disputeGameFactory.gameCount();
+        uint256 start = gameCount == 0 ? 0 : gameCount - 1;
         IDisputeGameFactory.GameSearchResult[] memory games =
             disputeGameFactory.findLatestGames(GameType.wrap(0), start, _n);
         assertEq(games.length, _n);
@@ -563,7 +564,6 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         vm.warp(block.timestamp + 1000);
     }
 
@@ -655,7 +655,8 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
     )
         public
     {
-        vm.assume(_challengerBond > 0);
+        // Bound the bond so adding it to a fork's DelayedWETH balance cannot overflow.
+        _challengerBond = bound(_challengerBond, 1, type(uint128).max);
 
         ZKDisputeGameParams memory params = ZKDisputeGameParams({
             maxChallengeDuration: Duration.wrap(_maxChallengeDuration),

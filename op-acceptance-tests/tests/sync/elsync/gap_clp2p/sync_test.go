@@ -1,11 +1,9 @@
 package gap_clp2p
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -29,94 +27,57 @@ func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
 	sys.L2CLB.AppendUnsafePayloadUntilTip(sys.L2ELB, sys.L2EL, 400)
 }
 
-// TestCLUnsafeNotRewoundOnInvalidDuringELSync verifies that the CL's unsafe head
-// is not rewound when the EL returns INVALID for a payload during EL sync.
+// TestCLUnsafeKeptOnInvalidPayloadDuringELSync checks how the verifier CL handles a payload
+// that its EL rejects as INVALID while EL sync is in progress. The EL has only genesis and
+// no EL P2P, and the CL's unsafe head is ahead of it, as earlier SYNCING responses left it.
 //
-// When the EL is still syncing and cannot append new blocks, ForkchoiceUpdate
-// returns SYNCING. In this state, the CL may continue to advance its unsafe head
-// as it processes new targets, creating temporary divergence from the EL.
+// The CL must not adopt the invalid payload, and must not rewind its unsafe head to the EL
+// head either: an invalid payload says nothing about the payloads before it. A valid payload
+// at the same height must still be accepted afterwards.
 //
-// The test then crafts a payload that the EL can still validate—even though it is
-// not appendable to the EL's current head—by introducing a detectable fault in the
-// payload itself (e.g., malformed ExtraData). The CL relays this payload through
-// engine_newPayload, and the EL immediately responds INVALID based on intrinsic
-// payload validation. The EL does not advance or trigger sync for this payload,
-// and the CL's unsafe head remains unchanged, without rewinding.
-//
-// This confirms that an INVALID response during EL sync halts advancement but does
-// not cause the CL's unsafe head to regress, preserving the last known valid head
-// while maintaining correct Engine API semantics.
-func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
+// The payload is invalidated with a transaction that cannot be decoded: a single 0xff byte, an
+// RLP list header with no body. The Engine API lists INVALID as the response when transactions
+// contains zero-length or invalid entries, and both op-geth and op-reth decode the transactions
+// before they look for the parent block, so they answer INVALID rather than SYNCING. A
+// zero-length transaction is the case the spec names, but go-ethereum and alloy compute
+// different transaction roots for an empty entry, so kona-node's admin API rejects it with a
+// bad block hash.
+func TestCLUnsafeKeptOnInvalidPayloadDuringELSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with op-reth:
-	//
-	// assertions.go:387:             ERROR[03-31|09:41:58.089]
-	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/l2_cl.go:279
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/elsync/gap_clp2p/sync_test.go:96
-	// assertions.go:387:             	Error:      	Received unexpected error:
-	// assertions.go:387:             	            	expected head not to advance: unsafe
-	// assertions.go:387:             	Test:       	TestCLUnsafeNotRewoundOnInvalidDuringELSync
-	// assertions.go:387:
-	sysgo.SkipOnOpReth(t, "not supported")
 	sys := newGapCLP2PSystem(t)
-	logger := t.Logger()
 	require := t.Require()
 
-	// Advance few blocks to make sure reference node advanced
 	sys.L2CL.Advanced(safety.LocalUnsafe, 7, 30)
 
-	// Restart L2CLB to always trigger an EL Sync
+	// Restart the verifier with an empty EL so that the CL starts EL sync.
 	sys.L2CLB.Stop()
-	// Wipe out L2ELB state to start from genesis
 	sys.L2ELB.Stop()
+	sys.L2ELB.Wipe()
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
+	sys.L2ELB.UnsafeHead().IsGenesis()
 
-	// At this point, L2ELB has no ELP2P and no safe advancement because batcher is stopped
-	startNum := sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number
-	sys.L2CLB.UnsafeHead().NumEqualTo(startNum)
+	// The EL cannot connect this payload to genesis, so it answers SYNCING and the CL's unsafe
+	// head moves ahead of the EL.
+	const syncTarget = 3
+	sys.L2CLB.SignalTarget(sys.L2EL, syncTarget)
+	sys.L2CLB.Reached(safety.LocalUnsafe, syncTarget, 30)
 
-	attempts := 3
-	// Check CL and EL divergence when there is a unsafe gap
-	for _, gap := range []uint64{3, 5} {
-		targetNum := startNum + gap
-		sys.L2CLB.SignalTarget(sys.L2EL, targetNum)
-		sys.L2ELB.NotAdvanced(eth.Unsafe, 5)
-		sys.L2ELB.UnsafeHead().NumEqualTo(startNum)
-		// Check FCU returns SYNCING
-		sys.L2ELB.ForkchoiceUpdate(sys.L2EL, targetNum, startNum, startNum, nil).Retry(attempts).ResultAllSyncing()
-		// Even though EL did not advance, CL advanced
-		sys.L2CLB.UnsafeHead().NumEqualTo(targetNum)
-		logger.Info("CL and EL diverged", "CL", targetNum, "EL", startNum)
-	}
+	invalid := sys.L2EL.PayloadByNumber(syncTarget + 1)
+	invalid.ExecutionPayload.Transactions = append(invalid.ExecutionPayload.Transactions, eth.Data{0xff})
+	newHash, _ := invalid.CheckBlockHash()
+	invalid.ExecutionPayload.BlockHash = newHash
+	sys.L2CLB.PostUnsafePayload(invalid)
 
-	// Inject invalid payload that can be only checked by the EL
-	// Must choose payload number after than CL unsafe to make the payload sent to EL
-	targetNum := sys.L2CLB.UnsafeHead().BlockRef.Number + 1
-	payload := sys.L2EL.PayloadByNumber(targetNum)
-	// inject fault to the payload
-	// Altering extradata makes EL return INVALID even if the EL does not have state to validate
-	// EL will not trigger EL Sync because EL already knows that the payload is INVALID
-	payload.ExecutionPayload.ExtraData = bytes.Repeat([]byte{0xFF}, 32)
-	newHash, ok := payload.CheckBlockHash()
-	require.False(ok)
-	logger.Info("Injected fault to payload", "newHash", newHash, "prevHash", payload.ExecutionPayload.BlockHash)
-	payload.ExecutionPayload.BlockHash = newHash
-	_, ok = payload.CheckBlockHash()
-	require.True(ok)
-	sys.L2CLB.PostUnsafePayload(payload)
-	sys.L2CLB.NotAdvanced(safety.LocalUnsafe, attempts)
-	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
-	// EL did not advance
-	sys.L2ELB.UnsafeHead().NumEqualTo(startNum)
-	// CL did not advance
-	sys.L2CLB.UnsafeHead().NumEqualTo(startNum + 5)
-	// Check newPayload returns INVALID
-	// ex) op-geth error msg: "ignoring bad block: holocene extraData should be 9 bytes, got 32"
-	sys.L2ELB.NewPayloadRaw(payload).IsInvalid()
+	sys.L2CLB.NotAdvanced(safety.LocalUnsafe, 5)
+	sys.L2CLB.UnsafeHead().NumEqualTo(syncTarget)
+	// The EL answers INVALID for this payload, not SYNCING, so the checks above exercise the
+	// CL's handling of an INVALID newPayload response.
+	sys.L2ELB.NewPayloadRaw(invalid).IsInvalid()
 
-	t.Cleanup(func() {
-		sys.L2ELB.Start()
-		sys.L2CLB.Start()
-	})
+	// The CL still accepts the valid payload at that height.
+	sys.L2CLB.SignalTarget(sys.L2EL, syncTarget+1)
+	sys.L2CLB.Reached(safety.LocalUnsafe, syncTarget+1, 30)
+	require.Equal(sys.L2EL.BlockRefByNumber(syncTarget+1).Hash, sys.L2CLB.UnsafeHead().BlockRef.Hash,
+		"verifier CL unsafe head should be the sequencer's block %d after the invalid payload", syncTarget+1)
 }

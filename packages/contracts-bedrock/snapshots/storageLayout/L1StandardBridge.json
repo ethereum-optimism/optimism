@@ -75,5 +75,12 @@
     "offset": 0,
     "slot": "52",
     "type": "contract ISystemConfig"
+  },
+  {
+    "bytes": "32",
+    "label": "heldTokenKinds",
+    "offset": 0,
+    "slot": "53",
+    "type": "mapping(bytes32 => enum BridgeHookTypes.TokenKind)"
   }
 ]

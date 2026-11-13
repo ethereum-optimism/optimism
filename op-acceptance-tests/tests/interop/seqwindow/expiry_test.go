@@ -25,7 +25,8 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
 	sys := presets.NewTwoL2SupernodeInterop(t, 0,
-		presets.WithDeployerOptions(sysgo.WithSequencingWindow(10)),
+		// A 60s window leaves time to include tx 2 below before the window expires.
+		presets.WithDeployerOptions(sysgo.WithSequencingWindow(60/sysgo.DefaultL1BlockTime)),
 		presets.WithBatcherOption(func(id sysgo.ComponentTarget, cfg *bss.CLIConfig) {
 			// Recovery mode is only supported with the batcher running in singular batch mode.
 			cfg.BatchType = derive.SingularBatchType

@@ -14,9 +14,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -117,8 +117,8 @@ func StartFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*e2e
 	return sys, sys.NodeClient("l1")
 }
 
-func SendKZGPointEvaluationTx(t *testing.T, sys *e2esys.System, l2Node string, privateKey *ecdsa.PrivateKey) *types.Receipt {
-	return helpers.SendL2Tx(t, sys.Cfg, sys.NodeClient(l2Node), privateKey, func(opts *helpers.TxOpts) {
+func SendKZGPointEvaluationTx(t *testing.T, sys *e2esys.System, l2Node string, privateKey *ecdsa.PrivateKey) *optypes.Receipt {
+	return helpers.SendL2Tx(t, sys.Cfg, sys.NodeSourceClient(l2Node), privateKey, func(opts *helpers.TxOpts) {
 		precompile := common.BytesToAddress([]byte{0x0a})
 		opts.Gas = 100_000
 		opts.ToAddr = &precompile

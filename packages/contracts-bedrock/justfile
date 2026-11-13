@@ -16,31 +16,16 @@ dep-status:
 ########################################################
 
 # Core forge build command.
-
 forge-build *ARGS:
   forge build {{ARGS}}
 
-  @# Forge build compiles only the src/ graph; the scripts/ graph is compiled by `forge script`.
-  @# On the first invocation, `forge script` may compile a small set of dependencies.
-  @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here.
-  @#
-  @# Notes:
-  @# - A single `forge script <any script> --skip-simulation` is sufficient to compile the script
-  @#   dependency graph into the cache. Subsequent `forge script` runs (including other scripts)
-  @#   will typically print "No files changed, compilation skipped".
-  @# - We pass `--skip "/**/test/**"` to keep tests out of the graph and suppress warnings.
-  @# - Providing a signature/args is not required for compilation; compilation happens before
-  @#   argument validation and before execution. We still use `--skip-simulation` to guarantee
-  @#   nothing runs in any case.
-  @forge script "scripts/deploy/Deploy.s.sol" \
-    --skip "/**/test/**" \
-    --sig "idonotexist()" \
-    --skip-simulation \
-    2>/dev/null || true
+  @# Pre-warm the script cache once here, so that CI tests don't each pay for compiling the scripts
+  @# graph. op-deployer never compiles, so its bundles need this step.
+  @./scripts/ops/warm-script-cache.sh
 
-# Developer build command (faster).
+# Developer build command (faster). Goes through forge-build, so that it warms the script cache too.
 forge-build-dev *ARGS:
-  FOUNDRY_PROFILE=lite forge build {{ARGS}}
+  FOUNDRY_PROFILE=lite just forge-build {{ARGS}}
 
 # Builds source contracts only.
 build-source:
@@ -48,7 +33,11 @@ build-source:
 
 # Builds source contracts and scripts, skipping tests.
 build-no-tests:
+  @# The skip leaves out the test/mocks that the scripts import, so compile the scripts too, and
+  @# warm the script cache: op-deployer never compiles.
   forge build --skip "/**/test/**"
+  forge build scripts
+  just forge-build --skip "/**/test/**"
 
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail
@@ -210,7 +199,11 @@ test-upgrade *ARGS:
   #!/bin/bash
   export FOUNDRY_HARDFORK=amsterdam
   if [ -n "$JUNIT_TEST_PATH" ]; then
-    just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\"" || exit $?
+    if ! just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\""; then
+      echo "Upgrade tests failed, rerunning failed tests once in 30s in case of a transient fork RPC error" >&2
+      sleep 30
+      just prepare-upgrade-env "forge test {{ARGS}} --rerun --junit > \"$JUNIT_TEST_PATH\"" || exit $?
+    fi
     ./scripts/checks/check-junit-tests-ran.sh "$JUNIT_TEST_PATH"
   else
     just prepare-upgrade-env "forge test {{ARGS}}"
@@ -539,7 +532,7 @@ check-kontrol-summaries-unchanged:
   ./scripts/checks/check-kontrol-summaries-unchanged.sh
 
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
-# Assumes contracts are already built.
+# Compiles only what an earlier build left out.
 nut-bundle-check-no-build:
   @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
   git diff --exit-code snapshots/upgrades/current-upgrade-bundle.json

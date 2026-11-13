@@ -3,10 +3,15 @@ package state
 import (
 	"math"
 	"math/big"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -361,6 +366,69 @@ func TestIsCustomGasTokenEnabled(t *testing.T) {
 			}
 			result := chainIntent.IsCustomGasTokenEnabled()
 			require.Equal(t, tt.expected, result, "IsCustomGasTokenEnabled() should return the expected value")
+		})
+	}
+}
+
+func TestChainIntentBridgeHookTOMLRoundTrip(t *testing.T) {
+	hook := common.HexToAddress("0x44")
+	tests := []struct {
+		name     string
+		hook     *common.Address
+		expected common.Address
+	}{
+		{name: "unset hook is omitted", hook: nil, expected: common.Address{}},
+		{name: "set hook survives", hook: &hook, expected: hook},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := validBaseChainIntent()
+			chain.BridgeHook = tt.hook
+			path := filepath.Join(t.TempDir(), "intent.toml")
+			require.NoError(t, (&Intent{Chains: []*ChainIntent{chain}}).WriteToFile(path))
+
+			data, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.Equal(t, tt.hook != nil, strings.Contains(string(data), "bridgeHook"))
+
+			got, err := jsonutil.LoadTOML[Intent](path)
+			require.NoError(t, err)
+			require.Equal(t, tt.hook, got.Chains[0].BridgeHook)
+			require.Equal(t, tt.expected, got.Chains[0].GetBridgeHook())
+		})
+	}
+}
+
+func TestChainIntentCheck_BridgeHookCustomGasToken(t *testing.T) {
+	hook := common.HexToAddress("0x44")
+	cgt := CustomGasToken{Name: "Custom Gas Token", Symbol: "CGT"}
+	altDA := genesis.AltDADeployConfig{UseAltDA: true, DACommitmentType: altda.GenericCommitmentString}
+	tests := []struct {
+		name  string
+		hook  *common.Address
+		cgt   CustomGasToken
+		altDA genesis.AltDADeployConfig
+		err   error
+	}{
+		{name: "hook without custom gas token", hook: &hook},
+		{name: "custom gas token without hook", cgt: cgt},
+		{name: "hook with custom gas token", hook: &hook, cgt: cgt, err: ErrIncompatibleValue},
+		{name: "hook with custom gas token on alt-DA", hook: &hook, cgt: cgt, altDA: altDA, err: ErrIncompatibleValue},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := validBaseChainIntent()
+			chain.BridgeHook = tt.hook
+			chain.CustomGasToken = tt.cgt
+			chain.DangerousAltDAConfig = tt.altDA
+
+			err := chain.Check()
+			if tt.err == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.err)
+			}
 		})
 	}
 }

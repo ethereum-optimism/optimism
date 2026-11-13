@@ -844,6 +844,31 @@
   },
   {
     "inputs": [],
+    "name": "publishedParams",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "prevPublishedGas",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "prevBlockNum",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct ResourceMetering.PublishedParams",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "removeHook",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -951,6 +976,19 @@
       }
     ],
     "name": "BridgeHookSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DepositHeld",
     "type": "event"
   },
   {
@@ -1085,6 +1123,25 @@
       {
         "indexed": true,
         "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "withdrawalHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "WithdrawalHeld",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "withdrawalHash",
         "type": "bytes32"
       },
@@ -1140,6 +1197,31 @@
       }
     ],
     "name": "WithdrawalProvenExtension1",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "withdrawalHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "proofSubmitter",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "contract IDisputeGame",
+        "name": "disputeGameProxy",
+        "type": "address"
+      }
+    ],
+    "name": "WithdrawalProvenExtension2",
     "type": "event"
   },
   {
@@ -1279,6 +1361,16 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_NotBridgeHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_NotHeld",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_NotUsingInterop",
     "type": "error"
   },
@@ -1294,7 +1386,17 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_TargetCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_Unproven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_ValueMismatch",
     "type": "error"
   },
   {

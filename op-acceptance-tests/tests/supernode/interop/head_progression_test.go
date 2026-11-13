@@ -117,10 +117,15 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 		"finalizedA", preFinalizedStatusA.FinalizedL2.Number,
 		"finalizedB", preFinalizedStatusB.FinalizedL2.Number)
 
-	// Wait for L1 head to finalise, which should imply L2 finalized head progression
-	// Use time travel to reduce walltime of test
-	sys.AdvanceTime(90 * time.Second)
-	sys.L1Network.WaitForFinalization()
+	// Wait for L1 head to finalise, which should imply L2 finalized head progression.
+	// Capture the head, then jump L1 25 blocks so FakePoS builds the 20 blocks
+	// that finalize it in seconds. Keep the jump under FakePoS's 5 minute skip,
+	// which builds only one block.
+	l1Head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	sys.AdvanceTime(25 * sys.L1CL.BlockTime())
+	sys.L1EL.WaitForLabelRef(eth.Finalized, func(info eth.BlockInfo) (bool, error) {
+		return info.NumberU64() >= l1Head.Number, nil
+	})
 
 	// Wait for finalized heads (CL and EL) to catch up to or past the snapshotted
 	// safe heads. Finalized advancement depends on L1 finality, so use more attempts.

@@ -119,8 +119,13 @@ func TestInteropFilter_IngressRejectsInvalidMessage(gt *testing.T) {
 	require.NoError(err)
 	invalidMsg := dsl.MakeInvalidPayloadHash(result.Entries[0])
 	bobAddr := bob.Address()
+	// op-reth reports a filter timeout as "interop quorum not reached", which is not a verdict.
+	// The resubmitter retries it and returns on the definitive rejection.
+	blockTime := time.Duration(sys.L2B.Escape().RollupConfig().BlockTime) * time.Second
+	resubmitter := txinclude.NewResubmitter(sys.L2ELB.EthClient(), blockTime,
+		txinclude.WithObserver(submissionErrorLogger{t}))
 	tx := txplan.NewPlannedTx(bob.Plan(),
-		txplan.WithTransactionSubmitter(sys.L2ELB.EthClient()),
+		txplan.WithTransactionSubmitter(resubmitter),
 		txplan.WithTo(&bobAddr),
 		txplan.WithAccessList(types.AccessList{{
 			Address:     predeploys.CrossL2InboxAddr,
@@ -129,7 +134,19 @@ func TestInteropFilter_IngressRejectsInvalidMessage(gt *testing.T) {
 		txplan.WithGasLimit(100_000),
 	)
 	_, err = tx.Submitted.Eval(ctx)
-	require.ErrorContains(err, txinclude.ErrInteropAccessListRejected.Error())
+	require.ErrorIs(err, txinclude.ErrInteropAccessListRejected)
+}
+
+// submissionErrorLogger logs each failed submission, so a test that times out shows the errors
+// it retried.
+type submissionErrorLogger struct {
+	t devtest.T
+}
+
+func (l submissionErrorLogger) SubmissionError(err error) {
+	if err != nil {
+		l.t.Logf("submission error: %v", err)
+	}
 }
 
 // TestInteropFilter_FailsafeLifecycle verifies the full failsafe lifecycle:
@@ -170,7 +187,7 @@ func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 	// Step 2: Enable failsafe — no wait needed; even if op-reth hasn't polled
 	// the change yet, checkAccessList will reject interop txs on the filter side.
 	require.NotNil(sys.InteropFilter, "interop filter must be configured")
-	sys.InteropFilter.SetFailsafeEnabled(true)
+	require.NoError(sys.InteropFilter.SetFailsafeEnabled(true))
 
 	// Step 3: Send another init message and try exec — should fail
 	initMsg2 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5))
@@ -207,7 +224,7 @@ func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 		"expected interop filter rejection, got: %v", err)
 
 	// Step 4: Disable failsafe and wait one block for op-reth's poller to pick up the change
-	sys.InteropFilter.SetFailsafeEnabled(false)
+	require.NoError(sys.InteropFilter.SetFailsafeEnabled(false))
 	sys.L2B.WaitForBlock()
 
 	// Step 5: Verify interop txs recover after failsafe is disabled
@@ -232,7 +249,7 @@ func TestInteropFilter_NonInteropUnaffected(gt *testing.T) {
 
 	// Enable failsafe — takes effect immediately on the filter side
 	require.NotNil(sys.InteropFilter, "interop filter must be configured")
-	sys.InteropFilter.SetFailsafeEnabled(true)
+	require.NoError(sys.InteropFilter.SetFailsafeEnabled(true))
 
 	// Send regular (non-interop) transfers on both chains — should succeed even during failsafe
 	txA := aliceA.Transfer(bobA.Address(), eth.GWei(1000))
@@ -246,5 +263,5 @@ func TestInteropFilter_NonInteropUnaffected(gt *testing.T) {
 	require.Equal(types.ReceiptStatusSuccessful, receiptB.Status, "regular transfer on chain B should succeed")
 
 	// Disable failsafe
-	sys.InteropFilter.SetFailsafeEnabled(false)
+	require.NoError(sys.InteropFilter.SetFailsafeEnabled(false))
 }

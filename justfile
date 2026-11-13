@@ -11,11 +11,10 @@ TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 #   op-acceptance-tests             dedicated acceptance-test job (needs a running devnet)
 #   cannon                          dedicated cannon job (slow MIPS emulation tests)
 #   rust                            rust-e2e pipeline (needs prebuilt Rust binaries)
-#   op-deployer/pkg/deployer/forge  fails when forge is on PATH (ethereum-optimism/optimism#21200)
 #   op-e2e/actions                  dedicated go-actions-tests job (its own resource class
 #                                   and timeout; running them here too would run them twice)
 # See the list-test-packages recipe, which expands `go list ./...` minus these.
-EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-deployer/pkg/deployer/forge op-e2e/actions"
+EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-e2e/actions"
 
 # Fault-proof packages run in the default go-tests job and again in a dedicated
 # job with Cannon enabled, so they keep a separate list.
@@ -337,6 +336,12 @@ go-tests-short: cannon build-contracts make-pre-test build-superchain-go
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
   go test -short -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} $(just list-test-packages)
 
+# Fuzzes op-core/fees against the C FastLZ build and the Solidity implementations, which it reads
+# from the forge artifacts. `-parallel=1` keeps one fuzz worker per target so the concurrent
+# `parallel` doesn't oversubscribe the CPU.
+fuzz-op-core-fees: build-contracts
+  parallel --line-buffer --tag -N1 "go test -run NOTAREALTEST -parallel=1 -tags cgo_test -v -fuzztime 10s -fuzz {} ./op-core/fees/fuzz" ::: FuzzFjordCostFunction FuzzFastLzSolidity FuzzFastLzCgo
+
 # Internal: runs Go tests with gotestsum for CI.
 [script('bash')]
 _go-tests-ci-internal go_test_flags="": build-superchain-go
@@ -436,7 +441,7 @@ go-tests-fraud-proofs-ci:
   export OP_E2E_CANNON_ENABLED="true"
   export OP_E2E_USE_HTTP=true
   export ENABLE_ANVIL=true
-  export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  export PARALLEL=${FAULT_PROOF_TEST_PARALLEL:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
   export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
   source ./ops/scripts/source-ci-archive-rpcs.sh
   export NAT_INTEROP_LOADTEST_TARGET=10
@@ -447,7 +452,7 @@ go-tests-fraud-proofs-ci:
       --rerun-fails=3 \
       --rerun-fails-max-failures=50 \
       --packages="{{FRAUD_PROOF_TEST_PKGS}}" \
-      -- -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}}
+      -- -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} ${FAULT_PROOF_TEST_ARGS:-}
 
 # Runs comprehensive Go tests (alias for go-tests).
 test: go-tests
@@ -472,7 +477,8 @@ _check-nut-prefork-states:
   shopt -s nullglob
   for state in op-core/nuts/state/*_state.json; do
     fork="$(basename "$state" _state.json)"
-    if [ "$fork" = "jovian" ]; then
+    # The jovian seed is not regenerated. _nut-prefork-state-for also writes the multi-chain state.
+    if [ "$fork" = "jovian" ] || [[ "$fork" == *_multichain ]]; then
       continue
     fi
     just _nut-prefork-state-for "$fork"
@@ -492,11 +498,13 @@ nut-snapshot-for fork:
 nut-provenance-verify fork:
   go run ./ops/scripts/nut-provenance-verify {{fork}}
 
-# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle), and
+# <fork>_multichain_state.json from Lagoon onward.
 _nut-prefork-state-for fork:
   OP_E2E_GEN_PREFORK_STATE={{fork}} go test -count=1 -run TestGenerateForkState ./rust/kona/tests/proofs/
 
-# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle), and
+# <fork>_multichain_state.json from Lagoon onward.
 nut-prefork-state-for fork: build-contracts build-superchain-go
   just rust/build-op-reth-test-engine
   just _nut-prefork-state-for {{fork}}

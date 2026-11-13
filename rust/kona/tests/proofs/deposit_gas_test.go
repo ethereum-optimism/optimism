@@ -84,9 +84,9 @@ func TestDepositGasParity(gt *testing.T) {
 
 		// Inspect the exact L2 block that contains the deposit under test.
 		testedBlockRef := env.Sequencer.L2Unsafe()
-		txs, userTxs := helpers.BlockTxs(t, env.Engine, testedBlockRef.Hash)
+		txs, userTxs := env.Engine.BlockTxs(t, testedBlockRef.Hash)
 		require.Empty(t, userTxs, "deposit blocks must not contain user transactions")
-		testedBlock, receipts, err := env.Engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), testedBlockRef.Hash)
+		testedBlock, receipts, err := env.Engine.SourceClient().FetchReceipts(t.Ctx(), testedBlockRef.Hash)
 		require.NoError(t, err)
 		require.Len(t, receipts, len(txs), "every deposit must have a receipt")
 
@@ -149,7 +149,7 @@ func TestDepositGasParity(gt *testing.T) {
 		require.Equal(t, testedBlockRef.Number, l2SafeHead.Number,
 			"safe head must be the tested deposit block")
 		require.Equal(t, testedBlockRef.Hash, l2SafeHead.Hash,
-			"derivation must reproduce the op-geth block used as the proof claim")
+			"derivation must reproduce the engine-built block used as the proof claim")
 
 		env.RunFaultProofProgram(t, testedBlockRef.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}

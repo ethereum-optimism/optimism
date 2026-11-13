@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -137,11 +138,11 @@ func TestJovianDAFootprint(gt *testing.T) {
 
 		// Inspect the built block and verify header DA footprint and base fee behavior.
 		env.Sequencer.L2Unsafe()
-		blk, userTxs, err := env.Engine.SourceClient(t, 10).InfoAndUserTxsByHash(t.Ctx(), env.Sequencer.L2Unsafe().Hash)
+		blk, userTxs, err := env.Engine.SourceClient().InfoAndUserTxsByHash(t.Ctx(), env.Sequencer.L2Unsafe().Hash)
 		require.NoError(t, err)
 		require.NotNil(t, blk.BlobGasUsed(), "blobGasUsed must be set on Jovian blocks")
 		blockDAFootprint := *blk.BlobGasUsed()
-		_, receipts, err := env.Engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), blk.Hash())
+		_, receipts, err := env.Engine.SourceClient().FetchReceipts(t.Ctx(), blk.Hash())
 		require.NoError(t, err)
 		userReceipts := receipts.UserReceipts()
 		require.Len(t, userReceipts, len(userTxs), "every user tx must have a receipt")
@@ -225,6 +226,7 @@ func TestJovianDAFootprint(gt *testing.T) {
 
 	for name, tt := range tests {
 		gt.Run(name, func(t *testing.T) {
+			op_e2e.InitParallel(t)
 			matrix := helpers.NewMatrix[helpers.DeployConfigOverride]()
 			matrix.AddDefaultTestCasesWithName(
 				name,

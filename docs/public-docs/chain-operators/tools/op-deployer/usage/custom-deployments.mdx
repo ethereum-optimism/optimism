@@ -4,6 +4,8 @@ description: Learn how to manage custom deployments with OP Deployer.
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 While OP Deployer was designed primarily for use with chains that are governed by Optimism, it also supports managing
 custom deployments. This is particularly common for RaaS providers, whose customers often request deployments with
 custom L1s (or L2s, in the case of L3s) or governance. This guide will walk you through the process of managing these
@@ -55,7 +57,8 @@ We recommend the following these best practices when bootstrapping:
 1.  Use Gnosis SAFEs for ownership roles like `guardian` and `superchain-proxy-admin-owner`. The owner **must** be a
     smart contract to support future upgrades, so a SAFE is a sensible default.
 2.  Use a regular EOA as the deployer. It will not have any control over the deployment once the deployment completes.
-3.  Use a standard contracts tag (e.g. `tag://op-contracts/v2.0.0`). This will make upgrading easier.
+3.  Use the contracts that op-deployer embeds (`embedded`, the default). op-deployer runs only the contracts release
+    that it was built with, or a build of that release.
 
 ### Bootstrapping Implementations
 
@@ -81,6 +84,10 @@ op-deployer bootstrap implementations \
   --superchain-config-proxy="<address output from bootstrap superchain>" \
   --upgrade-controller="<superchain-proxy-admin-owner used in bootstrap superchain>"
 ```
+
+<Unreleased component="op-deployer" />
+
+On L1s other than Ethereum mainnet and Sepolia, also pass `--sp1-verifier-address` with the raw SP1 verifier for the release's `SP1PlonkAdapter`, or the command fails. On a development L1, `--deploy-mock-sp1-verifier` deploys an accept-all mock verifier instead. `op-deployer apply` takes the same input as `globalDeployOverrides.sp1Verifier` in the intent.
 
 Similar to the `bootstrap superchain` command, this will output a JSON file containing the addresses of the relevant
 contracts. Again, keep track of this file.
@@ -111,8 +118,8 @@ See the following config for an example:
 configType = "standard-overrides"
 l1ChainID = 11155420
 opcmAddress = "0x..."
-l1ContractsLocator = "tag://..." # must match the one used in bootstrap
-l2ContractsLocator = "tag://..."
+l1ContractsLocator = "embedded" # must match the one used in bootstrap
+l2ContractsLocator = "embedded"
 
 [[chains]]
 # Chain configs...

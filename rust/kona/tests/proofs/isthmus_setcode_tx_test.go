@@ -15,6 +15,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
@@ -101,7 +102,7 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		GasTipCap: uint256.NewInt(2),
 		AuthList:  []types.SetCodeAuthorization{auth1, auth2},
 	}
-	signer := types.NewIsthmusSigner(chainID)
+	signer := types.NewPragueSigner(chainID)
 	tx := types.MustSignNewTx(aliceSecret, signer, txdata)
 
 	err = cl.SendTransaction(t.Ctx(), tx)
@@ -171,9 +172,10 @@ func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	rng := rand.New(rand.NewSource(0))
 	setcodetx := testutils.RandomSetCodeTx(rng, types.NewPragueSigner(env.Sd.RollupCfg.L2ChainID))
 	batcher.ActL2BatchBuffer(t)
-	batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
+	batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
 		// inject user tx into upgrade batch
-		return block.WithBody(types.Body{Transactions: append(block.Transactions(), setcodetx)})
+		payload.Transactions = append(payload.Transactions, actionsHelpers.EncodeTx(t, setcodetx))
+		return payload
 	}))
 	batcher.ActL2ChannelClose(t)
 	batcher.ActL2BatchSubmit(t)
@@ -185,7 +187,7 @@ func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	sequencer.ActL2PipelineFull(t)
 
 	l2safe := sequencer.L2Safe()
-	deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2safe.Hash)
+	deposits, userTxs := env.Engine.BlockTxs(t, l2safe.Hash)
 	require.Len(t, deposits, 1, "safe head should only contain l1 info deposit")
 	require.Empty(t, userTxs, "safe head should only contain l1 info deposit")
 	require.Equal(t, u1, l2safe, "expected last block to be reorgd out due to setcode tx")
@@ -249,7 +251,7 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 
 	sequencer.ActL2EmptyBlock(t) // we'll inject the setcode tx in this block's batch
 
-	signer := types.NewIsthmusSigner(chainID)
+	signer := types.NewPragueSigner(chainID)
 
 	rng := rand.New(rand.NewSource(0))
 	tx := testutils.RandomSetCodeTx(rng, signer)
@@ -266,9 +268,10 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 
 	batcher.ActL2BatchBuffer(
 		t,
-		actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
+		actionsHelpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
 			// inject user tx into upgrade batch
-			return block.WithBody(types.Body{Transactions: append(block.Transactions(), tx, tx2)})
+			payload.Transactions = append(payload.Transactions, actionsHelpers.EncodeTx(t, tx), actionsHelpers.EncodeTx(t, tx2))
+			return payload
 		}),
 		actionsHelpers.WithChannelModifier(
 			derive.TestWithZeroToBitsMod(func(ob *big.Int) *big.Int {
@@ -290,7 +293,7 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 	sequencer.ActL2PipelineFull(t)
 
 	l2safe := sequencer.L2Safe()
-	deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2safe.Hash)
+	deposits, userTxs := env.Engine.BlockTxs(t, l2safe.Hash)
 	require.Empty(t, deposits, "safe head should not contain either tx")
 	require.Empty(t, userTxs, "safe head should not contain either tx")
 	require.Equal(t, u1, l2safe, "expected last block to be reorgd out due to setcode tx")

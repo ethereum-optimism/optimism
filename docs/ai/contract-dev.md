@@ -229,7 +229,8 @@ contract ContractName is Initializable, ProxyAdminOwnedBase, ReinitializableBase
   go-ffi, profiles, and the script cache for you.
 - `just build` builds the contracts; `just build-dev` is the faster variant
   (`FOUNDRY_PROFILE=lite`) for local iteration. Builds must produce zero warnings
-  (`deny = "warnings"` in `foundry.toml`).
+  (`--deny warnings` in the dev phase of `checks.yaml`, which `just check-fast` runs). Other
+  builds and tests only print warnings, as forge skips its compile cache when denying them.
 - `just test` runs the suite; `just test-dev` is the faster `lite`-profile variant for local
   iteration. Default 64 fuzz runs; CI uses 128.
 - `just lint` formats and checks (`forge fmt` under the hood: 120-char line length, bracket
@@ -250,6 +251,11 @@ In `packages/contracts-bedrock`, run every recipe through `mise` so it uses the 
   acceptable for `src/libraries/`, abstract base contracts, and interfaces. These are not pinned
   because they're consumed by the pinned contracts that derive from them, and CI deliberately
   exempts libraries, interfaces, and abstract contracts from the strict-pragma check.
+- **A floating pragma must allow a pinned version** — every range in `src/`, `scripts/` and
+  `interfaces/` must allow a version that some file pins exactly (`^0.8.24` allows `0.8.25`;
+  `^0.8.26` allows none today). forge compiles a file whose range allows no pinned version with
+  the newest solc of the build machine, and op-deployer, which never compiles, then fails where
+  that solc is missing. The `strict-pragma` check enforces this too.
 - Never introduce a new Solidity version without a formal design-doc proposal.
 - New versions must be at least 6 months old before adoption.
 
@@ -419,9 +425,9 @@ function testTransferSucceeds() external { }          // No underscores
 | cicoverage | disabled | 1 | Coverage only |
 | kprove | default | — | Kontrol formal verification |
 
-Dispute games, OPCM, OptimismPortal2, StorageSetter and L2ContractsManager compile with
-5,000 optimizer runs for bytecode size management (`compilation_restrictions` in
-`foundry.toml`; `OPContractsManagerV2` and `OPContractsManagerStandardValidator` are the
+Dispute games, OPCM, StorageSetter and L2ContractsManager compile with 5,000 optimizer runs
+for bytecode size management (`compilation_restrictions` in `foundry.toml`;
+`OPContractsManagerV2`, `OPContractsManagerStandardValidator` and `OptimismPortal2` are the
 outliers at 200).
 
 TODO(optimism-private#779): Restore `OPContractsManagerV2` to 5,000 optimizer runs.

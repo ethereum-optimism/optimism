@@ -2,32 +2,43 @@ package pipeline
 
 import (
 	"crypto/sha256"
-	"log/slog"
+	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
+// TestPreinstallL1DevGenesis_Permit2ChainID checks that the Permit2 preinstall caches the L1
+// chain ID, as a Permit2 deployed on that chain does.
+func TestPreinstallL1DevGenesis_Permit2ChainID(t *testing.T) {
+	t.Parallel()
+	const l1ChainID = 900
+	env := newTestGenesisEnv(t, common.Address{0xdd}, l1ChainID)
+	require.NoError(t, PreinstallL1DevGenesis(env, &state.Intent{}, &state.State{}))
+
+	// The same offset as the Permit2 check of the L2 genesis in op-chain-ops/genesis.
+	const chainIDOffset = 6945
+	code := env.Forge.Genesis.Allocs.Accounts[predeploys.Permit2Addr].Code
+	require.GreaterOrEqual(t, len(code), chainIDOffset+32, "Permit2 code is too short")
+	require.Equal(t, uint256.NewInt(l1ChainID).Bytes32(), [32]byte(code[chainIDOffset:chainIDOffset+32]))
+}
+
 func TestPreinstallL1DevGenesis_RequestQueues(t *testing.T) {
 	t.Parallel()
-	_, artifactsFS := testutil.LocalArtifacts(t)
-	logger := testlog.Logger(t, slog.LevelDebug)
-	host := script.NewHost(logger, &foundry.ArtifactsFS{FS: artifactsFS}, nil, script.DefaultContext)
-	require.NoError(t, host.EnableCheats())
-	host.SetBalance(params.WithdrawalQueueAddress, uint256.NewInt(42))
-	host.SetNonce(params.WithdrawalQueueAddress, 7)
+	env := newTestGenesisEnv(t, common.Address{0xdd}, 900)
 	storageKey, storageValue := common.HexToHash("0x42"), common.HexToHash("0x1234")
-	host.SetStorage(params.WithdrawalQueueAddress, storageKey, storageValue)
-	env := &Env{Logger: logger, L1ScriptHost: host, Deployer: common.Address{0xdd}}
+	env.Forge.Genesis.Allocs.Accounts[params.WithdrawalQueueAddress] = types.Account{
+		Balance: big.NewInt(42),
+		Nonce:   7,
+		Storage: map[common.Hash]common.Hash{storageKey: storageValue},
+	}
 	intent := &state.Intent{
 		L1ChainID: 900,
 		L1DevGenesisParams: &state.L1DevGenesisParams{

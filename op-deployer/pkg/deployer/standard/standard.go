@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -63,7 +64,8 @@ const (
 	ContractsV600Tag        = "op-contracts/v6.0.0-rc.2"
 	ContractsV700Tag        = "op-contracts/v7.0.0-rc.4"
 	ContractsV800Tag        = "op-contracts/v8.0.0"
-	CurrentTag              = ContractsV800Tag
+	ContractsV900Tag        = "op-contracts/v9.0.0"
+	CurrentTag              = ContractsV900Tag
 )
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
@@ -139,9 +141,10 @@ var sp1VerifierHashes = func() map[string]common.Hash {
 }()
 
 // SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
-// chain ID. Both `bootstrap implementations` and `apply` default to it when ZK dispute games are
-// enabled and the operator did not pin a verifier explicitly. Change it together with
-// SP1VerifierHashFor and the sp1-sdk pin in rust/Cargo.toml.
+// chain ID. Both `bootstrap implementations` and live `apply` default to it when the operator did
+// not pin a verifier. Change it together with SP1VerifierHashFor and the sp1-sdk pin in rust/Cargo.toml.
+// pipeline.CheckMockSP1Verifier also uses it to refuse the accept-all mock verifier on every L1
+// chain ID it supports, so removing a chain ID here allows the mock on that L1.
 // DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
 func SP1VerifierFor(chainID uint64) (common.Address, error) {
 	switch chainID {
@@ -233,9 +236,17 @@ func L2ProxyAdminOwner(chainID uint64) (common.Address, error) {
 	}
 }
 
+// maxDefaultHardfork is the latest fork DefaultHardforkSchedule activates at genesis, whatever
+// OP Mainnet schedules. A chain with Lagoon scheduled needs an interop dependency set, and
+// op-node and kona-node refuse to start a chain the superchain-registry does not know without
+// one. The chains op-deployer creates, dev and production alike, are not in the registry, and
+// single-chain setups do not supply a dependency set. Delete this cap and defaultHardforkFor
+// once they do, so that the default follows OP Mainnet again.
+const maxDefaultHardfork = forks.Karst
+
 // DefaultHardforkSchedule is used to determine which hardforks should be activated by default.
 // It activates, at genesis, the most recent fork that has an activation timestamp scheduled on
-// OP Mainnet.
+// OP Mainnet, but no later than maxDefaultHardfork.
 func DefaultHardforkSchedule() *genesis.UpgradeScheduleDeployConfig {
 	sched := &genesis.UpgradeScheduleDeployConfig{}
 	sched.ActivateForkAtGenesis(defaultHardfork())
@@ -252,8 +263,18 @@ var defaultHardfork = sync.OnceValue(func() forks.Name {
 	if err != nil {
 		panic(fmt.Errorf("load op mainnet chain config: %w", err))
 	}
-	return latestScheduledMainlineFork(chainConfig.Hardforks)
+	return defaultHardforkFor(chainConfig.Hardforks)
 })
+
+// defaultHardforkFor returns the latest mainline fork scheduled in config, capped at
+// maxDefaultHardfork.
+func defaultHardforkFor(config superchain.HardforkConfig) forks.Name {
+	fork := latestScheduledMainlineFork(config)
+	if slices.Index(forks.All, fork) > slices.Index(forks.All, maxDefaultHardfork) {
+		return maxDefaultHardfork
+	}
+	return fork
+}
 
 func latestScheduledMainlineFork(config superchain.HardforkConfig) forks.Name {
 	configValue := reflect.ValueOf(config)

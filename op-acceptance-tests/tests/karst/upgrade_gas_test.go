@@ -18,6 +18,7 @@ const karstUpgradeGasOffset uint64 = 10
 // steady state); with the keep_karst_upgrade_gas opt-out the chain deliberately keeps the
 // inflated limit instead.
 func TestKarstUpgradeGas(gt *testing.T) {
+	gt.Parallel()
 	gt.Run("reverts", func(gt *testing.T) { testKarstUpgradeGas(gt, false) })
 	gt.Run("kept", func(gt *testing.T) { testKarstUpgradeGas(gt, true) })
 }
@@ -28,7 +29,7 @@ func TestKarstUpgradeGas(gt *testing.T) {
 // after activation reverts to the steady state, unless keep is set — the chain opted out via
 // keep_karst_upgrade_gas — in which case it keeps the inflated activation-block limit.
 func testKarstUpgradeGas(gt *testing.T, keep bool) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	offset := karstUpgradeGasOffset
 
 	deployOpts := []sysgo.DeployerOption{sysgo.WithKarstAtOffset(&offset)}

@@ -90,10 +90,11 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration: a banned peer is disconnected, and its connections are refused in both directions until the ban expires or [`opp2p_unblockPeer`](/node-operators/kona-node/rpc/p2p#opp2p_unblockpeer) lifts it. Bans don't survive a restart | `60` |
 | `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5` |
 | `--p2p.discovery.ip-votes <N>` | `KONA_NODE_P2P_DISCOVERY_IP_VOTES` | How many peers must report the same external address before the node advertises it, at least `2`. Ignored with `--p2p.advertise.ip`. Fewer votes let fewer peers decide the address, so keep the default on public networks. op-node has no such flag: its threshold is fixed at `10`. See [advertised address](#advertised-address) | `10` |
+| `--p2p.discovery.private` | `KONA_NODE_P2P_DISCOVERY_PRIVATE` | Let discovery use non-public addresses, such as loopback and LAN ones, in other nodes' records and bootnodes, as on a devnet. See [discovered addresses](#discovered-addresses) | `false` |
 | `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
-| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs | - |
+| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs. A bootnode at a non-public address needs `--p2p.discovery.private`, see [discovered addresses](#discovered-addresses) | - |
 | `--p2p.static-peers <MULTIADDR,...>` | `KONA_NODE_P2P_STATIC_PEERS` | Peers to dial at startup and keep connected, see [static peers](#static-peers). Alias: `--p2p.static` | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
@@ -130,6 +131,29 @@ On a chain without built-in bootnodes, the node logs a warning at startup if it 
 op-node never advertises its listen IP: without `--p2p.advertise.ip`, it learns its address from the peers' votes, with a fixed threshold of 10. So op-node needs `--p2p.advertise.ip` on small networks too, even when it listens on a specific address.
 
 </Info>
+
+### Discovered addresses
+
+<Unreleased component="kona-node" />
+
+Other nodes hand the node records that can name an address it can't reach, such as another host's `127.0.0.1`, or a host that isn't a node at all. So the node follows two rules:
+
+- **Apart from its bootnodes, it dials only nodes discovery has had a session with, and only if the TCP address in their record has the IP the session came from.** It saves such records and the bootnodes of its chain in its bootstore, apart from private ones, see below, and hands them to gossip at startup and every minute after, so that it redials the peers it lost. A record that names another host is dropped. Static peers and [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer) are dialed as given.
+- **Discovery uses only public addresses, unless `--p2p.discovery.private` is set.** A record with a "this network" (`0.0.0.0/8`), loopback, private, link-local, shared (`100.64.0.0/10`), IETF protocol assignment (`192.0.0.0/24`), benchmarking (`198.18.0.0/15`), reserved (`240.0.0.0/4`), multicast, broadcast or documentation address isn't contacted, kept in the discovery table, or saved, unless it starts a session with the node, see below, and the bootstore drops it at startup. Some clouds and labs use the benchmarking and reserved ranges for internal addresses. This applies to bootnodes, given as ENRs or enode URLs, so a devnet that uses loopback or LAN bootnodes needs the flag. The other special-purpose ranges, such as anycast and NAT64 addresses, count as public.
+
+Behind a Kubernetes Service with `externalTrafficPolicy: Cluster`, the default, packets from other nodes reach the node from a cluster node's IP rather than their own. A node that starts a session with it then doesn't match its record, so it isn't dialed, and the node finds fewer peers than op-node does. Sessions the node starts itself are unaffected. Set `externalTrafficPolicy: Local` to keep the senders' IPs.
+
+Without `--p2p.discovery.private`, the node never reaches out to a private address first. A node at a private address that starts a session with it is dialed back, at the address the session came from, as it could dial this node over gossip anyway, but it isn't saved, so it isn't dialed after a restart. To peer with private nodes, such as neighbours in a VPC, set the flag, or list them in `--p2p.static-peers`. Discovery also keeps a node it has a session with in its table, and passes its record on to nodes that look it up, as it can't check a record against the node asking for it. Nodes that follow these rules don't contact a private record they get this way.
+
+<Info>
+
+To keep a node, such as a sequencer, behind public sentry nodes, run it with `--p2p.no-discovery`, list the sentries in its `--p2p.static-peers`, and list it in theirs, see [static peers](#static-peers) and [running without discovery](#running-without-discovery). Static peers are dialed directly, redialed every minute, and never passed on through discovery.
+
+A node that ran discovery against its sentry instead would leak, and wouldn't stay behind it: the sentry keeps it in its table, and passes its record, with its node ID and LAN address, on to every node that looks it up. The node also finds the sentry's other peers through it, and connects to them directly.
+
+</Info>
+
+Like Lighthouse, kona-node uses a fixed rule. op-node instead checks each record against the node that returned it, so it accepts a LAN record from a LAN neighbour without a flag.
 
 ### Static peers
 
@@ -222,7 +246,7 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork. | - |
+| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. When unset, the node uses the chain's dependency set from the superchain-registry. Required when the rollup config schedules the Lagoon hardfork for a chain the registry does not include. | - |
 | `--safedb.path <PATH>` | `KONA_NODE_SAFEDB_PATH` | Directory of the safe head database, which records the L2 safe head reached as of each L1 block and backs `optimism_safeHeadAtL1Block` and `superroot_atTimestamp`. Needed by op-challenger, op-proposer and op-dispute-mon. Nothing is recorded when unset. | - |
 
 `kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`

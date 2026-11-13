@@ -1,14 +1,12 @@
 package deployer
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -101,34 +99,6 @@ func pinContinuationReads(
 }
 
 var _ continuationReadBackend = (*ethclient.Client)(nil)
-
-type scriptHostReadBackend struct {
-	*opcm.ScriptHostCallBackend
-	host *script.Host
-}
-
-var _ continuationReadBackend = (*scriptHostReadBackend)(nil)
-
-func newScriptHostReadBackend(host *script.Host) *scriptHostReadBackend {
-	return &scriptHostReadBackend{
-		ScriptHostCallBackend: opcm.NewScriptHostCallBackend(host),
-		host:                  host,
-	}
-}
-
-func (b *scriptHostReadBackend) CodeAt(
-	ctx context.Context,
-	contract common.Address,
-	blockNumber *big.Int,
-) ([]byte, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if blockNumber != nil {
-		return nil, fmt.Errorf("script host code reads do not support a block number")
-	}
-	return bytes.Clone(b.host.GetCode(contract)), nil
-}
 
 type continuationGameMode struct {
 	respectedGameType       uint32
@@ -688,6 +658,7 @@ func (v *continuationVerifier) persistentAddressExpectations(
 		{"CHECK-SCFG-210 SystemConfig mintable factory", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationMintableFactoryMethod, nil, contracts.OptimismMintableErc20FactoryProxy},
 		{"CHECK-OP2-25 OptimismPortal AnchorStateRegistry", "predicted OpChainContracts", contracts.OptimismPortalProxy, continuationAnchorRegistryMethod, nil, contracts.AnchorStateRegistryProxy},
 		{"CHECK-OP2-90 OptimismPortal ProxyAdmin owner", "frozen DeployOPChainInput.OpChainProxyAdminOwner", contracts.OptimismPortalProxy, continuationProxyAdminOwnerMethod, nil, v.dci.OpChainProxyAdminOwner},
+		{"CHECK-OP2-125 OptimismPortal bridge hook", "frozen DeployOPChainInput.BridgeHook", contracts.OptimismPortalProxy, continuationBridgeHookMethod, nil, v.dci.BridgeHook},
 		{"AM-10 AddressManager owner", "predicted OpChainContracts.OpChainProxyAdminImpl", contracts.AddressManagerImpl, continuationOwnerMethod, nil, contracts.OpChainProxyAdminImpl},
 		{"OPCPA-30 ProxyAdmin AddressManager", "predicted OpChainContracts.AddressManagerImpl", contracts.OpChainProxyAdminImpl, continuationAddressManagerMethod, nil, contracts.AddressManagerImpl},
 	}
@@ -808,7 +779,7 @@ func (v *continuationVerifier) verifyStandardValidator() {
 		v.addMismatch(
 			"StandardValidator result",
 			"frozen DeployOPChainInput",
-			"successful call with an empty result",
+			"the expected override markers and error codes",
 			err,
 		)
 	}
@@ -866,16 +837,20 @@ func standardValidatorInput(
 ) opcm.StandardValidatorInput {
 	gameType := opcm.GameType(dci.DisputeGameType)
 	useDevInput := gameType == opcm.GameTypeCannonKona || gameType == opcm.GameTypeSuperCannonKona
+	// ZKPrestate stays zero: deploy() never registers ZK_DISPUTE_GAME, so a fresh chain has none.
 	return opcm.StandardValidatorInput{
 		SystemConfig:        contracts.SystemConfigProxy,
 		AbsolutePrestate:    dci.DisputeAbsolutePrestate,
 		CannonPrestate:      dci.CannonAbsolutePrestate,
 		CannonKonaPrestate:  dci.DisputeAbsolutePrestate,
+		ZKPrestate:          common.Hash{},
 		L2ChainID:           dci.L2ChainId,
 		Proposer:            dci.Proposer,
 		L1PAOMultisig:       dci.OpChainProxyAdminOwner,
 		Challenger:          dci.Challenger,
 		UseDevFeaturesInput: useDevInput,
+		// CHECK-OP2-125 verifies the hook address.
+		BridgeHookConfigured: dci.BridgeHook != (common.Address{}),
 	}
 }
 
@@ -937,6 +912,7 @@ var (
 	continuationMintableFactoryMethod     = w3.MustNewFunc("optimismMintableERC20Factory()", "address")
 	continuationAnchorRegistryMethod      = w3.MustNewFunc("anchorStateRegistry()", "address")
 	continuationEthLockboxMethod          = w3.MustNewFunc("ethLockbox()", "address")
+	continuationBridgeHookMethod          = w3.MustNewFunc("bridgeHook()", "address")
 	continuationProxyAdminOwnerMethod     = w3.MustNewFunc("proxyAdminOwner()", "address")
 	continuationPausedMethod              = w3.MustNewFunc("paused()", "bool")
 	continuationConfigMethod              = w3.MustNewFunc("config()", "address")

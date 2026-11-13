@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     BuildTask, CanonicalizeTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink,
-    InsertTask, SealTask,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, FinalizeTask,
+    ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -35,6 +35,9 @@ where
     el_sync_complete: bool,
     /// The last local-safe head sent to the derivation actor.
     last_engine_safe_head_sent: L2BlockInfo,
+    /// The error of the last skipped engine task, so an identical repeat logs no new warning
+    /// until a reset changes the state the task was judged against.
+    last_skipped_task_error: Option<String>,
     /// A channel to use to relay the current unsafe head.
     /// ## Note
     /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
@@ -82,6 +85,7 @@ where
             el_sync_complete: false,
             engine,
             last_engine_safe_head_sent: L2BlockInfo::default(),
+            last_skipped_task_error: None,
             rollup: config,
             unsafe_head_tx,
             inbound_request_rx,
@@ -91,6 +95,18 @@ where
             retry_at: Instant::now(),
             retry_delay: Duration::from_millis(100),
         }
+    }
+
+    /// Logs a skipped task at `warn!` when its error differs from the last skip, and at `debug!`
+    /// while the identical error repeats, so a target resubmitted on every poll warns once.
+    fn log_skipped_task(&mut self, err: &EngineTaskErrors) {
+        let message = err.to_string();
+        if self.last_skipped_task_error.as_ref() == Some(&message) {
+            debug!(target: "engine", %err, "Skipped the same engine task again");
+            return;
+        }
+        warn!(target: "engine", %err, "Skipped an engine task that no longer applies");
+        self.last_skipped_task_error = Some(message);
     }
 
     fn defer_retry(&mut self) {
@@ -106,6 +122,7 @@ where
             Some(ResetKind::AfterL1Reorg(_)) => kind,
             None => {
                 self.engine.clear();
+                self.last_skipped_task_error = None;
                 self.retry_at = Instant::now();
                 kind
             }
@@ -228,6 +245,7 @@ where
                         self.defer_retry();
                         return Ok(());
                     }
+                    EngineTaskErrorSeverity::Skip => self.log_skipped_task(&err),
                 }
             }
         }
