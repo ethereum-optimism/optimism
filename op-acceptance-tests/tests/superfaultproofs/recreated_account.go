@@ -25,6 +25,17 @@ var (
 	// recreatedSibling's state-trie key shares its first 11 nibbles (f36a7482b80) with the
 	// re-created account's, so the two accounts are alone under the branch where their keys part
 	// unless another account's key shares those 11 nibbles. requireBranchOfTwo checks that none does.
+	//
+	// recreatedSalt and recreatedSibling were found together by a birthday search, which must be
+	// rerun if recreatedInitCode or the proxy changes. For each salt from 0 to 2^22-1, record the
+	// salt under the first 11 nibbles of keccak256(crypto.CreateAddress2(proxy, salt,
+	// keccak256(recreatedInitCode))). Then, for n = 0, 1, 2, ..., take the address with 5eed in its
+	// first 2 bytes, n big-endian in its last 8 bytes and zeros between, and stop at the first whose
+	// keccak256 starts with recorded nibbles: that address is recreatedSibling and the salt recorded
+	// under those nibbles is recreatedSalt. The search stopped at n = 0x4961d9 after about 10
+	// seconds. If requireBranchOfTwo fails with a new pair, continue from n+1. An 11-nibble match
+	// takes about 2^22 tries on each side, and an account created at runtime shares the 11 nibbles
+	// with probability 2^-44.
 	recreatedSibling = common.HexToAddress("0x5eeD0000000000000000000000000000004961d9")
 )
 
