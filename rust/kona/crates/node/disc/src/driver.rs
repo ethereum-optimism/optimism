@@ -47,6 +47,9 @@ const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
 /// The delay between attempts to start the [`Discv5`] event stream.
 const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 
+/// The number of records the channel to gossip holds.
+const ENR_CHANNEL_CAPACITY: usize = 1024;
+
 /// Returns whether the TCP address gossip dials from `enr`, see [`kona_peers::enr_tcp_socket`], has
 /// `session_ip`, the IP that a session with the node came from. Then the session has confirmed the
 /// address gossip dials, which is also the one it dials after a restart, once the bootstore has
@@ -76,28 +79,33 @@ fn accepts_enode(table_filter: fn(&Enr) -> bool, enode: &Multiaddr) -> Result<bo
         .is_ok_and(|record| table_filter(&record)))
 }
 
+/// Returns how many saved records [`forward_saved`] may hand over now: the room left in the
+/// channel to gossip beyond half of its capacity. That half stays free for the records of the
+/// sessions that start before gossip catches up, which are handed over only once.
+fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
+    sender.capacity().saturating_sub(sender.max_capacity() / 2)
+}
+
 /// Hands gossip the saved records, the bootnodes and the records a session confirmed. Gossip dials
 /// those it isn't connected to. It redials a peer only when discovery hands it over again, and
 /// discovery reports a session only when it starts, which discv5 keeps going for as long as it
 /// pings the node.
 ///
-/// Doesn't wait for room in the channel: the records that don't fit are dropped until the next
-/// store interval, rather than piling up in tasks that wait to send them. They are handed over in
-/// a random order, so that each interval gets a different part of them through.
+/// Doesn't wait for room in the channel, which would pile up tasks waiting to send: it hands over
+/// only as many as [`room_for_saved`] allows, and the rest at a later store interval. They are
+/// handed over in a random order, so that each interval gets a different part of them through.
 fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>) {
     let mut enrs = store.valid_peers_with_chain_id(chain_id);
     enrs.shuffle(&mut rand::rng());
-    for (sent, enr) in enrs.iter().enumerate() {
-        match sender.try_send((*enr).clone()) {
-            Ok(()) => {}
-            Err(TrySendError::Full(_)) => {
-                let dropped = enrs.len() - sent;
-                debug!(target: "discovery", dropped, "The channel to gossip is full, dropping the other saved records until the next store interval");
-                metrics::counter!(crate::Metrics::DROPPED_ENRS, "source" => "saved")
-                    .increment(dropped as u64);
-                return;
-            }
-            Err(TrySendError::Closed(_)) => return,
+    let room = room_for_saved(sender);
+    if enrs.len() > room {
+        debug!(target: "discovery", saved = enrs.len(), room, "Handing over part of the saved records, keeping room in the channel to gossip for session records");
+        enrs.truncate(room);
+    }
+    for enr in enrs {
+        // Nothing else sends meanwhile, so they all fit, and only a closed channel refuses them.
+        if sender.try_send(enr.clone()).is_err() {
+            return;
         }
     }
 }
@@ -113,7 +121,7 @@ fn forward_session(enr: Enr, sender: &mpsc::Sender<Enr>) {
         Ok(()) => {}
         Err(TrySendError::Full(_)) => {
             debug!(target: "discovery", "The channel to gossip is full, dropping a session's record");
-            metrics::counter!(crate::Metrics::DROPPED_ENRS, "source" => "session").increment(1);
+            metrics::counter!(crate::Metrics::DROPPED_ENRS).increment(1);
         }
         Err(TrySendError::Closed(_)) => {
             debug!(target: "discovery", "The channel to gossip is closed, dropping a session's record");
@@ -444,7 +452,7 @@ impl Discv5Driver {
         let chain_id = self.chain_id;
         let table_filter = self.table_filter;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
-        let (enr_sender, enr_recv) = channel::<Enr>(1024);
+        let (enr_sender, enr_recv) = channel::<Enr>(ENR_CHANNEL_CAPACITY);
 
         let task = spawn_in_current_span(async move {
             let remove = self.remove_interval.is_some();

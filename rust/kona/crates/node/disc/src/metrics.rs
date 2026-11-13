@@ -17,8 +17,7 @@ impl Metrics {
     /// Identifier for the gauge that tracks the number of peers in the discovery service.
     pub const DISCOVERY_PEER_COUNT: &str = "kona_node_discovery_peer_count";
 
-    /// Counter for the records discovery dropped because the channel to gossip was full, by
-    /// `source`: `saved` for the bootstore's, `session` for a session's.
+    /// Counter for the session records discovery dropped because the channel to gossip was full.
     pub const DROPPED_ENRS: &str = "kona_node_discovery_dropped_enrs";
 
     /// Initializes metrics for the discovery service.
@@ -48,7 +47,7 @@ impl Metrics {
         );
         metrics::describe_counter!(
             Self::DROPPED_ENRS,
-            "Records discovery dropped because the channel to gossip was full"
+            "Session records discovery dropped because the channel to gossip was full"
         );
     }
 
@@ -64,7 +63,6 @@ impl Metrics {
         metrics::gauge!(Self::FIND_NODE_REQUEST).set(0);
 
         // Dropped records
-        metrics::counter!(Self::DROPPED_ENRS, "source" => "saved").absolute(0);
-        metrics::counter!(Self::DROPPED_ENRS, "source" => "session").absolute(0);
+        metrics::counter!(Self::DROPPED_ENRS).absolute(0);
     }
 }
