@@ -2913,7 +2913,10 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
-      - go-tests-with-fault-proof-deps:
+      # The Super tests mostly wait on L1 blocks, so they run in their own job and the cannon
+      # tests finish sooner. The split is by test name: the two filters cover every test exactly
+      # once, and a test needs Super in its name to run in the Super job.
+      - go-tests-with-fault-proof-deps: &cannon-tests
           name: op-e2e-cannon-tests
           image: <<pipeline.parameters.c-rust_base_image>>
           notify: true
@@ -2921,10 +2924,11 @@ workflows:
           no_output_timeout: 90m
           test_timeout: 480m
           resource_class: 2xlarge.gen2
-          # The tests mostly wait, so memory is the limit: 32 at once peaked at about 23.5 of 32 GiB.
+          # The tests mostly wait, so memory is the limit: 32 at once peaked at about 23.5 of 32 GiB
+          # (measured before the Super tests got their own job).
           # Lower this if the memory summary shows OOM kills. OP_E2E_EXECUTOR_LIMIT has to match, or
           # the cannon tests stay capped at 16.
-          environment_overrides: export FAULT_PROOF_TEST_PARALLEL=32 OP_E2E_EXECUTOR_LIMIT=32
+          environment_overrides: export FAULT_PROOF_TEST_PARALLEL=32 OP_E2E_EXECUTOR_LIMIT=32 FAULT_PROOF_TEST_ARGS=-skip=Super
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
@@ -2935,6 +2939,10 @@ workflows:
             - rust-kona-binaries
             - rust-op-reth-binary
             - prep-go-modules
+      - go-tests-with-fault-proof-deps:
+          <<: *cannon-tests
+          name: op-e2e-cannon-tests-super
+          environment_overrides: export FAULT_PROOF_TEST_PARALLEL=32 OP_E2E_EXECUTOR_LIMIT=32 FAULT_PROOF_TEST_ARGS=-run=Super
 
   develop-kontrol-tests:
     when: << pipeline.parameters.c-run_develop_kontrol_tests >>
