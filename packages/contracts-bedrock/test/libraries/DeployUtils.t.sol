@@ -4,7 +4,12 @@ pragma solidity 0.8.15;
 // Testing
 import { Test } from "test/setup/Test.sol";
 
+// Contracts
+import { AddressManager } from "src/legacy/AddressManager.sol";
+
 // Libraries
+import { Blueprint } from "src/libraries/Blueprint.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
@@ -24,6 +29,81 @@ abstract contract DeployUtils_TestInit is Test {
     {
         vm.expectRevert(bytes(_message));
         DeployUtils.assertUniqueAddresses(_addresses);
+    }
+}
+
+/// @title DeployUtils_CreateDeterministic_Test
+/// @notice Tests deployment and reuse of deterministic contracts.
+contract DeployUtils_CreateDeterministic_Test is DeployUtils_TestInit {
+    /// @notice Deploys at the computed address or reuses existing code without changing it.
+    function testFuzz_createDeterministic_freshOrReused_succeeds(bool _reuse) public {
+        bytes32 salt = keccak256("reuse logging");
+        address expected = vm.computeCreate2Address(salt, keccak256(type(AddressManager).creationCode));
+        if (_reuse) {
+            vm.etch(expected, hex"00");
+        }
+
+        address deployed = DeployUtils.createDeterministic("AddressManager", hex"", salt);
+
+        assertEq(deployed, expected);
+        if (_reuse) {
+            assertEq(deployed.code, hex"00");
+        } else {
+            assertGt(deployed.code.length, 0);
+        }
+    }
+}
+
+/// @title DeployUtils_CreateDeterministicBlueprint_Test
+/// @notice Tests deployment and reuse of single- and two-part blueprints.
+contract DeployUtils_CreateDeterministicBlueprint_Test is DeployUtils_TestInit {
+    /// @notice A single-part blueprint is deployed or reused without changing existing code.
+    function testFuzz_createDeterministicBlueprint_singleFreshOrReused_succeeds(bool _reuse) public {
+        bytes memory code = hex"6000";
+        bytes32 salt = keccak256("single blueprint reuse logging");
+        address expected = vm.computeCreate2Address(salt, keccak256(Blueprint.blueprintDeployerBytecode(code)));
+        if (_reuse) {
+            vm.etch(expected, hex"00");
+        }
+
+        vm.startBroadcast(msg.sender);
+        (address first, address second) = DeployUtils.createDeterministicBlueprint(code, salt);
+        vm.stopBroadcast();
+
+        assertEq(first, expected);
+        assertEq(second, address(0));
+        assertEq(first.code, _reuse ? bytes(hex"00") : bytes.concat(hex"fe7100", code));
+    }
+
+    /// @notice Each part is deployed or reused independently, including when only one part exists.
+    function testFuzz_createDeterministicBlueprint_splitFreshOrReused_succeeds(
+        bool _reuseFirst,
+        bool _reuseSecond
+    )
+        public
+    {
+        uint256 maxSize = Blueprint.maxInitCodeSize();
+        bytes memory code = new bytes(maxSize + 1);
+        bytes memory part1 = Bytes.slice(code, 0, maxSize);
+        bytes memory part2 = Bytes.slice(code, maxSize, 1);
+        bytes32 salt = keccak256("split blueprint reuse logging");
+        address expected1 = vm.computeCreate2Address(salt, keccak256(Blueprint.blueprintDeployerBytecode(part1)));
+        address expected2 = vm.computeCreate2Address(salt, keccak256(Blueprint.blueprintDeployerBytecode(part2)));
+        if (_reuseFirst) {
+            vm.etch(expected1, hex"00");
+        }
+        if (_reuseSecond) {
+            vm.etch(expected2, hex"00");
+        }
+
+        vm.startBroadcast(msg.sender);
+        (address first, address second) = DeployUtils.createDeterministicBlueprint(code, salt);
+        vm.stopBroadcast();
+
+        assertEq(first, expected1);
+        assertEq(second, expected2);
+        assertEq(first.code, _reuseFirst ? bytes(hex"00") : bytes.concat(hex"fe7100", part1));
+        assertEq(second.code, _reuseSecond ? bytes(hex"00") : bytes.concat(hex"fe7100", part2));
     }
 }
 

@@ -214,8 +214,8 @@ library DeployUtils {
         return create2AndSave(_save, _name, _name, _args, _salt);
     }
 
-    /// @notice Deploys a contract with the given name using CREATE2. If the contract is already deployed, this method
-    /// does nothing.
+    /// @notice Deploys a contract with the given name using CREATE2. If the contract is already deployed, logs its
+    /// name and address and reuses it.
     /// @param _name Name of the contract to deploy.
     /// @param _args ABI-encoded constructor arguments.
     function createDeterministic(
@@ -229,6 +229,7 @@ library DeployUtils {
         bytes memory initCode = abi.encodePacked(getCode(_name), _args);
         address preComputedAddress = vm.computeCreate2Address(_salt, keccak256(initCode));
         if (preComputedAddress.code.length > 0) {
+            console.log("%s already deployed at %s", _name, preComputedAddress);
             addr_ = payable(preComputedAddress);
         } else {
             vm.broadcast(msg.sender);
@@ -236,8 +237,8 @@ library DeployUtils {
         }
     }
 
-    /// @notice Deploys a blueprint contract with the given name using CREATE2. If the contract is already deployed,
-    /// this method does nothing.
+    /// @notice Deploys a blueprint contract using CREATE2. Logs the address of each already deployed blueprint part
+    /// and reuses it.
     /// @param _rawBytecode Raw bytecode of the contract the blueprint will deploy.
     function createDeterministicBlueprint(
         bytes memory _rawBytecode,
@@ -253,6 +254,8 @@ library DeployUtils {
             if (newContract1_.code.length == 0) {
                 (address deployedContract) = Blueprint.deploySmallBytecode(bpBytecode, _salt);
                 require(deployedContract == newContract1_, "DeployUtils: unexpected blueprint address");
+            } else {
+                console.log("Blueprint already deployed at %s", newContract1_);
             }
             newContract2_ = address(0);
         } else {
@@ -264,11 +267,15 @@ library DeployUtils {
             if (newContract1_.code.length == 0) {
                 address deployedContract = Blueprint.deploySmallBytecode(bp1Bytecode, _salt);
                 require(deployedContract == newContract1_, "DeployUtils: unexpected part 1 blueprint address");
+            } else {
+                console.log("Blueprint part 1 already deployed at %s", newContract1_);
             }
             newContract2_ = vm.computeCreate2Address(_salt, keccak256(bp2Bytecode));
             if (newContract2_.code.length == 0) {
                 address deployedContract = Blueprint.deploySmallBytecode(bp2Bytecode, _salt);
                 require(deployedContract == newContract2_, "DeployUtils: unexpected part 2 blueprint address");
+            } else {
+                console.log("Blueprint part 2 already deployed at %s", newContract2_);
             }
         }
     }

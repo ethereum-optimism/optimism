@@ -1,6 +1,7 @@
 package opcm
 
 import (
+	"bytes"
 	"math/big"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestDeployImplementations(t *testing.T) {
 	sp1Verifier, err := DeployMockSP1VerifierGenesis(env)
 	require.NoError(t, err)
 
-	output, err := DeployImplementations(env, DeployImplementationsInput{
+	input := DeployImplementationsInput{
 		MinWithdrawalDelaySeconds:          big.NewInt(1),
 		MaxWithdrawalDelaySeconds:          big.NewInt(2),
 		MinProposalSizeBytes:               big.NewInt(2),
@@ -41,7 +42,21 @@ func TestDeployImplementations(t *testing.T) {
 		L1ProxyAdminOwner:                  common.BigToAddress(big.NewInt(13)),
 		Challenger:                         common.BigToAddress(big.NewInt(14)),
 		SP1Verifier:                        sp1Verifier,
-	})
+	}
+	var logs bytes.Buffer
+	env.Client.Stdout = &logs
+	output, err := DeployImplementations(env, input)
 	require.NoError(t, err)
 	requireCode(t, env, output.OpcmV2)
+	require.NotContains(t, logs.String(), "SystemConfig already deployed at ")
+	require.NotContains(t, logs.String(), "Blueprint already deployed at ")
+
+	// Forge handles console calls outside vm.expectCall, so assert the user-visible output here.
+	logs.Reset()
+	reused, err := DeployImplementations(env, input)
+	require.NoError(t, err)
+	require.Equal(t, output, reused)
+	require.Contains(t, logs.String(), "SystemConfig already deployed at "+output.SystemConfigImpl.Hex())
+	require.Contains(t, logs.String(), "L1CrossDomainMessenger already deployed at "+output.L1CrossDomainMessengerImpl.Hex())
+	require.Contains(t, logs.String(), "Blueprint already deployed at ")
 }
