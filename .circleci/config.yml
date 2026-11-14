@@ -200,6 +200,10 @@ jobs:
       - run:
           name: Test Go module cache setup
           command: python3 .circleci/scripts/test-go-mod-cache.py
+      # Change detection must fail safe: a failed base diff runs the full CI.
+      - run:
+          name: Test change detection
+          command: .circleci/scripts/test-collect-params.sh
       # Forward string pipeline parameters to /tmp/pipeline-parameters.json.
       # collect-params.sh picks up all env vars starting with "c-" and writes them as JSON strings.
       # Add a line here when a new string value needs to reach continuation config jobs
