@@ -1,0 +1,13 @@
+{
+  "coverage_added": 0,
+  "real_denied_write": true,
+  "real_duplicate_upload": true,
+  "real_forge_upload": true,
+  "signatures": {
+    "Pong(uint256)": "0x58b69f57828e6962d216502094c54f6562f3bf082ba758966c3454f9e37b1525",
+    "Problem(uint256)": "0x75e81caa0a77e5adadc3b22c7f7ddde3687f552d3c98fcf637917b018491dfb4",
+    "ping(uint256)": "0x773acdefa14d0531aef69d486d7c8400e4a8345988e81c39fb5b0177d80ed868",
+    "transform((uint256,address))": "0x3e46ec18b11f8d1e09ad2a1a34a156f5e1efa2eca41399ccf5107955eb031232"
+  },
+  "state": "passed"
+}

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "repository": "ethereum-optimism/optimism",
+  "gates": {
+    "required-rust-ci": {
+      "circle_config": ".circleci/continue/rust-ci.yml",
+      "workflow": "rust-ci"
+    },
+    "ci-gate": {
+      "circle_config": ".circleci/continue/main.yml",
+      "workflow": "main"
+    },
+    "required-contracts-ci": {
+      "circle_config": ".circleci/continue/main.yml",
+      "workflow": "contracts-feature-tests"
+    }
+  },
+  "e2e_gate": {
+    "gate": "required-rust-e2e",
+    "circle_config": ".circleci/continue/rust-e2e.yml",
+    "workflow": "rust-e2e-ci",
+    "release_jobs": ["rust-e2e-binaries", "rust-workspace-release"]
+  }
+}
