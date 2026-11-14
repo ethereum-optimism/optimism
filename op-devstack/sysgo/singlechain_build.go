@@ -91,23 +91,6 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 	l1Config.WithPrefundedAccount(addrFor(devkeys.SystemConfigOwner), *millionEth)
 }
 
-// startL2ELForKey starts an L2 EL node for the given key, respecting DEVSTACK_L2EL_KIND.
-// This is the single env-aware dispatch point for L2 EL selection.
-func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, key string, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
-	switch k := devstackL2ELKind(); k {
-	case MixedL2ELOpGeth:
-		// op-reth options have no analogue on these kinds. Dropping them silently would make a
-		// binary override look like it took effect on a node that never saw it.
-		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
-		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
-	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, opts...)
-	default:
-		t.Require().FailNow("unsupported L2 EL kind", "unknown DEVSTACK_L2EL_KIND %q", k)
-		return nil // unreachable
-	}
-}
-
 // startL2CLForKey starts an L2 CL node for the given key, respecting DEVSTACK_L2CL_KIND.
 // This is the env-aware dispatch point for preset runtimes that don't build explicit node
 // specs. Runtimes constructed from explicit MixedSingleChainNodeSpec.CLKind values (e.g.
@@ -176,35 +159,8 @@ func startStoppedSequencerCL(
 	}
 }
 
-func startSequencerEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
-	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", identity, opts...)
-}
-
-func startL2ELNode(
-	t devtest.T,
-	l2Net *L2Network,
-	jwtPath string,
-	jwtSecret [32]byte,
-	key string,
-	identity *ELNodeIdentity,
-) *OpGeth {
-	cfg := DefaultL2ELConfig()
-	cfg.P2PAddr = "127.0.0.1"
-	cfg.P2PPort = identity.Port
-	cfg.P2PNodeKeyHex = identity.KeyHex()
-
-	l2EL := &OpGeth{
-		name:      key,
-		p:         t,
-		logger:    t.Logger().New("component", "l2el-"+key),
-		l2Net:     l2Net,
-		jwtPath:   jwtPath,
-		jwtSecret: jwtSecret,
-		cfg:       cfg,
-	}
-	l2EL.Start()
-	t.Cleanup(l2EL.Stop)
-	return l2EL
+func startSequencerEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, opts ...OpRethOption) *OpReth {
+	return startMixedOpRethNode(t, l2Net, "sequencer", jwtPath, jwtSecret, nil, opts...)
 }
 
 func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC string) {

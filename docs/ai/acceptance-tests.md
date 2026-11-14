@@ -39,11 +39,8 @@ Runs all test packages with gotestsum, structured logging, and bounded paralleli
 ### Selecting the L2 Clients
 
 Every run covers the whole `./op-acceptance-tests/tests/...` tree; there is no per-package
-subset target. Which clients the devstack starts is chosen by two environment variables, read
-in `op-devstack/sysgo/mixed_runtime.go`:
-
-- `DEVSTACK_L2CL_KIND` — `op-node` (the default) or `kona-node`
-- `DEVSTACK_L2EL_KIND` — `op-reth` (the default) or `op-geth`
+subset target. The L2 EL is always op-reth. The L2 CL is chosen by `DEVSTACK_L2CL_KIND`, read
+in `op-devstack/sysgo/mixed_runtime.go`: `op-node` (the default) or `kona-node`.
 
 ```bash
 cd op-acceptance-tests && DEVSTACK_L2CL_KIND=kona-node RUST_JIT_BUILD=1 mise exec -- just acceptance-test
@@ -52,10 +49,10 @@ cd op-acceptance-tests && DEVSTACK_L2CL_KIND=kona-node RUST_JIT_BUILD=1 mise exe
 CI runs two variants of the `op-acceptance-tests` job: `memory-all-opn-op-reth-<l1_fork>`
 (op-node + op-reth) and `memory-all-kona-op-reth-<l1_fork>` (kona-node + op-reth).
 
-A test that cannot run under a given client skips itself in code rather than being left out of
-a list — `sysgo.SkipOnKonaNode`, `sysgo.SkipOnOpReth` and `sysgo.SkipOnOpGeth`. Skip only for
-a real client gap. A test that pins the CL kind of every node itself runs the same way in both
-CL variants; let it run twice rather than skipping one variant to save CI time.
+A test that cannot run under kona-node skips itself in code with `sysgo.SkipOnKonaNode` rather
+than being left out of a list. Skip only for a real client gap. A test that pins the CL kind of
+every node itself runs the same way in both CL variants; let it run twice rather than skipping
+one variant to save CI time.
 
 ### Kona Prestate
 

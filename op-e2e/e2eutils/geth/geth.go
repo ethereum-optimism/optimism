@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
-	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
@@ -60,7 +59,7 @@ func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine", "miner"},
 	}
 
-	gethInstance, err := createGethNode(false, nodeConfig, ethConfig, opts...)
+	gethInstance, err := createGethNode(nodeConfig, ethConfig, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -111,51 +110,14 @@ func (b *gethBackend) HeaderByNumber(_ context.Context, num *big.Int) (*types.He
 	return h, nil
 }
 
-func defaultNodeConfig(name string, jwtPath string) *node.Config {
-	return &node.Config{
-		Name:        name,
-		WSHost:      "127.0.0.1",
-		WSPort:      0,
-		AuthAddr:    "127.0.0.1",
-		AuthPort:    0,
-		HTTPHost:    "127.0.0.1",
-		HTTPPort:    0,
-		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine", "miner"},
-		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine", "miner"},
-		JWTSecret:   jwtPath,
-	}
-}
-
 type GethOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
-
-// InitL2 inits a L2 geth node.
-func InitL2(name string, genesis *core.Genesis, jwtPath string, opts ...GethOption) (*GethInstance, error) {
-	ethConfig := &ethconfig.Config{
-		NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
-		Genesis:     genesis,
-		StateScheme: rawdb.HashScheme,
-		Miner: miner.Config{
-			PendingFeeRecipient: common.Address{},
-			ExtraData:           nil,
-			GasCeil:             0,
-			GasPrice:            nil,
-			// enough to build blocks within 1 second, but high enough to avoid unnecessary test CPU cycles.
-			Recommit: time.Millisecond * 400,
-		},
-		TxPool: legacypool.Config{
-			NoLocals: true,
-		},
-	}
-	nodeConfig := defaultNodeConfig(fmt.Sprintf("l2-geth-%v", name), jwtPath)
-	return createGethNode(true, nodeConfig, ethConfig, opts...)
-}
 
 // createGethNode creates an in-memory geth node based on the configuration.
 // The private keys are added to the keystore and are unlocked.
-// Catalyst is always enabled. If the node is an L1, the catalyst API can be used by alternative
+// Catalyst is always enabled, so the catalyst API can be used by alternative
 // sequencers (e.g., op-test-sequencer) if the default FakePoS is stopped.
 // The node should be started and then closed when done.
-func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, opts ...GethOption) (*GethInstance, error) {
+func createGethNode(nodeCfg *node.Config, ethCfg *ethconfig.Config, opts ...GethOption) (*GethInstance, error) {
 	for i, opt := range opts {
 		if err := opt(ethCfg, nodeCfg); err != nil {
 			return nil, fmt.Errorf("failed to apply geth option %d: %w", i, err)

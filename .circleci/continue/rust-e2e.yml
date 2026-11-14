@@ -416,7 +416,6 @@ jobs:
             mkdir -p "$RESULTS_DIR" "$LOG_DIR"
 
             export DEVSTACK_L2CL_KIND=op-node
-            export DEVSTACK_L2EL_KIND=op-reth
             export RUST_BINARY_PATH_OP_RETH="$ROOT_DIR/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_HOST="$ROOT_DIR/rust/target/release/kona-host"
             export RUST_BINARY_PATH_OP_ZK_PROPOSER="$ROOT_DIR/rust/target/release/op-zk-proposer"

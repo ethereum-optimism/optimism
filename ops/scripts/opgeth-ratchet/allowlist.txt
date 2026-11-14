@@ -78,8 +78,6 @@ op-core/types (tests) | missing go-ethereum/core/types.Transaction.SourceHash | 
 op-deployer/pkg/deployer/opcm | missing go-ethereum/params.BuilderDepositAddress | upstream backport, in go-ethereum v1.17.7
 op-deployer/pkg/deployer/opcm | missing go-ethereum/params.BuilderExitAddress | upstream backport, in go-ethereum v1.17.7
 op-devstack/sysgo | missing go-ethereum/core/types.CustodyBitmap | upstream backport, in go-ethereum v1.17.7
-op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMempoolFiltering | #21744 in-process op-geth L2 EL
-op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMessageRPC | #21744 in-process op-geth L2 EL
 op-e2e/actions/helpers | changed signature of go-ethereum/consensus/misc/eip1559.CalcBaseFee | #20266 drop the op-geth-only argument at the flip (eip1559.CalcBaseFee(config, parent))
 op-e2e/actions/helpers | changed signature of go-ethereum/core.NewEVMBlockContext | #20266 drop the op-geth-only argument at the flip (core.NewEVMBlockContext(header, chain, author))
 op-e2e/actions/helpers | changed signature of go-ethereum/core/types.NewBlock | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, hasher))
