@@ -115,6 +115,7 @@ The execution client and consensus client communicate over the Engine API using 
 
 ```bash
 openssl rand -hex 32 > jwt-secret.txt
+chmod 600 jwt-secret.txt
 ```
 
 This file must be identical for both your execution client and your consensus client.
