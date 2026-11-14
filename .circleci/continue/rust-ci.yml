@@ -52,6 +52,28 @@ jobs:
     steps:
       - checkout-with-mise:
           checkout-method: blobless
+      # Only the mise cache holds the stable toolchain, so a channel that differs
+      # from mise.toml makes rustup download it in every Rust job. The Dockerfiles
+      # build the published images and must use the version CI tests.
+      - run:
+          name: Check Rust toolchain pins agree
+          command: |
+            stable="$(yq -r '[.tools.rust[].version | select(test("^nightly") | not)] | join(" ")' mise.toml)"
+            report="  mise.toml stable rust: ${stable:-<missing>}"
+            drift=0
+            check() {
+              report="${report}"$'\n'"  $1: ${2:-<missing>}"
+              [ -n "$stable" ] && [ "$2" = "$stable" ] || drift=1
+            }
+            check "rust/rust-toolchain.toml channel" "$(yq -r '.toolchain.channel // ""' rust/rust-toolchain.toml)"
+            check "ops/docker/op-stack-go/Dockerfile rust image" "$(sed -nE 's/^FROM .* rust:([^ ]+) .*/\1/p' ops/docker/op-stack-go/Dockerfile)"
+            check "rust/op-reth/DockerfileOp cargo-chef image" "$(sed -nE 's/^FROM .*cargo-chef:latest-rust-([^ ]+).*/\1/p' rust/op-reth/DockerfileOp)"
+            check "rust/kona/docker/apps/kona_app_generic.dockerfile RUST_VERSION" "$(sed -nE 's/^ENV RUST_VERSION=(.+)/\1/p' rust/kona/docker/apps/kona_app_generic.dockerfile)"
+            if [ "$drift" -ne 0 ]; then
+              printf '%s\n' "ERROR: Rust toolchain pin drift. mise.toml stable rust is canonical, update the others to match:" "$report" >&2
+              exit 1
+            fi
+            printf '%s\n' "Rust toolchain pins agree:" "$report"
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           init_superchain_submodule: false
