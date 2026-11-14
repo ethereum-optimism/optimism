@@ -115,6 +115,8 @@ commands:
             echo "export RUSTUP_HOME=${MISE_RUSTUP_HOME}" >> "$BASH_ENV"
             echo "source ${MISE_CARGO_HOME}/env" >> "$BASH_ENV"
             echo "export CARGO_INCREMENTAL=0" >> "$BASH_ENV"
+            # bench-dig-rust-2 only: fail instead of downloading a missing toolchain.
+            echo "export RUSTUP_AUTO_INSTALL=0" >> "$BASH_ENV"
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |

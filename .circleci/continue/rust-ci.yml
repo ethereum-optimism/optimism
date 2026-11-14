@@ -233,6 +233,25 @@ jobs:
           command: <<parameters.command>>
       - rust-save-build-cache: *docs-cache-args
 
+  bench-rust-probe:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: 2xlarge.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          profile: release
+      - run:
+          name: Bench probe
+          working_directory: rust
+          no_output_timeout: 40m
+          command: bash scripts/dig-bench.sh
+      - store_artifacts:
+          path: /tmp/dig-art
+          destination: dig
+
   # Shared cargo tests job
   rust-ci-cargo-tests:
     parameters:
@@ -1024,6 +1043,9 @@ workflows:
 
       - interop-deposits-go-rust-diff:
           name: interop-deposits-diff
+          context: *rust-ci-context
+
+      - bench-rust-probe:
           context: *rust-ci-context
 
       - rust-ci-docs:
