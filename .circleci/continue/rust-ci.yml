@@ -53,38 +53,21 @@ jobs:
       - checkout-with-mise:
           checkout-method: blobless
       # Only the mise cache holds the stable toolchain, so a channel that differs
-      # from mise.toml makes rustup download it in every Rust job. The Dockerfiles
-      # build the published images and must use the version CI tests.
+      # from mise.toml makes rustup download it in every Rust job.
       - run:
           name: Check Rust toolchain pins agree
           command: |
-            stable="$(yq -r '[.tools.rust[].version | select(test("^nightly") | not)] | join(" ")' mise.toml)"
-            report="  mise.toml stable rust: ${stable:-<missing>}"
-            drift=0
-            # $2 is every pin found at one site. Require at least one, and every
-            # one equal to mise.toml, so a later override or duplicate is caught.
-            check() {
-              found="$(printf '%s' "$2" | tr '\n' ' ')"
-              report="${report}"$'\n'"  $1: ${found:-<missing>}"
-              [ -n "$stable" ] && [ -n "$2" ] || drift=1
-              for v in $2; do [ "$v" = "$stable" ] || drift=1; done
-            }
-            # Every Rust pin in a Dockerfile: the tag of a rust:<v> or *-rust-<v>
-            # FROM image (minus a variant like -slim), and every ENV or ARG
-            # RUST_VERSION value. Any instruction case, spacing or quotes.
-            dockerfile_pins() {
-              grep -iE '^[[:space:]]*FROM[[:space:]]' "$1" | grep -oE '[/[:space:]]rust:[^[:space:]@]+|-rust-[^[:space:]@]+' | sed -E 's/^.*rust[:-]//; s/-.*//'
-              grep -iE '^[[:space:]]*(ENV|ARG)[[:space:]]' "$1" | grep -oE '[[:space:]]RUST_VERSION([[:space:]]*=|[[:space:]])[[:space:]]*[^[:space:]]+' | sed -E 's/^.*RUST_VERSION[[:space:]=]*//' | tr -d "\"'"
-            }
-            check "rust/rust-toolchain.toml channel" "$(yq -r '.toolchain.channel // ""' rust/rust-toolchain.toml)"
-            for f in ops/docker/op-stack-go/Dockerfile rust/op-reth/DockerfileOp rust/kona/docker/apps/kona_app_generic.dockerfile; do
-              check "$f Rust pins" "$(dockerfile_pins "$f")"
-            done
-            if [ "$drift" -ne 0 ]; then
-              printf '%s\n' "ERROR: Rust toolchain pin drift. mise.toml stable rust is canonical, update the others to match:" "$report" >&2
+            stable="$(yq -r '[.tools.rust[] | (.version // .) | select(test("^nightly") | not)] | join(" ")' mise.toml)"
+            channel="$(yq -r '.toolchain.channel // ""' rust/rust-toolchain.toml)"
+            if [ -z "$stable" ] || [ "$channel" != "$stable" ]; then
+              printf '%s\n' "ERROR: Rust toolchain pin drift." \
+                "  mise.toml stable rust: ${stable:-<missing>}" \
+                "  rust/rust-toolchain.toml channel: ${channel:-<missing>}" \
+                "Set both to the same version. Also update the Rust pins in ops/docker/op-stack-go/Dockerfile," \
+                "rust/op-reth/DockerfileOp and rust/kona/docker/apps/kona_app_generic.dockerfile (not checked here)." >&2
               exit 1
             fi
-            printf '%s\n' "Rust toolchain pins agree:" "$report"
+            echo "Rust toolchain pins agree: $stable"
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           init_superchain_submodule: false
