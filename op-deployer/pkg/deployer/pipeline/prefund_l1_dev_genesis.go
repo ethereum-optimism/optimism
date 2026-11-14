@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -25,4 +26,13 @@ func PrefundL1DevGenesis(env *Env, intent *state.Intent, st *state.State) error 
 	}
 	lgr.Info("Prefunded dev accounts on L1", "accounts", len(prefundMap))
 	return nil
+}
+
+// prefunds reports whether the intent gives an account a positive L1 prefund.
+func prefunds(intent *state.Intent, addr common.Address) bool {
+	if intent.L1DevGenesisParams == nil {
+		return false
+	}
+	amount := intent.L1DevGenesisParams.Prefund[addr]
+	return amount != nil && !(*uint256.Int)(amount).IsZero()
 }

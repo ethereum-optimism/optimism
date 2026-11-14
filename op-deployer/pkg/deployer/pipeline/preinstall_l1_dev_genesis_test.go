@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
@@ -28,6 +29,43 @@ func TestPreinstallL1DevGenesis_Permit2ChainID(t *testing.T) {
 	code := env.Forge.Genesis.Allocs.Accounts[predeploys.Permit2Addr].Code
 	require.GreaterOrEqual(t, len(code), chainIDOffset+32, "Permit2 code is too short")
 	require.Equal(t, uint256.NewInt(l1ChainID).Bytes32(), [32]byte(code[chainIDOffset:chainIDOffset+32]))
+}
+
+// TestPreinstallL1DevGenesis_Deployer checks that the stage keeps the deployer's account, at its
+// nonce, only when the intent gives the deployer a positive prefund.
+func TestPreinstallL1DevGenesis_Deployer(t *testing.T) {
+	t.Parallel()
+	deployer := common.Address{0xdd}
+	prefund := func(addr common.Address, amount uint64) *state.L1DevGenesisParams {
+		return &state.L1DevGenesisParams{
+			Prefund: map[common.Address]*hexutil.U256{addr: (*hexutil.U256)(uint256.NewInt(amount))},
+		}
+	}
+	for _, tt := range []struct {
+		name   string
+		params *state.L1DevGenesisParams
+		keep   bool
+	}{
+		{name: "no L1 dev genesis params"},
+		{name: "other account prefunded", params: prefund(common.Address{0xaa}, 1)},
+		{name: "zero deployer prefund", params: prefund(deployer, 0)},
+		{name: "positive deployer prefund", params: prefund(deployer, 1), keep: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			env := newTestGenesisEnv(t, deployer, 900)
+			deployed := types.Account{Nonce: 3, Balance: big.NewInt(42)}
+			env.Forge.Genesis.Allocs.Accounts[deployer] = deployed
+			require.NoError(t, PreinstallL1DevGenesis(env, &state.Intent{L1DevGenesisParams: tt.params}, &state.State{}))
+
+			account, ok := env.Forge.Genesis.Allocs.Accounts[deployer]
+			require.Equal(t, tt.keep, ok)
+			if tt.keep {
+				require.Equal(t, deployed.Nonce, account.Nonce)
+				require.Zero(t, deployed.Balance.Cmp(account.Balance))
+			}
+		})
+	}
 }
 
 func TestPreinstallL1DevGenesis_RequestQueues(t *testing.T) {
