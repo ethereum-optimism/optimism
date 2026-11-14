@@ -16,6 +16,8 @@ pub struct PersistenceMetrics {
     pub prune_duration_seconds: Histogram,
     /// Time spent committing the transaction in seconds
     pub commit_duration_seconds: Histogram,
+    /// Number of blocks written per persistence batch
+    pub blocks_per_batch: Histogram,
     /// Number of trie updates written
     pub account_trie_updates_written_total: Counter,
     /// Number of storage trie updates written
@@ -41,12 +43,14 @@ impl PersistenceMetrics {
     pub fn record_metrics(
         &self,
         write_counts: &WriteCounts,
+        blocks: usize,
         open_tx_duration: std::time::Duration,
         write_duration: std::time::Duration,
         prune_duration: std::time::Duration,
         commit_duration: std::time::Duration,
     ) {
         self.increment_write_counts(write_counts);
+        self.blocks_per_batch.record(blocks as f64);
         self.open_tx_duration_seconds.record(open_tx_duration);
         self.write_duration_seconds.record(write_duration);
         self.prune_duration_seconds.record(prune_duration);

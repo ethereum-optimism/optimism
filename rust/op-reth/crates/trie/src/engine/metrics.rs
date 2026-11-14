@@ -19,4 +19,8 @@ pub(super) struct EngineMetrics {
     pub reorg_duration_seconds: Histogram,
     /// Time spent unwinding persistence and memory in seconds.
     pub unwind_duration_seconds: Histogram,
+    /// Length of each backpressure episode in seconds: how long the engine stopped consuming
+    /// actions because the in-memory buffer reached the backpressure threshold while a save was
+    /// in flight. Callers block once the bounded action channel fills.
+    pub backpressure_duration_seconds: Histogram,
 }

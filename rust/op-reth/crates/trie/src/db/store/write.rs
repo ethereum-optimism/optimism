@@ -30,8 +30,12 @@ use reth_trie::{
     updates::TrieUpdatesSorted,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use tracing::debug;
 
-use super::NUM_OF_INDICES_IN_SHARD;
+use super::{
+    NUM_OF_INDICES_IN_SHARD,
+    phase::{self, PhaseStats, TableStats},
+};
 
 /// Collector for batched history bitmap appends.
 ///
@@ -751,42 +755,58 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
     /// push-all-block-numbers + re-encode + `upsert` instead of doing
     /// that per-entry.  The `BTreeMap` iteration order ensures cursor
     /// seeks are sequential within each table.
+    ///
+    /// Returns the unique keys flushed and the time spent per table.
     pub(super) fn flush_collected_history(
         &self,
         collector: HistoryCollector,
-    ) -> OpProofsStorageResult<()> {
+    ) -> OpProofsStorageResult<PhaseStats> {
         macro_rules! flush {
-            ($table:ty, $entries:expr, $key_fn:expr) => {
-                if !$entries.is_empty() {
-                    let mut cursor = self.tx.cursor_write::<$table>()?;
-                    for (key, blocks) in $entries {
-                        append_history_indices_batched::<$table>(
-                            &mut cursor,
-                            &blocks,
-                            |highest| $key_fn(key.clone(), highest),
-                        )?;
+            ($table:ty, $entries:expr, $key_fn:expr) => {{
+                let keys = $entries.len();
+                let (result, cost) = phase::timed(|| -> OpProofsStorageResult<()> {
+                    if !$entries.is_empty() {
+                        let mut cursor = self.tx.cursor_write::<$table>()?;
+                        for (key, blocks) in $entries {
+                            append_history_indices_batched::<$table>(
+                                &mut cursor,
+                                &blocks,
+                                |highest| $key_fn(key.clone(), highest),
+                            )?;
+                        }
                     }
-                }
-            };
+                    Ok(())
+                });
+                result?;
+                TableStats { keys, cost }
+            }};
         }
 
-        flush!(V2AccountsTrieHistory, collector.account_trie, |path, highest| {
-            AccountTrieShardedKey::new(path, highest)
-        });
-        flush!(V2StoragesTrieHistory, collector.storage_trie, |(addr, path), highest| {
-            StorageTrieShardedKey::new(addr, path, highest)
-        });
-        flush!(V2HashedAccountsHistory, collector.hashed_accounts, |addr, highest| {
-            HashedAccountShardedKey::new(addr, highest)
-        });
-        flush!(V2HashedStoragesHistory, collector.hashed_storages, |(addr, slot), highest| {
-            HashedStorageShardedKey {
-                hashed_address: addr,
-                sharded_key: ShardedKey::new(slot, highest),
-            }
-        });
+        let stats = PhaseStats {
+            account_trie: flush!(V2AccountsTrieHistory, collector.account_trie, |path, highest| {
+                AccountTrieShardedKey::new(path, highest)
+            }),
+            storage_trie: flush!(
+                V2StoragesTrieHistory,
+                collector.storage_trie,
+                |(addr, path), highest| StorageTrieShardedKey::new(addr, path, highest)
+            ),
+            hashed_accounts: flush!(
+                V2HashedAccountsHistory,
+                collector.hashed_accounts,
+                HashedAccountShardedKey::new
+            ),
+            hashed_storages: flush!(
+                V2HashedStoragesHistory,
+                collector.hashed_storages,
+                |(addr, slot), highest| HashedStorageShardedKey {
+                    hashed_address: addr,
+                    sharded_key: ShardedKey::new(slot, highest),
+                }
+            ),
+        };
 
-        Ok(())
+        Ok(stats)
     }
 
     /// Unwind all 4 data types in `range`: restore state, collect affected keys,
@@ -875,32 +895,67 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
         range: &std::ops::RangeInclusive<u64>,
     ) -> OpProofsStorageResult<WriteCounts> {
         let mut counts = WriteCounts::default();
+        let mut changesets = PhaseStats::default();
+        let mut history = PhaseStats::default();
 
-        let acct_trie_keys = self.prune_account_trie_changesets(range, &mut counts)?;
-        let stor_trie_keys = self.prune_storage_trie_changesets(range, &mut counts)?;
-        let acct_keys = self.prune_hashed_account_changesets(range, &mut counts)?;
-        let stor_keys = self.prune_hashed_storage_changesets(range, &mut counts)?;
+        /// Runs one prune step and returns its result with the stats for `keys` unique keys.
+        fn step<T>(
+            keys: impl FnOnce(&T) -> usize,
+            f: impl FnOnce() -> OpProofsStorageResult<T>,
+        ) -> OpProofsStorageResult<(T, TableStats)> {
+            let (result, cost) = phase::timed(f);
+            let result = result?;
+            let stats = TableStats { keys: keys(&result), cost };
+            Ok((result, stats))
+        }
 
-        self.prune_all_history(range, &acct_trie_keys, &stor_trie_keys, &acct_keys, &stor_keys)?;
+        // Phase A: delete the changesets in `range`, a contiguous scan per table.
+        let (acct_trie_keys, stats) =
+            step(BTreeSet::len, || self.prune_account_trie_changesets(range, &mut counts))?;
+        changesets.account_trie = stats;
+        let (stor_trie_keys, stats) =
+            step(BTreeSet::len, || self.prune_storage_trie_changesets(range, &mut counts))?;
+        changesets.storage_trie = stats;
+        let (acct_keys, stats) =
+            step(BTreeSet::len, || self.prune_hashed_account_changesets(range, &mut counts))?;
+        changesets.hashed_accounts = stats;
+        let (stor_keys, stats) =
+            step(BTreeSet::len, || self.prune_hashed_storage_changesets(range, &mut counts))?;
+        changesets.hashed_storages = stats;
+
+        // Phase B: remove `range` from each affected key's history bitmap, one seek per key.
+        let n = acct_trie_keys.len();
+        history.account_trie =
+            step(|_| n, || self.prune_account_trie_history(range, &acct_trie_keys))?.1;
+        let n = stor_trie_keys.len();
+        history.storage_trie =
+            step(|_| n, || self.prune_storage_trie_history(range, &stor_trie_keys))?.1;
+        let n = acct_keys.len();
+        history.hashed_accounts =
+            step(|_| n, || self.prune_hashed_account_history(range, &acct_keys))?.1;
+        let n = stor_keys.len();
+        history.hashed_storages =
+            step(|_| n, || self.prune_hashed_storage_history(range, &stor_keys))?.1;
+
+        changesets.record_cost("prune", "changesets");
+        history.record_cost("prune", "history");
+        history.record_unique_keys("prune");
+        debug!(
+            target: "trie::db",
+            start_block = range.start(),
+            end_block = range.end(),
+            changesets_ms = changesets.total().as_millis(),
+            changesets_major_faults = changesets.major_faults(),
+            history_ms = history.total().as_millis(),
+            history_major_faults = history.major_faults(),
+            account_trie_keys = history.account_trie.keys,
+            storage_trie_keys = history.storage_trie.keys,
+            hashed_account_keys = history.hashed_accounts.keys,
+            hashed_storage_keys = history.hashed_storages.keys,
+            "Prune phase breakdown"
+        );
 
         Ok(counts)
-    }
-
-    /// Remove block numbers in `range` from all 4 history bitmap tables for the
-    /// given sets of affected keys.
-    fn prune_all_history(
-        &self,
-        range: &std::ops::RangeInclusive<u64>,
-        acct_trie_keys: &BTreeSet<StoredNibbles>,
-        stor_trie_keys: &BTreeSet<(B256, StoredNibbles)>,
-        acct_keys: &BTreeSet<B256>,
-        stor_keys: &BTreeSet<(B256, B256)>,
-    ) -> OpProofsStorageResult<()> {
-        self.prune_account_trie_history(range, acct_trie_keys)?;
-        self.prune_storage_trie_history(range, stor_trie_keys)?;
-        self.prune_hashed_account_history(range, acct_keys)?;
-        self.prune_hashed_storage_history(range, stor_keys)?;
-        Ok(())
     }
 
     /// Phase A: delete all account-trie changeset entries in `range`, returning the
