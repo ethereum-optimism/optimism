@@ -89,7 +89,9 @@ jobs:
         default: "cargo clippy --workspace --all-targets --all-features"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    # #19777 moved this to medium when a target cache made it fast. That cache
+    # is gone (#21310), and on 2 vCPU the job took about 10 min.
+    resource_class: xlarge.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -231,31 +233,6 @@ jobs:
           command: <<parameters.command>>
       - rust-save-build-cache: *docs-cache-args
 
-  # Shared doc test job
-  rust-ci-doctest:
-    parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      command:
-        description: "Doc test command to run"
-        type: string
-        default: "just test-docs"
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: 2xlarge.gen2
-    steps:
-      - checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &doctest-cache-args
-          directory: <<parameters.directory>>
-      - run:
-          name: Run doc tests
-          working_directory: <<parameters.directory>>
-          no_output_timeout: 30m
-          command: <<parameters.command>>
-      - rust-save-build-cache: *doctest-cache-args
-
   # Shared cargo tests job
   rust-ci-cargo-tests:
     parameters:
@@ -387,7 +364,8 @@ jobs:
         default: "just check-udeps"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    # Same reason as rust-ci-clippy.
+    resource_class: xlarge.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -1048,11 +1026,6 @@ workflows:
           name: interop-deposits-diff
           context: *rust-ci-context
 
-      - rust-ci-doctest:
-          name: rust-doctest
-          directory: rust
-          context: *rust-ci-context
-
       - rust-ci-docs:
           name: rust-docs
           directory: rust
@@ -1154,7 +1127,6 @@ workflows:
             - rust-zepter: terminal
             - rust-tests: terminal
             - interop-deposits-diff: terminal
-            - rust-doctest: terminal
             - rust-docs: terminal
             - rust-udeps: terminal
             - rust-cargo-hack: terminal
