@@ -1574,7 +1574,6 @@ jobs:
     resource_class: 2xlarge.gen2
     steps:
       - checkout-with-mise:
-          checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:

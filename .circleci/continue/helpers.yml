@@ -91,17 +91,16 @@ commands:
   # Saves only the per-namespace build cache; the module cache is written once
   # by prep-go-modules. The revision in the key makes it unique per commit so
   # each build persists an up-to-date cache. Merge queue branches don't save:
-  # each queue branch name is used once, so only a rerun would restore it.
+  # each queue branch name is used once, so its saves get little reuse.
   go-save-cache:
     parameters:
       namespace:
         type: string
       prune:
-        # Keep only entries used in the last 3 hours. Go touches an entry's mtime
-        # at most once an hour, so this keeps what this run used. Only for a
-        # namespace where every job and node builds the same packages, since the
-        # first save wins. -delete because BusyBox find fails -exec rm {} + on
-        # long argument lists.
+        # Go touches an entry's mtime at most once an hour, so this keeps what a
+        # job used unless it saves over 2 hours later. Only for a namespace where
+        # every job and node builds the same packages, since the first save wins.
+        # -delete because BusyBox find fails -exec rm {} + on long argument lists.
         description: "Delete Go build cache entries unused for 3 hours before saving."
         type: boolean
         default: false
