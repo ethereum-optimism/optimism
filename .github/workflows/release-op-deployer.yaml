@@ -19,7 +19,8 @@ on:
         type: string
       allow_red_ci_reason:
         description: >-
-          Emergency only. Release a tag whose commit does not have green required CI, and say why.
+          Emergency only. Release a tag whose commit does not have green required CI. Give
+          '<full commit SHA>: <reason>'. A value without the tagged commit's SHA is ignored.
           Leave empty otherwise.
         required: false
         type: string
@@ -37,13 +38,16 @@ env:
 jobs:
   # The release must come from a commit whose required CI is green. Polls while
   # CI is still running (up to 45 min). The script comes from the workflow's
-  # ref, like the rest of this workflow.
+  # ref, like the rest of this workflow. The gate list comes from the tag's own
+  # CI config, and build checks it builds the commit checked here.
   release-ci-green:
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     permissions:
       contents: read
       statuses: read
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -56,10 +60,20 @@ jobs:
           persist-credentials: false
           sparse-checkout: ops/scripts
 
+      - name: Checkout the tag's CI config
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          path: tagged
+          persist-credentials: false
+          sparse-checkout: .circleci
+
       - name: Check required CI on the tagged commit
+        id: check
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ALLOW_RED_CI_REASON: ${{ inputs.allow_red_ci_reason }}
+          RELEASE_CI_CONFIG_REPO: tagged
         run: ops/scripts/check-release-ci-green.sh "refs/tags/$TAG"
 
   build:
@@ -93,6 +107,15 @@ jobs:
           ref: refs/tags/${{ env.TAG }}
           submodules: recursive
           persist-credentials: false
+
+      - name: Check this is the commit whose CI was checked
+        env:
+          CHECKED_SHA: ${{ needs.release-ci-green.outputs.sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$CHECKED_SHA" ]; then
+            echo "::error::Checked out $(git rev-parse HEAD), but release-ci-green checked ${CHECKED_SHA}."
+            exit 1
+          fi
 
       # No cache anywhere in this job: the release must depend only on the tagged source.
       - name: Install tools

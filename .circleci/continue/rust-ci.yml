@@ -512,8 +512,10 @@ jobs:
 
             # Save current state
             git stash || true
-            git fetch origin $BASE_BRANCH
-            git checkout origin/$BASE_BRANCH
+            # FETCH_HEAD, not origin/<branch>: on a backport push the base is a
+            # commit SHA (the branch before the push), not a branch name.
+            git fetch origin "$BASE_BRANCH"
+            git checkout FETCH_HEAD
             sync_superchain
 
             # Generate vectors on base

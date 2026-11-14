@@ -34,7 +34,8 @@ on:
       allow_red_ci_reason:
         description: >-
           Emergency only. Build a release tag whose commit does not have green required CI.
-          Dispatch on the tag (--ref <tag>) and say why. Leave empty otherwise.
+          Dispatch on the tag (--ref <tag>) and give '<full commit SHA>: <reason>'. A value
+          without the tagged commit's SHA is ignored. Leave empty otherwise.
         required: false
         type: string
         default: ""
@@ -51,26 +52,37 @@ env:
   REGISTRY: us-docker.pkg.dev/oplabs-tools-artifacts/images
 
 jobs:
-  # A release image must come from a commit whose required CI is green. Runs
-  # only for release tags (not op-reth/bench*), and before plan, so no build
-  # starts on a red commit. Polls while CI is still running (up to 45 min).
+  # A release image must come from a commit whose required CI is green. The
+  # check runs only for release tags (not op-reth/bench*), before plan, so no
+  # build starts on a red commit. Polls while CI is still running (up to 45 min).
+  # The job itself always runs and succeeds when there is nothing to check: a
+  # skipped job would make every job below it skip too (implicit success()
+  # counts a skipped ancestor as a failure, actions/runner#491).
   # Its own job, not a step in plan: ubuntu-slim jobs are capped at 15 minutes.
   release-ci-green:
     name: release commit has green CI
-    if: github.ref_type == 'tag' && !startsWith(github.ref_name, 'op-reth/bench')
-    runs-on: ubuntu-24.04
+    runs-on: ${{ (github.ref_type == 'tag' && !startsWith(github.ref_name, 'op-reth/bench')) && 'ubuntu-24.04' || 'ubuntu-slim' }}
     timeout-minutes: 50
     permissions:
       contents: read
       statuses: read
     steps:
-      - name: Checkout the check script
+      - name: Not a release tag, nothing to check
+        if: github.ref_type != 'tag' || startsWith(github.ref_name, 'op-reth/bench')
+        run: echo "Not a release tag, no CI check."
+
+      # .circleci too: the script reads the commit's own config for the gate list.
+      - name: Checkout the check script and CI config
+        if: github.ref_type == 'tag' && !startsWith(github.ref_name, 'op-reth/bench')
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
         with:
           persist-credentials: false
-          sparse-checkout: ops/scripts
+          sparse-checkout: |
+            ops/scripts
+            .circleci
 
       - name: Check required CI on the tagged commit
+        if: github.ref_type == 'tag' && !startsWith(github.ref_name, 'op-reth/bench')
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ALLOW_RED_CI_REASON: ${{ inputs.allow_red_ci_reason }}
@@ -78,11 +90,9 @@ jobs:
 
   plan:
     name: plan
+    # Runs when release-ci-green succeeds, which it always does unless a release
+    # tag's commit is not green.
     needs: release-ci-green
-    # Skipped (not a release tag) or green: plan as before.
-    if: |
-      !cancelled() &&
-      (needs.release-ci-green.result == 'success' || needs.release-ci-green.result == 'skipped')
     runs-on: ubuntu-slim
     permissions:
       contents: read
