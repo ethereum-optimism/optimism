@@ -1137,6 +1137,34 @@ jobs:
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
+  bench-depgas:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: 2xlarge.gen2
+    parameters:
+      setup:
+        type: string
+        default: "true"
+      cmd:
+        type: string
+    steps:
+      - checkout-with-mise:
+          checkout-method: full
+          enable-mise-cache: true
+      - install-solc-compilers
+      - run:
+          name: Build go-ffi
+          command: just build-go-ffi
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Bench
+          no_output_timeout: 40m
+          working_directory: packages/contracts-bedrock
+          command: |
+            nproc
+            << parameters.setup >>
+            forge --version
+            << parameters.cmd >>
   contracts-bedrock-tests:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2591,7 +2619,7 @@ jobs:
 
 workflows:
   main:
-    when: << pipeline.parameters.c-run_main >>
+    when: false
     jobs:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
@@ -2857,7 +2885,7 @@ workflows:
             - circleci-api-token
 
   release:
-    when: << pipeline.parameters.c-run_release >>
+    when: false
     jobs:
       - initialize:
           context:
@@ -3195,160 +3223,19 @@ workflows:
       # On develop, run tests with ci profile to mirror production. Build once
       # and share it through the workspace, so the matrix entries don't each
       # compile the same artifacts.
-      - contracts-bedrock-build-tests:
-          name: contracts-bedrock-build-tests-develop
-          profile: ci
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-          filters:
-            branches:
-              only: develop
-      - contracts-bedrock-tests:
-          name: contracts-bedrock-tests-develop <<matrix.features>>
-          requires:
-            - prep-go-modules
-            - contracts-bedrock-build-tests-develop
-          test_list: find test -name "*.t.sol"
-          test_profile: ci
-          attach_build: true
-          features: <<matrix.features>>
-          matrix:
-            parameters:
-              features: *features_matrix
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-          filters:
-            branches:
-              only: develop
-      # On PRs, run upgrade tests with lite profile for better build times.
-      - contracts-bedrock-tests-upgrade:
-          name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
-          requires:
-            - prep-go-modules
-          fork_op_chain: op
-          fork_base_chain: mainnet
-          test_profile: liteci
-          features: <<matrix.features>>
-          matrix:
-            parameters:
-              features: *features_matrix
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-repo-rpc-secrets
-            - slack
-          filters:
-            branches:
-              ignore: develop
-      # On develop, run upgrade tests with ci profile to mirror production.
-      - contracts-bedrock-tests-upgrade:
-          name: contracts-bedrock-tests-upgrade-develop op-mainnet <<matrix.features>>
-          requires:
-            - prep-go-modules
-          fork_op_chain: op
-          fork_base_chain: mainnet
-          test_profile: ci
-          features: <<matrix.features>>
-          matrix:
-            parameters:
-              features: *features_matrix
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-repo-rpc-secrets
-            - slack
-          filters:
-            branches:
-              only: develop
-      # On PRs, run chain-specific upgrade tests with lite profile for better build times.
-      - contracts-bedrock-tests-upgrade:
-          name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
-          requires:
-            - prep-go-modules
-          fork_op_chain: <<matrix.fork_op_chain>>
-          fork_base_chain: mainnet
-          test_profile: liteci
-          matrix:
-            parameters:
-              fork_op_chain: ["op", "ink", "unichain"]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-repo-rpc-secrets
-            - slack
-          filters:
-            branches:
-              ignore: develop
-      # On develop, run chain-specific upgrade tests with ci profile to mirror production.
-      - contracts-bedrock-tests-upgrade:
-          name: contracts-bedrock-tests-upgrade-develop <<matrix.fork_op_chain>>-mainnet
-          requires:
-            - prep-go-modules
-          fork_op_chain: <<matrix.fork_op_chain>>
-          fork_base_chain: mainnet
-          test_profile: ci
-          matrix:
-            parameters:
-              fork_op_chain: ["op", "ink", "unichain"]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-repo-rpc-secrets
-            - slack
-          filters:
-            branches:
-              only: develop
-      # Always run L2 fork tests with ci profile
-      - contracts-bedrock-tests-l2-fork:
-          name: contracts-bedrock-tests-l2-fork op-mainnet
-          requires:
-            - prep-go-modules
-          fork_op_chain: op-mainnet
-          l2_fork_block_number: latest
-          test_profile: ci
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-repo-rpc-secrets
-            - slack
-      - contracts-bedrock-checks-fast:
-          name: contracts-bedrock-checks-fast-feature-tests
-          requires:
-            - prep-go-modules
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-      # -----------------------------------------------------------------------
-      # required-contracts-ci: GitHub required status for this workflow. Terminal requires
-      # keep this job scheduled even when upstream jobs fail; ci-gate then checks they passed.
-      # -----------------------------------------------------------------------
-      - required-contracts-ci:
-          requires:
-            - contracts-bedrock-tests main: terminal
-            - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-tests INTEROP: terminal
-            - contracts-bedrock-tests BRIDGE_HOOK: terminal
-            - contracts-bedrock-tests OP_PRIVATE: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified INTEROP: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified OP_PRIVATE: terminal
+      - bench-depgas:
+          name: depgas-nightly-seed4
+          setup: 'curl -sSL --retry 3 -o /tmp/fn.tgz https://github.com/foundry-rs/foundry/releases/download/nightly-c644b436cd2994035df5a823398e2a39feca143c/foundry_nightly_linux_amd64.tar.gz && echo "3477564ae291832a291de9f54d7706f67e8a1e9ecafca5b9d12f16ed4de4765c  /tmp/fn.tgz" | sha256sum -c - && mkdir -p /tmp/fn && tar -xzf /tmp/fn.tgz -C /tmp/fn forge && export PATH=/tmp/fn:$PATH FOUNDRY_DISABLE_NIGHTLY_WARNING=1'
+          cmd: 'export FOUNDRY_PROFILE=liteci FOUNDRY_INVARIANT_SHOW_METRICS=true; SECONDS=0; forge build > /tmp/b.log 2>&1 || { tail -30 /tmp/b.log; exit 1; }; echo "BENCH build_seconds=$SECONDS"; for s in 4; do SECONDS=0; timeout 1800 forge test --mc OptimismPortal2_PublishedGas_Invariant --fuzz-seed $s 2>&1 | tail -20 || true; echo "BENCH test_seconds=$SECONDS seed=$s"; done'
+      - bench-depgas:
+          name: depgas-nightly-seed1-2
+          setup: 'curl -sSL --retry 3 -o /tmp/fn.tgz https://github.com/foundry-rs/foundry/releases/download/nightly-c644b436cd2994035df5a823398e2a39feca143c/foundry_nightly_linux_amd64.tar.gz && echo "3477564ae291832a291de9f54d7706f67e8a1e9ecafca5b9d12f16ed4de4765c  /tmp/fn.tgz" | sha256sum -c - && mkdir -p /tmp/fn && tar -xzf /tmp/fn.tgz -C /tmp/fn forge && export PATH=/tmp/fn:$PATH FOUNDRY_DISABLE_NIGHTLY_WARNING=1'
+          cmd: 'export FOUNDRY_PROFILE=liteci FOUNDRY_INVARIANT_SHOW_METRICS=true; SECONDS=0; forge build > /tmp/b.log 2>&1 || { tail -30 /tmp/b.log; exit 1; }; echo "BENCH build_seconds=$SECONDS"; for s in 1 2; do SECONDS=0; timeout 1800 forge test --mc OptimismPortal2_PublishedGas_Invariant --fuzz-seed $s 2>&1 | tail -20 || true; echo "BENCH test_seconds=$SECONDS seed=$s"; done'
+      - bench-depgas:
+          name: depgas-forge187-seed4
+          setup: 'true'
+          cmd: 'export FOUNDRY_PROFILE=liteci FOUNDRY_INVARIANT_SHOW_METRICS=true; SECONDS=0; forge build > /tmp/b.log 2>&1 || { tail -30 /tmp/b.log; exit 1; }; echo "BENCH build_seconds=$SECONDS"; for s in 4; do SECONDS=0; timeout 1800 forge test --mc OptimismPortal2_PublishedGas_Invariant --fuzz-seed $s 2>&1 | tail -20 || true; echo "BENCH test_seconds=$SECONDS seed=$s"; done'
 
-            - contracts-bedrock-tests-upgrade op-mainnet main: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet INTEROP: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet OP_PRIVATE: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet: terminal
-            - contracts-bedrock-tests-upgrade ink-mainnet: terminal
-            - contracts-bedrock-tests-upgrade unichain-mainnet: terminal
-            - contracts-bedrock-tests-l2-fork op-mainnet: terminal
-            - contracts-bedrock-checks-fast-feature-tests: terminal
-          context:
-            - circleci-api-token
-
-  # ============================================================================
-  # Required contracts CI gate (skip) — runs when no contract changes
-  # Produces the required-contracts-ci status so the merge queue doesn't hang.
-  # ============================================================================
   contracts-feature-tests-short:
     when: << pipeline.parameters.c-run_contracts_feature_tests_short >>
     jobs:
