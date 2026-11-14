@@ -3191,6 +3191,11 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+          # The diff against develop is always empty on develop. The nightly
+          # heavy fuzz job covers develop.
+          filters:
+            branches:
+              ignore: develop
       # On PRs, run tests with lite profile for better build times.
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.features>>
