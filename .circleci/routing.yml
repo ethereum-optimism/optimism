@@ -77,7 +77,10 @@ change_patterns:
     circleci_changed: "^\\.circleci/"
     contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
     docs_changes_detected: "^docs/public-docs/"
-    rust_changes_detected: "^(rust|op-e2e|op-core/nuts|\\.circleci)/|^mise\\.toml$"
+    # The op-stack-go Dockerfile builds kona-host from rust/ with a pinned Rust
+    # image that rust-fmt checks against mise.toml (the other Rust Dockerfiles
+    # live under rust/).
+    rust_changes_detected: "^(rust|op-e2e|op-core/nuts|\\.circleci)/|^(mise\\.toml|ops/docker/op-stack-go/Dockerfile)$"
   # "all": c-<name> is true iff EVERY changed file matches (and there is at
   # least one). Used for the safe-by-default docs-only fast path: any path not
   # enumerated still falls through to the full main workflow.
