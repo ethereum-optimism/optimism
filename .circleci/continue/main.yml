@@ -1171,7 +1171,7 @@ jobs:
         default: false
     steps:
       - checkout-with-mise:
-          checkout-method: full
+          checkout-method: blobless
           enable-mise-cache: true
       - when:
           condition: << parameters.attach_build >>
@@ -1323,6 +1323,7 @@ jobs:
     resource_class: 2xlarge.gen2
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-upgrade
@@ -1439,6 +1440,7 @@ jobs:
     resource_class: 2xlarge.gen2
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-l2-fork
@@ -1572,6 +1574,7 @@ jobs:
     resource_class: 2xlarge.gen2
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
@@ -1593,6 +1596,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - run:
           name: Check shell script formatting
@@ -1615,6 +1619,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: false
       - run:
           name: Check l2-rpcs.json and daily matrix are in sync
