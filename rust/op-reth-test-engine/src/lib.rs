@@ -491,6 +491,26 @@ mod tests {
         assert!(ver.block_by_number(3).unwrap().is_none(), "b3 reorged out");
     }
 
+    /// A recorded block the provider can't resolve is an inconsistency in the engine, not a fault
+    /// in the payload built on it, so importing that payload is an error rather than INVALID.
+    #[test]
+    fn errors_on_an_unresolvable_recorded_ancestor() {
+        let mut seq = test_engine(user_sender());
+        let g = genesis_hash(&seq);
+        let b1 = sequence(&mut seq, g, 2, &[user_tx(0)]);
+        let b2 = sequence(&mut seq, b1.payload.block_hash(), 4, &[user_tx(1)]);
+        let b3 = sequence(&mut seq, b2.payload.block_hash(), 6, &[user_tx(2)]);
+
+        let mut ver = test_engine(user_sender());
+        assert!(ver.new_payload(b1.clone()).unwrap().is_valid());
+        assert!(ver.new_payload(b2).unwrap().is_valid());
+        // b3 executes on b2's state, which the provider builds by resolving b2's parent b1.
+        ver.chain.evict_from_overlay(b1.payload.block_hash());
+
+        let result = ver.new_payload(b3);
+        assert!(matches!(result, Err(Error::Provider(_))), "{result:?}");
+    }
+
     #[test]
     fn executes_a_deep_side_chain_on_its_own_state() {
         let sender = user_sender();
