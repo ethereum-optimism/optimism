@@ -317,17 +317,30 @@ commands:
             for version in $(echo "<<parameters.solc_versions>>" | tr ',' '\n'); do
               svm which $version || svm install $version
             done
-      # Merge queue branches don't save: each queue branch name is used once.
+      # Merge queue branches don't save: each queue branch name is used once,
+      # so its saves get little reuse. Saves only when no cache for this solc
+      # list came back (the marker is per list, so a fallback hit for another
+      # list still saves), see scoped-cache-save-decision in helpers.yml.
       - unless:
           condition:
             matches:
               pattern: "^gh-readonly-queue/.*$"
               value: << pipeline.git.branch >>
           steps:
+            - scoped-cache-save-decision:
+                cache: svm/<<parameters.solc_versions>>
+                key_file: mise.toml
             - save_cache:
-                key: svm-cache-{{ .Branch }}:{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
+                name: Save solc cache placeholder
+                key: svm-cache-{{ .Branch }}:{{ checksum "/tmp/ci-cache-skip" }}-<<parameters.solc_versions>>
+                paths:
+                  - /tmp/ci-cache-skip
+            - save_cache:
+                name: Save solc cache
+                key: svm-cache-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/svm/<<parameters.solc_versions>>/key" }}-<<parameters.solc_versions>>
                 paths:
                   - ~/.svm
+                  - /tmp/ci-cache-hit/svm/<<parameters.solc_versions>>/hit
 
   install-contracts-dependencies:
     description: "Install the dependencies for the smart contracts"
@@ -457,38 +470,6 @@ commands:
               fi
             fi
 
-  # The large branch-scoped caches (rust-deps, rust-toolchain, sp1-toolchain)
-  # save only when nothing was restored, as the orb's mise cache does
-  # (circleci-utils #58), so a new branch doesn't upload a copy of develop's
-  # 1.2 GiB toolchain. Each save stores /tmp/ci-cache-hit/<cache>, so a restore
-  # (exact keys only) brings that marker back. CircleCI can't skip a save_cache
-  # step at run time, so on a skip the real save key equals a placeholder key
-  # saved just before it, and CircleCI skips the upload. The placeholder's
-  # content slot is the skip file's checksum, so no restore key matches it.
-  scoped-cache-save-decision:
-    description: "Decide whether a branch-scoped cache needs saving (see above)"
-    parameters:
-      cache:
-        description: "Cache name, used for the marker and save-key files"
-        type: string
-      key_file:
-        description: "The file whose checksum is the content part of the cache key"
-        type: string
-    steps:
-      - run:
-          name: Decide whether to save the << parameters.cache >> cache
-          command: |
-            mkdir -p /tmp/ci-cache-hit /tmp/ci-cache-save
-            echo "no save: placeholder for branch-scoped caches" > /tmp/ci-cache-skip
-            if [ -f "/tmp/ci-cache-hit/<< parameters.cache >>" ]; then
-              echo "Restored a << parameters.cache >> cache for these inputs: not saving it."
-              cp /tmp/ci-cache-skip "/tmp/ci-cache-save/<< parameters.cache >>"
-            else
-              echo "No << parameters.cache >> cache was restored: saving it for branch ${CIRCLE_BRANCH:-(none)}."
-              cp "<< parameters.key_file >>" "/tmp/ci-cache-save/<< parameters.cache >>"
-              touch "/tmp/ci-cache-hit/<< parameters.cache >>"
-            fi
-
   # --- Rust environment setup commands ---
   rust-restore-build-cache:
     description: "Restore the dependency and toolchain caches for a Rust workspace"
@@ -581,7 +562,10 @@ commands:
               echo "This job never downloaded crates — remove its rust-save-build-cache step." >&2
               exit 1
             fi
-      # Merge queue branches don't save: each queue branch name is used once.
+      # Merge queue branches don't save: each queue branch name is used once,
+      # so its saves get little reuse. The others save only what they didn't
+      # restore, see scoped-cache-save-decision in helpers.yml. The rust-deps
+      # marker is per directory, as a job can restore two workspaces.
       - unless:
           condition:
             matches:
@@ -589,7 +573,7 @@ commands:
               value: << pipeline.git.branch >>
           steps:
             - scoped-cache-save-decision:
-                cache: rust-deps
+                cache: rust-deps/<< parameters.directory >>
                 key_file: << parameters.directory >>/Cargo.lock
             - scoped-cache-save-decision:
                 cache: rust-toolchain
@@ -600,12 +584,12 @@ commands:
                 paths:
                   - /tmp/ci-cache-skip
             - save_cache:
-                key: rust-deps-v<< parameters.version >>-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/rust-deps" }}
+                key: rust-deps-v<< parameters.version >>-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/rust-deps/<< parameters.directory >>/key" }}
                 name: Save << parameters.directory >> dependency cache (shared)
                 paths:
                   - /data/mise-data/.cargo/registry
                   - /data/mise-data/.cargo/git
-                  - /tmp/ci-cache-hit/rust-deps
+                  - /tmp/ci-cache-hit/rust-deps/<< parameters.directory >>/hit
             - save_cache:
                 key: rust-toolchain-v<< parameters.version >>-{{ .Branch }}:{{ checksum "/tmp/ci-cache-skip" }}-{{
                   checksum "rust/rust-toolchain.toml" }}
@@ -613,13 +597,13 @@ commands:
                 paths:
                   - /tmp/ci-cache-skip
             - save_cache:
-                key: rust-toolchain-v<< parameters.version >>-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/rust-toolchain" }}-{{
+                key: rust-toolchain-v<< parameters.version >>-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/rust-toolchain/key" }}-{{
                   checksum "rust/rust-toolchain.toml" }}
                 name: Save Rust toolchain cache (shared)
                 paths:
                   - /data/mise-data/.cargo/bin
                   - /data/mise-data/.rustup
-                  - /tmp/ci-cache-hit/rust-toolchain
+                  - /tmp/ci-cache-hit/rust-toolchain/hit
 
   rust-prepare-and-restore-cache:
     description: "Prepare the Rust environment and restore the cache"
@@ -1121,16 +1105,26 @@ jobs:
           environment:
             FOUNDRY_PROFILE: <<parameters.profile>>
           working_directory: packages/contracts-bedrock
-      # Merge queue branches don't save: each queue branch name is used once.
+      # Merge queue branches don't save: each queue branch name is used once,
+      # so its saves get little reuse. The others save only what they didn't
+      # restore, see scoped-cache-save-decision in helpers.yml.
       - unless:
           condition:
             matches:
               pattern: "^gh-readonly-queue/.*$"
               value: << pipeline.git.branch >>
           steps:
+            - scoped-cache-save-decision:
+                cache: forge-build/<<parameters.profile>>
+                key_file: /tmp/forge-cache-key.txt
+            - save_cache:
+                name: Save forge build cache placeholder
+                key: forge-build-v1-<<parameters.profile>>-{{ .Branch }}:{{ checksum "/tmp/ci-cache-skip" }}
+                paths:
+                  - /tmp/ci-cache-skip
             - save_cache:
                 name: Save forge build cache
-                key: forge-build-v1-<<parameters.profile>>-{{ .Branch }}:{{ checksum "/tmp/forge-cache-key.txt" }}
+                key: forge-build-v1-<<parameters.profile>>-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/forge-build/<<parameters.profile>>/key" }}
                 # These paths hold for profiles that keep foundry.toml's default
                 # output dirs; a profile that redirects them (e.g. kprove's
                 # out = kout-proofs) needs this list extended.
@@ -1138,6 +1132,7 @@ jobs:
                   - packages/contracts-bedrock/cache
                   - packages/contracts-bedrock/artifacts
                   - packages/contracts-bedrock/forge-artifacts
+                  - /tmp/ci-cache-hit/forge-build/<<parameters.profile>>/hit
       # copy-contract-artifacts runs `go run ... mktar`, which needs the Go
       # module set. Restore the shared cache (warmed by prep-go-modules) so it
       # doesn't hit proxy.golang.org.
@@ -1476,20 +1471,34 @@ jobs:
           when: on_fail
       - go-save-cache:
           namespace: contracts-bedrock-tests-upgrade
-      # Merge queue branches don't save: each queue branch name is used once.
+      # Merge queue branches don't save: each queue branch name is used once,
+      # so its saves get little reuse. The others save only what they didn't
+      # restore, see scoped-cache-save-decision in helpers.yml.
       - unless:
           condition:
             matches:
               pattern: "^gh-readonly-queue/.*$"
               value: << pipeline.git.branch >>
           steps:
+            - scoped-cache-save-decision:
+                cache: forked-state-upgrade/<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>
+                key_file: packages/contracts-bedrock/pinnedBlockNumber.txt
+                when: always
+            - save_cache:
+                name: Save forked state placeholder
+                key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ .Branch }}:{{
+                  checksum "/tmp/ci-cache-skip" }}
+                when: always
+                paths:
+                  - /tmp/ci-cache-skip
             - save_cache:
                 name: Save forked state
                 key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ .Branch }}:{{
-                  checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
+                  checksum "/tmp/ci-cache-save/forked-state-upgrade/<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>/key" }}
                 when: always
                 paths:
                   - "~/.foundry/cache"
+                  - /tmp/ci-cache-hit/forked-state-upgrade/<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>/hit
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
@@ -1592,14 +1601,10 @@ jobs:
               echo "<<parameters.l2_fork_block_number>>" > ./l2ForkBlockNumber.txt
             fi
           working_directory: packages/contracts-bedrock
-      # Scoped by branch, as for the upgrade tests' forked state above.
       - restore_cache:
           name: Restore forked L2 state
-          keys:
-            - forked-state-l2-<<parameters.fork_op_chain>>-{{ .Branch }}:{{ checksum
-              "packages/contracts-bedrock/l2ForkBlockNumber.txt" }}
-            - forked-state-l2-<<parameters.fork_op_chain>>-develop:{{ checksum
-              "packages/contracts-bedrock/l2ForkBlockNumber.txt" }}
+          key: forked-state-l2-<<parameters.fork_op_chain>>-{{ checksum
+            "packages/contracts-bedrock/l2ForkBlockNumber.txt" }}
       - setup-features:
           features: <<parameters.features>>
       - run:
@@ -1625,20 +1630,13 @@ jobs:
           when: on_fail
       - go-save-cache:
           namespace: contracts-bedrock-tests-l2-fork
-      # Merge queue branches don't save: each queue branch name is used once.
-      - unless:
-          condition:
-            matches:
-              pattern: "^gh-readonly-queue/.*$"
-              value: << pipeline.git.branch >>
-          steps:
-            - save_cache:
-                name: Save forked L2 state
-                key: forked-state-l2-<<parameters.fork_op_chain>>-{{ .Branch }}:{{ checksum
-                  "packages/contracts-bedrock/l2ForkBlockNumber.txt" }}
-                when: always
-                paths:
-                  - "~/.foundry/cache"
+      - save_cache:
+          name: Save forked L2 state
+          key: forked-state-l2-<<parameters.fork_op_chain>>-{{ checksum
+            "packages/contracts-bedrock/l2ForkBlockNumber.txt" }}
+          when: always
+          paths:
+            - "~/.foundry/cache"
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces-l2-fork.log
           when: on_fail

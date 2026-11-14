@@ -160,6 +160,51 @@ commands:
       # Shared GCS compile cache (op-rust-sccache).
       - rust-sccache-setup:
           enabled: << parameters.enable_sccache >>
+
+  # The branch-scoped caches in main.yml and rust-e2e.yml (keys
+  # <prefix>-<branch>:<content>, as for the Go caches above) save only when
+  # nothing was restored for these inputs, as the orb's mise cache does
+  # (circleci-utils #58). So a branch doesn't upload a copy of develop's cache
+  # (the toolchain is 1.2 GiB), and a tag pipeline, whose empty branch name
+  # would give every tag one shared key, saves none. Each save stores the
+  # marker /tmp/ci-cache-hit/<cache>/hit, so a restore of the same inputs
+  # brings it back. CircleCI can't skip a save_cache step at run time, so on a
+  # skip the real save key equals a placeholder key saved just before it, and
+  # CircleCI skips the upload. The placeholder's content slot is the skip
+  # file's checksum, so no restore key matches it.
+  scoped-cache-save-decision:
+    description: "Decide whether a branch-scoped cache needs saving (see above)"
+    parameters:
+      cache:
+        description: "Cache name, one per key, used for the marker and save-key file paths"
+        type: string
+      key_file:
+        description: "The file whose checksum is the content part of the cache key"
+        type: string
+      when:
+        description: "When to run, matching the save_cache steps that follow it"
+        type: enum
+        enum: ["on_success", "always"]
+        default: "on_success"
+    steps:
+      - run:
+          name: Decide whether to save the << parameters.cache >> cache
+          when: << parameters.when >>
+          command: |
+            mkdir -p "/tmp/ci-cache-hit/<< parameters.cache >>" "/tmp/ci-cache-save/<< parameters.cache >>"
+            echo "no save: placeholder for branch-scoped caches" > /tmp/ci-cache-skip
+            if [ -z "${CIRCLE_BRANCH:-}" ]; then
+              echo "No branch (tag pipeline): not saving the << parameters.cache >> cache."
+              cp /tmp/ci-cache-skip "/tmp/ci-cache-save/<< parameters.cache >>/key"
+            elif [ -f "/tmp/ci-cache-hit/<< parameters.cache >>/hit" ]; then
+              echo "Restored a << parameters.cache >> cache for these inputs: not saving it."
+              cp /tmp/ci-cache-skip "/tmp/ci-cache-save/<< parameters.cache >>/key"
+            else
+              echo "No << parameters.cache >> cache was restored: saving it for branch ${CIRCLE_BRANCH}."
+              cp "<< parameters.key_file >>" "/tmp/ci-cache-save/<< parameters.cache >>/key"
+              touch "/tmp/ci-cache-hit/<< parameters.cache >>/hit"
+            fi
+
   github-checkout:
     description: "Check out the optimism repo over HTTPS, anonymously."
     parameters:

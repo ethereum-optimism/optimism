@@ -38,7 +38,7 @@ commands:
     description: "Restore the cached SP1 (succinct) toolchain, or install it, after checking SP1 version pins agree"
     steps:
       # Scoped by branch like the Go caches (see helpers.yml), and saved only
-      # when this job installed it (see scoped-cache-save-decision in main.yml).
+      # when this job installed it (see scoped-cache-save-decision in helpers.yml).
       - restore_cache:
           name: Restore SP1 toolchain cache
           keys:
@@ -112,7 +112,8 @@ commands:
               install_sp1_toolchain
             fi
             rustc +succinct --version
-      # Merge queue branches don't save: each queue branch name is used once.
+      # Merge queue branches don't save: each queue branch name is used once,
+      # so its saves get little reuse.
       - unless:
           condition:
             matches:
@@ -129,10 +130,10 @@ commands:
                   - /tmp/ci-cache-skip
             - save_cache:
                 name: Save SP1 toolchain cache
-                key: sp1-toolchain-v1-{{ arch }}-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/sp1-toolchain" }}
+                key: sp1-toolchain-v1-{{ arch }}-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/sp1-toolchain/key" }}
                 paths:
                   - ~/.sp1/toolchains
-                  - /tmp/ci-cache-hit/sp1-toolchain
+                  - /tmp/ci-cache-hit/sp1-toolchain/hit
 
 # ============================================================================
 # RUST E2E JOBS
