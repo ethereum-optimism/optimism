@@ -1,13 +1,20 @@
 //! Loads OP pending block for a RPC response.
 
 use crate::{OpEthApi, OpEthApiError, eth::memory_overlay::MemoryOverlayStateProvider};
+use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
+use alloy_rpc_types_eth::BlockOverrides;
+use reth_chainspec::Chain;
+use reth_evm::ConfigureEvm;
 use reth_optimism_flashblocks::PendingFlashBlock;
-use reth_primitives_traits::NodePrimitives;
+use reth_primitives_traits::{HeaderTy, NodePrimitives, SealedHeader};
 use reth_rpc_eth_api::{
     FromEvmError, RpcConvert, RpcNodeCore, RpcNodeCoreExt,
-    helpers::{LoadPendingBlock, SpawnBlocking, pending_block::PendingEnvBuilder},
+    helpers::{
+        LoadPendingBlock, SpawnBlocking,
+        pending_block::{BuildPendingEnv, PendingEnvBuilder},
+    },
 };
 use reth_rpc_eth_types::{
     EthApiError, PendingBlock, block::BlockAndReceipts, builder::config::PendingBlockKind,
@@ -16,6 +23,55 @@ use reth_rpc_eth_types::{
 use reth_storage_api::{
     BlockReaderIdExt, StateProviderBox, StateProviderFactory, errors::ProviderResult,
 };
+
+/// Block time, in seconds, of a chain without an alloy-chains block time hint: the OP Stack
+/// default.
+const FALLBACK_BLOCK_TIME: u64 = 2;
+
+/// Builds the environment of a pending block one block time after its parent.
+///
+/// [`BuildPendingEnv`] alone dates a pending block 12 s, Ethereum's slot time, after its parent.
+/// On an OP chain that runs pending-state calls several blocks ahead, so shortly before a hardfork
+/// they execute under the next fork's rules, in its activation block. This builder sets the `time`
+/// block override, unless the request sets one, to the parent's timestamp plus the chain's block
+/// time, and leaves the rest to [`BuildPendingEnv`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpPendingEnvBuilder {
+    block_time: u64,
+}
+
+impl OpPendingEnvBuilder {
+    /// Creates a builder for `chain`, from its alloy-chains block time hint.
+    ///
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1 `reth_rpc_eth_types::simulate::sanitize_chain`
+    ///
+    /// Derives the block time as upstream's `eth_simulateV1` derives the timestamp increment: the
+    /// hint rounded up to whole seconds. A chain without a hint falls back to
+    /// `FALLBACK_BLOCK_TIME` instead of upstream's 12 s.
+    pub fn new(chain: Chain) -> Self {
+        let block_time = chain
+            .average_blocktime_hint()
+            .map(|d| d.as_secs().saturating_add(u64::from(d.subsec_nanos() > 0)))
+            .filter(|&s| s > 0)
+            .unwrap_or(FALLBACK_BLOCK_TIME);
+        Self { block_time }
+    }
+}
+
+impl<Evm> PendingEnvBuilder<Evm> for OpPendingEnvBuilder
+where
+    Evm: ConfigureEvm<NextBlockEnvCtx: BuildPendingEnv<HeaderTy<Evm::Primitives>>>,
+{
+    fn pending_env_attributes(
+        &self,
+        parent: &SealedHeader<HeaderTy<Evm::Primitives>>,
+        block_overrides: Option<&BlockOverrides>,
+    ) -> Result<Evm::NextBlockEnvCtx, EthApiError> {
+        let mut overrides = block_overrides.cloned().unwrap_or_default();
+        overrides.time.get_or_insert_with(|| parent.timestamp().saturating_add(self.block_time));
+        Ok(Evm::NextBlockEnvCtx::build_pending_env(parent, Some(&overrides)))
+    }
+}
 
 #[inline]
 const fn pending_state_history_lookup_hash<N: NodePrimitives>(
@@ -135,17 +191,26 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{pending_flashblock_state, pending_state_history_lookup_hash};
+    use super::{
+        OpPendingEnvBuilder, PendingEnvBuilder, pending_flashblock_state,
+        pending_state_history_lookup_hash,
+    };
     use alloy_consensus::Header;
     use alloy_primitives::{Address, B256, U256};
+    use alloy_rpc_types_eth::BlockOverrides;
+    use op_revm::OpSpecId;
     use reth_chain_state::ExecutedBlock;
-    use reth_chainspec::MAINNET;
+    use reth_chainspec::{Chain, EthChainSpec, ForkCondition, MAINNET, NamedChain};
     use reth_db_common::init::init_genesis;
     use reth_ethereum_primitives::{Block, EthPrimitives};
+    use reth_evm::ConfigureEvm;
     use reth_execution_types::BlockExecutionOutput;
+    use reth_optimism_chainspec::OP_MAINNET;
+    use reth_optimism_evm::{OpEvmConfig, revm_spec_by_timestamp_after_bedrock};
     use reth_optimism_flashblocks::PendingFlashBlock;
+    use reth_optimism_forks::{OpHardfork, OpHardforks};
     use reth_optimism_primitives::OpPrimitives;
-    use reth_primitives_traits::{RecoveredBlock, SealedBlock};
+    use reth_primitives_traits::{RecoveredBlock, SealedBlock, SealedHeader};
     use reth_provider::{providers::BlockchainProvider, test_utils::create_test_provider_factory};
     use reth_rpc_eth_types::PendingBlock;
     use reth_storage_api::{AccountReader, StateProvider, StateProviderFactory};
@@ -156,6 +221,81 @@ mod tests {
     };
     use rstest::rstest;
     use std::{sync::Arc, time::Instant};
+
+    #[test]
+    fn pending_env_stays_before_a_fork_one_block_time_ahead() {
+        let chain_spec = OP_MAINNET.clone();
+        let ForkCondition::Timestamp(jovian) = chain_spec.op_fork_activation(OpHardfork::Jovian)
+        else {
+            panic!("OP Mainnet activates Jovian by timestamp");
+        };
+        let evm_config = OpEvmConfig::optimism(chain_spec.clone());
+        let parent = SealedHeader::seal_slow(Header {
+            number: 1,
+            timestamp: jovian - 4,
+            ..Default::default()
+        });
+
+        let builder = OpPendingEnvBuilder::new(chain_spec.chain());
+        let attributes =
+            PendingEnvBuilder::<OpEvmConfig>::pending_env_attributes(&builder, &parent, None)
+                .unwrap();
+        let timestamp = attributes.timestamp;
+
+        let evm_env = evm_config.next_evm_env(parent.header(), &attributes).unwrap();
+        assert_eq!(
+            evm_env.cfg_env.spec,
+            revm_spec_by_timestamp_after_bedrock(&chain_spec, jovian - 1)
+        );
+        assert_ne!(evm_env.cfg_env.spec, OpSpecId::JOVIAN);
+
+        let ctx = evm_config.context_for_next_block(&parent, attributes).unwrap();
+        assert!(!ctx.no_user_tx_activation_block);
+        assert_eq!(timestamp, jovian - 2);
+    }
+
+    fn pending_timestamp(chain: Chain, overrides: Option<&BlockOverrides>) -> u64 {
+        let parent = SealedHeader::seal_slow(Header { timestamp: 1_000, ..Default::default() });
+        let builder = OpPendingEnvBuilder::new(chain);
+        PendingEnvBuilder::<OpEvmConfig>::pending_env_attributes(&builder, &parent, overrides)
+            .unwrap()
+            .timestamp
+    }
+
+    #[test]
+    fn pending_env_follows_the_chain_block_time_hint() {
+        // Unichain's 1 s hint differs from the 2 s fallback; Dev's 200 ms rounds up to 1 s.
+        assert_eq!(pending_timestamp(Chain::from_named(NamedChain::Unichain), None), 1_001);
+        assert_eq!(pending_timestamp(Chain::from_named(NamedChain::Dev), None), 1_001);
+    }
+
+    #[test]
+    fn pending_env_falls_back_to_two_seconds_without_a_hint() {
+        assert_eq!(pending_timestamp(Chain::from_id(123_456_789), None), 1_002);
+    }
+
+    #[test]
+    fn pending_env_keeps_requested_overrides() {
+        let time = BlockOverrides { time: Some(1_005), ..Default::default() };
+        assert_eq!(pending_timestamp(Chain::from_id(123_456_789), Some(&time)), 1_005);
+
+        let parent = SealedHeader::seal_slow(Header {
+            timestamp: 1_000,
+            parent_beacon_block_root: Some(B256::ZERO),
+            ..Default::default()
+        });
+        let beacon_root = B256::repeat_byte(0x11);
+        let overrides = BlockOverrides { beacon_root: Some(beacon_root), ..Default::default() };
+        let builder = OpPendingEnvBuilder::new(Chain::from_id(123_456_789));
+        let attributes = PendingEnvBuilder::<OpEvmConfig>::pending_env_attributes(
+            &builder,
+            &parent,
+            Some(&overrides),
+        )
+        .unwrap();
+        assert_eq!(attributes.timestamp, 1_002);
+        assert_eq!(attributes.parent_beacon_block_root, Some(beacon_root));
+    }
 
     #[test]
     fn pending_state_prefers_canonical_anchor_over_parent_hash() {

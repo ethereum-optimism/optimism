@@ -10,6 +10,7 @@ mod block;
 mod call;
 mod memory_overlay;
 mod pending_block;
+pub use pending_block::OpPendingEnvBuilder;
 
 use crate::{
     OpEthApiError, SequencerClient,
@@ -25,7 +26,7 @@ use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
-use reth_chainspec::{EthereumHardforks, Hardforks};
+use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks, Hardforks};
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_evm::ConfigurePostExecEvm;
@@ -695,7 +696,13 @@ where
             None
         };
 
-        let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
+        let pending_env_builder =
+            OpPendingEnvBuilder::new(ctx.components.provider().chain_spec().chain());
+        let eth_api = ctx
+            .eth_api_builder()
+            .with_rpc_converter(rpc_converter)
+            .with_pending_env_builder(pending_env_builder)
+            .build_inner();
 
         Ok(OpEthApi::new(
             eth_api,
