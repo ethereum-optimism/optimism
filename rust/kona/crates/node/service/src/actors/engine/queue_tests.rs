@@ -179,7 +179,7 @@ async fn skipped_finalization_keeps_the_actor_running_until_a_reset_forgets_it()
     time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
     assert_eq!(actor.last_skipped_task_error, first_skip);
 
-    actor.begin_reset();
+    actor.begin_reset(ResetKind::Full);
     assert_eq!(actor.last_skipped_task_error, None);
     l1.assert_finished();
     l2.assert_finished();
