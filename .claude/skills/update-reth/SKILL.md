@@ -26,8 +26,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    `rust/Cargo.toml`. Reuse or clone that source, ensure a remote points to
    `https://github.com/paradigmxyz/reth`, then fetch upstream `main`, tags, the
    old pin, and the selected target. Validate reused remotes before diffing.
-   Skim upstream fixes newer than the candidate target (the guide's "Forward
-   sweep") so a retarget decision comes before the adaptation work.
+   Run the guide's "Forward sweep" from the candidate target so a retarget
+   decision comes before the adaptation work.
 
 2. **Isolate.** Work in a fresh git worktree (or jj workspace) based on latest
    `develop` — never on the main checkout's working copy. Run `mise trust` in the
@@ -36,15 +36,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
 3. **Execute the guide's procedure**, including the current-pin audit and
    `cd rust && just mirrors stale` before verification. If fork patches
    survive the audit, or the target is not an upstream release tag, the pin
-   moves to a tag on a new `op-*` fork branch (the guide's "The reth fork").
-   Push that branch at the upstream base and prepare it in one prep PR: the
-   CI commit and the OP `.github/CODEOWNERS` carried over from the previous
-   branch, every retained patch and forward-sweep pick, and any fixes the new
-   base needs, as separate commits. Re-run the forward sweep from its
-   recorded upstream tip, then rebase-merge it, wait for fork CI to pass
-   on the PR's `mergeCommit` (its last rebased commit), tag that commit, and
-   confirm the fork's `codeowners/errors` check is empty. Meanwhile, the
-   update PR may pin the prep PR's head by `rev`, in draft only. Work every
+   moves to a tag on a new `op-*` fork branch: follow the guide's "The reth
+   fork" through tagging, including its re-sweep before the merge. Work every
    stale mirror and iterate the compile loop to green; don't ask the user to
    confirm each adaptation.
 
@@ -56,8 +49,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    including its partitioned full-range sweep over every bumped family; the
    mirror funnel alone does not clear a bump. Include its forward sweep for
    upstream fixes newer than the target, and get the user's decision:
-   cherry-pick the fixes onto the fork branch (UPDATING-RETH, "The reth
-   fork", then back to step 3 here), or retarget to a newer upstream release or commit (back to
+   cherry-pick the fixes onto the fork branch (the guide's "The reth fork",
+   then back to step 3 here), or retarget to a newer upstream release or commit (back to
    step 1 here with the new target, reusing the worktree). Complete its
    all-severities triage and selected investigations. Fix findings, then
    rerun every matching reviewer until the candidate is clean.
@@ -72,15 +65,11 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    reviewed head, then open the PR to `develop` with verification results.
    Open the companion optimism-premium PR in draft (guide step 10).
 
-   **Merge gate: the pin is a tag.** A `rev` pin is allowed during
-   development, but the update PR stays in draft as long as it has one; say so
-   in its description. The required `rust-reth-tag-pin` check stays red until
-   then. Only once the fork branch is fully prepared and its `op-<base>-<n>`
-   tag exists, replace the `rev` with the tag, confirm the tag's commit is on
-   the fork's `op-<base>` branch (the guide's "Pinning a fork change"), rerun
-   the guide's step 2 check of the old branch, and then move the PR out of
-   draft. Never mark the PR ready, enable auto-merge, or enqueue it with a
-   `rev` pin, even with a repin planned as a follow-up.
+   **Merge gate: the pin is a tag** (the guide's "Pinning a fork change").
+   While the pin is a `rev`, keep the update PR in draft and say so in its
+   description. Before moving it out of draft, rerun the guide's step 2 check
+   of the old branch. Never mark the PR ready, enable auto-merge, or enqueue
+   it with a `rev` pin, even with a repin planned as a follow-up.
 
 8. **After merge.** Repin the premium PR to the merge commit (the guide's
    "After the monorepo PR merges").

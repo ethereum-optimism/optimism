@@ -37,9 +37,9 @@ bumps** that floated up without a manifest edit (e.g. `revm-interpreter`, `reth-
 an `alloy-*` core crate). Both lockfiles matter — the SP1 guest programs are a separate
 workspace with their own lock.
 
-Review every changed git source outside the intended reth/revm/alloy bump before applying
-the funnel below. A targeted cargo update can advance unrelated branch-based dependencies;
-that drift requires an explicit review or an exact pin, not silent inclusion in the bump.
+Before applying the funnel below, check every changed git source outside the intended
+reth/revm/alloy bump (UPDATING-RETH step 5): unrelated drift needs an explicit review or an
+exact pin, not silent inclusion in the bump.
 
 Then funnel — never spider every transitive dependency:
 
@@ -127,99 +127,9 @@ base, rather than trusting the author's:
 
 ## The precondition question
 
-Ask this on every consensus-adjacent change, before anything else:
-
-> **Which upstream precondition makes this change safe, and does the OP Stack hold it?**
-
-Upstream can prove a refactor behaviour-preserving because L1 validation rejects the inputs
-that would distinguish old from new. The OP Stack deliberately admits some of those inputs.
-When it does, an upstream "no-op refactor" — with no upstream discussion, no failing test
-and no diff in our tree — is an OP behaviour change.
-
-The tell is upstream code that reasons about a *range* rather than a *branch*: a `min`/`max`
-or clamp removed, an arm deleted as unreachable, a `saturating_*` relaxed to plain
-arithmetic, or a comment of the form "X is always ≤ Y here".
-Each one encodes an assumption. Name the assumption, then check it against the list below.
-
-### Where OP breaks upstream preconditions
-
-**1. Deposit transactions skip `validate_env` entirely.**
-`OpHandler::validate_env` (`rust/op-revm/src/handler.rs`) returns `Ok(())` for
-`DEPOSIT_TRANSACTION_TYPE` before reaching `validation::validate_env`, because deposits
-are pre-verified on L1 (
-[specs.optimism.io/protocol/deposits](https://specs.optimism.io/protocol/deposits.html)).
-Read the upstream body to keep this current; as of `revm` 42 it means a deposit is not
-checked for:
-
-- `prevrandao` present (Merge+) and `excess_blob_gas` present (Cancun+) on the block
-- chain id present and matching (EIP-155)
-- the EIP-7825 transaction gas-limit cap (`tx.gas_limit() > cfg.tx_gas_limit_cap()`)
-- gas price ≥ basefee, and priority fee ≤ max fee
-- the transaction type being enabled by the spec (2930 / 1559 / 4844 / 7702)
-- every EIP-4844 blob check (max fee, non-empty, versioned-hash prefix, count)
-- a non-empty EIP-7702 authorization list
-- `tx.gas_limit() > block.gas_limit()`
-- the EIP-3860 initcode size limit
-- `nonce == u64::MAX`
-
-**Asymmetry worth knowing:** `OpHandler` does *not* override `validate_initial_tx_gas`, so
-deposits still get the intrinsic-gas, EIP-7623 floor and EIP-8037 regular-gas checks. Skipping
-`validate_env` is not the same as skipping validation — check which one a given upstream
-assumption is enforced by. The cap does not bind a deposit's *execution* either:
-`OpHandler::tx_gas` splits a deposit's gas limit with the cap lifted, so the whole limit is
-regular gas and the EIP-8037 reservoir is empty.
-
-**2. Deposits take a separate `validate_against_state_and_deduct_caller` branch.**
-Same file. Relative to the upstream body, the deposit arm skips
-`validate_account_nonce_and_code_with_components` (so no EIP-3607 caller-has-code
-rejection and no nonce-match check) and skips `ensure_enough_balance` (so no
-`LackOfFundForMaxFee`; the balance update saturates instead). It additionally credits
-`tx.mint()`.
-
-**3. A failed deposit is not an excluded transaction.** `OpHandler::catch_error` routes
-deposit failures to `catch_error_failed_deposit`, which reverts to the first checkpoint,
-still bumps the nonce, still persists the mint, and reports `OpHaltReason::FailedDeposit`.
-Upstream logic that assumes "invalid transaction ⇒ no state change / not in the block"
-does not hold.
-
-**4. Pre-Regolith deposits skip the block-gas admission check.**
-`validate_block_gas` in `rust/alloy-op-evm/src/block/mod.rs` returns early for them.
-
-**5. The post-exec transaction type (`0x7D`) never reaches revm.**
-`OpBlockExecutor::execute_transaction_without_commit` synthesises its result and returns
-before `evm.transact`. Upstream invariants of the form "every transaction in a block was
-executed" do not hold.
-
-**6. A per-account storage root is consensus.**
-Upstream precondition: provider storage-root reads serve only RPC, so upstream tolerates
-divergence there that it would never accept in the state root. Since Isthmus the header's
-`withdrawalsRoot` is the L2ToL1MessagePasser storage root, which op-reth computes through
-`StorageRootProvider::storage_root` (`rust/op-reth/crates/consensus/src/validation/isthmus.rs`)
-when building (`rust/op-reth/crates/evm/src/build.rs`) and validating
-(`rust/op-reth/crates/node/src/engine.rs`) a block. Any upstream change to that method, to
-the providers that implement it (including overlay code it shares with `storage_proof` and
-`storage_multiproof`), or to how trie tables are persisted (partial persistence, state
-masking, overlay construction) is consensus-affecting for OP even when every upstream
-state-root test passes. Test it with persistence and state masking both engaged: a low
-persistence threshold, a nonzero `num_state_masking_blocks`, and enough blocks to trigger
-persistence. `with_persistence_threshold(0)` turns masking off, and under the default
-threshold a short test never persists at all.
-
-### How to check one
-
-For preconditions 1–5:
-
-1. From the upstream diff, name the assumption in one sentence
-   ("this branch was unreachable because L1 rejects `gas_limit > cap` pre-execution").
-2. Find where upstream *enforces* it — usually a `return Err(...)` in
-   `revm-handler/src/validation.rs` or `pre_execution.rs`. Read that function at the new
-   version rather than trusting the list above.
-3. Trace whether an OP transaction can reach the changed code without passing that check:
-   grep `rust/op-revm/src/handler.rs` for the enforcing function and for
-   `DEPOSIT_TRANSACTION_TYPE`.
-4. If it can, treat the change as consensus-affecting regardless of how upstream labelled
-   it, and demand a test: red against a deliberately-broken variant, green against the real
-   code (UPDATING-RETH step 7).
+Ask it on every consensus-adjacent change, before anything else. The question, the
+preconditions OP breaks and how to check one are in
+[UPDATING-RETH, "The precondition question"](../../rust/UPDATING-RETH.md#the-precondition-question).
 
 ## Risk taxonomy
 
@@ -296,49 +206,43 @@ to the upstream item. Deleting a mirror is worth more than re-syncing it.
 
 ### E. Consensus-critical cross-cutters (flag aggressively regardless of category)
 
-Highest blast radius — divergence here is a consensus split. Apply UPDATING-RETH step 7
-rigor: derive the change as _(old upstream default → new upstream default)_ applied onto
-our override, leaving OP-specific branches byte-identical.
+Highest blast radius — divergence here is a consensus split. Hold the adaptation to
+UPDATING-RETH step 7's rigor for consensus-adjacent overrides.
 
 - Gas accounting, fee / base-fee math, refunds, intrinsic gas.
 - EIP semantics (4844 blobs, 7702, 7825 gas cap, 7928 BAL, 8037 state gas, …).
 - Encoding / serialization (`reth-codecs` compact, RLP/SSZ) for shared types.
 - Fork-activation mapping (`OpHardfork::activates_l1_fork`, the revm spec mapping).
 - Precompile address set.
-- Trie persistence layout and state-provider storage-root reads — see precondition 6.
+- Trie persistence layout and state-provider storage-root reads — see precondition 6 in
+  UPDATING-RETH, "The precondition question".
 
 ### F. Downstream-consumer risks (our published versions are an API)
 
-`op-revm`, `alloy-op-evm`, `alloy-op-hardforks` and the `op-alloy` crates are consumed
-outside this repo — notably Flashbots' `op-rbuilder`, which `[patch.crates-io]`-redirects
-eight of them to this monorepo *by tag*, each matched against a version requirement. When
-our version stops satisfying that requirement cargo does not error: it warns the patch was
-unused and resolves the crates.io version instead.
+Downstream consumers pin our published crates by version requirement, and cargo silently
+falls back to crates.io when our version stops satisfying one (UPDATING-RETH step 4, which
+also says which bumps break which crate).
 
-Which bump breaks it depends on the crate's major: `alloy-op-evm` at `0.32.x` is broken by
-a **minor** bump, `op-revm` at `20.x` only by a major.
-
-So: **if the adaptation diff changes a `version =` line in one of our published crates,
-say so in the review.** It is a release-coordination item, not just a manifest edit.
-
-The op-reth crates (`op-reth`, `reth-optimism-*`, `reth-op`) and the `op-alloy*` crates
-are each versioned as a group (UPDATING-RETH step 4): flag a `version =` change that moves
-only part of a family, and check whether sibling crates changed their public API without a
-bump.
+- **If the adaptation diff changes a `version =` line in one of our published crates, say
+  so in the review.** It is a release-coordination item, not just a manifest edit.
+- Flag a `version =` change that moves only part of a crate family, and check whether
+  sibling crates changed their public API without a bump.
 
 ## Review process
 
 1. Identify the old→new pins from the `Cargo.toml` diff; compute the lockfile
    delta across both locks and isolate unrelated git-source drift.
-2. Check that a fork pin is one `tag = "op-<base>-<n>"` on the fork's `op-<base>`
-   branch (UPDATING-RETH, "Pinning a fork change"). A `rev` pin blocks merge,
-   even with a repin promised as a follow-up: report it first.
-3. For old and new reth fork pins, find each upstream base with
-   `git merge-base <pin> <upstream-remote>/main`, then list
-   `<base>..<pin>`. Extend the old side to the old branch's tip, which can
-   hold merged fixes past its last tag. Report any old cherry-pick that is
-   absent from both the selected target's upstream base and the new fork pin,
-   and list the open fork PRs into the old branch.
+2. Check that a fork pin is one `tag = "op-<base>-<n>"` whose commit is on the
+   fork's `op-<base>` branch (UPDATING-RETH, "Pinning a fork change"). Report a
+   `rev` pin, a tag off that branch, or open fork PRs the pin needs as the first
+   finding, marked **blocks merge**, whatever the PR says about tagging later.
+3. Redo UPDATING-RETH step 2's audit of the old pin, including its recheck of
+   the pin `develop` has now, of the old branch past that tag and of the open
+   fork PRs into it. For a new fork pin, confirm the selected target is an
+   ancestor of it (`git merge-base --is-ancestor <target> <new-pin>`) and that
+   `<target>..<new-pin>` holds only the fork's own commits. A release tag usually
+   sits off `main`, so a merge base with `main` is not the target. Report any old cherry-pick that is absent from both the target and the new
+   fork pin.
 4. Inspect every `UPSTREAM-MIRROR` tag changed or removed since the PR's merge
    base. For an advanced tag, review the upstream symbol from the old token to
    the new pin; do not accept a clean head worklist as proof.
@@ -392,6 +296,7 @@ offer to start a background investigation agent that:
   OP code duplicates upstream logic instead of calling it, what version each copy was last
   verified against, and how to re-check it.
 - [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md) — the bump procedure these
-  reviews accompany (especially step 4 shared-version sync, step 6 upstream
-  slot-preimage API review, step 7 consensus-adjacent rigor).
+  reviews accompany (especially step 2 pin audit, step 4 shared-version sync, step 6
+  upstream slot-preimage API review, step 7 consensus-adjacent rigor), the forward sweep
+  and the precondition question.
 - [rust-dev.md](rust-dev.md) — "Migrated, not vendored", the hardfork mapping, build/test.
