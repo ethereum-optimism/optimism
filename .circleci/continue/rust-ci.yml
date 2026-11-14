@@ -231,31 +231,6 @@ jobs:
           command: <<parameters.command>>
       - rust-save-build-cache: *docs-cache-args
 
-  # Shared doc test job
-  rust-ci-doctest:
-    parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      command:
-        description: "Doc test command to run"
-        type: string
-        default: "just test-docs"
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: 2xlarge.gen2
-    steps:
-      - checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &doctest-cache-args
-          directory: <<parameters.directory>>
-      - run:
-          name: Run doc tests
-          working_directory: <<parameters.directory>>
-          no_output_timeout: 30m
-          command: <<parameters.command>>
-      - rust-save-build-cache: *doctest-cache-args
-
   # Shared cargo tests job
   rust-ci-cargo-tests:
     parameters:
@@ -1038,6 +1013,7 @@ workflows:
           directory: rust
           context: *rust-ci-context
 
+      # `just test` also runs the doc tests (test-docs), so no separate doc test job.
       - rust-ci-cargo-tests:
           name: rust-tests
           directory: rust
@@ -1046,11 +1022,6 @@ workflows:
 
       - interop-deposits-go-rust-diff:
           name: interop-deposits-diff
-          context: *rust-ci-context
-
-      - rust-ci-doctest:
-          name: rust-doctest
-          directory: rust
           context: *rust-ci-context
 
       - rust-ci-docs:
@@ -1154,7 +1125,6 @@ workflows:
             - rust-zepter: terminal
             - rust-tests: terminal
             - interop-deposits-diff: terminal
-            - rust-doctest: terminal
             - rust-docs: terminal
             - rust-udeps: terminal
             - rust-cargo-hack: terminal
