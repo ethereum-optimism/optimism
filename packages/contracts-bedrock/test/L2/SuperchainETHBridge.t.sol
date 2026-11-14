@@ -722,8 +722,9 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
     }
 
     /// @notice Deploys a real L1CrossDomainMessenger for the destination chain. Its portal and
-    ///         SystemConfig are stand-ins that bind to it, and the portal is authorized by this
-    ///         chain's lockbox through the real authorizePortal.
+    ///         SystemConfig are stand-ins that bind to it, the portal is authorized by this
+    ///         chain's lockbox through the real authorizePortal, and it uses this chain's lockbox
+    ///         and AnchorStateRegistry.
     function _destinationL1Messenger() internal returns (IL1CrossDomainMessenger messenger_) {
         address portal = makeAddr("destinationPortal");
         address config = makeAddr("destinationConfig");
@@ -753,6 +754,13 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         IETHLockbox lockbox = optimismPortal2.ethLockbox();
         vm.prank(proxyAdminOwner);
         lockbox.authorizePortal(IOptimismPortal2(payable(portal)));
+        // The destination's portal shares this chain's lockbox and AnchorStateRegistry.
+        vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(lockbox));
+        vm.mockCall(
+            portal,
+            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
+            abi.encode(optimismPortal2.anchorStateRegistry())
+        );
 
         // This chain runs interop, so its L1CrossDomainMessenger accepts the word.
         if (!systemConfig.isFeatureEnabled(Features.INTEROP)) {
