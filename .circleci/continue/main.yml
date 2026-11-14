@@ -1170,7 +1170,7 @@ jobs:
         type: boolean
         default: false
       parallelism:
-        description: Machines to split the test files across, by timing
+        description: Machines to split the test files across, by timing. Keep it well below the file count, since a node with an empty share runs the whole suite.
         type: integer
         default: 1
     parallelism: <<parameters.parallelism>>
