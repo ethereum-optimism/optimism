@@ -1601,6 +1601,7 @@ jobs:
   shell-check:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: medium.gen2
     steps:
       - checkout-with-mise:
           enable-mise-cache: true
@@ -1613,6 +1614,7 @@ jobs:
   l2-chains-sync-check:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: medium.gen2
     steps:
       - checkout-with-mise:
           enable-mise-cache: false
@@ -2436,6 +2438,7 @@ jobs:
   op-deployer-forge-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: large.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
