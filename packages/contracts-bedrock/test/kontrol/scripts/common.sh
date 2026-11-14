@@ -174,6 +174,7 @@ copy_to_docker() {
     docker cp --follow-link "$TMP_DIR/." $CONTAINER_NAME:/home/user/workspace
     rm -rf "$TMP_DIR"
 
+    # Only the workspace needs it: docker cp writes as root, and the image already gives user the rest of /home/user.
     docker exec --user root "$CONTAINER_NAME" chown -R user:user /home/user/workspace
   fi
 }

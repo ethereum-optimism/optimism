@@ -31,6 +31,8 @@ deployments/getting-started
 deployments/*/.deploy
 deployments/1337
 deployments/31337-deploy.json
+deployments/kontrol.json
+deployments/kontrol.jsonReversed
 deployments/kontrol-fp.json
 deployments/kontrol-fp.jsonReversed
 deployments/1-deploy.json
