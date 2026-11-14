@@ -51,7 +51,12 @@ jobs:
       sha: ${{ steps.check.outputs.sha }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      # First, before the tag goes into any checkout or API path.
+      - name: Harden the runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      # Before the tag goes into any checkout or API path.
       - name: Check the tag
         id: version
         shell: bash
@@ -62,11 +67,6 @@ jobs:
             exit 1
           fi
           echo "version=${TAG#op-deployer/v}" >> "$GITHUB_OUTPUT"
-
-      - name: Harden the runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
 
       - name: Checkout the check script
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6

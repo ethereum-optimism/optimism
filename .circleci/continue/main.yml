@@ -2554,9 +2554,10 @@ jobs:
             # Respect the tool versions specified by the ref being published.
             mise install -v -y
       # A manual publish of a release ref must build a commit whose required CI
-      # is green: the commit checked out above, not the pipeline's commit. Tag
-      # pipelines need no check here: release-ci-green already checked this
-      # commit. Polls while CI is still running, like release-ci-green.
+      # is green: the commit checked out above, not the pipeline's commit. A tag
+      # pipeline with no publish ref needs no check here: release-ci-green
+      # already checked this commit. Polls while CI is still running, like
+      # release-ci-green.
       - run:
           name: Check required CI on a release commit
           no_output_timeout: 55m
@@ -2572,6 +2573,8 @@ jobs:
               release="publish ref $ref"
             elif [ -n "$ref" ] && [ -n "$(git tag --points-at HEAD --list 'op-contracts/v*')" ]; then
               release="publish ref $ref, a commit with an op-contracts/v* tag"
+            elif [ -n "${CIRCLE_TAG:-}" ] && [ -n "$ref" ]; then
+              release="tag pipeline for $CIRCLE_TAG, publish ref $ref"
             fi
             if [ -z "$release" ]; then
               echo "Not a manual release publish: the publish ref is empty or not a release tag. No check here."
