@@ -583,8 +583,10 @@ An in-process op-geth L2 EL would, after the go.mod flip, silently run *upstream
 EL — wrong OP state transition, with no compile error to warn us. So no test harness starts one:
 op-devstack/sysgo and the op-e2e system tests run op-reth as their only L2 EL, as an external
 process (`op-devstack/sysgo/l2_el_opreth.go`, `op-e2e/e2eutils/reth.InitL2`), and neither has an
-EL-kind selector. A suite outside this repo that tests its own EL build points sysgo at a CLI-superset
-binary of op-reth with `DEVSTACK_L2EL_OVERRIDE_BINARY`. The in-process **L1** geth miner
+EL-kind selector. sysgo configures its op-nodes as `--l2.enginekind=reth` configures a production
+op-node, so an EL-sync op-node restarted with a finalized block re-enters EL sync. A suite
+outside this repo that tests its own EL build points sysgo at a CLI-superset binary of op-reth
+with `DEVSTACK_L2EL_OVERRIDE_BINARY`. The in-process **L1** geth miner
 (`op-e2e/e2eutils/geth.InitL1`) stays: plain Ethereum semantics are exactly right for it under
 upstream.
 
