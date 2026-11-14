@@ -17,6 +17,13 @@ on:
         description: Existing tag to release, e.g. op-deployer/v1.2.3-rc.1
         required: true
         type: string
+      allow_red_ci_reason:
+        description: >-
+          Emergency only. Release a tag whose commit does not have green required CI, and say why.
+          Leave empty otherwise.
+        required: false
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -28,7 +35,35 @@ env:
   TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
+  # The release must come from a commit whose required CI is green. Polls while
+  # CI is still running (up to 45 min). The script comes from the workflow's
+  # ref, like the rest of this workflow.
+  release-ci-green:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      statuses: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout the check script
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: ops/scripts
+
+      - name: Check required CI on the tagged commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ALLOW_RED_CI_REASON: ${{ inputs.allow_red_ci_reason }}
+        run: ops/scripts/check-release-ci-green.sh "refs/tags/$TAG"
+
   build:
+    needs: release-ci-green
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:

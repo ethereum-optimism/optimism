@@ -30,6 +30,14 @@ on:
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
+    inputs:
+      allow_red_ci_reason:
+        description: >-
+          Emergency only. Build a release tag whose commit does not have green required CI.
+          Dispatch on the tag (--ref <tag>) and say why. Leave empty otherwise.
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   # Tag pushes get a group per tag: a release commonly tags several components on
@@ -43,8 +51,38 @@ env:
   REGISTRY: us-docker.pkg.dev/oplabs-tools-artifacts/images
 
 jobs:
+  # A release image must come from a commit whose required CI is green. Runs
+  # only for release tags (not op-reth/bench*), and before plan, so no build
+  # starts on a red commit. Polls while CI is still running (up to 45 min).
+  # Its own job, not a step in plan: ubuntu-slim jobs are capped at 15 minutes.
+  release-ci-green:
+    name: release commit has green CI
+    if: github.ref_type == 'tag' && !startsWith(github.ref_name, 'op-reth/bench')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      statuses: read
+    steps:
+      - name: Checkout the check script
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: ops/scripts
+
+      - name: Check required CI on the tagged commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ALLOW_RED_CI_REASON: ${{ inputs.allow_red_ci_reason }}
+        run: ops/scripts/check-release-ci-green.sh "$GITHUB_SHA"
+
   plan:
     name: plan
+    needs: release-ci-green
+    # Skipped (not a release tag) or green: plan as before.
+    if: |
+      !cancelled() &&
+      (needs.release-ci-green.result == 'success' || needs.release-ci-green.result == 'skipped')
     runs-on: ubuntu-slim
     permissions:
       contents: read

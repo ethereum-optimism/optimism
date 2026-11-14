@@ -1199,7 +1199,17 @@ workflows:
   kona-publish-prestates-on-tag:
     when: << pipeline.parameters.c-run_release >>
     jobs:
+      - release-ci-green:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          filters:
+            tags:
+              only: /^kona-client\/v.*/
+            branches:
+              ignore: /.*/
       - kona-publish-prestate-artifacts:
+          requires:
+            - release-ci-green
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
@@ -1224,7 +1234,17 @@ workflows:
   kona-sp1-publish-prestates-on-tag:
     when: << pipeline.parameters.c-run_release >>
     jobs:
+      - release-ci-green:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          filters:
+            tags:
+              only: /^kona-sp1-program\/v.*/
+            branches:
+              ignore: /.*/
       - kona-sp1-publish-prestate-artifacts:
+          requires:
+            - release-ci-green
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket

@@ -389,7 +389,9 @@ commands:
 
             # A release branch's own pushes compare against itself, not develop.
             # Not in the script: setup change detection would see an empty diff.
-            if [ -z "${CIRCLE_PULL_REQUEST:-}" ] && [[ "${CIRCLE_BRANCH:-}" == proposal/* ]]; then
+            # backports/* too: develop's newer reth writes compact vectors that a
+            # backport's older reth cannot read (false red on release commits).
+            if [ -z "${CIRCLE_PULL_REQUEST:-}" ] && [[ "${CIRCLE_BRANCH:-}" == proposal/* || "${CIRCLE_BRANCH:-}" == backports/* ]]; then
               TARGET_BRANCH="$CIRCLE_BRANCH"
             fi
 
@@ -1609,6 +1611,10 @@ jobs:
           name: Run shellcheck
           command: |
             find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -print0 | xargs -0 shellcheck
+      # Recorded GitHub API responses, no network. Under 5 s.
+      - run:
+          name: Test the release CI check
+          command: bash ops/scripts/check-release-ci-green.test.sh
 
   l2-chains-sync-check:
     docker:
@@ -2544,6 +2550,25 @@ jobs:
           command: bash scripts/ops/publish-artifacts.sh
           working_directory: packages/contracts-bedrock
 
+  # Tag publish jobs require this: a release must come from a commit whose
+  # required CI is green. Polls while CI is still running (up to 45 min). For an
+  # emergency release, set ALLOW_RED_CI_REASON in the project settings, rerun
+  # the workflow from failed, then delete the variable.
+  release-ci-green:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: Check required CI on the tagged commit
+          no_output_timeout: 50m
+          command: |
+            GITHUB_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" \
+              ops/scripts/check-release-ci-green.sh "$CIRCLE_SHA1"
+
   stale-check:
     machine:
       image: ubuntu-2204:2024.08.1
@@ -2879,7 +2904,17 @@ workflows:
 
   publish-contract-artifacts-on-tag:
     jobs:
+      - release-ci-green:
+          filters:
+            tags:
+              only: /^op-contracts\/v.*/
+            branches:
+              ignore: /.*/
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - publish-contract-artifacts:
+          requires:
+            - release-ci-green
           filters:
             tags:
               only: /^op-contracts\/v.*/
