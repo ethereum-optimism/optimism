@@ -732,9 +732,6 @@ waiting:
   repo: it would *compile* against upstream and then fail at runtime decoding deposit txs. The
   fix is the same as the monorepo's — use the OP-aware client in `op-service/sources` (§11) —
   and it is the reason §11's guidance needs to reach these repos rather than staying in-tree.
-- A private builder repo couples only through a Go acceptance-test module that drives
-  op-devstack/sysgo, whose only L2 EL is op-reth or an override binary (§17). Its Rust binary has
-  no Go geth dependency at all.
 
 Two things worth carrying forward. First, a downstream repo cannot "point at op-core" ahead of
 us: the op-core packages that hold the transition scaffolding (§2, §3, §5) do not compile against
