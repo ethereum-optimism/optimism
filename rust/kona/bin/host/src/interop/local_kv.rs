@@ -4,7 +4,6 @@
 use super::InteropHost;
 use crate::{KeyValueStore, Result};
 use alloy_primitives::{B256, keccak256};
-use kona_interop::DependencySet;
 use kona_preimage::{
     DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L1_HEAD_KEY, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY,
     L2_OUTPUT_ROOT_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey,
@@ -41,17 +40,13 @@ impl KeyValueStore for InteropLocalInputs {
                 serde_json::to_vec(&l1_config).ok()
             }
             DEPENDENCY_SET_KEY => {
-                // A dependency set that fails to parse is not replaced with an empty one, which
-                // would make every executing message invalid; `start_server` refuses to start.
-                let dependency_set = match self.cfg.read_dependency_set() {
-                    Some(dependency_set) => dependency_set
-                        .inspect_err(|e| error!(target: "host", "dependency set unavailable: {e}"))
-                        .ok()?,
-                    None => DependencySet {
-                        dependencies: Default::default(),
-                        override_message_expiry_window: None,
-                    },
-                };
+                // The set `InteropHost::dependency_set` resolves, so a client whose embedded
+                // registry lacks the first chain still gets the set op-node loads.
+                let dependency_set = self
+                    .cfg
+                    .dependency_set()
+                    .inspect_err(|e| error!(target: "host", "dependency set unavailable: {e}"))
+                    .ok()??;
                 serde_json::to_vec(&dependency_set).ok()
             }
             _ => None,
@@ -66,21 +61,40 @@ impl KeyValueStore for InteropLocalInputs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kona_interop::MESSAGE_EXPIRY_WINDOW;
+    use alloy_primitives::Bytes;
+    use kona_interop::{DependencySet, MESSAGE_EXPIRY_WINDOW, OutputRootWithChain, SuperRoot};
+    use kona_proof_interop::PreState;
+    use kona_registry::DEPENDENCY_SETS;
     use std::path::PathBuf;
 
-    fn dependency_set_preimage(dependency_set_path: Option<PathBuf>) -> Option<Vec<u8>> {
-        let inputs =
-            InteropLocalInputs::new(InteropHost { dependency_set_path, ..Default::default() });
+    const OP_SEPOLIA: u64 = 11155420;
+
+    fn dependency_set_preimage(
+        first_chain: u64,
+        dependency_set_path: Option<PathBuf>,
+    ) -> Option<Vec<u8>> {
+        let output_roots = vec![OutputRootWithChain::new(first_chain, B256::ZERO)];
+        let agreed_l2_pre_state: Bytes =
+            alloy_rlp::encode(PreState::SuperRoot(SuperRoot::new(1, output_roots))).into();
+        let inputs = InteropLocalInputs::new(InteropHost {
+            agreed_l2_pre_state,
+            dependency_set_path,
+            ..Default::default()
+        });
         let key = PreimageKey::new_local(DEPENDENCY_SET_KEY.to());
         inputs.get(B256::from(key))
     }
 
     #[test]
-    fn test_dependency_set_preimage_no_path_is_empty_set() {
-        let preimage = dependency_set_preimage(None).expect("serves an empty dependency set");
+    fn test_dependency_set_preimage_no_path_is_not_served() {
+        assert_eq!(dependency_set_preimage(901, None), None);
+    }
+
+    #[test]
+    fn test_dependency_set_preimage_registry_chain_is_served_the_registry_set() {
+        let preimage = dependency_set_preimage(OP_SEPOLIA, None).unwrap();
         let dependency_set: DependencySet = serde_json::from_slice(&preimage).unwrap();
-        assert!(dependency_set.dependencies.is_empty());
+        assert_eq!(dependency_set, DEPENDENCY_SETS[&OP_SEPOLIA]);
     }
 
     #[test]
@@ -95,6 +109,6 @@ mod tests {
             ),
         )
         .unwrap();
-        assert_eq!(dependency_set_preimage(Some(path)), None);
+        assert_eq!(dependency_set_preimage(901, Some(path)), None);
     }
 }

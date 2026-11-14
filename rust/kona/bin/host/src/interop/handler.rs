@@ -546,13 +546,10 @@ impl HintHandler for InteropHintHandler {
                     )
                     .start(),
                 );
-                // The host re-execution path mirrors the client's
-                // `sub_transition` fault-proof pipeline, so we must pass the same
-                // dependency set that the client will derive from BootInfo. Resolve
-                // it here so the owned value can move into the spawned task.
+                // Same set as the client's sub_transition: see InteropHost::dependency_set.
                 let dependency_set = cfg
-                    .dependency_set_for(chain_id)
-                    .map_err(|e| anyhow!("failed to read interop dep-set: {e}"))?
+                    .dependency_set()
+                    .map_err(|e| anyhow!("failed to resolve the client's dependency set: {e}"))?
                     .map(Arc::new);
                 let client_task = task::spawn({
                     let l1_head = cfg.l1_head;

@@ -16,7 +16,7 @@ use kona_proof::{
     l1::{OracleBlobProvider, OraclePipeline},
     sync::{DerivationInputs, SyncStartError, prepare_derivation},
 };
-use kona_registry::DEPENDENCY_SETS;
+use kona_registry::{DEPENDENCY_SETS, DependencySet, HashMap};
 use thiserror::Error;
 use tracing::{error, info};
 
@@ -35,6 +35,30 @@ pub enum FaultProofProgramError {
     /// An error occurred in the driver.
     #[error(transparent)]
     Driver(#[from] DriverError<ExecutorError>),
+    /// The registry's dependency set for the chain has members other than the chain itself.
+    /// The single-chain program does not validate executing messages, so it only runs a chain
+    /// whose dependency set is self-only. Every claim for such a chain fails, including claims
+    /// before Lagoon, so a chain moves to a super-root game before it joins an interop cluster.
+    #[error(
+        "dependency set for chain {0} is not self-only; prove this chain with the interop program"
+    )]
+    NotSelfOnlyDependencySet(u64),
+}
+
+/// Returns the superchain-registry dependency set for `chain_id`, the one op-node loads, only
+/// when the chain is its only member. A chain the registry does not know has none.
+#[allow(clippy::result_large_err)]
+fn self_only_dependency_set(
+    chain_id: u64,
+    embedded: &HashMap<u64, DependencySet>,
+) -> Result<Option<DependencySet>, FaultProofProgramError> {
+    match embedded.get(&chain_id) {
+        None => Ok(None),
+        Some(ds) if ds.dependencies.len() == 1 && ds.dependencies.contains_key(&chain_id) => {
+            Ok(Some(ds.clone()))
+        }
+        Some(_) => Err(FaultProofProgramError::NotSelfOnlyDependencySet(chain_id)),
+    }
 }
 
 /// Executes the fault proof program with the given [PreimageOracleClient] and [HintWriterClient].
@@ -55,6 +79,7 @@ where
         Arc::new(CachingOracle::new(ORACLE_LRU_SIZE, oracle_client.clone(), hint_client.clone()));
     let boot = BootInfo::load(oracle.as_ref()).await?;
     let rollup_config = Arc::new(boot.rollup_config.clone());
+    let dependency_set = self_only_dependency_set(boot.chain_id, &DEPENDENCY_SETS)?.map(Arc::new);
     let beacon = OracleBlobProvider::new(oracle.clone());
 
     // Run the shared sync-start prologue: validate the claim against the safe head and either
@@ -112,10 +137,8 @@ where
         da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
-        // The superchain-registry's dependency set for this chain, the one op-node loads: a chain
-        // outside an interop cluster depends only on itself. A chain the registry does not know
-        // has none, so the StatefulAttributesBuilder constructor panics if it schedules Lagoon.
-        DEPENDENCY_SETS.get(&boot.chain_id).cloned().map(Arc::new),
+        // None panics the StatefulAttributesBuilder constructor if the chain schedules Lagoon.
+        dependency_set,
     )
     .await?;
 
@@ -158,4 +181,40 @@ where
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kona_registry::ChainDependency;
+
+    fn depset(ids: &[u64]) -> DependencySet {
+        DependencySet {
+            dependencies: ids.iter().map(|id| (*id, ChainDependency {})).collect(),
+            override_message_expiry_window: None,
+        }
+    }
+
+    /// Keys the set under every member id, as `DEPENDENCY_SETS` does.
+    fn embedded(ids: &[u64]) -> HashMap<u64, DependencySet> {
+        ids.iter().map(|id| (*id, depset(ids))).collect()
+    }
+
+    #[test]
+    fn self_only_set_is_used() {
+        assert_eq!(self_only_dependency_set(10, &embedded(&[10])).unwrap(), Some(depset(&[10])));
+    }
+
+    #[test]
+    fn set_with_another_member_is_rejected() {
+        assert!(matches!(
+            self_only_dependency_set(10, &embedded(&[10, 11])),
+            Err(FaultProofProgramError::NotSelfOnlyDependencySet(10))
+        ));
+    }
+
+    #[test]
+    fn unknown_chain_has_no_set() {
+        assert_eq!(self_only_dependency_set(10, &HashMap::default()).unwrap(), None);
+    }
 }

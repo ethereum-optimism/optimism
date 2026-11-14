@@ -67,6 +67,14 @@ impl PreState {
         self.active_l2_output_root().map(|output_root| output_root.chain_id)
     }
 
+    /// Returns the output roots of the [`SuperRoot`] this [`PreState`] starts from.
+    pub fn output_roots(&self) -> &[OutputRootWithChain] {
+        match self {
+            Self::SuperRoot(super_root) => &super_root.output_roots,
+            Self::TransitionState(transition_state) => &transition_state.pre_state.output_roots,
+        }
+    }
+
     /// Transitions to the next state, appending the [`OptimisticBlock`] to the pending progress.
     pub fn transition(self, optimistic_block: Option<OptimisticBlock>) -> Option<Self> {
         match self {
