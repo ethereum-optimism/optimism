@@ -90,17 +90,41 @@ commands:
 
   # Saves only the per-namespace build cache; the module cache is written once
   # by prep-go-modules. The revision in the key makes it unique per commit so
-  # each build persists an up-to-date cache.
+  # each build persists an up-to-date cache. Merge queue branches don't save:
+  # each queue branch name is used once, so only a rerun would restore it.
   go-save-cache:
     parameters:
       namespace:
         type: string
+      prune:
+        # Keep only entries used in the last 3 hours. Go touches an entry's mtime
+        # at most once an hour, so this keeps what this run used. Only for a
+        # namespace where every job and node builds the same packages, since the
+        # first save wins. -delete because BusyBox find fails -exec rm {} + on
+        # long argument lists.
+        description: "Delete Go build cache entries unused for 3 hours before saving."
+        type: boolean
+        default: false
     steps:
-      - save_cache:
-          name: Save Go build cache for <<parameters.namespace>>
-          key: go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ .Revision }}
-          paths:
-            - ~/.cache/go-build
+      - unless:
+          condition:
+            matches:
+              pattern: "^gh-readonly-queue/.*$"
+              value: << pipeline.git.branch >>
+          steps:
+            - when:
+                condition: << parameters.prune >>
+                steps:
+                  - run:
+                      name: Prune Go build cache entries unused for 3 hours
+                      command: |
+                        find ~/.cache/go-build -mindepth 2 -type f -mmin +180 -delete
+                        du -sh ~/.cache/go-build
+            - save_cache:
+                name: Save Go build cache for <<parameters.namespace>>
+                key: go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ .Revision }}
+                paths:
+                  - ~/.cache/go-build
 
   # Single canonical Rust env/prepare commands. Defined here (helpers is merged
   # first) so there is exactly one of each and the sccache step below cannot be

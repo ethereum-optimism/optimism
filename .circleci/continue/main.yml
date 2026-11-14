@@ -1668,6 +1668,8 @@ jobs:
           command: mise exec -- ./ops/prestate-reproducibility/test-build-prestates.sh
       - go-save-cache:
           namespace: go-lint
+          # Safe: one node, and no other job uses this namespace.
+          prune: true
       - save_cache:
           # Warm the analysis cache even when linting fails, so a branch with
           # lint errors doesn't repeatedly cold-start golangci-lint.
@@ -2255,17 +2257,11 @@ jobs:
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR"/failed/*.log || true
           when: on_fail
-      # Keep only entries used in the last 3 hours (about 2 of 24 GB). Go touches an
-      # entry's mtime at most once an hour, so this keeps what this run used. Safe only
-      # because every node builds the same packages (go test -list). -delete because
-      # BusyBox find fails -exec rm {} + on long argument lists.
-      - run:
-          name: Prune Go build cache entries unused for 3 hours
-          command: |
-            find ~/.cache/go-build -mindepth 2 -type f -mmin +180 -delete
-            du -sh ~/.cache/go-build
+      # Save the module cache for future runs
       - go-save-cache:
           namespace: op-acceptance-tests
+          # Safe: every node builds the same packages (go test -list).
+          prune: true
       # Store test results and artifacts
       - when:
           condition: always
