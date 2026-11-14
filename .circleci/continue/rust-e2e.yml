@@ -37,12 +37,15 @@ commands:
   sp1-toolchain-restore-or-install:
     description: "Restore the cached SP1 (succinct) toolchain, or install it, after checking SP1 version pins agree"
     steps:
+      # Scoped by branch like the Go caches (see helpers.yml), and saved only
+      # when this job installed it (see scoped-cache-save-decision in main.yml).
       - restore_cache:
           name: Restore SP1 toolchain cache
           keys:
             # cargo-prove selects the matching native toolchain. An SP1 pin
             # update changes this checksum and forces a fresh installation.
-            - sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
+            - sp1-toolchain-v1-{{ arch }}-{{ .Branch }}:{{ checksum "mise.toml" }}
+            - sp1-toolchain-v1-{{ arch }}-develop:{{ checksum "mise.toml" }}
       - run:
           name: Install or link SP1 toolchain
           command: |
@@ -109,11 +112,27 @@ commands:
               install_sp1_toolchain
             fi
             rustc +succinct --version
-      - save_cache:
-          name: Save SP1 toolchain cache
-          key: sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
-          paths:
-            - ~/.sp1/toolchains
+      # Merge queue branches don't save: each queue branch name is used once.
+      - unless:
+          condition:
+            matches:
+              pattern: "^gh-readonly-queue/.*$"
+              value: << pipeline.git.branch >>
+          steps:
+            - scoped-cache-save-decision:
+                cache: sp1-toolchain
+                key_file: mise.toml
+            - save_cache:
+                name: Save SP1 toolchain cache placeholder
+                key: sp1-toolchain-v1-{{ arch }}-{{ .Branch }}:{{ checksum "/tmp/ci-cache-skip" }}
+                paths:
+                  - /tmp/ci-cache-skip
+            - save_cache:
+                name: Save SP1 toolchain cache
+                key: sp1-toolchain-v1-{{ arch }}-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/sp1-toolchain" }}
+                paths:
+                  - ~/.sp1/toolchains
+                  - /tmp/ci-cache-hit/sp1-toolchain
 
 # ============================================================================
 # RUST E2E JOBS
