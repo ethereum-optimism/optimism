@@ -154,6 +154,12 @@ contract L2Genesis is Script {
                 || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OP_PRIVATE),
             "L2Genesis: settlement chain ID needs the OP_PRIVATE devFeature bit"
         );
+        // Interop moves the native asset between chains as ETH, so it cannot run on a chain whose
+        // native asset is a custom gas token.
+        require(
+            !(_input.useInterop && _input.useCustomGasToken),
+            "L2Genesis: interop is not supported with custom gas token"
+        );
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
         vm.chainId(_input.l2ChainID);
