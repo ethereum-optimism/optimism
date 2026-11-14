@@ -1668,6 +1668,8 @@ jobs:
           command: mise exec -- ./ops/prestate-reproducibility/test-build-prestates.sh
       - go-save-cache:
           namespace: go-lint
+          # Safe: one node, and no other job uses this namespace.
+          prune: true
       - save_cache:
           # Warm the analysis cache even when linting fails, so a branch with
           # lint errors doesn't repeatedly cold-start golangci-lint.
@@ -2258,6 +2260,8 @@ jobs:
       # Save the module cache for future runs
       - go-save-cache:
           namespace: op-acceptance-tests
+          # Safe: every node builds the same packages (go test -list).
+          prune: true
       # Store test results and artifacts
       - when:
           condition: always
