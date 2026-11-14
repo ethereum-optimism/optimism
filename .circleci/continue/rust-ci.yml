@@ -89,7 +89,9 @@ jobs:
         default: "cargo clippy --workspace --all-targets --all-features"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    # #19777 moved this to medium when a target cache made it fast. That cache
+    # is gone (#21310), and on 2 vCPU the job took about 10 min.
+    resource_class: xlarge.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -362,7 +364,8 @@ jobs:
         default: "just check-udeps"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    # Same reason as rust-ci-clippy.
+    resource_class: xlarge.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
