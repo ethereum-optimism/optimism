@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -145,6 +146,20 @@ func (st *StatusTracker) SyncStatus() *eth.SyncStatus {
 // L1Head is a helper function; the L1 head is closely monitored for confirmation-distance logic.
 func (st *StatusTracker) L1Head() eth.L1BlockRef {
 	return st.SyncStatus().HeadL1
+}
+
+// L1RefGetter returns a getter for the tracked L1 block with the given label: latest, safe or finalized.
+func (st *StatusTracker) L1RefGetter(label eth.BlockLabel) func() eth.L1BlockRef {
+	switch label {
+	case eth.Safe:
+		return func() eth.L1BlockRef { return st.SyncStatus().SafeL1 }
+	case eth.Finalized:
+		return func() eth.L1BlockRef { return st.SyncStatus().FinalizedL1 }
+	case eth.Unsafe:
+		return st.L1Head
+	default:
+		panic(fmt.Sprintf("unsupported L1 block label %q", label))
+	}
 }
 
 func (st *StatusTracker) OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef) {

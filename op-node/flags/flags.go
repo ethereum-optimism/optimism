@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -256,6 +257,16 @@ var (
 		Value:    0,
 		Category: L1RPCCategory,
 	}
+	VerifierL1BlockTag = &cli.StringFlag{
+		Name: "verifier.l1-block-tag",
+		Usage: "L1 block that --verifier.l1-confs is counted from, also for runtime config reloads: latest, safe or finalized. " +
+			"Use safe only on an L1 with the Fast Confirmation Rule. " +
+			"The safe and finalized blocks are polled every --l1.epoch-poll-interval, so they can be up to one interval late; " +
+			"lower it when using safe.",
+		EnvVars:  prefixEnvVars("VERIFIER_L1_BLOCK_TAG"),
+		Value:    eth.Unsafe,
+		Category: L1RPCCategory,
+	}
 	SequencerEnabledFlag = &cli.BoolFlag{
 		Name:     "sequencer.enabled",
 		Usage:    "Enable sequencing of new L2 blocks. A separate batch submitter has to be deployed to publish the data for verifiers.",
@@ -273,6 +284,15 @@ var (
 		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
 		EnvVars:  prefixEnvVars("SEQUENCER_L1_CONFS"),
 		Value:    4,
+		Category: SequencerCategory,
+	}
+	SequencerL1BlockTag = &cli.StringFlag{
+		Name: "sequencer.l1-block-tag",
+		Usage: "L1 block that --sequencer.l1-confs is counted from: latest or safe. " +
+			"Use safe only on an L1 with the Fast Confirmation Rule: the sequencer stops producing blocks while safe trails the head by more than the max sequencer drift. " +
+			"The safe block is polled every --l1.epoch-poll-interval, so it can be up to one interval late; lower it when using safe.",
+		EnvVars:  prefixEnvVars("SEQUENCER_L1_BLOCK_TAG"),
+		Value:    eth.Unsafe,
 		Category: SequencerCategory,
 	}
 	SequencerRecoverMode = &cli.BoolFlag{
@@ -459,9 +479,11 @@ var optionalFlags = []cli.Flag{
 	L1HTTPPollInterval,
 	L1CacheSize,
 	VerifierL1Confs,
+	VerifierL1BlockTag,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
 	SequencerL1Confs,
+	SequencerL1BlockTag,
 	SequencerRecoverMode,
 	SequencerSealingDurationFlag,
 	FinalityLookbackFlag,
