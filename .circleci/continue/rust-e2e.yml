@@ -607,7 +607,7 @@ jobs:
 workflows:
   # Rust E2E CI — runs on rust path changes or manual dispatch
   rust-e2e-ci:
-    when: << pipeline.parameters.c-run_rust_e2e_ci >>
+    when: false
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test

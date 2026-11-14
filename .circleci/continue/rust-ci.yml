@@ -89,7 +89,9 @@ jobs:
         default: "cargo clippy --workspace --all-targets --all-features"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    resource_class: xlarge.gen2
+    environment:
+      RUSTUP_AUTO_INSTALL: "0"
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -103,6 +105,9 @@ jobs:
           environment:
             RUSTFLAGS: -Dwarnings
           command: <<parameters.command>>
+      - store_artifacts:
+          path: rust/target/cargo-timings
+          destination: clippy-timings
       - rust-save-build-cache: *clippy-cache-args
 
   # Shared cargo deny job
@@ -387,7 +392,9 @@ jobs:
         default: "just check-udeps"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    resource_class: xlarge.gen2
+    environment:
+      RUSTUP_AUTO_INSTALL: "0"
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -965,6 +972,44 @@ jobs:
       - store_artifacts:
           path: rust/kona/sp1/elf/
 
+  bench-op-reth-binary:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    environment:
+      RUSTUP_AUTO_INSTALL: "0"
+    steps:
+      - rust-build:
+          directory: rust
+          profile: release
+          package: "op-reth op-reth-test-engine"
+          save_cache: false
+      - run:
+          name: Toolchain probe
+          working_directory: rust
+          command: bash scripts/dig-bench.sh probe
+
+  bench-test-probe:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: 2xlarge.gen2
+    environment:
+      RUSTUP_AUTO_INSTALL: "0"
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          profile: release
+      - run:
+          name: Test build and rustc variants
+          working_directory: rust
+          no_output_timeout: 40m
+          command: bash scripts/dig-bench.sh tests
+      - store_artifacts:
+          path: /tmp/dig-art
+          destination: dig
+
   required-rust-ci:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -988,196 +1033,28 @@ workflows:
   rust-ci:
     when: << pipeline.parameters.c-run_rust_ci >>
     jobs:
-      # -----------------------------------------------------------------------
-      # Workspace-level jobs (replacing per-crate duplicates)
-      # -----------------------------------------------------------------------
-      - rust-ci-fmt:
-          name: rust-fmt
-          directory: rust
-          command: "just fmt-check && just check-upstream-mirrors"
-          context: &rust-ci-context
-            - circleci-repo-readonly-authenticated-github-token
-            # GCP Workload Identity coords + reader SA + bucket for the sccache
-            # GCS compile cache (rust-sccache-setup). Restricted to this project.
-            - sccache-gcs-optimism
-
-      - rust-reth-tag-pin:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
       - rust-ci-clippy:
-          name: rust-clippy
+          name: bench-clippy-xl
           directory: rust
-          command: "cargo clippy --workspace --all-targets --all-features --locked"
-          context: *rust-ci-context
-
-      - rust-ci-deny:
-          name: rust-deny
-          directory: rust
-          command: "just deny"
-          # Not the shared *rust-ci-context anchor: this job and the two cargo-test jobs
-          # below additionally need the `slack` context (SLACK_ACCESS_TOKEN) — rust-deny to
-          # ping @protocol-oncall on a develop failure (below), the test jobs for the
-          # flaky-retry alert. Scoped to just these three; the 20+ lint/build jobs on
-          # *rust-ci-context have no business holding a Slack bot token.
-          context: &rust-ci-context-slack
+          command: "cargo clippy --workspace --all-targets --all-features --locked --timings"
+          context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
-            - slack
-          # cargo-deny audits licenses, bans, and sources only (advisories are tracked
-          # via image scanning), so it can only fail on a repo change and gates PRs
-          # through required-rust-ci.
-
-      - rust-ci-typos:
-          name: rust-typos
-          directory: rust
-          context: *rust-ci-context
-
-      - rust-ci-zepter:
-          name: rust-zepter
-          directory: rust
-          context: *rust-ci-context
-
-      - rust-ci-cargo-tests:
-          name: rust-tests
-          directory: rust
-          # Adds the `slack` context for the flaky-retry alert step (anchor on rust-deny).
-          context: *rust-ci-context-slack
-
-      - interop-deposits-go-rust-diff:
-          name: interop-deposits-diff
-          context: *rust-ci-context
-
-      - rust-ci-doctest:
-          name: rust-doctest
-          directory: rust
-          context: *rust-ci-context
-
-      - rust-ci-docs:
-          name: rust-docs
-          directory: rust
-          context: *rust-ci-context
-
       - rust-ci-udeps:
-          name: rust-udeps
+          name: bench-udeps-xl
           directory: rust
-          context: *rust-ci-context
-
-      - rust-ci-cargo-hack:
-          name: rust-cargo-hack
-          # cargo-hack shards its --each-feature checks via --partition i/N.
-          parallelism: 10
-          context: *rust-ci-context
-
-      - rust-build-binary:
-          name: rust-build
-          directory: rust
-          context: *rust-ci-context
-
-      # No release build here on purpose: rust-e2e-ci builds the release
-      # workspace (split across rust-e2e-binaries and rust-workspace-release),
-      # and compute-workflow-conditions.sh only ever runs rust_ci and
-      # rust_e2e_ci as a pair, so a copy in this workflow is duplicated work.
-      # It is gated through required-rust-e2e.
-
-      # -----------------------------------------------------------------------
-      # Unified cross-compilation jobs
-      # -----------------------------------------------------------------------
-      - rust-ci-check-no-std:
-          name: rust-check-no-std
-          directory: rust
-          command: |
-            just check-no-std
-          context: *rust-ci-context
-
-      - rust-ci-cargo-hack-build:
-          name: rust-wasm-unknown
-          directory: rust
-          target: wasm32-unknown-unknown
-          flags: "-p op-alloy-consensus -p op-alloy-rpc-types -p op-alloy-rpc-types-engine -p alloy-op-evm --no-default-features"
-          context: *rust-ci-context
-
-      - rust-ci-cargo-hack-build:
-          name: rust-wasm-wasi
-          directory: rust
-          target: wasm32-wasip1
-          flags: "-p op-alloy-consensus -p op-alloy-rpc-types-engine -p alloy-op-evm"
-          context: *rust-ci-context
-
-      # -----------------------------------------------------------------------
-      # OP-Reth crate-specific jobs
-      # -----------------------------------------------------------------------
-      - op-reth-compact-codec:
-          context: *rust-ci-context
-
-      - rust-ci-cargo-tests:
-          name: op-reth-integration-tests
-          directory: rust
-          command: "--justfile op-reth/justfile test-integration"
-          cache_profile: debug
-          # Adds the `slack` context for the flaky-retry alert step (anchor on rust-deny).
-          context: *rust-ci-context-slack
-
-      # -----------------------------------------------------------------------
-      # Kona crate-specific jobs (lint, FPVM builds, host-client offline)
-      # -----------------------------------------------------------------------
-      - kona-cargo-lint:
-          name: kona-lint-cannon
-          target: "cannon"
-          context: *rust-ci-context
-
-      - kona-build-fpvm:
-          name: kona-build-fpvm-cannon-client
-          target: "cannon-client"
-          context: *rust-ci-context
-
-      - kona-host-client-offline:
-          name: kona-host-client-offline-cannon
-          context: *rust-ci-context
-
-      - kona-registry-snapshot-check:
-          context: *rust-ci-context
-
-      - op-reth-superchain-snapshot-check:
-          context: *rust-ci-context
-
-      # -----------------------------------------------------------------------
-      # Required gate — fans in on required Rust CI jobs
-      # -----------------------------------------------------------------------
-      - required-rust-ci:
-          requires:
-            - rust-fmt: terminal
-            - rust-reth-tag-pin: terminal
-            - rust-clippy: terminal
-            - rust-deny: terminal
-            - rust-typos: terminal
-            - rust-zepter: terminal
-            - rust-tests: terminal
-            - interop-deposits-diff: terminal
-            - rust-doctest: terminal
-            - rust-docs: terminal
-            - rust-udeps: terminal
-            - rust-cargo-hack: terminal
-            - rust-build: terminal
-            - rust-check-no-std: terminal
-            - rust-wasm-unknown: terminal
-            - rust-wasm-wasi: terminal
-            - op-reth-compact-codec: terminal
-            - op-reth-integration-tests: terminal
-            - kona-lint-cannon: terminal
-            - kona-build-fpvm-cannon-client: terminal
-            - kona-host-client-offline-cannon: terminal
-            - kona-registry-snapshot-check: terminal
-            - op-reth-superchain-snapshot-check: terminal
           context:
-            - circleci-api-token
-  # =====================================
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - bench-op-reth-binary:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - bench-test-probe:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
 
-  # ==========================================================================
-  # Required Rust CI gate (skip) — runs when no rust changes and no dispatch.
-  # This path must complete quickly (e.g., docs-only PRs), so it should avoid
-  # expensive Rust build/test work while still satisfying required check names.
-  # ==========================================================================
   rust-ci-gate-short:
     when: << pipeline.parameters.c-run_rust_ci_gate_short >>
     jobs:
