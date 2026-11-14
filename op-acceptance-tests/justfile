@@ -116,15 +116,19 @@ acceptance-test:
         grep -RIn "MarkFlaky(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
     fi
 
-    TEST_PACKAGES=("./op-acceptance-tests/tests/...")
-
     # CircleCI test-level splitting: when running under `parallelism: N > 1`,
     # split the test set across CIRCLE_NODE_TOTAL nodes using historical timings
     # so each node runs a balanced subset. Falls back to running everything when
     # CIRCLE_NODE_TOTAL is unset (local runs, single-node CI).
     export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
-    go test -list '^Test' "${TEST_PACKAGES[@]}" | tee "$LOG_DIR/tests_list.txt" \
-        | {{REPO_ROOT}}/ops/scripts/shard-tests.sh > "$LOG_DIR/tests_shard.txt" \
+    # CI lists the tests once, in the acceptance-test-list job, for every node.
+    if [ -n "${ACCEPTANCE_TEST_LIST_FILE:-}" ]; then
+        [ -s "$ACCEPTANCE_TEST_LIST_FILE" ] || { echo "error: no test list at $ACCEPTANCE_TEST_LIST_FILE" >&2; exit 1; }
+        cp "$ACCEPTANCE_TEST_LIST_FILE" "$LOG_DIR/tests_list.txt"
+    else
+        {{just_executable()}} --justfile {{justfile()}} acceptance-test-list > "$LOG_DIR/tests_list.txt"
+    fi
+    {{REPO_ROOT}}/ops/scripts/shard-tests.sh < "$LOG_DIR/tests_list.txt" > "$LOG_DIR/tests_shard.txt" \
         || { grep -v '^Test' "$LOG_DIR/tests_list.txt" >&2; exit 1; }
 
     # `go test -list` prints a package's tests and then its `ok <package>` line.
@@ -205,6 +209,17 @@ acceptance-test:
 
     cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
     exit "$TEST_STATUS"
+
+# Print the `go test -list` output acceptance-test splits and runs
+acceptance-test-list:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{REPO_ROOT}}
+    LIST=$(mktemp)
+    trap 'rm -f "$LIST"' EXIT
+    go test -list '^Test' ./op-acceptance-tests/tests/... > "$LIST" \
+        || { grep -v '^Test' "$LIST" >&2; exit 1; }
+    cat "$LIST"
 
 clean:
     rm -rf tests/interop/loadtest/artifacts

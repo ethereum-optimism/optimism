@@ -2132,6 +2132,35 @@ jobs:
             - notify-failures-on-develop:
                 mentions: "<<parameters.mentions>>"
 
+  # Lists the acceptance tests once for every op-acceptance-tests node, so a test that
+  # doesn't compile fails here. The nodes wait for it, so it runs on their machine size
+  # (a Go change makes it compile) and leaves saving the Go build cache, which takes
+  # 2 to 3 minutes, to them.
+  acceptance-test-list:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: 2xlarge.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: op-acceptance-tests
+      - run:
+          name: List acceptance tests
+          working_directory: op-acceptance-tests
+          command: |
+            mkdir -p ../.circleci-cache
+            just acceptance-test-list > ../.circleci-cache/acceptance-test-list.txt
+            grep -c '^Test' ../.circleci-cache/acceptance-test-list.txt
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .circleci-cache/acceptance-test-list.txt
+
   op-acceptance-tests:
     parameters:
       l1_fork:
@@ -2235,6 +2264,7 @@ jobs:
             if [ -n "<<parameters.acceptance_test_jobs>>" ]; then
               export ACCEPTANCE_TEST_JOBS="<<parameters.acceptance_test_jobs>>"
             fi
+            export ACCEPTANCE_TEST_LIST_FILE="$PWD/../.circleci-cache/acceptance-test-list.txt"
             LOG_LEVEL=info just acceptance-test
       # memory.events counts OOM kills, which can otherwise look like flaky tests. memory.peak
       # includes page cache, so a peak near memory.max is not a problem without OOM kills.
@@ -2798,6 +2828,7 @@ workflows:
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
+            - acceptance-test-list
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests: &memory_all_kona
           name: memory-all-kona-op-reth-<<matrix.l1_fork>>
@@ -2815,6 +2846,12 @@ workflows:
             - slack
             - discord
           requires: *memory_all_requires
+      - acceptance-test-list:
+          requires:
+            - prep-go-modules
+            - prep-superchain
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
@@ -2831,6 +2868,8 @@ workflows:
             - go-actions-tests: terminal
             - memory-all-opn-op-reth-fusaka: terminal
             - memory-all-kona-op-reth-fusaka: terminal
+            # memory-all needs it. Listed too, so the gate names it when it fails.
+            - acceptance-test-list: terminal
             - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
@@ -3100,6 +3139,12 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
             - slack
+      - acceptance-test-list:
+          requires:
+            - prep-go-modules
+            - prep-superchain
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - op-acceptance-tests:
           <<: *memory_all_opn
           name: shipped-memory-all-opn-op-reth-<<matrix.l1_fork>>
@@ -3116,6 +3161,7 @@ workflows:
             - go-binaries-for-sysgo
             - prep-go-modules
             - prep-superchain
+            - acceptance-test-list
       - op-acceptance-tests:
           <<: *memory_all_kona
           name: shipped-memory-all-kona-op-reth-<<matrix.l1_fork>>
@@ -3138,6 +3184,7 @@ workflows:
             - go-binaries-for-sysgo: terminal
             - prep-go-modules: terminal
             - prep-superchain: terminal
+            - acceptance-test-list: terminal
             - shipped-memory-all-opn: terminal
             - shipped-memory-all-kona: terminal
           post-steps:
