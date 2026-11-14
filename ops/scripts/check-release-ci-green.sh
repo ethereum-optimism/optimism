@@ -13,8 +13,9 @@ set -euo pipefail
 # Each gate's status ("ci/circleci: <job>") is read from the GitHub API, every
 # page (develop commits carry more than 100 statuses, so page one can hide the
 # Rust gates). Every gate must be success. A gate that is pending or not posted
-# yet is polled until RELEASE_CI_TIMEOUT_SECONDS, then fails. A failed gate
-# fails at once.
+# yet is polled until the next poll would start after RELEASE_CI_TIMEOUT_SECONDS,
+# then fails. A failed gate fails at once. Jobs that run this need a limit a few
+# minutes above the timeout, for the last poll's API reads.
 #
 # Override: set ALLOW_RED_CI_REASON to "<full commit SHA>: <reason>". It only
 # applies to that commit, so a value left set cannot release another one. The
@@ -22,7 +23,8 @@ set -euo pipefail
 # A value without this commit's SHA is ignored, with a warning.
 #
 # Env:
-#   GITHUB_REPOSITORY                 owner/repo (default ethereum-optimism/optimism)
+#   GITHUB_REPOSITORY                 owner/repo (default: the CircleCI project,
+#                                     then ethereum-optimism/optimism)
 #   GITHUB_TOKEN, GH_TOKEN or REPO_GITHUB_TOKEN   API token (optional, never printed)
 #   GITHUB_API_URL                    API base (default https://api.github.com)
 #   RELEASE_CI_CONFIG_REPO            git clone that has the commit (default .)
@@ -35,7 +37,11 @@ set -euo pipefail
 GATE_JOB="ci-gate"
 IF_DEFINED_JOBS=(required-contracts-ci required-rust-ci required-rust-e2e)
 
-REPO="${GITHUB_REPOSITORY:-ethereum-optimism/optimism}"
+CIRCLE_REPO=""
+if [ -n "${CIRCLE_PROJECT_USERNAME:-}" ] && [ -n "${CIRCLE_PROJECT_REPONAME:-}" ]; then
+  CIRCLE_REPO="${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
+fi
+REPO="${GITHUB_REPOSITORY:-${CIRCLE_REPO:-ethereum-optimism/optimism}}"
 API="${GITHUB_API_URL:-https://api.github.com}"
 CONFIG_REPO="${RELEASE_CI_CONFIG_REPO:-.}"
 TIMEOUT="${RELEASE_CI_TIMEOUT_SECONDS:-2700}"
@@ -241,9 +247,12 @@ while :; do
       ;;
   esac
 
-  if [ "$elapsed" -ge "$TIMEOUT" ]; then
+  # Stop when the next poll would start after the limit, so the job's own limit
+  # (a few minutes above it) is never reached first.
+  elapsed=$((SECONDS - start))
+  if [ "$elapsed" -ge "$TIMEOUT" ] || [ $((elapsed + POLL)) -gt "$TIMEOUT" ]; then
     waiting="$(awk -F'\t' '$1 != "success" { printf "%s%s (%s)", sep, $2, $1; sep = ", " }' <<< "$report")"
-    annotate error "Required CI on ${SHA} is not finished after ${TIMEOUT}s: ${waiting}. A gate still missing means CircleCI never posted it for this commit. Rerun this release when CI is green. ${how}"
+    annotate error "Required CI on ${SHA} is not finished after ${elapsed}s and ${poll} polls (limit ${TIMEOUT}s): ${waiting}. A gate still missing means CircleCI never posted it for this commit. Rerun this release when CI is green. ${how}"
     exit 1
   fi
   sleep "$POLL"

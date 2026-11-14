@@ -53,7 +53,7 @@ env:
 
 jobs:
   # A release image must come from a commit whose required CI is green. The
-  # check runs only for release tags (not op-reth/bench*), before plan, so no
+  # check runs only for release tags that build an image, before plan, so no
   # build starts on a red commit. Polls while CI is still running (up to 45 min).
   # The job itself always runs and succeeds when there is nothing to check: a
   # skipped job would make every job below it skip too (implicit success()
@@ -62,27 +62,60 @@ jobs:
   release-ci-green:
     name: release commit has green CI
     runs-on: ${{ (github.ref_type == 'tag' && !startsWith(github.ref_name, 'op-reth/bench')) && 'ubuntu-24.04' || 'ubuntu-slim' }}
-    timeout-minutes: 50
+    # The script waits up to 45 min, plus its last API reads and the checkout.
+    timeout-minutes: 55
     permissions:
       contents: read
       statuses: read
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
     steps:
-      - name: Not a release tag, nothing to check
-        if: github.ref_type != 'tag' || startsWith(github.ref_name, 'op-reth/bench')
-        run: echo "Not a release tag, no CI check."
+      - name: Not a tag, nothing to check
+        if: github.ref_type != 'tag'
+        run: echo "Not a tag, no CI check."
 
-      # .circleci too: the script reads the commit's own config for the gate list.
-      - name: Checkout the check script and CI config
-        if: github.ref_type == 'tag' && !startsWith(github.ref_name, 'op-reth/bench')
+      # .circleci for the gate list (the commit's own config), .github for the
+      # image catalog.
+      - name: Checkout the check script, CI config and image catalog
+        if: github.ref_type == 'tag'
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
         with:
           persist-credentials: false
           sparse-checkout: |
             ops/scripts
             .circleci
+            .github
+
+      # The same rule plan uses (factory apko-plan): a tag builds an image only
+      # when it matches release.tag_regex and its service is in the catalog.
+      # op-contracts/v*, kona-sp1-program/v* and op-reth/bench* tags build none.
+      # Their release paths check CI elsewhere.
+      - name: Does this tag build an image
+        id: scope
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          catalog=.github/images.apko.json
+          regex="$(jq -r '.release.tag_regex // "^([^/]+)/(v.+)$"' "$catalog")"
+          group="$(jq -r '.release.service_match // 1' "$catalog")"
+          builds=false
+          if [ -n "$(jq -r '.release.service // ""' "$catalog")" ]; then
+            builds=true # a service template this step does not render: check to be safe
+          elif [[ "$TAG" =~ $regex ]] && jq -e --arg img "${BASH_REMATCH[$group]}" '.images[$img]' "$catalog" > /dev/null; then
+            builds=true
+          fi
+          if [ "$builds" = true ]; then
+            echo "Tag $TAG builds an image, checking CI."
+          else
+            echo "Tag $TAG builds no image (no service for it in $catalog), no CI check."
+          fi
+          echo "check=$builds" >> "$GITHUB_OUTPUT"
 
       - name: Check required CI on the tagged commit
-        if: github.ref_type == 'tag' && !startsWith(github.ref_name, 'op-reth/bench')
+        id: check
+        if: steps.scope.outputs.check == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ALLOW_RED_CI_REASON: ${{ inputs.allow_red_ci_reason }}
@@ -117,7 +150,7 @@ jobs:
 
   melange:
     name: melange (${{ matrix.stack }}, ${{ matrix.arch }})
-    needs: plan
+    needs: [release-ci-green, plan]
     if: needs.plan.outputs.has_builds == 'true' && needs.plan.outputs.melange_matrix_json != '[]'
     strategy:
       fail-fast: true
@@ -135,7 +168,10 @@ jobs:
       runner-profile: ${{ matrix.runner_profile }}
       melange-config: ${{ matrix.melange_config }}
       source-repository: ${{ matrix.source_repository }}
-      source-ref: ${{ matrix.source_ref }}
+      # On a release tag, check out the commit release-ci-green checked, not the
+      # tag name again (plan sets source_ref to the tag). Tag names come from
+      # publish_tag, so they do not change.
+      source-ref: ${{ (needs.release-ci-green.outputs.sha != '' && matrix.source_ref == github.ref_name && matrix.source_repository == github.repository) && needs.release-ci-green.outputs.sha || matrix.source_ref }}
       source-path: ${{ matrix.source_path }}
       checkout-source: ${{ matrix.checkout_source }}
       source-submodules: ${{ matrix.source_submodules }}

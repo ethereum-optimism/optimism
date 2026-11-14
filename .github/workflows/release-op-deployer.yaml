@@ -42,13 +42,27 @@ jobs:
   # CI config, and build checks it builds the commit checked here.
   release-ci-green:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    # The script waits up to 45 min, plus its last API reads and the checkouts.
+    timeout-minutes: 55
     permissions:
       contents: read
       statuses: read
     outputs:
       sha: ${{ steps.check.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
     steps:
+      # First, before the tag goes into any checkout or API path.
+      - name: Check the tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^op-deployer/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::The tag is not op-deployer/vMAJOR.MINOR.PATCH[-PRERELEASE]."
+            exit 1
+          fi
+          echo "version=${TAG#op-deployer/v}" >> "$GITHUB_OUTPUT"
+
       - name: Harden the runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
@@ -83,23 +97,12 @@ jobs:
     permissions:
       contents: read
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ needs.release-ci-green.outputs.version }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
-
-      - name: Check the tag
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! "$TAG" =~ ^op-deployer/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::The tag is not op-deployer/vMAJOR.MINOR.PATCH[-PRERELEASE]."
-            exit 1
-          fi
-          echo "version=${TAG#op-deployer/v}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
@@ -140,7 +143,7 @@ jobs:
       - name: Build the release assets
         shell: bash
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.release-ci-green.outputs.version }}
         run: |
           set -euo pipefail
           commit=$(git rev-parse HEAD)

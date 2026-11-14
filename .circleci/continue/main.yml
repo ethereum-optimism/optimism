@@ -397,15 +397,20 @@ commands:
                 # develop's newer reth writes compact vectors a backport's older
                 # reth cannot read, which gave release commits a false red.
                 # TARGET_BRANCH is then a commit SHA, not a branch name.
+                # After a force push the base revision is no longer on the branch
+                # (it may be gone, or carry a newer reth), so it is used only when
+                # it is an ancestor of this commit. The checkout fetched every
+                # branch, so an ancestor is local.
                 backports/*)
                   BEFORE_PUSH="<< pipeline.git.base_revision >>"
-                  if [[ "$BEFORE_PUSH" =~ ^[0-9a-f]{40}$ ]] && [[ ! "$BEFORE_PUSH" =~ ^0+$ ]] && [ "$BEFORE_PUSH" != "$CIRCLE_SHA1" ]; then
+                  if [[ "$BEFORE_PUSH" =~ ^[0-9a-f]{40}$ ]] && [ "$BEFORE_PUSH" != "$CIRCLE_SHA1" ] &&
+                    git merge-base --is-ancestor "$BEFORE_PUSH" HEAD 2>/dev/null; then
                     TARGET_BRANCH="$BEFORE_PUSH"
                     echo "Backport push: comparing against the branch before this push, $TARGET_BRANCH"
                   elif TARGET_BRANCH="$(git merge-base HEAD refs/remotes/origin/develop)"; then
-                    # No earlier state (an API trigger or a new branch): use where
-                    # the branch left develop.
-                    echo "Backport push with no earlier state: comparing against its merge-base with develop, $TARGET_BRANCH"
+                    # No earlier state on this branch (an API trigger, a new branch
+                    # or a force push): use where the branch left develop.
+                    echo "Backport push with no earlier state on this branch (base revision '$BEFORE_PUSH'): comparing against its merge-base with develop, $TARGET_BRANCH"
                   else
                     TARGET_BRANCH="$CIRCLE_BRANCH"
                     echo "Backport push with no earlier state and no merge-base with develop: comparing against itself, so the base comparisons check nothing"
@@ -2534,13 +2539,13 @@ jobs:
           command: |
             set -euo pipefail
 
+            # The release check runs from the pipeline's commit: an older publish ref may not have it.
+            git show "${CIRCLE_SHA1}:ops/scripts/check-release-ci-green.sh" > /tmp/check-release-ci-green.sh
+
             if [ -z "$PUBLISH_CONTRACT_ARTIFACTS_REF" ]; then
               echo "Using pipeline checkout $(git rev-parse HEAD)"
               exit 0
             fi
-
-            # Keep the release check from the pipeline's commit: an older ref may not have it.
-            git show "${CIRCLE_SHA1}:ops/scripts/check-release-ci-green.sh" > /tmp/check-release-ci-green.sh
 
             git fetch --no-tags origin "$PUBLISH_CONTRACT_ARTIFACTS_REF"
             git checkout --detach FETCH_HEAD
@@ -2548,12 +2553,13 @@ jobs:
 
             # Respect the tool versions specified by the ref being published.
             mise install -v -y
-      # A release publish must build a commit whose required CI is green: the
-      # commit checked out above, not only the pipeline's commit. On tag
-      # pipelines release-ci-green already waited for CI, and a manual publish
-      # of a tag starts after CI, so this reads CI once and does not poll.
+      # A manual publish of a release ref must build a commit whose required CI
+      # is green: the commit checked out above, not the pipeline's commit. Tag
+      # pipelines need no check here: release-ci-green already checked this
+      # commit. Polls while CI is still running, like release-ci-green.
       - run:
           name: Check required CI on a release commit
+          no_output_timeout: 55m
           environment:
             PUBLISH_CONTRACT_ARTIFACTS_REF: << pipeline.parameters.c-publish_contract_artifacts_ref >>
           command: |
@@ -2562,25 +2568,19 @@ jobs:
             head_sha="$(git rev-parse HEAD)"
             ref="$PUBLISH_CONTRACT_ARTIFACTS_REF"
             release=""
-            if [ -n "${CIRCLE_TAG:-}" ]; then
-              release="tag pipeline for $CIRCLE_TAG"
-            elif [[ "$ref" == refs/tags/* ]]; then
+            if [[ "$ref" == refs/tags/* ]]; then
               release="publish ref $ref"
             elif [ -n "$ref" ] && [ -n "$(git tag --points-at HEAD --list 'op-contracts/v*')" ]; then
               release="publish ref $ref, a commit with an op-contracts/v* tag"
             fi
             if [ -z "$release" ]; then
-              echo "Not a release publish: no tag pipeline, and the publish ref is not a tag. No check."
+              echo "Not a manual release publish: the publish ref is empty or not a release tag. No check here."
               exit 0
             fi
 
             echo "Release publish ($release) of $head_sha"
-            script=/tmp/check-release-ci-green.sh
-            if [ ! -s "$script" ]; then
-              script=ops/scripts/check-release-ci-green.sh
-            fi
-            GITHUB_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" RELEASE_CI_TIMEOUT_SECONDS=0 \
-              bash "$script" "$head_sha"
+            GITHUB_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" \
+              bash /tmp/check-release-ci-green.sh "$head_sha"
       - install-contracts-dependencies
       # The build below takes about 12 minutes, and the artifacts for this exact contract code are
       # usually already published. publish-artifacts.sh makes the same check, after the build.
@@ -2620,7 +2620,8 @@ jobs:
           method: blobless
       - run:
           name: Check required CI on the tagged commit
-          no_output_timeout: 50m
+          # The script waits up to 45 min, plus its last API reads.
+          no_output_timeout: 55m
           command: |
             GITHUB_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" \
               ops/scripts/check-release-ci-green.sh "$CIRCLE_SHA1"
