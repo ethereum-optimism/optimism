@@ -187,7 +187,6 @@ abstract contract L1StandardBridge_TestInit is CommonTest {
 /// @notice Tests the `constructor` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_Constructor_Test is CommonTest {
     /// @notice Test that the constructor sets the correct values.
-    /// @dev Marked virtual to be overridden in test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         IL1StandardBridge impl = IL1StandardBridge(payable(EIP1967Helper.getImplementation(address(l1StandardBridge))));
         assertEq(address(impl.systemConfig()), address(0));

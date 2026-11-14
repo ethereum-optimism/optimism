@@ -57,7 +57,7 @@ DEPLOYMENT_OUTFILE="$CONTRACT_NAMES" \
   forge script --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 -vvv scripts/deploy/Deploy.s.sol:Deploy --sig runWithStateDiff
 echo "Created state diff json"
 
-# Clean and store the state diff json in snapshots/state-diff/Kontrol-Deploy.json
+# Clean and store the state diff json in snapshots/state-diff/Kontrol-31337.json
 JSON_SCRIPTS=test/kontrol/scripts/json
 GENERATED_STATEDIFF=31337.json         # Name of the statediff json produced by the deployment script
 STATEDIFF=Kontrol-$GENERATED_STATEDIFF # Name of the Kontrol statediff
