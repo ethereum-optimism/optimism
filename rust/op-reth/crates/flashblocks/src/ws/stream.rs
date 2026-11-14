@@ -1,4 +1,7 @@
-use crate::{FlashBlock, ws::FlashBlockDecoder};
+use crate::{
+    FlashBlock,
+    ws::{FlashBlockDecoder, decoding::MAX_FLASHBLOCK_SIZE},
+};
 use futures_util::{
     FutureExt, Sink, Stream, StreamExt,
     stream::{SplitSink, SplitStream},
@@ -11,8 +14,11 @@ use std::{
 };
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
-    MaybeTlsStream, WebSocketStream, connect_async,
-    tungstenite::{Bytes, Error, Message, protocol::CloseFrame},
+    MaybeTlsStream, WebSocketStream, connect_async_with_config,
+    tungstenite::{
+        Bytes, Error, Message,
+        protocol::{CloseFrame, WebSocketConfig},
+    },
 };
 use tracing::debug;
 use url::Url;
@@ -233,7 +239,10 @@ impl WsConnect for WsConnector {
     async fn connect(&mut self, ws_url: Url) -> eyre::Result<(WsSink, WsStream)> {
         ensure_crypto_provider();
 
-        let (stream, _response) = connect_async(ws_url.as_str()).await?;
+        let config = WebSocketConfig::default().max_message_size(Some(MAX_FLASHBLOCK_SIZE));
+        let disable_nagle = false;
+        let (stream, _response) =
+            connect_async_with_config(ws_url.as_str(), Some(config), disable_nagle).await?;
 
         Ok(stream.split())
     }

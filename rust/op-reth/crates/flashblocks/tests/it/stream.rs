@@ -11,6 +11,6 @@ async fn test_online_streaming_flashblocks_from_remote_source_is_successful() {
     let blocks: Vec<_> = stream.take(items).collect().await;
 
     for block in blocks {
-        assert!(block.is_ok());
+        assert!(block.is_ok(), "{:?}", block.err());
     }
 }
