@@ -12,13 +12,11 @@ func newSingleChainInteropWorldNoSupernode(t devtest.T, keys devkeys.Keys, cfg P
 	}, cfg.DeployerOptions...)
 	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, cfg.DeployerOptions...)
 	return singleChainRuntimeWorld{
-		L1Network: l1Net,
-		L2Network: l2Net,
-		Migration: migration,
-		Interop: &SingleChainInteropSupport{
-			Migration:     migration,
-			DependencySet: depSet,
-		},
+		L1Network:     l1Net,
+		L2Network:     l2Net,
+		Migration:     migration,
+		DependencySet: depSet,
+		Interop:       &SingleChainInteropSupport{Migration: migration},
 	}
 }
 
@@ -40,7 +38,7 @@ func startSingleChainInteropPrimaryNoSupernode(
 		Key:            "sequencer",
 		IsSequencer:    true,
 		NoDiscovery:    true,
-		DependencySet:  world.Interop.DependencySet,
+		DependencySet:  world.DependencySet,
 		L2FollowSource: "",
 		L2CLOptions:    cfg.GlobalL2CLOptions,
 	})

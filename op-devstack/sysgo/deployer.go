@@ -116,6 +116,9 @@ func parseL1Fork(value string) (forks.Fork, error) {
 	return 0, fmt.Errorf("unsupported L1 fork %q", value)
 }
 
+// WithKarstAtOffset activates Karst at the offset (a nil offset deactivates it) and deactivates
+// every later fork. It overrides any earlier option that activates a later fork, including
+// PresetConfig.InteropAtGenesis.
 func WithKarstAtOffset(offset *uint64) DeployerOption {
 	return func(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {

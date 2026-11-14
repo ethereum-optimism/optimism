@@ -177,17 +177,10 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
 
-	var depSetStatic *depset.StaticConfigDependencySet
-	if depSet != nil {
-		cast, ok := depSet.(*depset.StaticConfigDependencySet)
-		require.True(ok, "expected static dependency set")
-		depSetStatic = cast
-	}
-
-	if cfg.MessageExpiryWindow != nil && depSetStatic != nil {
+	if cfg.MessageExpiryWindow != nil {
 		var overrideErr error
-		depSetStatic, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
-			depSetStatic.Dependencies(), *cfg.MessageExpiryWindow)
+		depSet, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
+			depSet.Dependencies(), *cfg.MessageExpiryWindow)
 		require.NoError(overrideErr, "failed to override message expiry window")
 	}
 
@@ -196,21 +189,13 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 		ts := l2Net.rollupCfg.Genesis.L2Time
 		interopActivationTimestamp = &ts
 	}
-	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
+	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSet, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
-
-	// Use the potentially-overridden depSetStatic if available.
-	var runtimeDepSet depset.DependencySet
-	if depSetStatic != nil {
-		runtimeDepSet = depSetStatic
-	} else {
-		runtimeDepSet = depSet
-	}
 
 	return &MultiChainRuntime{
 		Keys:          keys,
 		Migration:     migration,
-		DependencySet: runtimeDepSet,
+		DependencySet: depSet,
 		L1Network:     l1Net,
 		L1EL:          l1EL,
 		L1CL:          l1CL,
