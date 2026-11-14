@@ -1124,11 +1124,10 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
-      - setup_remote_docker:
-          docker_layer_caching: true
+      - setup_remote_docker
       - run:
           name: Run Kontrol build
-          command: just kontrol-summary-full
+          command: just kontrol-summary-fp
           working_directory: packages/contracts-bedrock
       - run:
           name: Build Kontrol summary files
@@ -2463,7 +2462,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: Run Kontrol Tests
-          command: timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-full test-kontrol-no-build
+          command: timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-fp test-kontrol-no-build
           working_directory: ./packages/contracts-bedrock
           no_output_timeout: 185m
       - run:

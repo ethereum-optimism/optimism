@@ -47,10 +47,7 @@ fi
 
 conditionally_start_docker
 
-CONTRACT_NAMES=deployments/kontrol.json
-if [ "$KONTROL_FP_DEPLOYMENT" = true ]; then
-  CONTRACT_NAMES=deployments/kontrol-fp.json
-fi
+CONTRACT_NAMES=deployments/kontrol-fp.json
 
 # Sender just needs to be anything but the default sender (0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38)
 # Otherwise state changes inside of Deploy.s.sol get stored in the state diff under the default script address (0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)
@@ -73,12 +70,8 @@ python3 $JSON_SCRIPTS/reverse_key_values.py $CONTRACT_NAMES ${CONTRACT_NAMES}Rev
 CONTRACT_NAMES=${CONTRACT_NAMES}Reversed
 
 SUMMARY_DIR=test/kontrol/proofs/utils
-SUMMARY_NAME=DeploymentSummary
+SUMMARY_NAME=DeploymentSummaryFaultProofs
 LICENSE=MIT
-
-if [ "$KONTROL_FP_DEPLOYMENT" = true ]; then
-  SUMMARY_NAME=DeploymentSummaryFaultProofs
-fi
 
 copy_to_docker # Copy the newly generated files to the docker container
 run kontrol load-state --from-state-diff $SUMMARY_NAME snapshots/state-diff/$STATEDIFF --contract-names $CONTRACT_NAMES --output-dir $SUMMARY_DIR --license $LICENSE

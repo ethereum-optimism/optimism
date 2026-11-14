@@ -38,11 +38,7 @@ WORKSPACE_DIR=$(cd "$SCRIPT_HOME/../../.." > /dev/null 2>&1 && pwd)
 pushd "$WORKSPACE_DIR" > /dev/null || exit
 
 # Variables
-export KONTROL_FP_DEPLOYMENT="${KONTROL_FP_DEPLOYMENT:-false}"
 export CONTAINER_NAME=kontrol-tests
-if [ "$KONTROL_FP_DEPLOYMENT" = true ]; then
-  export CONTAINER_NAME=kontrol-fp-tests
-fi
 KONTROLRC=$(yq '.tools.kontrol' "$WORKSPACE_DIR/../../mise.toml")
 export KONTROL_RELEASE=$KONTROLRC
 export LOCAL=false
@@ -178,7 +174,7 @@ copy_to_docker() {
     docker cp --follow-link "$TMP_DIR/." $CONTAINER_NAME:/home/user/workspace
     rm -rf "$TMP_DIR"
 
-    docker exec --user root "$CONTAINER_NAME" chown -R user:user /home/user
+    docker exec --user root "$CONTAINER_NAME" chown -R user:user /home/user/workspace
   fi
 }
 
