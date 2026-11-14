@@ -146,6 +146,8 @@ flowchart LR
 
 The crucial property of interop is the second bullet: a block is only treated as safe once everything it depends on is also safe. In the diagram above, blocks B<sub>302</sub> and B<sub>303</sub> on chain B both reference initiating messages from chain A. They cannot become safe until A<sub>101</sub> (and every block leading up to it) has also been written to L1.
 
+In practice the dependency is wider than individual messages. [op-supernode](/op-stack/interop/supernode#safe-heads-advance-together) verifies the whole dependency set one timestamp at a time, so the safe and finalized heads of every chain in the set advance together. If the safe head lags on one chain, the others' safe and finalized heads lag too, even for blocks with no cross-chain messages, while every chain keeps producing blocks and advancing its unsafe head.
+
 This dependency check is what protects users against a [double-spend across chains](/op-stack/interop/reorg). When a sequencer chooses to accept executing messages that reference unsafe initiating messages, it gets the lowest possible cross-chain latency, but it takes on the trust assumption that every sequencer in its [transitive dependency set](#what-is-the-transitive-dependency-set) will eventually post the data it gossiped. If any of them equivocates, the executing-message blocks are reorged out and replaced with deposit-only blocks. For a deeper discussion of the latency / security trade-off and how a chain operator can configure the minimum safety level it will accept for an inbound message, see [Cross-chain security measures](/op-stack/security/interop-security).
 
 <Accordion title="What is the transitive dependency set?">

@@ -97,6 +97,15 @@ The user-facing safety levels do not change.
 Block safety levels (*unsafe*, *safe*, *finalized*) are still defined as they are without interop, and the EL's view of those labels matches.
 The supernode's role is to make sure the labels mean what they say once cross-chain dependencies are part of the picture.
 
+### Safe heads advance together
+
+The interop activity verifies one L2 timestamp at a time, and it moves on to a timestamp only once every chain in the dependency set has a local-safe block at that timestamp.
+As a result, the safe and finalized heads of every chain in the set advance together.
+If the local-safe head lags on any one chain, the safe and finalized heads of every chain in the set lag with it, even on blocks that contain no cross-chain messages.
+That covers both a lag every operator sees (for example, the chain's batcher stops posting to L1) and a lag only your supernode sees (for example, its execution client for that chain is down or still syncing).
+New blocks are not affected: unsafe heads keep advancing over P2P throughout, and safe and finalized catch up automatically once the lagging chain does.
+See [When the safe head lags on one chain](/notices/interop-prep#when-the-safe-head-lags-on-one-chain) for what this means for an operator.
+
 ## op-supernode and Light CL
 
 op-supernode pairs with the *Light CL* mode of op-node and kona-node.
@@ -105,8 +114,9 @@ It still advances the unsafe chain over P2P; only the safe and finalized views a
 
 Together, supernode and Light CL form a topology:
 
-*   One trusted op-supernode (or a small high-availability pool of them) runs derivation for every chain in the dependency set, plus the interop activity that promotes blocks to safe.
-*   The rest of the operator's fleet runs op-node or kona-node in Light CL mode, points at the supernode's `optimism_syncStatus`, and inherits its safe and finalized view.
+*   One trusted op-supernode (or a small high-availability pool of them) runs derivation for every chain in the dependency set, plus the interop activity that promotes blocks to safe. Each supernode drives its own execution client for every chain in the set over the engine API, including chains the operator does not otherwise serve.
+*   The rest of the operator's fleet runs op-node or kona-node in Light CL mode, points at the supernode's `optimism_syncStatus`, and inherits its safe and finalized view. Each Light CL drives its own execution client.
+*   With an HA pool, a [consensus-aware `proxyd` in consensus-layer mode](/chain-operators/tools/proxyd#consensus-layer-routing-for-follow-sources) sits between the supernodes and the Light CLs, one proxyd instance per chain.
 *   Node operators run the same setup, minus the sequencer Light CLs (only the chain operator produces blocks).
 
 This split is what makes interop tractable for operators who already run dozens or hundreds of nodes per chain.
@@ -121,8 +131,8 @@ graph LR
   SnB[Supernode-B]
   SnC[Supernode-C]
 
-  Px0["Proxy CL<br/>Chain-0"]
-  Px1["Proxy CL<br/>Chain-1"]
+  Px0["proxyd (CL mode)<br/>Chain-0"]
+  Px1["proxyd (CL mode)<br/>Chain-1"]
 
   subgraph c0["Chain-0 Light CL fleet"]
     direction TB
