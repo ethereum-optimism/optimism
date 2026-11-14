@@ -2255,7 +2255,20 @@ jobs:
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR"/failed/*.log || true
           when: on_fail
-      # Save the module cache for future runs
+      # The restored cache keeps every entry older runs added (about 24 GB),
+      # while a run uses about 2 GB. Drop entries unused for 3 hours before the
+      # save, the same rule as Go's own trim (cmd/go/internal/cache) with 3 hours
+      # instead of 5 days. Go marks an entry used at most once an hour, so this
+      # keeps everything this run used. It is safe here because every node of
+      # these jobs builds the same packages (go test -list), so the node that
+      # saves keeps what the others need. Jobs whose nodes build different
+      # packages would lose entries this way. -delete rather than -exec rm {} +,
+      # which BusyBox find (in this image) fails on long argument lists.
+      - run:
+          name: Prune Go build cache entries unused for 3 hours
+          command: |
+            find ~/.cache/go-build -mindepth 2 -type f -mmin +180 -delete
+            du -sh ~/.cache/go-build
       - go-save-cache:
           namespace: op-acceptance-tests
       # Store test results and artifacts
