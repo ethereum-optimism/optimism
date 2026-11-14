@@ -27,6 +27,7 @@ import (
 // and by avoiding advancement of the chain on invalid data.
 func TestELP2PFCUUnavailableHash(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpRethCL(t, "stops the CL and drives its EL directly")
 	sys := newGapELP2PSystem(t)
 	logger := t.Logger()
 	genesis := sys.L2ELB.BlockRefByNumber(0)
@@ -83,6 +84,7 @@ func TestELP2PFCUUnavailableHash(gt *testing.T) {
 // appendability/sync checks first, per Engine API behavior.
 func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpRethCL(t, "stops the CL and drives its EL directly")
 	sys := newGapELP2PSystem(t)
 	logger := t.Logger()
 

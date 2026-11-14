@@ -115,6 +115,9 @@ type OpReth struct {
 
 	authProxy *tcpproxy.Proxy
 	userProxy *tcpproxy.Proxy
+	// rollupProxy serves the RPC of the kona rollup node running in this process, once
+	// EnableRollupConsensus has started one.
+	rollupProxy *tcpproxy.Proxy
 
 	execPath string
 	args     []string
@@ -183,9 +186,17 @@ func (n *OpReth) Start() {
 
 	userRPCChan := make(chan string, 1)
 	defer close(userRPCChan)
+
+	rollupRPCChan := make(chan string, 1)
+	defer close(rollupRPCChan)
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
-		if msg == "RPC WS server started" {
+		if msg == "RPC server bound to address" {
+			select {
+			case rollupRPCChan <- "http://" + e.FieldValue("addr").(string):
+			default:
+			}
+		} else if msg == "RPC WS server started" {
 			select {
 			case userRPCChan <- "ws://" + e.FieldValue("url").(string):
 			default:
@@ -230,9 +241,76 @@ func (n *OpReth) Start() {
 		n.l2MetricsRegistrar.RegisterL2MetricsTargets(n.name, metricsTarget)
 	}
 
+	// A rollup node in this process dials the auth proxy as soon as op-reth's RPC servers are up,
+	// and retries for only a few seconds, so set the upstream before waiting on its RPC.
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
+
+	if n.rollupProxy != nil {
+		// Fail fast if op-reth exits first, as it does when its rollup node fails to start.
+		var rollupRPCAddr string
+		select {
+		case rollupRPCAddr = <-rollupRPCChan:
+		case <-n.sub.Exited():
+			// The address may have been logged in the same instant the process exited.
+			select {
+			case rollupRPCAddr = <-rollupRPCChan:
+			default:
+				n.p.Require().FailNow("op-reth exited before its rollup node RPC server became ready")
+			}
+		case <-n.p.Ctx().Done():
+			n.p.Require().NoError(n.p.Ctx().Err(), "need rollup node RPC")
+		}
+		n.rollupProxy.SetUpstream(ProxyAddr(n.p.Require(), rollupRPCAddr))
+	}
 }
+
+// EnableRollupConsensus restarts op-reth with the kona rollup node running in the same process,
+// configured by the KONA_NODE_* variables of env, and returns the rollup node.
+func (n *OpReth) EnableRollupConsensus(env []string) L2CLNode {
+	proxy := tcpproxy.New(n.p.Logger())
+	n.p.Require().NoError(proxy.Start())
+	n.p.Cleanup(func() {
+		proxy.Close()
+	})
+
+	n.Stop()
+	func() {
+		n.mu.Lock()
+		defer n.mu.Unlock()
+		n.p.Require().Nil(n.rollupProxy, "rollup consensus is already enabled")
+		n.args = append(n.args, "--rollup.consensus.enabled")
+		n.env = append(n.env, env...)
+		n.rollupProxy = proxy
+	}()
+	n.Start()
+	return &OpRethRollupNode{el: n}
+}
+
+// OpRethRollupNode is the kona rollup node running inside an op-reth process.
+//
+// It shares the op-reth process, so starting or stopping it starts or stops op-reth.
+type OpRethRollupNode struct {
+	el *OpReth
+}
+
+var _ L2CLNode = (*OpRethRollupNode)(nil)
+
+func (r *OpRethRollupNode) Start() { r.el.Start() }
+
+func (r *OpRethRollupNode) Stop() { r.el.Stop() }
+
+func (r *OpRethRollupNode) StartControlled(ctx context.Context) error {
+	return r.el.StartControlled(ctx)
+}
+
+func (r *OpRethRollupNode) StopControlled(ctx context.Context) error {
+	return r.el.StopControlled(ctx)
+}
+
+func (r *OpRethRollupNode) Running() bool { return r.el.Running() }
+
+func (r *OpRethRollupNode) UserRPC() string { return "http://" + r.el.rollupProxy.Addr() }
 
 // Stop stops the op-reth node.
 func (n *OpReth) Stop() {
@@ -279,6 +357,9 @@ func (n *OpReth) clearProxyUpstreams() {
 	}
 	if n.authProxy != nil {
 		n.authProxy.ClearUpstream()
+	}
+	if n.rollupProxy != nil {
+		n.rollupProxy.ClearUpstream()
 	}
 }
 

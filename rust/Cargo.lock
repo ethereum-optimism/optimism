@@ -9921,7 +9921,10 @@ dependencies = [
 name = "op-reth"
 version = "2.0.0"
 dependencies = [
+ "alloy-chains",
+ "clap",
  "eyre",
+ "kona-node",
  "op-version",
  "reth-cli-util",
  "reth-db",

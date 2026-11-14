@@ -355,10 +355,12 @@ target "op-reth" {
   dockerfile = "op-reth/DockerfileOp"
   context = "rust"
   # The chainspec build.rs reads the superchain-registry submodule (at the repo
-  # root, outside the "rust" context); expose it as a named context so the
+  # root, outside the "rust" context), and the rollup node's kona-hardforks
+  # build.rs reads op-core's NUT bundles; expose them as named contexts so the
   # Dockerfile can COPY the subset it needs.
   contexts = {
     superchain-registry = "superchain-registry"
+    nuts-bundles = "op-core/nuts/bundles"
   }
   args = {
     BUILD_PROFILE = "maxperf"

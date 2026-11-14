@@ -1,12 +1,24 @@
 #![allow(missing_docs, rustdoc::missing_crate_level_docs)]
 
+mod rollup_consensus;
+
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_chainspec::is_superchain_chain_id;
 use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
 use reth_optimism_node::{OpNode, args::RollupArgs, launch_node};
+use rollup_consensus::RollupConsensusArgs;
 use tracing::{info, warn};
 
 use std::borrow::Cow;
+
+/// The `node` command's op-reth arguments.
+#[derive(Debug, clap::Args)]
+struct NodeArgs {
+    #[command(flatten)]
+    rollup: RollupArgs,
+    #[command(flatten)]
+    consensus: RollupConsensusArgs,
+}
 
 #[global_allocator]
 static ALLOC: reth_cli_util::allocator::Allocator = reth_cli_util::allocator::new_allocator();
@@ -51,14 +63,16 @@ fn main() {
         eprintln!("Error: build info is already embedded. This is a bug.")
     }
 
-    if let Err(err) = Cli::<OpChainSpecParser, RollupArgs>::parse_with_denied_args().run(
-        async move |builder, args| {
-            if args.testing_sdm_fixed_policy.is_some() {
+    if let Err(err) = Cli::<OpChainSpecParser, NodeArgs>::parse_with_denied_args().run(
+        async move |builder, NodeArgs { rollup, consensus }| {
+            if rollup.testing_sdm_fixed_policy.is_some() {
                 validate_testing_sdm_fixed_policy(builder.config().chain.chain.id())?;
             }
 
-            info!(target: "reth::cli", "Launching node");
-            launch_node(builder, OpNode::new(args)).await
+            let chain = builder.config().chain.chain;
+            let metrics = builder.config().metrics.prometheus.is_some();
+            info!(target: "reth::cli", rollup_consensus = consensus.enabled(), "Launching node");
+            launch_node(builder, OpNode::new(rollup), Box::pin(consensus.run(chain, metrics))).await
         },
     ) {
         eprintln!("Error: {err:?}");
@@ -92,13 +106,13 @@ mod tests {
         [&["--testing.sdm-fixed-policy"], &["--testing.sdm-fixed-policy", TARGET]];
 
     fn validate_cli(chain: &str, policy_args: &[&str]) -> eyre::Result<()> {
-        let cli = Cli::<OpChainSpecParser, RollupArgs>::try_parse_args_from(
+        let cli = Cli::<OpChainSpecParser, NodeArgs>::try_parse_with_denied_args_from(
             ["op-reth", "node", "--chain", chain].into_iter().chain(policy_args.iter().copied()),
         )?;
         let Commands::Node(node) = cli.command else {
             panic!("expected node command");
         };
-        if node.ext.testing_sdm_fixed_policy.is_some() {
+        if node.ext.rollup.testing_sdm_fixed_policy.is_some() {
             validate_testing_sdm_fixed_policy(node.chain.chain.id())?;
         }
         Ok(())
@@ -108,6 +122,12 @@ mod tests {
         format!(
             r#"{{"config":{{"chainId":{chain_id}}},"gasLimit":"0x1c9c380","difficulty":"0x0","alloc":{{}}}}"#
         )
+    }
+
+    #[test]
+    fn cli_is_valid() {
+        use clap::CommandFactory;
+        Cli::<OpChainSpecParser, NodeArgs>::command().debug_assert();
     }
 
     #[test]

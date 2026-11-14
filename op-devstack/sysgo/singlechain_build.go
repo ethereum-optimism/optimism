@@ -127,9 +127,10 @@ func startL2CLForKey(
 	followSource string,
 	l2CLOpts []L2CLOption,
 ) L2CLNode {
-	switch devstackL2CLKind() {
-	case MixedL2CLKona:
+	switch kind := devstackL2CLKind(); kind {
+	case MixedL2CLKona, MixedL2CLOpReth:
 		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, konaNodeStartConfig{
+			InOpReth:   kind == MixedL2CLOpReth,
 			L2CLConfig: resolveKonaL2CLConfig(t, clKey, l2Net.ChainID(), isSequencer, followSource, l2CLOpts),
 		})
 	default: // op-node
@@ -157,10 +158,11 @@ func startStoppedSequencerCL(
 	key string,
 	l2CLOpts []L2CLOption,
 ) L2CLNode {
-	switch devstackL2CLKind() {
-	case MixedL2CLKona:
+	switch kind := devstackL2CLKind(); kind {
+	case MixedL2CLKona, MixedL2CLOpReth:
 		return startMixedKonaNode(
 			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, konaNodeStartConfig{
+				InOpReth:         kind == MixedL2CLOpReth,
 				L2CLConfig:       resolveKonaL2CLConfig(t, key, l2Net.ChainID(), true, "", l2CLOpts),
 				SequencerStopped: true,
 			},
