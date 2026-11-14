@@ -129,6 +129,14 @@ func (s *Service) outputRollupClients() []extract.OutputRollupClient {
 	return clients
 }
 
+func (s *Service) superRootRollupClients() []extract.SuperRootRollupClient {
+	clients := make([]extract.SuperRootRollupClient, len(s.rollupClients))
+	for i, client := range s.rollupClients {
+		clients[i] = client
+	}
+	return clients
+}
+
 func (s *Service) asSuperRootProviders() []extract.SuperRootProvider {
 	clients := make([]extract.SuperRootProvider, len(s.superRootClients))
 	for i, client := range s.superRootClients {
@@ -300,7 +308,7 @@ func (s *Service) commonEnrichers() []extract.CommonEnricher {
 	return []extract.CommonEnricher{
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
 		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
-		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		extract.NewSuperAgreementEnricherWithRollupFallback(s.logger, s.metrics, s.asSuperRootProviders(), s.superRootRollupClients(), clock.SystemClock),
 		extract.NewAnchorStateRegistryEnricher(s.logger),
 	}
 }
