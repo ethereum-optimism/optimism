@@ -277,6 +277,10 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal2_Invarian
 
 /// @notice Bridge hook that also deposits. Tracks the gas the Portal publishes in each block.
 contract OptimismPortal2_HookDepositor is StdUtils {
+    /// @notice Transaction gas limit cap (EIP-7825). Deposits get at most this much gas, as on L1.
+    ///         The suite's gas limit is far higher, and the metering burn grows with the base fee.
+    uint256 internal constant MAX_TX_GAS = 2 ** 24;
+
     Vm internal vm;
     IOptimismPortal2 internal portal;
     uint256 internal initializedSlot;
@@ -323,13 +327,13 @@ contract OptimismPortal2_HookDepositor is StdUtils {
 
     function deposit(uint64 _gasLimit, bool _hold) external recordPublished {
         pass = !_hold;
-        portal.depositTransaction(address(1), 0, _boundGasLimit(_gasLimit), false, hex"");
+        portal.depositTransaction{ gas: MAX_TX_GAS }(address(1), 0, _boundGasLimit(_gasLimit), false, hex"");
     }
 
     function depositAsL1PAO(uint64 _gasLimit) external recordPublished {
         uint64 gasLimit = _boundGasLimit(_gasLimit);
         vm.prank(portal.proxyAdminOwner());
-        portal.depositTransaction(address(1), 0, gasLimit, false, hex"");
+        portal.depositTransaction{ gas: MAX_TX_GAS }(address(1), 0, gasLimit, false, hex"");
     }
 
     function complete(uint256 _index) external recordPublished {
