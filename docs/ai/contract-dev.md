@@ -183,7 +183,7 @@ This is done atomically via `ProxyAdmin.upgradeAndCall()`.
 - Message versioning embedded in nonce (upper 16 bits = version, lower 240 = nonce).
 - V1 encoding: `abi.encode(nonce, sender, target, value, gasLimit, data)`.
 - V1 hash: `keccak256(abi.encode(nonce, sender, target, value, gasLimit, data))`.
-- Gas overhead constants defined in CrossDomainMessenger (200k relay constant, 5k check buffer).
+- Relay gas budgets, per chain, live in `src/libraries/GasConstants.sol`.
 - 63/64 gas forwarding rule (EIP-150) handled by the SafeCall library.
 
 ## Contract Organization

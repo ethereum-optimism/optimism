@@ -11,10 +11,12 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import "src/libraries/GasConstants.sol" as GasConstants;
 
 // Interfaces
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 
 /// @title L2CrossDomainMessenger_TestInit
 /// @notice Reusable test initialization for `L2CrossDomainMessenger` tests.
@@ -342,5 +344,59 @@ contract L2CrossDomainMessenger_Uncategorized_Test is L2CrossDomainMessenger_Tes
         assertEq(address(target).balance, value);
         assertEq(l2CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l2CrossDomainMessenger.failedMessages(hash), true);
+    }
+
+    /// @notice Tests that `L2_RELAY_GAS_CHECK_BUFFER` covers the gas spent between the `hasMinGas`
+    ///         check and the CALL in `relayMessage`.
+    function test_relayMessage_gasCheckBufferCoversWindow_succeeds() external {
+        // Records the gas it receives, less the 2 that GAS costs: GAS PUSH1 0 SSTORE STOP.
+        address target = address(0xbeefbeef);
+        vm.etch(target, hex"5a60005500");
+        uint32 minGasLimit = 100_000;
+
+        // Find the least gas that passes `hasMinGas`, so that the check sees exactly its threshold.
+        uint256 lo = minGasLimit;
+        uint256 hi = 1_000_000;
+        uint256 received = _relayWithGas(hi, target, minGasLimit);
+        assertGt(received, 0);
+        while (lo < hi) {
+            uint256 mid = (lo + hi) / 2;
+            uint256 got = _relayWithGas(mid, target, minGasLimit);
+            if (got > 0) (hi, received) = (mid, got);
+            else lo = mid + 1;
+        }
+
+        uint256 gasAtCheck =
+            (uint256(minGasLimit)
+                    * 64
+                    + 63
+                    * (GasConstants.RELAY_CALL_OVERHEAD
+                        + GasConstants.L2_RELAY_RESERVED_GAS
+                        + GasConstants.L2_RELAY_GAS_CHECK_BUFFER)
+                    + 62) / 63;
+        uint256 gasAtCall = received + 2 + GasConstants.L2_RELAY_RESERVED_GAS;
+        assertLe(gasAtCheck - gasAtCall, GasConstants.L2_RELAY_GAS_CHECK_BUFFER);
+    }
+
+    /// @notice Relays a fresh message with `_gas` and returns the gas `_target` recorded, or zero
+    ///         if it was not called.
+    function _relayWithGas(uint256 _gas, address _target, uint32 _minGasLimit) internal returns (uint256) {
+        vm.store(_target, 0, 0);
+        vm.cool(address(l2CrossDomainMessenger));
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
+        (bool success,) = address(l2CrossDomainMessenger).call{ gas: _gas }(
+            abi.encodeCall(
+                ICrossDomainMessenger.relayMessage,
+                (
+                    Encoding.encodeVersionedNonce(uint240(_gas), 1),
+                    address(l1CrossDomainMessenger),
+                    _target,
+                    0,
+                    _minGasLimit,
+                    hex""
+                )
+            )
+        );
+        return success ? uint256(vm.load(_target, 0)) : 0;
     }
 }
