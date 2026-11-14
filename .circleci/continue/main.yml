@@ -1169,6 +1169,11 @@ jobs:
           that build, and its profile must match test_profile.
         type: boolean
         default: false
+      parallelism:
+        description: Machines to split the test files across, by timing
+        type: integer
+        default: 1
+    parallelism: <<parameters.parallelism>>
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -3223,6 +3228,8 @@ workflows:
           test_list: find test -name "*.t.sol"
           test_profile: ci
           attach_build: true
+          # Develop's slowest path. The Run tests step splits the files by timing.
+          parallelism: 2
           features: <<matrix.features>>
           matrix:
             parameters:
