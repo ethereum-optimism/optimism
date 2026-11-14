@@ -2,6 +2,7 @@ package proposer
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -20,16 +21,17 @@ var (
 	ErrMissingSuperRootRpc = errors.New("missing super root rpc")
 	ErrMissingSource       = errors.New("missing proposal source rpc (rollup or super root)")
 	ErrConflictingSource   = errors.New("must specify exactly one of rollup rpc or super root rpc")
+	ErrUnsupportedGameType = errors.New("unsupported game type")
 
 	// preInteropGameTypes are game types that enforce having a rollup RPC.
 	// It is ok if this list isn't complete, unknown game types will allow either rollup or super root RPCs.
 	// We just want to reduce foot-guns during the migration period.
-	preInteropGameTypes = []uint32{0, 1, 2, 3, 6, 254, 255, 1337}
+	preInteropGameTypes = []uint32{1, 2, 3, 6, 8, 254, 255, 1337}
 
 	// postInteropGameTypes are game types that enforce having a super root RPC.
 	// It is ok if this list isn't complete, unknown game types will allow either rollup or super root RPCs.
 	// We just want to reduce foot-guns during the migration period.
-	postInteropGameTypes = []uint32{4, 5}
+	postInteropGameTypes = []uint32{5, 9}
 )
 
 // CLIConfig is a well typed config that is parsed from the CLI params.
@@ -103,6 +105,9 @@ func (c *CLIConfig) Check() error {
 	}
 	if c.ProposalInterval != 0 && c.DGFAddress == "" {
 		return errors.New("the `ProposalInterval` was provided but the `DisputeGameFactory` address was not set")
+	}
+	if c.DisputeGameType == 0 {
+		return fmt.Errorf("%w: CANNON (0) is no longer supported; set --game-type (OP_PROPOSER_GAME_TYPE) to the chain's respected game type", ErrUnsupportedGameType)
 	}
 	// Check for conflicting RPC sources - only one should be specified
 	sourceCount := 0

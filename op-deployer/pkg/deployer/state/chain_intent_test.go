@@ -51,9 +51,11 @@ func TestFaultGameAbsolutePrestateOverrideKeyMatchesJSONTag(t *testing.T) {
 func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 	prestate := common.HexToHash("0xdef")
 
+	altDA := genesis.AltDADeployConfig{UseAltDA: true, DACommitmentType: altda.GenericCommitmentString}
 	tests := []struct {
 		name      string
 		game      AdditionalDisputeGame
+		altDA     genesis.AltDADeployConfig
 		expectErr error
 	}{
 		{
@@ -142,6 +144,20 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			expectErr: ErrZKDisputeGameParamOutOfRange,
 		},
 		{
+			name: "MaxChallengeDuration above the bound fails on alt-DA",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: math.MaxUint32 + 1,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			altDA:     altDA,
+			expectErr: ErrZKDisputeGameParamOutOfRange,
+		},
+		{
 			name: "MaxChallengeDuration at uint64 max fails",
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
@@ -211,13 +227,41 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := validBaseChainIntent()
-			c.AdditionalDisputeGames = []AdditionalDisputeGame{tt.game}
+			c.DangerousAltDAConfig = tt.altDA
+			game := tt.game
+			game.DisputeGameType = 10 // ZK_DISPUTE_GAME
+			c.AdditionalDisputeGames = []AdditionalDisputeGame{game}
 			err := c.Check()
 			if tt.expectErr != nil {
 				require.ErrorIs(t, err, tt.expectErr)
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestChainIntentCheck_RejectsCannonAndPermissionedCannonAdditionalGames(t *testing.T) {
+	altDA := genesis.AltDADeployConfig{UseAltDA: true, DACommitmentType: altda.GenericCommitmentString}
+	tests := []struct {
+		name     string
+		gameType uint32
+		altDA    genesis.AltDADeployConfig
+	}{
+		{name: "cannon", gameType: 0},
+		{name: "permissioned cannon", gameType: 1},
+		{name: "cannon on alt-DA", gameType: 0, altDA: altDA},
+		{name: "permissioned cannon on alt-DA", gameType: 1, altDA: altDA},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validBaseChainIntent()
+			c.DangerousAltDAConfig = tt.altDA
+			c.AdditionalDisputeGames = []AdditionalDisputeGame{{
+				ChainProofParams: ChainProofParams{DisputeGameType: tt.gameType},
+				VMType:           VMTypeCannon,
+			}}
+			require.ErrorIs(t, c.Check(), ErrIncompatibleValue)
 		})
 	}
 }

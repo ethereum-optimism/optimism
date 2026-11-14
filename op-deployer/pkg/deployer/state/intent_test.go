@@ -90,7 +90,8 @@ func TestValidateStandardValues(t *testing.T) {
 			func(intent *Intent) {
 				intent.Chains[0].AdditionalDisputeGames = []AdditionalDisputeGame{
 					{
-						VMType: VMTypeAlphabet,
+						ChainProofParams: ChainProofParams{DisputeGameType: 255},
+						VMType:           VMTypeAlphabet,
 					},
 				}
 			},
