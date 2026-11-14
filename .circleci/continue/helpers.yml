@@ -167,7 +167,7 @@ commands:
   # (circleci-utils #58). So a branch doesn't upload a copy of develop's cache
   # (the toolchain is 1.2 GiB), and a tag pipeline, whose empty branch name
   # would give every tag one shared key, saves none. Each save stores the
-  # marker /tmp/ci-cache-hit/<cache>/hit, so a restore of the same inputs
+  # marker /tmp/ci-cache-markers/<cache>/hit, so a restore of the same inputs
   # brings it back. CircleCI can't skip a save_cache step at run time, so on a
   # skip the real save key equals a placeholder key saved just before it, and
   # CircleCI skips the upload. The placeholder's content slot is the skip
@@ -191,18 +191,18 @@ commands:
           name: Decide whether to save the << parameters.cache >> cache
           when: << parameters.when >>
           command: |
-            mkdir -p "/tmp/ci-cache-hit/<< parameters.cache >>" "/tmp/ci-cache-save/<< parameters.cache >>"
+            mkdir -p "/tmp/ci-cache-markers/<< parameters.cache >>" "/tmp/ci-cache-save/<< parameters.cache >>"
             echo "no save: placeholder for branch-scoped caches" > /tmp/ci-cache-skip
             if [ -z "${CIRCLE_BRANCH:-}" ]; then
               echo "No branch (tag pipeline): not saving the << parameters.cache >> cache."
               cp /tmp/ci-cache-skip "/tmp/ci-cache-save/<< parameters.cache >>/key"
-            elif [ -f "/tmp/ci-cache-hit/<< parameters.cache >>/hit" ]; then
+            elif [ -f "/tmp/ci-cache-markers/<< parameters.cache >>/hit" ]; then
               echo "Restored a << parameters.cache >> cache for these inputs: not saving it."
               cp /tmp/ci-cache-skip "/tmp/ci-cache-save/<< parameters.cache >>/key"
             else
               echo "No << parameters.cache >> cache was restored: saving it for branch ${CIRCLE_BRANCH}."
               cp "<< parameters.key_file >>" "/tmp/ci-cache-save/<< parameters.cache >>/key"
-              touch "/tmp/ci-cache-hit/<< parameters.cache >>/hit"
+              touch "/tmp/ci-cache-markers/<< parameters.cache >>/hit"
             fi
 
   github-checkout:

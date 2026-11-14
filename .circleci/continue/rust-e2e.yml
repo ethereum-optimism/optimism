@@ -133,7 +133,7 @@ commands:
                 key: sp1-toolchain-v1-{{ arch }}-{{ .Branch }}:{{ checksum "/tmp/ci-cache-save/sp1-toolchain/key" }}
                 paths:
                   - ~/.sp1/toolchains
-                  - /tmp/ci-cache-hit/sp1-toolchain/hit
+                  - /tmp/ci-cache-markers/sp1-toolchain/hit
 
 # ============================================================================
 # RUST E2E JOBS
