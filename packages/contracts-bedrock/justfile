@@ -45,6 +45,11 @@ build-no-tests:
 build *ARGS: lint-fix-no-fail
   just forge-build {{ARGS}}
 
+# Builds the contracts with solc, also when a developer exports a Solar profile. The checks that
+# read forge-artifacts after a full build, tests included, depend on it.
+build-solc *ARGS:
+  FOUNDRY_PROFILE=default just build {{ARGS}}
+
 # Builds the contracts (developer mode).
 build-dev *ARGS: lint-fix-no-fail
   just forge-build-dev {{ARGS}}
@@ -480,7 +485,7 @@ semver-diff-check-no-build:
   ./scripts/checks/check-semver-diff.sh
 
 # Checks that any contracts with a modified semver lock also have a modified semver version.
-semver-diff-check: build semver-diff-check-no-build
+semver-diff-check: build-solc semver-diff-check-no-build
 
 # Checks that the semgrep tests are valid.
 semgrep-test-validity-check:
@@ -490,8 +495,9 @@ semgrep-test-validity-check:
 lint-forge-tests-check-no-build:
   go run ./scripts/checks/test-validation
 
-# Validates forge test conventions and structure.
-lint-forge-tests-check: build lint-forge-tests-check-no-build
+# Validates forge test conventions and structure. Reads the test artifacts, so it needs the full
+# solc build.
+lint-forge-tests-check: build-solc lint-forge-tests-check-no-build
 
 # Checks that contracts are properly linted.
 lint-check:
@@ -520,14 +526,14 @@ valid-semver-check-no-build:
   go run ./scripts/checks/valid-semver-check/main.go
 
 # Checks that the semver of contracts are valid.
-valid-semver-check: build valid-semver-check-no-build
+valid-semver-check: build-solc valid-semver-check-no-build
 
 # Checks that spacer variables are correctly inserted without building.
 validate-spacers-no-build:
   go run ./scripts/checks/spacers
 
 # Checks that spacer variables are correctly inserted.
-validate-spacers: build validate-spacers-no-build
+validate-spacers: build-solc validate-spacers-no-build
 
 # Checks that the Kontrol summary dummy files have not been modified.
 # If you have changed the summary files deliberately, update the hashes in the script.
