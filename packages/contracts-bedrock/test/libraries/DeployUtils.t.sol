@@ -9,7 +9,6 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 
 /// @title DeployUtils_TestInit
 /// @notice Reusable test initialization for `DeployUtils` tests.
@@ -100,20 +99,11 @@ contract DeployUtils_GetCode_Test is DeployUtils_TestInit {
 }
 
 /// @title DeployUtils_AssertNotSolarBroadcast_Test
-/// @notice The Solar check must read the compiler from the build and pass outside a broadcast.
+/// @notice The Solar check must pass outside a broadcast.
 contract DeployUtils_AssertNotSolarBroadcast_Test is DeployUtils_TestInit {
     function test_assertNotSolarBroadcast_inTests_succeeds() public view {
         // Tests never broadcast, so the guard passes under both compilers.
         DeployUtils.assertNotSolarBroadcast();
-    }
-
-    function test_assertNotSolarBroadcast_detectsCompiler_succeeds() public view {
-        // Solar is detected from the build, not from FOUNDRY_PROFILE, so compare it with the
-        // compiler recorded in this contract's own artifact. Solar reports itself as
-        // "0.8.38+commit.<hash>.solar.<version>".
-        string memory artifact = vm.readFile(vm.getArtifactPathByDeployedCode(address(this).code));
-        string memory compiler = vm.parseJsonString(artifact, ".metadata.compiler.version");
-        assertEq(Config.isSolar(), LibString.contains(compiler, "solar"));
     }
 }
 

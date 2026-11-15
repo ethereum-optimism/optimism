@@ -276,31 +276,30 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
     function test_callWithMinGas_noLeakageLow_succeeds() external {
         SimpleSafeCaller caller = new SimpleSafeCaller();
 
-        // The values below are best gotten by setting the value to a high number and running
-        // the test with a verbosity of `-vvv` then setting the value to the value (gas arg) of
-        // the failed assertion. A faster way to do this for forge coverage cases, is to
-        // comment out the optimizer and optimizer runs in the foundry.toml file and then run
-        // forge test. This is faster because forge test only compiles modified contracts
-        // unlike forge coverage.
-        uint256 expected;
-
-        // Because forge coverage always runs with the optimizer disabled, if forge coverage is
-        // run before testing this with forge test or forge snapshot, forge clean should be run
-        // first so that it recompiles the contracts using the foundry.toml optimizer settings.
-        // Read the compiler once: Config.isSolar inspects the build, so keep it out of the loop.
-        if (Config.isSolar()) {
-            // 65_694 is the exact amount of gas required with Solar.
-            expected = 65_694;
-        } else if (Config.isUnoptimized()) {
-            // 66_358 is the exact amount of gas required with the optimizer disabled.
-            expected = 66_358;
-        } else {
-            // 65_987 is the exact amount of gas required with optimizer enabled.
-            expected = 65_987;
-        }
-
         for (uint64 i = 40_000; i < 100_000; i++) {
             uint256 snapshot = vm.snapshotState();
+
+            // The values below are best gotten by setting the value to a high number and running
+            // the test with a verbosity of `-vvv` then setting the value to the value (gas arg) of
+            // the failed assertion. A faster way to do this for forge coverage cases, is to
+            // comment out the optimizer and optimizer runs in the foundry.toml file and then run
+            // forge test. This is faster because forge test only compiles modified contracts
+            // unlike forge coverage.
+            uint256 expected;
+
+            // Because forge coverage always runs with the optimizer disabled, if forge coverage is
+            // run before testing this with forge test or forge snapshot, forge clean should be run
+            // first so that it recompiles the contracts using the foundry.toml optimizer settings.
+            if (Config.isSolar()) {
+                // 65_694 is the exact amount of gas required with Solar.
+                expected = 65_694;
+            } else if (Config.isUnoptimized()) {
+                // 66_358 is the exact amount of gas required with the optimizer disabled.
+                expected = 66_358;
+            } else {
+                // 65_987 is the exact amount of gas required with optimizer enabled.
+                expected = 65_987;
+            }
 
             if (i < expected) {
                 assertFalse(caller.makeSafeCall(i, 25_000));
@@ -317,31 +316,30 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
     function test_callWithMinGas_noLeakageHigh_succeeds() external {
         SimpleSafeCaller caller = new SimpleSafeCaller();
 
-        // The values below are best gotten by setting the value to a high number and running
-        // the test with a verbosity of `-vvv` then setting the value to the value (gas arg) of
-        // the failed assertion. A faster way to do this for forge coverage cases, is to
-        // comment out the optimizer and optimizer runs in the foundry.toml file and then run
-        // forge test. This is faster because forge test only compiles modified contracts
-        // unlike forge coverage.
-        uint256 expected;
-
-        // Because forge coverage always runs with the optimizer disabled, if forge coverage is
-        // run before testing this with forge test or forge snapshot, forge clean should be run
-        // first so that it recompiles the contracts using the foundry.toml optimizer settings.
-        // Read the compiler once: Config.isSolar inspects the build, so keep it out of the loop.
-        if (Config.isSolar()) {
-            // 15_278_393 is the exact amount of gas required with Solar.
-            expected = 15_278_393;
-        } else if (Config.isUnoptimized()) {
-            // 15_279_057 is the exact amount of gas required with the optimizer disabled.
-            expected = 15_279_057;
-        } else {
-            // 15_278_686 is the exact amount of gas required with optimizer enabled.
-            expected = 15_278_686;
-        }
-
         for (uint64 i = 15_200_000; i < 15_300_000; i++) {
             uint256 snapshot = vm.snapshotState();
+
+            // The values below are best gotten by setting the value to a high number and running
+            // the test with a verbosity of `-vvv` then setting the value to the value (gas arg) of
+            // the failed assertion. A faster way to do this for forge coverage cases, is to
+            // comment out the optimizer and optimizer runs in the foundry.toml file and then run
+            // forge test. This is faster because forge test only compiles modified contracts
+            // unlike forge coverage.
+            uint256 expected;
+
+            // Because forge coverage always runs with the optimizer disabled, if forge coverage is
+            // run before testing this with forge test or forge snapshot, forge clean should be run
+            // first so that it recompiles the contracts using the foundry.toml optimizer settings.
+            if (Config.isSolar()) {
+                // 15_278_393 is the exact amount of gas required with Solar.
+                expected = 15_278_393;
+            } else if (Config.isUnoptimized()) {
+                // 15_279_057 is the exact amount of gas required with the optimizer disabled.
+                expected = 15_279_057;
+            } else {
+                // 15_278_686 is the exact amount of gas required with optimizer enabled.
+                expected = 15_278_686;
+            }
 
             if (i < expected) {
                 assertFalse(caller.makeSafeCall(i, 15_000_000));

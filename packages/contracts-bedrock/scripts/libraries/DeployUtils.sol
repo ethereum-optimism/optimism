@@ -25,10 +25,11 @@ library DeployUtils {
 
     bytes32 internal constant DEFAULT_SALT = keccak256("op-stack-contract-impls-salt-v0");
 
-    /// @notice Reverts when forge broadcasts a Solar build. Solar builds are for local and PR tests
-    ///         only, so their bytecode must never go onchain. The compiler is detected from the build
-    ///         (see Config.isSolar), so `--profile lite` and `FOUNDRY_PROFILE=LITE` are caught too.
-    ///         Dry runs and tests pass, and the build is only inspected when forge is broadcasting.
+    /// @notice Reverts when forge broadcasts under a Solar profile set through FOUNDRY_PROFILE, in
+    ///         any letter case. Solar builds are for local and PR tests only, so their bytecode
+    ///         must never go onchain. Dry runs and tests pass. This blocks accidents, not deliberate
+    ///         bypasses: `--profile lite` on the command line, `--resume` under the same Solar
+    ///         profile and `forge create` are not caught.
     function assertNotSolarBroadcast() internal view {
         bool broadcasting =
             vm.isContext(VmSafe.ForgeContext.ScriptBroadcast) || vm.isContext(VmSafe.ForgeContext.ScriptResume);
