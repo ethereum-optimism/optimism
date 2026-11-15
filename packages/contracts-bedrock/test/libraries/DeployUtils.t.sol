@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { Test } from "test/setup/Test.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 // Libraries
 import { Proxy } from "src/universal/Proxy.sol";
@@ -93,7 +94,10 @@ contract DeployUtils_AssertUniqueAddresses_Test is DeployUtils_TestInit {
 contract DeployUtils_GetCode_Test is DeployUtils_TestInit {
     function test_getCode_activeCompiler_succeeds() public view {
         // getCode falls back to a name-only lookup, so also check the path it tries first exists.
-        assertTrue(vm.exists(string.concat(Config.artifactDirectory(), "Proxy.sol/Proxy.json")));
+        // Coverage writes no artifacts there and getCode skips that path under coverage.
+        if (!vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            assertTrue(vm.exists(string.concat(Config.artifactDirectory(), "Proxy.sol/Proxy.json")));
+        }
         assertEq(DeployUtils.getCode("Proxy"), type(Proxy).creationCode);
     }
 }

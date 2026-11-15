@@ -475,9 +475,9 @@ reinitializer-check: build-source reinitializer-check-no-build
 reinitializer-check-no-build:
   go run ./scripts/checks/reinitializer
 
-# Checks that the size of the contracts is within the limit.
+# Checks that the size of the contracts is within the limit. Sizes the solc build, as deployed.
 size-check:
-  forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
+  FOUNDRY_PROFILE=default forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
 
 # Checks that any contracts with a modified semver lock also have a modified semver version.
 # Does not build contracts.
