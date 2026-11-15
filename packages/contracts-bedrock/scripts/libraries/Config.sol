@@ -269,7 +269,7 @@ library Config {
     ///         artifacts to `cache/solar-artifacts`, so the artifact that holds the caller's own
     ///         runtime code names the compiler. The variable is only a fallback for a caller that
     ///         has no artifact in the build.
-    function isSolar() internal view returns (bool) {
+    function isSolar() internal view returns (bool solar_) {
         // Forge rejects address(this) in a broadcasting script, so copy the caller's code directly.
         bytes memory code;
         assembly {
@@ -280,10 +280,15 @@ library Config {
             mstore(0x40, add(add(code, 0x20), and(add(size, 0x1f), not(0x1f))))
         }
         try vm.getArtifactPathByDeployedCode(code) returns (string memory path_) {
-            return LibString.contains(path_, "cache/solar-artifacts/");
+            solar_ = LibString.contains(path_, "cache/solar-artifacts/");
         } catch {
             string memory profile = LibString.lower(foundryProfile());
-            return LibString.eq(profile, "lite") || LibString.eq(profile, "liteci");
+            solar_ = LibString.eq(profile, "lite") || LibString.eq(profile, "liteci");
+        }
+        // Release the copied code and the path, so a caller in a tight loop does not run out of
+        // memory. Only the boolean, on the stack, outlives this function.
+        assembly {
+            mstore(0x40, code)
         }
     }
 
