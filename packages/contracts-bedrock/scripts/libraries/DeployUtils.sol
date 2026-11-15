@@ -25,6 +25,17 @@ library DeployUtils {
 
     bytes32 internal constant DEFAULT_SALT = keccak256("op-stack-contract-impls-salt-v0");
 
+    /// @notice Reverts when forge broadcasts under a Solar profile. Solar builds are for local and
+    ///         PR tests only, so their bytecode must never go onchain. Dry runs and tests pass.
+    function assertNotSolarBroadcast() internal view {
+        bool broadcasting =
+            vm.isContext(VmSafe.ForgeContext.ScriptBroadcast) || vm.isContext(VmSafe.ForgeContext.ScriptResume);
+        require(
+            !broadcasting || !Config.isSolar(),
+            "DeployUtils: cannot broadcast with a Solar profile, rerun with FOUNDRY_PROFILE=default"
+        );
+    }
+
     /// @notice Returns a contract's default-profile artifact path in the active output directory.
     function _defaultArtifactPath(string memory _name) private view returns (string memory) {
         return string.concat(Config.artifactDirectory(), _name, ".sol/", _name, ".json");
@@ -46,6 +57,8 @@ library DeployUtils {
     /// @param _name Name of the contract, or a qualified "File.sol:Contract" identifier.
     /// @return The creation bytecode from the default profile artifact.
     function getCode(string memory _name) internal view returns (bytes memory) {
+        // Every artifact deployment reads its bytecode here.
+        assertNotSolarBroadcast();
         // If the name contains a colon or slash, the caller already provided a qualified identifier.
         bytes memory nameBytes = bytes(_name);
         for (uint256 i = 0; i < nameBytes.length; i++) {

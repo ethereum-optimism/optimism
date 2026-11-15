@@ -6,6 +6,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { Script } from "forge-std/Script.sol";
 
 import { Config } from "scripts/libraries/Config.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { PeripheryDeployConfig } from "scripts/periphery/deploy/PeripheryDeployConfig.s.sol";
 
@@ -34,6 +35,7 @@ contract DeployPeriphery is Script {
 
     /// @notice Sets up the deployment script.
     function setUp() public {
+        DeployUtils.assertNotSolarBroadcast();
         vm.allowCheatcodes(address(artifacts));
         vm.etch(address(artifacts), vm.getDeployedCode("Artifacts.s.sol:Artifacts"));
         artifacts.setUp();
