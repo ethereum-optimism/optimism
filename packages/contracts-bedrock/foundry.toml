@@ -199,6 +199,8 @@ solc = './scripts/ops/solar'
 out = 'cache/solar-artifacts'
 cache_path = 'cache/solar'
 build_info_path = 'cache/solar-build-info'
+# A Solar dry run saves its transactions here, so a default-profile `--resume` cannot send them.
+broadcast = 'cache/solar-broadcast'
 # 2264 = experimental codegen; 5333 = a pragma doesn't match Solar's 0.8.38.
 ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424, 2264, 5333]
 optimizer = false
@@ -244,6 +246,8 @@ solc = './scripts/ops/solar'
 out = 'cache/solar-artifacts'
 cache_path = 'cache/solar'
 build_info_path = 'cache/solar-build-info'
+# A Solar dry run saves its transactions here, so a default-profile `--resume` cannot send them.
+broadcast = 'cache/solar-broadcast'
 # 2264 = experimental codegen; 5333 = a pragma doesn't match Solar's 0.8.38.
 ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424, 2264, 5333]
 optimizer = false

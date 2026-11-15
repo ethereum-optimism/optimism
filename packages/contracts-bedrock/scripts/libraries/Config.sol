@@ -263,10 +263,28 @@ library Config {
         return vm.envOr("FOUNDRY_PROFILE", string("default"));
     }
 
-    /// @notice Returns true for the development and PR profiles compiled with Solar.
+    /// @notice Returns true when the active build was compiled with Solar. The compiler is read from
+    ///         the build, not from FOUNDRY_PROFILE: `forge --profile lite` leaves the variable unset
+    ///         and forge matches profile names regardless of case. The Solar profiles write their
+    ///         artifacts to `cache/solar-artifacts`, so the artifact that holds the caller's own
+    ///         runtime code names the compiler. The variable is only a fallback for a caller that
+    ///         has no artifact in the build.
     function isSolar() internal view returns (bool) {
-        string memory profile = foundryProfile();
-        return LibString.eq(profile, "lite") || LibString.eq(profile, "liteci");
+        // Forge rejects address(this) in a broadcasting script, so copy the caller's code directly.
+        bytes memory code;
+        assembly {
+            code := mload(0x40)
+            let size := codesize()
+            mstore(code, size)
+            codecopy(add(code, 0x20), 0, size)
+            mstore(0x40, add(add(code, 0x20), and(add(size, 0x1f), not(0x1f))))
+        }
+        try vm.getArtifactPathByDeployedCode(code) returns (string memory path_) {
+            return LibString.contains(path_, "cache/solar-artifacts/");
+        } catch {
+            string memory profile = LibString.lower(foundryProfile());
+            return LibString.eq(profile, "lite") || LibString.eq(profile, "liteci");
+        }
     }
 
     /// @notice Returns the active profile's `out` directory. Solar profiles write to their own,
