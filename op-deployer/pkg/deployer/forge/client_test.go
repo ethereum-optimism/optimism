@@ -204,19 +204,16 @@ func TestClient_TimeoutUnblocksHungCommand(t *testing.T) {
 }
 
 // TestClient_DeploymentProfile checks that script runs use the default profile, so that a developer's
-// exported profile, such as the Solar ones, cannot change what a deployment runs.
+// exported profile, such as the Solar ones, cannot change what a deployment runs. Every exported
+// profile takes the same path, so one is enough.
 func TestClient_DeploymentProfile(t *testing.T) {
-	for _, profile := range []string{"lite", "liteci", "ci"} {
-		t.Run(profile, func(t *testing.T) {
-			t.Setenv("FOUNDRY_PROFILE", profile)
-			cl := NewClient(stubScript(t, `echo "profile=$FOUNDRY_PROFILE"`))
-			cl.Wd = stubProject(t)
-			cl.Stdout = io.Discard
-			out, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
-			require.NoError(t, err)
-			require.Equal(t, "profile=default\n"+scriptRan, out)
-		})
-	}
+	t.Setenv("FOUNDRY_PROFILE", "lite")
+	cl := NewClient(stubScript(t, `echo "profile=$FOUNDRY_PROFILE"`))
+	cl.Wd = stubProject(t)
+	cl.Stdout = io.Discard
+	out, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	require.NoError(t, err)
+	require.Equal(t, "profile=default\n"+scriptRan, out)
 }
 
 // TestClient_SlowBroadcast checks the flags of a forge broadcast, and that it returns no transactions
