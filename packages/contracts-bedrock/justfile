@@ -447,8 +447,8 @@ snapshots: build-source snapshots-no-build
 # Checks if the snapshots are up to date without building.
 snapshots-check-no-build: snapshots-no-build
 
-# Checks if the snapshots are up to date.
-snapshots-check: build snapshots-check-no-build
+# Checks if the snapshots are up to date. build-source is always solc.
+snapshots-check: build-source snapshots-check-no-build
 
 # Checks interface correctness without building.
 interfaces-check-no-build:
@@ -458,7 +458,9 @@ interfaces-check-no-build:
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
 # artifacts can cause the script to detect issues incorrectly.
-interfaces-check: clean build interfaces-check-no-build
+# Builds only the sources, with solc, as check-fast does: a Solar build leaves forge-artifacts empty,
+# and test artifacts fail the check.
+interfaces-check: clean build-source interfaces-check-no-build
 
 # Checks that all upgrade/initialize functions have proper reinitializer modifiers.
 reinitializer-check: build-source reinitializer-check-no-build
