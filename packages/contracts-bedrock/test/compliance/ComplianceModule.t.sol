@@ -1206,7 +1206,7 @@ contract ComplianceModule_RecordVerdict_Test is ComplianceModule_TestInit {
     /// @notice Tests that recordVerdict keeps the hold time of a held item.
     function test_recordVerdict_heldItem_succeeds() external {
         bytes32 id = keccak256("item");
-        uint64 heldAt = uint64(block.timestamp);
+        uint64 heldAt = uint64(vm.getBlockTimestamp());
         uint64 expiresAt = uint64(block.timestamp + 1 days);
         _storeRecord(id, heldAt, 0);
 
@@ -1250,7 +1250,7 @@ contract ComplianceModule_RevokeVerdict_Test is ComplianceModule_TestInit {
     /// @notice Tests that revokeVerdict clears the expiration time and keeps the hold time.
     function test_revokeVerdict_succeeds() external {
         bytes32 id = keccak256("item");
-        uint64 heldAt = uint64(block.timestamp);
+        uint64 heldAt = uint64(vm.getBlockTimestamp());
         _storeRecord(id, heldAt, uint64(block.timestamp + 1 days));
 
         vm.expectEmit(address(module));
@@ -1289,7 +1289,7 @@ contract ComplianceModule_SetPolicy_Test is ComplianceModule_TestInit {
     function testFuzz_setPolicy_succeeds(IPolicy _newPolicy) external {
         vm.assume(address(_newPolicy) != address(0));
         bytes32 id = keccak256("item");
-        uint64 heldAt = uint64(block.timestamp);
+        uint64 heldAt = uint64(vm.getBlockTimestamp());
         uint64 expiresAt = uint64(block.timestamp + 1 days);
         _storeRecord(id, heldAt, expiresAt);
 
@@ -1657,7 +1657,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             nonce: 1
         });
         bytes32 id = BridgeHookHashing.hashItem(item);
-        uint64 heldAt = uint64(block.timestamp);
+        uint64 heldAt = uint64(vm.getBlockTimestamp());
         uint64 expiresAt = uint64(block.timestamp + 1 days);
         _storeRecord(id, heldAt, expiresAt);
         stdstore.target(address(optimismPortal2))
@@ -1711,7 +1711,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             nonce: 1
         });
         bytes32 id = BridgeHookHashing.hashItem(item);
-        uint64 heldAt = uint64(block.timestamp);
+        uint64 heldAt = uint64(vm.getBlockTimestamp());
         uint64 expiresAt = uint64(block.timestamp + 1 days);
         _storeRecord(id, heldAt, expiresAt);
         stdstore.target(address(optimismPortal2))
@@ -1765,7 +1765,7 @@ contract ComplianceModule_CompleteDeposit_Test is ComplianceModule_TestInit {
             nonce: 1
         });
         bytes32 id = BridgeHookHashing.hashItem(item);
-        uint64 heldAt = uint64(block.timestamp);
+        uint64 heldAt = uint64(vm.getBlockTimestamp());
         uint64 expiresAt = uint64(block.timestamp + 1 days);
         _storeRecord(id, heldAt, expiresAt);
         stdstore.target(address(optimismPortal2))
@@ -2120,7 +2120,7 @@ contract ComplianceModule_CompleteWithdrawal_Test is ComplianceModule_TestInit {
             nonce: 1
         });
         bytes32 id = BridgeHookHashing.hashItem(item);
-        uint64 heldAt = uint64(block.timestamp);
+        uint64 heldAt = uint64(vm.getBlockTimestamp());
         uint64 expiresAt = uint64(block.timestamp + 1 days);
         _storeRecord(id, heldAt, expiresAt);
         stdstore.target(address(optimismPortal2))

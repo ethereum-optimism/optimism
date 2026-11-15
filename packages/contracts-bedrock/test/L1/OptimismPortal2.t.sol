@@ -2623,7 +2623,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         game.resolve();
         // The game delay ends first, so each proof's time sets the finalizable time.
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
-        uint256 provenAt = block.timestamp;
+        uint256 provenAt = vm.getBlockTimestamp();
         optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
         // Prove again one second later, so the two proofs mature at different times.
         vm.warp(block.timestamp + 1);
