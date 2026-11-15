@@ -47,9 +47,9 @@ sanitize-program:
         exit 1
     fi
 
-# Build contracts
+# Build contracts with solc, since the tests read forge-artifacts
 contract:
-    cd ../packages/contracts-bedrock && forge build
+    cd ../packages/contracts-bedrock && FOUNDRY_PROFILE=default forge build
 
 # Run tests
 test: contract
