@@ -3358,6 +3358,22 @@ workflows:
             - contracts-bedrock-tests-upgrade unichain-mainnet: terminal
             - contracts-bedrock-tests-l2-fork op-mainnet: terminal
             - contracts-bedrock-checks-fast-feature-tests: terminal
+            # The solc jobs that replace the Solar ones on develop and proposal/* branches,
+            # including PRs from proposal/* branches. Elsewhere they are filtered out.
+            - contracts-bedrock-build-tests-develop: terminal
+            - contracts-bedrock-tests-develop main: terminal
+            - contracts-bedrock-tests-develop CUSTOM_GAS_TOKEN: terminal
+            - contracts-bedrock-tests-develop INTEROP: terminal
+            - contracts-bedrock-tests-develop BRIDGE_HOOK: terminal
+            - contracts-bedrock-tests-develop OP_PRIVATE: terminal
+            - contracts-bedrock-tests-upgrade-develop op-mainnet main: terminal
+            - contracts-bedrock-tests-upgrade-develop op-mainnet CUSTOM_GAS_TOKEN: terminal
+            - contracts-bedrock-tests-upgrade-develop op-mainnet INTEROP: terminal
+            - contracts-bedrock-tests-upgrade-develop op-mainnet BRIDGE_HOOK: terminal
+            - contracts-bedrock-tests-upgrade-develop op-mainnet OP_PRIVATE: terminal
+            - contracts-bedrock-tests-upgrade-develop op-mainnet: terminal
+            - contracts-bedrock-tests-upgrade-develop ink-mainnet: terminal
+            - contracts-bedrock-tests-upgrade-develop unichain-mainnet: terminal
           context:
             - circleci-api-token
 
