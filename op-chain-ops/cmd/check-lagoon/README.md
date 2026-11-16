@@ -51,7 +51,8 @@ go run . sdm all --sdm-l2 http://localhost:9545 --sdm-account <key>
 go run . sdm block --sdm-l2 http://localhost:9545 --sdm-block 12345
 ```
 
-The producer needs the `admin_` and `debug_` namespaces. `--sdm-rollup-rpc`
+The producer needs the `admin_` and `debug_` namespaces, and a verifier the
+`debug_` namespace. `--sdm-rollup-rpc`
 adds Lagoon-activation and safe-head checks; the safe-head wait is bounded only
 by the command timeout (10 minutes for `sdm`, 25 minutes for `all`). The checks fail if the producer
 has not opted in to SDM; `--sdm-opt-in` enables it for the duration of the
