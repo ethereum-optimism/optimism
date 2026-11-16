@@ -636,21 +636,18 @@ func TestGetMissingTxnHashes(t *testing.T) {
 		unsafeTransactions          []hexutil.Bytes
 		expectedSafeMissingHashes   []common.Hash
 		expectedUnsafeMissingHashes []common.Hash
-		expectErr                   bool
 	}{
 		{
 			safeTransactions:            []hexutil.Bytes{},
 			unsafeTransactions:          []hexutil.Bytes{depositTxToBytes(t, depositTxs[0])},
 			expectedSafeMissingHashes:   []common.Hash{depositTxs[0].Hash()},
 			expectedUnsafeMissingHashes: []common.Hash{},
-			expectErr:                   false,
 		},
 		{
 			safeTransactions:            []hexutil.Bytes{depositTxToBytes(t, depositTxs[0])},
 			unsafeTransactions:          []hexutil.Bytes{},
 			expectedSafeMissingHashes:   []common.Hash{},
 			expectedUnsafeMissingHashes: []common.Hash{depositTxs[0].Hash()},
-			expectErr:                   false,
 		},
 		{
 			safeTransactions: []hexutil.Bytes{
@@ -666,7 +663,6 @@ func TestGetMissingTxnHashes(t *testing.T) {
 				depositTxs[2].Hash(),
 			},
 			expectedUnsafeMissingHashes: []common.Hash{},
-			expectErr:                   false,
 		},
 		{
 			safeTransactions: []hexutil.Bytes{
@@ -682,7 +678,6 @@ func TestGetMissingTxnHashes(t *testing.T) {
 				depositTxs[1].Hash(),
 				depositTxs[2].Hash(),
 			},
-			expectErr: false,
 		},
 		{
 			safeTransactions: []hexutil.Bytes{
@@ -703,38 +698,17 @@ func TestGetMissingTxnHashes(t *testing.T) {
 				depositTxs[0].Hash(),
 				depositTxs[1].Hash(),
 			},
-			expectErr: false,
-		},
-		{
-			safeTransactions:            []hexutil.Bytes{{1, 2, 3}},
-			unsafeTransactions:          []hexutil.Bytes{},
-			expectedSafeMissingHashes:   []common.Hash{},
-			expectedUnsafeMissingHashes: []common.Hash{},
-			expectErr:                   true,
-		},
-		{
-			safeTransactions:            []hexutil.Bytes{},
-			unsafeTransactions:          []hexutil.Bytes{{1, 2, 3}},
-			expectedSafeMissingHashes:   []common.Hash{},
-			expectedUnsafeMissingHashes: []common.Hash{},
-			expectErr:                   true,
 		},
 	}
 
 	for _, test := range tests {
-		missingSafeHashes, missingUnsafeHashes, err := getMissingTxnHashes(
+		missingSafeHashes, missingUnsafeHashes := getMissingTxnHashes(
 			testlog.Logger(t, log.LevelError),
 			test.safeTransactions,
 			test.unsafeTransactions,
 		)
-
-		if test.expectErr {
-			require.Error(t, err)
-		} else {
-			require.NoError(t, err)
-			require.ElementsMatch(t, test.expectedSafeMissingHashes, missingSafeHashes)
-			require.ElementsMatch(t, test.expectedUnsafeMissingHashes, missingUnsafeHashes)
-		}
+		require.ElementsMatch(t, test.expectedSafeMissingHashes, missingSafeHashes)
+		require.ElementsMatch(t, test.expectedUnsafeMissingHashes, missingUnsafeHashes)
 	}
 }
 
