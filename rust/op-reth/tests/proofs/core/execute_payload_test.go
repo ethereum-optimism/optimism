@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
@@ -22,7 +23,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	if err != nil {
 		gt.Fatal(err)
 	}
-	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), seqHead.NumberU64())
+	opRethELNode.WaitForProofsStoreBlock(seqHead.NumberU64(), dsl.DefaultProofsCatchUpTimeout)
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)
@@ -45,7 +46,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	// ChainCommitted notifications asynchronously, so the EL head can advance before
 	// the store is ready. debug_executePayload reads from the ExEx store and will
 	// fail with "no state found" if it hasn't caught up yet.
-	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), lastBlock.NumberU64())
+	opRethELNode.WaitForProofsStoreBlock(lastBlock.NumberU64(), dsl.DefaultProofsCatchUpTimeout)
 
 	blockTime := lastBlock.Time() + 1
 	gasLimit := eth.Uint64Quantity(lastBlock.GasLimit())
@@ -90,7 +91,7 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	if err != nil {
 		gt.Fatal(err)
 	}
-	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), seqHead.NumberU64())
+	opRethELNode.WaitForProofsStoreBlock(seqHead.NumberU64(), dsl.DefaultProofsCatchUpTimeout)
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)
@@ -110,7 +111,7 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	}
 
 	// Wait for the proofs ExEx store to index the parent block (same race as TestExecutePayloadSuccess).
-	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), lastBlock.NumberU64())
+	opRethELNode.WaitForProofsStoreBlock(lastBlock.NumberU64(), dsl.DefaultProofsCatchUpTimeout)
 
 	blockTime := lastBlock.Time() + 1
 	gasLimit := eth.Uint64Quantity(lastBlock.GasLimit())

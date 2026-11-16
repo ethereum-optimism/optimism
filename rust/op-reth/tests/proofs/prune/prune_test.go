@@ -5,11 +5,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +20,7 @@ import (
 //     (i.e. latest >= targetBlock + proofWindow).
 //   - Poll debug_proofsSyncStatus until earliest > targetBlock (meaning targetBlock is now pruned).
 //
-// 3) Call validate checks for getProof and check everything is consistent for the new earliest block.
+// 3) Call validate checks for getProof and check everything is consistent mid-way into the post-prune window.
 func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
@@ -35,7 +34,6 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	var pruneDetectTimeout = 5 * time.Minute
 
 	opRethELNode := sys.RethWithProofL2ELNode()
-	ethClient := opRethELNode.Escape().EthClient()
 
 	// -----------------------------
 	// (1) Create tx + validate proof pre-prune
@@ -67,20 +65,17 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	}
 	t.Logf("Target block for proof validation (pre-prune): %d", targetBlock)
 
-	// Make sure the proof store has indexed the target block before verifying.
-	utils.WaitForProofsStoreBlock(t, ethClient, targetBlock)
-
 	// Pre-prune proof verification at targetBlock.
 	// This verifies the proof against the block's state root (efficient correctness check).
 	t.Logf("Pre-prune: verifying getProof proofs at block %d", targetBlock)
-	utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, targetBlock)
-	utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, targetBlock)
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), targetBlock, dsl.ProofAccount{Address: accounts[0].Address()})
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), targetBlock, dsl.ProofAccount{Address: accounts[1].Address()})
 	t.Log("Pre-prune: proofs verified successfully")
 
 	// -----------------------------
 	// (2) Wait until targetBlock is pruned (earliest > targetBlock)
 	// -----------------------------
-	initialStatus := getProofSyncStatus(t, ethClient)
+	initialStatus := getProofSyncStatus(t, opRethELNode)
 	t.Logf("Initial proofs sync status: earliest=%d latest=%d", initialStatus.Earliest, initialStatus.Latest)
 
 	// Ensure we advance far enough that pruning *can* move earliest past targetBlock.
@@ -88,7 +83,7 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	requiredLatest := targetBlock + proofWindow
 	if initialStatus.Latest < requiredLatest {
 		t.Logf("Waiting for chain to advance to at least block %d so pruning can pass targetBlock", requiredLatest)
-		utils.WaitForProofsStoreBlock(t, ethClient, requiredLatest)
+		opRethELNode.WaitForProofsStoreBlock(requiredLatest, dsl.DefaultProofsCatchUpTimeout)
 	}
 
 	t.Logf("Waiting for pruner to advance earliest past targetBlock=%d ...", targetBlock)
@@ -100,7 +95,7 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 			t.Errorf("Timed out waiting for prune: earliest did not advance past targetBlock=%d within %s", targetBlock, pruneDetectTimeout)
 		}
 
-		prunedStatus = getProofSyncStatus(t, ethClient)
+		prunedStatus = getProofSyncStatus(t, opRethELNode)
 		t.Logf("Polling proofs sync status: earliest=%d latest=%d (target=%d)", prunedStatus.Earliest, prunedStatus.Latest, targetBlock)
 
 		// This is the key condition: the specific block we validated earlier is now out of window.
@@ -118,9 +113,11 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	// -----------------------------
 	// (3) Post-prune consistency checks for getProof
 	// -----------------------------
-	t.Logf("Post-prune: expecting getProof verification to succeed at new earliest block=%d", prunedStatus.Earliest)
-	utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, prunedStatus.Earliest)
-	utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, prunedStatus.Earliest)
+	postPruneBlock := prunedStatus.Earliest + currentProofWindow/2
+	t.Logf("Post-prune: expecting getProof verification to succeed at block=%d inside window [%d, %d]",
+		postPruneBlock, prunedStatus.Earliest, prunedStatus.Latest)
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), postPruneBlock, dsl.ProofAccount{Address: accounts[0].Address()})
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), postPruneBlock, dsl.ProofAccount{Address: accounts[1].Address()})
 	t.Log("Post-prune: getProof consistency checks passed")
 }
 
@@ -129,11 +126,10 @@ type proofSyncStatus struct {
 	Latest   uint64 `json:"latest"`
 }
 
-func getProofSyncStatus(t devtest.T, client apis.EthClient) proofSyncStatus {
-	var result proofSyncStatus
-	err := client.RPC().CallContext(t.Ctx(), &result, "debug_proofsSyncStatus")
-	if err != nil {
-		t.Errorf("debug_proofsSyncStatus call failed: %v", err)
-	}
-	return result
+func getProofSyncStatus(t devtest.T, node *dsl.L2ELNode) proofSyncStatus {
+	status, err := node.ProofsSyncStatus(t.Ctx())
+	require.NoError(t, err, "debug_proofsSyncStatus call failed")
+	require.NotNil(t, status.Earliest, "proofs store reports no earliest block")
+	require.NotNil(t, status.Latest, "proofs store reports no latest block")
+	return proofSyncStatus{Earliest: *status.Earliest, Latest: *status.Latest}
 }
