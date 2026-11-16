@@ -63,10 +63,17 @@ jobs:
               printf '%s\n' "ERROR: Rust toolchain pin drift." \
                 "  mise.toml stable rust: ${stable:-<missing>}" \
                 "  rust/rust-toolchain.toml channel: ${channel:-<missing>}" \
-                "Set both to the same version. Also update the Rust pins in ops/docker/op-stack-go/Dockerfile," \
-                "rust/op-reth/DockerfileOp and rust/kona/docker/apps/kona_app_generic.dockerfile (not checked here)." >&2
+                "Set both, and the Dockerfile pins below, to the same version." >&2
               exit 1
             fi
+            drift=0
+            check_docker_pin() {
+              grep -qE "${2//./\\.}( |\$)" "$1" || { echo "ERROR: $1 does not pin Rust $stable (expected \"$2\")" >&2; drift=1; }
+            }
+            check_docker_pin ops/docker/op-stack-go/Dockerfile "rust:$stable"
+            check_docker_pin rust/op-reth/DockerfileOp "latest-rust-$stable"
+            check_docker_pin rust/kona/docker/apps/kona_app_generic.dockerfile "RUST_VERSION=$stable"
+            [ "$drift" = 0 ] || exit 1
             echo "Rust toolchain pins agree: $stable"
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
