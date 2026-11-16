@@ -59,6 +59,29 @@ jobs:
     steps:
       - checkout-with-mise:
           checkout-method: blobless
+      # Only the mise cache holds the stable toolchain, so a channel that differs
+      # from mise.toml makes rustup download it in every Rust job.
+      - run:
+          name: Check Rust toolchain pins agree
+          command: |
+            stable="$(yq -r '[.tools.rust[] | (.version // .) | select(test("^nightly") | not)] | join(" ")' mise.toml)"
+            channel="$(yq -r '.toolchain.channel // ""' rust/rust-toolchain.toml)"
+            if [ -z "$stable" ] || [ "$channel" != "$stable" ]; then
+              printf '%s\n' "ERROR: Rust toolchain pin drift." \
+                "  mise.toml stable rust: ${stable:-<missing>}" \
+                "  rust/rust-toolchain.toml channel: ${channel:-<missing>}" \
+                "Set both, and the Dockerfile pins below, to the same version." >&2
+              exit 1
+            fi
+            drift=0
+            check_docker_pin() {
+              grep -qE "${2//./\\.}( |\$)" "$1" || { echo "ERROR: $1 does not pin Rust $stable (expected \"$2\")" >&2; drift=1; }
+            }
+            check_docker_pin ops/docker/op-stack-go/Dockerfile "rust:$stable"
+            check_docker_pin rust/op-reth/DockerfileOp "latest-rust-$stable"
+            check_docker_pin rust/kona/docker/apps/kona_app_generic.dockerfile "RUST_VERSION=$stable"
+            [ "$drift" = 0 ] || exit 1
+            echo "Rust toolchain pins agree: $stable"
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           init_superchain_submodule: false
@@ -96,7 +119,9 @@ jobs:
         default: "cargo clippy --workspace --all-targets --all-features"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    # #19777 moved this to medium when a target cache made it fast. That cache
+    # is gone (#21310), and on 2 vCPU the job took about 10 min.
+    resource_class: xlarge.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -276,31 +301,6 @@ jobs:
           command: <<parameters.command>>
       - rust-save-build-cache: *docs-cache-args
 
-  # Shared doc test job
-  rust-ci-doctest:
-    parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      command:
-        description: "Doc test command to run"
-        type: string
-        default: "just test-docs"
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: 2xlarge.gen2
-    steps:
-      - checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &doctest-cache-args
-          directory: <<parameters.directory>>
-      - run:
-          name: Run doc tests
-          working_directory: <<parameters.directory>>
-          no_output_timeout: 30m
-          command: <<parameters.command>>
-      - rust-save-build-cache: *doctest-cache-args
-
   # Shared cargo tests job
   rust-ci-cargo-tests:
     parameters:
@@ -432,7 +432,8 @@ jobs:
         default: "just check-udeps"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    # Same reason as rust-ci-clippy.
+    resource_class: xlarge.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -1082,6 +1083,7 @@ workflows:
           directory: rust
           context: *rust-ci-context
 
+      # `just test` also runs the doc tests (test-docs), so no separate doc test job.
       - rust-ci-cargo-tests:
           name: rust-tests
           directory: rust
@@ -1090,11 +1092,6 @@ workflows:
 
       - interop-deposits-go-rust-diff:
           name: interop-deposits-diff
-          context: *rust-ci-context
-
-      - rust-ci-doctest:
-          name: rust-doctest
-          directory: rust
           context: *rust-ci-context
 
       - rust-ci-docs:
@@ -1198,7 +1195,6 @@ workflows:
             - rust-zepter: terminal
             - rust-tests: terminal
             - interop-deposits-diff: terminal
-            - rust-doctest: terminal
             - rust-docs: terminal
             - rust-udeps: terminal
             - rust-cargo-hack: terminal
