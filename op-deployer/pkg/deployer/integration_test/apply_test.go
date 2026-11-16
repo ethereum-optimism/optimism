@@ -659,6 +659,8 @@ func TestApplyGenesisStrategy(t *testing.T) {
 		cg := stateDumpCodeGetter(st)
 		validateSuperchainDeployment(t, st, cg, true)
 		validateOPChainDeployment(t, cg, st, intent, false)
+		deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+		require.NotContains(t, st.L1DevGenesis.Alloc, deployerAddr, "the deployer must have no L1 genesis account")
 		return st
 	}
 
