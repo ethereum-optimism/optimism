@@ -46,12 +46,58 @@ To start using `proxyd`, follow these steps:
 ## Consensus awareness
 
 Version 4.0.0 and later include consensus awareness to minimize chain reorganizations.
-
-Set `consensus_aware` to `true` in the configuration to enable:
+Enable it per backend group with `routing_strategy = "consensus_aware"` (the older `consensus_aware = true` setting is deprecated, and the two cannot be set together). Consensus awareness enables:
 
 *   Polling backends for consensus data (latest block, safe block, peer count, etc.).
 *   Resolving consensus groups based on healthiest backends
 *   Enforcing consensus state across client requests
+
+`consensus_aware` is for execution-client backends.
+For consensus-layer backends, such as the follow source of a Light CL fleet, use `consensus_aware_consensus_layer`, described next.
+
+### Consensus-layer routing for follow sources
+
+`routing_strategy = "consensus_aware_consensus_layer"` (proxyd v4.27.5 and later; use the latest release) puts a pool of op-node or op-supernode instances behind one highly available endpoint.
+Point the `--l2.follow.source` flag of your [Light CLs](/notices/specialized-node-topology) at it instead of at a single source.
+
+In this mode, proxyd:
+
+*   Polls each backend's `optimism_syncStatus` and excludes a backend whose derivation lags L1 by more than `consensus_cl_sync_threshold` L1 blocks (default `10`) or whose L1 head is older than `consensus_cl_head_l1_max_age` (default `5m`).
+*   Compares `optimism_outputAtBlock` at the consensus safe block across backends on each poll. A backend that disagrees with a strict majority is banned. If there is no majority (for example, a 1–1 split), proxyd freezes the served state at the last agreed value and rejects other requests until a majority returns, so run **at least three** backends.
+*   Answers `optimism_syncStatus` from the in-consensus backend that is furthest behind on L1, so it serves the most conservative view in the pool.
+*   Checks each backend's P2P peer count through `opp2p_peerStats`, unless the backend sets `consensus_skip_peer_count = true`. Set it on backends that run with P2P disabled, such as supernodes behind a Light CL fleet that handles gossip itself; otherwise proxyd never admits them to the consensus group.
+
+proxyd routes by RPC method, not by URL path, so run **one proxyd instance per chain**.
+For an interop dependency set, each instance's backends are the per-chain paths (`/<chainID>`) of your op-supernodes.
+This example serves OP Mainnet (chain ID `10`) from three supernodes that run with `--disable-p2p=true`:
+
+```toml
+[server]
+rpc_port = 8545
+
+[backends]
+[backends.supernode-a]
+rpc_url = "http://supernode-a:8545/10"
+consensus_skip_peer_count = true
+[backends.supernode-b]
+rpc_url = "http://supernode-b:8545/10"
+consensus_skip_peer_count = true
+[backends.supernode-c]
+rpc_url = "http://supernode-c:8545/10"
+consensus_skip_peer_count = true
+
+[backend_groups]
+[backend_groups.follow-source]
+backends = ["supernode-a", "supernode-b", "supernode-c"]
+routing_strategy = "consensus_aware_consensus_layer"
+
+[rpc_method_mappings]
+optimism_syncStatus = "follow-source"
+```
+
+Light CLs then run with `--l2.follow.source=http://<this-proxyd>:8545`, with no `/<chainID>` suffix.
+Repeat with the Unichain path (`/130`) for a second instance that serves the Unichain fleet.
+A Light CL only calls `optimism_syncStatus` on its follow source, so that is the only method the instance needs to map.
 
 ## Caching and metrics
 

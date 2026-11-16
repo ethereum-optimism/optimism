@@ -1,7 +1,7 @@
 #![allow(missing_docs, rustdoc::missing_crate_level_docs)]
 
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
-use reth_optimism_chainspec::is_superchain_chain_id;
+use reth_optimism_chainspec::{is_superchain_chain_id, superchain_block_time};
 use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
 use reth_optimism_node::{OpNode, args::RollupArgs, launch_node};
 use tracing::{info, warn};
@@ -52,10 +52,14 @@ fn main() {
     }
 
     if let Err(err) = Cli::<OpChainSpecParser, RollupArgs>::parse_with_denied_args().run(
-        async move |builder, args| {
+        async move |builder, mut args| {
+            let chain_id = builder.config().chain.chain.id();
             if args.testing_sdm_fixed_policy.is_some() {
-                validate_testing_sdm_fixed_policy(builder.config().chain.chain.id())?;
+                validate_testing_sdm_fixed_policy(chain_id)?;
             }
+            // Looks up the resolved chain ID, like the SDM check, so a custom genesis of a
+            // registry chain gets the registry's block time too.
+            args.block_time = args.block_time.or_else(|| superchain_block_time(chain_id));
 
             info!(target: "reth::cli", "Launching node");
             launch_node(builder, OpNode::new(args)).await

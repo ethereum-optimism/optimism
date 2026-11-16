@@ -367,6 +367,7 @@ impl OpNode {
             .with_flashblocks(self.args.flashblocks_url.clone())
             .with_flashblock_consensus(self.args.flashblock_consensus)
             .with_retain_forwarded_txs(self.args.retain_forwarded_txs)
+            .with_block_time(self.args.block_time)
     }
 
     /// Instantiates the [`ProviderFactoryBuilder`] for an opstack node.
@@ -1125,6 +1126,8 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     flashblocks_url: Option<Url>,
     /// Enable flashblock consensus client to drive chain forward.
     flashblock_consensus: bool,
+    /// Seconds between two blocks, which dates the RPC's pending block.
+    block_time: Option<u64>,
 }
 
 impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
@@ -1144,6 +1147,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
             tokio_runtime: None,
             flashblocks_url: None,
             flashblock_consensus: false,
+            block_time: None,
         }
     }
 }
@@ -1193,6 +1197,12 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
         self
     }
 
+    /// Configure the chain's block time in seconds, which dates the RPC's pending block.
+    pub const fn with_block_time(mut self, block_time: Option<u64>) -> Self {
+        self.block_time = block_time;
+        self
+    }
+
     /// Configure the minimum priority fee (tip)
     pub const fn with_min_suggested_priority_fee(mut self, min: u64) -> Self {
         self.min_suggested_priority_fee = min;
@@ -1229,6 +1239,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             _nt,
             flashblocks_url,
             flashblock_consensus,
+            block_time,
             ..
         } = self;
         OpAddOnsBuilder {
@@ -1246,6 +1257,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             tokio_runtime,
             flashblocks_url,
             flashblock_consensus,
+            block_time,
         }
     }
 
@@ -1288,6 +1300,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             tokio_runtime,
             flashblocks_url,
             flashblock_consensus,
+            block_time,
             ..
         } = self;
 
@@ -1299,7 +1312,8 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                     .with_min_suggested_priority_fee(min_suggested_priority_fee)
                     .with_flashblocks(flashblocks_url)
                     .with_flashblock_consensus(flashblock_consensus)
-                    .with_retain_forwarded_txs(retain_forwarded_txs),
+                    .with_retain_forwarded_txs(retain_forwarded_txs)
+                    .with_block_time(block_time),
                 PVB::default(),
                 EB::default(),
                 EVB::default(),
