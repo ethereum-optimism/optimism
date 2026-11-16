@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -1294,4 +1295,58 @@ func TestConfig_ActivateAtGenesis(t *testing.T) {
 		}
 		require.Zero(t, cfg)
 	})
+}
+
+// konaRollupConfigFixture is kona's serialization of a rollup config, pinned on the kona side by
+// test_serialize_named_l2_chain_id_as_number (rust/kona/crates/protocol/genesis/src/rollup.rs).
+const konaRollupConfigFixture = "../../rust/kona/crates/protocol/genesis/tests/fixtures/rollup_config_named_chain.json"
+
+// TestDecodeKonaRollupConfig decodes kona-node's optimism_rollupConfig serialization, as
+// RollupClient.RollupConfig does, and checks it the way op-batcher does at startup. The fixture's
+// L2 chain ID is OP Mainnet's, which alloy names "optimism"; L2ChainID accepts only the number.
+func TestDecodeKonaRollupConfig(t *testing.T) {
+	data, err := os.ReadFile(konaRollupConfigFixture)
+	require.NoError(t, err)
+
+	var cfg Config
+	require.NoError(t, json.Unmarshal(data, &cfg))
+	require.NoError(t, cfg.Check())
+
+	want := Config{
+		Genesis: Genesis{
+			L1:     eth.BlockID{Hash: common.HexToHash("0x481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54"), Number: 10},
+			L2:     eth.BlockID{Hash: common.HexToHash("0x88aedfbf7dea6bfa2c4ff315784ad1a7f145d8f650969359c003bbed68c87631"), Number: 0},
+			L2Time: 1725557164,
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: common.HexToAddress("0xc81f87a644b41e49b3221f41251f15c6cb00ce03"),
+				Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240")),
+				GasLimit:    30_000_000,
+				// Known gap: kona serializes the EIP-1559 and operator-fee parameters as separate
+				// fields (eip1559Denominator, operatorFeeScalar, ...) that op-node does not read,
+				// so EIP1559Params and OperatorFeeParams decode to zero.
+				MinBaseFee:           50,
+				DAFootprintGasScalar: 10,
+			},
+		},
+		BlockTime:              2,
+		MaxSequencerDrift:      600,
+		SeqWindowSize:          3600,
+		ChannelTimeoutBedrock:  300,
+		L1ChainID:              big.NewInt(3151908),
+		L2ChainID:              big.NewInt(10),
+		RegolithTime:           ptr.New(uint64(0)),
+		CanyonTime:             ptr.New(uint64(0)),
+		DeltaTime:              ptr.New(uint64(0)),
+		EcotoneTime:            ptr.New(uint64(0)),
+		FjordTime:              ptr.New(uint64(0)),
+		BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000042069"),
+		DepositContractAddress: common.HexToAddress("0x08073dc48dde578137b8af042bcbc1c2491f1eb2"),
+		L1SystemConfigAddress:  common.HexToAddress("0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710"),
+		ChainOpConfig: &opparams.OptimismConfig{
+			EIP1559Elasticity:        6,
+			EIP1559Denominator:       50,
+			EIP1559DenominatorCanyon: ptr.New(uint64(250)),
+		},
+	}
+	require.Equal(t, want, cfg)
 }

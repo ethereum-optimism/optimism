@@ -60,7 +60,11 @@ pub struct RollupConfig {
     pub fjord_max_sequencer_drift: u64,
     /// The L1 chain ID
     pub l1_chain_id: u64,
-    /// The L2 chain ID
+    /// The L2 chain ID.
+    ///
+    /// Serialized as a JSON number, as op-node does, so Go clients can decode it. Deserialization
+    /// accepts a number or an alloy chain name.
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_chain_id"))]
     pub l2_chain_id: Chain,
     /// Hardfork timestamps.
     #[cfg_attr(feature = "serde", serde(flatten))]
@@ -100,6 +104,16 @@ pub struct RollupConfig {
 #[cfg(feature = "serde")]
 const fn is_zero(v: &u64) -> bool {
     *v == 0
+}
+
+/// Serializes a [`Chain`] as its numeric ID. `Chain`'s own `Serialize` emits a name string
+/// (e.g. `"optimism"`) for alloy-named chains, which op-node's `*big.Int` field rejects.
+#[cfg(feature = "serde")]
+fn serialize_chain_id<S: serde::Serializer>(
+    chain: &Chain,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.serialize_u64(chain.id())
 }
 
 #[cfg(feature = "arbitrary")]
@@ -1015,6 +1029,37 @@ mod tests {
         let expected = expected_rollup_config();
         let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
         assert_eq!(deserialized, expected);
+    }
+
+    /// Golden serialization of [`expected_rollup_config`] on OP Mainnet's chain ID, which alloy
+    /// names `"optimism"`. op-node's `TestDecodeKonaRollupConfig` (`op-node/rollup/types_test.go`)
+    /// decodes the same file into its `rollup.Config`, as `optimism_rollupConfig` clients do.
+    #[cfg(feature = "serde")]
+    const NAMED_CHAIN_ROLLUP_CONFIG: &str =
+        include_str!("../tests/fixtures/rollup_config_named_chain.json");
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_serialize_named_l2_chain_id_as_number() {
+        let config =
+            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..expected_rollup_config() };
+        let mut json = serde_json::to_value(&config).unwrap();
+        assert_eq!(json["l2_chain_id"], 10);
+
+        // Present only with `rollup_config_override`; op-node has no such field.
+        json.as_object_mut().unwrap().remove("fjord_max_sequencer_drift");
+        let golden: serde_json::Value = serde_json::from_str(NAMED_CHAIN_ROLLUP_CONFIG).unwrap();
+        assert_eq!(json, golden);
+        assert_eq!(serde_json::from_value::<RollupConfig>(json).unwrap(), config);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_deserialize_l2_chain_id_name() {
+        let mut json = serde_json::to_value(expected_rollup_config()).unwrap();
+        json["l2_chain_id"] = "optimism".into();
+        let config: RollupConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(config.l2_chain_id, Chain::optimism_mainnet());
     }
 
     #[test]

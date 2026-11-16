@@ -1,0 +1,48 @@
+{
+  "alt_da": null,
+  "batch_inbox_address": "0xff00000000000000000000000000000000042069",
+  "block_time": 2,
+  "canyon_time": 0,
+  "chain_op_config": {
+    "eip1559Denominator": 50,
+    "eip1559DenominatorCanyon": 250,
+    "eip1559Elasticity": 6
+  },
+  "channel_timeout": 300,
+  "delta_time": 0,
+  "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
+  "ecotone_time": 0,
+  "fjord_time": 0,
+  "genesis": {
+    "l1": {
+      "hash": "0x481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54",
+      "number": 10
+    },
+    "l2": {
+      "hash": "0x88aedfbf7dea6bfa2c4ff315784ad1a7f145d8f650969359c003bbed68c87631",
+      "number": 0
+    },
+    "l2_time": 1725557164,
+    "system_config": {
+      "baseFeeScalar": 1234,
+      "batcherAddr": "0xc81f87a644b41e49b3221f41251f15c6cb00ce03",
+      "blobBaseFeeScalar": 5678,
+      "daFootprintGasScalar": 10,
+      "eip1559Denominator": 10,
+      "eip1559Elasticity": 20,
+      "gasLimit": 30000000,
+      "minBaseFee": 50,
+      "operatorFeeConstant": 40,
+      "operatorFeeScalar": 30,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240"
+    }
+  },
+  "granite_channel_timeout": 50,
+  "l1_chain_id": 3151908,
+  "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
+  "l2_chain_id": 10,
+  "max_sequencer_drift": 600,
+  "regolith_time": 0,
+  "seq_window_size": 3600
+}
