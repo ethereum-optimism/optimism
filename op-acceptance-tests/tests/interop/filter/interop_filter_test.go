@@ -28,13 +28,9 @@ func setupInteropFilterTest(t devtest.T) *presets.TwoL2SupernodeInterop {
 }
 
 // interopTxRejectedError returns true if err matches any known interop
-// transaction rejection from op-geth, op-reth, or the interop filter.
+// transaction rejection from op-reth or the interop filter.
 func interopTxRejectedError(err error) bool {
 	msg := err.Error()
-	// op-geth: generic filter rejection wrapping all causes
-	if strings.Contains(msg, "transaction filtered out") {
-		return true
-	}
 	// op-interop-filter: malformed or unrecognized access list entry
 	if strings.Contains(msg, "failed to parse access entry") {
 		return true
