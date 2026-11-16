@@ -8,7 +8,7 @@
 //! handle, in-flight tracking) and processes engine action messages one at
 //! a time, which structurally enforces the serial-call invariant.
 
-mod buffer;
+pub(crate) mod buffer;
 pub mod persistence;
 mod tasks;
 
