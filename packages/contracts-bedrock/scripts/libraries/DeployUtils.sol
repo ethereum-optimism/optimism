@@ -241,12 +241,15 @@ library DeployUtils {
     }
 
     /// @notice Deploys a blueprint contract using CREATE2. Code larger than one blueprint is split into two parts. Each
-    /// part is deployed, or reused if it is already deployed.
-    /// @param _rawBytecode Raw bytecode of the contract the blueprint will deploy.
+    /// part is deployed, or reused if it is already deployed, and logged with the contract name and its address.
+    /// @param _name Name of the contract the blueprint will deploy, for the log and the revert message.
+    /// @param _rawBytecode Raw bytecode of the contract the blueprint will deploy. It is not looked up from `_name`, so
+    /// that tests can pass code larger than one blueprint.
     /// @param _salt Salt for the CREATE2 operation.
     /// @return newContract1_ Address of the blueprint, or of its first part.
     /// @return newContract2_ Address of the second part, or address(0) if the code fits in one blueprint.
     function createDeterministicBlueprint(
+        string memory _name,
         bytes memory _rawBytecode,
         bytes32 _salt
     )
@@ -255,12 +258,15 @@ library DeployUtils {
     {
         uint32 maxSize = Blueprint.maxInitCodeSize();
         if (_rawBytecode.length <= maxSize) {
-            newContract1_ = createDeterministicBlueprintPart(_rawBytecode, _salt, "Blueprint");
+            newContract1_ = createDeterministicBlueprintPart(_rawBytecode, _salt, string.concat(_name, " blueprint"));
         } else {
-            newContract1_ =
-                createDeterministicBlueprintPart(Bytes.slice(_rawBytecode, 0, maxSize), _salt, "Blueprint part 1");
+            newContract1_ = createDeterministicBlueprintPart(
+                Bytes.slice(_rawBytecode, 0, maxSize), _salt, string.concat(_name, " blueprint part 1")
+            );
             newContract2_ = createDeterministicBlueprintPart(
-                Bytes.slice(_rawBytecode, maxSize, _rawBytecode.length - maxSize), _salt, "Blueprint part 2"
+                Bytes.slice(_rawBytecode, maxSize, _rawBytecode.length - maxSize),
+                _salt,
+                string.concat(_name, " blueprint part 2")
             );
         }
     }

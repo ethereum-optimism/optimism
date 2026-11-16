@@ -43,6 +43,10 @@ func TestDeployImplementations(t *testing.T) {
 		Challenger:                         common.BigToAddress(big.NewInt(14)),
 		SP1Verifier:                        sp1Verifier,
 	}
+	// The word boundary keeps "Proxy blueprint" from matching "L1ChugSplashProxy blueprint" and
+	// "ResolvedDelegateProxy blueprint".
+	blueprints := []string{"AddressManager", "Proxy", "ProxyAdmin", "L1ChugSplashProxy", "ResolvedDelegateProxy"}
+
 	// A Solidity test cannot see console calls: vm.expectCall and state-diff recording both miss
 	// them. So this test checks the deployment messages in the forge output.
 	var logs bytes.Buffer
@@ -51,9 +55,11 @@ func TestDeployImplementations(t *testing.T) {
 	require.NoError(t, err)
 	requireCode(t, env, output.OpcmV2)
 	require.Contains(t, logs.String(), "SystemConfig deployed at "+output.SystemConfigImpl.Hex())
-	require.Contains(t, logs.String(), "Blueprint deployed at ")
+	for _, name := range blueprints {
+		require.Regexp(t, `\b`+name+` blueprint deployed at 0x`, logs.String())
+	}
 	require.NotContains(t, logs.String(), "SystemConfig already deployed at ")
-	require.NotContains(t, logs.String(), "Blueprint already deployed at ")
+	require.NotContains(t, logs.String(), " blueprint already deployed at ")
 
 	logs.Reset()
 	reused, err := DeployImplementations(env, input)
@@ -61,7 +67,9 @@ func TestDeployImplementations(t *testing.T) {
 	require.Equal(t, output, reused)
 	require.Contains(t, logs.String(), "SystemConfig already deployed at "+output.SystemConfigImpl.Hex())
 	require.Contains(t, logs.String(), "L1CrossDomainMessenger already deployed at "+output.L1CrossDomainMessengerImpl.Hex())
-	require.Contains(t, logs.String(), "Blueprint already deployed at ")
+	for _, name := range blueprints {
+		require.Regexp(t, `\b`+name+` blueprint already deployed at 0x`, logs.String())
+	}
 	require.NotContains(t, logs.String(), "SystemConfig deployed at ")
-	require.NotContains(t, logs.String(), "Blueprint deployed at ")
+	require.NotContains(t, logs.String(), " blueprint deployed at ")
 }

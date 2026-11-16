@@ -37,8 +37,14 @@ abstract contract DeployUtils_TestInit is Test {
     /// @notice Calls createDeterministicBlueprint in a call of its own.
     /// @dev An expected revert applies to the next call. Called internally, that is the CREATE2 of the blueprint,
     ///      which succeeds, so forge makes it fail before DeployUtils can revert.
-    function helper_createDeterministicBlueprint(bytes calldata _rawBytecode, bytes32 _salt) external {
-        DeployUtils.createDeterministicBlueprint(_rawBytecode, _salt);
+    function helper_createDeterministicBlueprint(
+        string calldata _name,
+        bytes calldata _rawBytecode,
+        bytes32 _salt
+    )
+        external
+    {
+        DeployUtils.createDeterministicBlueprint(_name, _rawBytecode, _salt);
     }
 }
 
@@ -81,7 +87,7 @@ contract DeployUtils_CreateDeterministicBlueprint_Test is DeployUtils_TestInit {
         }
 
         vm.startBroadcast(msg.sender);
-        (address first, address second) = DeployUtils.createDeterministicBlueprint(code, salt);
+        (address first, address second) = DeployUtils.createDeterministicBlueprint("Test", code, salt);
         vm.stopBroadcast();
 
         assertEq(first, expected);
@@ -111,7 +117,7 @@ contract DeployUtils_CreateDeterministicBlueprint_Test is DeployUtils_TestInit {
         }
 
         vm.startBroadcast(msg.sender);
-        (address first, address second) = DeployUtils.createDeterministicBlueprint(code, salt);
+        (address first, address second) = DeployUtils.createDeterministicBlueprint("Test", code, salt);
         vm.stopBroadcast();
 
         assertEq(first, expected1);
@@ -126,16 +132,16 @@ contract DeployUtils_CreateDeterministicBlueprint_Test is DeployUtils_TestInit {
 
     /// @notice A single-part blueprint at an unexpected address reverts with its label.
     function test_createDeterministicBlueprint_unexpectedAddress_reverts() public {
-        vm.expectRevert("DeployUtils: unexpected address for Blueprint");
-        this.helper_createDeterministicBlueprint(hex"6000", keccak256("single blueprint unexpected address"));
+        vm.expectRevert("DeployUtils: unexpected address for Test blueprint");
+        this.helper_createDeterministicBlueprint("Test", hex"6000", keccak256("single blueprint unexpected address"));
     }
 
     /// @notice The first part of a split blueprint at an unexpected address reverts with its label.
     function test_createDeterministicBlueprint_unexpectedPart1Address_reverts() public {
         bytes memory code = new bytes(Blueprint.maxInitCodeSize() + 1);
 
-        vm.expectRevert("DeployUtils: unexpected address for Blueprint part 1");
-        this.helper_createDeterministicBlueprint(code, keccak256("split blueprint unexpected address"));
+        vm.expectRevert("DeployUtils: unexpected address for Test blueprint part 1");
+        this.helper_createDeterministicBlueprint("Test", code, keccak256("split blueprint unexpected address"));
     }
 
     /// @notice The second part of a split blueprint at an unexpected address reverts with its label.
@@ -146,8 +152,8 @@ contract DeployUtils_CreateDeterministicBlueprint_Test is DeployUtils_TestInit {
         bytes memory part1 = Bytes.slice(code, 0, maxSize);
         vm.etch(vm.computeCreate2Address(salt, keccak256(Blueprint.blueprintDeployerBytecode(part1))), hex"00");
 
-        vm.expectRevert("DeployUtils: unexpected address for Blueprint part 2");
-        this.helper_createDeterministicBlueprint(code, salt);
+        vm.expectRevert("DeployUtils: unexpected address for Test blueprint part 2");
+        this.helper_createDeterministicBlueprint("Test", code, salt);
     }
 }
 
