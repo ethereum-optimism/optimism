@@ -12,8 +12,9 @@ import (
 
 // TestEmbeddedGenesesMatchRegistryHash decodes each embedded genesis with the op-core codec and
 // computes its block with the chain config built from the registry TOML, whatever config the
-// genesis file carries. The block hash must be the registry's L2 genesis hash. OP Mainnet's
-// genesis carries a stateHash in place of its alloc, which op-core does not support.
+// genesis file carries. The block hash must be the registry's L2 genesis hash. OP Mainnet's and
+// Whitechain Mainnet's (1875) geneses carry a stateHash in place of their alloc (state imported from
+// a previous chain), which op-core does not support.
 func TestEmbeddedGenesesMatchRegistryHash(t *testing.T) {
 	for chainID, ch := range Chains {
 		t.Run(ch.Network+"/"+ch.Name, func(t *testing.T) {
@@ -22,7 +23,7 @@ func TestEmbeddedGenesesMatchRegistryHash(t *testing.T) {
 			require.NoError(t, err)
 			var g genesis.Genesis
 			err = json.Unmarshal(data, &g)
-			if chainID == opparams.OPMainnetChainID {
+			if chainID == opparams.OPMainnetChainID || chainID == 1875 {
 				require.ErrorContains(t, err, "stateHash")
 				return
 			}
