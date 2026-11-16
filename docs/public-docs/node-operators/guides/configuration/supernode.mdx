@@ -12,7 +12,7 @@ audit-source:
 ---
 
 <Info>
-  This page tracks the [op-supernode/v1.0.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.4) release.
+  This page tracks the [op-supernode/v1.0.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) release.
   For background on what op-supernode is and why it exists, see the [supernode explainer](/op-stack/interop/supernode).
 </Info>
 
@@ -59,6 +59,17 @@ A full archive is not required — see the [op-reth configuration reference](/no
 
 If you also run op-challenger for permissionless fault proofs, the same ELs additionally need historical proofs enabled — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs).
 
+The 7-day window is what the supernode itself needs.
+What else an EL keeps depends on what you serve from it:
+
+| What you use the node for | History each EL needs |
+| ------------------------- | --------------------- |
+| Following the chain (every supernode EL, including a chain you don't serve) | At least 7 days of block and receipt history. No archive. |
+| Serving RPC for recent blocks and transactions, and broadcasting transactions | Same as above, on the ELs you serve RPC from. |
+| Serving historical state queries | Archive, on the ELs you serve those queries from. An EL for a chain you don't serve never needs archive. |
+| Serving `eth_getProof` for L2-to-L1 withdrawal proving | A proof window or a proofs-history store, depending on the chain; see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs). |
+| Running op-challenger | Historical proofs on the supernode's ELs, as described above. |
+
 ### Pair op-supernode with a Light CL fleet
 
 For operators running more than a handful of nodes, the deployable pattern is to concentrate the expensive multi-chain derivation work on supernodes and run the rest of the fleet as op-node or kona-node instances in Light CL mode.
@@ -73,8 +84,9 @@ Leave P2P enabled (the default) when the supernode is the only node in the topol
 
 ### Run an HA pool of supernodes behind a consensus-aware proxyd
 
-For production reliability, OP Labs recommends running an **HA pool of at least three op-supernode instances** and fronting them with a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) configured with the `consensus_aware_consensus_layer` routing strategy.
+For production reliability, OP Labs recommends running an **HA pool of at least three op-supernode instances** and fronting them with a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-layer-routing-for-follow-sources) configured with the `consensus_aware_consensus_layer` routing strategy.
 Point the Light CL fleet's `--l2.follow.source` at the proxyd endpoint rather than at a single supernode.
+proxyd routes by RPC method rather than URL path, so run one proxyd instance per chain, each with the supernodes' `/<chainID>` paths as its backends; the [proxyd guide](/chain-operators/tools/proxyd#consensus-layer-routing-for-follow-sources) has an example configuration.
 This hides individual supernode failures or reorgs from the Light CL fleet and lets the supernode tier roll between releases without downtime.
 
 An individual supernode going down inside the HA pool is masked by `proxyd` — Light CLs continue following the surviving instances.
