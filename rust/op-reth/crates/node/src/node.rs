@@ -367,6 +367,7 @@ impl OpNode {
             .with_flashblocks(self.args.flashblocks_url.clone())
             .with_flashblock_consensus(self.args.flashblock_consensus)
             .with_retain_forwarded_txs(self.args.retain_forwarded_txs)
+            .with_block_time(self.args.block_time)
     }
 
     /// Instantiates the [`ProviderFactoryBuilder`] for an opstack node.
@@ -429,6 +430,7 @@ pub async fn launch_node(
         let path = node.args.history.resolve_storage_path(builder.config().datadir().as_ref());
         let window = node.args.proofs_history_window.window;
         let verification_interval = node.args.proofs_history_verification_interval;
+        let prefetch_threads = node.args.proofs_history_prefetch_threads as usize;
 
         info!(target: "reth::cli", "Using on-disk storage for proofs history");
         let mdbx = Arc::new(
@@ -471,6 +473,7 @@ pub async fn launch_node(
                 Ok(OpProofsExEx::builder(exex_context, storage_exec)
                     .with_proofs_history_window(window)
                     .with_verification_interval(verification_interval)
+                    .with_prefetch_threads(prefetch_threads)
                     .build()
                     .run()
                     .boxed())
@@ -807,11 +810,11 @@ where
 
 /// RPC methods an OP node does not serve, on any transport.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_eth_api::EthApi`
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-1 `reth_rpc_eth_api::EthApi`
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_api::DebugApi`
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-1 `reth_rpc_api::DebugApi`
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_api::EngineEthApi`
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-1 `reth_rpc_api::EngineEthApi`
 ///
 /// Upstream installs these methods as part of the full `eth` and `debug` APIs, and the auth-port
 /// `eth` namespace.
@@ -831,7 +834,7 @@ const UNSERVED_RPC_METHODS: &[&str] = &[
 
 /// Rejects the RPC cache options that compute EIP-7928 block access lists by re-executing blocks.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_node_core::args::RpcStateCacheArgs`
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-1 `reth_node_core::args::RpcStateCacheArgs`
 ///
 /// Upstream replays every new canonical block to compute its BAL with `--rpc-cache.prewarm-bals`
 /// until a block carries a `block_access_list_hash`, which OP blocks never do, and transaction
@@ -1123,6 +1126,8 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     flashblocks_url: Option<Url>,
     /// Enable flashblock consensus client to drive chain forward.
     flashblock_consensus: bool,
+    /// Seconds between two blocks, which dates the RPC's pending block.
+    block_time: Option<u64>,
 }
 
 impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
@@ -1142,6 +1147,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
             tokio_runtime: None,
             flashblocks_url: None,
             flashblock_consensus: false,
+            block_time: None,
         }
     }
 }
@@ -1191,6 +1197,12 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
         self
     }
 
+    /// Configure the chain's block time in seconds, which dates the RPC's pending block.
+    pub const fn with_block_time(mut self, block_time: Option<u64>) -> Self {
+        self.block_time = block_time;
+        self
+    }
+
     /// Configure the minimum priority fee (tip)
     pub const fn with_min_suggested_priority_fee(mut self, min: u64) -> Self {
         self.min_suggested_priority_fee = min;
@@ -1227,6 +1239,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             _nt,
             flashblocks_url,
             flashblock_consensus,
+            block_time,
             ..
         } = self;
         OpAddOnsBuilder {
@@ -1244,6 +1257,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             tokio_runtime,
             flashblocks_url,
             flashblock_consensus,
+            block_time,
         }
     }
 
@@ -1286,6 +1300,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             tokio_runtime,
             flashblocks_url,
             flashblock_consensus,
+            block_time,
             ..
         } = self;
 
@@ -1297,7 +1312,8 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                     .with_min_suggested_priority_fee(min_suggested_priority_fee)
                     .with_flashblocks(flashblocks_url)
                     .with_flashblock_consensus(flashblock_consensus)
-                    .with_retain_forwarded_txs(retain_forwarded_txs),
+                    .with_retain_forwarded_txs(retain_forwarded_txs)
+                    .with_block_time(block_time),
                 PVB::default(),
                 EB::default(),
                 EVB::default(),

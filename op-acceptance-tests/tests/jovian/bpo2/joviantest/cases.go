@@ -8,6 +8,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/jovian"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/eip1559"
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -18,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -197,7 +198,7 @@ func RunDAFootprint(gt *testing.T, setup SetupFn) {
 	sys.FunderL1.FundAtLeast(systemOwner, eth.HalfEther)
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
 	sys.L2EL.WaitForOnline()
-	ethClient := sys.L2EL.Escape().EthClient()
+	l2Client := sys.L2EL.Escape().L2EthClient()
 
 	s1000 := uint16(1000)
 	s0 := uint16(0)
@@ -254,22 +255,22 @@ func RunDAFootprint(gt *testing.T, setup SetupFn) {
 				return true, nil
 			})
 
-			_, txs, err := ethClient.InfoAndTxsByHash(t.Ctx(), info.Hash())
+			_, txs, err := l2Client.InfoAndUserTxsByHash(t.Ctx(), info.Hash())
 			require.NoError(err)
-			_, receipts, err := sys.L2EL.Escape().L2EthClient().FetchReceipts(t.Ctx(), info.Hash())
+			_, receipts, err := l2Client.FetchReceipts(t.Ctx(), info.Hash())
 			require.NoError(err)
+			userReceipts := receipts.UserReceipts()
+			require.Len(userReceipts, len(txs))
 
 			var totalDAFootprint uint64
 			for i, tx := range txs {
-				if tx.IsDepositTx() {
-					continue
-				}
-				recScalar := receipts[i].DAFootprintGasScalar
+				require.Equal(tx.Hash(), userReceipts[i].TxHash, "receipt %d does not belong to user tx %d", i, i)
+				recScalar := userReceipts[i].DAFootprintGasScalar
 				require.NotNil(recScalar, "nil receipt DA footprint gas scalar")
 				require.EqualValues(tc.expected, *recScalar, "DA footprint gas scalar mismatch in receipt")
 
-				txDAFootprint := bigs.Uint64Strict(tx.RollupCostData().EstimatedDASize()) * uint64(tc.expected)
-				require.Equal(txDAFootprint, receipts[i].BlobGasUsed, "tx DA footprint mismatch with receipt")
+				txDAFootprint := bigs.Uint64Strict(opfees.TxRollupCostData(tx).EstimatedDASize()) * uint64(tc.expected)
+				require.Equal(txDAFootprint, userReceipts[i].BlobGasUsed, "tx DA footprint mismatch with receipt")
 				totalDAFootprint += txDAFootprint
 			}
 			t.Logf("Block %s has header/calculated DA footprint %d/%d",

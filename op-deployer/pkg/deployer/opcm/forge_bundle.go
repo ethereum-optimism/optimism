@@ -29,7 +29,11 @@ var (
 		{"DeployMIPS.s.sol", "DeployMIPS"},
 		{"DeployAlphabetVM.s.sol", "DeployAlphabetVM"},
 		{"SetDisputeGameImpl.s.sol", "SetDisputeGameImpl"},
+		{"SetPreinstalls.s.sol", "SetPreinstalls"},
 	}
+
+	// L2ForgeScripts are the scripts that build the L2 genesis.
+	L2ForgeScripts = []ForgeScript{{"L2Genesis.s.sol", "L2Genesis"}}
 )
 
 // NewForgeClient returns a forge client for a contracts bundle. It checks that the scripts have the
@@ -63,7 +67,7 @@ func CheckForgeScripts(artifactsFS foundry.StatDirFs, scripts []ForgeScript) err
 			return fmt.Errorf("the contracts bundle has no %s script: %w", script.Contract, err)
 		}
 		if _, ok := artifact.ABI.Methods["runWithBytes"]; !ok {
-			return fmt.Errorf("the %s script of the contracts bundle has no runWithBytes entrypoint; use the contracts release of this op-deployer release, such as the embedded artifacts, or --use-forge=false", script.Contract)
+			return fmt.Errorf("the %s script of the contracts bundle has no runWithBytes entrypoint; use the contracts release of this op-deployer release, such as the embedded artifacts", script.Contract)
 		}
 	}
 	return nil

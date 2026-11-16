@@ -89,6 +89,6 @@ func TestIntegration_Contains_BeforeInit_Uninitialized(t *testing.T) {
 func TestIntegration_Contains_FailsafeAlreadyEnabled_Rejected(t *testing.T) {
 	t.Parallel()
 	bk := twoChainBackend(t, 1)
-	bk.SetFailsafeEnabled(true)
+	require.NoError(t, bk.SetFailsafeEnabled(true))
 	bk.requireRejection(executingChain(), inclusionTs, "failsafe", bk.sourceAccess(100, 0))
 }

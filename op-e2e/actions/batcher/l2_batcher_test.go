@@ -124,7 +124,7 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	// check that the tx from alice made it into the L2 chain
 	verifCl := verifEngine.EthClient()
-	vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), tx.Hash())
+	vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), tx.Hash()) //nolint:forbidigo // L2 user tx: alice's transfer
 	require.NoError(t, err)
 	require.False(t, isPending)
 	require.NotNil(t, vTx)

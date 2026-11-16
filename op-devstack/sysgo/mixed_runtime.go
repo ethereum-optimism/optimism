@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -42,33 +42,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
 
-type MixedL2ELKind string
-
-const (
-	MixedL2ELOpGeth MixedL2ELKind = "op-geth"
-	MixedL2ELOpReth MixedL2ELKind = "op-reth"
-)
-
 type MixedL2CLKind string
 
 const (
 	MixedL2CLOpNode MixedL2CLKind = "op-node"
 	MixedL2CLKona   MixedL2CLKind = "kona-node"
 )
-
-// SkipOnOpGeth skips the test when the L2 execution layer is op-geth
-func SkipOnOpGeth(t devtest.T, reason string) {
-	if devstackL2ELKind() == MixedL2ELOpGeth {
-		t.Skipf("skipping on op-geth: %s", reason)
-	}
-}
-
-// SkipOnOpReth skips the test when the L2 execution layer is op-reth
-func SkipOnOpReth(t devtest.T, reason string) {
-	if devstackL2ELKind() == MixedL2ELOpReth {
-		t.Skipf("skipping on op-reth: %s", reason)
-	}
-}
 
 // SkipOnKonaNode skips the test when the L2 consensus layer is kona-node
 func SkipOnKonaNode(t devtest.T, reason string) {
@@ -81,13 +60,6 @@ func FlakyOnKonaNode(t devtest.T, reason string) {
 	if devstackL2CLKind() == MixedL2CLKona {
 		t.MarkFlaky(reason)
 	}
-}
-
-// devstackL2ELKind returns the L2 EL kind requested via the DEVSTACK_L2EL_KIND
-// environment variable. Returns the empty string when the variable is unset,
-// meaning "use the runtime's default".
-func devstackL2ELKind() MixedL2ELKind {
-	return MixedL2ELKind(os.Getenv("DEVSTACK_L2EL_KIND"))
 }
 
 // devstackL2CLKind returns the L2 CL kind requested via the DEVSTACK_L2CL_KIND
@@ -168,7 +140,6 @@ func mixedL2ELOptsFromEnv(binary, rawArgs string) ([]OpRethOption, error) {
 type MixedSingleChainNodeSpec struct {
 	ELKey       string
 	CLKey       string
-	ELKind      MixedL2ELKind
 	CLKind      MixedL2CLKind
 	IsSequencer bool
 	// IsolateFromL2P2P keeps this node off the L2 CL/EL P2P mesh: it is never peered with the
@@ -179,7 +150,6 @@ type MixedSingleChainNodeSpec struct {
 	// OpRethOpts are per-node op-reth options applied AFTER the shared cfg.OpRethOptions, only to
 	// this node's EL. Use for options that must not reach every node — e.g. a per-node binary
 	// override (OpRethWithBinary) or a flag a single node should receive while its peers reject it.
-	// Ignored for non-op-reth EL kinds.
 	OpRethOpts []OpRethOption
 	// EnableSafeDB gives this node's CL a safe head database in a fresh temp dir, so it records
 	// the L2 safe head reached as of each L1 block and serves it over optimism_safeHeadAtL1Block.
@@ -248,30 +218,19 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		return l1EL, l1CL
 	}
 	if cfg.InteropAtGenesis {
-		_, l1Net, l2Net, depSet, _ = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+		_, l1Net, l2Net, depSet = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
 	} else {
-		_, l1Net, l2Net, _, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+		_, l1Net, l2Net, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
 	}
 
 	metricsRegistrar := mixedNoopMetricsRegistrar{}
 
 	nodes := make([]mixedSingleChainNode, 0, len(cfg.NodeSpecs))
 	for _, spec := range cfg.NodeSpecs {
-		identity := NewELNodeIdentity(0)
-
 		// Shared options first, then this node's per-spec options (so a per-node flag can
 		// override or extend the shared set without leaking to other nodes).
 		nodeOpRethOpts := append(append([]OpRethOption{}, cfg.OpRethOptions...), spec.OpRethOpts...)
-
-		var el L2ELNode
-		switch spec.ELKind {
-		case MixedL2ELOpGeth:
-			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
-		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, nodeOpRethOpts...)
-		default:
-			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
-		}
+		el := startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, nodeOpRethOpts...)
 
 		safeDBPath := ""
 		if spec.EnableSafeDB {
@@ -408,7 +367,6 @@ func buildMixedOpRethNode(
 	t.Require().NoError(os.WriteFile(chainConfigPath, data, 0o640), "must write genesis file")
 
 	dataDirPath := filepath.Join(tempDir, "data")
-	t.Require().NoError(os.MkdirAll(dataDirPath, 0o755), "must create datadir")
 
 	logDirPath := filepath.Join(tempDir, "logs")
 	t.Require().NoError(os.MkdirAll(logDirPath, 0o755), "must create logs dir")
@@ -441,6 +399,9 @@ func buildMixedOpRethNode(
 		"--builder.interval=100ms",
 		"--chain=" + chainConfigPath,
 		"--color=never",
+		// Devnet chains are in neither the superchain registry nor alloy-chains, so op-reth
+		// can't derive the block time that dates its pending block.
+		"--rollup.block-time=" + strconv.FormatUint(l2Net.rollupCfg.BlockTime, 10),
 		"--datadir=" + dataDirPath,
 		"--disable-discovery",
 		"--http",
@@ -467,26 +428,23 @@ func buildMixedOpRethNode(
 		args = append(args, "--metrics=127.0.0.1:0")
 	}
 
-	initArgs := []string{
+	dataDirs := []string{dataDirPath}
+	initCmds := [][]string{{
 		"init",
 		"--datadir=" + dataDirPath,
 		"--chain=" + chainConfigPath,
-	}
-	initOut, err := exec.Command(execPath, initArgs...).CombinedOutput()
-	t.Require().NoError(err, "must init op-reth node: %s", string(initOut))
+	}}
 
 	if !opRethCfg.DisableProofsHistory {
 		proofHistoryDir := filepath.Join(tempDir, "proof-history")
-
-		initProofsArgs := []string{
+		dataDirs = append(dataDirs, proofHistoryDir)
+		initCmds = append(initCmds, []string{
 			"proofs",
 			"init",
 			"--datadir=" + dataDirPath,
 			"--chain=" + chainConfigPath,
 			"--proofs-history.storage-path=" + proofHistoryDir,
-		}
-		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
+		})
 
 		args = append(
 			args,
@@ -498,7 +456,7 @@ func buildMixedOpRethNode(
 
 	args = append(args, opRethCfg.ExtraArgs...)
 
-	return &OpReth{
+	node := &OpReth{
 		name:               key,
 		chainID:            l2Net.ChainID(),
 		jwtPath:            jwtPath,
@@ -508,9 +466,13 @@ func buildMixedOpRethNode(
 		execPath:           execPath,
 		args:               args,
 		env:                []string{},
+		dataDirs:           dataDirs,
+		initCmds:           initCmds,
 		p:                  t,
 		l2MetricsRegistrar: metricsRegistrar,
 	}
+	node.initData()
+	return node
 }
 
 func startMixedOpRethNode(
@@ -693,7 +655,7 @@ func startTestSequencerForRPCs(
 					Beacon:            l1CL.beacon,
 					FinalizedDistance: 20,
 					SafeDistance:      10,
-					BlockTime:         6,
+					BlockTime:         l1Net.blockTime,
 				},
 			},
 		},

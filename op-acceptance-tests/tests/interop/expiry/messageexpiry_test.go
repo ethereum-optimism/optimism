@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -106,8 +107,10 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	send := dsl.SendETH(sender, recipient.Address(), sys.L2ChainB.ChainID(), eth.HalfEther)
 
 	messengerA := sys.L2ELA.L2ToL2CrossDomainMessenger()
-	require.Equal(uint64(productionExpiryPeriod), bigs.Uint64Strict(contract.Read(messengerA.ExpiryPeriod())),
-		"A's messenger must use the production expiry period")
+	period := bigs.Uint64Strict(contract.Read(messengerA.ExpiryPeriod()))
+	require.Equal(uint64(productionExpiryPeriod), period, "A's messenger must use the production expiry period")
+	require.Greater(period, depset.MessageExpiryTimeSecondsInterop,
+		"a source chain must not expire a message while a destination can still execute it")
 
 	// The export is forced in through B's portal, as it would be if B's sequencer censored it.
 	exportRcpt, exportedAt := exportAsDeposit(sys, l1User, send.Message)

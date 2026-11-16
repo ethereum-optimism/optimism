@@ -46,7 +46,7 @@ func TestSetCodeInTxPool(t *testing.T) {
 
 			receipt, err := helpers.SendL2SetCodeTx(
 				cfg,
-				sys.NodeClient(e2esys.RoleSeq),
+				sys.NodeSourceClient(e2esys.RoleSeq),
 				sys.Cfg.Secrets.Alice,
 				func(opts *helpers.TxOpts) {
 					opts.ToAddr = &common.Address{0xaa}

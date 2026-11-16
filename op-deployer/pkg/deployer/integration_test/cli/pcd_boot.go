@@ -15,11 +15,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/el"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	e2egeth "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/reth"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	nodesync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -52,8 +51,8 @@ type pcdBootResult struct {
 	expectedGenesisHash common.Hash
 	genesisTime         uint64
 	l2BlockTime         uint64
-	block0              *types.Block
-	block1              *types.Block
+	block0              *types.Header
+	block1              *types.Header
 	bootToBlock1        time.Duration
 }
 
@@ -94,7 +93,7 @@ func bootPCDFromArtifacts(t *testing.T, cfg pcdBootConfig) pcdBootResult {
 	dependencySet, err := depset.ParseJSONDependencySet(bytes.NewReader(dependencySetData))
 	require.NoErrorf(t, err, "parse committed dependency-set artifact %s", cfg.dependencySetPath)
 
-	l1Genesis, err := cfg.l1Client.BlockByNumber(t.Context(), big.NewInt(0))
+	l1Genesis, err := cfg.l1Client.HeaderByNumber(t.Context(), big.NewInt(0))
 	require.NoError(t, err)
 	l1ChainID, err := cfg.l1Client.ChainID(t.Context())
 	require.NoError(t, err)
@@ -106,7 +105,7 @@ func bootPCDFromArtifacts(t *testing.T, cfg pcdBootConfig) pcdBootResult {
 
 	// Anvil provides only the L1 execution endpoint, so use a fake beacon for the
 	// L1 consensus endpoint.
-	beacon := fakebeacon.NewBeacon(lgr.New("role", "l1_cl"), blobstore.New(), l1Genesis.Time(), pcdL1BeaconBlockTime)
+	beacon := fakebeacon.NewBeacon(lgr.New("role", "l1_cl"), blobstore.New(), l1Genesis.Time, pcdL1BeaconBlockTime)
 	require.NoError(t, beacon.Start("127.0.0.1:0"))
 	t.Cleanup(func() {
 		_ = beacon.Close()
@@ -116,12 +115,8 @@ func bootPCDFromArtifacts(t *testing.T, cfg pcdBootConfig) pcdBootResult {
 	jwtSecret := readPCDJWTSecret(t, jwtPath)
 	elCtx, cancelEL := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancelEL()
-	l2EL, err := el.InitL2(elCtx, el.L2Config{
-		Kind:            services.ELKindOpReth,
-		Name:            "pcd-boot",
+	l2EL, err := reth.InitL2(elCtx, lgr.New("role", "l2_el"), "pcd-boot", nil, jwtPath, reth.Config{
 		GenesisJSONPath: cfg.genesisPath,
-		JWTPath:         jwtPath,
-		Logger:          lgr.New("role", "l2_el"),
 		DataDir:         t.TempDir(),
 	})
 	require.NoErrorf(t, err, "start op-reth from committed genesis artifact %s", cfg.genesisPath)
@@ -184,7 +179,7 @@ func bootPCDFromArtifacts(t *testing.T, cfg pcdBootConfig) pcdBootResult {
 	block1, err := e2egeth.WaitForBlock(big.NewInt(1), l2Client, e2egeth.WithAbsoluteTimeout(2*time.Minute))
 	require.NoErrorf(t, err, "wait for L2 block 1 from artifacts genesis=%s rollup=%s depset=%s", cfg.genesisPath, cfg.rollupPath, cfg.dependencySetPath)
 	bootToBlock1 := time.Since(bootStarted)
-	block0, err := l2Client.BlockByNumber(t.Context(), big.NewInt(0))
+	block0, err := l2Client.HeaderByNumber(t.Context(), big.NewInt(0))
 	require.NoErrorf(t, err, "read L2 block 0 from committed genesis artifact %s", cfg.genesisPath)
 
 	return pcdBootResult{

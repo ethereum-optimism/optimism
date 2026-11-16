@@ -55,7 +55,7 @@ func consensusReceiptCases() []*gethtypes.Receipt {
 		}),
 		mk(gethtypes.DepositTxType, gethtypes.ReceiptStatusFailed, func(r *gethtypes.Receipt) {
 			r.DepositNonce = uint64Ptr(8)
-			r.DepositReceiptVersion = uint64Ptr(gethtypes.CanyonDepositReceiptVersion)
+			r.DepositReceiptVersion = uint64Ptr(optypes.CanyonDepositReceiptVersion)
 		}),
 	}
 }
@@ -122,7 +122,7 @@ func TestReceiptsEncodeIndexDepositArms(t *testing.T) {
 
 	preCanyon := encode(base.DepositNonce, nil)
 	noNonce := encode(nil, nil)
-	postCanyon := encode(base.DepositNonce, uint64Ptr(gethtypes.CanyonDepositReceiptVersion))
+	postCanyon := encode(base.DepositNonce, uint64Ptr(optypes.CanyonDepositReceiptVersion))
 
 	require.Equal(t, noNonce, preCanyon, "pre-Canyon deposit receipt hash preimage must exclude the nonce")
 	require.NotEqual(t, preCanyon, postCanyon, "post-Canyon deposit receipt hash preimage must include nonce+version")

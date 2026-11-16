@@ -62,7 +62,7 @@ func (s *SingleChainInterop) AnchorStateRegistry(l2Chain *dsl.L2Network) *dsl.An
 
 func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
-	s.L1EL.AdvanceTime(s.timeTravel, amount)
+	s.L1EL.AdvanceTime(s.timeTravel, amount, s.L1CL.BlockTime())
 }
 
 // StartZKProposer starts the op-zk-proposer after a system configured with

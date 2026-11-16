@@ -13,7 +13,6 @@ import (
 	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -109,39 +108,25 @@ func channelOutByType(b *testing.B, batchType uint, cd compressorDetails) (deriv
 func randomBlock(cfg *rollup.Config, rng *rand.Rand, txCount int, timestamp uint64) (*eth.ExecutionPayload, error) {
 	batch := derivetest.RandomSingularBatch(rng, txCount, cfg.L2ChainID)
 	batch.Timestamp = timestamp
-	block, err := singularBatchToBlock(cfg, batch)
-	if err != nil {
-		return nil, err
-	}
-	return eth.BlockAsPayload(block, cfg)
+	return singularBatchToPayload(cfg, batch)
 }
 
-// singularBatchToBlock converts a singular batch to a block for use in the benchmarks. This function
+// singularBatchToPayload converts a singular batch to a payload for use in the benchmarks. This function
 // should only be used for testing purposes, as the batch input doesn't contain the necessary information
 // to build the full block (only non-deposit transactions and a subset of header fields are populated).
-func singularBatchToBlock(rollupCfg *rollup.Config, batch *derive.SingularBatch) (*types.Block, error) {
-	l1InfoTx, err := derive.L1InfoDeposit(rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
+func singularBatchToPayload(rollupCfg *rollup.Config, batch *derive.SingularBatch) (*eth.ExecutionPayload, error) {
+	l1InfoTx, err := derive.L1InfoDepositBytes(rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
 		InfoNum:  uint64(batch.EpochNum),
 		InfoHash: batch.EpochHash,
 	}, batch.Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("could not build L1 Info transaction: %w", err)
 	}
-	txs := []*types.Transaction{testutils.TxFromDeposit(l1InfoTx)}
-	for i, opaqueTx := range batch.Transactions {
-		var tx types.Transaction
-		err = tx.UnmarshalBinary(opaqueTx)
-		if err != nil {
-			return nil, fmt.Errorf("could not decode tx %d: %w", i, err)
-		}
-		txs = append(txs, &tx)
-	}
-	return types.NewBlockWithHeader(&types.Header{
-		ParentHash: batch.ParentHash,
-		Time:       batch.Timestamp,
-	}).WithBody(types.Body{
-		Transactions: txs,
-	}), nil
+	return &eth.ExecutionPayload{
+		ParentHash:   batch.ParentHash,
+		Timestamp:    eth.Uint64Quantity(batch.Timestamp),
+		Transactions: append([]eth.Data{l1InfoTx}, batch.Transactions...),
+	}, nil
 }
 
 // a test case for the benchmark controls the number of batches and transactions per batch,

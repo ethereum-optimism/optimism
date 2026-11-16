@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/testengine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -32,6 +33,9 @@ import (
 type L2Engine struct {
 	log    log.Logger
 	client *testengine.Client
+
+	ethCl    *ethclient.Client
+	sourceCl *sources.EthClient
 
 	FailL2RPC func(call []rpc.BatchElem) error // mock error
 }
@@ -58,7 +62,15 @@ func NewL2Engine(t Testing, logger log.Logger, genesis *opgenesis.Genesis) *L2En
 	require.NoError(t, err, "spawn op-reth-test-engine")
 	t.Cleanup(engine.Close)
 
-	return &L2Engine{log: logger, client: engine}
+	sourceCl, err := sources.NewEthClient(client.NewBaseRPCClient(engine.RPC()), logger, nil, sources.DefaultEthClientConfig(10))
+	require.NoError(t, err, "create engine source client")
+
+	return &L2Engine{
+		log:      logger,
+		client:   engine,
+		ethCl:    ethclient.NewClient(engine.RPC()),
+		sourceCl: sourceCl,
+	}
 }
 
 // engineLogWriter forwards the engine subprocess's stderr into the test logger at Info, so engine
@@ -72,11 +84,18 @@ func (w *engineLogWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// EthClient returns an eth client for the engine. Every client from EthClient, GethClient and
-// RPCClient shares the engine's single connection, so closing one closes them all: release the
+// EthClient returns the engine's eth client. It, SourceClient and the clients from GethClient and
+// RPCClient share the engine's single connection, so closing one closes them all: release the
 // engine with Close instead.
 func (e *L2Engine) EthClient() *ethclient.Client {
-	return ethclient.NewClient(e.client.RPC())
+	return e.ethCl
+}
+
+// SourceClient returns the engine's OP-aware client, which reads L2 blocks by transaction class
+// and receipts with their OP fields; see EthClient on closing it. It reads the engine directly,
+// so FailL2RPC leaves it alone and an injected failure still reaches EngineClient.
+func (e *L2Engine) SourceClient() *sources.EthClient {
+	return e.sourceCl
 }
 
 // GethClient returns a geth-extensions client for the engine; see EthClient on closing it.
@@ -125,13 +144,6 @@ func (e *L2Engine) headerByLabel(t Testing, label rpc.BlockNumber) *types.Header
 	return h
 }
 
-// BlockByNumber returns the canonical L2 block at height n over the eth RPC.
-func (e *L2Engine) BlockByNumber(t Testing, n uint64) *types.Block {
-	b, err := e.EthClient().BlockByNumber(t.Ctx(), new(big.Int).SetUint64(n))
-	require.NoError(t, err, "block %d", n)
-	return b
-}
-
 // HeaderByHash returns the L2 header with the given hash over the eth RPC.
 func (e *L2Engine) HeaderByHash(t Testing, hash common.Hash) *types.Header {
 	h, err := e.EthClient().HeaderByHash(t.Ctx(), hash)
@@ -154,9 +166,14 @@ func (e *L2Engine) DumpAccounts(t Testing, blockHash common.Hash, addrs []common
 	return alloc
 }
 
-// GenesisBlock returns the L2 genesis block.
-func (e *L2Engine) GenesisBlock(t Testing) *types.Block {
-	return e.BlockByNumber(t, 0)
+// BlockTxs returns the deposits and the user transactions of the L2 block with the given hash.
+// Post-exec (0x7D) transactions are in neither list.
+func (e *L2Engine) BlockTxs(t Testing, hash common.Hash) ([]*optypes.DepositTx, types.Transactions) {
+	_, deposits, err := e.sourceCl.InfoAndDepositsByHash(t.Ctx(), hash)
+	require.NoError(t, err, "deposits of block %s", hash)
+	_, userTxs, err := e.sourceCl.InfoAndUserTxsByHash(t.Ctx(), hash)
+	require.NoError(t, err, "user txs of block %s", hash)
+	return deposits, userTxs
 }
 
 // RemainingBlockGas returns the gas still available in the block currently being built
@@ -191,12 +208,6 @@ func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineCl
 	l2Cl, err := sources.NewEngineClient(e.RPCClient(), e.log, nil, sources.EngineClientDefaultConfig(cfg))
 	require.NoError(t, err)
 	return l2Cl
-}
-
-func (e *L2Engine) SourceClient(t Testing, cacheSize int) *sources.EthClient {
-	l2sc, err := sources.NewEthClient(e.RPCClient(), e.log, nil, sources.DefaultEthClientConfig(cacheSize))
-	require.NoError(t, err)
-	return l2sc
 }
 
 // ActL2RPCFail makes the next L2 RPC request fail with given error

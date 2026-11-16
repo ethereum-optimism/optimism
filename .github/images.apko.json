@@ -63,6 +63,10 @@
       ],
       "runner_profile": "large"
     },
+    "op-zk-proposer-cuda": {
+      "config": "melange/op-zk-proposer-cuda.yaml",
+      "runner_profile": "large"
+    },
     "multicannon": {
       "config": "melange/multicannon.yaml"
     },
@@ -318,6 +322,18 @@
       ],
       "smoke_test": "op-zk-proposer --version"
     },
+    "op-zk-proposer-cuda": {
+      "needs_melange": [
+        "op-stack-rust",
+        "op-zk-proposer-cuda"
+      ],
+      "nexus_paths": [
+        "melange/op-zk-proposer-cuda.yaml",
+        "apko/op-zk-proposer-cuda.yaml"
+      ],
+      "apko_archs": "amd64",
+      "smoke_test": "op-zk-proposer --version,sp1-gpu-server --version"
+    },
     "kona-zkvm-canary": {
       "type": "rust",
       "needs_melange": [
@@ -375,7 +391,7 @@
         "melange/pipelines/op-deployer/embed-artifacts.yaml",
         "melange/pipelines/op-deployer/install-forge.yaml"
       ],
-      "smoke_test": "op-deployer --version,forge --version"
+      "smoke_test": "op-deployer --version,forge --version,anvil --version"
     }
   }
 }

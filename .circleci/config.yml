@@ -65,6 +65,9 @@ parameters:
   rust_nightly_bump_dispatch:
     type: boolean
     default: false
+  rust_advisories_dispatch:
+    type: boolean
+    default: false
   l2_fork_test_dispatch:
     type: boolean
     default: false
@@ -75,7 +78,7 @@ parameters:
 
 orbs:
   continuation: circleci/continuation@2.0.1
-  utils: ethereum-optimism/circleci-utils@1.0.33
+  utils: ethereum-optimism/circleci-utils@1.0.34
 
 commands:
   github-checkout:
@@ -162,6 +165,7 @@ jobs:
   prepare-continuation-config:
     docker:
       - image: << pipeline.parameters.default_docker_image >>
+    resource_class: large.gen2
     environment:
       BASE_REVISION: develop
     steps:
@@ -180,6 +184,7 @@ jobs:
       # (e.g. to just yq) would freeze an incomplete toolset for every
       # continuation job and silently force them all to cold-install forever.
       - utils/install-mise:
+          trusted_branch: develop
           enable_mise_cache: true
       # mise shims re-resolve the tool on every invocation, which the yq/jq
       # loops in the routing scripts below pay hundreds of times (~9s of
@@ -233,13 +238,14 @@ jobs:
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-rust_nightly_bump_dispatch: << pipeline.parameters.rust_nightly_bump_dispatch >>
+            c-rust_advisories_dispatch: << pipeline.parameters.rust_advisories_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
       # Diff against the PR's target branch, as the get-target-branch command does.
       - run:
           name: Determine change detection base
           command: |
             GH_TOKEN="${REPO_GITHUB_TOKEN:-${MISE_GITHUB_TOKEN:-}}" source scripts/ops/get-target-branch.sh
-            echo "export BASE_REVISION=$TARGET_BRANCH" >> "$BASH_ENV"
+            printf 'export BASE_REVISION=%q\n' "$TARGET_BRANCH" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       # Change-detection patterns live in routing.yml (change_patterns.any and
       # change_patterns.all). Each is a POSIX ERE matched line-by-line against

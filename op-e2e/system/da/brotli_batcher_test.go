@@ -44,7 +44,7 @@ func setupAliceAccount(t *testing.T, cfg e2esys.SystemConfig, sys *e2esys.System
 	require.NoError(t, err)
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
-	helpers.SendDepositTx(t, cfg, l1Client, l2Verif, opts, nil)
+	helpers.SendDepositTx(t, cfg, l1Client, sys.NodeSourceClient("verifier"), opts, nil)
 
 	// Confirm balance
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
@@ -83,31 +83,31 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	setupAliceAccount(t, cfg, sys, ethPrivKey)
 
 	// Submit TX to L2 sequencer node
-	receipt := helpers.SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *helpers.TxOpts) {
+	receipt := helpers.SendL2Tx(t, cfg, sys.NodeSourceClient("sequencer"), ethPrivKey, func(opts *helpers.TxOpts) {
 		opts.Value = big.NewInt(1_000_000_000)
 		opts.Nonce = 1 // Already have deposit
 		opts.ToAddr = &common.Address{0xff, 0xff}
 		opts.Gas, err = core.IntrinsicGas(opts.Data, nil, nil, false, true, true, false)
 		require.NoError(t, err)
-		opts.VerifyOnClients(l2Verif)
+		opts.VerifyOnClients(sys.NodeSourceClient("verifier"))
 	})
 
 	// Verify blocks match after batch submission on verifiers and sequencers
-	verifBlock, err := l2Verif.BlockByNumber(context.Background(), receipt.BlockNumber)
+	verifBlock, err := l2Verif.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, verifBlock.Hash(), receipt.BlockHash, "must be same block")
-	seqBlock, err := l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
+	seqBlock, err := l2Seq.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "must be same block")
-	require.Equal(t, verifBlock.NumberU64(), seqBlock.NumberU64(), "Verifier and sequencer blocks not the same after including a batch tx")
-	require.Equal(t, verifBlock.ParentHash(), seqBlock.ParentHash(), "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
+	require.Equal(t, verifBlock.Number, seqBlock.Number, "Verifier and sequencer blocks not the same after including a batch tx")
+	require.Equal(t, verifBlock.ParentHash, seqBlock.ParentHash, "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
 
 	rollupClient := sys.RollupClient("sequencer")
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.NoError(t, err)
-	require.LessOrEqual(t, seqBlock.NumberU64(), seqStatus.UnsafeL2.Number)
+	require.LessOrEqual(t, bigs.Uint64Strict(seqBlock.Number), seqStatus.UnsafeL2.Number)
 
 	// quick check that the batch submitter works
 	require.Eventually(t, func() bool {
@@ -119,7 +119,7 @@ func TestBrotliBatcherFjord(t *testing.T) {
 
 	// check that the L2 tx is still canonical
 	// safe and canonical => the block was batched successfully with brotli
-	seqBlock, err = l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
+	seqBlock, err = l2Seq.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "receipt block must match canonical block at tx inclusion height")
 }

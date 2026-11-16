@@ -2,6 +2,7 @@ package da
 
 import (
 	"context"
+	"math/big"
 	"testing"
 	"time"
 
@@ -46,9 +47,9 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	require.Nil(t, err, "Waiting for blob tx on L1")
 	// end sending blob-containing txns on l1
 	l2Client := sys.NodeClient("sequencer")
-	finalizedBlock, err := geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(blockContainsBlob.BlockNumber), l2Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	finalizedBlock, err := geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(blockContainsBlob.BlockNumber), sys.NodeSourceClient("sequencer"), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L1 origin of blob tx on L2")
 	finalizationTimeout := 30 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
-	_, err = geth.WaitForBlockToBeSafe(finalizedBlock.Header().Number, l2Client, finalizationTimeout)
+	_, err = geth.WaitForBlockToBeSafe(new(big.Int).SetUint64(finalizedBlock.NumberU64()), l2Client, finalizationTimeout)
 	require.Nil(t, err, "Waiting for safety of L2 block")
 }

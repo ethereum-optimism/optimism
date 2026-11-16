@@ -87,7 +87,7 @@ op-deployer bootstrap implementations \
 
 <Unreleased component="op-deployer" />
 
-On L1s other than Ethereum mainnet and Sepolia, also pass `--sp1-verifier-address` with the raw SP1 verifier for the release's `SP1PlonkAdapter`, or the command fails. `op-deployer apply` takes the same input as `globalDeployOverrides.sp1Verifier` in the intent.
+On L1s other than Ethereum mainnet and Sepolia, also pass `--sp1-verifier-address` with the raw SP1 verifier for the release's `SP1PlonkAdapter`, or the command fails. On a development L1, `--deploy-mock-sp1-verifier` deploys an accept-all mock verifier instead. `op-deployer apply` takes the same input as `globalDeployOverrides.sp1Verifier` in the intent.
 
 Similar to the `bootstrap superchain` command, this will output a JSON file containing the addresses of the relevant
 contracts. Again, keep track of this file.

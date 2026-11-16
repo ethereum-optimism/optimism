@@ -66,6 +66,9 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 		if control, ok := lifecycle[0].(stack.ControlledLifecycle); ok {
 			l2EL.control = control
 		}
+		if wipeable, ok := lifecycle[0].(stack.Wipeable); ok {
+			l2EL.wipeable = wipeable
+		}
 	}
 	return l2EL
 }

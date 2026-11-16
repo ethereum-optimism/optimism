@@ -44,6 +44,16 @@ linters:
         - pattern: ^rpc\.(Recorder|RecordedMsg|RecordDone|WithRecorder|JsonError|Server\.SetRecorder)$
           pkg: ^github\.com/ethereum/go-ethereum/rpc$
           msg: use github.com/ethereum-optimism/optimism/op-service/jsonrpc instead
+        # L2 blocks carry OP deposit (0x7E) and post-exec (0x7D) txs, which
+        # upstream go-ethereum cannot decode, in a block body or by tx hash.
+        # Scoped to the test suites by the exclusion below; deleted with the
+        # opgeth-ratchet at the go.mod flip.
+        # It matches the receiver's static type only: a call through an interface
+        # or a type embedding *ethclient.Client is not seen, so don't wrap an L2
+        # read in one.
+        - pattern: ^ethclient\.Client\.(BlockByNumber|BlockByHash|BlockReceipts|TransactionInBlock|TransactionByHash)$
+          pkg: ^github\.com/ethereum/go-ethereum/ethclient$
+          msg: "L2 deposit and post-exec txs don't decode under upstream go-ethereum: use HeaderBy* or the op-service/sources partitioned accessors; for an L1 read add //nolint:forbidigo // L1: <reason>, and for an L2 read that can only return a user tx add //nolint:forbidigo // L2 user tx: <reason>"
     # Require specifying all fields in op-deployer's OPCM input and output structs
     exhaustruct:
       include:
@@ -79,6 +89,10 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      - linters:
+          - forbidigo
+        text: L2 deposit and post-exec txs don't decode
+        path-except: ^(op-e2e|op-devstack|op-acceptance-tests|op-deployer/pkg/deployer/integration_test|rust/kona/tests)/
       - path: (.+)\.go$
         text: errors.As
       - path: (.+)\.go$

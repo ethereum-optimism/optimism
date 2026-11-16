@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
@@ -31,14 +30,10 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 		sysOpt(sysConfigOpts)
 	}
 
-	recipe := interopgen.InteropDevRecipe{
-		L1ChainID:        bigs.Uint64Strict(InteropL1ChainID),
-		L2s:              []interopgen.InteropDevL2Recipe{{ChainID: 900200}, {ChainID: 900201}},
-		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
-	}
-	worldResources := interop.WorldResourcePaths{
-		FoundryArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
-		SourceMap:        "../../packages/contracts-bedrock",
+	world := interop.WorldConfig{
+		L1ChainID:         bigs.Uint64Strict(InteropL1ChainID),
+		L2ChainIDs:        []uint64{900200, 900201},
+		ContractArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
 	}
 	superCfg := interop.SuperSystemConfig{
 		SupportTimeTravel: true,
@@ -47,16 +42,16 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(t, err)
-	l1User := devkeys.ChainUserKeys(new(big.Int).SetUint64(recipe.L1ChainID))(0)
-	privKey, err := hdWallet.Secret(l1User)
+	privKey, err := hdWallet.Secret(devkeys.ChainUserKeys(InteropL1ChainID)(0))
 	require.NoError(t, err)
-	s2 := interop.NewSuperSystem(t, &recipe, worldResources, superCfg)
+	s2 := interop.NewSuperSystem(t, world, superCfg)
 	factory := disputegame.NewFactoryHelper(t, context.Background(), disputegame.NewSuperDisputeSystem(s2, sysConfigOpts),
 		disputegame.WithFactoryPrivKey(privKey))
 
 	ctx := context.Background()
 	// wait for the supervisor to sync genesis
 	// Also ensures the L1 has advanced past genesis which can otherwise cause gas estimation problems
+	genesisTimestamp := s2.L1Genesis().Timestamp
 	var lastError error
 	err = wait.For(ctx, 1*time.Minute, func() (bool, error) {
 		status, err := s2.SupernodeClient().SyncStatus(ctx)
@@ -64,7 +59,7 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 			lastError = err
 			return false, nil
 		}
-		return status.SafeTimestamp > recipe.GenesisTimestamp && status.CurrentL1.Number > 0, nil
+		return status.SafeTimestamp > genesisTimestamp && status.CurrentL1.Number > 0, nil
 	})
 	require.NoErrorf(t, err, "failed to wait for supernode to sync genesis: %v", lastError)
 

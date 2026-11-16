@@ -22,7 +22,7 @@ func TestPlannedTx_Defaults(t *testing.T) {
 	ptx := NewPlannedTx(WithPrivateKey(key), WithValue(eth.WeiU64(123)))
 	t.Log("tx", ptx.Signed.String())
 
-	block := types.NewBlock(&types.Header{BaseFee: big.NewInt(7e9)}, nil, nil, nil, types.DefaultBlockConfig)
+	block := types.NewBlockWithHeader(&types.Header{BaseFee: big.NewInt(7e9)})
 	blockInfo := eth.BlockToInfo(block)
 	ptx.AgainstBlock.Set(blockInfo)
 
@@ -71,7 +71,7 @@ func TestWithReaderDoesNotUseDefaultFeeCaps(t *testing.T) {
 	accessList := types.AccessList{
 		{Address: common.Address{0x03}, StorageKeys: []common.Hash{{0x04}}},
 	}
-	block := types.NewBlock(&types.Header{Number: big.NewInt(7), BaseFee: big.NewInt(8)}, nil, nil, nil, types.DefaultBlockConfig)
+	block := types.NewBlockWithHeader(&types.Header{Number: big.NewInt(7), BaseFee: big.NewInt(8)})
 
 	ptx := NewPlannedTx(
 		WithReader(reader),

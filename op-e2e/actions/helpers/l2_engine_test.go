@@ -182,12 +182,16 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 		require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
 		require.Equal(t, payload.BlockHash, engine.LatestHeader(t).Hash(), "now payload is canonical")
 	}
+	txCount := func() int {
+		deposits, userTxs := engine.BlockTxs(t, engine.LatestHeader(t).Hash())
+		return len(deposits) + len(userTxs)
+	}
 	buildBlock(false)
-	require.Zero(t, len(engine.BlockByNumber(t, bigs.Uint64Strict(engine.LatestHeader(t).Number)).Transactions()), "no tx included")
+	require.Zero(t, txCount(), "no tx included")
 	buildBlock(true)
-	require.Equal(gt, 1, len(engine.BlockByNumber(t, bigs.Uint64Strict(engine.LatestHeader(t).Number)).Transactions()), "tx from alice is included")
+	require.Equal(gt, 1, txCount(), "tx from alice is included")
 	buildBlock(false)
-	require.Zero(t, len(engine.BlockByNumber(t, bigs.Uint64Strict(engine.LatestHeader(t).Number)).Transactions()), "no tx included")
+	require.Zero(t, txCount(), "no tx included")
 	require.Equal(t, uint64(3), bigs.Uint64Strict(engine.LatestHeader(t).Number), "built 3 blocks")
 }
 

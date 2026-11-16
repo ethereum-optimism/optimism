@@ -7,6 +7,7 @@ import (
 
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -248,8 +249,9 @@ func GPODefaultParams(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
 	alice := actionsHelpers.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
 	alice.SetUserEnv(&actionsHelpers.BasicUserEnv[any]{
-		EthCl:  seqEngine.EthClient(),
-		Signer: types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
+		EthCl:    seqEngine.EthClient(),
+		Receipts: seqEngine.SourceClient(),
+		Signer:   types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 	})
 
 	sequencer.ActL2PipelineFull(t)
@@ -277,7 +279,7 @@ func GPODefaultParams(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		),
 		new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times basefee")
 	// receipt.L1GasUsed includes the overhead already, so subtract that before passing it into the L1 cost func
-	l1Cost := types.L1Cost(bigs.Uint64Strict(receipt.L1GasUsed)-2100, basefee, big.NewInt(2100), big.NewInt(1000_000))
+	l1Cost := opfees.L1CostBedrock(bigs.Uint64Strict(receipt.L1GasUsed)-2100, basefee, big.NewInt(2100), big.NewInt(1000_000))
 	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with standard GPO params")
 	require.Equal(t, "1", receipt.FeeScalar.String(), "1000_000 divided by 6 decimals = float(1)")
 }
@@ -303,8 +305,9 @@ func TestGPOParamsChangeEcotone(gt *testing.T) {
 
 	alice := actionsHelpers.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
 	alice.SetUserEnv(&actionsHelpers.BasicUserEnv[any]{
-		EthCl:  seqEngine.EthClient(),
-		Signer: types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
+		EthCl:    seqEngine.EthClient(),
+		Receipts: seqEngine.SourceClient(),
+		Signer:   types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 	})
 
 	sequencer.ActL2PipelineFull(t)
@@ -402,7 +405,7 @@ func aliceTx(
 // recomputing it from the fee parameters the receipt itself reports.
 func requireEcotoneL1Fee(
 	t actionsHelpers.Testing,
-	receipt *types.Receipt,
+	receipt *optypes.Receipt,
 	tx *types.Transaction,
 	scalars eth.EcotoneScalars,
 ) {

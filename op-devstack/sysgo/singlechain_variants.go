@@ -258,7 +258,7 @@ func addSingleChainOpNodeWithELOpts(
 ) *SingleChainNodeRuntime {
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0), elOpts...)
+	l2EL := startMixedOpRethNode(t, runtime.L2Network, name, jwtPath, jwtSecret, nil, elOpts...)
 	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts)
 	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, l2CL)
 	runtime.Nodes[name] = node
@@ -276,7 +276,7 @@ func addStoppedSingleChainSequencerNode(
 ) *SingleChainNodeRuntime {
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0), elOpts...)
+	l2EL := startMixedOpRethNode(t, runtime.L2Network, name, jwtPath, jwtSecret, nil, elOpts...)
 	l2CL := startStoppedSequencerCL(
 		t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL,
 		l2EL, jwtSecret, name, l2Opts,

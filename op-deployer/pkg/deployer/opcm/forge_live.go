@@ -48,23 +48,12 @@ const forkAttempts = 3
 // refuses any other nonce.
 func broadcastLiveScript[I, O any](ctx context.Context, env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
 	var out O
-	if env.PrivateKey == "" {
-		return out, errors.New("private key is required for Forge deployments")
-	}
-	key, err := crypto.HexToECDSA(strings.TrimPrefix(env.PrivateKey, "0x"))
+	key, client, chainID, err := dialDeployer(ctx, env)
 	if err != nil {
-		return out, fmt.Errorf("invalid private key: %w", err)
-	}
-	from := crypto.PubkeyToAddress(key.PublicKey)
-	client, err := ethclient.DialContext(ctx, env.L1RPCUrl)
-	if err != nil {
-		return out, fmt.Errorf("failed to connect to L1: %w", err)
+		return out, err
 	}
 	defer client.Close()
-	chainID, err := client.ChainID(ctx)
-	if err != nil {
-		return out, fmt.Errorf("failed to read L1 chain ID: %w", err)
-	}
+	from := crypto.PubkeyToAddress(key.PublicKey)
 	logger := env.logger()
 
 	for run := 1; ; run++ {
@@ -101,6 +90,27 @@ func broadcastLiveScript[I, O any](ctx context.Context, env *ForgeEnv, newCaller
 		env.sentBlock = max(env.sentBlock, sentBlock)
 		return out, err
 	}
+}
+
+// dialDeployer parses the deployer key of env and connects to its L1. The caller closes the client.
+func dialDeployer(ctx context.Context, env *ForgeEnv) (*ecdsa.PrivateKey, *ethclient.Client, *big.Int, error) {
+	if env.PrivateKey == "" {
+		return nil, nil, nil, errors.New("private key is required for Forge deployments")
+	}
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(env.PrivateKey, "0x"))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("invalid private key: %w", err)
+	}
+	client, err := ethclient.DialContext(ctx, env.L1RPCUrl)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to connect to L1: %w", err)
+	}
+	chainID, err := client.ChainID(ctx)
+	if err != nil {
+		client.Close()
+		return nil, nil, nil, fmt.Errorf("failed to read L1 chain ID: %w", err)
+	}
+	return key, client, chainID, nil
 }
 
 // runOnFork calls run up to forkAttempts times, until it succeeds, compiles or reverts.

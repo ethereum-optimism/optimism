@@ -17,6 +17,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
@@ -191,7 +192,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             useCustomGasToken: false,
             proofMaturityDelaySeconds: 604800,
             disputeGameFinalityDelaySeconds: 302400,
-            withdrawalDelaySeconds: 302400
+            withdrawalDelaySeconds: 302400,
+            bridgeHook: IBridgeHook(address(0))
         });
 
         cts_ = opcmV2.deploy(deployConfig);

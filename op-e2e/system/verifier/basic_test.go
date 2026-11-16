@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,9 +30,9 @@ func TestSystemE2EDencunAtGenesis(t *testing.T) {
 	require.Nil(t, err, "Error starting up system")
 
 	runE2ESystemTest(t, sys)
-	head, err := sys.NodeClient("l1").BlockByNumber(context.Background(), big.NewInt(0))
+	head, err := sys.NodeClient("l1").HeaderByNumber(context.Background(), big.NewInt(0))
 	require.NoError(t, err)
-	require.NotNil(t, head.ExcessBlobGas(), "L1 is building dencun blocks since genesis")
+	require.NotNil(t, head.ExcessBlobGas, "L1 is building dencun blocks since genesis")
 }
 
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
@@ -71,7 +72,7 @@ func runE2ESystemTest(t *testing.T, sys *e2esys.System) {
 	require.Nil(t, err)
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
-	helpers.SendDepositTx(t, sys.Cfg, l1Client, l2Verif, opts, nil)
+	helpers.SendDepositTx(t, sys.Cfg, l1Client, sys.NodeSourceClient("verifier"), opts, nil)
 
 	// Confirm balance
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
@@ -85,27 +86,27 @@ func runE2ESystemTest(t *testing.T, sys *e2esys.System) {
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 
 	// Submit TX to L2 sequencer node
-	receipt := helpers.SendL2Tx(t, sys.Cfg, l2Seq, ethPrivKey, func(opts *helpers.TxOpts) {
+	receipt := helpers.SendL2Tx(t, sys.Cfg, sys.NodeSourceClient("sequencer"), ethPrivKey, func(opts *helpers.TxOpts) {
 		opts.Value = big.NewInt(1_000_000_000)
 		opts.Nonce = 1 // Already have deposit
 		opts.ToAddr = &common.Address{0xff, 0xff}
-		opts.VerifyOnClients(l2Verif)
+		opts.VerifyOnClients(sys.NodeSourceClient("verifier"))
 	})
 
 	// Verify blocks match after batch submission on verifiers and sequencers
-	verifBlock, err := l2Verif.BlockByNumber(context.Background(), receipt.BlockNumber)
+	verifBlock, err := l2Verif.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.Nil(t, err)
-	seqBlock, err := l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
+	seqBlock, err := l2Seq.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.Nil(t, err)
-	require.Equal(t, verifBlock.NumberU64(), seqBlock.NumberU64(), "Verifier and sequencer blocks not the same after including a batch tx")
-	require.Equal(t, verifBlock.ParentHash(), seqBlock.ParentHash(), "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
+	require.Equal(t, verifBlock.Number, seqBlock.Number, "Verifier and sequencer blocks not the same after including a batch tx")
+	require.Equal(t, verifBlock.ParentHash, seqBlock.ParentHash, "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
 
 	rollupClient := sys.RollupClient("sequencer")
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.Nil(t, err)
-	require.LessOrEqual(t, seqBlock.NumberU64(), seqStatus.UnsafeL2.Number)
+	require.LessOrEqual(t, bigs.Uint64Strict(seqBlock.Number), seqStatus.UnsafeL2.Number)
 	// basic check that version endpoint works
 	seqVersion, err := rollupClient.Version(context.Background())
 	require.Nil(t, err)

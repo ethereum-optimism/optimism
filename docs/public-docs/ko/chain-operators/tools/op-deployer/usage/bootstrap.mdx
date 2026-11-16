@@ -74,7 +74,7 @@ op-deployer bootstrap implementations \
 
 <Unreleased component="op-deployer" />
 
-구현 컨트랙트에는 `ZKDisputeGame`과 원시(raw) SP1 verifier를 래핑하는 `SP1PlonkAdapter`가 포함됩니다. Ethereum mainnet과 Sepolia에서는 op-deployer가 Succinct의 릴리스 승인 verifier를 사용합니다. 그 외의 L1에서는 `--sp1-verifier-address`를 전달해야 하며, 그렇지 않으면 명령이 실패합니다.
+구현 컨트랙트에는 `ZKDisputeGame`과 원시(raw) SP1 verifier를 래핑하는 `SP1PlonkAdapter`가 포함됩니다. Ethereum mainnet과 Sepolia에서는 op-deployer가 Succinct의 릴리스 승인 verifier를 사용합니다. 그 외의 L1에서는 `--sp1-verifier-address`를 전달해야 하며, 그렇지 않으면 명령이 실패합니다. 로컬 devnet과 같은 개발용 L1에서는 대신 `--deploy-mock-sp1-verifier`로 모든 증명을 수락하는 mock verifier를 배포할 수 있습니다. op-deployer는 Ethereum mainnet과 Sepolia에서 mock을 거부합니다.
 
 ### 출력 {#output}
 

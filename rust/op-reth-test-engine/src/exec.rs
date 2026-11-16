@@ -26,7 +26,7 @@ use reth_optimism_primitives::{
 };
 use reth_primitives_traits::{SealedBlock, SealedHeader};
 use reth_revm::database::StateProviderDatabase;
-use reth_storage_api::{HashedPostStateProvider, StateRootProvider};
+use reth_storage_api::{HashedPostStateProvider, StateProvider as _, StateRootProvider};
 use reth_trie::ComputedTrieData;
 
 use crate::{Error, chain::EphemeralChain};
@@ -100,7 +100,10 @@ pub(crate) fn import_payload(
 
     let evm_config: OpEvmConfig =
         OpEvmConfig::new(chain_spec.clone(), OpRethReceiptBuilder::default());
-    let executor = BasicBlockExecutor::new(evm_config, StateProviderDatabase::new(&state));
+    let executor = BasicBlockExecutor::new(
+        evm_config,
+        StateProviderDatabase::new((&state).into_evm_state_provider()),
+    );
     let output: BlockExecutionOutput<OpReceipt> = match executor.execute(&recovered) {
         Ok(output) => output,
         Err(BlockExecutionError::Validation(err)) => {

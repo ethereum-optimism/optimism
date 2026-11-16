@@ -360,6 +360,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &actionsHelpers.BasicUserEnv[*actionsHelpers.L2Bindings]{
 		EthCl:          l2Client,
+		Receipts:       seqEngine.SourceClient(),
 		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),
@@ -378,7 +379,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// Create a var to store the ref for the second to last block of the second sequencing window
 	var blockA39 eth.L1BlockRef
 
-	var aliceL2TxBlock *types.Block
+	var aliceL2TxBlock *types.Header
 	// Mine enough empty blocks on L1 to reach two sequence windows.
 	for i := uint64(0); i < sd.RollupCfg.SeqWindowSize*3; i++ {
 		// At block #50, send a batch to L1 containing all L2 blocks built up to this point.
@@ -426,7 +427,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			sequencer.ActL2EndBlock(t)
 
 			// Store the ref to the L2 block that the transaction was included in for later.
-			b0, err := l2Client.BlockByNumber(t.Ctx(), big.NewInt(int64(sequencer.L2Unsafe().Number)))
+			b0, err := l2Client.HeaderByNumber(t.Ctx(), new(big.Int).SetUint64(sequencer.L2Unsafe().Number))
 			require.NoError(t, err, "failed to fetch unsafe head of L2 after submitting alice's transaction")
 
 			aliceL2TxBlock = b0
@@ -556,14 +557,14 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.NotNil(gt, aliceL2TxBlock)
 
 	// Ensure that the parent of the L2 block containing Alice's transaction still exists
-	b0, err := l2Client.BlockByHash(t.Ctx(), aliceL2TxBlock.ParentHash())
+	b0, err := l2Client.HeaderByHash(t.Ctx(), aliceL2TxBlock.ParentHash)
 	require.NoError(t, err, "Parent of the L2 block containing Alice's transaction should still exist on L2")
-	require.Equal(t, b0.Hash(), aliceL2TxBlock.ParentHash())
+	require.Equal(t, b0.Hash(), aliceL2TxBlock.ParentHash)
 
 	// Ensure that the L2 block containing Alice's transaction no longer exists.
-	b1, err := l2Client.BlockByNumber(t.Ctx(), aliceL2TxBlock.Number())
+	b1, err := l2Client.HeaderByNumber(t.Ctx(), aliceL2TxBlock.Number)
 	require.NoError(t, err, "A block that has the same number as the block that contained Alice's transaction should still exist on L2")
-	require.Equal(t, b1.Number(), aliceL2TxBlock.Number())
+	require.Equal(t, b1.Number, aliceL2TxBlock.Number)
 	require.NotEqual(t, b1.Hash(), aliceL2TxBlock.Hash(), "L2 block containing Alice's transaction should no longer exist on L2")
 }
 
@@ -709,6 +710,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &actionsHelpers.BasicUserEnv[*actionsHelpers.L2Bindings]{
 		EthCl:          l2Cl,
+		Receipts:       altSeqEng.SourceClient(),
 		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Cl, altSeqEng.GethClient()),
@@ -755,7 +757,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	altSeqEng.ActL2IncludeTx(alice.Address())(t)
 	altSequencer.ActL2EndBlock(t)
 
-	conflictBlock := seqEng.BlockByNumber(t, altSequencer.L2Unsafe().Number)
+	conflictBlock := seqEng.HeaderByNumber(t, altSequencer.L2Unsafe().Number)
 	require.NotEqual(t, conflictBlock.Hash(), altSequencer.L2Unsafe().Hash, "alt sequencer has built a conflicting block")
 
 	// give the unsafe block to the verifier, and see if it reorgs because of any unsafe inputs
@@ -806,6 +808,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &actionsHelpers.BasicUserEnv[*actionsHelpers.L2Bindings]{
 		EthCl:          l2Client,
+		Receipts:       seqEngine.SourceClient(),
 		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),

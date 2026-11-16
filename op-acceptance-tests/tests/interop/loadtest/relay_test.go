@@ -56,7 +56,7 @@ func (r *RelaySpammer) Spam(t devtest.T) error {
 // on the destination chain.
 func TestRelaySteady(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
-	s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier(), l2B.BlockTime, WithAIMDObserver(aimdObserver{}))
+	s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config, l2B.BlockTime, WithAIMDObserver(aimdObserver{}))
 	s.Run(t, NewRelaySpammer(l2A, l2B))
 }
 

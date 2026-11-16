@@ -14,9 +14,6 @@ vendor/
 # Semgrep-action log folder
 .semgrep_logs/
 
-# Test contracts the scripts folder
-op-chain-ops/script/testdata/scripts/
-
 # Op-alloy book theme (third-party mdbook assets)
 rust/op-alloy/book/
 

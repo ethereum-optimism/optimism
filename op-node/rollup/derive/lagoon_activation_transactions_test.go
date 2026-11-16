@@ -17,20 +17,20 @@ func TestInteropSetFeatureDeposit(t *testing.T) {
 
 	from, dep := toDepositTxn(t, encoded)
 	require.Equal(t, L1InfoDepositerAddress, from)
-	require.NotNil(t, dep.To())
-	require.Equal(t, predeploys.L1BlockAddr, *dep.To())
-	require.Equal(t, big.NewInt(0), dep.Value())
-	require.Equal(t, big.NewInt(0), dep.Mint())
-	require.Equal(t, interopSetFeatureGas, dep.Gas())
+	require.NotNil(t, dep.To)
+	require.Equal(t, predeploys.L1BlockAddr, *dep.To)
+	require.Equal(t, big.NewInt(0), dep.Value)
+	require.Equal(t, big.NewInt(0), dep.Mint)
+	require.Equal(t, interopSetFeatureGas, dep.Gas)
 
 	expected := UpgradeDepositSource{Intent: "Interop pre: setFeature(INTEROP)"}
-	require.Equal(t, expected.SourceHash(), dep.SourceHash())
+	require.Equal(t, expected.SourceHash(), dep.SourceHash)
 
 	// Calldata: setFeature(bytes32) selector + "INTEROP" right-padded to 32 bytes.
-	require.Len(t, dep.Data(), 4+32)
+	require.Len(t, dep.Data, 4+32)
 	var expectedFeature [32]byte
 	copy(expectedFeature[:], "INTEROP")
-	require.Equal(t, expectedFeature[:], dep.Data()[4:])
+	require.Equal(t, expectedFeature[:], dep.Data[4:])
 }
 
 func TestInteropETHLiquidityFundingDeposit(t *testing.T) {
@@ -39,14 +39,14 @@ func TestInteropETHLiquidityFundingDeposit(t *testing.T) {
 
 	from, dep := toDepositTxn(t, encoded)
 	require.Equal(t, L1InfoDepositerAddress, from)
-	require.NotNil(t, dep.To())
-	require.Equal(t, predeploys.ETHLiquidityAddr, *dep.To())
-	require.Equal(t, InteropETHLiquidityFundingAmount(), dep.Mint())
-	require.Equal(t, InteropETHLiquidityFundingAmount(), dep.Value())
-	require.Equal(t, interopETHLiquidityFundGas, dep.Gas())
+	require.NotNil(t, dep.To)
+	require.Equal(t, predeploys.ETHLiquidityAddr, *dep.To)
+	require.Equal(t, InteropETHLiquidityFundingAmount(), dep.Mint)
+	require.Equal(t, InteropETHLiquidityFundingAmount(), dep.Value)
+	require.Equal(t, interopETHLiquidityFundGas, dep.Gas)
 
 	expected := UpgradeDepositSource{Intent: "Interop post: ETHLiquidity Funding"}
-	require.Equal(t, expected.SourceHash(), dep.SourceHash())
+	require.Equal(t, expected.SourceHash(), dep.SourceHash)
 }
 
 func TestLagoonActivationUpgradeTransactions(t *testing.T) {
@@ -58,7 +58,7 @@ func TestLagoonActivationUpgradeTransactions(t *testing.T) {
 	var bundleTxGas uint64
 	for _, tx := range bundleTxs {
 		_, dep := toDepositTxn(t, tx)
-		bundleTxGas += dep.Gas()
+		bundleTxGas += dep.Gas
 	}
 	wantGas := bundleTxGas + interopSetFeatureGas + interopETHLiquidityFundGas
 	require.Equal(t, wantGas, gotGas, "UpgradeTransactions must report the full activation reservation")
@@ -80,7 +80,7 @@ func TestLagoonActivationUpgradeTransactions(t *testing.T) {
 	var multiChainTxGas uint64
 	for _, tx := range multiChainTxs {
 		_, dep := toDepositTxn(t, tx)
-		multiChainTxGas += dep.Gas()
+		multiChainTxGas += dep.Gas
 	}
 	require.Equal(t, wantGas, multiChainTxGas)
 
@@ -128,19 +128,19 @@ func TestUpgradeTransactionsInterop(t *testing.T) {
 	// First tx: StorageSetter implementation deployment (qualified intent).
 	first := UpgradeDepositSource{Intent: "Interop 0: Deploy StorageSetter Implementation"}
 	_, dep0 := toDepositTxn(t, txs[0])
-	require.Equal(t, first.SourceHash(), dep0.SourceHash())
+	require.Equal(t, first.SourceHash(), dep0.SourceHash)
 
 	// Last tx: L2ProxyAdmin upgradePredeploys.
 	last := UpgradeDepositSource{Intent: "Interop 28: L2ProxyAdmin Upgrade Predeploys"}
 	_, depLast := toDepositTxn(t, txs[len(txs)-1])
-	require.Equal(t, last.SourceHash(), depLast.SourceHash())
+	require.Equal(t, last.SourceHash(), depLast.SourceHash)
 
 	// The reserved gas deliberately exceeds these transactions' own limits: it also covers the two
 	// wrapper deposits that only a multi-chain activation emits. See UpgradeGas.
 	var sumGas uint64
 	for _, tx := range txs {
 		_, dep := toDepositTxn(t, tx)
-		sumGas += dep.Gas()
+		sumGas += dep.Gas
 	}
 	require.Equal(t, sumGas+interopSetFeatureGas+interopETHLiquidityFundGas, gas)
 }

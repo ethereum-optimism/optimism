@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // waitDelay bounds how long execWithEnv waits for the output pipes to close after
@@ -48,8 +50,16 @@ type Client struct {
 	Timeout time.Duration
 	// Env holds KEY=VALUE variables for each forge command, on top of the inherited environment.
 	Env []string
+	// AnyCacheProfile lets a script run take the compile settings of the project profile that the
+	// compile cache was built with, such as a lite build's, instead of only the default profile's.
+	// Such a build can hold contracts above the EIP-170 code size limit, so set it only for runs
+	// that deploy no contract to a chain, such as an offline genesis run without a code size limit.
+	AnyCacheProfile bool
 }
 
+// NewStandardClient returns a client that runs the pinned forge from the forge project at workdir.
+// workdir is the project, or a path directly in it, such as the forge-artifacts directory that the
+// artifacts loader returns: when workdir holds no foundry.toml, forge runs from its parent.
 func NewStandardClient(workdir string, binOpts ...StandardBinOpt) (*Client, error) {
 	forgeBinary, err := NewStandardBinary(binOpts...)
 	if err != nil {
@@ -60,43 +70,10 @@ func NewStandardClient(workdir string, binOpts ...StandardBinOpt) (*Client, erro
 	}
 
 	forgeClient := NewClient(forgeBinary)
-
-	// Determine the working directory for forge
-	// The artifacts FS points to a subdirectory (e.g., "forge-artifacts" or "out"),
-	// but forge needs to run from the parent directory where foundry.toml is located.
-	// This matches the structure from ExtractEmbedded/ExtractFromFile where:
-	// - untarPath/forge-artifacts/ contains the artifacts
-	// - untarPath/foundry.toml is the config file
-	// This can be removed once we remove the OPCM code and use the artifacts FS directly.
-	var forgeWd string
-	info, err := os.Stat(workdir)
-	if err != nil {
-		forgeWd = workdir
-	} else if info.IsDir() {
-		foundryToml := filepath.Join(workdir, "foundry.toml")
-		if _, err := os.Stat(foundryToml); err == nil {
-			forgeWd = workdir
-		} else {
-			// foundry.toml not found, check parent directory
-			// This handles the case where workdir points to forge-artifacts/ or out/
-			parent := filepath.Dir(workdir)
-			parentFoundryToml := filepath.Join(parent, "foundry.toml")
-			if _, err := os.Stat(parentFoundryToml); err == nil {
-				forgeWd = parent
-			} else {
-				forgeWd = workdir
-			}
-		}
-	} else {
-		forgeWd = filepath.Dir(workdir)
+	forgeClient.Wd = workdir
+	if _, err := os.Stat(filepath.Join(workdir, "foundry.toml")); err != nil {
+		forgeClient.Wd = filepath.Dir(workdir)
 	}
-
-	if err := os.MkdirAll(forgeWd, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to ensure forge working directory exists: %w", err)
-	}
-
-	forgeClient.Wd = forgeWd
-
 	return forgeClient, nil
 }
 
@@ -177,7 +154,8 @@ func scriptReverted(stderr string) bool {
 }
 
 // RunScript runs a prebuilt script without a compile. It returns forge's output and the transactions
-// that the script would send, which forge records in the run's private dry-run file. Not --offline:
+// that the script would send, which forge records in the run's private dry-run file; a --broadcast
+// run sends them itself and returns none. Not --offline:
 // offline, forge requires the solc versions of the cache installed even when it compiles nothing.
 // Each run gets its own copy of the compile cache and its own broadcast directory, so concurrent
 // runs write no shared file.
@@ -196,9 +174,12 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to resolve the forge project: %w", err)
 	}
-	configPath, err := c.sandboxConfig(root, scratch)
+	configPath, built, err := c.sandboxConfig(root, scratch)
 	if err != nil {
 		return "", nil, err
+	}
+	if built != "" {
+		built = " (it matches " + built + ")"
 	}
 
 	// forge runs in the scratch directory, so it does not load a .env file of the project. A target
@@ -213,6 +194,15 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"script", "--root", root, "--config-path", configPath, "--cache-path", cacheDir}
 	cliOpts = append(cliOpts, opts...)
+	// Only the unlocked sends to an L1 fork broadcast with forge. --slow: forge otherwise waits
+	// forever on a receipt when the node drops one of several transactions sent at once. The node's
+	// gas estimate, as with txmgr: forge's own simulation does not know every L1 fork (it
+	// underestimated a Glamsterdam L1), and its default +30% lifts the OPCM deployment over the Osaka
+	// per-transaction gas cap (EIP-7825).
+	broadcast := slices.Contains(opts, "--broadcast")
+	if broadcast {
+		cliOpts = append(cliOpts, "--slow", "--skip-simulation", "--gas-estimate-multiplier", "100")
+	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	release, err := runSlots.acquire(ctx)
 	if err != nil {
@@ -224,10 +214,16 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	watcher := &compileWatcher{cancel: cancel}
-	compileErr := fmt.Errorf("%w in %s, so its compile cache is not up to date: build it with `just build-no-tests` in packages/contracts-bedrock, or use the embedded artifacts", ErrCompiled, c.Wd)
+	compileErr := fmt.Errorf("%w in %s, so its compile cache is not up to date%s: build it with `just build-no-tests` in packages/contracts-bedrock, or use the embedded artifacts", ErrCompiled, c.Wd, built)
 	// forge prints the revert reason of a failed script to stderr.
 	errBuf := new(bytes.Buffer)
-	err = run.execWithEnv(ctx, scratch, inheritedEnv(), io.MultiWriter(buf, watcher), errBuf, cliOpts...)
+	peak, err := run.execWithEnv(ctx, scratch, inheritedEnv(), io.MultiWriter(buf, watcher), errBuf, cliOpts...)
+	recordRunMemory(peak)
+	var peakMiB any = "unknown"
+	if peak != 0 {
+		peakMiB = peak >> 20
+	}
+	log.Debug("Ran forge script", "script", filepath.Base(script), "peak_memory_mib", peakMiB, "slot_memory_mib", RunMemory>>20)
 	if watcher.compiled.Load() {
 		return "", nil, compileErr
 	}
@@ -240,6 +236,9 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	}
 	if strings.Contains(buf.String(), "Compiler run successful") {
 		return "", nil, compileErr
+	}
+	if broadcast {
+		return buf.String(), nil, nil
 	}
 	transactions, err := readTransactions(filepath.Join(scratch, "broadcast"), buf.String())
 	if err != nil {
@@ -284,7 +283,6 @@ var sandboxKeys = []string{
 	"use_literal_content", "ast", "model_checker", "extra_output", "extra_output_files", "build_info",
 	"build_info_path", "additional_compiler_profiles", "compilation_restrictions", "sparse_mode",
 	"dynamic_test_linking", "ignored_error_codes", "ignored_error_codes_from", "ignored_warnings_from",
-	"deny",
 	"gas_limit", "memory_limit", "code_size_limit", "disable_block_gas_limit", "enable_tx_gas_limit",
 	"isolate",
 }
@@ -297,48 +295,84 @@ var solcVersionRegexp = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 // sandboxConfig writes the forge config of a script run into dir: a contracts bundle is a forge
 // project, so its config is not trusted. It keeps only the sandboxKeys and a pinned compiler version
-// of the project's default profile, so no other profile, extends, RPC URL or sender, and it turns
-// ffi off and grants only FsPermissions. It sets root, because forge otherwise takes the root from
-// the config's directory and recompiles; forge warns that root is unknown, but uses it.
-func (c *Client) sandboxConfig(root string, dir string) (string, error) {
+// of the project's default profile, with AnyCacheProfile the compile settings of the profile that
+// the compile cache was built with, so no extends, RPC URL or sender, and it turns ffi off, grants
+// only FsPermissions, denies nothing and makes libs absolute. It sets root, because forge otherwise
+// takes the root from the config's directory and recompiles; forge warns that root is unknown, but
+// uses it. It also returns which profile the compile cache matches, if it can tell.
+func (c *Client) sandboxConfig(root string, dir string) (string, string, error) {
 	if err := c.checkFsPermissions(root); err != nil {
-		return "", err
+		return "", "", err
 	}
 	var project struct {
 		Profile map[string]map[string]any `toml:"profile"`
 	}
 	if _, err := toml.DecodeFile(filepath.Join(root, "foundry.toml"), &project); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return "", fmt.Errorf("failed to read the forge config of the project: %w", err)
+		return "", "", fmt.Errorf("failed to read the forge config of the project: %w", err)
 	}
+	// The copy of the compile cache that forge reads; an unreadable one matches no profile.
+	cache, _ := os.ReadFile(filepath.Join(dir, compileCacheFile))
+	settings, built := compileProfile(project.Profile, cache, c.AnyCacheProfile)
 	profile := map[string]any{
 		"root":           root,
 		"ffi":            false,
 		"fs_permissions": append([]FsPermission{}, c.FsPermissions...),
+		// forge ignores its compile cache when it denies warnings, so it would compile the project.
+		"deny": "never",
 	}
-	for key, value := range project.Profile["default"] {
-		// forge reads a kebab-case key as its snake-case name.
-		key = strings.ReplaceAll(key, "-", "_")
+	for key, value := range settings {
 		if slices.Contains(solcVersionKeys, key) {
 			if version, ok := value.(string); !ok || !solcVersionRegexp.MatchString(version) {
-				return "", fmt.Errorf("the forge config of the project sets %s to %v; only a compiler version such as 0.8.15 is allowed", key, value)
+				return "", "", fmt.Errorf("the forge config of the project sets %s to %v; only a compiler version such as 0.8.15 is allowed", key, value)
 			}
 		} else if !slices.Contains(sandboxKeys, key) {
 			continue
 		}
 		profile[key] = value
 	}
+	// forge detects the remappings of relative libs from the config's directory, not the root; without
+	// them it finds the compile cache stale and compiles.
+	libs := []any{"lib"} // forge's default when the project has a lib directory
+	if value, set := profile["libs"]; set {
+		var ok bool
+		if libs, ok = value.([]any); !ok {
+			return "", "", fmt.Errorf("the forge config of the project sets libs to %v; only a list of paths is allowed", value)
+		}
+	}
+	// forge resolves links in the root, so the libs must too.
+	libRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve the forge project: %w", err)
+	}
+	// forge splits a remapping at its first '=', so the absolute libs would garble the remappings it
+	// detects in a library's context, find the compile cache stale and compile.
+	if strings.Contains(libRoot, "=") {
+		return "", "", fmt.Errorf("the path of the forge project %s holds a '=', which forge cannot run scripts in; move the project, or use a cache directory without one", libRoot)
+	}
+	absLibs := make([]string, 0, len(libs))
+	for _, lib := range libs {
+		lib, ok := lib.(string)
+		if !ok {
+			return "", "", fmt.Errorf("the forge config of the project sets libs to %v; only a list of paths is allowed", profile["libs"])
+		}
+		if !filepath.IsAbs(lib) {
+			lib = filepath.Join(libRoot, lib)
+		}
+		absLibs = append(absLibs, lib)
+	}
+	profile["libs"] = absLibs
 
 	path := filepath.Join(dir, "foundry.toml")
 	f, err := os.Create(path)
 	if err != nil {
-		return "", fmt.Errorf("failed to create the forge config: %w", err)
+		return "", "", fmt.Errorf("failed to create the forge config: %w", err)
 	}
 	defer f.Close()
 	config := map[string]any{"profile": map[string]any{"default": profile}}
 	if err := toml.NewEncoder(f).Encode(config); err != nil {
-		return "", fmt.Errorf("failed to write the forge config: %w", err)
+		return "", "", fmt.Errorf("failed to write the forge config: %w", err)
 	}
-	return path, nil
+	return path, built, nil
 }
 
 // checkFsPermissions refuses a link at or under a relative FsPermissions path. forge grants access to
@@ -387,18 +421,20 @@ func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, er
 	cliOpts := []string{"verify-contract"}
 	cliOpts = append(cliOpts, opts...)
 	// forge reads the verifier API key, such as ETHERSCAN_API_KEY, from its environment.
-	if err := c.execWithEnv(ctx, c.Wd, withGoCertDirs(os.Environ()), buf, buf, cliOpts...); err != nil {
+	if _, err := c.execWithEnv(ctx, c.Wd, withGoCertDirs(os.Environ()), buf, buf, cliOpts...); err != nil {
 		return buf.String(), fmt.Errorf("failed to verify contract: %w", err)
 	}
 	return buf.String(), nil
 }
 
 func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer, args ...string) error {
-	return c.execWithEnv(ctx, c.Wd, inheritedEnv(), stdout, stderr, args...)
+	_, err := c.execWithEnv(ctx, c.Wd, inheritedEnv(), stdout, stderr, args...)
+	return err
 }
 
-// execWithEnv runs forge in dir with env and c.Env.
-func (c *Client) execWithEnv(ctx context.Context, dir string, env []string, stdout io.Writer, stderr io.Writer, args ...string) error {
+// execWithEnv runs forge in dir with env and c.Env. It returns forge's peak memory in bytes, also
+// when forge fails, or 0 if unknown.
+func (c *Client) execWithEnv(ctx context.Context, dir string, env []string, stdout io.Writer, stderr io.Writer, args ...string) (uint64, error) {
 	if c.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, c.Timeout)
@@ -406,7 +442,7 @@ func (c *Client) execWithEnv(ctx context.Context, dir string, env []string, stdo
 	}
 
 	if err := c.Binary.Ensure(ctx); err != nil {
-		return fmt.Errorf("failed to ensure binary: %w", err)
+		return 0, fmt.Errorf("failed to ensure binary: %w", err)
 	}
 
 	cmd := exec.CommandContext(ctx, c.Binary.Path(), args...)
@@ -426,10 +462,16 @@ func (c *Client) execWithEnv(ctx context.Context, dir string, env []string, stdo
 	cmd.Stderr = mwStderr
 	cmd.Dir = dir
 	cmd.Env = append(env, c.Env...)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run forge command: %w", err)
+	err := cmd.Run()
+	var peak uint64
+	// The state is nil when forge did not start.
+	if cmd.ProcessState != nil {
+		peak = peakMemory(cmd.ProcessState)
 	}
-	return nil
+	if err != nil {
+		return peak, fmt.Errorf("failed to run forge command: %w", err)
+	}
+	return peak, nil
 }
 
 // inheritedEnvNames are the variables that forge inherits, except for verify-contract: what it needs

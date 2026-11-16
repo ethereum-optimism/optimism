@@ -16,11 +16,11 @@ diataxis: tutorial
   op-deployer 배포를 포함한 완전한 자동 설정은 [`code/`](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/) 디렉터리를 확인하십시오. 자동 설정은 모든 컨트랙트 배포와 구성을 자동으로 처리합니다.
 </Info>
 
-## op-deployer 소개
+## op-deployer 소개 {#about-op-deployer}
 
 `op-deployer`는 OP Stack 배포 과정을 단순화합니다. "**intent**"라는 선언적 구성 파일을 정의한 다음 명령을 실행하여 이를 적용합니다. `op-deployer`는 체인의 현재 상태를 intent와 비교하고 일치하도록 필요한 변경을 수행합니다.
 
-## 설치
+## 설치 {#installation}
 
 `op-deployer`를 설치하는 방법은 몇 가지가 있습니다.
 
@@ -44,7 +44,6 @@ diataxis: tutorial
       *   macOS:
           *   Apple Silicon(M1/M2): `op-deployer-darwin-arm64`
           *   Intel 프로세서: `op-deployer-darwin-amd64`
-      *   Windows: `op-deployer-windows-amd64.exe`
 
       <Info>
         최신 기능과 버그 수정을 반영하려면 **항상 최신 버전을 다운로드하십시오**.
@@ -132,7 +131,7 @@ diataxis: tutorial
   </Tab>
 </Tabs>
 
-## L1 네트워크 요구 사항
+## L1 네트워크 요구 사항 {#l1-network-requirements}
 
 L1 컨트랙트를 배포하기 전에 다음이 필요합니다.
 
@@ -156,7 +155,7 @@ L1 컨트랙트를 배포하기 전에 다음이 필요합니다.
       *   [Ankr](https://ankr.com)(계정 생성 후 API 키 발급)
     </Info>
 
-## 배포 주소 생성
+## 배포 주소 생성 {#generate-deployment-addresses}
 
 rollup에는 여러 역할을 위한 여러 주소가 필요합니다. 먼저 주소를 생성합니다.
 
@@ -202,7 +201,7 @@ rollup에는 여러 역할을 위한 여러 주소가 필요합니다. 먼저 �
   
 </Info>
 
-## intent 파일 생성 및 구성
+## intent 파일 생성 및 구성 {#create-and-configure-intent-file}
 
 intent 파일은 체인의 구성을 정의합니다.
 
@@ -246,9 +245,9 @@ intent 파일은 체인의 구성을 정의합니다.
   opcmAddress = "0x3bb6437aba031afbf9cb3538fa064161e2bf2d78"  # OPCM contract address on Sepolia
 
   # Contract locators - REQUIRED fields, automatically populated by op-deployer init
-  # Keep these default values unless you need specific contract versions (advanced use case)
-  l1ContractsLocator = "tag://op-contracts/v2.0.0"
-  l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
+  # Keep these default values: op-deployer runs only the contracts release that it embeds
+  l1ContractsLocator = "embedded"
+  l2ContractsLocator = "embedded"
 
   # Shared contract roles - only define if creating a standalone chain not part of the OP Stack ecosystem
   # For standard OP Stack deployments, these are predefined and should not be set
@@ -330,7 +329,7 @@ intent 파일은 체인의 구성을 정의합니다.
   프로덕션 또는 공개 testnet에서는 절대로 기본 테스트 니모닉 주소를 사용하지 마십시오!
 </Info>
 
-## 환경 파일 생성
+## 환경 파일 생성 {#create-environment-file}
 
 배포하기 전에 환경 변수를 저장할 `.env` 파일을 `deployer` 디렉터리에 생성합니다.
 
@@ -360,7 +359,7 @@ EOF
 source .env
 ```
 
-## L1 컨트랙트 배포
+## L1 컨트랙트 배포 {#deploy-l1-contracts}
 
 intent 파일과 환경 변수가 구성되었으므로 이제 L1 컨트랙트를 배포합니다.
 
@@ -381,7 +380,7 @@ op-deployer apply \
   배포에는 10-15초가 걸릴 수 있으며 여러 트랜잭션이 필요합니다.
 </Info>
 
-## 체인 구성 생성
+## 체인 구성 생성 {#generate-chain-configuration}
 
 배포가 성공하면 체인 구성 파일을 생성합니다.
 
@@ -391,7 +390,7 @@ op-deployer inspect genesis --workdir .deployer <YOUR_CHAIN_ID> > .deployer/gene
 op-deployer inspect rollup --workdir .deployer <YOUR_CHAIN_ID> > .deployer/rollup.json
 ```
 
-## 다음 단계
+## 다음 단계 {#what’s-next}
 
 훌륭합니다! 다음 작업을 성공적으로 완료했습니다.
 
@@ -430,7 +429,7 @@ rollup/
 
 ***
 
-## 도움이 필요하신가요?
+## 도움이 필요하신가요? {#need-help}
 
 *   **op-deployer 문서**: [op-deployer 개요](/ko/chain-operators/tools/op-deployer/overview)
 *   **op-deployer 저장소**: [GitHub](https://github.com/ethereum-optimism/optimism/tree/develop/op-deployer)

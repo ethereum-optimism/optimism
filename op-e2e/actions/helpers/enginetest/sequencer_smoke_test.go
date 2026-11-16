@@ -84,15 +84,14 @@ func TestSequencerBuildsOnRethEngine(gt *testing.T) {
 	require.Equal(t, e2eutils.Ether(1), new(big.Int).Sub(bobAfter, bobBefore), "Bob received 1 ether")
 
 	// The sealed block carries the L1-info deposit plus Alice's transaction.
-	block, err := cl.BlockByNumber(t.Ctx(), head.Number)
-	require.NoError(t, err)
-	require.Len(t, block.Transactions(), 2, "L1-info deposit + Alice's user tx")
-	require.Equal(t, uint8(optypes.DepositTxType), block.Transactions()[0].Type(), "block leads with the L1-info deposit")
+	deposits, userTxs := engine.BlockTxs(t, head.Hash())
+	require.Len(t, deposits, 1, "the L1-info deposit")
+	require.Len(t, userTxs, 1, "Alice's user tx")
 
 	// op-node's real receipt fetcher validates the receipts-root by re-encoding the fetched
 	// receipts (the deposit's nonce/version and the user receipt) and comparing to the header, so it
 	// checks that the OP-enriched receipt RPC returns consensus-encodable receipts.
-	src := engine.SourceClient(t, 10)
+	src := engine.SourceClient()
 	info, receipts, err := src.FetchReceipts(t.Ctx(), head.Hash())
 	require.NoError(t, err, "FetchReceipts must validate the receipts-root against the header")
 	require.Equal(t, head.Hash(), info.Hash())

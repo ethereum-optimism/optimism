@@ -145,9 +145,8 @@ type spanBatchDummyTxData struct{}
 func (txData *spanBatchDummyTxData) txType() byte { return optypes.DepositTxType }
 
 func TestSpanBatchTxInvalidTxType(t *testing.T) {
-	// span batch never contain deposit tx
-	depositTx := testutils.TxFromDeposit(&optypes.DepositTx{})
-	_, err := newSpanBatchTx(depositTx)
+	// span batch never contain blob tx
+	_, err := newSpanBatchTx(types.NewTx(&types.BlobTx{}))
 	require.ErrorContains(t, err, "invalid tx type")
 
 	var sbtx spanBatchTx

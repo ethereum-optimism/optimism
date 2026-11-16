@@ -56,22 +56,22 @@ func TestNUTBundleToDepositTransactions(t *testing.T) {
 	expectedSource0 := UpgradeDepositSource{Intent: "Test 0: First Transaction"}
 	from0, dep0 := toDepositTxn(t, txs[0])
 	require.Equal(t, common.Address{}, from0)
-	require.Equal(t, expectedSource0.SourceHash(), dep0.SourceHash())
-	require.NotNil(t, dep0.To())
-	require.Equal(t, common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), *dep0.To())
-	require.Equal(t, uint64(1000000), dep0.Gas())
-	require.Equal(t, common.FromHex("0xabcdef"), dep0.Data())
-	require.Equal(t, big.NewInt(0), dep0.Value())
+	require.Equal(t, expectedSource0.SourceHash(), dep0.SourceHash)
+	require.NotNil(t, dep0.To)
+	require.Equal(t, common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), *dep0.To)
+	require.Equal(t, uint64(1000000), dep0.Gas)
+	require.Equal(t, common.FromHex("0xabcdef"), dep0.Data)
+	require.Equal(t, big.NewInt(0), dep0.Value)
 
 	// Verify second tx: qualified intent is "Test 1: Second Transaction"
 	expectedSource1 := UpgradeDepositSource{Intent: "Test 1: Second Transaction"}
 	from1, dep1 := toDepositTxn(t, txs[1])
 	require.Equal(t, common.HexToAddress("0x000000000000000000000000000000000000abba"), from1)
-	require.Equal(t, expectedSource1.SourceHash(), dep1.SourceHash())
-	require.Equal(t, uint64(5000000), dep1.Gas())
-	require.Equal(t, big.NewInt(0), dep1.Value())
+	require.Equal(t, expectedSource1.SourceHash(), dep1.SourceHash)
+	require.Equal(t, uint64(5000000), dep1.Gas)
+	require.Equal(t, big.NewInt(0), dep1.Value)
 	// Source hashes must be unique
-	require.NotEqual(t, dep0.SourceHash(), dep1.SourceHash())
+	require.NotEqual(t, dep0.SourceHash, dep1.SourceHash)
 }
 
 func TestReadNUTBundleInvalidJSON(t *testing.T) {
@@ -124,7 +124,7 @@ func TestNUTBundleTotalGas(t *testing.T) {
 	var sumGas uint64
 	for _, tx := range txs {
 		_, dep := toDepositTxn(t, tx)
-		sumGas += dep.Gas()
+		sumGas += dep.Gas
 	}
 	require.Equal(t, bundle.totalGas(), sumGas)
 }
@@ -158,5 +158,5 @@ func TestNUTBundleNullTo(t *testing.T) {
 	require.NoError(t, err)
 
 	_, dep := toDepositTxn(t, txs[0])
-	require.Nil(t, dep.To())
+	require.Nil(t, dep.To)
 }

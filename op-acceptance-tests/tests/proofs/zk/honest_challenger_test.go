@@ -237,11 +237,12 @@ func startInvalidParentWithChild(t devtest.T, sys *presets.SingleChainInterop) (
 }
 
 // finalizeL1Head waits until the current L1 head is finalized. FakePoS finalizes
-// 20 blocks (120s) behind the head; time travel builds those blocks in seconds.
-// Keep the jump under FakePoS's 5 minute skip, which builds only one block.
+// 20 blocks behind the head; time travel builds those blocks in seconds.
+// Jump 25 blocks for margin, which stays under FakePoS's 5 minute skip that
+// builds only one block.
 func finalizeL1Head(sys *presets.SingleChainInterop) {
 	head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
-	sys.AdvanceTime(150 * time.Second)
+	sys.AdvanceTime(25 * sys.L1CL.BlockTime())
 	sys.L1EL.WaitForLabelRef(eth.Finalized, func(info eth.BlockInfo) (bool, error) {
 		return info.NumberU64() >= head.Number, nil
 	})

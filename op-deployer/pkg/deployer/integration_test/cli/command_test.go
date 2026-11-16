@@ -253,3 +253,37 @@ func TestCLIApplyMissingState(t *testing.T) {
 		"--workdir", workDir,
 	}, nil, "failed to read state file")
 }
+
+// TestDeprecatedUseForgeFlag checks that the commands that took --use-forge still accept it.
+// netchef's v0.9 adapter passes --use-forge to apply.
+func TestDeprecatedUseForgeFlag(t *testing.T) {
+	runner := NewCLITestRunner(t)
+	const warning = "--use-forge is deprecated and has no effect"
+	const refusal = "--use-forge=false (or DEPLOYER_USE_FORGE=false) is no longer supported"
+
+	// Each command fails for missing inputs; nextErr shows that it got past the flag check.
+	// The empty --l1-rpc-url keeps an exported DEPLOYER_L1_RPC_URL from changing that error.
+	commands := []struct {
+		name    string
+		args    []string
+		nextErr string
+	}{
+		{"apply", []string{"apply", "--deployment-target", "genesis", "--workdir", runner.GetWorkDir()}, "failed to read intent file"},
+		{"bootstrap superchain", []string{"bootstrap", "superchain", "--l1-rpc-url="}, "l1RPCUrl must be specified"},
+		{"bootstrap implementations", []string{"bootstrap", "implementations", "--l1-rpc-url="}, "l1RPCUrl must be specified"},
+	}
+	for _, cmd := range commands {
+		t.Run(cmd.name, func(t *testing.T) {
+			out := runner.ExpectErrorContains(t, append(cmd.args, "--use-forge"), nil, cmd.nextErr)
+			require.Contains(t, out, warning)
+			out = runner.ExpectErrorContains(t, cmd.args, map[string]string{"DEPLOYER_USE_FORGE": "true"}, cmd.nextErr)
+			require.Contains(t, out, warning)
+
+			runner.ExpectErrorContains(t, append(cmd.args, "--use-forge=false"), nil, refusal)
+			runner.ExpectErrorContains(t, cmd.args, map[string]string{"DEPLOYER_USE_FORGE": "false"}, refusal)
+
+			out = runner.ExpectErrorContains(t, cmd.args, nil, cmd.nextErr)
+			require.NotContains(t, out, warning)
+		})
+	}
+}

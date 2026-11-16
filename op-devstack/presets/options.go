@@ -350,6 +350,11 @@ func WithAltDA(store altda.KVStore) Option {
 	}
 }
 
+// WithL1BlockTime configures the L1 block time (in seconds) via the deployer.
+func WithL1BlockTime(seconds uint64) Option {
+	return WithDeployerOptions(sysgo.WithL1BlockTime(seconds))
+}
+
 // WithL2BlockTimes configures per-chain L2 block times via the deployer.
 // The blockTimes map keys are L2 chain IDs and values are the desired block
 // time in seconds for that chain.

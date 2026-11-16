@@ -7,7 +7,7 @@ diataxis: reference
 `init` 명령은 지정된 디렉터리에 새로운 intent 및 state 파일을 생성하는 데 사용됩니다. 이 명령은 모든 새 배포의
 시작점입니다.
 
-## 사용법
+## 사용법 {#usage}
 
 `init` 명령은 다음과 같이 사용합니다.
 
@@ -30,7 +30,7 @@ outdir
 `intent.toml` 파일에는 배포 구성을 지정합니다. `state.json` 파일에는 OP Deployer가 배포의 각 단계가 끝날 때마다
 배포의 현재 상태를 출력합니다.
 
-## Intent 파일
+## Intent 파일 {#intent-file}
 
 intent는 다음과 같은 형태입니다.
 
@@ -39,8 +39,8 @@ configType = "standard"
 l1ChainID = 11155420
 fundDevAccounts = false
 useInterop = false
-l1ContractsLocator = "tag://op-contracts/v1.8.0-rc.4"
-l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
+l1ContractsLocator = "embedded"
+l2ContractsLocator = "embedded"
 
 [superchainRoles]
   proxyAdminOwner = "0xeAAA3fd0358F476c86C26AE77B7b89a069730570"
@@ -71,7 +71,7 @@ intent 파일을 배포에 사용하기 전에 모든 0 값을 체인에 적합�
 모두 EOA/hot wallet을 사용해도 괜찮습니다.
 </Warning>
 
-## 프로덕션 설정
+## 프로덕션 설정 {#production-setup}
 
 프로덕션 환경에서는 다음 항목에 cold wallet 멀티시그(예: Gnosis Safe)를 사용하는 보다 안전한 설정을 사용해야 합니다.
 

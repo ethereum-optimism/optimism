@@ -1,10 +1,13 @@
 //! Scripted RPC expectations over Alloy's mock transport.
 
-use crate::EngineClient;
+use crate::{EngineClient, test_utils::TestRpcBlock};
 use alloy_json_rpc::{ErrorPayload, RequestPacket, ResponsePacket};
 use alloy_network::Network;
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
+use alloy_rpc_types_engine::{
+    ForkchoiceState, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
+};
 use alloy_transport::{
     TransportError, TransportErrorKind, TransportFut,
     mock::{Asserter, MockResponse, MockTransport},
@@ -53,6 +56,30 @@ impl RpcMock {
             Some(params),
             MockResponse::Success(serde_json::value::to_raw_value(&response).unwrap()),
             Duration::ZERO,
+        );
+    }
+
+    /// Expects a full-block `eth_getBlockByNumber` call for `number` and answers it with `block`,
+    /// or with null for `None`.
+    pub fn expect_block_by_number(&self, number: u64, block: Option<TestRpcBlock>) {
+        self.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([format!("{number:#x}"), true]),
+            block,
+        );
+    }
+
+    /// Expects an `engine_forkchoiceUpdatedV3` call for `forkchoice` without payload attributes and
+    /// answers it with `status`.
+    pub fn expect_forkchoice_updated(
+        &self,
+        forkchoice: ForkchoiceState,
+        status: PayloadStatusEnum,
+    ) {
+        self.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, null]),
+            ForkchoiceUpdated::new(PayloadStatus::from_status(status)),
         );
     }
 

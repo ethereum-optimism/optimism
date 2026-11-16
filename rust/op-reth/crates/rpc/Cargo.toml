@@ -33,6 +33,7 @@ reth-chain-state.workspace = true
 reth-rpc-engine-api.workspace = true
 reth-payload-util.workspace = true
 reth-provider.workspace = true
+reth-trie.workspace = true
 
 # op-reth
 reth-optimism-evm.workspace = true
@@ -100,6 +101,10 @@ alloy-op-hardforks.workspace = true
 alloy-genesis.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-optimism-evm = { workspace = true, features = ["rpc"] }
+reth-db-common.workspace = true
+reth-ethereum-primitives.workspace = true
+reth-execution-types.workspace = true
+reth-provider = { workspace = true, features = ["test-utils"] }
 rstest.workspace = true
 
 [features]

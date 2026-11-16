@@ -1,25 +1,135 @@
 //! Loads OP pending block for a RPC response.
 
-use crate::{OpEthApi, OpEthApiError};
+use crate::{OpEthApi, OpEthApiError, eth::memory_overlay::MemoryOverlayStateProvider};
+use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
-use reth_chain_state::BlockState;
+use alloy_rpc_types_eth::BlockOverrides;
+use reth_chainspec::Chain;
+use reth_evm::ConfigureEvm;
 use reth_optimism_flashblocks::PendingFlashBlock;
+use reth_primitives_traits::{HeaderTy, NodePrimitives, SealedHeader};
 use reth_rpc_eth_api::{
     FromEvmError, RpcConvert, RpcNodeCore, RpcNodeCoreExt,
-    helpers::{LoadPendingBlock, SpawnBlocking, pending_block::PendingEnvBuilder},
+    helpers::{
+        LoadPendingBlock, SpawnBlocking,
+        pending_block::{BuildPendingEnv, PendingEnvBuilder},
+    },
 };
 use reth_rpc_eth_types::{
     EthApiError, PendingBlock, block::BlockAndReceipts, builder::config::PendingBlockKind,
     error::FromEthApiError,
 };
-use reth_storage_api::{BlockReaderIdExt, StateProviderBox, StateProviderFactory};
+use reth_storage_api::{
+    BlockReaderIdExt, StateProviderBox, StateProviderFactory, errors::ProviderResult,
+};
+use tracing::warn;
+
+/// Block time, in seconds, of a chain with neither a configured block time nor an alloy-chains
+/// hint: the OP Stack default.
+const FALLBACK_BLOCK_TIME: u64 = 2;
+
+/// Builds the environment of a pending block one block time after its parent.
+///
+/// [`BuildPendingEnv`] alone dates a pending block 12 s, Ethereum's slot time, after its parent.
+/// On an OP chain that runs pending-state calls several blocks ahead, so shortly before a hardfork
+/// they execute under the next fork's rules, in its activation block. This builder sets the `time`
+/// block override, unless the request sets one, to the parent's timestamp plus the chain's block
+/// time, and leaves the rest to [`BuildPendingEnv`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpPendingEnvBuilder {
+    block_time: u64,
+}
+
+impl OpPendingEnvBuilder {
+    /// Creates a builder for `chain` with the given block time in seconds, or, without one, the
+    /// chain's alloy-chains block time hint. A chain with neither falls back to
+    /// `FALLBACK_BLOCK_TIME` instead of upstream's 12 s, and logs a warning.
+    pub fn new(block_time: Option<u64>, chain: Chain) -> Self {
+        let block_time = block_time.or_else(|| Self::hint_block_time(chain)).unwrap_or_else(|| {
+            warn!(
+                target: "rpc::eth",
+                %chain,
+                fallback = FALLBACK_BLOCK_TIME,
+                "Unknown block time, pending block timestamps may be off"
+            );
+            FALLBACK_BLOCK_TIME
+        });
+        Self { block_time }
+    }
+
+    /// Returns the chain's alloy-chains block time hint in whole seconds.
+    ///
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1 `reth_rpc_eth_types::simulate::sanitize_chain`
+    ///
+    /// Rounds up as upstream's `eth_simulateV1` derives its timestamp increment.
+    fn hint_block_time(chain: Chain) -> Option<u64> {
+        chain
+            .average_blocktime_hint()
+            .map(|d| d.as_secs().saturating_add(u64::from(d.subsec_nanos() > 0)))
+            .filter(|&s| s > 0)
+    }
+}
+
+impl<Evm> PendingEnvBuilder<Evm> for OpPendingEnvBuilder
+where
+    Evm: ConfigureEvm<NextBlockEnvCtx: BuildPendingEnv<HeaderTy<Evm::Primitives>>>,
+{
+    fn pending_env_attributes(
+        &self,
+        parent: &SealedHeader<HeaderTy<Evm::Primitives>>,
+        block_overrides: Option<&BlockOverrides>,
+    ) -> Result<Evm::NextBlockEnvCtx, EthApiError> {
+        let mut overrides = block_overrides.cloned().unwrap_or_default();
+        overrides.time.get_or_insert_with(|| parent.timestamp().saturating_add(self.block_time));
+        Ok(Evm::NextBlockEnvCtx::build_pending_env(parent, Some(&overrides)))
+    }
+}
 
 #[inline]
-const fn pending_state_history_lookup_hash<N: reth_primitives_traits::NodePrimitives>(
+const fn pending_state_history_lookup_hash<N: NodePrimitives>(
     pending_block: &PendingFlashBlock<N>,
 ) -> B256 {
     pending_block.canonical_anchor_hash
+}
+
+/// Returns the pending state: the tip's bundle on its canonical anchor's state.
+///
+/// The sequencer streams flashblocks ahead of block import, so the flashblocks worker can build
+/// past the canonical head. With canonical head N-1, it builds pending N on N-1, then speculative
+/// N+1 on N, and so on, all anchored at N-1. A tip on the anchor, such as N, opens through reth's
+/// `state_with_block_appended`. A speculative tip opens through the vendored
+/// [`MemoryOverlayStateProvider`]: its bundle holds every write since the anchor, so account,
+/// storage and code reads need only the tip. Block hash lookups are the exception: they see only
+/// the tip, not the pending blocks before it.
+///
+/// reth's `state_with_block_appended(parent_hash, block)` can't open a speculative tip such as N+1:
+///
+/// - With N, it fails with `BlockHashNotFound`. N is in neither the database nor the overlay
+///   manager, which holds only blocks the engine executed.
+/// - With N-1, it panics on the `debug_assert` in `OverlayBuilder::with_appended_block` that the
+///   hash is the header's parent.
+///
+/// Appending the whole chain instead needs it at the RPC
+/// (<https://github.com/ethereum-optimism/optimism/issues/23998>) and reth access we lack:
+/// `state_with_block_appended` takes one block, and `ProviderFactory::overlay_manager` is
+/// crate-private.
+fn pending_flashblock_state<P, N>(
+    provider: &P,
+    pending_block: PendingFlashBlock<N>,
+) -> ProviderResult<StateProviderBox>
+where
+    N: NodePrimitives,
+    P: StateProviderFactory<Primitives = N>,
+{
+    let anchor = pending_state_history_lookup_hash(&pending_block);
+    let speculative = pending_block.pending.parent_hash() != anchor;
+    let tip = pending_block.pending.executed_block;
+    if !speculative {
+        return provider.state_with_block_appended(anchor, tip);
+    }
+    let anchor_historical = provider.history_by_block_hash(anchor)?;
+    Ok(MemoryOverlayStateProvider::new(anchor_historical, vec![tip]).boxed())
 }
 
 impl<N, Rpc> LoadPendingBlock for OpEthApi<N, Rpc>
@@ -43,6 +153,13 @@ where
         self.inner.eth_api.pending_block_kind()
     }
 
+    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-1
+    /// `reth_rpc_eth_api::helpers::pending_block::LoadPendingBlock::local_pending_state`
+    ///
+    /// Serves the flashblock pending state instead of the pool-built one. Keep upstream's blocking
+    /// discipline: callers await this on the async runtime, so the reads that open the state go
+    /// through `spawn_blocking_io`, as the default does.
+    ///
     /// Returns a [`StateProviderBox`] on a mem-pool built pending block overlaying latest.
     async fn local_pending_state(&self) -> Result<Option<StateProviderBox>, Self::Error>
     where
@@ -51,15 +168,14 @@ where
         let Ok(Some(pending_block)) = self.pending_flashblock().await else {
             return Ok(None);
         };
-        let canonical_anchor_hash = pending_state_history_lookup_hash(&pending_block);
-        let state = BlockState::from(pending_block.pending);
-
-        let anchor_historical = self
-            .provider()
-            .history_by_block_hash(canonical_anchor_hash)
-            .map_err(Self::Error::from_eth_err)?;
-
-        Ok(Some(Box::new(state.state_provider(anchor_historical)) as StateProviderBox))
+        // Callers resolve pending state before taking a blocking thread, so the reads that open it
+        // take one here, as reth's default does.
+        self.spawn_blocking_io(move |this| {
+            pending_flashblock_state(this.provider(), pending_block)
+                .map(Some)
+                .map_err(Self::Error::from_eth_err)
+        })
+        .await
     }
 
     /// Returns the locally built pending block
@@ -81,20 +197,131 @@ where
             .get_block_and_receipts(latest.hash())
             .await
             .map_err(Self::Error::from_eth_err)?
-            .map(|(block, receipts)| BlockAndReceipts { block, receipts });
+            .map(|(block, receipts)| BlockAndReceipts::new(block, receipts));
         Ok(latest)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::pending_state_history_lookup_hash;
-    use alloy_primitives::B256;
+    use super::{
+        OpPendingEnvBuilder, PendingEnvBuilder, pending_flashblock_state,
+        pending_state_history_lookup_hash,
+    };
+    use alloy_consensus::Header;
+    use alloy_primitives::{Address, B256, U256};
+    use alloy_rpc_types_eth::BlockOverrides;
+    use op_revm::OpSpecId;
     use reth_chain_state::ExecutedBlock;
+    use reth_chainspec::{Chain, EthChainSpec, ForkCondition, MAINNET, NamedChain};
+    use reth_db_common::init::init_genesis;
+    use reth_ethereum_primitives::{Block, EthPrimitives};
+    use reth_evm::ConfigureEvm;
+    use reth_execution_types::BlockExecutionOutput;
+    use reth_optimism_chainspec::OP_MAINNET;
+    use reth_optimism_evm::{OpEvmConfig, revm_spec_by_timestamp_after_bedrock};
     use reth_optimism_flashblocks::PendingFlashBlock;
+    use reth_optimism_forks::{OpHardfork, OpHardforks};
     use reth_optimism_primitives::OpPrimitives;
+    use reth_primitives_traits::{RecoveredBlock, SealedBlock, SealedHeader};
+    use reth_provider::{providers::BlockchainProvider, test_utils::create_test_provider_factory};
     use reth_rpc_eth_types::PendingBlock;
-    use std::time::Instant;
+    use reth_storage_api::{AccountReader, StateProvider, StateProviderFactory};
+    use reth_trie::{ComputedTrieData, HashedPostState, KeccakKeyHasher};
+    use revm::{
+        database::{AccountStatus, BundleState},
+        state::AccountInfo,
+    };
+    use rstest::rstest;
+    use std::{sync::Arc, time::Instant};
+
+    #[test]
+    fn pending_env_stays_before_a_fork_one_block_time_ahead() {
+        let chain_spec = OP_MAINNET.clone();
+        let ForkCondition::Timestamp(jovian) = chain_spec.op_fork_activation(OpHardfork::Jovian)
+        else {
+            panic!("OP Mainnet activates Jovian by timestamp");
+        };
+        let evm_config = OpEvmConfig::optimism(chain_spec.clone());
+        let parent = SealedHeader::seal_slow(Header {
+            number: 1,
+            timestamp: jovian - 4,
+            ..Default::default()
+        });
+
+        let builder = OpPendingEnvBuilder::new(None, chain_spec.chain());
+        let attributes =
+            PendingEnvBuilder::<OpEvmConfig>::pending_env_attributes(&builder, &parent, None)
+                .unwrap();
+        let timestamp = attributes.timestamp;
+
+        let evm_env = evm_config.next_evm_env(parent.header(), &attributes).unwrap();
+        assert_eq!(
+            evm_env.cfg_env.spec,
+            revm_spec_by_timestamp_after_bedrock(&chain_spec, jovian - 1)
+        );
+        assert_ne!(evm_env.cfg_env.spec, OpSpecId::JOVIAN);
+
+        let ctx = evm_config.context_for_next_block(&parent, attributes).unwrap();
+        assert!(!ctx.no_user_tx_activation_block);
+        assert_eq!(timestamp, jovian - 2);
+    }
+
+    fn pending_timestamp(
+        block_time: Option<u64>,
+        chain: Chain,
+        overrides: Option<&BlockOverrides>,
+    ) -> u64 {
+        let parent = SealedHeader::seal_slow(Header { timestamp: 1_000, ..Default::default() });
+        let builder = OpPendingEnvBuilder::new(block_time, chain);
+        PendingEnvBuilder::<OpEvmConfig>::pending_env_attributes(&builder, &parent, overrides)
+            .unwrap()
+            .timestamp
+    }
+
+    #[test]
+    fn pending_env_follows_the_chain_block_time_hint() {
+        // Unichain's 1 s hint differs from the 2 s fallback; Dev's 200 ms rounds up to 1 s.
+        assert_eq!(pending_timestamp(None, Chain::from_named(NamedChain::Unichain), None), 1_001);
+        assert_eq!(pending_timestamp(None, Chain::from_named(NamedChain::Dev), None), 1_001);
+    }
+
+    #[test]
+    fn pending_env_prefers_the_configured_block_time() {
+        assert_eq!(
+            pending_timestamp(Some(5), Chain::from_named(NamedChain::Unichain), None),
+            1_005
+        );
+        assert_eq!(pending_timestamp(Some(10), Chain::from_id(123_456_789), None), 1_010);
+    }
+
+    #[test]
+    fn pending_env_falls_back_to_two_seconds_without_a_hint() {
+        assert_eq!(pending_timestamp(None, Chain::from_id(123_456_789), None), 1_002);
+    }
+
+    #[test]
+    fn pending_env_keeps_requested_overrides() {
+        let time = BlockOverrides { time: Some(1_005), ..Default::default() };
+        assert_eq!(pending_timestamp(Some(3), Chain::from_id(123_456_789), Some(&time)), 1_005);
+
+        let parent = SealedHeader::seal_slow(Header {
+            timestamp: 1_000,
+            parent_beacon_block_root: Some(B256::ZERO),
+            ..Default::default()
+        });
+        let beacon_root = B256::repeat_byte(0x11);
+        let overrides = BlockOverrides { beacon_root: Some(beacon_root), ..Default::default() };
+        let builder = OpPendingEnvBuilder::new(None, Chain::from_id(123_456_789));
+        let attributes = PendingEnvBuilder::<OpEvmConfig>::pending_env_attributes(
+            &builder,
+            &parent,
+            Some(&overrides),
+        )
+        .unwrap();
+        assert_eq!(attributes.timestamp, 1_002);
+        assert_eq!(attributes.parent_beacon_block_root, Some(beacon_root));
+    }
 
     #[test]
     fn pending_state_prefers_canonical_anchor_over_parent_hash() {
@@ -115,5 +342,66 @@ mod tests {
         );
 
         assert_eq!(pending_state_history_lookup_hash(&pending_flashblock), canonical_anchor_hash);
+    }
+
+    /// Builds `blocks` pending blocks on the canonical genesis and reads the tip's state the way
+    /// `local_pending_state` does: through reth's overlay for a tip on the anchor, through the
+    /// vendored one for a speculative tip. Block `n` sets the balance of account `n` to `n`, and
+    /// the first block also writes a storage slot and destroys a genesis account. As in the
+    /// flashblocks worker, a speculative tip's bundle holds every write since the anchor.
+    ///
+    /// These are spot checks that the speculative gap is bridged, not a parity suite against reth's
+    /// `OverlayStateProvider`: the vendored overlay is meant to go away (see its module doc).
+    #[rstest]
+    #[case::canonical(1)]
+    #[case::speculative(2)]
+    fn pending_flashblock_state_includes_every_pending_block(#[case] blocks: u64) {
+        let factory = create_test_provider_factory();
+        let anchor = init_genesis(&factory).unwrap();
+        let provider = BlockchainProvider::new(factory).unwrap();
+
+        let account = |number: u64| Address::with_last_byte(number as u8);
+        let destroyed = *MAINNET.genesis.alloc.keys().next().expect("mainnet genesis has accounts");
+        assert!(provider.latest().unwrap().basic_account(&destroyed).unwrap().is_some());
+        let (slot, value) = (U256::from(1), U256::from(42));
+
+        let mut bundle = BundleState::builder(1..=blocks)
+            .state_storage(account(1), std::iter::once((slot, (U256::ZERO, value))).collect())
+            .state_original_account_info(destroyed, AccountInfo::default());
+        let mut parent_hash = anchor;
+        let mut tip = None;
+        for number in 1..=blocks {
+            bundle = bundle.state_present_account_info(
+                account(number),
+                AccountInfo { balance: U256::from(number), ..Default::default() },
+            );
+            let header = Header { number, parent_hash, ..Default::default() };
+            let block = SealedBlock::seal_slow(Block { header, body: Default::default() });
+            parent_hash = block.hash();
+            tip = Some(block);
+        }
+        let mut bundle = bundle.build();
+        bundle.state.get_mut(&destroyed).expect("in the bundle").status = AccountStatus::Destroyed;
+        let hashed_state = HashedPostState::from_bundle_state::<KeccakKeyHasher>(bundle.state());
+        let executed = ExecutedBlock::<EthPrimitives>::new(
+            Arc::new(RecoveredBlock::new_sealed(tip.expect("at least one block"), Vec::new())),
+            Arc::new(BlockExecutionOutput { state: bundle, ..Default::default() }),
+            ComputedTrieData::new(Arc::new(hashed_state.into_sorted()), Arc::default()),
+        );
+        let pending = PendingFlashBlock::new(
+            PendingBlock::with_executed_block(Instant::now(), executed),
+            anchor,
+            0,
+            B256::ZERO,
+            false,
+        );
+
+        let state = pending_flashblock_state(&provider, pending).unwrap();
+        for number in 1..=blocks {
+            let balance = state.basic_account(&account(number)).unwrap().map(|a| a.balance);
+            assert_eq!(balance, Some(U256::from(number)), "account {number}");
+        }
+        assert_eq!(state.storage(account(1), B256::from(slot)).unwrap(), Some(value));
+        assert_eq!(state.basic_account(&destroyed).unwrap(), None, "destroyed account");
     }
 }

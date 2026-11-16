@@ -26,10 +26,9 @@ import (
 // tx — with receipts carrying the OP Stack extension fields, all consistent
 // with the block's transactions root, receipts root, and block hash so that
 // untrusted-RPC validation passes.
-func opL2BlockAndReceipts(t *testing.T) (*RPCBlock, []*types.Receipt) {
+func opL2BlockAndReceipts(t *testing.T) (*RPCBlock, optypes.Receipts) {
 	t.Helper()
-	txs := l2BlockTxs(t)[:2] // deposit + legacy user tx
-	rawTxs := mustRawTransactions(txs)
+	rawTxs := l2BlockTxs(t)[:2] // deposit + legacy user tx
 
 	logIdx := uint(0)
 	mkLog := func(addr byte) []*types.Log {
@@ -37,20 +36,24 @@ func opL2BlockAndReceipts(t *testing.T) (*RPCBlock, []*types.Receipt) {
 		logIdx++
 		return []*types.Log{l}
 	}
-	depositReceipt := &types.Receipt{
-		Type:                  optypes.DepositTxType,
-		Status:                types.ReceiptStatusSuccessful,
-		CumulativeGasUsed:     21_000,
-		Logs:                  mkLog(1),
+	depositReceipt := &optypes.Receipt{
+		Receipt: types.Receipt{
+			Type:              optypes.DepositTxType,
+			Status:            types.ReceiptStatusSuccessful,
+			CumulativeGasUsed: 21_000,
+			Logs:              mkLog(1),
+		},
 		DepositNonce:          ptr.New(uint64(7)),
-		DepositReceiptVersion: ptr.New(types.CanyonDepositReceiptVersion),
+		DepositReceiptVersion: ptr.New(optypes.CanyonDepositReceiptVersion),
 	}
-	depositReceipt.Bloom = types.CreateBloom(depositReceipt)
-	userReceipt := &types.Receipt{
-		Type:                types.LegacyTxType,
-		Status:              types.ReceiptStatusSuccessful,
-		CumulativeGasUsed:   42_000,
-		Logs:                mkLog(2),
+	depositReceipt.Bloom = types.CreateBloom(&depositReceipt.Receipt)
+	userReceipt := &optypes.Receipt{
+		Receipt: types.Receipt{
+			Type:              types.LegacyTxType,
+			Status:            types.ReceiptStatusSuccessful,
+			CumulativeGasUsed: 42_000,
+			Logs:              mkLog(2),
+		},
 		L1GasPrice:          big.NewInt(42_000_000_000),
 		L1BlobBaseFee:       big.NewInt(123_456),
 		L1Fee:               big.NewInt(77_000),
@@ -59,8 +62,8 @@ func opL2BlockAndReceipts(t *testing.T) (*RPCBlock, []*types.Receipt) {
 		OperatorFeeScalar:   ptr.New(uint64(9)),
 		OperatorFeeConstant: ptr.New(uint64(9000)),
 	}
-	userReceipt.Bloom = types.CreateBloom(userReceipt)
-	receipts := []*types.Receipt{depositReceipt, userReceipt}
+	userReceipt.Bloom = types.CreateBloom(&userReceipt.Receipt)
+	receipts := optypes.Receipts{depositReceipt, userReceipt}
 
 	block := &RPCBlock{
 		RPCHeader: RPCHeader{
@@ -70,7 +73,7 @@ func opL2BlockAndReceipts(t *testing.T) (*RPCBlock, []*types.Receipt) {
 			GasUsed:     hexutil.Uint64(42_000),
 			BaseFee:     (*hexutil.Big)(big.NewInt(7)),
 			TxHash:      types.DeriveSha(rawTxs, trie.NewStackTrie(nil)),
-			ReceiptHash: types.DeriveSha(types.Receipts(receipts), trie.NewStackTrie(nil)),
+			ReceiptHash: types.DeriveSha(receipts, trie.NewStackTrie(nil)),
 		},
 		Transactions: rawTxs,
 	}

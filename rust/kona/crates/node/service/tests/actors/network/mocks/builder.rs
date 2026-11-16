@@ -35,6 +35,9 @@ use tracing::{Instrument, error, info_span};
 
 /// Builds [`TestNetwork`]s: nodes that share a random chain ID, so they get no registry bootnodes
 /// and find each other only through the bootnodes a test passes in.
+///
+/// The `with_next_*` settings apply to the next node built only. The other settings apply to
+/// every node built after them.
 pub(crate) struct TestNetworkBuilder {
     /// The chain ID every node built by this builder uses.
     chain_id: u64,
@@ -44,13 +47,16 @@ pub(crate) struct TestNetworkBuilder {
     udp_port: Option<u16>,
     /// The IP the next node built listens on, if not `127.0.0.1`.
     listen_ip: Option<IpAddr>,
+    /// The discovery table filter of the next node built, if not discv5's, which accepts every
+    /// record, as `--p2p.discovery.private` does.
+    table_filter: Option<fn(&Enr) -> bool>,
     /// How many peers must agree on the next node's address before it advertises it, if not
     /// [`IpVotes::DEFAULT`].
     ip_votes: Option<IpVotes>,
     /// The block signer of the nodes built from now on: they only accept blocks it signed.
     unsafe_block_signer: Address,
     /// The keypair for the next node built, if it must not be random.
-    custom_keypair: Option<Keypair>,
+    keypair: Option<Keypair>,
     /// Whether nodes gossip over the in-memory transport instead of TCP.
     ///
     /// In-memory nodes run without discovery, since it could not connect them: their ENRs would
@@ -82,9 +88,10 @@ impl TestNetworkBuilder {
             discovery_enabled: true,
             udp_port: None,
             listen_ip: None,
+            table_filter: None,
             ip_votes: None,
             unsafe_block_signer: Address::ZERO,
-            custom_keypair: None,
+            keypair: None,
             in_memory: false,
             discovery_interval: None,
             next_node_id: 0,
@@ -121,21 +128,29 @@ impl TestNetworkBuilder {
     }
 
     /// Makes the next node built, and only that one, listen for discovery on `port`.
-    pub(crate) const fn with_udp_port(mut self, port: u16) -> Self {
+    pub(crate) const fn with_next_udp_port(mut self, port: u16) -> Self {
         self.udp_port = Some(port);
         self
     }
 
     /// Makes the next node built, and only that one, listen on `ip` instead of `127.0.0.1`. It
     /// advertises `ip` unless that is unspecified, as with no `--p2p.advertise.ip`.
-    pub(crate) const fn with_listen_ip(mut self, ip: IpAddr) -> Self {
+    pub(crate) const fn with_next_listen_ip(mut self, ip: IpAddr) -> Self {
         self.listen_ip = Some(ip);
+        self
+    }
+
+    /// Gives the next node built, and only that one, this discovery table filter, which it also
+    /// applies to its bootnodes, saved records and sessions, as kona-node does with
+    /// `kona_disc::public_only`.
+    pub(crate) const fn with_next_table_filter(mut self, table_filter: fn(&Enr) -> bool) -> Self {
+        self.table_filter = Some(table_filter);
         self
     }
 
     /// Makes the next node built, and only that one, advertise its address once `votes` peers
     /// agree on it, as `--p2p.discovery.ip-votes` does.
-    pub(crate) const fn with_ip_votes(mut self, votes: IpVotes) -> Self {
+    pub(crate) const fn with_next_ip_votes(mut self, votes: IpVotes) -> Self {
         self.ip_votes = Some(votes);
         self
     }
@@ -157,7 +172,7 @@ impl TestNetworkBuilder {
 
     /// Gives the next node built, and only that one, these static peers, which it dials at
     /// startup. The nodes built after it have none, unless this is called again.
-    pub(crate) fn with_static_peers(mut self, static_peers: Vec<PeerAddr>) -> Self {
+    pub(crate) fn with_next_static_peers(mut self, static_peers: Vec<PeerAddr>) -> Self {
         self.static_peers = static_peers;
         self
     }
@@ -171,8 +186,8 @@ impl TestNetworkBuilder {
 
     /// Gives the next node built, and only that one, this keypair instead of a random one. The
     /// nodes built after it get random keypairs again.
-    pub(crate) fn with_custom_keypair(mut self, keypair: Keypair) -> Self {
-        self.custom_keypair = Some(keypair);
+    pub(crate) fn with_next_keypair(mut self, keypair: Keypair) -> Self {
+        self.keypair = Some(keypair);
         self
     }
 
@@ -181,26 +196,28 @@ impl TestNetworkBuilder {
     ///
     /// So build the sequencer next, then the nodes that should accept its blocks. A node that must
     /// be built before the sequencer, such as a hub it lists as a static peer, needs
-    /// [`Self::with_unsafe_block_signer`] and [`Self::with_custom_keypair`] separately, which is
+    /// [`Self::with_unsafe_block_signer`] and [`Self::with_next_keypair`] separately, which is
     /// what this calls.
     pub(crate) fn set_sequencer(self) -> Self {
         let sequencer_keypair = Keypair::generate_secp256k1();
         self.with_unsafe_block_signer(signer_address(&sequencer_keypair))
-            .with_custom_keypair(sequencer_keypair)
+            .with_next_keypair(sequencer_keypair)
     }
 
     /// Builds and starts one node, which bootstraps discovery from `bootnodes`.
-    ///
-    /// Its discovery table only accepts loopback addresses, so a node listening on all interfaces
-    /// gets into other nodes' tables once it advertises `127.0.0.1`.
     pub(crate) async fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
+        self.build_with_bootnodes(bootnodes.into_iter().map(Into::into).collect()).await
+    }
+
+    /// Like [`Self::build`], but with bootnodes that can also be enode URLs.
+    pub(crate) async fn build_with_bootnodes(&mut self, bootnodes: Vec<BootNode>) -> TestNetwork {
         // A `/memory` address has no TCP port for the ENR to advertise, so the network would fail
         // to start.
         assert!(
             !(self.in_memory && self.discovery_enabled),
             "in-memory nodes run without discovery, see the `in_memory` field"
         );
-        let keypair = self.custom_keypair.take().unwrap_or_else(Keypair::generate_secp256k1);
+        let keypair = self.keypair.take().unwrap_or_else(Keypair::generate_secp256k1);
 
         // LocalNode takes enr's k256 key and BlockSignerHandler alloy's signer; both share one
         // secret.
@@ -219,8 +236,9 @@ impl TestNetworkBuilder {
             ListenConfig::from_ip(node_addr, udp_port),
             Some(ip_votes),
         );
-        // Only allow loopback addresses.
-        discovery_config.table_filter = |enr| enr.ip4().is_some_and(|ip| ip.is_loopback());
+        if let Some(table_filter) = self.table_filter.take() {
+            discovery_config.table_filter = table_filter;
+        }
 
         let gossip_multiaddr = if self.in_memory {
             Multiaddr::empty().with(Protocol::Memory(0))
@@ -239,7 +257,7 @@ impl TestNetworkBuilder {
             discovery_config,
         )
         .with_discovery_enabled(self.discovery_enabled)
-        .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into())
+        .with_bootnodes(bootnodes.into())
         .with_static_peers(std::mem::take(&mut self.static_peers));
         if let Some(interval) = self.discovery_interval {
             builder = builder.with_discovery_interval(interval);
@@ -352,7 +370,7 @@ fn secp256k1_secret(keypair: &Keypair) -> [u8; 32] {
 }
 
 /// The key a node with `keypair` signs its ENR with.
-fn local_node_key(keypair: &Keypair) -> enr::k256::ecdsa::SigningKey {
+pub(crate) fn local_node_key(keypair: &Keypair) -> enr::k256::ecdsa::SigningKey {
     enr::k256::ecdsa::SigningKey::from_bytes(&secp256k1_secret(keypair).into())
         .expect("libp2p secp256k1 secret is a valid k256 key")
 }
