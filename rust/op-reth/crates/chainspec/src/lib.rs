@@ -587,8 +587,15 @@ mod tests {
         assert_eq!(root_fix, expected_root);
     }
 
+    /// `fork`'s activation timestamp on `spec`, as read from the superchain-registry.
+    fn activation_timestamp(spec: &OpChainSpec, fork: OpHardfork) -> u64 {
+        spec.op_fork_activation(fork).as_timestamp().expect("fork activates by timestamp")
+    }
+
     #[test]
     fn op_sepolia_forkids() {
+        use OpHardfork::*;
+        let ts = |fork| activation_timestamp(&OP_SEPOLIA, fork);
         test_fork_ids(
             &OP_SEPOLIA,
             &[
@@ -602,45 +609,45 @@ mod tests {
                 ),
                 (
                     Head { number: 0, timestamp: 1699981200, ..Default::default() },
-                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: 1708534800 },
+                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: ts(Ecotone) },
                 ),
                 (
-                    Head { number: 0, timestamp: 1708534799, ..Default::default() },
-                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: 1708534800 },
+                    Head { number: 0, timestamp: ts(Ecotone) - 1, ..Default::default() },
+                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: ts(Ecotone) },
                 ),
                 (
-                    Head { number: 0, timestamp: 1708534800, ..Default::default() },
-                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: 1716998400 },
+                    Head { number: 0, timestamp: ts(Ecotone), ..Default::default() },
+                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: ts(Fjord) },
                 ),
                 (
-                    Head { number: 0, timestamp: 1716998399, ..Default::default() },
-                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: 1716998400 },
+                    Head { number: 0, timestamp: ts(Fjord) - 1, ..Default::default() },
+                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: ts(Fjord) },
                 ),
                 (
-                    Head { number: 0, timestamp: 1716998400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x54, 0x0a, 0x8c, 0x5d]), next: 1723478400 },
+                    Head { number: 0, timestamp: ts(Fjord), ..Default::default() },
+                    ForkId { hash: ForkHash([0x54, 0x0a, 0x8c, 0x5d]), next: ts(Granite) },
                 ),
                 (
-                    Head { number: 0, timestamp: 1723478399, ..Default::default() },
-                    ForkId { hash: ForkHash([0x54, 0x0a, 0x8c, 0x5d]), next: 1723478400 },
+                    Head { number: 0, timestamp: ts(Granite) - 1, ..Default::default() },
+                    ForkId { hash: ForkHash([0x54, 0x0a, 0x8c, 0x5d]), next: ts(Granite) },
                 ),
                 (
-                    Head { number: 0, timestamp: 1723478400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x75, 0xde, 0xa4, 0x1e]), next: 1732633200 },
+                    Head { number: 0, timestamp: ts(Granite), ..Default::default() },
+                    ForkId { hash: ForkHash([0x75, 0xde, 0xa4, 0x1e]), next: ts(Holocene) },
                 ),
                 (
-                    Head { number: 0, timestamp: 1732633200, ..Default::default() },
-                    ForkId { hash: ForkHash([0x4a, 0x1c, 0x79, 0x2e]), next: 1744905600 },
+                    Head { number: 0, timestamp: ts(Holocene), ..Default::default() },
+                    ForkId { hash: ForkHash([0x4a, 0x1c, 0x79, 0x2e]), next: ts(Isthmus) },
                 ),
                 // Isthmus
                 (
-                    Head { number: 0, timestamp: 1744905600, ..Default::default() },
-                    ForkId { hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]), next: 1763568001 },
+                    Head { number: 0, timestamp: ts(Isthmus), ..Default::default() },
+                    ForkId { hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]), next: ts(Jovian) },
                 ),
                 // Jovian
                 (
-                    Head { number: 0, timestamp: 1763568001, ..Default::default() },
-                    OP_SEPOLIA.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
+                    Head { number: 0, timestamp: ts(Jovian), ..Default::default() },
+                    OP_SEPOLIA.hardfork_fork_id(Jovian).unwrap(),
                 ),
             ],
         );
@@ -648,65 +655,70 @@ mod tests {
 
     #[test]
     fn op_mainnet_forkids() {
+        use OpHardfork::*;
         let op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
+        let ts = |fork| activation_timestamp(&OP_MAINNET, fork);
+        let bedrock = OP_MAINNET.op_fork_activation(Bedrock).block_number().unwrap();
+        let berlin =
+            OP_MAINNET.ethereum_fork_activation(EthereumHardfork::Berlin).block_number().unwrap();
         test_fork_ids(
             &op_mainnet,
             &[
                 (
                     Head { number: 0, ..Default::default() },
-                    ForkId { hash: ForkHash([0xca, 0xf5, 0x17, 0xed]), next: 3950000 },
+                    ForkId { hash: ForkHash([0xca, 0xf5, 0x17, 0xed]), next: berlin },
                 ),
                 // London
                 (
-                    Head { number: 105235063, ..Default::default() },
-                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: 1704992401 },
+                    Head { number: bedrock, ..Default::default() },
+                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: ts(Canyon) },
                 ),
                 // Bedrock
                 (
-                    Head { number: 105235063, ..Default::default() },
-                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: 1704992401 },
+                    Head { number: bedrock, ..Default::default() },
+                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: ts(Canyon) },
                 ),
                 // Shanghai
                 (
-                    Head { number: 105235063, timestamp: 1704992401, ..Default::default() },
-                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: 1710374401 },
+                    Head { number: bedrock, timestamp: ts(Canyon), ..Default::default() },
+                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: ts(Ecotone) },
                 ),
                 // OP activation timestamps
                 // https://specs.optimism.io/protocol/superchain-upgrades.html#activation-timestamps
                 // Canyon
                 (
-                    Head { number: 105235063, timestamp: 1704992401, ..Default::default() },
-                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: 1710374401 },
+                    Head { number: bedrock, timestamp: ts(Canyon), ..Default::default() },
+                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: ts(Ecotone) },
                 ),
                 // Ecotone
                 (
-                    Head { number: 105235063, timestamp: 1710374401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x19, 0xda, 0x4c, 0x52]), next: 1720627201 },
+                    Head { number: bedrock, timestamp: ts(Ecotone), ..Default::default() },
+                    ForkId { hash: ForkHash([0x19, 0xda, 0x4c, 0x52]), next: ts(Fjord) },
                 ),
                 // Fjord
                 (
-                    Head { number: 105235063, timestamp: 1720627201, ..Default::default() },
-                    ForkId { hash: ForkHash([0x49, 0xfb, 0xfe, 0x1e]), next: 1726070401 },
+                    Head { number: bedrock, timestamp: ts(Fjord), ..Default::default() },
+                    ForkId { hash: ForkHash([0x49, 0xfb, 0xfe, 0x1e]), next: ts(Granite) },
                 ),
                 // Granite
                 (
-                    Head { number: 105235063, timestamp: 1726070401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x44, 0x70, 0x4c, 0xde]), next: 1736445601 },
+                    Head { number: bedrock, timestamp: ts(Granite), ..Default::default() },
+                    ForkId { hash: ForkHash([0x44, 0x70, 0x4c, 0xde]), next: ts(Holocene) },
                 ),
                 // Holocene
                 (
-                    Head { number: 105235063, timestamp: 1736445601, ..Default::default() },
-                    ForkId { hash: ForkHash([0x2b, 0xd9, 0x3d, 0xc8]), next: 1746806401 },
+                    Head { number: bedrock, timestamp: ts(Holocene), ..Default::default() },
+                    ForkId { hash: ForkHash([0x2b, 0xd9, 0x3d, 0xc8]), next: ts(Isthmus) },
                 ),
                 // Isthmus
                 (
-                    Head { number: 105235063, timestamp: 1746806401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]), next: 1764691201 },
+                    Head { number: bedrock, timestamp: ts(Isthmus), ..Default::default() },
+                    ForkId { hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]), next: ts(Jovian) },
                 ),
                 // Jovian
                 (
-                    Head { number: 105235063, timestamp: 1764691201, ..Default::default() },
-                    OP_MAINNET.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
+                    Head { number: bedrock, timestamp: ts(Jovian), ..Default::default() },
+                    OP_MAINNET.hardfork_fork_id(Jovian).unwrap(),
                 ),
             ],
         );

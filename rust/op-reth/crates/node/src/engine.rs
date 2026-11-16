@@ -399,7 +399,8 @@ mod test {
     fn test_well_formed_attributes_pre_holocene() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(None, None, 1732633199);
+        let attributes =
+            get_attributes(None, None, op_sepolia_activation(OpHardfork::Holocene) - 1);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -413,7 +414,7 @@ mod test {
     fn test_well_formed_attributes_holocene_no_eip1559_params() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(None, None, 1732633200);
+        let attributes = get_attributes(None, None, op_sepolia_activation(OpHardfork::Holocene));
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -427,7 +428,11 @@ mod test {
     fn test_well_formed_attributes_holocene_eip1559_params_zero_denominator() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000008")), None, 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000000000008")),
+            None,
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -441,7 +446,11 @@ mod test {
     fn test_well_formed_attributes_holocene_eip1559_params_zero_elasticity() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000800000000")), None, 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000800000000")),
+            None,
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -455,7 +464,11 @@ mod test {
     fn test_well_formed_attributes_holocene_valid() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000800000008")), None, 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000800000008")),
+            None,
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -469,7 +482,11 @@ mod test {
     fn test_well_formed_attributes_holocene_valid_all_zero() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000000")), None, 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000000000000")),
+            None,
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -517,7 +534,11 @@ mod test {
     fn test_malformed_attributes_pre_jovian_with_min_base_fee() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000000")), Some(1), 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000000000000")),
+            Some(1),
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
