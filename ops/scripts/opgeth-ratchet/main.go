@@ -1,6 +1,7 @@
-// Command opgeth-ratchet type-checks the monorepo against upstream go-ethereum and compares the
-// fork-API uses it finds against a committed allowlist, so that no new dependency on op-geth
-// lands unnoticed and the cutover to upstream go-ethereum is rehearsed on every change.
+// Command opgeth-ratchet type-checks the monorepo against the upstream go-ethereum release the
+// cutover moves to and compares the fork-API uses it finds against a committed allowlist, so
+// that no new dependency on op-geth lands unnoticed and the cutover to upstream go-ethereum is
+// rehearsed on every change.
 //
 // It fails when a use is not on the allowlist, or when an allowlist entry is no longer used.
 // With -update it removes the entries that are no longer used; it never adds entries.
@@ -60,11 +61,11 @@ func run(ctx context.Context, update bool) (bool, error) {
 		return false, err
 	}
 	defer os.RemoveAll(tmp)
-	modPath, version, modFile, err := upstreamModFile(ctx, root, tmp)
+	modPath, modFile, err := upstreamModFile(ctx, root, tmp, cutoverVersion)
 	if err != nil {
 		return false, err
 	}
-	fmt.Fprintf(os.Stderr, "Type-checking %s against go-ethereum %s...\n", modPath, version)
+	fmt.Fprintf(os.Stderr, "Type-checking %s against go-ethereum %s...\n", modPath, cutoverVersion)
 	// cgo_test is the one build tag in the tree that hides geth uses from a default build.
 	flags := []string{"-modfile=" + modFile, "-tags=cgo_test"}
 	uses, err := collectUses(ctx, root, modPath, goEthereumPath, flags, []string{"./..."})
@@ -91,10 +92,11 @@ op-service seams, op-reth) and where each kind of use is headed.
 
 If there is no way around it yet, add the lines below to %s,
 replacing %s with the issue tracking its removal and why the use can't be
-avoided for now:
+avoided for now. If op-geth has the API but upstream changed it, add the entry as a
+cutover edit whose reason gives the upstream form:
 
 %s
-`, joinUses(unlisted, "\n  "), version, decouplingDoc, allowlistFile, reasonPlaceholder, entryLines(unlisted))
+`, joinUses(unlisted, "\n  "), cutoverVersion, decouplingDoc, allowlistFile, reasonPlaceholder, entryLines(unlisted))
 	}
 	if len(stale) > 0 {
 		fmt.Printf(`These allowlist entries are no longer used:

@@ -100,7 +100,8 @@ lint-go-fix: build-customlint build-superchain-go
 check-op-geth-version:
   go run ./ops/scripts/check-op-geth-version
 
-# Type-checks the tree against upstream go-ethereum and fails on op-geth-only API uses that are
+# Type-checks the tree against the upstream go-ethereum release the cutover moves to (cutoverVersion
+# in ops/scripts/opgeth-ratchet/upstream.go) and fails on op-geth-only API uses that are
 # not in ops/scripts/opgeth-ratchet/allowlist.txt, or on allowlist entries no longer used.
 opgeth-ratchet: build-superchain-go
   go run ./ops/scripts/opgeth-ratchet

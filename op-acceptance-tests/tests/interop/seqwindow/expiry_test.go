@@ -91,7 +91,6 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	old := eth.L2BlockRef{Hash: receipt2.BlockHash, Number: bigs.Uint64Strict(receipt2.BlockNumber)}
 	t.Logger().Info("Confirmed tx 2, which will be reorged out later",
 		"tx", receipt2.TxHash, "l2Block", old)
-	// The logs will show a "Chain reorg detected" from op-geth.
 
 	// Once this happens we don't want to continue to try and include the tx in a block again,
 	// since that will then be reorged out again.
