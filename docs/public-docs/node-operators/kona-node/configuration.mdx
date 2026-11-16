@@ -43,16 +43,14 @@ The `--l2-chain-id` flag supports flexible chain identification using the `alloy
 
 **Numeric Chain IDs:**
 ```bash
-kona-node --l2-chain-id 10 node [args...]      # Optimism mainnet
-kona-node --l2-chain-id 8453 node [args...]    # Base mainnet
-kona-node --l2-chain-id 1 node [args...]       # Ethereum mainnet
+kona-node --l2-chain-id 10 node [args...]        # Optimism mainnet
+kona-node --l2-chain-id 11155420 node [args...]  # OP Sepolia
 ```
 
 **String Chain Names:**
 ```bash
 kona-node --l2-chain-id optimism node [args...]
-kona-node --l2-chain-id base node [args...]
-kona-node --l2-chain-id mainnet node [args...]
+kona-node --l2-chain-id optimism-sepolia node [args...]
 ```
 
 **Short Flag and Environment Variable:**
@@ -61,7 +59,7 @@ kona-node -c optimism node [args...]
 export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
 ```
 
-Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `base`, `mainnet`). Unknown numeric chain IDs are accepted for custom networks.
+Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `optimism-sepolia`). Unknown numeric chain IDs are accepted for custom networks.
 
 ## P2P Arguments
 

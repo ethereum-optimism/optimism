@@ -5,9 +5,7 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::{address, b256, uint};
 #[cfg(feature = "rollup_config_override")]
 use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
-use kona_genesis::{
-    ChainGenesis, HardForkConfig, OP_SEPOLIA_BASE_FEE_CONFIG, RollupConfig, SystemConfig,
-};
+use kona_genesis::{BaseFeeConfig, ChainGenesis, HardForkConfig, RollupConfig, SystemConfig};
 
 /// The [`RollupConfig`] for OP Sepolia.
 pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
@@ -45,7 +43,11 @@ pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
     l1_chain_id: 11155111,
     l2_chain_id: Chain::optimism_sepolia(),
-    chain_op_config: OP_SEPOLIA_BASE_FEE_CONFIG,
+    chain_op_config: BaseFeeConfig {
+        eip1559_elasticity: 6,
+        eip1559_denominator: 50,
+        eip1559_denominator_canyon: 250,
+    },
     settlement_chain_id: 0,
     alt_da_config: None,
     hardforks: HardForkConfig {
