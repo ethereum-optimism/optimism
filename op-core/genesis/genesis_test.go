@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -15,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	forkstest "github.com/ethereum-optimism/optimism/op-core/forks/test"
 	"github.com/ethereum-optimism/optimism/op-core/params"
-	"github.com/ethereum-optimism/optimism/op-core/params/opgethtest"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
@@ -50,13 +48,9 @@ func fixtureAlloc() types.GenesisAlloc {
 	}
 }
 
-// fixture returns the same genesis as a Genesis and as the op-geth core.Genesis that
-// op-chain-ops builds for it.
-func fixture(t *testing.T, s forkstest.Schedule) (*Genesis, *core.Genesis) {
-	// Built first so that a fork op-geth's config lacks fails the test by name, before
-	// opChainConfig's SetActivationTime panics on a fork ChainConfig lacks.
-	gethConfig := opgethtest.ChainConfig(t, 901, s)
-	g := &Genesis{
+// fixture returns a genesis with the fork schedule s, like the ones op-chain-ops builds.
+func fixture(s forkstest.Schedule) *Genesis {
+	return &Genesis{
 		Config:        opChainConfig(s),
 		Nonce:         7,
 		Timestamp:     1234,
@@ -70,21 +64,6 @@ func fixture(t *testing.T, s forkstest.Schedule) (*Genesis, *core.Genesis) {
 		ExcessBlobGas: ptr.New[uint64](0),
 		BlobGasUsed:   ptr.New[uint64](0),
 	}
-	gg := &core.Genesis{
-		Config:        gethConfig,
-		Nonce:         g.Nonce,
-		Timestamp:     g.Timestamp,
-		ExtraData:     g.ExtraData,
-		GasLimit:      g.GasLimit,
-		Difficulty:    g.Difficulty,
-		Mixhash:       g.Mixhash,
-		Coinbase:      g.Coinbase,
-		Alloc:         fixtureAlloc(),
-		BaseFee:       g.BaseFee,
-		ExcessBlobGas: g.ExcessBlobGas,
-		BlobGasUsed:   g.BlobGasUsed,
-	}
-	return g, gg
 }
 
 // requireGenesisEqual compares big.Int fields by value: a decoded zero and big.NewInt(0)
@@ -121,12 +100,9 @@ func TestMarshalMatchesOpGeth(t *testing.T) {
 		{name: "staggered", schedule: forkstest.Staggered()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			g, gg := fixture(t, tc.schedule)
-			g.Number, gg.Number = 3, 3
-			g.GasUsed, gg.GasUsed = 21_000, 21_000
-			g.ParentHash, gg.ParentHash = common.Hash{0xbb}, common.Hash{0xbb}
-			g.SlotNumber, gg.SlotNumber = ptr.New[uint64](9), ptr.New[uint64](9)
-			opGethJSON, err := json.Marshal(gg)
+			g := fixture(tc.schedule)
+			setBlockFields(g)
+			opGethJSON, err := json.Marshal(opGethGenesis(t, g, tc.schedule))
 			require.NoError(t, err)
 
 			got, err := json.Marshal(g)
@@ -149,7 +125,8 @@ func TestMarshalMatchesOpGeth(t *testing.T) {
 func TestUnmarshalOpGeth(t *testing.T) {
 	for name, withOsaka := range map[string]bool{"with osakaTime": true, "without osakaTime": false} {
 		t.Run(name, func(t *testing.T) {
-			want, gg := fixture(t, forkstest.Staggered())
+			want := fixture(forkstest.Staggered())
+			gg := opGethGenesis(t, want, forkstest.Staggered())
 			if !withOsaka {
 				gg.Config.OsakaTime = nil
 			}
@@ -169,7 +146,7 @@ func TestUnmarshalOpGeth(t *testing.T) {
 }
 
 func TestRoundTrip(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	g.Number = 3
 	g.GasUsed = 21_000
 	g.ParentHash = common.Hash{0xbb}
@@ -187,7 +164,7 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestEncoding(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	data, err := json.Marshal(g)
 	require.NoError(t, err)
 	obj := parseJSON(t, data)
@@ -213,7 +190,7 @@ func TestEncoding(t *testing.T) {
 }
 
 func TestNilConfig(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	g.Config = nil
 	data, err := json.Marshal(g)
 	require.NoError(t, err)
@@ -234,7 +211,7 @@ func TestUnmarshalMinimal(t *testing.T) {
 // TestUnmarshalConfigKeys checks how decoding treats "config" keys that Genesis does not
 // store: unknown keys are ignored, and a derived key must match its derivation.
 func TestUnmarshalConfigKeys(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	data, err := json.Marshal(g)
 	require.NoError(t, err)
 
@@ -256,7 +233,7 @@ func TestUnmarshalConfigKeys(t *testing.T) {
 }
 
 func TestUnmarshalRejects(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	data, err := json.Marshal(g)
 	require.NoError(t, err)
 
@@ -281,6 +258,15 @@ func TestUnmarshalRejects(t *testing.T) {
 	}
 }
 
+// setBlockFields sets the block fields that are zero in a genesis.json op-chain-ops
+// writes.
+func setBlockFields(g *Genesis) {
+	g.Number = 3
+	g.GasUsed = 21_000
+	g.ParentHash = common.Hash{0xbb}
+	g.SlotNumber = ptr.New[uint64](9)
+}
+
 // fixtureAllocJSON is the encoding of fixtureAlloc.
 const fixtureAllocJSON = `"alloc":{"00000000000000000000000000000000000beef0":{"balance":"0x100000000000000000000000000000000000000000000000000"},` +
 	`"4200000000000000000000000000000000000016":{"code":"0x60006000f3","storage":{"0x0100000000000000000000000000000000000000000000000000000000000000":"0x0200000000000000000000000000000000000000000000000000000000000000","0x0300000000000000000000000000000000000000000000000000000000000000":"0x0400000000000000000000000000000000000000000000000000000000000000"},"balance":"0x0","nonce":"0x1"}}`
@@ -296,11 +282,8 @@ func TestMarshalGoldenVector(t *testing.T) {
 		fixtureAllocJSON + `,` +
 		`"number":"0x3","gasUsed":"0x5208","parentHash":"0xbb00000000000000000000000000000000000000000000000000000000000000","baseFeePerGas":"0x3b9aca00","excessBlobGas":"0x0","blobGasUsed":"0x0","slotNumber":9}`
 
-	g, _ := fixture(t, forkstest.Staggered())
-	g.Number = 3
-	g.GasUsed = 21_000
-	g.ParentHash = common.Hash{0xbb}
-	g.SlotNumber = ptr.New[uint64](9)
+	g := fixture(forkstest.Staggered())
+	setBlockFields(g)
 	data, err := json.Marshal(g)
 	require.NoError(t, err)
 	require.JSONEq(t, want, string(data))
@@ -333,7 +316,7 @@ func TestUnmarshalOpGethGoldenVector(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var got Genesis
 			require.NoError(t, json.Unmarshal([]byte(data), &got))
-			want, _ := fixture(t, forkstest.Staggered())
+			want := fixture(forkstest.Staggered())
 			requireGenesisEqual(t, want, &got)
 		})
 	}

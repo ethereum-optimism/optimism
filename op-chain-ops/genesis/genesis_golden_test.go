@@ -18,6 +18,7 @@ import (
 // testL2Genesis returns the L2 genesis of the test deploy config with the fork schedule s,
 // relative to the genesis time.
 func testL2Genesis(t *testing.T, s forkstest.Schedule) *opgenesis.Genesis {
+	t.Helper()
 	config := testDeployConfig(t)
 	for _, fork := range forkstest.TimestampELForks {
 		config.SetForkTimeOffset(fork, s(fork))

@@ -29,14 +29,7 @@ func TestDepositTxJSONDifferential(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gethJSON, err := tc.gethTx().MarshalJSON()
 			require.NoError(t, err)
-
-			// Reject-parity: where op-geth's decoder rejects its own encoding
-			// (e.g. a nil Value marshals to null, which is invalid on decode),
-			// ours must reject too.
-			if err := new(gethtypes.Transaction).UnmarshalJSON(gethJSON); err != nil {
-				require.Error(t, json.Unmarshal(gethJSON, new(optypes.DepositTx)))
-				return
-			}
+			require.JSONEq(t, tc.json, string(gethJSON))
 
 			// op-geth JSON -> optypes -> binary equals op-geth binary
 			var d optypes.DepositTx
@@ -87,6 +80,7 @@ func TestDepositTxJSONWithNonceDifferential(t *testing.T) {
 	require.EqualValues(t, 7, *nonce) // proves the depositTxWithNonce path
 	rpcJSON, err := gethTx.MarshalJSON()
 	require.NoError(t, err)
+	require.JSONEq(t, depositTxWithNonceJSON, string(rpcJSON))
 
 	var d optypes.DepositTx
 	require.NoError(t, json.Unmarshal(rpcJSON, &d))

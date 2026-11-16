@@ -138,9 +138,14 @@ func TestOperatorCostJovian(t *testing.T) {
 
 // TestTxRollupCostDataParity is the decisive check that TxRollupCostData faithfully replaces
 // op-geth's (*types.Transaction).RollupCostData(): cost data is derived from the full
-// binary-encoded transaction (MarshalBinary), not from tx.Data().
+// binary-encoded transaction (MarshalBinary), not from tx.Data(), and deposits are empty.
 func TestTxRollupCostDataParity(t *testing.T) {
-	for _, tc := range txRollupCostDataVectors() {
+	to := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
+	deposit := txRollupCostDataVector{
+		name: "deposit",
+		tx:   types.NewTx(&types.DepositTx{SourceHash: common.Hash{0x01}, From: to, To: &to, Value: big.NewInt(0), Gas: 21000, Data: []byte{0x00, 0x01, 0x00, 0xff}}),
+	}
+	for _, tc := range append(txRollupCostDataVectors(t), deposit) {
 		t.Run(tc.name, func(t *testing.T) {
 			want := tc.tx.RollupCostData() // op-geth's method, the behaviour we must preserve
 			got := TxRollupCostData(tc.tx)

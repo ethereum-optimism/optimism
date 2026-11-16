@@ -3,13 +3,11 @@ package types_test
 import (
 	"encoding/json"
 	"math/big"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
@@ -132,10 +130,10 @@ func depositTxTestCases() []depositTxTestCase {
 			},
 			binary: "0x7ef9029aa0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff94ffffffffffffffffffffffffffffffffffffffff944242424242424242424242424242424242424242" +
 				"a08000000000000000000000000000000000000000000000000000000000000000a0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff88ffffffffffffffff80" +
-				"b90200" + strings.Repeat("00", 512),
+				"b90200" + zeroBytesHex(512),
 			hash: "0x23ff7004ab9f4502097a525cc7421b979b7a42ebd61a695a46074d2a3deb9363",
 			json: `{"type":"0x7e","nonce":null,"to":"0x4242424242424242424242424242424242424242","gas":"0xffffffffffffffff","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",` +
-				`"input":"0x` + strings.Repeat("00", 512) + `","v":null,"r":null,"s":null,"sourceHash":"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","from":"0xffffffffffffffffffffffffffffffffffffffff",` +
+				`"input":"0x` + zeroBytesHex(512) + `","v":null,"r":null,"s":null,"sourceHash":"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","from":"0xffffffffffffffffffffffffffffffffffffffff",` +
 				`"mint":"0x8000000000000000000000000000000000000000000000000000000000000000","isSystemTx":false,"hash":"0x23ff7004ab9f4502097a525cc7421b979b7a42ebd61a695a46074d2a3deb9363"}`,
 		},
 	}
@@ -203,29 +201,6 @@ func TestBedrockSystemDepositHashGoldenVector(t *testing.T) {
 	const opAlloyTxHash = "0x67c97e03f0759855b20459dd9b5f9ddebdc094f3669bf039011252bae68f5f24"
 
 	require.Equal(t, opAlloyTxHash, tx.Hash().Hex())
-}
-
-// TestDepositTxGoldenVectors pins the binary encoding, the hash and the RPC JSON encoding
-// of every deposit in depositTxTestCases, and that the JSON decodes to the same deposit.
-func TestDepositTxGoldenVectors(t *testing.T) {
-	for _, tc := range depositTxTestCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			raw, err := tc.tx.MarshalBinary()
-			require.NoError(t, err)
-			require.Equal(t, tc.binary, hexutil.Encode(raw))
-			require.Equal(t, tc.hash, tc.tx.Hash().Hex())
-
-			data, err := json.Marshal(&tc.tx)
-			require.NoError(t, err)
-			require.JSONEq(t, tc.json, string(data))
-
-			var decoded optypes.DepositTx
-			require.NoError(t, json.Unmarshal([]byte(tc.json), &decoded))
-			reencoded, err := decoded.MarshalBinary()
-			require.NoError(t, err)
-			require.Equal(t, tc.binary, hexutil.Encode(reencoded))
-		})
-	}
 }
 
 func TestUnmarshalDepositTxRoundTrip(t *testing.T) {
