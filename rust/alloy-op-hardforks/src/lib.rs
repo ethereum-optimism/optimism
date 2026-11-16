@@ -71,7 +71,8 @@ impl OpHardfork {
                 _i if timestamp < OP_MAINNET_ISTHMUS_TIMESTAMP => Self::Holocene,
                 _i if timestamp < OP_MAINNET_JOVIAN_TIMESTAMP => Self::Isthmus,
                 _i if timestamp < OP_MAINNET_KARST_TIMESTAMP => Self::Jovian,
-                _ => Self::Karst,
+                _i if timestamp < OP_MAINNET_LAGOON_TIMESTAMP => Self::Karst,
+                _ => Self::Lagoon,
             }),
             NamedChain::OptimismSepolia => Some(match timestamp {
                 _i if timestamp < OP_SEPOLIA_CANYON_TIMESTAMP => Self::Regolith,
@@ -82,7 +83,8 @@ impl OpHardfork {
                 _i if timestamp < OP_SEPOLIA_ISTHMUS_TIMESTAMP => Self::Holocene,
                 _i if timestamp < OP_SEPOLIA_JOVIAN_TIMESTAMP => Self::Isthmus,
                 _i if timestamp < OP_SEPOLIA_KARST_TIMESTAMP => Self::Jovian,
-                _ => Self::Karst,
+                _i if timestamp < OP_SEPOLIA_LAGOON_TIMESTAMP => Self::Karst,
+                _ => Self::Lagoon,
             }),
             NamedChain::Base => Some(match timestamp {
                 _i if timestamp < BASE_MAINNET_CANYON_TIMESTAMP => Self::Regolith,
@@ -109,7 +111,7 @@ impl OpHardfork {
     }
 
     /// Optimism mainnet list of hardforks.
-    pub const fn op_mainnet() -> [(Self, ForkCondition); 10] {
+    pub const fn op_mainnet() -> [(Self, ForkCondition); 11] {
         [
             (Self::Bedrock, ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK)),
             (Self::Regolith, ForkCondition::Timestamp(OP_MAINNET_REGOLITH_TIMESTAMP)),
@@ -121,11 +123,12 @@ impl OpHardfork {
             (Self::Isthmus, ForkCondition::Timestamp(OP_MAINNET_ISTHMUS_TIMESTAMP)),
             (Self::Jovian, ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP)),
             (Self::Karst, ForkCondition::Timestamp(OP_MAINNET_KARST_TIMESTAMP)),
+            (Self::Lagoon, ForkCondition::Timestamp(OP_MAINNET_LAGOON_TIMESTAMP)),
         ]
     }
 
     /// Optimism Sepolia list of hardforks.
-    pub const fn op_sepolia() -> [(Self, ForkCondition); 10] {
+    pub const fn op_sepolia() -> [(Self, ForkCondition); 11] {
         [
             (Self::Bedrock, ForkCondition::Block(OP_SEPOLIA_BEDROCK_BLOCK)),
             (Self::Regolith, ForkCondition::Timestamp(OP_SEPOLIA_REGOLITH_TIMESTAMP)),
@@ -137,6 +140,7 @@ impl OpHardfork {
             (Self::Isthmus, ForkCondition::Timestamp(OP_SEPOLIA_ISTHMUS_TIMESTAMP)),
             (Self::Jovian, ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP)),
             (Self::Karst, ForkCondition::Timestamp(OP_SEPOLIA_KARST_TIMESTAMP)),
+            (Self::Lagoon, ForkCondition::Timestamp(OP_SEPOLIA_LAGOON_TIMESTAMP)),
         ]
     }
 
@@ -562,7 +566,7 @@ mod tests {
         );
         assert_eq!(op_mainnet_forks[Jovian], ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP));
         assert_eq!(op_mainnet_forks[Karst], ForkCondition::Timestamp(OP_MAINNET_KARST_TIMESTAMP));
-        assert_eq!(op_mainnet_forks.op_fork_activation(Lagoon), ForkCondition::Never);
+        assert_eq!(op_mainnet_forks[Lagoon], ForkCondition::Timestamp(OP_MAINNET_LAGOON_TIMESTAMP));
     }
 
     #[test]
@@ -595,7 +599,7 @@ mod tests {
         );
         assert_eq!(op_sepolia_forks[Jovian], ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP));
         assert_eq!(op_sepolia_forks[Karst], ForkCondition::Timestamp(OP_SEPOLIA_KARST_TIMESTAMP));
-        assert_eq!(op_sepolia_forks.op_fork_activation(Lagoon), ForkCondition::Never);
+        assert_eq!(op_sepolia_forks[Lagoon], ForkCondition::Timestamp(OP_SEPOLIA_LAGOON_TIMESTAMP));
     }
 
     #[test]
@@ -735,6 +739,8 @@ mod tests {
             (Chain::optimism_mainnet(), OP_MAINNET_JOVIAN_TIMESTAMP + 1000, OpHardfork::Jovian),
             (Chain::optimism_mainnet(), OP_MAINNET_KARST_TIMESTAMP, OpHardfork::Karst),
             (Chain::optimism_mainnet(), OP_MAINNET_KARST_TIMESTAMP - 1, OpHardfork::Jovian),
+            (Chain::optimism_mainnet(), OP_MAINNET_LAGOON_TIMESTAMP, OpHardfork::Lagoon),
+            (Chain::optimism_mainnet(), OP_MAINNET_LAGOON_TIMESTAMP - 1, OpHardfork::Karst),
             // OP Sepolia
             (Chain::optimism_sepolia(), OP_SEPOLIA_CANYON_TIMESTAMP, OpHardfork::Canyon),
             (Chain::optimism_sepolia(), OP_SEPOLIA_ECOTONE_TIMESTAMP, OpHardfork::Ecotone),
@@ -744,6 +750,8 @@ mod tests {
             (Chain::optimism_sepolia(), OP_SEPOLIA_JOVIAN_TIMESTAMP + 1000, OpHardfork::Jovian),
             (Chain::optimism_sepolia(), OP_SEPOLIA_KARST_TIMESTAMP, OpHardfork::Karst),
             (Chain::optimism_sepolia(), OP_SEPOLIA_KARST_TIMESTAMP - 1, OpHardfork::Jovian),
+            (Chain::optimism_sepolia(), OP_SEPOLIA_LAGOON_TIMESTAMP, OpHardfork::Lagoon),
+            (Chain::optimism_sepolia(), OP_SEPOLIA_LAGOON_TIMESTAMP - 1, OpHardfork::Karst),
             // Base Mainnet
             (Chain::base_mainnet(), BASE_MAINNET_CANYON_TIMESTAMP, OpHardfork::Canyon),
             (Chain::base_mainnet(), BASE_MAINNET_ECOTONE_TIMESTAMP, OpHardfork::Ecotone),
