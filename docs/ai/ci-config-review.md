@@ -240,6 +240,37 @@ here. Treat items 1–4 as **blocking**.
     into a justfile recipe would break local runs. Same for the rest of bash 4
     (`declare -A`, `${var^^}`, `local -n`).
 
+11. **Callers the PR never runs.** PR CI runs only the workflows the routing policy
+    enables for a PR. `scheduled-*`, `develop`-only, merge-queue-only
+    (`gh-readonly-queue/*`), release and API-dispatch workflows, and GitHub Actions
+    workflows on `schedule`, `workflow_dispatch` or tag triggers, run after merge. A change
+    that breaks only them merges green and fails later, often as an on-call page. This
+    applies to any diff that changes something a CI command runs, even with no CI file in
+    the diff: a justfile recipe or one it depends on, a script, tool config
+    (`foundry.toml`, lint config), or a job's parameter defaults.
+    - Find the jobs that reach the changed thing. Run `merge-configs.sh` (item 10) and grep
+      `/tmp/merged-config.yml` and `.github/workflows/` for the recipe or script name. Follow
+      each CircleCI job to the workflows that run it and to the `routing.yml` triggers that
+      enable them. For config every job reads, such as `mise.toml`, check only the jobs that
+      override it with their own arguments or env.
+    - For each job that doesn't run on a PR, compare its parameters, `build_args` and env
+      with the PR-path copy of the same job. A combination used only after merge is never
+      tested before merge.
+    - Reason through what the changed code does with that combination. Item 10's
+      `config process` with the workflow's `c-run_*` flag set shows what the job receives.
+      Don't run the job itself. Report each caller you can't clear as a finding that names
+      the workflow, its trigger and the differing arguments.
+    - Don't count a check as protection if it runs only after merge. If the only job that
+      would catch the break is off the PR path, say so in the finding.
+    - Grade by what fails after merge. A likely break in a workflow that pages on-call or
+      publishes artifacts is high severity, just below the blocking items 1–4.
+
+    Example: #23642 removed `--deny-warnings` from four `contracts-bedrock-build`
+    callers and missed the one in `scheduled-shipped-binaries`. #24103 then removed
+    `--deny never` from the `forge-build` recipe. That nightly build then denied
+    warnings, which turns forge's compile cache off, and `warm-script-cache.sh`
+    failed. #24103 merged green, and #24162 fixed the nightly build.
+
 ## General best practices
 
 Repo is CircleCI-primary; GitHub Actions footprint is small but these apply there.
