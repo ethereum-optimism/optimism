@@ -188,3 +188,12 @@ func TestBlockToExecutionPayloadIncludesEcotoneProperties(t *testing.T) {
 	require.NotNil(t, envelope.ExecutionPayload.BlobGasUsed)
 	require.Equal(t, *envelope.ExecutionPayload.BlobGasUsed, *rhdr.BlobGasUsed)
 }
+
+func TestValidateL2Withdrawals(t *testing.T) {
+	var block RPCBlock
+	root := types.EmptyWithdrawalsHash
+	require.NoError(t, block.validateL2Withdrawals(nil, nil))
+	require.NoError(t, block.validateL2Withdrawals(&types.Withdrawals{}, &root))
+	require.ErrorContains(t, block.validateL2Withdrawals(nil, &root), "expected empty withdrawals")
+	require.ErrorContains(t, block.validateL2Withdrawals(&types.Withdrawals{{}}, &root), "expected empty withdrawals")
+}
