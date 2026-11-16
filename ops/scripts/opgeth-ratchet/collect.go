@@ -33,6 +33,10 @@ var (
 	missingMethod      = regexp.MustCompile(`does not implement .+ \(missing method (\w+)\)$`)
 	wrongArgCount      = regexp.MustCompile(`^(?:too many|not enough) arguments in call to (.+)$`)
 	wrongArgType       = regexp.MustCompile(`^cannot use .+ in argument to (.+?)(?:: .*)?$`)
+	wrongResultCount   = regexp.MustCompile(`^assignment mismatch: .+ but (.+) returns \d+ values?$`)
+	wrongAssignType    = regexp.MustCompile(`^cannot use .+ as .+ value in assignment`)
+	cannotIndirect     = regexp.MustCompile(`^invalid operation: cannot indirect `)
+	mismatchedTypes    = regexp.MustCompile(`^invalid operation: .+ \(mismatched types .+ and .+\)$`)
 	missingPackage     = regexp.MustCompile(`(?:does not contain package|no required module provides package) ([^\s;:]+)`)
 )
 
@@ -166,18 +170,102 @@ func (c classifier) classify(pkg *packages.Package, te types.Error) (need string
 			return "missing " + c.typeString(pkg.TypesInfo.TypeOf(arg)) + "." + m[1], true
 		}
 	}
-	for _, re := range []*regexp.Regexp{wrongArgCount, wrongArgType} {
+	for _, re := range []*regexp.Regexp{wrongArgCount, wrongArgType, wrongResultCount} {
 		if m := re.FindStringSubmatch(msg); m != nil {
-			if fn := calledFunc(pkg.TypesInfo, callTo(path, m[1])); fn != nil {
-				return "changed signature of " + c.funcName(fn), true
+			call := callTo(path, m[1])
+			if need := c.changedSignature(pkg.TypesInfo, call); need != "" {
+				return need, true
+			}
+			// f(g()) passes all of g's results, so a changed result count of g fails at f.
+			if call != nil && len(call.Args) == 1 {
+				if inner, ok := ast.Unparen(call.Args[0]).(*ast.CallExpr); ok {
+					if need := c.changedSignature(pkg.TypesInfo, inner); need != "" {
+						return need, true
+					}
+				}
+			}
+		}
+	}
+	if wrongAssignType.MatchString(msg) {
+		if field := c.gethField(pkg.TypesInfo, assignedTo(path)); field != "" {
+			return "changed type of " + field, true
+		}
+	}
+	if cannotIndirect.MatchString(msg) {
+		if star, ok := innermost[*ast.StarExpr](path); ok {
+			if field := c.gethField(pkg.TypesInfo, star.X); field != "" {
+				return "changed type of " + field, true
+			}
+		}
+	}
+	if mismatchedTypes.MatchString(msg) {
+		if bin := binaryExprIn(path, msg); bin != nil {
+			for _, x := range []ast.Expr{bin.X, bin.Y} {
+				if need := c.changedOperand(pkg, x); need != "" {
+					return need, true
+				}
 			}
 		}
 	}
 	return "unclassified: " + msg, true
 }
 
+// changedOperand names the go-ethereum API whose changed type can make the operand x mismatch:
+// a field it selects, a function it calls, or the function whose result it was defined from.
+func (c classifier) changedOperand(pkg *packages.Package, x ast.Expr) string {
+	if field := c.gethField(pkg.TypesInfo, x); field != "" {
+		return "changed type of " + field
+	}
+	switch x := ast.Unparen(x).(type) {
+	case *ast.CallExpr:
+		return c.changedSignature(pkg.TypesInfo, x)
+	case *ast.Ident:
+		v, ok := pkg.TypesInfo.Uses[x].(*types.Var)
+		if !ok {
+			return ""
+		}
+		// The variable's declaring identifier sits directly in the left-hand side of its
+		// definition, e.g. `ret, left, err := evm.Call(...)`.
+		def := enclosingPath(pkg, v.Pos())
+		if len(def) < 2 {
+			return ""
+		}
+		if assign, ok := def[1].(*ast.AssignStmt); ok && len(assign.Rhs) == 1 {
+			if call, ok := ast.Unparen(assign.Rhs[0]).(*ast.CallExpr); ok {
+				return c.changedSignature(pkg.TypesInfo, call)
+			}
+		}
+	}
+	return ""
+}
+
+// changedSignature names call's function if it is a go-ethereum function, or returns "".
+func (c classifier) changedSignature(info *types.Info, call *ast.CallExpr) string {
+	if fn := calledFunc(info, call); fn != nil && c.isGethObject(fn) {
+		return "changed signature of " + c.funcName(fn)
+	}
+	return ""
+}
+
 func (c classifier) isGeth(path string) bool {
 	return path == c.gethPath || strings.HasPrefix(path, c.gethPath+"/")
+}
+
+func (c classifier) isGethObject(obj types.Object) bool {
+	return obj.Pkg() != nil && c.isGeth(obj.Pkg().Path())
+}
+
+// gethField names the go-ethereum struct field that e selects, or returns "" if it selects none.
+func (c classifier) gethField(info *types.Info, e ast.Expr) string {
+	sel, ok := ast.Unparen(e).(*ast.SelectorExpr)
+	if !ok {
+		return ""
+	}
+	s := info.Selections[sel]
+	if s == nil || s.Kind() != types.FieldVal || !c.isGethObject(s.Obj()) {
+		return ""
+	}
+	return c.typeString(s.Recv()) + "." + sel.Sel.Name
 }
 
 // short abbreviates go-ethereum import paths to "go-ethereum/...".
@@ -239,6 +327,43 @@ func calledFunc(info *types.Info, call *ast.CallExpr) *types.Func {
 	}
 	fn, _ := info.Uses[id].(*types.Func)
 	return fn
+}
+
+// binaryExprIn returns the binary expression of path that msg reports. Matching the printed
+// expression matters: the error position, the start of the expression, also starts its leftmost
+// operand, which may be a binary expression itself.
+func binaryExprIn(path []ast.Node, msg string) *ast.BinaryExpr {
+	for _, n := range path {
+		if bin, ok := n.(*ast.BinaryExpr); ok && strings.HasPrefix(msg, "invalid operation: "+types.ExprString(bin)+" (") {
+			return bin
+		}
+	}
+	return nil
+}
+
+// innermost returns the innermost node of type T in path.
+func innermost[T ast.Node](path []ast.Node) (T, bool) {
+	for _, n := range path {
+		if t, ok := n.(T); ok {
+			return t, true
+		}
+	}
+	var zero T
+	return zero, false
+}
+
+// assignedTo returns the left-hand side that the innermost node of path is assigned to, or nil.
+func assignedTo(path []ast.Node) ast.Expr {
+	assign, ok := innermost[*ast.AssignStmt](path)
+	if !ok || len(assign.Lhs) != len(assign.Rhs) {
+		return nil
+	}
+	for i, rhs := range assign.Rhs {
+		if rhs.Pos() <= path[0].Pos() && path[0].End() <= rhs.End() {
+			return assign.Lhs[i]
+		}
+	}
+	return nil
 }
 
 // enclosingArg returns the call argument that contains the innermost node of path.

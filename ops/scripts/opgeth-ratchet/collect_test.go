@@ -39,17 +39,36 @@ func TestCollectUses(t *testing.T) {
 		// A parameter type changed.
 		{"g", "changed signature of go-ethereum/types.Gas"}:                                                       true,
 		{"g", `unclassified: cannot use "broken" (untyped string constant) as int value in variable declaration`}: true,
+		// A mismatch of local types names no fork API.
+		{"g", `unclassified: invalid operation: meters(1) + feet(2) (mismatched types meters and feet)`}: true,
+		// A result was added.
+		{"h", "changed signature of go-ethereum/types.Apply"}: true,
+		// A result type changed, and the call itself still type-checks: found through the
+		// variable defined from the call.
+		{"h", "changed signature of go-ethereum/types.Call"}: true,
+		// Field types changed, found through an assignment and through a dereference.
+		{"h", "changed type of go-ethereum/types.Payload.AccessList"}:  true,
+		{"h", "changed type of go-ethereum/types.Payload.Withdrawals"}: true,
+		// Two result type changes to the same type stay apart: one through the outer binary
+		// expression of a nested one, one through a call operand.
+		{"i", "changed signature of go-ethereum/types.Call"}: true,
+		{"i", "changed signature of go-ethereum/types.Gas2"}: true,
+		// A field type changed, found through a comparison.
+		{"i", "changed type of go-ethereum/types.Header.Root"}: true,
+		// A result was added, and the results are passed on to a local function.
+		{"i", "changed signature of go-ethereum/types.Apply"}: true,
 	}, uses)
 }
 
 // TestCollectUsesAgainstFork type-checks testdata/toy/mod against testdata/toy/fork, the module it
-// builds against. Only g's deliberate type error remains, so every other use TestCollectUses
+// builds against. Only g's deliberate type errors remain, so every other use TestCollectUses
 // expects is a fork API.
 func TestCollectUsesAgainstFork(t *testing.T) {
 	uses, err := collectUses(t.Context(), "testdata/toy/mod", "example.com/toy", "example.com/geth", nil, []string{"./..."})
 	require.NoError(t, err)
 	require.Equal(t, map[Use]bool{
 		{"g", `unclassified: cannot use "broken" (untyped string constant) as int value in variable declaration`}: true,
+		{"g", `unclassified: invalid operation: meters(1) + feet(2) (mismatched types meters and feet)`}:          true,
 	}, uses)
 }
 

@@ -110,7 +110,8 @@ Run these checks before committing Go changes. Fix all issues — CI enforces ze
    ```
 
 3. **op-geth ratchet** — if the change uses a go-ethereum API it didn't use before, check that
-   the API exists upstream, not only in op-geth (see
+   the API exists in the same form in the upstream release the cutover moves to, not only in
+   op-geth (see
    [opgeth-decoupling.md §19](opgeth-decoupling.md#19-ci-ratchet--continuously-rehearsing-the-cutover)):
    ```bash
    just opgeth-ratchet

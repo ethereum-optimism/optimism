@@ -616,10 +616,11 @@ serves only chains with pre-Canyon activity and is deleted like the pre-Holocene
 ## 19. CI ratchet — continuously rehearsing the cutover
 
 `just opgeth-ratchet` (CI job `opgeth-ratchet`, required through `ci-gate`) type-checks the whole
-tree, tests included, against the upstream go-ethereum version op-geth is based on — via a
-temporary go.mod; the repo's go.mod is untouched — and compares the op-geth-only API uses it finds
-with `ops/scripts/opgeth-ratchet/allowlist.txt`. An entry names the package (suffixed `(tests)`
-for uses in its test files) and what it needs from the fork, e.g.
+tree, tests included, against the upstream go-ethereum release the cutover moves to
+(`cutoverVersion` in `ops/scripts/opgeth-ratchet/upstream.go`) — via a temporary go.mod; the repo's
+go.mod is untouched — and compares the op-geth-only API uses it finds with
+`ops/scripts/opgeth-ratchet/allowlist.txt`. An entry names the package (suffixed `(tests)` for
+uses in its test files) and what it needs from the fork, e.g.
 `op-batcher/batcher (tests) | missing go-ethereum/core/types.DefaultBlockConfig | <reason>`.
 
 - **A use not on the allowlist fails the check.** Avoid it using this doc; if there is no way
@@ -640,16 +641,23 @@ for uses in its test files) and what it needs from the fork, e.g.
   own entry. That is a use the tree already had, not a new one.
 - **Compile-compat only.** Code that type-checks against upstream but would behave wrongly (e.g.
   an in-process L2 EL, §17) is outside the check.
-- **op-geth also carries upstream backports** — later go-ethereum features (block access lists,
-  `CustodyBitmap`, builder deposit addresses, …) that its base version lacks. Uses of them are
-  allowlisted with reason "upstream backport" and are not decoupling work: they go when op-geth's
-  upstream base catches up.
+- **The check covers upstream's own changes.** Upstream changed APIs after the release op-geth is
+  based on (e.g. `vm.GasBudget` gas in `EVM.Call`, `params.Rules` arguments to
+  `core.IntrinsicGas`, `StateDB.Commit`). Their uses are allowlisted as `#20266 cutover edit: …`
+  with the upstream form, so the allowlist is the cutover's complete compile-level work list.
+  Besides missing APIs and changed signatures, the tool reports a changed struct field type as
+  `changed type of <field>`. A changed result type that only fails where the result meets local
+  code is reported as a changed signature of the function that returned it.
+- **Bumping the cutover target** is a change to `cutoverVersion`: run the check, drop the unused
+  entries with `just opgeth-ratchet-update`, and add the newly reported uses as cutover edits. The
+  CI job keys its module cache on `upstream.go`; refresh the job's list of cached modules as its
+  comment describes.
 
-#20266 is executable when every remaining entry is a cutover edit or an upstream backport that
-the target go-ethereum version contains. Cutover edits carry `#20266` (the op-core differential
-tests, the §2 scaffolding and the fork-changed signatures of §15) or `#23200` (the chain-config
-and genesis codec differential tests). The flip PR removes or rewrites them, then deletes the
-tool, the allowlist, the CI job and the §13 forbidigo rule.
+#20266 is executable when every remaining entry is a cutover edit. Cutover edits carry `#20266`
+(the op-core differential tests, the §2 scaffolding, the fork-changed signatures of §15 and the
+APIs upstream changed) or `#23200` (the chain-config and genesis codec differential tests). The
+flip PR moves go.mod to `cutoverVersion`, removes or rewrites the entries, then deletes the tool,
+the allowlist, the CI job and the §13 forbidigo rule.
 
 ---
 

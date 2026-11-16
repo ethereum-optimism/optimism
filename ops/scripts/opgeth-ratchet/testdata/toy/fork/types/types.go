@@ -13,3 +13,15 @@ func Gas(limit int) int { return limit }
 type ChainConfig struct{}
 
 func (*ChainConfig) IsCanyon() bool { return true }
+
+func Apply() (int, error) { return 0, nil }
+
+func Call(gas uint64) uint64 { return gas }
+
+type Payload struct{ AccessList, Withdrawals *[]byte }
+
+func Gas2(gas uint64) uint64 { return gas }
+
+type Hash [32]byte
+
+type Header struct{ Root Hash }
