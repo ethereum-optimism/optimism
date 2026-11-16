@@ -115,8 +115,6 @@ contract OptimismPortal2_Version_Test is OptimismPortal2_TestInit {
 /// @notice Test contract for OptimismPortal2 `constructor` function.
 contract OptimismPortal2_Constructor_Test is OptimismPortal2_TestInit {
     /// @notice Tests that the constructor sets the correct values.
-    /// @dev Marked virtual to be overridden in
-    ///      test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         IOptimismPortal opImpl = IOptimismPortal(payable(EIP1967Helper.getImplementation(address(optimismPortal2))));
         assertEq(address(opImpl.anchorStateRegistry()), address(0));
@@ -153,8 +151,6 @@ contract OptimismPortal2_Constructor_Test is OptimismPortal2_TestInit {
 /// @notice Test contract for OptimismPortal2 `initialize` function.
 contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
     /// @notice Tests that the initializer sets the correct values.
-    /// @dev Marked virtual to be overridden in
-    ///      test/kontrol/deployment/DeploymentSummary.t.sol
     function test_initialize_succeeds() public virtual {
         assertEq(address(optimismPortal2.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(optimismPortal2.disputeGameFactory()), address(disputeGameFactory));
