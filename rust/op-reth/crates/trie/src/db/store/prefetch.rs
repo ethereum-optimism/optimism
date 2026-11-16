@@ -28,14 +28,14 @@ use std::{ops::RangeInclusive, thread};
 
 impl MdbxProofsStorage {
     /// Reads the pages persisting `diff` reads: for each key it writes, the current-state row
-    /// and the last history shard, which the write appends to. Each of `threads` readers takes
-    /// a contiguous share of each table's keys. Returns the number of keys.
+    /// and the last history shard, which the write appends to. Each of up to `threads` readers
+    /// takes a contiguous share of each table's keys. Returns the number of keys.
     pub(super) fn warm_write(
         &self,
         diff: &BlockStateDiff,
         threads: usize,
     ) -> OpProofsStorageResult<usize> {
-        let readers = threads.max(1);
+        let readers = write_readers(diff, threads);
         in_parallel(readers, |reader| self.warm_write_share(diff, reader, readers))
     }
 
@@ -164,6 +164,20 @@ impl MdbxProofsStorage {
     }
 }
 
+/// The readers that warm the write of `diff`, out of `threads`. Each reader takes a share of
+/// every table, so with more readers than the largest table has keys, some would open a thread
+/// and a transaction and read nothing.
+fn write_readers(diff: &BlockStateDiff, threads: usize) -> usize {
+    let (trie, state) = (&diff.sorted_trie_updates, &diff.sorted_post_state);
+    let largest_table = trie
+        .account_nodes_ref()
+        .len()
+        .max(storage_nodes(diff).count())
+        .max(state.accounts.len())
+        .max(storage_slots(diff).count());
+    threads.min(largest_table).max(1)
+}
+
 /// The storage trie nodes `diff` writes, each with its hashed address.
 fn storage_nodes(diff: &BlockStateDiff) -> impl Iterator<Item = (B256, Nibbles)> + Clone {
     diff.sorted_trie_updates.storage_tries_ref().iter().flat_map(|(address, nodes)| {
@@ -240,7 +254,7 @@ mod tests {
     use alloy_primitives::U256;
     use reth_primitives_traits::Account;
     use reth_trie::{BranchNodeCompact, HashedPostState, HashedStorage, updates::TrieUpdates};
-    use std::collections::BTreeSet;
+    use std::{collections::BTreeSet, sync::Arc};
     use tempfile::TempDir;
 
     fn block(number: u64) -> BlockWithParent {
@@ -353,6 +367,18 @@ mod tests {
         assert!(first.iter().next_back() < last.iter().next());
     }
 
+    // The node warms through `OpProofsStorage`: an `Arc` of the store, inside a metrics wrapper
+    // when the `metrics` feature is on. The trait's own warming methods do nothing, so a layer
+    // that did not forward them would turn warming off without an error.
+    #[test]
+    fn warming_reaches_the_store_through_the_wrapper_the_node_uses() {
+        let (_dir, store) = store_with_blocks([diff(&[B256::repeat_byte(0xa)])]);
+        let store: crate::OpProofsStorage<Arc<MdbxProofsStorage>> = Arc::new(store).into();
+
+        assert_eq!(store.warm_for_write(&diff(&[B256::repeat_byte(0xb)]), 2).unwrap(), 8);
+        assert_eq!(store.warm_for_prune(1..=1, 2).unwrap(), 8);
+    }
+
     #[test]
     fn warming_tolerates_missing_rows_and_empty_ranges() {
         let (_dir, store) = store_with_blocks([]);
@@ -363,6 +389,17 @@ mod tests {
         #[allow(clippy::reversed_empty_ranges)]
         let empty = 9..=5;
         assert_eq!(store.warm_prune(empty, 3).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_write_uses_no_more_readers_than_its_largest_table_has_keys() {
+        // Two keys in each of the four tables.
+        let two = diff(&[B256::repeat_byte(0xa)]);
+        assert_eq!([1, 2, 8].map(|threads| write_readers(&two, threads)), [1, 2, 2]);
+        // One key in one table.
+        assert_eq!(write_readers(&account_diff(B256::repeat_byte(0xa), 1), 8), 1);
+        // With nothing to read, the calling thread is still a reader.
+        assert_eq!(write_readers(&BlockStateDiff::default(), 8), 1);
     }
 
     #[test]

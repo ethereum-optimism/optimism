@@ -25,7 +25,8 @@ pub struct EngineConfig {
     pub persistence_threshold: u64,
     /// Buffered blocks at which the engine stops accepting new blocks while a save is running.
     pub backpressure_threshold: u64,
-    /// Parallel readers warming the page cache ahead of persistence. `0` disables warming.
+    /// Parallel readers warming the page cache ahead of persistence. `0` disables warming, and
+    /// no more than 64 are used.
     pub prefetch_threads: usize,
 }
 

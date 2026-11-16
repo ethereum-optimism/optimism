@@ -28,6 +28,13 @@ use tracing::{debug, error};
 /// remove: only the first blocks of the backlog are then warmed.
 const MAX_PRUNE_WARM_BLOCKS: u64 = 128;
 
+/// Most blocks a prune warming pass reads at a time. A reader keeps its read transaction open
+/// for its whole share of a read, and a pass can only stop between two reads.
+const PRUNE_WARM_CHUNK_BLOCKS: u64 = 16;
+
+/// Most parallel readers of a job, whatever [`EngineConfig::prefetch_threads`] asks for.
+const MAX_READERS: usize = 64;
+
 /// A block in the engine's in-memory buffer.
 type BufferedBlock = (BlockWithParent, BlockStateDiff);
 
@@ -111,10 +118,16 @@ impl Queue {
         }
     }
 
-    /// Discards the waiting work and stops the warming thread after its current job.
+    /// Discards the waiting work and stops the warming thread after its current read: a write
+    /// job is one read, a prune pass several.
     fn close(&self) {
         *self.pending.lock() = Pending { closed: true, ..Default::default() };
         self.changed.notify_one();
+    }
+
+    /// Whether the prefetcher was dropped.
+    fn is_closed(&self) -> bool {
+        self.pending.lock().closed
     }
 }
 
@@ -125,13 +138,13 @@ pub(crate) struct Prefetcher {
     persistence_threshold: u64,
     #[cfg(feature = "metrics")]
     metrics: metrics::PrefetchMetrics,
-    /// Joins the warming thread on drop, once it has finished its current job.
+    /// Joins the warming thread on drop, once it has finished its current read.
     _worker: ServiceGuard,
 }
 
 impl Prefetcher {
     /// Spawns the warming thread. Each of its jobs reads from `config.prefetch_threads` parallel
-    /// transactions.
+    /// transactions, and from 64 at most.
     pub(crate) fn spawn<S, H>(
         storage: S,
         pruner: OpProofStoragePruner<S, H>,
@@ -144,12 +157,12 @@ impl Prefetcher {
         // No more blocks than the backpressure threshold can be waiting to be persisted.
         let queue = Arc::new(Queue::new(config.backpressure_threshold.max(1) as usize));
         #[cfg(feature = "metrics")]
-        let metrics = metrics::PrefetchMetrics::default();
+        let metrics = metrics::PrefetchMetrics::new_with_labels(&[] as &[(&str, &str)]);
         let worker = Worker {
             queue: queue.clone(),
             storage,
             pruner,
-            threads: config.prefetch_threads,
+            threads: config.prefetch_threads.min(MAX_READERS),
             prune_warmed_through: 0,
             #[cfg(feature = "metrics")]
             metrics: metrics.clone(),
@@ -257,11 +270,18 @@ where
                 // only moves forward, so no block at or below that one needs reading again.
                 let first = (*blocks.start()).max(self.prune_warmed_through.saturating_add(1));
                 let last = (*blocks.end()).min(first.saturating_add(MAX_PRUNE_WARM_BLOCKS - 1));
-                if first > last {
-                    return Ok(0);
+                let mut keys = 0;
+                // A few blocks per read. While a reader's transaction is open, MDBX cannot reuse
+                // the pages freed since it began, and a drop of the prefetcher waits for the
+                // read to end.
+                for start in (first..=last).step_by(PRUNE_WARM_CHUNK_BLOCKS as usize) {
+                    if self.queue.is_closed() {
+                        break;
+                    }
+                    let end = last.min(start.saturating_add(PRUNE_WARM_CHUNK_BLOCKS - 1));
+                    keys += self.storage.warm_for_prune(start..=end, self.threads)?;
+                    self.prune_warmed_through = end;
                 }
-                let keys = self.storage.warm_for_prune(first..=last, self.threads)?;
-                self.prune_warmed_through = last;
                 Ok(keys)
             }
         }
@@ -287,7 +307,8 @@ mod metrics {
         pub(super) write_keys_total: Counter,
         /// Keys read while warming prune pages, counted once for each block that changed them.
         pub(super) prune_keys_total: Counter,
-        /// Block writes that were not warmed because warming fell behind persistence.
+        /// Block writes that were not warmed: the queue was full, or the block was persisted or
+        /// unwound before its turn.
         pub(super) dropped_jobs_total: Counter,
         /// Warming jobs that failed.
         pub(super) failed_jobs_total: Counter,
@@ -315,7 +336,7 @@ pub(super) mod test_utils {
         ops::RangeInclusive,
         sync::{
             Arc,
-            atomic::{AtomicBool, Ordering},
+            atomic::{AtomicBool, AtomicUsize, Ordering},
         },
     };
 
@@ -333,11 +354,13 @@ pub(super) mod test_utils {
         pub(in crate::engine) warmed: Sender<Warmed>,
         /// Makes the next write warming panic instead.
         pub(in crate::engine) panic_next_write: Arc<AtomicBool>,
+        /// Readers the last write warming asked for.
+        pub(in crate::engine) readers: Arc<AtomicUsize>,
     }
 
     impl<S> NotifyingStore<S> {
         pub(in crate::engine) fn new(inner: S, warmed: Sender<Warmed>) -> Self {
-            Self { inner, warmed, panic_next_write: Arc::default() }
+            Self { inner, warmed, panic_next_write: Arc::default(), readers: Arc::default() }
         }
     }
 
@@ -373,6 +396,7 @@ pub(super) mod test_utils {
             threads: usize,
         ) -> OpProofsStorageResult<usize> {
             assert!(!self.panic_next_write.swap(false, Ordering::SeqCst), "warming failed");
+            self.readers.store(threads, Ordering::SeqCst);
             let _ = self.warmed.send(Warmed::Write);
             self.inner.warm_for_write(diff, threads)
         }
@@ -468,8 +492,19 @@ mod tests {
             threads: CONFIG.prefetch_threads,
             prune_warmed_through: 0,
             #[cfg(feature = "metrics")]
-            metrics: metrics::PrefetchMetrics::default(),
+            metrics: metrics::PrefetchMetrics::new_with_labels(&[] as &[(&str, &str)]),
         }
+    }
+
+    /// The block ranges of the prune reads reported so far.
+    fn prune_reads(warmed: &Receiver<Warmed>) -> Vec<RangeInclusive<u64>> {
+        warmed
+            .try_iter()
+            .map(|read| match read {
+                Warmed::Prune(blocks) => blocks,
+                Warmed::Write => panic!("expected only prune reads"),
+            })
+            .collect()
     }
 
     #[test]
@@ -515,10 +550,14 @@ mod tests {
         let mut worker = worker(store, pruner);
         let job = Job::Prune(0);
 
+        // A pass reads 128 blocks, 16 at a time.
         worker.warm(&job).unwrap();
-        assert_eq!(warmed.try_recv(), Ok(Warmed::Prune(1..=MAX_PRUNE_WARM_BLOCKS)));
+        assert_eq!(
+            prune_reads(&warmed),
+            [1..=16, 17..=32, 33..=48, 49..=64, 65..=80, 81..=96, 97..=112, 113..=128]
+        );
         worker.warm(&job).unwrap();
-        assert_eq!(warmed.try_recv(), Ok(Warmed::Prune(MAX_PRUNE_WARM_BLOCKS + 1..=200)));
+        assert_eq!(prune_reads(&warmed), [129..=144, 145..=160, 161..=176, 177..=192, 193..=200]);
         // Nothing is left to read.
         worker.warm(&job).unwrap();
         assert!(warmed.try_recv().is_err());
@@ -536,6 +575,49 @@ mod tests {
         store_blocks(&worker.storage, 203..=212);
         worker.warm(&job).unwrap();
         assert_eq!(warmed.try_recv(), Ok(Warmed::Prune(201..=210)));
+    }
+
+    // Dropping the prefetcher waits for the warming thread, and a reader holds its read
+    // transaction open for as long as it reads. So a long prune pass has to stop between reads.
+    #[test]
+    fn a_prune_pass_stops_once_the_prefetcher_closes() {
+        let (_dir, mut store, pruner, _) = store_and_pruner(202);
+        // With room for one report, the pass cannot start a third read before this test takes
+        // the first report.
+        let (warmed_tx, warmed) = crossbeam_channel::bounded(1);
+        store.warmed = warmed_tx;
+        let mut worker = worker(store, pruner);
+        let queue = worker.queue.clone();
+
+        let pass = thread::spawn(move || {
+            worker.warm(&Job::Prune(0)).unwrap();
+            worker.prune_warmed_through
+        });
+        queue.close();
+        // The reports end when the pass does and drops its store.
+        let read_through = warmed.iter().fold(0, |_, read| match read {
+            Warmed::Prune(blocks) => *blocks.end(),
+            Warmed::Write => panic!("expected only prune reads"),
+        });
+
+        // 128 blocks were due. The pass was in its first or second read at most when it closed.
+        assert!(read_through <= 2 * PRUNE_WARM_CHUNK_BLOCKS, "read on to block {read_through}");
+        // The next pass goes on after the last block read.
+        assert_eq!(pass.join().unwrap(), read_through);
+    }
+
+    // The command line accepts up to 64 readers. A config built in code can ask for any number,
+    // and every reader is a thread with a read transaction of its own.
+    #[test]
+    fn a_job_reads_from_at_most_64_readers() {
+        let (_dir, store, pruner, warmed) = store_and_pruner(10);
+        let config = EngineConfig { prefetch_threads: 1_000, ..CONFIG };
+        let prefetcher = Prefetcher::spawn(store.clone(), pruner, &config);
+
+        let buffered = block(11);
+        prefetcher.warm_write(&buffered);
+        assert_eq!(warmed.recv_timeout(TIMEOUT), Ok(Warmed::Write));
+        assert_eq!(store.readers.load(Ordering::SeqCst), 64);
     }
 
     #[test]
