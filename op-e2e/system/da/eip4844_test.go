@@ -35,8 +35,9 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// Update to Prague if L1 changes to Prague and we need more blobs in multi-blob tests.
-var maxBlobsPerBlock = params.DefaultCancunBlobConfig.Max
+// maxBlobsPerTx is the number of blobs the multi-blob tests put in one transaction: Osaka caps a
+// transaction at 6 blobs (EIP-7594), the Cancun maximum per block.
+var maxBlobsPerTx = params.DefaultCancunBlobConfig.Max
 
 // TestSystem4844E2E* run the SystemE2E test with 4844 enabled on L1, and active on the rollup in
 // the op-batcher and verifier.  It submits a txpool-blocking transaction before running
@@ -66,9 +67,9 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 
 	var maxL1TxSize int
 	if multiBlob {
-		cfg.BatcherTargetNumFrames = maxBlobsPerBlock
+		cfg.BatcherTargetNumFrames = maxBlobsPerTx
 		cfg.BatcherUseMaxTxSizeForBlobs = true
-		// leads to maxBlobsPerBlock blobs for an L2 block with a user tx with 400 random bytes
+		// leads to maxBlobsPerTx blobs for an L2 block with a user tx with 400 random bytes
 		// while all other L2 blocks take 1 blob (deposit tx)
 		maxL1TxSize = derive.FrameV0OverHeadSize + 100
 		cfg.BatcherMaxL1TxSizeBytes = uint64(maxL1TxSize)
@@ -143,7 +144,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 		opts.Value = big.NewInt(1_000_000_000)
 		opts.Nonce = 1 // Already have deposit
 		opts.ToAddr = &common.Address{0xff, 0xff}
-		// put some random data in the tx to make it fill up maxBlobsPerBlock blobs (multi-blob case)
+		// put some random data in the tx to make it fill up maxBlobsPerTx blobs (multi-blob case)
 		opts.Data = testutils.RandomData(rand.New(rand.NewSource(420)), 400)
 		opts.Gas, err = core.IntrinsicGas(opts.Data, nil, nil, false, true, true, false)
 		require.NoError(t, err)
@@ -221,19 +222,19 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	if !multiBlob {
 		require.NotZero(t, numBlobs, "single-blob: expected to find L1 blob tx")
 	} else {
-		require.Equal(t, maxBlobsPerBlock, numBlobs, fmt.Sprintf("multi-blob: expected to find L1 blob tx with %d blobs", maxBlobsPerBlock))
+		require.Equal(t, maxBlobsPerTx, numBlobs, fmt.Sprintf("multi-blob: expected to find L1 blob tx with %d blobs", maxBlobsPerTx))
 		// blob tx should have filled up all but last blob
 		bcl := sys.L1BeaconHTTPClient()
 		blobs, err := bcl.BeaconBlobs(context.Background(), sys.L1Slot(blobBlock.Time()), blobTx.BlobHashes())
 		require.NoError(t, err)
-		require.Len(t, blobs.Data, maxBlobsPerBlock)
-		for i := 0; i < maxBlobsPerBlock-1; i++ {
+		require.Len(t, blobs.Data, maxBlobsPerTx)
+		for i := 0; i < maxBlobsPerTx-1; i++ {
 			data, err := blobs.Data[i].ToData()
 			require.NoError(t, err)
 			assert.Len(t, data, maxL1TxSize, "blob %d should be full", i)
 		}
 		// last blob should only be partially filled
-		data, err := blobs.Data[maxBlobsPerBlock-1].ToData()
+		data, err := blobs.Data[maxBlobsPerTx-1].ToData()
 		require.NoError(t, err)
 		require.Less(t, len(data), maxL1TxSize)
 	}
@@ -242,10 +243,10 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 // TestBatcherAutoDA tests that the batcher with Auto data availability type
 // correctly chooses the cheaper Ethereum-DA type (calldata or blobs).
 // The L1 chain is set up with a genesis block that has an excess blob gas that leads
-// to a slightly higher blob base fee than 16x the regular base fee.
-// So in the first few L1 blocks, calldata will be cheaper than blobs.
-// We then send a couple of expensive Deposit transactions, which drives up the
-// gas price. The L1 blob gas limit is set to a low value to speed up this process.
+// to a blob base fee more than 41 times the base fee plus tip, above the ~40x at which blobs
+// become cheaper under Pectra. So in the first few L1 blocks, calldata will be cheaper than
+// blobs. While the batcher posts calldata, the blob base fee falls faster than the base fee,
+// which the deposit transactions sent meanwhile keep up, until blobs are cheaper again.
 func TestBatcherAutoDA(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -269,7 +270,7 @@ func TestBatcherAutoDA(t *testing.T) {
 		938 * params.BlobTxBlobGasPerBlob))
 	cfg.DeployConfig.L1GenesisBlockBlobGasUsed = (*hexutil.Uint64)(u64Ptr(0))
 	cfg.DeployConfig.L1GenesisBlockGasLimit = 2_500_000
-	cfg.BatcherTargetNumFrames = maxBlobsPerBlock
+	cfg.BatcherTargetNumFrames = maxBlobsPerTx
 	cfg.DisableProposer = true // disable L2 output submission for this test
 	cfg.DisableTxForwarder = true
 	cfg.DisableBatcher = true // disable batcher because we start it manually later
@@ -326,8 +327,9 @@ func TestBatcherAutoDA(t *testing.T) {
 	// impact the markets before we query the feeRatio. Therefore
 	// the L1GenesisBlockExcessBlobGas above is tuned so that
 	// the feeRatio remains above 41.0 even after the market begins to
-	// change: two empty blocks lower the base fee by 12.5% and the blob base fee by 14.5% each,
-	// so the first query sees a feeRatio of about 43.7.
+	// change: it is about 45.9 at genesis, and each empty block lowers the base fee by 12.5% and
+	// the blob base fee by 14.5%, so the assertion holds for up to four empty blocks before the
+	// first query (about 41.8 after four, 40.8 after five).
 
 	_, _, _, feeRatio := mustGetFees()
 	require.Greater(t, feeRatio, 41.0, "expected feeRatio to be greater than 41 (calldata should be cheaper, even with Pectra)")

@@ -18,7 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSystemE2EDencunAtGenesis tests if L2 finalizes when blobs are present on L1
+// TestSystemE2EDencunAtGenesisWithBlobs tests if L2 finalizes when blobs are present on L1. The
+// L1 runs Osaka from genesis, so the blob transaction carries cell proofs.
 func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -36,7 +37,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 
 	// send a blob-containing txn on l1
 	ethPrivKey := sys.Cfg.Secrets.Alice
-	txData := transactions.CreateEmptyBlobTx(true, bigs.Uint64Strict(sys.Cfg.L1ChainIDBig()))
+	txData := transactions.CreateEmptyBlobTx(true, true, bigs.Uint64Strict(sys.Cfg.L1ChainIDBig()))
 	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L1ChainIDBig()), txData)
 	// send blob-containing txn
 	sendCtx, sendCancel := context.WithTimeout(context.Background(), 15*time.Second)

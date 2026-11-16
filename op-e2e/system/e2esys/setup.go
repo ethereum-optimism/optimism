@@ -995,6 +995,17 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			MaxConcurrentRequests: cfg.BatcherMaxConcurrentDARequest,
 		}
 	}
+	batcherTxMgrConfig := setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Batcher)
+	// txmgr knows the Osaka time of public L1s only. From Osaka on, the L1 accepts blob
+	// transactions with cell proofs; geth converts legacy sidecars on submission, but only for a
+	// transition period.
+	if osaka := l1Genesis.Config.OsakaTime; osaka != nil {
+		if *osaka <= l1Genesis.Timestamp {
+			batcherTxMgrConfig.CellProofTime = 0
+		} else {
+			batcherTxMgrConfig.CellProofTime = *osaka
+		}
+	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 sys.EthInstances[RoleL1].UserRPC().RPC(),
 		L2EthRpc:                 []string{sys.EthInstances[RoleSeq].UserRPC().RPC()},
@@ -1007,7 +1018,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		ApproxComprRatio:         0.4,
 		SubSafetyMargin:          4,
 		PollInterval:             50 * time.Millisecond,
-		TxMgrConfig:              setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Batcher),
+		TxMgrConfig:              batcherTxMgrConfig,
 		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: log.FormatText,

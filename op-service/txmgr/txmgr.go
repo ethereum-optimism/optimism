@@ -422,11 +422,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 			return nil, errors.New("blob txs cannot deploy contracts")
 		}
 
-		// Use configuration to determine whether to enable cell proofs.
-		// We add a 12s buffer, because cell proofs are likely _not_
-		// supported before the Fusaka fork and legacy blob proofs
-		// may well be accepted after the Fusaka fork.
-		useCellProofs := m.cfg.CellProofTime < uint64(time.Now().Add(-12*time.Second).Unix())
+		useCellProofs := m.useCellProofs()
 		m.l.Debug("crafting Blob transaction", "useCellProofs", useCellProofs)
 		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, useCellProofs); err != nil {
 			return nil, fmt.Errorf("failed to make sidecar: %w", err)
@@ -575,6 +571,13 @@ func (m *SimpleTxManager) GetBlobTipCapDynamic() bool {
 func (m *SimpleTxManager) SetBlobTipCapDynamic(val bool) {
 	m.cfg.BlobTipCapDynamic.Store(val)
 	m.l.Info("txmgr config val changed: SetBlobTipCapDynamic", "newVal", val)
+}
+
+// useCellProofs reports whether a blob transaction sent now carries cell proofs. It adds a 12s
+// buffer to the configured cell proof time, because cell proofs are likely _not_ supported
+// before the Fusaka fork and legacy blob proofs may well be accepted after the Fusaka fork.
+func (m *SimpleTxManager) useCellProofs() bool {
+	return m.cfg.CellProofTime < uint64(time.Now().Add(-12*time.Second).Unix())
 }
 
 // MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
