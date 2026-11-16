@@ -88,6 +88,14 @@ mod tests {
         sepolia::{SEPOLIA_BPO1_TIMESTAMP, SEPOLIA_BPO2_TIMESTAMP},
     };
 
+    /// Every chain sets its own EIP-1559 config, so none takes the `ChainConfig` fallback.
+    #[test]
+    fn test_every_chain_sets_base_fee_config() {
+        for (chain_id, chain) in OPCHAINS.iter() {
+            assert!(chain.optimism.is_some(), "chain {chain_id} has no `optimism` fee config");
+        }
+    }
+
     #[test]
     fn test_hardcoded_rollup_configs() {
         let test_cases =

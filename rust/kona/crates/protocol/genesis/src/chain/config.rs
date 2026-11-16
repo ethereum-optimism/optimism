@@ -9,7 +9,7 @@ use alloy_primitives::Address;
 use crate::FJORD_MAX_SEQUENCER_DRIFT;
 use crate::{
     AddressList, AltDAConfig, BaseFeeConfig, ChainGenesis, GRANITE_CHANNEL_TIMEOUT, HardForkConfig,
-    Roles, RollupConfig, base_fee_params, base_fee_params_canyon, params::base_fee_config,
+    OP_MAINNET_BASE_FEE_CONFIG, Roles, RollupConfig,
 };
 
 /// L1 chain configuration from the `alloy-genesis` crate.
@@ -36,7 +36,7 @@ pub type L1ChainConfig = alloy_genesis::ChainConfig;
 // regeneration) instead of being silently dropped. Mirrors HardForkConfig, which is already strict.
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ChainConfig {
-    /// Chain name (e.g. "Base")
+    /// Chain name (e.g. "OP Mainnet")
     #[cfg_attr(feature = "serde", serde(rename = "Name", alias = "name"))]
     pub name: String,
     /// L1 chain ID
@@ -123,23 +123,17 @@ pub struct ChainConfig {
 impl ChainConfig {
     /// Returns the base fee params for the chain.
     pub fn base_fee_params(&self) -> BaseFeeParams {
-        self.optimism
-            .as_ref()
-            .map(|op| op.pre_canyon_params())
-            .unwrap_or_else(|| base_fee_params(self.chain_id))
+        self.base_fee_config().pre_canyon_params()
     }
 
     /// Returns the canyon base fee params for the chain.
     pub fn canyon_base_fee_params(&self) -> BaseFeeParams {
-        self.optimism
-            .as_ref()
-            .map(|op| op.post_canyon_params())
-            .unwrap_or_else(|| base_fee_params_canyon(self.chain_id))
+        self.base_fee_config().post_canyon_params()
     }
 
-    /// Returns the base fee config for the chain.
+    /// Returns the base fee config for the chain, defaulting to OP Mainnet's.
     pub fn base_fee_config(&self) -> BaseFeeConfig {
-        self.optimism.as_ref().map(|op| *op).unwrap_or_else(|| base_fee_config(self.chain_id))
+        self.optimism.unwrap_or(OP_MAINNET_BASE_FEE_CONFIG)
     }
 
     /// Loads the rollup config for the OP-Stack chain given the chain config and address list.
@@ -197,6 +191,24 @@ impl ChainConfig {
 mod tests {
     use super::*;
     use alloc::string::ToString;
+
+    #[test]
+    fn base_fee_config_defaults_to_op_mainnet() {
+        let config = ChainConfig::default();
+        assert_eq!(config.base_fee_config(), OP_MAINNET_BASE_FEE_CONFIG);
+        assert_eq!(config.base_fee_params(), crate::OP_MAINNET_BASE_FEE_PARAMS);
+        assert_eq!(config.canyon_base_fee_params(), crate::OP_MAINNET_BASE_FEE_PARAMS_CANYON);
+
+        let custom = BaseFeeConfig {
+            eip1559_elasticity: 10,
+            eip1559_denominator: 50,
+            eip1559_denominator_canyon: 250,
+        };
+        let config = ChainConfig { optimism: Some(custom), ..Default::default() };
+        assert_eq!(config.base_fee_config(), custom);
+        assert_eq!(config.base_fee_params(), custom.pre_canyon_params());
+        assert_eq!(config.canyon_base_fee_params(), custom.post_canyon_params());
+    }
 
     #[test]
     fn test_chain_config_json() {
