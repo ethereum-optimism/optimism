@@ -119,7 +119,7 @@ resolve_contract_scripts() {
   local scripts
   scripts=$(cd "$root" && while read -r dir; do
     for f in "$dir"/*.go; do
-      case "$f" in *_test.go) ;; *) [ -f "$f" ] && cat "$f" ;; esac
+      if [[ "$f" != *_test.go && -f "$f" ]]; then cat "$f"; fi
     done
   done < "$workdir/deps" | { grep -oE '"[A-Za-z0-9]+\.s\.sol"' || :; } | tr -d '"' | sort -u)
   (cd "$root/packages/contracts-bedrock" && mise exec -- forge tree --charset ascii) \
