@@ -218,6 +218,8 @@ pub trait OpHardforks: EthereumHardforks {
 pub struct OpChainHardforks {
     /// Ordered list of OP hardfork activations.
     forks: Vec<(OpHardfork, ForkCondition)>,
+    /// Paris (the merge), at the Bedrock block so it activates together with London.
+    paris: ForkCondition,
 }
 
 impl OpChainHardforks {
@@ -226,7 +228,16 @@ impl OpChainHardforks {
     pub fn new(forks: impl IntoIterator<Item = (OpHardfork, ForkCondition)>) -> Self {
         let mut forks = forks.into_iter().collect::<Vec<_>>();
         forks.sort();
-        Self { forks }
+        let bedrock_block = match forks.first() {
+            Some((OpHardfork::Bedrock, ForkCondition::Block(block))) => *block,
+            _ => 0,
+        };
+        let paris = ForkCondition::TTD {
+            activation_block_number: bedrock_block,
+            fork_block: Some(bedrock_block),
+            total_difficulty: U256::ZERO,
+        };
+        Self { forks, paris }
     }
 }
 
@@ -297,11 +308,7 @@ impl Index<EthereumHardfork> for OpChainHardforks {
             // Pre-Bedrock L1 history (e.g. OP Mainnet's legacy Berlin block) isn't modelled.
             Frontier | Homestead | Tangerine | SpuriousDragon | Byzantium | Constantinople |
             Petersburg | Istanbul | MuirGlacier | Berlin => &ForkCondition::ZERO_BLOCK,
-            Paris => &ForkCondition::TTD {
-                activation_block_number: 0,
-                fork_block: Some(0),
-                total_difficulty: U256::ZERO,
-            },
+            Paris => &self.paris,
             // Everything else activates with the OP fork that implies it (Bedrock for
             // London through GrayGlacier); L1 forks without an L2 equivalent (the BPO
             // forks, Amsterdam, ...) never activate.
@@ -497,6 +504,32 @@ mod tests {
         ));
         // L1 forks without an L2 equivalent never activate.
         assert_eq!(forks.ethereum_fork_activation(EthereumHardfork::Bpo1), ForkCondition::Never);
+    }
+
+    #[test]
+    fn paris_activates_at_the_bedrock_block() {
+        let bedrock = 1_000;
+        let forks = OpChainHardforks::new([
+            (OpHardfork::Bedrock, ForkCondition::Block(bedrock)),
+            (OpHardfork::Regolith, ForkCondition::Timestamp(0)),
+        ]);
+        let paris = forks.ethereum_fork_activation(EthereumHardfork::Paris);
+        assert_eq!(
+            paris,
+            ForkCondition::TTD {
+                activation_block_number: bedrock,
+                fork_block: Some(bedrock),
+                total_difficulty: U256::ZERO,
+            }
+        );
+        // London and Paris activate together, never Paris first.
+        for block in [bedrock - 1, bedrock] {
+            assert_eq!(
+                paris.active_at_block(block),
+                forks.ethereum_fork_activation(EthereumHardfork::London).active_at_block(block),
+                "block {block}"
+            );
+        }
     }
 
     // https://github.com/alloy-rs/hardforks/issues/63

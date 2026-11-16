@@ -61,7 +61,7 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
         jovian_time: Some(1_764_691_201),
         karst_time: Some(1_783_526_401),
         keep_karst_upgrade_gas: true,
-        lagoon_time: Some(1799683201),
+        lagoon_time: Some(1_799_683_201),
     },
     batch_inbox_address: address!("ff00000000000000000000000000000000000010"),
     deposit_contract_address: address!("beb5fc579115071764c7423a4f12edde41f106ed"),

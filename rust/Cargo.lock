@@ -13797,7 +13797,6 @@ dependencies = [
  "alloy-eips 2.5.0",
  "alloy-genesis",
  "alloy-hardforks",
- "alloy-op-hardforks",
  "alloy-primitives",
  "derive_more 2.1.1",
  "miniz_oxide 0.9.1",

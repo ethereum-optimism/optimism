@@ -61,7 +61,7 @@ pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
         jovian_time: Some(1_763_568_001),
         karst_time: Some(1_781_712_001),
         keep_karst_upgrade_gas: true,
-        lagoon_time: Some(1796918401),
+        lagoon_time: Some(1_796_918_401),
     },
     batch_inbox_address: address!("ff00000000000000000000000000000011155420"),
     deposit_contract_address: address!("16fc5058f25648194471939df75cf27a2fdc48bc"),
