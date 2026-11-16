@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -398,6 +399,9 @@ func buildMixedOpRethNode(
 		"--builder.interval=100ms",
 		"--chain=" + chainConfigPath,
 		"--color=never",
+		// Devnet chains are in neither the superchain registry nor alloy-chains, so op-reth
+		// can't derive the block time that dates its pending block.
+		"--rollup.block-time=" + strconv.FormatUint(l2Net.rollupCfg.BlockTime, 10),
 		"--datadir=" + dataDirPath,
 		"--disable-discovery",
 		"--http",
