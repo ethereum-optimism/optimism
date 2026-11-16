@@ -1722,9 +1722,11 @@ jobs:
                 key: shard-timings-v2-memory-all-kona-op-reth-fusaka-
             # The workspace is attached at the repo root, where go-tests runs every
             # package. Go skips dirs starting with "_", and only plain .json files pass.
-            # Absolute paths, since a cache can write to ~/bin, which is first in PATH.
+            # A cache can write ~/bin (first in PATH) and the mise that BASH_ENV runs,
+            # so use sh, which skips BASH_ENV, and call tools by absolute path.
             - run:
                 name: Keep only the timing files
+                shell: /bin/sh -eu
                 command: |
                   D=/tmp/_shard-timings
                   [ -d "$D" ] && [ ! -L "$D" ] || /bin/rm -rf "$D"
