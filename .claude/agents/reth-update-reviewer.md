@@ -9,7 +9,9 @@ surface the risk areas a human needs to look at before the bump merges. You **su
 risk; you do not adjudicate safety**.
 
 Read **[docs/ai/reth-update-review.md](../../docs/ai/reth-update-review.md)** in full, and
-the sections of [rust/UPDATING-RETH.md](../../rust/UPDATING-RETH.md) it points at, and
+the parts of [rust/UPDATING-RETH.md](../../rust/UPDATING-RETH.md),
+[rust/UPSTREAM-ASSUMPTIONS.md](../../rust/UPSTREAM-ASSUMPTIONS.md) and
+[rust/RETH-CARRIED-PATCHES.md](../../rust/RETH-CARRIED-PATCHES.md) it points at, and
 follow them exactly — scope (the lockfile-delta funnel), the change-driven approach, the
 precondition question, the risk taxonomy, the review process, the succinct output format,
 and the all-severities triage → investigation handoff. Do not restate them; execute them.

@@ -129,7 +129,7 @@ base, rather than trusting the author's:
 
 Ask it on every consensus-adjacent change, before anything else. The question, the
 preconditions OP breaks and how to check one are in
-[UPDATING-RETH, "The precondition question"](../../rust/UPDATING-RETH.md#the-precondition-question).
+[UPSTREAM-ASSUMPTIONS](../../rust/UPSTREAM-ASSUMPTIONS.md).
 
 ## Risk taxonomy
 
@@ -215,7 +215,7 @@ UPDATING-RETH step 7's rigor for consensus-adjacent overrides.
 - Fork-activation mapping (`OpHardfork::activates_l1_fork`, the revm spec mapping).
 - Precompile address set.
 - Trie persistence layout and state-provider storage-root reads — see precondition 6 in
-  UPDATING-RETH, "The precondition question".
+  [UPSTREAM-ASSUMPTIONS](../../rust/UPSTREAM-ASSUMPTIONS.md).
 
 ### F. Downstream-consumer risks (our published versions are an API)
 
@@ -297,6 +297,10 @@ offer to start a background investigation agent that:
   verified against, and how to re-check it.
 - [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md) — the bump procedure these
   reviews accompany (especially step 2 pin audit, step 4 shared-version sync, step 6
-  upstream slot-preimage API review, step 7 consensus-adjacent rigor), the forward sweep
-  and the precondition question.
+  upstream slot-preimage API review, step 7 consensus-adjacent rigor) and the forward
+  sweep.
+- [`rust/UPSTREAM-ASSUMPTIONS.md`](../../rust/UPSTREAM-ASSUMPTIONS.md) — the precondition
+  question and where OP breaks upstream's assumptions.
+- [`rust/RETH-CARRIED-PATCHES.md`](../../rust/RETH-CARRIED-PATCHES.md) — the patches the
+  fork carries, which the step 2 pin audit checks.
 - [rust-dev.md](rust-dev.md) — "Migrated, not vendored", the hardfork mapping, build/test.
