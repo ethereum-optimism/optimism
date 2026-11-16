@@ -115,11 +115,7 @@ mod tests {
     use super::*;
     use crate::{SUPPORTED_CHAINS, generated_chain_value_parser, superchain::Superchain};
     use alloy_chains::NamedChain;
-    use alloy_op_hardforks::{
-        OP_MAINNET_CANYON_TIMESTAMP, OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP,
-        OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_CANYON_TIMESTAMP, OP_SEPOLIA_ECOTONE_TIMESTAMP,
-        OP_SEPOLIA_ISTHMUS_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP, OpHardfork,
-    };
+    use alloy_op_hardforks::OpHardfork;
     use reth_optimism_primitives::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
     use tar_no_std::TarArchiveRef;
 
@@ -219,7 +215,7 @@ mod tests {
                 Some(NamedChain::Optimism) => {
                     assert_eq!(
                         metadata.hardforks.get(OpHardfork::Jovian).unwrap().as_timestamp().unwrap(),
-                        OP_MAINNET_JOVIAN_TIMESTAMP
+                        1764691201
                     );
 
                     assert_eq!(
@@ -229,12 +225,12 @@ mod tests {
                             .unwrap()
                             .as_timestamp()
                             .unwrap(),
-                        OP_MAINNET_ISTHMUS_TIMESTAMP
+                        1746806401
                     );
 
                     assert_eq!(
                         metadata.hardforks.get(OpHardfork::Canyon).unwrap().as_timestamp().unwrap(),
-                        OP_MAINNET_CANYON_TIMESTAMP
+                        1704992401
                     );
 
                     assert_eq!(
@@ -244,13 +240,13 @@ mod tests {
                             .unwrap()
                             .as_timestamp()
                             .unwrap(),
-                        OP_MAINNET_ECOTONE_TIMESTAMP
+                        1710374401
                     );
                 }
                 Some(NamedChain::OptimismSepolia) => {
                     assert_eq!(
                         metadata.hardforks.get(OpHardfork::Jovian).unwrap().as_timestamp().unwrap(),
-                        OP_SEPOLIA_JOVIAN_TIMESTAMP
+                        1763568001
                     );
 
                     assert_eq!(
@@ -260,12 +256,12 @@ mod tests {
                             .unwrap()
                             .as_timestamp()
                             .unwrap(),
-                        OP_SEPOLIA_ISTHMUS_TIMESTAMP
+                        1744905600
                     );
 
                     assert_eq!(
                         metadata.hardforks.get(OpHardfork::Canyon).unwrap().as_timestamp().unwrap(),
-                        OP_SEPOLIA_CANYON_TIMESTAMP
+                        1699981200
                     );
 
                     assert_eq!(
@@ -275,7 +271,7 @@ mod tests {
                             .unwrap()
                             .as_timestamp()
                             .unwrap(),
-                        OP_SEPOLIA_ECOTONE_TIMESTAMP
+                        1708534800
                     );
                 }
                 _ => {}

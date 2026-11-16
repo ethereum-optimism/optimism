@@ -541,7 +541,6 @@ pub(crate) fn make_op_sealed_genesis_header(
 mod tests {
     use alloc::string::{String, ToString};
     use alloy_genesis::{ChainConfig, Genesis};
-    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
     use alloy_primitives::b256;
     use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, test_fork_ids};
     use reth_ethereum_forks::{EthereumHardfork, ForkCondition, ForkHash, ForkId, Head};
@@ -636,18 +635,11 @@ mod tests {
                 // Isthmus
                 (
                     Head { number: 0, timestamp: 1744905600, ..Default::default() },
-                    ForkId {
-                        hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]),
-                        next: OP_SEPOLIA_JOVIAN_TIMESTAMP,
-                    },
+                    ForkId { hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]), next: 1763568001 },
                 ),
                 // Jovian
                 (
-                    Head {
-                        number: 0,
-                        timestamp: OP_SEPOLIA_JOVIAN_TIMESTAMP,
-                        ..Default::default()
-                    },
+                    Head { number: 0, timestamp: 1763568001, ..Default::default() },
                     OP_SEPOLIA.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
                 ),
             ],
@@ -709,18 +701,11 @@ mod tests {
                 // Isthmus
                 (
                     Head { number: 105235063, timestamp: 1746806401, ..Default::default() },
-                    ForkId {
-                        hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]),
-                        next: OP_MAINNET_JOVIAN_TIMESTAMP,
-                    },
+                    ForkId { hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]), next: 1764691201 },
                 ),
                 // Jovian
                 (
-                    Head {
-                        number: 105235063,
-                        timestamp: OP_MAINNET_JOVIAN_TIMESTAMP,
-                        ..Default::default()
-                    },
+                    Head { number: 105235063, timestamp: 1764691201, ..Default::default() },
                     OP_MAINNET.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
                 ),
             ],

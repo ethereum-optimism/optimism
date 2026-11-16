@@ -9,17 +9,10 @@
 
 extern crate alloc;
 use alloc::vec::Vec;
-use alloy_chains::{Chain, NamedChain};
 use alloy_hardforks::{EthereumHardfork, hardfork};
 pub use alloy_hardforks::{EthereumHardforks, ForkCondition};
 use alloy_primitives::U256;
 use core::ops::Index;
-
-pub mod optimism;
-pub use optimism::{mainnet as op_mainnet, mainnet::*, sepolia as op_sepolia, sepolia::*};
-
-pub mod base;
-pub use base::{mainnet as base_mainnet, mainnet::*, sepolia as base_sepolia, sepolia::*};
 
 hardfork!(
     /// The name of an optimism hardfork.
@@ -56,120 +49,6 @@ hardfork!(
 );
 
 impl OpHardfork {
-    /// Reverse lookup to find the hardfork given a chain ID and block timestamp.
-    /// Returns the active hardfork at the given timestamp for the specified OP chain.
-    pub fn from_chain_and_timestamp(chain: Chain, timestamp: u64) -> Option<Self> {
-        let named = chain.named()?;
-
-        match named {
-            NamedChain::Optimism => Some(match timestamp {
-                _i if timestamp < OP_MAINNET_CANYON_TIMESTAMP => Self::Regolith,
-                _i if timestamp < OP_MAINNET_ECOTONE_TIMESTAMP => Self::Canyon,
-                _i if timestamp < OP_MAINNET_FJORD_TIMESTAMP => Self::Ecotone,
-                _i if timestamp < OP_MAINNET_GRANITE_TIMESTAMP => Self::Fjord,
-                _i if timestamp < OP_MAINNET_HOLOCENE_TIMESTAMP => Self::Granite,
-                _i if timestamp < OP_MAINNET_ISTHMUS_TIMESTAMP => Self::Holocene,
-                _i if timestamp < OP_MAINNET_JOVIAN_TIMESTAMP => Self::Isthmus,
-                _i if timestamp < OP_MAINNET_KARST_TIMESTAMP => Self::Jovian,
-                _ => Self::Karst,
-            }),
-            NamedChain::OptimismSepolia => Some(match timestamp {
-                _i if timestamp < OP_SEPOLIA_CANYON_TIMESTAMP => Self::Regolith,
-                _i if timestamp < OP_SEPOLIA_ECOTONE_TIMESTAMP => Self::Canyon,
-                _i if timestamp < OP_SEPOLIA_FJORD_TIMESTAMP => Self::Ecotone,
-                _i if timestamp < OP_SEPOLIA_GRANITE_TIMESTAMP => Self::Fjord,
-                _i if timestamp < OP_SEPOLIA_HOLOCENE_TIMESTAMP => Self::Granite,
-                _i if timestamp < OP_SEPOLIA_ISTHMUS_TIMESTAMP => Self::Holocene,
-                _i if timestamp < OP_SEPOLIA_JOVIAN_TIMESTAMP => Self::Isthmus,
-                _i if timestamp < OP_SEPOLIA_KARST_TIMESTAMP => Self::Jovian,
-                _ => Self::Karst,
-            }),
-            NamedChain::Base => Some(match timestamp {
-                _i if timestamp < BASE_MAINNET_CANYON_TIMESTAMP => Self::Regolith,
-                _i if timestamp < BASE_MAINNET_ECOTONE_TIMESTAMP => Self::Canyon,
-                _i if timestamp < BASE_MAINNET_FJORD_TIMESTAMP => Self::Ecotone,
-                _i if timestamp < BASE_MAINNET_GRANITE_TIMESTAMP => Self::Fjord,
-                _i if timestamp < BASE_MAINNET_HOLOCENE_TIMESTAMP => Self::Granite,
-                _i if timestamp < BASE_MAINNET_ISTHMUS_TIMESTAMP => Self::Holocene,
-                _i if timestamp < BASE_MAINNET_JOVIAN_TIMESTAMP => Self::Isthmus,
-                _ => Self::Jovian,
-            }),
-            NamedChain::BaseSepolia => Some(match timestamp {
-                _i if timestamp < BASE_SEPOLIA_CANYON_TIMESTAMP => Self::Regolith,
-                _i if timestamp < BASE_SEPOLIA_ECOTONE_TIMESTAMP => Self::Canyon,
-                _i if timestamp < BASE_SEPOLIA_FJORD_TIMESTAMP => Self::Ecotone,
-                _i if timestamp < BASE_SEPOLIA_GRANITE_TIMESTAMP => Self::Fjord,
-                _i if timestamp < BASE_SEPOLIA_HOLOCENE_TIMESTAMP => Self::Granite,
-                _i if timestamp < BASE_SEPOLIA_ISTHMUS_TIMESTAMP => Self::Holocene,
-                _i if timestamp < BASE_SEPOLIA_JOVIAN_TIMESTAMP => Self::Isthmus,
-                _ => Self::Jovian,
-            }),
-            _ => None,
-        }
-    }
-
-    /// Optimism mainnet list of hardforks.
-    pub const fn op_mainnet() -> [(Self, ForkCondition); 10] {
-        [
-            (Self::Bedrock, ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK)),
-            (Self::Regolith, ForkCondition::Timestamp(OP_MAINNET_REGOLITH_TIMESTAMP)),
-            (Self::Canyon, ForkCondition::Timestamp(OP_MAINNET_CANYON_TIMESTAMP)),
-            (Self::Ecotone, ForkCondition::Timestamp(OP_MAINNET_ECOTONE_TIMESTAMP)),
-            (Self::Fjord, ForkCondition::Timestamp(OP_MAINNET_FJORD_TIMESTAMP)),
-            (Self::Granite, ForkCondition::Timestamp(OP_MAINNET_GRANITE_TIMESTAMP)),
-            (Self::Holocene, ForkCondition::Timestamp(OP_MAINNET_HOLOCENE_TIMESTAMP)),
-            (Self::Isthmus, ForkCondition::Timestamp(OP_MAINNET_ISTHMUS_TIMESTAMP)),
-            (Self::Jovian, ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP)),
-            (Self::Karst, ForkCondition::Timestamp(OP_MAINNET_KARST_TIMESTAMP)),
-        ]
-    }
-
-    /// Optimism Sepolia list of hardforks.
-    pub const fn op_sepolia() -> [(Self, ForkCondition); 10] {
-        [
-            (Self::Bedrock, ForkCondition::Block(OP_SEPOLIA_BEDROCK_BLOCK)),
-            (Self::Regolith, ForkCondition::Timestamp(OP_SEPOLIA_REGOLITH_TIMESTAMP)),
-            (Self::Canyon, ForkCondition::Timestamp(OP_SEPOLIA_CANYON_TIMESTAMP)),
-            (Self::Ecotone, ForkCondition::Timestamp(OP_SEPOLIA_ECOTONE_TIMESTAMP)),
-            (Self::Fjord, ForkCondition::Timestamp(OP_SEPOLIA_FJORD_TIMESTAMP)),
-            (Self::Granite, ForkCondition::Timestamp(OP_SEPOLIA_GRANITE_TIMESTAMP)),
-            (Self::Holocene, ForkCondition::Timestamp(OP_SEPOLIA_HOLOCENE_TIMESTAMP)),
-            (Self::Isthmus, ForkCondition::Timestamp(OP_SEPOLIA_ISTHMUS_TIMESTAMP)),
-            (Self::Jovian, ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP)),
-            (Self::Karst, ForkCondition::Timestamp(OP_SEPOLIA_KARST_TIMESTAMP)),
-        ]
-    }
-
-    /// Base mainnet list of hardforks.
-    pub const fn base_mainnet() -> [(Self, ForkCondition); 9] {
-        [
-            (Self::Bedrock, ForkCondition::Block(BASE_MAINNET_BEDROCK_BLOCK)),
-            (Self::Regolith, ForkCondition::Timestamp(BASE_MAINNET_REGOLITH_TIMESTAMP)),
-            (Self::Canyon, ForkCondition::Timestamp(BASE_MAINNET_CANYON_TIMESTAMP)),
-            (Self::Ecotone, ForkCondition::Timestamp(BASE_MAINNET_ECOTONE_TIMESTAMP)),
-            (Self::Fjord, ForkCondition::Timestamp(BASE_MAINNET_FJORD_TIMESTAMP)),
-            (Self::Granite, ForkCondition::Timestamp(BASE_MAINNET_GRANITE_TIMESTAMP)),
-            (Self::Holocene, ForkCondition::Timestamp(BASE_MAINNET_HOLOCENE_TIMESTAMP)),
-            (Self::Isthmus, ForkCondition::Timestamp(BASE_MAINNET_ISTHMUS_TIMESTAMP)),
-            (Self::Jovian, ForkCondition::Timestamp(BASE_MAINNET_JOVIAN_TIMESTAMP)),
-        ]
-    }
-
-    /// Base Sepolia list of hardforks.
-    pub const fn base_sepolia() -> [(Self, ForkCondition); 9] {
-        [
-            (Self::Bedrock, ForkCondition::Block(BASE_SEPOLIA_BEDROCK_BLOCK)),
-            (Self::Regolith, ForkCondition::Timestamp(BASE_SEPOLIA_REGOLITH_TIMESTAMP)),
-            (Self::Canyon, ForkCondition::Timestamp(BASE_SEPOLIA_CANYON_TIMESTAMP)),
-            (Self::Ecotone, ForkCondition::Timestamp(BASE_SEPOLIA_ECOTONE_TIMESTAMP)),
-            (Self::Fjord, ForkCondition::Timestamp(BASE_SEPOLIA_FJORD_TIMESTAMP)),
-            (Self::Granite, ForkCondition::Timestamp(BASE_SEPOLIA_GRANITE_TIMESTAMP)),
-            (Self::Holocene, ForkCondition::Timestamp(BASE_SEPOLIA_HOLOCENE_TIMESTAMP)),
-            (Self::Isthmus, ForkCondition::Timestamp(BASE_SEPOLIA_ISTHMUS_TIMESTAMP)),
-            (Self::Jovian, ForkCondition::Timestamp(BASE_SEPOLIA_JOVIAN_TIMESTAMP)),
-        ]
-    }
-
     /// Returns index of `self` in sorted canonical array.
     pub const fn idx(&self) -> usize {
         *self as usize
@@ -349,31 +228,6 @@ impl OpChainHardforks {
         forks.sort();
         Self { forks }
     }
-
-    /// Creates a new [`OpChainHardforks`] with OP mainnet configuration.
-    pub fn op_mainnet() -> Self {
-        Self::new(OpHardfork::op_mainnet())
-    }
-
-    /// Creates a new [`OpChainHardforks`] with OP Sepolia configuration.
-    pub fn op_sepolia() -> Self {
-        Self::new(OpHardfork::op_sepolia())
-    }
-
-    /// Creates a new [`OpChainHardforks`] with Base mainnet configuration.
-    pub fn base_mainnet() -> Self {
-        Self::new(OpHardfork::base_mainnet())
-    }
-
-    /// Creates a new [`OpChainHardforks`] with Base Sepolia configuration.
-    pub fn base_sepolia() -> Self {
-        Self::new(OpHardfork::base_sepolia())
-    }
-
-    /// Returns `true` if this is an OP mainnet instance.
-    pub fn is_op_mainnet(&self) -> bool {
-        self[OpHardfork::Bedrock] == ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK)
-    }
 }
 
 impl EthereumHardforks for OpChainHardforks {
@@ -440,14 +294,9 @@ impl Index<EthereumHardfork> for OpChainHardforks {
         match hf {
             // Dao Hardfork is not needed for OpChainHardforks
             Dao => &ForkCondition::Never,
-            Berlin if self.is_op_mainnet() => &ForkCondition::Block(OP_MAINNET_BERLIN_BLOCK),
+            // Pre-Bedrock L1 history (e.g. OP Mainnet's legacy Berlin block) isn't modelled.
             Frontier | Homestead | Tangerine | SpuriousDragon | Byzantium | Constantinople |
             Petersburg | Istanbul | MuirGlacier | Berlin => &ForkCondition::ZERO_BLOCK,
-            Paris if self.is_op_mainnet() => &ForkCondition::TTD {
-                activation_block_number: OP_MAINNET_BEDROCK_BLOCK,
-                fork_block: Some(OP_MAINNET_BEDROCK_BLOCK),
-                total_difficulty: U256::ZERO,
-            },
             Paris => &ForkCondition::TTD {
                 activation_block_number: 0,
                 fork_block: Some(0),
@@ -485,10 +334,22 @@ mod tests {
         assert!(from_jovian.iter().all(|f| f.idx() >= OpHardfork::Jovian.idx()));
     }
 
+    /// Bedrock at genesis, then each fork through `last` at `100 * idx`; later forks are absent.
+    fn staggered_hardforks(last: OpHardfork) -> OpChainHardforks {
+        OpChainHardforks::new(OpHardfork::VARIANTS[..=last.idx()].iter().map(|&fork| {
+            let condition = if fork == OpHardfork::Bedrock {
+                ForkCondition::Block(0)
+            } else {
+                ForkCondition::Timestamp(100 * fork.idx() as u64)
+            };
+            (fork, condition)
+        }))
+    }
+
     #[test]
     fn is_no_user_tx_activation_block_detects_first_fork_block() {
-        let forks = OpChainHardforks::op_mainnet();
-        let jovian = OP_MAINNET_JOVIAN_TIMESTAMP;
+        let forks = staggered_hardforks(OpHardfork::Karst);
+        let jovian = 100 * OpHardfork::Jovian.idx() as u64;
 
         // First block at/after the Jovian timestamp is the activation block.
         assert!(forks.is_no_user_tx_activation_block(jovian - 2, jovian));
@@ -497,7 +358,7 @@ mod tests {
         assert!(!forks.is_no_user_tx_activation_block(jovian, jovian + 2));
         assert!(!forks.is_no_user_tx_activation_block(jovian - 4, jovian - 2));
         // Pre-Jovian fork activations don't count.
-        let isthmus = OP_MAINNET_ISTHMUS_TIMESTAMP;
+        let isthmus = 100 * OpHardfork::Isthmus.idx() as u64;
         assert!(!forks.is_no_user_tx_activation_block(isthmus - 2, isthmus));
     }
 
@@ -533,237 +394,18 @@ mod tests {
     }
 
     #[test]
-    fn op_mainnet_fork_conditions() {
-        use OpHardfork::*;
-
-        let op_mainnet_forks = OpChainHardforks::op_mainnet();
-        assert_eq!(op_mainnet_forks[Bedrock], ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK));
-        assert_eq!(
-            op_mainnet_forks[Regolith],
-            ForkCondition::Timestamp(OP_MAINNET_REGOLITH_TIMESTAMP)
-        );
-        assert_eq!(op_mainnet_forks[Canyon], ForkCondition::Timestamp(OP_MAINNET_CANYON_TIMESTAMP));
-        assert_eq!(
-            op_mainnet_forks[Ecotone],
-            ForkCondition::Timestamp(OP_MAINNET_ECOTONE_TIMESTAMP)
-        );
-        assert_eq!(op_mainnet_forks[Fjord], ForkCondition::Timestamp(OP_MAINNET_FJORD_TIMESTAMP));
-        assert_eq!(
-            op_mainnet_forks[Granite],
-            ForkCondition::Timestamp(OP_MAINNET_GRANITE_TIMESTAMP)
-        );
-        assert_eq!(
-            op_mainnet_forks[Holocene],
-            ForkCondition::Timestamp(OP_MAINNET_HOLOCENE_TIMESTAMP)
-        );
-        assert_eq!(
-            op_mainnet_forks[Isthmus],
-            ForkCondition::Timestamp(OP_MAINNET_ISTHMUS_TIMESTAMP)
-        );
-        assert_eq!(op_mainnet_forks[Jovian], ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP));
-        assert_eq!(op_mainnet_forks[Karst], ForkCondition::Timestamp(OP_MAINNET_KARST_TIMESTAMP));
-        assert_eq!(op_mainnet_forks.op_fork_activation(Lagoon), ForkCondition::Never);
-    }
-
-    #[test]
-    fn op_sepolia_fork_conditions() {
-        use OpHardfork::*;
-
-        let op_sepolia_forks = OpChainHardforks::op_sepolia();
-        assert_eq!(op_sepolia_forks[Bedrock], ForkCondition::Block(OP_SEPOLIA_BEDROCK_BLOCK));
-        assert_eq!(
-            op_sepolia_forks[Regolith],
-            ForkCondition::Timestamp(OP_SEPOLIA_REGOLITH_TIMESTAMP)
-        );
-        assert_eq!(op_sepolia_forks[Canyon], ForkCondition::Timestamp(OP_SEPOLIA_CANYON_TIMESTAMP));
-        assert_eq!(
-            op_sepolia_forks[Ecotone],
-            ForkCondition::Timestamp(OP_SEPOLIA_ECOTONE_TIMESTAMP)
-        );
-        assert_eq!(op_sepolia_forks[Fjord], ForkCondition::Timestamp(OP_SEPOLIA_FJORD_TIMESTAMP));
-        assert_eq!(
-            op_sepolia_forks[Granite],
-            ForkCondition::Timestamp(OP_SEPOLIA_GRANITE_TIMESTAMP)
-        );
-        assert_eq!(
-            op_sepolia_forks[Holocene],
-            ForkCondition::Timestamp(OP_SEPOLIA_HOLOCENE_TIMESTAMP)
-        );
-        assert_eq!(
-            op_sepolia_forks[Isthmus],
-            ForkCondition::Timestamp(OP_SEPOLIA_ISTHMUS_TIMESTAMP)
-        );
-        assert_eq!(op_sepolia_forks[Jovian], ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP));
-        assert_eq!(op_sepolia_forks[Karst], ForkCondition::Timestamp(OP_SEPOLIA_KARST_TIMESTAMP));
-        assert_eq!(op_sepolia_forks.op_fork_activation(Lagoon), ForkCondition::Never);
-    }
-
-    #[test]
-    fn base_mainnet_fork_conditions() {
-        use OpHardfork::*;
-
-        let base_mainnet_forks = OpChainHardforks::base_mainnet();
-        assert_eq!(base_mainnet_forks[Bedrock], ForkCondition::Block(BASE_MAINNET_BEDROCK_BLOCK));
-        assert_eq!(
-            base_mainnet_forks[Regolith],
-            ForkCondition::Timestamp(BASE_MAINNET_REGOLITH_TIMESTAMP)
-        );
-        assert_eq!(
-            base_mainnet_forks[Canyon],
-            ForkCondition::Timestamp(BASE_MAINNET_CANYON_TIMESTAMP)
-        );
-        assert_eq!(
-            base_mainnet_forks[Ecotone],
-            ForkCondition::Timestamp(BASE_MAINNET_ECOTONE_TIMESTAMP)
-        );
-        assert_eq!(
-            base_mainnet_forks[Fjord],
-            ForkCondition::Timestamp(BASE_MAINNET_FJORD_TIMESTAMP)
-        );
-        assert_eq!(
-            base_mainnet_forks[Granite],
-            ForkCondition::Timestamp(BASE_MAINNET_GRANITE_TIMESTAMP)
-        );
-        assert_eq!(
-            base_mainnet_forks[Holocene],
-            ForkCondition::Timestamp(BASE_MAINNET_HOLOCENE_TIMESTAMP)
-        );
-        assert_eq!(
-            base_mainnet_forks[Isthmus],
-            ForkCondition::Timestamp(BASE_MAINNET_ISTHMUS_TIMESTAMP)
-        );
-        assert_eq!(
-            base_mainnet_forks[Jovian],
-            ForkCondition::Timestamp(BASE_MAINNET_JOVIAN_TIMESTAMP)
-        );
-        assert_eq!(
-            base_mainnet_forks[Jovian],
-            ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP)
-        );
-        assert_eq!(base_mainnet_forks.op_fork_activation(Lagoon), ForkCondition::Never);
-    }
-
-    #[test]
-    fn base_sepolia_fork_conditions() {
-        use OpHardfork::*;
-
-        let base_sepolia_forks = OpChainHardforks::base_sepolia();
-        assert_eq!(base_sepolia_forks[Bedrock], ForkCondition::Block(BASE_SEPOLIA_BEDROCK_BLOCK));
-        assert_eq!(
-            base_sepolia_forks[Regolith],
-            ForkCondition::Timestamp(BASE_SEPOLIA_REGOLITH_TIMESTAMP)
-        );
-        assert_eq!(
-            base_sepolia_forks[Canyon],
-            ForkCondition::Timestamp(BASE_SEPOLIA_CANYON_TIMESTAMP)
-        );
-        assert_eq!(
-            base_sepolia_forks[Ecotone],
-            ForkCondition::Timestamp(BASE_SEPOLIA_ECOTONE_TIMESTAMP)
-        );
-        assert_eq!(
-            base_sepolia_forks[Fjord],
-            ForkCondition::Timestamp(BASE_SEPOLIA_FJORD_TIMESTAMP)
-        );
-        assert_eq!(
-            base_sepolia_forks[Granite],
-            ForkCondition::Timestamp(BASE_SEPOLIA_GRANITE_TIMESTAMP)
-        );
-        assert_eq!(
-            base_sepolia_forks[Holocene],
-            ForkCondition::Timestamp(BASE_SEPOLIA_HOLOCENE_TIMESTAMP)
-        );
-        assert_eq!(
-            base_sepolia_forks[Isthmus],
-            ForkCondition::Timestamp(BASE_SEPOLIA_ISTHMUS_TIMESTAMP)
-        );
-        assert_eq!(
-            base_sepolia_forks.op_fork_activation(Jovian),
-            ForkCondition::Timestamp(BASE_SEPOLIA_JOVIAN_TIMESTAMP)
-        );
-        assert_eq!(
-            base_sepolia_forks[Jovian],
-            ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP)
-        );
-        assert_eq!(base_sepolia_forks.op_fork_activation(Lagoon), ForkCondition::Never);
-    }
-
-    #[test]
-    fn is_jovian_active_at_timestamp() {
-        let op_mainnet_forks = OpChainHardforks::op_mainnet();
-        assert!(op_mainnet_forks.is_jovian_active_at_timestamp(OP_MAINNET_JOVIAN_TIMESTAMP));
-        assert!(!op_mainnet_forks.is_jovian_active_at_timestamp(OP_MAINNET_JOVIAN_TIMESTAMP - 1));
-        assert!(op_mainnet_forks.is_jovian_active_at_timestamp(OP_MAINNET_JOVIAN_TIMESTAMP + 1000));
-
-        let op_sepolia_forks = OpChainHardforks::op_sepolia();
-        assert!(op_sepolia_forks.is_jovian_active_at_timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP));
-        assert!(!op_sepolia_forks.is_jovian_active_at_timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP - 1));
-        assert!(op_sepolia_forks.is_jovian_active_at_timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP + 1000));
-
-        let base_mainnet_forks = OpChainHardforks::base_mainnet();
-        assert!(base_mainnet_forks.is_jovian_active_at_timestamp(BASE_MAINNET_JOVIAN_TIMESTAMP));
-        assert!(
-            !base_mainnet_forks.is_jovian_active_at_timestamp(BASE_MAINNET_JOVIAN_TIMESTAMP - 1)
-        );
-        assert!(
-            base_mainnet_forks.is_jovian_active_at_timestamp(BASE_MAINNET_JOVIAN_TIMESTAMP + 1000)
-        );
-
-        let base_sepolia_forks = OpChainHardforks::base_sepolia();
-        assert!(base_sepolia_forks.is_jovian_active_at_timestamp(BASE_SEPOLIA_JOVIAN_TIMESTAMP));
-        assert!(
-            !base_sepolia_forks.is_jovian_active_at_timestamp(BASE_SEPOLIA_JOVIAN_TIMESTAMP - 1)
-        );
-        assert!(
-            base_sepolia_forks.is_jovian_active_at_timestamp(BASE_SEPOLIA_JOVIAN_TIMESTAMP + 1000)
-        );
-    }
-
-    #[test]
-    fn test_reverse_lookup_op_chains() {
-        // Test key hardforks across all OP stack chains
-        let test_cases = [
-            // (chain_id, timestamp, expected) - focusing on major transitions
-            // OP Mainnet
-            (Chain::optimism_mainnet(), OP_MAINNET_CANYON_TIMESTAMP, OpHardfork::Canyon),
-            (Chain::optimism_mainnet(), OP_MAINNET_ECOTONE_TIMESTAMP, OpHardfork::Ecotone),
-            (Chain::optimism_mainnet(), OP_MAINNET_GRANITE_TIMESTAMP, OpHardfork::Granite),
-            (Chain::optimism_mainnet(), OP_MAINNET_CANYON_TIMESTAMP - 1, OpHardfork::Regolith),
-            (Chain::optimism_mainnet(), OP_MAINNET_ISTHMUS_TIMESTAMP + 1000, OpHardfork::Isthmus),
-            (Chain::optimism_mainnet(), OP_MAINNET_JOVIAN_TIMESTAMP, OpHardfork::Jovian),
-            (Chain::optimism_mainnet(), OP_MAINNET_JOVIAN_TIMESTAMP - 1, OpHardfork::Isthmus),
-            (Chain::optimism_mainnet(), OP_MAINNET_JOVIAN_TIMESTAMP + 1000, OpHardfork::Jovian),
-            (Chain::optimism_mainnet(), OP_MAINNET_KARST_TIMESTAMP, OpHardfork::Karst),
-            (Chain::optimism_mainnet(), OP_MAINNET_KARST_TIMESTAMP - 1, OpHardfork::Jovian),
-            // OP Sepolia
-            (Chain::optimism_sepolia(), OP_SEPOLIA_CANYON_TIMESTAMP, OpHardfork::Canyon),
-            (Chain::optimism_sepolia(), OP_SEPOLIA_ECOTONE_TIMESTAMP, OpHardfork::Ecotone),
-            (Chain::optimism_sepolia(), OP_SEPOLIA_CANYON_TIMESTAMP - 1, OpHardfork::Regolith),
-            (Chain::optimism_sepolia(), OP_SEPOLIA_JOVIAN_TIMESTAMP, OpHardfork::Jovian),
-            (Chain::optimism_sepolia(), OP_SEPOLIA_JOVIAN_TIMESTAMP - 1, OpHardfork::Isthmus),
-            (Chain::optimism_sepolia(), OP_SEPOLIA_JOVIAN_TIMESTAMP + 1000, OpHardfork::Jovian),
-            (Chain::optimism_sepolia(), OP_SEPOLIA_KARST_TIMESTAMP, OpHardfork::Karst),
-            (Chain::optimism_sepolia(), OP_SEPOLIA_KARST_TIMESTAMP - 1, OpHardfork::Jovian),
-            // Base Mainnet
-            (Chain::base_mainnet(), BASE_MAINNET_CANYON_TIMESTAMP, OpHardfork::Canyon),
-            (Chain::base_mainnet(), BASE_MAINNET_ECOTONE_TIMESTAMP, OpHardfork::Ecotone),
-            (Chain::base_mainnet(), BASE_MAINNET_JOVIAN_TIMESTAMP, OpHardfork::Jovian),
-            // Base Sepolia
-            (Chain::base_sepolia(), BASE_SEPOLIA_CANYON_TIMESTAMP, OpHardfork::Canyon),
-            (Chain::base_sepolia(), BASE_SEPOLIA_ECOTONE_TIMESTAMP, OpHardfork::Ecotone),
-            (Chain::base_sepolia(), BASE_SEPOLIA_JOVIAN_TIMESTAMP, OpHardfork::Jovian),
-        ];
-
-        for (chain_id, timestamp, expected) in test_cases {
-            assert_eq!(
-                OpHardfork::from_chain_and_timestamp(chain_id, timestamp),
-                Some(expected),
-                "chain {chain_id} at timestamp {timestamp}"
-            );
+    fn fork_conditions_follow_schedule() {
+        let forks = staggered_hardforks(OpHardfork::Karst);
+        assert_eq!(forks[OpHardfork::Bedrock], ForkCondition::Block(0));
+        for fork in OpHardfork::Regolith.forks_from().take_while(|f| *f <= OpHardfork::Karst) {
+            let activation = 100 * fork.idx() as u64;
+            assert_eq!(forks[fork], ForkCondition::Timestamp(activation));
+            assert!(forks.op_fork_activation(fork).active_at_timestamp(activation));
+            assert!(!forks.op_fork_activation(fork).active_at_timestamp(activation - 1));
         }
-
-        // Edge cases
-        assert_eq!(OpHardfork::from_chain_and_timestamp(Chain::from_id(999999), 1000000), None);
+        // Forks past the end of the list never activate.
+        assert_eq!(forks.op_fork_activation(OpHardfork::Lagoon), ForkCondition::Never);
+        assert!(!forks.is_lagoon_active_at_timestamp(u64::MAX));
     }
 
     #[test]
@@ -830,7 +472,7 @@ mod tests {
         };
         use OpHardfork::{Bedrock, Canyon, Ecotone, Isthmus, Karst};
 
-        let forks = OpChainHardforks::op_mainnet();
+        let forks = staggered_hardforks(OpHardfork::Karst);
         for (l1_fork, op_fork) in [
             (London, Bedrock),
             (ArrowGlacier, Bedrock),
@@ -847,8 +489,8 @@ mod tests {
             );
         }
         // Paris is absent above: although Bedrock activates it, it doesn't share Bedrock's
-        // ForkCondition — on OP mainnet, Paris activates via a TTD condition while Bedrock
-        // activates by block number.
+        // ForkCondition — Paris activates via a TTD condition while Bedrock activates by block
+        // number.
         assert!(matches!(
             forks.ethereum_fork_activation(EthereumHardfork::Paris),
             ForkCondition::TTD { .. }
@@ -860,12 +502,12 @@ mod tests {
     // https://github.com/alloy-rs/hardforks/issues/63
     #[test]
     fn test_ethereum_fork_activation_consistency() {
-        let op_mainnet_forks = OpChainHardforks::op_mainnet();
+        let forks = staggered_hardforks(OpHardfork::Karst);
         for ethereum_hardfork in EthereumHardfork::VARIANTS {
-            let _ = op_mainnet_forks.ethereum_fork_activation(*ethereum_hardfork);
+            let _ = forks.ethereum_fork_activation(*ethereum_hardfork);
         }
         for op_hardfork in OpHardfork::VARIANTS {
-            let _ = op_mainnet_forks.op_fork_activation(*op_hardfork);
+            let _ = forks.op_fork_activation(*op_hardfork);
         }
     }
 }
