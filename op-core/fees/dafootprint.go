@@ -37,12 +37,19 @@ func ExtractDAFootprintGasScalar(data []byte) (uint16, error) {
 }
 
 // CalcDAFootprint calculates the total DA footprint of a block for an OP Stack chain from
-// the block's binary-encoded transactions, which start with the L1-attributes deposit.
+// the block's binary-encoded transactions, which start with the L1-attributes deposit. The
+// entries must be the canonical encodings of a valid block's transactions: only the first is
+// decoded, the others are classified by their type byte and measured as they are.
 // Jovian introduces a DA footprint block limit which is stored in the BlobGasUsed header field
 // and that is taken into account during base fee updates.
 // CalcDAFootprint must not be called for pre-Jovian blocks.
 // Deposit and post-exec transactions do not contribute to the footprint.
 func CalcDAFootprint(txs []hexutil.Bytes) (uint64, error) {
+	for i, tx := range txs {
+		if len(tx) == 0 {
+			return 0, fmt.Errorf("empty transaction at index %d", i)
+		}
+	}
 	if len(txs) == 0 || !isDeposit(txs[0]) {
 		return 0, errors.New("missing deposit transaction")
 	}
@@ -77,9 +84,9 @@ func CalcDAFootprint(txs []hexutil.Bytes) (uint64, error) {
 }
 
 func isDeposit(tx []byte) bool {
-	return len(tx) > 0 && tx[0] == optypes.DepositTxType
+	return tx[0] == optypes.DepositTxType
 }
 
 func isPostExec(tx []byte) bool {
-	return len(tx) > 0 && tx[0] == optypes.PostExecTxType
+	return tx[0] == optypes.PostExecTxType
 }

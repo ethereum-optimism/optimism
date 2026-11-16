@@ -25,7 +25,13 @@ op-acceptance-tests/tests/interop/loadtest | missing go-ethereum/core.ErrInsuffi
 op-batcher/batcher | changed signature of go-ethereum/core.FloorDataGas | #20266 cutover edit: core.FloorDataGas(rules, from, to, value, data, accessList); revisit maxFloorDataGas (opgeth-decoupling.md §15)
 op-chain-ops/genesis (tests) | missing go-ethereum/params.ChainConfig.Optimism | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
 op-chain-ops/genesis (tests) | missing go-ethereum/params.OptimismConfig | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
+op-core/fees (tests) | missing go-ethereum/core/types.CalcDAFootprint | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.DepositTx | #20266 op-core transition code, removed at the cutover
+op-core/fees (tests) | missing go-ethereum/core/types.ExtractDAFootprintGasScalar | #20266 op-core transition code, removed at the cutover
+op-core/fees (tests) | missing go-ethereum/core/types.IsthmusL1AttributesLen | #20266 op-core transition code, removed at the cutover
+op-core/fees (tests) | missing go-ethereum/core/types.IsthmusL1AttributesSelector | #20266 op-core transition code, removed at the cutover
+op-core/fees (tests) | missing go-ethereum/core/types.JovianL1AttributesLen | #20266 op-core transition code, removed at the cutover
+op-core/fees (tests) | missing go-ethereum/core/types.JovianL1AttributesSelector | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.L1Cost | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.RollupCostData | #20266 op-core transition code, removed at the cutover
