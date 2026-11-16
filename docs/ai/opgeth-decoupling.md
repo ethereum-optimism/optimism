@@ -226,9 +226,10 @@ concrete go-ethereum config converts explicitly via `GethChainConfig()` (Ethereu
 derived from the OP schedule: Shanghai=Canyon, Cancun=Ecotone, Prague=Isthmus, Osaka=Karst —
 op-geth's own loader is missing Osaka=Karst; the monorepo follows op-reth, which is correct).
 
-While the build still resolves go-ethereum to op-geth, `GethChainConfig()` also carries the OP
-fork fields and `Optimism` struct on the produced config (in-process test ELs need them). Those
-fields don't exist upstream — **shedding them is a cutover edit** (#20266).
+The produced config carries only the Ethereum fork schedule, no OP fork fields or `Optimism`
+struct, so go-ethereum code reading it applies Ethereum rules. It is fit for the genesis state
+root and header encoding (§14); anything that builds or executes blocks or computes fee or
+EIP-1559 values belongs in op-reth or `op-core`.
 
 **Swaps landed (#20270, closed):** `rollup.Config.ChainOpConfig` is now
 `*opparams.OptimismConfig` (JSON tags identical → wire-compatible), and
