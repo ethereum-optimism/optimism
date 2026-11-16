@@ -6,9 +6,14 @@ no-default-features = false
 [output]
 feature-depth = 1
 
-# Advisories (CVEs, unmaintained crates) are not checked here: dependency
-# vulnerabilities are tracked through image scanning instead. `just deny` only
-# runs the bans, licenses, and sources checks.
+# Checked only by the daily rust-deny-advisories CI job. `just deny` does not
+# run advisories.
+[advisories]
+unmaintained = "none" # not vulnerabilities
+# Each ignore on one line, reason ending "Review by YYYY-MM-DD." (checked daily by rust-deny-advisories).
+ignore = [
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 via elliptic-curve 0.13.8, no fixed 0.5.x release. Review by 2026-12-16." },
+]
 
 # This section is considered when running `cargo deny check bans`.
 [bans]
