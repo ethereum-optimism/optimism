@@ -345,6 +345,51 @@ mod tests {
         assert!(skipped.is_empty());
     }
 
+    /// A store holds one record per node, the one with the highest `seq`. A node that changes its
+    /// record, such as for a new address, then takes one slot, and gossip dials only its current
+    /// address. Otherwise one node could push the others out by bumping its `seq`. A new record
+    /// with a lower `seq` than the stored one is older, and is ignored. So is a new record that
+    /// differs from the stored one but has the same `seq`: the stored one is kept.
+    #[rstest::rstest]
+    #[case::higher_seq_replaces(1, 2, Kept::Second)]
+    #[case::lower_seq_is_ignored(2, 1, Kept::First)]
+    #[case::same_seq_is_ignored(1, 1, Kept::First)]
+    fn test_one_record_per_node(
+        #[case] first_seq: u64,
+        #[case] second_seq: u64,
+        #[case] kept: Kept,
+    ) {
+        let key = CombinedKey::generate_secp256k1();
+        // Different UDP ports, so that the two records differ even with the same `seq`.
+        let record = |seq, udp| {
+            Enr::builder()
+                .ip4(std::net::Ipv4Addr::new(1, 1, 1, 1))
+                .udp4(udp)
+                .seq(seq)
+                .build(&key)
+                .unwrap()
+        };
+        let first = record(first_seq, 9222);
+        let second = record(second_seq, 9223);
+        let mut store = BootStore::in_memory();
+
+        store.add_enr(first.clone());
+        store.add_enr(second.clone());
+
+        let expected = match kept {
+            Kept::First => first,
+            Kept::Second => second,
+        };
+        assert_eq!(store.iter().collect::<Vec<_>>(), [&expected]);
+    }
+
+    /// Which of two records of one node a store keeps, see [`test_one_record_per_node`].
+    #[derive(Debug)]
+    enum Kept {
+        First,
+        Second,
+    }
+
     /// An entry that isn't a record is skipped, and returned with the reason, and the others are
     /// kept.
     #[test]
