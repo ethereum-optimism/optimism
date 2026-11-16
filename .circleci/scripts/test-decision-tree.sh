@@ -142,15 +142,13 @@ run_scenario \
   "PR (feature branch), CircleCI changed" \
   "webhook" "feat/my-thing" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
-  main release contracts_feature_tests rust_ci rust_e2e_ci circleci_schedule_trigger_check \
-  --not scheduled_rust_advisories
+  main release contracts_feature_tests rust_ci rust_e2e_ci circleci_schedule_trigger_check
 
 run_scenario \
   "Merge queue, rust changed" \
   "webhook" "gh-readonly-queue/develop/pr-123" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
-  main release contracts_feature_tests rust_ci rust_e2e_ci \
-  --not scheduled_rust_advisories
+  main release contracts_feature_tests rust_ci rust_e2e_ci
 
 run_scenario \
   "Merge queue, no changes" \
@@ -182,7 +180,7 @@ run_scenario \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
   main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
-  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short scheduled_rust_advisories
+  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
 
 # Other repos sharing this config run the same post-merge set minus the
 # routing.yml public_repo_only workflows.
@@ -211,8 +209,7 @@ run_scenario \
   "Scheduled: build_four_hours" \
   "scheduled_pipeline" "" "" "build_four_hours" \
   '{}' \
-  scheduled_todo_issues scheduled_cannon_full_tests \
-  --not scheduled_rust_advisories
+  scheduled_todo_issues scheduled_cannon_full_tests
 
 run_scenario \
   "Scheduled: build_daily" \
@@ -224,7 +221,7 @@ REPO="ethereum-optimism/other" run_scenario \
   "Scheduled: build_daily, outside the public repo" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
-  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke scheduled_rust_advisories \
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke \
   --not circleci_schedule_trigger_check scheduled_shipped_binaries
 
 run_scenario \
@@ -243,21 +240,19 @@ run_scenario \
   "API: rust_ci_dispatch" \
   "api" "" "" "" \
   '{"c-main_dispatch": false, "c-rust_ci_dispatch": true}' \
-  release rust_ci \
-  --not scheduled_rust_advisories
-
-run_scenario \
-  "API: rust_advisories_dispatch" \
-  "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-rust_advisories_dispatch": true}' \
-  release scheduled_rust_advisories \
-  --not main rust_ci rust_e2e_ci
+  release rust_ci
 
 run_scenario \
   "API: rust_nightly_bump_dispatch" \
   "api" "" "" "" \
   '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true}' \
   release scheduled_rust_nightly_bump
+
+run_scenario \
+  "API: rust_advisories_dispatch" \
+  "api" "" "" "" \
+  '{"c-main_dispatch": false, "c-rust_advisories_dispatch": true}' \
+  release scheduled_rust_advisories
 
 run_scenario \
   "API: publish_contract_artifacts_dispatch" \

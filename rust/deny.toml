@@ -6,18 +6,12 @@ no-default-features = false
 [output]
 feature-depth = 1
 
-# Used only by the daily `rust-deny-advisories` CI job, never on PRs: advisories
-# change without a repo change. `just deny` runs bans, licenses and sources.
+# Checked only by the daily rust-deny-advisories CI job, since advisories change
+# without a repo change. `just deny` runs bans, licenses and sources.
 [advisories]
-# Unmaintained crates are not vulnerabilities, and most are deep in reth or SP1.
-unmaintained = "none"
-yanked = "warn"
-# Advisories with no fix yet or that do not affect what we ship. The job fails
-# once a "review by" date has passed, so each entry gets looked at again.
+unmaintained = "none" # not vulnerabilities
 ignore = [
-  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 timing issues. Comes in through elliptic-curve 0.13.8, the latest 0.13, and no fixed 0.5.x exists. The 0.7 copy is fixed from 0.7.6. Review by 2026-12-16." },
-  { id = "RUSTSEC-2026-0418", reason = "libz-sys build script prints the build environment only when compiled with cc 1.6.0 or later. Cargo.lock has cc 1.2.62. Fixed in libz-sys 1.1.31. Review by 2026-12-16." },
-  { id = "RUSTSEC-2026-0433", reason = "pulldown-cmark slow parsing of nested wikilinks. Build-time only, prost-build reads SP1's own .proto comments. Not in any shipped binary. Fixed in 0.13.6. Review by 2026-12-16." },
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 via elliptic-curve 0.13.8, no fixed 0.5.x release. Review by 2026-12-16." },
 ]
 
 # This section is considered when running `cargo deny check bans`.
