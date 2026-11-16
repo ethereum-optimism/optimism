@@ -1701,8 +1701,8 @@ jobs:
             - "cannon/bin"
       # develop's latest timings for the memory-all test splits (see shard-tests.sh).
       # Restored once here, in a job they wait for, so every node gets the same file.
-      # Not on develop, tags or the merge queue: a branch that edits its CI config can
-      # write any cache, so trusted runs keep splitting by CircleCI's own timings.
+      # Not on develop, tags, the merge queue or proposal branches: a branch that edits
+      # its CI config can write any cache, so trusted runs keep CircleCI's own timings.
       - unless:
           condition:
             or:
@@ -1711,16 +1711,28 @@ jobs:
               - matches:
                   pattern: "^gh-readonly-queue/.*$"
                   value: << pipeline.git.branch >>
+              - matches:
+                  pattern: "^proposal/.*$"
+                  value: << pipeline.git.branch >>
           steps:
+            # The fork must follow acceptance_l1_forks. A job with no file splits as today.
             - restore_cache:
-                key: shard-timings-v1-memory-all-opn-op-reth-fusaka-
+                key: shard-timings-v2-memory-all-opn-op-reth-fusaka-
             - restore_cache:
-                key: shard-timings-v1-memory-all-kona-op-reth-fusaka-
-            - run: mkdir -p /tmp/shard-timings
+                key: shard-timings-v2-memory-all-kona-op-reth-fusaka-
+            # The workspace is attached at the repo root, where go-tests runs every
+            # package. Go skips dirs starting with "_", and only plain .json files pass.
+            - run:
+                name: Keep only the timing files
+                command: |
+                  D=/tmp/_shard-timings
+                  [ -d "$D" ] && [ ! -L "$D" ] || rm -rf "$D"
+                  mkdir -p "$D"
+                  find "$D" -mindepth 1 -maxdepth 1 ! \( -type f -name '*.json' \) -exec rm -rf {} +
             - persist_to_workspace:
                 root: /tmp
                 paths:
-                  - shard-timings
+                  - _shard-timings
 
   check-op-geth-version:
     docker:
@@ -2327,12 +2339,12 @@ jobs:
                 name: Copy shard timings
                 command: |
                   SRC="$CIRCLE_INTERNAL_TASK_DATA/circle-test-results/results.json"
-                  mkdir -p /tmp/shard-timings
-                  { [ -s "$SRC" ] && cp "$SRC" "/tmp/shard-timings/$CIRCLE_JOB.json"; } || circleci-agent step halt
+                  mkdir -p /tmp/_shard-timings
+                  { [ -s "$SRC" ] && cp "$SRC" "/tmp/_shard-timings/$CIRCLE_JOB.json"; } || circleci-agent step halt
             - save_cache:
-                key: shard-timings-v1-{{ .Environment.CIRCLE_JOB }}-{{ .Revision }}
+                key: shard-timings-v2-{{ .Environment.CIRCLE_JOB }}-{{ .Revision }}
                 paths:
-                  - /tmp/shard-timings
+                  - /tmp/_shard-timings
 
   # Aggregator job - allows downstream jobs and required checks to depend on a single memory-all job.
   memory-all:
@@ -2839,6 +2851,7 @@ workflows:
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
+              # A new fork also needs its shard-timings restore in go-binaries-for-sysgo.
               l1_fork: &acceptance_l1_forks
                 - fusaka
           parallelism: 4

@@ -37,7 +37,7 @@ fi
 # CircleCI's own timings come from this branch's last green run, which can predate
 # long tests added on develop since. Use develop's when the workflow provides them
 # (the same file on every node, so each test still lands on exactly one node).
-TIMINGS_FILE="$(dirname "$0")/../../shard-timings/${CIRCLE_JOB:-}.json"
+TIMINGS_FILE="$(dirname "$0")/../../_shard-timings/${CIRCLE_JOB:-}.json"
 set --
 if [ -s "$TIMINGS_FILE" ]; then
   echo "Splitting by develop's timings from $TIMINGS_FILE" >&2
