@@ -241,12 +241,11 @@ here. Treat items 1–4 as **blocking**.
     (`declare -A`, `${var^^}`, `local -n`).
 
 11. **Callers the PR never runs.** PR CI runs only the workflows the routing policy
-    enables for a PR. `scheduled-*`, `develop`-only, merge-queue-only
-    (`gh-readonly-queue/*`), release and API-dispatch workflows, and GitHub Actions
-    workflows on `schedule`, `workflow_dispatch` or tag triggers, run after merge. A change
-    that breaks only them merges green and fails later, often as an on-call page. This
-    applies to any diff that changes something a CI command runs, even with no CI file in
-    the diff: a justfile recipe or one it depends on, a script, tool config
+    enables for a PR. `scheduled-*`, `develop`-only, release and API-dispatch workflows,
+    and GitHub Actions workflows on `schedule`, `workflow_dispatch` or tag triggers, run
+    after merge. A change that breaks only them merges green and fails later, often as an
+    on-call page. This applies to any diff that changes something a CI command runs, even
+    with no CI file in the diff: a justfile recipe or one it depends on, a script, tool config
     (`foundry.toml`, lint config), or a job's parameter defaults.
     - Find the jobs that reach the changed thing. Run `merge-configs.sh` (item 10) and grep
       `/tmp/merged-config.yml` and `.github/workflows/` for the recipe or script name. Follow
@@ -264,6 +263,10 @@ here. Treat items 1–4 as **blocking**.
       would catch the break is off the PR path, say so in the finding.
     - Grade by what fails after merge. A likely break in a workflow that pages on-call or
       publishes artifacts is high severity, just below the blocking items 1–4.
+    - Merge-queue-only jobs (`gh-readonly-queue/*`) run before merge but after review. A
+      break there blocks the queue rather than paging, so grade it below post-merge
+      breaks. For example, the queue always runs the full `contracts_feature_tests`, while
+      a PR with no contracts change runs only `contracts_feature_tests_short`.
 
     Example: #23642 removed `--deny-warnings` from four `contracts-bedrock-build`
     callers and missed the one in `scheduled-shipped-binaries`. #24103 then removed
