@@ -465,7 +465,7 @@ library Predeploys {
         });
         records_[18] = PredeployRecord({
             proxy: ETH_LIQUIDITY,
-            variants: _variants("ETHLiquidity", "ETHLiquidity.sol:ETHLiquidity", 750_000),
+            variants: _variants("ETHLiquidity", "ETHLiquidity.sol:ETHLiquidity", 1_210_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: true,
