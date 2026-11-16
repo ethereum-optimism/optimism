@@ -187,8 +187,10 @@ func (c classifier) classify(pkg *packages.Package, te types.Error) (need string
 		}
 	}
 	if wrongAssignType.MatchString(msg) {
-		if field := c.gethField(pkg.TypesInfo, assignedTo(path)); field != "" {
-			return "changed type of " + field, true
+		if lhs, rhs := assignment(path); lhs != nil {
+			if need := c.changedSide(pkg, lhs, rhs); need != "" {
+				return need, true
+			}
 		}
 	}
 	if cannotIndirect.MatchString(msg) {
@@ -200,14 +202,43 @@ func (c classifier) classify(pkg *packages.Package, te types.Error) (need string
 	}
 	if mismatchedTypes.MatchString(msg) {
 		if bin := binaryExprIn(path, msg); bin != nil {
-			for _, x := range []ast.Expr{bin.X, bin.Y} {
-				if need := c.changedOperand(pkg, x); need != "" {
-					return need, true
-				}
+			if need := c.changedSide(pkg, bin.X, bin.Y); need != "" {
+				return need, true
 			}
 		}
 	}
 	return "unclassified: " + msg, true
+}
+
+// changedSide names the go-ethereum API behind a type mismatch between two sides. Either side
+// can point at an API, but usually only one of them changed. If both do, the one whose type is
+// a go-ethereum type is the likelier change, e.g. a vm.GasBudget result against a uint64 field.
+// It returns "" rather than guess between two equally likely APIs.
+func (c classifier) changedSide(pkg *packages.Package, x, y ast.Expr) string {
+	needX, needY := c.changedOperand(pkg, x), c.changedOperand(pkg, y)
+	switch {
+	case needY == "":
+		return needX
+	case needX == "":
+		return needY
+	}
+	gethX, gethY := c.isGethType(pkg.TypesInfo.TypeOf(x)), c.isGethType(pkg.TypesInfo.TypeOf(y))
+	switch {
+	case gethX && !gethY:
+		return needX
+	case gethY && !gethX:
+		return needY
+	}
+	return ""
+}
+
+// isGethType reports whether t, or the type t points to, is a named go-ethereum type.
+func (c classifier) isGethType(t types.Type) bool {
+	if p, ok := types.Unalias(t).(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	named, ok := types.Unalias(t).(*types.Named)
+	return ok && c.isGethObject(named.Obj())
 }
 
 // changedOperand names the go-ethereum API whose changed type can make the operand x mismatch:
@@ -352,18 +383,19 @@ func innermost[T ast.Node](path []ast.Node) (T, bool) {
 	return zero, false
 }
 
-// assignedTo returns the left-hand side that the innermost node of path is assigned to, or nil.
-func assignedTo(path []ast.Node) ast.Expr {
+// assignment returns the two sides of the assignment whose right-hand side holds the innermost
+// node of path, or nil.
+func assignment(path []ast.Node) (lhs, rhs ast.Expr) {
 	assign, ok := innermost[*ast.AssignStmt](path)
 	if !ok || len(assign.Lhs) != len(assign.Rhs) {
-		return nil
+		return nil, nil
 	}
 	for i, rhs := range assign.Rhs {
 		if rhs.Pos() <= path[0].Pos() && path[0].End() <= rhs.End() {
-			return assign.Lhs[i]
+			return assign.Lhs[i], rhs
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // enclosingArg returns the call argument that contains the innermost node of path.

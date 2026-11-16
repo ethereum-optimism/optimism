@@ -57,6 +57,11 @@ func TestCollectUses(t *testing.T) {
 		{"i", "changed type of go-ethereum/types.Header.Root"}: true,
 		// A result was added, and the results are passed on to a local function.
 		{"i", "changed signature of go-ethereum/types.Apply"}: true,
+		// Both sides of a mismatch point at an API, and only the one whose type is a fork type
+		// changed: a field against a call, an assignment to a field, two variables.
+		{"j", "changed signature of go-ethereum/types.Call"}: true,
+		// Both sides have fork types, so neither is named.
+		{"j", `unclassified: invalid operation: h.Root == types.EmptyRoot() (mismatched types *types.Hash and types.Hash)`}: true,
 	}, uses)
 }
 

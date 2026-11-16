@@ -92,7 +92,8 @@ op-service seams, op-reth) and where each kind of use is headed.
 
 If there is no way around it yet, add the lines below to %s,
 replacing %s with the issue tracking its removal and why the use can't be
-avoided for now:
+avoided for now. If op-geth has the API but upstream changed it, add the entry as a
+cutover edit whose reason gives the upstream form:
 
 %s
 `, joinUses(unlisted, "\n  "), cutoverVersion, decouplingDoc, allowlistFile, reasonPlaceholder, entryLines(unlisted))
