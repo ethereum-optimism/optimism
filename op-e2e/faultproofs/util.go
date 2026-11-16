@@ -45,6 +45,9 @@ func WithBlobBatches() faultDisputeConfigOpts {
 
 			genesisActivation := hexutil.Uint64(0)
 			cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
+			// Upstream go-ethereum accepts blob transactions, and includes them in blocks, only from Osaka on.
+			cfg.DeployConfig.L1PragueTimeOffset = &genesisActivation
+			cfg.DeployConfig.L1OsakaTimeOffset = &genesisActivation
 			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
 			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 		})
