@@ -1722,13 +1722,14 @@ jobs:
                 key: shard-timings-v2-memory-all-kona-op-reth-fusaka-
             # The workspace is attached at the repo root, where go-tests runs every
             # package. Go skips dirs starting with "_", and only plain .json files pass.
+            # Absolute paths, since a cache can write to ~/bin, which is first in PATH.
             - run:
                 name: Keep only the timing files
                 command: |
                   D=/tmp/_shard-timings
-                  [ -d "$D" ] && [ ! -L "$D" ] || rm -rf "$D"
-                  mkdir -p "$D"
-                  find "$D" -mindepth 1 -maxdepth 1 ! \( -type f -name '*.json' \) -exec rm -rf {} +
+                  [ -d "$D" ] && [ ! -L "$D" ] || /bin/rm -rf "$D"
+                  /bin/mkdir -p "$D"
+                  /usr/bin/find "$D" -mindepth 1 -maxdepth 1 ! \( -type f -name '*.json' \) -exec /bin/rm -rf {} +
             - persist_to_workspace:
                 root: /tmp
                 paths:
