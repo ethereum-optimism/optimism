@@ -49,8 +49,17 @@ class _LiveTestsFixtures:
         files['packages/contracts-bedrock/scripts/Artifacts.s.sol'] = '// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\ncontract Artifacts {}\n'
         deployer = (K.ROOT / 'op-deployer/justfile').read_text()
         files['op-deployer/justfile'] = deployer[deployer.index('copy-contract-artifacts:\n'):deployer.index('_LDFLAGSSTRING :=')]
-        for name in ('go.mod', 'go.sum', 'op-deployer/pkg/deployer/artifacts/cmd/mktar/main.go'):
+        for name in ('go.mod', 'go.sum'):
             files[name] = (K.ROOT / name).read_text()
+        # copy-contract-artifacts runs mktar. Copy mktar and every package of this module
+        # that it imports, so a new in-repo import cannot break the fixture.
+        packages = subprocess.check_output(
+            ['go', 'list', '-deps', '-f', '{{if .Module}}{{if .Module.Main}}{{.Dir}}{{end}}{{end}}',
+             './op-deployer/pkg/deployer/artifacts/cmd/mktar'], cwd=K.ROOT, text=True).split()
+        for directory in packages:
+            for source in Path(directory).glob('*.go'):
+                if not source.name.endswith('_test.go'):
+                    files[str(source.relative_to(K.ROOT))] = source.read_text()
         for name, content in files.items():
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
