@@ -594,7 +594,8 @@ func TestSyncTester_BuildAndInsertDepositBlock(t *testing.T) {
 
 	built, err := st.GetPayloadV3(ctx, *res.PayloadID)
 	require.NoError(t, err)
-	require.NoError(t, built.ExecutionPayload.CheckEqual(next.ExecutionPayload))
+	// The read only EL's block is served as the built payload.
+	require.NoError(t, built.ExecutionPayload.CheckEqual(makeDepositPayload(t, 11, head.ExecutionPayload.BlockHash).ExecutionPayload))
 	require.Equal(t, next.ParentBeaconBlockRoot, built.ParentBeaconBlockRoot)
 
 	payload := *built.ExecutionPayload

@@ -24,7 +24,8 @@ import (
 //     the read-only exec layer directly, without dropping OP Stack fields.
 //   - Typed methods (PayloadByNumber, PayloadByHash) which return the block
 //     as an execution payload, with transactions in their binary encoding,
-//     for structured inspection in code.
+//     for structured inspection in code. The envelopes may be shared and
+//     cached by the implementation: callers must not modify them.
 //   - Additionally, ChainId.
 //
 // Implementation forwards RPC calls to the EL. For testing, a mock
@@ -42,21 +43,21 @@ type ReadOnlyELBackend interface {
 var _ ReadOnlyELBackend = (*ELReader)(nil)
 
 type ELReader struct {
-	rpc client.RPC
+	el  client.RPC
 	eth *sources.EthClient
 }
 
-func NewELReader(logger log.Logger, rpc client.RPC) (*ELReader, error) {
-	ethClient, err := sources.NewEthClient(rpc, logger, nil, sources.DefaultEthClientConfig(10))
+func NewELReader(logger log.Logger, el client.RPC) (*ELReader, error) {
+	ethClient, err := sources.NewEthClient(el, logger, nil, sources.DefaultEthClientConfig(10))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create EL client: %w", err)
 	}
-	return &ELReader{rpc: rpc, eth: ethClient}, nil
+	return &ELReader{el: el, eth: ethClient}, nil
 }
 
 func (g *ELReader) GetBlockByNumberJSON(ctx context.Context, number rpc.BlockNumber, fullTx bool) (json.RawMessage, error) {
 	var raw json.RawMessage
-	if err := g.rpc.CallContext(ctx, &raw, "eth_getBlockByNumber", number, fullTx); err != nil {
+	if err := g.el.CallContext(ctx, &raw, "eth_getBlockByNumber", number, fullTx); err != nil {
 		return nil, err
 	}
 	return raw, nil
@@ -64,7 +65,7 @@ func (g *ELReader) GetBlockByNumberJSON(ctx context.Context, number rpc.BlockNum
 
 func (g *ELReader) GetBlockByHashJSON(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error) {
 	var raw json.RawMessage
-	if err := g.rpc.CallContext(ctx, &raw, "eth_getBlockByHash", hash, fullTx); err != nil {
+	if err := g.el.CallContext(ctx, &raw, "eth_getBlockByHash", hash, fullTx); err != nil {
 		return nil, err
 	}
 	return raw, nil
@@ -72,7 +73,7 @@ func (g *ELReader) GetBlockByHashJSON(ctx context.Context, hash common.Hash, ful
 
 func (g *ELReader) GetBlockReceiptsJSON(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (json.RawMessage, error) {
 	var raw json.RawMessage
-	if err := g.rpc.CallContext(ctx, &raw, "eth_getBlockReceipts", blockNrOrHash); err != nil {
+	if err := g.el.CallContext(ctx, &raw, "eth_getBlockReceipts", blockNrOrHash); err != nil {
 		return nil, err
 	}
 	return raw, nil

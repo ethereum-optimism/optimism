@@ -408,7 +408,11 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 	// Spec: {payloadStatus: {status: SYNCING, latestValidHash: null, validationError: null}, payloadId: null} if forkchoiceState.headBlockHash references an unknown payload or a payload that can't be validated because requisite data for the validation is missing
 	if err != nil {
-		// Consider as sync error if read only EL interaction fails because we cannot validate
+		// Consider as sync error if read only EL interaction fails because we cannot validate.
+		// The read fails on an unverifiable block as well as an unknown one.
+		if !errors.Is(err, ethereum.NotFound) {
+			logger.Warn("Failed to read head block from read only EL", "hash", state.HeadBlockHash, "err", err)
+		}
 		return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 	}
 	candLatestNum := uint64(candLatest.ExecutionPayload.BlockNumber)
@@ -478,6 +482,9 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		payloadEnv, err := s.elReader.PayloadByNumber(ctx, candLatestNum+1)
 		if err != nil {
 			// Consider as sync error if read only EL interaction fails because we cannot validate
+			if !errors.Is(err, ethereum.NotFound) {
+				logger.Warn("Failed to read next block from read only EL", "number", candLatestNum+1, "err", err)
+			}
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 		}
 		// https://github.com/ethereum-optimism/specs/blob/510377c586d0cbede2d40402d2371fcadd5656a0/specs/protocol/jovian/exec-engine.md#minimum-base-fee-in-block-header
@@ -575,7 +582,7 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, env
 	// The block itself is served as the built payload, so attributes for a fork other than the
 	// block's would otherwise go unnoticed.
 	if (attr.Withdrawals == nil) != (block.Withdrawals == nil) {
-		return fmt.Errorf("withdrawals mismatch: attr=%v, block=%v", attr.Withdrawals, block.Withdrawals)
+		return fmt.Errorf("withdrawals mismatch: attr has withdrawals %t, block has withdrawals %t", attr.Withdrawals != nil, block.Withdrawals != nil)
 	}
 	if (attr.ParentBeaconBlockRoot == nil) != (envelope.ParentBeaconBlockRoot == nil) {
 		return fmt.Errorf("parentBeaconBlockRoot mismatch: attr=%v, header=%v", attr.ParentBeaconBlockRoot, envelope.ParentBeaconBlockRoot)
@@ -682,19 +689,17 @@ func (s *SyncTester) validatePayload(logger log.Logger, isIsthmus bool, block *e
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#specification
 	// Spec: MUST return {status: INVALID, latestValidHash: null, validationError: errorMessage | null} if the blockHash validation has failed.
 	blockHash := block.BlockHash
-	// Copy, as the read only EL client may hand out the same payload again.
-	correctPayload := *block
 	// Sanity check parent beacon block root and block hash by recomputation
 	if !isIsthmus {
-		// Depopulate withdrawal root field for block hash recomputation
+		// Depopulate withdrawal root field for block hash recomputation. The read only EL's
+		// payload carries none before Isthmus.
 		if payload.WithdrawalsRoot != nil {
 			logger.Warn("Isthmus disabled but withdrawal roots included in payload not nil", "root", payload.WithdrawalsRoot)
 		}
 		payload.WithdrawalsRoot = nil
-		correctPayload.WithdrawalsRoot = nil
 	}
-	// Check given payload matches the payload derived using the read only EL block
-	if err := correctPayload.CheckEqual(payload); err != nil {
+	// Check given payload matches the payload of the read only EL block
+	if err := block.CheckEqual(payload); err != nil {
 		// Consider as block hash validation error when payload mismatch
 		return s.newPayloadInvalid(fmt.Errorf("payload check mismatch: %w", err), nil), nil
 	}
