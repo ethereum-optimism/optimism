@@ -25,7 +25,7 @@ You need:
 *   **A URL serving the prestate's program files**, `<vkey>.agg.bin.gz`, `<vkey>.range.bin.gz`, and `<vkey>.log.bin.gz`, for every prestate that games on the chain use. See [Verifying a ZK absolute prestate](/chain-operators/tutorials/zk-prestate).
 
 <Note>
-  This guide buys proofs from the Succinct Prover Network. The proposer can also generate proofs on local NVIDIA GPUs; see [Prove on local GPUs](#prove-on-local-gpus).
+  This guide uses the Succinct Prover Network. The proposer can also generate proofs on local NVIDIA GPUs; see [Prove on local GPUs](#prove-on-local-gpus).
 </Note>
 
 ## Plan memory and disk
@@ -104,9 +104,11 @@ In this mode, the proposer does not export `prove_balance` or `spn_requester_inf
 
 ## Start the proposer
 
-Run the container image with your configuration:
+Run the container image with your configuration. The image runs as user `10001`, so that user must be able to write to the directory mounted at `/data`. For a new named volume, set its owner once before the first run:
 
 ```bash
+docker run --rm -v proposer-data:/data busybox chown 10001:10001 /data
+
 docker run --env-file proposer.env -v proposer-data:/data -p 7300:7300 \
   us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer:vX.Y.Z
 ```
@@ -173,7 +175,7 @@ The log line `Processed terminal proof retry` lists the games it reset.
 
 With `OP_ZK_PROPOSER_FAST_FINALITY_MODE=true`, the proposer proves every game its signer creates as soon as it is created, instead of only challenged ones. A proven game resolves as soon as its parent resolves, instead of waiting out its challenge window. See [Fast finality](/op-stack/zk-proofs/explainer#fast-finality).
 
-This buys one aggregation proof per game: at a one-hour interval, about 24 a day. `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` (default `1`) caps the proving tasks in flight; while the cap is reached, the proposer pauses creating games. Alert on `deadline_passed_total{window="fast_finality"}` to see games that were not proven in time. A missed fast-finality window does not lose the game.
+This buys a full set of proofs for every game: range, consolidation, and aggregation proofs, plus any log-commitment proofs. At a one-hour interval, that is about 24 games a day. `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` (default `1`) caps the proving tasks in flight; while the cap is reached, the proposer pauses creating games. Alert on `deadline_passed_total{window="fast_finality"}` to see games that were not proven in time. A missed fast-finality window does not lose the game.
 
 ## Keep old prestates available
 

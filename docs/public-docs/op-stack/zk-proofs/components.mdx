@@ -44,7 +44,7 @@ graph TD;
 | `AnchorStateRegistry` | Records the anchor state that new games build on, the respected game type, and the Guardian's blacklist and retirement timestamp. Decides when a game's result is final. |
 | `DelayedWETH` | Holds every bond, and delays payouts so that funds from an incorrect game can be held back. The Guardian can pause withdrawals, and the `ProxyAdmin` owner can hold or recover funds. |
 | `OptimismPortal` | Proves and finalizes withdrawals against games that the `AnchorStateRegistry` considers valid. Reads the chain's own output root from the game's super root. |
-| `OPContractsManager` | Deploys the game implementation and sets each chain's game configuration, including its prestate and verifier. |
+| `OPContractsManager` | Registers the release's game implementation on each chain's `DisputeGameFactory`, and sets each chain's game configuration, including its prestate and verifier. |
 
 ## Proof programs
 

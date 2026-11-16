@@ -13,7 +13,7 @@ This guide configures [`op-challenger`](/op-stack/components/op-challenger) to w
 *   challenges the game if the proposal is wrong, or if its parent game lost,
 *   resolves the game once its parent has resolved and the game is over. If the parent lost, it resolves the game at once, without waiting for it to be over.
 
-If the parent lost and the game is still unchallenged inside its challenge window, the challenger first checks the parent's result at a finalized L1 block. It then challenges the game before it resolves it, so the game's bonds go to the challenger instead of being burned.
+If the parent lost and the game is still unchallenged inside its challenge window, the challenger first checks the parent's result at a finalized L1 block. It then challenges the game before it resolves it, so the game's bonds go to the challenger instead of being credited to `address(0)`.
 
 The challenger does not generate proofs. Defending valid proposals with proofs is [`op-zk-proposer`](/chain-operators/guides/configuration/zk-proposer)'s job. A ZK challenge is a single transaction, so the challenger needs no VM, prestate, or trace data.
 
@@ -63,7 +63,7 @@ op-challenger list-games --l1-eth-rpc <L1 RPC> --game-factory-address <DisputeGa
 
 ## Monitor the challenger
 
-Run [`op-dispute-mon`](/chain-operators/tools/chain-monitoring#dispute-mon) alongside the challenger. Its `op_dispute_mon_zk_games_pending_lifecycle_action` metric counts ZK games that are waiting to be resolved (`action="resolution"`) or closed (`action="bond_distribution"`). The count can stay above zero for a while, for example while the challenger waits for L1 finality before it acts on a game whose parent lost. A count that stays above zero for longer means the challenger, or the proposer, is not acting on games.
+Run [`op-dispute-mon`](/chain-operators/tools/chain-monitoring#dispute-mon) alongside the challenger. Its `op_dispute_mon_zk_games_pending_lifecycle_action` metric counts ZK games that are waiting to be resolved (`action="resolution"`) or closed (`action="bond_distribution"`). The count can stay above zero for a while, for example while the challenger waits for L1 finality before it acts on an unchallenged game whose parent lost. A count that stays above zero for longer means the challenger, or the proposer, is not acting on games.
 
 Also alert on the signer's ETH balance. A challenger that cannot pay a challenger bond cannot stop an invalid proposal.
 

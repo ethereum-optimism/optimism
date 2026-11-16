@@ -36,7 +36,7 @@ Parent links carry soundness forward. A proof only shows that a proposal follows
 
 A valid proposal that is challenged and not proven by its prove deadline loses: the challenger takes the proposer's bond, and every game built on it loses too. So an honest proposer must be able to produce a proof within `maxProveDuration` every time, including when someone is trying to stop it.
 
-This is a security property, not just an operational one. An attacker who can make an honest proof fail or take too long can remove valid proposals from the chain and take the proposer's bonds, at the cost of one challenger bond per game. Ways that could happen:
+This is a security property, not just an operational one. An attacker who can make an honest proof fail or take too long can remove valid proposals from the chain and take the proposer's bonds. The attacker posts one challenger bond per game, and gets it back along with the proposer's bond when the attack works. An honest proof could fail or run late in these ways:
 
 *   **Expensive blocks.** Proof requests have limits on proving work, input size, and memory. An attacker might fill blocks with transactions that are cheap on L2 but expensive to prove. The proposer splits work into smaller requests to stay under the limits, and the proof programs are reviewed for this kind of cost.
 *   **Prover availability.** The proposer buys proofs from the Succinct Prover Network. If the network cannot serve a request in time, or the proposer's PROVE balance runs out, a challenged game goes unproven. [Local GPU proving](/chain-operators/guides/configuration/zk-proposer#prove-on-local-gpus) can serve as a backup.

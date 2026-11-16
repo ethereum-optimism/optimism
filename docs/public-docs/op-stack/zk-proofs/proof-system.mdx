@@ -22,7 +22,7 @@ A ZK dispute game is won by a proof that its proposal is correct. This page expl
 
 The [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game) builds the proof's public values from its own state when `prove()` is called:
 
-*   the L1 block hash recorded when the game was created,
+*   the hash of the L1 block before the game's creation block,
 *   the starting super root (the parent game's claim, or the anchor state),
 *   the proposed super root,
 *   the proposal's timestamp, and
@@ -53,7 +53,7 @@ The prover, in practice [`op-zk-proposer`](/op-stack/components/op-zk-proposer),
 1.  It reads the game's span: the timestamps from the starting super root to the proposed one.
 2.  It splits the span into chunks so each proof request stays within the prover's limits. Each chunk gets a range proof and a consolidation proof.
 3.  For each chunk, it collects a witness: every piece of L1 and L2 data the program will read, gathered in advance from its L1 and L2 nodes. The program reads only from this witness.
-4.  It requests the range and consolidation proofs, and any log-commitment proofs that consolidation needs, then an aggregation proof over all of them. It buys the proofs from the Succinct Prover Network, or generates them on local GPUs.
+4.  It requests the range proofs, any log-commitment proofs that consolidation needs, and the consolidation proofs, which verify those log-commitment proofs. It then requests an aggregation proof over the range and consolidation proofs. It buys the proofs from the Succinct Prover Network, or generates them on local GPUs.
 5.  It submits the aggregation proof to the game with `prove()`.
 
 If a chunk is too large to prove, the proposer splits it again: first by timestamp, then, for a single timestamp, by chain. A single timestamp's consolidation always covers every chain and cannot be split further.
