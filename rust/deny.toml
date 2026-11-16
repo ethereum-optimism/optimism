@@ -6,8 +6,8 @@ no-default-features = false
 [output]
 feature-depth = 1
 
-# Checked only by the daily rust-deny-advisories CI job, since advisories change
-# without a repo change. `just deny` runs bans, licenses and sources.
+# Checked only by the daily rust-deny-advisories CI job. `just deny` does not
+# run advisories.
 [advisories]
 unmaintained = "none" # not vulnerabilities
 ignore = [

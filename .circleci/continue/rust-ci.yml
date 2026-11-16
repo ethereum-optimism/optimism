@@ -1070,9 +1070,8 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
             - slack
-          # cargo-deny audits licenses, bans, and sources only (advisories run in the
-          # daily rust-deny-advisories job), so it can only fail on a repo change and
-          # gates PRs through required-rust-ci.
+          # cargo-deny audits licenses, bans, and sources only, so it can only fail on
+          # a repo change and gates PRs through required-rust-ci.
 
       - rust-ci-typos:
           name: rust-typos
