@@ -155,7 +155,9 @@ jobs:
       - run:
           name: Skip weekends in US Pacific time
           command: |
-            # No on-call pings on Saturday or Sunday. The POSIX rule needs no tzdata.
+            # No on-call pings on Saturday or Sunday. The runner image has no tzdata,
+            # so TZ=America/Los_Angeles would silently give UTC. This POSIX rule
+            # (US Pacific with US DST dates) needs no tzdata.
             echo "US Pacific time: $(TZ=PST8PDT,M3.2.0,M11.1.0 date)"
             if [ "$(TZ=PST8PDT,M3.2.0,M11.1.0 date +%u)" -ge 6 ]; then
               echo "Weekend in US Pacific time. Skipping."
@@ -166,7 +168,9 @@ jobs:
       - run:
           name: Check RustSec advisories
           working_directory: rust
-          command: cargo deny --all-features check advisories
+          # Without the inclusion graphs the log is about 11 KB, not 700 KB, so
+          # CircleCI's 400 KB step-log limit does not cut off the first findings.
+          command: cargo deny --all-features check --hide-inclusion-graph advisories
       - run:
           name: Check ignore review dates
           working_directory: rust
