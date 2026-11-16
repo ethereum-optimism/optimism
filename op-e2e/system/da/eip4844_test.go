@@ -257,11 +257,16 @@ func TestBatcherAutoDA(t *testing.T) {
 	cfg.DataAvailabilityType = batcherFlags.AutoType
 	// We set the genesis fee values and block gas limit such that calldata txs are initially cheaper,
 	// but then manipulate the fee markets over the coming L1 blocks such that blobs become cheaper again.
-	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(3000))
-	// The following excess blob gas leads to a blob base fee >41 times higher than the base fee at genesis,
-	// so the batcher starts with calldata (equilibrium is ~16x or ~40x under Pectra).
+	// The batcher compares the blob base fee with base fee + tip. The L1 suggests a tip of at least
+	// its miner gas price, 0.001 gwei in go-ethereum, so the base fee is 1 gwei to keep the tip
+	// negligible and the fee ratio driven by the two fee markets.
+	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(params.GWei))
+	// The following excess blob gas leads to a blob base fee >41 times higher than the base fee + tip,
+	// so the batcher starts with calldata (equilibrium is ~16x or ~40x under Pectra): with Prague's
+	// update fraction of 5,007,716 it is a blob base fee of e^(938*131,072/5,007,716) = 4.59e10 wei
+	// at genesis, about 46 times the base fee.
 	cfg.DeployConfig.L1GenesisBlockExcessBlobGas = (*hexutil.Uint64)(u64Ptr(
-		452 * params.BlobTxBlobGasPerBlob))
+		938 * params.BlobTxBlobGasPerBlob))
 	cfg.DeployConfig.L1GenesisBlockBlobGasUsed = (*hexutil.Uint64)(u64Ptr(0))
 	cfg.DeployConfig.L1GenesisBlockGasLimit = 2_500_000
 	cfg.BatcherTargetNumFrames = maxBlobsPerBlock
@@ -321,9 +326,8 @@ func TestBatcherAutoDA(t *testing.T) {
 	// impact the markets before we query the feeRatio. Therefore
 	// the L1GenesisBlockExcessBlobGas above is tuned so that
 	// the feeRatio remains above 41.0 even after the market begins to
-	// change:
-	// initially:     feeRatio = 43.67449956483899
-	// after block 3: feeRatio = 42.65440079562407 (using geth.WaitForBlock(big.NewInt(3), l1Client))
+	// change: two empty blocks lower the base fee by 12.5% and the blob base fee by 14.5% each,
+	// so the first query sees a feeRatio of about 43.7.
 
 	_, _, _, feeRatio := mustGetFees()
 	require.Greater(t, feeRatio, 41.0, "expected feeRatio to be greater than 41 (calldata should be cheaper, even with Pectra)")
