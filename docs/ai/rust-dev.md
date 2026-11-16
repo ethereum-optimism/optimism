@@ -202,7 +202,7 @@ Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs
 ## Cross-implementation parity
 
 `rust/op-alloy` holds the OP transaction and receipt types that op-reth and kona consume; the Go
-services run the same formats through op-geth and `op-core/*`. A change to a wire format or hash
+services run the same formats through `op-core/*`. A change to a wire format or hash
 rule on either side has to agree with the other, pinned by a shared golden vector asserted in both
 suites. The rule and the current
 example live in [opgeth-decoupling.md](opgeth-decoupling.md#cross-implementation-parity);
