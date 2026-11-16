@@ -155,6 +155,11 @@ func TestUnmarshalOpGeth(t *testing.T) {
 			}
 			data, err := json.Marshal(gg)
 			require.NoError(t, err)
+			wantJSON := opGethGenesisJSON
+			if !withOsaka {
+				wantJSON = opGethGenesisJSONWithoutOsaka
+			}
+			require.Equal(t, wantJSON, string(data))
 
 			var got Genesis
 			require.NoError(t, json.Unmarshal(data, &got))
@@ -272,6 +277,64 @@ func TestUnmarshalRejects(t *testing.T) {
 			require.NoError(t, err)
 			var got Genesis
 			require.ErrorContains(t, json.Unmarshal(edited, &got), tc.errMsg)
+		})
+	}
+}
+
+// fixtureAllocJSON is the encoding of fixtureAlloc.
+const fixtureAllocJSON = `"alloc":{"00000000000000000000000000000000000beef0":{"balance":"0x100000000000000000000000000000000000000000000000000"},` +
+	`"4200000000000000000000000000000000000016":{"code":"0x60006000f3","storage":{"0x0100000000000000000000000000000000000000000000000000000000000000":"0x0200000000000000000000000000000000000000000000000000000000000000","0x0300000000000000000000000000000000000000000000000000000000000000":"0x0400000000000000000000000000000000000000000000000000000000000000"},"balance":"0x0","nonce":"0x1"}}`
+
+// TestMarshalGoldenVector pins the encoding of the staggered fixture with the block fields
+// that are zero in a genesis.json op-chain-ops writes, as op-geth encodes it.
+func TestMarshalGoldenVector(t *testing.T) {
+	const want = `{"config":{"chainId":901,"homesteadBlock":0,"eip150Block":0,"eip155Block":0,"eip158Block":0,"byzantiumBlock":0,"constantinopleBlock":0,"petersburgBlock":0,"istanbulBlock":0,"muirGlacierBlock":0,"berlinBlock":0,"londonBlock":0,"arrowGlacierBlock":0,"grayGlacierBlock":0,"mergeNetsplitBlock":0,` +
+		`"shanghaiTime":2000,"cancunTime":3000,"pragueTime":7000,"osakaTime":9000,"terminalTotalDifficulty":0,"depositContractAddress":"0x0000000000000000000000000000000000000000",` +
+		`"bedrockBlock":0,"regolithTime":1000,"canyonTime":2000,"ecotoneTime":3000,"fjordTime":4000,"graniteTime":5000,"holoceneTime":6000,"isthmusTime":7000,"jovianTime":8000,"karstTime":9000,"lagoonTime":10000,` +
+		`"optimism":{"eip1559Elasticity":6,"eip1559Denominator":50,"eip1559DenominatorCanyon":250}},` +
+		`"nonce":"0x7","timestamp":"0x4d2","extraData":"0x01000000fa000000060000000000000000","gasLimit":"0x1c9c380","difficulty":"0x0","mixHash":"0xaa00000000000000000000000000000000000000000000000000000000000000","coinbase":"0x4200000000000000000000000000000000000011",` +
+		fixtureAllocJSON + `,` +
+		`"number":"0x3","gasUsed":"0x5208","parentHash":"0xbb00000000000000000000000000000000000000000000000000000000000000","baseFeePerGas":"0x3b9aca00","excessBlobGas":"0x0","blobGasUsed":"0x0","slotNumber":9}`
+
+	g, _ := fixture(t, forkstest.Staggered())
+	g.Number = 3
+	g.GasUsed = 21_000
+	g.ParentHash = common.Hash{0xbb}
+	g.SlotNumber = ptr.New[uint64](9)
+	data, err := json.Marshal(g)
+	require.NoError(t, err)
+	require.JSONEq(t, want, string(data))
+}
+
+// opGethGenesisJSON is the genesis.json that op-geth's core.Genesis writes for the
+// staggered fixture, which has the OP Stack config keys among the Ethereum keys, and
+// opGethGenesisJSONWithoutOsaka the same without osakaTime, as op-chain-ops writes it for
+// Karst.
+const (
+	opGethGenesisJSONHead = `{"config":{"chainId":901,"homesteadBlock":0,"eip150Block":0,"eip155Block":0,"eip158Block":0,"byzantiumBlock":0,"constantinopleBlock":0,"petersburgBlock":0,"istanbulBlock":0,"muirGlacierBlock":0,"berlinBlock":0,"londonBlock":0,"arrowGlacierBlock":0,"grayGlacierBlock":0,"mergeNetsplitBlock":0,` +
+		`"shanghaiTime":2000,"cancunTime":3000,"pragueTime":7000,`
+	opGethGenesisJSONTail = `"bedrockBlock":0,"regolithTime":1000,"canyonTime":2000,"ecotoneTime":3000,"fjordTime":4000,"graniteTime":5000,"holoceneTime":6000,"isthmusTime":7000,"jovianTime":8000,"karstTime":9000,"lagoonTime":10000,` +
+		`"terminalTotalDifficulty":0,"depositContractAddress":"0x0000000000000000000000000000000000000000","optimism":{"eip1559Elasticity":6,"eip1559Denominator":50,"eip1559DenominatorCanyon":250}},` +
+		`"nonce":"0x7","timestamp":"0x4d2","extraData":"0x01000000fa000000060000000000000000","gasLimit":"0x1c9c380","difficulty":"0x0","mixHash":"0xaa00000000000000000000000000000000000000000000000000000000000000","coinbase":"0x4200000000000000000000000000000000000011",` +
+		fixtureAllocJSON + `,` +
+		`"number":"0x0","gasUsed":"0x0","parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000","baseFeePerGas":"0x3b9aca00","excessBlobGas":"0x0","blobGasUsed":"0x0","slotNumber":null}`
+
+	opGethGenesisJSON             = opGethGenesisJSONHead + `"osakaTime":9000,` + opGethGenesisJSONTail
+	opGethGenesisJSONWithoutOsaka = opGethGenesisJSONHead + opGethGenesisJSONTail
+)
+
+// TestUnmarshalOpGethGoldenVector decodes the genesis.json that op-geth's core.Genesis
+// writes, and the same without osakaTime.
+func TestUnmarshalOpGethGoldenVector(t *testing.T) {
+	for name, data := range map[string]string{
+		"with osakaTime":    opGethGenesisJSON,
+		"without osakaTime": opGethGenesisJSONWithoutOsaka,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var got Genesis
+			require.NoError(t, json.Unmarshal([]byte(data), &got))
+			want, _ := fixture(t, forkstest.Staggered())
+			requireGenesisEqual(t, want, &got)
 		})
 	}
 }

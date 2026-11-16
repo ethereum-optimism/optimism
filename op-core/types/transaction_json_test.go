@@ -170,8 +170,8 @@ func postExecGethTx(data []byte) *gethtypes.Transaction {
 // 0x7D post-exec transaction. It will be removed in the final cutover, when
 // the op-geth dependency is replaced with upstream go-ethereum.
 func TestPostExecTxJSONDifferential(t *testing.T) {
-	for _, data := range [][]byte{{0x01}, {0xc2, 0x80, 0x80}, make([]byte, 64)} {
-		gethTx := postExecGethTx(data)
+	for _, v := range postExecTxJSONVectors {
+		gethTx := postExecGethTx(v.data)
 		gethJSON, err := gethTx.MarshalJSON()
 		require.NoError(t, err)
 
