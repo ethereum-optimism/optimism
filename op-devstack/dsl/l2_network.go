@@ -10,6 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -354,6 +355,20 @@ func (n *L2Network) deriveData(blocks int) (channels []derive.ChannelID, channel
 
 	rollupCfg := n.inner.RollupConfig()
 	batchInboxAddr := rollupCfg.BatchInboxAddress
+	signer := ethtypes.LatestSignerForChainID(rollupCfg.L2ChainID)
+	// addUserTx records a batched transaction under its sender. A batch never carries deposits;
+	// from Lagoon it can carry a post-exec tx, which has no sender and which go-ethereum cannot
+	// decode, so it is left out.
+	addUserTx := func(txData []byte) {
+		if len(txData) > 0 && txData[0] == optypes.PostExecTxType {
+			return
+		}
+		var tx ethtypes.Transaction
+		n.require.NoError(tx.UnmarshalBinary(txData))
+		fromAddr, err := signer.Sender(&tx)
+		n.require.NoError(err)
+		l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
+	}
 
 	l1EC := n.PrimaryL1EL().EthClient()
 
@@ -542,14 +557,7 @@ func (n *L2Network) deriveData(blocks int) (channels []derive.ChannelID, channel
 				}
 
 				for _, txData := range singularBatch.Transactions {
-					var tx ethtypes.Transaction
-					n.require.NoError(tx.UnmarshalBinary(txData))
-
-					signer := ethtypes.LatestSignerForChainID(rollupCfg.L2ChainID)
-					fromAddr, err := signer.Sender(&tx)
-					n.require.NoError(err)
-
-					l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
+					addUserTx(txData)
 				}
 
 			} else if batchType == derive.SpanBatchType {
@@ -573,14 +581,7 @@ func (n *L2Network) deriveData(blocks int) (channels []derive.ChannelID, channel
 						"txCount", len(batchElement.Transactions))
 
 					for _, txData := range batchElement.Transactions {
-						var tx ethtypes.Transaction
-						n.require.NoError(tx.UnmarshalBinary(txData))
-
-						signer := ethtypes.LatestSignerForChainID(rollupCfg.L2ChainID)
-						fromAddr, err := signer.Sender(&tx)
-						n.require.NoError(err)
-
-						l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
+						addUserTx(txData)
 					}
 				}
 			} else {
