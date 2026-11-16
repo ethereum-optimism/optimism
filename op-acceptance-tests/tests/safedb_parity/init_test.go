@@ -39,21 +39,18 @@ func newParitySystemWithSafeDB(t devtest.T, enabled bool) *paritySystem {
 			{
 				ELKey:       "sequencer-op-reth",
 				CLKey:       "sequencer",
-				ELKind:      sysgo.MixedL2ELOpReth,
 				CLKind:      sysgo.MixedL2CLOpNode,
 				IsSequencer: true,
 			},
 			{
 				ELKey:        opNodeVerifierKey + "-op-reth",
 				CLKey:        opNodeVerifierKey,
-				ELKind:       sysgo.MixedL2ELOpReth,
 				CLKind:       sysgo.MixedL2CLOpNode,
 				EnableSafeDB: enabled,
 			},
 			{
 				ELKey:        konaVerifierKey + "-op-reth",
 				CLKey:        konaVerifierKey,
-				ELKind:       sysgo.MixedL2ELOpReth,
 				CLKind:       sysgo.MixedL2CLKona,
 				EnableSafeDB: enabled,
 			},

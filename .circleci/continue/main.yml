@@ -1708,11 +1708,12 @@ jobs:
       - go-restore-cache:
           namespace: opgeth-ratchet
       # Modules and checksum database tiles the check needs that the shared
-      # module cache lacks: upstream go-ethereum and the dependencies it adds.
-      # go.mod determines its version through the op-geth replace. Other
-      # fetches (tests of dependencies, lookups of op-geth-only packages) don't
-      # affect the result and may fail. To refresh the list, run the check
-      # with an empty module cache and compare what it adds to the shared one.
+      # module cache lacks: upstream go-ethereum and the dependencies it
+      # upgrades or adds. upstream.go sets the go-ethereum version (cutoverVersion),
+      # go.mod the rest, so the key hashes both. Other fetches (tests of
+      # dependencies, lookups of op-geth-only packages) don't affect the
+      # result and may fail. To refresh the list, run the check with an empty
+      # module cache and compare what it adds to the shared one.
       # The fallback restores the upstream modules across go.mod changes that
       # rarely touch them; an old go-ethereum version then lingers in the cache
       # until c-go-cache-version is bumped. Scoped by branch like the shared Go
@@ -1720,8 +1721,8 @@ jobs:
       - restore_cache:
           name: Restore upstream go-ethereum modules
           keys:
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:{{ checksum "go.mod" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}-{{ checksum "ops/scripts/opgeth-ratchet/upstream.go" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:{{ checksum "go.mod" }}-{{ checksum "ops/scripts/opgeth-ratchet/upstream.go" }}
             - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:"
             - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:"
       - run:
@@ -1730,11 +1731,28 @@ jobs:
             just opgeth-ratchet
       - save_cache:
           name: Save upstream go-ethereum modules
-          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
+          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}-{{ checksum "ops/scripts/opgeth-ratchet/upstream.go" }}
           paths:
+            - ~/go/pkg/mod/cache/download/github.com/!data!dog/zstd
+            - ~/go/pkg/mod/cache/download/github.com/!radu!berinde
+            - ~/go/pkg/mod/cache/download/github.com/cockroachdb/crlib
+            - ~/go/pkg/mod/cache/download/github.com/cockroachdb/pebble/v2
+            - ~/go/pkg/mod/cache/download/github.com/cockroachdb/swiss
+            - ~/go/pkg/mod/cache/download/github.com/ethereum/c-kzg-4844/v2
             - ~/go/pkg/mod/cache/download/github.com/ethereum/go-ethereum
-            - ~/go/pkg/mod/cache/download/github.com/pion/stun/v2
-            - ~/go/pkg/mod/cache/download/github.com/pion/transport/v3
+            - ~/go/pkg/mod/cache/download/github.com/fjl/jsonw
+            - ~/go/pkg/mod/cache/download/github.com/go-logr/logr
+            - ~/go/pkg/mod/cache/download/github.com/golang/snappy
+            - ~/go/pkg/mod/cache/download/github.com/klauspost/cpuid/v2
+            - ~/go/pkg/mod/cache/download/github.com/minio/minlz
+            - ~/go/pkg/mod/cache/download/github.com/pion/dtls/v3
+            - ~/go/pkg/mod/cache/download/github.com/pion/stun/v3
+            - ~/go/pkg/mod/cache/download/github.com/pion/transport/v4
+            - ~/go/pkg/mod/cache/download/github.com/stretchr/objx
+            - ~/go/pkg/mod/cache/download/github.com/stretchr/testify
+            - ~/go/pkg/mod/cache/download/go.opentelemetry.io/otel
+            - ~/go/pkg/mod/cache/download/go.yaml.in/yaml/v3
+            - ~/go/pkg/mod/cache/download/google.golang.org/protobuf
             - ~/go/pkg/mod/cache/download/sumdb
       - go-save-cache:
           namespace: opgeth-ratchet
@@ -2127,10 +2145,6 @@ jobs:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
         default: "op-node"
-      l2_el_kind:
-        description: "L2 execution layer client (op-geth or op-reth)"
-        type: string
-        default: "op-reth"
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -2205,7 +2219,6 @@ jobs:
           command: |
             echo "export DEVSTACK_L1_FORK=<<parameters.l1_fork>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
-            echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules (downloaded once by prep-go-modules) plus the
       # per-job build cache. Modules are already present, so the test run below
       # does not need a separate `go mod download`.
@@ -2765,7 +2778,6 @@ workflows:
             parameters:
               l1_fork: &acceptance_l1_forks
                 - fusaka
-          l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
@@ -2791,7 +2803,6 @@ workflows:
             parameters:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
-          l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
