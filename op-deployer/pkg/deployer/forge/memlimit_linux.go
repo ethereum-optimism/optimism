@@ -33,8 +33,8 @@ func smallerLimit(a, b uint64) uint64 {
 	return a
 }
 
-// parseKiBField returns the field name, such as "MemTotal:", of a file such as /proc/meminfo, which
-// gives it in kB, in bytes, or 0.
+// parseKiBField returns the value in bytes of the field name, such as "MemTotal:", of data in the
+// format of /proc/meminfo, which gives values in kB, or 0.
 func parseKiBField(data []byte, name string) uint64 {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {

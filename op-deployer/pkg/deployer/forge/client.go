@@ -219,7 +219,11 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	errBuf := new(bytes.Buffer)
 	peak, err := run.execWithEnv(ctx, scratch, inheritedEnv(), io.MultiWriter(buf, watcher), errBuf, cliOpts...)
 	recordRunMemory(peak)
-	log.Debug("Ran forge script", "script", filepath.Base(script), "peak_memory_mib", peak>>20, "slot_memory_mib", RunMemory>>20)
+	var peakMiB any = "unknown"
+	if peak != 0 {
+		peakMiB = peak >> 20
+	}
+	log.Debug("Ran forge script", "script", filepath.Base(script), "peak_memory_mib", peakMiB, "slot_memory_mib", RunMemory>>20)
 	if watcher.compiled.Load() {
 		return "", nil, compileErr
 	}

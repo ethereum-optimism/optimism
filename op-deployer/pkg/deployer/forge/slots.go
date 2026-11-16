@@ -65,15 +65,16 @@ func recordRunMemory(peak uint64) {
 	}
 }
 
-// slotCount returns the number of forge runs that three quarters of memLimit hold, at least one: one
-// run per RunMemory, and a quarter for the rest of the host. Runs beyond the CPUs only take longer,
-// but runs beyond the memory get killed. Where the memory is unknown, memLimit is 0, and it allows
+// slotCount returns the number of forge runs that three quarters of memLimit hold, at most two per
+// CPU and at least one: one run per RunMemory, and a quarter for the rest of the host. Runs beyond
+// the memory get killed, and runs beyond the CPUs take longer and hold their memory longer; two per
+// CPU leave room for runs that wait on L1. Where the memory is unknown, memLimit is 0, and it allows
 // one run per CPU.
 func slotCount(cpus int, memLimit uint64) int {
 	if memLimit == 0 {
 		return max(1, cpus)
 	}
-	return max(1, int(memLimit/4*3/RunMemory))
+	return max(1, min(2*cpus, int(memLimit/4*3/RunMemory)))
 }
 
 // acquire waits for a free slot and returns its release function.

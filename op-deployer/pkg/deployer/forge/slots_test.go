@@ -12,7 +12,8 @@ func TestSlotCount(t *testing.T) {
 		memLimit uint64
 		want     int
 	}{
-		{cpus: 4, memLimit: 12 * RunMemory, want: 9},
+		{cpus: 4, memLimit: 12 * RunMemory, want: 8},
+		{cpus: 8, memLimit: 12 * RunMemory, want: 9},
 		{cpus: 64, memLimit: 4*RunMemory + RunMemory/2, want: 3},
 		{cpus: 16, memLimit: RunMemory / 2, want: 1},
 		{cpus: 12, want: 12},
