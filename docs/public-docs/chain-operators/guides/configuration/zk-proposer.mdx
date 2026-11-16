@@ -30,7 +30,7 @@ You need:
 
 ## Plan memory and disk
 
-The proposer collects the data that each proof reads before it requests the proof. It holds each request's encoded input in memory until the request is uploaded, so plan memory for about twice `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (1.5 GiB by default) for each chunk it proves at once.
+The proposer collects the data that each proof reads before it requests the proof. It holds each request's encoded input in memory until the request is uploaded, so plan memory for about twice `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (1.5 GiB by default) for each chunk it proves at once. It proves up to `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` games at once (default `8`), and up to `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` chunks of each game at once (default `1`). With the defaults, that is 8 chunks, or about 24 GiB. With fast finality on, add up to `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` more games.
 
 Set `OP_ZK_PROPOSER_DATA_DIR` to keep the collected data on disk instead of in memory. The encoded request inputs stay in memory. The directory need not persist across restarts, but it must belong to one proposer process, because the proposer deletes the leftover collections in it at startup. Under attack, a proof can need much more data than usual, so alert on the volume's usage.
 
