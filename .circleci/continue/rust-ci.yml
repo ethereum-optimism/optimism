@@ -150,10 +150,9 @@ jobs:
           name: Skip scheduled runs on weekends
           environment:
             TRIGGER_SOURCE: << pipeline.trigger_source >>
-          # The image has no tzdata, so spell out US Pacific time as a POSIX rule.
           command: |
-            if [ "$TRIGGER_SOURCE" != "api" ] && [ "$(TZ=PST8PDT,M3.2.0,M11.1.0 date +%u)" -ge 6 ]; then
-              echo "Weekend in US Pacific time, skipping."
+            if [ "$TRIGGER_SOURCE" != "api" ] && [ "$(date -u +%u)" -ge 6 ]; then
+              echo "Weekend (UTC), skipping."
               circleci-agent step halt
             fi
       - checkout-with-mise:
