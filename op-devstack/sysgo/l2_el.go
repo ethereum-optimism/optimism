@@ -13,6 +13,6 @@ type L2ELNode interface {
 }
 
 // l2EngineKind is the engine kind an op-node is configured for, whichever L2ELNode it drives:
-// op-reth, a CLI-superset build of it, or the sync-tester mock, which EL-syncs past a finalized
-// block as op-reth does.
+// op-reth, a CLI-superset build of it, or the sync-tester mock, whose EL sync (when enabled for
+// the session) ignores the finalized head as op-reth's does.
 const l2EngineKind = engine.Reth

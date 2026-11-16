@@ -23,10 +23,10 @@ import (
 )
 
 // preInteropExecError returns true if err matches a known pre-interop
-// executing message failure from op-geth or op-reth.
+// executing message failure.
 func preInteropExecError(err error) bool {
 	msg := err.Error()
-	// op-geth: gas estimation hits the uninitialized proxy and returns the revert reason
+	// gas estimation hits the uninitialized proxy and returns the Proxy's revert reason
 	if strings.Contains(msg, "implementation not initialized") {
 		return true
 	}
