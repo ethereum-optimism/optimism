@@ -1699,6 +1699,28 @@ jobs:
           root: .
           paths:
             - "cannon/bin"
+      # develop's latest timings for the memory-all test splits (see shard-tests.sh).
+      # Restored once here, in a job they wait for, so every node gets the same file.
+      # Not on develop, tags or the merge queue: a branch that edits its CI config can
+      # write any cache, so trusted runs keep splitting by CircleCI's own timings.
+      - unless:
+          condition:
+            or:
+              - equal: ["develop", << pipeline.git.branch >>]
+              - equal: ["", << pipeline.git.branch >>]
+              - matches:
+                  pattern: "^gh-readonly-queue/.*$"
+                  value: << pipeline.git.branch >>
+          steps:
+            - restore_cache:
+                key: shard-timings-v1-memory-all-opn-op-reth-fusaka-
+            - restore_cache:
+                key: shard-timings-v1-memory-all-kona-op-reth-fusaka-
+            - run: mkdir -p /tmp/shard-timings
+            - persist_to_workspace:
+                root: /tmp
+                paths:
+                  - shard-timings
 
   check-op-geth-version:
     docker:
@@ -2294,6 +2316,23 @@ jobs:
           steps:
             - notify-failures-on-develop:
                 mentions: "@protocol-oncall"
+      # On develop, save the timings CircleCI gave this split, for other branches'
+      # splits. With none it halts instead, since an empty cache would hide the
+      # last good one, so this must stay the last step.
+      - when:
+          condition:
+            equal: [develop, << pipeline.git.branch >>]
+          steps:
+            - run:
+                name: Copy shard timings
+                command: |
+                  SRC="$CIRCLE_INTERNAL_TASK_DATA/circle-test-results/results.json"
+                  mkdir -p /tmp/shard-timings
+                  { [ -s "$SRC" ] && cp "$SRC" "/tmp/shard-timings/$CIRCLE_JOB.json"; } || circleci-agent step halt
+            - save_cache:
+                key: shard-timings-v1-{{ .Environment.CIRCLE_JOB }}-{{ .Revision }}
+                paths:
+                  - /tmp/shard-timings
 
   # Aggregator job - allows downstream jobs and required checks to depend on a single memory-all job.
   memory-all:
