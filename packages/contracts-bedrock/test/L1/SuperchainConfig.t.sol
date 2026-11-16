@@ -304,7 +304,7 @@ contract SuperchainConfig_Extend_Test is SuperchainConfig_TestInit {
     function testFuzz_extend_succeeds(address _identifier) external {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(_identifier);
-        uint256 firstPauseTimestamp = block.timestamp;
+        uint256 firstPauseTimestamp = vm.getBlockTimestamp();
 
         vm.warp(block.timestamp + 1);
 

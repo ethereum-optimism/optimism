@@ -35,7 +35,7 @@ abstract contract DisputeMonitorHelper_TestInit is DisputeGameFactory_TestInit {
     /// @return gameIndex_ The index of the created game.
     function createGameWithTimestamp(uint256 _timestamp, bytes32 _claim) internal returns (uint256 gameIndex_) {
         // Store current timestamp to restore later.
-        uint256 currentTimestamp = block.timestamp;
+        uint256 currentTimestamp = vm.getBlockTimestamp();
 
         // Warp to the desired timestamp.
         vm.warp(_timestamp);

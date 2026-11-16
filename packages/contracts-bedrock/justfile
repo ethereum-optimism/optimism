@@ -29,19 +29,26 @@ forge-build-dev *ARGS:
 
 # Builds source contracts only.
 build-source:
-  forge build --skip "/**/test/**" --skip "/**/scripts/**"
+  @# Always solc: snapshots, semver-lock, the reinitializer check and the NUT bundle read this
+  @# build, also when a developer exports a Solar profile.
+  FOUNDRY_PROFILE=default forge build --skip "/**/test/**" --skip "/**/scripts/**"
 
 # Builds source contracts and scripts, skipping tests.
 build-no-tests:
   @# The skip leaves out the test/mocks that the scripts import, so compile the scripts too, and
-  @# warm the script cache: op-deployer never compiles.
-  forge build --skip "/**/test/**"
-  forge build scripts
-  just forge-build --skip "/**/test/**"
+  @# warm the script cache: op-deployer never compiles. Always solc, as for build-source.
+  FOUNDRY_PROFILE=default forge build --skip "/**/test/**"
+  FOUNDRY_PROFILE=default forge build scripts
+  FOUNDRY_PROFILE=default just forge-build --skip "/**/test/**"
 
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail
   just forge-build {{ARGS}}
+
+# Builds the contracts with solc, also when a developer exports a Solar profile. The checks that
+# read forge-artifacts after a full build, tests included, depend on it.
+build-solc *ARGS:
+  FOUNDRY_PROFILE=default just build {{ARGS}}
 
 # Builds the contracts (developer mode).
 build-dev *ARGS: lint-fix-no-fail
@@ -394,13 +401,13 @@ post-fork-ops *ARGS:
 
 # Generates the L2 genesis state.
 genesis:
-  forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
+  FOUNDRY_PROFILE=default forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
 
 # Generates the Network Upgrade Transaction (NUT) bundle.
 # NOTE: be very careful about renaming this command, it's used in the CI check-nut-locks job,
 # which expects this command to be available in historical commits.
 generate-nut-bundle: build-no-tests
-  @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
+  @FOUNDRY_PROFILE=default forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
 
 ########################################################
 #                       SNAPSHOTS                      #
@@ -445,8 +452,8 @@ snapshots: build-source snapshots-no-build
 # Checks if the snapshots are up to date without building.
 snapshots-check-no-build: snapshots-no-build
 
-# Checks if the snapshots are up to date.
-snapshots-check: build snapshots-check-no-build
+# Checks if the snapshots are up to date. build-source is always solc.
+snapshots-check: build-source snapshots-check-no-build
 
 # Checks interface correctness without building.
 interfaces-check-no-build:
@@ -456,7 +463,9 @@ interfaces-check-no-build:
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
 # artifacts can cause the script to detect issues incorrectly.
-interfaces-check: clean build interfaces-check-no-build
+# Builds only the sources, with solc, as check-fast does: a Solar build leaves forge-artifacts empty,
+# and test artifacts fail the check.
+interfaces-check: clean build-source interfaces-check-no-build
 
 # Checks that all upgrade/initialize functions have proper reinitializer modifiers.
 reinitializer-check: build-source reinitializer-check-no-build
@@ -466,9 +475,9 @@ reinitializer-check: build-source reinitializer-check-no-build
 reinitializer-check-no-build:
   go run ./scripts/checks/reinitializer
 
-# Checks that the size of the contracts is within the limit.
+# Checks that the size of the contracts is within the limit. Sizes the solc build, as deployed.
 size-check:
-  forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
+  FOUNDRY_PROFILE=default forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
 
 # Checks that any contracts with a modified semver lock also have a modified semver version.
 # Does not build contracts.
@@ -476,7 +485,7 @@ semver-diff-check-no-build:
   ./scripts/checks/check-semver-diff.sh
 
 # Checks that any contracts with a modified semver lock also have a modified semver version.
-semver-diff-check: build semver-diff-check-no-build
+semver-diff-check: build-solc semver-diff-check-no-build
 
 # Checks that the semgrep tests are valid.
 semgrep-test-validity-check:
@@ -486,8 +495,9 @@ semgrep-test-validity-check:
 lint-forge-tests-check-no-build:
   go run ./scripts/checks/test-validation
 
-# Validates forge test conventions and structure.
-lint-forge-tests-check: build lint-forge-tests-check-no-build
+# Validates forge test conventions and structure. Reads the test artifacts, so it needs the full
+# solc build.
+lint-forge-tests-check: build-solc lint-forge-tests-check-no-build
 
 # Checks that contracts are properly linted.
 lint-check:
@@ -516,14 +526,14 @@ valid-semver-check-no-build:
   go run ./scripts/checks/valid-semver-check/main.go
 
 # Checks that the semver of contracts are valid.
-valid-semver-check: build valid-semver-check-no-build
+valid-semver-check: build-solc valid-semver-check-no-build
 
 # Checks that spacer variables are correctly inserted without building.
 validate-spacers-no-build:
   go run ./scripts/checks/spacers
 
 # Checks that spacer variables are correctly inserted.
-validate-spacers: build validate-spacers-no-build
+validate-spacers: build-solc validate-spacers-no-build
 
 # Checks that the Kontrol summary dummy files have not been modified.
 # If you have changed the summary files deliberately, update the hashes in the script.
@@ -534,7 +544,7 @@ check-kontrol-summaries-unchanged:
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
 # Compiles only what an earlier build left out.
 nut-bundle-check-no-build:
-  @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
+  @FOUNDRY_PROFILE=default forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
   git diff --exit-code snapshots/upgrades/current-upgrade-bundle.json
 
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.

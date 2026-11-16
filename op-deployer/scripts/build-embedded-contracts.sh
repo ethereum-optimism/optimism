@@ -9,6 +9,9 @@ set -euo pipefail
 # Usage: build-embedded-contracts.sh. Set FORGE to use a forge other than the one on PATH.
 
 forge="${FORGE:-forge}"
+# Deployments use solc. A developer's exported profile, such as the Solar ones (lite, liteci), must
+# not change what op-deployer embeds.
+export FOUNDRY_PROFILE=default
 cd "$(dirname "${BASH_SOURCE[0]}")/../../packages/contracts-bedrock"
 # Same as contracts-bedrock's `build-no-tests` recipe; the Docker contracts stage has no just.
 "$forge" build --skip "/**/test/**"

@@ -56,7 +56,7 @@ pre-test:
 clean:
     rm -rf ../.devnet
 
-# Generate contract bindings
+# Generate contract bindings from the solc build in forge-artifacts
 gen-binding CONTRACT:
-    cd ../packages/contracts-bedrock && just build
+    cd ../packages/contracts-bedrock && just build-solc
     ./scripts/gen-binding.sh {{CONTRACT}}

@@ -25,6 +25,7 @@ abstract contract Deployer is Script {
 
     /// @notice Sets up the artifacts contract.
     function setUp() public virtual {
+        DeployUtils.assertNotSolarBroadcast();
         DeployUtils.etchLabelAndAllowCheatcodes({ _etchTo: address(artifacts), _cname: "Artifacts" });
         artifacts.setUp();
 

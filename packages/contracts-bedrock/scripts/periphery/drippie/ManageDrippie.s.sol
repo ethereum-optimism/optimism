@@ -7,6 +7,7 @@ import { Script } from "forge-std/Script.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
 import { Config } from "scripts/libraries/Config.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DrippieConfig } from "scripts/periphery/drippie/DrippieConfig.s.sol";
 
 import { Drippie } from "src/periphery/drippie/Drippie.sol";
@@ -27,6 +28,7 @@ contract ManageDrippie is Script {
 
     /// @notice Sets up the deployment script.
     function setUp() public {
+        DeployUtils.assertNotSolarBroadcast();
         cfg = new DrippieConfig(Config.deployConfigPath());
         console.log("Config path: %s", Config.deployConfigPath());
     }

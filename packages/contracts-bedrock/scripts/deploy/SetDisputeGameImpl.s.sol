@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { DeployState } from "scripts/libraries/DeployState.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { GameType } from "src/dispute/lib/Types.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
@@ -26,6 +27,7 @@ contract SetDisputeGameImpl is Script {
     }
 
     function run(Input memory _input) public {
+        DeployUtils.assertNotSolarBroadcast();
         require(address(_input.factory) != address(0), "SetDisputeGameImpl: factory not set");
         require(address(_input.impl) != address(0), "SetDisputeGameImpl: impl not set");
 

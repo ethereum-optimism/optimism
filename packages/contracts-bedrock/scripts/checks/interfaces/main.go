@@ -77,12 +77,18 @@ type Artifact struct {
 }
 
 func main() {
-	if _, err := common.ProcessFilesGlob(
+	results, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
 		[]string{},
 		processFile,
-	); err != nil {
+	)
+	if err != nil {
 		fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
+	// An empty forge-artifacts would otherwise pass without checking anything.
+	if len(results) == 0 {
+		fmt.Println("error: no artifacts found in forge-artifacts, build with solc first")
 		os.Exit(1)
 	}
 }

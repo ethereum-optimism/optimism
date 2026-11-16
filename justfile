@@ -79,9 +79,9 @@ build: build-go build-contracts
 # Builds main Go components.
 build-go: submodules build-superchain-go op-node op-proposer op-batcher op-challenger op-dispute-mon cannon
 
-# Builds contracts-bedrock.
+# Builds contracts-bedrock with solc. The Go tests and checks that need it read forge-artifacts.
 build-contracts:
-  cd packages/contracts-bedrock && just build
+  cd packages/contracts-bedrock && just build-solc
 
 # Builds the custom linter.
 build-customlint:

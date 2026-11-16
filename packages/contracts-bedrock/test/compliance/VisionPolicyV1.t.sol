@@ -435,7 +435,7 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         IPolicy.Parties memory parties;
         parties.sender = _sender;
         parties.recipient = recipient;
-        uint256 finalizableAt = block.timestamp;
+        uint256 finalizableAt = vm.getBlockTimestamp();
         vm.warp(finalizableAt + policy.holdDelay());
 
         vm.prank(module);
@@ -449,7 +449,7 @@ contract VisionPolicyV1_ScreenWithdrawal_Test is VisionPolicyV1_TestInit {
         IPolicy.Parties memory parties;
         parties.sender = sender;
         parties.recipient = recipient;
-        uint256 finalizableAt = block.timestamp;
+        uint256 finalizableAt = vm.getBlockTimestamp();
         uint256 holdableAt = finalizableAt + policy.holdDelay();
 
         vm.startPrank(module);
@@ -644,7 +644,7 @@ contract VisionPolicyV1_ScreenRelease_Test is VisionPolicyV1_TestInit {
         BridgeHookTypes.Item memory item;
         IPolicy.Parties memory parties;
         parties.recipient = recipient;
-        uint64 expired = uint64(block.timestamp);
+        uint64 expired = uint64(vm.getBlockTimestamp());
 
         vm.startPrank(module);
         parties.sender = allowlistedSender;

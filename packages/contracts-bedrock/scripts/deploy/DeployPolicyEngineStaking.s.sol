@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 import { PolicyEngineStaking } from "src/periphery/staking/PolicyEngineStaking.sol";
 
@@ -16,6 +17,7 @@ contract DeployPolicyEngineStaking is Script {
         require(_owner != address(0), "DeployPolicyEngineStaking: owner cannot be zero address");
         require(_token != address(0), "DeployPolicyEngineStaking: token cannot be zero address");
 
+        DeployUtils.assertNotSolarBroadcast();
         vm.broadcast();
         PolicyEngineStaking staking = new PolicyEngineStaking(_owner, _token);
 

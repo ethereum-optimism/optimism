@@ -396,7 +396,7 @@ contract DelayedWETH_Unlock_Test is DelayedWETH_TestInit {
         _timeDelta = bound(_timeDelta, 1, type(uint128).max);
 
         // Unlock once.
-        uint256 ts = block.timestamp;
+        uint256 ts = vm.getBlockTimestamp();
         delayedWeth.unlock(alice, _wad1);
         (uint256 amount1, uint256 timestamp1) = delayedWeth.withdrawals(address(this), alice);
         assertEq(amount1, _wad1);

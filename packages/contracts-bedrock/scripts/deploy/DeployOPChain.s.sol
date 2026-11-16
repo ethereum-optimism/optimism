@@ -75,6 +75,7 @@ contract DeployOPChain is Script {
     /// @param _input The input to the script.
     /// @return output_ The output of the script.
     function run(Types.DeployOPChainInput memory _input) public returns (Output memory output_) {
+        DeployUtils.assertNotSolarBroadcast();
         checkInput(_input);
 
         require(address(_input.opcm).code.length > 0, "DeployOPChain: OPCM address has no code");

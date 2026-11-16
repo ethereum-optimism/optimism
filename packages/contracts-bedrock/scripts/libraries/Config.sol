@@ -263,6 +263,21 @@ library Config {
         return vm.envOr("FOUNDRY_PROFILE", string("default"));
     }
 
+    /// @notice Returns true for the development and PR profiles compiled with Solar. Forge matches
+    ///         profile names in any letter case, so the name is compared in lowercase. A profile
+    ///         chosen with `--profile` on the command line leaves FOUNDRY_PROFILE unset, so it is
+    ///         not seen.
+    function isSolar() internal view returns (bool) {
+        string memory profile = LibString.lower(foundryProfile());
+        return LibString.eq(profile, "lite") || LibString.eq(profile, "liteci");
+    }
+
+    /// @notice Returns the active profile's `out` directory. Solar profiles write to their own,
+    ///         so their artifacts never mix with the solc deployment artifacts.
+    function artifactDirectory() internal view returns (string memory) {
+        return isSolar() ? "cache/solar-artifacts/" : "forge-artifacts/";
+    }
+
     /// @notice Returns true when the compiler output is not production-like. This includes
     ///         coverage mode (which adds instrumentation) and unoptimized Foundry profiles
     ///         (which produce different bytecode, CREATE2 addresses, and gas costs).
