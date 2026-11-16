@@ -154,7 +154,9 @@ impl Prefetcher {
         S: OpProofsStore + 'static,
         H: BlockHashReader + StageCheckpointReader + Send + 'static,
     {
-        // No more blocks than the backpressure threshold can be waiting to be persisted.
+        // Sized by the backpressure threshold: with a save in flight, the engine takes no new
+        // action past it. One action can still buffer more blocks, as a reorg does, and the queue
+        // then drops the oldest.
         let queue = Arc::new(Queue::new(config.backpressure_threshold.max(1) as usize));
         #[cfg(feature = "metrics")]
         let metrics = metrics::PrefetchMetrics::new_with_labels(&[] as &[(&str, &str)]);

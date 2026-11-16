@@ -36,26 +36,28 @@ impl MdbxProofsStorage {
         threads: usize,
     ) -> OpProofsStorageResult<usize> {
         let readers = write_readers(diff, threads);
-        in_parallel(readers, |reader| self.warm_write_share(diff, reader, readers))
+        in_parallel(readers, |reader| Ok(self.warm_write_share(diff, reader, readers)?.0))
     }
 
-    /// Reads `reader`'s share of the keys of `diff`.
+    /// Reads `reader`'s share of the keys of `diff`. Returns the number of keys, and the number
+    /// of them that have a last history shard, the one the write appends to.
     fn warm_write_share(
         &self,
         diff: &BlockStateDiff,
         reader: usize,
         readers: usize,
-    ) -> OpProofsStorageResult<usize> {
+    ) -> OpProofsStorageResult<(usize, usize)> {
         let tx = self.env.tx()?;
         let (trie, state) = (&diff.sorted_trie_updates, &diff.sorted_post_state);
-        let mut keys = 0;
+        let (mut keys, mut shards) = (0, 0);
 
         let mut rows = tx.cursor_read::<V2AccountsTrie>()?;
         let mut history = tx.cursor_read::<V2AccountsTrieHistory>()?;
         for (path, _) in share(trie.account_nodes_ref().iter(), reader, readers) {
             let path = StoredNibbles(*path);
             rows.seek_exact(path.clone())?;
-            history.seek_exact(AccountTrieShardedKey::new(path, u64::MAX))?;
+            let last = history.seek_exact(AccountTrieShardedKey::new(path, u64::MAX))?;
+            shards += usize::from(last.is_some());
             keys += 1;
         }
 
@@ -63,11 +65,12 @@ impl MdbxProofsStorage {
         let mut history = tx.cursor_read::<V2StoragesTrieHistory>()?;
         for (address, path) in share(storage_nodes(diff), reader, readers) {
             rows.seek_by_key_subkey(address, StoredNibblesSubKey(path))?;
-            history.seek_exact(StorageTrieShardedKey::new(
+            let last = history.seek_exact(StorageTrieShardedKey::new(
                 address,
                 StoredNibbles(path),
                 u64::MAX,
             ))?;
+            shards += usize::from(last.is_some());
             keys += 1;
         }
 
@@ -75,7 +78,8 @@ impl MdbxProofsStorage {
         let mut history = tx.cursor_read::<V2HashedAccountsHistory>()?;
         for (address, _) in share(state.accounts.iter(), reader, readers) {
             rows.seek_exact(*address)?;
-            history.seek_exact(HashedAccountShardedKey::new(*address, u64::MAX))?;
+            let last = history.seek_exact(HashedAccountShardedKey::new(*address, u64::MAX))?;
+            shards += usize::from(last.is_some());
             keys += 1;
         }
 
@@ -83,14 +87,15 @@ impl MdbxProofsStorage {
         let mut history = tx.cursor_read::<V2HashedStoragesHistory>()?;
         for (address, slot) in share(storage_slots(diff), reader, readers) {
             rows.seek_by_key_subkey(address, slot)?;
-            history.seek_exact(HashedStorageShardedKey {
+            let last = history.seek_exact(HashedStorageShardedKey {
                 hashed_address: address,
                 sharded_key: ShardedKey::new(slot, u64::MAX),
             })?;
+            shards += usize::from(last.is_some());
             keys += 1;
         }
 
-        Ok(keys)
+        Ok((keys, shards))
     }
 
     /// Reads the pages pruning `blocks` reads: their changesets, and the first history shard of
@@ -109,26 +114,28 @@ impl MdbxProofsStorage {
         let readers = threads.max(1).min(count);
         in_parallel(readers, |reader| {
             let (start, end) = (count * reader / readers, count * (reader + 1) / readers);
-            self.warm_prune_blocks(first + start as u64..=first + (end - 1) as u64)
+            Ok(self.warm_prune_blocks(first + start as u64..=first + (end - 1) as u64)?.0)
         })
     }
 
     /// Reads the changesets of `blocks` and, for each entry, the part of its key's history the
-    /// prune reads.
+    /// prune reads. Returns the number of entries, and the number of history seeks that found a
+    /// row: the key's first shard, or a later key's when the key has no history.
     fn warm_prune_blocks(
         &self,
         blocks: RangeInclusive<BlockNumber>,
-    ) -> OpProofsStorageResult<usize> {
+    ) -> OpProofsStorageResult<(usize, usize)> {
         let tx = self.env.tx()?;
         // The storage changesets of every address in `blocks`.
         let storages = BlockNumberHashedAddress((*blocks.start(), B256::ZERO))..=
             BlockNumberHashedAddress((*blocks.end(), B256::repeat_byte(0xff)));
-        let mut keys = 0;
+        let (mut keys, mut shards) = (0, 0);
 
         let mut history = tx.cursor_read::<V2AccountsTrieHistory>()?;
         for change in tx.cursor_dup_read::<V2AccountTrieChangeSets>()?.walk_range(blocks.clone())? {
             let path = StoredNibbles(change?.1.nibbles.0);
-            read_first_shard(&mut history, AccountTrieShardedKey::new(path, 0))?;
+            let first = AccountTrieShardedKey::new(path, 0);
+            shards += usize::from(read_first_shard(&mut history, first)?);
             keys += 1;
         }
 
@@ -138,29 +145,31 @@ impl MdbxProofsStorage {
         {
             let (key, change) = change?;
             let path = StoredNibbles(change.nibbles.0);
-            read_first_shard(&mut history, StorageTrieShardedKey::new(key.0.1, path, 0))?;
+            let first = StorageTrieShardedKey::new(key.0.1, path, 0);
+            shards += usize::from(read_first_shard(&mut history, first)?);
             keys += 1;
         }
 
         let mut history = tx.cursor_read::<V2HashedAccountsHistory>()?;
         for change in tx.cursor_dup_read::<V2HashedAccountChangeSets>()?.walk_range(blocks)? {
             let address = change?.1.hashed_address;
-            read_first_shard(&mut history, HashedAccountShardedKey::new(address, 0))?;
+            let first = HashedAccountShardedKey::new(address, 0);
+            shards += usize::from(read_first_shard(&mut history, first)?);
             keys += 1;
         }
 
         let mut history = tx.cursor_read::<V2HashedStoragesHistory>()?;
         for change in tx.cursor_dup_read::<V2HashedStorageChangeSets>()?.walk_range(storages)? {
             let (key, change) = change?;
-            let slot = HashedStorageShardedKey {
+            let first = HashedStorageShardedKey {
                 hashed_address: key.0.1,
                 sharded_key: ShardedKey::new(change.key, 0),
             };
-            read_first_shard(&mut history, slot)?;
+            shards += usize::from(read_first_shard(&mut history, first)?);
             keys += 1;
         }
 
-        Ok(keys)
+        Ok((keys, shards))
     }
 }
 
@@ -193,14 +202,16 @@ fn storage_slots(diff: &BlockStateDiff) -> impl Iterator<Item = (B256, B256)> + 
 }
 
 /// Reads what a prune reads of one key's history: its first shard and the entry after it.
+/// Returns whether a row was found at or after the first shard's key.
 fn read_first_shard<T: Table>(
     cursor: &mut impl DbCursorRO<T>,
     first_shard_key: T::Key,
-) -> Result<(), DatabaseError> {
-    if cursor.seek(first_shard_key)?.is_some() {
+) -> Result<bool, DatabaseError> {
+    let found = cursor.seek(first_shard_key)?.is_some();
+    if found {
         cursor.next()?;
     }
-    Ok(())
+    Ok(found)
 }
 
 /// Returns `reader`'s share of `keys`: one of `readers` contiguous runs of near-equal length, so
@@ -356,6 +367,8 @@ mod tests {
         assert_eq!(store.warm_write(&account_diff(address, 0), 4).unwrap(), 1);
         // Each of the eight blocks changed the account once.
         assert_eq!(store.warm_prune(1..=8, 4).unwrap(), 8);
+        // One key, and its last shard was found.
+        assert_eq!(store.warm_write_share(&account_diff(address, 0), 0, 1).unwrap(), (1, 1));
 
         let tx = store.env.tx().unwrap();
         let mut history = tx.cursor_read::<V2HashedAccountsHistory>().unwrap();
@@ -365,6 +378,24 @@ mod tests {
         let (_, first) = history.prev().unwrap().expect("first shard");
         assert_eq!((first.iter().next(), last.iter().next_back()), (Some(1), Some(blocks)));
         assert!(first.iter().next_back() < last.iter().next());
+    }
+
+    // Warming that looked up every key but not its history would report the same key counts and
+    // only make persistence slower. For a write, the second count is of keys whose last shard was
+    // found, so a seek for another shard lowers it. For a prune it shows only that the history
+    // seeks ran: a seek finds the next row, whichever key that row belongs to.
+    #[test]
+    fn warming_finds_the_history_of_the_keys_it_reads() {
+        let (a, b) = (B256::repeat_byte(0xa), B256::repeat_byte(0xb));
+        let (_dir, store) = store_with_blocks([diff(&[a]), diff(&[b, a])]);
+
+        // Block 2 wrote 16 keys, 4 in each table, so each of them has a last shard.
+        assert_eq!(store.warm_write_share(&diff(&[b, a]), 0, 1).unwrap(), (16, 16));
+        // An account the store has never held has no history.
+        let new_account = account_diff(B256::repeat_byte(0xc), 1);
+        assert_eq!(store.warm_write_share(&new_account, 0, 1).unwrap(), (1, 0));
+        // Blocks 1 and 2 left 8 and 16 changeset entries, and the history seek of each found a row.
+        assert_eq!(store.warm_prune_blocks(1..=2).unwrap(), (24, 24));
     }
 
     // The node warms through `OpProofsStorage`: an `Arc` of the store, inside a metrics wrapper
