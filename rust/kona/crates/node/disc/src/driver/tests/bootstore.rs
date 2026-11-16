@@ -60,6 +60,34 @@ fn test_saved_records_take_turns_in_a_full_channel() {
     assert_eq!(handed_over.len(), saved.len(), "a saved record never got through");
 }
 
+/// Gossip dials a saved record at its TCP address, so the driver should hand over only the saved
+/// records that have one, as it does with the records of sessions. Otherwise gossip fails to dial
+/// one without, and counts the failure, at every store interval. The bootstore may hold such
+/// records: an earlier version saved records from discovery's table, a discovery-only bootnode
+/// has only a UDP address, and a hand-edited file may hold anything.
+#[test]
+fn test_saved_records_without_a_tcp_address_are_not_handed_over() {
+    let dialable = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
+    // Ports, without an IP, as a node's own record before its peers' votes give it one.
+    let without_ip = enr_at(IpAddr::V4(Ipv4Addr::UNSPECIFIED), TEST_CHAIN_ID);
+    let udp_only = crate::test_utils::enr_with(TEST_CHAIN_ID, |record| {
+        record.ip4(Ipv4Addr::new(1, 1, 1, 2)).udp4(9222);
+    });
+    let mut store = BootStore::in_memory();
+    for record in [&dialable, &without_ip, &udp_only] {
+        store.add_enr(record.clone());
+    }
+    let (sender, mut receiver) = mpsc::channel(8);
+
+    forward_saved(&store, TEST_CHAIN_ID, &sender);
+
+    let mut handed_over = Vec::new();
+    while let Ok(record) = receiver.try_recv() {
+        handed_over.push(record);
+    }
+    assert_eq!(handed_over, [dialable], "the driver handed over a record gossip can't dial");
+}
+
 /// Session records go through the same channel to gossip, and the driver hands a session's
 /// record over only once, when the session starts. So the saved records should leave half of
 /// the channel free, rather than fill it at every store interval, which drops the session records

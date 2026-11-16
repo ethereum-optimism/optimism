@@ -646,11 +646,19 @@ fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
 /// discovery reports a session only when it starts, which discv5 keeps going for as long as it
 /// pings the node.
 ///
+/// Hands over only the records with a TCP address, which gossip dials, as for the records of
+/// sessions. The bootstore may hold others: an earlier version saved records from discovery's
+/// table, a discovery-only bootnode has only a UDP address, and a hand-edited file may hold
+/// anything. Gossip would fail to dial them, and count the failure, at every store interval.
+///
 /// Doesn't wait for room in the channel, which would pile up tasks waiting to send: it hands over
 /// only as many as [`room_for_saved`] allows, and the rest at a later store interval. They are
 /// handed over in a random order, so that each interval gets a different part of them through.
 fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>) {
-    let mut enrs = store.valid_peers_with_chain_id(chain_id);
+    let mut enrs: Vec<_> = store
+        .valid_peers_with_chain_id(chain_id)
+        .filter(|enr| kona_peers::enr_tcp_socket(enr).is_some())
+        .collect();
     enrs.shuffle(&mut rand::rng());
     let room = room_for_saved(sender);
     if enrs.len() > room {
