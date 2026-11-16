@@ -102,7 +102,7 @@ func startDefaultSingleChainPrimary(
 	l2CLOptions = append(l2CLOptions, cfg.GlobalL2CLOptions...)
 	// Env-resolved options come first so an explicit binary from the test overrides the env one.
 	sequencerELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerELOpts...)
 	if world.Interop != nil {
 		l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:           "sequencer",
@@ -141,7 +141,7 @@ func startStoppedSingleChainPrimary(
 	l2CLOptions = append(l2CLOptions, cfg.GlobalL2CLOptions...)
 	// Env-resolved options come first so an explicit binary from the test overrides the env one.
 	sequencerELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerELOpts...)
 	l2CL := startStoppedSequencerCL(
 		t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret,
 		"sequencer", l2CLOptions,

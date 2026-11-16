@@ -42,7 +42,7 @@ Available components:
   - `L1ELNode`: L1 execution-layer node, like geth or reth.
   - `L1CLNode`: L1 consensus-layer node. A full beacon node or a mock consensus replacement for testing.
 - `L2Network`: a L2 chain configuration and registered L2 components
-  - `L2ELNode`: L2 execution-engine, like op-geth or op-reth
+  - `L2ELNode`: L2 execution-engine: op-reth, or the op-sync-tester mock
   - `L2CLNode`: op-node service, or equivalent
   - `L2Batcher`: op-batcher, or equivalent
   - `L2Proposer`: op-proposer, or equivalent
@@ -111,7 +111,6 @@ and returns a typed output that the test then may use.
 
 ### Rust stack env vars:
 - `DEVSTACK_L2CL_KIND=kona-node` to select kona-node as default L2 CL node
-- `DEVSTACK_L2EL_KIND=op-reth` to select op-reth as default L2 EL node
 - `RUST_BINARY_PATH_KONA_NODE=/home/USERHERE/projects/kona/target/debug/kona-node` to select the kona-node executable to run (skips the build; the path must exist)
 - `RUST_BINARY_PATH_OP_RETH=/home/USERHERE/projects/reth/target/release/op-reth` to select the op-reth executable to run (skips the build; the path must exist)
 
