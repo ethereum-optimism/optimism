@@ -40,10 +40,6 @@ linters:
     forbidigo:
       analyze-types: true
       forbid:
-        # op-geth's RPC recording hooks and exported JSON-RPC error are fork-only.
-        - pattern: ^rpc\.(Recorder|RecordedMsg|RecordDone|WithRecorder|JsonError|Server\.SetRecorder)$
-          pkg: ^github\.com/ethereum/go-ethereum/rpc$
-          msg: use github.com/ethereum-optimism/optimism/op-service/jsonrpc instead
         # Every L2 block carries OP deposit (0x7E) and possibly post-exec (0x7D)
         # txs, which upstream go-ethereum cannot decode, so these reads fail on an
         # L2 endpoint at runtime although they compile.

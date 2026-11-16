@@ -78,7 +78,7 @@ these Go-specific conventions:
   domain meaning; supply required dependencies at construction.
 - **Let packages provide naming context.** Prefer `derivation.Trusted` over
   `derivation.TrustedDerivation`.
-- **OP type encodings**: a change to an OP type's wire format, hash rule, or codec accept-set has to agree with `rust/op-alloy` (the types op-reth and kona consume), not just op-geth — see [Cross-implementation parity](opgeth-decoupling.md#cross-implementation-parity).
+- **OP type encodings**: a change to an OP type's wire format, hash rule, or codec accept-set has to agree with `rust/op-alloy` (the types op-reth and kona consume) — see [Cross-implementation parity](opgeth-decoupling.md#cross-implementation-parity).
 - **L2 blocks are payloads, transactions are bytes**: handle an L2 block as an execution payload
   and its transactions as their binary encodings (`hexutil.Bytes`). Hash, measure, compare and
   forward the bytes, and classify a transaction by its type byte (`optypes.IsDepositTxBytes`,
@@ -117,12 +117,4 @@ Run these checks before committing Go changes. Fix all issues — CI enforces ze
 2. **Test** — run tests for changed packages:
    ```bash
    cd <service> && just test
-   ```
-
-3. **op-geth ratchet** — if the change uses a go-ethereum API it didn't use before, check that
-   the API exists in the same form in the upstream release the cutover moves to, not only in
-   op-geth (see
-   [opgeth-decoupling.md §19](opgeth-decoupling.md#19-ci-ratchet--continuously-rehearsing-the-cutover)):
-   ```bash
-   just opgeth-ratchet
    ```
