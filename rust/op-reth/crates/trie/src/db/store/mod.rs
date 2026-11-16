@@ -15,6 +15,7 @@ mod init;
 #[cfg(feature = "metrics")]
 mod metrics;
 mod phase;
+mod prefetch;
 mod provider_ro;
 mod provider_rw;
 mod read;
@@ -35,7 +36,7 @@ mod tests;
 
 use super::{Tables, V2ProofWindow};
 use crate::{
-    OpProofsStorageError, OpProofsStorageResult,
+    BlockStateDiff, OpProofsStorageError, OpProofsStorageResult,
     api::{OpProofsBackfillStore, OpProofsStore},
 };
 use reth_db::{
@@ -43,7 +44,7 @@ use reth_db::{
     mdbx::{self, DatabaseArguments, init_db_for},
     transaction::DbTx,
 };
-use std::{path::Path, sync::Arc};
+use std::{ops::RangeInclusive, path::Path, sync::Arc};
 use tracing::warn;
 
 /// Maximum number of block indices per shard in history bitmap tables.
@@ -183,6 +184,22 @@ impl OpProofsStore for MdbxProofsStorage {
 
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
         Ok(MdbxProofsProvider::new(self.env.tx_mut()?))
+    }
+
+    fn warm_for_write(
+        &self,
+        diff: &BlockStateDiff,
+        threads: usize,
+    ) -> OpProofsStorageResult<usize> {
+        self.warm_write(diff, threads)
+    }
+
+    fn warm_for_prune(
+        &self,
+        blocks: RangeInclusive<u64>,
+        threads: usize,
+    ) -> OpProofsStorageResult<usize> {
+        self.warm_prune(blocks, threads)
     }
 }
 

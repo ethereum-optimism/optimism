@@ -88,7 +88,7 @@ where
         });
     }
 
-    state.memory.insert(block, BlockStateDiff { sorted_trie_updates, sorted_post_state });
+    state.buffer_block(block, BlockStateDiff { sorted_trie_updates, sorted_post_state });
 
     #[cfg(feature = "metrics")]
     state.metrics.index_block_duration_seconds.record(start.elapsed());
