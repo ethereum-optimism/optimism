@@ -10,6 +10,7 @@ feature-depth = 1
 # run advisories.
 [advisories]
 unmaintained = "none" # not vulnerabilities
+# Each ignore on one line, reason ending "Review by YYYY-MM-DD." (checked daily by rust-deny-advisories).
 ignore = [
   { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 via elliptic-curve 0.13.8, no fixed 0.5.x release. Review by 2026-12-16." },
 ]
