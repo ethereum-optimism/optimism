@@ -9,7 +9,8 @@ const SOCKET: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9223
 
 /// Gossip dials the peer a session or an unverifiable record brings, if it is for the driver's
 /// chain, and nothing for other events: a discovered record isn't dialed until a session with
-/// its node shows where it is.
+/// its node shows where it is. The record comes with the socket of its session, for the bootstore
+/// to check against the record's UDP address.
 #[rstest]
 #[case::discovered(discv5::Event::Discovered, None)]
 #[case::session_established(
@@ -31,7 +32,7 @@ fn test_record_to_dial(
     let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
     assert_eq!(
         Discv5Driver::record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID, accept_all),
-        expected.map(|event| RecordToDial { event, enr, save: true })
+        expected.map(|event| RecordToDial { event, enr, save: true, socket: SOCKET })
     );
     assert_eq!(
         Discv5Driver::record_to_dial(
@@ -149,7 +150,7 @@ fn test_record_to_dial_saves_only_what_the_table_filter_accepts(
     let event = session_from("127.0.0.1")(enr.clone());
     assert_eq!(
         Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, table_filter),
-        Some(RecordToDial { event: "session_established", enr, save })
+        Some(RecordToDial { event: "session_established", enr, save, socket: SOCKET })
     );
 }
 

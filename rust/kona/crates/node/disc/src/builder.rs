@@ -2,7 +2,7 @@
 
 use discv5::{Config, Discv5, Enr, ListenConfig};
 use enr::k256;
-use kona_peers::{BootNodes, BootStore, BootStoreFile, OpStackEnr, SkippedEntry};
+use kona_peers::{BootNodes, BootStore, BootStoreFile, OpStackEnr, SkipReason, SkippedEntry};
 use socket2::{Domain, Protocol, Socket, Type};
 use std::{
     net::{IpAddr, SocketAddr},
@@ -257,8 +257,9 @@ impl Discv5Builder {
     /// Builds a [`Discv5Driver`].
     ///
     /// Opens the bootstore, if one is set, and creates it if it is missing, so that a bootstore
-    /// that can't be read, isn't a list of records, or can't be created fails here, rather than
-    /// leaving the node without its saved records, or with records it never saves.
+    /// that can't be read, isn't a bootstore this version can read, or can't be created fails
+    /// here, rather than leaving the node without its saved records, or with records it never
+    /// saves.
     pub fn build(self) -> Result<Discv5Driver, Discv5BuilderError> {
         let chain_id = self.chain_id;
 
@@ -266,9 +267,15 @@ impl Discv5Builder {
             Some(file) => {
                 let path = file.path()?;
                 let (mut bootstore, skipped) = BootStore::open(path.clone())?;
-                // The save below leaves them out, so this is the only record of them.
-                for SkippedEntry { entry, error } in skipped {
-                    warn!(target: "discovery", path = %path.display(), %entry, %error, "Dropping a bootstore entry that isn't a node record");
+                // The save below leaves them out, so this is the only record of them. Only an entry
+                // that isn't a record, as from a hand edit, is a WARN: an earlier version saved
+                // every record a node had, which the store now drops as superseded.
+                for SkippedEntry { entry, reason } in skipped {
+                    if let SkipReason::Invalid(_) = reason {
+                        warn!(target: "discovery", path = %path.display(), %entry, %reason, "Dropping a bootstore entry");
+                    } else {
+                        debug!(target: "discovery", path = %path.display(), %entry, %reason, "Dropping a bootstore entry");
+                    }
                 }
                 bootstore.sync()?;
                 bootstore

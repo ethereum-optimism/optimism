@@ -9,7 +9,11 @@ use kona_peers::{
 };
 use libp2p::{Multiaddr, multiaddr::Protocol};
 use rand::seq::SliceRandom;
-use std::{net::IpAddr, pin::Pin};
+use std::{
+    net::{IpAddr, SocketAddr},
+    pin::Pin,
+    time::SystemTime,
+};
 use tokio::{
     sync::mpsc::{self, channel, error::TrySendError},
     task::JoinHandle,
@@ -40,6 +44,9 @@ struct RecordToDial {
     enr: Enr,
     /// Whether the bootstore should save it, which the table filter decides.
     save: bool,
+    /// The socket the session's packets came from. The bootstore checks it against the record's
+    /// UDP address, which discv5 doesn't always do.
+    socket: SocketAddr,
 }
 
 /// The [`Discv5Driver`] drives the discovery service.
@@ -206,7 +213,7 @@ impl Discv5Driver {
         if !save {
             debug!(target: "discovery", event = kind, %socket, "Not saving a session at an address discovery doesn't use; --p2p.discovery.private allows private ones");
         }
-        Some(RecordToDial { event: kind, enr, save })
+        Some(RecordToDial { event: kind, enr, save, socket })
     }
 
     /// Bootstraps the [`Discv5`] table with bootnodes, and adds those of our chain to `store`.
@@ -486,13 +493,14 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        if let Some(RecordToDial { event: kind, enr, save }) =
+                        if let Some(RecordToDial { event: kind, enr, save, socket }) =
                             Self::record_to_dial(event, chain_id, table_filter)
                         {
                             debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
                             if save {
                                 store.add_enr(enr.clone());
+                                store.set_udp_verified(enr.node_id(), socket, SystemTime::now());
                             }
                             forward_session(enr, &enr_sender);
                         }
