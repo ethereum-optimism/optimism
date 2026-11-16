@@ -537,6 +537,9 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// Whether to retain forwarded transactions in the local pool after
     /// forwarding to the configured sequencer if it exists.
     retain_forwarded_txs: bool,
+    /// Seconds between two blocks, which dates the pending block. Without one, the pending block
+    /// builder uses the chain's alloy-chains hint.
+    block_time: Option<u64>,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
 }
@@ -550,6 +553,7 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
             flashblocks_url: None,
             flashblock_consensus: false,
             retain_forwarded_txs: false,
+            block_time: None,
             _nt: PhantomData,
         }
     }
@@ -565,6 +569,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
             flashblocks_url: None,
             flashblock_consensus: false,
             retain_forwarded_txs: false,
+            block_time: None,
             _nt: PhantomData,
         }
     }
@@ -605,6 +610,12 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
         self.retain_forwarded_txs = retain_forwarded_txs;
         self
     }
+
+    /// With the chain's block time in seconds, which dates the pending block.
+    pub const fn with_block_time(mut self, block_time: Option<u64>) -> Self {
+        self.block_time = block_time;
+        self
+    }
 }
 
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
@@ -641,6 +652,7 @@ where
             flashblocks_url,
             flashblock_consensus,
             retain_forwarded_txs,
+            block_time,
             ..
         } = self;
         let rpc_converter =
@@ -697,7 +709,7 @@ where
         };
 
         let pending_env_builder =
-            OpPendingEnvBuilder::new(ctx.components.provider().chain_spec().chain());
+            OpPendingEnvBuilder::new(block_time, ctx.components.provider().chain_spec().chain());
         let eth_api = ctx
             .eth_api_builder()
             .with_rpc_converter(rpc_converter)

@@ -23,9 +23,10 @@ use reth_rpc_eth_types::{
 use reth_storage_api::{
     BlockReaderIdExt, StateProviderBox, StateProviderFactory, errors::ProviderResult,
 };
+use tracing::warn;
 
-/// Block time, in seconds, of a chain without an alloy-chains block time hint: the OP Stack
-/// default.
+/// Block time, in seconds, of a chain with neither a configured block time nor an alloy-chains
+/// hint: the OP Stack default.
 const FALLBACK_BLOCK_TIME: u64 = 2;
 
 /// Builds the environment of a pending block one block time after its parent.
@@ -41,20 +42,32 @@ pub struct OpPendingEnvBuilder {
 }
 
 impl OpPendingEnvBuilder {
-    /// Creates a builder for `chain`, from its alloy-chains block time hint.
+    /// Creates a builder for `chain` with the given block time in seconds, or, without one, the
+    /// chain's alloy-chains block time hint. A chain with neither falls back to
+    /// `FALLBACK_BLOCK_TIME` instead of upstream's 12 s, and logs a warning.
+    pub fn new(block_time: Option<u64>, chain: Chain) -> Self {
+        let block_time = block_time.or_else(|| Self::hint_block_time(chain)).unwrap_or_else(|| {
+            warn!(
+                target: "rpc::eth",
+                %chain,
+                fallback = FALLBACK_BLOCK_TIME,
+                "Unknown block time, pending block timestamps may be off"
+            );
+            FALLBACK_BLOCK_TIME
+        });
+        Self { block_time }
+    }
+
+    /// Returns the chain's alloy-chains block time hint in whole seconds.
     ///
     /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1 `reth_rpc_eth_types::simulate::sanitize_chain`
     ///
-    /// Derives the block time as upstream's `eth_simulateV1` derives the timestamp increment: the
-    /// hint rounded up to whole seconds. A chain without a hint falls back to
-    /// `FALLBACK_BLOCK_TIME` instead of upstream's 12 s.
-    pub fn new(chain: Chain) -> Self {
-        let block_time = chain
+    /// Rounds up as upstream's `eth_simulateV1` derives its timestamp increment.
+    fn hint_block_time(chain: Chain) -> Option<u64> {
+        chain
             .average_blocktime_hint()
             .map(|d| d.as_secs().saturating_add(u64::from(d.subsec_nanos() > 0)))
             .filter(|&s| s > 0)
-            .unwrap_or(FALLBACK_BLOCK_TIME);
-        Self { block_time }
     }
 }
 
@@ -236,7 +249,7 @@ mod tests {
             ..Default::default()
         });
 
-        let builder = OpPendingEnvBuilder::new(chain_spec.chain());
+        let builder = OpPendingEnvBuilder::new(None, chain_spec.chain());
         let attributes =
             PendingEnvBuilder::<OpEvmConfig>::pending_env_attributes(&builder, &parent, None)
                 .unwrap();
@@ -254,9 +267,13 @@ mod tests {
         assert_eq!(timestamp, jovian - 2);
     }
 
-    fn pending_timestamp(chain: Chain, overrides: Option<&BlockOverrides>) -> u64 {
+    fn pending_timestamp(
+        block_time: Option<u64>,
+        chain: Chain,
+        overrides: Option<&BlockOverrides>,
+    ) -> u64 {
         let parent = SealedHeader::seal_slow(Header { timestamp: 1_000, ..Default::default() });
-        let builder = OpPendingEnvBuilder::new(chain);
+        let builder = OpPendingEnvBuilder::new(block_time, chain);
         PendingEnvBuilder::<OpEvmConfig>::pending_env_attributes(&builder, &parent, overrides)
             .unwrap()
             .timestamp
@@ -265,19 +282,28 @@ mod tests {
     #[test]
     fn pending_env_follows_the_chain_block_time_hint() {
         // Unichain's 1 s hint differs from the 2 s fallback; Dev's 200 ms rounds up to 1 s.
-        assert_eq!(pending_timestamp(Chain::from_named(NamedChain::Unichain), None), 1_001);
-        assert_eq!(pending_timestamp(Chain::from_named(NamedChain::Dev), None), 1_001);
+        assert_eq!(pending_timestamp(None, Chain::from_named(NamedChain::Unichain), None), 1_001);
+        assert_eq!(pending_timestamp(None, Chain::from_named(NamedChain::Dev), None), 1_001);
+    }
+
+    #[test]
+    fn pending_env_prefers_the_configured_block_time() {
+        assert_eq!(
+            pending_timestamp(Some(5), Chain::from_named(NamedChain::Unichain), None),
+            1_005
+        );
+        assert_eq!(pending_timestamp(Some(10), Chain::from_id(123_456_789), None), 1_010);
     }
 
     #[test]
     fn pending_env_falls_back_to_two_seconds_without_a_hint() {
-        assert_eq!(pending_timestamp(Chain::from_id(123_456_789), None), 1_002);
+        assert_eq!(pending_timestamp(None, Chain::from_id(123_456_789), None), 1_002);
     }
 
     #[test]
     fn pending_env_keeps_requested_overrides() {
         let time = BlockOverrides { time: Some(1_005), ..Default::default() };
-        assert_eq!(pending_timestamp(Chain::from_id(123_456_789), Some(&time)), 1_005);
+        assert_eq!(pending_timestamp(Some(3), Chain::from_id(123_456_789), Some(&time)), 1_005);
 
         let parent = SealedHeader::seal_slow(Header {
             timestamp: 1_000,
@@ -286,7 +312,7 @@ mod tests {
         });
         let beacon_root = B256::repeat_byte(0x11);
         let overrides = BlockOverrides { beacon_root: Some(beacon_root), ..Default::default() };
-        let builder = OpPendingEnvBuilder::new(Chain::from_id(123_456_789));
+        let builder = OpPendingEnvBuilder::new(None, Chain::from_id(123_456_789));
         let attributes = PendingEnvBuilder::<OpEvmConfig>::pending_env_attributes(
             &builder,
             &parent,
