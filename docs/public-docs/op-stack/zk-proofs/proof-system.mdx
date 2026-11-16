@@ -9,8 +9,8 @@ import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
 
 <NormativeSpec
   what="The ZK proof program and its verifier"
-  title="ZK fault proof VM specification"
-  href="https://specs.optimism.io/fault-proof/zk-fault-proof-vm.html"
+  title="ZK proof system specification"
+  href="https://specs.optimism.io/fault-proof/zk-proof-system.html"
   note="This page explains how the OP Stack implementation builds proofs; it does not restate the spec."
 />
 
@@ -53,7 +53,7 @@ The prover, in practice [`op-zk-proposer`](/op-stack/components/op-zk-proposer),
 1.  It reads the game's span: the timestamps from the starting super root to the proposed one.
 2.  It splits the span into chunks so each proof request stays within the prover's limits. Each chunk gets a range proof and a consolidation proof.
 3.  For each chunk, it collects a witness: every piece of L1 and L2 data the program will read, gathered in advance from its L1 and L2 nodes. The program reads only from this witness.
-4.  It requests the range, consolidation, and log-commitment proofs from the prover network, then an aggregation proof over all of them.
+4.  It requests the range and consolidation proofs, and any log-commitment proofs that consolidation needs, then an aggregation proof over all of them. It buys the proofs from the Succinct Prover Network, or generates them on local GPUs.
 5.  It submits the aggregation proof to the game with `prove()`.
 
 If a chunk is too large to prove, the proposer splits it again: first by timestamp, then, for a single timestamp, by chain. A single timestamp's consolidation always covers every chain and cannot be split further.
@@ -66,7 +66,7 @@ The `super-aggregation` program embeds the verification key of the `super-range`
 
 A verification key is derived from the program's compiled binary. Two consequences follow:
 
-*   **Every release has a new prestate.** The programs embed the commit they were built from, so a build from a different commit has a different key even if no code changed. Updating the ZK program on a chain means updating its `absolutePrestate`.
+*   **Every new build commit has a new prestate.** The programs embed the commit they were built from, so a build from a different commit has a different key even if no code changed. A final release is tagged on the same commit as its last release candidate, so the two share a prestate. Updating the ZK program on a chain means updating its `absolutePrestate`.
 *   **Chain configuration is part of the program.** The programs read chain configurations, such as the rollup config and the dependency set, only from a registry compiled into them. They reject chains they do not know. A chain whose configuration is not in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) needs its own build, with its own prestate.
 
 The programs build reproducibly, so anyone can rebuild them from the tagged source and confirm the verification key. See [Verifying a ZK absolute prestate](/chain-operators/tutorials/zk-prestate).

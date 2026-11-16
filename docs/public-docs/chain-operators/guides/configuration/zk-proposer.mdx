@@ -8,7 +8,7 @@ import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
 
 <ZkProofsStatus />
 
-This guide sets up [`op-zk-proposer`](/op-stack/components/op-zk-proposer) for a chain whose `DisputeGameFactory` has the ZK dispute game (game type `10`) registered. The proposer creates a game for the chain's super root on a fixed interval, proves its games when they are challenged, resolves them, and claims bonds.
+This guide sets up [`op-zk-proposer`](/op-stack/components/op-zk-proposer) for a chain whose `DisputeGameFactory` has the ZK dispute game (game type `10`) registered. The proposer creates a game for the chain's super root on a fixed interval, proves challenged games, resolves games, and claims bonds.
 
 If you are moving an existing chain to ZK proofs, follow [Migrating to ZK proofs](/chain-operators/tutorials/migrate-to-zk-proofs), which tells you when to start the proposer. For how the proposer fits into the system, read [ZK proof system components](/op-stack/zk-proofs/components).
 
@@ -21,20 +21,18 @@ You need:
 *   **An L1 execution node** that supports JSON-RPC batch requests, and an **L1 beacon node** that serves blob sidecars for the range the proposer proves.
 *   **An L2 execution node for each chain** in the super root. Each must serve a different chain.
 *   **An L1 transaction signer**, as a private key or a Web3Signer-compatible remote signer such as op-signer, funded with enough ETH for init bonds and gas. Each game locks one init bond until it resolves and its bond is claimed, so the balance must cover every game in flight.
-*   **A Succinct Prover Network account** with a PROVE balance. Proofs are paid for from this account, which is separate from the L1 signer. See [Fund the prover network account](#fund-the-prover-network-account).
+*   **A Succinct Prover Network account** with a PROVE balance, unless you prove on local GPUs. Proofs are paid for from this account, which is separate from the L1 signer. See [Fund the prover network account](#fund-the-prover-network-account).
 *   **A URL serving the prestate's program files**, `<vkey>.agg.bin.gz`, `<vkey>.range.bin.gz`, and `<vkey>.log.bin.gz`, for every prestate that games on the chain use. See [Verifying a ZK absolute prestate](/chain-operators/tutorials/zk-prestate).
 
 <Note>
-  The proposer generates proofs only through the Succinct Prover Network. It has no option to prove on your own hardware.
+  This guide buys proofs from the Succinct Prover Network. The proposer can also generate proofs on local NVIDIA GPUs; see [Prove on local GPUs](#prove-on-local-gpus).
 </Note>
-
-{/* TODO: confirm whether a local or self-hosted prover will be supported at release, and document it here if so. */}
 
 ## Plan memory and disk
 
-The proposer collects the data each proof reads before it requests the proof, and holds it while it uploads the request. Plan memory for about twice `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (1.5 GiB by default) for each chunk it proves at once.
+The proposer collects the data that each proof reads before it requests the proof. It holds each request's encoded input in memory until the request is uploaded, so plan memory for about twice `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (1.5 GiB by default) for each chunk it proves at once.
 
-Set `OP_ZK_PROPOSER_DATA_DIR` to keep that data on disk instead of in memory. The directory need not persist across restarts, but it must belong to one proposer process, because the proposer clears it at startup. Under attack, a proof can need much more data than usual, so alert on the volume's usage.
+Set `OP_ZK_PROPOSER_DATA_DIR` to keep the collected data on disk instead of in memory. The encoded request inputs stay in memory. The directory need not persist across restarts, but it must belong to one proposer process, because the proposer deletes the leftover collections in it at startup. Under attack, a proof can need much more data than usual, so alert on the volume's usage.
 
 ## Configure the proposer
 
@@ -62,9 +60,12 @@ OP_ZK_PROPOSER_METRICS_PORT=7300
 OP_ZK_PROPOSER_LOG_FORMAT=json
 ```
 
-For a chain that is not in the superchain-registry, replace `OP_ZK_PROPOSER_NETWORK` with `OP_ZK_PROPOSER_FACTORY_ADDRESS`, and set `OP_ZK_PROPOSER_ROLLUP_CONFIG_PATHS`, `OP_ZK_PROPOSER_L1_CONFIG_PATH`, and `OP_ZK_PROPOSER_DEPENDENCY_SET_PATH` to the chain's configuration files.
+For a chain that is not in the superchain-registry, replace `OP_ZK_PROPOSER_NETWORK` with `OP_ZK_PROPOSER_FACTORY_ADDRESS`, and set `OP_ZK_PROPOSER_ROLLUP_CONFIG_PATHS`, `OP_ZK_PROPOSER_L1_CONFIG_PATH`, and `OP_ZK_PROPOSER_DEPENDENCY_SET_PATH` to the chain's configuration files. The chain also needs a prestate built with the same configuration; see [Build a prestate for a custom chain](/chain-operators/tutorials/zk-prestate#build-a-prestate-for-a-custom-chain).
 
-In production, keep keys out of the environment. Use `OP_ZK_PROPOSER_SIGNER_URL` and `OP_ZK_PROPOSER_SIGNER_ADDRESS` for the L1 signer, and `OP_ZK_PROPOSER_SPN_SIGNER_URL` and `OP_ZK_PROPOSER_SPN_SIGNER_ADDRESS` for the prover network requester. Both support mTLS to op-signer.
+In production, keep keys out of the environment:
+
+*   For the L1 signer, use `OP_ZK_PROPOSER_SIGNER_URL` and `OP_ZK_PROPOSER_SIGNER_ADDRESS`. To use mTLS, also set `OP_ZK_PROPOSER_SIGNER_TLS_CA`, `OP_ZK_PROPOSER_SIGNER_TLS_CERT`, and `OP_ZK_PROPOSER_SIGNER_TLS_KEY`.
+*   For the prover network requester, use `OP_ZK_PROPOSER_SPN_SIGNER_URL` and `OP_ZK_PROPOSER_SPN_SIGNER_ADDRESS`. This signer requires an HTTPS URL and mTLS, so also set `OP_ZK_PROPOSER_SPN_SIGNER_TLS_CA`, `OP_ZK_PROPOSER_SPN_SIGNER_TLS_CERT`, and `OP_ZK_PROPOSER_SPN_SIGNER_TLS_KEY`.
 
 The settings you are most likely to change:
 
@@ -77,7 +78,7 @@ See the [full list of environment variables](https://github.com/ethereum-optimis
 
 ## Fund the prover network account
 
-The proposer pays for proofs from its prover network requester's PROVE balance. Find the requester's address in the `address` label of the `op_zk_proposer_spn_requester_info` metric once the proposer is running.
+With `OP_ZK_PROPOSER_PROOF_PROVIDER=network`, the proposer pays for proofs from its prover network requester's PROVE balance. Find the requester's address in the `address` label of the `op_zk_proposer_spn_requester_info` metric once the proposer is running.
 
 When the requester is a key in a remote signer that can only sign prover network requests, it cannot deposit for itself. Fund it from another account with the `spn-wallet` tool in the monorepo:
 
@@ -93,24 +94,30 @@ Without `--broadcast`, `spn-wallet` prints what it would send and signs nothing.
 
 Keep the balance well above the cost of defending several games at once. A challenged game that cannot be proven because the balance ran out loses its bond.
 
+## Prove on local GPUs
+
+With `OP_ZK_PROPOSER_PROOF_PROVIDER=local-cuda`, the proposer generates proofs on local NVIDIA GPUs instead of buying them from the Succinct Prover Network. It needs no prover network account, so it can serve as a backup during a prover network outage. The prestate and verifier checks are the same as in `network` mode.
+
+This mode runs only in the `op-zk-proposer-cuda` image, which is built for amd64 and includes the GPU prover server. The image is published as `us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer-cuda:vX.Y.Z`, from the same commit as the `op-zk-proposer` release `vX.Y.Z`. Set `OP_ZK_PROPOSER_CUDA_DEVICES` to the comma-separated IDs of the GPUs to use (default `0`). See [Local CUDA proving](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#local-cuda-proving) in the SP1 integration README for the memory settings and how the proposer runs each request.
+
+In this mode, the proposer does not export `prove_balance` or `spn_requester_info`.
+
 ## Start the proposer
 
 Run the container image with your configuration:
 
 ```bash
 docker run --env-file proposer.env -v proposer-data:/data -p 7300:7300 \
-  us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer:<version>
+  us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer:vX.Y.Z
 ```
 
-{/* TODO: confirm the published image name and tag format for op-zk-proposer releases. */}
-
-Use the `op-zk-proposer` release that matches the `kona-sp1-program` release your chain's prestate comes from.
+Each `op-zk-proposer/vX.Y.Z` release tag publishes the image tag `vX.Y.Z`. Use a release that supports the `kona-sp1-program` release your chain's prestate comes from. The two releases are normally tagged on the same commit.
 
 Look for `op-zk-proposer started` in the logs. Before it proposes, the proposer runs these checks:
 
 *   **Anchor state.** At startup, it waits until the anchor state in the `AnchorStateRegistry` matches the super root that its super root source reports for the anchor's timestamp. If they differ, it logs an error and keeps retrying, and continues once they match, without a restart.
 *   **Prestate.** Before it creates a game on a prestate, it loads that prestate's program files and checks that their verification key matches it.
-*   **Verifier.** On every creation cycle, it checks that the verifier registered for the game accepts proofs from its SP1 version. If it does not, it logs an error naming both versions and pauses creating games. It keeps defending games whose verifier matches.
+*   **Verifier.** On every creation cycle, it checks that the verifier registered for the game accepts proofs from the PLONK circuit of its SP1 SDK. If it does not, it logs an error with the expected and actual verifier hashes, and pauses creating games. It keeps defending games whose verifier matches.
 
 ## Verify the proposer
 
@@ -143,7 +150,7 @@ The proposer exports Prometheus metrics prefixed `op_zk_proposer_`. Alert on at 
 | `defense_deadline_remaining_seconds` | It falls below the time you need to prove a game, land the transaction, and respond. This is the time left before the nearest deadline of a game the proposer must defend. |
 | `deadline_passed_total{window="defense"}` | It increases. A challenged game reached its deadline without a proof. |
 | `game_unprovable` | It increases. The proposer cannot prove a game. |
-| `prove_balance` | It falls below the cost of defending several games. |
+| `prove_balance` | In `network` mode, it falls below the cost of defending several games. |
 | `signer_balance_eth` | It falls below the cost of bonds and gas for the games you expect to have in flight. |
 | `signer_pending_nonce` minus `signer_nonce` | The gap does not close, which means a transaction is stuck. |
 
@@ -170,7 +177,7 @@ This buys one aggregation proof per game: at a one-hour interval, about 24 a day
 
 ## Keep old prestates available
 
-The proposer can only defend, resolve, and claim games whose prestate program files it can load. When you change the chain's prestate, keep the old files at `OP_ZK_PROPOSER_PRESTATES_URL` for as long as games created under the old prestate can still be live. Alert on `op_zk_proposer_unknown_prestate_challenged`, which counts challenged games whose prestate the proposer cannot load.
+The proposer can only defend, resolve, and claim games whose prestate program files it can load. When you change the chain's prestate, keep the old files at `OP_ZK_PROPOSER_PRESTATES_URL` for as long as games created under the old prestate can still be live. Alert when `op_zk_proposer_unknown_prestate_challenged` increases: the proposer skipped a challenged game because it cannot load or validate the game's prestate.
 
 ## Next steps
 

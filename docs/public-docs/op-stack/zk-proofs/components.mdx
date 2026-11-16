@@ -25,7 +25,9 @@ graph TD;
     CH[op-challenger] -->|challenges invalid games, resolves| ZKG
     MON[op-dispute-mon] -->|monitors| ZKG
     ZKP -->|requests proofs| SPN[Succinct Prover Network]
+    ZKP -.->|or proves locally| GPU[Local NVIDIA GPUs]
     SPN -->|runs| PROG[super-range, log-commitment, super-aggregation]
+    GPU -->|runs| PROG
     ZKG -->|verify| VER[SP1PlonkAdapter]
     ZKG -->|bonds| WETH[DelayedWETH]
     ZKG -->|validity, anchor| ASR[AnchorStateRegistry]
@@ -36,11 +38,11 @@ graph TD;
 
 | Contract | Role |
 | --- | --- |
-| `DisputeGameFactory` | Creates a game for each proposal, as a clone of the registered implementation with the chain's configuration appended. Holds the init bond for each game type. |
+| `DisputeGameFactory` | Creates a game for each proposal, as a clone of the registered implementation with the chain's configuration appended. Stores the required init bond for each game type. |
 | `ZKDisputeGame` | One game per proposal. Runs the challenge, prove, and resolve lifecycle and tracks bonds. See [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game). |
 | `SP1PlonkAdapter` | The verifier that games call. Implements the generic `IZKVerifier` interface on top of Succinct's SP1 PLONK verifier. |
 | `AnchorStateRegistry` | Records the anchor state that new games build on, the respected game type, and the Guardian's blacklist and retirement timestamp. Decides when a game's result is final. |
-| `DelayedWETH` | Holds every bond, and delays payouts so the Guardian can recover funds from an incorrect game. |
+| `DelayedWETH` | Holds every bond, and delays payouts so that funds from an incorrect game can be held back. The Guardian can pause withdrawals, and the `ProxyAdmin` owner can hold or recover funds. |
 | `OptimismPortal` | Proves and finalizes withdrawals against games that the `AnchorStateRegistry` considers valid. Reads the chain's own output root from the game's super root. |
 | `OPContractsManager` | Deploys the game implementation and sets each chain's game configuration, including its prestate and verifier. |
 

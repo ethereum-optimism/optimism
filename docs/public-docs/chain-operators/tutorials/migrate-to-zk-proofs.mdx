@@ -17,7 +17,7 @@ By the end, `op-zk-proposer` creates ZK games for the chain, `op-challenger` che
 </Note>
 
 <Note>
-  This runbook covers a chain with its own `DisputeGameFactory` and `AnchorStateRegistry`. Migrating several chains that share them as an interop set is not yet supported.
+  This runbook covers a chain with its own `DisputeGameFactory` and `AnchorStateRegistry`. It does not cover an interop set whose chains share them; for that case, see [Path C of the migration specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs#path-c-interop-set-shared-contracts).
 </Note>
 
 For the normative description of the migration, see the [ZK dispute game migration specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs).
@@ -47,9 +47,9 @@ cast call <ASR> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
 
 {/* TODO: add the standard values for the durations and bonds once they are set for the release. */}
 
-**Release artifacts.** The `OPContractsManager` address for the release that ships the ZK dispute game, from `validation/standard/standard-versions-<network>.toml` in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry). `OPContractsManager` sets the game's verifier to its `SP1PlonkAdapter`, so you do not supply a verifier.
+**Release artifacts.** The `OPContractsManager` address for `op-contracts/v10.0.0` (Upgrade 22) or a later release, from `validation/standard/standard-versions-<network>.toml` in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry). Earlier releases deploy the ZK dispute game only behind a development feature flag. `OPContractsManager` sets the game's verifier to its `SP1PlonkAdapter`, so you do not supply a verifier.
 
-{/* TODO: name the op-contracts release and the superchain-ops template that support the ZK dispute game. */}
+{/* TODO: name the superchain-ops template for this upgrade once one supports op-contracts/v10.0.0. */}
 
 ### Stand up the off-chain services first
 
@@ -59,27 +59,40 @@ On a chain moving from `SUPER_PERMISSIONED`, this migration makes proposals perm
 *   **op-challenger.** Add `zk` to `--game-types` on the running challenger, and keep the existing game types so games already in flight stay defended. See [Configure op-challenger for ZK dispute games](/chain-operators/guides/configuration/zk-challenger).
 *   **op-dispute-mon.** No change is needed. It discovers ZK games from the same `DisputeGameFactory` and uses its existing `--superroot-rpc`.
 
-Confirm the prestate files are reachable:
+Confirm that the prestate files download and decompress. `$ZK_PRESTATE` is the lowercase, `0x`-prefixed prestate:
 
 ```bash
-curl -fI "$PRESTATES_URL/$ZK_PRESTATE.agg.bin.gz"
-curl -fI "$PRESTATES_URL/$ZK_PRESTATE.range.bin.gz"
-curl -fI "$PRESTATES_URL/$ZK_PRESTATE.log.bin.gz"
+for kind in agg range log; do
+  curl -fsS "$PRESTATES_URL/$ZK_PRESTATE.$kind.bin.gz" | gzip -t && echo "$kind ok"
+done
+# Expect: agg ok, range ok, log ok
 ```
 
 ## Build the upgrade
 
-The upgrade is one `opcm.upgrade` call for the chain. Its input lists a dispute game configuration for each game type, and an extra instruction that sets the new respected game type:
+The upgrade is one `opcm.upgrade` call for the chain. Its input has one dispute game configuration for each of the six game types that `OPContractsManager` supports, in this order: `CANNON` (`0`), `PERMISSIONED_CANNON` (`1`), `CANNON_KONA` (`8`), `SUPER_PERMISSIONED` (`5`), `SUPER_CANNON_KONA` (`9`), and `ZK_DISPUTE_GAME` (`10`). Set them as follows:
 
-*   `ZK_DISPUTE_GAME` (`10`): `enabled = true`, the init bond, and `gameArgs` set to the ABI encoding of `(absolutePrestate, maxChallengeDuration, maxProveDuration, challengerBond)`.
-*   The chain's current game type (`9` or `5`): `enabled = false`, which clears its implementation so no new games of that type can be created.
-*   An `overrides.cfg.startingRespectedGameType` extra instruction set to `10`.
+| Game type | Configuration |
+| --- | --- |
+| `ZK_DISPUTE_GAME` (`10`) | `enabled = true`, a non-zero init bond, and `gameArgs` set to the ABI encoding of `(absolutePrestate, maxChallengeDuration, maxProveDuration, challengerBond)`. |
+| `SUPER_PERMISSIONED` (`5`) | Keep it enabled with its current configuration and an init bond of `0`. The standard validator requires a super-root chain to keep this game type as its permissioned fallback, so do not disable it, even on a chain moving from it. |
+| `SUPER_CANNON_KONA` (`9`) | On a chain moving from it, `enabled = false` and an init bond of `0`. This clears its implementation and init bond, so no new games of that type can be created. |
+| `CANNON`, `PERMISSIONED_CANNON`, `CANNON_KONA` | `enabled = false` and an init bond of `0`. A super-root chain has none of these registered. |
 
-`OPContractsManager` checks the ZK configuration and reverts if the prestate is zero, either duration is zero or above `type(uint32).max`, or the challenger bond is zero.
+Add an `overrides.cfg.startingRespectedGameType` extra instruction with the data `abi.encode(uint32(10))`. This instruction sets the respected game type to `ZK_DISPUTE_GAME`. A chain moving from `SUPER_CANNON_KONA` needs it for the upgrade to succeed, because `OPContractsManager` requires the respected game type after the upgrade to be enabled.
+
+`OPContractsManager` checks the input and reverts with `OPContractsManagerV2_InvalidGameConfigs` if:
+
+*   the entries are not the six game types in the order above,
+*   the ZK prestate is zero,
+*   either ZK duration is zero or above `type(uint32).max`,
+*   the ZK challenger bond or init bond is zero,
+*   a disabled entry, or the `SUPER_PERMISSIONED` entry, has a non-zero init bond, or
+*   the respected game type after the upgrade is not enabled.
 
 The anchor state does not change. The current game type already commits to super roots, so the existing anchor is a valid starting point for the first ZK game.
 
-Simulate the upgrade against an L1 fork with your team's standard `superchain-ops` workflow, and resolve every validation error it reports before you sign.
+Simulate the upgrade against an L1 fork with your team's standard `superchain-ops` workflow, and resolve every validation error it reports before you sign. The standard validator checks that the ZK game uses the release's implementation and verifier and the expected prestate, that its durations, challenger bond, and init bond are not zero, and that `SUPER_PERMISSIONED` is still registered.
 
 ## Execute the upgrade
 
@@ -91,7 +104,7 @@ Simulate the upgrade against an L1 fork with your team's standard `superchain-op
 The upgrade:
 
 *   installs the ZK dispute game implementation and its configuration on `<DGF>`,
-*   clears the implementation of the previous game type, and
+*   on a chain moving from `SUPER_CANNON_KONA`, clears that game type's implementation, and
 *   sets the respected game type in `<ASR>` to `10`.
 
 ## Verify the upgrade on-chain
@@ -109,8 +122,12 @@ cast call <DGF> 'gameImpls(uint32)(address)' 10 --rpc-url $L1_RPC
 cast call <DGF> 'initBonds(uint32)(uint256)' 10 --rpc-url $L1_RPC
 # Expect: the configured init bond
 
-# Previous game type cleared
-cast call <DGF> 'gameImpls(uint32)(address)' <9 or 5> --rpc-url $L1_RPC
+# SUPER_PERMISSIONED still installed
+cast call <DGF> 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC
+# Expect: non-zero
+
+# On a chain moving from SUPER_CANNON_KONA: that game type cleared
+cast call <DGF> 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC
 # Expect: 0x0000000000000000000000000000000000000000
 
 # Anchor state unchanged
@@ -118,7 +135,7 @@ cast call <ASR> 'getAnchorRoot()(bytes32,uint256)' --rpc-url $L1_RPC
 # Expect: the same value as before the upgrade
 ```
 
-The ZK configuration is checked when the first game is created; see the next section.
+`OPContractsManager` validated the ZK configuration during the upgrade. To confirm the values it stored, read them from the first game; see the next section.
 
 ## Start op-zk-proposer
 
@@ -146,10 +163,10 @@ cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber>)" --rpc-url $SUPER_
 
 ## Verify after the migration
 
-*   **Games from before the migration still resolve.** Watch an in-flight game of the previous type until it resolves. Keep its game type in `op-challenger --game-types` until every such game has resolved and its bonds are claimed.
-*   **op-challenger watches ZK games.** Its logs show ZK games being checked, with no errors from the super root source.
-*   **op-dispute-mon reports ZK games.** `op_dispute_mon_games` includes game type `10`, and `op_dispute_mon_zk_games_pending_lifecycle_action` does not stay above zero.
-*   **The anchor advances.** The first ZK game updates the anchor state once it has resolved and its finality delay has passed: at least `maxChallengeDuration` plus the `AnchorStateRegistry` finality delay after it was created, unless the proposer proves it early with [fast finality](/chain-operators/guides/configuration/zk-proposer#enable-fast-finality). Schedule a check of `getAnchorRoot()` after that window.
+*   **Games from before the migration still resolve.** Watch an in-flight game of the previous type until it resolves. Keep its game type in `op-challenger --game-types` until every such game has resolved. The challenger keeps closing games and claiming bonds for game types that it no longer plays.
+*   **op-challenger watches ZK games.** Its logs show a `Game info` line for each ZK game, with no errors from the super root source.
+*   **op-dispute-mon reports ZK games.** `op_dispute_mon_games` has series with `game_type="zk"`, and `op_dispute_mon_zk_games_pending_lifecycle_action` does not stay above zero.
+*   **The anchor advances.** The first ZK game updates the anchor state when someone closes it, after it has resolved and its finality delay has passed. `op-zk-proposer` closes its games when it claims their bonds. Closing is possible at least `maxChallengeDuration` plus the `AnchorStateRegistry` finality delay after the game was created, unless the proposer proves it early with [fast finality](/chain-operators/guides/configuration/zk-proposer#enable-fast-finality). Schedule a check of `getAnchorRoot()` after that window.
 
 ## Next steps
 
