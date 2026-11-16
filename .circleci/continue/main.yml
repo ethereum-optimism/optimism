@@ -1219,10 +1219,9 @@ jobs:
           command: |
             ALL_FILES=$(<<parameters.test_list>>)
             TEST_FILES=$(echo "$ALL_FILES" | circleci tests split --split-by=timings)
-            # An empty TEST_FILES makes `just test` run the whole suite. Halt a
-            # node whose share is empty, but not when the full list is empty, so
-            # an accidentally empty list never passes having tested nothing.
-            if [ -n "$ALL_FILES" ] && [ -z "$TEST_FILES" ]; then
+            # With parallelism, a node can get an empty share of a non-empty list.
+            # Halt it instead of letting `just test` fall back to the whole suite.
+            if [ "${CIRCLE_NODE_TOTAL:-1}" -gt 1 ] && [[ "$ALL_FILES" == *[![:space:]]* ]] && [[ "$TEST_FILES" != *[![:space:]]* ]]; then
               echo "No test files for node $CIRCLE_NODE_INDEX of $CIRCLE_NODE_TOTAL. Halting."
               circleci-agent step halt
               exit 0

@@ -118,7 +118,7 @@ commands:
                       name: Prune Go build cache entries unused for 3 hours
                       command: |
                         find ~/.cache/go-build -mindepth 2 -type f -mmin +180 -delete || echo "prune failed, saving the unpruned cache"
-                        du -sh ~/.cache/go-build
+                        du -sh ~/.cache/go-build || true
             - save_cache:
                 name: Save Go build cache for <<parameters.namespace>>
                 key: go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ .Revision }}
