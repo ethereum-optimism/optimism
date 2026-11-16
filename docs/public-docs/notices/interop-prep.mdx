@@ -89,18 +89,20 @@ Monitor the per-chain safe head on your supernodes (the `op_node_supernode_refs_
 ## Choose a topology
 
 Pick the smallest topology that meets your availability needs.
-All three are valid; they differ in how many processes you run and what fails when one of them goes down.
+All four are valid; they differ in how many processes you run and what fails when one of them goes down.
 
 | Topology | What you run | Use it when |
 | -------- | ------------ | ----------- |
 | **Minimal** | One op-supernode, plus one op-reth per chain. No separate op-node. Serve `eth_*` RPC from the op-reth of the chain you serve, and op-node RPC methods from the supernode's `/<chainID>` path. | You run a single node, or you're evaluating the setup. The supernode is a single point of failure. |
 | **Fleet** | The minimal setup, plus Light CL op-nodes that follow the supernode. Each Light CL drives its own op-reth. | You serve RPC from several nodes and want to add or remove them without touching derivation. The supernode is still a single point of failure for `safe` and `finalized`. |
+| **Redundant** | Two or more supernodes, each with its own op-reth per chain, and no Light CLs. Put a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) in front of the op-reths of each chain you serve, and leave P2P enabled on the supernodes. | You want no single point of failure but only need a few RPC backends. Every backend derives every chain in the dependency set, so each added node costs more than in Fleet. |
 | **High availability** | At least three supernodes, each with its own op-reth per chain, behind a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-layer-routing-for-follow-sources) for each chain you serve, with Light CLs following the proxyd. | Production. Recommended before mainnet activation. |
 
 For example, an operator that serves OP Mainnet RPC from two nodes today and doesn't run Unichain would run:
 
 *   **Minimal:** one supernode, one OP Mainnet op-reth, and one Unichain op-reth: three processes, but only one OP Mainnet RPC backend.
 *   **Fleet:** the minimal setup, plus two Light CLs, each with its own OP Mainnet op-reth: seven processes.
+*   **Redundant:** two supernodes, each with an OP Mainnet op-reth and a Unichain op-reth, plus one proxyd in front of the two OP Mainnet op-reths: seven processes, with no single point of failure for derivation.
 *   **High availability:** three supernodes with two op-reth each, one proxyd for OP Mainnet (Unichain has no Light CLs, so it needs none), plus two Light CLs, each with its own op-reth: 14 processes.
 
 The [specialized op-node topology notice](/notices/specialized-node-topology#why-this-matters) explains why separating the derivation tier from the RPC tier pays off as a fleet grows.
