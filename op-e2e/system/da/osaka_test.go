@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSystemE2EDencunAtGenesisWithBlobs tests if L2 finalizes when blobs are present on L1. The
+// TestSystemE2EOsakaAtGenesisWithBlobs tests if L2 finalizes when blobs are present on L1. The
 // L1 runs Osaka from genesis, so the blob transaction carries cell proofs.
-func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
+func TestSystemE2EOsakaAtGenesisWithBlobs(t *testing.T) {
 	op_e2e.InitParallel(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
