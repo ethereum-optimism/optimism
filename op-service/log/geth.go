@@ -1,7 +1,6 @@
 package log
 
 import (
-	"context"
 	"io"
 	"log/slog"
 
@@ -128,17 +127,3 @@ func (f gethForwarder) Write(level slog.Level, msg string, args ...any) {
 		f.Logger.Log(level, msg, args...)
 	}
 }
-
-// WriteCtx is Write with an explicit context. It exists to satisfy op-geth's
-// log.Logger.
-func (f gethForwarder) WriteCtx(ctx context.Context, level slog.Level, msg string, args ...any) {
-	if l, ok := f.Logger.(*logger); ok {
-		l.emit(ctx, 1, level, msg, args)
-	} else {
-		f.Logger.WithContext(ctx).Log(level, msg, args...)
-	}
-}
-
-// SetContext does nothing. It exists to satisfy op-geth's log.Logger; a
-// Logger's context is fixed when it is derived, with WithContext.
-func (f gethForwarder) SetContext(context.Context) {}

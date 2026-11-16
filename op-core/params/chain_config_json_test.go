@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	gethparams "github.com/ethereum/go-ethereum/params"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -77,31 +76,6 @@ func TestChainConfigJSONFields(t *testing.T) {
 		_, ok := cfgType.FieldByName(jf.Name)
 		require.True(t, ok, "chainConfigJSON field %s is not a ChainConfig field", jf.Name)
 	}
-}
-
-// TestChainConfigJSONDirectFieldsDominate checks that the direct fields of
-// chainConfigJSON hide the same-named fields of the embedded go-ethereum config, even
-// where a direct field is omitted.
-func TestChainConfigJSONDirectFieldsDominate(t *testing.T) {
-	geth := jsonTestConfig(t, forkstest.Staggered()).GethChainConfig()
-	geth.ChainID = big.NewInt(1)
-	geth.CanyonTime = ptr.New[uint64](999)
-	geth.LagoonTime = ptr.New[uint64](999)
-	geth.Optimism = &gethparams.OptimismConfig{EIP1559Elasticity: 1, EIP1559Denominator: 1}
-
-	data, err := json.Marshal(chainConfigJSON{
-		ChainID:     big.NewInt(901),
-		ChainConfig: geth,
-		CanyonTime:  ptr.New[uint64](2000),
-		Optimism:    &OptimismConfig{EIP1559Elasticity: 6, EIP1559Denominator: 50},
-	})
-	require.NoError(t, err)
-	obj := parseJSONObject(t, data)
-	require.Equal(t, float64(901), obj["chainId"])
-	require.Equal(t, float64(2000), obj["canyonTime"])
-	require.NotContains(t, obj, "lagoonTime")
-	require.Equal(t, map[string]any{"eip1559Elasticity": float64(6), "eip1559Denominator": float64(50)}, obj["optimism"])
-	require.Equal(t, float64(0), obj["homesteadBlock"], "go-ethereum-only keys are kept")
 }
 
 func TestChainConfigJSONRoundTrip(t *testing.T) {

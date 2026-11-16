@@ -11,22 +11,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/beacon/engine"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
 )
-
-func TestEnsureAmsterdamBlockAccessList(t *testing.T) {
-	payload := new(engine.ExecutableData)
-	EnsureAmsterdamBlockAccessList(payload)
-	require.NotNil(t, payload.BlockAccessList)
-	require.Equal(t, hexutil.Bytes(rlp.EmptyList), *payload.BlockAccessList)
-
-	existing := hexutil.Bytes{0xc1, 0x80}
-	payload.BlockAccessList = &existing
-	EnsureAmsterdamBlockAccessList(payload)
-	require.Same(t, &existing, payload.BlockAccessList)
-}
 
 func TestValidatePayloadStatus(t *testing.T) {
 	require.NoError(t, ValidatePayloadStatus("test", engine.PayloadStatusV1{Status: engine.VALID}))
@@ -42,15 +31,13 @@ func TestValidatePayloadStatus(t *testing.T) {
 func TestFakePoSAdvancesAmsterdamChain(t *testing.T) {
 	activation := uint64(0)
 	blobSchedule := &params.BlobScheduleConfig{
-		Cancun:    params.DefaultCancunBlobConfig,
-		Prague:    params.DefaultPragueBlobConfig,
-		Osaka:     params.DefaultOsakaBlobConfig,
-		BPO1:      params.DefaultBPO1BlobConfig,
-		BPO2:      params.DefaultBPO2BlobConfig,
-		BPO3:      params.DefaultBPO3BlobConfig,
-		BPO4:      params.DefaultBPO4BlobConfig,
-		BPO5:      params.DefaultBPO4BlobConfig,
-		Amsterdam: params.DefaultBPO4BlobConfig,
+		Cancun: params.DefaultCancunBlobConfig,
+		Prague: params.DefaultPragueBlobConfig,
+		BPO1:   params.DefaultBPO1BlobConfig,
+		BPO2:   params.DefaultBPO2BlobConfig,
+		BPO3:   params.DefaultBPO3BlobConfig,
+		BPO4:   params.DefaultBPO4BlobConfig,
+		BPO5:   params.DefaultBPO4BlobConfig,
 	}
 	l1Genesis, err := genesis.NewL1GenesisMinimal(&genesis.DevL1DeployConfigMinimal{
 		DevL1DeployConfig: genesis.DevL1DeployConfig{
@@ -68,6 +55,19 @@ func TestFakePoSAdvancesAmsterdamChain(t *testing.T) {
 		BlobScheduleConfig:    blobSchedule,
 	})
 	require.NoError(t, err)
+
+	// Block building calls the request-queue system contracts, which op-deployer preinstalls.
+	if l1Genesis.Alloc == nil {
+		l1Genesis.Alloc = types.GenesisAlloc{}
+	}
+	for addr, code := range map[common.Address][]byte{
+		params.WithdrawalQueueAddress:    params.WithdrawalQueueCode,
+		params.ConsolidationQueueAddress: params.ConsolidationQueueCode,
+		params.BuilderDepositAddress:     params.BuilderDepositCode,
+		params.BuilderExitAddress:        params.BuilderExitCode,
+	} {
+		l1Genesis.Alloc[addr] = types.Account{Code: code, Nonce: 1, Balance: common.Big0}
+	}
 
 	logicalClock := clock.NewAdvancingClock()
 	instance, _, err := InitL1(1, 64, l1Genesis, logicalClock, t.TempDir(), noOpBeacon{})

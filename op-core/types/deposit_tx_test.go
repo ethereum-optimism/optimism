@@ -210,20 +210,3 @@ func TestTxTypeByteChecks(t *testing.T) {
 	require.False(t, optypes.IsPostExecTxBytes(dynamicFee))
 	require.False(t, optypes.IsPostExecTxBytes(nil))
 }
-
-// TestIsDepositTx decodes a deposit into a go-ethereum transaction, which only op-geth
-// can do, so it goes with IsDepositTx at the cutover.
-func TestIsDepositTx(t *testing.T) {
-	deposit := new(gethtypes.Transaction)
-	require.NoError(t, deposit.UnmarshalBinary(depositTxTestCases()[0].binary))
-	require.True(t, optypes.IsDepositTx(deposit))
-
-	legacy := gethtypes.NewTx(&gethtypes.LegacyTx{
-		Nonce:    1,
-		GasPrice: big.NewInt(1),
-		Gas:      21000,
-		To:       &common.Address{},
-		Value:    big.NewInt(0),
-	})
-	require.False(t, optypes.IsDepositTx(legacy))
-}

@@ -193,7 +193,6 @@ func TestDevstackFutureL1ForkAddsBlobSchedule(t *testing.T) {
 	require.NotNil(t, schedule.BPO3)
 	require.NotNil(t, schedule.BPO4)
 	require.NotNil(t, schedule.BPO5)
-	require.NotNil(t, schedule.Amsterdam)
 }
 
 func newValidIntentBuilder() intentbuilder.Builder {
