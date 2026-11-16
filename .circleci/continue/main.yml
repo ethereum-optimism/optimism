@@ -1170,7 +1170,7 @@ jobs:
         type: boolean
         default: false
       parallelism:
-        description: Machines to split the test files across, by timing. Keep it well below the file count, since a node with an empty share runs the whole suite.
+        description: Machines to split the test files across, by timing.
         type: integer
         default: 1
     parallelism: <<parameters.parallelism>>
@@ -1217,8 +1217,16 @@ jobs:
           name: Run tests
           # `just test` partitions the shard between Amsterdam and default-EVM tests.
           command: |
-            TEST_FILES=$(<<parameters.test_list>>)
-            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            ALL_FILES=$(<<parameters.test_list>>)
+            TEST_FILES=$(echo "$ALL_FILES" | circleci tests split --split-by=timings)
+            # An empty TEST_FILES makes `just test` run the whole suite. Halt a
+            # node whose share is empty, but not when the full list is empty, so
+            # an accidentally empty list never passes having tested nothing.
+            if [ -n "$ALL_FILES" ] && [ -z "$TEST_FILES" ]; then
+              echo "No test files for node $CIRCLE_NODE_INDEX of $CIRCLE_NODE_TOTAL. Halting."
+              circleci-agent step halt
+              exit 0
+            fi
             export TEST_FILES
             JUNIT_TEST_DIR=results just test
           environment:
@@ -3185,7 +3193,7 @@ workflows:
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
           requires:
             - prep-go-modules
-          test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM --
+          test_list: git diff origin/develop...HEAD --name-only --no-renames --diff-filter=AM --
             './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
