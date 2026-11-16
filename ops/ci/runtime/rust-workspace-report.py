@@ -379,13 +379,13 @@ def finish(directory, status, merged=False):
                 errors.extend(label + ': ' + error for error in child['report_errors'])
             except (ValueError, KeyError, OSError) as error:
                 errors.append(label + ': ' + str(error))
-    elif job in ('tests', 'tests-unit', 'tests-compiler', 'doctest'):
+    elif job in ('tests', 'tests-unit', 'tests-compiler'):
         checks = []
         if job in ('tests', 'tests-unit'):
             checks.append(('unit', lambda: unit_report(directory)))
         if job in ('tests', 'tests-compiler'):
             checks.append(('beacon', lambda: libtest_report(directory, 'beacon')))
-        if job in ('tests', 'tests-compiler', 'doctest'):
+        if job in ('tests', 'tests-compiler'):
             checks.append(('doctests', lambda: libtest_report(directory, 'doctests')))
         for name, check in checks:
             try:
@@ -413,7 +413,7 @@ def finish(directory, status, merged=False):
         'tests-unit': ['unit-list', 'unit'],
         'tests-compiler': ['beacon-list', 'beacon', 'doctests-list', 'doctests'],
         'tests': ['unit-list', 'unit', 'beacon-list', 'beacon', 'doctests-list', 'doctests'],
-        'doctest': ['doctests-list', 'doctests'], 'docs': ['docs'], 'clippy': ['clippy'],
+        'docs': ['docs'], 'clippy': ['clippy'],
         'build': ['build'], 'features': ['features', 'feature-tests'], 'no-std': ['no-std'], 'udeps': ['udeps'],
         'wasm-unknown': ['wasm-target', 'wasm-list', 'wasm'], 'wasm-wasi': ['wasm-target', 'wasm-list', 'wasm'],
         'zepter': ['zepter'], 'typos': ['typos'], 'deny': ['deny'],

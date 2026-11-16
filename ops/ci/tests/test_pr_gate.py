@@ -64,7 +64,7 @@ class GateTests(unittest.TestCase):
         self.assertFalse((self.root/'.circleci').exists())
         self.assertFalse((self.root/'ops/ci/migration').exists())
         self.assertEqual(len(self.selection['requires']),22)
-        self.assertEqual(len(G.group_tasks(self.manifest,'rust-workspace')),29)
+        self.assertEqual(len(G.group_tasks(self.manifest,'rust-workspace')),28)
         native=self.root/'.rwx/rust.yml';source=native.read_text()
         native.write_text(source.replace('features-9.succeeded || features-9.failed || features-9.skipped','features-8.succeeded || features-8.failed || features-8.skipped'))
         with self.assertRaisesRegex(ValueError,'every terminal'):G.configuration('required-rust-ci')
@@ -93,7 +93,9 @@ class GateTests(unittest.TestCase):
         group='rust-fmt';output=self.root/'.ci/pr-gates/groups'/group
         for selected,state,expected in [('true','succeeded',0),('true','failed',1),('true','skipped',1),('false','skipped',0),('false','succeeded',1)]:
             env={**self.env,'GROUP_SELECTED':selected}
-            for attribute in ('succeeded','failed','skipped'):env['TASK_RUST_FMT_'+attribute.upper()]='true' if state==attribute else 'false'
+            for task in G.group_tasks(self.manifest,group):
+                for attribute in ('succeeded','failed','skipped'):
+                    env['TASK_'+task.upper().replace('-','_')+'_'+attribute.upper()]='true' if state==attribute else 'false'
             with patch.dict(os.environ,env):self.assertEqual(G.receipt(group),expected)
             final=G.read(output/'final.json');self.assertEqual(final['exit_code'],expected)
             self.assertEqual(final['tests'],0);self.assertTrue(final['original_sha256'])

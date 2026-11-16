@@ -180,7 +180,7 @@ class ReportTests(unittest.TestCase):
         self.assertTrue(json.loads((self.root / 'final.json').read_text())['report_errors'])
 
     def test_success_requires_complete_reports(self):
-        (self.root / 'settings.json').write_text('{"job":"doctest"}')
+        (self.root / 'settings.json').write_text('{"job":"tests-compiler"}')
         self.assertTrue(REPORT.finish(self.root, 0))
 
 
@@ -422,7 +422,7 @@ class ConfigurationTests(unittest.TestCase):
     def test_fresh_verdicts_keep_compiler_caches_enabled(self):
         definition = Path(__file__).resolve().parents[3] / '.rwx/rust.yml'
         tasks = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(definition)], text=True))
-        selected = {'doctest', 'build', 'docs', 'clippy', 'no-std', 'udeps'}
+        selected = {'build', 'docs', 'clippy', 'no-std', 'udeps'}
         selected.update({'wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'registry', 'interop'})
 
         actual = {t['key']: t for t in tasks if t['key'] in selected}
@@ -786,14 +786,12 @@ pub fn compile_only() {}
             cli = subprocess.run(['cargo', 'test', '--locked', '--test', 'cli'],
                                  cwd=root / 'rust', env=env, capture_output=True, text=True, timeout=180)
             self.assertEqual(cli.returncode, 0, cli.stdout + cli.stderr)
-            doc = run('doctest')
-            self.assertEqual(doc.returncode, 0, doc.stdout + doc.stderr)
-            self.assertEqual(json.loads((root / '.ci/rust-workspace/doctest/settings.json').read_text())['incremental'], '0')
+            self.assertEqual(json.loads((root / '.ci/rust-workspace/tests-compiler/settings.json').read_text())['incremental'], '0')
             # The script runs from a subdirectory as well as from the root.
-            nested = subprocess.run(['bash', '../ops/ci/runtime/rust-workspace.sh', 'doctest'],
+            nested = subprocess.run(['bash', '../ops/ci/runtime/rust-workspace.sh', 'tests-compiler'],
                                     cwd=root / 'rust', env=env, capture_output=True, text=True, timeout=180)
             self.assertEqual(nested.returncode, 0, nested.stdout + nested.stderr)
-            self.assertEqual(json.loads((root / '.ci/rust-workspace/doctest/settings.json').read_text())['incremental'], '0')
+            self.assertEqual(json.loads((root / '.ci/rust-workspace/tests-compiler/settings.json').read_text())['incremental'], '0')
             subprocess.run(['sccache', '--stop-server'], check=True, capture_output=True)
             for index in ('0', '9'):
                 feature = run('features', {'CI_RUST_PARTITION_INDEX': index})

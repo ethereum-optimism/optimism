@@ -5,7 +5,7 @@ HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 job="${1:?Pass a Rust workspace job}"
-case "$job" in tests | tests-build | tests-unit | tests-compiler | tests-merge | doctest | docs | clippy | build | features | no-std | udeps | wasm-unknown | wasm-wasi | zepter | typos | deny | registry | interop) ;;
+case "$job" in tests | tests-build | tests-unit | tests-compiler | tests-merge | docs | clippy | build | features | no-std | udeps | wasm-unknown | wasm-wasi | zepter | typos | deny | registry | interop) ;;
 *)
   echo "Unknown Rust workspace job: $job" >&2
   exit 1
@@ -102,9 +102,9 @@ compiler_tests() {
   stage beacon-list cargo test --profile fast-build --locked -p kona-providers-alloy \
     test_filtered_beacon_blobs_deserializes_on_small_stack -- --list
   stage beacon just test-beacon-blob-stack
-  docs
+  doctests
 }
-docs() {
+doctests() {
   stage doctests-list cargo test --doc --workspace --locked --all-features -- --list
   stage doctests just test-docs
 }
@@ -148,7 +148,6 @@ case "$job" in
       "${UNIT_REPORT:?UNIT_REPORT must identify the nextest report}" \
       "${COMPILER_REPORT:?COMPILER_REPORT must identify the compiler-dependent report}"
     ;;
-  doctest) docs ;;
   docs) stage docs just lint-docs ;;
   clippy) stage clippy cargo clippy --workspace --all-targets --all-features --locked ;;
   build) stage build mold -run cargo build --profile dev --workspace --features default ;;

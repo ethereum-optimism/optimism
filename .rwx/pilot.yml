@@ -128,6 +128,10 @@ tasks:
     use: [code, rust-fmt-tools]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: |
+      # Run CircleCI's own toolchain pin check, read from its config, so it cannot drift.
+      pins="$(mise exec -- yq -r '.jobs["rust-ci-fmt"].steps[] | select(.run.name? == "Check Rust toolchain pins agree") | .run.command' .circleci/continue/rust-ci.yml)"
+      if [[ -z "$pins" || "$pins" == null ]]; then echo "CircleCI's Rust toolchain pin check is missing" >&2; exit 1; fi
+      mise exec -- bash -eo pipefail -c "$pins"
       mise exec -- just update-superchain-registry-submodule
       cd rust
       mise exec -- just fmt-check
@@ -140,10 +144,22 @@ tasks:
     outputs:
       filesystem: false
 
+  # CircleCI runs the script directly: it needs only git, Python and the GitHub API.
+  - key: rust-reth-tag-pin
+    use: [code, rust-fmt-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      cd rust
+      mise exec -- python3 scripts/upstream-mirrors.py --check-tag-pin
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
   # Terminal task states preserve exact Rust dependencies without Main-only failures.
   - key: rust-gate-receipt
     use: [code, tools]
-    after: ${{ (rust-fmt.succeeded || rust-fmt.failed || rust-fmt.skipped) }}
+    after: ${{ (rust-fmt.succeeded || rust-fmt.failed || rust-fmt.skipped) && (rust-reth-tag-pin.succeeded || rust-reth-tag-pin.failed || rust-reth-tag-pin.skipped) }}
     run: python3 ops/ci/runtime/pr-gate.py receipt rust-fmt
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -156,6 +172,9 @@ tasks:
       TASK_RUST_FMT_SUCCEEDED: ${{ tasks.rust-fmt.succeeded }}
       TASK_RUST_FMT_FAILED: ${{ tasks.rust-fmt.failed }}
       TASK_RUST_FMT_SKIPPED: ${{ tasks.rust-fmt.skipped }}
+      TASK_RUST_RETH_TAG_PIN_SUCCEEDED: ${{ tasks.rust-reth-tag-pin.succeeded }}
+      TASK_RUST_RETH_TAG_PIN_FAILED: ${{ tasks.rust-reth-tag-pin.failed }}
+      TASK_RUST_RETH_TAG_PIN_SKIPPED: ${{ tasks.rust-reth-tag-pin.skipped }}
     cache: false
     timeout: 10m
     outputs:
