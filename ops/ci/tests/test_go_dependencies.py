@@ -41,6 +41,9 @@ class ContractDependenciesTests(unittest.TestCase):
                 # forge-build warms the script cache of every op-deployer script (one that
                 # defines runWithBytes) and fails when there is none.
                 'packages/contracts-bedrock/scripts/deploy/DeploySuperchain.s.sol': '// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\ncontract DeploySuperchain { function runWithBytes(bytes memory) public {} }\n',
+                # The warm-up compiles the script graph through Deploy.s.sol and fails without it.
+                'packages/contracts-bedrock/scripts/deploy/Deploy.s.sol': '// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\ncontract Deploy { function run() public {} }\n',
+                'packages/contracts-bedrock/scripts/ops/warm-script-cache.sh': (ROOT / 'packages/contracts-bedrock/scripts/ops/warm-script-cache.sh').read_text(),
                 # The alias must retain .sol helpers inside test/, not exclude the directory.
                 'packages/contracts-bedrock/test/dispute/zk/MockSP1Verifier.sol': '// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\ncontract MockSP1Verifier { function verify() external pure returns (bool) { return true; } }\n',
                 # An intentionally invalid executable test proves the producer excludes .t.sol.
@@ -50,6 +53,7 @@ class ContractDependenciesTests(unittest.TestCase):
             }
             for name, text in files.items():
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text)
+            (contracts / 'scripts/ops/warm-script-cache.sh').chmod(0o755)
             for name in ('go-dependencies.sh', 'go-artifacts.py'):
                 path = root / 'ops/ci/runtime' / name; path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / 'ops/ci/runtime' / name, path)
@@ -63,7 +67,7 @@ class ContractDependenciesTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             artifact = root / '.ci/go-tests/dependencies/contracts'
             metadata = json.loads((artifact / 'metadata.json').read_text())
-            self.assertEqual(metadata['settings'], {'profile': 'ci', 'build_args': ['--deny-warnings', '--skip', 'test']})
+            self.assertEqual(metadata['settings'], {'profile': 'ci', 'build_args': ['--skip', 'test']})
             self.assertTrue(any('MockSP1Verifier.sol/MockSP1Verifier.json' in name for name in metadata['files']))
             self.assertFalse(any('Unneeded.t.sol' in name for name in metadata['files']))
             # Cold restoration must supply the same deployable helper and reject old settings.
@@ -71,12 +75,21 @@ class ContractDependenciesTests(unittest.TestCase):
             module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
             with patch.dict(os.environ, CI_COMMIT_SHA=sha):
                 shutil.rmtree(contracts / 'forge-artifacts'); module.restore('contracts', artifact)
-                retained = (artifact / 'metadata.json').read_bytes()
+                # Like Circle's contracts-bedrock-build, a compiler warning does not fail
+                # the producer; check-fast's dev build is the warning gate.
                 (contracts / 'src/Protocol.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\ncontract Protocol { function value(uint256 unused) external pure returns(uint256) { return 42; } }\n')
+                run('git', '-c', 'user.name=CI fixture', '-c', 'user.email=ci@example.invalid',
+                    'commit', '-qam', 'Compiler warning')
+                env['CI_COMMIT_SHA'] = run('git', 'rev-parse', 'HEAD').stdout.strip()
+                warning = subprocess.run(['bash', 'ops/ci/runtime/go-dependencies.sh', 'contracts'],
+                                         cwd=root, env=env, text=True, capture_output=True, timeout=120)
+                self.assertEqual(warning.returncode, 0, warning.stdout + warning.stderr)
+                retained = (artifact / 'metadata.json').read_bytes()
+                (contracts / 'src/Protocol.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\ncontract Protocol { function value() external pure returns(uint256) { return missing; } }\n')
                 failure = subprocess.run(['bash', 'ops/ci/runtime/go-dependencies.sh', 'contracts'],
                                          cwd=root, env=env, text=True, capture_output=True, timeout=120)
                 self.assertNotEqual(failure.returncode, 0, failure.stdout + failure.stderr)
-                self.assertIn('unused', (failure.stdout + failure.stderr).lower())
+                self.assertIn('missing', (failure.stdout + failure.stderr).lower())
                 self.assertEqual((artifact / 'metadata.json').read_bytes(), retained)
                 metadata['settings'] = {'profile': 'ci'}
                 (artifact / 'metadata.json').write_text(json.dumps(metadata))

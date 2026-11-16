@@ -256,11 +256,7 @@
             "verdict-opn-0",
             "verdict-opn-1",
             "verdict-opn-2",
-            "verdict-opn-3",
-            "verdict-opn-4",
-            "verdict-opn-5",
-            "verdict-opn-6",
-            "verdict-opn-7"
+            "verdict-opn-3"
           ]
         },
         {
@@ -270,11 +266,7 @@
             "verdict-kona-0",
             "verdict-kona-1",
             "verdict-kona-2",
-            "verdict-kona-3",
-            "verdict-kona-4",
-            "verdict-kona-5",
-            "verdict-kona-6",
-            "verdict-kona-7"
+            "verdict-kona-3"
           ]
         },
         {
@@ -600,9 +592,9 @@
         "cache-epoch": "v1",
         "build-probe": "",
         "target-cache-mode": "keep",
-        "shard-total": "8"
+        "shard-total": "4"
       },
-      "receipt_if": "${{ init.cache-warm != 'true' && init.shard-total == '8' }}"
+      "receipt_if": "${{ init.cache-warm != 'true' && init.shard-total == '4' }}"
     },
     "main-cannon": {
       "config": ".rwx/cannon-go.yml",

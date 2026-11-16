@@ -98,18 +98,20 @@ class E2ETests(unittest.TestCase):
         a, b = E2E.environment('simple-kona'), E2E.environment('simple-kona-sequencer')
         self.assertEqual(a['KONA_SEQUENCER_WITH_RETH'], '0'); self.assertEqual(b['KONA_SEQUENCER_WITH_RETH'], '1')
         self.assertEqual(a['OP_VALIDATOR_WITH_RETH'], '1'); self.assertEqual(b['OP_VALIDATOR_WITH_RETH'], '0')
-        self.assertEqual(E2E.environment('op-reth')['OP_DEVSTACK_PROOF_VALIDATOR_EL'], 'op-reth')
+        self.assertEqual(E2E.environment('op-reth')['OP_RETH_ENABLE_PROOF_HISTORY'], 'true')
         self.assertEqual(E2E.settings('proof')['timeout'], '60m')
 
     def test_op_reth_environment_matches_owning_recipe(self):
+        # RWX runs the compiled suite without the recipe, so it must export
+        # exactly what test-e2e-sysgo exports, and nothing the recipe dropped.
         recipe = (SCRIPTS.parents[2] / 'rust/op-reth/tests/justfile').read_text()
-        environment = E2E.environment('op-reth')
-        for role in ('SEQUENCER', 'VALIDATOR'):
-            name = 'OP_DEVSTACK_PROOF_' + role + '_EL'
-            default = re.search(r'^' + name + r' := env\("' + name + r'", "([^"]+)"\)$', recipe, re.M)
-            self.assertIsNotNone(default, name)
-            self.assertEqual(environment[name], default[1], name)
-        self.assertIn('export OP_RETH_ENABLE_PROOF_HISTORY=' + environment['OP_RETH_ENABLE_PROOF_HISTORY'], recipe)
+        body = re.search(r'^test-e2e-sysgo:.*\n((?:[ \t]+.*\n|\n)*)', recipe, re.M)
+        self.assertIsNotNone(body)
+        source = str(SCRIPTS.parents[2] / 'rust/op-reth/tests')
+        exported = {name: os.path.normpath(value.strip('"').replace('{{SOURCE_DIR}}', source))
+                    if '{{SOURCE_DIR}}' in value else value.strip('"')
+                    for name, value in re.findall(r'^\s*export (\w+)=(\S+)$', body[1], re.M)}
+        self.assertEqual(E2E.environment('op-reth'), exported)
 
     def test_only_proofs_use_explicit_host_parallelism(self):
         with patch.dict(os.environ, PARALLEL='32'), patch.object(E2E.subprocess, 'check_output', return_value='{"gomaxprocs":8,"num_cpu":32}'):

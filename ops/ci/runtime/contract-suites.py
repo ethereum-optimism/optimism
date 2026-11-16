@@ -25,7 +25,7 @@ SUITES = ('standard', 'modified')
 FILE_COMMANDS = {
     'standard': ['find', 'test', '-name', '*.t.sol'],
     'modified': ['bash', '-eo', 'pipefail', '-c',
-                 "git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'"],
+                 "git diff origin/develop...HEAD --name-only --no-renames --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'"],
 }
 # `just test` records each EVM pass's failures and JUnit report separately.
 FAILURES = ('cache/test-failures-amsterdam', 'cache/test-failures-l2')

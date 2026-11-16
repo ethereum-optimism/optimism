@@ -26,7 +26,6 @@ tasks:
       CI_SHARD_TOTAL: ${{ params.shard-total }}
       DEVSTACK_L1_FORK: fusaka
       DEVSTACK_L2CL_KIND: ${{ params.cl-kind }}
-      DEVSTACK_L2EL_KIND: op-reth
       GO_ARTIFACT: ${{ params.go-artifact }}
       CONTRACT_ARTIFACT: ${{ params.contract-artifact }}
     tool-cache: ${{ params.cache-key }}

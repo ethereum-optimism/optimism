@@ -3,11 +3,12 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 phase="${1:?Pass discover or run}"
-[[ "$CI_SHARD_TOTAL" == 8 ]] || {
-  echo "Acceptance workflow requires exactly eight shards" >&2
+# CircleCI's memory-all jobs run on 4 nodes with ACCEPTANCE_TEST_JOBS=16.
+[[ "$CI_SHARD_TOTAL" == 4 ]] || {
+  echo "Acceptance workflow requires exactly four shards" >&2
   exit 1
 }
-export ACCEPTANCE_TEST_JOBS=8 ACCEPTANCE_TEST_PARALLEL=1 ACCEPTANCE_TEST_TIMEOUT=30m LOG_LEVEL=info
+export ACCEPTANCE_TEST_JOBS=16 ACCEPTANCE_TEST_PARALLEL=1 ACCEPTANCE_TEST_TIMEOUT=30m LOG_LEVEL=info
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
 export GOCACHE="$PWD/.ci/go-cache/acceptance/$phase"
 export GOROOT

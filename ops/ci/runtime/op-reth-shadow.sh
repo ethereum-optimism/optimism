@@ -59,7 +59,8 @@ case "$job" in
     git submodule status superchain-registry > "$report_dir/submodule.txt"
     ;;
   release-build)
-    (cd rust && mold -run cargo build --locked --profile release \
+    # Like Circle's rust-build, release builds that only feed CI tests skip LTO.
+    (cd rust && CARGO_PROFILE_RELEASE_LTO=off mold -run cargo build --locked --profile release \
       --package op-reth --package op-reth-test-engine --features default) \
       2>&1 | tee "$report_dir/build.log"
     cp rust/target/release/op-reth rust/target/release/op-reth-test-engine "$report_dir/"

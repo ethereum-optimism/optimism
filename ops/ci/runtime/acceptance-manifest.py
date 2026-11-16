@@ -29,7 +29,6 @@ def settings():
             'timeout': os.environ.get('ACCEPTANCE_TEST_TIMEOUT', '30m'), 'rerun_fails': 0,
             'l1_fork': os.environ.get('DEVSTACK_L1_FORK', 'fusaka'),
             'l2_cl_kind': os.environ.get('DEVSTACK_L2CL_KIND', 'op-node'),
-            'l2_el_kind': os.environ.get('DEVSTACK_L2EL_KIND', 'op-reth'),
             'log_level': os.environ.get('LOG_LEVEL', 'info'),
             'stub_sp1_elf': not bool(os.environ.get('KONA_SP1_ELF_DIR'))}
 
@@ -122,7 +121,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['create', 'select'])
     parser.add_argument('--directory', type=Path, required=True)
-    parser.add_argument('--total', default='8')
+    parser.add_argument('--total', default='4')
     parser.add_argument('--index', default='0')
     parser.add_argument('--listed', type=Path)
     args = parser.parse_args()

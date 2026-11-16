@@ -243,7 +243,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual([row['name'] for row in record['dependencies']],selection['requires'])
         go={row['name']:row['tasks'] for row in self.manifest['gates']['ci-gate']['dependencies'] if row['group']=='main-go'}
         self.assertEqual(go,{'go-tests':['verdict-'+str(i) for i in range(12)],'go-actions-tests':['actions-verdict']})
-        self.assertEqual(len(G.group_tasks(self.manifest,'main-acceptance')),16)
+        self.assertEqual(len(G.group_tasks(self.manifest,'main-acceptance')),8)
         self.assertEqual(G.originals(output)['tests'],0)
         for group in selection['groups']:
             self.assertEqual(G.read(output/'groups'/group/'states.json'),
@@ -268,7 +268,7 @@ class GateTests(unittest.TestCase):
     def test_main_mode_and_freshness_cannot_hide_partial_or_reused_verdicts(self):
         path=self.root/self.selection['native_config'];source=path.read_text()
         for old,new in [('shard-total: "12"','shard-total: "24"'),
-                        ('shard-total: "8"','shard-total: "4"')]:
+                        ('shard-total: "4"','shard-total: "8"')]:
             path.write_text(source.replace(old,new,1))
             with self.subTest(new=new),self.assertRaisesRegex(ValueError,'mode'):G.configuration('ci-gate')
         path.write_text(source)

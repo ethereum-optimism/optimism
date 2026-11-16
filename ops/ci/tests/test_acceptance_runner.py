@@ -69,7 +69,7 @@ sys.exit(status)
         self.script('geth', "print('Geth fixture pinned version')")
         self.script('mise', "import os; print(os.environ['FIXTURE_GETH'])")
         self.env = {**os.environ, 'PATH': str(self.root / 'bin') + ':' + os.environ['PATH'],
-                    'CI_COMMIT_SHA': 'a'*40, 'CI_SHARD_INDEX': '0', 'CI_SHARD_TOTAL': '8',
+                    'CI_COMMIT_SHA': 'a'*40, 'CI_SHARD_INDEX': '0', 'CI_SHARD_TOTAL': '4',
                     'CI_ACCEPTANCE_DISCOVERY': str(self.root / '.ci/acceptance/discovery'),
                     'FIXTURE_PACKAGE': PACKAGE, 'FIXTURE_ARGS': str(self.root / 'args.json'),
                     'FIXTURE_GETH': str(self.root / 'bin/geth')}
@@ -91,7 +91,7 @@ sys.exit(status)
     def test_static_workflow_rejects_an_unsupported_shard_total(self):
         result = self.wrapper('discover', CI_SHARD_TOTAL='9')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('exactly eight shards', result.stderr)
+        self.assertIn('exactly four shards', result.stderr)
         self.assertFalse((self.root / '.ci/acceptance/discovery').exists())
 
     def test_runtime_supplies_verified_rust_paths_and_pinned_geth(self):
@@ -114,6 +114,9 @@ sys.exit(status)
     def test_verdict_runs_only_its_assignment_with_fresh_flags(self):
         result = self.verdict(0)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        # CircleCI's memory-all jobs run 16 tests at once on each of 4 nodes.
+        self.assertIn('TEST JOBS: 16\n', result.stdout)
+        self.assertIn('Node 0/4 running 1 tests', result.stdout)
         args = json.loads((self.root / 'args.json').read_text())
         self.assertIn('-count=1', args)
         self.assertEqual(args[args.index('-run') + 1:], ['^TestOne$', PACKAGE])
@@ -131,7 +134,7 @@ sys.exit(status)
 
     def test_empty_shard_fails_without_running_tests(self):
         # The recipe treats an empty shard as a failed split.
-        result = self.verdict(7)
+        result = self.verdict(3)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('no tests assigned', result.stdout + result.stderr)
         self.assertFalse((self.root / 'args.json').exists())

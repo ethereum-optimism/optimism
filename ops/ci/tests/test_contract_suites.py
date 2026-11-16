@@ -65,6 +65,13 @@ class SuiteTests(unittest.TestCase):
             os.environ['CI_BRANCH'] = 'develop'; self.assertEqual(CS.configure('standard', 'main'), ('develop', 'ci'))
             self.assertNotIn('SYS_FEATURE__CUSTOM_GAS_TOKEN', os.environ)
 
+    def test_modified_discovery_matches_circle_heavy_fuzz_test_list(self):
+        # contracts-bedrock-tests-heavy-fuzz-modified owns the changed-file selection.
+        config = (Path(CS.ROOT) / '.circleci/continue/main.yml').read_text()
+        match = re.search(r"^( *)test_list: (git diff .*\n(?:\1  .*\n)*)", config, re.M)
+        self.assertIsNotNone(match)
+        self.assertEqual(' '.join(match[2].split()), CS.FILE_COMMANDS['modified'][-1])
+
     def test_pinned_discovery_requires_an_available_full_commit(self):
         sha = 'a' * 40
         self.assertIn(sha + '...HEAD', CS.file_command('modified', sha)[-1])

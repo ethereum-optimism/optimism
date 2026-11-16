@@ -123,16 +123,11 @@ def image_manifest(directory):
     nightly = settings['nightly']
     tools = command('docker', 'run', '--rm', IMAGE, 'bash', '-c',
                     f'cd /app/rust && rustc +{nightly} --version && cargo +{nightly} --version && mips64-linux-gnuabi64-gcc --version')
+    # build-kona-env builds the kona-build-env stage, which stops before the
+    # kona-client ELF build: the image holds no /app/elf. The build job's ELFs
+    # come from build-cannon-client and are sealed in elfs.json.
     write(directory / 'image.json', {'binding': binding(), 'image_id': image['Id'], 'base': base,
                                    'base_digests': base_image['RepoDigests'], 'tools': tools})
-    container = command('docker', 'create', IMAGE)
-    try:
-        dest = directory / 'image-elfs'
-        dest.mkdir()
-        subprocess.run(['docker', 'cp', container + ':/app/elf/.', str(dest)], check=True)
-        elf_manifest(directory, dest, 'image-elfs.json')
-    finally:
-        subprocess.run(['docker', 'rm', container], check=True, stdout=subprocess.DEVNULL)
 
 
 def verify_dependency(directory, producer, kind):
@@ -238,7 +233,6 @@ def finish(directory, status):
             if job in ('env', 'lint', 'build', 'offline'):
                 if read(directory / 'image.json')['binding'] != binding():
                     raise ValueError('Cannon image binding mismatch')
-                read(directory / 'image-elfs.json')
             if job in ('build', 'offline'):
                 read(directory / 'elfs.json')
             if job in ('go', 'offline'):

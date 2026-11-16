@@ -23,11 +23,12 @@ case "$job" in
   contracts | contracts-e2e)
     git submodule update --init --recursive -- packages/contracts-bedrock/lib
     export FOUNDRY_PROFILE=ci
-    # Match Circle's producer. Forge's "test" alias skips .t.sol files while
-    # retaining non-test helper contracts under test/ (e.g. MockSP1Verifier).
-    args=(--deny-warnings --skip test)
-    if [[ "$job" == contracts-e2e ]]; then args=(--skip test); fi
-    (cd packages/contracts-bedrock && just forge-build "${args[@]}")
+    # Match Circle's producer, contracts-bedrock-build with `--skip test`. Forge's
+    # "test" alias skips .t.sol files while retaining non-test helper contracts
+    # under test/ (e.g. MockSP1Verifier). Like Circle, this build does not deny
+    # warnings: that would turn off the compile cache that the script cache
+    # warm-up checks. check-fast's dev build is the warning gate.
+    (cd packages/contracts-bedrock && just forge-build --skip test)
     (cd op-deployer && just copy-contract-artifacts)
     python3 ops/ci/runtime/go-artifacts.py pack "$job" packages/contracts-bedrock/cache \
       packages/contracts-bedrock/artifacts packages/contracts-bedrock/forge-artifacts \
@@ -44,7 +45,8 @@ case "$job" in
     sccache --zero-stats
     trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/kona/sccache.json; sccache --stop-server' EXIT
     python3 ops/ci/runtime/rust-target-cache.py prepare
-    (cd rust && mold -run cargo build --locked --profile release --features default \
+    # Like Circle's rust-build, release builds that only feed CI tests skip LTO.
+    (cd rust && CARGO_PROFILE_RELEASE_LTO=off mold -run cargo build --locked --profile release --features default \
       --package kona-host --package kona-client --package kona-node --package op-zk-proposer)
     python3 ops/ci/runtime/rust-target-cache.py commit
     python3 ops/ci/runtime/go-artifacts.py pack kona rust/target/release/kona-host rust/target/release/kona-client \
@@ -59,7 +61,8 @@ case "$job" in
     sccache --zero-stats
     trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/sp1-executor/sccache.json; sccache --stop-server' EXIT
     python3 ops/ci/runtime/rust-target-cache.py prepare
-    (cd rust && mold -run cargo build --locked --profile release --all-features \
+    # Like Circle's rust-build, release builds that only feed CI tests skip LTO.
+    (cd rust && CARGO_PROFILE_RELEASE_LTO=off mold -run cargo build --locked --profile release --all-features \
       --package kona-sp1-super-range-executor --bin kona-sp1-super-range-executor)
     python3 ops/ci/runtime/rust-target-cache.py commit
     mkdir -p .circleci-cache/rust-binaries

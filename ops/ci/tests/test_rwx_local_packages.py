@@ -57,15 +57,17 @@ class LocalPackageTests(unittest.TestCase):
 
     def test_acceptance_keeps_both_variants_and_excludes_discovery_compiler_state(self):
         graph = tasks('acceptance.yml')
+        # Like Circle's memory-all jobs: 4 nodes each, on 32 GiB (2xlarge.gen2).
         self.assertEqual({key for key in graph if key.startswith('verdict-')},
                          {'verdict-' + variant + '-' + str(index)
-                          for variant in ('opn', 'kona') for index in range(8)})
+                          for variant in ('opn', 'kona') for index in range(4)})
         for variant, cl in [('opn', 'op-node'), ('kona', 'kona-node')]:
             self.assertEqual(graph['discovery-' + variant]['with']['cl-kind'], cl)
-            for index in range(8):
+            for index in range(4):
                 verdict = graph['verdict-' + variant + '-' + str(index)]
                 self.assertEqual([key for key in verdict['use'] if key.startswith('discovery-')],
                                  ['discovery-' + variant + '.build'])
+                self.assertEqual(verdict['with']['memory'], '32gb')
         leaf = tasks('packages/acceptance-verdict.yml')['run']
         self.assertIs(leaf['cache'], False)
         # Compiler state stays out; the producer's module cache stays in, as in Circle.

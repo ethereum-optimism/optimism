@@ -294,7 +294,7 @@ tasks:
       cache-epoch: "v1"
       build-probe: ""
       target-cache-mode: "keep"
-      shard-total: "8"
+      shard-total: "4"
 
   - key: native-cannon
     call: ${{ run.dir }}/cannon-go.yml

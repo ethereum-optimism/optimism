@@ -33,8 +33,9 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 python3 ops/ci/runtime/rust-workspace-report.py json-stage "$report" workspace \
   cargo metadata --no-deps --locked --format-version 1
-python3 ops/ci/runtime/rust-workspace-report.py json-stage "$report" build \
-  mold -run cargo build --profile release --workspace --features default --message-format=json
+# Like Circle's rust-build: --locked, and no LTO for release builds that only feed CI tests.
+CARGO_PROFILE_RELEASE_LTO=off python3 ops/ci/runtime/rust-workspace-report.py json-stage "$report" build \
+  mold -run cargo build --locked --profile release --workspace --features default --message-format=json
 python3 ops/ci/runtime/rust-e2e-release-report.py artifacts "$report"
 paths=()
 while IFS= read -r path; do paths+=("$path"); done < <(python3 ops/ci/runtime/rust-e2e-release-report.py binary-paths "$report")

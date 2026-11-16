@@ -226,8 +226,8 @@ if tool=='docker':
     elif args[0]=='create': print('fixture-container')
     elif args[0]=='run': print('nightly pinned; gcc pinned')
     elif args[0]=='cp':
-        dest=pathlib.Path(args[-1]); dest.mkdir(exist_ok=True)
-        for name in ('kona-client','kona-client-int'): (dest/name).write_bytes(elf)
+        # build-kona-env stops before the ELF build, so the image has no /app/elf.
+        print('Error response from daemon: Could not find the file /app/elf/. in container',file=sys.stderr); sys.exit(1)
     sys.exit(0)
 if tool=='just':
     recipe=args[0]
