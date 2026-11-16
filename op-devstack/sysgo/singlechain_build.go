@@ -371,7 +371,7 @@ func startL2CLNode(
 		Sync: nodeSync.Config{
 			SyncMode:                       syncMode,
 			SkipSyncStartCheck:             false,
-			SupportsPostFinalizationELSync: false,
+			SupportsPostFinalizationELSync: l2EngineKind.SupportsPostFinalizationELSync(),
 			L2FollowSourceEndpoint:         cfg.FollowSource,
 			// Mirror op-node/service.go: a follow-mode sequencer needs a single
 			// initial engine reset to trigger block building (TryInitialResetEngineForSequencer).
