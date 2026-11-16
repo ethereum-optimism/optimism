@@ -7,7 +7,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title L2DevFeatureFlags
 /// @notice Predeploy that stores the development feature bitmap. This bitmap is set at genesis by the
-///         DEPOSITOR_ACCOUNT and read by the L2ContractsManager during upgrades.
+///         DEPOSITOR_ACCOUNT. No contract reads it: the L2ContractsManager gates the interop
+///         predeploys on the INTEROP feature in L1Block instead.
 /// @custom:proxied true
 /// @custom:predeploy 0x420000000000000000000000000000000000002D
 contract L2DevFeatureFlags is ISemver {
@@ -18,8 +19,8 @@ contract L2DevFeatureFlags is ISemver {
     bytes32 private constant BITMAP_SLOT = 0xc8bc8f9195cfb2d040744aac63412d02ffc186ea9bd519039edc4666ee9032bc;
 
     /// @notice The semantic version of the L2DevFeatureFlags contract.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.3.1
+    string public constant version = "1.3.1";
 
     /// @notice Sets the development feature bitmap. Only callable by the DEPOSITOR_ACCOUNT.
     /// @param _bitmap The new development feature bitmap.
