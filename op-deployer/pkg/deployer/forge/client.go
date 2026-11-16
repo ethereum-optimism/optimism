@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // waitDelay bounds how long execWithEnv waits for the output pipes to close after
@@ -215,7 +217,13 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	compileErr := fmt.Errorf("%w in %s, so its compile cache is not up to date%s: build it with `just build-no-tests` in packages/contracts-bedrock, or use the embedded artifacts", ErrCompiled, c.Wd, built)
 	// forge prints the revert reason of a failed script to stderr.
 	errBuf := new(bytes.Buffer)
-	err = run.execWithEnv(ctx, scratch, inheritedEnv(), io.MultiWriter(buf, watcher), errBuf, cliOpts...)
+	peak, err := run.execWithEnv(ctx, scratch, inheritedEnv(), io.MultiWriter(buf, watcher), errBuf, cliOpts...)
+	recordRunMemory(peak)
+	var peakMiB any = "unknown"
+	if peak != 0 {
+		peakMiB = peak >> 20
+	}
+	log.Debug("Ran forge script", "script", filepath.Base(script), "peak_memory_mib", peakMiB, "slot_memory_mib", RunMemory>>20)
 	if watcher.compiled.Load() {
 		return "", nil, compileErr
 	}
@@ -413,18 +421,20 @@ func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, er
 	cliOpts := []string{"verify-contract"}
 	cliOpts = append(cliOpts, opts...)
 	// forge reads the verifier API key, such as ETHERSCAN_API_KEY, from its environment.
-	if err := c.execWithEnv(ctx, c.Wd, withGoCertDirs(os.Environ()), buf, buf, cliOpts...); err != nil {
+	if _, err := c.execWithEnv(ctx, c.Wd, withGoCertDirs(os.Environ()), buf, buf, cliOpts...); err != nil {
 		return buf.String(), fmt.Errorf("failed to verify contract: %w", err)
 	}
 	return buf.String(), nil
 }
 
 func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer, args ...string) error {
-	return c.execWithEnv(ctx, c.Wd, inheritedEnv(), stdout, stderr, args...)
+	_, err := c.execWithEnv(ctx, c.Wd, inheritedEnv(), stdout, stderr, args...)
+	return err
 }
 
-// execWithEnv runs forge in dir with env and c.Env.
-func (c *Client) execWithEnv(ctx context.Context, dir string, env []string, stdout io.Writer, stderr io.Writer, args ...string) error {
+// execWithEnv runs forge in dir with env and c.Env. It returns forge's peak memory in bytes, also
+// when forge fails, or 0 if unknown.
+func (c *Client) execWithEnv(ctx context.Context, dir string, env []string, stdout io.Writer, stderr io.Writer, args ...string) (uint64, error) {
 	if c.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, c.Timeout)
@@ -432,7 +442,7 @@ func (c *Client) execWithEnv(ctx context.Context, dir string, env []string, stdo
 	}
 
 	if err := c.Binary.Ensure(ctx); err != nil {
-		return fmt.Errorf("failed to ensure binary: %w", err)
+		return 0, fmt.Errorf("failed to ensure binary: %w", err)
 	}
 
 	cmd := exec.CommandContext(ctx, c.Binary.Path(), args...)
@@ -452,10 +462,16 @@ func (c *Client) execWithEnv(ctx context.Context, dir string, env []string, stdo
 	cmd.Stderr = mwStderr
 	cmd.Dir = dir
 	cmd.Env = append(env, c.Env...)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run forge command: %w", err)
+	err := cmd.Run()
+	var peak uint64
+	// The state is nil when forge did not start.
+	if cmd.ProcessState != nil {
+		peak = peakMemory(cmd.ProcessState)
 	}
-	return nil
+	if err != nil {
+		return peak, fmt.Errorf("failed to run forge command: %w", err)
+	}
+	return peak, nil
 }
 
 // inheritedEnvNames are the variables that forge inherits, except for verify-contract: what it needs
