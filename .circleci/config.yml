@@ -162,6 +162,7 @@ jobs:
   prepare-continuation-config:
     docker:
       - image: << pipeline.parameters.default_docker_image >>
+    resource_class: large.gen2
     environment:
       BASE_REVISION: develop
     steps:

@@ -1169,9 +1169,14 @@ jobs:
           that build, and its profile must match test_profile.
         type: boolean
         default: false
+      parallelism:
+        description: Machines to split the test files across, by timing.
+        type: integer
+        default: 1
+    parallelism: <<parameters.parallelism>>
     steps:
       - checkout-with-mise:
-          checkout-method: full
+          checkout-method: blobless
           enable-mise-cache: true
       - when:
           condition: << parameters.attach_build >>
@@ -1212,8 +1217,15 @@ jobs:
           name: Run tests
           # `just test` partitions the shard between Amsterdam and default-EVM tests.
           command: |
-            TEST_FILES=$(<<parameters.test_list>>)
-            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            ALL_FILES=$(<<parameters.test_list>>)
+            TEST_FILES=$(echo "$ALL_FILES" | circleci tests split --split-by=timings)
+            # With parallelism, a node can get an empty share of a non-empty list.
+            # Halt it instead of letting `just test` fall back to the whole suite.
+            if [ "${CIRCLE_NODE_TOTAL:-1}" -gt 1 ] && [[ "$ALL_FILES" == *[![:space:]]* ]] && [[ "$TEST_FILES" != *[![:space:]]* ]]; then
+              echo "No test files for node $CIRCLE_NODE_INDEX of $CIRCLE_NODE_TOTAL. Halting."
+              circleci-agent step halt
+              exit 0
+            fi
             export TEST_FILES
             JUNIT_TEST_DIR=results just test
           environment:
@@ -1323,6 +1335,7 @@ jobs:
     resource_class: 2xlarge.gen2
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-upgrade
@@ -1439,6 +1452,7 @@ jobs:
     resource_class: 2xlarge.gen2
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-l2-fork
@@ -1593,6 +1607,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - run:
           name: Check shell script formatting
@@ -1601,6 +1616,7 @@ jobs:
   shell-check:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: medium.gen2
     steps:
       - checkout-with-mise:
           enable-mise-cache: true
@@ -1613,8 +1629,10 @@ jobs:
   l2-chains-sync-check:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: medium.gen2
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: false
       - run:
           name: Check l2-rpcs.json and daily matrix are in sync
@@ -1668,6 +1686,8 @@ jobs:
           command: mise exec -- ./ops/prestate-reproducibility/test-build-prestates.sh
       - go-save-cache:
           namespace: go-lint
+          # Safe: one node, and no other job uses this namespace.
+          prune: true
       - save_cache:
           # Warm the analysis cache even when linting fails, so a branch with
           # lint errors doesn't repeatedly cold-start golangci-lint.
@@ -2271,6 +2291,8 @@ jobs:
       # Save the module cache for future runs
       - go-save-cache:
           namespace: op-acceptance-tests
+          # Safe: every node builds the same packages (go test -list).
+          prune: true
       # Store test results and artifacts
       - when:
           condition: always
@@ -2445,6 +2467,7 @@ jobs:
   op-deployer-forge-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: large.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -3171,7 +3194,7 @@ workflows:
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
           requires:
             - prep-go-modules
-          test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM --
+          test_list: git diff origin/develop...HEAD --name-only --no-renames --diff-filter=AM --
             './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
@@ -3188,6 +3211,11 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+          # The diff against develop is always empty on develop. The nightly
+          # heavy fuzz job covers develop.
+          filters:
+            branches:
+              ignore: develop
       # On PRs, run tests with lite profile for better build times.
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.features>>
@@ -3225,6 +3253,8 @@ workflows:
           test_list: find test -name "*.t.sol"
           test_profile: ci
           attach_build: true
+          # Develop's slowest path. The Run tests step splits the files by timing.
+          parallelism: 2
           features: <<matrix.features>>
           matrix:
             parameters:
