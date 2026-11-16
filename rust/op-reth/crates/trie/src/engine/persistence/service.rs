@@ -106,6 +106,7 @@ impl<H: BlockHashReader + StageCheckpointReader, S: OpProofsStore> PersistenceSe
         #[cfg(feature = "metrics")]
         self.metrics.record_metrics(
             &write_counts,
+            count,
             open_tx_duration,
             write_duration,
             prune_duration,

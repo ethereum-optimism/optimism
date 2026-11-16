@@ -14307,6 +14307,7 @@ dependencies = [
  "derive_more 2.1.1",
  "eyre",
  "metrics",
+ "metrics-util",
  "mockall",
  "parking_lot",
  "reth-chain-state",
