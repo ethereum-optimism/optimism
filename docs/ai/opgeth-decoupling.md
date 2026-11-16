@@ -410,8 +410,7 @@ Gates:
   `HeaderAndTxsByHash` (§11).
 - **ethclient path:** a forbidigo rule in `.golangci.yaml` rejects
   `ethclient.Client.{BlockByNumber,BlockByHash,BlockReceipts,TransactionInBlock,TransactionByHash}`
-  under `op-e2e/`, `op-devstack/`, `op-acceptance-tests/`,
-  `op-deployer/pkg/deployer/integration_test/` and `rust/kona/tests/`. An L1 read carries
+  in the whole tree. An L1 read carries
   `//nolint:forbidigo // L1: <reason>`, and an L2 read that can only return a user tx carries
   `//nolint:forbidigo // L2 user tx: <reason>`. The rule matches the receiver's static type, so a
   call through an interface or an embedding type is not seen: don't wrap an L2 read in one.
