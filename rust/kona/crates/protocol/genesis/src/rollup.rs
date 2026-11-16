@@ -105,15 +105,6 @@ const fn is_zero(v: &u64) -> bool {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        use crate::{
-            BASE_SEPOLIA_BASE_FEE_CONFIG, OP_MAINNET_BASE_FEE_CONFIG, OP_SEPOLIA_BASE_FEE_CONFIG,
-        };
-        let chain_op_config = match u32::arbitrary(u)? % 3 {
-            0 => OP_MAINNET_BASE_FEE_CONFIG,
-            1 => OP_SEPOLIA_BASE_FEE_CONFIG,
-            _ => BASE_SEPOLIA_BASE_FEE_CONFIG,
-        };
-
         Ok(Self {
             genesis: ChainGenesis::arbitrary(u)?,
             block_time: u.arbitrary()?,
@@ -132,7 +123,15 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             superchain_config_address: Option::<Address>::arbitrary(u)?,
             blobs_enabled_l1_timestamp: Option::<u64>::arbitrary(u)?,
             da_challenge_address: Option::<Address>::arbitrary(u)?,
-            chain_op_config,
+            chain_op_config: if u.arbitrary()? {
+                OP_MAINNET_BASE_FEE_CONFIG
+            } else {
+                BaseFeeConfig {
+                    eip1559_elasticity: 10,
+                    eip1559_denominator: 50,
+                    eip1559_denominator_canyon: 250,
+                }
+            },
             alt_da_config: Option::<AltDAConfig>::arbitrary(u)?,
             settlement_chain_id: u.arbitrary()?,
         })

@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -82,16 +81,10 @@ type SuperSystem interface {
 type SuperSystemConfig struct {
 	SupportTimeTravel bool
 	BatcherUsesBlobs  bool
-	// L2ELKind selects the L2 execution-layer backend (op-geth or op-reth).
-	// Defaults to services.DefaultELKind() when unset.
-	L2ELKind services.ELKind
 }
 
 // NewSuperSystem creates a SuperSystem with the chains of world.
 func NewSuperSystem(t *testing.T, world WorldConfig, config SuperSystemConfig) SuperSystem {
-	if config.L2ELKind == "" {
-		config.L2ELKind = services.DefaultELKind()
-	}
 	s2 := &interopE2ESystem{config: &config}
 	s2.prepare(t, world)
 	return s2
@@ -148,7 +141,9 @@ func (s *interopE2ESystem) prepareHDWallet() *devkeys.MnemonicDevKeys {
 func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstance) {
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	genesisTimestampL1 := s.l1Genesis.Timestamp
-	blockTimeL1 := uint64(6)
+	// 3s, not 6s: the tests mostly wait on L1 blocks. 3s still gives about half of the epochs more
+	// than one 2s L2 block, which 2s would not (same choice as sysgo in #24040).
+	blockTimeL1 := uint64(3)
 	blobPath := s.t.TempDir()
 	bcn := fakebeacon.NewBeacon(s.logger.New("role", "l1_cl"),
 		blobstore.New(), genesisTimestampL1, blockTimeL1)

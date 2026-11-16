@@ -67,7 +67,7 @@ func CheckForgeScripts(artifactsFS foundry.StatDirFs, scripts []ForgeScript) err
 			return fmt.Errorf("the contracts bundle has no %s script: %w", script.Contract, err)
 		}
 		if _, ok := artifact.ABI.Methods["runWithBytes"]; !ok {
-			return fmt.Errorf("the %s script of the contracts bundle has no runWithBytes entrypoint; use the contracts release of this op-deployer release, such as the embedded artifacts, or --use-forge=false", script.Contract)
+			return fmt.Errorf("the %s script of the contracts bundle has no runWithBytes entrypoint; use the contracts release of this op-deployer release, such as the embedded artifacts", script.Contract)
 		}
 	}
 	return nil

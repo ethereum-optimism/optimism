@@ -149,7 +149,7 @@ func TestDepositGasParity(gt *testing.T) {
 		require.Equal(t, testedBlockRef.Number, l2SafeHead.Number,
 			"safe head must be the tested deposit block")
 		require.Equal(t, testedBlockRef.Hash, l2SafeHead.Hash,
-			"derivation must reproduce the op-geth block used as the proof claim")
+			"derivation must reproduce the engine-built block used as the proof claim")
 
 		env.RunFaultProofProgram(t, testedBlockRef.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}

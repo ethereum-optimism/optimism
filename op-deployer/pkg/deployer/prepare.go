@@ -218,7 +218,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		}
 	}()
 	predict := func(dci opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
-		return opcm.DeployOPChainViaForge(fork.forge, dci)
+		return opcm.DeployOPChain(fork.forge, dci)
 	}
 
 	// Fetch safe block once, so all unpinned chains without an override share one anchor.
@@ -249,7 +249,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		Logger: cfg.Logger, Deployer: deployer, Context: ctx, L2Forge: l2Forge,
 		AllowUnoptimizedContracts: cfg.AllowUnoptimizedContracts,
 	}
-	if err := generateGenesisForChains(genesisEnv, intent, bundle, st); err != nil {
+	if err := generateGenesisForChains(genesisEnv, intent, st); err != nil {
 		return err
 	}
 
@@ -516,9 +516,9 @@ func predictChains(
 
 // generateGenesisForChains builds each chain's L2 genesis allocs from the addresses and genesis
 // time predictChains just committed.
-func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, bundle artifacts.Bundle, st *state.State) error {
+func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, st *state.State) error {
 	for _, chain := range intent.Chains {
-		if err := pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID); err != nil {
+		if err := pipeline.GenerateL2Genesis(pEnv, intent, st, chain.ID); err != nil {
 			return fmt.Errorf("failed to generate L2 genesis for chain %s: %w", chain.ID.Hex(), err)
 		}
 	}

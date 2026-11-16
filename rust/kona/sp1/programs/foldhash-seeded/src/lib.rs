@@ -3,6 +3,8 @@
 //! choose the seed before their keys are fixed; the prover may know it. Unseeded, the seed is a
 //! constant of the guest ELF, so attacker-chosen keys can be made to collide. A guest that creates
 //! a hash map must call [`install_global_seed`] first; creating one earlier panics.
+//!
+//! Regression check: `just check-hashdos-zkvm` (`programs/tests/hashdos-check`).
 
 #![no_std]
 

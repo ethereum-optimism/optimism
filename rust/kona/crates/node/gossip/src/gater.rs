@@ -241,7 +241,7 @@ impl ConnectionGate for ConnectionGater {
             return Ok(());
         };
         debug!(target: "gossip", %peer_id, %refusal, "Not dialing peer");
-        metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => refusal.reason()).increment(1);
+        metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => refusal.reason()).increment(1);
         Err(refusal)
     }
 
@@ -253,7 +253,7 @@ impl ConnectionGate for ConnectionGater {
     ) -> Result<(), DialError> {
         self.check_addr(peer_id, addr, gate).inspect_err(|refusal| {
             debug!(target: "gossip", peer=?addr, %refusal, "Not dialing address");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => refusal.reason())
+            metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => refusal.reason())
                 .increment(1);
         })
     }

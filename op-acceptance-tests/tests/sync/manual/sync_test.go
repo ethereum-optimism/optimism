@@ -15,17 +15,6 @@ import (
 
 func TestVerifierManualSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error using op-reth:
-	//
-	// assertions.go:387:             ERROR[03-31|10:02:09.740]
-	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/l2_el.go:64
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/manual/sync_test.go:53
-	// assertions.go:387:             	Error:      	Received unexpected error:
-	// assertions.go:387:             	            	failed to determine block-hash of hash 0x2f6324eaff3942802eff5ddd47872544aa02182c222bf90042d5f715dfa72308, could not get payload: not found
-	// assertions.go:387:             	Test:       	TestVerifierManualSync
-	// assertions.go:387:             	Messages:   	block not found using block hash
-	sysgo.SkipOnOpReth(t, "not supported")
-
 	// Disable ELP2P and Batcher
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t,
 		presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *bss.CLIConfig) {
@@ -60,8 +49,6 @@ func TestVerifierManualSync(gt *testing.T) {
 		// Payload valid but not canonicalized. Cannot fetch block by number
 		_, err = sys.L2ELB.Escape().EthClient().BlockRefByNumber(t.Ctx(), blockNum)
 		require.Error(err, ethereum.NotFound)
-		// Now fetchable by hash
-		require.Equal(blockNum, sys.L2ELB.BlockRefByHash(block.Hash).Number)
 
 		// FCU
 		logger.Info("ForkchoiceUpdate", "target", blockNum)

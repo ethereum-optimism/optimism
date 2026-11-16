@@ -5,13 +5,11 @@ use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
 use alloy_network::{Ethereum, Network};
 use alloy_primitives::Bytes;
-use alloy_provider::{EthGetBlock, Provider, RootProvider, ext::EngineApi};
+use alloy_provider::{EthGetBlock, Provider, RootProvider};
 use alloy_rpc_client::ClientBuilder;
-use alloy_rpc_types_engine::{ExecutionPayloadV1, JwtSecret, PayloadStatus};
+use alloy_rpc_types_engine::JwtSecret;
 use alloy_rpc_types_eth::Block;
-use alloy_transport::{
-    RpcError, TransportError, TransportErrorKind, TransportFut, TransportResult,
-};
+use alloy_transport::{RpcError, TransportError, TransportErrorKind, TransportFut};
 use alloy_transport_http::{
     AuthLayer, Http, HyperClient,
     hyper_util::{client::legacy::Client, rt::TokioExecutor},
@@ -200,14 +198,6 @@ impl EngineClient {
         self.engine.get_block(block)
     }
 
-    /// Submits a Paris payload, whose method is provided by Alloy's Ethereum Engine API extension.
-    pub async fn new_payload_v1(
-        &self,
-        payload: ExecutionPayloadV1,
-    ) -> TransportResult<PayloadStatus> {
-        self.engine.new_payload_v1(payload).await
-    }
-
     /// Fetches an L2 block with full transactions.
     pub async fn l2_block_by_label(
         &self,
@@ -380,7 +370,9 @@ mod request_observability_tests {
             BuildTask, ExecutableEngineTask,
             test_utils::{RpcMock, TestAttributesBuilder, TestEngineStateBuilder, test_block_info},
         };
-        use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadId, PayloadStatusEnum};
+        use alloy_rpc_types_engine::{
+            ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
+        };
 
         let logs = LogWriter::default();
         let writer = logs.clone();

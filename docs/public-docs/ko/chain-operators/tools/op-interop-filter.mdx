@@ -105,7 +105,7 @@ op-interop-filter는 CLI 플래그 또는 이에 대응하는 `OP_INTEROP_FILTER
 | 플래그 | 기본값 | 설명 |
 | --- | --- | --- |
 | `--data-dir` | (임시 디렉터리) | LogsDB와 저장된 수동 페일세이프 상태용 디렉터리입니다. 백필 상태와 수동 페일세이프가 재시작 후에도 유지되도록 프로덕션에서는 영구 경로를 사용하십시오. |
-| `--backfill-duration` | `24h` | 시작 시 백필할 기간입니다. |
+| `--backfill-duration` | `168h` | 시작 시 백필할 기간입니다. `--message-expiry-window` 이상이어야 합니다. |
 | `--message-expiry-window` | `168h` (7일) | 이 기간보다 오래된 메시지는 만료된 것으로 처리됩니다. |
 | `--poll-interval` | `2s` | 새 블록을 확인하기 위해 L2 RPC를 폴링하는 주기입니다. |
 | `--failsafe-enabled` | off | 설정하면 필터가 시작 시 수동 페일세이프를 활성화합니다. admin RPC로 해제할 수 있지만, 다음 시작 시 다시 활성화됩니다. |

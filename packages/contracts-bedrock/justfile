@@ -16,7 +16,6 @@ dep-status:
 ########################################################
 
 # Core forge build command.
-
 forge-build *ARGS:
   forge build {{ARGS}}
 
@@ -533,7 +532,7 @@ check-kontrol-summaries-unchanged:
   ./scripts/checks/check-kontrol-summaries-unchanged.sh
 
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
-# Assumes contracts are already built.
+# Compiles only what an earlier build left out.
 nut-bundle-check-no-build:
   @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
   git diff --exit-code snapshots/upgrades/current-upgrade-bundle.json

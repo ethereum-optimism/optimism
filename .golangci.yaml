@@ -93,11 +93,6 @@ linters:
           - forbidigo
         text: L2 deposit and post-exec txs don't decode
         path-except: ^(op-e2e|op-devstack|op-acceptance-tests|op-deployer/pkg/deployer/integration_test|rust/kona/tests)/
-      # op-e2e/opgeth tests op-geth's engine itself and is deleted before the go.mod flip.
-      - linters:
-          - forbidigo
-        text: L2 deposit and post-exec txs don't decode
-        path: ^op-e2e/opgeth/
       - path: (.+)\.go$
         text: errors.As
       - path: (.+)\.go$

@@ -7,11 +7,9 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/holiman/uint256"
 )
 
 type CallContractBackend interface {
@@ -178,43 +176,4 @@ func expectedValidatorResult(overrides validationOverrides, bridgeHookConfigured
 		markers = append(markers, "PORTAL-110")
 	}
 	return strings.Join(markers, ",")
-}
-
-type ScriptHostCallBackend struct {
-	host *script.Host
-}
-
-func NewScriptHostCallBackend(host *script.Host) *ScriptHostCallBackend {
-	return &ScriptHostCallBackend{host: host}
-}
-
-func (b *ScriptHostCallBackend) CallContract(
-	ctx context.Context,
-	call ethereum.CallMsg,
-	blockNumber *big.Int,
-) ([]byte, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if blockNumber != nil {
-		return nil, fmt.Errorf("script host calls do not support a block number")
-	}
-	if call.To == nil {
-		return nil, fmt.Errorf("script host call has no recipient")
-	}
-
-	value := uint256.NewInt(0)
-	if call.Value != nil {
-		var overflow bool
-		value, overflow = uint256.FromBig(call.Value)
-		if overflow {
-			return nil, fmt.Errorf("script host call value exceeds uint256")
-		}
-	}
-	gas := call.Gas
-	if gas == 0 {
-		gas = script.DefaultFoundryGasLimit
-	}
-	result, _, err := b.host.Call(call.From, *call.To, call.Data, gas, value)
-	return result, err
 }

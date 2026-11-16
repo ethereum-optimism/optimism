@@ -5,14 +5,17 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/rpc"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -92,18 +95,19 @@ func DefaultPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicD
 	return pkHex, pk, dk
 }
 
-// HostCaller calls contracts on a script.Host.
-type HostCaller struct {
-	Host *script.Host
-}
-
-func (h *HostCaller) Call(to common.Address, data []byte) ([]byte, error) {
-	result, _, err := h.Host.Call(
-		common.Address{19: 0x01}, // dummy caller
-		to,
-		data,
-		1_000_000,
-		uint256.NewInt(0),
-	)
-	return result, err
+// LoadAllocs writes allocs into the state of an anvil node.
+func LoadAllocs(t *testing.T, rpcClient *rpc.Client, allocs *foundry.ForgeAllocs) {
+	t.Helper()
+	for addr, acc := range allocs.Accounts {
+		require.NoError(t, rpcClient.Call(nil, "anvil_setCode", addr, hexutil.Bytes(acc.Code)))
+		require.NoError(t, rpcClient.Call(nil, "anvil_setNonce", addr, hexutil.Uint64(acc.Nonce)))
+		balance := new(big.Int)
+		if acc.Balance != nil {
+			balance = acc.Balance
+		}
+		require.NoError(t, rpcClient.Call(nil, "anvil_setBalance", addr, (*hexutil.Big)(balance)))
+		for key, value := range acc.Storage {
+			require.NoError(t, rpcClient.Call(nil, "anvil_setStorageAt", addr, key, value))
+		}
+	}
 }

@@ -186,5 +186,5 @@ mise exec -- just build-go-ffi kontrol-summary-full test-kontrol-no-build
 ```
 
 Set `KONTROL_WORKERS` to a positive integer to limit concurrency; the default is 16.
-The CircleCI job retains available proof archives, container logs, and `kontrol_prove_report.xml` from `test/kontrol/logs` as artifacts, and publishes the JUnit report as test results.
-Open the job's Artifacts tab to download proof output for debugging.
+The CircleCI job keeps `kontrol_prove_report.xml` from `test/kontrol/logs` as an artifact when it exists, and the proof archive when the proofs fail. It publishes the JUnit report as test results.
+Open a failed job's Artifacts tab to download the proof archive for debugging.

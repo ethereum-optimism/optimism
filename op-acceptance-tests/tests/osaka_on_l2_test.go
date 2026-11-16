@@ -24,7 +24,6 @@ import (
 
 func TestEIP7823UpperBoundModExp(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	t.Run("pre-karst", func(t devtest.T) {
 		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
@@ -58,7 +57,6 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 
 func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	t.Run("pre-karst", func(t devtest.T) {
 		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
@@ -96,7 +94,6 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 
 func TestEIP7825TxGasLimitCap(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	// EIP-7825 caps transaction gas at 2^24 = 16,777,216.
 	// This is a tx validity rule enforced at the txpool/block level, not by the
@@ -160,7 +157,6 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 
 func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	t.Run("pre-karst", func(t devtest.T) {
 		// Empty P256VERIFY calldata: the precompile charges its full gas cost
@@ -240,7 +236,6 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 // use bn256, so this test follows that convention.)
 func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	t.Run("pre-karst", func(t devtest.T) {
 		// 301 pairs (57,792 bytes) exceeds the Karst cap but fits within
@@ -309,7 +304,6 @@ func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
 
 func TestEIP7939CLZ(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	t.Run("pre-karst", func(t devtest.T) {
 		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
@@ -347,7 +341,6 @@ func TestEIP7939CLZ(gt *testing.T) {
 // trivially brick the rollup by submitting deposits that can never be included.
 func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 	sys.L1Network.WaitForOnline()
@@ -377,7 +370,6 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 // whose transaction data alone exceeds the max block size.
 func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	// EIP-7623 inflates zero-byte calldata cost to 10 gas/byte, so packing
 	// 12 MB into one block requires ~120M gas.

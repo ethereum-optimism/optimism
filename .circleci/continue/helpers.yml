@@ -4,15 +4,16 @@
 commands:
   # forge reads every source, lib/ included, to check the compile cache of the prebuilt artifacts.
   # Jobs that run op-deployer from the checkout (op-e2e, sysgo, kona proof tests) need these
-  # submodules; the embedded bundle has its own lib/. Top-level submodules only, so no --recursive,
-  # and no history: forge reads only the sources.
+  # submodules; the embedded bundle has its own lib/. Recursive, as forge detects remappings in the
+  # nested libs and finds the cache stale when they differ from the build's. No history: forge reads
+  # only the sources.
   checkout-contracts-lib:
     steps:
       - run:
           name: Check out the contracts-bedrock lib submodules
           command: |
             attempt=1
-            until git submodule update --init --depth 1 --single-branch --force -j 8 -- packages/contracts-bedrock/lib; do
+            until git submodule update --init --recursive --depth 1 --single-branch --force -j 8 -- packages/contracts-bedrock/lib; do
               [ "$attempt" -ge 3 ] && exit 1
               attempt=$((attempt+1))
               echo "submodule update failed; attempt $attempt/3 in 5s" >&2
@@ -89,17 +90,40 @@ commands:
 
   # Saves only the per-namespace build cache; the module cache is written once
   # by prep-go-modules. The revision in the key makes it unique per commit so
-  # each build persists an up-to-date cache.
+  # each build persists an up-to-date cache. Merge queue branches don't save:
+  # each queue branch name is used once, so its saves get little reuse.
   go-save-cache:
     parameters:
       namespace:
         type: string
+      prune:
+        # Go touches an entry's mtime at most once an hour, so this keeps what a
+        # job used unless it saves over 2 hours later. Only for a namespace where
+        # every job and node builds the same packages, since the first save wins.
+        # -delete because BusyBox find fails -exec rm {} + on long argument lists.
+        description: "Delete Go build cache entries unused for 3 hours before saving."
+        type: boolean
+        default: false
     steps:
-      - save_cache:
-          name: Save Go build cache for <<parameters.namespace>>
-          key: go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ .Revision }}
-          paths:
-            - ~/.cache/go-build
+      - unless:
+          condition:
+            matches:
+              pattern: "^gh-readonly-queue/.*$"
+              value: << pipeline.git.branch >>
+          steps:
+            - when:
+                condition: << parameters.prune >>
+                steps:
+                  - run:
+                      name: Prune Go build cache entries unused for 3 hours
+                      command: |
+                        find ~/.cache/go-build -mindepth 2 -type f -mmin +180 -delete || echo "prune failed, saving the unpruned cache"
+                        du -sh ~/.cache/go-build || true
+            - save_cache:
+                name: Save Go build cache for <<parameters.namespace>>
+                key: go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ .Revision }}
+                paths:
+                  - ~/.cache/go-build
 
   # Single canonical Rust env/prepare commands. Defined here (helpers is merged
   # first) so there is exactly one of each and the sccache step below cannot be
@@ -243,6 +267,7 @@ commands:
       - github-checkout:
           method: << parameters.checkout-method >>
       - utils/install-mise:
+          trusted_branch: develop
           enable_mise_cache: << parameters.enable-mise-cache >>
           mise_cache_key_prefix: << parameters.mise-cache-key-prefix >>
           mise_cache_checksum: << parameters.mise-cache-checksum >>

@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -623,12 +624,11 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 }
 
 func TestGetMissingTxnHashes(t *testing.T) {
-	depositTxs := make([]*types.Transaction, 5)
+	depositTxs := make([]*optypes.DepositTx, 5)
 
 	for i := 0; i < len(depositTxs); i++ {
 		rng := rand.New(rand.NewSource(1234 + int64(i)))
-		safeDeposit := testutils.GenerateDeposit(testutils.RandomHash(rng), rng)
-		depositTxs[i] = testutils.TxFromDeposit(safeDeposit)
+		depositTxs[i] = testutils.GenerateDeposit(testutils.RandomHash(rng), rng)
 	}
 
 	tests := []struct {
@@ -738,7 +738,7 @@ func TestGetMissingTxnHashes(t *testing.T) {
 	}
 }
 
-func depositTxToBytes(t *testing.T, tx *types.Transaction) hexutil.Bytes {
+func depositTxToBytes(t *testing.T, tx *optypes.DepositTx) hexutil.Bytes {
 	txBytes, err := tx.MarshalBinary()
 	require.NoError(t, err)
 

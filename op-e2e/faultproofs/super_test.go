@@ -86,7 +86,12 @@ func TestSuperCannonPublishCannonRootClaim(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		b, err := sys.L1GethClient().HeaderByNumber(ctx, nil)
 		require.NoError(t, err)
-		disputeL2SequenceNumber := b.Time + test.disputeL2SequenceNumberOffset
+		// The VM status of each case depends only on how far the disputed timestamp is past the game's
+		// anchor (L1 genesis here). With a base on a multiple of 4s past it, offset 2 always gives an
+		// invalid status and offset 3 a valid one, whatever the L1 block time or startup drift.
+		genesisTime := sys.L1Genesis().Timestamp
+		base := genesisTime + (b.Time-genesisTime)/4*4
+		disputeL2SequenceNumber := base + test.disputeL2SequenceNumberOffset
 
 		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, disputeL2SequenceNumber, disputegame.WithInvalidSuperRoot())
 		game.DisputeLastBlock(ctx)

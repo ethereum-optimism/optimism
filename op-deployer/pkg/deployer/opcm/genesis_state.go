@@ -13,38 +13,33 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
-// offlineScriptChainID is the chain ID of the Go script host's default context, so that offline forge
-// runs produce the same state. It matters for the L1 dev genesis, whose Permit2 preinstall has the
-// chain ID built in; L2Genesis sets the L2 chain ID itself.
-const offlineScriptChainID = 1337
-
-// GenesisState is the L1 state of a genesis deployment. Each script runs offline in its own forge
+// GenesisState is the state of a genesis deployment. Each script runs offline in its own forge
 // process: it loads this state, and the state it leaves replaces it.
 type GenesisState struct {
-	// Allocs holds the L1 accounts, the sender included.
+	// Allocs holds the accounts, the sender included.
 	Allocs *foundry.ForgeAllocs
 	// Sender sends the transactions of the scripts.
 	Sender common.Address
+	// ChainID is the chain ID that the scripts see. Some code has it built in, such as the Permit2
+	// preinstall.
+	ChainID uint64
 	// NoCodeSizeLimit admits contracts over the EIP-170 limit, such as the lite profile's, and lets
 	// the scripts run a build of such a profile.
 	NoCodeSizeLimit bool
 }
 
-// NewGenesisState returns an empty state for a genesis deployment.
-func NewGenesisState(sender common.Address, noCodeSizeLimit bool) *GenesisState {
+// NewGenesisState returns an empty state for a genesis deployment on the chain with the given ID.
+// forge puts its own CREATE2 deployer in the state.
+func NewGenesisState(sender common.Address, chainID uint64, noCodeSizeLimit bool) *GenesisState {
 	return &GenesisState{
-		Allocs: &foundry.ForgeAllocs{Accounts: types.GenesisAlloc{
-			// No code, so forge keeps its own CREATE2 deployer here. Nonce 0, not a contract's 1, keeps
-			// the L1 dev genesis of earlier releases.
-			predeploys.DeterministicDeploymentProxyAddr: {Balance: new(big.Int)},
-		}},
+		Allocs:          &foundry.ForgeAllocs{Accounts: types.GenesisAlloc{}},
 		Sender:          sender,
+		ChainID:         chainID,
 		NoCodeSizeLimit: noCodeSizeLimit,
 	}
 }
@@ -107,7 +102,7 @@ func (g *GenesisState) run(client *forge.Client, fn func(client *forge.Client, f
 	// forge isolates the top-level calls of a script unless the config turns it off, and the
 	// contracts bundle turns it on for its tests. An isolated call runs as a transaction, so a call
 	// that the script pranks bumps the nonce of the pranked address, such as the L2 depositor, and
-	// leaves it in the state. The Go script host does not isolate calls.
+	// leaves it in the state. The genesis of earlier releases has no such account.
 	env := []string{
 		"OP_DEPLOYER_STATE_IN=" + stateIn,
 		"OP_DEPLOYER_STATE_OUT=" + stateOut,
@@ -116,7 +111,7 @@ func (g *GenesisState) run(client *forge.Client, fn func(client *forge.Client, f
 	}
 	flags := []string{
 		"--sender", g.Sender.Hex(),
-		"--chain", strconv.Itoa(offlineScriptChainID),
+		"--chain", strconv.FormatUint(g.ChainID, 10),
 		"--block-number", "0",
 		"--block-timestamp", "0",
 	}

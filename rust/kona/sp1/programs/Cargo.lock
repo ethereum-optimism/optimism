@@ -257,7 +257,6 @@ dependencies = [
 name = "alloy-op-hardforks"
 version = "0.5.0"
 dependencies = [
- "alloy-chains",
  "alloy-hardforks",
  "alloy-primitives",
  "auto_impl",
@@ -1857,7 +1856,6 @@ dependencies = [
  "alloy-eips",
  "alloy-genesis",
  "alloy-hardforks",
- "alloy-op-hardforks",
  "alloy-primitives",
  "kona-genesis",
  "lazy_static",
@@ -1956,6 +1954,18 @@ dependencies = [
  "kona-sp1-client-utils",
  "revm",
  "spin 0.10.0",
+]
+
+[[package]]
+name = "kona-sp1-hashdos-check-guest"
+version = "0.0.1"
+dependencies = [
+ "alloy-primitives",
+ "foldhash 0.2.0",
+ "kona-sp1-build-info",
+ "op-revm",
+ "revm",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -3858,27 +3868,27 @@ checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
 
 [[package]]
 name = "zstd"
-version = "0.13.3"
+version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+checksum = "50adf04cf3ec914b0b9905c9dde90c80fe74bfd701e331fc80a39c512c525278"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "7.2.4"
+version = "7.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
+checksum = "498d94ad68720c89b4fbe41b9090850651e68cb2dd9210ce7ffbff3a94653819"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.16+zstd.1.5.7"
+version = "2.1.2+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e19ebc2adc8f83e43039e79776e3fda8ca919132d68a1fed6a5faca2683748"
+checksum = "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3"
 dependencies = [
  "cc",
  "pkg-config",

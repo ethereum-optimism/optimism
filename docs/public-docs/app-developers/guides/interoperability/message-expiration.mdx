@@ -14,6 +14,8 @@ For messages using [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interop
 
 The expiry window is an offchain constant that defines how long a cross-chain message or event emitted remains valid. For any chain in the [Superchain interop cluster](/interop/explainer#superchain-interop-cluster), messages must be referenced within 7 days (604,800 seconds) of the log being created.
 
+After the window, no transaction can relay the message. A deposit transaction cannot relay a message at any time, so a deposit cannot get a message past a sequencer that does not include its relay. The only recovery is to expire the message and undo the send.
+
 ## Undoing an expired message
 
 A message that its destination never relays can be marked expired on its source chain, so the application can undo the send:
@@ -22,8 +24,41 @@ A message that its destination never relays can be marked expired on its source 
 2.  **Withdrawal.** The export is an L2-to-L1 withdrawal to the source chain's `L1CrossDomainMessenger`. After the destination's withdrawal delay, someone proves and finalizes it on L1, and the source chain's `L1CrossDomainMessenger` passes it to the source chain as a deposit.
 3.  **Expiry.** The source chain's `L2ToL2CrossDomainMessenger` sets `expiredMessages(messageHash)` and emits `MessageExpired(messageHash, undeliveredAt)`, but only if the export happened more than 8 days after the message was sent (the expiry window plus a day of margin). An earlier export never becomes valid: it ends up as a failed message on the source chain, and the message can be exported again later.
 
+## Undoing the send
+
 The `SuperchainETHBridge` undoes an expired send with `refundETH`: the address that called `sendETH` calls it and gets its ETH back. Another application can undo its own sends the same way: check `expiredMessages(messageHash)` on the source chain's `L2ToL2CrossDomainMessenger`, or watch for `MessageExpired`, and record that it undid the send, so the undo happens only once. The flag stays set.
 
+## Known limitations
+
+Expiry does not recover every message that is not relayed. The cases below are known limitations of the design. In each case, the assets that the send burned or locked can be lost.
+
+### The destination is outside the interop cluster
+
+Expiry works only when the destination chain is in the same interop cluster as the source chain. The chains in an interop cluster share one `ETHLockbox` on L1. The source chain's `L1CrossDomainMessenger` accepts an export only from a chain whose portal that `ETHLockbox` authorizes. `sendMessage` and `sendETH` do not check that the destination chain is in the interop cluster. So a message to a chain outside the interop cluster can't be relayed and can't be expired. Any assets that such a send burned or locked are lost.
+
+### The sending application does not support expiry
+
+Expiry only marks the message as expired on the source chain. It does not return any assets. The application that sent the message must undo the send itself. If the application does not check `expiredMessages` and has no way to undo a send, its assets stay burned or locked after expiry. Before you send through an application, make sure that it can undo an expired send.
+
+### The sender can't claim the refund
+
+Only the address that called `sendETH` can call `refundETH`, and the refund goes to that address. The refund does not go to the recipient, and it does not go to the user that a contract sent for. A contract that sends ETH for its users must call `refundETH` and pass the ETH on to the correct user. If the contract can't call `refundETH`, nobody can claim the refund. If the contract can't pass the ETH on, the ETH stays in the contract.
+
+### The sender can't use the refunded ETH
+
+`refundETH` sends the ETH with `SafeSend`. `SafeSend` does not call the code of the receiver, so the ETH arrives even if the receiver can't accept ETH. The receiver also gets no call that tells it about the refund. A contract that has no way to spend or forward ETH keeps the refund, and the ETH is lost.
+
+### The send came from L1 through `L2CrossDomainMessenger`
+
+An L1 message can call `sendETH` through `L2CrossDomainMessenger`. Then the sender of the send is `L2CrossDomainMessenger`, not the L1 account. Anyone on L1 can make `L2CrossDomainMessenger` call `refundETH`, so the refund goes to `L2CrossDomainMessenger`. `L2CrossDomainMessenger` can't spend it, so the ETH is lost. To send ETH from L1 so that it can be refunded, deposit it to your own address through the portal and call `sendETH` from there.
+
+### The send came from a relayed interop message
+
+A relayed interop message that targets `SuperchainETHBridge` can't call `sendETH`. If it could, the sender of the send would be `L2ToL2CrossDomainMessenger`, which can't claim a refund. So `sendETH` rejects `L2ToL2CrossDomainMessenger` as a sender, and the relay always reverts. The message can then be expired, and the application that sent it must undo its send. A relayed message can target a contract that calls `sendETH`. That contract is then the sender, and it must claim any refund.
+
+### The target has no code on the destination
+
+If the target of a message has no code when the message is relayed, the relay succeeds and does nothing. For example, the target contract is not deployed on the destination yet. The relay uses up the message. Nobody can relay it again after the contract is deployed, and nobody can expire it. Any assets that the send burned or locked are lost. `SuperchainETHBridge` sends always target `SuperchainETHBridge`, so this case does not apply to them.
 ## Next steps
 
 *   Learn how to [pass messages between blockchains](/app-developers/tutorials/interoperability/message-passing)
