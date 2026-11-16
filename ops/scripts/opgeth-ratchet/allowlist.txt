@@ -21,7 +21,6 @@ cannon/mipsevm/testutil | changed signature of go-ethereum/core/vm.EVM.Create | 
 op-acceptance-tests/tests (tests) | missing go-ethereum/params.BlobScheduleConfig.Amsterdam | #20266 cutover edit: upstream forks carry no blob schedule of their own; schedule Amsterdam's blob parameters as a BPO fork
 op-acceptance-tests/tests (tests) | missing go-ethereum/params.BlobScheduleConfig.Osaka | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
 op-acceptance-tests/tests (tests) | missing go-ethereum/params.DefaultOsakaBlobConfig | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
-op-acceptance-tests/tests/interop/loadtest | missing go-ethereum/core.ErrInsufficientBalanceWitness | #20266 cutover edit: drop it, upstream removed the error, which no code path returned
 op-batcher/batcher | changed signature of go-ethereum/core.FloorDataGas | #20266 cutover edit: core.FloorDataGas(rules, from, to, value, data, accessList); revisit maxFloorDataGas (opgeth-decoupling.md §15)
 op-chain-ops/genesis (tests) | missing go-ethereum/params.ChainConfig.Optimism | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
 op-chain-ops/genesis (tests) | missing go-ethereum/params.OptimismConfig | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
@@ -109,7 +108,6 @@ op-e2e/e2eutils/geth (tests) | missing go-ethereum/params.DefaultOsakaBlobConfig
 op-e2e/system/da (tests) | changed signature of go-ethereum/core.IntrinsicGas | #20266 cutover edit: core.IntrinsicGas(data, accessList, authList, from, to, value, rules params.Rules)
 op-node/rollup/derive (tests) | changed signature of go-ethereum/core/state.StateDB.Commit | #20266 cutover edit: StateDB.Commit(rules params.Rules, block), the rules replace deleteEmptyObjects and noStorageWiping
 op-service/rpc | changed signature of go-ethereum/node.NewHTTPHandlerStack | #20266 cutover edit: node.NewHTTPHandlerStack(srv, cors, vhosts, jwtSecret, disableGzip bool)
-op-service/txinclude | missing go-ethereum/core.ErrInsufficientBalanceWitness | #20266 cutover edit: drop it, upstream removed the error, which no code path returned
 op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.EIP1559Params | #20266 op-geth differential test, removed at the cutover
 op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.GasLimit | #20266 op-geth differential test, removed at the cutover
 op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.MinBaseFee | #20266 op-geth differential test, removed at the cutover
