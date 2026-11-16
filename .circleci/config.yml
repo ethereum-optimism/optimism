@@ -65,6 +65,9 @@ parameters:
   rust_nightly_bump_dispatch:
     type: boolean
     default: false
+  rust_advisories_dispatch:
+    type: boolean
+    default: false
   l2_fork_test_dispatch:
     type: boolean
     default: false
@@ -234,6 +237,7 @@ jobs:
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-rust_nightly_bump_dispatch: << pipeline.parameters.rust_nightly_bump_dispatch >>
+            c-rust_advisories_dispatch: << pipeline.parameters.rust_advisories_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
       # Diff against the PR's target branch, as the get-target-branch command does.
       - run:
