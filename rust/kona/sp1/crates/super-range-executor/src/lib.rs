@@ -61,6 +61,8 @@ pub use cost::{
     ScannedTimestampCost, batch_log_blocks, estimate_consolidation_pgu, estimate_log_block_pgu,
     estimate_log_commitment_pgu, receipts_trie_bytes, split_log_batches,
 };
+mod claim;
+pub use claim::Claim;
 mod l2;
 pub use l2::L2BlockClient;
 mod log_commitments;
@@ -160,18 +162,12 @@ pub struct RunConfig {
     /// Print the PGU, instruction count, stdin size, and cycle-tracker totals of each SP1 guest
     /// execution.
     pub report: bool,
-    /// Supernode JSON-RPC endpoint.
-    pub supernode_address: String,
-    /// L1 execution JSON-RPC endpoint.
-    pub l1_node_address: String,
-    /// L1 beacon API endpoint.
-    pub l1_beacon_address: String,
-    /// L2 execution JSON-RPC endpoints.
-    pub l2_node_addresses: Vec<String>,
-    /// Trusted L1 head hash to derive against.
-    pub l1_head: B256,
-    /// Superchain timestamp to prove.
-    pub end_timestamp: u64,
+    /// Where the claim of the span to prove comes from.
+    pub claim: ClaimSource,
+    /// The endpoints the host reads preimages from. Without them, it serves only `data_dir`.
+    pub endpoints: Option<Endpoints>,
+    /// Directory of the host's `RocksDB` preimage store, which the run keeps. Absent = in memory.
+    pub data_dir: Option<PathBuf>,
     /// Optional rollup config JSON files passed through to `InteropHost`.
     pub rollup_config_paths: Option<Vec<PathBuf>>,
     /// Optional L1 config JSON file passed through to `InteropHost`.
@@ -180,17 +176,102 @@ pub struct RunConfig {
     pub dependency_set_path: Option<PathBuf>,
 }
 
+/// Where a run gets the claim of the span it proves.
+#[derive(Clone, Debug)]
+pub enum ClaimSource {
+    /// Fetch it from the supernode at `address`, and save it to `save_to` if set.
+    Supernode {
+        /// Supernode JSON-RPC endpoint.
+        address: String,
+        /// Trusted L1 head hash to derive against.
+        l1_head: B256,
+        /// Timestamps to prove.
+        span: TimestampSpan,
+        /// File to save the fetched claim to.
+        save_to: Option<PathBuf>,
+    },
+    /// Read a claim that an earlier run saved.
+    File(PathBuf),
+}
+
+/// The L1 and L2 endpoints of a run.
+#[derive(Clone, Debug)]
+pub struct Endpoints {
+    /// L1 execution JSON-RPC endpoint.
+    pub l1_node_address: String,
+    /// L1 beacon API endpoint.
+    pub l1_beacon_address: String,
+    /// L2 execution JSON-RPC endpoints.
+    pub l2_node_addresses: Vec<String>,
+}
+
 impl RunConfig {
-    /// Returns the endpoints and config paths used by `InteropHost`.
-    pub fn host_inputs(&self) -> HostInputs {
-        HostInputs {
-            l1_node_address: self.l1_node_address.clone(),
-            l1_beacon_address: self.l1_beacon_address.clone(),
-            l2_node_addresses: self.l2_node_addresses.clone(),
+    async fn claim(&self) -> Result<Claim> {
+        let (address, l1_head, span) = match &self.claim {
+            ClaimSource::File(path) => return Claim::read(path),
+            ClaimSource::Supernode { address, l1_head, span, .. } => (address, *l1_head, *span),
+        };
+        let endpoints =
+            self.endpoints.as_ref().context("a claim from a supernode needs an L1 endpoint")?;
+        let client = HttpClientBuilder::default()
+            .build(address)
+            .with_context(|| format!("failed to connect to supernode {address}"))?;
+        let l1_head_number = fetch_l1_head_number(&endpoints.l1_node_address, l1_head).await?;
+        Claim::fetch(&client, l1_head, l1_head_number, span).await
+    }
+
+    /// The file a supernode claim is saved to once the run validates it.
+    fn save_to(&self) -> Option<&Path> {
+        match &self.claim {
+            ClaimSource::Supernode { save_to, .. } => save_to.as_deref(),
+            ClaimSource::File(_) => None,
+        }
+    }
+
+    /// Whether the run's claim is or will be replayed from `data_dir` alone.
+    fn replays_offline(&self) -> bool {
+        self.endpoints.is_none() || self.save_to().is_some()
+    }
+
+    /// Builds the host for `claim`: online through the endpoints, or offline from `data_dir`.
+    fn host(&self, claim: &Claim, synthesized: &SynthesizedExecution) -> Result<InteropHost> {
+        let Some(endpoints) = &self.endpoints else {
+            ensure!(self.data_dir.is_some(), "a run without endpoints needs a data directory");
+            return Ok(InteropHost {
+                l1_head: claim.l1_head,
+                agreed_l2_pre_state: Bytes::from(
+                    synthesized.previous_super_root_proof_bytes.clone(),
+                ),
+                claimed_l2_post_state: synthesized.current_super_root,
+                claimed_l2_timestamp: claim.end_timestamp,
+                l2_node_addresses: None,
+                l1_node_address: None,
+                l1_beacon_address: None,
+                data_dir: self.data_dir.clone(),
+                data_format: DataFormat::Rocksdb,
+                native: false,
+                server: true,
+                rollup_config_paths: self.rollup_config_paths.clone(),
+                l1_config_path: self.l1_config_path.clone(),
+                dependency_set_path: self.dependency_set_path.clone(),
+            });
+        };
+        let inputs = HostInputs {
+            l1_node_address: endpoints.l1_node_address.clone(),
+            l1_beacon_address: endpoints.l1_beacon_address.clone(),
+            l2_node_addresses: endpoints.l2_node_addresses.clone(),
             rollup_config_paths: self.rollup_config_paths.clone(),
             l1_config_path: self.l1_config_path.clone(),
             dependency_set_path: self.dependency_set_path.clone(),
-        }
+        };
+        build_interop_host(
+            &inputs,
+            claim.l1_head,
+            &synthesized.previous_super_root_proof_bytes,
+            synthesized.current_super_root,
+            claim.end_timestamp,
+            self.data_dir.as_deref(),
+        )
     }
 }
 
@@ -378,31 +459,20 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         Some(Arc::<[u8]>::from(bytes))
     };
 
-    let client = HttpClientBuilder::default()
-        .build(&config.supernode_address)
-        .with_context(|| format!("failed to connect to supernode {}", config.supernode_address))?;
-    let previous_timestamp = config
-        .end_timestamp
-        .checked_sub(1)
-        .ok_or_else(|| anyhow!("end timestamp 0 has no previous super-root timestamp"))?;
-    let previous = fetch_superroot_at_timestamp(&client, previous_timestamp).await?;
-    let current = fetch_superroot_at_timestamp(&client, config.end_timestamp).await?;
-    let l1_head_number = fetch_l1_head_number(&config.l1_node_address, config.l1_head).await?;
-
-    let span = TimestampSpan::new(config.end_timestamp, config.end_timestamp)
-        .context("failed to build single-timestamp span")?;
-    let mut synthesized =
-        synthesize_execution(span, config.l1_head, l1_head_number, &[previous, current])
-            .context("failed to synthesize super-range inputs")?;
-    let host_inputs = config.host_inputs();
-    let range_host = build_interop_host(
-        &host_inputs,
-        config.l1_head,
-        &synthesized.previous_super_root_proof_bytes,
-        synthesized.current_super_root,
-        config.end_timestamp,
-        None,
-    )?;
+    let claim = config.claim().await?;
+    let mut synthesized = synthesize_execution(
+        claim.span()?,
+        claim.l1_head,
+        claim.l1_head_number,
+        &claim.decoded_responses()?,
+    )
+    .context("failed to synthesize super-range inputs")?;
+    // Their preimages are read through hosts without the data dir, so the store lacks them.
+    ensure!(
+        !config.replays_offline() || synthesized.replaced_agreed_outputs.is_empty(),
+        "an offline replay cannot read the agreed outputs that the span's super roots replaced",
+    );
+    let range_host = config.host(&claim, &synthesized)?;
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
     if !config.native_core {
@@ -459,20 +529,18 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     ensure_range_outputs_match_inputs(&replayed_range_outputs, &synthesized.range_inputs)?;
 
     let collect = async |batches: &[Vec<u8>]| {
-        let host = build_interop_host(
-            &host_inputs,
-            config.l1_head,
-            &synthesized.previous_super_root_proof_bytes,
-            synthesized.current_super_root,
-            config.end_timestamp,
-            None,
-        )?;
+        let host = config.host(&claim, &synthesized)?;
         synthesized.collect_consolidation_witness(host, Some(&configs), batches, None).await
     };
     // The table path: commit the blocks below the heads that the first run read, then recollect.
     let mut consolidation = collect(&[]).await?;
     let mut batches = Vec::new();
     if !consolidation.missing.is_empty() {
+        // The log stage reads receipts from the L2 nodes, not through the host's store.
+        ensure!(
+            !config.replays_offline(),
+            "an offline replay cannot commit the blocks below the local safe heads",
+        );
         batches.push(
             commit_missing_blocks(&config, &consolidation.missing)
                 .await
@@ -517,11 +585,15 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         &synthesized.consolidation_inputs,
     )?;
     tracing::info!(
-        timestamp = config.end_timestamp,
+        start_timestamp = claim.start_timestamp,
+        end_timestamp = claim.end_timestamp,
         chain_count = synthesized.range_inputs.chain_ids.len(),
         native_core = config.native_core,
         "super-range program validated the optimistic transitions and consolidation",
     );
+    if let Some(path) = config.save_to() {
+        claim.write(path)?;
+    }
     Ok(Verdict::Valid)
 }
 
@@ -531,8 +603,12 @@ async fn commit_missing_blocks(
     config: &RunConfig,
     missing: &[MissingLogCommitment],
 ) -> Result<Vec<u8>> {
+    let endpoints = config
+        .endpoints
+        .as_ref()
+        .context("committing the blocks below the local safe heads needs L2 endpoints")?;
     let mut clients = BTreeMap::new();
-    for address in &config.l2_node_addresses {
+    for address in &endpoints.l2_node_addresses {
         let client = L2BlockClient::connect(address).await?;
         clients.insert(client.chain_id().await?, client);
     }
@@ -1742,6 +1818,61 @@ mod tests {
         }
     }
 
+    fn offline_config(data_dir: Option<PathBuf>) -> RunConfig {
+        RunConfig {
+            native_core: true,
+            corrupt_claimed_root: false,
+            report: false,
+            claim: ClaimSource::File(PathBuf::from("claim.json")),
+            endpoints: None,
+            data_dir,
+            rollup_config_paths: None,
+            l1_config_path: None,
+            dependency_set_path: None,
+        }
+    }
+
+    fn single_timestamp_claim() -> (Claim, SynthesizedExecution) {
+        let claim = Claim {
+            l1_head: b256(0xaa),
+            l1_head_number: 8,
+            start_timestamp: 101,
+            end_timestamp: 101,
+            responses: Vec::new(),
+        };
+        let synthesized = synthesize_execution(
+            claim.span().unwrap(),
+            claim.l1_head,
+            claim.l1_head_number,
+            &[response(100, &[10], 7), response(101, &[10], 8)],
+        )
+        .unwrap();
+        (claim, synthesized)
+    }
+
+    #[test]
+    fn host_without_endpoints_serves_only_the_data_dir() {
+        let (claim, synthesized) = single_timestamp_claim();
+
+        let host = offline_config(Some(PathBuf::from("store"))).host(&claim, &synthesized).unwrap();
+
+        assert!(host.is_offline());
+        assert_eq!(host.data_dir, Some(PathBuf::from("store")));
+        assert_eq!(host.l1_head, claim.l1_head);
+        assert_eq!(host.claimed_l2_post_state, synthesized.current_super_root);
+        assert_eq!(host.claimed_l2_timestamp, 101);
+        assert_eq!(host.agreed_l2_pre_state.as_ref(), synthesized.previous_super_root_proof_bytes);
+    }
+
+    #[test]
+    fn host_without_endpoints_or_data_dir_is_an_error() {
+        let (claim, synthesized) = single_timestamp_claim();
+
+        let err = offline_config(None).host(&claim, &synthesized).unwrap_err();
+
+        assert_eq!(err.to_string(), "a run without endpoints needs a data directory");
+    }
+
     #[test]
     fn deployment_configs_use_registry_defaults_and_file_overrides() {
         for case in ["registry", "rollup_override", "missing_custom_depset"] {
@@ -2318,7 +2449,7 @@ mod tests {
     }
 
     /// Answers with `result` under the request's JSON-RPC id, which the client checks.
-    fn rpc_result(
+    pub(crate) fn rpc_result(
         result: Value,
     ) -> impl Fn(&HttpMockRequest) -> HttpMockResponse + Send + Sync + 'static {
         move |request| {
