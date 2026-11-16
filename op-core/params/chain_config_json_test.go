@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	gethparams "github.com/ethereum/go-ethereum/params"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -51,30 +53,23 @@ func parseJSONObject(t *testing.T, data []byte) map[string]any {
 	return obj
 }
 
-// TestChainConfigJSONFields checks that chainConfigJSON declares every ChainConfig field
-// directly, with the same type and JSON tag. A field missing from the direct list would
-// otherwise be encoded from go-ethereum's config, or dropped.
-func TestChainConfigJSONFields(t *testing.T) {
-	cfgType := reflect.TypeFor[ChainConfig]()
-	jsonType := reflect.TypeFor[chainConfigJSON]()
-	for i := range cfgType.NumField() {
-		f := cfgType.Field(i)
-		if !f.IsExported() {
-			continue
-		}
-		jf, ok := jsonType.FieldByName(f.Name)
-		require.True(t, ok, "chainConfigJSON lacks %s", f.Name)
-		require.Len(t, jf.Index, 1, "chainConfigJSON must declare %s directly", f.Name)
-		require.Equal(t, f.Type, jf.Type, f.Name)
-		require.Equal(t, f.Tag.Get("json"), jf.Tag.Get("json"), f.Name)
+// TestChainConfigJSONKeysDisjoint checks that go-ethereum's chain config declares none of
+// the ChainConfig JSON keys but chainId: encoding/json drops a key that both embedded
+// configs of chainConfigJSON declare.
+func TestChainConfigJSONKeysDisjoint(t *testing.T) {
+	gethKeys := map[string]bool{}
+	gethType := reflect.TypeFor[gethparams.ChainConfig]()
+	for i := range gethType.NumField() {
+		name, _, _ := strings.Cut(gethType.Field(i).Tag.Get("json"), ",")
+		gethKeys[name] = true
 	}
-	for i := range jsonType.NumField() {
-		jf := jsonType.Field(i)
-		if jf.Anonymous {
+	cfgType := reflect.TypeFor[ChainConfig]()
+	for i := range cfgType.NumField() {
+		name, _, _ := strings.Cut(cfgType.Field(i).Tag.Get("json"), ",")
+		if name == "chainId" {
 			continue
 		}
-		_, ok := cfgType.FieldByName(jf.Name)
-		require.True(t, ok, "chainConfigJSON field %s is not a ChainConfig field", jf.Name)
+		require.Falsef(t, gethKeys[name], "go-ethereum's chain config declares %q", name)
 	}
 }
 
@@ -131,6 +126,15 @@ func TestChainConfigJSONUnmarshalEthereumKeys(t *testing.T) {
 	for key, value := range map[string]any{
 		"shanghaiTime":            1,
 		"osakaTime":               9000,
+		"bpo1Time":                0,
+		"bpo2Time":                0,
+		"bpo3Time":                0,
+		"bpo4Time":                0,
+		"bpo5Time":                0,
+		"amsterdamTime":           0,
+		"bogotaTime":              0,
+		"ubtTime":                 0,
+		"enableUBTAtGenesis":      true,
 		"londonBlock":             5,
 		"daoForkBlock":            0,
 		"terminalTotalDifficulty": 1,
