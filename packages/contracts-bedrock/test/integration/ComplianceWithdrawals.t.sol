@@ -46,8 +46,9 @@ contract ComplianceWithdrawals_CallRecorder {
 /// @notice Tests withdrawals proven and finalized through the Portal while the ComplianceModule
 ///         is its hook and VisionPolicyV1 is its policy.
 ///
-///         VisionPolicyV1 pays a withdrawal that has a clear verdict. It rejects one without a
-///         verdict until HOLD_DELAY after the withdrawal became finalizable, and holds it after.
+///         VisionPolicyV1 pays a withdrawal that has a valid clear verdict. It rejects one without
+///         a valid verdict until HOLD_DELAY after the withdrawal became finalizable, and holds it
+///         after.
 contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestInit {
     /// @notice Runtime code that always reverts.
     bytes internal constant REVERTING_CODE = hex"60006000fd";
@@ -267,22 +268,30 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
         _assertReleased(id);
     }
 
-    /// @notice Tests that a withdrawal whose verdict expired is held at the first attempt, with no
-    ///         hold delay, and completes on a new verdict.
+    /// @notice Tests that a withdrawal whose verdict expired is screened as one without a verdict:
+    ///         it is rejected until the hold delay has passed and held after it. Completion is
+    ///         refused while the verdict is expired and succeeds on a new verdict.
     function test_completeWithdrawal_afterVerdictRenewed_succeeds() external {
         Types.WithdrawalTransaction memory withdrawal = _withdrawal(0, alice, bob, AMOUNT);
         (bytes32 id,) = _itemOf(withdrawal);
-        _warpToFinalizable(_prove(withdrawal));
+        uint256 holdableAt = _warpToFinalizable(_prove(withdrawal)) + HOLD_DELAY;
         uint256 bobBalance = bob.balance;
 
         vm.prank(verdictWriter);
         policy.clear(id, uint64(block.timestamp + 1));
         vm.warp(block.timestamp + 1);
+        vm.expectRevert(abi.encodeWithSelector(IVisionPolicyV1.VisionPolicyV1_NotYetHoldable.selector, holdableAt));
+        optimismPortal2.finalizeWithdrawalTransaction(withdrawal);
+
+        vm.warp(holdableAt);
         (bytes32 heldId, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
 
         assertEq(heldId, id);
         _assertHeldWithdrawal(id);
         assertEq(bob.balance, bobBalance);
+
+        vm.expectRevert(IComplianceModule.ComplianceModule_PolicyRefused.selector);
+        module.completeWithdrawal(item);
 
         _clear(id);
         module.completeWithdrawal(item);
