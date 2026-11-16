@@ -27,6 +27,14 @@ parameters:
   c-run_kona_publish_prestates:
     type: boolean
     default: false
+  c-run_scheduled_rust_advisories:
+    type: boolean
+    default: false
+  # Setup-pipeline dispatch flag, declared here only so continuation validation
+  # accepts it when forwarded; consumed by compute-workflow-conditions.sh.
+  rust_advisories_dispatch:
+    type: boolean
+    default: false
 
 # ============================================================================
 # JOBS
@@ -132,6 +140,51 @@ jobs:
       # Ping @protocol-oncall if it fails on develop.
       - notify-failures-on-develop:
           mentions: "@protocol-oncall"
+
+  # Daily RustSec advisory check. Runs only on the build_daily schedule or the
+  # rust_advisories_dispatch flag, never on PRs, the merge queue or develop
+  # pushes, and no gate requires it: new advisories appear without a repo
+  # change, which is why #23365 took them off rust-deny.
+  rust-deny-advisories:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    # cargo-deny only reads manifests and the advisory DB (about 350 MB peak
+    # locally), so no Rust cache and the smallest class.
+    resource_class: small.gen2
+    steps:
+      - run:
+          name: Skip weekends in US Pacific time
+          command: |
+            # No on-call pings on Saturday or Sunday. The POSIX rule needs no tzdata.
+            echo "US Pacific time: $(TZ=PST8PDT,M3.2.0,M11.1.0 date)"
+            if [ "$(TZ=PST8PDT,M3.2.0,M11.1.0 date +%u)" -ge 6 ]; then
+              echo "Weekend in US Pacific time. Skipping."
+              circleci-agent step halt
+            fi
+      - checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Check RustSec advisories
+          working_directory: rust
+          command: cargo deny --all-features check advisories
+      - run:
+          name: Check ignore review dates
+          working_directory: rust
+          when: always
+          command: |
+            # Every [advisories] ignore entry needs "review by YYYY-MM-DD" in its
+            # reason. Fail once that date has passed (Pacific, like the weekend
+            # skip) so the entry is looked at again.
+            today="$(TZ=PST8PDT,M3.2.0,M11.1.0 date +%F)"
+            expired="$(yq -p toml -o json '.advisories.ignore' deny.toml | jq -r --arg today "$today" '.[]? | (if type == "string" then {id: .} else . end) | select(((.reason // "") | capture("review by (?<d>[0-9]{4}-[0-9]{2}-[0-9]{2})"; "i").d // "") as $d | $d == "" or $d < $today) | .id // .crate')"
+            if [ -n "$expired" ]; then
+              echo "Ignore entries in rust/deny.toml past or without a review date (today $today):"
+              echo "$expired"
+              exit 1
+            fi
+            echo "All ignore entries are within their review date."
+      - notify-failures-on-develop:
+          mentions: "<!subteam^S09D13R3HJ7>"
 
   # Shared zepter feature propagation job
   rust-ci-zepter:
@@ -1233,3 +1286,13 @@ workflows:
               only: /^kona-sp1-program\/v.*/
             branches:
               ignore: /.*/
+
+  # Daily RustSec advisory check (build_daily schedule or rust_advisories_dispatch).
+  # Not part of any required gate. Pings protocol on-call in #notify-ci on failure.
+  scheduled-rust-advisories:
+    when: << pipeline.parameters.c-run_scheduled_rust_advisories >>
+    jobs:
+      - rust-deny-advisories:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
