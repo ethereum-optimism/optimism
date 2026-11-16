@@ -3,7 +3,8 @@
 //! Both are exported as histograms labelled by operation, phase and table, so the cost of each
 //! phase can be compared per block and per unique key. Phases are timed inside the uncommitted
 //! write transaction, so they do not sum to the persistence `write`/`prune` durations: those
-//! also include proof window updates, and the commit is timed separately.
+//! also include proof window updates, and the commit is timed separately. They are recorded
+//! before the commit too, so a batch whose commit then fails has still been recorded.
 
 use std::time::{Duration, Instant};
 
@@ -67,10 +68,19 @@ impl PhaseStats {
     pub(super) fn record_cost(&self, op: &'static str, phase: &'static str) {
         for (table, stats) in self.tables() {
             let labels = [("operation", op), ("phase", phase), ("table", table)];
-            let seconds = stats.cost.duration.as_secs_f64();
-            record("optimism_trie.storage.phase_duration_seconds", &labels, seconds);
-            let faults = stats.cost.major_faults as f64;
-            record("optimism_trie.storage.phase_major_faults", &labels, faults);
+            record(
+                "optimism_trie.storage.phase_duration_seconds",
+                "Time one phase of a batch write or prune spent on one table",
+                &labels,
+                stats.cost.duration.as_secs_f64(),
+            );
+            record(
+                "optimism_trie.storage.phase_major_faults",
+                "Major page faults of the persistence thread in one phase of a batch write or \
+                 prune, on one table",
+                &labels,
+                stats.cost.major_faults as f64,
+            );
         }
     }
 
@@ -78,7 +88,12 @@ impl PhaseStats {
     pub(super) fn record_unique_keys(&self, op: &'static str) {
         for (table, stats) in self.tables() {
             let labels = [("operation", op), ("table", table)];
-            record("optimism_trie.storage.history_unique_keys", &labels, stats.keys as f64);
+            record(
+                "optimism_trie.storage.history_unique_keys",
+                "Unique keys whose history bitmaps a batch write or prune touched in one table",
+                &labels,
+                stats.keys as f64,
+            );
         }
     }
 }
@@ -114,9 +129,12 @@ pub(super) fn timed<T>(f: impl FnOnce() -> T) -> (T, Cost) {
 ///
 /// Persistence reads the memory-mapped database, so each major fault is a page read from disk
 /// that the thread waited on.
-#[cfg_attr(not(target_os = "linux"), allow(clippy::missing_const_for_fn))]
+///
+/// The count is only read on Linux, and only with the `metrics` feature. Without that feature
+/// nothing exports it, and the per-batch debug logs report 0 major faults.
+#[cfg_attr(not(all(target_os = "linux", feature = "metrics")), allow(clippy::missing_const_for_fn))]
 fn thread_major_faults() -> u64 {
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "metrics"))]
     {
         // Field 12 of `/proc/thread-self/stat`. The comm field before it may contain spaces, so
         // count fields from the closing parenthesis, which ends it.
@@ -125,21 +143,79 @@ fn thread_major_faults() -> u64 {
             .and_then(|stat| stat.rsplit_once(')')?.1.split_whitespace().nth(9)?.parse().ok())
             .unwrap_or(0)
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(all(target_os = "linux", feature = "metrics")))]
     0
 }
 
 /// Records what a batch write spent writing current state and changesets, across all tables.
 pub(super) fn record_write_state(cost: Cost) {
-    record("optimism_trie.storage.write_state_duration_seconds", &[], cost.duration.as_secs_f64());
-    record("optimism_trie.storage.write_state_major_faults", &[], cost.major_faults as f64);
+    record(
+        "optimism_trie.storage.write_state_duration_seconds",
+        "Time a batch write spent writing current state and changesets",
+        &[],
+        cost.duration.as_secs_f64(),
+    );
+    record(
+        "optimism_trie.storage.write_state_major_faults",
+        "Major page faults of the persistence thread while a batch write wrote current state \
+         and changesets",
+        &[],
+        cost.major_faults as f64,
+    );
 }
 
-/// Records `value` in the histogram `name` with `labels`.
+/// Records `value` in the histogram `name` with `labels`. The histogram is exported with `help`
+/// as its help text.
 #[cfg_attr(not(feature = "metrics"), allow(clippy::missing_const_for_fn))]
-fn record(name: &'static str, labels: &[(&'static str, &'static str)], value: f64) {
+fn record(
+    name: &'static str,
+    help: &'static str,
+    labels: &[(&'static str, &'static str)],
+    value: f64,
+) {
     #[cfg(feature = "metrics")]
-    metrics::histogram!(name, labels).record(value);
+    {
+        metrics::describe_histogram!(name, help);
+        metrics::histogram!(name, labels).record(value);
+    }
     #[cfg(not(feature = "metrics"))]
-    let _ = (name, labels, value);
+    let _ = (name, help, labels, value);
+}
+
+#[cfg(all(test, feature = "metrics"))]
+mod tests {
+    use super::*;
+    use metrics_util::debugging::DebuggingRecorder;
+    use std::collections::BTreeSet;
+
+    // A histogram is exported with help text only if it was described. One recorded without a
+    // description shows up with no word on what it measures.
+    #[test]
+    fn every_histogram_is_recorded_with_help_text() {
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            let stats = PhaseStats::default();
+            stats.record_cost("prune", "history");
+            stats.record_unique_keys("prune");
+            record_write_state(Cost::default());
+        });
+
+        let mut described = BTreeSet::new();
+        for (key, _, help, _) in snapshotter.snapshot().into_vec() {
+            let name = key.key().name().to_string();
+            assert!(help.is_some_and(|help| !help.is_empty()), "{name} has no help text");
+            described.insert(name);
+        }
+        assert_eq!(
+            described.into_iter().collect::<Vec<_>>(),
+            [
+                "optimism_trie.storage.history_unique_keys",
+                "optimism_trie.storage.phase_duration_seconds",
+                "optimism_trie.storage.phase_major_faults",
+                "optimism_trie.storage.write_state_duration_seconds",
+                "optimism_trie.storage.write_state_major_faults",
+            ]
+        );
+    }
 }
