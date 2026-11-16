@@ -82,7 +82,7 @@ acceptance-test:
     #
     # Collapse to a single concurrency axis: each top-level test gets its own
     # `go test -parallel=1`, and xargs -P directly caps concurrent test devstacks
-    # across the runner. 8 is what CI runs.
+    # across the runner. CI sets ACCEPTANCE_TEST_JOBS itself.
     DEFAULT_JOBS=8
     DEFAULT_TEST_PARALLEL=1
 
