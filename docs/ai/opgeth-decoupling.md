@@ -458,13 +458,10 @@ hooks to geth's infrastructure packages, and op-service foundations grew to depe
 sit under every service, so they break the whole tree at cutover, and two of them are *features*
 rather than symbols. (Found by the 2026-07 upstream-build spike; §19 keeps finding such uses.)
 
-**§15's seams are owned; what keeps most of op-service on op-geth is the `op-core/types`
-deposit edge** (see §20). `op-core/params`, `op-core/predeploys` and
-`op-service/{log,testlog,jsonrpc,client}` build against upstream go-ethereum today.
-`op-core/types` still fails where `FromGethReceipt` and the other receipt wrappers copy op-geth's
-deposit fields (`Receipt.DepositNonce`, `DepositReceiptVersion`). Those assignments are removed at
-the final cutover (#20266). Until then `op-core/types` and every package importing it, including
-`op-service/{eth,signer,metrics,rpc}`, build only against op-geth.
+**§15's seams are owned, and `op-core/types` builds against upstream go-ethereum** (see §20):
+its receipt wrappers read and write only their own deposit fields, never op-geth's
+`Receipt.DepositNonce` and `DepositReceiptVersion`. What remains of op-service's op-geth use is
+on the ratchet allowlist (§19).
 
 **Log context extensions** — fork adds `Logger.SetContext`, `WriteCtx`, `LogAttrs`, and the
 `Trace/…/ErrorContext` methods; `op-service/log`'s logfilter feature and `op-service/testlog`
