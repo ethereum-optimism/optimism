@@ -1,0 +1,95 @@
+---
+title: 결함 증명
+description: 쉬운 소개부터 컴포넌트, 실습 가이드, bond 경제학, 규범적 명세까지 OP Stack 결함 증명 시스템을 한곳에서 학습합니다.
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: 2026-07-22
+---
+
+결함 증명(fault proof)은 OP Stack 체인이 신뢰할 수 있는 제3자 없이
+출금을 보호하는 방법입니다. 누구나 Ethereum에 체인 상태를 제안할 수 있고,
+누구나 잘못되었다고 판단되는 제안에 이의를 제기할 수 있습니다. 분쟁은
+bisection 게임을 통해 단일 실행 명령어로 좁혀지며, 그 하나의 명령어는
+Ethereum의 onchain 가상 머신 내에서 증명됩니다.
+
+이 페이지는 전체 주제에 대한 권장 읽기 순서를 안내합니다. 먼저
+설명 문서로 개념 모델을 익히고, 컴포넌트 페이지를 차례로 읽으며
+각 요소가 어떻게 맞물리는지 확인한 다음, 체인을 운영하거나 challenger를
+실행하려는 경우 실습 가이드를 활용하십시오. bond 경제학과 규범적 명세는
+깊이 있는 내용이 필요한 독자를 위해 전체 흐름을 마무리합니다. 각 단계는
+모두 기존 페이지이며, 이 페이지가 그 내용을 대체하지는 않습니다.
+
+## 여기서 시작하십시오
+
+*   [결함 증명 설명](/ko/op-stack/fault-proofs/explainer): 개념 모델을
+    익히기 위해 가장 먼저 읽으십시오. 무허가(permissionless) 제안,
+    무허가 이의 제기, 그리고 이 둘을 뒷받침하는 Guardian 안전장치를 다룹니다.
+
+## 더 깊이 알아보기
+
+*   [FP 시스템 컴포넌트](/ko/op-stack/fault-proofs/fp-components): 시스템을
+    구성하는 세 가지 모듈(결함 증명 프로그램, 결함 증명 가상 머신,
+    분쟁 게임(dispute game) 프로토콜), 이들이 분리된 이유, 그리고 현재
+    `kona-client`가 기본 결함 증명 프로그램인 이유를 설명합니다.
+*   [결함 증명 VM: Cannon](/ko/op-stack/fault-proofs/cannon): onchain
+    `MIPS64.sol` 컨트랙트와 offchain `mipsevm` Go 구현으로 나뉘는 기본
+    결함 증명 가상 머신을 설명합니다.
+*   [결함 증명 VM: MIPS64.sol](/ko/op-stack/fault-proofs/mips): 멀티스레드
+    64비트 MIPS 명령어 세트의 EVM 구현인 onchain 부분을 명령어 수준에서
+    설명합니다.
+*   [OP-Challenger 설명](/ko/op-stack/fault-proofs/challenger): 정직한
+    행위자가 결함을 감지하는 방식과, move 단위로 유효한 제안을 방어하고
+    유효하지 않은 claim에 대응하는 방식을 설명합니다.
+
+## 직접 해 보기
+
+*   [결함 증명 challenger 실행하기](/ko/use-cases/run-a-fault-proof-challenger):
+    bond 예산 수립과 prestate 선택부터 인프라, 구성, 모니터링까지
+    체인을 방어하는 challenger를 운영하기 위한 전체 과정을 안내합니다.
+*   [체인에 challenger를 구성하는 방법](/ko/chain-operators/guides/configuration/op-challenger-config-guide):
+    위 과정의 기반이 되는 플래그별 구성 안내입니다.
+*   [Challenger 구성 레퍼런스](/ko/chain-operators/reference/challenger-configuration):
+    구성하는 동안 참고할 수 있는 `op-challenger` 플래그, 환경 변수,
+    기본값의 전체 목록입니다.
+*   [absolute prestate 및 preimage 파일 생성하기](/ko/chain-operators/tutorials/absolute-prestate):
+    체인의 모든 분쟁의 기준이 되는 `kona-client` absolute prestate를
+    빌드하고 검증합니다.
+*   [무허가 결함 증명으로 마이그레이션하기](/ko/chain-operators/tutorials/migrating-permissionless):
+    네 단계에 걸쳐 체인을 허가형(permissioned) 분쟁 게임에서 무허가
+    결함 증명으로 전환합니다.
+*   [체인 모니터링 옵션](/ko/chain-operators/tools/chain-monitoring#dispute-mon):
+    지난 28일 동안의 모든 게임 상태를 추적하는 보안 모니터링 서비스인
+    `op-dispute-mon`을 실행합니다.
+
+## 경제학과 인센티브
+
+*   [결함 증명 설명 FAQ](/ko/op-stack/fault-proofs/explainer#faqs):
+    체인 운영자가 제안을 실행하는 데 드는 비용과, 유효하지 않은 claim을
+    억제하기 위해 bond 크기가 정해지는 방식을 설명합니다.
+*   [OP-Challenger 설명 FAQ](/ko/op-stack/fault-proofs/challenger#faqs):
+    bond의 역할, 최대 깊이까지 진행되는 게임에 필요할 수 있는 ETH의 양,
+    그리고 승리 여부를 좌우하는 인프라 관련 질문(blob 보존 등)을 다룹니다.
+
+## 규범적 명세
+
+결함 증명 동작의 최종적인 정의는 OP Stack 명세에 있습니다.
+
+*   [Fault proof](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs):
+    결함 증명 프로그램과 이 프로그램이 데이터를 읽어 오는 pre-image oracle입니다.
+*   [Fault dispute game](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs):
+    bisection, 시계(clock), 해결을 포함한 게임 자체입니다.
+*   [Honest challenger](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html?utm_source=op-docs&utm_medium=docs):
+    정직한 challenger가 구현해야 하는 동작이며, `op-challenger`가 이를
+    따릅니다.
+*   [Bond incentives](https://specs.optimism.io/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs):
+    위 FAQ 답변의 기반이 되는 규범적 bond 경제학입니다.
+*   [Multithreaded Cannon fault proof VM](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs):
+    Cannon이 구현하는 FPVM의 명세입니다.
+
+## 감사 및 보안
+
+*   [결함 증명 보안](/ko/op-stack/fault-proofs/fp-security): Guardian 역할,
+    게임 블랙리스트, 전역 일시 중지, `DelayedWETH`를 통한 지연된 bond 지급을
+    포함한 보안 모델과 안전장치를 설명합니다.
+*   [감사 보고서](/ko/op-stack/security/audit-reports): OP Stack 보안 검토의
+    상시 색인이며, monorepo의 전체 목록으로 연결됩니다.

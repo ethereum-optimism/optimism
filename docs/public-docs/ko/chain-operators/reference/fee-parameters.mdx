@@ -1,0 +1,108 @@
+---
+title: 수수료 파라미터
+description: OP Stack 체인의 수수료 관련 SystemConfig 파라미터에 대한 레퍼런스로, 각 파라미터가 제어하는 내용, setter와 getter, OP Mainnet 값을 설명합니다.
+diataxis: reference
+---
+
+이 페이지는 Jovian 하드포크 이후 체인 운영자가 `SystemConfig` 컨트랙트에서 설정할 수 있는 수수료 관련 파라미터를 정리합니다.
+수수료가 계산되고 부과되는 방식은 [OP Mainnet의 트랜잭션 수수료](https://docs.optimism.io/op-stack/transactions/fees#transaction-fees-on-op-mainnet)를 참조하세요.
+이러한 파라미터를 언제, 어떻게 조정해야 하는지는 [수수료 조정 가이드](/ko/chain-operators/guides/management/transaction-fees-101)를 참조하세요.
+
+<Info>
+[SystemConfig owner](/ko/op-stack/protocol/privileged-roles)만 아래 나열된 setter 메서드를 호출할 수 있습니다.
+</Info>
+
+## 수수료 공식
+
+OP Stack 체인에서 트랜잭션의 **Total Fee**는 세 가지 주요 구성 요소로 이루어집니다.
+
+`Total Fee = L2 Fee + L1 Fee + Operator Fee`
+
+| 구성 요소 | 공식 |
+| --- | --- |
+| L2 수수료 | `gasUsed * (baseFee + priorityFee)` |
+| L1 수수료 | `estimatedSizeScaled * l1FeeScaled / 1e12` (아래 참조) |
+| Operator fee | `(gasUsed * operatorFeeScalar * 100) + operatorFeeConstant` |
+
+L1 수수료는 트랜잭션의 예상 압축(FastLZ) 크기를 기반으로 L2 데이터를 L1에 게시하는 비용을 부과합니다.
+
+```ts
+l1FeeScaled =
+  baseFeeScalar * 16 * l1BaseFee +
+  blobBaseFeeScalar * l1BlobBaseFee
+
+estimatedSizeScaled =
+  max(
+    minTransactionSize * 1e6,
+    intercept + fastlzCoef * fastlzSize
+  )
+
+l1Fee = estimatedSizeScaled * l1FeeScaled / 1e12
+```
+
+<Info>
+**Jovian 이전(Isthmus) operator fee 공식:** `operatorFee = (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant`
+</Info>
+
+## 파라미터
+
+모든 파라미터는 L1의 `SystemConfig` 컨트랙트에 있습니다([`ISystemConfig` 인터페이스](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L1/ISystemConfig.sol) 참조).
+아래의 각 getter는 파라미터와 이름이 같은 `view` 메서드입니다.
+
+| 파라미터 | 타입 | 제어 대상 | Setter | OP Mainnet 값 |
+| --- | --- | --- | --- | --- |
+| `eip1559Denominator` | `uint32` | EIP-1559 최대 변화 분모: 블록당 base fee 변화량 계산식의 분모에 나타납니다. 값이 낮을수록 base fee 반응이 빨라지고 변동성이 커집니다. | `setEIP1559Params(uint32,uint32)` | `250` |
+| `eip1559Elasticity` | `uint32` | Elasticity 승수: gas limit 대비 gas target을 설정합니다(`gas_target = gasLimit / elasticity`). elasticity가 클수록 target이 작아져 부하 시 base fee가 더 빨리 증가합니다. | `setEIP1559Params(uint32,uint32)` | `2` |
+| `gasLimit` | `uint64` | 블록당 최대 gas입니다. 한도가 낮을수록 블록당 공급이 줄어들어 base fee가 수요에 더 민감해집니다. | `setGasLimit(uint64)` | `40,000,000` |
+| `minBaseFee` | `uint64` | base fee의 최소 하한값(wei 단위, 0일 수 있음)입니다. [최소 base fee 설정](/ko/chain-operators/guides/features/setting-min-base-fee)을 참조하세요. | `setMinBaseFee(uint64)` | `0` |
+| `basefeeScalar` | `uint32` | L1 데이터 수수료에 대한 `l1BaseFee`(바이트당) 기여분을 스케일링합니다. | `setGasConfigEcotone(uint32,uint32)` | `5227` |
+| `blobbasefeeScalar` | `uint32` | L1 데이터 수수료에 대한 `l1BlobBaseFee`(blob당) 기여분을 스케일링합니다. | `setGasConfigEcotone(uint32,uint32)` | `1014213` |
+| `operatorFeeScalar` | `uint32` | gas당 운영자 마진입니다. [operator fee 설정](/ko/chain-operators/guides/features/setting-operator-fee)을 참조하세요. | `setOperatorFeeScalars(uint32,uint64)` | `0` |
+| `operatorFeeConstant` | `uint64` | 트랜잭션당 고정 operator fee(wei 단위)입니다. | `setOperatorFeeScalars(uint32,uint64)` | `0` |
+| `daFootprintGasScalar` | `uint16` | DA가 많은 블록을 제한하기 위해 추정 DA 사용량을 gas 차원으로 스케일링합니다. [DA footprint 블록 제한의 작동 방식](/ko/chain-operators/reference/da-footprint)을 참조하세요. | `setDAFootprintGasScalar(uint16)` | `0` (`400`으로 처리됨) |
+
+<Warning>
+- 0이 아닌 operator fee는 체인 구성을 [비표준](/ko/op-stack/protocol/superchain-registry#what-is-a-standard-chain)으로 만듭니다.
+- `daFootprintGasScalar` 값 `0`은 기본값 `400`으로 처리됩니다. DA footprint 제한을 사실상 비활성화하려면 `1`로 설정하세요.
+</Warning>
+
+OP Mainnet 값은 [Etherscan의 OP Mainnet SystemConfig 컨트랙트](https://etherscan.io/address/0x229047fed2591dbec1eF1118d64F7aF3dB9EB290#readProxyContract)에서 확인할 수 있습니다.
+
+## Fee vault 수령처
+
+수수료는 전용 컨트랙트인 [fee vault](/ko/op-stack/transactions/fee-vaults)에 모입니다. 이러한 vault를 관리하고 출금하는 방법은 [fee vault 운영 가이드](/ko/chain-operators/guides/management/fee-vaults)를 참조하세요.
+
+| 수수료 구성 요소 | 수령 vault |
+| --- | --- |
+| `baseFee` | `BaseFeeVault` |
+| `priorityFee` | `SequencerFeeVault` |
+| `l1Fee` | `L1FeeVault` |
+| `operatorFee` | `OperatorFeeVault` |
+
+## 현재 값 읽기
+
+각 파라미터에는 `SystemConfig` 컨트랙트에 같은 이름의 getter가 있습니다.
+
+```bash
+export L1_RPC=<L1_RPC>
+export SYSTEM_CONFIG=<SYSTEM_CONFIG_ADDRESS>
+
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "eip1559Denominator()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "eip1559Elasticity()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "gasLimit()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "minBaseFee()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "basefeeScalar()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "blobbasefeeScalar()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "operatorFeeScalar()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "operatorFeeConstant()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "daFootprintGasScalar()"
+```
+
+## 참고 자료
+
+- [OP Mainnet의 트랜잭션 수수료](https://docs.optimism.io/op-stack/transactions/fees#transaction-fees-on-op-mainnet)
+- [Operator fee](https://docs.optimism.io/op-stack/transactions/fees#operator-fee)
+- [L1 데이터 수수료](https://docs.optimism.io/op-stack/transactions/fees#l1-data-fee)
+- [`ISystemConfig` 인터페이스](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L1/ISystemConfig.sol)
+- [DA footprint](https://docs.optimism.io/notices/archive/upgrade-17#block-header-changes)
+- [EIP-1559 파라미터](https://docs.optimism.io/op-stack/protocol/differences#eip-1559-parameters)

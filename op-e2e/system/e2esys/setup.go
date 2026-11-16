@@ -406,6 +406,10 @@ type System struct {
 	// clients caches lazily created L1/L2 ethclient.Client
 	// instances so they can be reused and closed
 	clients map[string]*ethclient.Client
+
+	// sourceClients caches lazily created sources.EthClient
+	// instances so they can be reused and closed
+	sourceClients map[string]*sources.EthClient
 }
 
 func (sys *System) DisputeGameFactoryAddr() common.Address {
@@ -537,6 +541,9 @@ func (sys *System) Close() {
 	for _, client := range sys.clients {
 		client.Close()
 	}
+	for _, client := range sys.sourceClients {
+		client.Close()
+	}
 	for _, client := range sys.rollupClients {
 		client.Close()
 	}
@@ -620,6 +627,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		EthInstances:  make(map[string]services.EthInstance),
 		RollupNodes:   make(map[string]services.RollupNode),
 		clients:       make(map[string]*ethclient.Client),
+		sourceClients: make(map[string]*sources.EthClient),
 		rollupClients: make(map[string]*sources.RollupClient),
 	}
 	// Automatically stop the system at the end of the test
@@ -1187,6 +1195,29 @@ func (sys *System) NodeClient(name string) *ethclient.Client {
 	nodeClient = ethclient.NewClient(rpcCl)
 	sys.clients[name] = nodeClient
 	return nodeClient
+}
+
+// NodeSourceClient returns a cached sources.EthClient for the named node. Unlike NodeClient, it
+// reads L2 blocks and receipts without decoding the OP Stack transaction types into go-ethereum
+// types, and its receipts carry the OP Stack fields.
+func (sys *System) NodeSourceClient(name string) *sources.EthClient {
+	sourceClient, ok := sys.sourceClients[name]
+	if ok {
+		return sourceClient
+	}
+	logger := testlog.Logger(sys.t, log.LevelInfo).New("sourceClient", name)
+	rpcClient := endpoint.DialRPC(endpoint.PreferAnyRPC, sys.NodeEndpoint(name), func(v string) *rpc.Client {
+		cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
+		require.NoError(sys.t, err, "failed to dial eth node instance %s", name)
+		return cl
+	})
+	sourceClient, err := sources.NewEthClient(client.NewBaseRPCClient(rpcClient,
+		// Increase timeouts because CI servers can be under a lot of load
+		client.WithCallTimeout(30*time.Second),
+		client.WithBatchCallTimeout(30*time.Second)), logger, nil, sources.DefaultEthClientConfig(10))
+	require.NoError(sys.t, err, "failed to create source client for %s", name)
+	sys.sourceClients[name] = sourceClient
+	return sourceClient
 }
 
 // EnvRPCPreference reads the type of RPC that should be used.

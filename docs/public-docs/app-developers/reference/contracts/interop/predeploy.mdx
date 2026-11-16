@@ -41,7 +41,7 @@ The `SuperchainETHBridge` is a predeploy contract that facilitates cross-chain E
 
 The `ETHLiquidity` contract is a predeploy that manages native ETH liquidity for cross-chain transfers within the OP Stack interop set. It works in conjunction with the `SuperchainETHBridge` to facilitate the movement of ETH between chains without requiring modifications to the EVM to generate new ETH.
 
-The contract is initialized with a very large balance (type(uint248).max wei) to ensure it can handle all legitimate minting operations. This design allows the `SuperchainETHBridge` to have a guaranteed source of ETH liquidity on each chain, which is essential for the cross-chain ETH transfer mechanism.
+The contract is initialized with a very large balance (type(uint128).max wei) to ensure it can handle all legitimate minting operations. This design allows the `SuperchainETHBridge` to have a guaranteed source of ETH liquidity on each chain, which is essential for the cross-chain ETH transfer mechanism.
 
 *   **Address:** `0x4200000000000000000000000000000000000025`
 *   **Specs:** [`ETHLiquidity`](https://specs.optimism.io/interop/eth-liquidity.html)

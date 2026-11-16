@@ -1,0 +1,66 @@
+---
+title: OP Mainnet에서 트랜잭션 gas 파라미터 설정하기
+description: OP Mainnet에서 트랜잭션의 gas 파라미터를 설정하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+OP Mainnet은 [EVM 동등성(EVM equivalence)](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306)을 갖도록 설계되었습니다. 즉, OP Mainnet node 실행에 사용되는 클라이언트 소프트웨어에 이르기까지 Ethereum과 최대한 호환됩니다.
+Ethereum과 마찬가지로 OP Mainnet에는 EIP-1559 방식의 수수료 메커니즘이 있으며, 이 메커니즘은 트랜잭션이 블록에 포함되기 위해 지불해야 하는 최소 수수료 역할을 하는 [기본 수수료(base fee)](https://ethereum.org/en/developers/docs/gas/#base-fee)를 동적으로 조정합니다.
+또한 OP Mainnet에서는 트랜잭션이 [우선순위 수수료(priority fee)](https://ethereum.org/en/developers/docs/gas/#priority-fee)(팁이라고도 함)를 지불하여 Sequencer가 트랜잭션을 더 빨리 포함하도록 유도할 수 있습니다.
+
+트랜잭션이 적시에 포함되도록 하려면 기본 수수료와 우선순위 수수료를 적절하게 설정하는 것이 중요합니다.
+이 가이드에서는 트랜잭션의 기본 수수료와 우선순위 수수료를 결정하는 몇 가지 모범 사례를 안내합니다.
+
+## 기본 수수료 선택하기
+
+기본 수수료는 트랜잭션이 블록에 포함되기 위해 지불해야 하는 최소 수수료입니다.
+gas당 최대 수수료를 현재 기본 수수료보다 낮게 지정한 트랜잭션은 블록체인에 포함될 수 없습니다.
+
+기본 수수료를 선택하는 가장 간단한 방법은 사용 가능한 최신 OP Mainnet 블록을 확인하는 것입니다.
+각 OP Mainnet 블록에는 현재 기본 수수료와 해당 블록 내에서 사용된 gas 양이 포함되어 있습니다.
+이 정보를 사용하여 트랜잭션에 적합한 최대 수수료를 예측할 수 있습니다.
+
+Ethereum과 마찬가지로 기본 수수료는 트랜잭션 내에 명시적으로 정의되지 않는다는 점에 유의하세요.
+대신 최대 기본 수수료는 각 트랜잭션의 `maxFeePerGas` 필드와 `maxPriorityFeePerGas` 필드의 차이로 결정됩니다.
+
+<Steps>
+  <Step title="최신 블록 가져오기">
+JSON-RPC API 또는 선호하는 Ethereum 라이브러리를 사용하여 OP Mainnet의 최신 블록을 가져옵니다.
+
+  </Step>
+
+  <Step title="기본 수수료와 사용된 gas 가져오기">
+블록에서 `baseFeePerGas` 및 `gasUsed` 필드를 가져옵니다.
+
+
+  </Step>
+
+  <Step title="다음 기본 수수료 예측하기">
+OP Mainnet은 이전 블록에서 사용된 gas 양을 기준으로 기본 수수료를 조정합니다.
+  이전 블록이 5m gas(30m gas 한도 중)보다 많이 사용했다면 기본 수수료는 최대 10% 증가합니다.
+  이전 블록이 5m gas보다 적게 사용했다면 기본 수수료는 최대 10% 감소합니다.
+  자세한 내용은 [OP Mainnet EIP-1559 파라미터](/ko/op-stack/protocol/differences#eip-1559-parameters) 섹션을 참조하세요.
+
+
+  </Step>
+
+  <Step title="gas당 기본 수수료 선택하기">
+현재 gas당 기본 수수료와 이전 블록에서 사용된 gas 양을 사용하여 다음 gas당 기본 수수료를 예측할 수 있습니다.
+  기본 수수료에 매우 민감하다면 이전 기본 수수료보다 10% 높거나 10% 낮은 gas당 기본 수수료를 선택할 수 있습니다.
+  다만 이 경우 트랜잭션이 블록에 빠르게 포함되지 않을 위험이 있습니다.
+  기본 수수료에 덜 민감하다면 이전 기본 수수료의 큰 배수(예: 2배)를 그대로 사용할 수도 있습니다.
+
+
+  </Step></Steps>
+
+## 우선순위 수수료 선택하기
+
+우선순위 수수료는 Sequencer가 트랜잭션을 더 빨리 포함하도록 유도하기 위해 지불할 수 있는 선택적 팁입니다.
+우선순위 수수료는 기본 수수료에 추가로 지불됩니다.
+
+우선순위 수수료를 선택하는 가장 간단한 방법은 [`eth_maxPriorityFeePerGas`](https://docs.alchemy.com/reference/eth-maxpriorityfeepergas) JSON-RPC 메서드를 사용하여 적절한 우선순위 수수료 추정치를 가져오는 것입니다.
+많은 Ethereum 라이브러리가 이 JSON-RPC 메서드를 호출하는 함수를 제공합니다.
+[`eth_feeHistory`](https://docs.alchemy.com/reference/eth-feehistory) JSON-RPC 메서드를 사용하여 과거 우선순위 수수료 데이터를 가져올 수도 있습니다.
+그런 다음 이 데이터를 사용하여 트랜잭션에 적합한 우선순위 수수료를 예측할 수 있습니다.
+
+또는 Tenderly의 [`tenderly_gasPrice`](https://docs.tenderly.co/node/rpc-reference/optimism-mainnet/tenderly_gasPrice?mtm_campaign=ext-docs\&mtm_kwd=optimism)를 활용하여 트랜잭션 포함 가능성에 대한 3단계 수준의 실시간 gas 예측을 얻을 수 있습니다.

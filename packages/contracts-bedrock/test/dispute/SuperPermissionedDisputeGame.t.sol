@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 // Testing
-import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/setup/DisputeGameFactoryTestInit.sol";
 
 // Libraries
 import { GameStatus, GameTypes, Claim } from "src/dispute/lib/Types.sol";

@@ -63,6 +63,15 @@ branch that only added a new `op-core/types` package. The diff touched nothing i
 `op-deployer`; the failures were a data-dependent flake already fixed on `develop` by
 #21396. Rebasing made CI green with no change to the branch's own work.
 
+## Go module cache on Circle
+
+A successful "Restore Go module cache" step does not prove that Go reads the restored
+modules. Machine images default `GOPATH` to `~/.go_workspace`, so the shared
+`restore-go-mod-cache` helper sets `GOMODCACHE=$HOME/go/pkg/mod` through `BASH_ENV`. If a
+job downloads modules after a cache hit, compare `go env GOMODCACHE` with the cached path.
+The key includes `go.mod`, so a toolchain-directive bump saves a new snapshot that holds the
+downloaded toolchain. `.circleci/scripts/test-go-mod-cache.py` checks both properties.
+
 ## Missing `op-core/superchain/bundle` bundle (`superchain-configs.zip`)
 
 A CI-only compile error like:

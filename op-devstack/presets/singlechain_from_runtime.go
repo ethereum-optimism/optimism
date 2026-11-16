@@ -106,11 +106,11 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 				initialSyncCrossSafeELSyncStallTimeout,
 			)
 		} else {
-			crossSafeCheck = preset.L2CLB.MatchedFn(preset.L2CL, safety.CrossSafe, initialSyncCheckAttemptsCrossSafe)
+			crossSafeCheck = preset.L2CLB.InSyncFn(preset.L2CL, safety.CrossSafe, initialSyncCheckAttemptsCrossSafe)
 		}
 		runInitialSyncChecks(t, preset.L2ELB, isELSync,
 			crossSafeCheck,
-			preset.L2CLB.MatchedFn(preset.L2CL, safety.LocalUnsafe, initialSyncCheckAttemptsLocalUnsafe),
+			preset.L2CLB.InSyncFn(preset.L2CL, safety.LocalUnsafe, initialSyncCheckAttemptsLocalUnsafe),
 		)
 	}
 	return preset

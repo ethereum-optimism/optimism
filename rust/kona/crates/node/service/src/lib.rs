@@ -23,15 +23,15 @@ pub use actors::{
     DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
     DerivationStateTransitionError, DerivationStateUpdate, EngineActor, EngineActorRequest,
     EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
-    L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor,
+    IpVotes, L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor,
     L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient, NetworkActor,
     NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig, NetworkDriver,
     NetworkDriverError, NetworkEngineClient, NetworkHandler, NodeActor, OriginSelector,
     QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
     QueuedNetworkEngineClient, QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient,
-    ResetRequest, RpcActor, RpcActorError, SealRequest, SequencerActor, SequencerActorError,
-    SequencerConfig, SequencerEngineClient, SignedPayload, SignerActor, SignerActorError,
-    SystemClock, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
+    ResetRequest, RpcActor, RpcActorError, RunningDiscovery, SealRequest, SequencerActor,
+    SequencerActorError, SequencerConfig, SequencerEngineClient, SignedPayload, SignerActor,
+    SignerActorError, SystemClock, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod metrics;

@@ -1,14 +1,15 @@
 package proofs
 
 import (
+	"slices"
 	"testing"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,14 +41,11 @@ import (
 func TestSpanBatchOverlapContent(gt *testing.T) {
 	// dropUserTxs strips all non-deposit transactions from the block, yielding an alternative
 	// valid block at the same height: same parent and timestamp, different content.
-	dropUserTxs := func(block *types.Block) *types.Block {
-		var deposits []*types.Transaction
-		for _, tx := range block.Transactions() {
-			if tx.Type() == optypes.DepositTxType {
-				deposits = append(deposits, tx)
-			}
-		}
-		return block.WithBody(types.Body{Transactions: deposits})
+	dropUserTxs := func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
+		payload.Transactions = slices.DeleteFunc(payload.Transactions, func(tx eth.Data) bool {
+			return tx[0] != optypes.DepositTxType
+		})
+		return payload
 	}
 
 	runTest := func(gt *testing.T, testCfg *helpers.TestCfg[any]) {

@@ -40,13 +40,13 @@ func TestConnDropSync(gt *testing.T) {
 
 		node.DisconnectPeer(&sequencer)
 
-		// Ensure that the node is no longer connected to the sequencer
+		// Ensure that the node is no longer connected to the sequencer.
+		// The sequencer drops the connection only once the node's close reaches it, which can be
+		// after `DisconnectPeer` returns, so wait for it.
+		node.WaitForPeerDisconnected(&sequencer)
 		t.Logf("node %s is disconnected from sequencer %s", clName, sequencer.Escape().Name())
-		seqPeers := sequencer.Peers()
-		for _, peer := range seqPeers.Peers {
-			t.Require().NotEqual(peer.PeerID, node.PeerInfo().PeerID, "expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().Name())
-		}
 
+		// The node itself has dropped the connection by the time `DisconnectPeer` returns.
 		peers := node.Peers()
 		for _, peer := range peers.Peers {
 			t.Require().NotEqual(peer.PeerID, sequencer.PeerInfo().PeerID, "expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().Name())

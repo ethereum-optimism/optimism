@@ -63,11 +63,11 @@ func TestBlobBaseFeeIsCorrectAfterBPOFork(gt *testing.T) {
 	t.Log("Waiting for non trivial BPO1 block")
 	l2UnsafeHash, l1BlobBaseFee := waitForNonTrivialBPO1Block(t, sys)
 	t.Log("Non-trivial BPO1 block found")
-	l2Info, l2Txs, err := sys.L2EL.Escape().EthClient().InfoAndTxsByHash(t.Ctx(), l2UnsafeHash)
+	l2Info, l1InfoDeposit, err := sys.L2EL.Escape().L2EthClient().InfoAndFirstDepositByHash(t.Ctx(), l2UnsafeHash)
 	t.Require().NoError(err)
 
 	t.Log("Checking the L1 blob base fee in the system deposit tx")
-	blockInfo, err := derive.L1BlockInfoFromBytes(sys.L2Chain.Escape().RollupConfig(), l2Info.Time(), l2Txs[0].Data())
+	blockInfo, err := derive.L1BlockInfoFromBytes(sys.L2Chain.Escape().RollupConfig(), l2Info.Time(), l1InfoDeposit.Data)
 	t.Require().NoError(err)
 	l2BlobBaseFee := blockInfo.BlobBaseFee
 	t.Require().Equal(l1BlobBaseFee, l2BlobBaseFee)

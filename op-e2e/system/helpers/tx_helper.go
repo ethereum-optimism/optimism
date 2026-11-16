@@ -12,9 +12,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -27,7 +29,7 @@ import (
 // The L2 transaction options can be configured by modifying the DepositTxOps value supplied to applyL2Opts
 // Will verify that the transaction is included with the expected status on L1 and L2
 // Returns the receipt of the L2 transaction
-func SendDepositTx(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclient.Client, l2Client *ethclient.Client, l1Opts *bind.TransactOpts, applyL2Opts DepositTxOptsFn) *types.Receipt {
+func SendDepositTx(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclient.Client, l2Client *sources.EthClient, l1Opts *bind.TransactOpts, applyL2Opts DepositTxOptsFn) *optypes.Receipt {
 	l2Opts := defaultDepositTxOpts(l1Opts)
 	if applyL2Opts != nil {
 		applyL2Opts(l2Opts)
@@ -58,7 +60,7 @@ func SendDepositTx(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclient.Cl
 	idx := len(l1Receipt.Logs) - 1
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(l1Receipt.Logs[idx])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
-	l2Receipt, err := wait.ForReceipt(ctx, l2Client, reconstructedDep.Hash(), l2Opts.ExpectedStatus)
+	l2Receipt, err := wait.ForOPReceipt(ctx, l2Client, reconstructedDep.Hash(), l2Opts.ExpectedStatus)
 	require.NoError(t, err, "Waiting for deposit tx on L2")
 	t.Logf("SendDepositTx: arrived on L2")
 	return l2Receipt
@@ -90,7 +92,7 @@ func defaultDepositTxOpts(opts *bind.TransactOpts) *DepositTxOpts {
 // The supplied privKey is used to specify the account to send from and the transaction is sent to the supplied l2Client
 // Transaction options and expected status can be configured in the applyTxOpts function by modifying the supplied TxOpts
 // Will verify that the transaction is included with the expected status on l2Client and any clients added to TxOpts.VerifyClients
-func SendL2TxWithID(t *testing.T, chainID *big.Int, l2Client *ethclient.Client, privKey *ecdsa.PrivateKey, applyTxOpts TxOptsFn) *types.Receipt {
+func SendL2TxWithID(t *testing.T, chainID *big.Int, l2Client *sources.EthClient, privKey *ecdsa.PrivateKey, applyTxOpts TxOptsFn) *optypes.Receipt {
 	opts := defaultTxOpts()
 	applyTxOpts(opts)
 	tx := types.MustSignNewTx(privKey, types.LatestSignerForChainID(chainID), &types.DynamicFeeTx{
@@ -108,24 +110,24 @@ func SendL2TxWithID(t *testing.T, chainID *big.Int, l2Client *ethclient.Client, 
 	err := l2Client.SendTransaction(ctx, tx)
 	require.NoError(t, err, "Sending L2 tx")
 
-	receipt, err := wait.ForReceiptOK(ctx, l2Client, tx.Hash())
+	receipt, err := wait.ForOPReceiptOK(ctx, l2Client, tx.Hash())
 	require.NoError(t, err, "Waiting for L2 tx")
 	require.Equal(t, opts.ExpectedStatus, receipt.Status, "TX should have expected status")
 
 	for i, client := range opts.VerifyClients {
 		t.Logf("Waiting for tx %v on verification client %d", tx.Hash(), i)
-		receiptVerif, err := wait.ForReceiptOK(ctx, client, tx.Hash())
+		receiptVerif, err := wait.ForOPReceiptOK(ctx, client, tx.Hash())
 		require.NoErrorf(t, err, "Waiting for L2 tx on verification client %d", i)
 		require.Equalf(t, receipt, receiptVerif, "Receipts should be the same on sequencer and verification client %d", i)
 	}
 	return receipt
 }
 
-func SendL2Tx(t *testing.T, cfg e2esys.SystemConfig, l2Client *ethclient.Client, privKey *ecdsa.PrivateKey, applyTxOpts TxOptsFn) *types.Receipt {
+func SendL2Tx(t *testing.T, cfg e2esys.SystemConfig, l2Client *sources.EthClient, privKey *ecdsa.PrivateKey, applyTxOpts TxOptsFn) *optypes.Receipt {
 	return SendL2TxWithID(t, cfg.L2ChainIDBig(), l2Client, privKey, applyTxOpts)
 }
 
-func SendL2SetCodeTx(cfg e2esys.SystemConfig, l2Client *ethclient.Client, privKey *ecdsa.PrivateKey, applyTxOpts TxOptsFn) (*types.Receipt, error) {
+func SendL2SetCodeTx(cfg e2esys.SystemConfig, l2Client *sources.EthClient, privKey *ecdsa.PrivateKey, applyTxOpts TxOptsFn) (*optypes.Receipt, error) {
 	opts := defaultTxOpts()
 	applyTxOpts(opts)
 	chainID := uint256.MustFromBig(cfg.L2ChainIDBig())
@@ -159,7 +161,7 @@ func SendL2SetCodeTx(cfg e2esys.SystemConfig, l2Client *ethclient.Client, privKe
 		return nil, err
 	}
 
-	receipt, err := wait.ForReceiptOK(ctx, l2Client, tx.Hash())
+	receipt, err := wait.ForOPReceiptOK(ctx, l2Client, tx.Hash())
 	if err != nil {
 		return nil, err
 	}
@@ -177,12 +179,12 @@ type TxOpts struct {
 	GasFeeCap      *big.Int
 	Data           []byte
 	ExpectedStatus uint64
-	VerifyClients  []*ethclient.Client
+	VerifyClients  []*sources.EthClient
 }
 
 // VerifyOnClients adds additional l2 clients that should sync the block the tx is included in
 // Checks that the receipt received from these clients is equal to the receipt received from the sequencer
-func (o *TxOpts) VerifyOnClients(clients ...*ethclient.Client) {
+func (o *TxOpts) VerifyOnClients(clients ...*sources.EthClient) {
 	o.VerifyClients = append(o.VerifyClients, clients...)
 }
 

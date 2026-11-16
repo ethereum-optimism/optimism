@@ -42,7 +42,7 @@ func setupBatcher(t helpers.Testing, log log.Logger, sd *e2eutils.SetupData, dp 
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: daType,
-	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient(), engine.EngineClient(t, sd.RollupCfg))
+	}, sequencer.RollupClient(), miner.EthClient(), engine.EngineClient(t, sd.RollupCfg))
 }
 
 func TestEIP4844DataAvailability(gt *testing.T) {

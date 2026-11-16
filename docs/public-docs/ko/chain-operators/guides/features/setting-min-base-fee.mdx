@@ -1,0 +1,71 @@
+---
+title: 최소 Base Fee 설정하기
+description: OP-Stack 체인에서 최소 base fee를 설정하는 방법을 알아봅니다
+diataxis: how-to
+---
+
+## 개요
+
+| 파라미터 | 유형 | 기본값 | 권장값 | 표준 체인의 최대 허용값 | 단위 |
+| ---------- | ---- | -------- | ------------ | ------------ | ------ |
+| <code>minBaseFee</code> | 숫자 | 0 (비활성화) | 100,000 | 10,000,000,000 | wei |
+
+<strong>최소 Base Fee</strong>(`minBaseFee`) 구성은 <strong>[Jovian 하드포크](https://docs.optimism.io/notices/upgrade-17)</strong>에서 도입되었습니다. 
+이 기능을 사용하면 체인 운영자가 최소 L2 base fee를 지정할 수 있으며, 이를 통해 base fee가 너무 낮아질 때 발생할 수 있는 지나치게 긴 우선순위 수수료(priority fee) 경매를 방지하는 데 도움이 됩니다.
+
+[batcher-sequencer 스로틀링이 활성화된 상태](https://docs.optimism.io/chain-operators/guides/configuration/batcher#batcher-sequencer-throttling)가 충분히 오래 지속되고 minBaseFee가 활성화되지 않은(또는 0인) 경우, base fee가 1 wei까지 떨어질 수 있습니다. 안정적인 base fee로 회복되기까지 오랜 시간이 걸릴 수 있습니다.
+
+
+아래 단계는 <code>SystemConfig</code> 컨트랙트를 사용하여 온체인에서 `minBaseFee` 파라미터를 업데이트하는 방법을 설명합니다.
+
+<Warning>
+  `minBaseFee`를 너무 높게 설정하면 사용자의 트랜잭션이 포함되기 어려워질 수 있습니다.
+</Warning>
+
+
+## 최소 Base Fee 업데이트 방법
+
+<Steps>
+  <Step title="SystemConfig 컨트랙트 주소 찾기">
+    [SystemConfig](https://specs.optimism.io/protocol/system-config.html) 컨트랙트는 gas limit 및 수수료 설정과 같은 구성 가능한 프로토콜 파라미터를 저장합니다.  
+    proxy 주소는 [op-deployer가 생성한 state.json](https://docs.optimism.io/chain-operators/tutorials/create-l2-rollup/op-deployer-setup#deploy-l1-contracts)에서 찾을 수 있습니다.
+  </Step>
+
+  <Step title="setMinimumBaseFee() 메서드 호출">
+   <Info>
+    `SystemConfig` 컨트랙트의 owner는 [System Config Owner 주소](/ko/op-stack/protocol/privileged-roles)이므로, 이 트랜잭션은 해당 주소에서 전송해야 합니다.
+    </Info>
+    최소 base fee를 업데이트하려면 `SystemConfig` 컨트랙트에서 다음 메서드를 호출하십시오.
+
+    `setMinBaseFee(uint64 minBaseFee) external onlyOwner;`
+   
+    예시([cast](https://getfoundry.sh/cast/reference/cast/) 사용):
+
+    ```bash title="cast"
+    cast send <SYSTEM_CONFIG_PROXY_ADDRESS> "setMinBaseFee(uint64)" 100000 
+    ```
+  </Step>
+
+  <Step title="새 값 확인">
+    트랜잭션이 확정되면 `SystemConfig` 컨트랙트에서 다음 getter 메서드를 호출하여 현재 값을 확인하십시오.
+    
+    `function minBaseFee() external view returns (uint64);`
+
+    예시([cast](https://getfoundry.sh/cast/reference/cast/) 사용):
+
+    ```bash title="cast"
+    cast call <SYSTEM_CONFIG_PROXY_ADDRESS> "minBaseFee()"
+    ```
+  </Step>
+</Steps>
+
+---
+
+## 참고 자료
+
+* [최소 Base Fee 구성 명세](https://specs.optimism.io/protocol/jovian/system-config.html#minimum-base-fee-configuration)
+* [Jovian 업그레이드 명세](https://specs.optimism.io/protocol/jovian/overview.html)
+* [SystemConfig 컨트랙트 명세](https://specs.optimism.io/protocol/system-config.html)
+* [설계 문서](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/minimum-base-fee.md)
+
+

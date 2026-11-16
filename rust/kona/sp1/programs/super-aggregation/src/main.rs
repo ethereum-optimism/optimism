@@ -11,6 +11,8 @@ use kona_sp1_client_utils::super_root::{
 use sha2::{Digest, Sha256};
 
 /// Entrypoint to the super-aggregation program.
+///
+/// Installs no guest hash seed: this program creates no hash map (see `programs/foldhash-seeded`).
 pub fn main() {
     println!("{}", kona_sp1_build_info::BUILD_MARKER);
 

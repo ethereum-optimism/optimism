@@ -1,0 +1,68 @@
+---
+title: op-reth
+description: reth 기반의 OP Stack 실행 클라이언트인 op-reth의 정식 허브입니다. op-reth가 하는 일, 운영 주체, 그리고 가이드, 레퍼런스, 릴리스, 소스, 사양의 위치를 안내합니다.
+diataxis: explanation
+---
+
+op-reth는 Rust로 작성되고 [reth](https://github.com/paradigmxyz/reth)를 기반으로 구축된 OP Stack의
+실행 계층 클라이언트입니다. rollup node가 파생한 L2 블록을 실행하고 그 결과 체인 상태를 유지합니다.
+
+## 개요
+
+op-reth는 OP Stack 체인에 EVM 실행 환경을 제공합니다. rollup node([op-node](/ko/op-stack/components/op-node)
+또는 [kona-node](/ko/op-stack/components/kona-node))가 L1 데이터로부터 정식 체인을 파생하고 Engine API를
+통해 op-reth를 구동하면, op-reth는 페이로드를 실행하고, 체인 상태를 유지하며, JSON-RPC를 제공합니다.
+op-reth는 입금(디파짓) 트랜잭션 유형과 L2 수수료 처리 등 OP Stack 프로토콜 변경 사항으로 업스트림
+reth를 확장하며, [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry)의 체인
+구성을 바이너리에 내장하므로 레지스트리에 등록된 체인은 `--chain` 플래그로 이름만 지정하면 동작합니다.
+
+op-reth가 존재하는 이유는 머지(merge) 이후의 Ethereum처럼 모든 OP Stack node가 합의 절반과 실행
+절반으로 나뉘며, 실행 클라이언트가 EVM을 실행하는 절반이기 때문입니다. op-reth는 주로 지원되는 실행
+클라이언트이자 Optimism이 유지 관리하는 구현입니다. 하드포크 지원을 포함한 새로운 OP Stack 기능
+개발은 op-reth에서 이루어집니다. 선택 근거는
+[node 스택 선택](/ko/use-cases/choose-your-node-stack)을 참조하십시오.
+
+**운영 주체:** 모든 노드 운영자가 rollup node와 일대일로 짝지어 운영합니다. 체인 운영자는 sequencer의
+실행 절반으로 op-reth를 운영하며, 여기서 op-reth는 sequencing rollup node가 요청하는 새 블록을
+생성합니다.
+
+## 시작하기
+
+*   [Docker로 node 실행](/ko/node-operators/tutorials/node-from-docker):
+    공식 Docker 이미지로 op-reth와 op-node를 실행합니다. 소스에서 빌드하여 실행하려면
+    [소스에서 OP Stack node 빌드 및 실행](/ko/node-operators/tutorials/run-node-from-source)을
+    참조하십시오.
+
+## 사용 방법 가이드
+
+*   [실행 클라이언트 구성](/ko/node-operators/guides/configuration/execution-clients):
+    op-reth를 설치하고, 합의 클라이언트에 연결하며, OP Stack 전용 rollup 플래그를 설정합니다.
+*   [OP Mainnet 동기화](/ko/node-operators/op-reth/run/faq/sync-op-mainnet): Bedrock 상태를 가져오고
+    OP Mainnet을 처음부터 동기화합니다.
+*   [아카이브 node 구축](/ko/node-operators/guides/management/archive-node):
+    아카이브 node와 풀 node의 차이, 그리고 op-reth를 안전하게 pruning하는 방법을 다룹니다.
+*   [과거 증명(historical proofs)과 함께 op-reth 실행](/ko/node-operators/tutorials/reth-historical-proofs):
+    결함 증명 인프라에 필요한 과거 증명 저장소를 프로비저닝합니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   [op-reth 구성 옵션](/ko/node-operators/reference/op-reth-config):
+    op-reth 소스 트리와 함께 버전 관리되는, 가져온 op-reth CLI 레퍼런스로 연결합니다.
+*   [op-reth CLI 이해하기](/ko/node-operators/op-reth/cli/overview): 명령, 체인 선택, 구성 모델이
+    어떻게 맞물리는지 설명합니다.
+*   [op-reth JSON-RPC 레퍼런스](/ko/node-operators/reference/op-reth-json-rpc):
+    op-reth가 제공하는 RPC 네임스페이스를 다룹니다.
+
+## 릴리스
+
+*   [op-reth 릴리스 이력](/ko/releases/op-reth)
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `rust/op-reth/`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth).
+*   [Reth book, OP Stack 챕터](https://reth.rs/run/opstack): reth 릴리스와 함께 유지 관리되는 업스트림
+    reth 프로젝트의 운영 문서입니다.
+*   [L2 실행 엔진 사양](https://specs.optimism.io/protocol/exec-engine.html):
+    실행 엔진에 대한 OP Stack 변경 사항의 규범적 정의입니다.
+*   [입금 사양](https://specs.optimism.io/protocol/deposits.html):
+    op-reth가 구현하는 입금 트랜잭션 유형의 규범적 정의입니다.

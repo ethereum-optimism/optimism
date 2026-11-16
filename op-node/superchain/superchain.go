@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -56,6 +57,14 @@ func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig regist
 		Overhead:    eth.Bytes32(sysCfg.Overhead),
 		Scalar:      eth.Bytes32(sysCfg.Scalar),
 		GasLimit:    sysCfg.GasLimit,
+		OperatorFeeParams: eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{
+			Scalar:   ptr.Deref(sysCfg.OperatorFeeScalar),
+			Constant: ptr.Deref(sysCfg.OperatorFeeConstant),
+		}),
+		MinBaseFee: ptr.Deref(sysCfg.MinBaseFee),
+		// Zero means the protocol default. It is substituted only in
+		// SetDAFootprintGasScalarOrDefault when the L1 info is built, matching kona.
+		DAFootprintGasScalar: ptr.Deref(sysCfg.DAFootprintGasScalar),
 	}
 
 	addrs := chConfig.Addresses

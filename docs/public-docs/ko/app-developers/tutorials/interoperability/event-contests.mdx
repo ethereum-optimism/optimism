@@ -1,0 +1,193 @@
+---
+title: 크로스체인 이벤트 조합성 배포하기 (contests)
+description: Contests 예제가 CrossL2Inbox를 사용하여 모든 OP Stack 체인의 컨트랙트가 발생시킨 이벤트를 소비함으로써 크로스체인 이벤트와 조합되는 방식을 이해합니다.
+diataxis: explanation
+---
+
+<Info>OP Stack 상호운용성(interop)은 Lagoon 하드포크와 함께 활성화됩니다.</Info>
+contest 구현을 통해 크로스체인 조합성(composability)을 보여 드립니다. [TicTacToe](/ko/app-developers/tutorials/interoperability/event-reads)를 구동하는 것과 동일한 기본 메커니즘을 활용하여, 이 contest는 OP Stack 체인의 모든 컨트랙트가 발생시킨 이벤트와 무허가(permissionless) 방식으로 통합될 수 있습니다.
+
+<Info>
+  contest UI가 사용자에게 표시되는 방식은 [프런트엔드 문서](https://github.com/ethereum-optimism/supersim/tree/main/examples/contests)를 참조하십시오.
+</Info>
+
+## 작동 방식
+
+참여하는 모든 체인에 배포되는 [TicTacToe](/ko/app-developers/tutorials/interoperability/event-reads)와 달리, contest는 단일 L2에 배포되며 수평 확장된 앱이 아니라 애플리케이션 전용 OP Stack 체인처럼 동작합니다.
+
+<Steps>
+  <Step title="contest 구현하기">
+  [Contests.sol](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/contests/Contests.sol)에는 contest의 구현이 포함되어 있습니다. 여기서는 구현의 세부 사항을 다루지 않고, contest가 크로스체인 이벤트 읽기를 활용하여 OP Stack 체인의 다른 컨트랙트와 조합되는 방식에 초점을 맞춥니다.
+  </Step>
+
+  <Step title="크로스체인 이벤트 읽기">
+  검증된 크로스체인 이벤트를 가져올 수 있게 해 주는 시스템 predeploy는 [CrossL2Inbox](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#crossl2inbox)입니다.
+
+    ```solidity
+    contract ICrossL2Inbox {
+        function validateMessage(Identifier calldata _id, bytes32 _msgHash) external view;
+    }
+    ```
+  </Step>
+
+  <Step title="contest 생성하기">
+  두 가지 contest 옵션은 아래에 자세히 설명되어 있습니다. [BlockHash contest](#blockhash-contest)와 [TicTacToe contest](#tictactoe-contest)입니다.
+
+    #### BlockHash contest
+
+    블록의 blockhash와 높이를 발생시키는 이벤트가 있으면, blockhash의 홀짝 여부에 대한 contest를 만들 수 있습니다.
+
+    ```solidity
+    contract BlockHashEmitter {
+        event BlockHash(uint256 blockHeight, bytes32 blockHash);
+
+        function emitBlockHash(uint256 _blockHeight) external {
+            bytes32 hash = blockhash(_blockHeight);
+            require(hash != bytes32(0));
+
+            emit BlockHash(_blockHeight, hash);
+        }
+    }
+    ```
+
+    이 emitter를 contest에 통합하는 것은 매우 간단합니다. `BlockHashContestFactory`는 지정된 체인과 블록 높이에 대해 새 contest를 생성하는 간단한 팩토리입니다.
+
+    #### TicTacToe contest
+
+    TicTacToe용 contest는 두 플레이어 간에 수락된 게임에 대해 생성되며, 이는 발생한 `AcceptedGame` 이벤트로 포착됩니다. 이벤트를 디코딩할 때 게임은 생성된 체인인 `chainId`와 연결된 `gameId`로 고유하게 식별됩니다. 게임의 이러한 식별 속성은 게임의 resolver를 생성하는 데 사용됩니다.
+
+    ```solidity
+    contract TicTacToeContestFactory {
+        Contests  public contests;
+        TicTacToe public tictactoe;
+
+        function newContest(Identifier calldata _id, bytes calldata _data) public payable {
+            // Validate Log
+            require(_id.origin == address(tictactoe), "not an event from the TicTacToe contract");
+            CrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_id, keccak256(_data));
+
+            bytes32 selector = abi.decode(_data[:32], (bytes32));
+            require(selector == TicTacToe.AcceptedGame.selector, "incorrect event");
+
+            // Decode the event data
+            (uint256 chainId, uint256 gameId, address creator,) = abi.decode(_data[32:], (uint256, uint256, address, address));
+
+            IContestResolver resolver = new TicTacToeGameResolver(contests, tictactoe, chainId, gameId, creator);
+            contests.newContest{ value: msg.value }(resolver, msg.sender);
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="contest 결과 확정하기">
+  contest는 `IContestResolver` 인스턴스로 식별되며, 이 인스턴스가 결과를 결정합니다. resolver는 `UNDECIDED` 상태로 시작하며, contest와 함께 스스로 결과를 확정할 때
+    `YES` 또는 `NO`로 업데이트됩니다.
+
+    ```solidity
+    enum ContestOutcome {
+        UNDECIDED,
+        YES,
+        NO
+    }
+
+    interface IContestResolver {
+        function outcome() external returns (ContestOutcome);
+    }
+    ```
+
+    #### BlockHash contest 결과 확정하기
+
+    contest가 진행 중일 때 **누구나** 배포된 resolver에 올바른 `BlockHash` 이벤트를 제공하기만 하면 BlockHash contest의 결과를 확정할 수 있습니다.
+
+    ```solidity
+    contract BlockHashContestFactory {
+        Contests         public contests;
+        BlockHashEmitter public emitter; // Same emitter deployed on every chain
+
+        function newContest(uint256 _chainId, uint256 _blockNumber) public payable {
+            IContestResolver resolver = new BlockHashResolver(contests, emitter, _chainId, _blockNumber);
+            contests.newContest{ value: msg.value }(resolver, msg.sender);
+        }
+    }
+
+    contract BlockHashResolver is IContestResolver {
+        Contests         public contests;
+        ContestOutcome   public outcome;
+        BlockHashEmitter public emitter;
+
+        // The target chain & block height
+        uint256 public chainId;
+        uint256 public blockNumber;
+
+        function resolve(Identifier calldata _id, bytes calldata _data) external {
+            require(outcome == ContestOutcome.UNDECIDED);
+
+            // Validate Log
+            require(_id.origin == address(emitter), "not an event from the emitter");
+            require(_id.chainId == chainId, "must match target chain");
+            CrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_id, keccak256(_data));
+
+            bytes32 selector = abi.decode(_data[:32], (bytes32));
+            require(selector == BlockHashEmitter.BlockHash.selector, "incorrect event");
+
+            // Event should correspond to the right contest
+            uint256 dataBlockNumber = abi.decode(_data[32:64], (uint256));
+            require(dataBlockNumber == blockNumber, "must match target block height");
+
+            // Resolve the contest (yes if odd, no if even)
+            bytes32 blockHash = abi.decode(_data[64:], (bytes32));
+            outcome = uint256(blockHash) % 2 != 0 ? ContestOutcome.YES : ContestOutcome.NO;
+            contests.resolveContest(this);
+        }
+
+    }
+    ```
+
+    #### TicTacToe contest 결과 확정하기
+
+    contest가 진행 중일 때 **누구나** TicTacToe 컨트랙트에서 연결된 게임의 `GameWon` 또는 `GameDraw` 이벤트를 제공하여 TicTacToe contest의 결과를 확정할 수 있습니다.
+
+    ```solidity
+    contract TicTacToeGameResolver is IContestResolver {
+        Contests       public contests;
+        ContestOutcome public outcome;
+        TicTacToe      public tictactoe;
+
+        // @notice Game for this resolver
+        Game public game;
+
+        constructor(Contests _contest, TicTacToe _tictactoe, uint256 _chainId, uint256 _gameId, address _creator) {
+            contests = _contest;
+            tictactoe = _tictactoe;
+
+            game = Game({chainId: _chainId, gameId: _gameId, creator: _creator});
+            outcome = ContestOutcome.UNDECIDED;
+        }
+
+        // @notice resolve this game by providing the game ending event
+        function resolve(Identifier calldata _id, bytes calldata _data) external {
+            // Validate Log
+            require(_id.origin == address(tictactoe));
+            CrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_id, keccak256(_data));
+
+            // Ensure this is a finalizing event
+            bytes32 selector = abi.decode(_data[:32], (bytes32));
+            require(selector == TicTacToe.GameWon.selector || selector == TicTacToe.GameDraw.selector, "event not a game outcome");
+
+            // Event should correspond to the right game
+            (uint256 _chainId, uint256 gameId, address winner,,) = abi.decode(_data[32:], (uint256, uint256, address, uint8, uint8));
+            require(_chainId == game.chainId && gameId == game.gameId);
+
+            // Resolve based on if the creator has won (non-draw)
+            outcome = winner == game.creator && selector != TicTacToe.GameDraw.selector ? ContestOutcome.YES : ContestOutcome.NO;
+            contests.resolveContest(this);
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## 핵심 정리
+
+*   Superchain 상호운용성을 활용하면 Superchain의 컨트랙트는 단일 체인에서와 유사한 방식으로 서로 조합될 수 있습니다. 컨트랙트가 `CrossL2Inbox`를 통해 소비할 수 있는 이벤트의 종류에는 제한이 없습니다.
+*   이 예제에서 `BlockHashContestFactory`와 `TicTacToeContestFactory`는 `Contests` 앱 체인의 시작점에 불과합니다. Superchain에 더 많은 컨트랙트와 앱이 생성됨에 따라, 개발자는 `Contests` 컨트랙트를 전혀 변경하지 않고도 유사한 방식으로 이들과 조합할 수 있습니다.

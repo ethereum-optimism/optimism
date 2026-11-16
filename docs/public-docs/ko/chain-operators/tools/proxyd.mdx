@@ -1,0 +1,72 @@
+---
+title: proxyd 실행
+description: OP Stack RPC 요청 라우터이자 프록시인 proxyd를 빌드, 구성 및 실행하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+`proxyd`는 OP Stack 인프라에서 사용되는 중요한 RPC 요청 라우터이자 프록시입니다. 운영자는 이를 통해 여러 백엔드 서비스에 걸쳐 RPC 요청을 효율적으로 라우팅하고 관리할 수 있으며, 성능, 장애 허용성 및 보안을 보장할 수 있습니다.
+
+## 주요 기능
+*   RPC 메서드 화이트리스트
+*   백엔드 요청 라우팅
+*   실패한 백엔드 요청 자동 재시도
+*   합의 추적(latest, safe, finalized 블록)
+*   합의를 강제하기 위한 요청/응답 재작성
+*   백엔드 서비스 간 로드 밸런싱
+*   변경 불가능한 응답의 캐싱
+*   요청 지연 시간, 오류율 및 백엔드 상태에 대한 메트릭
+
+## 작동 방식
+
+`proxyd` 사용을 시작하려면 다음 단계를 따르십시오.
+
+<Steps>
+  <Step title="**바이너리 빌드**:">
+  *   다음 명령을 실행하여 `proxyd` 바이너리를 빌드합니다.
+        ```bash
+        make proxyd
+        ```
+    *   이 명령은 `proxyd` 바이너리를 빌드합니다. 추가 의존성은 필요하지 않습니다.
+  </Step>
+
+  <Step title="**`proxyd` 구성**:">
+  *   프록시 백엔드와 라우팅 규칙을 정의하는 구성 파일을 생성합니다.
+    *   설명이 포함된 전체 옵션 목록은 [example.config.toml](https://github.com/ethereum-optimism/infra/blob/main/proxyd/example.config.toml)을 참조하십시오.
+  </Step>
+
+  <Step title="**서비스 시작**:">
+  구성 파일이 준비되면 다음 명령을 사용하여 `proxyd` 서비스를 시작합니다.
+  
+    ```bash
+    proxyd <path-to-config.toml>
+    ```
+  </Step>
+</Steps>
+
+## 합의 인식
+
+버전 4.0.0 이상에는 체인 재구성(reorg)을 최소화하기 위한 합의 인식(consensus awareness) 기능이 포함되어 있습니다.
+
+구성에서 `consensus_aware`를 `true`로 설정하면 다음 기능이 활성화됩니다.
+
+*   합의 데이터(latest 블록, safe 블록, 피어 수 등)를 얻기 위해 백엔드 폴링
+*   가장 정상적인 백엔드를 기반으로 합의 그룹 결정
+*   클라이언트 요청 전반에 걸쳐 합의 상태 강제
+
+## 캐싱 및 메트릭
+
+### 캐시 가능한 메서드
+
+`eth_chainId` 및 `eth_getBlockByHash`와 같은 특정 변경 불가능한 메서드는 성능 최적화를 위해 Redis를 사용하여 캐시할 수 있습니다.
+
+### 메트릭
+
+요청 지연 시간, 오류율, 백엔드 상태 등을 모니터링하기 위한 다양한 메트릭을 사용할 수 있습니다. 이는 구성 파일의 `metrics.port` 및 `metrics.host`를 통해 구성할 수 있습니다.
+
+## 다음 단계
+
+*   [OP Stack 체인 아키텍처](/ko/chain-operators/guides/management/network-architecture)에 대해 읽어보십시오.
+*   체인에서 [snap sync](/ko/chain-operators/guides/features/snap-sync)를
+    지원하는 방법을 알아보십시오.
+*   체인의 트랜잭션 수수료 비용을 줄이기 위해 [blob 공간](/ko/chain-operators/guides/features/blobs)을
+    활용하는 방법을 알아보십시오.

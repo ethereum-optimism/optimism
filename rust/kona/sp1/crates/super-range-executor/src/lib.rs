@@ -83,13 +83,14 @@ pub const EXIT_INFRA: u8 = 2;
 pub const MAX_ARCHIVED_WITNESS_BYTES: u64 = i32::MAX as u64;
 
 /// Archive bytes per preimage beyond the key and value that
-/// [`PreimageStore::preimage_bytes`] counts. rkyv's hash map stores each entry as the archived
-/// key and an 8-byte vector header in a table of at most `len * 8 / 7 + 1` slots, with one
-/// control byte per slot: under 16 bytes per entry, so 64 leaves a 4× margin.
+/// [`PreimageStore::preimage_bytes`] counts. rkyv archives the preimage `BTreeMap` as a B-tree of
+/// 5-entry nodes: each entry holds the archived key and an 8-byte vector header, and each node a
+/// kind byte, a length or child pointers, and padding. Measured at 11 bytes per entry, so 64
+/// leaves a 5× margin.
 const WITNESS_ENTRY_OVERHEAD_BYTES: u64 = 64;
 
-/// Archive bytes independent of the witness size: the root, vector headers, the hash table's
-/// slot rounding and control-byte tail, and alignment padding.
+/// Archive bytes independent of the witness size: the root, vector headers, the B-tree's partly
+/// filled nodes, and alignment padding. Measured at under 256 bytes.
 const WITNESS_ARCHIVE_FIXED_BYTES: u64 = 4_096;
 
 /// A witness whose rkyv archive could exceed [`MAX_ARCHIVED_WITNESS_BYTES`].
@@ -2678,11 +2679,10 @@ mod tests {
     fn sized_witness(entries: u64, value_len: usize, blobs: usize) -> DefaultWitnessData {
         let mut store = PreimageStore::default();
         for index in 0..entries {
-            let mut key = [0; 32];
-            key[..8].copy_from_slice(&index.to_le_bytes());
-            let key = PreimageKey::new(key, kona_preimage::PreimageKeyType::GlobalGeneric);
+            let key = PreimageKey::new_local(index);
             store.save_preimage(key, vec![0xab; value_len]).unwrap();
         }
+        assert_eq!(store.preimage_count() as u64, entries, "sized_witness keys collided");
         let blob_data = BlobData {
             blobs: vec![kzg_rs::Blob([0; kzg_rs::BYTES_PER_BLOB]); blobs],
             commitments: vec![kzg_rs::Bytes48([0; 48]); blobs],
@@ -2693,9 +2693,11 @@ mod tests {
 
     #[test]
     fn witness_archive_bound_covers_the_real_archive() {
-        for entries in [0, 1, 16, 17, 1_024, 1_025, 65_536, 65_537] {
+        // rkyv's archived B-tree has 5-entry nodes, so it is full at 6^h - 1 entries and gains a
+        // level, with a one-entry leaf, at 6^h.
+        for entries in [0, 1, 5, 6, 35, 36, 1_295, 1_296, 46_655, 46_656, 65_537] {
             for value_len in [0, 1, 33, 4_096] {
-                if entries > 1_025 && value_len > 33 {
+                if entries > 1_296 && value_len > 33 {
                     continue;
                 }
                 for blobs in [0, 2] {

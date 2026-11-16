@@ -83,13 +83,6 @@ type Sequencer struct {
 	spec            *rollup.ChainSpec
 	sealingDuration time.Duration
 
-	maxSafeLag atomic.Uint64
-
-	// stalledByMaxSafeLag tracks whether the sequencer was stalled specifically
-	// by the maxSafeLag check, to avoid incorrectly resuming when nextActionArmed
-	// was set to false for unrelated reasons (e.g., pipeline reset, L1-derivation backoff).
-	stalledByMaxSafeLag bool
-
 	recoverMode atomic.Bool
 
 	// active identifies whether the sequencer is running.
@@ -129,9 +122,6 @@ type Sequencer struct {
 	building   BuildingState
 	lastSealed eth.L2BlockRef
 	unsafeHead eth.L2BlockRef
-	// safeHead is the safe head as of the last ingested forkchoice update,
-	// used to enforce maxSafeLag on the direct-call scheduling path.
-	safeHead eth.L2BlockRef
 
 	headKnownCh chan struct{}
 
@@ -391,7 +381,7 @@ func (s *Sequencer) RunAction() {
 		return
 	}
 	// The inbox drain above may have parked the schedule (reset, derivation
-	// build, engine backoff, maxSafeLag stall). The timer fire that triggered
+	// build, engine backoff). The timer fire that triggered
 	// this action predates that state: honor the post-drain decision.
 	if !s.nextActionArmed {
 		s.log.Debug("Ignoring sequencer action, no action scheduled after inbox replay")
@@ -520,9 +510,6 @@ func (s *Sequencer) onEngineTemporaryError(x rollup.EngineTemporaryErrorEvent) {
 	// yet, so re-arming here would resume building on the pre-reset head. The
 	// confirmation carries the cool-down, and a backoff must not pre-empt it.
 	s.nextActionArmed = s.active.Load() && !s.awaitingResetConfirm
-	// Re-check the lag bound: this is the only ingest-path re-arm, so it is the
-	// only way a maxSafeLag-stalled sequencer can be released early.
-	s.evalMaxSafeLag()
 	// We don't explicitly cancel block building jobs upon temporary errors: we may still finish the block (if any).
 	// Any unfinished block building work eventually times out, and will be cleaned up that way.
 	// Note that this only applies to temporary errors upon starting a block-building job.
@@ -546,7 +533,6 @@ func (s *Sequencer) onReset(x rollup.ResetEvent) {
 	// A block we sealed may be discarded by this reset, and the head is rewound
 	// again right after, so clear the marker rather than pointing it at the head.
 	s.lastSealed = eth.L2BlockRef{}
-	s.stalledByMaxSafeLag = false
 	// no action to perform until we get a reset-confirmation
 	s.nextActionArmed = false
 	s.awaitingResetConfirm = true
@@ -559,18 +545,12 @@ func (s *Sequencer) onEngineResetConfirmedEvent(engine.EngineResetConfirmedEvent
 	// assuming the execution-engine just churned through some work for the reset.
 	// This will also prevent any potential reset-loop from running too hot.
 	s.nextAction = s.timeNow().Add(time.Second * time.Duration(s.rollupCfg.BlockTime))
-	// The reset delivered fresh forkchoice state just before this confirmation;
-	// re-check the lag bound rather than unconditionally re-arming, so a still
-	// badly lagging sequencer does not build one extra block before the next
-	// forkchoice update re-stalls it. (onReset cleared stalledByMaxSafeLag.)
-	s.evalMaxSafeLag()
 	s.log.Info("Engine reset confirmed, sequencer may continue", "armed", s.nextActionArmed)
 }
 
 func (s *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	s.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "prev_unsafe", s.unsafeHead)
 
-	s.safeHead = x.SafeL2Head
 	if !s.active.Load() {
 		s.setUnsafeHead(x.UnsafeL2Head)
 		return
@@ -593,10 +573,6 @@ func (s *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 		s.scheduleNextAction(x.UnsafeL2Head)
 	} else {
 		s.setUnsafeHead(x.UnsafeL2Head)
-		// Re-evaluate the stall even when the head is unchanged: the resume
-		// trigger is the safe head catching up, which arrives on exactly such
-		// forkchoice updates. (scheduleNextAction evaluates it itself.)
-		s.evalMaxSafeLag()
 	}
 }
 
@@ -618,43 +594,6 @@ func (s *Sequencer) scheduleNextAction(newHead eth.L2BlockRef) {
 		s.nextAction = now
 	}
 	s.setUnsafeHead(newHead)
-	// The stall check must run after arming (nextActionArmed=true above), so it
-	// can override it. Evaluating here, not just on forkchoice updates, keeps
-	// the lag bound enforced on the direct-call path too: the sequencer must
-	// not outrun it while the stalling forkchoice echo is still queued.
-	s.evalMaxSafeLag()
-}
-
-// evalMaxSafeLag stalls block production while the safe head (as of the last
-// ingested forkchoice update) lags the unsafe head by more than the configured
-// bound, and resumes it when the safe head catches up.
-// Must run after any schedule arming so the stall can override it.
-func (s *Sequencer) evalMaxSafeLag() {
-	if maxSafeLag := s.maxSafeLag.Load(); maxSafeLag > 0 {
-		if s.safeHead.Number+maxSafeLag <= s.unsafeHead.Number {
-			if !s.stalledByMaxSafeLag {
-				s.log.Warn("sequencer has fallen behind safe head by more than lag, stalling",
-					"unsafe", s.unsafeHead, "safe", s.safeHead, "max_lag", maxSafeLag)
-			}
-			s.nextActionArmed = false
-			s.stalledByMaxSafeLag = true
-		} else if s.stalledByMaxSafeLag {
-			// Safe head has caught up after a maxSafeLag stall, resume sequencing.
-			// Only resume if we were stalled by maxSafeLag specifically, to avoid
-			// interfering with other nextActionArmed=false states (reset, L1-derivation backoff, etc).
-			s.log.Info("safe head caught up, resuming sequencing",
-				"unsafe", s.unsafeHead, "safe", s.safeHead, "max_lag", maxSafeLag)
-			s.stalledByMaxSafeLag = false
-			s.nextActionArmed = s.active.Load()
-			s.nextAction = s.timeNow()
-		}
-	} else if s.stalledByMaxSafeLag {
-		// maxSafeLag was disabled at runtime (set to 0) while stalled; resume immediately.
-		s.log.Info("maxSafeLag disabled, resuming sequencing")
-		s.stalledByMaxSafeLag = false
-		s.nextActionArmed = s.active.Load()
-		s.nextAction = s.timeNow()
-	}
 }
 
 func (s *Sequencer) setUnsafeHead(head eth.L2BlockRef) {
@@ -945,7 +884,6 @@ func (s *Sequencer) forceStart() error {
 	// arming now would sequence on a chain about to be rewound. The confirmation
 	// arms us on the new head.
 	s.nextActionArmed = !s.awaitingResetConfirm
-	s.stalledByMaxSafeLag = false
 	s.nextAction = s.timeNow()
 	s.active.Store(true)
 	s.metrics.SetSequencerState(true)
@@ -1005,26 +943,11 @@ func (s *Sequencer) Stop(ctx context.Context) (common.Hash, error) {
 	s.building = BuildingState{} // By wiping this state we cannot continue from it later.
 
 	s.nextActionArmed = false
-	s.stalledByMaxSafeLag = false
 	s.active.Store(false)
 	s.metrics.SetSequencerState(false)
 	s.wake() // wake the sequencer goroutine, so it parks its action timer
 	s.log.Info("Sequencer has been stopped")
 	return s.unsafeHead.Hash, nil
-}
-
-func (s *Sequencer) SetMaxSafeLag(ctx context.Context, v uint64) error {
-	if err := s.mu.LockCtx(ctx); err != nil {
-		return err
-	}
-	defer s.mu.Unlock()
-	s.maxSafeLag.Store(v)
-	// Apply the new bound immediately instead of waiting for the next forkchoice
-	// update: while stalled the sequencer goroutine is parked with no timer armed,
-	// so relaxing or disabling the bound would otherwise not resume it at all.
-	s.evalMaxSafeLag()
-	s.wake()
-	return nil
 }
 
 func (s *Sequencer) OverrideLeader(ctx context.Context) error {

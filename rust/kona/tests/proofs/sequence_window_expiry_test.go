@@ -161,7 +161,7 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.BatchMineAndSync(t)
 	l2Safe := env.Sequencer.L2Safe()
 	require.Equal(t, l2Safe.Number, l2SafeBefore.Number+1, "safe chain did not progress with user transactions")
-	_, userTxs := helpers.BlockTxs(t, env.Engine, l2Safe.Hash)
+	_, userTxs := env.Engine.BlockTxs(t, l2Safe.Hash)
 	require.NotEmpty(t, userTxs, "safe block did not include the user transaction")
 
 	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)

@@ -1,6 +1,11 @@
 package dsl
 
-import "github.com/ethereum-optimism/optimism/op-devstack/stack"
+import (
+	"context"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+)
 
 // L1CLNode wraps a stack.L1CLNode interface for DSL operations
 type L1CLNode struct {
@@ -27,6 +32,16 @@ func (cl *L1CLNode) Escape() stack.L1CLNode {
 
 func (cl *L1CLNode) BeaconHTTPAddr() string {
 	return cl.inner.BeaconHTTPAddr()
+}
+
+// BlockTime returns the L1 block time, read from the beacon's seconds per slot.
+func (cl *L1CLNode) BlockTime() time.Duration {
+	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
+	defer cancel()
+	spec, err := cl.inner.BeaconClient().ConfigSpec(ctx)
+	cl.require.NoError(err, "failed to read the beacon config spec")
+	cl.require.NotZero(spec.Data.SecondsPerSlot, "beacon reported no seconds per slot")
+	return time.Duration(spec.Data.SecondsPerSlot) * time.Second
 }
 
 func (cl *L1CLNode) Start() {

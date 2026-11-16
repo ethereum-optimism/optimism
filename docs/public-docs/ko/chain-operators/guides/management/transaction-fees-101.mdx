@@ -1,0 +1,258 @@
+---
+title: 트랜잭션 수수료 101
+description: OP Stack 체인의 수수료 파라미터를 확인하고 조정하는 방법을 일반적인 상황에 대한 예시 시나리오와 함께 설명합니다.
+diataxis: how-to
+---
+
+이 가이드는 체인의 `SystemConfig` 컨트랙트에서 수수료 관련 파라미터를 확인하고 조정하는 방법과 각 조정이 적절한 시점을 보여줍니다. Jovian 및 이후 하드포크에 적용됩니다.
+
+*   각 수수료 구성 요소가 계산되는 방식은 [OP Mainnet의 트랜잭션 수수료](https://docs.optimism.io/op-stack/transactions/fees#transaction-fees-on-op-mainnet)를 참조하세요.
+*   타입, setter, OP Mainnet 값을 포함한 전체 파라미터 목록은 [수수료 파라미터 레퍼런스](/ko/chain-operators/reference/fee-parameters)를 참조하세요.
+
+OP Stack 체인에서 트랜잭션의 **Total Fee**는 세 가지 주요 구성 요소로 이루어집니다.
+
+`Total Fee = L2 Fee + L1 Fee + Operator Fee`
+
+수수료는 서로 다른 수수료 구성 요소를 수집하는 전용 컨트랙트인 [fee vault](/ko/op-stack/transactions/fee-vaults)(예: `BaseFeeVault`, `SequencerFeeVault` 등)에 모입니다. 이러한 vault를 관리하고 출금하는 방법은 [fee vault 운영 가이드](/ko/chain-operators/guides/management/fee-vaults)를 참조하세요.
+
+## 시작하기 전에
+
+<Info>
+[SystemConfig owner](/ko/op-stack/protocol/privileged-roles)만 이러한 파라미터를 변경할 수 있습니다.
+</Info>
+
+아래의 모든 명령에서 사용하는 값을 export합니다.
+
+```bash
+export L1_RPC=<L1_RPC>
+export SYSTEM_CONFIG=<SYSTEM_CONFIG_ADDRESS>
+export PK=<SYSTEM_CONFIG_OWNER_PRIVATE_KEY>
+```
+
+## L2 수수료 조정
+
+L2 수수료는 EVM 실행 비용입니다: `gasUsed * (baseFee + priorityFee)`. `baseFee`는 EIP-1559 메커니즘으로 계산되며, OP Stack에서는 **소각되지 않고 BaseFeeVault에 수집됩니다**.
+
+SystemConfig에서 다음을 통해 L2 수수료 동작을 조정할 수 있습니다.
+
+- `eip1559Denominator`: EIP-1559 최대 변화 분모로, 블록당 base fee 변화량 계산식의 분모에 나타납니다. 값이 낮을수록 반응이 빨라져 base fee가 더 빠르게 조정되지만 변동성이 커집니다.
+- `eip1559Elasticity`: elasticity 승수로, gasLimit 대비 target을 설정합니다. `gas_target = gasLimit / elasticity`이므로, **gas target이 작을수록**(elasticity가 클수록) 더 낮은 블록 gas 사용량에서 base fee가 증가하기 시작합니다(즉, 부하 시 base fee가 더 빨리 증가합니다).
+- `gasLimit`: 블록당 최대 gas입니다. `gasLimit`이 낮을수록 블록당 사용 가능한 gas가 줄어들어(공급 감소) base fee가 수요에 더 민감해지고 더 쉽게 변동할 수 있습니다.
+- `minBaseFee`: base fee의 최소 하한값(wei 단위, 0일 수 있음)입니다. [최소 base fee 설정](/ko/chain-operators/guides/features/setting-min-base-fee)을 참조하세요.
+
+### 현재 값 확인
+
+```bash
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "eip1559Denominator()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "eip1559Elasticity()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "minBaseFee()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "gasLimit()"
+```
+
+### 값 설정
+
+```bash
+cast send --rpc-url $L1_RPC --private-key $PK \
+  $SYSTEM_CONFIG "setEIP1559Params(uint32,uint32)" <denominator> <elasticity>
+cast send --rpc-url $L1_RPC --private-key $PK \
+  $SYSTEM_CONFIG "setMinBaseFee(uint64)" <minBaseFeeWei>
+cast send --rpc-url $L1_RPC --private-key $PK \
+  $SYSTEM_CONFIG "setGasLimit(uint64)" <gasLimit>
+```
+
+## L1 수수료 조정
+
+L1 수수료는 L2 데이터를 L1에 게시하는 비용을 부과합니다. 트랜잭션의 예상 압축(FastLZ) 크기에 scalar 가중치가 적용된 L1 가격을 곱합니다. 공식은 [수수료 파라미터 레퍼런스](/ko/chain-operators/reference/fee-parameters#수수료-공식)를 참조하세요.
+
+조정하는 이유는 다음과 같습니다.
+
+- 예상 비용에 추가로 부과하는 마진 변경
+- 실제 비용을 반영하도록 FastLZ 추정치 조정
+- 실제 L1 가격을 반영하도록 바이트당 비용과 blob당 비용에 대한 부과를 차별화
+
+조정 수단은 다음과 같습니다.
+
+- `basefeeScalar`: L1 데이터 수수료에 대한 `l1BaseFee` 기여분(바이트당)을 스케일링합니다.
+- `blobBaseFeeScalar`: `l1BlobBaseFee` 기여분(blob당)을 스케일링합니다.
+
+### 현재 값 확인
+
+```bash
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "basefeeScalar()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "blobbasefeeScalar()"
+```
+
+### 값 설정
+
+```bash
+cast send --rpc-url $L1_RPC --private-key $PK \
+  $SYSTEM_CONFIG "setGasConfigEcotone(uint32,uint32)" <basefeeScalar> <blobBaseFeeScalar>
+```
+
+## Operator fee 조정
+
+operator fee는 트랜잭션마다 부과되는 재량적이고 비표준적인 수수료입니다: `(gasUsed * operatorFeeScalar * 100) + operatorFeeConstant`. 전용 가이드는 [operator fee 설정](/ko/chain-operators/guides/features/setting-operator-fee)을 참조하세요.
+
+- `operatorFeeScalar`: gas당 운영자 마진입니다.
+- `operatorFeeConstant`: 트랜잭션당 고정 operator fee(wei 단위)입니다.
+
+<Warning>
+0이 아닌 operator fee는 체인 구성을 [비표준](/ko/op-stack/protocol/superchain-registry#what-is-a-standard-chain)으로 만듭니다.
+</Warning>
+
+### 현재 값 확인
+
+```bash
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "operatorFeeScalar()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "operatorFeeConstant()"
+```
+
+### 값 설정
+
+```bash
+cast send --rpc-url $L1_RPC --private-key $PK \
+  $SYSTEM_CONFIG "setOperatorFeeScalars(uint32,uint64)" <operatorFeeScalar> <operatorFeeConstant>
+```
+
+## DA footprint limit 조정
+
+`daFootprintGasScalar`는 DA 스팸과 priority fee 경매를 방지하기 위한, 예상 DA 사용량에 대한 프로토콜 내 제한입니다. 개념은 [DA footprint 블록 제한의 작동 방식](/ko/chain-operators/reference/da-footprint)을, 전용 안내는 [DA footprint 설정 가이드](/ko/chain-operators/guides/features/setting-da-footprint)를 참조하세요.
+
+- 기본값은 **400**입니다
+- 값 **0**은 **400**으로 처리됩니다
+- **1**로 설정하면 사실상 DA footprint 제한이 비활성화됩니다
+
+### 현재 값 확인
+
+```bash
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "daFootprintGasScalar()"
+```
+
+### 값 설정
+
+```bash
+cast send --rpc-url $L1_RPC --private-key $PK \
+  $SYSTEM_CONFIG "setDAFootprintGasScalar(uint16)" <daFootprintGasScalar>
+```
+
+## 예시 시나리오
+
+### 일반 트래픽 / EIP-1559 target 미만
+
+**나타나는 현상**
+
+- 블록이 EIP-1559 target 미만으로 유지되면 `baseFee`는 `minBaseFee` 하한값을 향해 내려갑니다.
+- L1 데이터 사용량이 낮으면 일반적으로 L2 실행 수수료(`gasUsed * (baseFee + priorityFee)`)가 가장 큰 비용 구성 요소입니다.
+- 트랜잭션당 calldata가 작으면 L1 데이터 수수료는 낮고 안정적으로 유지됩니다.
+
+**조정할 항목**
+
+- 일반적으로 없습니다.
+- 수익 하한이 필요하면 `minBaseFee`를 설정하거나 높입니다.
+
+**트레이드오프**
+
+- **장점:** `minBaseFee`는 base fee가 장기간 낮게 유지되는 것을 방지하고 예측 가능한 최솟값을 제공합니다(UX 개선을 위해 0으로 둘 수도 있습니다).
+- **단점:** 너무 높게 설정하면 저가치 트랜잭션의 포함 비용이 증가하고 UX/접근성에 부정적인 영향을 줄 수 있습니다.
+
+---
+
+### 블록 혼잡 / 정체
+
+**나타나는 현상**
+
+- 블록이 target을 초과하면 `baseFee`가 상승합니다: `gas_target = gasLimit / eip1559Elasticity`
+- 정체 시 priority tip이 낮은 트랜잭션은 포함이 지연될 수 있습니다.
+
+**조정할 항목**
+
+- `eip1559Elasticity` 및 `eip1559Denominator`:
+    - 반응성을 높이려면: `eip1559Denominator`를 낮추거나 `eip1559Elasticity`를 높입니다(target이 작아짐 → baseFee가 더 빨리 증가).
+    - 변동성을 줄이려면: `eip1559Denominator`를 높이거나 `eip1559Elasticity`의 공격성을 줄입니다.
+
+**트레이드오프**
+
+- **장점:** base fee 반응이 빨라져 수요를 더 잘 반영하며, elasticity로 gas target을 직접 제어할 수 있습니다.
+- **단점:** 분모가 작거나 elasticity가 공격적이면 블록 간 변동 폭이 커지고 수수료 변동성이 증가합니다.
+
+---
+
+### Calldata가 많은 트랜잭션
+
+**나타나는 현상**
+
+- calldata가 많은 트랜잭션에서는 L1 데이터 수수료가 총비용에서 차지하는 비중이 커집니다(L1 수수료는 압축된 calldata 크기에 비례).
+- `basefeeScalar`를 높이면 바이트당 L1 요금이 증가하여 calldata가 많은 트랜잭션의 비용이 더 비싸집니다.
+
+**조정할 항목**
+
+- `basefeeScalar` 및 `blobBaseFeeScalar`:
+    - 데이터가 많은 트랜잭션에서 L1/DA 게시 비용을 더 많이 회수해야 한다면 값을 높입니다.
+    - calldata/blob이 많은 워크로드의 사용자 비용을 줄이려면 값을 낮춥니다.
+
+**트레이드오프**
+
+- **장점:** L1/DA 게시 비용을 비례적으로 회수할 수 있습니다.
+- **단점:** calldata/blob을 많이 사용하는 dapp과 사용자에게 불리합니다. 공격적인 값은 UX에 영향을 주고 활동을 감소시킬 수 있습니다.
+
+---
+
+### 예측 가능한 운영자 수익
+
+**나타나는 현상**
+
+- `operatorFeeScalar`를 도입하거나 높이면 gas당 운영자 요금이 증가하고 트랜잭션당 예측 가능한 수익이 늘어납니다.
+- `operatorFeeConstant`는 gas 사용량과 관계없이 트랜잭션당 고정 수수료를 추가합니다.
+
+**조정할 항목**
+
+- `operatorFeeScalar` 및 `operatorFeeConstant`:
+    - 정체 및 L1 수수료 변동과 무관하게 직접적이고 예측 가능한 운영자 수익을 원할 때 사용합니다.
+
+**트레이드오프**
+
+- **장점:** 트랜잭션당 직접적이고 예측 가능한 수익을 얻을 수 있습니다.
+- **단점:** 저가치 트랜잭션을 억제하고 트랜잭션 경제성을 변화시킬 수 있으므로 신중하게 사용해야 합니다. 0이 아닌 operator fee는 체인 구성을 비표준으로 만듭니다.
+
+---
+
+### DA가 많은 워크로드 / DA 스팸 저항
+
+**나타나는 현상**
+
+- DA footprint는 압축된 DA 사용량을 스케일링하여 계산함으로써 블록에 들어갈 수 있는 트랜잭션 데이터의 양을 제한할 수 있습니다.
+- `daFootprintGasScalar`를 높이면 DA 바이트 footprint당 부과되는 gas가 증가하여, 동일한 바이트 footprint에 대한 DA 용량이 줄어들고 DA를 많이 사용하는 패턴이 억제됩니다.
+
+**조정할 항목**
+
+- `daFootprintGasScalar`:
+    - 기본값은 **400**이며, `0`은 기본값으로 처리됩니다.
+    - **1**로 설정하면 DA footprint 제한 동작이 비활성화됩니다.
+
+**트레이드오프**
+
+- **장점:** DA 스팸을 억제하고 블록 회계에서 DA 비용을 명시적으로 만듭니다.
+- **단점:** 값을 높이면 DA 용량이 줄어들며, 너무 공격적으로 설정하면 batcher가 제한되거나 정당한 DA 중심 워크로드가 배제될 수 있습니다.
+
+---
+
+## 요약
+
+1. 현재 하드포크를 반드시 확인하세요. 이 문서는 Jovian 및 이후 하드포크에 적용됩니다.
+2. SystemConfig 컨트랙트의 현재 수수료 파라미터를 확인하세요(OP Mainnet의 예상 값은 [수수료 파라미터 레퍼런스](/ko/chain-operators/reference/fee-parameters) 참조).
+3. 작은 변경을 하고 vault 잔액, 포함 시간, 누락된 tx, DA 제한 등을 관찰하세요.
+4. 모든 변경 사항을 스테이징/testnet에서 충분히 테스트하세요.
+5. dapp/지갑 팀에 변경 사항을 알리세요(gas 추정이 달라집니다).
+
+---
+
+## 참고 자료
+
+- [수수료 파라미터 레퍼런스](/ko/chain-operators/reference/fee-parameters)
+- [OP Mainnet의 트랜잭션 수수료](https://docs.optimism.io/op-stack/transactions/fees#transaction-fees-on-op-mainnet)
+- [Operator fee](https://docs.optimism.io/op-stack/transactions/fees#operator-fee)
+- [L1 데이터 수수료](https://docs.optimism.io/op-stack/transactions/fees#l1-data-fee)
+- [SystemConfig 인터페이스](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L1/ISystemConfig.sol)
+- [DA footprint](https://docs.optimism.io/notices/archive/upgrade-17#block-header-changes)
+- [EIP-1559](https://docs.optimism.io/op-stack/protocol/differences#eip-1559-parameters)
+- [OP Mainnet 값](https://etherscan.io/address/0x229047fed2591dbec1eF1118d64F7aF3dB9EB290#readProxyContract)

@@ -31,6 +31,7 @@ op-alloy-rpc-types-engine.workspace = true
 
 # Misc
 backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
+base64.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 derive_more.workspace = true

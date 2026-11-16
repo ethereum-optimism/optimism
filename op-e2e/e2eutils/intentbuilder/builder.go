@@ -34,6 +34,10 @@ type L1Configurator interface {
 	WithL1ForkAtOffset(forks.Fork, *uint64) L1Configurator
 	WithL1BlobSchedule(schedule *params.BlobScheduleConfig) L1Configurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L1Configurator
+	// WithBlockTime sets the L1 block time in seconds. It is not part of the intent: it is
+	// read back with BlockTime by whatever runs the L1 chain.
+	WithBlockTime(seconds uint64) L1Configurator
+	BlockTime() uint64
 }
 
 type SuperchainConfigurator interface {
@@ -52,6 +56,7 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
+	WithAltDA(cfg genesis.AltDADeployConfig)
 	WithCustomGasToken(name string, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address)
 	ContractsConfigurator
 	L2VaultsConfigurator
@@ -171,6 +176,7 @@ func RoleToAddrProvider(t require.TestingT, dk devkeys.Keys, chainID eth.ChainID
 
 type intentBuilder struct {
 	l1StartBlockHash *common.Hash
+	l1BlockTime      uint64
 	intent           *state.Intent
 }
 
@@ -354,6 +360,15 @@ func (c *l1Configurator) WithPrefundedAccount(addr common.Address, amount uint25
 	c.initL1DevGenesisParams()
 	c.builder.intent.L1DevGenesisParams.Prefund[addr] = (*hexutil.U256)(&amount)
 	return c
+}
+
+func (c *l1Configurator) WithBlockTime(seconds uint64) L1Configurator {
+	c.builder.l1BlockTime = seconds
+	return c
+}
+
+func (c *l1Configurator) BlockTime() uint64 {
+	return c.builder.l1BlockTime
 }
 
 func (c *l1Configurator) WithL1ForkAtGenesis(fork forks.Fork) L1Configurator {
@@ -568,4 +583,8 @@ func (c *l2Configurator) WithAdditionalDisputeGames(games []state.AdditionalDisp
 
 func (c *l2Configurator) WithFinalizationPeriodSeconds(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].DeployOverrides["l2FinalizationPeriodSeconds"] = value
+}
+
+func (c *l2Configurator) WithAltDA(cfg genesis.AltDADeployConfig) {
+	c.builder.intent.Chains[c.chainIndex].DangerousAltDAConfig = cfg
 }

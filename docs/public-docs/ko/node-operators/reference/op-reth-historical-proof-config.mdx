@@ -1,0 +1,198 @@
+---
+title: op-reth historical proof 구성
+description: op-reth historical proof 저장소의 구성 옵션입니다.
+diataxis: reference
+---
+
+이 페이지는 [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth)의 **historical proof 저장소(historical proof store)** 구성 옵션을 설명합니다.
+
+이 기능을 활성화하면 op-reth는 과거 블록에 대한 `eth_getProof` 요청을 처리하는 데 사용되는 버전 관리형 trie 데이터를 위해 별도의 스토리지 데이터베이스를 유지합니다. 이는 실행 데이터베이스에 완전한 아카이브 방식의 동작을 요구하지 않고도 과거 상태에 접근(예: 결함 증명(fault proof) 워크로드)하는 데 매우 중요합니다.
+
+전체 설정 가이드는 [Historical Proofs와 함께 op-reth 실행하기](/ko/node-operators/tutorials/reth-historical-proofs) 튜토리얼을 참고하십시오.
+
+<Warning>
+op-reth v2.6.x 이하 버전에서는 proofs 저장소의 기본값이 지원 중단(deprecated)된 v1 형식입니다. `op-reth node`와 모든 `op-reth proofs` 하위 명령에 `--proofs-history.storage-version=v2`를 전달하십시오. 이후 릴리스는 v2 형식만 지원하며, `--proofs-history.storage-version=v2`는 아무 동작도 하지 않는 값(no-op)으로 허용하고 그 외의 값은 거부합니다. v2 형식을 사용하려면 op-reth v2.2.3 이상이 필요합니다.
+</Warning>
+
+<Info>
+이 포크는 표준 op-reth 구성 옵션을 모두 상속합니다. [op-reth 구성 레퍼런스](/ko/node-operators/reference/op-reth-config)를 참고하십시오.
+</Info>
+
+## Historical proof 저장소
+
+historical proof 저장소를 구성하기 위한 옵션입니다.
+
+### proofs-history
+
+true로 설정하면 historical proof 저장소를 활성화하고, 새 블록이 처리될 때마다 저장소를 최신 상태로 유지합니다.
+
+<Tabs>
+  <Tab title="구문">`--proofs-history`</Tab>
+</Tabs>
+
+### proofs-history.storage-path
+
+proofs history용 스토리지 DB의 경로입니다.
+
+<Tabs>
+  <Tab title="구문">`--proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH>`</Tab>
+</Tabs>
+
+### proofs-history.storage-version
+
+지원 중단되었습니다. v2가 유일한 스토리지 형식이므로 `v2`는 no-op으로 허용되며 그 외의 값은 거부됩니다. 이 플래그는 `v2`를 전달하는 기존 배포가 계속 작동하도록 유지되고 있습니다.
+
+<Tabs>
+  <Tab title="구문">`--proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION>`</Tab>
+  <Tab title="허용 값">`v2`</Tab>
+</Tabs>
+
+### proofs-history.window
+
+proofs history가 포괄하는 블록 범위(window)입니다. 값은 블록 수입니다.
+기본값은 2초 블록 시간을 기준으로 한 1개월 분량의 블록 수(`30 * 24 * 60 * 60 / 2 = 1,296,000`)입니다.
+
+<Tabs>
+  <Tab title="구문">`--proofs-history.window <PROOFS_HISTORY_WINDOW>`</Tab>
+  <Tab title="기본값">`1296000`</Tab>
+</Tabs>
+
+### proofs-history.verification-interval
+
+검증 간격입니다. 데이터 무결성을 위해 N 블록마다 전체 블록 실행을 수행합니다.
+
+- `0`: 비활성화(기본값). 항상 미리 계산된 데이터를 사용하는 빠른 경로를 사용합니다.
+- `1`: 항상 검증합니다. 항상 블록을 실행합니다.
+- `N`: N번째 블록마다 검증합니다(예: 100 = 100 블록마다).
+
+주기적인 검증은 좋은 성능을 유지하면서 데이터 손상을 발견하는 데 도움이 됩니다.
+
+<Tabs>
+  <Tab title="구문">`--proofs-history.verification-interval <PROOFS_HISTORY_VERIFICATION_INTERVAL>`</Tab>
+  <Tab title="기본값">`0`</Tab>
+</Tabs>
+
+
+## 수명 주기 및 관리 명령
+
+운영자는 일반적으로 다음 수명 주기를 따릅니다.
+
+1. `op-reth proofs init`를 한 번 실행하여 현재 tip에서 proofs DB를 초기화합니다.
+2. `--proofs-history`와 함께 `op-reth`를 시작합니다.
+3. 저장소가 초기화 지점부터 **앞쪽으로(forward)** proofs 데이터를 채우도록 합니다.
+4. 자동 pruning이 구성된 보존 범위(retention window)를 적용하도록 합니다.
+5. 수동 `prune` 또는 `unwind`는 복구/유지 관리 상황에서만 사용합니다.
+
+`op-reth proofs` 명령은 이러한 유지 관리 작업을 제공합니다.
+
+
+### init
+
+체인의 현재 상태로 proofs 스토리지를 초기화합니다.
+
+```bash
+op-reth proofs init --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH>
+```
+
+<Info>
+`proofs init`를 처음 실행하면 몇 분에서 몇 시간이 걸릴 수 있습니다. 이후 실행은 보통 몇 초 내에 완료됩니다.
+
+`proofs init`는 과거 proofs를 백필(backfill)하지 **않습니다**. 현재 체인 tip을 proofs 데이터베이스의 시작 지점으로 기록합니다. 초기화 후에는 `--proofs-history`와 함께 node를 실행하여 새 블록이 커밋될 때마다 저장소가 앞쪽으로 채워지도록 하십시오.
+
+전체 보존 범위(예: 기본 설정의 경우 30일)에 걸쳐 proofs를 제공하려면, node가 init 이후 그만큼의 forward 기록을 축적해야 합니다. 실제로 운영자는 동기화가 진행됨에 따라 필요한 과거 범위를 충족할 만큼 충분히 오래된 스냅샷에서 초기화해야 합니다.
+</Info>
+
+### prune
+
+오래된 proof 기록을 정리(prune)하여 공간을 확보합니다.
+
+```bash
+op-reth proofs prune --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> --proofs-history.window <PROOFS_HISTORY_WINDOW>
+```
+
+<Info>
+pruning은 node가 실행되는 동안 새 블록이 커밋될 때 engine 작업에 의해 자동으로 수행되므로, 별도의 간격 플래그가 필요하지 않습니다.
+
+수동 prune은 주로 복구 조치로 사용됩니다. 예를 들어 op-reth가 구성된 보존 범위와 디스크상의 데이터 간에 큰 불일치를 감지하여 시작을 거부하는 경우입니다. 자세한 내용은 [튜토리얼](/ko/node-operators/tutorials/reth-historical-proofs#manual-prune)을 참고하십시오.
+</Info>
+
+### unwind
+
+proofs 스토리지를 특정 블록으로 되돌립니다(unwind).
+
+```bash
+op-reth proofs unwind --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> --target <TARGET_BLOCK>
+```
+
+## RPC 엔드포인트
+
+### debug\_proofsSyncStatus
+
+proofs 저장소의 현재 동기화 상태를 반환합니다.
+
+```
+debug_proofsSyncStatus → { "earliest": <block>, "latest": <block> }
+```
+
+`earliest`와 `latest`는 현재 사용 가능한 historical proof 구간을 정의합니다.
+
+`latest`가 체인 tip을 따라가기 시작하면, `[earliest, latest]` 범위 내 블록에 대한 `eth_getProof` 호출은 버전 관리형 proofs 저장소에서 처리됩니다.
+
+## 운영자 참고 사항
+
+- historical proof 경로는 이제 독립형 확장 워크플로로 취급되지 않고, 전용 버전 관리형 proofs 저장소의 수명 주기(`init` -> forward 채우기 -> prune)를 중심으로 구성됩니다.
+- `proofs init`는 시작 지점만 설정하며, 과거 proofs 데이터를 재구성하지 않습니다.
+- 적용 범위는 운영상 `debug_proofsSyncStatus`(`earliest`/`latest`)로 측정합니다.
+- 긴 범위에 걸쳐 안정적으로 proof를 제공하려면 시작 스냅샷과 보존 설정을 함께 검증하십시오.
+
+### 스토리지 버전 플래그에서 업그레이드하기
+
+op-reth v2.6.x 이후 릴리스는 v2 스토리지 형식만 지원합니다. `--proofs-history.storage-version=v2`는 no-op으로 허용하고 그 외의 값은 거부합니다. 업그레이드 방법은 이전 릴리스를 어떻게 실행했는지에 따라 다릅니다.
+
+- **`--proofs-history.storage-version`을 설정한 적이 없거나 `v1`로 설정한 경우:** 기존 proofs 데이터는 제거된 v1 형식을 사용하므로 무시되며, `op-reth node`가 해당 데이터로는 시작을 거부합니다. node를 중지하고, `--proofs-history.storage-version=v1`을 설정했다면 제거한 뒤, proofs 데이터베이스 디렉터리를 삭제(또는 `--proofs-history.storage-path`를 새 경로로 지정)하고, `op-reth proofs init`를 실행한 다음 `--proofs-history`와 함께 다시 시작하십시오. 새 데이터베이스는 초기화 지점 이후의 proofs만 제공하므로, 보존 범위가 다시 채워지는 시간을 고려하여 계획하십시오.
+- **`--proofs-history.storage-version=v2`를 설정한 경우:** 변경할 필요가 없으며, 기존 proofs 데이터베이스와 호환됩니다. 이 플래그는 이제 no-op이므로 `op-reth node`와 모든 `op-reth proofs` 명령에서 제거해도 됩니다.
+
+레거시 v1 테이블은 비어 있든 데이터가 있든 절대 삭제되지 않습니다. 사용되지 않은 채로 남아 계속 디스크 공간을 차지하며, 이 공간은 `optimism_proof_storage.table_size` 메트릭에 포함되지 않습니다. 테이블에 데이터가 있으면 op-reth는 proofs 데이터베이스를 열 때마다 해당 크기와 함께 경고를 로그로 남깁니다.
+
+## 메트릭
+
+`metrics` 기능이 활성화되면 proofs-history 시스템은 상태와 성능을 모니터링하기 위한 Prometheus 메트릭을 노출합니다.
+
+### 블록 처리 (`optimism_trie.block.*`)
+
+| 메트릭 | 유형 | 설명 |
+| --- | --- | --- |
+| `total_duration_seconds` | Histogram | 블록 하나를 처리하는 데 걸린 전체(end-to-end) 시간 |
+| `execution_duration_seconds` | Histogram | EVM 실행에 소요된 시간 |
+| `state_root_duration_seconds` | Histogram | state root 계산에 소요된 시간 |
+| `write_duration_seconds` | Histogram | trie 업데이트를 스토리지에 쓰는 데 소요된 시간 |
+| `account_trie_updates_written_total` | Counter | 기록된 account trie branch node 수 |
+| `storage_trie_updates_written_total` | Counter | 기록된 storage trie branch node 수 |
+| `hashed_accounts_written_total` | Counter | 기록된 hashed account 항목 수 |
+| `hashed_storages_written_total` | Counter | 기록된 hashed storage 항목 수 |
+| `earliest_number` | Gauge | proofs 저장소의 가장 이른 블록 번호 |
+| `latest_number` | Gauge | proofs 저장소의 가장 최근 블록 번호 |
+
+### Pruner (`optimism_trie.pruner.*`)
+
+| 메트릭 | 유형 | 설명 |
+| --- | --- | --- |
+| `total_duration_seconds` | Histogram | 각 prune 실행의 소요 시간 |
+| `pruned_blocks` | Gauge | 마지막 실행에서 정리된 블록 수 |
+| `account_trie_updates_written` | Gauge | 마지막 prune에서 삭제된 account trie 항목 수 |
+| `storage_trie_updates_written` | Gauge | 마지막 prune에서 삭제된 storage trie 항목 수 |
+| `hashed_accounts_written` | Gauge | 마지막 prune에서 삭제된 hashed account 항목 수 |
+| `hashed_storages_written` | Gauge | 마지막 prune에서 삭제된 hashed storage 항목 수 |
+
+### RPC (`optimism_rpc.eth_api_ext.*`)
+
+| 메트릭 | 유형 | 설명 |
+| --- | --- | --- |
+| `get_proof_latency` | Histogram | 성공한 `eth_getProof` 요청의 지연 시간 |
+| `get_proof_requests` | Counter | 수신된 `eth_getProof` 요청 총수 |
+| `get_proof_successful_responses` | Counter | 성공한 `eth_getProof` 응답 총수 |
+| `get_proof_failures` | Counter | 실패한 `eth_getProof` 요청 총수 |
+
+### 스토리지 작업 (`optimism_trie.storage.operation.*`)
+
+작업별 `duration_seconds` 히스토그램은 다음 작업에 대해 기록됩니다: `store_account_branch`, `store_storage_branch`, `store_hashed_account`, `store_hashed_storage`, `trie_cursor_seek_exact`, `trie_cursor_seek`, `trie_cursor_next`, `trie_cursor_current`, `hashed_cursor_seek`, `hashed_cursor_next`.

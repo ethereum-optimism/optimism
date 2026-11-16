@@ -21,6 +21,7 @@ schedules:
     - scheduled_stale_check
     - scheduled_heavy_fuzz_tests
     - scheduled_daily_tests
+    - scheduled_shipped_binaries
     - scheduled_sp1_elf_smoke
     - circleci_schedule_trigger_check
   build_weekly:
@@ -55,12 +56,14 @@ api_dispatch:
     - scheduled_rust_nightly_bump
 
 # Workflows that run only in ethereum-optimism/optimism. They publish to OP Labs
-# infrastructure or check this project's CircleCI schedules, so other repos
-# sharing this config lack the credentials or schedules they need.
+# infrastructure, check this project's CircleCI schedules, or test the images
+# published for this repo's commits, so other repos sharing this config lack the
+# credentials, schedules or images they need.
 public_repo_only:
   - publish_contract_artifacts
   - kona_publish_prestates
   - circleci_schedule_trigger_check
+  - scheduled_shipped_binaries
 
 # Change-detection patterns. Each value is a POSIX Extended Regular Expression
 # (ERE, like grep -E) matched line-by-line against the changed file list

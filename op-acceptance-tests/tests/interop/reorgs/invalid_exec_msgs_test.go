@@ -26,6 +26,7 @@ import (
 // TestReorgInvalidExecMsgs tests that the supernode reorgs the chain when an invalid exec msg is included
 // Each subtest runs a test with  a different invalid message, by modifying the message in the txModifierFn
 func TestReorgInvalidExecMsgs(gt *testing.T) {
+	gt.Parallel()
 	gt.Run("invalid log index", func(gt *testing.T) {
 		testReorgInvalidExecMsg(gt, func(msg *messages.Message) {
 			msg.Identifier.LogIndex = 1024
@@ -46,7 +47,7 @@ func TestReorgInvalidExecMsgs(gt *testing.T) {
 }
 
 func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *messages.Message)) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)

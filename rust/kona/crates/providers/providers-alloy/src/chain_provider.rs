@@ -24,6 +24,30 @@ use std::{
     },
     vec::Vec,
 };
+use tokio::sync::watch;
+
+/// Limits online derivation's forward traversal to sufficiently confirmed L1 blocks.
+#[derive(Debug, Clone)]
+struct ConfirmationDepth {
+    depth: u64,
+    head: watch::Receiver<Option<BlockInfo>>,
+}
+
+impl ConfirmationDepth {
+    fn allows(&self, number: u64) -> bool {
+        let head = *self.head.borrow();
+        let Some(head) = head.filter(|head| *head != BlockInfo::default()) else {
+            // Like op-node, do not restrict startup before the first L1 head signal.
+            return true;
+        };
+        // Always expose L1 genesis, and avoid accepting future blocks through integer overflow.
+        number == 0 ||
+            self.depth == 0 ||
+            number
+                .checked_add(self.depth)
+                .is_some_and(|confirmed_at| confirmed_at <= head.number)
+    }
+}
 
 /// The [`AlloyChainProvider`] is a concrete implementation of the [`ChainProvider`] trait,
 /// providing data over Ethereum JSON-RPC using an alloy provider as the backend.
@@ -33,6 +57,8 @@ pub struct AlloyChainProvider {
     pub inner: RootProvider,
     /// Whether to trust the RPC without verification.
     pub trust_rpc: bool,
+    /// Optional confirmation policy for online derivation's forward traversal only.
+    confirmation_depth: Option<ConfirmationDepth>,
     /// `header_by_hash` LRU cache.
     header_by_hash_cache: LruCache<B256, Header>,
     /// `receipts_by_hash_cache` LRU cache.
@@ -63,6 +89,7 @@ impl AlloyChainProvider {
         Self {
             inner,
             trust_rpc,
+            confirmation_depth: None,
             header_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
             receipts_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
             raw_receipts_supported: Arc::new(AtomicBool::new(true)),
@@ -76,6 +103,19 @@ impl AlloyChainProvider {
     pub fn new_http(url: reqwest::Url, cache_size: usize) -> Self {
         let inner = RootProvider::new_http(url);
         Self::new(inner, cache_size)
+    }
+
+    /// Hides L1 blocks with fewer than `depth` confirmations from forward traversal.
+    ///
+    /// Reset and hash-based lookups are unaffected. Configure only the online derivation provider,
+    /// so unsafe-head recovery and sequencing keep their own L1 views.
+    pub fn with_confirmation_depth(
+        mut self,
+        depth: u64,
+        head: watch::Receiver<Option<BlockInfo>>,
+    ) -> Self {
+        self.confirmation_depth = Some(ConfirmationDepth { depth, head });
+        self
     }
 
     /// Returns the latest L2 block number.
@@ -458,6 +498,17 @@ impl ChainProvider for AlloyChainProvider {
     }
 
     async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error> {
+        if self.confirmation_depth.as_ref().is_some_and(|depth| !depth.allows(number)) {
+            // A number-based not-found is temporary: traversal waits for more confirmations.
+            return Err(AlloyChainProviderError::BlockNotFound(number.into()));
+        }
+        self.block_info_by_number_for_reset(number).await
+    }
+
+    async fn block_info_by_number_for_reset(
+        &mut self,
+        number: u64,
+    ) -> Result<BlockInfo, Self::Error> {
         kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_number");
 
         let block = self
@@ -594,6 +645,149 @@ mod tests {
     /// Creates a chain provider backed by a FIFO mock RPC transport.
     fn mocked_provider(asserter: Asserter) -> AlloyChainProvider {
         AlloyChainProvider::new(RootProvider::new(RpcClient::mocked(asserter)), 8)
+    }
+
+    fn observed_head(number: u64) -> BlockInfo {
+        BlockInfo { number, hash: B256::repeat_byte(0xaa), ..Default::default() }
+    }
+
+    #[test]
+    fn confirmation_depth_boundaries() {
+        let (_head_tx, head_rx) = watch::channel(Some(observed_head(10)));
+        let policy = ConfirmationDepth { depth: 4, head: head_rx };
+        assert!(policy.allows(0), "L1 genesis remains visible");
+        assert!(policy.allows(6), "the exact confirmation boundary is visible");
+        assert!(!policy.allows(7));
+        assert!(!policy.allows(10));
+        assert!(!policy.allows(u64::MAX), "addition must not overflow to an allowed height");
+    }
+
+    #[test]
+    fn confirmation_depth_unknown_head_and_zero_depth() {
+        let (head_tx, head_rx) = watch::channel(None);
+        let policy = ConfirmationDepth { depth: 4, head: head_rx.clone() };
+        assert!(policy.allows(100), "op-node bypasses the limit before its first head signal");
+        head_tx.send_replace(Some(BlockInfo::default()));
+        assert!(policy.allows(100), "an empty head matches op-node's zero block reference");
+        head_tx.send_replace(Some(observed_head(10)));
+        assert!(!policy.allows(100));
+        let no_delay = ConfirmationDepth { depth: 0, head: head_rx };
+        assert!(no_delay.allows(u64::MAX), "zero depth ignores the observed L1 head");
+    }
+
+    #[tokio::test]
+    async fn confirmation_depth_tracks_head_regression_and_clones() {
+        let asserter = Asserter::new();
+        let block = rpc_block(B256::ZERO, Vec::new(), alloy_consensus::EMPTY_ROOT_HASH);
+        asserter.push_success(&Some(block.clone()));
+        asserter.push_success(&Some(block));
+        let (head_tx, head_rx) = watch::channel(Some(observed_head(10)));
+        let mut provider = mocked_provider(asserter.clone()).with_confirmation_depth(4, head_rx);
+        let mut cloned = provider.clone();
+        provider.block_info_by_number(6).await.unwrap();
+        head_tx.send_replace(Some(observed_head(9)));
+        let error = cloned.block_info_by_number(6).await.unwrap_err();
+        assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
+        assert_eq!(asserter.read_q().len(), 1, "withheld blocks must not reach the RPC");
+        head_tx.send_replace(Some(observed_head(10)));
+        cloned.block_info_by_number(6).await.unwrap();
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn confirmation_depth_leaves_hash_reads_unrestricted() {
+        let asserter = Asserter::new();
+        let block = rpc_block(B256::ZERO, Vec::new(), alloy_consensus::EMPTY_ROOT_HASH);
+        asserter.push_success(&Some(block));
+        let (_head_tx, head_rx) = watch::channel(Some(observed_head(10)));
+        let mut provider = mocked_provider(asserter.clone()).with_confirmation_depth(4, head_rx);
+        provider.header_by_hash(B256::repeat_byte(0xbb)).await.unwrap();
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn confirmation_depth_does_not_block_reset_within_the_window() {
+        use kona_derive::{OriginAdvancer, OriginProvider, PollingTraversal, Stage};
+        use kona_genesis::{RollupConfig, SystemConfig};
+
+        let asserter = Asserter::new();
+        let block: EthereumBlock = RpcBlock::new(
+            RpcHeader::new(Header { number: 1, ..Default::default() }),
+            BlockTransactions::Hashes(Vec::new()),
+        );
+        asserter.push_success(&Some(block.clone()));
+        let (_head_tx, head_rx) = watch::channel(Some(observed_head(2)));
+        let provider = mocked_provider(asserter.clone()).with_confirmation_depth(4, head_rx);
+        let mut traversal = PollingTraversal::new(provider, Arc::new(RollupConfig::default()));
+        // Reset re-resolves the canonical block by number, even when its old hash is stale.
+        traversal
+            .reset(alloy_eips::BlockNumHash::new(1, B256::ZERO), SystemConfig::default())
+            .await
+            .unwrap();
+        assert_eq!(traversal.origin().unwrap().hash, block.header.hash);
+        assert!(matches!(traversal.advance_origin().await, Err(PipelineErrorKind::Temporary(_))));
+        assert!(asserter.read_q().is_empty());
+    }
+
+    /// A one-block tip replacement is invisible to delayed traversal. At zero depth, consuming
+    /// the old tip and then its replacement's child produces the ordinary reorg reset.
+    #[tokio::test]
+    async fn confirmation_depth_shields_traversal_from_shallow_reorg() {
+        use kona_derive::{OriginAdvancer, OriginProvider, PollingTraversal};
+        use kona_genesis::RollupConfig;
+
+        let parent = BlockInfo { number: 13, hash: B256::repeat_byte(0x13), ..Default::default() };
+        let make_block = |number, parent_hash, timestamp| -> EthereumBlock {
+            RpcBlock::new(
+                RpcHeader::new(Header { number, parent_hash, timestamp, ..Default::default() }),
+                BlockTransactions::Hashes(Vec::new()),
+            )
+        };
+        let old_tip = make_block(14, parent.hash, 14);
+        let replacement = make_block(14, parent.hash, 15);
+        let child = make_block(15, replacement.header.hash, 16);
+        let receipt =
+            ReceiptEnvelope::Legacy(ReceiptWithBloom::new(Receipt::default(), Bloom::ZERO));
+        let raw_receipts = vec![Bytes::from(receipt.encoded_2718())];
+
+        for depth in [0, 1] {
+            let asserter = Asserter::new();
+            let (head_tx, head_rx) = watch::channel(Some(observed_head(14)));
+            if depth == 0 {
+                asserter.push_success(&Some(old_tip.clone()));
+                asserter.push_success(&raw_receipts);
+                asserter.push_success(&Some(child.clone()));
+            } else {
+                asserter.push_success(&Some(replacement.clone()));
+                asserter.push_success(&raw_receipts);
+            }
+            let provider =
+                mocked_provider(asserter.clone()).with_confirmation_depth(depth, head_rx);
+            let mut traversal = PollingTraversal::new(provider, Arc::new(RollupConfig::default()));
+            traversal.block = Some(parent);
+            if depth == 0 {
+                traversal.advance_origin().await.unwrap();
+                assert_eq!(traversal.origin().unwrap().hash, old_tip.header.hash);
+            } else {
+                assert!(matches!(
+                    traversal.advance_origin().await,
+                    Err(PipelineErrorKind::Temporary(_))
+                ));
+                assert_eq!(traversal.origin(), Some(parent));
+            }
+            head_tx.send_replace(Some(observed_head(15)));
+            let result = traversal.advance_origin().await;
+            if depth == 0 {
+                assert!(matches!(
+                    result,
+                    Err(PipelineErrorKind::Reset(ResetError::ReorgDetected(..)))
+                ));
+            } else {
+                result.unwrap();
+                assert_eq!(traversal.origin().unwrap().hash, replacement.header.hash);
+            }
+            assert!(asserter.read_q().is_empty());
+        }
     }
 
     #[test]

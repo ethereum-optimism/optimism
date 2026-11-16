@@ -8,6 +8,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -15,36 +16,40 @@ import (
 )
 
 func TestHoloceneInvalidBatch(gt *testing.T) {
+	// blockModifierFor makes the block modifier of a test, so the modifier can fail the test.
+	type blockModifierFor = func(actionsHelpers.Testing) actionsHelpers.BlockModifier
+
 	type testCase struct {
 		name                    string
 		blocks                  []uint // An ordered list of blocks (by number) to add to a single channel.
 		useSpanBatch            bool
-		blockModifiers          []actionsHelpers.BlockModifier
+		blockModifiers          []blockModifierFor
 		breachMaxSequencerDrift bool
 		overAdvanceL1Origin     int // block number at which to over-advance
 		holoceneExpectations
 	}
 
-	// invalidPayload invalidates the signature for the second transaction in the block.
+	// invalidPayload invalidates the signature for the first user transaction in the block.
 	// This should result in an invalid payload in the engine queue.
-	invalidPayload := func(block *types.Block) *types.Block {
-		alice := types.NewCancunSigner(big.NewInt(901))
-		txs := block.Transactions()
-		newTx, err := txs[1].WithSignature(alice, make([]byte, 65))
-		if err != nil {
-			panic(err)
+	invalidPayload := func(t actionsHelpers.Testing) actionsHelpers.BlockModifier {
+		return func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
+			alice := types.NewCancunSigner(big.NewInt(901))
+			i := actionsHelpers.PayloadUserTxIndexes(payload)[0]
+			newTx, err := actionsHelpers.DecodePayloadTx(t, payload, i).WithSignature(alice, make([]byte, 65))
+			require.NoError(t, err)
+			payload.Transactions[i] = actionsHelpers.EncodeTx(t, newTx)
+			return payload
 		}
-		txs[1] = newTx
-		return block
 	}
 
 	// invalidParentHash invalidates the parentHash of the block.
 	// This should result in an invalid batch being derived,
 	// but only for singular (not for span) batches.
-	invalidParentHash := func(block *types.Block) *types.Block {
-		headerCopy := block.Header()
-		headerCopy.ParentHash = common.MaxHash
-		return block.WithSeal(headerCopy)
+	invalidParentHash := func(actionsHelpers.Testing) actionsHelpers.BlockModifier {
+		return func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
+			payload.ParentHash = common.MaxHash
+			return payload
+		}
 	}
 
 	k := 2000
@@ -67,7 +72,7 @@ func TestHoloceneInvalidBatch(gt *testing.T) {
 		},
 
 		{
-			name: "invalid-payload", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidPayload, nil},
+			name: "invalid-payload", blocks: []uint{1, 2, 3}, blockModifiers: []blockModifierFor{nil, invalidPayload, nil},
 			useSpanBatch: false,
 			holoceneExpectations: holoceneExpectations{
 				preHolocene: expectations{
@@ -84,7 +89,7 @@ func TestHoloceneInvalidBatch(gt *testing.T) {
 			},
 		},
 		{
-			name: "invalid-payload-span", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidPayload, nil},
+			name: "invalid-payload-span", blocks: []uint{1, 2, 3}, blockModifiers: []blockModifierFor{nil, invalidPayload, nil},
 			useSpanBatch: true,
 			holoceneExpectations: holoceneExpectations{
 				preHolocene: expectations{
@@ -100,7 +105,7 @@ func TestHoloceneInvalidBatch(gt *testing.T) {
 		},
 
 		{
-			name: "invalid-parent-hash", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidParentHash, nil},
+			name: "invalid-parent-hash", blocks: []uint{1, 2, 3}, blockModifiers: []blockModifierFor{nil, invalidParentHash, nil},
 			holoceneExpectations: holoceneExpectations{
 				preHolocene: expectations{safeHead: 1, // Invalid parentHash in block 2 causes an invalid batch to be dropped.
 					logs: sequencerOnce("ignoring batch with mismatching parent hash")},
@@ -215,8 +220,8 @@ func TestHoloceneInvalidBatch(gt *testing.T) {
 		// Buffer the blocks in the batcher.
 		for i, blockNum := range testCfg.Custom.blocks {
 			var blockModifier actionsHelpers.BlockModifier
-			if len(testCfg.Custom.blockModifiers) > i {
-				blockModifier = testCfg.Custom.blockModifiers[i]
+			if len(testCfg.Custom.blockModifiers) > i && testCfg.Custom.blockModifiers[i] != nil {
+				blockModifier = testCfg.Custom.blockModifiers[i](t)
 			}
 			env.Batcher.ActAddBlockByNumber(t, int64(blockNum), blockModifier, actionsHelpers.BlockLogger(t))
 

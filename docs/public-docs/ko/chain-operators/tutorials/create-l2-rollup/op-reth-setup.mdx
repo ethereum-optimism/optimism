@@ -1,0 +1,515 @@
+---
+title: sequencer 실행하기
+description: rollup의 실행 계층과 합의 계층인 op-reth와 op-node를 설정하고 실행합니다.
+diataxis: tutorial
+---
+
+import OpGethEol from "/ko/snippets/op-geth-eol.mdx"
+
+op-deployer 구성을 마쳤으니 이제 rollup의 sequencer를 실행할 차례입니다. 작동하는 sequencer를 만들려면 `op-reth`와 `op-node`를 모두 실행해야 합니다.
+
+<Info>
+  **5단계 중 2단계**: 이 튜토리얼은 [op-deployer 실행하기](./op-deployer-setup)를 기반으로 합니다. 해당 단계를 먼저 완료했는지 확인하십시오.
+</Info>
+
+<OpGethEol />
+
+이 튜토리얼은 이전에 `op-geth`를 실행 클라이언트로 안내했지만, 이제 이 페이지 전체에서 `op-reth`를 사용합니다.
+
+## 설정할 항목
+
+sequencer node는 두 가지 핵심 구성 요소로 이루어집니다.
+
+- `op-reth`: 트랜잭션을 처리하고 상태를 유지하는 실행 계층
+- `op-node`: 트랜잭션 순서를 정하고 L2 블록을 생성하는 합의 계층
+
+sequencer는 다음을 담당합니다.
+
+- 사용자 트랜잭션의 순서 지정
+- L2 블록 빌드
+- P2P 네트워크에서 블록 서명
+
+## 소프트웨어 설치
+
+sequencer를 실행할 때는 더 간단한 설정과 일관된 환경을 제공하는 Docker 사용을 권장합니다. 이 가이드에서는 더 많은 제어와 쉬운 디버깅이 필요한 경우를 위해 소스에서 빌드하는 방법도 대안으로 제공합니다.
+
+<Info>
+  이 가이드에서 사용하는 버전(**op-node/v1.19.3** 및 **op-reth/v2.4.0**)은 작성 시점의 최신 릴리스입니다.
+  현재 버전은 [op-node 릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-node)와 [op-reth 릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-reth)를 확인하고, 호환성 정보는 항상 릴리스 노트를 읽으십시오.
+</Info>
+
+<Tabs>
+  <Tab title="Docker 사용">
+    <Steps>
+      <Step title="디렉터리 구조 설정 및 구성 파일 복사">
+
+      컨테이너 기반 배포를 선호한다면 공식 Docker 이미지를 사용하여 다음과 같이 진행할 수 있습니다.
+
+      ```bash
+      # Create your sequencer directory inside rollup
+      cd ../    # Go back to rollup directory if you're in deployer
+      mkdir sequencer
+      cd sequencer
+
+      # Copy configuration files from deployer
+      cp ../deployer/.deployer/genesis.json .
+      cp ../deployer/.deployer/rollup.json .
+
+      # Generate JWT secret
+      openssl rand -hex 32 > jwt.txt
+      chmod 600 jwt.txt
+      ```
+      </Step>
+
+      <Step title="환경 변수 파일 생성">
+
+      ```bash
+      # Create .env file with your actual values
+      cat > .env << 'EOF'
+      # L1 Configuration - Replace with your actual RPC URLs
+      L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+      L1_BEACON_URL=https://ethereum-sepolia-beacon-api.publicnode.com
+
+      # Private keys - Replace with your actual private key
+      PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+      # P2P configuration - Replace with your actual public IP
+      # Run `curl ifconfig.me` in a separate shell to obtain the value, then paste it below 
+      P2P_ADVERTISE_IP=YOUR_ACTUAL_PUBLIC_IP
+
+      EOF
+      ```
+
+      **중요**: 모든 플레이스홀더 값(`YOUR_ACTUAL_*`)을 실제 구성 값으로 바꾸십시오.
+      </Step>
+
+      <Step title="Docker 애플리케이션이 실행 중인지 확인">
+
+      같은 디렉터리에 `docker-compose.yml` 파일을 생성합니다.
+
+      ```yaml
+      services:
+        op-reth:
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:v2.4.0
+          volumes:
+            # Mount entire directory to avoid file mounting issues
+            - .:/workspace
+          working_dir: /workspace
+          ports:
+            - "8545:8545"
+            - "8546:8546"
+            - "8551:8551"
+          command:
+            - "node"
+            - "--chain=/workspace/genesis.json"
+            - "--datadir=/workspace/op-reth-data"
+            - "--http"
+            - "--http.addr=0.0.0.0"
+            - "--http.port=8545"
+            - "--http.corsdomain=*"
+            - "--http.api=admin,debug,eth,net,txpool,web3"
+            - "--ws"
+            - "--ws.addr=0.0.0.0"
+            - "--ws.port=8546"
+            - "--ws.origins=*"
+            - "--ws.api=admin,debug,eth,net,txpool,web3"
+            - "--authrpc.addr=0.0.0.0"
+            - "--authrpc.port=8551"
+            - "--authrpc.jwtsecret=/workspace/jwt.txt"
+            - "--rollup.disable-tx-pool-gossip"
+            - "--builder.deadline=2"
+            - "--builder.interval=100ms"
+
+        op-node:
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.19.3
+          depends_on:
+            - op-reth
+          volumes:
+            - .:/workspace
+          working_dir: /workspace
+          ports:
+            - "8547:8547"
+            - "9222:9222"
+          environment:
+            - L1_RPC_URL=${L1_RPC_URL}
+            - L1_BEACON_URL=${L1_BEACON_URL}
+            - PRIVATE_KEY=${PRIVATE_KEY}
+            - P2P_ADVERTISE_IP=${P2P_ADVERTISE_IP}
+          command:
+            - "op-node"
+            - "--l1=${L1_RPC_URL}"
+            - "--l1.beacon=${L1_BEACON_URL}"
+            - "--l2=http://op-reth:8551"
+            - "--l2.jwt-secret=/workspace/jwt.txt"
+            - "--l2.enginekind=reth"
+            - "--rollup.config=/workspace/rollup.json"
+            - "--sequencer.enabled=true"
+            - "--sequencer.stopped=false"
+            - "--verifier.l1-confs=4"
+            - "--p2p.listen.ip=0.0.0.0"
+            - "--p2p.listen.tcp=9222"
+            - "--p2p.listen.udp=9222"
+            - "--p2p.advertise.ip=${P2P_ADVERTISE_IP}"
+            - "--p2p.advertise.tcp=9222"
+            - "--p2p.advertise.udp=9222"
+            - "--p2p.sequencer.key=${PRIVATE_KEY}"
+            - "--rpc.addr=0.0.0.0"
+            - "--rpc.port=8547"
+            - "--rpc.enable-admin"
+            - "--log.level=info"
+            - "--log.format=json"
+      ```
+
+      <Info>
+        알아 둘 만한 몇 가지 플래그는 다음과 같습니다.
+
+        *   `--chain=/workspace/genesis.json`은 op-reth가 op-deployer로 생성한 genesis 파일을 사용하도록 지정합니다. op-geth와 달리 op-reth는 별도의 `init` 단계가 필요하지 않으며, 처음 시작할 때 체인 스펙으로부터 데이터베이스를 초기화합니다.
+        *   `--l2.enginekind=reth`는 op-node가 reth 기반 실행 클라이언트를 구동하고 있음을 알려 줍니다.
+        *   `--rollup.disable-tx-pool-gossip`은 op-geth의 `--rollup.disabletxpoolgossip=true`에 해당하는 op-reth 플래그입니다.
+        *   `--builder.deadline=2`와 `--builder.interval=100ms`는 2초 L2 블록 시간에 맞게 op-reth의 블록 빌더를 조정합니다(기본값은 Ethereum의 12초 슬롯을 기준으로 합니다).
+        *   op-reth는 기본적으로 아카이브 node로 실행되므로 `--gcmode=archive`에 해당하는 설정을 지정할 필요가 없습니다.
+      </Info>
+
+      <Warning>
+        이 튜토리얼은 `0.0.0.0:8547`에서 op-node의 admin API(`--rpc.enable-admin`)를 활성화합니다. op-node RPC는 인증되지 않으므로(JWT secret은 Engine API만 보호합니다), 해당 포트에 접근할 수 있는 사람은 누구나 `admin_stopSequencer`와 같은 admin 메서드를 호출할 수 있습니다. admin API를 공용 인터넷에 노출하지 않도록 주의하십시오. 포트를 `"8547:8547"` 대신 localhost에만(`"127.0.0.1:8547:8547"`) 게시하십시오. Docker로 게시된 포트는 기본적으로 `ufw`와 같은 호스트 방화벽을 우회합니다.
+      </Warning>
+      </Step>
+
+      <Step title="서비스 시작">
+
+      ```bash
+      # Start both services
+      docker-compose up -d
+
+      # View logs
+      docker-compose logs -f
+      ```
+      </Step>
+
+      <Step title="최종 디렉터리 구조">
+
+      ```bash
+      rollup/
+      ├── deployer/              # From previous step
+      │   └── .deployer/         # Contains genesis.json and rollup.json
+      └── sequencer/             # You are here
+          ├── jwt.txt            # Generated JWT secret
+          ├── genesis.json       # Copied from deployer
+          ├── rollup.json        # Copied from deployer
+          ├── .env               # Environment variables
+          ├── docker-compose.yml # Docker configuration
+          ├── opnode_discovery_db/ # Created by Docker
+          ├── opnode_peerstore_db/ # Created by Docker
+          └── op-reth-data/      # Created by Docker (op-reth database)
+      ```
+
+      이제 sequencer node가 작동하며 트랜잭션을 처리할 준비가 되었습니다.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="소스에서 빌드">
+
+    호환되는 최신 버전의 OP Stack 구성 요소를 사용하려면 항상 공식 [릴리스 페이지](https://github.com/ethereum-optimism/optimism/releases)를 확인하십시오.
+
+    sequencer 배포에 필요한 주요 구성 요소는 다음과 같습니다.
+
+    - `op-node`: 최신 `op-node/v*` [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-node)를 찾으십시오
+    - `op-reth`: 최신 `op-reth/v*` [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-reth)를 찾으십시오
+
+    두 구성 요소 모두 [optimism 모노레포](https://github.com/ethereum-optimism/optimism)에 있습니다. op-node를 빌드하려면 [Go](https://go.dev/dl/)와 [just](https://github.com/casey/just)가 필요하고, op-reth를 빌드하려면 [Rust 툴체인](https://rustup.rs/)이 필요합니다(빌드 시 `rust/rust-toolchain.toml`에 고정된 버전이 자동으로 사용됩니다).
+
+    소스에서 빌드하면 바이너리를 완전히 제어할 수 있습니다.
+
+    <Steps>
+      <Step title="op-node 클론 및 빌드">
+
+      ```bash
+      # Clone the optimism monorepo
+      git clone https://github.com/ethereum-optimism/optimism.git
+      cd optimism
+
+      # Checkout the latest op-node release tag
+      git checkout op-node/v1.19.3
+
+      # Generate the embedded superchain config bundle (initializes the
+      # superchain-registry submodule; op-node embeds this file at compile time)
+      just build-superchain-go
+
+      # Build op-node
+      cd op-node
+      just
+
+      # Binary will be available at ./bin/op-node
+      cd ..
+      ```
+      </Step>
+
+      <Step title="op-reth 빌드">
+
+      ```bash
+      # Still inside the optimism monorepo:
+      # checkout the latest op-reth release tag
+      git checkout op-reth/v2.4.0
+
+      # Sync the superchain-registry submodule to this tag
+      # (the op-reth build generates its chain configs from it)
+      just update-superchain-registry-submodule
+
+      # Build op-reth (release build; this can take a while)
+      cd rust
+      cargo build --release --bin op-reth
+
+      # Binary will be available at ./target/release/op-reth
+      cd ..
+      ```
+
+      <Info>
+        op-node와 op-reth는 같은 저장소에서 서로 다른 태그로 릴리스되므로, 두 빌드는 순서대로 서로 다른 태그를 체크아웃합니다. 아래의 `--version` 확인으로 실제로 빌드한 버전을 확인할 수 있습니다. 원한다면 모노레포를 두 개의 별도 클론으로 사용해도 됩니다.
+      </Info>
+      </Step>
+
+      <Step title="설치 확인">
+
+      필요한 구성 요소가 올바르게 설치되었는지 확인합니다.
+
+      ```bash
+      # From the optimism monorepo root
+      ./op-node/bin/op-node --version
+      ./rust/target/release/op-reth --version
+      ```
+      </Step>
+    </Steps>
+
+    ## 구성 설정
+
+    <Steps>
+      <Step title="작업 공간 정리">
+
+      바이너리를 빌드하고 나면 다음과 같은 디렉터리 구조가 됩니다.
+
+      ```bash
+      rollup/
+      ├── deployer/              # From previous step
+      │   └── .deployer/         # Contains genesis.json and rollup.json
+      └── optimism/              # Optimism monorepo
+          ├── op-node/
+          │   └── bin/
+          │       └── op-node
+          └── rust/
+              └── target/
+                  └── release/
+                      └── op-reth
+      ```
+
+      이제 sequencer 작업 디렉터리를 생성합니다.
+
+      ```bash
+      cd ../
+      mkdir sequencer
+      cd sequencer
+      ```
+      </Step>
+
+      <Step title="JWT secret 생성">
+
+      ```bash
+      openssl rand -hex 32 > jwt.txt
+      chmod 600 jwt.txt
+      ```
+      </Step>
+
+      <Step title="디렉터리 구조 설정 및 파일 복사">
+
+      ```bash
+      mkdir scripts
+      cp ../deployer/.deployer/genesis.json .
+      cp ../deployer/.deployer/rollup.json .
+      ```
+      </Step>
+
+      <Step title="환경 변수">
+
+      구성을 생성하기 전에 몇 가지 정보를 수집해야 합니다.
+      </Step>
+
+      <Step title="L1 네트워크 접근 권한 확보">
+
+      L1 네트워크(Ethereum mainnet 또는 Sepolia testnet)와 해당 beacon node에 대한 접근 권한이 필요합니다.
+
+      **L1 RPC URL 옵션:**
+      - **Infura**: [infura.io](https://infura.io)
+      - **Alchemy**: [alchemy.com](https://alchemy.com)
+
+      **L1 Beacon URL 옵션:**
+      - `https://ethereum-sepolia-beacon-api.publicnode.com`
+      - `https://ethereum-beacon-api.publicnode.com`
+      </Step>
+
+      <Step title="지갑에서 개인 키 가져오기">
+      이 기본 sequencer 설정에서는 op-node 초기화 시에만 개인 키가 필요합니다.
+      </Step>
+
+      <Step title="공인 IP 주소 확인">
+
+      ```bash
+      curl ifconfig.me
+      curl ipinfo.io/ip
+      ```
+      </Step>
+
+      <Step title="포트 선택">
+
+      - `8545`: op-reth HTTP RPC
+      - `8546`: op-reth WebSocket RPC
+      - `8551`: op-reth Auth RPC(Engine API)
+      - `8547`: op-node RPC
+      - `9222`: P2P 네트워킹
+      </Step>
+    </Steps>
+
+    <Accordion title=".env 템플릿">
+
+      ```bash
+      L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+      L1_BEACON_URL=https://ethereum-sepolia-beacon-api.publicnode.com
+      SEQUENCER_ENABLED=true
+      SEQUENCER_STOPPED=false
+      PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+      P2P_LISTEN_PORT=9222
+      P2P_ADVERTISE_IP=YOUR_ACTUAL_PUBLIC_IP
+      OP_NODE_RPC_PORT=8547
+      OP_RETH_HTTP_PORT=8545
+      OP_RETH_WS_PORT=8546
+      OP_RETH_AUTH_PORT=8551
+      JWT_SECRET=./jwt.txt
+      ```
+    </Accordion>
+
+    ## sequencer 전용 구성
+
+    ### sequencer용 op-reth 구성
+
+    `scripts/start-op-reth.sh`를 생성합니다.
+
+    ```bash
+    #!/bin/bash
+    source .env
+
+    ../optimism/rust/target/release/op-reth node \
+      --chain=./genesis.json \
+      --datadir=./op-reth-data \
+      --http \
+      --http.addr=0.0.0.0 \
+      --http.port=$OP_RETH_HTTP_PORT \
+      --http.corsdomain="*" \
+      --http.api=admin,debug,eth,net,txpool,web3 \
+      --ws \
+      --ws.addr=0.0.0.0 \
+      --ws.port=$OP_RETH_WS_PORT \
+      --ws.origins="*" \
+      --ws.api=admin,debug,eth,net,txpool,web3 \
+      --authrpc.addr=0.0.0.0 \
+      --authrpc.port=$OP_RETH_AUTH_PORT \
+      --authrpc.jwtsecret=$JWT_SECRET \
+      --rollup.disable-tx-pool-gossip \
+      --builder.deadline=2 \
+      --builder.interval=100ms
+    ```
+
+    <Info>
+      op-reth는 처음 시작할 때 genesis 파일로부터 데이터베이스를 초기화하므로 `geth init` 같은 별도의 단계가 없습니다. 또한 기본적으로 아카이브 node로 실행됩니다.
+    </Info>
+
+    ### sequencer용 op-node 구성
+
+    `scripts/start-op-node.sh`를 생성합니다.
+
+    ```bash
+    #!/bin/bash
+    source .env
+
+    ../optimism/op-node/bin/op-node \
+      --l1=$L1_RPC_URL \
+      --l1.beacon=$L1_BEACON_URL \
+      --l2=http://localhost:$OP_RETH_AUTH_PORT \
+      --l2.jwt-secret=$JWT_SECRET \
+      --l2.enginekind=reth \
+      --rollup.config=./rollup.json \
+      --sequencer.enabled=$SEQUENCER_ENABLED \
+      --sequencer.stopped=$SEQUENCER_STOPPED \
+      --verifier.l1-confs=4 \
+      --p2p.listen.ip=0.0.0.0 \
+      --p2p.listen.tcp=$P2P_LISTEN_PORT \
+      --p2p.listen.udp=$P2P_LISTEN_PORT \
+      --p2p.advertise.ip=$P2P_ADVERTISE_IP \
+      --p2p.advertise.tcp=$P2P_LISTEN_PORT \
+      --p2p.advertise.udp=$P2P_LISTEN_PORT \
+      --p2p.sequencer.key=$PRIVATE_KEY \
+      --rpc.addr=0.0.0.0 \
+      --rpc.port=$OP_NODE_RPC_PORT \
+      --rpc.enable-admin \
+      --log.level=info \
+      --log.format=json
+    ```
+
+    <Warning>
+      이 튜토리얼은 `0.0.0.0:8547`에서 op-node의 admin API(`--rpc.enable-admin`)를 활성화합니다. op-node RPC는 인증되지 않으므로(JWT secret은 Engine API만 보호합니다), 해당 포트에 접근할 수 있는 사람은 누구나 `admin_stopSequencer`와 같은 admin 메서드를 호출할 수 있습니다. admin API를 공용 인터넷에 노출하지 않도록 주의하십시오. 포트를 `"8547:8547"` 대신 localhost에만(`"127.0.0.1:8547:8547"`) 게시하십시오. Docker로 게시된 포트는 기본적으로 `ufw`와 같은 호스트 방화벽을 우회합니다.
+    </Warning>
+
+    ## sequencer 시작하기
+
+    <Steps>
+      <Step title="op-reth 시작">
+
+      ```bash
+      cd rollup/sequencer
+      chmod +x scripts/start-op-reth.sh
+      chmod +x scripts/start-op-node.sh
+      ./scripts/start-op-reth.sh
+      ```
+      </Step>
+
+      <Step title="op-node 시작">
+
+      두 번째 터미널에서 다음을 실행합니다.
+
+      ```bash
+      ./scripts/start-op-node.sh
+      ```
+      </Step>
+
+      <Step title="sequencer 실행 확인">
+
+      ```bash
+      curl -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        http://localhost:8545
+
+      curl -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"admin_sequencerActive","params":[],"id":1}' \
+        http://localhost:8547
+      ```
+      </Step>
+    </Steps>
+
+    이제 sequencer node가 작동하며 트랜잭션을 처리할 준비가 되었습니다.
+  </Tab>
+</Tabs>
+
+## 다음 단계
+
+잘하셨습니다! sequencer가 실행되어 트랜잭션을 처리하고 있습니다. 다음 단계는 트랜잭션 데이터를 L1에 게시하는 batcher를 설정하는 것입니다.
+
+<Card title="batcher 실행하기 →" href="./op-batcher-setup">
+  **다음**: 데이터 가용성을 위해 L2 트랜잭션 데이터를 L1에 게시하도록 op-batcher를 구성하고 시작합니다.
+</Card>
+
+---
+
+## 도움이 필요하신가요?
+
+- **op-reth 실행**: [실행 클라이언트 구성](/ko/node-operators/guides/configuration/execution-clients)
+- **op-reth CLI 레퍼런스**: [op-reth node 명령](/ko/node-operators/op-reth/cli/op-reth/node)
+- **모범 사례**: [체인 운영자 모범 사례](/ko/chain-operators/guides/management/best-practices)
+- **지원**: Optimism 모노레포에서 [이슈를 보고하거나 질문하십시오](https://github.com/ethereum-optimism/optimism/issues)

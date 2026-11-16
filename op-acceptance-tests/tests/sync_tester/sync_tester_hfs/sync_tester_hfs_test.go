@@ -51,7 +51,7 @@ func TestSyncTesterHardforks(gt *testing.T) {
 	logger := t.Logger()
 
 	// Check the L2CL passed configured hardforks
-	jovianTime := sys.L2Chain.Escape().ChainConfig().JovianTime
+	jovianTime := sys.L2Chain.Escape().RollupConfig().JovianTime
 	require.NotNil(jovianTime, "jovian must be activated")
 
 	// Hardforks will be activated from Bedrock to Jovian, 10 hardforks with 6 second time delta between.

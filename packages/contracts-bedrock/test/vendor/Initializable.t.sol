@@ -12,7 +12,6 @@ import { Process } from "scripts/libraries/Process.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -126,7 +125,7 @@ contract Initializer_Test is CommonTest {
             })
         );
 
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (deploy.cfg().useInterop()) {
             contracts.push(
                 InitializeableContract({
                     name: "OptimismPortal2Impl",
@@ -414,6 +413,8 @@ contract Initializer_Test is CommonTest {
         excludes[j++] = "src/dispute/zk/ZKDisputeGame.sol";
         // L2 contract initialization is tested in Predeploys.t.sol
         excludes[j++] = "src/L2/*";
+        // ComplianceModule is deployed by its own script, not the standard deployment script.
+        excludes[j++] = "src/compliance/*";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);

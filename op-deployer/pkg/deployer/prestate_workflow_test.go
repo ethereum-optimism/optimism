@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,19 +22,19 @@ import (
 func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 	tests := []struct {
 		name               string
-		permissionlessType embedded.GameType
+		permissionlessType opcm.GameType
 		selected           common.Hash
 		wantSelected       common.Hash
 	}{
 		{
 			name:               "permissioned and CANNON_KONA",
-			permissionlessType: embedded.GameTypeCannonKona,
+			permissionlessType: opcm.GameTypeCannonKona,
 			selected:           common.HexToHash("0x11"),
 			wantSelected:       common.HexToHash("0x11"),
 		},
 		{
 			name:               "permissioned and SUPER_CANNON_KONA",
-			permissionlessType: embedded.GameTypeSuperCannonKona,
+			permissionlessType: opcm.GameTypeSuperCannonKona,
 			selected:           common.HexToHash("0x33"),
 			wantSelected:       common.HexToHash("0x33"),
 		},
@@ -61,7 +60,7 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err := st.Chain(deployedID)
 			require.NoError(t, err)
 			deployed.Prestate = historicalSelected
-			historicalGameType := uint32(embedded.GameTypeSuperPermissioned)
+			historicalGameType := uint32(opcm.GameTypeSuperPermissioned)
 			deployed.InitialGameType = &historicalGameType
 
 			predicted := make(map[common.Hash]common.Address)
@@ -122,7 +121,7 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err = persisted.Chain(deployedID)
 			require.NoError(t, err)
 			require.Equal(t, historicalSelected, deployed.Prestate)
-			require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
+			require.Equal(t, uint32(opcm.GameTypeSuperPermissioned), *deployed.InitialGameType)
 
 			permissioned, err := persisted.Chain(permissionedID)
 			require.NoError(t, err)

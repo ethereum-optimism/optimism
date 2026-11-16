@@ -1,8 +1,6 @@
 package stack
 
 import (
-	"github.com/ethereum/go-ethereum/params"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -13,8 +11,6 @@ type Network interface {
 	Common
 
 	ChainID() eth.ChainID
-
-	ChainConfig() *params.ChainConfig
 
 	SyncTesters() []SyncTester
 }

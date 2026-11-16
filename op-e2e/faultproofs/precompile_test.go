@@ -59,14 +59,14 @@ func TestPrecompile(t *testing.T) {
 		aliceKey := cfg.Secrets.Alice
 
 		t.Log("Capture current L2 head as agreed starting point")
-		latestBlock, err := l2Seq.BlockByNumber(ctx, nil)
+		latestBlock, err := l2Seq.HeaderByNumber(ctx, nil)
 		require.NoError(t, err)
-		agreedL2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, latestBlock.NumberU64())
+		agreedL2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, bigs.Uint64Strict(latestBlock.Number))
 		require.NoError(t, err, "could not retrieve l2 agreed block")
 		l2Head := agreedL2Output.BlockRef.Hash
 		l2OutputRoot := agreedL2Output.OutputRoot
 
-		receipt := helpers.SendL2Tx(t, cfg, l2Seq, aliceKey, func(opts *helpers.TxOpts) {
+		receipt := helpers.SendL2Tx(t, cfg, sys.NodeSourceClient("sequencer"), aliceKey, func(opts *helpers.TxOpts) {
 			opts.Gas = 1_000_000
 			opts.ToAddr = &test.Address
 			opts.Nonce = 0
@@ -81,7 +81,7 @@ func TestPrecompile(t *testing.T) {
 
 		t.Log("Determine L1 head that includes all batches required for L2 claim block")
 		require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, bigs.Uint64Strict(l2ClaimBlockNumber)))
-		l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
+		l1HeadBlock, err := l1Client.HeaderByNumber(ctx, nil)
 		require.NoError(t, err, "get l1 head block")
 		l1Head := l1HeadBlock.Hash()
 
@@ -108,9 +108,8 @@ func TestDisputePrecompile(t *testing.T) {
 		ctx := context.Background()
 		sys, _ := StartFaultDisputeSystem(t, WithLatestFork(), WithAllocType(allocType))
 
-		l2Seq := sys.NodeClient("sequencer")
 		aliceKey := sys.Cfg.Secrets.Alice
-		receipt := helpers.SendL2Tx(t, sys.Cfg, l2Seq, aliceKey, func(opts *helpers.TxOpts) {
+		receipt := helpers.SendL2Tx(t, sys.Cfg, sys.NodeSourceClient("sequencer"), aliceKey, func(opts *helpers.TxOpts) {
 			opts.Gas = 1_000_000
 			opts.ToAddr = &test.Address
 			opts.Nonce = 0
@@ -160,9 +159,9 @@ func TestGranitePrecompiles(t *testing.T) {
 		aliceKey := cfg.Secrets.Alice
 
 		t.Log("Capture current L2 head as agreed starting point")
-		latestBlock, err := l2Seq.BlockByNumber(ctx, nil)
+		latestBlock, err := l2Seq.HeaderByNumber(ctx, nil)
 		require.NoError(t, err)
-		agreedL2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, latestBlock.NumberU64())
+		agreedL2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, bigs.Uint64Strict(latestBlock.Number))
 		require.NoError(t, err, "could not retrieve l2 agreed block")
 		l2Head := agreedL2Output.BlockRef.Hash
 		l2OutputRoot := agreedL2Output.OutputRoot
@@ -199,7 +198,7 @@ func TestGranitePrecompiles(t *testing.T) {
 
 		t.Log("Determine L1 head that includes all batches required for L2 claim block")
 		require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, bigs.Uint64Strict(l2ClaimBlockNumber)))
-		l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
+		l1HeadBlock, err := l1Client.HeaderByNumber(ctx, nil)
 		require.NoError(t, err, "get l1 head block")
 		l1Head := l1HeadBlock.Hash()
 

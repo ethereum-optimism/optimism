@@ -213,10 +213,6 @@ func TestSDMPostExecBlockDerivesAndChainProgresses(gt *testing.T) {
 		{name: "singular_batch", singular: true},
 	} {
 		t.Run(testCase.name, func(t devtest.T) {
-			// Each subtest spins up an independent devstack runtime (the batcher's
-			// batch type is the only meaningful difference), so they're safe to run
-			// concurrently. Cuts wall-clock from ~76s sequential to ~max(sub1, sub2).
-			t.Parallel()
 			testSDMPostExecBlockDerivesAndChainProgresses(t, testCase.name, testCase.singular)
 		})
 	}

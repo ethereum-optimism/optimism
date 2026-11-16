@@ -1,0 +1,436 @@
+---
+title: batcher 실행
+description: L2 트랜잭션 배치를 L1에 제출하도록 OP Stack batcher를 설정하고 구성하는 방법을 알아봅니다.
+diataxis: tutorial
+---
+
+sequencer를 실행한 후에는 L2 트랜잭션 배치를 L1에 제출하도록 batcher를 구성해야 합니다.
+
+<Info>
+  **5단계 중 3단계**: 이 튜토리얼은 단계별로 따라 하도록 설계되었습니다. 각 단계는 [이전 단계](/ko/chain-operators/tutorials/create-l2-rollup/op-reth-setup)를 기반으로 합니다.
+</Info>
+
+<Info>
+  **자동 설정 제공**
+
+  모든 구성 요소를 포함한 완전한 작동 설정은 코드 디렉터리의 [자동화된 방식](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/)을 확인하십시오.
+</Info>
+
+## batcher의 역할 이해하기
+
+batcher(`op-batcher`)는 L2 체인 데이터를 L1에 연결하는 핵심 구성 요소입니다. 주요 역할은 다음과 같습니다.
+
+*   **배치 제출**: L2 트랜잭션을 수집하여 배치로 L1에 제출합니다.
+*   **데이터 가용성**: 검증을 위해 L2 트랜잭션 데이터를 L1에서 사용할 수 있도록 보장합니다.
+*   **비용 최적화**: L1 비용을 최소화하기 위해 트랜잭션 데이터를 압축하고 효율적으로 패킹합니다.
+*   **채널 관리**: 최적의 배치 제출 시점을 위해 데이터 채널을 관리합니다.
+
+batcher는 sequencer에서 트랜잭션 데이터를 읽고 압축된 배치를 L1의 `BatchInbox` 컨트랙트에 제출합니다.
+
+## 사전 요구 사항
+
+batcher를 설정하기 전에 다음이 준비되어 있는지 확인하십시오.
+
+**실행 중인 인프라:**
+
+*   작동 중인 sequencer node
+*   L1 RPC 엔드포인트에 대한 접근 권한
+
+**네트워크 정보:**
+
+*   L2 체인 ID 및 네트워크 구성
+*   L1 네트워크 세부 정보(체인 ID, RPC 엔드포인트)
+*   배포에서 얻은 `BatchInbox` 컨트랙트 주소
+
+batcher 설정에는 일관되고 격리된 환경을 제공하는 Docker 사용을 권장합니다. 고급 사용자는 소스에서 빌드할 수도 있습니다.
+
+<Tabs>
+  <Tab title="Docker 사용">
+    컨테이너 기반 배포를 선호한다면 공식 Docker 이미지를 사용하여 다음을 수행할 수 있습니다.
+
+    <Steps>
+
+      <Step title="디렉터리 구조 설정 및 구성 파일 복사">
+
+      ```bash
+      # Create your batcher directory inside rollup
+      cd ../    # Go back to rollup directory if you're in sequencer
+      mkdir batcher
+      cd batcher
+
+      # Copy configuration files from deployer
+      cp ../deployer/.deployer/state.json .
+
+      # Extract the BatchInbox address
+      BATCH_INBOX_ADDRESS=$(cat state.json | jq -r '.opChainDeployments[0].systemConfigProxyAddress')
+      echo "BatchInbox Address: $BATCH_INBOX_ADDRESS"
+      ```
+
+      </Step>
+
+      <Step title="환경 변수 파일 생성">
+
+      <Info>
+        **OP Stack 표준 변수**
+
+        batcher는 OP Stack 규칙을 따르는 OP Stack 표준 환경 변수를 사용합니다. batcher 전용 설정에는 `OP_BATCHER_` 접두사가 붙습니다.
+      </Info>
+
+      ```bash
+      # Create .env file with your actual values
+      cat > .env << 'EOF'
+      # L1 Configuration - Replace with your actual RPC URLs
+      OP_BATCHER_L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+      # Private key - Replace with your actual private key
+      OP_BATCHER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+      # L2 Configuration - Should match your sequencer setup
+      OP_BATCHER_L2_ETH_RPC=http://op-reth:8545
+      OP_BATCHER_ROLLUP_RPC=http://op-node:8547
+
+      # Contract addresses - Extract from your op-deployer output
+      OP_BATCHER_BATCH_INBOX_ADDR=YOUR_ACTUAL_BATCH_INBOX_ADDRESS
+
+      # Batcher configuration
+      OP_BATCHER_POLL_INTERVAL=1s
+      OP_BATCHER_SUB_SAFETY_MARGIN=6
+      OP_BATCHER_NUM_CONFIRMATIONS=1
+      OP_BATCHER_SAFE_ABORT_NONCE_TOO_LOW_COUNT=3
+      OP_BATCHER_MAX_CHANNEL_DURATION=1
+      OP_BATCHER_DATA_AVAILABILITY_TYPE=calldata
+
+      # RPC configuration
+      OP_BATCHER_RPC_PORT=8548
+      EOF
+      ```
+
+      **중요**: 모든 자리 표시자 값(`YOUR_ACTUAL_*`)을 실제 구성 값으로 바꾸십시오.
+
+      </Step>
+
+      <Step title="docker-compose.yml 파일 생성">
+
+      <Info>
+        이 구성은 sequencer가 동일한 `op-stack` 네트워크에서 `sequencer-node`라는 이름의 Docker 컨테이너로 실행 중이라고 가정합니다.
+        batcher를 시작하기 전에 sequencer가 실행 중인지 확인하십시오.
+      </Info>
+
+      ```yaml
+
+      services:
+        op-batcher:
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.16.11
+          volumes:
+            - .:/workspace
+          working_dir: /workspace
+          ports:
+            - "8548:8548"
+          env_file:
+            - .env
+          networks:
+            - sequencer-node_default
+          command: >
+            op-batcher
+            --rpc.addr=0.0.0.0
+            --rpc.enable-admin
+            --resubmission-timeout=30s
+            --log.level=info
+            --log.format=json
+          restart: unless-stopped
+
+      networks:
+        sequencer-node_default:
+          external: false
+      ```
+
+      </Step>
+
+      <Step title="batcher 서비스 시작">
+
+      ```bash
+      # Make sure your sequencer network exists
+      # Start the batcher
+      docker-compose up -d
+
+      # View logs
+      docker-compose logs -f op-batcher
+      ```
+
+      </Step>
+
+      <Step title="batcher 실행 확인">
+
+      ```bash
+      # Check container status
+      docker-compose ps
+      ```
+
+      </Step>
+
+      <Step title="최종 디렉터리 구조">
+
+      ```bash
+      rollup/
+      ├── deployer/            # From previous step
+      │   └── .deployer/      # Contains genesis.json and rollup.json
+      ├── sequencer/          # From previous step
+      └── batcher/           # You are here
+          ├── state.json     # Copied from deployer
+          ├── .env           # Environment variables
+          └── docker-compose.yml # Docker configuration
+      ```
+    
+      </Step>
+    </Steps>
+
+    이제 batcher가 작동하며 L2 트랜잭션 배치를 L1에 지속적으로 제출합니다.
+  </Tab>
+
+  <Tab title="소스에서 빌드">
+
+    호환되는 최신 버전의 OP Stack 구성 요소를 사용하려면 항상 공식 [릴리스 페이지](https://github.com/ethereum-optimism/optimism/releases)를 확인하십시오.
+
+    sequencer 설정과 호환되는 최신 `op-batcher/v*` 릴리스를 찾으십시오.
+
+    <Info>
+      이 가이드는 작성 시점의 최신 릴리스인 `op-batcher/v1.16.11`을 sequencer 설정의 op-node/v1.19.3 및 op-reth/v2.4.0과 함께 사용합니다.
+      호환성 정보는 항상 [릴리스 노트](https://github.com/ethereum-optimism/optimism/releases)를 확인하십시오.
+    </Info>
+
+    <Steps>
+
+      <Step title="op-batcher 클론 및 빌드">
+
+      ```bash
+      # If you don't already have the optimism repository from the sequencer setup
+      git clone https://github.com/ethereum-optimism/optimism.git
+      cd optimism
+
+      # Checkout the latest release tag
+      git checkout op-batcher/v1.16.11
+
+      # Generate the embedded superchain config bundle (initializes the
+      # superchain-registry submodule; op-batcher embeds this file at compile time)
+      just build-superchain-go
+
+      # Build op-batcher
+      cd op-batcher
+      just
+
+      # Binary will be available at ./bin/op-batcher
+      ```
+
+      </Step>
+
+      <Step title="설치 확인">
+
+      다음 명령을 실행하여 설치를 확인합니다.
+
+      ```bash
+      ./bin/op-batcher --version
+      ```
+      </Step>
+
+      <Step title="구성 설정">
+
+    <Info>
+      다음을 포함한 고급 구성 옵션과 batcher 세부 조정에 대해서는
+
+      *   배치 제출 정책
+      *   채널 지속 시간 설정
+      *   데이터 가용성 유형(blobs vs calldata)
+      *   트랜잭션 스로틀링
+      *   네트워크 타임아웃
+
+      [Batcher 구성 레퍼런스](/ko/chain-operators/reference/batcher-configuration)를 확인하십시오.
+      batcher의 성능과 비용 효율성을 최적화하는 데 도움이 됩니다.
+    </Info>
+
+    <Steps>
+    <Step title="작업 공간 구성">
+
+    batcher 작업 디렉터리를 생성합니다.
+
+      ```bash
+      # Create batcher directory inside rollup
+      cd ../    # Go back to rollup directory
+      mkdir batcher
+      cd batcher
+
+      # Create scripts directory
+      mkdir scripts
+      ```
+
+      최종 디렉터리 구조는 다음과 같아야 합니다.
+
+      ```bash
+      rollup/
+      ├── deployer/              # From previous step
+      │   └── .deployer/        # Contains state.json
+      ├── optimism/             # Contains op-batcher binary
+      ├── sequencer/           # From previous step
+      └── batcher/            # You are here
+          ├── state.json      # Copied from deployer
+          ├── .env           # Environment variables
+          └── scripts/       # Startup scripts
+        └── start-batcher.sh
+      ```
+
+      </Step>
+
+      <Step title="BatchInbox 주소 추출">
+
+      op-deployer 출력에서 `BatchInbox` 컨트랙트 주소를 추출합니다.
+
+      ```bash
+      # Make sure you're in the rollup/batcher directory
+      cd rollup/batcher
+
+      # Copy the deployment state file from deployer
+      cp ../deployer/.deployer/state.json .
+
+      # Extract the BatchInbox address
+      BATCH_INBOX_ADDRESS=$(cat state.json | jq -r '.opChainDeployments[0].systemConfigProxyAddress')
+      echo "BatchInbox Address: $BATCH_INBOX_ADDRESS"
+      ```
+
+      <Info>
+        batcher는 트랜잭션 배치를 L1의 `BatchInbox` 컨트랙트에 제출합니다. 이 컨트랙트는 L2 트랜잭션 데이터를 수락하고 저장하는 역할을 합니다.
+      </Info>
+
+      </Step>
+
+      <Step title="환경 변수 설정">
+
+      실제 값으로 `.env` 파일을 생성합니다.
+
+      ```bash
+      # Create .env file with your actual values
+      # L1 Configuration - Replace with your actual RPC URL
+      L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+
+      # L2 Configuration - Should match your sequencer setup
+      L2_RPC_URL=http://localhost:8545
+      ROLLUP_RPC_URL=http://localhost:8547
+
+      # Contract addresses - Extract from your op-deployer output
+      BATCH_INBOX_ADDRESS=YOUR_ACTUAL_BATCH_INBOX_ADDRESS
+
+      # Private key - Replace with your actual private key
+      BATCHER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+      # Batcher configuration
+      POLL_INTERVAL=1s
+      SUB_SAFETY_MARGIN=6
+      NUM_CONFIRMATIONS=1
+      SAFE_ABORT_NONCE_TOO_LOW_COUNT=3
+      RESUBMISSION_TIMEOUT=30s
+      MAX_CHANNEL_DURATION=25
+
+      # RPC configuration
+      BATCHER_RPC_PORT=8548
+      ```
+
+      **중요**: 모든 자리 표시자 값(`YOUR_ACTUAL_*`)을 실제 구성 값으로 바꾸십시오!
+
+      </Step>
+
+      <Step title="개인 키 준비">
+
+      L1에 배치를 제출하는 데 사용할 개인 키를 지갑에서 가져옵니다. 이 계정에는 L1 gas 비용을 지불할 수 있는 충분한 ETH가 있어야 합니다.
+
+      <Info>
+        batcher 계정에는 배치 제출 트랜잭션 비용을 지불하기 위해 L1의 ETH가 충전되어 있어야 합니다. 배치를 제출할 때마다 ETH가 소모되므로 이 계정의 잔액을 정기적으로 모니터링하십시오.
+      </Info>
+    
+      </Step>
+    </Steps>
+
+    ### Batcher 구성
+
+    같은 디렉터리에 `scripts/start-batcher.sh`를 생성합니다.
+
+    ```bash
+    #!/bin/bash
+
+    source .env
+
+    # Path to the op-batcher binary we built
+    ../../optimism/op-batcher/bin/op-batcher \
+      --l2-eth-rpc=$L2_RPC_URL \
+      --rollup-rpc=$ROLLUP_RPC_URL \
+      --poll-interval=$POLL_INTERVAL \
+      --sub-safety-margin=$SUB_SAFETY_MARGIN \
+      --num-confirmations=$NUM_CONFIRMATIONS \
+      --safe-abort-nonce-too-low-count=$SAFE_ABORT_NONCE_TOO_LOW_COUNT \
+      --resubmission-timeout=$RESUBMISSION_TIMEOUT \
+      --rpc.addr=0.0.0.0 \
+      --rpc.port=$BATCHER_RPC_PORT \
+      --rpc.enable-admin \
+      --max-channel-duration=$MAX_CHANNEL_DURATION \
+      --l1-eth-rpc=$L1_RPC_URL \
+      --private-key=$BATCHER_PRIVATE_KEY \
+      --batch-type=1 \
+      --data-availability-type=blobs \
+      --log.level=info
+    ```
+
+    ### Batcher 매개변수 설명
+
+    *   **`--poll-interval`**: batcher가 배치할 새 L2 블록을 확인하는 주기
+    *   **`--sub-safety-margin`**: L1 트랜잭션을 안전한 것으로 간주하기 전에 기다릴 확인(confirmation) 수
+    *   **`--max-channel-duration`**: 채널을 열어 둘 최대 시간(L1 블록 단위)
+    *   **`--batch-type`**: 배치 인코딩 유형(span batch는 1, singular batch는 0)
+    *   **`--data-availability-type`**: 데이터 가용성에 blobs와 calldata 중 무엇을 사용할지 여부
+
+    ### batcher 시작하기
+
+      ### batcher 시작
+
+      ```bash
+      # Make the script executable
+      chmod +x scripts/start-batcher.sh
+
+      # Start the batcher
+      ./scripts/start-batcher.sh
+      ```
+
+    <Info>
+      자세한 비용 분석 및 최적화 전략은 [트랜잭션 수수료 문서](/ko/op-stack/transactions/fees)를 참조하십시오.
+    </Info>
+
+    이제 batcher가 작동하며 L2 트랜잭션 배치를 L1에 지속적으로 제출합니다.
+    </Step>
+
+  </Steps>
+  </Tab>
+</Tabs>
+
+<Info>
+  **일반적인 시작 메시지 이해하기**
+
+  batcher를 시작하면 다양한 로그 메시지가 표시될 수 있습니다.
+
+  *   `Added L2 block to local state`: 정상 동작이며, batcher가 블록을 처리하고 있음을 나타냅니다.
+  *   `SetMaxDASize RPC method unavailable`: 사용 중인 실행 클라이언트 버전이 이 메서드를 지원하지 않는 경우 예상되는 메시지입니다.
+  *   종료 중 `context canceled` 오류: 정상적인 정리 메시지입니다.
+  *   `Failed to query L1 tip`: 정상 종료(graceful shutdown) 중에 발생할 수 있습니다.
+
+  이러한 메시지 대부분은 정상 동작의 일부입니다. 구성 옵션 및 문제 해결에 대한 자세한 설명은 [Batcher 구성 레퍼런스](/ko/chain-operators/reference/batcher-configuration)를 참조하십시오.
+</Info>
+
+## 다음 단계
+
+훌륭합니다! batcher가 트랜잭션 데이터를 L1에 게시하고 있습니다. 다음 단계는 상태 루트 제안을 제출하도록 proposer를 설정하는 것입니다.
+
+<Card title="proposer 실행 →" href="./op-proposer-setup">
+  **다음**: 출금 검증을 위해 L2 상태 루트를 L1에 제출하도록 op-proposer를 구성하고 시작합니다.
+</Card>
+
+***
+
+## 도움이 필요하신가요?
+
+*   **Batcher 구성**: [Batcher 구성 레퍼런스](/ko/chain-operators/reference/batcher-configuration)
+*   **모니터링 가이드**: [체인 모니터링](/ko/chain-operators/tools/chain-monitoring)
+*   **지원**: [Optimism 모노레포](https://github.com/ethereum-optimism/optimism/issues)에 이슈를 등록하십시오.

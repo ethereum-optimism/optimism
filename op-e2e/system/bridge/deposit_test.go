@@ -53,7 +53,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	toAddr := common.Address{0xff, 0xff}
 	mintAmount := big.NewInt(9_000_000)
 	opts.Value = mintAmount
-	helpers.SendDepositTx(t, cfg, l1Client, l2Verif, opts, func(l2Opts *helpers.DepositTxOpts) {
+	helpers.SendDepositTx(t, cfg, l1Client, sys.NodeSourceClient("sequencer"), opts, func(l2Opts *helpers.DepositTxOpts) {
 		l2Opts.ToAddr = toAddr
 		// trigger a revert by transferring more than we have available
 		l2Opts.Value = new(big.Int).Mul(common.Big2, startBalance)
@@ -143,7 +143,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 	// Simple constructor that is prefixed to the actual contract code
 	// Results in the contract code being returned as the code for the new contract
 	deployData := append(deployPrefix, sstoreContract...)
-	signer := types.NewIsthmusSigner(cfg.L2ChainIDBig())
+	signer := types.NewPragueSigner(cfg.L2ChainIDBig())
 
 	tx := types.MustSignNewTx(cfg.Secrets.Alice, signer, &types.DynamicFeeTx{
 		ChainID:   cfg.L2ChainIDBig(),
@@ -232,7 +232,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 	toAddr := cfg.Secrets.Addresses().Bob
 	mintAmount := big.NewInt(9_000_000)
 	opts.Value = mintAmount
-	helpers.SendDepositTx(t, cfg, l1Client, l2Seq, opts, func(l2Opts *helpers.DepositTxOpts) {
+	helpers.SendDepositTx(t, cfg, l1Client, sys.NodeSourceClient("sequencer"), opts, func(l2Opts *helpers.DepositTxOpts) {
 		l2Opts.ToAddr = toAddr
 		l2Opts.Data = []byte{0x42}
 	})
@@ -272,7 +272,7 @@ func TestDepositTxCreateContract(t *testing.T) {
 
 	deployData := append(deployPrefix, sstoreContract...)
 
-	l2Receipt := helpers.SendDepositTx(t, cfg, l1Client, l2Client, opts, func(l2Opts *helpers.DepositTxOpts) {
+	l2Receipt := helpers.SendDepositTx(t, cfg, l1Client, sys.NodeSourceClient("sequencer"), opts, func(l2Opts *helpers.DepositTxOpts) {
 		l2Opts.Data = deployData
 		l2Opts.Value = common.Big0
 		l2Opts.IsCreation = true

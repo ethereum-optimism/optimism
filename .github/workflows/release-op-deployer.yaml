@@ -1,0 +1,177 @@
+# Builds the op-deployer binaries for a tag and attaches them to a draft GitHub release, which a
+# release manager publishes after adding the notes. Releases are immutable once published, so the
+# assets must be in place first. netchef and the superchain-registry download these assets by name.
+#
+# A tag push only runs this workflow if the tagged commit contains it. For any other tag, dispatch
+# it from develop: the workflow then comes from develop and the source from the tag, so the build
+# may only use just recipes and tools that also exist on that tag.
+name: release-op-deployer
+
+on:
+  push:
+    tags:
+      - "op-deployer/v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release, e.g. op-deployer/v1.2.3-rc.1
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check the tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^op-deployer/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::The tag is not op-deployer/vMAJOR.MINOR.PATCH[-PRERELEASE]."
+            exit 1
+          fi
+          echo "version=${TAG#op-deployer/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          submodules: recursive
+          persist-credentials: false
+
+      # No cache anywhere in this job: the release must depend only on the tagged source.
+      - name: Install tools
+        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
+        with:
+          version: 2026.10.21
+          install_args: go just forge jq yq
+          cache: false
+
+      - name: Build contracts
+        env:
+          FOUNDRY_PROFILE: ci
+        run: op-deployer/scripts/build-embedded-contracts.sh
+
+      - name: Pack the embedded contract artifacts
+        working-directory: op-deployer
+        run: just copy-contract-artifacts
+
+      - name: Build the superchain bundle
+        run: just build-superchain-go
+
+      - name: Build the release assets
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          commit=$(git rev-parse HEAD)
+          commit_time=$(git show -s --format=%ct)
+          commit_date=$(TZ=UTC git show -s --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd)
+          version_pkg=github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version
+          ldflags="-X $version_pkg.GitCommit=$commit -X $version_pkg.GitDate=$commit_date -X $version_pkg.Version=$VERSION -X $version_pkg.Meta="
+
+          mkdir dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os=${target%/*}
+            arch=${target#*/}
+            name=op-deployer-$VERSION-$os-$arch
+
+            mkdir "dist/$name"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "$ldflags" \
+              -o "dist/$name/op-deployer" ./op-deployer/cmd/op-deployer
+            cp op-deployer/README.md "dist/$name/"
+            chmod 755 "dist/$name/op-deployer"
+            chmod 644 "dist/$name/README.md"
+            touch -d "@$commit_time" "dist/$name"/*
+
+            tar -C dist --owner=0 --group=0 --numeric-owner -cf - "$name/README.md" "$name/op-deployer" \
+              | gzip -n > "dist/$name.tar.gz"
+          done
+
+          "dist/op-deployer-$VERSION-linux-amd64/op-deployer" --version | grep -F "$VERSION-${commit:0:8}-"
+
+          rm -r dist/op-deployer-*/
+          (cd dist && sha256sum ./*.tar.gz | sed 's# \./# #' > "op-deployer_${VERSION}_checksums.txt")
+
+      - name: Upload the release assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Holds the write token, so it must not check out or run any repository code.
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Download the release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: dist
+
+      - name: Attach the assets to a draft release
+        shell: bash
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Lists releases instead of using gh release view, which reports an API failure as "not found".
+          drafts=$(gh api --paginate "repos/$GH_REPO/releases" --jq '.[] | [.tag_name, .draft] | @tsv' \
+            | awk -F'\t' -v tag="$TAG" '$1 == tag { print $2 }')
+          case "$drafts" in
+            "")
+              prerelease=()
+              if [[ "$VERSION" == *-* ]]; then
+                prerelease=(--prerelease)
+              fi
+              gh release create "$TAG" --draft --verify-tag --latest=false "${prerelease[@]}" \
+                --title "op-deployer v$VERSION" --notes ""
+              ;;
+            true) ;;
+            *)
+              echo "::error::$TAG is already published, so its assets can't change, or has several drafts. Found: $drafts"
+              exit 1
+              ;;
+          esac
+          gh release upload "$TAG" dist/* --clobber
+
+          expected=$(find dist -type f | wc -l)
+          attached=$(gh release view "$TAG" --json assets --jq '.assets | length')
+          if [ "$attached" -ne "$expected" ]; then
+            echo "::error::$TAG has $attached assets, expected $expected."
+            exit 1
+          fi

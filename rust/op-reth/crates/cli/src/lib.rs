@@ -90,6 +90,7 @@ pub struct Cli<
 const DENIED_ARGS: &[(&str, &str, &str)] = &[
     ("node", "minimal", MINIMAL_REMOVED_HELP),
     ("node", "max_bals", BAL_ARGS_UNSUPPORTED_HELP),
+    ("node", "max_bals_bytes", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "cache_computed_bals", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "prewarm_bals", BAL_ARGS_UNSUPPORTED_HELP),
     // Part of the database args, which most subcommands take.
@@ -307,6 +308,7 @@ mod test {
         for args in [
             &["op-reth", "node", "--engine.disable-bal-parallel-execution"][..],
             &["op-reth", "node", "--rpc-cache.max-bals", "10"],
+            &["op-reth", "node", "--rpc-cache.max-bals-bytes", "10"],
             &["op-reth", "node", "--db.balstore-cache-size", "10"],
             &["op-reth", "prune", "--db.balstore-cache-size", "10"],
             &["op-reth", "db", "--db.balstore-cache-size", "10", "stats"],

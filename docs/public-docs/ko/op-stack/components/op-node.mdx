@@ -1,0 +1,64 @@
+---
+title: op-node
+description: Go로 작성된 OP Stack rollup node인 op-node의 정식 허브입니다. op-node가 하는 일, 운영 주체, 그리고 가이드, 레퍼런스, 릴리스, 소스, 사양의 위치를 안내합니다.
+diataxis: explanation
+---
+
+op-node는 Go로 작성된 OP Stack의 합의 계층 클라이언트입니다. L1 데이터로부터 정식 L2 체인을
+파생하고, 그 결과 블록을 처리하도록 실행 클라이언트를 구동하는 rollup node입니다.
+
+## 개요
+
+op-node는 L2 블록의 정식 체인을 구축하고, 전달하며, 검증합니다. sequencer로서는 새 블록을 생성하고,
+verifier로서는 체인이 L1에 게시한 데이터로부터 블록을 파생하며 그 데이터로 재현할 수 있는 블록만
+받아들입니다. 블록 자체는 op-reth와 같은 실행 클라이언트가 실행하며, op-node는 Engine API를 통해
+실행 클라이언트를 제어합니다. 두 클라이언트는 일대일 쌍으로 실행됩니다. op-node는 또한 최신 상태에
+낮은 지연 시간으로 접근할 수 있도록 sequencer의 새로운(unsafe) 블록을 P2P 네트워크로 전달합니다. 이
+전달은 선택 사항이며 검증 능력에는 영향을 주지 않습니다.
+
+op-node가 존재하는 이유는 OP Stack 체인이 *파생된* 체인이기 때문입니다. 정식 체인은 L1에서 사용
+가능한 데이터로 정의되며, rollup node는 그 데이터를 검증된 L2 블록으로 변환하는 구성 요소입니다.
+op-node는 L1에서 beacon node가 하는 역할을 수행하며, rollup node 사양을 구현합니다.
+
+**운영 주체:** 모든 노드 운영자입니다. 각 OP Stack node는 rollup node(op-node 또는 같은 역할의 Rust
+구현인 [kona-node](/ko/releases/kona-node))와 실행 클라이언트를 짝지어 구성됩니다. 체인 운영자는
+추가로 새 블록을 생성하기 위해 op-node를 sequencer 모드로 실행합니다.
+
+## 시작하기
+
+*   [Docker로 node 실행](/ko/node-operators/tutorials/node-from-docker):
+    공식 Docker 이미지로 op-node와 op-reth를 실행합니다. 소스에서 빌드하여 실행하려면
+    [소스에서 OP Stack node 빌드 및 실행](/ko/node-operators/tutorials/run-node-from-source)을
+    참조하십시오.
+
+## 사용 방법 가이드
+
+*   [합의 클라이언트 구성](/ko/node-operators/guides/configuration/consensus-clients):
+    op-node(또는 kona-node)를 구성하고 실행 클라이언트에 연결합니다.
+*   [node용 blob 데이터 가져오기](/ko/node-operators/guides/management/blobs): beacon 보존 기간보다
+    오래된 blob을 포함하여, op-node가 blob 배치 데이터를 가져오는 데 필요한 L1 beacon 엔드포인트를
+    제공합니다.
+*   [node 문제 해결](/ko/node-operators/guides/troubleshooting): 흔히 발생하는 node 문제의 해결
+    방법을 다루며, 그중 상당수는 op-node 로그에서 드러납니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   [op-node 구성 옵션](/ko/node-operators/reference/op-node-config):
+    페이지에 명시된 op-node 릴리스에서 생성된 플래그 표와 함께 모든 CLI 플래그와 환경 변수를
+    다룹니다.
+*   [op-node JSON-RPC API](/ko/node-operators/reference/op-node-json-rpc): op-node가 제공하는
+    rollup 전용 RPC 메서드를 다룹니다.
+
+## 릴리스
+
+*   [op-node 릴리스 이력](/ko/releases/op-node)
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `op-node/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-node).
+    [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/README.md)에 빠른 시작,
+    설계 원칙, 장애 모드(L1 다운타임, L1 reorg, sequencer window 만료 등)가 문서화되어 있습니다.
+*   [Rollup node 사양](https://specs.optimism.io/protocol/rollup-node.html):
+    rollup node 역할의 규범적 정의입니다.
+*   [L2 체인 파생 사양](https://specs.optimism.io/protocol/derivation.html):
+    L1 데이터로부터 정식 L2 체인을 파생하는 방식의 규범적 정의입니다.

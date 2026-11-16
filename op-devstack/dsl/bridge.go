@@ -165,7 +165,7 @@ func (d Deposit) GasCost() eth.ETH {
 	if d.bridge == nil {
 		panic("bridge reference not set on deposit")
 	}
-	return d.bridge.gasCost(d.l1Receipt, d.bridge.l1Client.EthClient())
+	return d.bridge.l1GasCost(d.l1Receipt)
 }
 
 func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) Deposit {
@@ -300,12 +300,12 @@ type Withdrawal struct {
 }
 
 func (w *Withdrawal) InitiateGasCost() eth.ETH {
-	return w.bridge.gasCost(w.initReceipt, w.bridge.l2Client)
+	return w.bridge.l2GasCost(w.initReceipt)
 }
 
 func (w *Withdrawal) ProveGasCost() eth.ETH {
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal before calculating gas cost")
-	return w.bridge.gasCost(w.proveReceipt, w.bridge.l1Client.EthClient())
+	return w.bridge.l1GasCost(w.proveReceipt)
 }
 
 func (w *Withdrawal) ProvenDisputeGameIndex() *big.Int {
@@ -316,7 +316,7 @@ func (w *Withdrawal) ProvenDisputeGameIndex() *big.Int {
 
 func (w *Withdrawal) FinalizeGasCost() eth.ETH {
 	w.require.NotNil(w.finalizeReceipt, "Must have finalized withdrawal before calculating gas cost")
-	return w.bridge.gasCost(w.finalizeReceipt, w.bridge.l1Client.EthClient())
+	return w.bridge.l1GasCost(w.finalizeReceipt)
 }
 
 func (w *Withdrawal) InitiateBlockHash() common.Hash {
@@ -372,7 +372,7 @@ func (w *Withdrawal) Prove(user *EOA) {
 			return false
 		}
 		w.require.Equal(types.ReceiptStatusSuccessful, proveReceipt.Status, "prove withdrawal was not successful")
-		w.require.Equal(2, len(proveReceipt.Logs)) // emit WithdrawalProven, WithdrawalProvenExtension1
+		w.require.Equal(3, len(proveReceipt.Logs), "prove receipt must carry WithdrawalProven, WithdrawalProvenExtension1 and WithdrawalProvenExtension2")
 
 		w.proveParams = params
 		w.proveReceipt = proveReceipt
@@ -617,28 +617,35 @@ func (w *Withdrawal) ProveAndFinalize(user *EOA, maxGameClock time.Duration) {
 	w.Finalize(user)
 }
 
-func (b *StandardBridge) gasCost(rcpt *types.Receipt, client apis.EthClient) eth.ETH {
-	var blockTimestamp *uint64
-	if hasOperatorFee(rcpt) {
-		b.require.NotNil(client, "client is required to resolve operator fee timestamp")
-		blockTimestamp = b.receiptTimestamp(rcpt, client)
-	}
-	return gasCost(rcpt, b.rollupCfg, blockTimestamp)
+// l1GasCost returns the fee paid for an L1 transaction, whose receipt carries no OP fee fields.
+func (b *StandardBridge) l1GasCost(rcpt *types.Receipt) eth.ETH {
+	return gasCost(optypes.FromGethReceipt(rcpt), b.rollupCfg, nil)
 }
 
-func hasOperatorFee(rcpt *types.Receipt) bool {
+// l2GasCost re-fetches rcpt from L2, as only an OP receipt carries the L1 and operator fees.
+func (b *StandardBridge) l2GasCost(rcpt *types.Receipt) eth.ETH {
+	opRcpt, err := b.l2Client.TransactionReceipt(b.ctx, rcpt.TxHash)
+	b.require.NoError(err, "failed to fetch receipt %s", rcpt.TxHash)
+	var blockTimestamp *uint64
+	if hasOperatorFee(opRcpt) {
+		blockTimestamp = b.receiptTimestamp(opRcpt)
+	}
+	return gasCost(opRcpt, b.rollupCfg, blockTimestamp)
+}
+
+func hasOperatorFee(rcpt *optypes.Receipt) bool {
 	return rcpt.OperatorFeeConstant != nil && rcpt.OperatorFeeScalar != nil
 }
 
-func (b *StandardBridge) receiptTimestamp(rcpt *types.Receipt, client apis.EthClient) *uint64 {
+func (b *StandardBridge) receiptTimestamp(rcpt *optypes.Receipt) *uint64 {
 	b.require.NotNil(rcpt.BlockNumber, "receipt missing block number")
-	blockInfo, err := client.InfoByNumber(b.ctx, bigs.Uint64Strict(rcpt.BlockNumber))
+	blockInfo, err := b.l2Client.InfoByNumber(b.ctx, bigs.Uint64Strict(rcpt.BlockNumber))
 	b.require.NoError(err, "failed to fetch block info for receipt")
 	ts := blockInfo.Time()
 	return &ts
 }
 
-func gasCost(rcpt *types.Receipt, rollupCfg *rollup.Config, blockTimestamp *uint64) eth.ETH {
+func gasCost(rcpt *optypes.Receipt, rollupCfg *rollup.Config, blockTimestamp *uint64) eth.ETH {
 	cost := eth.WeiBig(new(big.Int).Mul(new(big.Int).SetUint64(rcpt.GasUsed), rcpt.EffectiveGasPrice))
 	if rcpt.L1Fee != nil {
 		cost = cost.Add(eth.WeiBig(rcpt.L1Fee))

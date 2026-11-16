@@ -48,7 +48,6 @@ impl Metrics {
     /// metrics.
     pub fn zero() {
         // Discovery Event
-        metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "discovered").set(0);
         metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "session_established").set(0);
         metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "unverifiable_enr").set(0);
 

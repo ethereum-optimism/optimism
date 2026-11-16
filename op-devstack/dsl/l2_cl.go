@@ -19,6 +19,7 @@ import (
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // errNoChainHeadForLevel is returned for safety levels that name no chain head, either
@@ -562,6 +563,12 @@ func (cl *L2CLNode) SafeHeadAtL1Block(l1BlockNum uint64) (*eth.SafeHeadResponse,
 	return cl.inner.RollupAPI().SafeHeadAtL1Block(ctx, l1BlockNum)
 }
 
+// SafeHeadRecordAtL1Block returns the safe head recorded at or before the given L1 block, or nil
+// when the SafeDB has no record there. Any other error fails the test.
+func (cl *L2CLNode) SafeHeadRecordAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
+	return cl.safeHeadAtL1Block(l1BlockNum)
+}
+
 func (cl *L2CLNode) safeHeadAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
 	resp, err := cl.SafeHeadAtL1Block(l1BlockNum)
 	if errors.Is(err, safedb.ErrNotFound) {
@@ -672,12 +679,19 @@ func (cl *L2CLNode) IsP2PConnected(peer *L2CLNode) {
 	cl.require.NoError(err, "peer not connected")
 }
 
+// WaitForPeerDisconnected waits until peer no longer lists cl among its peers.
 func (cl *L2CLNode) WaitForPeerDisconnected(peer *L2CLNode) {
-	myInfo := cl.PeerInfo()
-	strategy := &retry.ExponentialStrategy{Min: 10 * time.Second, Max: 30 * time.Second, MaxJitter: 250 * time.Millisecond}
+	peer.WaitForPeerIDDropped(cl.PeerInfo().PeerID)
+}
+
+// WaitForPeerIDDropped waits until cl no longer lists id among its peers.
+// Unlike WaitForPeerDisconnected, it queries only cl, so it works after the peer has stopped.
+func (cl *L2CLNode) WaitForPeerIDDropped(id peer.ID) {
+	// A disconnection shows up in the peer list within moments, so poll it quickly.
+	strategy := &retry.ExponentialStrategy{Min: 1 * time.Second, Max: 10 * time.Second, MaxJitter: 250 * time.Millisecond}
 	err := retry.Do0(cl.ctx, 5, strategy, func() error {
-		for _, p := range peer.Peers().Peers {
-			if p.PeerID == myInfo.PeerID {
+		for _, p := range cl.Peers().Peers {
+			if p.PeerID == id {
 				return errors.New("peer still connected")
 			}
 		}

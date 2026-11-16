@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
@@ -16,12 +15,8 @@ import (
 )
 
 func newNonInteropZKSystem(t devtest.T) (*presets.Minimal, *proofs.DisputeGameFactory) {
-	sysgo.SkipOnKonaNode(t, "requires op-node's single-chain superroot_atTimestamp RPC")
 	sys := presets.NewMinimal(t,
-		presets.WithDeployerOptions(
-			sysgo.WithJovianAtGenesis,
-			sysgo.WithDevFeatureEnabled(devfeatures.ZKDisputeGameFlag),
-		),
+		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
 		presets.WithGameTypeAdded(gameTypes.ZKDisputeGameType),
 		presets.WithRespectedGameTypeOverride(gameTypes.ZKDisputeGameType),
 		presets.RequireRespectedGameType(gameTypes.ZKDisputeGameType),
@@ -29,7 +24,7 @@ func newNonInteropZKSystem(t devtest.T) (*presets.Minimal, *proofs.DisputeGameFa
 	t.Require().Len(sys.L2Networks(), 1)
 	t.Require().Nil(sys.L2Chain.Escape().RollupConfig().LagoonTime, "interop must remain disabled")
 
-	// Minimal runs no supernode; the proposer and challenger source super roots from op-node.
+	// Minimal runs no supernode; the proposer and challenger source super roots from the rollup node.
 	factory := proofs.NewDisputeGameFactory(t, sys.L1Network, sys.L1EL.EthClient(),
 		sys.L2Chain.DisputeGameFactoryProxyAddr(), sys.L2CL, sys.L2EL, dsl.NewOpNodeSuperRoots(sys.L2CL), nil, nil)
 	return sys, factory

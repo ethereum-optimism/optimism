@@ -1,0 +1,109 @@
+---
+title: 브리지 일시 중지
+lang: en-US
+description: Guardian이 백업 안전 장치로서 OP Stack 체인의 출금을 일시 중지하는 방법과 일시 중지 시 차단되는 작업에 대해 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="일시 중지 메커니즘"
+  title="일시 중지 메커니즘 사양"
+  href="https://specs.optimism.io/protocol/stage-1.html#pause-mechanism"
+  note="이 페이지는 일시 중지가 실제로 어떻게 작동하는지 설명하며, 사양 내용을 다시 서술하지 않습니다."
+/>
+
+[`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol)은 모든 표준 OP Stack 체인에 존재하는 저수준 Layer 1(L1) 메시지 전달 컨트랙트입니다.
+이 컨트랙트는 OP Stack 체인과 그 L1 부모 체인 간 통신 채널의 L1 측을 담당합니다.
+
+안전 장치로서, Guardian이라는 특권 주소는 출금을 일시 중지할 수 있습니다.
+출금이 일시 중지된 동안 `OptimismPortal` 컨트랙트는 Layer 2(L2)에서 L1으로의 트랜잭션이 실행되지 않도록 막습니다.
+이 백업 안전 장치는 현재 진행 중인 보안 우려를 완화하는 데 도움이 됩니다.
+
+OP Stack은 다른 브리징 시스템에서 익스플로잇으로 이어졌던 출금 버그의 위험을 완화하기 위해 일시 중지 기능을 도입했습니다.
+
+<Info>
+  중앙화 거래소, 서드파티 bridge 또는 OP Stack 체인에서 자산을 관리하는 기타 서비스를 운영하는 경우, 일시 중지를 모니터링하는 방법과 일시 중지가 활성화되었을 때 취해야 할 조치는 [거래소 및 bridge를 위한 보안 가이드](/ko/op-stack/security/exchanges-and-bridges)를 참조하십시오.
+</Info>
+
+## 일시 중지 기능
+
+`OptimismPortal`은 [`SuperchainConfig`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/SuperchainConfig.sol) 스마트 컨트랙트를 가리키며, 이 컨트랙트는 L2에서 L1으로의 트랜잭션을 일시 중지하고 재개할 수 있는 Guardian의 주소를 보관합니다.
+`SuperchainConfig` 컨트랙트는 OP Stack 체인 간에 공유되는 구현체입니다.
+Optimism이 거버넌스하는 모든 체인이 이를 가리키며, 모든 OP Stack 체인은 자신의 `SuperchainConfigProxy`가 이 공유 구현체를 가리키도록 설정할 수 있습니다.
+
+L2에서 L1으로의 트랜잭션을 통해 OP Stack 체인의 사용자와 스마트 컨트랙트는 L1 부모 체인으로 메시지를 보낼 수 있습니다.
+일시 중지 기능을 사용하면 Guardian은 해당 OP Stack 체인의 L2에서 L1으로의 트랜잭션 실행을 중단할 수 있습니다.
+일시 중지 기능은 L1에서 L2로의 트랜잭션에는 영향을 주지 않으며, 출금이 일시 중지된 동안에도 L2 체인은 계속해서 트랜잭션을 처리하고 블록을 생성합니다.
+
+Guardian은 특정 사용자, 스마트 컨트랙트 또는 트랜잭션만을 대상으로 일시 중지할 수 없습니다.
+일시 중지는 의심되거나 확인된 보안 문제에 대한 백업 안전 장치로 설계되었으며, Guardian은 문제가 확인되기 전에 예방 조치로 일시 중지를 발동할 수 있습니다.
+
+### 일시 중지 시 차단되는 작업
+
+체인이 일시 중지된 동안 L1에서 다음 작업은 revert됩니다.
+
+*   `OptimismPortal`에서 출금을 증명하고 최종 확정하는 작업.
+*   `L1CrossDomainMessenger`를 통해 메시지를 릴레이하는 작업.
+*   `L1StandardBridge`를 통한 ether 및 ERC-20 출금, `L1ERC721Bridge`를 통한 ERC-721 출금을 최종 확정하는 작업.
+*   `ETHLockbox`에서 ETH를 잠금 해제하는 작업.
+*   `DelayedWETH`에서 분쟁 게임(dispute game) 본드를 인출하는 작업 및 분쟁 게임을 종료하는 작업.
+
+일시 중지는 `OptimismPortal` 또는 bridge를 통해 체인으로 입금하는 작업은 차단하지 않습니다.
+
+### 전역 일시 중지와 체인별 일시 중지
+
+Guardian은 일시 중지 식별자(identifier)를 사용하여 일시 중지의 범위를 선택합니다.
+
+*   영(zero) 주소(`address(0)`)는 `SuperchainConfig`를 사용하는 모든 체인을 일시 중지합니다.
+*   체인의 `ETHLockbox` 주소는 해당 체인 또는 해당 `ETHLockbox`를 공유하는 체인 그룹만 일시 중지합니다.
+    `SystemConfig`에서 `ETH_LOCKBOX` 기능이 활성화되지 않은 체인은, `OptimismPortal`에 `ETHLockbox` 주소가 설정되어 있더라도 대신 `OptimismPortal` 주소를 사용합니다.
+
+<Info>
+  Upgrade 21은 이 규칙을 변경합니다.
+  Upgrade 21은 Optimism 거버넌스 승인을 기다리고 있으며, 이 변경 사항은 해당 업그레이드가 체인에 실행된 후에만 그 체인에 적용됩니다.
+
+  체인이 `op-contracts/v9.0.0`으로 업그레이드되면 `ETHLockbox`를 가지게 되며 `ETH_LOCKBOX` 기능을 비활성화할 수 없으므로, `ETHLockbox` 주소가 유일한 체인별 일시 중지 식별자가 됩니다.
+  체인의 `OptimismPortal` 주소를 사용한 일시 중지는 더 이상 해당 체인을 일시 중지하지 않습니다.
+  체인에서 `ETH_LOCKBOX`가 아직 활성화되지 않은 경우, 체인이 `OptimismPortal` 주소로 일시 중지된 동안에는 업그레이드가 revert되므로, 식별자를 전환하는 방식으로 체인의 일시 중지를 해제할 수 없습니다.
+</Info>
+
+체인별 일시 중지 또는 전역 일시 중지 중 하나라도 활성화되어 있으면 해당 체인은 일시 중지된 상태입니다.
+두 가지를 한 번에 확인하려면 체인의 `OptimismPortal` 또는 `SystemConfig`에서 `paused()`를 호출하십시오.
+
+### 일시 중지 만료
+
+일시 중지는 발동된 후 7,884,000초(약 3개월)가 지나면 자동으로 만료됩니다.
+Guardian은 활성 상태의 일시 중지를 연장할 수 있으며, 연장하면 3개월 타이머가 다시 시작됩니다.
+일시 중지가 만료되면, Guardian이 `unpause`를 호출하여 재설정할 때까지 동일한 식별자에 대한 `pause` 호출은 revert됩니다.
+Guardian은 `extend`를 호출하여 만료된 일시 중지를 다시 시작할 수도 있습니다.
+
+## 일시 중지 및 재개 함수
+
+Guardian은 `SuperchainConfig` 컨트랙트의 다음 함수를 통해 일시 중지를 관리합니다.
+
+*   `pause(address identifier)`는 해당 식별자에 대한 일시 중지를 시작합니다.
+*   `unpause(address identifier)`는 일시 중지를 조기에 해제하고 다시 사용할 수 있도록 재설정합니다.
+    체인별 식별자의 일시 중지를 해제해도 활성 상태의 전역 일시 중지는 해제되지 않습니다.
+*   `extend(address identifier)`는 활성 상태의 일시 중지의 만료 타이머를 다시 시작합니다.
+
+누구나 `paused(address identifier)`와 `expiration(address identifier)`로 일시 중지 상태를 조회할 수 있습니다.
+인수 없이 호출하는 `paused()`는 전역 일시 중지만 보고합니다.
+이 컨트랙트는 일시 중지가 시작되거나 연장될 때 `Paused(address identifier)`를, 해제될 때 `Unpaused(address identifier)`를 발생시킵니다.
+
+자세한 내용은 [SuperchainConfig 사양](https://specs.optimism.io/protocol/superchain-config.html)을 참조하십시오.
+
+## Guardian 주소
+
+`SuperchainConfig` 컨트랙트는 Guardian 주소를 저장합니다. 이 주소는 컨트랙트가 초기화될 때 설정되며 setter 함수가 없습니다.
+이를 변경하려면 네트워크의 관리자 주소 또는 스마트 컨트랙트가 `SuperchainConfig` 프록시를 업그레이드하고 새 Guardian 주소로 다시 초기화해야 합니다.
+자세한 내용은 [OP Stack 체인의 특권 역할](/ko/op-stack/protocol/privileged-roles#guardian)을 참조하십시오.
+
+## 다음 단계
+
+일시 중지 기능은 OP Stack 자체의 bridge 컨트랙트를 보호합니다.
+중앙화 거래소와 서드파티 bridge의 보안은 다루지 않으며, 이들은 정식(canonical) bridge가 일시 중지된 동안에도 계속 열려 있습니다.
+
+*   거래소나 bridge를 운영하는 경우, 일시 중지를 모니터링하고 일시 중지된 체인과의 자산 이동을 중단하는 방법은 [거래소 및 bridge를 위한 보안 가이드](/ko/op-stack/security/exchanges-and-bridges)를 참조하십시오.
+*   모든 특권 역할에 대한 자세한 내용은 [OP Stack 체인의 특권 역할](/ko/op-stack/protocol/privileged-roles)을 참조하십시오.

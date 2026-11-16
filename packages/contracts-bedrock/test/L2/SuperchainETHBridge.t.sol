@@ -71,12 +71,6 @@ abstract contract SuperchainETHBridge_TestInit is CommonTest, MockHelper {
     function setUp() public virtual override {
         super.enableInterop();
         super.setUp();
-
-        {
-            // TODO: Remove this block when L2Genesis includes this contract.
-            vm.etch(address(superchainETHBridge), vm.getDeployedCode("SuperchainETHBridge.sol:SuperchainETHBridge"));
-            vm.etch(address(ethLiquidity), vm.getDeployedCode("ETHLiquidity.sol:ETHLiquidity"));
-        }
     }
 
     /// @notice Pauses or unpauses ETHLiquidity: relays `setPaused` from this chain's
@@ -129,7 +123,7 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
         vm.assume(_sender != ZERO_ADDRESS);
         vm.assume(_sender != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         vm.assume(_to != ZERO_ADDRESS);
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Arrange
         vm.deal(_sender, _amount);
@@ -302,7 +296,7 @@ contract SuperchainETHBridge_RelayETH_Test is SuperchainETHBridge_TestInit {
         // Assume
         vm.assume(_to != ZERO_ADDRESS);
         assumePayable(_to);
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Arrange
         vm.deal(address(superchainETHBridge), _amount);
@@ -414,7 +408,7 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         vm.assume(_from != address(ethLiquidity) && _from != address(0) && _to != address(0));
         vm.assume(_from != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         assumeNotPrecompile(_from);
-        _amount = bound(_amount, 1, type(uint248).max - 1);
+        _amount = bound(_amount, 1, type(uint128).max - 1);
         (uint256 nonce, bytes32 messageHash) = _send(_from, _to, _amount);
         _expire(messageHash);
         uint256 balanceBefore = _from.balance;

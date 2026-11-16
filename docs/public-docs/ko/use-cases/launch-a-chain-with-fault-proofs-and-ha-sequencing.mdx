@@ -1,0 +1,271 @@
+---
+title: 결함 증명과 HA sequencing을 갖춘 체인 출시
+description: 컨트랙트 배포부터 장애 조치(failover) 훈련까지, 작동하는 결함 증명 시스템과 고가용성 sequencer 클러스터를 갖추어 OP Stack 체인을 프로덕션에 출시합니다.
+diataxis: how-to
+content-type: solution-guide
+last-reviewed: 2026-07-24
+---
+
+이 가이드는 체인 운영자가 "testnet 배포가 작동한다"는 단계에서 나중에 추가하기
+어려운 두 가지 특성을 갖춘 프로덕션 출시까지 나아가도록 안내합니다. 첫째는 첫날부터
+출금을 보호하는 결함 증명(fault proof) 시스템이고, 둘째는 단일 장애 지점이 없는
+sequencer 토폴로지입니다. 여기에는 `op-deployer`와 L1에 있는 체인의 분쟁 게임(dispute
+game) 컨트랙트, `op-conductor`가 관리하는 `op-node` + `op-reth` sequencer 클러스터,
+그리고 체인이 계속 데이터를 게시하고 제안하며 방어되도록 하는 L1 대상 서비스
+(`op-batcher`, `op-proposer`, `op-challenger`, `op-dispute-mon`)가 관련됩니다.
+
+## 이 가이드가 적합한 대상
+
+다음과 같은 경우 이 가이드를 사용하십시오.
+
+*   프로덕션 OP Stack 체인 출시를 계획하고 있는 경우. 실제 사용자가 체인의
+    가동 시간에 의존하고 결함 증명 시스템을 통해 실제 가치를 출금하게 됩니다.
+*   배포(`op-deployer` intent와 그 결과로 생성되는 컨트랙트)와 체인 서비스가
+    실행되는 인프라를 직접 제어하는 경우.
+
+OP Stack 체인을 처음 배포하는 경우에는 먼저 testnet에서
+[L2 rollup 생성 튜토리얼](/ko/chain-operators/tutorials/create-l2-rollup)을
+실행하십시오. 이 가이드는 그 경험을 전제로 하며 그 위에 프로덕션 관련 결정을
+추가합니다. 체인이 이미 운영 중이고 sequencer 고가용성만 추가하려는 경우에는
+4단계와 [op-conductor 설정 가이드](/ko/chain-operators/tools/op-conductor/setup)로
+건너뛰십시오. 체인이 이미 허가형(permissioned) 결함 증명으로 운영 중이며
+무허가형(permissionless)으로 전환하려는 경우에는
+[무허가형 마이그레이션 튜토리얼](/ko/chain-operators/tutorials/migrating-permissionless)로
+바로 이동하십시오.
+
+이러한 특성을 직접 운영하지 않고 갖추고 싶거나 OP Labs 엔지니어링의 지원을 받고
+싶다면
+[OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise)를
+참조하십시오. 어느 경우든 이 가이드는 프로덕션 출시에 무엇이 필요한지에 대한
+레퍼런스입니다.
+
+## 시작하기 전에
+
+다음이 준비되어 있어야 합니다.
+
+*   완료된 testnet 배포. 이를 통해 `op-deployer`의 intent-and-apply 워크플로와
+    서비스별 설정 단계에 익숙해야 합니다.
+*   batcher, proposer, challenger용으로 자금이 충전된 L1 계정.
+    [키 관리 가이드](/ko/chain-operators/guides/management/key-management)의 서명
+    체계에 따라 관리되어야 합니다.
+*   세 개의 sequencer node를 별도의 장애 도메인(리전 또는 가용 영역)에서 사설
+    네트워크로 실행할 수 있는 인프라와 지원 서비스. op-conductor의 RPC는 인증을
+    수행하지 않으므로 클러스터는 공개적으로 접근 가능해서는 안 됩니다.
+
+## 1단계: 출시일에 제공되는 것 이해하기
+
+현재 출시되는 체인은 결함 증명을 갖추고 시작하지만, 완전한 무허가형 형태는
+아닙니다. [결함 증명 설명](/ko/op-stack/fault-proofs/explainer)을 읽고 다음을
+파악하십시오.
+
+*   체인 상태에 대한 제안은 `DisputeGameFactory`를 통해 생성된 분쟁 게임을 거쳐
+    확정되며, 출금은 이러한 제안에 대해 증명됩니다.
+*   게임 뒤에 있는 안전망: Guardian은 잘못된 게임을 블랙리스트에 올리거나
+    인정되는 게임 유형(respected game type)을 변경할 수 있으며, 본드는
+    `DelayedWETH`에 보관되어 잘못된 지급을 회수할 수 있습니다.
+
+그런 다음
+[OPCM으로 새 분쟁 게임 배포](/ko/chain-operators/tutorials/dispute-games#understanding-dispute-games)의
+참고 사항을 읽고 출시일의 현실을 파악하십시오. `op-deployer`로 배포된 체인은
+처음에 **허가형** 분쟁 게임만 포함하며, 이 게임에서 proposer와 challenger는
+[특권 역할](/ko/op-stack/protocol/privileged-roles)을 가진 특정 주소입니다.
+무허가형 결함 증명은 배포 시 체크하는 항목이 아니라 7단계에서 일정을 잡는 출시 후
+전환입니다.
+
+## 2단계: 표준 증명 파라미터로 컨트랙트 배포
+
+testnet 실행에서 사용한 intent 파일 워크플로를 구현하는
+[op-deployer](/ko/chain-operators/tools/op-deployer/overview)로 배포하십시오. apply하기
+전에
+[rollup 배포 구성 레퍼런스](/ko/chain-operators/reference/rollup-deployment-configuration)에
+정리된, intent가 제어하는 결함 증명 항목을 검토하십시오. 인정되는 게임
+유형(`respectedGameType`, 표준 배포에서는 허가형 게임인 유형 `1`로 설정됨), absolute
+prestate(`faultGameAbsolutePrestate`), 그리고 게임 깊이와 시계(clock) 파라미터입니다.
+
+이 단계에서 추가되는 결정은 표준 값을 유지하는 것입니다. 분쟁 파라미터는 게임이
+진행되고 해결되는 방식에 있어 합의에 중요한 요소이며, 이 때문에 이를 재정의하려면
+`dangerouslyAllowCustomDisputeParameters`라는 intent 필드를 설정해야 합니다. 별도의
+보안 검토 없이 이 값을 변경하지 마십시오.
+
+`op-deployer`가 생성한 주소, 특히 `DisputeGameFactory` 프록시를 기록하십시오.
+proposer, challenger, 그리고 모니터링 모두 이를 구성 값으로 사용합니다.
+
+## 3단계: sequencer 토폴로지 설계
+
+단일 sequencer는 체인 전체의 단일 장애 지점입니다. sequencer가 멈추면 누구에게도
+새로운 unsafe 블록이 생성되지 않습니다. OP Stack의 고가용성 해법은
+`op-conductor`입니다. [OP Conductor 설명](/ko/chain-operators/tools/op-conductor)을
+읽고 다음을 파악하십시오.
+
+*   각 sequencer는 옆에서 conductor를 실행합니다. conductor들은 Raft 클러스터를
+    구성하며, Raft 리더가 unsafe 블록을 생성하고 gossip할 수 있는 유일한
+    sequencer입니다.
+*   이 설계의 세 가지 보장: unsafe reorg가 없고, 네트워크 분할 중에도 unsafe head가
+    정체되지 않으며, 표준 3노드 구성에서 node 장애가 하나 이하일 때 100% 가동
+    시간을 제공합니다.
+*   이 설계는 비잔틴 장애 허용(BFT)이 아닙니다. 클러스터의 모든 node가 정직하고
+    여러분이 운영한다고 가정합니다. 충돌과 분할로부터는 보호하지만, 악의적인
+    클러스터 구성원으로부터는 보호하지 않습니다.
+
+그런 다음
+[네트워크 설계 예시](/ko/chain-operators/guides/management/network-architecture)를
+읽고, 트랜잭션 수신(ingress) node, 아카이브 node, 공개 RPC에 대해 sequencer가 어디에
+위치하는지, 그리고 conductor RPC가 항상 활성 sequencer와 통신해야 하는 서비스를 위한
+리더 인식 프록시로 동작할 수 있다는 점을 파악하십시오.
+
+| 조건                                                            | 선택                                             | 이유                                                                                                                          |
+| ------------------------------------------------------------------ | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| testnet 출시이거나 다운타임이 허용되는 경우                | 단일 sequencer, conductor 없음                        | 세 개의 sequencer 스택을 운영하지 않아도 됩니다. conductor는 나중에 설정 가이드를 통해 다운타임 없이 운영 중인 네트워크에 추가할 수 있습니다.        |
+| 가동 시간 약정이 있는 프로덕션 출시                       | 장애 도메인에 걸친 3노드 conductor 클러스터   | unsafe reorg 없이 단일 node 장애를 견딥니다. Raft에는 쿼럼이 필요하므로 세 node 중 두 개는 접근 가능한 상태로 유지되어야 합니다.          |
+| 손상되었거나 악의적인 sequencer로부터의 보호가 필요한 경우  | conductor 이상의 대책                                     | conductor는 명시적으로 BFT가 아닙니다. 신뢰하는 node 간의 가용성을 관리할 뿐이며, 정직하지 않은 클러스터 구성원을 방어할 수 없습니다.  |
+
+## 4단계: conductor 클러스터 부트스트랩
+
+세 개의 sequencer(각각 conductor가 옆에 있는 `op-node` + `op-reth` 쌍)를 구동한 다음
+클러스터를 구성하십시오.
+[op-conductor 설정 가이드](/ko/chain-operators/tools/op-conductor/setup)가 정식
+참조 문서입니다. 처음부터 끝까지 따라 하며 다음을 파악하십시오.
+
+*   부트스트랩 구조: 정확히 하나의 conductor만
+    `OP_CONDUCTOR_RAFT_BOOTSTRAP=true`(및 `OP_CONDUCTOR_PAUSED=true`)로 시작하고,
+    나머지는 리더에 대해 `conductor_addServerAsVoter`로 참여합니다. 클러스터가
+    생성된 후에는 재배포 시 다시 부트스트랩되지 않도록 부트스트랩 플래그를
+    제거해야 합니다.
+*   op-node 측: 모든 sequencer의 op-node는 `OP_NODE_CONDUCTOR_ENABLED=true`로
+    실행되며, 이 설정이 unsafe 블록을 Raft 로그에 커밋합니다. 또한
+    `OP_NODE_RPC_ADMIN_STATE` 플래그는 conductor와 함께 사용할 수 없습니다.
+*   리더십이 이동하는 시점을 결정하는 헬스 체크 설정:
+    `OP_CONDUCTOR_HEALTHCHECK_MIN_PEER_COUNT`는 내부 피어 수에 맞추고,
+    `OP_CONDUCTOR_HEALTHCHECK_UNSAFE_INTERVAL`은 블록 시간의 작은 배수로 설정하여
+    짧은 일시적 문제로 장애 조치가 발생하지 않도록 합니다.
+*   pause/resume/transfer-leadership RPC. 이는 장애 발생 시 수동으로 개입하는
+    수단이기도 합니다.
+
+설정 가이드는 blue/green 배포를 사용하여 이미 운영 중인 네트워크에 conductor를
+추가하는 경우를 기준으로 작성되었습니다. 아직 운영 중이 아닌 체인의 경우에는 무중단
+절차 없이 동일한 순서가 적용되며,
+[op-conductor 런북](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/RUNBOOK.md)에서
+클러스터를 처음부터 부트스트랩하는 방법을 다룹니다(`develop`의 저장소 내 문서,
+2026-07-21 기준).
+
+## 5단계: L1 대상 서비스를 리더에 연결
+
+batcher와 proposer는 고정된 node가 아니라 현재 리더인 sequencer를 따라가야 합니다.
+
+*   **op-batcher**: conductor RPC를 가리키도록 설정하십시오.
+    [네트워크 설계 예시](/ko/chain-operators/guides/management/network-architecture#sequencers)에
+    따르면, conductor RPC의 리더 인식 프록시 모드(`OP_CONDUCTOR_RPC_ENABLE_PROXY`,
+    기본적으로 활성화됨)는 해당 node가 리더일 때만 필요한 op-node 및 execution RPC를
+    제공합니다. 그런 다음
+    [batcher 구성 가이드](/ko/chain-operators/guides/configuration/batcher)에 따라
+    구성하십시오. 체인이 운영된 이후의 비용 조정은
+    [별도 가이드](/ko/use-cases/tune-batcher-costs)에서 다룹니다.
+*   **op-proposer**:
+    [proposer 구성 가이드](/ko/chain-operators/guides/configuration/proposer)에 따라
+    구성하되, `--game-factory-address`에는 2단계에서 얻은 값을, `--game-type`에는
+    체인의 인정되는 게임 유형을 설정하십시오. 표준 출시의 경우 이 값은
+    `1`(허가형)입니다. 인정되는 게임 유형으로 만들어진 제안만 출금 증명에 사용할
+    수 있으며, 허가형 체인에서는 proposer가 intent에 지정된 proposer 주소로
+    서명해야 합니다.
+
+## 6단계: 방어 체계 구축
+
+체인이 허가형인 동안에도 전체 방어 스택을 실행하십시오. 지금 실전 검증하는
+challenger와 모니터링은 무허가형 전환의 전제 조건입니다.
+[결함 증명 challenger 운영 가이드](/ko/use-cases/run-a-fault-proof-challenger)를
+따르십시오. 이 가이드는 본드 예산 책정, prestate 선택, 네 가지 인프라 엔드포인트,
+`op-dispute-mon`을 사용한 모니터링을 다룹니다. 여기에 출시와 관련된 한 가지 사항을
+파악하십시오. 허가형 게임에서는 proposer 또는 challenger 역할을 가진 주소만 분쟁에
+참여할 수 있으므로, challenger는 2단계 intent의 challenger 역할 주소로 서명해야
+합니다. 이 설정에 대한 전체 플래그 목록은
+[challenger 구성 레퍼런스](/ko/chain-operators/reference/challenger-configuration)를
+참조하십시오. 이 레퍼런스는 각 최종 릴리스의 op-challenger 플래그 정의에서
+생성됩니다.
+
+### 모든 서비스에 일관된 L1 뷰 제공
+
+이 가이드의 모든 구성 요소는 L1을 사용합니다. 각 sequencer의 op-node는 L1 RPC와 L1
+beacon 엔드포인트에서 체인을 파생하고, batcher, proposer, challenger는 L1을 읽고
+L1에 트랜잭션을 보냅니다. 고가용성 체인을 위해 L1 node를 이중화하는 것은 올바른
+판단이지만, 그 앞에 일반적인 로드 밸런서를 두는 것은 그렇지 않습니다.
+
+*   두 L1 node는 같은 순간에 정확히 같은 head에 있는 경우가 없습니다. 연속된
+    요청이 두 node 사이에서 라운드 로빈으로 분배되는 서비스는 블록이 나타났다가
+    사라지고 다시 나타나는 것을 보게 되며, 이는 실제로 일어나지 않은 L1 reorg로
+    해석됩니다.
+*   challenger는 이에 가장 민감한 소비자이며, 일반 로드 밸런서 뒤에 있으면
+    오작동할 수 있습니다. challenger는 L1 RPC의 구독을 통해 새로운 L1 head에
+    반응한 다음, 해당 head의 블록 해시에 고정된 호출로 분쟁 게임 컨트랙트를
+    읽습니다. 따라서 아직 그 블록을 가져오지 않은 node가 후속 요청을 처리하면
+    실패합니다. challenger의 진행 게이지(`op_challenger_highest_acted_l1_block`)는
+    모든 게임에서 처리된 가장 낮은 L1 블록을 보고하므로, 일관되지 않은
+    엔드포인트에서 단 하나의 게임이 정체되어도 challenger의 측정된 진행이 멈춘
+    것처럼 보입니다.
+    [challenger 가이드의 엔드포인트 요구 사항](/ko/use-cases/run-a-fault-proof-challenger#step-4-provision-the-four-endpoints)에
+    따라, 요청 단위가 아니라 의도적으로 장애 조치되는 신뢰할 수 있는 단일
+    엔드포인트를 제공하십시오.
+*   밸런싱이 필요한 경우에는 합의를 인식하는 방식으로 구성하십시오. beacon
+    엔드포인트의 경우 [dugtrio](https://github.com/ethpandaops/dugtrio)와 같은
+    beacon chain 인식 프록시가 업스트림 node를 모니터링하여 포크되었거나 동기화되지
+    않은 클라이언트를 우회하고, 가능한 경우 후속 요청을 동일한 엔드포인트로
+    유지합니다. 이것이 바로 일반적인 라운드 로빈 밸런서에 없는 특성입니다.
+    2026-07-22 기준.
+
+## 7단계: 무허가형 증명으로의 전환 일정 수립
+
+무허가형 결함 증명은 이 시스템이 존재하는 이유인 보안 업그레이드입니다. 누구나
+제안하고 누구나 이의를 제기할 수 있으므로, 사용자는 더 이상 여러분의 proposer가
+정직하고 가용한 상태인지에 의존하지 않습니다.
+[무허가형 마이그레이션 튜토리얼](/ko/chain-operators/tutorials/migrating-permissionless)을
+읽고 네 가지 단계를 파악하십시오. 분쟁 구성 요소를 구성하고, OPCM의 `addGameType`을
+통해 무허가형 게임 컨트랙트를 배포하고(자세한 내용은
+[분쟁 게임 튜토리얼](/ko/chain-operators/tutorials/dispute-games) 참조), 새 게임
+유형에 대해 오프체인 에이전트를 테스트한 다음, 그 후에야 인정되는 게임 유형을
+전환합니다. Karst 업그레이드 이후 활성화할 무허가형 게임은 `cannon-kona`(Cannon VM
+내부에서 실행되는 kona-client)입니다. 레거시 op-program 경로는
+[지원이 종료](/ko/notices/archive/op-geth-deprecation)되었습니다.
+
+| 조건                                                                  | 선택                             | 이유                                                                                                                       |
+| ------------------------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 출시일                                                              | 허가형 유지                       | 분쟁 스택은 아직 프로덕션 트래픽을 경험하지 못했습니다. 근거를 쌓는 동안 Guardian과 모니터링이 그 공백을 메웁니다.  |
+| challenger와 dispute-mon이 실제 게임에 대해 문제없이 실행된 경우          | 마이그레이션 일정 수립                  | 마이그레이션의 테스트 단계는 작동하는 에이전트를 전제로 합니다. 이를 먼저 검증하면 인정되는 게임 유형의 전환이 큰 도약이 아닌 구성 변경이 됩니다. |
+| 컨트랙트가 op-contracts v5.0.0 이전 버전인 경우                              | 컨트랙트를 먼저 업그레이드                 | 마이그레이션 튜토리얼에서 지원하는 최소 컨트랙트 버전은 v5.0.0입니다.                                                              |
+
+## 8단계: 출시 검증
+
+사용자가 의존하기 전에 갖추려 한 각 특성을 확인하십시오.
+
+*   **클러스터 상태**: `conductor_leader`를 조회하거나 `op-conductor-ops`를 사용하여
+    리더가 정확히 하나이고, 나머지 두 conductor가 팔로워이며 해당 sequencer가
+    중지되어 있는지 확인합니다.
+*   **장애 조치**: `conductor_transferLeaderToServer`로 리더십 이전 훈련을 실행하고
+    unsafe head가 공백이나 reorg 없이 계속 진행되는지 확인합니다. 그런 다음 리더
+    sequencer를 완전히 중지하여 리더십이 자동으로 이동하는지 지켜보며 반복합니다.
+*   **게시 및 제안**: batcher 트랜잭션이 예상 주기로 L1에 기록되고 safe head가
+    진행됩니다. `DisputeGameFactory`에 proposer 주소에서 제안 간격마다 생성된 새
+    게임이 표시됩니다.
+*   **방어**: `op-dispute-mon`이 proposer가 생성한 게임을 추적하고, challenger의
+    로그에 이를 모니터링하고 있음이 표시됩니다(전체 체크리스트는
+    [challenger 가이드의 검증 단계](/ko/use-cases/run-a-fault-proof-challenger#step-7-verify-the-challenger-is-defending)
+    참조).
+*   **사용자 경로**: 실제 사용자가 필요로 하기 전에 하나의 출금을 처음부터 끝까지
+    완료합니다(제안에 대해 증명하고, 지연 기간을 기다린 후, 최종 확정).
+
+## 다음 단계
+
+*   [op-conductor 런북](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/RUNBOOK.md):
+    클러스터가 처할 수 있는 모든 장애 모드에 대한 재해 복구 절차와 수동 개입
+    방법입니다. `develop`의 저장소 내 문서, 2026-07-21 기준.
+*   [op-conductor 구성 및 RPC 레퍼런스](/ko/chain-operators/tools/op-conductor/reference):
+    4단계와 8단계의 바탕이 되는 플래그 및 RPC 목록입니다.
+*   [op-conductor-ops](https://github.com/ethereum-optimism/infra/tree/main/op-conductor-ops):
+    conductor 클러스터를 점검하고 제어하기 위한 운영 CLI이며, 메트릭용
+    op-conductor-mon과 함께 infra 저장소에 있습니다. 2026-07-21 기준.
+*   [Fault dispute game 명세](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs):
+    proposer와 challenger가 참여하는 게임에 대해 추론해야 할 때 참조하는 규범적
+    게임 의미론입니다.
+*   [체인 운영자 모범 사례](/ko/chain-operators/guides/management/best-practices):
+    이 가이드에서 다룬 출시를 둘러싼 더 넓은 운영 체계(릴리스 버전, 점진적
+    업그레이드 롤아웃, sequencer 격리, 런북)입니다.
+*   [batcher 비용 조정](/ko/use-cases/tune-batcher-costs): 체인에 실제 트래픽이
+    발생한 후 진행할 비용 최적화 과정입니다.

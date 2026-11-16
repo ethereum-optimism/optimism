@@ -1,0 +1,24 @@
+---
+title: OP Contracts Manager
+description: OP Contracts Manager가 무엇인지, 왜 존재하는지, 그리고 단일 트랜잭션으로 OP Stack 체인의 L1 컨트랙트를 배포하고 업그레이드하는 방법을 이해합니다.
+diataxis: explanation
+---
+
+OP Contracts Manager는 단일 트랜잭션으로 OP Stack 체인의 L1 컨트랙트를 배포하는 컨트랙트입니다. 결과 체인이 표준 구성 요구 사항을 충족하도록 사용자가 구성할 수 있는 최소한의 파라미터 집합을 제공합니다. 또한 [Upgrade 13](https://gov.optimism.io/t/upgrade-proposal-13-opcm-and-incident-response-improvements/9739)부터 OPCM 인스턴스는 기존 OP Stack 체인을 업그레이드할 수 있습니다.
+
+배포되는 버전은 항상 거버넌스가 승인한 컨트랙트 릴리스입니다. 거버넌스 승인 컨트랙트 릴리스 목록은 Optimism Monorepo 릴리스 페이지에서 찾을 수 있으며, `op-contracts/vX.Y.Z`라는 이름의 릴리스들입니다. OPCM은 [PermissionedDisputeGame](/ko/op-stack/protocol/smart-contracts#proposals-and-fault-proofs)을 사용하는 [결함 증명 시스템(Fault Proof System)](/ko/op-stack/fault-proofs/explainer)을 배포합니다.
+
+## 목적
+
+OPCM은 새 OP Stack 체인의 L1 컨트랙트 배포를 단순화합니다. 각 스마트 컨트랙트 릴리스마다 새로운 OPCM 인스턴스가 있습니다. OPCM은 OP Stack의 L1 컨트랙트 배포의 세 가지 측면을 다룹니다.
+
+1.  **공유 컨트랙트 배포.** 공유 컨트랙트는 여러 OP 체인 간에 사용되므로 프로덕션에서는 가끔씩만 수행됩니다.
+2.  **공유 구현 컨트랙트 배포.** 프로덕션에서 컨트랙트 릴리스마다 한 번 수행됩니다.
+3.  **OP 체인 컨트랙트 배포.** 프로덕션에서 모든 OP 체인 배포마다 수행됩니다.
+
+또한 Upgrade 13 네트워크 업그레이드 이후에는 OPCM 인스턴스가 기존 OP Stack 체인을 업그레이드하는 데 사용됩니다.
+
+## 더 알아보기
+
+*   [OPCM 스펙](https://specs.optimism.io/experimental/op-contracts-manager.html?utm_source=op-docs&utm_medium=docs)을 확인하세요
+*   [OPCM 설계 문서](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/op-contracts-manager-arch.md)를 확인하세요

@@ -10,7 +10,7 @@ use alloy_eips::{
 use alloy_primitives::{Bloom, Log, logs_bloom};
 use alloy_rlp::{BufMut, Decodable, Encodable, length_of_length};
 
-/// UPSTREAM-MIRROR(copy): alloy-consensus@2.4.2 `alloy_consensus::ReceiptEnvelope`
+/// UPSTREAM-MIRROR(copy): alloy-consensus@2.5.0 `alloy_consensus::ReceiptEnvelope`
 ///
 /// Same per-transaction-type envelope over [`ReceiptWithBloom`], with the OP `PostExec` (0x7d)
 /// and `Deposit` (0x7e) variants added and EIP-4844 dropped. The shared Ethereum variants must

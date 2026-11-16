@@ -51,6 +51,7 @@ pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     l1_chain_id: 11155111,
     l2_chain_id: Chain::optimism_sepolia(),
     chain_op_config: OP_SEPOLIA_BASE_FEE_CONFIG,
+    settlement_chain_id: 0,
     alt_da_config: None,
     hardforks: HardForkConfig {
         regolith_time: None,

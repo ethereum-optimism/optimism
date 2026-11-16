@@ -25,8 +25,10 @@ func TestTransfer(gt *testing.T) {
 	receipt := alice.Transfer(bobAddr, depositAmount)
 	bob.WaitForBalance(bobBalance.Add(depositAmount))
 
-	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(receipt.Included.Value().GasUsed), receipt.Included.Value().EffectiveGasPrice)
-	expectedBalanceChange := new(big.Int).Add(gasCost, receipt.Included.Value().L1Fee)
+	opReceipt, err := sys.L2EL.EthClient().TransactionReceipt(t.Ctx(), receipt.Included.Value().TxHash)
+	t.Require().NoError(err)
+	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(opReceipt.GasUsed), opReceipt.EffectiveGasPrice)
+	expectedBalanceChange := new(big.Int).Add(gasCost, opReceipt.L1Fee)
 	expectedFinalL2 := new(big.Int).Sub(aliceBalance.ToBig(), depositAmount.ToBig())
 	expectedFinalL2.Sub(expectedFinalL2, expectedBalanceChange)
 

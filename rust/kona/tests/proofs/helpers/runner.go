@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -67,6 +68,13 @@ func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2
 				Engine: l2Eng,
 			},
 		}
+	}
+}
+
+// WithDependencySet gives the program the dependency set that the sequencer derives with.
+func WithDependencySet(ds depset.DependencySet) FixtureInputParam {
+	return func(f *FixtureInputs) {
+		f.DependencySet = ds
 	}
 }
 

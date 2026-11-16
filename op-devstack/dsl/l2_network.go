@@ -156,10 +156,11 @@ func (n *L2Network) PrintChain() {
 				return err
 			}
 
-			_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
+			l2Payload, err := l2_el.L2EthClient().PayloadByHash(n.ctx, ref.Hash)
 			if err != nil {
 				return err
 			}
+			l2Txs := l2Payload.ExecutionPayload.Transactions
 
 			_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
 			if err != nil {

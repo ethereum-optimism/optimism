@@ -70,6 +70,14 @@ func TestCombineDeployConfig(t *testing.T) {
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisLagoonTimeOffset, hexutil.Uint64(7))
 }
 
+func TestCombineDeployConfig_SettlementChainID(t *testing.T) {
+	intent, chainIntent, state, chainState := newCombineFixture()
+	chainIntent.DeployOverrides = map[string]any{"settlementChainId": 1337}
+	out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1337), out.SettlementChainID)
+}
+
 func TestCombineDeployConfig_ProofDelays(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()

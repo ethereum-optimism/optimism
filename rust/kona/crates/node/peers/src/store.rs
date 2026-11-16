@@ -160,6 +160,14 @@ impl BootStore {
         peers.into_iter().for_each(|peer| self.add_rotate(peer));
     }
 
+    /// Keeps only the records `keep` accepts, and returns how many it removed. The file changes at
+    /// the next [`Self::sync`].
+    pub fn retain(&mut self, keep: impl FnMut(&Enr) -> bool) -> usize {
+        let len = self.peers.len();
+        self.peers.retain(keep);
+        len - self.peers.len()
+    }
+
     /// Syncs the [`BootStore`] with the contents on disk.
     pub fn sync(&mut self) -> Result<(), std::io::Error> {
         if let Some(file) = &mut self.file {
@@ -171,24 +179,6 @@ impl BootStore {
             serde_json::to_writer(file, &self.peers)?;
         }
         Ok(())
-    }
-
-    /// Returns all available bootstores for the given data directory.
-    pub fn available(datadir: Option<PathBuf>) -> Vec<u64> {
-        let mut bootstores = Vec::new();
-        let path = datadir.unwrap_or_else(|| {
-            let mut home = dirs::home_dir().expect("Failed to get home directory");
-            home.push(".kona");
-            home
-        });
-        if let Ok(entries) = std::fs::read_dir(path) {
-            for entry in entries.flatten() {
-                if let Ok(chain_id) = entry.file_name().to_string_lossy().parse::<u64>() {
-                    bootstores.push(chain_id);
-                }
-            }
-        }
-        bootstores
     }
 
     /// Adds an [`Enr`] to the store, rotating the oldest peer out if necessary.

@@ -24,7 +24,7 @@ will require an alias to be defined in `mise.toml`. To do this:
 
 1. Add an alias named after the package to the `[tool_alias]` stanza.
 2. Configure the alias to point to the package repository and specify the executable at the end
-   as `[bin=<your-executable>]`, e.g. `github:goreleaser/goreleaser-pro[bin=goreleaser,version_prefix=v]`.
+   as `[bin=<your-executable>]`, e.g. `github:alloy-rs/svm-rs[bin=svm,version_prefix=v]`.
    Add `version_prefix=v` when the upstream release tags are v-prefixed (mise's `github:` backend
    does not auto-strip prefixes).
 3. Add your package and its version to the list of tools in the `[tools]` stanza.

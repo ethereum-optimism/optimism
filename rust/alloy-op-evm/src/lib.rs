@@ -85,7 +85,7 @@ pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::N
     _tx: PhantomData<Tx>,
 }
 
-/// UPSTREAM-MIRROR(copy): revm-context@43.0.2 `revm_context::Evm::with_inspector`
+/// UPSTREAM-MIRROR(copy): revm-context@43.0.3 `revm_context::Evm::with_inspector`
 ///
 /// Rebuilds `evm` with its inspector replaced by `f(inspector)`. Upstream `with_inspector` takes
 /// the new inspector by value, so it cannot derive it from the old one.
@@ -391,9 +391,9 @@ where
 
         let tx = OpTx(tx.into());
 
-        // Post-exec transactions never execute: the block executor short-circuits them, and revm
-        // would reject their tx env outright. Replay paths (e.g. RPC tracing) transact each
-        // transaction directly, so synthesize the consensus-defined result here.
+        // Post-exec transactions never execute, and revm would reject their tx env outright, so
+        // one that arrives here without the block executor's short-circuit gets the
+        // consensus-defined no-op result.
         if tx.tx_type() == POST_EXEC_TX_TYPE_ID {
             return Ok(post_exec::noop_post_exec_result());
         }

@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/setup/DisputeGameFactoryTestInit.sol";
 import { _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Contracts

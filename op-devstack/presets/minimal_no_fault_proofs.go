@@ -14,7 +14,7 @@ import (
 // DisputeGameFactory() on the returned Minimal is not usable because the
 // challenger config is nil.
 func NewMinimalNoFaultProofs(t devtest.T, opts ...Option) *Minimal {
-	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewMinimalNoFaultProofs", opts, minimalPresetSupportedOptionKinds)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewMinimalNoFaultProofs", opts, minimalNoFaultProofsPresetSupportedOptionKinds)
 	out := minimalFromRuntime(t, sysgo.NewMinimalNoFaultProofsRuntimeWithConfig(t, presetCfg))
 	presetOpts.applyPreset(out)
 	return out

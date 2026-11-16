@@ -41,7 +41,7 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
     uint32 internal constant SET_PAUSED_GAS_LIMIT = 200_000;
 
     /// @notice The starting balance of the ETHLiquidity contract.
-    uint256 public constant STARTING_LIQUIDITY_BALANCE = type(uint248).max;
+    uint256 public constant STARTING_LIQUIDITY_BALANCE = type(uint128).max;
 
     /// @notice Nonce of the next message these tests relay from the L1CrossDomainMessenger.
     uint240 internal l1MessageNonce;
@@ -50,13 +50,6 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
     function setUp() public virtual override {
         super.enableInterop();
         super.setUp();
-
-        {
-            // TODO: Remove this block when L2Genesis includes this contract.
-            vm.etch(address(superchainETHBridge), vm.getDeployedCode("SuperchainETHBridge.sol:SuperchainETHBridge"));
-            vm.etch(address(ethLiquidity), vm.getDeployedCode("ETHLiquidity.sol:ETHLiquidity"));
-            vm.deal(address(ethLiquidity), type(uint248).max);
-        }
     }
 
     /// @notice Tests that contract is set up with the correct starting balance, unpaused.
@@ -136,7 +129,7 @@ contract ETHLiquidity_Burn_Test is ETHLiquidity_TestInit {
     /// @param _amount Amount of ETH (in wei) to call the burn function with.
     function testFuzz_burn_fromAuthorizedCaller_succeeds(uint256 _amount) public {
         // Assume
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Arrange
         vm.deal(address(superchainETHBridge), _amount);
@@ -159,7 +152,7 @@ contract ETHLiquidity_Burn_Test is ETHLiquidity_TestInit {
         // Assume
         vm.assume(_caller != address(superchainETHBridge));
         vm.assume(_caller != address(ethLiquidity));
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Arrange
         vm.deal(_caller, _amount);
@@ -179,7 +172,7 @@ contract ETHLiquidity_Burn_Test is ETHLiquidity_TestInit {
     /// @param _amount Amount of ETH (in wei) to call the burn function with.
     function testFuzz_burn_whilePaused_reverts(uint256 _amount) public {
         // Assume
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Arrange
         vm.deal(address(superchainETHBridge), _amount);
@@ -234,7 +227,7 @@ contract ETHLiquidity_Mint_Test is ETHLiquidity_TestInit {
     /// @param _amount Amount of ETH (in wei) to call the mint function with.
     function testFuzz_mint_fromAuthorizedCaller_succeeds(uint256 _amount) public {
         // Assume
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Get balances before
         uint256 superchainETHBridgeBalanceBefore = address(superchainETHBridge).balance;
@@ -257,7 +250,7 @@ contract ETHLiquidity_Mint_Test is ETHLiquidity_TestInit {
         // Assume
         vm.assume(_caller != address(superchainETHBridge));
         vm.assume(address(_caller).balance == 0);
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Arrange
         // Nothing to arrange.
@@ -278,7 +271,7 @@ contract ETHLiquidity_Mint_Test is ETHLiquidity_TestInit {
     /// @param _amount Amount of ETH (in wei) to call the mint function with.
     function testFuzz_mint_whilePaused_reverts(uint256 _amount) public {
         // Assume
-        _amount = bound(_amount, 0, type(uint248).max - 1);
+        _amount = bound(_amount, 0, type(uint128).max - 1);
 
         // Arrange
         _setPaused(true);

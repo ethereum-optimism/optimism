@@ -492,6 +492,11 @@
             "type": "bytes32"
           },
           {
+            "internalType": "bytes32",
+            "name": "zkPrestate",
+            "type": "bytes32"
+          },
+          {
             "internalType": "uint256",
             "name": "l2ChainID",
             "type": "uint256"
@@ -888,6 +893,11 @@
           {
             "internalType": "bytes32",
             "name": "cannonKonaPrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "zkPrestate",
             "type": "bytes32"
           },
           {

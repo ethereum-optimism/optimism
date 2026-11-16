@@ -2,26 +2,23 @@ package bootstrap
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/cliutil"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -29,8 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
@@ -58,15 +53,19 @@ type ImplementationsConfig struct {
 	SuperchainProxyAdmin               common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                         common.Address     `cli:"challenger"`
 	CacheDir                           string             `cli:"cache-dir"`
-	UseForge                           bool               `cli:"use-forge"`
-	ForgeSlowBroadcast                 bool               `cli:"forge-slow-broadcast"`
+	// DeployMockSP1Verifier deploys an accept-all SP1 verifier on an L1 without a release verifier,
+	// in place of SP1Verifier.
+	DeployMockSP1Verifier bool
+	// ReceiptQueryInterval is how often to poll for each broadcast's receipt. Zero uses the broadcaster's default.
+	ReceiptQueryInterval time.Duration
 
 	Logger log.Logger
-
-	privateKeyECDSA *ecdsa.PrivateKey
 }
 
 func (c *ImplementationsConfig) Check() error {
+	if err := broadcaster.CheckReceiptQueryInterval(c.ReceiptQueryInterval); err != nil {
+		return err
+	}
 	if c.L1RPCUrl == "" {
 		return errors.New("l1RPCUrl must be specified")
 	}
@@ -74,11 +73,9 @@ func (c *ImplementationsConfig) Check() error {
 		return errors.New("private key must be specified")
 	}
 
-	privECDSA, err := crypto.HexToECDSA(strings.TrimPrefix(c.PrivateKey, "0x"))
-	if err != nil {
+	if _, err := crypto.HexToECDSA(strings.TrimPrefix(c.PrivateKey, "0x")); err != nil {
 		return fmt.Errorf("failed to parse private key: %w", err)
 	}
-	c.privateKeyECDSA = privECDSA
 
 	if c.Logger == nil {
 		return errors.New("logger must be specified")
@@ -137,16 +134,14 @@ func (c *ImplementationsConfig) Check() error {
 	if c.Challenger == (common.Address{}) {
 		return errors.New("challenger must be specified")
 	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if !zkEnabled && c.SP1Verifier != (common.Address{}) {
-		return errors.New("sp1 verifier must not be specified when ZK dispute games are disabled")
+	if c.DeployMockSP1Verifier && c.SP1Verifier != (common.Address{}) {
+		return fmt.Errorf("--%s and --%s are mutually exclusive", deployer.DeployMockSP1VerifierFlagName, SP1VerifierAddressFlagName)
 	}
 	return nil
 }
 
 func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) error {
-	if !devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag) ||
-		c.SP1Verifier != (common.Address{}) {
+	if c.SP1Verifier != (common.Address{}) {
 		return nil
 	}
 
@@ -158,12 +153,16 @@ func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) error {
 		)
 	}
 	chainIDUint64 := bigs.Uint64Strict(chainID)
+	if c.DeployMockSP1Verifier {
+		return pipeline.CheckMockSP1Verifier(chainIDUint64)
+	}
 	verifier, err := standard.SP1VerifierFor(chainIDUint64)
 	if err != nil {
 		return fmt.Errorf(
-			"no default SP1 verifier for L1 chain ID %d; specify --%s",
+			"no default SP1 verifier for L1 chain ID %d; specify --%s, or --%s on a development L1",
 			chainIDUint64,
 			SP1VerifierAddressFlagName,
+			deployer.DeployMockSP1VerifierFlagName,
 		)
 	}
 	c.SP1Verifier = verifier
@@ -174,6 +173,9 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	logCfg := logcli.ReadCLIConfig(cliCtx)
 	l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
 	logcli.SetGlobalLogHandler(l.Handler())
+	if err := deployer.CheckUseForgeFlag(cliCtx, l); err != nil {
+		return err
+	}
 
 	var cfg ImplementationsConfig
 	if err := cliutil.PopulateStruct(&cfg, cliCtx); err != nil {
@@ -182,7 +184,9 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	if cliCtx.IsSet(SP1VerifierAddressFlagName) && cfg.SP1Verifier == (common.Address{}) {
 		return fmt.Errorf("--%s must not be zero when explicitly set", SP1VerifierAddressFlagName)
 	}
+	cfg.ReceiptQueryInterval = cliCtx.Duration(deployer.ReceiptQueryIntervalFlagName)
 	cfg.Logger = l
+	cfg.DeployMockSP1Verifier = cliCtx.Bool(deployer.DeployMockSP1VerifierFlagName)
 
 	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	artifactsLocator := new(artifacts.Locator)
@@ -251,8 +255,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	if err := cfg.Check(); err != nil {
 		return dio, fmt.Errorf("invalid config for Implementations: %w", err)
 	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(cfg.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if zkEnabled && cfg.SP1Verifier == (common.Address{}) {
+	if cfg.SP1Verifier == (common.Address{}) {
 		chainID, err := deployer.ChainIDFromRPC(ctx, cfg.L1RPCUrl)
 		if err != nil {
 			return dio, fmt.Errorf("failed to select default SP1 verifier: %w", err)
@@ -263,14 +266,26 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	}
 
 	lgr := cfg.Logger
-	if zkEnabled {
-		lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
-	}
-
 	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {
 		return dio, fmt.Errorf("failed to download artifacts: %w", err)
 	}
+
+	forgeEnv := &opcm.ForgeEnv{
+		Artifacts:            artifactsFS,
+		Context:              ctx,
+		L1RPCUrl:             cfg.L1RPCUrl,
+		PrivateKey:           cfg.PrivateKey,
+		Logger:               lgr,
+		ReceiptQueryInterval: cfg.ReceiptQueryInterval,
+	}
+	if cfg.DeployMockSP1Verifier {
+		lgr.Warn("deploying the accept-all mock SP1 verifier to a live L1; development use only")
+		if cfg.SP1Verifier, err = opcm.DeployMockSP1VerifierLive(forgeEnv); err != nil {
+			return dio, err
+		}
+	}
+	lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
 
 	input := opcm.DeployImplementationsInput{
 		MinWithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.MinWithdrawalDelaySeconds),
@@ -294,78 +309,15 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		SP1Verifier:                        cfg.SP1Verifier,
 	}
 
-	if cfg.UseForge {
-		lgr.Info("using Forge for DeployImplementations")
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
-		if err != nil {
-			return dio, fmt.Errorf("failed to create forge client: %w", err)
-		}
-		forgeClient.SlowBroadcast = cfg.ForgeSlowBroadcast
+	forgeClient, err := opcm.NewForgeClient(artifactsFS, cfg.CacheDir, []opcm.ForgeScript{opcm.DeployImplementationsForgeScript})
+	if err != nil {
+		return dio, fmt.Errorf("failed to create forge client: %w", err)
+	}
 
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     forgeClient,
-			Context:    ctx,
-			L1RPCUrl:   cfg.L1RPCUrl,
-			PrivateKey: cfg.PrivateKey,
-		}
-		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
-		if err != nil {
-			return dio, err
-		}
-	} else {
-		l1Client, err := ethclient.Dial(cfg.L1RPCUrl)
-		if err != nil {
-			return dio, fmt.Errorf("failed to connect to L1 RPC: %w", err)
-		}
-
-		chainID, err := l1Client.ChainID(ctx)
-		if err != nil {
-			return dio, fmt.Errorf("failed to get chain ID: %w", err)
-		}
-
-		signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
-		chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
-
-		bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-			Logger:  lgr,
-			ChainID: chainID,
-			Client:  l1Client,
-			Signer:  signer,
-			From:    chainDeployer,
-		})
-		if err != nil {
-			return dio, fmt.Errorf("failed to create broadcaster: %w", err)
-		}
-
-		l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
-		if err != nil {
-			return dio, fmt.Errorf("failed to connect to L1 RPC: %w", err)
-		}
-
-		l1Host, err := env.DefaultForkedScriptHost(
-			ctx,
-			bcaster,
-			lgr,
-			chainDeployer,
-			artifactsFS,
-			l1RPC,
-		)
-		if err != nil {
-			return dio, fmt.Errorf("failed to create script host: %w", err)
-		}
-
-		opcmScripts, err := opcm.NewScripts(l1Host)
-		if err != nil {
-			return dio, fmt.Errorf("failed to load OPCM scripts: %w", err)
-		}
-
-		if dio, err = opcmScripts.DeployImplementations.Run(input); err != nil {
-			return dio, fmt.Errorf("error deploying implementations: %w", err)
-		}
-
-		if _, err := bcaster.Broadcast(ctx); err != nil {
-			return dio, fmt.Errorf("failed to broadcast: %w", err)
-		}
+	forgeEnv.Client = forgeClient
+	dio, err = opcm.DeployImplementations(forgeEnv, input)
+	if err != nil {
+		return dio, err
 	}
 
 	lgr.Info("deployed implementations")

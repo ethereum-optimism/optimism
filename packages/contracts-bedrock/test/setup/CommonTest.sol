@@ -88,16 +88,12 @@ abstract contract CommonTest is Test, Setup, Events {
         if (useInteropOverride) {
             skipIfDevFeatureEnabled(DevFeatures.BRIDGE_HOOK);
             console.log("CommonTest: enabling interop");
-            devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
             deploy.cfg().setUseInterop(true);
         }
 
         // Sync the bitmap to deploy config after overrides
         deploy.cfg().setDevFeatureBitmap(devFeatureBitmap);
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            address sp1Verifier = address(new MockSP1Verifier());
-            deploy.cfg().setSP1Verifier(sp1Verifier);
-        }
+        deploy.cfg().setSP1Verifier(address(new MockSP1Verifier()));
 
         if (isL1ForkTest()) {
             // Skip any test suite which uses a nonstandard configuration.

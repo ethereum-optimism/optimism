@@ -80,6 +80,10 @@ func TestSomething(gt *testing.T) {
 
 Keep the test body at this level. If you find yourself reaching into low-level clients, RPC calls, or raw receipts, that is a signal the DSL is missing an operation or typed API. The resulting value or error may still be asserted in the test when that assertion is the behaviour under test.
 
+Run subtests sequentially, using `devtest.SerialT(gt)` in a `gt.Run` subtest, and make only the top-level test parallel. Go stops a parent test's clock while its parallel subtests run, so the parent's recorded time leaves them out and can round to 0s. CI's timing-based split then underweights it, and such tests pile up on one node. `devtest.RunParallel` is fine: it waits inside a subtest, so the parent's time stays real.
+
+Don't print to stdout from `TestMain` or `init`. `go test -list` runs them, and `just acceptance-test` fails on anything in its output that isn't a test name, because stray output can hide a name.
+
 ## DSL Patterns to Follow
 
 ### Action Methods Do Three Things

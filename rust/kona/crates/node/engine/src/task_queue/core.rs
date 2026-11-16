@@ -5,7 +5,7 @@ use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
     find_starting_forkchoice,
-    task_queue::{EngineTaskErrors, synchronize},
+    task_queue::{EngineTaskErrors, synchronize_unconditionally},
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -115,8 +115,10 @@ impl Engine {
     ) -> Result<L2BlockInfo, EngineResetError> {
         let start = find_starting_forkchoice(&config, client.as_ref()).await?;
 
-        // One attempt. The actor retains the reset request and retries transient failures.
-        synchronize(
+        // One attempt. The actor retains the reset request and retries transient failures. The
+        // execution layer may have lost or changed its forkchoice, so the reset sends one even when
+        // the recovered labels equal the current ones.
+        synchronize_unconditionally(
             client.as_ref(),
             &mut self.state,
             EngineSyncStateUpdate {
@@ -142,7 +144,7 @@ impl Engine {
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
     /// an error along the way, the error is returned and the task is not popped from the queue (in
-    /// case it must be retried), unless it is a flush error.
+    /// case it must be retried), unless it is a flush or skip error.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         loop {
@@ -153,9 +155,13 @@ impl Engine {
             let result = task.execute(&mut self.state).await;
 
             // A flush reports that the task replaced its block with a deposits-only block, so the
-            // task is done; retrying it would replace that block again.
+            // task is done; retrying it would replace that block again. A skip reports a task that
+            // no longer applies, so retrying it cannot succeed either.
             if let Err(err) = &result &&
-                err.severity() != EngineTaskErrorSeverity::Flush
+                !matches!(
+                    err.severity(),
+                    EngineTaskErrorSeverity::Flush | EngineTaskErrorSeverity::Skip
+                )
             {
                 return result;
             }
@@ -195,7 +201,8 @@ impl EngineResetError {
 mod recovery_tests {
     use super::*;
     use crate::{
-        ConsolidateInput, ConsolidateTask, InsertTask, NoopBlockSink,
+        ConsolidateInput, ConsolidateTask, FinalizeBlockId, FinalizeTask, InsertTask,
+        NoopBlockSink,
         test_utils::{
             TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
         },
@@ -344,5 +351,64 @@ mod recovery_tests {
             state_rx.borrow().sync_state.safe_head().block_info.hash,
             imported.header.hash_slow()
         );
+    }
+
+    // An execution layer that restarted can have lost its forkchoice, so a reset sends the
+    // recovered forkchoice even when the labels already equal it.
+    #[tokio::test]
+    async fn reset_resends_an_unchanged_forkchoice() {
+        let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        let mut config = RollupConfig::default();
+        config.genesis.l2.hash = block.header.inner.hash_slow();
+        let genesis =
+            L2BlockInfo::from_block_and_genesis(&block.clone().into_consensus(), &config.genesis)
+                .unwrap();
+        let config = Arc::new(config);
+        let state = TestEngineStateBuilder::new().with_unsafe_head(genesis).build();
+        let forkchoice = state.sync_state.create_forkchoice_state();
+        let (client, l1, l2) = test_engine_client(config.clone());
+        for tag in ["finalized", "safe", "latest"] {
+            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
+        }
+        l1.expect(
+            "eth_getBlockByHash",
+            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+        );
+        l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+
+        engine.reset(Arc::new(client), config).await.unwrap();
+
+        assert_eq!(engine.state().sync_state, state.sync_state);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    // A skipped task is dropped instead of being kept for a retry, so it cannot hold the queue.
+    #[tokio::test]
+    async fn skipped_task_is_dropped_from_the_queue() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(20))
+            .with_finalized_head(test_block_info(10))
+            .build();
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.enqueue(EngineTask::Finalize(Box::new(FinalizeTask::new(
+            Arc::new(client),
+            config,
+            FinalizeBlockId::ByNumber(5),
+        ))));
+
+        let error = engine.drain().await.unwrap_err();
+
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Skip, "got {error:?}");
+        assert!(engine.is_empty());
+        assert_eq!(engine.state().sync_state, state.sync_state);
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }

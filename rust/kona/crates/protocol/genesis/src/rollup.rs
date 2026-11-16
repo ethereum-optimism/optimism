@@ -91,6 +91,15 @@ pub struct RollupConfig {
     /// `chain_op_config` is the chain-specific EIP1559 config for the rollup.
     #[cfg_attr(feature = "serde", serde(default = "BaseFeeConfig::optimism"))]
     pub chain_op_config: BaseFeeConfig,
+    /// OP Private settlement chain ID: 0 if public, own ID if a settlement chain, else its
+    /// settlement chain's ID.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_zero"))]
+    pub settlement_chain_id: u64,
+}
+
+#[cfg(feature = "serde")]
+const fn is_zero(v: &u64) -> bool {
+    *v == 0
 }
 
 #[cfg(feature = "arbitrary")]
@@ -125,6 +134,7 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             da_challenge_address: Option::<Address>::arbitrary(u)?,
             chain_op_config,
             alt_da_config: Option::<AltDAConfig>::arbitrary(u)?,
+            settlement_chain_id: u.arbitrary()?,
         })
     }
 }
@@ -152,6 +162,7 @@ impl Default for RollupConfig {
             da_challenge_address: None,
             alt_da_config: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
+            settlement_chain_id: 0,
         }
     }
 }
@@ -330,10 +341,11 @@ impl RollupConfig {
             !self.is_interop_active(timestamp.saturating_sub(self.block_time))
     }
 
-    /// Returns true if a DA Challenge proxy Address is provided in the rollup config and the
-    /// address is not zero.
-    pub fn is_alt_da_enabled(&self) -> bool {
-        self.da_challenge_address.is_some_and(|addr| !addr.is_zero())
+    /// Returns true if the rollup config has an alt-DA config, for either commitment type.
+    /// Generic commitments have no challenge contract, so `da_challenge_address` doesn't
+    /// indicate alt-DA.
+    pub const fn is_alt_da_enabled(&self) -> bool {
+        self.alt_da_config.is_some()
     }
 
     /// Returns the max sequencer drift for the given timestamp.
@@ -847,9 +859,11 @@ mod tests {
     fn test_alt_da_enabled() {
         let mut config = RollupConfig::default();
         assert!(!config.is_alt_da_enabled());
-        config.da_challenge_address = Some(Address::ZERO);
-        assert!(!config.is_alt_da_enabled());
-        config.da_challenge_address = Some(address!("0000000000000000000000000000000000000001"));
+        config.alt_da_config = Some(AltDAConfig {
+            da_commitment_type: Some("GenericCommitment".into()),
+            da_challenge_address: None,
+            ..Default::default()
+        });
         assert!(config.is_alt_da_enabled());
     }
 
@@ -873,6 +887,20 @@ mod tests {
         config.hardforks.fjord_time = Some(10);
         assert_eq!(config.max_sequencer_drift(0), 100);
         assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_settlement_chain_id_serde() {
+        let config = RollupConfig { settlement_chain_id: 1337, ..Default::default() };
+        let json = serde_json::to_value(&config).unwrap();
+        assert_eq!(json["settlement_chain_id"], 1337);
+        assert_eq!(serde_json::from_value::<RollupConfig>(json).unwrap(), config);
+
+        // A public chain omits the field, and an absent field reads as 0.
+        let json = serde_json::to_value(RollupConfig::default()).unwrap();
+        assert!(json.get("settlement_chain_id").is_none());
+        assert_eq!(serde_json::from_value::<RollupConfig>(json).unwrap().settlement_chain_id, 0);
     }
 
     fn expected_rollup_config() -> RollupConfig {
@@ -928,6 +956,7 @@ mod tests {
             da_challenge_address: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
             alt_da_config: None,
+            settlement_chain_id: 0,
         }
     }
 

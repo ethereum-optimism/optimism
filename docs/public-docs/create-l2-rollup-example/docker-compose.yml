@@ -24,7 +24,6 @@ services:
       --rollup.config=/workspace/rollup.json
       --sequencer.enabled=true
       --sequencer.stopped=false
-      --sequencer.max-safe-lag=3600
       --verifier.l1-confs=4
       --p2p.disable
       --rpc.addr=0.0.0.0

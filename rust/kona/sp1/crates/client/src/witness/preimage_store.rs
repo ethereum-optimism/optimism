@@ -9,7 +9,7 @@ use kona_preimage::{
 use kona_proof::FlushableCache;
 use serde::{Deserialize as SerdeDeserialize, Serialize as SerdeSerialize};
 use sha2::Digest;
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::{BTreeMap, btree_map::Entry};
 
 /// In-memory preimage store for use in the zkVM.
 #[derive(
@@ -23,7 +23,8 @@ use std::collections::{HashMap, hash_map::Entry};
     rkyv::Deserialize,
 )]
 pub struct PreimageStore {
-    preimage_map: HashMap<PreimageKey, Vec<u8>>,
+    /// Not a `HashMap`: std's hasher is unseeded in the zkVM, so keys could be made to collide.
+    preimage_map: BTreeMap<PreimageKey, Vec<u8>>,
 }
 
 impl PreimageStore {

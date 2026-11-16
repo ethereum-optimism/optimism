@@ -21,8 +21,6 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
@@ -30,18 +28,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
@@ -68,6 +63,10 @@ const DevstackL1ForkEnvVar = "DEVSTACK_L1_FORK"
 var proxyImplementationSlot = common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
 
 type DeployerOption func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder)
+
+// DefaultL1BlockTime is the L1 block time in seconds, unless a test sets it with WithL1BlockTime.
+// It is above the default 2s L2 block time, so many L1 epochs still span more than one L2 block.
+const DefaultL1BlockTime = 3
 
 func WithForkAtL1Genesis(fork forks.Fork) DeployerOption {
 	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
@@ -234,8 +233,6 @@ type worldBuilder struct {
 	outL2RollupCfg  map[eth.ChainID]*rollup.Config
 	outL2Deployment map[eth.ChainID]*L2Deployment
 
-	outFullCfgSet config.FullConfigSetMerged
-
 	outSuperchainDeployment *SuperchainDeployment
 }
 
@@ -298,6 +295,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 
 		l1StartTimestamp := uint64(time.Now().Unix()) + 1
 		l1Config.WithTimestamp(l1StartTimestamp)
+		l1Config.WithBlockTime(DefaultL1BlockTime)
 		// Amsterdam state gas raises live OPCM deployment above 50 million gas.
 		l1Config.WithGasLimit(60_000_000)
 
@@ -363,9 +361,13 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 			bitmap = currentValue.(common.Hash)
 		}
 		builder.WithGlobalOverride(devFeatureBitmapKey, devfeatures.EnableDevFeature(bitmap, flag))
-		if flag == devfeatures.OptimismPortalInteropFlag {
-			builder.WithUseInterop(true)
-		}
+	}
+}
+
+// WithUseInterop deploys the L2s with the interop predeploys when Lagoon is active at genesis.
+func WithUseInterop() DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithUseInterop(true)
 	}
 }
 
@@ -422,6 +424,13 @@ func WithDeployerMatchL1PAO() DeployerPipelineOption {
 		deployerKey, err := wb.keys.Secret(devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID))
 		wb.require.NoError(err)
 		cfg.DeployerPrivateKey = deployerKey
+	}
+}
+
+// WithL1BlockTime sets the L1 block time in seconds.
+func WithL1BlockTime(seconds uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		builder.L1().WithBlockTime(seconds)
 	}
 }
 
@@ -641,20 +650,6 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	}
 }
 
-func (wb *worldBuilder) buildFullConfigSet() {
-	// If no chain has interop active, the dep set will be nil here,
-	// so we should skip building the full config set.
-	if wb.output.InteropDepSet == nil {
-		return
-	}
-
-	rollupConfigSet := config.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
-		config.StaticTimestamp(wb.outL1Genesis.Timestamp))
-	fullCfgSet, err := config.NewFullConfigSetMerged(rollupConfigSet, wb.output.InteropDepSet)
-	wb.require.NoError(err)
-	wb.outFullCfgSet = fullCfgSet
-}
-
 func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1Network {
 	deployerKey, err := wb.keys.Secret(devkeys.DeployerRole.Key(big.NewInt(0)))
 	wb.require.NoError(err, "need deployer key")
@@ -682,32 +677,14 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 	}
 	deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
 	intent.L1DevGenesisParams.Prefund[deployerAddr] = (*hexutil.U256)(millionEth)
-	wb.require.NoError(pipeline.ValidateInputs(intent, st))
-	bundle, err := artifacts.DownloadBundle(wb.p.Ctx(), intent.L1ContractsLocator, intent.L2ContractsLocator, ioutil.NoopProgressor(), opts.CacheDir)
-	wb.require.NoError(err)
-	host, err := env.DefaultScriptHost(broadcaster.NoopBroadcaster(), wb.logger, deployerAddr, bundle.L1, script.WithNoMaxCodeSize())
-	wb.require.NoError(err)
-	scripts, err := opcm.NewScripts(host)
-	wb.require.NoError(err)
-	pEnv := &pipeline.Env{
-		StateWriter: pipeline.NoopStateWriter(), L1ScriptHost: host, Logger: wb.logger,
-		Broadcaster: broadcaster.NoopBroadcaster(), Deployer: deployerAddr, Scripts: scripts,
-		IsGenesis: true, DeployMockSP1Verifier: opts.DeployMockSP1Verifier,
-		AllowUnoptimizedContracts: true, Context: wb.p.Ctx(),
-	}
-	// Preinstalls wipe the deployer; run them before CREATE consumes its nonces.
-	for _, stage := range []func(*pipeline.Env, *state.Intent, *state.State) error{
-		pipeline.InitGenesisStrategy, pipeline.PreinstallL1DevGenesis,
-		pipeline.DeploySuperchain, pipeline.DeployImplementations,
-		pipeline.PrefundL1DevGenesis, pipeline.SealL1DevGenesis,
-	} {
-		wb.require.NoError(stage(pEnv, intent, st))
-	}
+	wb.require.NoError(deployer.ApplyL1DevGenesis(wb.p.Ctx(), opts))
 	wb.output = st
 	wb.buildL1Genesis()
+	l1BlockTime := wb.builder.L1().BlockTime()
+	wb.require.NotZero(l1BlockTime, "L1 block time must be set")
 	l1Net := &L1Network{
 		name: "l1", chainID: eth.ChainIDFromUInt64(intent.L1ChainID),
-		genesis: wb.outL1Genesis, blockTime: 6,
+		genesis: wb.outL1Genesis, blockTime: l1BlockTime,
 	}
 	l1EL, l1CL := startL1(l1Net)
 	intent.OPCMAddress = &st.ImplementationsDeployment.OpcmV2Impl
@@ -729,7 +706,6 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 	}
 	wb.buildL2Genesis()
 	wb.buildL2DeploymentOutputs()
-	wb.buildFullConfigSet()
 	return l1Net
 }
 
@@ -753,6 +729,10 @@ func (wb *worldBuilder) prepareAndDeployChains(opts deployer.ApplyPipelineOpts, 
 		_, err := client.HeaderByNumber(wb.p.Ctx(), big.NewInt(int64(rpc.SafeBlockNumber)))
 		return err == nil
 	}, 30*time.Second, 100*time.Millisecond, "L1 must publish a safe head before preparation")
+	// geth rejects receipt queries until its first indexing pass. prepare and continue run forge on an
+	// anvil fork of this L1, forge's receipt queries reach geth through the fork, and forge gives up
+	// after a few retries.
+	wb.require.NoError(geth.WaitUntilTransactionNotFound(client, common.Hash{}, 30*time.Second))
 
 	// Keep the safe anchor at genesis until preparation commits the L2 timestamp.
 	l1CL.fakepos.Stop()

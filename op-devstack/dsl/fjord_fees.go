@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -57,6 +59,8 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 	receipt, err := tx.Included.Eval(ff.ctx)
 	ff.require.NoError(err)
 	ff.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	opReceipt, err := client.TransactionReceipt(ff.ctx, receipt.TxHash)
+	ff.require.NoError(err)
 
 	endBalance := from.GetBalance()
 	vaultsAfter := ff.getVaultBalances(client)
@@ -65,8 +69,8 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 	coinbaseDiff := new(big.Int).Sub(coinbaseEndBalance, coinbaseStartBalance)
 
 	l1Fee := big.NewInt(0)
-	if receipt.L1Fee != nil {
-		l1Fee = receipt.L1Fee
+	if opReceipt.L1Fee != nil {
+		l1Fee = opReceipt.L1Fee
 	}
 
 	block, err := client.InfoByHash(ff.ctx, receipt.BlockHash)
@@ -89,7 +93,7 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 	walletBalanceDiff := new(big.Int).Sub(startBalance.ToBig(), endBalance.ToBig())
 	walletBalanceDiff.Sub(walletBalanceDiff, amount)
 
-	fastLzSize, estimatedBrotliSize := ff.validateFjordFeatures(receipt, l1Fee)
+	fastLzSize, estimatedBrotliSize := ff.validateFjordFeatures(opReceipt, l1Fee)
 	ff.validateFeeDistribution(l1Fee, baseFee, priorityFee, operatorFee, vaultIncreases)
 	ff.validateTotalBalance(walletBalanceDiff, totalFee, vaultIncreases)
 
@@ -143,13 +147,13 @@ func (ff *FjordFees) calculateVaultIncreases(before, after VaultBalances) VaultB
 }
 
 // validateFjordFeatures validates that the features of the Fjord transaction are correct
-func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.Int) (uint64, *big.Int) {
+func (ff *FjordFees) validateFjordFeatures(receipt *optypes.Receipt, l1Fee *big.Int) (uint64, *big.Int) {
 	ff.require.NotNil(receipt.L1Fee, "L1 fee should be present in Fjord")
 	ff.require.True(l1Fee.Cmp(big.NewInt(0)) > 0, "L1 fee should be greater than 0 in Fjord")
 
-	client := ff.l2Network.PrimaryEL().EthClient()
+	client := ff.l2Network.PrimaryEL().Escape().L2EthClient()
 
-	_, txs, err := client.InfoAndTxsByHash(ff.ctx, receipt.BlockHash)
+	_, txs, err := client.InfoAndUserTxsByHash(ff.ctx, receipt.BlockHash)
 	ff.require.NoError(err)
 
 	var signedTx *types.Transaction
@@ -176,8 +180,8 @@ func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.In
 	txSigned, err := signedTx.MarshalBinary()
 	ff.require.NoError(err)
 
-	fastLzSizeUnsigned := uint64(types.FlzCompressLen(txUnsigned) + 68) // overhead used by the original test
-	fastLzSizeSigned := uint64(types.FlzCompressLen(txSigned))
+	fastLzSizeUnsigned := uint64(opfees.FlzCompressLen(txUnsigned) + 68) // overhead used by the original test
+	fastLzSizeSigned := uint64(opfees.FlzCompressLen(txSigned))
 
 	// Validate that FastLZ compression produces reasonable results
 	ff.require.Greater(fastLzSizeUnsigned, uint64(0), "FastLZ size should be positive")
@@ -196,7 +200,7 @@ func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.In
 		return fastLzSizeSigned, nil
 	}
 
-	expectedFee, err := CalculateFjordL1Cost(ff.ctx, client, signedTx.RollupCostData(), receipt.BlockHash)
+	expectedFee, err := CalculateFjordL1Cost(ff.ctx, client, opfees.NewRollupCostData(txSigned), receipt.BlockHash)
 	ff.require.NoError(err, "should calculate L1 fee")
 
 	ff.require.Equalf(expectedFee, receiptL1Fee, "Calculated L1 fee should match receipt L1 fee (expected=%s actual=%s)", expectedFee.String(), receiptL1Fee.String())
@@ -265,8 +269,8 @@ func (ff *FjordFees) validateVaultIncreaseFees(
 }
 
 // FindSignedTransactionFromReceipt finds the signed transaction from a receipt and block
-func FindSignedTransactionFromReceipt(ctx context.Context, client apis.EthClient, receipt *types.Receipt) (*types.Transaction, error) {
-	_, txs, err := client.InfoAndTxsByHash(ctx, receipt.BlockHash)
+func FindSignedTransactionFromReceipt(ctx context.Context, client apis.EthL2BlockTxs, receipt *types.Receipt) (*types.Transaction, error) {
+	_, txs, err := client.InfoAndUserTxsByHash(ctx, receipt.BlockHash)
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +333,7 @@ func ValidateL1FeeMatches(t devtest.T, calculatedFee, receiptFee *big.Int) {
 }
 
 // CalculateFjordL1Cost calculates L1 cost using Fjord formula with block-specific L1 state
-func CalculateFjordL1Cost(ctx context.Context, client apis.EthClient, rollupCostData types.RollupCostData, blockHash common.Hash) (*big.Int, error) {
+func CalculateFjordL1Cost(ctx context.Context, client apis.EthClient, rollupCostData opfees.RollupCostData, blockHash common.Hash) (*big.Int, error) {
 	l1Block := bindings.NewL1Block(
 		bindings.WithClient(client),
 		bindings.WithTo(predeploys.L1BlockAddr),
@@ -358,12 +362,10 @@ func CalculateFjordL1Cost(ctx context.Context, client apis.EthClient, rollupCost
 		return nil, err
 	}
 
-	costFunc := types.NewL1CostFuncFjord(
-		l1BaseFee,
-		blobBaseFee,
-		new(big.Int).SetUint64(uint64(baseFeeScalar)),
-		new(big.Int).SetUint64(uint64(blobBaseFeeScalar)))
-
-	fee, _ := costFunc(rollupCostData)
-	return fee, nil
+	return opfees.L1CostFjord(rollupCostData, opfees.L1FeeParams{
+		L1BaseFee:     l1BaseFee,
+		L1BlobBaseFee: blobBaseFee,
+		BaseFeeScalar: new(big.Int).SetUint64(uint64(baseFeeScalar)),
+		BlobFeeScalar: new(big.Int).SetUint64(uint64(blobBaseFeeScalar)),
+	}), nil
 }

@@ -60,6 +60,119 @@ fn pending_handle() -> UnsealedPayloadHandle {
     }
 }
 
+fn pending_sealed_block() -> SealedBlock {
+    SealedBlock::new(sealed_payload(2), &pending_handle(), true)
+}
+
+#[rstest]
+#[case::building(InFlightBlock::Building(pending_handle()))]
+#[case::committing(InFlightBlock::Committing(pending_sealed_block()))]
+#[case::committed(InFlightBlock::Committed(pending_sealed_block()))]
+#[tokio::test(start_paused = true)]
+async fn stop_then_start_builds_on_the_new_head(#[case] in_flight: InFlightBlock) {
+    let mut conductor = MockConductor::new();
+    conductor.expect_leader().times(1).return_once(|| Ok(true));
+    conductor.expect_commit_unsafe_payload().times(0);
+    let (mut actor, commands) = test_actor_with_config(true, false, Some(conductor));
+    actor.started = true;
+    actor.in_flight = Some(in_flight);
+    let old_head = L2BlockInfo::default();
+    let new_head = L2BlockInfo {
+        block_info: BlockInfo {
+            hash: B256::repeat_byte(42),
+            number: 10,
+            timestamp: super::TEST_START,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut sequence = Sequence::new();
+    actor
+        .engine_client
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move || Ok(old_head));
+    // The node follows a new leader while stopped; start and the next build see its head.
+    actor
+        .engine_client
+        .expect_get_unsafe_head()
+        .times(2)
+        .in_sequence(&mut sequence)
+        .returning(move || Ok(new_head));
+    actor.engine_client.expect_seal_block().times(0);
+    actor.engine_client.expect_canonicalize_block().times(0);
+    actor
+        .engine_client
+        .expect_start_build_block()
+        .withf(move |attrs| attrs.parent == new_head)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(PayloadId::new([2; 8])));
+    actor
+        .origin_selector
+        .expect_next_l1_origin()
+        .withf(move |head, _| *head == new_head)
+        .times(1)
+        .return_once(|_, _| Ok(BlockInfo::default()));
+    actor.attributes_builder = TestAttributesBuilder { attributes: vec![Ok(Default::default())] };
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+
+    let (reply, stopped) = tokio::sync::oneshot::channel();
+    commands.send(SequencerAdminCommand::StopSequencer(reply)).await.unwrap();
+    actor.step().await.unwrap();
+    assert_eq!(stopped.await.unwrap().unwrap(), old_head.hash());
+    assert!(!actor.state().active);
+    assert!(actor.in_flight.is_none());
+
+    let (reply, started) = tokio::sync::oneshot::channel();
+    commands.send(SequencerAdminCommand::StartSequencer(new_head.hash(), reply)).await.unwrap();
+    actor.step().await.unwrap();
+    started.await.unwrap().unwrap();
+    assert!(actor.state().active);
+    assert!(actor.in_flight.is_none());
+
+    tick(&mut actor).await;
+    assert!(matches!(&actor.in_flight, Some(InFlightBlock::Building(handle))
+        if handle.payload_id == PayloadId::new([2; 8])
+            && handle.attributes_with_parent.parent == new_head));
+}
+
+#[rstest]
+#[case::building(InFlightBlock::Building(pending_handle()))]
+#[case::committing(InFlightBlock::Committing(pending_sealed_block()))]
+#[case::committed(InFlightBlock::Committed(pending_sealed_block()))]
+#[tokio::test(start_paused = true)]
+async fn stop_clears_pending_work_even_if_head_read_fails(
+    #[case] in_flight: InFlightBlock,
+    #[values(true, false)] already_stopped: bool,
+) {
+    let (mut actor, commands) = test_actor_with_config(!already_stopped, false, None);
+    actor.started = true;
+    actor.in_flight = Some(in_flight);
+    actor
+        .engine_client
+        .expect_get_unsafe_head()
+        .times(2)
+        .returning(|| Err(EngineClientError::RequestError("head unavailable".into())));
+    actor.engine_client.expect_start_build_block().times(0);
+    actor.engine_client.expect_seal_block().times(0);
+    actor.engine_client.expect_canonicalize_block().times(0);
+    actor.unsafe_payload_gossip_client.expect_has_capacity().times(0);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+
+    // A failed response read and repeated stops must still discard all pending work.
+    for _ in 0..2 {
+        let (reply, stopped) = tokio::sync::oneshot::channel();
+        commands.send(SequencerAdminCommand::StopSequencer(reply)).await.unwrap();
+        actor.step().await.unwrap();
+        assert!(matches!(stopped.await.unwrap(), Err(SequencerAdminAPIError::UnsafeHeadError(_))));
+        assert!(!actor.state().active);
+        assert!(actor.in_flight.is_none());
+    }
+}
+
 #[rstest]
 #[case::rejected(false)]
 #[case::timeout(true)]
@@ -72,7 +185,7 @@ async fn commit_failure_withholds_canonicalization_gossip_and_next_build(#[case]
         .engine_client
         .expect_seal_block()
         .withf(|id, _| *id == PayloadId::new([1; 8]))
-        .times(2)
+        .times(1)
         .returning(|_, _| Ok(sealed_payload(2)));
     actor.engine_client.expect_canonicalize_block().times(0);
     actor.engine_client.expect_start_build_block().times(0);
@@ -97,25 +210,25 @@ async fn commit_failure_withholds_canonicalization_gossip_and_next_build(#[case]
         actor.step().await.unwrap();
         assert!(matches!(
             &actor.in_flight,
-            Some(InFlightBlock::Building(handle)) if handle.payload_id == PayloadId::new([1; 8])
+            Some(InFlightBlock::Committing(block)) if block.envelope == sealed_payload(2)
         ));
     }
 }
 
 #[tokio::test]
-async fn conductor_recovery_reseals_the_build_job_before_commit_canonicalization_and_gossip() {
+async fn conductor_recovery_retries_the_same_envelope_before_canonicalization_and_gossip() {
     let mut actor = actor_with_pending_handle();
     let mut sequence = Sequence::new();
     let mut conductor = MockConductor::new();
-    for (timestamp, succeeds) in [(2, false), (3, true)] {
-        actor
-            .engine_client
-            .expect_seal_block()
-            .withf(|id, _| *id == PayloadId::new([1; 8]))
-            .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(move |_, _| Ok(sealed_payload(timestamp)));
-        let expected = sealed_payload(timestamp);
+    actor
+        .engine_client
+        .expect_seal_block()
+        .withf(|id, _| *id == PayloadId::new([1; 8]))
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Ok(sealed_payload(2)));
+    for succeeds in [false, true] {
+        let expected = sealed_payload(2);
         conductor
             .expect_commit_unsafe_payload()
             .withf(move |p| p == &expected)
@@ -125,14 +238,17 @@ async fn conductor_recovery_reseals_the_build_job_before_commit_canonicalization
                 if succeeds {
                     Ok(())
                 } else {
-                    Err(crate::actors::ConductorError::Rpc(RpcError::local_usage_str(
-                        "commit failed",
+                    Err(crate::actors::ConductorError::Rpc(TransportErrorKind::custom(
+                        std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "commit applied, response timed out",
+                        ),
                     )))
                 }
             });
     }
     actor.conductor = Some(conductor);
-    let payload = sealed_payload(3);
+    let payload = sealed_payload(2);
     let expected = payload.clone();
     actor
         .engine_client
@@ -150,13 +266,15 @@ async fn conductor_recovery_reseals_the_build_job_before_commit_canonicalization
         .return_once(|_| Ok(()));
 
     tick(&mut actor).await;
-    assert!(matches!(actor.in_flight, Some(InFlightBlock::Building(_))));
+    assert!(
+        matches!(&actor.in_flight, Some(InFlightBlock::Committing(block)) if block.envelope == sealed_payload(2))
+    );
     tick(&mut actor).await;
     assert!(actor.in_flight.is_none());
 }
 
 #[tokio::test]
-async fn local_override_retries_a_rejected_block_without_another_conductor_commit() {
+async fn local_override_retries_the_same_block_without_another_conductor_commit() {
     let mut conductor = MockConductor::new();
     conductor.expect_commit_unsafe_payload().times(1).return_once(|_| {
         Err(crate::actors::ConductorError::Rpc(RpcError::local_usage_str("quorum unavailable")))
@@ -172,16 +290,14 @@ async fn local_override_retries_a_rejected_block_without_another_conductor_commi
         .expect_next_l1_origin()
         .returning(|_, _| Err(L1OriginSelectorError::NotEnoughData(BlockInfo::default())));
     let mut sequence = Sequence::new();
-    for timestamp in [2, 3] {
-        actor
-            .engine_client
-            .expect_seal_block()
-            .withf(|id, _| *id == PayloadId::new([1; 8]))
-            .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(move |_, _| Ok(sealed_payload(timestamp)));
-    }
-    let payload = sealed_payload(3);
+    actor
+        .engine_client
+        .expect_seal_block()
+        .withf(|id, _| *id == PayloadId::new([1; 8]))
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Ok(sealed_payload(2)));
+    let payload = sealed_payload(2);
     let expected = payload.clone();
     actor
         .engine_client
@@ -199,7 +315,9 @@ async fn local_override_retries_a_rejected_block_without_another_conductor_commi
         .return_once(|_| Ok(()));
 
     tick(&mut actor).await;
-    assert!(matches!(actor.in_flight, Some(InFlightBlock::Building(_))));
+    assert!(
+        matches!(&actor.in_flight, Some(InFlightBlock::Committing(block)) if block.envelope == sealed_payload(2))
+    );
     actor.override_leader().await.unwrap();
     tick(&mut actor).await;
     assert!(actor.in_flight.is_none());
@@ -266,16 +384,22 @@ async fn canonicalization_retry_keeps_the_committed_payload() {
 }
 
 #[rstest]
-#[case::stale(true)]
-#[case::invalid(false)]
+#[case::uncommitted_stale(true, false)]
+#[case::uncommitted_invalid(false, false)]
+#[case::conductor_stale(true, true)]
+#[case::conductor_invalid(false, true)]
 #[tokio::test]
-async fn stale_or_invalid_committed_payload_is_dropped(#[case] stale: bool) {
+async fn stale_or_invalid_payload_fails_if_conductor_committed(
+    #[case] stale: bool,
+    #[case] committed: bool,
+) {
     let mut actor = test_actor();
     actor.started = true;
-    actor.in_flight = Some(InFlightBlock::Committed(ConductorCommittedBlock {
+    actor.in_flight = Some(InFlightBlock::Committed(SealedBlock {
         envelope: sealed_payload(2),
         parent: L2BlockInfo::default(),
         tx_count: 0,
+        committed,
     }));
     actor.engine_client.expect_seal_block().times(0);
     actor.engine_client.expect_canonicalize_block().times(1).return_once(move |_, _| {
@@ -292,7 +416,15 @@ async fn stale_or_invalid_committed_payload_is_dropped(#[case] stale: bool) {
     actor.engine_client.expect_start_build_block().times(0);
     actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
-    actor.step().await.unwrap();
+    let result = actor.step().await;
+    if committed {
+        assert!(matches!(
+            result,
+            Err(SequencerActorError::EngineError(EngineClientError::CanonicalizeError(_)))
+        ));
+    } else {
+        result.unwrap();
+    }
     assert!(actor.in_flight.is_none());
 }
 
@@ -343,19 +475,21 @@ async fn failed_payload_fetch_drops_the_expired_build_job() {
     assert!(actor.in_flight.is_none());
 }
 
-/// An inconsistent forkchoice requires a reset, not a retry of the committed block. Only a
-/// successful reset allows a fresh build, using the engine's new unsafe head.
+/// Reset must retain the exact conductor-committed envelope for another canonicalization attempt.
 #[rstest]
 #[case::reset_succeeds(true)]
 #[case::reset_fails(false)]
 #[tokio::test(start_paused = true)]
-async fn invalid_forkchoice_resets_before_rebuilding(#[case] reset_succeeds: bool) {
+async fn invalid_forkchoice_resets_before_retrying_committed_payload(#[case] reset_succeeds: bool) {
     let mut actor = test_actor();
     actor.started = true;
-    actor.in_flight = Some(InFlightBlock::Committed(ConductorCommittedBlock {
-        envelope: sealed_payload(2),
+    actor.conductor = Some(MockConductor::new());
+    let payload = sealed_payload(2);
+    actor.in_flight = Some(InFlightBlock::Committed(SealedBlock {
+        envelope: payload.clone(),
         parent: L2BlockInfo::default(),
         tx_count: 0,
+        committed: true,
     }));
     actor.engine_client.expect_seal_block().times(0);
     let mut sequence = Sequence::new();
@@ -386,10 +520,8 @@ async fn invalid_forkchoice_resets_before_rebuilding(#[case] reset_succeeds: boo
             }
         });
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
-    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
 
     let result = actor.step().await;
-    assert!(actor.in_flight.is_none(), "the old committed block must be discarded");
     if !reset_succeeds {
         assert!(matches!(
             result,
@@ -398,49 +530,103 @@ async fn invalid_forkchoice_resets_before_rebuilding(#[case] reset_succeeds: boo
         return;
     }
     result.unwrap();
+    assert!(matches!(actor.in_flight, Some(InFlightBlock::Committed(_))));
 
-    let mut new_head = L2BlockInfo::default();
-    new_head.block_info.number = 10;
-    new_head.block_info.hash = alloy_primitives::B256::repeat_byte(10);
+    let expected = payload.clone();
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .withf(move |envelope, parent| envelope == &expected && *parent == L2BlockInfo::default())
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Ok(()));
+    let expected = payload.clone();
+    actor
+        .unsafe_payload_gossip_client
+        .expect_schedule_execution_payload_gossip()
+        .withf(move |envelope| envelope == &expected)
+        .times(1)
+        .return_once(|_| Ok(()));
     actor
         .engine_client
         .expect_get_unsafe_head()
         .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(move || Ok(new_head));
+        .return_once(|| Ok(L2BlockInfo::default()));
     actor
         .origin_selector
         .expect_next_l1_origin()
-        .withf(move |head, _| *head == new_head)
         .times(1)
-        .return_once(|_, _| Ok(BlockInfo::default()));
-    actor.attributes_builder.attributes.push(Ok(OpPayloadAttributes::default()));
-    let new_id = PayloadId::new([2; 8]);
-    actor
-        .engine_client
-        .expect_start_build_block()
-        .withf(move |attributes| attributes.parent == new_head)
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(move |_| Ok(new_id));
+        .return_once(|_, _| Err(L1OriginSelectorError::NotEnoughData(BlockInfo::default())));
+    actor.engine_client.expect_start_build_block().times(0);
 
-    actor.step().await.unwrap();
-    assert!(matches!(
-        actor.in_flight,
-        Some(InFlightBlock::Building(handle))
-            if handle.payload_id == new_id && handle.attributes_with_parent.parent == new_head
-    ));
+    tick(&mut actor).await;
+    assert!(actor.in_flight.is_none());
 }
 
-/// op-node drops sequenced newPayload INVALID and starts a fresh build, even for a
-/// deposits-only block. The fresh payload must pass the conductor gate independently.
+#[tokio::test(start_paused = true)]
+async fn changed_parent_after_reset_cannot_replace_a_conductor_committed_payload() {
+    let mut actor = test_actor();
+    actor.started = true;
+    actor.in_flight = Some(InFlightBlock::Committed(SealedBlock {
+        envelope: sealed_payload(2),
+        parent: L2BlockInfo::default(),
+        tx_count: 0,
+        committed: true,
+    }));
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    actor.engine_client.expect_start_build_block().times(0);
+    let mut sequence = Sequence::new();
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| {
+            Err(EngineClientError::CanonicalizeError(
+                CanonicalizeTaskError::PayloadInsertionFailed(Box::new(
+                    InsertTaskError::ForkchoiceUpdateFailed(
+                        SynchronizeTaskError::InvalidForkchoiceState,
+                    ),
+                )),
+            ))
+        });
+    actor
+        .engine_client
+        .expect_reset_engine_forkchoice()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|| Ok(()));
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| {
+            Err(EngineClientError::CanonicalizeError(
+                CanonicalizeTaskError::UnsafeHeadChangedSinceBuild,
+            ))
+        });
+
+    tick(&mut actor).await;
+    assert!(matches!(actor.in_flight, Some(InFlightBlock::Committed(_))));
+    actor.build_ticker.reset_immediately();
+    assert!(matches!(
+        actor.step().await,
+        Err(SequencerActorError::EngineError(EngineClientError::CanonicalizeError(
+            CanonicalizeTaskError::UnsafeHeadChangedSinceBuild
+        )))
+    ));
+    assert!(actor.in_flight.is_none());
+}
+
+/// A conductor-committed INVALID payload cannot be replaced at the same height, including when
+/// the payload contains only deposits.
 #[rstest]
 #[case::deposits_only(true)]
 #[case::with_user_transaction(false)]
 #[tokio::test(start_paused = true)]
-async fn invalid_sequenced_payload_rebuilds_through_the_conductor_gate(
-    #[case] deposits_only: bool,
-) {
+async fn invalid_sequenced_payload_stops_without_rebuilding(#[case] deposits_only: bool) {
     let mut block = Block::<OpTxEnvelope>::default();
     block.header.number = 1;
     block.header.timestamp = 2;
@@ -496,58 +682,14 @@ async fn invalid_sequenced_payload_rebuilds_through_the_conductor_gate(
                 )),
             ))
         });
-    actor
-        .engine_client
-        .expect_get_unsafe_head()
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(|| Ok(L2BlockInfo::default()));
-    actor
-        .origin_selector
-        .expect_next_l1_origin()
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(|_, _| Ok(BlockInfo::default()));
-    actor.attributes_builder.attributes.push(Ok(OpPayloadAttributes::default()));
-    let new_id = PayloadId::new([2; 8]);
-    actor
-        .engine_client
-        .expect_start_build_block()
-        .withf(|attrs| attrs.parent == L2BlockInfo::default())
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(move |_| Ok(new_id));
-    block.header.timestamp = 4;
-    let rebuilt = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&block));
-    let sealed = rebuilt.clone();
-    actor
-        .engine_client
-        .expect_seal_block()
-        .withf(move |id, _| *id == new_id)
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(move |_, _| Ok(sealed));
-    conductor
-        .expect_commit_unsafe_payload()
-        .withf(move |payload| payload == &rebuilt)
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(|_| {
-            Err(crate::actors::ConductorError::Rpc(RpcError::local_usage_str(
-                "fresh payload commit rejected",
-            )))
-        });
+    actor.engine_client.expect_get_unsafe_head().times(0);
+    actor.engine_client.expect_start_build_block().times(0);
     actor.conductor = Some(conductor);
 
-    actor.step().await.unwrap();
-    assert!(actor.in_flight.is_none(), "INVALID must discard the old committed block");
-    actor.step().await.unwrap();
-    assert!(
-        matches!(&actor.in_flight, Some(InFlightBlock::Building(handle)) if handle.payload_id == new_id)
-    );
-    tick(&mut actor).await;
-    assert!(
-        matches!(&actor.in_flight, Some(InFlightBlock::Building(handle)) if handle.payload_id == new_id),
-        "a failed fresh commit must retain its own build job without canonicalization or gossip"
-    );
+    assert!(matches!(
+        actor.step().await,
+        Err(SequencerActorError::EngineError(EngineClientError::CanonicalizeError(
+            CanonicalizeTaskError::PayloadInsertionFailed(_)
+        )))
+    ));
 }

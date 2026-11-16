@@ -1,6 +1,6 @@
 //! Contains the [`BootNode`] type which is used to represent a boot node in the network.
 
-use crate::{NodeRecord, enr_to_multiaddr};
+use crate::{NodeRecord, NodeRecordParseError, enr_to_multiaddr};
 use derive_more::{Display, From};
 use discv5::Enr;
 use libp2p::multiaddr::{Multiaddr, Protocol};
@@ -47,17 +47,31 @@ impl BootNode {
         }
     }
 
-    /// Helper method to parse a bootnode from a string.
-    pub fn parse_bootnode(raw: &str) -> Self {
+    /// Parses a bootnode from an ENR (`enr:...`) or an enode URL (`enode://...`).
+    pub fn parse_bootnode(raw: &str) -> Result<Self, BootNodeParseError> {
         // If the string starts with "enr:" it is an ENR record.
         if raw.starts_with("enr:") {
-            let enr = Enr::from_str(raw).unwrap();
-            return Self::from(enr);
+            let enr = Enr::from_str(raw).map_err(BootNodeParseError::InvalidEnr)?;
+            return Ok(Self::from(enr));
         }
         // Otherwise, attempt to use the Node Record format.
-        let record = NodeRecord::from_str(raw).unwrap();
-        Self::from_unsigned(record).unwrap()
+        let record = NodeRecord::from_str(raw).map_err(BootNodeParseError::InvalidEnode)?;
+        Self::from_unsigned(record).map_err(BootNodeParseError::InvalidPeerId)
     }
+}
+
+/// An error parsing a [`BootNode`].
+#[derive(Debug, thiserror::Error)]
+pub enum BootNodeParseError {
+    /// The ENR is invalid. The ENR parser only gives its reason as a string.
+    #[error("Invalid ENR: {0}")]
+    InvalidEnr(String),
+    /// The enode URL is invalid.
+    #[error("Invalid enode URL")]
+    InvalidEnode(#[source] NodeRecordParseError),
+    /// The enode URL's node ID is not a valid public key.
+    #[error("Invalid enode node ID")]
+    InvalidPeerId(#[source] PeerIdConversionError),
 }
 
 #[cfg(test)]
@@ -69,6 +83,25 @@ mod tests {
 
     use super::*;
     use std::{net::Ipv4Addr, str::FromStr};
+
+    /// Malformed bootnodes are errors, not panics.
+    #[test]
+    fn test_parse_bootnode_rejects_invalid_records() {
+        let id = "ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec";
+        let cases = [
+            ("not-a-bootnode".to_string(), "Invalid enode URL"),
+            ("enr:-not-base64!".to_string(), "Invalid ENR"),
+            // No port.
+            (format!("enode://{id}@34.65.175.185"), "Invalid enode URL"),
+            (format!("enode://{id}@34.65.175.185:30305?discport=x"), "Invalid enode URL"),
+            // 64 bytes, but not a point on the curve.
+            (format!("enode://{}@34.65.175.185:30305", "ff".repeat(64)), "Invalid enode node ID"),
+        ];
+        for (raw, expected) in cases {
+            let err = BootNode::parse_bootnode(&raw).unwrap_err();
+            assert!(err.to_string().starts_with(expected), "{raw}: {err:?}");
+        }
+    }
 
     #[test]
     fn test_derive_bootnode_enode_multiaddr() {

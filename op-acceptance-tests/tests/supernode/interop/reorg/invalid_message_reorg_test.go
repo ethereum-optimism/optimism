@@ -147,19 +147,19 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 		sys.L2BCL.AdvancedFn(safety.CrossSafe, 3, 45),
 	)
 	dsl.CheckAll(t,
-		sys.L2ACL.MatchedFn(sys.L2ASupernodeCL, safety.CrossSafe, 30),
-		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.CrossSafe, 30),
+		sys.L2ACL.InSyncFn(sys.L2ASupernodeCL, safety.CrossSafe, 30),
+		sys.L2BCL.InSyncFn(sys.L2BSupernodeCL, safety.CrossSafe, 30),
 	)
 
 	// The invalid exec-message tx must be gone from the replacement block on BOTH the light
 	// sequencer's EL and the supernode VN's EL — distinct nodes joined only by L1 + P2P, so
-	// agreement proves one canonical chain. AssertTxNotInBlock reads by number (the oscillating
-	// unsafe head), so gate each read on that EL's safe head reaching the block first; blocks
-	// at/below safe are irreversible.
+	// agreement proves one canonical chain. AssertUserTxNotInBlock reads by number (the
+	// oscillating unsafe head), so gate each read on that EL's safe head reaching the block
+	// first; blocks at/below safe are irreversible.
 	sys.L2ELB.Reached(eth.Safe, invalidBlockNumber, 30)
-	sys.L2ELB.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
+	sys.L2ELB.AssertUserTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
 	sys.L2BSupernodeEL.Reached(eth.Safe, invalidBlockNumber, 30)
-	sys.L2BSupernodeEL.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
+	sys.L2BSupernodeEL.AssertUserTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
 
 	t.Logger().Info("test complete: invalid block was replaced and verified",
 		"invalid_block_number", invalidBlockNumber,
@@ -183,7 +183,7 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 	// settle on the CL's cross-safe reaching settledBlock before polling the EL: the EL's safe
 	// forkchoice pointer only moves once the CL emits the FCU for that cross-safe head.
 	sys.L2BCL.Reached(safety.CrossSafe, settledBlock, 45)
-	sys.L2BSupernodeEL.AssertTxInBlock(settledBlock, settledTxHash)
+	sys.L2BSupernodeEL.AssertUserTxInBlock(settledBlock, settledTxHash)
 	sys.L2ELB.Reached(eth.Safe, settledBlock, 30)
-	sys.L2ELB.AssertTxInBlock(settledBlock, settledTxHash)
+	sys.L2ELB.AssertUserTxInBlock(settledBlock, settledTxHash)
 }

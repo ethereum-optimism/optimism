@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -17,9 +18,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/miner"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
@@ -479,34 +480,11 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		}
 		// https://github.com/ethereum-optimism/specs/blob/7b39adb0bea3b0a56d6d3a7d61feef5c33e49b73/specs/protocol/isthmus/exec-engine.md#header-validity-rules
 		// Implicitly determine whether isthmus is enabled by inspecting withdrawalsRoot from read only EL data
-		isIsthmus := newBlock.WithdrawalsRoot() != nil && len(*newBlock.WithdrawalsRoot()) == 32
-		// Initialize payload args for sane payload ID
+		isIsthmus := newBlock.Header().WithdrawalsHash != nil
 		// All attr fields already sanity checked
-		args := miner.BuildPayloadArgs{
-			Parent:       state.HeadBlockHash,
-			Timestamp:    uint64(attr.Timestamp),
-			FeeRecipient: attr.SuggestedFeeRecipient,
-			Random:       common.Hash(attr.PrevRandao),
-			BeaconRoot:   attr.ParentBeaconBlockRoot,
-			NoTxPool:     attr.NoTxPool,
-			Transactions: newBlock.Transactions(),
-			GasLimit:     &newBlock.Header().GasLimit,
-			Version:      payloadVersion,
-		}
-		config := &params.ChainConfig{}
-		if isCanyon {
-			args.Withdrawals = *attr.Withdrawals
-			config.CanyonTime = new(uint64)
-		}
-		if isHolocene {
-			args.EIP1559Params = (*attr.EIP1559Params)[:]
-		}
-		if isIsthmus {
-			config.IsthmusTime = new(uint64)
-		}
-		payloadID := args.Id()
+		payloadID := computePayloadID(state.HeadBlockHash, attr, payloadVersion)
 		id = &payloadID
-		payloadEnv, err := eth.BlockAsPayloadEnv(newBlock, config)
+		payloadEnv, err := eth.BlockAsPayloadEnv(newBlock, hardforks{isCanyon, isIsthmus})
 		if err != nil {
 			// The failure is from the EL processing so consider as a server error and make CL retry
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.GenericServerError.With(err)
@@ -519,6 +497,48 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 	// Spec: Client software MUST respond to this method call in the following way: {payloadStatus: {status: VALID, latestValidHash: forkchoiceState.headBlockHash, validationError: null}, payloadId: buildProcessId} if the payload is deemed VALID and the build process has begun
 	return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &state.HeadBlockHash}, PayloadID: id}, nil
 }
+
+// computePayloadID hashes the payload attributes like op-geth's BuildPayloadArgs.Id. The sync
+// tester serves engine_getPayload from its own store, so the ID only has to be deterministic.
+func computePayloadID(parent common.Hash, attr *eth.PayloadAttributes, version engine.PayloadVersion) engine.PayloadID {
+	// Writes to a hash never fail.
+	h := sha256.New()
+	h.Write(parent[:])
+	_ = binary.Write(h, binary.BigEndian, uint64(attr.Timestamp))
+	h.Write(attr.PrevRandao[:])
+	h.Write(attr.SuggestedFeeRecipient[:])
+	// Nil (pre-Canyon) withdrawals encode as an empty list, as in op-geth; op-reth skips them.
+	_ = rlp.Encode(h, attr.Withdrawals)
+	if attr.ParentBeaconBlockRoot != nil {
+		h.Write(attr.ParentBeaconBlockRoot[:])
+	}
+	if attr.NoTxPool || len(attr.Transactions) > 0 {
+		_ = binary.Write(h, binary.BigEndian, attr.NoTxPool)
+		_ = binary.Write(h, binary.BigEndian, uint64(len(attr.Transactions)))
+		for _, tx := range attr.Transactions {
+			h.Write(crypto.Keccak256(tx))
+		}
+	}
+	if attr.GasLimit != nil {
+		_ = binary.Write(h, binary.BigEndian, uint64(*attr.GasLimit))
+	}
+	if attr.EIP1559Params != nil {
+		h.Write(attr.EIP1559Params[:])
+	}
+	if attr.MinBaseFee != nil {
+		_ = binary.Write(h, binary.BigEndian, *attr.MinBaseFee)
+	}
+	var id engine.PayloadID
+	copy(id[:], h.Sum(nil))
+	id[0] = byte(version)
+	return id
+}
+
+// hardforks is an eth.HardforkConfig with each fork on or off at every timestamp.
+type hardforks struct{ canyon, isthmus bool }
+
+func (f hardforks) IsCanyon(uint64) bool  { return f.canyon }
+func (f hardforks) IsIsthmus(uint64) bool { return f.isthmus }
 
 // validateAttributesForBlock verifies that a given block matches the expected
 // execution payload attributes. It ensures consistency between the provided
@@ -659,14 +679,7 @@ func (s *SyncTester) validatePayload(logger log.Logger, isCanyon, isIsthmus bool
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#specification
 	// Spec: MUST return {status: INVALID, latestValidHash: null, validationError: errorMessage | null} if the blockHash validation has failed.
 	blockHash := block.Hash()
-	config := &params.ChainConfig{}
-	if isCanyon {
-		config.CanyonTime = new(uint64)
-	}
-	if isIsthmus {
-		config.IsthmusTime = new(uint64)
-	}
-	correctPayload, err := eth.BlockAsPayload(block, config)
+	correctPayload, err := eth.BlockAsPayload(block, hardforks{isCanyon, isIsthmus})
 	if err != nil {
 		// The failure is from the EL processing so consider as a server error and make CL retry
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to convert block to payload", err))

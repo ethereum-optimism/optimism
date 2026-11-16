@@ -29,7 +29,7 @@ use reth_payload_util::NoopPayloadTransactions;
 use reth_primitives_traits::{SealedHeader, TxTy};
 use reth_provider::{
     BlockReaderIdExt, ChainSpecProvider, HeaderProvider, NodePrimitivesProvider, ProviderError,
-    ProviderResult, StateProviderFactory,
+    ProviderResult, StateProvider, StateProviderFactory,
 };
 use reth_revm::{State, database::StateProviderDatabase, witness::ExecutionWitnessRecord};
 use reth_rpc_api::eth::helpers::FullEthApi;
@@ -280,7 +280,7 @@ where
                     .state_provider(BlockId::Hash(block.parent_hash().into()))
                     .await
                     .map_err(EthApiError::from)?;
-                let db = StateProviderDatabase::new(&state_provider);
+                let db = StateProviderDatabase::new((&state_provider).into_evm_state_provider());
                 let block_executor = this.eth_api.evm_config().executor(db);
 
                 let mut witness = None;

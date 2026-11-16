@@ -17,9 +17,10 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e
-	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20260917213257-bd6236e8d0bb
+	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20261104213739-7e1be4543c87
 	github.com/ethereum/go-ethereum v1.17.0
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/gofrs/flock v0.13.0
 	github.com/golang/snappy v1.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
@@ -32,7 +33,8 @@ require (
 	github.com/holiman/uint256 v1.3.2
 	github.com/ipfs/go-datastore v0.8.2
 	github.com/ipfs/go-ds-leveldb v0.5.0
-	github.com/klauspost/compress v1.18.7
+	github.com/johannesboyne/gofakes3 v1.2.0
+	github.com/klauspost/compress v1.20.2
 	github.com/libp2p/go-libp2p v0.47.0
 	github.com/libp2p/go-libp2p-mplex v0.11.0
 	github.com/libp2p/go-libp2p-pubsub v0.17.0
@@ -83,6 +85,8 @@ require (
 	github.com/pion/turn/v4 v4.0.2 // indirect
 	github.com/pion/webrtc/v4 v4.1.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
+	go.shabbyrobe.org/gocovmerge v0.0.0-20230507111327-fa4f82cfbf4d // indirect
 	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157 // indirect
 	golang.org/x/text v0.43.0 // indirect
@@ -137,7 +141,6 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/goccy/go-json v0.10.4 // indirect
-	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
@@ -243,7 +246,7 @@ require (
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101702.4-rc.1
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101702.4-rc.2
 
 // replace github.com/ethereum/go-ethereum => ../op-geth
 

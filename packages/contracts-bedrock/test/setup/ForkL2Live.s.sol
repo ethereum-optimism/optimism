@@ -6,13 +6,12 @@ import { Deployer } from "scripts/deploy/Deployer.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Features } from "src/libraries/Features.sol";
 import { console2 as console } from "forge-std/console2.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 
 /// @title ForkL2Live
 /// @notice Sets up L2 fork tests by fetching config from the forked L2 chain.
@@ -45,12 +44,13 @@ contract ForkL2Live is Deployer {
             isCustomGasToken = false;
         }
 
-        try IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS)
-            .isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) returns (
+        try IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP) returns (
             bool isInteropEnabled_
         ) {
             isInteropEnabled = isInteropEnabled_;
-            console.log("ForkL2Live: Interop features detected");
+            if (isInteropEnabled_) {
+                console.log("ForkL2Live: Interop features detected");
+            }
         } catch {
             isInteropEnabled = false;
         }

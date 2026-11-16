@@ -2,10 +2,15 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
+
+	"github.com/Masterminds/semver/v3"
 
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 )
@@ -41,15 +46,99 @@ var excludedFiles = []string{
 	"src/universal/SafeSend.sol",
 }
 
+// rangeCheckedFiles are the sources that forge compiles with op-deployer's scripts, and the
+// interfaces that they import.
+var rangeCheckedFiles = []string{"src/**/*.sol", "scripts/**/*.sol", "interfaces/**/*.sol"}
+
 func main() {
-	if _, err := common.ProcessFilesGlob(
+	_, strictErr := common.ProcessFilesGlob(
 		[]string{"src/**/*.sol"},
 		excludedFiles,
 		processFile,
-	); err != nil {
+	)
+	if err := errors.Join(strictErr, checkPragmaRanges(rangeCheckedFiles)); err != nil {
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// checkPragmaRanges checks that each pragma range in the files allows a compiler version that a
+// file of them pins with an exact pragma. op-deployer runs scripts on contracts built in advance
+// and refuses to compile them. With forge 1.8.3, a build that has a file whose range allows no
+// pinned version runs only where the solc that compiled the file is installed. Elsewhere, forge
+// compiles the file again.
+func checkPragmaRanges(includes []string) error {
+	pragmas, err := common.ProcessFilesGlob(includes, nil, readPragmas)
+	if err != nil {
+		return err
+	}
+	errs := rangeErrors(pragmas)
+	if len(errs) == 0 {
+		return nil
+	}
+	reporter := common.NewErrorReporter()
+	for _, err := range errs {
+		reporter.Fail("%v", err)
+	}
+	return fmt.Errorf("pragmas that fail the range check: %d", len(errs))
+}
+
+// readPragmas returns the versions of each pragma solidity in the file.
+func readPragmas(filePath string) ([]string, []error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, []error{fmt.Errorf("failed to read file: %w", err)}
+	}
+	var pragmas []string
+	for _, match := range pragmaPattern.FindAllStringSubmatch(removeComments(string(content)), -1) {
+		pragmas = append(pragmas, strings.TrimSpace(match[1]))
+	}
+	return pragmas, nil
+}
+
+// rangeErrors returns an error for each pragma range, by file, that allows none of the versions
+// pinned by an exact pragma in any of the files. It checks each file on its own: a file that a
+// pinned file imports compiles with that pin, so this covers the files that only ranges import.
+func rangeErrors(pragmas map[string][]string) []error {
+	files := slices.Sorted(maps.Keys(pragmas))
+	var errs []error
+	var pinned []*semver.Version
+	for _, filePath := range files {
+		for _, pragma := range pragmas[filePath] {
+			if !isStrictPragma(pragma) {
+				continue
+			}
+			version, err := semver.NewVersion(pragma)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: cannot parse pragma solidity %s: %w", filePath, pragma, err))
+				continue
+			}
+			pinned = append(pinned, version)
+		}
+	}
+	slices.SortFunc(pinned, func(a, b *semver.Version) int { return a.Compare(b) })
+	pinned = slices.CompactFunc(pinned, func(a, b *semver.Version) bool { return a.Equal(b) })
+	pinnedNames := make([]string, len(pinned))
+	for i, v := range pinned {
+		pinnedNames[i] = v.String()
+	}
+
+	for _, filePath := range files {
+		for _, pragma := range pragmas[filePath] {
+			if isStrictPragma(pragma) {
+				continue
+			}
+			constraint, err := semver.NewConstraint(pragma)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: cannot parse pragma solidity %s: %w", filePath, pragma, err))
+				continue
+			}
+			if !slices.ContainsFunc(pinned, constraint.Check) {
+				errs = append(errs, fmt.Errorf("%s: pragma solidity %s allows none of the pinned compiler versions (%s). forge builds the file with the newest installed solc, and op-deployer then cannot run the built contracts where that solc is missing. Allow a pinned version", filePath, pragma, strings.Join(pinnedNames, ", ")))
+			}
+		}
+	}
+	return errs
 }
 
 func processFile(filePath string) (*common.Void, []error) {

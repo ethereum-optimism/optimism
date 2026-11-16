@@ -1,0 +1,192 @@
+---
+title: L1과 L2 간 데이터 전송
+description: L1과 L2 간 브리징이 작동하는 방식, 메시지를 전달하는 messenger 컨트랙트, 메시지 비용, 그리고 챌린지 기간이 존재하는 이유를 이해합니다.
+diataxis: explanation
+---
+
+L1(Ethereum)의 스마트 컨트랙트는 "브리징(bridging)"이라는 과정을 통해 L2(OP Mainnet)의 스마트 컨트랙트와 상호작용할 수 있습니다.
+이 페이지에서는 브리징이 작동하는 방식을 설명합니다. 레이어 간에 메시지를 전달하는 messenger 컨트랙트, 각 방향의 전달 소요 시간, 메시지 비용, 그리고 L2에서 L1으로 가는 메시지가 챌린지 기간(challenge period)을 기다려야 하는 이유를 다룹니다.
+
+<Info>
+  이 문서는 브리징 과정에 대한 개략적인 개요입니다.
+  L1과 L2 간에 데이터를 전송하는 단계별 튜토리얼은 [Solidity 튜토리얼](/ko/app-developers/tutorials/bridging/cross-dom-solidity)을 참고하십시오.
+</Info>
+
+## 컨트랙트 호출 이해하기
+
+OP Mainnet이나 Ethereum과 같은 EVM 기반 블록체인의 컨트랙트가 *동일한* 네트워크 내에서 어떻게 통신하는지 먼저 기본적으로 이해하면 브리징을 더 쉽게 이해할 수 있습니다.
+Ethereum과 OP Mainnet *간에* 메시지를 전송하는 인터페이스는 표준 컨트랙트 통신 인터페이스를 최대한 모방하도록 설계되었습니다.
+
+다음은 Ethereum의 컨트랙트가 Ethereum의 다른 컨트랙트에 있는 함수를 호출하는 방법의 예입니다.
+
+```solidity
+contract MyContract {
+    function doTheThing(address myContractAddress, uint256 myFunctionParam) public {
+        MyOtherContract(myContractAddress).doSomething(myFunctionParam);
+    }
+}
+```
+
+여기서 `MyContract.doTheThing`은 `MyOtherContract.doSomething` 호출을 트리거합니다.
+내부적으로 Solidity는 `doSomething` 함수에 대한 [ABI 인코딩된](https://docs.soliditylang.org/en/v0.8.23/abi-spec.html) 호출을 전송하여 `MyOtherContract`의 코드를 실행합니다.
+개발자 경험을 단순화하기 위해 이러한 복잡성의 상당 부분이 추상화되어 있습니다.
+Solidity에는 수동 인코딩 도구도 있어 같은 과정을 더 자세하게 보여 줄 수 있습니다.
+
+다음은 같은 호출을 수동으로 인코딩하는 방법입니다.
+
+```solidity
+contract MyContract {
+    function doTheThing(address myContractAddress, uint256 myFunctionParam) public {
+        myContractAddress.call(
+            abi.encodeCall(
+                MyOtherContract.doSomething,
+                (
+                    myFunctionParam
+                )
+            )
+        );
+    }
+}
+```
+
+여기서는 [저수준 "call" 함수](https://docs.soliditylang.org/en/v0.8.23/units-and-global-variables.html#members-of-address-types)와 [Solidity에 내장된 ABI 인코딩 함수](https://docs.soliditylang.org/en/v0.8.23/units-and-global-variables.html#abi-encoding-and-decoding-functions) 중 하나를 사용합니다.
+두 코드 스니펫은 조금 달라 보이지만 정확히 같은 일을 수행합니다.
+Solidity의 제약으로 인해 **OP Stack의 브리징 인터페이스는 두 번째 코드 스니펫과 같은 형태로 설계되었습니다**.
+
+## 레이어 간 통신의 기본
+
+개략적으로 보면, L1과 L2 간에 데이터를 전송하는 과정은 Ethereum의 두 컨트랙트 간에 데이터를 전송하는 과정과 꽤 비슷합니다(몇 가지 주의 사항이 있습니다).
+L1과 L2 간의 통신은 "messenger" 컨트랙트라고 불리는 한 쌍의 특수 스마트 컨트랙트를 통해 가능해집니다.
+각 레이어에는 자체 messenger 컨트랙트가 있으며, HTTP 라이브러리가 물리적인 네트워크 연결을 추상화하는 것처럼 일부 저수준 통신 세부 사항을 추상화하는 역할을 합니다.
+
+여기서는 이 컨트랙트에 대해 *너무* 자세히 다루지 않습니다.
+가장 중요하게 알아야 할 점은 각 messenger 컨트랙트에 다른 레이어의 컨트랙트로 메시지를 보낼 수 있는 `sendMessage` 함수가 있다는 것입니다.
+
+```solidity
+function sendMessage(
+    address _target,
+    bytes memory _message,
+    uint32 _minGasLimit
+) public;
+```
+
+`sendMessage` 함수에는 세 가지 매개변수가 있습니다.
+
+1.  `address _target`: 다른 레이어에서 호출할 컨트랙트의 주소입니다.
+2.  `bytes memory _message`: 다른 레이어의 컨트랙트로 보낼 calldata입니다.
+3.  `uint32 _minGasLimit`: 다른 레이어에서 메시지를 실행할 때 사용할 수 있는 최소 gas 한도입니다.
+
+이는 기본적으로 다음과 동일합니다.
+
+```solidity
+address(_target).call{gas: _minGasLimit}(_message);
+```
+
+물론 완전히 다른 네트워크의 컨트랙트를 호출한다는 점은 다릅니다.
+
+이 설명은 내부적으로 이 모든 것을 작동하게 하는 많은 기술적 세부 사항을 생략하고 있지만, 시작하기에는 충분합니다.
+Ethereum의 컨트랙트에서 OP Mainnet의 컨트랙트를 호출하고 싶으십니까?
+아주 간단합니다.
+
+```solidity
+// Pretend this is on L2
+contract MyOptimisticContract {
+    function doSomething(uint256 myFunctionParam) public {
+        // ... some sort of code goes here
+    }
+}
+
+// And pretend this is on L1
+contract MyContract {
+    function doTheThing(address myOptimisticContractAddress, uint256 myFunctionParam) public {
+        messenger.sendMessage(
+            myOptimisticContractAddress,
+            abi.encodeCall(
+                MyOptimisticContract.doSomething,
+                (
+                    myFunctionParam
+                )
+            ),
+            1000000 // or use whatever gas limit you want
+        )
+    }
+}
+```
+
+<Info>
+  OP Mainnet 및 OP Sepolia의 `L1CrossDomainMessenger` 및 `L2CrossDomainMessenger` 컨트랙트 주소는 [컨트랙트 주소](/ko/op-mainnet/network-information/op-addresses) 페이지에서 확인할 수 있습니다.
+</Info>
+
+## 통신 속도
+
+같은 블록체인 내 컨트랙트 간 호출과 달리, Ethereum과 OP Mainnet 간의 호출은 즉시 이루어지지 *않습니다*.
+L1에서 L2로 전송된 트랜잭션은 **약 1~3분**이 소요됩니다. Sequencer가 성가신 [reorg](https://www.alchemy.com/overviews/what-is-a-reorg)를 방지하기 위해 L1에서 L2로의 트랜잭션을 포함하기 전에 일정 수의 L1 블록이 생성될 때까지 기다리기 때문입니다.
+L2에서 L1으로 전송된 트랜잭션은 **약 7일**이 소요됩니다. 메시지는 L2에서 시작되고, L1에서 output root를 기준으로 증명된 다음, [챌린지 기간](#understanding-the-challenge-period)(mainnet에서는 7일, 테스트 네트워크에서는 더 짧음)이 지난 후에야 L1에서 최종 확정(finalization)됩니다.
+이 대기 기간은 OP Stack 보안 모델의 핵심 요소이며 우회할 수 없습니다.
+각 방향의 단계별 작동 방식은 [입금 흐름](/ko/op-stack/bridging/deposit-flow) 및 [출금 흐름](/ko/op-stack/bridging/withdrawal-flow)을 참고하십시오.
+
+## `msg.sender` 접근하기
+
+컨트랙트는 호출 주소를 기반으로 결정을 내리기 위해 `msg.sender`를 자주 사용합니다.
+예를 들어, 많은 컨트랙트가 [Ownable](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol) 패턴을 사용하여 특정 함수에 대한 접근을 선택적으로 제한합니다.
+메시지는 본질적으로 messenger 컨트랙트에 의해 L1과 L2 사이를 오가므로, **이러한 메시지를 수신할 때 보게 되는 `msg.sender`는 현재 레이어에 해당하는 messenger 컨트랙트입니다**.
+
+이 문제를 해결하기 위해 각 messenger에는 `xDomainMessageSender` 함수가 있습니다.
+
+```solidity
+function xDomainMessageSender() public returns (address);
+```
+
+컨트랙트가 messenger 컨트랙트 중 하나에 의해 호출된 경우, 이 함수를 사용하여 *실제로* 메시지를 보낸 주체를 확인할 수 있습니다.
+다음은 L2에서 `onlyOwner` modifier를 구현하는 방법의 예입니다.
+
+```solidity
+modifier onlyOwner() {
+    require(
+        msg.sender == address(messenger)
+        && messenger.xDomainMessageSender() == owner
+    );
+    _;
+}
+```
+
+## L1과 L2 간 데이터 전송 수수료
+
+### L1에서 L2로의 트랜잭션
+
+L1에서 L2로의 트랜잭션 비용 대부분은 L1에서의 스마트 컨트랙트 실행에서 발생합니다.
+L1에서 L2로 트랜잭션을 보낼 때는 [`L1CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol) 컨트랙트로 전송하며, 이 컨트랙트가 다시 [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) 컨트랙트를 호출합니다.
+여기에는 L1에서의 실행이 수반되며, 이는 gas 비용이 듭니다.
+총비용은 궁극적으로 크로스체인 트랜잭션을 보내는 시점의 Ethereum gas 가격에 따라 결정됩니다.
+
+L1에서 L2로의 실행은 L2에서의 컨트랙트 실행도 트리거합니다.
+`OptimismPortal` 컨트랙트는 L2에서 요청한 gas 한도에 따라 L1에서 L2로의 트랜잭션 중에 동적인 양의 L1 gas를 소각(burn)하는 방식으로 이 L2 실행 비용을 청구합니다.
+청구되는 L1 gas의 양은 L1에서 L2로 트랜잭션을 보내는 사람이 많을수록 증가하고, 적을수록 감소합니다.
+
+<Info>
+  청구되는 gas 양은 동적이므로 gas 소각량은 블록마다 달라질 수 있습니다.
+  gas 부족을 방지하려면 L1에서 L2로의 트랜잭션 gas 한도에 항상 최소 20%의 여유분을 추가해야 합니다.
+</Info>
+
+### L2에서 L1으로의 트랜잭션
+
+L2에서 L1으로 가는 각 메시지에는 세 개의 트랜잭션이 필요합니다.
+
+1.  트랜잭션을 *시작*하는 L2 트랜잭션으로, OP Mainnet에서 이루어지는 다른 트랜잭션과 동일하게 가격이 책정됩니다.
+
+2.  트랜잭션을 *증명*하는 L1 트랜잭션입니다.
+    이 트랜잭션은 L2 트랜잭션이 포함된 L2 블록이 L1에 제안(propose)된 후에만 제출할 수 있습니다.
+    이 트랜잭션은 L1에서 [Merkle trie](/ko/op-stack/reference/glossary#merkle-patricia-trie) 포함 증명을 검증하는 과정을 포함하므로 비용이 많이 듭니다.
+
+3.  트랜잭션을 *최종 확정*하는 L1 트랜잭션입니다.
+    이 트랜잭션은 트랜잭션 챌린지 기간(mainnet에서는 7일)이 지난 후에만 제출할 수 있습니다.
+
+따라서 L2에서 L1으로의 트랜잭션 총비용은 L2 시작 트랜잭션과 두 개의 L1 트랜잭션 비용을 합한 것입니다.
+L1 증명 및 최종 확정 트랜잭션은 일반적으로 L2 시작 트랜잭션보다 훨씬 비쌉니다.
+
+## 챌린지 기간 이해하기
+
+L1 ⇔ L2 상호작용에 대해 이해해야 할 가장 중요한 사항 중 하나는 **mainnet에서 Layer 2에서 Layer 1으로 보낸 메시지는 최소 7일 동안 릴레이할 수 없다는 것**입니다.
+이 기간을 "챌린지 기간"이라고 부르는 이유는, 게시된 트랜잭션 결과에 대해 [결함 증명(fault proof)](/ko/op-stack/fault-proofs/explainer)으로 이의를 제기할 수 있는 기간이기 때문입니다. Optimistic Rollup은 트랜잭션을 Ethereum에서 실행하지 않고 트랜잭션 *결과*만 Ethereum에 게시하므로, L1 컨트랙트는 게시된 결과에 따라 동작하기 전에 challenger가 해당 결과에 결함이 있음을 증명할 시간을 주어야 합니다.
+앱 개발자에게 실질적인 결과는, **이 챌린지 기간이 지나기 전까지는 Layer 1의 스마트 컨트랙트 내부에서 Layer 2 트랜잭션 결과를 기반으로 결정을 내려서는 안 된다는 것**입니다. 또한 표준 messenger 컨트랙트를 사용하여 보낸 L2 ⇒ L1 메시지는 전체 챌린지 기간을 기다린 후에야 릴레이할 수 있습니다.
+챌린지 기간이 출금 과정에서 어떤 역할을 하는지는 [출금 흐름](/ko/op-stack/bridging/withdrawal-flow)을, 챌린지 기간이 존재하는 이유는 [결함 증명 설명](/ko/op-stack/fault-proofs/explainer)을 참고하십시오.

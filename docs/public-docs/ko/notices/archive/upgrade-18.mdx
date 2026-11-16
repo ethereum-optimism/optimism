@@ -1,0 +1,175 @@
+---
+title: Upgrade 18 - Cannon + Kona 및 Custom Gas Token v2
+description: Upgrade 18에 대비하는 방법을 알아봅니다.
+diataxis: reference
+content_type: notice
+---
+
+Upgrade 18은 OP Stack 체인을 위해 제안된 네트워크 업그레이드로, **kona-proof를 대체 결함 증명(fault proof) 프로그램으로 지원**하고, ETH가 아닌 네이티브 수수료 화폐를 사용하려는 신규 OP Stack 체인을 위해 **Custom Gas Token v2**(CGT v2)를 도입하며, creator 패턴 기반 분쟁 게임(dispute game) 리팩터링을 포함합니다.
+
+<Info>
+  Upgrade 18은 순수한 스마트 컨트랙트 업그레이드입니다. 이번 업그레이드 중에 활성화되는 하드포크는 없습니다.
+</Info>
+
+## Upgrade 18에 포함된 내용
+
+Upgrade 18은 다음과 같은 변경 사항을 도입합니다.
+* **Cannon + Kona 게임 유형 지원:** `CANNON`(0)과 함께 새로운 결함 분쟁 게임 유형 `CANNON_KONA`(8)를 추가하여 결함 증명 계층의 중복성과 다양성을 높입니다. 이는 Rust 기반 결함 증명 구현으로, `kona-client`(`kona-node` + `op-reth`)가 `op-program`(`op-node` + `op-geth`)과 함께 동작할 수 있습니다. 두 게임 유형 모두 FPVM으로 Cannon을 사용하며 동일한 분쟁 게임 구현체(`FaultDisputeGame.sol`)를 사용합니다. 이번 업그레이드는 respected game type을 변경하지 않습니다.
+* **Custom Gas Token v2(CGT v2):** genesis 시점에 구성되는 ETH 이외의 네이티브 수수료 화폐를 지원하기 위해 `isCustomGasToken()` 플래그와 두 개의 새로운 predeploy(`NativeAssetLiquidity` 및 `LiquidityController`)를 도입합니다(`op-contracts/v6.0.0`에서 사용 가능).
+* **Creator 패턴 분쟁 게임 리팩터링:** 분쟁 게임 컨트랙트에 clone-with-immutable-arguments(CWIA)를 도입하여 체인 배포를 단순화합니다. 이 변경으로 체인별 배포가 필요 없어져 체인 전반의 안전성과 업그레이드 가능성을 유지하면서 운영 부담이 줄어들며, gas 비용을 절감하여 모든 작업이 EIP-7825 트랜잭션 gas limit 상한 아래에 머물도록 보장합니다.
+
+## 호환성을 깨는 변경 사항
+
+### `OPCM`: Cannon + Kona 게임 유형을 위한 새로운 `OpChainConfig` 파라미터
+
+Upgrade 18은 업그레이드 파라미터를 업데이트하여 `OpChainConfig`에 다음이 포함되도록 합니다.
+* `cannonKonaPrestate`(유효한 `cannon64-kona` prestate 해시여야 함)
+* `cannonPrestate`(유효한 `cannon64` prestate 해시여야 함)
+
+두 prestate 모두 Superchain Registry `standard-prestates.toml`의 정식(canonical) 해시여야 하며, 해당 체인의 최신 체인 구성을 포함해야 합니다.
+
+업그레이드 후 `DisputeGameFactory`에는 다음에 대한 구현체가 설정됩니다.
+
+* `CANNON` (0)
+* `PERMISSIONED` (1)
+* `CANNON_KONA` (8)
+
+업그레이드 후에는 모든 유형의 게임을 생성할 수 있지만, 출금에는 계속 respected game type이 사용됩니다.
+
+<Info>
+  허가형(permissioned) 증명만 실행하는 체인의 경우: cannon+kona는 배포되지 않으며 `cannonKonaPrestate`는 무시됩니다.
+</Info>
+
+### Custom Gas Token v2: 활성화 시 ETH 값이 거부됨
+
+genesis 시점에 CGTv2가 활성화되면 L1과 L2에서 `isCustomGasToken()`이 설정됩니다.
+
+* **L1에서**(`SystemConfig`): `OptimismPortal`, `L1CrossDomainMessenger`, `L1StandardBridge`가 ETH 값(`msg.value`)이 포함된 트랜잭션을 거부합니다.
+* **L2에서**(`L1Block`): `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge` 및 수수료 볼트에서 ETH 관련 작업이 차단됩니다.
+
+<Info>
+  CGT가 활성화되면 ETH 브리징은 ERC-20 래퍼인 L1-WETH를 통해 라우팅됩니다.
+</Info>
+
+<Warning>
+  현재 레거시 CGT에서 CGT v2로의 마이그레이션 경로는 없습니다.
+</Warning>
+
+
+## 체인 운영자를 위한 안내
+
+다음 구성 요소를 업데이트하십시오.
+
+| 구성 요소       | 버전 | 참고 |
+| -------------- | ------- | ----- |
+| `op-challenger` | [`op-challenger/v1.9.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.0) | 무허가(permissionless) 결함 증명 체인은 업그레이드 **이전에** 반드시 업데이트해야 합니다. |
+| `op-dispute-mon` | [`op-dispute-mon/v1.5.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.5.0) | 무허가 결함 증명 체인은 업그레이드 **이전에** 반드시 업데이트해야 합니다. |
+| `op-contracts` | `op-contracts/v6.0.0` | 거버넌스 승인을 받으면 [op-contracts/v6.0.0-rc.1](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv6.0.0-rc.1)이 최종 확정됩니다. |
+
+
+### 무허가 결함 증명이 활성화된 체인
+
+무허가 결함 증명을 실행하는 체인은 challenger가 Kona를 지원할 준비가 되어 있는지, 그리고 `CANNON`과 `CANNON_KONA`가 모두 올바르게 구성되어 있는지 확인해야 합니다.
+
+<Info>
+  Optimism은 Optimism Security Council이 관리하는 체인에 대해 온체인 cannon+kona 배포를 완료합니다.
+  그러나 오프체인 구성 요소는 운영자가 직접 cannon-kona 게임을 지원하도록 구성해야 합니다.
+  준비된 체인 목록에 포함되지 않은 무허가 결함 증명 활성화 체인은 아래의 모든 단계를 직접 수행해야 합니다.
+</Info>
+
+<Steps>
+  <Step title="새 op-program absolute prestate 검증">
+
+  absolute prestate는 [op-program/v1.9.0-rc.1](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.9.0-rc.1)(`op-program/v1.9.0-rc.1` 기준)로 생성됩니다. 다음 체인에는 이 새로운 absolute prestate `0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e`을 사용할 수 있습니다.
+
+  *   Mainnet 및 Sepolia: `OP`, `Base`, `Ink`, `Soneium`, `Unichain`
+
+  `op-program/v1.9.0-rc.1` 태그에서 monorepo 루트에 있는 상태로 다음 명령을 실행하여 이 absolute prestate를 검증할 수 있습니다.
+
+  ```shell
+  make reproducible-prestate
+  ```
+
+  계산된 prestate가 출력되며, 출력의 끝부분은 다음과 같아야 합니다.
+
+  ```shell
+  -------------------- Production Prestates --------------------
+
+  Cannon64 Absolute prestate hash: 
+  0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e
+  ...
+  ```
+
+  *   "Cannon64" 해시가 64비트 prestate입니다.
+
+  대상 prestate가 예상대로 계산되었는지, 그리고
+  [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)의 해당 항목과 일치하는지 확인하십시오.
+  </Step>
+
+  <Step title="새 kona-client absolute prestate 검증">
+   absolute prestate는 [kona-client/v1.2.7](https://github.com/ethereum-optimism/kona/tree/kona-client/v1.2.7)(`kona-client/v1.2.7` 기준)로 생성됩니다(Kona는 현재 [ethereum-optimism/optimism repo](https://github.com/ethereum-optimism/optimism)로 이전 중이지만, 이 릴리스를 빌드할 때는 [op-rs/kona repo](https://github.com/op-rs/kona)를 사용하십시오). 다음 체인에는 이 새로운 absolute prestate `0x0323914d3050e80c3d09da528be54794fde60cd26849cd3410dde0da7cd7d4fa`을 사용할 수 있습니다.
+
+  *   Mainnet 및 Sepolia: `OP`, `Base`, `Ink`, `Soneium`, `Unichain`
+
+  `kona-client/v1.2.7` 태그에서 kona monorepo 루트에 있는 상태로 다음 명령을 실행하여 이 absolute prestate를 검증할 수 있습니다.
+
+  ```shell
+  cd docker/fpvm-prestates
+  just cannon kona-client kona-client/v1.2.7 $(cat ../../.config/cannon_tag)
+  jq -r .pre ../../prestate-artifacts-cannon/prestate-proof.json
+  ```
+
+  대상 prestate가 예상대로 계산되었는지, 그리고
+  [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)의 해당 항목과 일치하는지 확인하십시오.
+  </Step>
+
+  <Step title="새 preimage 파일 업로드">
+    이전 단계에서 absolute prestate의 preimage도 함께 생성되었습니다. 이는 op-program을 바이너리 파일로 직렬화한 것입니다. 새 cannon 파일은 `optimism/op-program/bin/prestate-mt64.bin.gz`에 있습니다. 파일 이름을 absolute prestate 해시로 변경하여 `0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e.bin.gz`와 같은 형태가 되도록 합니다.
+
+    새 kona cannon 파일은 `prestate-artifacts-cannon/prestate.bin.gz`에 있습니다. 파일 이름을 absolute prestate 해시로 변경하여 `0x0323914d3050e80c3d09da528be54794fde60cd26849cd3410dde0da7cd7d4fa.bin.gz`와 같은 형태가 되도록 합니다.
+
+    다른 absolute preimage 파일을 보관하는 위치에 이 파일들을 업로드합니다. 이 위치는 `--prestates-url`이 가리키는 위치여야 합니다. `op-challenger`는 게임에 이의를 제기해야 할 때 이 파일을 가져와 사용합니다.
+  </Step>
+
+  <Step title="cannon-kona를 위한 op-challenger 구성">
+    `op-challenger`가 업데이트되어 Kona 게임을 지원하도록 구성되어 있는지 확인하십시오. 
+    trace type에 `cannon-kona`를 포함합니다.
+
+      ```bash
+      OP_CHALLENGER_TRACE_TYPE="cannon,cannon-kona,permissioned"
+      # or
+      --trace-type=cannon,cannon-kona,permissioned
+      ```
+
+    새 preimage 파일을 업로드하고 challenger가 사용할 수 있는지 확인하십시오.
+    두 preimage 파일을 같은 위치에 업로드한 경우:
+
+    ```bash
+    --prestates-url=<PRESTATES_URL>
+    ```
+
+    별도로 저장한 경우:
+
+    ```bash
+    --cannon-prestates-url=<CANNON_PRESTATES_URL>
+    --cannon-kona-prestates-url=<CANNON_KONA_PRESTATES_URL>
+    ```
+
+    표준 OP Labs `op-challenger` Docker 이미지를 사용하지 않는 경우 `kona-host` 바이너리 경로를 설정하십시오.
+
+    ```bash
+    OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+    # or
+    --cannon-kona-server=/path/to/kona-host
+    ```
+
+    구성된 cannon-kona prestate와 동일한 릴리스에서 `kona-host`를 빌드하십시오.
+  </Step>
+</Steps>
+
+## L1 컨트랙트 업그레이드 실행
+
+`op-challenger`가 준비되면(무허가 체인의 경우 Kona 지원 준비까지 완료되면) 업그레이드 트랜잭션을 실행할 수 있습니다. 이는 [레지스트리](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml)에 나열된 주소의 OP Contract Manager에서 `upgrade()` 함수에 delegatecall을 수행하는 방식으로 진행해야 합니다.
+
+트랜잭션을 실행하기 전에 예상 출력을 시뮬레이션하고 검증하시기 바랍니다.
+

@@ -3,6 +3,7 @@ package presets
 import (
 	"time"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -334,6 +335,24 @@ func WithL2ToL2MessageExpiryPeriod(seconds uint64) Option {
 			cfg.L2ToL2MessageExpiryPeriod = seconds
 		},
 	}
+}
+
+// WithAltDA runs the L2 chain on alt-DA with keccak commitments: the batcher writes inputs to a DA
+// server that keeps them in store, and the sequencer node reads them back. Only
+// NewMinimalNoFaultProofs supports it, since no other node is wired to the DA server and the
+// fault-proof stack cannot read alt-DA inputs.
+func WithAltDA(store altda.KVStore) Option {
+	return option{
+		kinds: optionKindAltDA,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.AltDAStore = store
+		},
+	}
+}
+
+// WithL1BlockTime configures the L1 block time (in seconds) via the deployer.
+func WithL1BlockTime(seconds uint64) Option {
+	return WithDeployerOptions(sysgo.WithL1BlockTime(seconds))
 }
 
 // WithL2BlockTimes configures per-chain L2 block times via the deployer.

@@ -1,0 +1,196 @@
+---
+title: "콘텐츠 유형: 공지"
+description: 기한이 있는 네트워크 공지에 대해 공개된 계약으로, 필수 페르소나별 영향, 조치, 일정, 복사해 쓸 수 있는 템플릿을 다룹니다.
+diataxis: reference
+---
+
+**공지(notice)**는 영향을 받는 독자에게 예정된 네트워크 업그레이드,
+지원 중단, 또는 운영상의 변경을 알리고, 호환성을 유지하는 데 필요한 조치를
+제공합니다. 공지에는 기한이 있습니다. 독자가 준비해야 하는 동안 활성 상태로
+유지되며, 변경이 완료되면 공지 보관소로 이동합니다.
+
+이 페이지는 이 유형에 대한 계약입니다. 새 공지는 이 계약을 기준으로 리뷰하며,
+pull request마다 구조를 다시 논쟁하는 대신 관련 섹션을 인용합니다.
+
+## 구성
+
+공지는 `diataxis: reference`입니다. 공지는 하나의 변경에 대해 범위, 호환성, 일정,
+영향을 받는 버전을 포함한 권위 있는 사실을 독자에게 제공합니다. 실행 가능한
+마이그레이션 절차는 how-to 가이드나 런북에 두고 공지에서 링크합니다.
+
+추가 메타데이터 키인 `content_type: notice`(밑줄 사용)는
+페이지의 운영상 목적과 생명주기를 표시합니다. 이는 다섯 번째
+Diátaxis 사분면이나 구성된 문서 유형 중 하나가 아닙니다. 이름이 비슷한
+`content-type:` 키(하이픈 사용)는
+[콘텐츠 유형 선택](/ko/op-stack/contribute/choose-a-content-type)에 있는
+네 가지 구성 유형 전용으로 남아 있습니다.
+
+## 목적
+
+*   변경 사항, 변경 이유, 적용 시점을 명시합니다.
+*   영향을 받는 모든 페르소나를 식별하고, 각 페르소나에 대해 호환성이 깨지는 변경 사항이나
+    조치가 필요 없다는 결과를 명시적으로 밝힙니다.
+*   독자가 전환 전에 확인할 수 있는 버전, 구성, 컨트랙트,
+    또는 애플리케이션 변경 사항이 담긴 조치 체크리스트를 제공합니다.
+*   진행 중인 출금, 분쟁, 트랜잭션이 어떻게 되는지처럼 독자가 알아야 하는
+    전환 동작을 기록합니다.
+
+공지를 기능에 대한 영구적인 설명이나 업그레이드의 유일한 기록으로 사용하지
+마세요. 오래 유지되어야 하는 세부 사항은 정식 가이드와 레퍼런스 페이지에 링크합니다.
+
+## 필수 프런트매터
+
+모든 공지는 공지 인덱스와 사이트 검색에서 사용하는 메타데이터를 포함합니다.
+
+```yaml
+---
+title: <Change or action>
+description: <One sentence naming the change and affected readers.>
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: <unique-kebab-case-topic>
+personas:
+  - <persona from keywords.config.yaml>
+categories:
+  - <category from keywords.config.yaml>
+is_imported_content: 'false'
+---
+```
+
+`keywords.config.yaml`에서 해당하는 페르소나를 모두 사용합니다. 목록을 주요 대상
+독자로만 줄이지 마세요. 공지 내용을 입증하기 위해 소스 파일이나
+생성된 산출물을 확인했다면 `audit-source:`를 추가합니다.
+
+공지를 보관할 때 `date:`(ISO `YYYY-MM-DD` 값)를 추가합니다. 이 값은
+변경이 적용된 날짜를 기록합니다. 즉 mainnet 하드포크 활성화일,
+지원 종료일, 컨트랙트 업그레이드의 mainnet 실행일,
+또는 기간이 정해진 실험의 시작일이며, [공지 보관소](/ko/notices/archive)에 있는
+해당 페이지의 행과 일치해야 합니다. 추측하지 말고 키를 생략하세요. 저장소 내에
+날짜를 제공하는 정식 출처가 없으면 보관소 행에는 대신 "Not dated"라고 표시합니다.
+
+## 필수 구성 요소
+
+모든 공지에는 다음이 포함되어야 합니다.
+
+1.  **요약**: 변경 사항, 범위, 주요 조치를 명시하는 한두 개의
+    단락.
+2.  **동기**(`## Why <change>` 또는 `## Why this is changing`): 사용자 관점의
+    변경 이유와, 더 많은 배경 설명이 유용한 경우 오래 유지되는 설명 문서 링크.
+3.  **변경 범위**(`## What's included` 또는 `## What is changing`): 구체적인
+    프로토콜, 컨트랙트, 컴포넌트, 또는 제품 변경 사항. 중요한 제외 사항은
+    명시적으로 밝힙니다.
+4.  **페르소나별 영향**(`## Breaking Changes`): 프런트매터의 각 페르소나마다
+    하나의 `###` 하위 섹션. 무엇이 깨지는지, 무엇을 바꿔야 하는지,
+    무엇이 호환성을 유지하는지 밝힙니다. 조치가 필요 없는 페르소나라면 그렇다고 직접 밝힙니다.
+5.  **필수 조치**: 복사해 붙여 넣을 수 있는 구성, 버전, 컨트랙트,
+    또는 애플리케이션 변경 사항. 여러 릴리스가 관련된 경우 컴포넌트 표를
+    사용합니다.
+6.  **일정**: 활성화 메커니즘과 일정. 네트워크
+    업그레이드의 경우 하드포크 활성화가 있는지 밝힙니다. 타임스탬프나 릴리스 버전을
+    지어내지 마세요. 정식 출처가 확보되면 추가합니다.
+7.  **확인 및 지원**: 준비 상태를 확인하는 방법과
+    문제를 보고할 곳을 독자에게 알려 줍니다.
+
+변경이 전환 시점에 걸쳐 있을 수 있는 상태에 영향을 미치는 경우, 전환 과정을
+설명합니다. 흔한 예로는 이미 진행 중인 Dispute Game,
+이미 증명된 출금, 처리 중인 트랜잭션, 그리고 일시적으로 계속 사용할 수 있어야 하는
+이전 구성이 있습니다.
+
+## 작성 규칙
+
+*   내부 프로젝트 이력이 아니라 조치와 영향을 받는 독자로 시작합니다.
+*   올바른 제품 및 프로토콜 이름을 사용합니다. 명령어, 플래그, 패키지,
+    함수, 컴포넌트의 철자는 코드 서식으로 그대로 유지합니다.
+*   확정된 범위와 아직 알 수 없는 일정 또는 릴리스 정보를 분리합니다. 공지 전체를
+    잠정적이라고 표시하여 확정된 변경 사항을 약화시키지 마세요.
+*   전체 절차를 중복하지 말고 정식 런북이나 레퍼런스에 링크합니다.
+*   페르소나 하위 섹션은 각각 독립적으로 훑어볼 수 있게 유지합니다. 독자가
+    다른 페르소나의 섹션에서 자신의 조치를 추론해야 해서는 안 됩니다.
+
+## 생명주기
+
+활성 공지는 `/notices`와 `docs.json`의 해당 Network Notices
+내비게이션 그룹 양쪽에 추가합니다.
+
+활성화가 이루어지고 필요한 마이그레이션 기간이 끝나면:
+
+1.  페이지를 `/notices/archive` 아래로 옮깁니다.
+2.  `/notices`에서 활성 카드를 제거하고 `docs.json`
+    내비게이션 항목을 삭제합니다. 보관된 공지는 의도적으로 사이드바에 넣지 않습니다.
+    내비게이션 검사기가 허용하도록 이유와 함께 페이지를 `scripts/lint/nav-allowlist.json`에
+    추가하고, 페이지의 `date:` 프런트매터를 설정한 뒤,
+    [공지 보관소](/ko/notices/archive)에 행을 추가합니다. 독자는 이 보관소를 통해
+    해당 페이지를 찾아갑니다. 페이지의 URL은 영구히 유지됩니다. 현재 페이지들이 그 URL로 링크하기 때문입니다.
+3.  최종 결과를
+    [네트워크 업그레이드 레지스트리](/ko/op-stack/protocol/network-upgrades)에 기록합니다. 변경에
+    하드포크가 없는 경우 [컨트랙트 업그레이드 표](/ko/op-stack/protocol/network-upgrades#contract-upgrades)를
+    사용합니다.
+4.  오래 유지되는 가이드와 레퍼런스를 업데이트하여, 보관된 공지에 의존하지 않고
+    업그레이드 이후 상태를 설명하도록 합니다.
+
+## 템플릿
+
+공지를 시작하려면 다음 템플릿을 복사합니다.
+
+```mdx
+---
+title: <Change or action>
+description: <One sentence naming the change and affected readers.>
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: <unique-kebab-case-topic>
+personas:
+  - <affected-persona>
+categories:
+  - <approved-category>
+is_imported_content: 'false'
+---
+
+<One or two paragraphs: what is changing, who must act, and the activation
+mechanism or known date.>
+
+## Why this is changing
+
+<The user-facing motivation. Link the durable explanation or specification
+for deeper context.>
+
+## What's included
+
+*   <Change in scope>
+*   <Change in scope>
+
+This change does not <important exclusion>.
+
+## Breaking Changes
+
+### <Persona>
+
+<What breaks or changes for this persona. State "No action is required" when
+that is the result, then explain why.>
+
+### <Persona>
+
+<Impact and compatibility details for the next persona.>
+
+## Required actions
+
+| Component or integration | Required change |
+| --- | --- |
+| `<name>` | <Version, flag, API, contract, or workflow change> |
+
+<Add a short action checklist or link the canonical runbook.>
+
+## Timing
+
+<Activation date or mechanism. Say whether the change includes a hardfork.
+Name the canonical source where final timestamps or releases will appear.>
+
+## Verify readiness
+
+*   <Observable check and expected result>
+*   <Observable check and expected result>
+
+For support, <link the issue tracker or support channel>.
+```

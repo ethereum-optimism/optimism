@@ -1,0 +1,42 @@
+---
+title: Holocene
+description: 더 엄격한 derivation과 동적 EIP-1559 파라미터를 도입한 Holocene 네트워크 업그레이드의 하드포크 레지스트리 항목입니다.
+diataxis: reference
+hardfork_name: holocene
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/holocene/overview.html
+hardfork_activation_mainnet: 1736445601
+hardfork_activation_sepolia: 1732633200
+hardfork_governance: https://vote.optimism.io/proposals/20127877429053636874064552098716749508236019236440427814457915785398876262515
+hardfork_notice: /ko/notices/archive/holocene-changes
+hardfork_min_versions:
+  - op-node v1.10.2
+  - op-geth v1.101411.4
+hardfork_min_versions_source: "[Holocene 공지](/ko/notices/archive/holocene-changes)"
+---
+
+import HoloceneFacts from "/ko/snippets/generated/hardforks/holocene.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="이 업그레이드"
+  title="Holocene 명세"
+  href="https://specs.optimism.io/protocol/holocene/overview.html"
+  note="이 페이지는 활성화 데이터와 운영 관련 참고 정보를 기록하며, 명세의 내용을 다시 서술하지 않습니다."
+/>
+
+Holocene은 derivation 규칙을 재정비하고, 체인 운영자가 EIP-1559 수수료 파라미터를
+구성할 수 있도록 했습니다.
+
+<HoloceneFacts />
+
+## 변경 사항
+
+[명세 개요](https://specs.optimism.io/protocol/holocene/overview.html)에 따른 변경 사항은 다음과 같습니다.
+
+*   실행 계층: [동적 EIP-1559 파라미터](https://specs.optimism.io/protocol/holocene/exec-engine.html#dynamic-eip-1559-parameters).
+*   합의 계층: [Holocene derivation](https://specs.optimism.io/protocol/holocene/derivation.html#holocene-derivation).
+*   스마트 컨트랙트: `SystemConfig` 업데이트.
+
+[Holocene 공지](/ko/notices/archive/holocene-changes)에서 L1 컨트랙트 업그레이드를
+포함하여 활성화에 수반된 운영자 작업 단계를 다룹니다.

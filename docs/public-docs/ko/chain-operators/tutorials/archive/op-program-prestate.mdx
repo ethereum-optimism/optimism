@@ -1,0 +1,164 @@
+---
+title: "op-program absolute prestate 생성(보관됨)"
+description: "보관됨: 진행 중인 CANNON 게임 유형 1 분쟁을 해결하는 체인을 위한 레거시 op-program prestate 생성 절차입니다."
+diataxis: how-to
+---
+
+<Warning>
+  **보관됨.** [Upgrade 19](/ko/notices/archive/upgrade-19)부터 `CANNON_KONA`(게임 유형 `8`)가 무허가(permissionless) 결함 증명(fault proof)의 respected game type이며, `op-program`(게임 유형 `0`, `CANNON`)은 새로운 결함 증명에 더 이상 지원되지 않습니다. 이 페이지는 Upgrade 19 이전에 생성되어 아직 진행 중인 `CANNON` 게임을 해결해야 하는 체인을 위해서만 유지됩니다.
+
+  현재의 모든 작업에 대해서는 [absolute prestate 및 preimage 파일 생성](/ko/chain-operators/tutorials/absolute-prestate)(kona-client)을 참조하고, 체인이 아직 Superchain Registry에 등록되지 않은 경우 [사용자 지정 kona-client absolute prestate 생성](/ko/chain-operators/tutorials/kona-custom-prestate)을 참조하십시오.
+</Warning>
+
+## 개요
+
+무허가 결함 증명은 OP Stack 보안 모델의 핵심 구성 요소입니다. 누구나 유효하지 않은 상태 제안에 이의를 제기할 수 있게 하여, 신뢰할 수 있는 제3자에 의존하지 않고도 L2에서 L1으로의 출금이 올바르게 이루어지도록 보장합니다. 이 기능을 활성화하려면 체인 운영자가 필요한 absolute prestate 및 preimage 파일을 생성하고 유지 관리해야 합니다. absolute prestate는 결함 증명 프로그램의 초기 상태에 대한 커밋먼트이며, preimage는 이 프로그램 상태를 직렬화한 바이너리 표현입니다. 이 파일들은 op-challenger 도구가 유효하지 않은 주장에 이의를 제기할 때 분쟁 게임(dispute game)에 참여하는 데 필수적입니다.
+
+## 사전 요구 사항
+
+시작하기 전에 다음이 준비되어 있는지 확인하십시오.
+
+- [Docker](https://docs.docker.com/engine/install/) 실행 중
+
+## superchain-registry 체인의 공식 prestate 해시
+
+superchain-registry는 레지스트리에 포함된 체인에 대한 공식 absolute prestate 해시를 관리합니다. 이 prestate에는 prestate가 생성된 시점에 superchain-registry에 있던 체인들의 구성이 포함됩니다.
+
+<Info>
+  중요: 다음과 같은 경우 superchain-registry에 등록된 prestate가 체인에 적합하지 않을 수 있습니다.
+
+  - prestate가 생성된 이후에 체인이 레지스트리에 추가된 경우
+  - prestate가 생성된 이후에 체인의 구성이 업데이트된 경우
+
+  레지스트리의 prestate를 사용하기 전에 해당 prestate에 체인의 최신 구성이 포함되어 있는지 확인하십시오.
+
+  확실하지 않은 경우 체인의 구성으로 직접 prestate를 생성하는 것이 가장 안전한 방법입니다.
+</Info>
+
+최신 prestate 태그는 [Superchain registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에서 확인할 수 있습니다.
+
+## absolute prestate 생성
+
+<Steps>
+  <Step title="저장소 클론 및 태그 버전 체크아웃">
+    먼저 Optimism 모노레포를 클론하고 op-program에 적합한 [릴리스 태그](https://github.com/ethereum-optimism/optimism/tags)를 체크아웃합니다.
+
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    # Check out the op-program version that matches the in-flight CANNON game you
+    # need to resolve. Use the version the game's original prestate was generated with.
+    git checkout op-program/v1.6.1
+    ```
+  </Step>
+  <Step title="(선택 사항) 체인 구성 및 genesis 파일 제공">
+    superchain-registry에 포함되지 않은 체인의 경우 체인 rollup 구성 파일과 L2 genesis 파일을 제공해야 합니다. `rollup.json`과 `l2-genesis.json`을 모노레포의 `optimism/op-program/chainconfig/configs/<L2_CHAIN_ID>-rollup.json` 및 `optimism/op-program/chainconfig/configs/<L2_CHAIN_ID>-genesis-l2.json`에 각각 추가하십시오.
+  </Step>
+  <Step title="absolute prestate 생성">
+    모노레포의 루트에서 다음 명령을 실행합니다.
+
+    ```bash
+    make reproducible-prestate
+    ```
+
+    명령 출력의 마지막 부분에서 다음 로그를 확인할 수 있습니다.
+
+    ```log
+    -------------------- Production Prestates --------------------
+    
+    Cannon64 Absolute prestate hash: 
+    0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
+    
+    -------------------- Experimental Prestates --------------------
+    
+    CannonInterop Absolute prestate hash: 
+    0x03fc3b4d091527d53f1ff369ea8ed65e5e17cc7fc98ebf75380238151cdc949c
+    
+    Cannon64Next Absolute prestate hash: 
+    0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
+    ```
+
+    출력에는 프로덕션 및 실험적 prestate 해시가 표시됩니다.
+
+    - **Production prestates**: 64비트 버전 Cannon의 현재 프로덕션 absolute prestate 해시인 `Cannon64` prestate가 포함됩니다. 무허가 결함 증명에는 이 해시를 사용해야 합니다.
+    - **Experimental prestates**: 개발 중이며 아직 프로덕션 사용 준비가 되지 않은 버전의 prestate가 포함됩니다.
+  </Step>
+  <Step title="preimage 파일 준비">
+    prestate를 생성하면 preimage 파일이 `op-program/bin/prestate-mt64.bin.gz`에 위치합니다. 정확한 이름은 버전에 따라 다를 수 있습니다. 이 파일의 이름에 prestate 해시가 포함되도록 변경합니다.
+
+    ```bash
+    cd op-program/bin
+    mv prestate-mt64.bin.gz <cannon64-prestate-hash>.bin.gz
+    ```
+
+    `<cannon64-prestate-hash>`를 출력에 표시된 실제 `Cannon64` absolute prestate 해시 값으로 바꾸십시오. 이 파일은 op-challenger 인스턴스가 접근할 수 있는 위치에 업로드해야 합니다.
+  </Step>
+</Steps>
+
+## absolute prestate를 사용한 배포 및 구성
+
+absolute prestate 및 preimage 파일을 생성한 후에는 다음 작업을 수행해야 합니다.
+
+<Steps>
+  <Step title="preimage 파일 업로드">
+    op-challenger 인스턴스가 접근할 수 있는 위치에 preimage 파일을 업로드합니다.
+  </Step>
+  <Step title="op-challenger 구성">
+    생성된 prestate를 사용하도록 op-challenger를 구성합니다. prestate를 제공하는 방법은 두 가지입니다.
+  </Step>
+</Steps>
+
+<Steps>
+  <Step title="옵션 1: HTTP URL 사용">
+    prestate 파일이 웹 서버에 호스팅되어 있다면 해당 파일이 포함된 디렉터리의 URL을 제공하기만 하면 됩니다.
+
+    ```bash
+    docker run -d --name op-challenger \
+     -e OP_CHALLENGER_TRACE_TYPE=permissioned,cannon \
+     -e OP_CHALLENGER_PRESTATES_URL=<HTTP_URL_PATH_TO_PRESTATE> \
+     -e OP_CHALLENGER_L1_ETH_RPC=<YOUR_L1_RPC_URL> \
+     -e OP_CHALLENGER_GAME_FACTORY_ADDRESS=<YOUR_DISPUTE_GAME_FACTORY> \
+     -e OP_CHALLENGER_PRIVATE_KEY=<YOUR_PRIVATE_KEY_OR_USE_WALLET_SIGNER> \
+     -e OP_CHALLENGER_NETWORK=<YOUR_NETWORK> \
+     -e OP_CHALLENGER_CANNON_ROLLUP_CONFIG=<PATH_TO_ROLLUP_CONFIG> \
+     -e OP_CHALLENGER_CANNON_L2_GENESIS=<PATH_TO_GENESIS_CONFIG> \
+     us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:latest
+    ```
+
+    <Info>
+      HTTP URL을 사용하는 경우 볼륨 마운트가 필요하지 않습니다. challenger가 필요에 따라 prestate 파일을 다운로드합니다.
+    </Info>
+  </Step>
+  <Step title="옵션 2: 로컬 파일 사용">
+    prestate 파일을 로컬에 저장한 경우 이를 볼륨으로 마운트하고 `file://` 프로토콜을 사용해야 합니다.
+
+    ```bash
+    docker run -d --name op-challenger \
+      -e OP_CHALLENGER_TRACE_TYPE=permissioned,cannon \
+      -e OP_CHALLENGER_PRESTATES_URL=file:///prestates \
+      -e OP_CHALLENGER_L1_ETH_RPC=<YOUR_L1_RPC_URL> \
+      -e OP_CHALLENGER_GAME_FACTORY_ADDRESS=<YOUR_DISPUTE_GAME_FACTORY> \
+      -e OP_CHALLENGER_PRIVATE_KEY=<YOUR_PRIVATE_KEY_OR_USE_WALLET_SIGNER> \
+      -e OP_CHALLENGER_NETWORK=<YOUR_NETWORK> \
+      -e OP_CHALLENGER_CANNON_ROLLUP_CONFIG=<PATH_TO_ROLLUP_CONFIG> \
+      -e OP_CHALLENGER_CANNON_L2_GENESIS=<PATH_TO_GENESIS_CONFIG> \
+      -v /path/to/local/prestates:/prestates \
+      us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:latest
+    ```
+
+    <Info>
+      로컬 파일을 사용하는 경우 prestate 파일이 마운트된 디렉터리에 있고 해시로 올바르게 이름이 지정되어 있는지 확인하십시오(예: `0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8.bin.gz`).
+    </Info>
+  </Step>
+</Steps>
+
+<Info>
+  - 최신 op-challenger 버전을 사용하고 있는지 확인하십시오. [릴리스 페이지](https://github.com/ethereum-optimism/optimism/releases)를 참조하십시오.
+  - 체인이 상호운용성(interoperability) 기능을 사용하는 경우 `op-program/chainconfig/configs` 디렉터리에 `depsets.json` 파일을 추가해야 합니다.
+  - 이 파일에는 의존성 집합(dependency set) 구성이 포함됩니다. interop이 활성화된 체인에 이미 구성된 것과 동일한 의존성 집합 정의를 사용하십시오.
+</Info>
+
+## 다음 단계
+
+- [무허가 결함 증명으로 마이그레이션 가이드](/ko/chain-operators/tutorials/migrating-permissionless)를 확인하십시오.
+- [결함 증명 설명](/ko/op-stack/fault-proofs/explainer)을 읽어보십시오.

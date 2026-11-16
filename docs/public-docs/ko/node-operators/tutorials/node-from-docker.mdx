@@ -1,0 +1,247 @@
+---
+title: Docker로 node 실행하기
+description: 공식 Docker 이미지와 docker-compose를 사용하여 OP Stack node(op-reth + op-node)를 실행합니다.
+diataxis: tutorial
+---
+
+import OpGethEol from "/ko/snippets/op-geth-eol.mdx"
+
+<OpGethEol />
+
+<Info>
+  **OP Stack 배우기 — 14단계 중 14단계.**
+  지금까지 개념부터 계층 간 흐름까지 스택 전체를 학습했습니다. 이 마지막
+  단계에서는 공식 Docker 이미지를 사용하여 실제 네트워크에서 OP Stack node를
+  실행합니다. node가 동기화되면 트랙을 완료한 것입니다. 다음 단계는
+  [OP Stack 배우기](/ko/op-stack/learn/index)로 돌아가 확인하십시오.
+</Info>
+
+이 튜토리얼에서는 하나의 `docker-compose.yml`에서 **공식 op-reth 및 op-node Docker 이미지**를 사용하여 OP Stack node를 실행합니다. 소스 빌드는 필요하지 않습니다.
+
+<Info>
+  op-node 대신 Rust 합의 클라이언트를 실행하려면
+  [kona-node Docker 가이드](/ko/node-operators/kona-node/run/docker)를 참고하십시오. 이 가이드는
+  kona-node + op-reth 스택을 위한 자체 docker-compose 레시피를 제공합니다.
+</Info>
+
+<Warning>
+  **OP Mainnet은 Bedrock 이전(pre-Bedrock) 상태를 1회 가져와야(import) 합니다.** OP Sepolia는 필요하지 않습니다. 새 datadir에서 이 튜토리얼을 OP Mainnet으로 실행하면 op-reth가 시작 시 `Op-mainnet has been launched without importing the pre-Bedrock state` 오류와 함께 실패합니다. OP Mainnet을 실행하기 전에 [op-reth sync-op-mainnet 가이드](https://reth.rs/run/sync-op-mainnet.html)를 따라 [사전 동기화된 스냅샷](https://datadirs.optimism.io/)에서 복원하거나 최소 부트스트랩(minimal-bootstrap) import를 실행하십시오. OP Sepolia는 추가 단계 없이 snap sync로 부트스트랩되므로, 설정을 테스트하는 경우에는 OP Sepolia로 시작하십시오.
+</Warning>
+
+## 의존성
+
+*   [Docker](https://docs.docker.com/engine/install/)
+*   [Docker Compose](https://docs.docker.com/compose/install/) (v2)
+*   **L1 실행 RPC 엔드포인트**(OP Mainnet의 경우 Ethereum mainnet, OP Sepolia의 경우 Ethereum Sepolia).
+*   같은 L1 체인의 **L1 Beacon API 엔드포인트**. op-node가 Ecotone 이후 blob 데이터를 가져오는 데 필요합니다.
+
+## 빠른 시작
+
+<Steps>
+  <Step title="작업 디렉터리 만들기">
+    ```bash
+    mkdir op-stack-node && cd op-stack-node
+    ```
+  </Step>
+
+  <Step title="JWT secret 생성하기">
+    두 컨테이너는 bind mount를 통해 JWT secret을 공유합니다.
+
+    ```bash
+    openssl rand -hex 32 > jwt.txt
+    ```
+  </Step>
+
+  <Step title=".env 파일 만들기">
+    네트워크와 L1 엔드포인트를 구성합니다. 네트워크 블록(Sepolia 또는 Mainnet) 중 **하나**를 선택하고 L1 RPC 및 Beacon URL을 입력하십시오.
+
+    ```bash
+    cat > .env <<'EOF'
+    # --- Network: OP Sepolia (default) ---
+    OP_RETH_CHAIN=optimism_sepolia
+    OP_NODE_NETWORK=op-sepolia
+    OP_RETH_SEQUENCER=https://sepolia-sequencer.optimism.io
+
+    # --- Network: OP Mainnet (uncomment to use instead) ---
+    # OP_RETH_CHAIN=optimism
+    # OP_NODE_NETWORK=op-mainnet
+    # OP_RETH_SEQUENCER=https://mainnet-sequencer.optimism.io
+
+    # --- L1 endpoints (required) ---
+    L1_RPC_URL=https://your-l1-rpc-endpoint
+    L1_RPC_KIND=basic
+    L1_BEACON_URL=https://your-l1-beacon-endpoint
+    EOF
+    ```
+
+    `L1_RPC_KIND`의 유효한 값: `alchemy`, `quicknode`, `infura`, `parity`, `nethermind`, `debug_geth`, `erigon`, `basic`, `any`. 확실하지 않으면 `basic`을 사용하십시오.
+
+    <Info>
+      `OP_RETH_CHAIN`과 `OP_NODE_NETWORK`는 [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)에 있는 모든 체인(예: `unichain` / `unichain-mainnet`, `soneium` / `soneium-mainnet`)을 허용합니다. 각 체인에 대해 `L1_RPC_URL` / `L1_BEACON_URL`이 해당 L1(Ethereum Mainnet 또는 Sepolia)을 가리키도록 하고, `OP_RETH_SEQUENCER`를 해당 체인의 sequencer 엔드포인트로 변경하십시오.
+    </Info>
+  </Step>
+
+  <Step title="docker-compose.yml 만들기">
+    ```yaml
+    services:
+      op-reth:
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:v2.2.5
+        container_name: op-reth
+        ports:
+          - "8545:8545"          # JSON-RPC HTTP
+          - "8546:8546"          # JSON-RPC WebSocket
+          - "9001:9001"          # Prometheus metrics
+          - "30303:30303"        # P2P TCP
+          - "30303:30303/udp"    # P2P UDP
+        volumes:
+          - ./reth-data:/data
+          - ./jwt.txt:/jwt.txt:ro
+        command:
+          - node
+          - --chain=${OP_RETH_CHAIN}
+          - --datadir=/data
+          - --http
+          - --http.addr=0.0.0.0
+          - --http.port=8545
+          - --ws
+          - --ws.addr=0.0.0.0
+          - --ws.port=8546
+          - --authrpc.addr=0.0.0.0
+          - --authrpc.port=8551
+          - --authrpc.jwtsecret=/jwt.txt
+          - --rollup.sequencer=${OP_RETH_SEQUENCER}
+          - --metrics=0.0.0.0:9001
+        restart: unless-stopped
+
+      op-node:
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.18.2
+        container_name: op-node
+        depends_on:
+          - op-reth
+        ports:
+          - "9545:7000"          # JSON-RPC HTTP (host 9545 → container 7000; macOS uses 7000 for AirPlay)
+          - "7300:7300"          # Prometheus metrics
+          - "9222:9222"          # P2P TCP
+          - "9222:9222/udp"      # P2P UDP
+        volumes:
+          - ./jwt.txt:/jwt.txt:ro
+        command:
+          - op-node
+          - --l1=${L1_RPC_URL}
+          - --l1.rpckind=${L1_RPC_KIND}
+          - --l1.beacon=${L1_BEACON_URL}
+          - --l2=ws://op-reth:8551
+          - --l2.jwt-secret=/jwt.txt
+          - --network=${OP_NODE_NETWORK}
+          - --syncmode=execution-layer
+          - --l2.enginekind=reth
+          - --rpc.addr=0.0.0.0
+          - --rpc.port=7000
+          - --metrics.enabled
+          - --metrics.addr=0.0.0.0
+          - --metrics.port=7300
+        restart: unless-stopped
+    ```
+
+    op-reth datadir은 호스트의 `./reth-data`에서 bind mount되므로 스냅샷을 직접 검사하거나 복원할 수 있습니다(아래 [스냅샷에서 부트스트랩하기](#bootstrap-from-a-snapshot) 참고).
+
+    표시된 이미지 태그는 작성 시점의 최신 버전입니다. 현재 태그는 [op-reth 릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-reth)와 [op-node 릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-node)를 참고하십시오.
+  </Step>
+
+  <Step title="node 시작하기">
+    ```bash
+    docker compose up -d
+    ```
+
+    다음 명령으로 로그를 확인합니다.
+
+    ```bash
+    docker compose logs -f
+    ```
+  </Step>
+</Steps>
+
+## 검증
+
+node가 실행 중이며 진행하고 있는지 확인합니다.
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+예상 결과: 현재 블록이 16진수로 담긴 `{"jsonrpc":"2.0","id":1,"result":"0x..."}`. 1분 후 다시 실행해 보십시오. 동기화가 진행됨에 따라 숫자가 증가해야 합니다.
+
+op-node 동기화 상태(unsafe, safe, finalized head를 한 번의 호출로 확인):
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"optimism_syncStatus","params":[],"id":1}' \
+  http://localhost:9545 | jq .
+```
+
+<Info>
+  초기 EL 기반 동기화(`--syncmode=execution-layer`) 중에는 `unsafe_l2`가 libp2p gossip을 통해 tip을 따라가는 반면, `safe_l2`와 `finalized_l2`는 0으로 유지됩니다. 이는 예상된 동작입니다. op-node는 op-reth가 단계별 동기화(staged sync)를 마칠 때까지 L1 derivation을 미룹니다. EL이 따라잡으면 derivation이 시작되고 safe/finalized head가 진행되기 시작합니다.
+</Info>
+
+op-node 로그를 직접 확인할 수도 있습니다.
+
+```bash
+docker compose logs op-node | grep -E "Sync progress|Finished EL sync"
+```
+
+## 스냅샷에서 부트스트랩하기
+
+처음부터 동기화하는 것은 OP Sepolia(~30–50 GB, 수 시간)에서는 괜찮지만 OP Mainnet(~700 GB, 수 일)에서는 느립니다. Mainnet의 경우, 또는 초기 동기화를 건너뛰고 싶을 때는 언제든지 사전 동기화된 스냅샷에서 op-reth를 부트스트랩하십시오.
+
+<Info>
+  OP Mainnet의 경우 스냅샷을 사용하면 Bedrock 이전 상태 요구 사항(이 페이지 상단의 경고 참고)도 한 번에 처리됩니다.
+</Info>
+
+<Steps>
+  <Step title="컨테이너 중지하기">
+    ```bash
+    docker compose down
+    rm -rf reth-data       # only if you previously synced and want to start clean
+    ```
+  </Step>
+
+  <Step title="스냅샷 다운로드하기">
+    [datadirs.optimism.io](https://datadirs.optimism.io/)에서 네트워크에 맞는 스냅샷을 찾아 최신 파일을 선택하십시오. 그런 다음 다운로드하고 SHA256을 검증합니다.
+
+    ```bash
+    curl -fLO https://datadirs.optimism.io/<snapshot-file>.tar.zst
+
+    # Verify checksum against the value on the index page
+    sha256sum <snapshot-file>.tar.zst   # Linux
+    shasum -a 256 <snapshot-file>.tar.zst   # macOS
+    ```
+  </Step>
+
+  <Step title="datadir에 압축 해제하기">
+    bind mount된 디렉터리는 `./reth-data`(`docker-compose.yml` 기준 상대 경로)입니다.
+
+    ```bash
+    mkdir -p reth-data
+    tar -I zstd -xvf <snapshot-file>.tar.zst -C reth-data --strip-components=1
+    ```
+
+    `--strip-components=1`은 tarball 내부의 최상위 래핑 디렉터리를 제거합니다. 먼저 `tar -tf <snapshot-file>.tar.zst | head -3`을 실행하여 확인하십시오. 파일이 이미 아카이브 루트에 있다면 `--strip-components`를 생략하십시오.
+  </Step>
+
+  <Step title="node 시작하기">
+    ```bash
+    docker compose up -d
+    docker compose logs -f op-reth
+    ```
+
+    op-reth는 시작 시 기존 datadir을 인식하고 스냅샷의 tip부터 이어서 진행합니다. `latest_block`은 0이 아니라 스냅샷의 높이여야 합니다. 그런 다음 해당 tip에서 현재까지 따라잡습니다(스냅샷의 생성 시기에 따라 Sepolia는 수 분, Mainnet은 수 시간).
+  </Step>
+</Steps>
+
+## 다음 단계
+
+*   [Node 메트릭 및 모니터링 가이드](/ko/node-operators/guides/monitoring/metrics) — 메트릭 포트에 Prometheus/Grafana를 연결합니다.
+*   [Node 문제 해결 가이드](/ko/node-operators/guides/troubleshooting) — 문제가 발생한 경우 참고하십시오.
+*   [소스에서 OP Stack node 빌드 및 실행하기](/ko/node-operators/tutorials/run-node-from-source) — 사용자 정의 빌드가 필요하거나 소스를 살펴보려는 경우 참고하십시오.

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -17,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -140,7 +140,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 		var sequencerFeeVaultInitialBalance *big.Int
 		var operatorFeeVaultInitialBalance *big.Int
 
-		var receipt *types.Receipt
+		var receipt *optypes.Receipt
 
 		switch testCfg.Custom {
 		case NormalTx, IsthmusTransitionBlock:
@@ -209,13 +209,13 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			require.NoError(t, err, "failed to RLP encode transaction")
 
 			unsafeHeader := env.Engine.LatestHeader(t)
-			_, l1InfoDeposit, err := env.Engine.SourceClient(t, 10).InfoAndFirstDepositByHash(t.Ctx(), unsafeHeader.Hash())
+			_, l1InfoDeposit, err := env.Engine.SourceClient().InfoAndFirstDepositByHash(t.Ctx(), unsafeHeader.Hash())
 			require.NoError(t, err)
-			nextBaseFee := eip1559.CalcBaseFee(
-				env.Sd.L2Cfg.Config.GethChainConfig(),
-				unsafeHeader,
-				unsafeHeader.Time+env.Sd.RollupCfg.BlockTime,
-			)
+			// The fee history of the unsafe head ends with the base fee of the block after it.
+			feeHistory, err := env.Engine.EthClient().FeeHistory(t.Ctx(), 1, unsafeHeader.Number, nil)
+			require.NoError(t, err)
+			require.Len(t, feeHistory.BaseFee, 2)
+			nextBaseFee := feeHistory.BaseFee[1]
 
 			l1BlockInfo, err := derive.L1BlockInfoFromBytes(env.Sd.RollupCfg, unsafeHeader.Time, l1InfoDeposit.Data)
 			require.NoError(t, err)
@@ -259,23 +259,24 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 
 			// Instruct the batcher to submit a faulty channel, with Alice's tx re-signed by a new private key.
 			// This key will have 0 balance.
-			env.Batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
-				txs := block.Transactions()
+			env.Batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
+				userTxIndexes := actionsHelpers.PayloadUserTxIndexes(payload)
 
 				// Skip over any L2 blocks that don't contain user-space txs.
-				if len(txs) == 1 {
-					return block
+				if len(userTxIndexes) == 0 {
+					return payload
 				}
 
 				// Re-sign Alice's tx with a random key.
 				require.NoError(t, err, "error generating random private key")
 				signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
-				newSignedTx, err := types.SignTx(txs[1], signer, pkey)
+				i := userTxIndexes[0]
+				newSignedTx, err := types.SignTx(actionsHelpers.DecodePayloadTx(t, payload, i), signer, pkey)
 				require.NoError(t, err, "error re-signing Alice's transaction")
 
 				// Replace Alice's tx with the re-signed one.
-				txs[1] = newSignedTx
-				return block
+				payload.Transactions[i] = actionsHelpers.EncodeTx(t, newSignedTx)
+				return payload
 			}))
 			env.Batcher.ActL2ChannelClose(t)
 			env.Batcher.ActL2BatchSubmit(t)
@@ -388,7 +389,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			reorgedUnsafe := env.Engine.LatestHeader(t)
 			require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(reorgedUnsafe), "reorged unsafe block is the same")
 
-			deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2SafeHead.Hash())
+			deposits, userTxs := env.Engine.BlockTxs(t, l2SafeHead.Hash())
 			require.Len(t, deposits, 1)
 			if env.Sd.RollupCfg.IsIsthmus(l2SafeHead.Time) {
 				require.Empty(t, userTxs)

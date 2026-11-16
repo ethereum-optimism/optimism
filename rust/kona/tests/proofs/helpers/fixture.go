@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,6 +33,10 @@ type FixtureInputs struct {
 	ClaimTimestamp uint64 `toml:"claim-timestamp"`
 
 	L2Sources []*FaultProofProgramL2Source
+
+	// DependencySet is the dependency set that the sequencer derives with. When it is nil, the
+	// programs get a dependency set of the L2Sources chains. Not part of the serialized fixture.
+	DependencySet depset.DependencySet `toml:"-"`
 
 	// SupernodeAddress is an HTTP endpoint serving `superroot_atTimestamp`. Only the kona-sp1
 	// super-range executor needs it: it synthesizes its own agreed pre-state and claim from the

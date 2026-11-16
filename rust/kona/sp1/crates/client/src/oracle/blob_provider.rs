@@ -1,5 +1,5 @@
 use crate::witness::BlobData;
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
 use alloy_consensus::Blob;
 use alloy_eips::eip4844::kzg_to_versioned_hash;
 use alloy_primitives::B256;
@@ -9,9 +9,12 @@ use kona_protocol::BlockInfo;
 use kzg_rs::get_kzg_settings;
 
 /// In-memory blob store containing verified blobs.
+///
+/// Clones share the blob storage, and a stored blob is returned on every request for its hash.
 #[derive(Clone, Debug, Default)]
 pub struct BlobStore {
-    versioned_blobs: Vec<(B256, Blob)>,
+    /// Verified blobs keyed by versioned hash. Boxed so map nodes do not inline 128 KiB slots.
+    blobs_by_hash: Arc<BTreeMap<B256, Box<Blob>>>,
 }
 
 impl From<BlobData> for BlobStore {
@@ -19,19 +22,16 @@ impl From<BlobData> for BlobStore {
         assert_eq!(value.blobs.len(), value.commitments.len());
         assert_eq!(value.commitments.len(), value.proofs.len());
 
-        let blobs: Vec<_> =
-            value.blobs.iter().map(|b| kzg_rs::Blob::from_slice(&b.0).unwrap()).collect();
-        let versioned_blobs = value
-            .commitments
-            .iter()
-            .map(|c| kzg_to_versioned_hash(c.as_slice()))
-            .zip(blobs.iter().map(|b| Blob::from(b.0)))
-            .collect();
+        let mut blobs_by_hash = BTreeMap::new();
+        for (commitment, blob) in value.commitments.iter().zip(&value.blobs) {
+            blobs_by_hash
+                .insert(kzg_to_versioned_hash(commitment.as_slice()), Box::new(Blob::from(blob.0)));
+        }
 
         // Skip decoding the KZG trusted setup if there are no blobs to verify.
-        if !blobs.is_empty() {
+        if !value.blobs.is_empty() {
             match kzg_rs::KzgProof::verify_blob_kzg_proof_batch(
-                blobs,
+                value.blobs,
                 value.commitments,
                 value.proofs,
                 &get_kzg_settings(),
@@ -42,7 +42,7 @@ impl From<BlobData> for BlobStore {
             }
         }
 
-        Self { versioned_blobs }
+        Self { blobs_by_hash: Arc::new(blobs_by_hash) }
     }
 }
 
@@ -58,15 +58,10 @@ impl BlobProvider for BlobStore {
         Ok(blob_hashes
             .iter()
             .map(|hash| {
-                let pos = self
-                    .versioned_blobs
-                    .iter()
-                    .position(|(stored_hash, _)| stored_hash == hash)
-                    .unwrap_or_else(|| {
-                        panic!("requested blob hash not present in BlobStore: {hash}")
-                    });
-                let (_, blob) = self.versioned_blobs.swap_remove(pos);
-                Box::new(blob)
+                let blob = self.blobs_by_hash.get(hash).unwrap_or_else(|| {
+                    panic!("requested blob hash not present in BlobStore: {hash}")
+                });
+                blob.clone()
             })
             .collect())
     }
@@ -79,9 +74,14 @@ mod tests {
     use kona_proof::block_on;
     use kona_protocol::BlockInfo;
 
-    // Looking up blobs must be by versioned hash, not by position in the
-    // internal `versioned_blobs` vec — derivation does not guarantee that
-    // requested hashes arrive in the same order they were packed in the
+    fn store_with<const N: usize>(entries: [(B256, Blob); N]) -> BlobStore {
+        let blobs_by_hash =
+            entries.into_iter().map(|(hash, blob)| (hash, Box::new(blob))).collect();
+        BlobStore { blobs_by_hash: Arc::new(blobs_by_hash) }
+    }
+
+    // Looking up blobs must be by versioned hash, not by position in the witness — derivation
+    // does not guarantee that requested hashes arrive in the same order they were packed in the
     // witness.
     #[test]
     fn out_of_order_request_returns_all_blobs() {
@@ -92,7 +92,7 @@ mod tests {
         let mut blob_b = Blob::default();
         blob_b[0] = 0xBB;
 
-        let mut store = BlobStore { versioned_blobs: vec![(hash_b, blob_b), (hash_a, blob_a)] };
+        let mut store = store_with([(hash_b, blob_b), (hash_a, blob_a)]);
 
         let result =
             block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash_b, hash_a]))
@@ -108,8 +108,21 @@ mod tests {
     fn missing_hash_request_panics() {
         let hash_a = B256::repeat_byte(0xAA);
         let hash_missing = B256::repeat_byte(0xCC);
-        let mut store = BlobStore { versioned_blobs: vec![(hash_a, Blob::default())] };
+        let mut store = store_with([(hash_a, Blob::default())]);
         let _ = block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash_missing]));
+    }
+
+    /// Pins that a stored blob is served on every request for its hash.
+    #[test]
+    fn repeated_request_returns_blob_each_time() {
+        let hash = B256::repeat_byte(0xAA);
+        let mut blob = Blob::default();
+        blob[0] = 0xAA;
+        let mut store = store_with([(hash, blob)]);
+        let blobs =
+            block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash, hash])).unwrap();
+        assert_eq!(blobs.len(), 2);
+        assert!(blobs.iter().all(|b| **b == blob));
     }
 
     // The local length asserts reject a mismatch before any blob is decoded or verified.

@@ -1,0 +1,286 @@
+---
+title: "사용자 지정 kona-client 절대 사전 상태 생성하기"
+description: "아직 공개 Superchain Registry에 등록되지 않은 체인 구성을 포함하는 kona-client 절대 사전 상태를 빌드하는 방법을 설명합니다."
+diataxis: how-to
+---
+
+# 개요
+
+공개 [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry)에 포함된 체인의 경우, [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에 게시된 표준 `kona-client` 절대 사전 상태(absolute prestate)에 이미 체인 구성이 포함되어 있습니다. 사용자 지정 빌드가 필요하지 않습니다.
+
+이 튜토리얼은 드문 경우를 위한 것입니다. 즉, `RollupConfig`가 아직 공개 레지스트리에 없지만 무허가형(permissionless) 결함 증명(fault proof)(`cannon-kona` 게임 유형)을 실행해야 하는 파트너 체인이 대상입니다. 이 경우 체인 구성을 포함하는 사용자 지정 `kona-client`를 빌드하고, 해당 빌드에서 절대 사전 상태 해시를 생성한 다음, 결과 바이너리를 `op-challenger`가 가져올 수 있는 URL에 호스팅해야 합니다.
+
+<Info>
+  대부분의 체인은 Superchain Registry에 포함되어 있으므로 표준 사전 상태를 사용해야 하며, 대신 [절대 사전 상태 및 프리이미지 파일 생성하기](/ko/chain-operators/tutorials/absolute-prestate)를 따르십시오. 체인이 레지스트리에 **아직** 없는 경우에만 이 튜토리얼을 따르십시오. 체인이 공개 레지스트리에 추가되면 이후 릴리스의 표준 사전 상태가 해당 체인을 지원하므로 사용자 지정 빌드를 더 이상 유지 관리하지 않아도 됩니다.
+</Info>
+
+## 사전 요구 사항
+
+시작하기 전에 다음을 준비했는지 확인하십시오.
+
+- 실행 중인 [Docker](https://docs.docker.com/engine/install/)
+- 설치된 [`just`](https://github.com/casey/just)
+- 체인의 `rollup.json`, L2 genesis, 배포 아티팩트(일반적으로 `op-deployer`로 생성)
+
+## kona-client가 사용자 지정 체인 구성을 가져오는 방식
+
+`kona-client`는 [`kona-registry` 크레이트](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry)에서 내장 체인 레지스트리를 읽습니다. 빌드 시 이 크레이트의 `build.rs`는 정식 Superchain Registry 스냅샷 위에 추가 체인을 병합할 수 있습니다. 병합은 두 개의 환경 변수로 제어됩니다.
+
+```bash
+KONA_CUSTOM_CONFIGS=true
+KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/your/configs
+```
+
+이 변수가 설정되면 빌드 스크립트는 `KONA_CUSTOM_CONFIGS_DIR`에서 두 개의 파일을 읽습니다.
+
+- `chainList.json` — 사용자 지정 체인에 대한 경량 `Chain` 항목
+- `configs.json` — `Superchain` 버킷 아래에 그룹화된 전체 `ChainConfig` + `RollupConfig` 항목
+
+전체 스키마와 엔드 투 엔드 예제는 [`kona-registry` README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry#custom-chain-configurations)에 문서화되어 있습니다.
+
+컴파일된 `kona-client` 바이너리는 `include_str!()`을 통해 병합된 레지스트리를 포함하므로, 결과 절대 사전 상태 해시는 표준 해시와 다릅니다. 체인의 분쟁 게임(dispute game)에 참여하는 모든 정직한 challenger는 이와 동일한 바이너리를 실행해야 합니다.
+
+## 사용자 지정 사전 상태 생성하기
+
+<Steps>
+  <Step title="kona-node 릴리스 태그 체크아웃">
+    체인의 node가 실행 중인 것과 동일한 `kona-node/v<VERSION>` 태그를 사용하십시오. 아래에 설명된 네이티브 `KONA_CUSTOM_CONFIGS_DIR` 지원에는 **`kona-node/v1.5.2` 이상**이 필요합니다. 이전 태그에서는 추가 justfile 패치가 필요합니다.
+
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout kona-node/v<VERSION>
+    ```
+  </Step>
+
+  <Step title="체인 구성 준비">
+    사용자 지정 구성을 위한 디렉터리를 생성합니다.
+
+    ```bash
+    mkdir -p rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>
+    ```
+
+    그 안에 `chainList.json`(경량 체인 항목)과 `configs.json`(전체 rollup 구성) 두 파일을 추가합니다. 모든 `<PLACEHOLDER>`를 체인의 값으로 바꾸십시오. 참고 사항:
+
+    - **`<CHAIN_GROUP>`**: L1이 Ethereum mainnet이면 `mainnet`, L1이 Sepolia이면 `sepolia`입니다. 버킷은 거버넌스가 아니라 L1 네트워크를 기준으로 체인을 그룹화합니다. 사용자 지정 체인 상태는 `governedByOptimism: false`와 `superchainLevel: 0`으로 표현됩니다.
+    - **`faultProofs.status`**: `cannon-kona` 게임 유형을 공개적으로 실행하는 체인은 `permissionless`, 허용 목록에 있는 challenger만 허용하는 체인은 `permissioned`입니다.
+
+    <Tabs>
+      <Tab title="chainList.json">
+        ```json
+        [
+          {
+            "name": "<YOUR_CHAIN_NAME>",
+            "identifier": "<CHAIN_GROUP>/<YOUR_CHAIN_NAME>",
+            "chainId": <YOUR_L2_CHAIN_ID>,
+            "rpc": [],
+            "explorers": [],
+            "superchainLevel": 0,
+            "governedByOptimism": false,
+            "dataAvailabilityType": "eth-da",
+            "parent": { "type": "L2", "chain": "<CHAIN_GROUP>" },
+            "faultProofs": { "status": "<permissionless | permissioned>" }
+          }
+        ]
+        ```
+      </Tab>
+      <Tab title="configs.json">
+        ```json
+        {
+          "superchains": [
+            {
+              "name": "<CHAIN_GROUP>",
+              "config": {
+                "name": "<CHAIN_GROUP_DISPLAY_NAME>",
+                "l1": {
+                  "chain_id": <L1_CHAIN_ID>,
+                  "public_rpc": "<L1_PUBLIC_RPC>",
+                  "explorer": "<L1_EXPLORER>"
+                },
+                "hardforks": {
+                  "canyon_time": 0,
+                  "delta_time": 0,
+                  "ecotone_time": 0,
+                  "fjord_time": 0,
+                  "granite_time": 0,
+                  "holocene_time": 0,
+                  "isthmus_time": 0,
+                  "jovian_time": 0
+                },
+                "superchain_config_addr": null,
+                "op_contracts_manager_proxy_addr": null
+              },
+              "chains": [
+                {
+                  "Name": "<YOUR_CHAIN_NAME>",
+                  "PublicRPC": "",
+                  "SequencerRPC": "",
+                  "Explorer": "",
+                  "SuperchainLevel": 0,
+                  "GovernedByOptimism": false,
+                  "SuperchainTime": 0,
+                  "DataAvailabilityType": "eth-da",
+                  "l2_chain_id": <YOUR_L2_CHAIN_ID>,
+                  "batch_inbox_address": "<BATCH_INBOX_ADDRESS>",
+                  "block_time": 2,
+                  "seq_window_size": 3600,
+                  "max_sequencer_drift": 600,
+                  "GasPayingToken": null,
+                  "hardfork_configuration": {
+                    "canyon_time": 0,
+                    "delta_time": 0,
+                    "ecotone_time": 0,
+                    "fjord_time": 0,
+                    "granite_time": 0,
+                    "holocene_time": 0,
+                    "isthmus_time": 0,
+                    "jovian_time": 0
+                  },
+                  "optimism": {
+                    "eip1559Elasticity": 6,
+                    "eip1559Denominator": 50,
+                    "eip1559DenominatorCanyon": 250
+                  },
+                  "alt_da": null,
+                  "genesis": {
+                    "l1": {
+                      "number": <L1_GENESIS_BLOCK>,
+                      "hash": "<L1_GENESIS_HASH>"
+                    },
+                    "l2": {
+                      "number": 0,
+                      "hash": "<L2_GENESIS_HASH>"
+                    },
+                    "l2_time": <L2_GENESIS_TIMESTAMP>,
+                    "system_config": {
+                      "batcherAddr": "<BATCHER_ADDRESS>",
+                      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                      "scalar": "<SCALAR_HEX>",
+                      "gasLimit": 60000000
+                    }
+                  },
+                  "Roles": {
+                    "SystemConfigOwner": "<SYSTEM_CONFIG_OWNER>",
+                    "ProxyAdminOwner": "<PROXY_ADMIN_OWNER>",
+                    "Guardian": "<GUARDIAN>",
+                    "Challenger": "<CHALLENGER>",
+                    "Proposer": "<PROPOSER>",
+                    "UnsafeBlockSigner": "<UNSAFE_BLOCK_SIGNER>",
+                    "BatchSubmitter": "<BATCH_SUBMITTER>"
+                  },
+                  "Addresses": {
+                    "AddressManager": "<ADDRESS_MANAGER>",
+                    "L1CrossDomainMessengerProxy": "<L1_CROSS_DOMAIN_MESSENGER_PROXY>",
+                    "L1Erc721BridgeProxy": "<L1_ERC721_BRIDGE_PROXY>",
+                    "L1StandardBridgeProxy": "<L1_STANDARD_BRIDGE_PROXY>",
+                    "L2OutputOracleProxy": "0x0000000000000000000000000000000000000000",
+                    "OptimismMintableErc20FactoryProxy": "<OPTIMISM_MINTABLE_ERC20_FACTORY_PROXY>",
+                    "OptimismPortalProxy": "<OPTIMISM_PORTAL_PROXY>",
+                    "SystemConfigProxy": "<SYSTEM_CONFIG_PROXY>",
+                    "ProxyAdmin": "<PROXY_ADMIN>",
+                    "AnchorStateRegistryProxy": "<ANCHOR_STATE_REGISTRY_PROXY>",
+                    "DelayedWethProxy": "<DELAYED_WETH_PROXY>",
+                    "DisputeGameFactoryProxy": "<DISPUTE_GAME_FACTORY_PROXY>",
+                    "FaultDisputeGame": "<FAULT_DISPUTE_GAME>",
+                    "PermissionedDisputeGame": "<PERMISSIONED_DISPUTE_GAME>"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+        ```
+      </Tab>
+    </Tabs>
+
+    체인의 기존 아티팩트에서 값을 가져오십시오.
+
+    - `genesis.*`, `block_time`, `seq_window_size`, `max_sequencer_drift`, `batch_inbox_address`, 하드포크 타임스탬프 → 체인의 `rollup.json`
+    - `Addresses.*` → `op-deployer` 상태(`opChainDeployments[<i>]`)
+    - `Roles.*` → `op-deployer` 상태의 체인별 `roles` 블록
+
+    커밋하기 전에 각 L1 컨트랙트 주소를 온체인에서(`cast call`) 교차 확인하십시오.
+  </Step>
+
+  <Step title="절대 사전 상태 생성">
+    모노레포 루트에서 `KONA_CUSTOM_CONFIGS_DIR`이 2단계에서 생성한 디렉터리를 가리키도록 설정한 다음, 정식 빌드를 실행합니다.
+
+    ```bash
+    export KONA_CUSTOM_CONFIGS_DIR="$PWD/rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>"
+    just reproducible-prestate-kona
+    jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json
+    ```
+
+    출력된 해시가 체인의 사용자 지정 kona 절대 사전 상태입니다. 빌드는 또한 `rust/kona/prestate-artifacts-cannon/0x<hash>.bin.gz`에 해시 이름의 gzip 압축 바이너리를 기록합니다. 이 파일이 분쟁 시점에 `op-challenger`가 가져와야 하는 파일입니다.
+  </Step>
+
+  <Step title="사전 상태에 체인이 포함되었는지 확인">
+    체인 병합에 조용히 실패한 사용자 지정 구성 빌드는 *표준* 사전 상태 해시를 생성하며, 이를 가리키는 `op-challenger`는 체인의 게임과 절대 일치하지 않습니다. 체인이 실제로 포함되었는지 항상 확인하십시오.
+
+    ```bash
+    # 1. The build log must list every custom chain that was merged:
+    #    cargo:warning=...: inserting new custom chain <bucket>: [chain-a,chain-b]
+    #    (or "merging custom chains <bucket>: [...]" if the bucket already exists)
+    #
+    # 2. The chain name must appear inside the prestate image itself:
+    gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | strings | grep "<chain-name>"
+    ```
+
+    `chainList.json`의 각 체인마다 `grep`을 한 번씩 실행하고 **모든** 체인에 대해 하나 이상 일치하는지 확인하십시오. 체인 A는 포함하지만 체인 B는 누락한 빌드도 유효해 보이는 해시를 생성합니다. 일치하는 항목이 없다면 빌드 셸에 `KONA_CUSTOM_CONFIGS=true`가 설정되지 않았거나 `KONA_CUSTOM_CONFIGS_DIR`이 상대 경로였다는 의미입니다.
+  </Step>
+
+  <Step title="재현 가능성 확인">
+    동일한 태그를 새로 체크아웃하고 동일한 사용자 지정 구성 파일을 배치한 상태에서 빌드를 반복하여 해시가 비트 단위로 동일한지 확인하십시오. 체인에서 정직한 challenger로 참여하려는 사람은 누구나 동일한 입력으로부터 이 해시를 재현할 수 있어야 합니다.
+  </Step>
+</Steps>
+
+## 사용자 지정 사전 상태로 배포 및 구성하기
+
+<Steps>
+  <Step title="사전 상태 바이너리 호스팅">
+    `op-challenger`용 프리이미지 파일을 제공하는 위치(일반적으로 GCS 버킷 또는 HTTP 엔드포인트)에 `0x<hash>.bin.gz`를 업로드합니다. challenger가 필요할 때 파일을 찾을 수 있도록 파일 이름은 절대 사전 상태 해시로 지정해야 합니다.
+  </Step>
+
+  <Step title="사용자 지정 사전 상태를 게임 유형 8로 등록">
+    현재(v2.4+) 분쟁 게임 컨트랙트에서 절대 사전 상태는 생성자 인자가 **아닙니다**. 이 값은 `DisputeGameFactory`의 게임 유형별 `gameArgs`에 저장되며, clones-with-immutable-args를 통해 각 게임에 추가됩니다. 따라서 새 사전 상태를 위해 새 구현을 배포할 필요가 **없습니다**. 기존 무허가형 `FaultDisputeGame` 구현을 재사용하고(새로운 op-deployer 체인은 이를 배포하지만 등록하지 않은 상태로 둡니다), 사전 상태를 담은 `gameArgs`와 함께 게임 유형 8로 등록하십시오.
+
+    무허가형 게임의 `gameArgs`는 packed 인코딩(124바이트)입니다.
+
+    ```
+    abi.encodePacked(absolutePrestate, vm, anchorStateRegistry, weth, l2ChainId)
+    ```
+
+    기존에 등록된 게임 유형의 `vm` / `anchorStateRegistry` / `weth` / `l2ChainId`를 재사용하고(예: `gameArgs(1)`을 읽고 사전 상태만 교체), `DisputeGameFactory` 소유자 계정으로 등록합니다.
+
+    ```solidity
+    // GAME_TYPE_CANNON_KONA == 8
+    DisputeGameFactory.setImplementation(8, faultDisputeGameImpl, gameArgs);
+    DisputeGameFactory.setInitBond(8, initBond);            // 0 is fine for a dev/test chain
+    ```
+
+    그런 다음 Guardian 역할로 게임 유형 8을 respected 유형으로 지정합니다. `respectedGameType`은 `OptimismPortal`이 아니라 `AnchorStateRegistry`에 있습니다(portal은 이를 프록시합니다).
+
+    ```solidity
+    AnchorStateRegistry.setRespectedGameType(8);
+    ```
+
+    전체 역할/트랜잭션 안내는 [무허가형 결함 증명으로 마이그레이션하기](/ko/chain-operators/tutorials/migrating-permissionless)를 참조하십시오. (`absolutePrestate`가 생성자 immutable이었던 v2.4 이전의 구버전 컨트랙트에서는 사전 상태마다 새 구현을 배포해야 했습니다.)
+  </Step>
+
+  <Step title="op-challenger 구성">
+    기존 challenger 구성에 kona 전용 환경 변수를 추가합니다.
+
+    ```bash
+    OP_CHALLENGER_TRACE_TYPE=cannon-kona,permissioned
+    OP_CHALLENGER_CANNON_KONA_PRESTATES_URL=<HTTP_URL_PATH_TO_PRESTATES>
+    ```
+
+    challenger는 각 분쟁에 맞는 바이너리를 찾기 위해 `*_PRESTATES_URL`에 `/0x<hash>.bin.gz`를 덧붙입니다. 기존 `OP_CHALLENGER_ROLLUP_CONFIG`, `OP_CHALLENGER_L2_GENESIS`, `OP_CHALLENGER_GAME_FACTORY_ADDRESS`는 변경 없이 그대로 적용됩니다.
+  </Step>
+</Steps>
+
+## 다음 단계
+
+- [Upgrade 19 공지](/ko/notices/archive/upgrade-19) — `cannon-kona` 게임 유형 승격과 표준 사전 상태를 위한 참조 빌드 명령.
+- [절대 사전 상태 및 프리이미지 파일 생성하기](/ko/chain-operators/tutorials/absolute-prestate): Superchain Registry에 포함된 체인을 위한 표준 `kona-client` 사전 상태 흐름.
+- [op-program 절대 사전 상태 생성하기(보관됨)](/ko/chain-operators/tutorials/archive/op-program-prestate): 레거시 `op-program` 흐름으로, [Upgrade 19](/ko/notices/archive/upgrade-19) 이전에 생성되어 진행 중인 `CANNON`(게임 유형 `0`) 분쟁을 해결하기 위해서만 유지됩니다. `op-program`은 지원이 종료되었습니다. [op-geth 및 op-program 지원 종료](/ko/notices/archive/op-geth-deprecation)를 참조하십시오.

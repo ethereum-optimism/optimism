@@ -5,17 +5,13 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -52,7 +48,7 @@ type cgtConfig struct {
 	LiquidityControllerOwner   common.Address
 }
 
-func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle, st *state.State, chainID common.Hash) error {
+func GenerateL2Genesis(pEnv *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := pEnv.Logger.New("stage", "generate-l2-genesis")
 
 	thisIntent, err := intent.Chain(chainID)
@@ -72,26 +68,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
 
-	hostOpts := []script.HostOption{}
-	if pEnv.AllowUnoptimizedContracts {
-		hostOpts = append(hostOpts, script.WithNoMaxCodeSize())
-	}
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		pEnv.Logger,
-		pEnv.Deployer,
-		bundle.L2,
-		hostOpts...,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create L2 script host: %w", err)
-	}
-
-	script, err := opcm.NewL2GenesisScript(host)
-	if err != nil {
-		return fmt.Errorf("failed to create L2Genesis script: %w", err)
-	}
-
 	overrides, schedule, err := calculateL2GenesisOverrides(intent, thisIntent)
 	if err != nil {
 		return fmt.Errorf("failed to calculate L2 genesis overrides: %w", err)
@@ -103,17 +79,12 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		return err
 	}
 
-	devFeatureBitmap, err := buildDevFeatureBitmap(intent)
-
-	if err != nil {
-		return err
-	}
-
+	devFeatureBitmap := devFeatureBitmapOverride(intent)
 	if err := checkSettlementChainIDOverride(devFeatureBitmap, overrides.SettlementChainID); err != nil {
 		return err
 	}
 
-	if err := script.Run(opcm.L2GenesisInput{
+	input := opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
 		L2ChainID:                                chainID.Big(),
 		L1CrossDomainMessengerProxy:              thisChainState.L1CrossDomainMessengerProxy,
@@ -146,15 +117,11 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		UseInterop:                 intent.UseInterop,
 		L2ToL2MessageExpiryPeriod:  new(big.Int).SetUint64(overrides.L2ToL2MessageExpiryPeriod),
 		SettlementChainID:          new(big.Int).SetUint64(overrides.SettlementChainID),
-	}); err != nil {
-		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
 
-	host.Wipe(pEnv.Deployer)
-
-	dump, err := host.StateDump()
+	dump, err := opcm.L2Genesis(pEnv.Context, pEnv.L2Forge, pEnv.Deployer, pEnv.AllowUnoptimizedContracts, input)
 	if err != nil {
-		return fmt.Errorf("failed to dump state: %w", err)
+		return err
 	}
 
 	if err := genesis.CheckL2GenesisAllocs(dump, genesis.CheckL2AllocsOpts{
@@ -203,6 +170,12 @@ func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIn
 		}
 	}
 
+	// Read through the one accessor, so the precedence here and in the settlement checks agree.
+	overrides.SettlementChainID, err = SettlementChainIDOverride(intent, thisIntent)
+	if err != nil {
+		return l2GenesisOverrides{}, nil, err
+	}
+
 	return overrides, schedule, nil
 }
 
@@ -235,24 +208,15 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 	return big.NewInt(int64(n))
 }
 
-// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and returns an error if the interop feature
-// bit does not match the UseInterop intent flag. This ensures that interop feature is explicitly enabled by both the intent and the boolean flag.
-func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
-	var devFeatureBitmap common.Hash
+// devFeatureBitmapOverride returns the devFeatureBitmap from the global overrides, or zero when it is not set.
+func devFeatureBitmapOverride(intent *state.Intent) common.Hash {
 	switch v := intent.GlobalDeployOverrides["devFeatureBitmap"].(type) {
 	case common.Hash:
-		devFeatureBitmap = v
+		return v
 	case string:
-		devFeatureBitmap = common.HexToHash(v)
+		return common.HexToHash(v)
 	}
-
-	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
-
-	if intent.UseInterop != interopBitEnabled {
-		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")
-	}
-
-	return devFeatureBitmap, nil
+	return common.Hash{}
 }
 
 func defaultOverrides() l2GenesisOverrides {

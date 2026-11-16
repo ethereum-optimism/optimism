@@ -8,6 +8,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Script } from "forge-std/Script.sol";
 import { SetPreinstalls } from "scripts/SetPreinstalls.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { OutputMode, OutputModeUtils, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 
 // Libraries
@@ -129,13 +130,19 @@ contract L2Genesis is Script {
         0x9DCCe783B6464611f38631e6C851bf441907c710 // 29
     ];
 
-    /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
+    /// @notice Entrypoint of op-deployer: runs on ABI-encoded input and dumps the state.
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        // Offline, forge starts the sender at nonce 1. The loaded state resets it, which matters
+        // when the sender is also the proxy admin owner, whose nonce decides where setEAS() and
+        // setGovernanceToken() create the contracts whose code they copy.
+        DeployState.load();
+        run(abi.decode(_input, (Input)));
+        DeployState.dump(msg.sender);
+        return "";
+    }
+
+    /// @notice Generates the L2 genesis state.
     function run(Input memory _input) public {
-        require(
-            _input.useInterop
-                == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
-            "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
-        );
         // The messenger only takes a non-production expiry period when interop is active at
         // genesis; a later activation initializes it with the production period.
         require(
@@ -291,7 +298,6 @@ contract L2Genesis is Script {
         setEAS(); // 21
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
         if (_isGenesisInteropEnabled(_input)) {
-            // Both flags must be explicitly set in order to enable Interop
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
@@ -414,8 +420,7 @@ contract L2Genesis is Script {
     function temporaryL2CMAddress() public view returns (address) {
         bytes32 initCodeHash =
             keccak256(abi.encodePacked(type(L2ContractsManager).creationCode, abi.encode(_buildL2CMImplRecords())));
-        // Plain CREATE2 derivation (keccak256(0xff ++ deployer ++ salt ++ initCodeHash)). Avoids the
-        // vm.computeCreate2Address cheatcode, which the op-deployer script host does not implement.
+        // Plain CREATE2 derivation (keccak256(0xff ++ deployer ++ salt ++ initCodeHash)).
         return
             address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), L2CM_SALT, initCodeHash)))));
     }
@@ -443,8 +448,7 @@ contract L2Genesis is Script {
 
     /// @notice Returns true when interop should be active in the genesis state.
     function _isGenesisInteropEnabled(Input memory _input) internal pure returns (bool) {
-        return _input.fork >= uint256(Fork.LAGOON) && _input.useInterop
-            && DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        return _input.fork >= uint256(Fork.LAGOON) && _input.useInterop;
     }
 
     function setInteropPredeployProxies() internal { }
@@ -641,15 +645,13 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setCrossL2Inbox() internal {
-        Predeploys.assertGates(Predeploys.CROSS_L2_INBOX, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
+        Predeploys.assertGates(Predeploys.CROSS_L2_INBOX, bytes32(0), false, true);
         _setImplementationCode(Predeploys.CROSS_L2_INBOX);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL2ToL2CrossDomainMessenger() internal {
-        Predeploys.assertGates(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
-        );
+        Predeploys.assertGates(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, bytes32(0), false, true);
         address impl = _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         IL2ToL2CrossDomainMessenger(impl).initialize({ _expiryPeriod: Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD });
     }
@@ -657,7 +659,7 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setETHLiquidity() internal {
-        Predeploys.assertGates(Predeploys.ETH_LIQUIDITY, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
+        Predeploys.assertGates(Predeploys.ETH_LIQUIDITY, bytes32(0), false, true);
         _setImplementationCode(Predeploys.ETH_LIQUIDITY);
         vm.deal(Predeploys.ETH_LIQUIDITY, type(uint128).max);
     }
@@ -665,15 +667,13 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setSuperchainETHBridge() internal {
-        Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
+        Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, bytes32(0), false, true);
         _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     function setUndeliveredMessageExporter() internal {
-        Predeploys.assertGates(
-            Predeploys.UNDELIVERED_MESSAGE_EXPORTER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
-        );
+        Predeploys.assertGates(Predeploys.UNDELIVERED_MESSAGE_EXPORTER, bytes32(0), false, true);
         _setImplementationCode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 

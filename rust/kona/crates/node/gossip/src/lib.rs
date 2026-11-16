@@ -7,7 +7,8 @@
 //! ## Key Components
 //!
 //! - [`GossipDriver`]: Main driver managing the libp2p swarm and event handling
-//! - [`Behaviour`]: Custom libp2p behavior combining `GossipSub`, Ping, and Identify
+//! - [`Behaviour`]: Custom libp2p behavior combining the connection gate, `GossipSub`, Ping, and
+//!   Identify
 //! - [`BlockHandler`]: Validates and processes incoming block payloads
 //! - [`ConnectionGater`]: Sophisticated connection management and rate limiting
 //! - [`GossipQueryHandle`]: Read-only access to published gossip state
@@ -33,8 +34,8 @@ pub use metrics::Metrics;
 mod rpc;
 pub use rpc::{
     Connectedness, Direction, GossipCommand, GossipCommandReceiver, GossipCommandSender,
-    GossipQueryHandle, GossipScores, GossipState, PeerCount, PeerDump, PeerInfo, PeerScores,
-    PeerStats, ReqRespScores, TopicScores,
+    GossipQueryHandle, GossipScores, GossipState, NetworkActorStopped, PeerCount, PeerDump,
+    PeerInfo, PeerScores, PeerStats, ReqRespScores, TopicScores,
 };
 
 mod behaviour;
@@ -48,13 +49,12 @@ pub use config::{
     default_config, default_config_builder,
 };
 
-mod gate;
-pub use gate::ConnectionGate; // trait
+pub mod gate;
+pub use gate::{CanonicalIp, CanonicalNet, ConnectionGate};
 
 mod gater;
 pub use gater::{
     ConnectionGater, // implementation
-    DialInfo,
     GaterConfig,
 };
 
@@ -62,10 +62,16 @@ mod builder;
 pub use builder::{GossipDriverBuilder, GossipTransport, TransportBuilder};
 
 mod error;
-pub use error::{DialError, GossipDriverBuilderError, HandlerEncodeError, PublishError};
+pub use error::{
+    ConnectPeerError, DialError, GossipDriverBuilderError, HandlerEncodeError, PeerAddrError,
+    PublishError, StartError,
+};
 
 mod event;
 pub use event::Event;
+
+mod peer_addr;
+pub use peer_addr::PeerAddr;
 
 mod payload;
 
@@ -76,7 +82,7 @@ mod handler;
 pub use handler::{BlockHandler, Handler};
 
 mod driver;
-pub use driver::GossipDriver;
+pub use driver::{GossipDriver, GossipDriverConfig, GossipDriverStarter};
 
 mod block_validity;
 pub use block_validity::BlockInvalidError;

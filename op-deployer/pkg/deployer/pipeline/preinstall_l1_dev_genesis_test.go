@@ -2,16 +2,13 @@ package pipeline
 
 import (
 	"crypto/sha256"
-	"log/slog"
+	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -19,15 +16,13 @@ import (
 
 func TestPreinstallL1DevGenesis_RequestQueues(t *testing.T) {
 	t.Parallel()
-	_, artifactsFS := testutil.LocalArtifacts(t)
-	logger := testlog.Logger(t, slog.LevelDebug)
-	host := script.NewHost(logger, &foundry.ArtifactsFS{FS: artifactsFS}, nil, script.DefaultContext)
-	require.NoError(t, host.EnableCheats())
-	host.SetBalance(params.WithdrawalQueueAddress, uint256.NewInt(42))
-	host.SetNonce(params.WithdrawalQueueAddress, 7)
+	env := newTestGenesisEnv(t, common.Address{0xdd})
 	storageKey, storageValue := common.HexToHash("0x42"), common.HexToHash("0x1234")
-	host.SetStorage(params.WithdrawalQueueAddress, storageKey, storageValue)
-	env := &Env{Logger: logger, L1ScriptHost: host, Deployer: common.Address{0xdd}}
+	env.Forge.Genesis.Allocs.Accounts[params.WithdrawalQueueAddress] = types.Account{
+		Balance: big.NewInt(42),
+		Nonce:   7,
+		Storage: map[common.Hash]common.Hash{storageKey: storageValue},
+	}
 	intent := &state.Intent{
 		L1ChainID: 900,
 		L1DevGenesisParams: &state.L1DevGenesisParams{

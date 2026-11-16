@@ -20,7 +20,7 @@ type SafetyHeadsAdvancement struct {
 }
 
 // DefaultSafetyHeadsAdvancement: unsafe + safe + cross-safe within ~60s,
-// finalized within ~720s (in-process L1 has FinalizedDistance=20 blocks @ 6s).
+// finalized within ~720s (in-process L1 finalizes 20 blocks behind the head).
 func DefaultSafetyHeadsAdvancement() SafetyHeadsAdvancement {
 	return SafetyHeadsAdvancement{
 		UnsafeDelta:       5,

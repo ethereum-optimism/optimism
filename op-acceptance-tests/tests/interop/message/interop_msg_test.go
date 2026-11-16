@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -105,14 +104,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 
 	call := crossL2Inbox.ValidateMessage(identifier, msgHash)
 
-	// Read not using the DSL. Therefore you need to manually error handle and also set context
-	_, err = contractio.Read(call, t.Ctx())
-	// Will revert because access list not provided
-	require.Error(err)
-	// Provide access list using txplan
-	_, err = contractio.Read(call, t.Ctx(), txplan.WithAccessList(accessList))
-	// Success because access list made storage slot warm
-	require.NoError(err)
+	sys.L2ELB.ValidateExecMessageRequiresAccessList(msg)
 
 	// Read: Trigger executing message
 	contract.Read(call, txplan.WithAccessList(accessList))

@@ -2,7 +2,6 @@ package sysgo
 
 import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -31,7 +30,7 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	interopAtGenesis := delaySeconds == 0
 
 	deployerOpts := []DeployerOption{
-		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+		WithUseInterop(),
 	}
 	if !interopAtGenesis {
 		// Karst at genesis, Lagoon at offset — exercises the activation transition.
@@ -53,7 +52,7 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	}
 	var l1EL *L1Geth
 	var l1CL *L1CLNode
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
+	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
 		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
 			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 			return l1EL, l1CL

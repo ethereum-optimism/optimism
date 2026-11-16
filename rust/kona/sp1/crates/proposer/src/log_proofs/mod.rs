@@ -195,8 +195,8 @@ pub(crate) fn log_batch_poll_interval(batches: usize) -> Duration {
     PROOF_STATUS_POLL_INTERVAL.max(spread / LOG_BATCH_POLLS_PER_SECOND)
 }
 
-/// Batch requests on the SP1 prover network.
-pub(crate) struct NetworkLogProver<'a> {
+/// Batch requests on an SP1 provider.
+pub(crate) struct Sp1LogProver<'a> {
     pub(crate) provider: &'a ProofProvider,
     pub(crate) keys: &'a ProofKeys,
     pub(crate) l2: &'a dyn L2BlockSource,
@@ -206,7 +206,7 @@ pub(crate) struct NetworkLogProver<'a> {
 }
 
 #[async_trait]
-impl LogBatchProver for NetworkLogProver<'_> {
+impl LogBatchProver for Sp1LogProver<'_> {
     async fn submit(&self, batch: &LogBatch) -> Result<ProofId> {
         let stdin = batch_stdin(self.l2, batch, self.max_stdin_bytes).await?;
         self.provider.request_log_proof(self.keys, stdin).await

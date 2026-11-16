@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -165,6 +164,7 @@ func (f *pcdJourneyFixture) bootstrapOPCM() {
 		"--l1-proxy-admin-owner", l1ProxyAdminOwner.Hex(),
 		"--superchain-proxy-admin", f.superchainOutput.SuperchainProxyAdmin.Hex(),
 		"--challenger", challenger.Hex(),
+		"--sp1-verifier-address", f.runner.DeployMockSP1Verifier(f.t).Hex(),
 	}, nil)
 	f.readJSON(implementationsOutputFile, &f.implementationsOutput)
 	require.NotEqual(f.t, common.Address{}, f.implementationsOutput.OpcmV2)
@@ -173,7 +173,7 @@ func (f *pcdJourneyFixture) bootstrapOPCM() {
 	f.postBootstrapL1State = probe.read(f.t, nil)
 }
 
-func (f *pcdJourneyFixture) runInit(gameType embedded.GameType) (*state.Intent, *state.State) {
+func (f *pcdJourneyFixture) runInit(gameType opcm.GameType) (*state.Intent, *state.State) {
 	f.t.Helper()
 	f.t.Log("PCD stage: init")
 	intent, st := cliInitIntent(f.t, f.runner, devnet.DefaultChainID, f.chainIDs)

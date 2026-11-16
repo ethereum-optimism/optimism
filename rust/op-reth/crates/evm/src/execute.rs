@@ -17,6 +17,7 @@ mod tests {
     use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{Account, RecoveredBlock};
     use reth_revm::{database::StateProviderDatabase, test_utils::StateProviderTest};
+    use reth_storage_api::StateProvider;
     use std::{collections::HashMap, str::FromStr};
 
     fn create_op_state_provider() -> StateProviderTest {
@@ -60,7 +61,10 @@ mod tests {
         senders: Vec<Address>,
     ) -> BlockExecutionOutput<OpReceipt> {
         let provider = evm_config(chain_spec);
-        let mut executor = BasicBlockExecutor::new(provider, StateProviderDatabase::new(db));
+        let mut executor = BasicBlockExecutor::new(
+            provider,
+            StateProviderDatabase::new(db.into_evm_state_provider()),
+        );
 
         // make sure the L1 block contract state is preloaded.
         executor.with_state_mut(|state| {

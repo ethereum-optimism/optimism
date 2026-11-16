@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -184,6 +183,9 @@ type MixedSingleChainNodeSpec struct {
 	// EnableSafeDB gives this node's CL a safe head database in a fresh temp dir, so it records
 	// the L2 safe head reached as of each L1 block and serves it over optimism_safeHeadAtL1Block.
 	EnableSafeDB bool
+	// VerifierL1Confs is the L1 confirmation distance used by derivation in either CL.
+	// It does not change the sequencer's L1 origin selection distance.
+	VerifierL1Confs uint64
 }
 
 type MixedSingleChainPresetConfig struct {
@@ -245,9 +247,9 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		return l1EL, l1CL
 	}
 	if cfg.InteropAtGenesis {
-		_, l1Net, l2Net, depSet, _ = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+		_, l1Net, l2Net, depSet = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
 	} else {
-		_, l1Net, l2Net, _, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+		_, l1Net, l2Net, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
 	}
 
 	metricsRegistrar := mixedNoopMetricsRegistrar{}
@@ -285,6 +287,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				DependencySet: depSet,
 				L2CLOptions: []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 					cfg.SafeDBPath = safeDBPath
+					cfg.VerifierL1Confs = spec.VerifierL1Confs
 				})},
 			})
 		case MixedL2CLKona:
@@ -303,6 +306,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 					L2CLConfig: resolveKonaL2CLConfig(t, spec.CLKey, l2Net.ChainID(), spec.IsSequencer, "", []L2CLOption{
 						L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 							cfg.SafeDBPath = safeDBPath
+							cfg.VerifierL1Confs = spec.VerifierL1Confs
 						}),
 					}),
 				},
@@ -403,7 +407,6 @@ func buildMixedOpRethNode(
 	t.Require().NoError(os.WriteFile(chainConfigPath, data, 0o640), "must write genesis file")
 
 	dataDirPath := filepath.Join(tempDir, "data")
-	t.Require().NoError(os.MkdirAll(dataDirPath, 0o755), "must create datadir")
 
 	logDirPath := filepath.Join(tempDir, "logs")
 	t.Require().NoError(os.MkdirAll(logDirPath, 0o755), "must create logs dir")
@@ -462,26 +465,23 @@ func buildMixedOpRethNode(
 		args = append(args, "--metrics=127.0.0.1:0")
 	}
 
-	initArgs := []string{
+	dataDirs := []string{dataDirPath}
+	initCmds := [][]string{{
 		"init",
 		"--datadir=" + dataDirPath,
 		"--chain=" + chainConfigPath,
-	}
-	initOut, err := exec.Command(execPath, initArgs...).CombinedOutput()
-	t.Require().NoError(err, "must init op-reth node: %s", string(initOut))
+	}}
 
 	if !opRethCfg.DisableProofsHistory {
 		proofHistoryDir := filepath.Join(tempDir, "proof-history")
-
-		initProofsArgs := []string{
+		dataDirs = append(dataDirs, proofHistoryDir)
+		initCmds = append(initCmds, []string{
 			"proofs",
 			"init",
 			"--datadir=" + dataDirPath,
 			"--chain=" + chainConfigPath,
 			"--proofs-history.storage-path=" + proofHistoryDir,
-		}
-		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
+		})
 
 		args = append(
 			args,
@@ -493,7 +493,7 @@ func buildMixedOpRethNode(
 
 	args = append(args, opRethCfg.ExtraArgs...)
 
-	return &OpReth{
+	node := &OpReth{
 		name:               key,
 		chainID:            l2Net.ChainID(),
 		jwtPath:            jwtPath,
@@ -503,9 +503,13 @@ func buildMixedOpRethNode(
 		execPath:           execPath,
 		args:               args,
 		env:                []string{},
+		dataDirs:           dataDirs,
+		initCmds:           initCmds,
 		p:                  t,
 		l2MetricsRegistrar: metricsRegistrar,
 	}
+	node.initData()
+	return node
 }
 
 func startMixedOpRethNode(
@@ -688,7 +692,7 @@ func startTestSequencerForRPCs(
 					Beacon:            l1CL.beacon,
 					FinalizedDistance: 20,
 					SafeDistance:      10,
-					BlockTime:         6,
+					BlockTime:         l1Net.blockTime,
 				},
 			},
 		},
@@ -760,15 +764,14 @@ func startTestSequencerForRPCs(
 	}
 	ensemble.Sequencers[seqIDL2] = &workconfig.SequencerEntry{
 		Full: &fullseq.Config{
-			ChainID:             l2ChainID,
-			Builder:             bidL2,
-			Signer:              sidL2,
-			Committer:           cidL2,
-			Publisher:           pidL2,
-			SequencerConfDepth:  2,
-			SequencerEnabled:    true,
-			SequencerStopped:    false,
-			SequencerMaxSafeLag: 0,
+			ChainID:            l2ChainID,
+			Builder:            bidL2,
+			Signer:             sidL2,
+			Committer:          cidL2,
+			Publisher:          pidL2,
+			SequencerConfDepth: 2,
+			SequencerEnabled:   true,
+			SequencerStopped:   false,
 		},
 	}
 

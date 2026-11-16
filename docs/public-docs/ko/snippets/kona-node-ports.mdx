@@ -1,0 +1,35 @@
+{/*
+  Default port table for kona-node. This snippet is the single home for the
+  default port facts; never restate the table by hand on a page. Keep the
+  flag and env-var columns aligned with the CLI flag tables in
+  node-operators/kona-node/configuration.mdx.
+
+  Usage:
+    import KonaNodePorts from "/snippets/kona-node-ports.mdx"
+
+    <KonaNodePorts />
+
+  Consumer pages:
+    - node-operators/kona-node/configuration.mdx
+    - node-operators/kona-node/faq/ports.mdx
+*/}
+
+| 서비스         | 전송 방식 | 기본 포트 | 플래그/환경 변수                                 |
+|-----------------|-----------|--------------|------------------------------------------|
+| RPC HTTP        | TCP       | 9545         | `--port` / `KONA_NODE_RPC_PORT`      |
+| RPC WebSocket   | TCP       | 9545         | (HTTP와 동일, 기본적으로 사용 가능) |
+| P2P TCP         | TCP       | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
+| P2P UDP         | UDP       | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
+
+HTTP RPC와 WebSocket RPC는 하나의 TCP 리스너를 공유합니다. WebSocket 연결은
+동일한 주소와 포트에 대한 HTTP 업그레이드 요청으로 시작됩니다.
+
+`kona-node`는 supervisor RPC 서버를 실행하지 않습니다. 이 바이너리에는 `--supervisor.*`
+플래그 그룹이 없습니다. 유일한 interop 플래그인 `--interop.dependency-set`
+(`KONA_NODE_INTEROP_DEPENDENCY_SET`)은 포트가 아니라 dependency-set JSON 파일의
+경로를 받습니다.
+
+`--conductor.rpc`(`KONA_NODE_CONDUCTOR_RPC`) 역시 리스닝 포트가 아닙니다. 이는
+node가 외부로 연결하는 외부 conductor 서비스의 RPC 엔드포인트 URL이며, 기본값이
+없습니다. 이 값을 지정하면 node가 sequencer 모드(`--mode sequencer`)로 실행될 때
+conductor 통합이 활성화됩니다. validator 모드에서는 아무런 효과가 없습니다.

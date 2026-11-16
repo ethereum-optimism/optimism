@@ -198,16 +198,21 @@ struct JovianExecutorFixture {
     beneficiary: Address,
 }
 
+/// Mainnet's schedule with Jovian moved to `jovian_timestamp`.
+fn jovian_hardforks(jovian_timestamp: u64) -> OpChainHardforks {
+    OpChainHardforks::new(
+        OpHardfork::op_mainnet()
+            .into_iter()
+            .chain([(OpHardfork::Jovian, ForkCondition::Timestamp(jovian_timestamp))]),
+    )
+}
+
 impl JovianExecutorFixture {
     fn new(da_footprint_gas_scalar: u16, gas_limit: u64, jovian_timestamp: u64) -> Self {
         Self {
             db: prepare_jovian_db(da_footprint_gas_scalar),
             receipt_builder: OpAlloyReceiptBuilder::default(),
-            op_chain_hardforks: OpChainHardforks::new(
-                OpHardfork::op_mainnet()
-                    .into_iter()
-                    .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(jovian_timestamp))]),
-            ),
+            op_chain_hardforks: jovian_hardforks(jovian_timestamp),
             gas_limit,
             jovian_timestamp,
             // These Jovian execution tests run normal (non-activation) blocks; leaving the parent

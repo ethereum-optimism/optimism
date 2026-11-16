@@ -1,0 +1,238 @@
+---
+title: 거래소 및 bridge를 위한 보안 지침
+lang: en-US
+description: 오프체인 작업을 수행하기 전에 어떤 블록을 신뢰해야 하는지, 그리고 OP Stack 체인의 출금이 일시 중지되었을 때 어떻게 대응해야 하는지 알아봅니다.
+diataxis: how-to
+---
+
+이 가이드는 중앙화 거래소, 서드파티 bridge, 유동성 네트워크, 수탁 기관처럼 OP Stack 체인에서 일어난 일을 기반으로 체인 밖으로 가치를 이동하는 팀을 위한 것입니다.
+이 가이드는 프로토콜이 대신 강제할 수 없는 두 가지 요구 사항을 다룹니다.
+
+*   사용자의 입금 전송을 반영하거나 bridge 주문을 체결하는 등의 오프체인 작업은 트랜잭션이 **safe** 블록에 포함된 후에만 수행하고, 고액 작업의 경우 **finalized** 블록을 기다리십시오.
+*   Layer 1(L1)에서 체인의 출금 일시 중지 상태를 모니터링하고, L2의 출금이 일시 중지된 동안에는 사용자 계정 잔액 반영과 같은 오프체인 작업을 중단하십시오.
+
+이 가이드에서는 사용자가 OP Stack 체인에서 여러분에게 보내는 자금을 "입금 전송(incoming transfer)", 여러분이 체인으로 보내는 자금을 "출금 전송(outgoing transfer)"이라고 부릅니다.
+OP Stack 프로토콜 용어에서 입금(디파짓)은 L1에서 Layer 2(L2)로 이동하는 것이고, 출금은 L2에서 L1으로 이동하는 것입니다.
+
+## 시작하기 전에
+
+이 가이드의 예제를 사용하려면 다음이 필요합니다.
+
+*   지원하는 각 체인에 대해 직접 운영하는 OP Stack node.
+    자세한 안내는 [Docker로 node 실행하기](/ko/node-operators/tutorials/node-from-docker) 또는 [소스에서 OP Stack node 빌드 및 실행하기](/ko/node-operators/tutorials/run-node-from-source)를 참고하십시오.
+*   직접 운영하는 node 또는 신뢰하는 제공자의 L1 원격 프로시저 호출(RPC) 엔드포인트.
+*   로컬에 설치된 Foundry의 [`cast`](https://getfoundry.sh/cast/overview)와 [`jq`](https://jqlang.org/).
+
+## 오프체인 작업 전에 safe 블록 기다리기
+
+거래소 잔액 반영, bridge 주문 체결, 다른 체인에서의 자금 지급은 되돌리기 어렵습니다.
+작업의 근거가 된 트랜잭션이 이후 체인 reorg로 인해 체인에서 제거되면 손실이 발생할 수 있습니다.
+위험 허용 범위와 작업의 금액 규모에 따라, 해당 트랜잭션이 safe 또는 finalized 블록에 포함될 때까지 기다린 후 작업을 수행하십시오.
+이러한 확인 수준은 트랜잭션이 재정렬되거나 체인에서 제거될 위험을 나타냅니다.
+Safe 블록도 여전히 L1 reorg의 영향을 받을 수 있습니다.
+어느 수준도 자산이 정당하다거나 체인에 보안 문제가 없다는 것을 보장하지 않습니다.
+
+### Unsafe 블록의 위험 이해하기
+
+Unsafe 블록은 체인에 대한 Sequencer의 주장입니다.
+정식(canonical) 체인은 체인의 batcher가 L1에 게시한 배치 데이터로부터 OP Stack node가 [파생(derive)](https://specs.optimism.io/protocol/derivation.html)하는 체인입니다.
+batcher 키를 제어하는 사람은 누구나 Sequencer가 이미 unsafe 블록으로 공유한 트랜잭션을 누락하거나 재정렬한 배치 데이터를 게시할 수 있습니다.
+
+Node가 자신의 unsafe 체인과 일치하지 않는 배치를 파생하면, 배치가 L1에 도착한 후 몇 분 이내에 unsafe 체인을 reorg하여 일치시킵니다.
+표준 12시간 시퀀싱 윈도우(sequencing window)는 배치 데이터가 나타나야 하는 상한일 뿐이며, reorg 전의 유예 기간이 아닙니다.
+윈도우 내에 데이터가 나타나지 않으면 node는 해당 트랜잭션 없이 체인을 파생하고, 그 트랜잭션은 삭제됩니다.
+
+Unsafe 블록을 근거로 작업을 수행하면, 탈취된 batcher 키를 가진 공격자가 실제로 여러분에게 전송을 한 뒤 지급을 받고, 그 후 정식 체인에서 해당 전송을 제거할 수 있습니다.
+프로토콜을 통해 자금을 회수할 방법은 없습니다.
+자세한 내용은 [트랜잭션 최종성](/ko/op-stack/transactions/transaction-finality)을 참고하십시오.
+
+### 확인 수준 선택하기
+
+다음 표는 작업 유형별로 기다려야 하는 최소 블록 태그를 나열합니다.
+
+| 작업                                                                     | 최소 블록 태그 | 신뢰 대상                                                   |
+| -------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------- |
+| bridge 주문 체결 또는 소액 입금 전송 반영          | `safe`            | Ethereum의 순서 지정. L1 블록은 finalized될 때까지 여전히 reorg될 수 있습니다 |
+| 고액 입금 전송 반영 또는 고액 유동성 지급 | `finalized`       | Ethereum의 합의 및 최종성 보장                            |
+
+소액과 고액의 기준을 어디에 둘지는 비즈니스 결정입니다.
+`safe`는 finalized되지 않은 Ethereum 블록과 동일한 L1 reorg 위험을 지니므로, Ethereum 자체에서 요구할 확인 횟수를 결정할 때 이미 사용하는 기준값을 출발점으로 삼는 것이 합리적입니다.
+
+OP Mainnet에서 트랜잭션은 일반적으로 몇 분 이내에 `safe`에 도달하고, 약 15~30분 이내에 `finalized`에 도달합니다.
+배치를 덜 자주 게시하는 체인은 `safe`에 도달하는 데 더 오래 걸립니다.
+
+<Warning>
+  더 빠른 서비스를 제공하기 위해 unsafe 블록을 근거로 작업을 수행한다면, 해당 금액에 대해 체인 운영자의 Sequencer와 batcher 키를 전적으로 신뢰하는 것입니다.
+  Unsafe 블록을 근거로 미결 상태인 총 금액은 손실을 감당할 수 있는 수준으로 제한하십시오.
+</Warning>
+
+### 트랜잭션이 safe인지 확인하기
+
+표준 JSON-RPC 메서드와 함께 `safe` 또는 `finalized` 블록 태그를 사용하십시오.
+트랜잭션이 성공했고, 블록 번호가 safe head 이하이며, 해당 블록이 여전히 그 높이의 정식 블록이면 트랜잭션은 safe입니다.
+다음 스크립트는 세 가지 조건을 모두 확인합니다.
+`check-safe.sh`로 저장하고 플레이스홀더를 채운 다음 `bash check-safe.sh`로 실행하십시오.
+
+```bash
+#!/usr/bin/env bash
+L2_RPC=<your-l2-rpc>
+TX=<your-transaction-hash>
+TAG=safe # or finalized
+
+head_number() {
+  cast block $TAG --json --rpc-url $L2_RPC | jq -r .number | xargs cast to-dec
+}
+
+RECEIPT=$(cast receipt $TX --async --json --rpc-url $L2_RPC) || { echo "not found"; exit 1; }
+TX_STATUS=$(echo "$RECEIPT" | jq -r .status)
+TX_BLOCK=$(cast to-dec $(echo "$RECEIPT" | jq -r .blockNumber))
+TX_BLOCK_HASH=$(echo "$RECEIPT" | jq -r .blockHash)
+
+if [ "$TX_STATUS" != "0x1" ]; then
+  echo "failed"
+  exit 1
+fi
+
+# Read the head before and after the canonical hash, so a head that moves
+# backward during the check is caught.
+HEAD_BEFORE=$(head_number)
+CANONICAL_HASH=$(cast block $TX_BLOCK --json --rpc-url $L2_RPC | jq -r .hash)
+HEAD_AFTER=$(head_number)
+
+if [ "$TX_BLOCK_HASH" = "$CANONICAL_HASH" ] && [ "$TX_BLOCK" -le "$HEAD_BEFORE" ] && [ "$TX_BLOCK" -le "$HEAD_AFTER" ]; then
+  echo "$TAG"
+else
+  echo "not yet $TAG"
+  exit 1
+fi
+```
+
+더 엄격한 확인을 하려면 `TAG=finalized`로 설정하십시오.
+이 스크립트는 트랜잭션이 safe(또는 finalized)인 경우에만 상태 `0`으로 종료하므로, 호출 측에서 종료 코드를 기준으로 작업을 제어할 수 있습니다.
+스크립트는 node를 여러 번 읽는데, 읽는 사이에 트랜잭션의 블록은 정식 상태로 유지되면서 L1 reorg로 인해 safe head가 뒤로 이동할 수 있습니다.
+정식 해시 확인 전후로 head를 읽으므로 이 경우에는 `safe` 대신 `not yet safe`가 반환됩니다.
+그래도 결과는 특정 시점의 답변일 뿐입니다. 블록이 finalized되기 전까지는 이후의 L1 reorg로 `safe` 결과가 무효화될 수 있습니다.
+
+Safe 상태는 L1이 체인에서 트랜잭션의 위치를 확정했다는 사실만 알려 줍니다.
+Ethereum Request for Comments 20(ERC-20) `Transfer` 로그 디코딩처럼, 트랜잭션이 실제로 무엇을 했는지에 대한 일반적인 확인은 여전히 필요합니다.
+
+직접 운영하는 node에 쿼리하십시오.
+Node의 합의 클라이언트는 L1 데이터로부터 `safe` 및 `finalized` head를 계산하므로, 그 신뢰도는 이를 보고하는 node와 node가 읽는 L1 RPC의 신뢰도와 같습니다.
+체인 운영자 자체의 엔드포인트를 포함한 공개 또는 서드파티 RPC 엔드포인트를 사용하면 이를 운영하는 주체를 신뢰해야 합니다.
+
+Safe head가 더 이상 진행되지 않으면 알림을 받도록 설정하십시오.
+배치가 L1에 도착하지 않으면 safe head가 멈추고, 입금 전송은 반영되지 않은 채 대기열에 쌓입니다.
+이는 올바른 동작이지만, 팀은 이런 상황이 발생했을 때 이를 알아야 합니다.
+
+## 출금 일시 중지 모니터링하기
+
+모든 표준 OP Stack 체인에는 체인에서 L1으로의 출금을 일시 중지할 수 있는 [Guardian](/ko/op-stack/protocol/privileged-roles#guardian)이 있습니다.
+일시 중지는 L1의 `SuperchainConfig` 컨트랙트에 기록되므로 그 상태는 공개되어 있으며 누구나 읽을 수 있습니다.
+일시 중지는 하나의 체인, `ETHLockbox`를 공유하는 체인 그룹, 또는 동일한 `SuperchainConfig`를 공유하는 모든 체인에 적용될 수 있습니다.
+자세한 내용은 [bridge 일시 중지](/ko/op-stack/security/pause)를 참고하십시오.
+
+### 일시 중지가 여러분에게 의미하는 바 이해하기
+
+일시 중지는 보안 문제가 의심되거나 확인되어 Guardian이 정식 bridge를 통한 출금을 중단했다는 의미입니다.
+일시 중지는 예방 차원일 수 있으며, 항상 자금이 위험하다는 의미는 아닙니다.
+
+일시 중지는 L2 체인을 멈추지 않습니다.
+블록은 계속 생성되고, 트랜잭션은 계속 실행되며, L1으로부터의 입금도 계속 도착합니다.
+공격자가 L2에서 자산을 발행하거나 탈취하는 방법을 찾았다면, 정식 bridge가 닫혀 있으므로 여러분의 거래소나 bridge가 공격자의 탈출 경로가 됩니다.
+
+### 일시 중지에 대응하기
+
+지원하는 체인이 일시 중지되면 다음 단계를 수행하십시오.
+
+1.  **체인과의 자산 이동을 중단하십시오.**
+    거래소는 체인으로부터의 입금 전송을 반영하지 않고 보류하며, 체인으로의 출금 전송 처리를 중단해야 합니다.
+    Bridge는 체인에서 시작된 주문 체결을 중단하고 체인으로 자금을 보내는 것을 중단해야 합니다.
+2.  **추가 정보를 확인하십시오.**
+    [OP Mainnet 상태 페이지](https://status.optimism.io/)와 같은 체인의 상태 페이지를 확인하십시오.
+3.  **신중하게 재개하십시오.**
+    재개는 자동 전환이 아니라 팀이 내리는 결정으로 취급하십시오.
+    보류했던 전송을 반영하기 전에 `OptimismPortal.paused()`가 `false`를 반환하는지 확인하고, 체인의 상태 페이지에서 안내를 확인하십시오.
+    `Unpaused` 이벤트에만 의존하지 마십시오. 만료되는 일시 중지는 이벤트를 발생시키지 않으며, 체인별 일시 중지를 해제해도 활성 상태인 전역 일시 중지는 해제되지 않습니다.
+
+조치를 취하기 전에 연락을 기다릴 필요는 없습니다.
+일시 중지 상태 자체가 신호입니다.
+이 상태는 일시 중지 트랜잭션이 L1에 도착하는 즉시 확인할 수 있으며, 공개 발표보다 먼저 확인될 수도 있습니다.
+
+### 일시 중지 상태 확인하기
+
+L1에 있는 체인의 `OptimismPortal` 프록시에서 `paused()`를 호출하십시오.
+체인별 일시 중지 또는 전역 일시 중지 중 하나라도 활성화되어 있으면 `true`를 반환합니다.
+다음 명령은 하나의 체인을 확인합니다.
+
+```bash
+L1_RPC=<your-l1-rpc>
+OPTIMISM_PORTAL=<optimism-portal-proxy-address>
+
+cast call $OPTIMISM_PORTAL "paused()(bool)" --rpc-url $L1_RPC
+```
+
+OP Mainnet의 경우 [OP Mainnet 컨트랙트 주소](/ko/op-mainnet/network-information/op-addresses)에 나열된 `OptimismPortal` 프록시 주소를 사용하십시오.
+다른 체인의 경우 [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry/tree/main/superchain/configs/mainnet)에 있는 체인 구성의 `OptimismPortalProxy` 값을 사용하십시오.
+
+지원하는 모든 체인을 `latest` L1 블록 기준으로 최소한 L1 블록마다 한 번(12초마다) 확인하십시오.
+이 확인에는 `safe`나 `finalized`가 아닌 `latest`를 사용하십시오.
+가능한 한 가장 빠른 신호를 받아야 하기 때문입니다.
+L2와 같은 이유로 L1도 직접 운영하는 node나 신뢰하는 L1 RPC 제공자에서 읽으십시오. 지연되거나 잘못 보고하는 RPC 엔드포인트는 일시 중지를 감출 수 있습니다.
+
+<Warning>
+  `SuperchainConfig` 컨트랙트에서 인수 없이 `paused()`를 호출하지 마십시오.
+  이 함수는 전역 일시 중지만 보고하며, 단일 체인을 대상으로 하는 일시 중지는 놓칩니다.
+  `OptimismPortal.paused()`는 체인의 일시 중지 식별자를 대신 확인해 줍니다.
+</Warning>
+
+### 일시 중지 이벤트 구독하기
+
+폴링보다 더 빠르게 대응하려면 `SuperchainConfig` 컨트랙트에서 다음 이벤트를 감시하십시오.
+
+```solidity
+event Paused(address identifier);
+event Unpaused(address identifier);
+```
+
+`identifier` 파라미터는 인덱싱되지 않으므로 로그 토픽으로 필터링할 수 없습니다.
+대신 이벤트 시그니처로 필터링하고, 로그 데이터에서 `identifier`를 디코딩하십시오.
+식별자는 이벤트가 어떤 체인에 적용되는지 알려 줍니다.
+
+*   `address(0)`은 전역 일시 중지이며, 이 `SuperchainConfig`를 사용하는 모든 체인에 영향을 미칩니다.
+*   체인 자체의 식별자는 컨트랙트 버전과 구성에 따라 다릅니다.
+    컨트랙트 릴리스 v4.1.0부터 v8.0.0까지는 `SystemConfig`에서 `ETH_LOCKBOX` 기능이 활성화되어 있으면 식별자가 체인의 `ETHLockbox` 주소이고, 그렇지 않으면 `OptimismPortal` 주소입니다.
+    `OptimismPortal`의 `ethLockbox()`가 0이 아니라고 해서 그 자체로 기능이 활성화되었다는 의미는 아닙니다.
+    `SystemConfig`에서 `isFeatureEnabled(bytes32)`로 기능을 확인하되, `cast format-bytes32-string ETH_LOCKBOX`로 인코딩한 `ETH_LOCKBOX`를 전달하십시오.
+    컨트랙트 릴리스 v9.0.0 이상에서는 식별자가 항상 체인의 `ETHLockbox` 주소입니다.
+
+<Info>
+  컨트랙트 릴리스 v9.0.0은 Upgrade 21에 포함되며, Upgrade 21은 Optimism Governance 승인을 기다리고 있습니다.
+  v4.1.0부터 v8.0.0까지의 체인은 Upgrade 21이 해당 체인에 실행될 때까지 위 규칙을 유지합니다.
+</Info>
+
+체인이 어떤 식별자를 사용하든 `OptimismPortal.paused()`가 이를 대신 확인해 주므로, 이 함수가 계속 의존해야 할 확인 방법입니다.
+
+`SuperchainConfig` 주소는 `OptimismPortal`의 `superchainConfig()`로 읽으십시오.
+이 컨트랙트는 Guardian이 기존 일시 중지를 연장할 때도 `Paused`를 발생시킵니다.
+
+이벤트는 다시 확인하기 위한 트리거로 사용하고, 신뢰할 수 있는 기준 정보로는 `OptimismPortal.paused()` 폴링을 계속 유지하십시오.
+Guardian이 연장하지 않는 한 일시 중지는 시작 후 약 3개월이 지나면 자동으로 만료되며, **만료 시에는 이벤트가 발생하지 않으므로** 폴링이 필요합니다.
+`paused()`는 만료를 반영하므로 직접 계산하지 마십시오.
+
+## 통합 점검하기
+
+통합이 다음 각 조건을 충족하는지 확인하십시오.
+
+*   오프체인 작업은 `safe`를 기다리고, 고액 작업은 `finalized`를 기다립니다.
+*   Safe 및 finalized 상태는 신뢰하는 L1 RPC 엔드포인트를 기반으로 직접 운영하는 node에서 가져옵니다.
+*   Unsafe 블록을 근거로 지급하는 금액에는 상한이 있습니다.
+*   Safe head가 더 이상 진행되지 않으면 알림이 발생합니다.
+*   지원하는 모든 체인에 대해 L1 블록마다 `OptimismPortal.paused()`를 폴링합니다.
+*   체인이 일시 중지되면 시스템이 해당 체인의 입금 및 출금 전송을 자동으로 중단하고 당직 팀에 알림을 보냅니다.
+*   일시 중지 후 재개는 수동 결정입니다.
+
+## 다음 단계
+
+*   일시 중지가 차단하는 작업과 Guardian이 이를 관리하는 방법에 대한 자세한 내용은 [bridge 일시 중지](/ko/op-stack/security/pause)를 참고하십시오.
+*   최종성 단계에 대한 자세한 내용은 [트랜잭션 최종성](/ko/op-stack/transactions/transaction-finality)을 참고하십시오.
+*   일시 중지의 규범적 정의는 [Pause Mechanism 사양](https://specs.optimism.io/protocol/stage-1.html#pause-mechanism)을 참고하십시오.

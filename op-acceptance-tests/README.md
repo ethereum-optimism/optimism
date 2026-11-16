@@ -42,11 +42,11 @@ gotestsum --format testname --junitfile ./results/results.xml -- \
   -count=1 -p 4 -parallel 4 -timeout 30m ./tests/...
 ```
 
-The `just` wrapper computes defaults from available CPUs:
+The `just` wrapper runs each top-level test in its own `go test`, with these defaults:
 
-- package jobs: CPU count
-- in-package `t.Parallel`: half the CPU count
-- timeout: `30m`
+- tests at once: `8`
+- `t.Parallel` within a test's `go test`: `1`
+- per-test timeout: `30m`
 
 Override them with `ACCEPTANCE_TEST_JOBS`, `ACCEPTANCE_TEST_PARALLEL`, and `ACCEPTANCE_TEST_TIMEOUT`.
 

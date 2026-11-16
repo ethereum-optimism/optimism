@@ -1,0 +1,89 @@
+---
+title: "op-revm"
+description: "op-revm은 EVM에 대한 OP Stack 수정 사항을 구현한 revm의 Optimism 변형입니다."
+diataxis: explanation
+---
+
+`op-revm`은 [revm](https://github.com/bluealloy/revm)의 Optimism 변형입니다.
+업스트림 `revm` 프레임워크 위에 구축된 맞춤 EVM으로 패키징된,
+Ethereum Virtual Machine에 대한 OP Stack의 수정 사항입니다.
+
+## 기능
+
+`op-revm`은 기본 Ethereum 실행 위에 OP Stack이 필요로 하는 모든 것을 `revm`에
+추가합니다.
+
+- **입금(디파짓) 트랜잭션** — L1에서 L2로의 입금 트랜잭션 타입과 그 실행
+  의미론.
+- **L1 비용 계산** — `L1BlockInfo` 및 트랜잭션별 L1 수수료 / blob 수수료
+  계산.
+- **Operator 수수료** — Isthmus에서 도입되고 Jovian에서 개선된
+  operator 수수료 처리.
+- **OP 전용 precompile** — 가속화된 BN254 페어링 포함.
+- **OP halt 사유 및 트랜잭션 오류** — OP Stack 전용 실행
+  실패 모드.
+- **하드포크 인식 spec 선택** — `OpSpecId`가 각 OP Stack 하드포크(Bedrock, Regolith,
+  Canyon, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, …)에 맞는
+  올바른 동작을 선택합니다.
+
+## 출처
+
+`op-revm`은 업스트림
+[`bluealloy/revm`의 `crates/op-revm`](https://github.com/bluealloy/revm/tree/main/crates/op-revm)에서
+vendoring되어 monorepo로 가져온 것으로, 나머지 OP Stack Rust 코드와
+보조를 맞춰 발전할 수 있습니다. 업스트림 릴리스 기록은
+[revm releases](https://github.com/bluealloy/revm/releases)에서 확인할 수 있습니다.
+
+## Crate feature
+
+이 crate는 일반적인 `revm` feature 옵션을 제공하며, 이는 하위
+`revm` crate로 전달됩니다.
+
+- `default = ["std", "c-kzg", "secp256k1", "portable", "blst"]`
+- `std` — `revm`, `alloy-primitives`, `serde_json` 등에서 `std`에 의존하는
+  코드 경로를 활성화합니다.
+- `serde` — `serde` impl을 derive하고 `revm/serde` 및
+  `alloy-primitives/serde`로 전달합니다.
+- `portable`, `c-kzg`, `secp256k1`, `blst`, `bn` — 암호화 백엔드를 위한
+  pass-through feature gate입니다.
+- `dev`, `memory_limit`, `optional_balance_check`, `optional_block_gas_limit`,
+  `optional_eip3541`, `optional_eip3607`, `optional_no_base_fee`,
+  `optional_fee_charge` — `revm`으로 전달되는 디버깅 및 테스트 옵션입니다.
+
+`op-revm`은 `no_std` 빌드를 지원합니다. 기본 feature를 비활성화하면(또는
+`--no-default-features`로 빌드하면) `riscv32imac-unknown-none-elf`와 같은 결함 증명(fault proof) 및
+zkVM 타깃에 적합한 crate가 생성됩니다.
+
+## 빌드 및 테스트
+
+`rust/` workspace 루트에서 실행합니다.
+
+```bash
+# Build
+cargo build -p op-revm
+
+# Run tests with all features
+cargo nextest run -p op-revm --all-features
+
+# no_std check (mirrors upstream's riscv32imac CI)
+cargo build -p op-revm \
+  --target riscv32imac-unknown-none-elf \
+  --no-default-features
+```
+
+`no_std` 빌드는 `just check-no-std`로도 검증되며, `rust/**`를 변경하는
+모든 PR에 대해 CI에서 실행됩니다.
+
+## op-revm 사용하기
+
+`op-revm`은 [op-reth](/ko/op-stack/components/op-reth)가 OP Stack 블록 실행에 사용하는 EVM이며,
+[Kona](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona)가 결함 증명 프로그램과
+rollup node 내부에서 사용하는 EVM이기도 합니다. 대부분의 사용자는 직접 의존하기보다는
+이러한 컴포넌트 중 하나를 통해 간접적으로 사용하게 됩니다. 맞춤 OP Stack 실행 환경(예:
+대체 클라이언트 또는 zkVM 증명 백엔드)을 구축하는 경우에만
+`op-revm`에 직접 의존하십시오.
+
+## 라이선스
+
+`op-revm`은 MIT License로 제공됩니다.
+[`rust/op-revm/LICENSE`](https://github.com/ethereum-optimism/optimism/blob/develop/rust/op-revm/LICENSE)를 참조하십시오.

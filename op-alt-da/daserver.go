@@ -109,7 +109,7 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 
 	input, err := d.store.Get(r.Context(), comm)
 	if err != nil && errors.Is(err, ErrNotFound) {
-		d.log.Error("Commitment not found", "key", key, "error", err)
+		d.log.Warn("Commitment not found", "key", key, "error", err)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}

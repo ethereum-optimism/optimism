@@ -24,6 +24,7 @@ import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -137,9 +138,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
                 l1ProxyAdminOwner: dso.superchainProxyAdmin.owner(),
                 challenger: challenger,
                 devFeatureBitmap: devFeatureBitmap,
-                sp1Verifier: DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
-                    ? sp1Verifier
-                    : ISP1Verifier(address(0))
+                sp1Verifier: sp1Verifier
             })
         );
         opcmAddr = address(dio.opcmV2);
@@ -177,7 +176,8 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             useCustomGasToken: useCustomGasToken,
             proofMaturityDelaySeconds: proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
-            withdrawalDelaySeconds: withdrawalDelaySeconds
+            withdrawalDelaySeconds: withdrawalDelaySeconds,
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 
@@ -206,6 +206,30 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Basic non-zero and code checks are covered inside run->checkOutput.
         // Additional targeted assertions added below.
         _checkDeploymentAssertions(doo);
+    }
+
+    /// @notice Tests that a deploy leaves the portal without a bridge hook when the input uses
+    ///         address(0).
+    function test_run_noBridgeHook_succeeds() public {
+        assertEq(address(deployOPChainInput.bridgeHook), address(0), "input carries a hook");
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        assertEq(address(doo.optimismPortalProxy.bridgeHook()), address(0), "portal has a bridge hook");
+    }
+
+    /// @notice Tests that a bridge hook in the input is wired onto the portal by the initial
+    ///         OPCM deploy.
+    function test_run_bridgeHookSet_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        address hook = makeAddr("bridgeHook");
+        vm.etch(hook, hex"00");
+        deployOPChainInput.bridgeHook = IBridgeHook(hook);
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        assertEq(address(doo.optimismPortalProxy.bridgeHook()), hook, "portal bridge hook mismatch");
     }
 
     function testFuzz_run_memory_succeeds(bytes32 _seed) public {
@@ -494,6 +518,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
                 sysCfg: doo.systemConfigProxy,
                 cannonPrestate: cannonAbsolutePrestate.raw(),
                 cannonKonaPrestate: cannonKonaAbsolutePrestate.raw(),
+                zkPrestate: bytes32(0),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),

@@ -35,11 +35,10 @@ snap.workspace = true
 
 # Networking
 futures.workspace = true
-libp2p-stream.workspace = true
 discv5.workspace = true
 openssl = { workspace = true, features = ["vendored"] }
 libp2p-identity = { workspace = true, features = ["secp256k1"] }
-libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "dns", "noise", "gossipsub", "ping", "yamux", "identify", "metrics"] }
+libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "noise", "gossipsub", "ping", "yamux", "identify", "metrics"] }
 ipnet = { workspace = true, features = ["serde"] }
 
 # Misc
@@ -54,6 +53,8 @@ derive_more = { workspace = true, features = ["display", "deref", "debug"] }
 metrics.workspace = true
 
 [dev-dependencies]
+rstest.workspace = true
+libp2p-stream.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 tempfile.workspace = true
 multihash.workspace = true
@@ -61,6 +62,7 @@ serde_json.workspace = true
 alloy-eips.workspace = true
 alloy-chains.workspace = true
 metrics-util = { workspace = true, features = ["debugging"] }
+enr.workspace = true
 
 rand = { workspace = true, features = ["thread_rng"] }
 arbitrary = { workspace = true, features = ["derive"] }

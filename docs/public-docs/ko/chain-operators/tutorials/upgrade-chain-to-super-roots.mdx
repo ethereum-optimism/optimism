@@ -1,0 +1,320 @@
+---
+title: 체인을 Output Root에서 Super Root로 업그레이드하기
+lang: en-US
+description: 단일 opcm.upgrade 호출로 OP Stack 체인을 output-root 분쟁 게임에서 super-root 분쟁 게임으로 업그레이드한 다음, op-proposer, op-challenger, op-dispute-mon을 super root로 전환합니다.
+diataxis: how-to
+---
+
+import RunbookToolVersions from "/ko/snippets/runbook-tool-versions.mdx"
+import { SuperchainOpsPrereqs } from "/ko/snippets/superchain-ops-prereqs.mdx"
+
+# 체인을 Output Root에서 Super Root로 업그레이드하기
+
+<Warning>이 가이드는 아직 개발 중인 interop 기능에 의존합니다. 프로덕션 체인에서는 이 가이드를 따르지 마십시오.</Warning>
+
+이 런북은 단일 OP Stack 체인을 output-root 분쟁 게임(dispute game)(`PERMISSIONED_CANNON`, `CANNON` 또는 `CANNON_KONA`)에서 super-root 분쟁 게임(`SUPER_PERMISSIONED` 또는 `SUPER_CANNON_KONA`)으로 업그레이드하는 과정을 안내합니다. 이 작업은 체인의 기존 체인별 `AnchorStateRegistry`와 `DisputeGameFactory`를 대상으로 하는 단일 `opcm.upgrade` 호출로 실행됩니다. 체인의 권한 모델은 그대로 유지됩니다. permissioned 체인은 `SUPER_PERMISSIONED`만 사용하는 permissioned 상태를 유지하고, permissionless 체인은 두 super game type을 모두 실행하며 `SUPER_CANNON_KONA`를 respected game type으로 사용합니다. 둘 사이의 차이점은 본문 중에 별도로 언급합니다.
+
+이 런북을 마치면 체인은 단일 체인 super-root RPC 엔드포인트를 사용하는 `op-proposer`를 통해 super-root 클레임을 제안하고, `op-dispute-mon`으로 이를 모니터링하게 됩니다. permissionless 체인에서는 `op-challenger`가 `SUPER_CANNON_KONA` 클레임을 방어합니다. permissioned 체인에서는 `op-dispute-mon`이 잘못된 `SUPER_PERMISSIONED` 클레임을 감지하고, 게임이 최종 확정되면 `op-challenger`가 `AnchorStateRegistry`를 업데이트합니다. 이미 진행 중인 모든 마이그레이션 이전 분쟁 게임은 계속 resolve되며, 증명된 출금은 무효화되지 않습니다.
+
+<Note>이 작업은 `opcm.migrate`가 아니라 `opcm.upgrade`입니다. 체인은 자체 체인별 `AnchorStateRegistry`와 `DisputeGameFactory`를 그대로 유지합니다.</Note>
+
+permissioned 결함 증명(fault proof)에서 permissionless 결함 증명으로 전환하려는 경우에는 [permissionless 결함 증명으로 마이그레이션하기](/ko/chain-operators/tutorials/migrating-permissionless)를 참조하십시오. 이 런북은 이미 결함 증명을 실행 중이며 output-root 게임에서 super-root 게임으로 옮겨야 하는 체인을 위한 것입니다.
+
+## 시작하기 전에
+
+<SuperchainOpsPrereqs />
+
+### 필수 도구
+
+<RunbookToolVersions />
+
+[`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher)(다음 단계에서 사용)를 실행하려면 [optimism monorepo](https://github.com/ethereum-optimism/optimism)의 checkout도 필요합니다.
+
+### 필수 입력값 수집
+
+시작하기 전에 아래 항목을 모두 수집하십시오.
+
+**체인 식별 정보.** 체인의 체인별 주소는 `superchain-registry` 저장소의 `superchain/configs/<network>/<chain-name>.toml`에 있습니다. 해당 파일을 열어 `chain_id`, `addresses.SystemConfigProxy`, `addresses.L1StandardBridgeProxy`를 확인합니다.
+
+**체인 주소와 역할.** `op-fetcher`를 사용하면 명령 하나로 나머지 온체인 구성을 도출할 수 있습니다. 이 도구는 `$L1_RPC`를 통해 L1 컨트랙트를 읽고, `SystemConfig`와 `L1StandardBridge`에서 모든 체인별 proxy, 역할, 현재 결함 증명 상태를 조회합니다.
+
+```bash
+cd <optimism-monorepo>/op-fetcher
+go run ./cmd fetch \
+  --l1-rpc-url "$L1_RPC" \
+  --system-config "<SystemConfigProxy>" \
+  --l1-standard-bridge "<L1StandardBridgeProxy>" \
+  --output-file chain.json
+```
+
+`chain.json`에서 필요한 값을 읽습니다.
+
+| 항목 | 출처 |
+| --- | --- |
+| L2 chain ID | 체인 registry TOML의 `chain_id` |
+| `SystemConfig` proxy | 체인 registry TOML의 `addresses.SystemConfigProxy` |
+| `OptimismPortal2` proxy | `.addresses.OptimismPortalProxy` |
+| `AnchorStateRegistry` proxy (아래에서 `<ASR>`로 지칭) | `.addresses.AnchorStateRegistryProxy` |
+| `DisputeGameFactory` proxy (아래에서 `<DGF>`로 지칭) | `.addresses.DisputeGameFactoryProxy` |
+| `SuperchainConfig` proxy | `.addresses.SuperchainConfigProxy` |
+
+**체인 유형.** 업그레이드는 체인의 기존 권한 모델을 유지합니다. `chain.json`은 현재 respected game type을 `.faultProofs.respectedGameType`에 표시합니다.
+
+* `1` (`PERMISSIONED_CANNON`) — 체인이 **permissioned**입니다. 새 respected game type은 `5` (`SUPER_PERMISSIONED`)입니다.
+* `0` (`CANNON`) 또는 `8` (`CANNON_KONA`) — 체인이 **permissionless**입니다. 새 respected game type은 `9` (`SUPER_CANNON_KONA`)입니다.
+
+**초기 본드(init bond).** `SUPER_PERMISSIONED`(game type `5`)는 본드가 없으며 `initBond`로 `0`을 사용해야 합니다. `SUPER_CANNON_KONA`(game type `9`)는 기존 체인에서 사용하는 표준 값인 `0.08 ether`(`80000000000000000` wei)를 사용합니다.
+
+**릴리스 아티팩트와 인프라.**
+
+| 항목 | 출처 |
+| --- | --- |
+| 대상 네트워크의 `OPCM` 주소 | [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)의 `validation/standard/standard-versions-<network>.toml`. `OPCMUpgradeV800` 템플릿이 고정한 `op-contracts/v8.x.y` 릴리스를 찾아 `op_contracts_manager.address`를 읽습니다. |
+| Kona-interop prestate 해시 | OPCM 릴리스 매니페스트. 체인에 interop이 예정되어 있지 않더라도 `-interop` kona 변형을 사용합니다.|
+| Prestate 아티팩트 URL | 업그레이드 전에 kona-interop prestate가 업로드된, 체인의 기존 `cannon-kona-prestates-url` 서버 |
+| 단일 체인 super-root RPC 엔드포인트 (`$SUPER_ROOT_RPC`) | 인프라 팀에 문의하십시오. 체인의 op-node RPC 엔드포인트 또는 op-supernode `/<chainID>/` 엔드포인트를 사용합니다. op-node는 `--safedb.path`가 활성화되고 데이터가 채워진 상태로 실행되어야 합니다. 네임스페이스가 지정된 엔드포인트는 op-supernode가 다른 체인을 추적하더라도 이 체인만 포함하는 super root를 반환합니다. |
+
+### 사전 조건 확인
+
+구성을 변경하기 전에 다음을 확인하십시오.
+
+* **템플릿의 추가 instruction을 확인합니다.** `superchain-ops/src/template/OPCMUpgradeV800.sol`을 열어 `_buildExtraInstructions`를 확인합니다. 작성 시점 기준으로 이 함수는 `overrides.cfg.startingRespectedGameType`과 `PermittedProxyDeployment`를 주입합니다. 진행하기 전에 두 가지 모두 조치가 필요합니다. `PermittedProxyDeployment`는 제거해야 합니다. 통합 `DelayedWETH`가 7.x OPCM과 함께 배포되었기 때문에 OPCM `8.0.0`은 업그레이드 중 proxy 배포를 허용하지 않으며, 따라서 이 instruction은 이제 `OPContractsManagerV2_InvalidUpgradeInstruction`으로 revert됩니다. `overrides.cfg.startingAnchorRoot` override는 추가해야 합니다. 이것이 없으면 OPCM은 기존 온체인 `startingAnchorRoot`로 대체하는데, 업그레이드 이전 체인에서 이 값은 블록 번호 형태의 `l2SequenceNumber`를 가진 output-root 형태의 값이므로 유효한 super-root 앵커가 아닙니다. 템플릿을 확장하여 TOML에서 시작 super-root 앵커를 읽고 이를 추가 instruction으로 추가해야 합니다. 진행하기 전에 템플릿을 수정하십시오.
+* **RPC 엔드포인트가 단일 체인 super root를 반환하는지 확인합니다.** 체인의 op-node RPC 엔드포인트 또는 op-supernode `/<chainID>/` 엔드포인트 중 하나를 사용할 수 있습니다. 멀티체인 op-supernode 루트 엔드포인트는 사용하지 마십시오. 이 엔드포인트는 전체 dependency set에 걸쳐 root를 계산합니다.
+* **단일 체인 RPC 엔드포인트가 정상인지 확인합니다.** op-node 또는 네임스페이스가 지정된 op-supernode 엔드포인트의 경우, 최근 finalized L2 head를 보고하고 그에 대응하는 super root를 생성할 수 있는지 확인합니다.
+
+  ```bash
+  TS=$(cast rpc optimism_syncStatus --rpc-url $SUPER_ROOT_RPC | jq -r '.finalized_l2.timestamp')
+  cast rpc superroot_atTimestamp "$(cast 2h $TS)" \
+    --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+  ```
+
+  op-node가 SafeDB 오류를 반환하면 `--safedb.path`를 구성하고, node가 derivation을 통해 레코드를 채우도록 한 다음 다시 시도하십시오. SafeDB가 비활성화되어 있어도 `optimism_syncStatus`는 성공할 수 있지만, SafeDB 없이는 `superroot_atTimestamp`가 genesis가 아닌 timestamp를 제공할 수 없습니다.
+* **prestate 서버가 새 해시를 제공하는지 확인합니다.**
+
+  ```bash
+  curl -fI "$PRESTATE_URL/$SUPER_PRESTATE_HASH.bin.gz"
+  ```
+
+## 오프체인 구성 준비
+
+온체인 업그레이드를 제출하기 전에 이 변경 사항을 적용하십시오. 변경 사항이 배포된 후에도 구성 요소는 기존 마이그레이션 이전 게임에 대해 계속 동작하며, 업그레이드가 적용되면 super-root 게임을 자동으로 인식합니다.
+
+### op-challenger 업데이트
+
+체인에서 실행 중인 `op-challenger`를 업데이트합니다. 기존 게임을 계속 방어할 수 있도록 `--rollup-rpc`와 기존 `--game-types`는 유지하십시오. super-root trace type은 `SUPER_CANNON_KONA`가 활성화되는 permissionless 체인에만 추가합니다.
+
+| 작업 | 플래그 (환경 변수) | 값 |
+| --- | --- | --- |
+| 추가 | `--superroot-rpc` (`OP_CHALLENGER_SUPERROOT_RPC`) | `$SUPER_ROOT_RPC` |
+| 값 덧붙이기 | `--game-types` (`OP_CHALLENGER_GAME_TYPES`) | `super-cannon-kona`. `super-permissioned`는 추가하지 마십시오. 단순화된 `SUPER_PERMISSIONED` 게임은 클레임 게시가 필요하지 않습니다. |
+| 설정 확인 | `--cannon-kona-prestates-url` (`OP_CHALLENGER_CANNON_KONA_PRESTATES_URL`) | 사전 조건에서 검증한 prestate 서버 URL |
+| 설정 확인 | `--cannon-kona-network` (`OP_CHALLENGER_CANNON_KONA_NETWORK`) 또는 `--cannon-kona-depset-config` (`OP_CHALLENGER_CANNON_KONA_DEPSET_CONFIG`) | kona가 `SUPER_CANNON_KONA`의 dependency set을 확인할 수 있도록 둘 중 하나를 설정해야 합니다. |
+
+permissionless 체인에서는 시작 로그에 `super-cannon-kona`가 등록된 것으로 표시되고, 단일 체인 super-root RPC 엔드포인트에 대한 연결 오류가 없는지 확인합니다. permissioned 체인에서는 기존 trace type이 계속 등록되어 있는지 확인하고, `SUPER_PERMISSIONED` trace type은 구성하지 마십시오. permissioned 체인에서도 `SUPER_PERMISSIONED` 게임이 최종 확정될 때 `AnchorStateRegistry`를 업데이트하기 위해 `op-challenger`가 여전히 필요합니다.
+
+### op-dispute-mon 업데이트
+
+체인에서 실행 중인 `op-dispute-mon`을 업데이트합니다.
+
+| 작업 | 플래그 (환경 변수) | 값 |
+| --- | --- | --- |
+| 추가 | `--superroot-rpc` (`OP_DISPUTE_MON_SUPERROOT_RPC`) | `$SUPER_ROOT_RPC` |
+
+`--rollup-rpc`는 유지하십시오. `op-dispute-mon`은 기존 `DisputeGameFactory`에서 게임을 탐색하므로 game type 필터를 변경할 필요가 없습니다. 재시작 후 기존 게임 metric이 계속 채워지는지 확인하십시오.
+
+### op-proposer는 당분간 변경하지 않기
+
+전환 전까지 `op-proposer`는 건너뜁니다. 구성 변경은 [op-proposer를 Super Root로 전환](#switch-op-proposer-to-super-roots)에서 진행합니다.
+
+## 시작 앵커 Super Root 생성
+
+업그레이드는 super-root 형태의 시작 앵커로 `<ASR>`를 다시 초기화해야 합니다. 기존 온체인 `startingAnchorRoot`는 output-root 형식(`l2SequenceNumber`가 L2 블록 번호)이므로, 템플릿은 `extraInstructions`의 `overrides.cfg.startingAnchorRoot`를 통해 새로운 super-root 값을 주입해야 합니다. 위의 사전 조건에서 템플릿이 이 값을 TOML에서 읽어 전달하도록 확장되었는지 확인하십시오.
+
+`superroot_atTimestamp`를 사용하여 값을 계산합니다. 현재 finalized timestamp(또는 최근의 아무 finalized timestamp)를 선택한 다음, 단일 체인 RPC 엔드포인트에 해당 timestamp의 super root를 요청합니다.
+
+```bash
+# .finalized_l2.timestamp is a JSON number (decimal Unix seconds).
+TS=$(cast rpc optimism_syncStatus --rpc-url $SUPER_ROOT_RPC | jq -r '.finalized_l2.timestamp')
+# superroot_atTimestamp expects a hex-encoded JSON string (hexutil.Uint64); cast 2h handles the conversion.
+cast rpc superroot_atTimestamp "$(cast 2h $TS)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+echo "timestamp=$TS"
+```
+
+두 값을 확보합니다.
+
+* `super_root`(`.data.super_root`의 `bytes32` 해시) — `overrides.cfg.startingAnchorRoot`의 `Proposal.root`로 전달됩니다.
+* `timestamp`(전달한 uint64 값) — `Proposal.l2SequenceNumber`로 전달됩니다. 이 필드는 블록 번호나 시퀀스 인덱스가 아니라 timestamp 자체입니다.
+
+## superchain-ops task 작성
+
+`OPCMUpgradeV800` 템플릿을 사용하여 `superchain-ops/src/tasks/<network>/<NNN-name>/` 아래에 새 task 디렉터리를 작성합니다. 아래 스키마는 템플릿이 (위의 사전 조건에 따라) 시작 super-root 앵커도 읽고 이를 `overrides.cfg.startingAnchorRoot`로 주입하도록 확장되었다고 가정합니다.
+
+### config.toml 구성
+
+```toml
+l2chains = [
+    {name = "<chain name>", chainId = <chain id>},
+]
+
+templateName = "OPCMUpgradeV800"
+
+[[opcmUpgrades]]
+chainId = <chain id>
+# Kona-interop super prestate, used by SUPER_CANNON_KONA. The `-interop` variant
+# supports super roots and works whether
+# or not interop is enabled or scheduled on the chain.
+cannonKonaPrestate = "0x<kona-interop super prestate>"
+expectedValidationErrors = ""   # fill in after the dry run
+initBond = 80000000000000000    # 0.08 ether, applied to `SUPER_CANNON_KONA` games; the template always forces SUPER_PERMISSIONED to 0
+startingRespectedGameType = <9 or 5>   # 9 permissionless, 5 permissioned
+
+# Pending template extension — see the "Generate the Starting Anchor Super Root" section.
+startingAnchorRoot = { root = "0x<super root hash>", l2SequenceNumber = <timestamp> }
+
+[addresses]
+OPCM = "0x<OPCM v8.x.y address>"
+```
+
+템플릿이 나머지(game type별 구성, `SuperchainConfig`, validator 등)를 모두 자동으로 도출하므로 TOML을 더 작성할 필요가 없습니다.
+
+### expectedValidationErrors 확보
+
+task 디렉터리 안에서 L1 fork를 대상으로 시뮬레이션 모드로 task를 실행합니다.
+
+```bash
+cd superchain-ops/src/tasks/<network>/<NNN-name>
+just simulate
+```
+
+validator의 출력이 TOML의 `expectedValidationErrors`와 일치하지 않으면 시뮬레이션은 `Unexpected errors: <actual>; expected: <expectedValidationErrors>` 형식의 메시지와 함께 revert됩니다. 해당 revert 메시지에서 실제 코드를 확인하십시오. 기본 기대값은 **오류 없음**, 즉 `expectedValidationErrors = ""`이며 시뮬레이션이 깔끔하게 통과하는 것입니다.
+
+비어 있지 않은 오류 문자열은 그대로 복사해 붙여 넣지 말고 코드별로 검토해야 합니다. 각 코드에 대해 다음을 수행하십시오.
+
+* 잘못된 주소, 잘못된 prestate, 템플릿 릴리스 불일치, 누락된 override, 업데이트가 필요한 registry 항목 등 수정 가능한 입력을 가리킨다면 **해결합니다**.
+* 이 체인에서 구조적으로 예상되는 이유를 설명하는 인라인 주석을 TOML에 달아 **정당성을 입증한 후에만 `expectedValidationErrors`에 추가합니다**.
+
+출력된 모든 코드가 해결되었거나 정당한 근거와 함께 의도적으로 추가되면 시뮬레이션이 통과합니다. 설명할 수 없는 코드가 있다면 반드시 작업을 중단하십시오.
+
+## 업그레이드 실행
+
+1. **체인의 `op-proposer`를 중지합니다.** 기존 게임은 계속 resolve되며, 새 제안만 중단됩니다.
+2. **`op-challenger`와 `op-dispute-mon`은 계속 실행합니다.** 두 서비스 모두 앞에서 구성되었으며 super-root 게임을 자동으로 인식합니다.
+3. 팀의 표준 `superchain-ops` 서명 워크플로를 사용하여 **task에 서명하고 브로드캐스트합니다**.
+4. **L1 트랜잭션이 확정될 때까지 기다립니다.**
+
+온체인 효과는 다음과 같습니다.
+
+* `<ASR>`가 제공된 앵커와 respected game type으로 다시 초기화됩니다. retirement timestamp는 갱신되지 않으므로 기존 진행 중인 게임은 유효한 상태로 유지됩니다.
+* super 분쟁 게임 구현(하나 또는 여러 개)이 `<DGF>`에 설치됩니다.
+* `enabled = false`로 전달된 game type의 구현 포인터가 비워져, 해당 유형의 새 게임 생성이 차단됩니다.
+
+## 온체인에서 업그레이드 검증
+
+`op-proposer`를 전환하기 전에 아래 검사를 실행하십시오.
+
+<Warning>어느 검사라도 실패하면 중단하고, 새 proposer를 시작하지 말고, 표준 사고 대응 채널을 통해 에스컬레이션하십시오. proposer가 오작동하는 반쯤 전환된 상태에서 복구하는 것은 pause된 proposer 상태에서 복구하는 것보다 훨씬 어렵습니다.</Warning>
+
+### 공통 검사
+
+```bash
+# Respected game type
+cast call <ASR> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
+# Expect: 9 (permissionless) or 5 (permissioned)
+
+# Anchor root and timestamp
+cast call <ASR> 'getAnchorRoot()(bytes32,uint256)' --rpc-url $L1_RPC
+# Expect: (<super root hash>, <timestamp>) from the previous step
+
+# Retirement timestamp unchanged
+cast call <ASR> 'retirementTimestamp()(uint64)' --rpc-url $L1_RPC
+# Expect: same value as before the upgrade
+
+# Pre-migration impls cleared
+cast call <DGF> 'gameImpls(uint32)(address)' 0 --rpc-url $L1_RPC   # CANNON
+cast call <DGF> 'gameImpls(uint32)(address)' 1 --rpc-url $L1_RPC   # PERMISSIONED_CANNON
+cast call <DGF> 'gameImpls(uint32)(address)' 8 --rpc-url $L1_RPC   # CANNON_KONA
+# Expect each: 0x0000000000000000000000000000000000000000
+```
+
+### Permissionless 체인 검사
+
+```bash
+cast call <DGF> 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER_PERMISSIONED
+cast call <DGF> 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC   # SUPER_CANNON_KONA
+# Expect both: non-zero
+
+cast call <DGF> 'initBonds(uint32)(uint256)' 5 --rpc-url $L1_RPC
+# Expect: 0
+cast call <DGF> 'initBonds(uint32)(uint256)' 9 --rpc-url $L1_RPC
+# Expect: 80000000000000000, or the configured SUPER_CANNON_KONA bond
+```
+
+### Permissioned 체인 검사
+
+```bash
+cast call <DGF> 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER_PERMISSIONED
+# Expect: non-zero
+
+cast call <DGF> 'initBonds(uint32)(uint256)' 5 --rpc-url $L1_RPC
+# Expect: 0
+
+cast call <DGF> 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC   # SUPER_CANNON_KONA
+# Expect: 0x0000000000000000000000000000000000000000
+```
+
+## op-proposer를 Super Root로 전환
+
+새 구성으로 `op-proposer`를 시작합니다.
+
+| 플래그 (환경 변수) | 이전 | 신규 |
+| --- | --- | --- |
+| `--rollup-rpc` (`OP_PROPOSER_ROLLUP_RPC`) | 설정됨 | **제거** |
+| `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) | 설정 안 됨 | `$SUPER_ROOT_RPC`, 또는 각각 이 체인만 포함하는 super root를 반환하는 고가용성 엔드포인트 목록 |
+| `--game-type` (`OP_PROPOSER_GAME_TYPE`) | `0` 또는 `1` | 숫자: permissionless는 `9`, permissioned는 `5` |
+| `--game-factory-address` (`OP_PROPOSER_GAME_FACTORY_ADDRESS`) | 변경 없음 | 변경 없음 (동일한 `<DGF>`) |
+
+`--proposal-interval`, `--poll-interval` 등 다른 플래그는 그대로 유지합니다.
+
+시작 후 다음을 확인합니다.
+
+* 로그에 proposer가 구성된 단일 체인 super-root RPC 엔드포인트를 폴링하는 내용이 표시되고, `--rollup-rpc`에 대한 참조가 없습니다.
+* `--proposal-interval` 한 번 이내에 proposer가 새 게임을 제출합니다. 이를 검사합니다.
+
+  ```bash
+  COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC)
+  # Expect: increased by 1 since the upgrade
+  echo "gameCount=$COUNT"
+
+  read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+  # Expect: gameType matches the configured super type (5 or 9) and gameProxy is non-zero.
+  echo "gameType=$GAME_TYPE createdAt=$CREATED_AT gameProxy=$GAME_PROXY"
+
+  cast call $GAME_PROXY 'rootClaim()(bytes32)'        --rpc-url $L1_RPC
+  cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
+  ```
+
+* 제안된 timestamp에 대한 super root를 다시 계산하여 제안과 일치하는지 확인합니다.
+
+  ```bash
+  cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber from above>)" \
+    --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+  # Expect: equals rootClaim from above
+  ```
+
+  이를 통해 `op-proposer`가 올바르게 구성되어 유효한 super root를 전달하고 있음을 확인할 수 있습니다.
+
+## 업그레이드 후 검증
+
+proposer가 안정화되면 다음 검사를 실행하십시오.
+
+* **마이그레이션 이전 게임이 여전히 resolve되는지 확인합니다.** 진행 중인 마이그레이션 이전 게임 하나를 골라(`op-dispute-mon` 대시보드나 `gameAtIndex`를 사용하여 찾음) resolve될 때까지 상태를 지켜봅니다.
+
+  ```bash
+  cast call <gameProxy> 'status()(uint8)' --rpc-url $L1_RPC
+  # 0 = IN_PROGRESS, 1 = CHALLENGER_WINS, 2 = DEFENDER_WINS
+  ```
+
+* **활성화된 경우 `op-challenger`가 `SUPER_CANNON_KONA`를 추적하는지 확인합니다.** permissionless 체인에서는 시작 로그에 `super-cannon-kona`가 표시되고, type-9 게임이 나타날 때 지속적인 로그에 scheduler 또는 game-poll 오류가 없는지 확인합니다. permissioned 체인에서는 `op-challenger`가 `SUPER_PERMISSIONED` 게임이 최종 확정될 때 계속 `AnchorStateRegistry`를 업데이트하지만, 클레임을 게시할 필요는 없습니다.
+* **`op-dispute-mon`이 super-root 게임을 보고하는지 확인합니다.** `op_dispute_mon_games`가 활성화된 super game type을 보고하고 `op_dispute_mon_failed_games`가 0으로 유지되는지 확인합니다. permissioned 체인에서는 `SUPER_PERMISSIONED`에 대한 `op_dispute_mon_games_agreement{status="disagree_defender_wins"}` 및 `Unexpected game result` 로그에 대해 알림을 설정하십시오.
+* **새로운 마이그레이션 이전 게임을 생성할 수 없는지 확인합니다.** 선택적으로, 비활성화된 game type 중 하나로 `DisputeGameFactory.create`를 호출하여 revert되는지 확인합니다.
+* **첫 번째 super game 최종 확정 시 앵커가 전진하는지 확인합니다.** 첫 번째 앵커 업데이트는 일반적으로 첫 번째 super-root 게임이 생성된 후 약 7일(게임 진행 기간 + `disputeGameFinalityDelaySeconds()`) 뒤에 이루어집니다. 이 때문에 롤아웃을 막지는 마십시오. 해당 기간 후 `getAnchorRoot()`를 다시 실행하여 시작 root 대신 새 게임의 클레임이 반환되는지 확인하는 후속 작업을 예약하십시오. 기다리며 대기하기보다는 `op-dispute-mon`으로 추적하십시오.

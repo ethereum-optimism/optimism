@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -53,6 +54,8 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	receipt, err := tx.Included.Eval(ef.ctx)
 	ef.require.NoError(err)
 	ef.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	opReceipt, err := client.TransactionReceipt(ef.ctx, receipt.TxHash)
+	ef.require.NoError(err)
 
 	// Get block info for base fee information
 	blockInfo, err := client.InfoByHash(ef.ctx, receipt.BlockHash)
@@ -86,8 +89,8 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 
 	// Then validate individual fee components
 	ef.validateFeeDistribution(l1Fee, baseFee, priorityFee, vaultIncreases)
-	ef.validateEcotoneFeatures(receipt, l1Fee)
-	ef.validateReceiptFees(receipt, l1Fee, baseFee, l2Fee, receiptBaseFee, receiptL2Fee)
+	ef.validateEcotoneFeatures(opReceipt, l1Fee)
+	ef.validateReceiptFees(opReceipt, l1Fee, baseFee, l2Fee, receiptBaseFee, receiptL2Fee)
 
 	return EcotoneFeesValidationResult{
 		TransactionReceipt: receipt,
@@ -154,7 +157,7 @@ func (ef *EcotoneFees) validateTotalBalance(walletDiff *big.Int, totalFee *big.I
 	ef.require.Equal(totalVaultIncrease, totalFee, "Total vault increases must equal total fees")
 }
 
-func (ef *EcotoneFees) validateEcotoneFeatures(receipt *types.Receipt, l1Fee *big.Int) {
+func (ef *EcotoneFees) validateEcotoneFeatures(receipt *optypes.Receipt, l1Fee *big.Int) {
 	ef.require.NotNil(receipt.L1Fee, "L1 fee should be present in Ecotone")
 	ef.require.True(l1Fee.Cmp(big.NewInt(0)) > 0, "L1 fee should be greater than 0 in Ecotone")
 	ef.require.Greater(receipt.GasUsed, uint64(20000), "Gas used should be reasonable for transfer")
@@ -162,7 +165,7 @@ func (ef *EcotoneFees) validateEcotoneFeatures(receipt *types.Receipt, l1Fee *bi
 	ef.require.Greater(bigs.Uint64Strict(receipt.EffectiveGasPrice), uint64(0), "Effective gas price should be > 0")
 }
 
-func (ef *EcotoneFees) validateReceiptFees(receipt *types.Receipt, l1Fee, vaultBaseFee, vaultL2Fee, receiptBaseFee, receiptL2Fee *big.Int) {
+func (ef *EcotoneFees) validateReceiptFees(receipt *optypes.Receipt, l1Fee, vaultBaseFee, vaultL2Fee, receiptBaseFee, receiptL2Fee *big.Int) {
 	// Check that receipt's L1Fee matches the vault increase
 	if receipt.L1Fee != nil {
 		ef.require.Equal(receipt.L1Fee, l1Fee, "Receipt L1Fee must match L1FeeVault increase")

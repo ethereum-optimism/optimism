@@ -330,8 +330,11 @@ func sendDeniedMessage(t devtest.T, sys *presets.SimpleInterop, hidden *sysgo.Hi
 	// Send once B is at A's next block's timestamp, so the executing message lands
 	// after it, where A's block is above the initiating one whatever the block times.
 	sys.L2ELB.WaitForTime(sys.L2ChainA.TimestampForBlockNum(initBlock + 1))
+	// Pause interop below the executing block so the receipt read and Hide precede its replacement.
+	sys.Supernode().EnsureInteropPaused(10, sys.L2CLA, sys.L2CLB)
 	execMsg := aliceB.SendInvalidExecMessage(initMsg)
 	hidden.Hide(execMsg.BlockHash())
+	sys.Supernode().ResumeInterop()
 	execBlock := bigs.Uint64Strict(execMsg.BlockNumber())
 	execTimestamp := sys.L2ChainB.TimestampForBlockNum(execBlock)
 	headA, err := sys.L2ChainA.Escape().RollupConfig().TargetBlockNumber(execTimestamp)
@@ -436,6 +439,7 @@ func TestProposerProvesChunkAgreeingOnReplacedBlockInside(gt *testing.T) {
 
 // TestProposerProvesChunksInsideReplacementIdleGap covers chunk boundaries between idle timestamps after replacement.
 func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
+	gt.Parallel()
 	const rangeSplitCount uint64 = 128
 	for _, testCase := range []struct {
 		name         string
@@ -446,7 +450,7 @@ func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
 		{"replacement_at_agreed", 0, zkproposer.LogBatchesSubmitted(0)},
 	} {
 		gt.Run(testCase.name, func(gt *testing.T) {
-			t := devtest.ParallelT(gt)
+			t := devtest.SerialT(gt)
 			sys, hidden := newReplacedBlockSystem(t,
 				presets.WithL2BlockTimes(map[eth.ChainID]uint64{sysgo.DefaultL2AID: 1, sysgo.DefaultL2BID: 4}),
 				presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(rangeSplitCount)),

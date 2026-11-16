@@ -87,19 +87,26 @@ pub trait OpP2PApi {
     #[method(name = "discoveryTable")]
     async fn opp2p_discovery_table(&self) -> RpcResult<Vec<String>>;
 
-    /// Blocks the given peer
+    /// Blocks the given peer: closes its connections, refuses its new ones in both directions, and
+    /// ignores its gossip until it is unblocked.
+    ///
+    /// This applies to protected and static peers too: a static peer isn't dialed again while it
+    /// is blocked. Unlike op-node, which leaves a blocked peer's open connections in place.
     #[method(name = "blockPeer")]
     async fn opp2p_block_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Unblocks the given peer
+    /// Unblocks the given peer, and lifts its ban if it is banned for its score. A static peer is
+    /// dialed again within a minute, or at once with `opp2p_connectPeer`.
     #[method(name = "unblockPeer")]
     async fn opp2p_unblock_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Lists blocked peers
+    /// Lists blocked peers. Peers banned for their score aren't listed, as in op-node.
     #[method(name = "listBlockedPeers")]
     async fn opp2p_list_blocked_peers(&self) -> RpcResult<Vec<String>>;
 
-    /// Blocks the given address
+    /// Blocks the given IP address: closes the connections to and from it, whichever peer they
+    /// belong to, and refuses new ones in both directions until it is unblocked. Unlike op-node,
+    /// which leaves open connections in place.
     #[method(name = "blockAddr")]
     async fn opp2p_block_addr(&self, ip: IpAddr) -> RpcResult<()>;
 
@@ -111,7 +118,9 @@ pub trait OpP2PApi {
     #[method(name = "listBlockedAddrs")]
     async fn opp2p_list_blocked_addrs(&self) -> RpcResult<Vec<IpAddr>>;
 
-    /// Blocks the given subnet
+    /// Blocks the given subnet: closes the connections to and from the IP addresses in it,
+    /// whichever peers they belong to, and refuses new ones in both directions until it is
+    /// unblocked. Unlike op-node, which leaves open connections in place.
     #[method(name = "blockSubnet")]
     async fn opp2p_block_subnet(&self, subnet: IpNet) -> RpcResult<()>;
 
@@ -131,11 +140,20 @@ pub trait OpP2PApi {
     #[method(name = "unprotectPeer")]
     async fn opp2p_unprotect_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Connects to the given peer
+    /// Connects to the peer at the given multiaddr, which must end in its `/p2p/<peer id>`, and
+    /// returns once the peer is connected.
+    ///
+    /// Respects blocks and bans: if the peer, its IP address or its subnet is blocked, or the peer
+    /// is banned for its score, it fails at once with the reason, and dials nothing. Unblock first
+    /// to connect such a peer; `opp2p_unblockPeer` lifts a ban too.
+    /// It also fails at once if the peer has reached its redial limit. A dial that fails, for
+    /// example because nothing listens at the address, returns the dial's error, and one that
+    /// doesn't finish within 30 seconds times out, as in op-node.
     #[method(name = "connectPeer")]
     async fn opp2p_connect_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Disconnects from the given peer
+    /// Disconnects from the given peer, and returns once its connections have closed. A static
+    /// peer is dialed again about a second later.
     #[method(name = "disconnectPeer")]
     async fn opp2p_disconnect_peer(&self, peer: String) -> RpcResult<()>;
 }

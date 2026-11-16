@@ -1,0 +1,43 @@
+---
+title: L2 Rollup 코드 예제
+description: L2 Rollup 생성 튜토리얼을 위한 완전한 작동 코드 예제
+diataxis: reference
+---
+
+이 페이지에는 L2 Rollup 생성 튜토리얼을 위한 완전한 작동 코드 예제가 포함되어 있습니다. 모든 코드와 구성 파일은 [create-l2-rollup-example 디렉터리](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/)에서 확인할 수 있습니다.
+
+<Info>
+  완전한 작동 구현은 [GitHub의 L2 Rollup 생성 코드](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/)를 참조하십시오.
+</Info>
+
+## 빠른 시작
+
+```bash
+# Copy and configure environment
+cp .example.env .env
+# Edit .env with your values
+
+# Run the automated setup
+make init    # Download tools
+make setup   # Deploy and configure
+make up      # Start services
+```
+
+## 파일
+
+*   `.example.env` - 환경 구성 템플릿
+*   `docker-compose.yml` - 서비스 오케스트레이션
+*   `Makefile` - 자동화 명령
+*   `scripts/` - 설정 및 유틸리티 스크립트
+*   `README.md` - 상세 문서
+
+## 이 코드에 대하여
+
+이 구현은 다음을 제공합니다.
+
+*   OP Stack L2 컨트랙트 자동 배포
+*   Docker 기반의 완전한 서비스 오케스트레이션
+*   모든 OP Stack 구성 요소의 작동 예제
+*   프로덕션 수준의 구성 패턴
+
+자세한 설정 지침은 [L2 Rollup 생성 튜토리얼](/ko/chain-operators/tutorials/create-l2-rollup)을 참조하십시오.

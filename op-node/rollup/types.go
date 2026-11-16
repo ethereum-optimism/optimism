@@ -192,6 +192,9 @@ type Config struct {
 	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
+
+	// SettlementChainID is the OP Private settlement chain ID: 0 if public, own ID if a settlement chain, else its settlement chain's ID.
+	SettlementChainID uint64 `json:"settlement_chain_id,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.

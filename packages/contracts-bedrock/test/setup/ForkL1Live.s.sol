@@ -20,8 +20,6 @@ import { GameType, GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
-import { SemverComp } from "src/libraries/SemverComp.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -278,8 +276,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs;
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions;
 
-        bool permitLockboxDeployment = SemverComp.parse(_opcm.version()).major == 9;
-
         if (Config.devFeatureSuperRootGamesMigration()) {
             // Read the current respected game type from the ASR.
             IOptimismPortal2 portal = IOptimismPortal2(artifacts.mustGetAddress("OptimismPortalProxy"));
@@ -331,8 +327,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
             });
 
-            // V9 preserves the super-root anchor established by v8.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 2 : 1);
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType", data: abi.encode(targetGameType)
             });
@@ -379,16 +374,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             });
             disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
-            });
-
-            // The standard upgrade path only needs lockbox deployment permission in v9.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 1 : 0);
-        }
-
-        // Chains without a lockbox need permission to deploy one. Existing lockboxes are reused.
-        if (permitLockboxDeployment) {
-            extraInstructions[extraInstructions.length - 1] = IOPContractsManagerUtils.ExtraInstruction({
-                key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("ETHLockbox")
             });
         }
 

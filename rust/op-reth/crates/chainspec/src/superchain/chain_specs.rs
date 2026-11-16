@@ -57,4 +57,7 @@ create_superchain_specs!(
     ("zora", "sepolia"),
     ("sepolia-devnet-2", "sepolia-devnet-2"),
     ("sepolia-devnet-3", "sepolia-devnet-3"),
+    ("sepolia-devnet-4", "sepolia-devnet-4"),
+    ("sepolia-devnet-5", "sepolia-devnet-5"),
+    ("sepolia-devnet-6", "sepolia-devnet-6"),
 );

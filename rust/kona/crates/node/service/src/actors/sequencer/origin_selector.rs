@@ -1,12 +1,13 @@
 //! The [`L1OriginSelector`].
 
+use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{RpcError, TransportErrorKind};
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::sync::watch;
 
 /// Trait for selecting the next L1 origin block for sequencing.
@@ -59,13 +60,29 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
         unsafe_head: L2BlockInfo,
         is_recovery_mode: bool,
     ) -> Result<BlockInfo, L1OriginSelectorError> {
+        self.l1.prepare(unsafe_head.l1_origin, is_recovery_mode)?;
         self.select_origins(&unsafe_head, is_recovery_mode).await?;
+
+        let current = self.current.ok_or(L1OriginSelectorError::Pending)?;
+        if self.next.is_none() &&
+            (is_recovery_mode ||
+                unsafe_head.block_info.timestamp + self.cfg.block_time >
+                    current.timestamp + self.cfg.max_sequencer_drift(current.timestamp))
+        {
+            // Recovery mode eagerly adopts available origins, even below max drift. The worker
+            // still owns the I/O; a stalled RPC cannot block sequencing or admin indefinitely.
+            tokio::time::timeout(Duration::from_millis(500), self.l1.refresh())
+                .await
+                .map_err(|_| L1OriginSelectorError::Timeout)??;
+            self.try_fetch_next_origin().await?;
+        }
 
         // Start building on the next L1 origin block if the next L2 block's timestamp is
         // greater than or equal to the next L1 origin's timestamp.
         if let Some(next) = self.next &&
             unsafe_head.block_info.timestamp + self.cfg.block_time >= next.timestamp
         {
+            self.l1.selected(unsafe_head.l1_origin, next.id(), is_recovery_mode)?;
             return Ok(next);
         }
 
@@ -134,26 +151,21 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
                     .await?
                     .ok_or(L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash))?,
             );
-            self.next = self.l1.get_block_by_number(unsafe_head.l1_origin.number + 1).await?;
-            return Ok(());
+            self.next = None;
+            return self.try_fetch_next_origin().await;
         }
 
-        if self.current.map(|c| c.hash == unsafe_head.l1_origin.hash).unwrap_or(false) {
-            // Do nothing; The next L2 block exists in the same epoch as the current L1 origin.
-        } else if self.next.map(|n| n.hash == unsafe_head.l1_origin.hash).unwrap_or(false) {
-            // Advance the origin.
-            self.current = self.next.take();
-            self.next = None;
-        } else {
-            // Find the current origin block, as it is missing.
-            self.current = Some(
-                self.l1
-                    .get_block_by_hash(unsafe_head.l1_origin.hash)
-                    .await?
-                    .ok_or(L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash))?,
-            );
-            self.next = None;
+        if !self.current.is_some_and(|current| current.hash == unsafe_head.l1_origin.hash) {
+            self.current =
+                match self.next.take() {
+                    Some(next) if next.hash == unsafe_head.l1_origin.hash => Some(next),
+                    _ => Some(self.l1.get_block_by_hash(unsafe_head.l1_origin.hash).await?.ok_or(
+                        L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash),
+                    )?),
+                };
         }
+        // Re-read the prepared successor: a head update may have invalidated it.
+        self.next = None;
 
         self.try_fetch_next_origin().await
     }
@@ -173,8 +185,11 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
             // Ignore the eventuality that the block is not found, as the next L1 origin fetch is
             // performed on a best-effort basis.
             let next = self.l1.get_block_by_number(current.number + 1).await?;
-            if next.map(|n| n.parent_hash == current.hash).unwrap_or(false) {
-                self.next = next;
+            if let Some(next) = next {
+                if next.parent_hash != current.hash {
+                    return Err(L1OriginSelectorError::NextOriginOrphaned);
+                }
+                self.next = Some(next);
             }
         }
 
@@ -184,7 +199,23 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
 
 /// An error produced by the [`L1OriginSelector`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum L1OriginSelectorError {
+    /// The background prefetcher has not prepared the requested origin yet.
+    #[error("L1 origin preparation is pending")]
+    Pending,
+    /// The bounded recovery-mode or max-drift wait expired.
+    #[error("L1 origin fetch timed out")]
+    Timeout,
+    /// The background prefetcher stopped; sequencing cannot safely continue.
+    #[error("L1 origin prefetcher channel closed")]
+    Closed,
+    /// The next canonical block does not extend the current origin.
+    #[error("Next L1 origin is orphaned")]
+    NextOriginOrphaned,
+    /// Preparing the attributes inputs failed; retry in the background.
+    #[error("L1 attributes preparation failed: {0}")]
+    Attributes(String),
     /// An error produced by the [`RootProvider`].
     #[error(transparent)]
     Provider(#[from] RpcError<TransportErrorKind>),
@@ -201,6 +232,26 @@ pub enum L1OriginSelectorError {
 /// L1 [`BlockInfo`] provider interface for the [`L1OriginSelector`].
 #[async_trait]
 pub trait L1OriginSelectorProvider: Debug + Sync {
+    /// Request preparation for the unsafe head's origin without waiting for I/O.
+    fn prepare(&self, _origin: BlockNumHash, _recovery: bool) -> Result<(), L1OriginSelectorError> {
+        Ok(())
+    }
+
+    /// Start preparing lookahead as soon as an origin is selected for a build.
+    fn selected(
+        &self,
+        _parent: BlockNumHash,
+        _origin: BlockNumHash,
+        _recovery: bool,
+    ) -> Result<(), L1OriginSelectorError> {
+        Ok(())
+    }
+
+    /// Refresh unavailable L1 data during recovery or at the max-drift boundary.
+    async fn refresh(&self) -> Result<(), L1OriginSelectorError> {
+        Ok(())
+    }
+
     /// Returns a [`BlockInfo`] by its hash.
     async fn get_block_by_hash(
         &self,
@@ -237,7 +288,7 @@ impl DelayedL1OriginSelectorProvider {
     }
 
     /// Whether a numbered origin is eligible at the latest observed L1 head.
-    fn is_confirmed(&self, number: u64) -> bool {
+    pub(crate) fn is_confirmed(&self, number: u64) -> bool {
         number == 0 ||
             self.confirmation_depth == 0 ||
             self.l1_head.borrow().is_some_and(|head| {

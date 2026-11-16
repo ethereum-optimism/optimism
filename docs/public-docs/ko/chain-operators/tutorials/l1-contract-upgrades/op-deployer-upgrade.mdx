@@ -1,0 +1,29 @@
+---
+title: op-deployer를 사용하여 L1 컨트랙트 업그레이드하기
+description: op-contracts/v5.0.0까지의 L1 컨트랙트 업그레이드를 지원하는 op-deployer upgrade 명령의 버전별 지원 여부와 마이그레이션 경로를 안내합니다.
+diataxis: reference
+---
+
+<Warning>
+`op-deployer upgrade` 명령은 `op-contracts/v5.0.0`까지의 업그레이드에 사용할 수 있습니다. `op-contracts/v5.0.0`에서 `op-contracts/v6.0.0`으로의
+업그레이드는 지원하지 **않습니다**. v5.0.0 이후의 업그레이드에는
+[superchain-ops](/ko/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)를 사용하거나
+OPCM과 직접 상호작용하십시오. 자세한 내용은 [지원 중단 공지](/ko/notices/archive/op-deployer-upgrade-deprecation)를 참조하십시오.
+</Warning>
+
+## 버전별 지원 여부
+
+`op-deployer upgrade` 명령은 다음과 같은 컨트랙트 업그레이드 경로를 지원합니다(업그레이드는 단계별로 수행해야 합니다).
+
+| 업그레이드 경로 | op-deployer 버전 | 상태 |
+|---|---|---|
+| op-contracts/v1.8.0에서 op-contracts/v2.0.0으로 | v0.2.x | 사용 가능 |
+| op-contracts/v2.0.0에서 op-contracts/v3.0.0으로 | v0.3.x | 사용 가능 |
+| op-contracts/v3.0.0에서 op-contracts/v4.0.0으로 | v0.4.x | 사용 가능 |
+| op-contracts/v4.0.0에서 op-contracts/v5.0.0으로 | v0.5.x | 사용 가능 |
+
+`op-deployer`의 각 마이너 버전은 거버넌스에서 승인된 스마트 컨트랙트의 단일 릴리스를 지원했습니다. 버전 관리에 대한 자세한 내용은 [릴리스 가이드](/ko/chain-operators/tools/op-deployer/reference/releases)를 참조하십시오.
+
+## 마이그레이션
+
+`op-contracts/v5.0.0` 이후의 L1 컨트랙트 업그레이드에는 [superchain-ops](/ko/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)를 사용하십시오. Optimism 거버넌스가 적용되지 않는 체인은 자체 도구를 사용하여 OPCM과 직접 상호작용할 수 있습니다.

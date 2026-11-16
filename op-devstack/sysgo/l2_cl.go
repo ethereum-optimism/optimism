@@ -20,6 +20,8 @@ type L2CLConfig struct {
 	// SyncMode for op-node, if this is a verifier. As above, this does not select
 	// a native sync mode in Kona.
 	VerifierSyncMode nodeSync.Mode
+	// VerifierL1Confs delays L1 input to derivation, independently of sequencing.
+	VerifierL1Confs uint64
 
 	// SafeDBPath is the path to the safe DB to use. Disabled if empty.
 	SafeDBPath string
@@ -39,9 +41,8 @@ type L2CLConfig struct {
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
 
-	// SequencerMaxSafeLag caps the gap between unsafe and safe L2 heads;
-	// the sequencer stalls block production when the gap is exceeded. 0 disables.
-	SequencerMaxSafeLag uint64
+	// AltDAServerURL is the DA server the node reads alt-DA inputs from. Empty disables alt-DA.
+	AltDAServerURL string
 }
 
 func L2CLSequencer() L2CLOption {
@@ -53,14 +54,6 @@ func L2CLSequencer() L2CLOption {
 func L2CLFollowSource(source string) L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.FollowSource = source
-	})
-}
-
-// L2CLSequencerMaxSafeLag sets the sequencer max-safe-lag. The sequencer stalls
-// block production when the unsafe/safe gap exceeds this value. 0 disables.
-func L2CLSequencerMaxSafeLag(maxSafeLag uint64) L2CLOption {
-	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
-		cfg.SequencerMaxSafeLag = maxSafeLag
 	})
 }
 

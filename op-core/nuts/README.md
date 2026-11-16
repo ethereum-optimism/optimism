@@ -46,7 +46,7 @@ Then generate this fork's **pre-fork state** and commit it alongside the lock, s
 just nut-prefork-state-for <fork>
 ```
 
-This writes `op-core/nuts/state/<fork>_state.json` (= the previous fork's state with this fork's bundle applied), which `check-nut-locks` requires. See [`op-core/nuts/state/README.md`](state/README.md) for details.
+This writes `op-core/nuts/state/<fork>_state.json` (= the previous fork's state with this fork's bundle applied), which `check-nut-locks` requires. From Lagoon onward, it also writes `op-core/nuts/state/<fork>_multichain_state.json`: the same state for a chain with a dependency set of more than one chain. `check-nut-locks` requires both. See [`op-core/nuts/state/README.md`](state/README.md) for details.
 
 ### Verifying a bundle
 
@@ -62,8 +62,8 @@ Requires `forge` for the provenance check (step 2).
 
 ### CI checks
 
-- **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, all entries have a commit, every `*_nut_bundle.json` file has a corresponding lock entry, and each locked fork has a committed pre-fork state (`op-core/nuts/state/<fork>_state.json`). Runs in CI on every PR.
-- **`check-nut-prefork-states`** — Regenerates every committed non-seed `op-core/nuts/state/<fork>_state.json` file and fails if any committed state snapshot drifts.
+- **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, all entries have a commit, every `*_nut_bundle.json` file has a corresponding lock entry, and each locked fork has a committed pre-fork state (`op-core/nuts/state/<fork>_state.json`, plus `<fork>_multichain_state.json` from Lagoon onward). Runs in CI on every PR.
+- **`check-nut-prefork-states`** — Regenerates every committed non-seed `op-core/nuts/state/<fork>_state.json` and `<fork>_multichain_state.json` file and fails if any committed state snapshot drifts.
 
 ## fork_lock.toml schema
 

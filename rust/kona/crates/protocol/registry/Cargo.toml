@@ -33,9 +33,6 @@ serde_json = { workspace = true, features = ["raw_value"] }
 # misc
 lazy_static = { workspace = true, features = ["spin_no_std"] }
 
-# `tabled` feature
-tabled = { workspace = true, features = ["derive"], optional = true }
-
 [build-dependencies]
 toml = { workspace = true, features = ["parse", "serde"] }
 serde = { workspace = true }
@@ -48,7 +45,6 @@ alloy-eips.workspace = true
 [features]
 default = []
 rollup_config_override = ["kona-genesis/rollup_config_override"]
-tabled = [ "dep:tabled", "std" ]
 std = [
 	"alloy-chains/std",
 	"alloy-eips/std",
@@ -57,6 +53,5 @@ std = [
 	"kona-genesis/std",
 	"serde/std",
 	"serde_json/std",
-	"tabled?/std",
 	"toml/std"
 ]

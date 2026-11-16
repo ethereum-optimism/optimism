@@ -160,7 +160,7 @@ func testOutputCannonStepWithLargePreimage(t *testing.T, allocType config.AllocT
 	safeHead, err := wait.ForNextSafeBlock(ctx, sys.NodeClient("sequencer"))
 	require.NoError(t, err, "Batcher should resume submitting valid batches")
 
-	l2BlockNumber := safeHead.NumberU64()
+	l2BlockNumber := bigs.Uint64Strict(safeHead.Number)
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Dispute any block - it will have to read the L1 batches to see if the block is reached
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", l2BlockNumber, common.Hash{0x01, 0xaa})
@@ -292,7 +292,7 @@ func testOutputCannonStepWithKzgPointEvaluation(t *testing.T, allocType config.A
 		// Ensure that the L1 origin including the point eval tx isn't on the genesis epoch.
 		safeBlock, err := wait.ForNextSafeBlock(ctx, sys.NodeClient("sequencer"))
 		require.NoError(t, err)
-		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeBlock.NumberU64()+3))
+		require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), bigs.Uint64Strict(safeBlock.Number)+3))
 
 		receipt := SendKZGPointEvaluationTx(t, sys, "sequencer", sys.Cfg.Secrets.Alice)
 		precompileBlock := receipt.BlockNumber

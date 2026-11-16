@@ -1,0 +1,320 @@
+---
+title: "Rollup RPC 메서드"
+diataxis: reference
+---
+
+`optimism` API는 Kona의 rollup 상태 및 구성과 상호작용하기 위한 메서드를 제공합니다.
+
+## `optimism_outputAtBlock`
+
+특정 블록 번호의 output root를 반환합니다. 여기에는 L2 블록 참조, 출금(withdrawal) storage root, state root, 동기화 상태가 포함됩니다.
+
+| 클라이언트 | 메서드 호출                                              |
+| ------ | -------------------------------------------------------------- |
+| RPC    | `{"method": "optimism_outputAtBlock", "params": [blockNumber]}` |
+
+### 매개변수
+
+- `blockNumber` (`BlockNumberOrTag`): output을 가져올 블록 번호입니다. 숫자, "latest", "earliest", "pending", "safe", "finalized" 중 하나를 사용할 수 있습니다.
+
+### 반환값
+
+`OutputResponse` - 다음을 포함하는 객체:
+- `version` (`string`): output 버전 해시
+- `outputRoot` (`string`): output root 해시
+- `blockRef` (`L2BlockInfo`): L2 블록 참조
+- `withdrawalStorageRoot` (`string`): 출금 storage root
+- `stateRoot` (`string`): state root
+- `syncStatus` (`SyncStatus`): 노드의 현재 동기화 상태
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_outputAtBlock","params":["latest"]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "version": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "outputRoot": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "blockRef": {
+      "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "number": 12345,
+      "parentHash": "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+      "timestamp": 1699123456,
+      "l1Origin": {
+        "hash": "0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
+        "number": 18123456
+      },
+      "sequenceNumber": 42
+    },
+    "withdrawalStorageRoot": "0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234",
+    "stateRoot": "0xcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+    "syncStatus": {
+      "current_l1": {
+        "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "number": 18123456
+      },
+      "current_l1_finalized": {
+        "hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "number": 18123400
+      },
+      "head_l1": {
+        "hash": "0x3333333333333333333333333333333333333333333333333333333333333333",
+        "number": 18123460
+      },
+      "safe_l1": {
+        "hash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+        "number": 18123450
+      },
+      "finalized_l1": {
+        "hash": "0x5555555555555555555555555555555555555555555555555555555555555555",
+        "number": 18123400
+      },
+      "unsafe_l2": {
+        "hash": "0x6666666666666666666666666666666666666666666666666666666666666666",
+        "number": 12350,
+        "parentHash": "0x7777777777777777777777777777777777777777777777777777777777777777",
+        "timestamp": 1699123500,
+        "l1Origin": {
+          "hash": "0x8888888888888888888888888888888888888888888888888888888888888888",
+          "number": 18123460
+        },
+        "sequenceNumber": 47
+      },
+      "safe_l2": {
+        "hash": "0x9999999999999999999999999999999999999999999999999999999999999999",
+        "number": 12345,
+        "parentHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "timestamp": 1699123456,
+        "l1Origin": {
+          "hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "number": 18123456
+        },
+        "sequenceNumber": 42
+      },
+      "finalized_l2": {
+        "hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "number": 12340,
+        "parentHash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "timestamp": 1699123400,
+        "l1Origin": {
+          "hash": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "number": 18123400
+        },
+        "sequenceNumber": 37
+      },
+      "local_safe_l2": {
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000003",
+        "number": 12345,
+        "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000004",
+        "timestamp": 1699123456,
+        "l1Origin": {
+          "hash": "0x0000000000000000000000000000000000000000000000000000000000000005",
+          "number": 18123456
+        },
+        "sequenceNumber": 42
+      }
+    }
+  }
+}
+```
+
+## `optimism_syncStatus`
+
+L1 및 L2 블록 상태 정보를 포함하여 rollup node의 현재 동기화 상태를 반환합니다.
+
+| 클라이언트 | 메서드 호출                            |
+| ------ | -------------------------------------------- |
+| RPC    | `{"method": "optimism_syncStatus", "params": []}` |
+
+### 반환값
+
+`SyncStatus` - 상세한 동기화 정보를 포함하는 객체:
+- `current_l1` (`BlockInfo`): derivation이 현재 대기 중인 L1 블록
+- `current_l1_finalized` (`BlockInfo`): 현재 최종 확정된 L1 블록(레거시/지원 중단됨)
+- `head_l1` (`BlockInfo`): L1 head 블록 참조
+- `safe_l1` (`BlockInfo`): L1 safe head 블록 참조
+- `finalized_l1` (`BlockInfo`): 최종 확정된 L1 블록 참조
+- `unsafe_l2` (`L2BlockInfo`): unsafe L2 블록 참조(절대적 최신 블록)
+- `safe_l2` (`L2BlockInfo`): safe L2 블록 참조(L1에서 derive됨)
+- `finalized_l2` (`L2BlockInfo`): 최종 확정된 L2 블록 참조
+- `local_safe_l2` (`L2BlockInfo`): L1에서 derive되었지만 아직 교차 검증되지 않은 로컬 safe L2 블록
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_syncStatus","params":[]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "current_l1": {
+      "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "number": 18123456
+    },
+    "current_l1_finalized": {
+      "hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "number": 18123400
+    },
+    "head_l1": {
+      "hash": "0x3333333333333333333333333333333333333333333333333333333333333333",
+      "number": 18123460
+    },
+    "safe_l1": {
+      "hash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+      "number": 18123450
+    },
+    "finalized_l1": {
+      "hash": "0x5555555555555555555555555555555555555555555555555555555555555555",
+      "number": 18123400
+    },
+    "unsafe_l2": {
+      "hash": "0x6666666666666666666666666666666666666666666666666666666666666666",
+      "number": 12350,
+      "parentHash": "0x7777777777777777777777777777777777777777777777777777777777777777",
+      "timestamp": 1699123500,
+      "l1Origin": {
+        "hash": "0x8888888888888888888888888888888888888888888888888888888888888888",
+        "number": 18123460
+      },
+      "sequenceNumber": 47
+    },
+    "safe_l2": {
+      "hash": "0x9999999999999999999999999999999999999999999999999999999999999999",
+      "number": 12345,
+      "parentHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "timestamp": 1699123456,
+      "l1Origin": {
+        "hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "number": 18123456
+      },
+      "sequenceNumber": 42
+    },
+    "finalized_l2": {
+      "hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "number": 12340,
+      "parentHash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "timestamp": 1699123400,
+      "l1Origin": {
+        "hash": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "number": 18123400
+      },
+      "sequenceNumber": 37
+    },
+    "local_safe_l2": {
+      "hash": "0x0000000000000000000000000000000000000000000000000000000000000003",
+      "number": 12345,
+      "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000004",
+      "timestamp": 1699123456,
+      "l1Origin": {
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000005",
+        "number": 18123456
+      },
+      "sequenceNumber": 42
+    }
+  }
+}
+```
+
+## `optimism_rollupConfig`
+
+rollup 체인의 동작과 속성을 정의하는 rollup 구성 매개변수를 반환합니다.
+
+| 클라이언트 | 메서드 호출                              |
+| ------ | ---------------------------------------------- |
+| RPC    | `{"method": "optimism_rollupConfig", "params": []}` |
+
+### 반환값
+
+`RollupConfig` - 전체 rollup 구성을 포함하는 객체:
+- `genesis` (`ChainGenesis`): rollup의 제네시스 상태
+- `blockTime` (`number`): 초 단위의 L2 블록 시간
+- `maxSequencerDrift` (`number`): 초 단위의 최대 sequencer drift
+- `seqWindowSize` (`number`): sequencer window 크기
+- `channelTimeout` (`number`): 채널 열림과 닫힘 사이의 L1 블록 수
+- `graniteChannelTimeout` (`number`): Granite 하드포크 이후의 채널 타임아웃
+- `l1ChainId` (`number`): L1 체인 ID
+- `l2ChainId` (`number`): L2 체인 ID
+- `batchInboxAddress` (`string`): 배치가 전송되는 L1 주소
+- `depositContractAddress` (`string`): 입금(디파짓)용 L1 주소
+- `l1SystemConfigAddress` (`string`): 시스템 구성용 L1 주소
+- `protocolVersionsAddress` (`string`): 프로토콜 버전용 L1 주소
+- 하드포크, 수수료, 상호운용성(interoperability)을 위한 추가 구성 필드
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_rollupConfig","params":[]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "genesis": {
+      "l1": {
+        "hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        "number": 18000000
+      },
+      "l2": {
+        "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        "number": 0,
+        "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "timestamp": 1699000000,
+        "l1Origin": {
+          "hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          "number": 18000000
+        },
+        "sequenceNumber": 0
+      },
+      "l2Time": 1699000000,
+      "systemConfig": {
+        "batcherAddr": "0x1234567890123456789012345678901234567890",
+        "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+        "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+        "gasLimit": 30000000
+      }
+    },
+    "blockTime": 2,
+    "maxSequencerDrift": 600,
+    "seqWindowSize": 3600,
+    "channelTimeout": 300,
+    "graniteChannelTimeout": 50,
+    "l1ChainId": 1,
+    "l2ChainId": 10,
+    "batchInboxAddress": "0xff00000000000000000000000000000000000010",
+    "depositContractAddress": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed",
+    "l1SystemConfigAddress": "0x229047fed2591dbec1eF1118d64F7aF3dB9EB290",
+    "protocolVersionsAddress": "0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935",
+    "superchainConfigAddress": "0x95703e0982140D16f8ebA6d158FccEde42f04a4C",
+    "blobs_data": 1710374400,
+    "interopMessageExpiryWindow": 3600,
+    "chainOpConfig": {
+      "canyon_denominator": 250,
+      "canyon_elasticity": 6
+    }
+  }
+}
+```
+
+## `optimism_version`
+
+Kona rollup node의 소프트웨어 버전을 반환합니다.
+
+| 클라이언트 | 메서드 호출                        |
+| ------ | ---------------------------------------- |
+| RPC    | `{"method": "optimism_version", "params": []}` |
+
+### 반환값
+
+`string` - Kona 소프트웨어의 버전 문자열(예: "0.1.0")
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_version","params":[]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0.1.0"
+}
+```

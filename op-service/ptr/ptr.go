@@ -13,6 +13,14 @@ func New[T any](v T) *T {
 	return &v
 }
 
+// Deref returns the value behind v, or the zero value of T when v is nil.
+func Deref[T any](v *T) (zero T) {
+	if v == nil {
+		return zero
+	}
+	return *v
+}
+
 func Str[T any](v *T) string {
 	if v == nil {
 		return "<nil>"

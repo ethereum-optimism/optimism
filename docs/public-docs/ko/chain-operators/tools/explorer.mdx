@@ -1,0 +1,61 @@
+---
+title: Blockscout 블록 탐색기
+description: OP Stack을 위한 오픈 소스 블록 탐색기인 Blockscout입니다.
+diataxis: how-to
+---
+
+[Blockscout](https://www.blockscout.com/)는 OP Stack 체인을 지원하는 오픈 소스 블록 탐색기입니다.
+OP Stack 체인에 Blockscout를 배포하는 방법에 대한 간단한 개요는 계속 읽어 보십시오.
+
+<Info>
+  Blockscout 인스턴스를 배포하고 유지 관리하는 방법에 대한 최신 정보는 [Blockscout 문서](https://docs.blockscout.com)를 확인하십시오.
+</Info>
+
+## 의존성
+
+*   [Docker](https://docs.docker.com/get-docker/)
+
+## 아카이브 node 생성
+
+Blockscout가 트랜잭션, 블록, 내부 상호작용을 올바르게 인덱싱하려면 OP Stack 체인의 [아카이브 node](https://www.alchemy.com/overviews/archive-nodes#archive-nodes)에 접근할 수 있어야 합니다.
+`op-geth`를 사용하는 경우 `--gcmode=archive` 플래그로 node를 아카이브 모드로 실행할 수 있습니다.
+
+<Info>
+  아카이브 node는 풀 node보다 훨씬 많은 디스크 공간을 차지합니다.
+  프로덕션 OP Stack 체인용 아카이브 node를 운영하려면 2~4테라바이트의 디스크 공간(가급적 SSD)이 필요할 수 있습니다.
+  개발용 체인에는 1~200기가바이트의 디스크 공간으로 충분할 수 있습니다.
+</Info>
+
+## 설치
+
+Blockscout는 GitHub의 소스 코드로 시작할 수 있습니다.
+
+```sh
+git clone https://github.com/blockscout/blockscout.git -b production-optimism
+cd blockscout/docker-compose
+```
+
+## 구성
+
+`envs` 디렉터리 내의 구성 파일을 검토하고 필요한 변경을 수행하십시오.
+특히 `envs/common-blockscout.env`와 `envs/common-frontend.env`를 반드시 검토하십시오.
+
+## Blockscout 시작
+
+다음 명령으로 Blockscout를 시작합니다.
+
+```sh
+DOCKER_REPO=blockscout-optimism docker compose -f geth.yml up
+```
+
+## 사용법
+
+### 탐색기
+
+Blockscout가 시작된 후 [http://localhost](http://localhost)로 이동하여 사용자 인터페이스를 확인하십시오.
+Blockscout 구성을 변경한 경우 이 URL은 다를 수 있습니다.
+
+### API
+
+Blockscout는 REST API와 GraphQL API를 모두 제공합니다.
+자세한 내용은 [API 문서](https://docs.blockscout.com/for-users/api)를 참고하십시오.

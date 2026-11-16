@@ -24,6 +24,7 @@ reth-payload-builder-primitives.workspace = true
 reth-payload-util.workspace = true
 reth-payload-primitives.workspace = true
 reth-basic-payload-builder.workspace = true
+reth-tasks.workspace = true
 reth-payload-validator.workspace = true
 reth-metrics.workspace = true
 
@@ -60,5 +61,9 @@ metrics-exporter-prometheus.workspace = true
 metrics-util.workspace = true
 reth-node-metrics.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+reth-provider = { workspace = true, features = ["test-utils"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
+reth-transaction-pool = { workspace = true, features = ["test-utils"] }
+proptest.workspace = true
 rstest.workspace = true
+tokio = { workspace = true, features = ["rt"] }

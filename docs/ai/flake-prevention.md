@@ -402,6 +402,29 @@ addTrustedPeer(acceptor, initiatorEnode)
 
 **Examples:** [#22486](https://github.com/ethereum-optimism/optimism/issues/22486), [#22487](https://github.com/ethereum-optimism/optimism/pull/22487). **Lint:** no (cross-process lifecycle).
 
+### F18 — Reading state that another component changes on its own schedule
+
+A test waits for state that exists only until a running component changes it: a block that a replacement or reorg removes, a tx that the sequencer includes, a game that a background actor resolves, a head label that moves past the block the test checks. The wait is on the right postcondition, but the postcondition exists only for a window the test does not control, so any poll interval can miss it. A faster poll lowers the miss rate; it does not remove the race.
+
+```go
+// BAD — in CI the supernode replaced the block, without the tx, 2–3s after
+// inclusion. The default inclusion backoff checks at ~0, 1, 3, 7 and 15s, so the
+// window can fall between two checks: "receipt not found".
+execMsg := bob.SendInvalidExecMessage(initMsg)
+hidden.Hide(execMsg.BlockHash())
+
+// GOOD — hold the component below the block until every read of its
+// pre-removal state is done.
+sys.Supernode().EnsureInteropPaused(10, sys.L2CLA, sys.L2CLB)
+execMsg := bob.SendInvalidExecMessage(initMsg)
+hidden.Hide(execMsg.BlockHash())
+sys.Supernode().ResumeInterop()
+```
+
+Hold the component that changes the state until every read is done: `EnsureInteropPaused`/`ResumeInterop`, `StopSequencer`, `L2Batcher.Stop`. If the test cannot hold it, assert on the end state that persists instead of the transient one. Unlike F11, the test needs the component, so pause it instead of removing it from the preset. Re-check this whenever a test changes block times or other timing settings: the race can sit in an unchanged helper whose poll schedule the new timing shifts.
+
+**Examples:** [#23781](https://github.com/ethereum-optimism/optimism/pull/23781). **Lint:** no (semantic).
+
 ## Reviewer checklist
 
 When reviewing a PR that touches `op-acceptance-tests/` or `op-devstack/`, ask:
@@ -423,6 +446,7 @@ When reviewing a PR that touches `op-acceptance-tests/` or `op-devstack/`, ask:
 - [ ] **F15**: Any code selecting a free port, closing the listener, then starting a service on that port?
 - [ ] **F16**: Any stop path for a process fronted by a long-lived proxy that does not clear the proxy upstream *before* initiating the stop?
 - [ ] **F17**: Any setup path that can have two nodes dialing each other at the same time (e.g. add-peer plus a trusted/static entry on the other side)? Confirm one connection is established before triggering anything that dials back.
+- [ ] **F18**: Does the test wait for state that a running component will change on its own schedule (a block replaced or reorged out, a tx included, a game resolved, a head label moved past the checked block)? Hold that component until the read is done, or assert on the persistent end state; a faster poll is not a fix. Re-check this when the test changes block times or other timing settings.
 
 ## When a flake report comes in
 

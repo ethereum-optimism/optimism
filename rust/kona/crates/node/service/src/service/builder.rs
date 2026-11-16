@@ -80,6 +80,8 @@ pub struct RollupNodeBuilder {
     pub dependency_set: Option<Arc<DependencySet>>,
     /// Records the safe head reached as of each L1 block when configured.
     pub safe_db: Option<Arc<dyn SafeDb>>,
+    /// Number of L1 confirmations required before deriving L2 blocks.
+    pub verifier_l1_confs: u64,
 }
 
 impl RollupNodeBuilder {
@@ -105,6 +107,7 @@ impl RollupNodeBuilder {
             derivation_delegate_config: None,
             dependency_set: None,
             safe_db: None,
+            verifier_l1_confs: 0,
         }
     }
 
@@ -120,6 +123,11 @@ impl RollupNodeBuilder {
     /// Sets the safe head database that records derivation progress per L1 block.
     pub fn with_safe_db(self, safe_db: Option<Arc<dyn SafeDb>>) -> Self {
         Self { safe_db, ..self }
+    }
+
+    /// Sets the L1 confirmation depth for derivation in both node modes.
+    pub fn with_verifier_l1_confs(self, verifier_l1_confs: u64) -> Self {
+        Self { verifier_l1_confs, ..self }
     }
 
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
@@ -213,6 +221,7 @@ impl RollupNodeBuilder {
             derivation_delegate_provider,
             dependency_set: self.dependency_set,
             safe_db: self.safe_db,
+            verifier_l1_confs: self.verifier_l1_confs,
         }
     }
 }

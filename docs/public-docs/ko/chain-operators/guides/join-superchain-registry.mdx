@@ -1,0 +1,117 @@
+---
+title: Superchain Registry 가입
+description: OP Stack 체인을 Superchain Registry에 추가하는 방법 — 사전 요구 사항, 구성 생성, pull request 절차를 설명합니다.
+diataxis: how-to
+---
+
+{/*
+  Maintainers: this guide wraps the registry repo's docs/ops.md, which remains
+  the canonical source for step details. Last verified against
+  ethereum-optimism/superchain-registry docs/ops.md at commit 738212e.
+*/}
+
+[Superchain Registry](https://github.com/ethereum-optimism/superchain-registry)는
+OP Stack 생태계에 누가 속해 있으며 각 체인이 어떻게 구성되어 있는지에 대한
+기준(source of truth) 인덱스입니다. 이 가이드는 체인을 추가하는 과정을
+안내합니다. registry 저장소의
+[운영 문서](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md)는
+아래 모든 단계의 정식 레퍼런스입니다. 각 단계는 해당 섹션으로 연결되며,
+이 페이지와 해당 문서의 내용이 다를 경우 registry 저장소의 내용이 우선합니다.
+
+가입하면 단순히 목록에 등재되는 것 이상의 이점이 있습니다. 체인이 registry에
+등록되면 해당 구성이 `op-node` 및 `op-geth`의 다운스트림 릴리스에 포함되므로,
+node는 `--network` / `--op-network` 플래그로 네트워크에 참여할 수 있고
+Superchain 전체의 하드포크 활성화를 자동으로 상속받을 수 있습니다. 작동 방식은
+[superchain-registry 설명](/ko/op-stack/protocol/superchain-registry)을
+참조하세요.
+
+## 시작하기 전에
+
+*   **Optimism Foundation과 상의하세요.**
+*   **체인 ID가
+    [ethereum-lists/chains](https://github.com/ethereum-lists/chains)에 등록되어 있어야 합니다.**
+    registry의 검증 스위트가 이를 기준으로 확인하므로 필수 사전 요구 사항입니다
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#adding-a-chain)).
+*   **표준 체인은
+    [op-deployer](/ko/chain-operators/tools/op-deployer/overview)로 배포해야 합니다.**
+    체인은 op-deployer로 배포된 경우에만 registry에서 표준으로 간주되며,
+    op-deployer는 registry 도구가 사용하는 `state.json` 파일도 생성합니다
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#0-standard-chains-deploy-your-chain-with-op-deployer)).
+    다른 방식으로 배포된 체인은 아래의 [커스텀 체인 경로](#커스텀-체인)를
+    따릅니다.
+*   **도구 의존성을 설치하세요:** `git` (`^2`), `go` (`^1.21`),
+    [`just`](https://github.com/casey/just) (`^1.28.0`)
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#1-install-dependencies)).
+
+## 체인 추가
+
+<Steps>
+  <Step title="Registry 저장소 포크">
+    포크한 저장소에서 업스트림 저장소로 pull request를 올리게 됩니다. 보호되지
+    않은 새 브랜치(포크의 `main`이 아닌)에서 시작하고, 브랜치와 PR마다 체인을
+    하나씩 추가하세요.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#2-fork-this-repository))
+  </Step>
+
+  <Step title="State 파일로 구성 생성">
+    registry 저장소의 루트에서 다음을 실행합니다.
+
+    ```bash
+    just create-config <shortname> <path to your state file>
+    ```
+
+    여기서 `<shortname>`은 체인의 짧은 이름(예: `op`)이며, state 파일은
+    op-deployer가 생성한 `state.json`입니다. 이 명령은 `.staging` 디렉터리에
+    `<shortname>.toml`과 `<shortname>.json.zst` 두 파일을 생성합니다. 커스텀
+    컨트랙트로 배포한 경우 op-deployer 버전을 세 번째 인수로 전달하세요.
+    지원되는 값은 registry의 `versions.json`에 있습니다.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#3-generate-a-config-from-your-state-file))
+  </Step>
+
+  <Step title="생성된 구성 채우기">
+    `<shortname>.toml`의 대부분은 deployer state에서 채워지지만, 나머지는
+    직접 입력해야 합니다: `name`, `superchain` (`mainnet` 또는 `sepolia`),
+    `public_rpc`, `sequencer_rpc`, `explorer`, `deployment_tx_hash`.
+    파일을 편집하는 동안 생성된 값도 다시 확인하세요.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#4-update-generated-config))
+  </Step>
+
+  <Step title="Pull Request 열기">
+    포크에 커밋하고 체인마다 PR을 하나씩 엽니다. 리뷰어가 브랜치에 푸시할 수
+    있도록 [메인테이너의 편집 허용](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork)
+    상자를 선택하세요. 자동화된 검사가 체인을 검증하고 표준 블록체인
+    헌장(standard blockchain charter) 준수 여부에 대한 보고서를 생성합니다.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#5-commit))
+  </Step>
+
+  <Step title="리뷰 대기">
+    registry 메인테이너가 PR을 리뷰합니다. 준비가 되면 팀이 PR로부터 코드를
+    생성하여 포크에 푸시합니다. codegen을 직접 실행하지 마세요. 리뷰가
+    느려집니다.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#6-await-review))
+  </Step>
+</Steps>
+
+## 커스텀 체인
+
+체인이 op-deployer로 배포되지 않은 경우(예: 대폭 수정된 배포), 구성 파일을
+생성하는 대신 직접 작성해야 합니다. 예시 구성을 `.staging`에 복사하고, 모든
+필드를 체인에 맞게 바꾸고(커스텀 체인은 `superchain_level = 0` 및
+`governed_by_optimism = false`로 설정), registry의 딕셔너리로 genesis 파일을
+ZST 인코딩합니다. 필드별 전체 안내는
+[커스텀 체인 추가](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#adding-a-custom-chain)에 있습니다.
+
+## 가입 후
+
+Superchain 전체에서 조율된 하드포크 활성화를 자동으로 받으려면 체인 구성에
+`superchain_time`을 설정하고(체인이 genesis 시점까지의 모든 Superchain 포크를
+활성화한 경우 `0` 사용), 네트워크 플래그로 node를 실행하세요. 자세한 내용은
+[설명](/ko/op-stack/protocol/superchain-registry#hard-fork-activation-inheritance-behavior)
+및 registry의
+[하드포크 활성화 상속 스펙](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md)을 참조하세요.
+
+## 다음 단계
+
+*   [superchain-registry 설명](/ko/op-stack/protocol/superchain-registry)
+*   [op-deployer로 체인 배포](/ko/chain-operators/tools/op-deployer/overview)
+*   [Registry 운영 문서](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md) (정식)

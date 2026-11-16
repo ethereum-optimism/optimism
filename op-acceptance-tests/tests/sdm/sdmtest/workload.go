@@ -2,6 +2,7 @@ package sdmtest
 
 import (
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -114,7 +115,7 @@ func MustFindRepeatedSlotBlock(
 
 		block := GetBlockWithTxs(t, sys.L2EL, targetBlockNum)
 		t.Require().Greater(len(block.Transactions), 0, "block must have at least one transaction")
-		t.Require().Equal(uint64(types.DepositTxType), uint64(block.Transactions[0].Type),
+		t.Require().Equal(uint64(optypes.DepositTxType), uint64(block.Transactions[0].Type),
 			"position 0 must be a deposit tx (L1 info)")
 		return block, targetIncluded, targetBlockNum
 	}

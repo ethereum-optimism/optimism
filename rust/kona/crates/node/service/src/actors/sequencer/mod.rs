@@ -3,6 +3,11 @@
 mod config;
 pub use config::SequencerConfig;
 
+mod origin_prefetch;
+pub(crate) use origin_prefetch::{
+    OriginPrefetcher, OriginPreparation, PreparedAttributesProvider, PreparedOriginProvider,
+};
+
 mod origin_selector;
 pub use origin_selector::{
     DelayedL1OriginSelectorProvider, L1OriginSelector, L1OriginSelectorError,

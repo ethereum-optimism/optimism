@@ -1,0 +1,86 @@
+---
+title: "모니터링"
+description: "kona-node의 로깅, Prometheus 메트릭, Grafana 대시보드를 설정합니다."
+diataxis: how-to
+---
+
+이 가이드는 실행 중인 `kona-node`의 관측 가능성(observability)을 다룹니다.
+로그 상세 수준 조정, 로그 대상 필터링, Prometheus 메트릭을 수집하여
+Grafana 대시보드로 시각화하는 방법을 설명합니다.
+
+## 로깅
+
+`kona-node`는 로그의 "상세 수준(verbosity)"을 설정하는 방법으로
+`-v`(또는 `--v`) 플래그를 제공합니다. 기본적으로 상세 수준은
+INFO 수준인 `3`으로 설정됩니다. 수준은 로그가 없는 `0`부터
+trace 로그를 포함하는 `5`까지입니다. 로그 수준은 아래와 같으며,
+각 수준은 그 아래 수준을 포함합니다.
+
+- `5`: `TRACE` - 자세한 추적 정보를 제공하는 매우 상세한 로그
+- `4`: `DEBUG` - 디버깅 정보를 출력하기 위한 로그
+- `3`: `INFO` - 정보성 로그
+- `2`: `WARN` - 경고 및 오류 로그 포함
+- `1`: `ERROR` - 오류 로그만 표시
+- `0`: 로그 없음
+
+기본 상세 수준은 `3` 또는 `INFO` 수준인 `-vvv`입니다.
+`kona-node`가 `DEBUG` 로그(수준 `4`)를 출력하도록 하려면
+`kona-node node -vvvv`와 같이 노드를 실행하십시오.
+
+### 로그 대상 필터링
+
+기본적으로 `kona-node`는 [tracing_subscriber crate가 제공하는][tracing-env]
+기본 환경 변수 필터를 사용해 tracing(로깅)을 초기화합니다.
+이 필터는 `RUST_LOG` 환경 변수의 값을 사용해 특정 대상의 tracing
+수준을 설정합니다. 사실상 `RUST_LOG`를 사용하면 노드 전체 또는 특정
+로그 대상에 대해 기본 로그 수준을 우회할 수 있습니다. 예를 들어
+`kona-node` 명령 앞에 `RUST_LOG=engine=debug`를 붙이면(또는 이를
+환경 변수로 설정하면), `engine` 로그 대상만 `DEBUG` 로그까지
+출력되고 나머지는 `INFO` 로그만 표시됩니다.
+
+이는 Kona의 P2P 스택을 디버깅하려는 경우 등에 유용합니다.
+`RUST_LOG=discv5=debug,libp2p=debug`를 앞에 붙이면 `discv5`와
+`libp2p` 대상의 디버그 로그만 볼 수 있습니다.
+
+## 메트릭
+
+`kona-node`는 Prometheus 메트릭을 제공할 수 있으며, 이는 기본적으로
+비활성화되어 있습니다. 활성화하려면 `--metrics.enabled` CLI 플래그를 전달하십시오.
+
+`--metrics.port` 플래그로 별도로 지정하지 않으면 메트릭은
+포트 `9090`에서 노출됩니다.
+
+메트릭 스냅샷을 확인하려면 `0.0.0.0:9090`에 접속하거나
+해당 URL에 `curl`을 실행하십시오.
+
+```
+curl 0.0.0.0:9090
+```
+
+출력은 메트릭과 그 값을 매핑한 원시 텍스트여야 합니다.
+
+이는 해당 시점의 메트릭 스냅샷일 뿐이라는 점을 기억하십시오.
+메트릭을 기록하고 시각화하려면
+[Grafana와 Prometheus](#grafana-and-prometheus)를 사용합니다.
+
+
+## Grafana와 Prometheus
+
+Prometheus는 미리 정의된 간격으로 메트릭을 수집(scrape)하는 간단한
+서비스입니다. Grafana는 Prometheus를 "데이터 소스(Data Source)"로 사용하여
+수집된 메트릭을 시각화합니다.
+
+Reth book은 [Prometheus와 Grafana 설정][setup]에 대한 훌륭한 개요를
+제공합니다. Reth 문서를 참조하여 따라 하십시오.
+
+`kona-node`에는 `kona-node`용 기본 Grafana 대시보드가 함께
+제공됩니다. 대시보드를 Grafana로 가져오려면 `+` 아이콘 >
+`Import Dashboard`를 클릭하고, [kona의 대시보드][dashboard] 내용을
+텍스트 상자에 붙여 넣은 후 `Load`를 클릭하십시오.
+
+
+[tracing-env]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#method.from_default_env
+
+[setup]: https://reth.rs/run/monitoring#prometheus--grafana
+
+[dashboard]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/docker/recipes/kona-node/grafana/dashboards/overview.json

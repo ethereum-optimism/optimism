@@ -1,0 +1,27 @@
+{/*
+  Shared tooling table for the superchain-ops runbooks. Fact-bearing: the
+  versions must match the optimism repo's root mise.toml pins; re-check them
+  there whenever this snippet is edited. Future runbooks import this snippet
+  instead of copying the table (duplication census clusters T16/S6).
+
+  Hand-maintained; not generated.
+
+  Usage:
+    import RunbookToolVersions from "/snippets/runbook-tool-versions.mdx"
+
+    <RunbookToolVersions />
+
+  Consumer pages (keep this list in sync):
+    chain-operators/tutorials/merge-shared-dispute-game.mdx
+    chain-operators/tutorials/upgrade-chain-to-super-roots.mdx
+*/}
+
+아래 버전은 optimism 저장소의 `mise.toml`에 고정된 버전입니다. 특히 이전 버전의 `cast`는 이 런북에서 사용하는 function-selector 구문을 파싱하지 못할 수 있습니다.
+
+| 도구 | 최소 버전 |
+| --- | --- |
+| `foundry` (`cast`, `forge`) | `1.8.3` |
+| `just` | `1.46.0` |
+| `jq` | `1.7.1` |
+| `go` | `1.26.10` |
+| `curl` | 모든 버전 |

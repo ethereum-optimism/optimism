@@ -6,7 +6,7 @@ version: 2.1
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge; commands used
 # only by this file's jobs are defined below.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.33
+  utils: ethereum-optimism/circleci-utils@1.0.34
 
 parameters:
   c-default_docker_image:
@@ -33,7 +33,7 @@ parameters:
 # RUST E2E COMMANDS
 # ============================================================================
 commands:
-  # Shared by kona-build-sp1-elfs and sp1-bls12-381-zkvm-check, which both build SP1 guests natively.
+  # Shared by kona-build-sp1-elfs and the zkVM check jobs, which build SP1 guests natively.
   sp1-toolchain-restore-or-install:
     description: "Restore the cached SP1 (succinct) toolchain, or install it, after checking SP1 version pins agree"
     steps:
@@ -133,10 +133,11 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-ci
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -181,10 +182,11 @@ jobs:
     # One test per node via the timing split in test-e2e-sysgo-run.
     parallelism: 3
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-ci
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -217,10 +219,11 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: op-reth-e2e
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -251,14 +254,15 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
-    # ~35 action tests, timing-split across nodes (see action-tests-single-run).
-    # 8 nodes roughly halves per-node test time vs 4.
+    # ~38 action tests, timing-split across nodes (see action-tests-single-run).
+    # At 8 nodes the longest test (~190s) sets the wall.
     parallelism: 8
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-ci
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -294,7 +298,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - rust-prepare-and-restore-cache: &sp1-guest-checks-cache-args
@@ -386,13 +390,14 @@ jobs:
     # 32 GB runner instead of competing with parallel acceptance tests.
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - rust-prepare-and-restore-cache:
           directory: rust
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: sp1-super-range-elf-smoke
       - run:
@@ -475,7 +480,7 @@ jobs:
     # The executor run peaks at ~12.5 GiB RSS (measured locally), too close to xlarge's 16 GB.
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - rust-prepare-and-restore-cache:
@@ -496,6 +501,37 @@ jobs:
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
+  # Test-only: builds its own guest ELF and checks, inside SP1's CPU executor, that TSTORE keys
+  # built to collide under one guest hash seed cost no more than control keys under another.
+  # Catches the guest hash seed not reaching revm's maps (see rust/kona/sp1/README.md).
+  sp1-hashdos-zkvm-check:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    # The run peaks at ~7.2 GiB RSS (measured locally); the job also release-builds an sp1-sdk
+    # example, as sp1-bls12-381-zkvm-check does on the same class.
+    resource_class: 2xlarge.gen2
+    steps:
+      - checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - rust-prepare-and-restore-cache:
+          directory: rust
+      - rust-restore-build-cache:
+          directory: rust/kona/sp1/programs
+      - sp1-toolchain-restore-or-install
+      - run:
+          name: Build hash-collision zkVM check ELF
+          working_directory: rust/kona/sp1
+          no_output_timeout: 40m
+          command: just build-hashdos-check-elf
+      - run:
+          name: Run hash-collision zkVM check
+          working_directory: rust/kona/sp1
+          no_output_timeout: 30m
+          command: just run-hashdos-check
+      - notify-failures-on-develop:
+          mentions: "@proofs-team"
+
   # SP1 execute action tests (rust/kona/tests/proofs, TestSP1*). They skip without
   # KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH, which kona-proof-action-tests does not set, so this
   # is their only CI coverage, including the invalid-claim (soundness) path.
@@ -506,11 +542,12 @@ jobs:
     # 32 GB runner.
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-sp1-action-tests
       - run:
@@ -579,16 +616,33 @@ workflows:
       - cannon-prestate: &rust-e2e-job-base
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # rust-workspace-release builds the whole rust workspace (no binary filter),
-      # so it produces kona-host, kona-node, op-reth, and the rest. Downstream
-      # e2e jobs attach the workspace and consume the binaries directly.
+      # The release workspace build is split in two so the e2e jobs below don't
+      # wait for the other binaries' link step. rust-e2e-binaries builds the
+      # binaries they run and persists them; rust-workspace-release builds the
+      # rest. Both select the whole workspace, so features unify as in one
+      # `cargo build --workspace`: together they compile the same units, and
+      # the shared ones hit the same sccache entries.
+      - rust-build-binary:
+          name: rust-e2e-binaries
+          directory: rust
+          profile: release
+          binary: &rust-e2e-binaries "op-reth op-reth-test-engine kona-node kona-host"
+          # rust-workspace-release saves the shared dep cache; one saver is enough.
+          save_cache: false
+          persist_to_workspace: true
+          resource_class: xlarge.gen2
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - rust-build-binary: &rust-workspace-release
           name: rust-workspace-release
           directory: rust
           profile: release
-          persist_to_workspace: true
-          # Release-build linking OOMs xlarge.gen2.
-          resource_class: 2xlarge.gen2
+          exclude_binary: *rust-e2e-binaries
+          # Nothing waits on this build but the gate, so it runs on xlarge.
+          # Without the e2e binaries it peaked at about 11.5 GiB with every crate
+          # missing the cache; the whole build has OOMed xlarge.gen2 before.
+          resource_class: xlarge.gen2
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -603,26 +657,26 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-workspace-release
+            - rust-e2e-binaries
       - op-reth-e2e-sysgo-tests:
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
-            - rust-workspace-release
+            - rust-e2e-binaries
       - rust-restart-sysgo-tests:
           name: rust-e2e-restart
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-workspace-release
+            - rust-e2e-binaries
       # Proof action tests - single-chain only. Interop proof coverage runs
       # under kona-host in op-acceptance-tests, not as action tests.
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
           requires:
-            - rust-workspace-release
+            - rust-e2e-binaries
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -638,6 +692,7 @@ workflows:
             # Gated directly, not just through the e2e jobs below: a failed
             # build leaves them unrun rather than failed, and this workflow is
             # now the only place the release build happens.
+            - rust-e2e-binaries: terminal
             - rust-workspace-release: terminal
             - rust-e2e-simple-kona: terminal
             - rust-e2e-simple-kona-sequencer: terminal
@@ -664,7 +719,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -718,6 +773,11 @@ workflows:
             - sp1-elf-smoke-rust-binaries
             - kona-build-sp1-elfs
       - sp1-bls12-381-zkvm-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+            - slack
+      - sp1-hashdos-zkvm-check:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism

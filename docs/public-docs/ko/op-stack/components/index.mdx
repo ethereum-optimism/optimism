@@ -1,0 +1,70 @@
+---
+title: Stack 구성 요소
+sidebarTitle: 개요
+description: OP Stack 구성 요소마다 하나의 정식 허브 페이지를 두고, 구현하는 프로토콜 계층별로 분류합니다.
+diataxis: explanation
+---
+
+이 섹션은 모든 OP Stack 구성 요소에 정확히 하나의 대표 페이지, 즉 **허브**를 제공하므로
+"구성 요소 X의 문서는 어디에 있는가"라는 질문에 항상 같은 답을 얻을 수 있습니다. 각 허브는
+동일한 [골격](/ko/op-stack/contribute/component-hub-template)을 따릅니다. 구성 요소가 무엇인지,
+누가 운영하는지, 어디서 시작하는지, 그리고 가이드, 구성 레퍼런스, 릴리스, 소스, 사양이 어디에
+있는지를 다룹니다.
+
+구성 요소는 구현하는 프로토콜 계층별로 분류됩니다. 계층 자체는 정식 분류 체계인
+[OP Stack 구성 요소](/ko/op-stack/protocol/components)에 정의되어 있습니다. 구성 요소가 런타임에
+어떻게 상호 작용하는지는 [OP Stack 아키텍처](/ko/op-stack/architecture)를 참조하십시오. 모든 구성
+요소의 릴리스 이력은 [릴리스](/ko/releases)를 참조하십시오.
+
+| 그룹 | 구현하는 계층 |
+| --- | --- |
+| Sequencing | Sequencing, Data Availability |
+| 파생 및 실행 | Derivation, Execution |
+| 정산 및 증명 | Settlement |
+| 배포 및 인프라 | 여러 계층에 걸쳐 있습니다. Governance는 OP Stack 서비스가 아니라 컨트랙트와 프로세스로 처리되므로 구성 요소 허브가 없습니다 |
+
+허브는 검토를 거친 배치 단위로 제공되고 있습니다. 아직 허브가 없는 구성 요소는 릴리스 이력과
+함께 나열되며, 허브 페이지는 이후에 추가됩니다.
+
+## Sequencing
+
+L2 블록을 생성하고 그 데이터를 사용 가능하게 만듭니다. **Sequencing** 및
+**Data Availability** 계층을 구현합니다.
+
+| 구성 요소 | 하는 일 | 허브 | 릴리스 |
+| --- | --- | --- | --- |
+| op-batcher | L2 트랜잭션 배치를 데이터 가용성 계층에 게시합니다 | [허브](/ko/op-stack/components/op-batcher) | [릴리스](/ko/releases/op-batcher) |
+| op-conductor | 고가용성 sequencer 조정 서비스 | [허브](/ko/op-stack/components/op-conductor) | [릴리스](/ko/releases/op-conductor) |
+
+## 파생 및 실행
+
+데이터 가용성 계층에서 정식 L2 체인을 파생하고 그 블록을 실행합니다. **Derivation** 및
+**Execution** 계층을 구현합니다.
+
+| 구성 요소 | 하는 일 | 허브 | 릴리스 |
+| --- | --- | --- | --- |
+| op-node | Go로 작성된 OP Stack 합의 계층(rollup node) 클라이언트 | [허브](/ko/op-stack/components/op-node) | [릴리스](/ko/releases/op-node) |
+| kona-node | OP Stack rollup node의 Rust 구현 | [허브](/ko/op-stack/components/kona-node) | [릴리스](/ko/releases/kona-node) |
+| op-reth | reth 기반의 OP Stack 실행 계층 클라이언트 | [허브](/ko/op-stack/components/op-reth) | [릴리스](/ko/releases/op-reth) |
+
+## 정산 및 증명
+
+L2 상태를 L1에 제안하고 그 유효성을 증명합니다. **Settlement** 계층을 구현합니다.
+
+| 구성 요소 | 하는 일 | 허브 | 릴리스 |
+| --- | --- | --- | --- |
+| op-proposer | L2 output root를 L1에 제안합니다 | [허브](/ko/op-stack/components/op-proposer) | [릴리스](/ko/releases/op-proposer) |
+| op-challenger | 분쟁 게임(dispute game) 이의 제기 에이전트 | [허브](/ko/op-stack/components/op-challenger) | [릴리스](/ko/releases/op-challenger) |
+| cannon | 온체인 MIPS 명령어 에뮬레이터 — 결함 증명 VM | [허브](/ko/op-stack/components/cannon) | [릴리스 태그](https://github.com/ethereum-optimism/optimism/releases?q=cannon%2Fv&expanded=false) |
+| kona-client | OP Stack 상태 전이를 실행하는 결함 증명 프로그램(클라이언트) | [허브](/ko/op-stack/components/kona-client) | [릴리스](/ko/releases/kona-client) |
+| kona-host | kona-client에 preimage 데이터를 제공하는 결함 증명 호스트 | [허브](/ko/op-stack/components/kona-host) | [릴리스](/ko/releases/kona-host) |
+| op-contracts | OP Stack L1 및 L2 스마트 컨트랙트 | [허브](/ko/op-stack/components/op-contracts) | [릴리스](/ko/releases/op-contracts) |
+
+## 배포 및 인프라
+
+체인을 배포하고 그 주변 인프라를 운영합니다.
+
+| 구성 요소 | 하는 일 | 허브 | 릴리스 |
+| --- | --- | --- | --- |
+| op-deployer | OP Stack 체인 배포 도구 | [허브](/ko/op-stack/components/op-deployer) | [릴리스](/ko/releases/op-deployer) |
+| proxyd | RPC 요청 라우터 및 프록시 | [허브](/ko/op-stack/components/proxyd) | [릴리스](/ko/releases/proxyd) |

@@ -1,0 +1,35 @@
+---
+title: op-deployer upgrade 및 manage 명령 지원 중단
+description: op-deployer upgrade 및 manage 명령이 지원 중단되었습니다. L1 컨트랙트 업그레이드에는 superchain-ops 또는 OPCM을 직접 사용하십시오.
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: op-deployer-upgrade-deprecation
+personas:
+  - chain-operator
+categories:
+  - infrastructure
+is_imported_content: 'false'
+---
+
+`op-deployer`의 `manage` 명령은 지원 중단되었으며 더 이상 유지 관리되지 않습니다. `upgrade` 명령은 `op-contracts/v5.0.0`까지의 업그레이드에는 계속 사용할 수 있지만, `op-contracts/v5.0.0`에서 `op-contracts/v6.0.0`으로의 업그레이드는 **지원하지 않습니다**. v5.0.0 이후의 업그레이드에는 OPCM을 직접 사용하거나 superchain-ops를 사용하십시오.
+
+## 의미
+
+*   `op-deployer manage` 하위 명령은 더 이상 지원되지 않으며 업데이트되지 않습니다.
+*   `op-deployer upgrade` 명령은 `op-contracts/v1.8.0`부터 `op-contracts/v5.0.0`까지의 업그레이드 경로(v1.8.0 → v2.0.0 → v3.0.0 → v4.0.0 → v5.0.0 단계별)에 사용할 수 있습니다. `op-contracts/v5.0.0`에서 `op-contracts/v6.0.0`으로의 업그레이드는 **지원하지 않습니다**.
+*   `op-deployer` 자체는 지원 중단되지 **않았습니다**. `bootstrap`, `init`, `apply`, `inspect` 명령을 통한 초기 체인 배포에는 여전히 권장되는 도구입니다.
+*   `op-contracts/v5.0.0` 이후의 L1 컨트랙트 업그레이드에는 [superchain-ops](/ko/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)를 사용하거나 OPCM과 직접 상호작용하십시오.
+
+## 필요한 조치
+
+`op-contracts/v5.0.0` 이후로 업그레이드해야 하는 경우 다음 방법 중 하나로 마이그레이션하십시오.
+
+1.  **[superchain-ops](/ko/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)** — Security Council이 관리하는 OP Stack 체인, Foundation 또는 Security Council이 서명자로 참여하는 체인, 높은 수준의 보안 업그레이드 프로세스가 필요한 체인에 권장됩니다.
+2.  **OPCM 직접 사용** — Optimism 거버넌스를 따르지 않는 체인은 자체 도구를 사용하여 OP Contracts Manager와 직접 상호작용할 수 있습니다.
+
+## 자료
+
+*   [superchain-ops 업그레이드 가이드](/ko/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)
+*   [OP Contracts Manager 레퍼런스](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol)
+*   [OPCM 설계 문서](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/op-contracts-manager-arch.md)

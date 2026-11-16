@@ -101,6 +101,9 @@ func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 	prepareGlamsterdamOpReth(t)
 	sys := presets.NewMinimal(t,
 		glamsterdamL1Geth(t),
+		// The blob fee reasoning in withGlamsterdamAutoDABlobFee needs Amsterdam within 20 L1
+		// blocks, and 20 faster blocks leave too little time to start up and submit a batch.
+		presets.WithL1BlockTime(6),
 		presets.WithDeployerOptions(
 			// Activate the stable test blob schedule before setting the large excess blob gas.
 			sysgo.WithForkAtL1Genesis(forks.BPO2),
@@ -187,7 +190,7 @@ func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
 		sys.L2EL.ReachedFn(eth.Safe, target, 120),
 		sys.L2ELB.ReachedFn(eth.Safe, target, 120),
 	)
-	t.Require().NoError(sys.L2CLB.MatchedFn(sys.L2CL, safety.CrossSafe, 30)(),
+	t.Require().NoError(sys.L2CLB.InSyncFn(sys.L2CL, safety.CrossSafe, 30)(),
 		"sequencer and verifier must match after the P2P block becomes safe")
 	t.Require().Equal(sequencerBlock.ID(), sys.L2EL.BlockRefByNumber(target).ID())
 	t.Require().Equal(sequencerBlock.ID(), sys.L2ELB.BlockRefByNumber(target).ID())

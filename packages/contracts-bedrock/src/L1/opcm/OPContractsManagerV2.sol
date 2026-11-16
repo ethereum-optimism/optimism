@@ -105,6 +105,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 withdrawalDelaySeconds;
+        // Bridge hook to set on the portal, on deploy or upgrade. A nonzero value sets or replaces
+        // the hook, and zero keeps the current one. On upgrade the value comes from the
+        // overrides.cfg.bridgeHook instruction. To clear a hook, use OptimismPortal2.removeHook.
+        IBridgeHook bridgeHook;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -161,6 +165,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when a withdrawal delay in the config is zero.
     error OPContractsManagerV2_InvalidDelayConfig();
 
+    /// @notice Thrown when a bridge hook is configured on a chain that cannot support one.
+    error OPContractsManagerV2_BridgeHookNotSupported();
+
+    /// @notice Thrown when a bridge hook has no code.
+    error OPContractsManagerV2_InvalidBridgeHook();
+
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -176,9 +186,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.6
+    /// @custom:semver 10.0.1
     function version() public pure returns (string memory) {
-        return "9.0.6";
+        return "10.0.1";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -367,17 +377,17 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        if (SemverComp.parse(_version()).major == 9) {
-            // Allow deploying an ETHLockbox for existing chains only in the v9 release.
-            if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"))) {
-                return true;
-            }
-        }
 
         // Allow overriding the starting respected game type during upgrades. This is needed when
         // disabling the currently-respected game type, since the validation requires the starting
         // respected game type to correspond to an enabled game config.
         if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingRespectedGameType")) {
+            return true;
+        }
+
+        // Allow setting or replacing the bridge hook on upgrade. This is the only way to attach a
+        // hook to a live chain. A zero value keeps the current hook; use removeHook to clear it.
+        if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.bridgeHook")) {
             return true;
         }
 
@@ -569,6 +579,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     {
         // Load the full config.
         return FullConfig({
+            bridgeHook: _loadBridgeHook(_upgradeInput.extraInstructions),
             disputeGameConfigs: _upgradeInput.disputeGameConfigs,
             saltMixer: string(bytes.concat(bytes32(uint256(uint160(address(_chainContracts.systemConfig)))))),
             superchainConfig: abi.decode(
@@ -723,10 +734,57 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         });
     }
 
+    /// @notice Returns the bridge hook override for an upgrade.
+    ///         Does not call bridgeHook() because older portals lack this getter.
+    ///         The portal initializer preserves the current hook when passed zero.
+    /// @param _extraInstructions The extra upgrade instructions for the chain.
+    /// @return The overrides.cfg.bridgeHook value, or zero if no override is supplied.
+    function _loadBridgeHook(IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions)
+        internal
+        view
+        returns (IBridgeHook)
+    {
+        for (uint256 i = 0; i < _extraInstructions.length; i++) {
+            if (_isMatchingInstructionByKey(_extraInstructions[i], "overrides.cfg.bridgeHook")) {
+                return abi.decode(_extraInstructions[i].data, (IBridgeHook));
+            }
+        }
+        return IBridgeHook(address(0));
+    }
+
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
+    /// @param _systemConfig The chain's SystemConfig.
     /// @param _isInitialDeployment Whether or not this is an initial deployment.
-    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal view {
+    function _assertValidFullConfig(
+        FullConfig memory _cfg,
+        ISystemConfig _systemConfig,
+        bool _isInitialDeployment
+    )
+        internal
+        view
+    {
+        if (address(_cfg.bridgeHook) != address(0)) {
+            // The feature is still behind its dev flag.
+            if (!isDevFeatureEnabled(DevFeatures.BRIDGE_HOOK)) {
+                revert OPContractsManagerV2_BridgeHookNotSupported();
+            }
+            if (_cfg.useCustomGasToken) {
+                revert OPContractsManagerV2_BridgeHookNotSupported();
+            }
+
+            // TODO(#24014): support bridge hooks on interop chains.
+            // During initial deployment systemConfig has not been set yet.
+            if (!_isInitialDeployment && _systemConfig.isFeatureEnabled(Features.INTEROP)) {
+                revert OPContractsManagerV2_BridgeHookNotSupported();
+            }
+
+            // Any IBridgeHook is accepted, but it must already be deployed.
+            if (address(_cfg.bridgeHook).code.length == 0) {
+                revert OPContractsManagerV2_InvalidBridgeHook();
+            }
+        }
+
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != VALID_GAME_TYPE_COUNT) {
             revert OPContractsManagerV2_InvalidGameConfigs();
@@ -790,14 +848,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // ZK_DISPUTE_GAME can only be enabled when the dev flag is on (upgrade path).
-            if (
-                isZkDisputeGame && _cfg.disputeGameConfigs[i].enabled
-                    && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
-            ) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
             if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame || isSuperCannonKonaGame)) {
                 if (
                     _isInitialDeployment
@@ -854,7 +904,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         returns (ChainContracts memory)
     {
         // Validate the config.
-        _assertValidFullConfig(_cfg, _isInitialDeployment);
+        _assertValidFullConfig(_cfg, _cts.systemConfig, _isInitialDeployment);
 
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();
@@ -916,8 +966,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Update the OptimismPortal.
-        // TODO(optimism-private#744): A zero bridge hook keeps the portal's current hook; the OPCM
-        // does not configure hooks yet.
+        // A zero hook keeps the portal's current one.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.optimismPortal),
@@ -929,7 +978,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     _cts.anchorStateRegistry,
                     _cts.ethLockbox,
                     _cfg.proofMaturityDelaySeconds,
-                    IBridgeHook(address(0))
+                    _cfg.bridgeHook
                 )
             )
         );

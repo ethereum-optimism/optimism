@@ -1,0 +1,299 @@
+---
+title: OP Mainnet 및 Unichain의 interop 준비
+description: OP Sepolia 및 Unichain Sepolia(2026년 12월 10일), OP Mainnet 및 Unichain(2027년 1월 11일)의 Lagoon interop 활성화를 위한 노드 운영자 조치 체크리스트입니다.
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: interop-prep
+personas:
+  - node-operator
+categories:
+  - protocol
+  - infrastructure
+is_imported_content: 'false'
+---
+
+[OP Stack interop](/ko/op-stack/interop)은 거버넌스 승인을 전제로 **2026년 12월 10일**에 **OP Sepolia**(chain ID `11155420`)와 **Unichain Sepolia**(chain ID `1301`)에서, **2027년 1월 11일**에 **OP Mainnet**(chain ID `10`)과 **Unichain**(chain ID `130`)에서 활성화될 예정입니다.
+각 쌍은 2개 체인으로 구성된 interop dependency set을 형성합니다. mainnet 전에 testnet에서 이 체크리스트를 실행하세요.
+Interop은 [Lagoon 하드포크](/ko/op-stack/protocol/hardforks/lagoon)에 포함되어 배포되며, 이 하드포크에는 실행 후(post-execution) 트랜잭션과 [sequencer 정의 미터링(sequencer-defined metering)](/ko/op-stack/features/sdm)도 포함됩니다.
+두 체인 중 어느 쪽이든 노드 운영자는 활성화 타임스탬프 전에 토폴로지를 변경해야 합니다. 각 운영자는 두 체인을 모두 파생(derive)하고 그 사이의 크로스체인 메시지를 검증하는 하나 이상의 [op-supernode](/ko/op-stack/interop/supernode) 인스턴스를 실행하며, 나머지 노드들은 L1에서 직접 파생하는 대신 supernode를 따르는 합의 계층 클라이언트인 [Light CL](/ko/notices/specialized-node-topology)로 실행합니다.
+
+<Warning>
+  **활성화 타임스탬프까지 [supernode와 Light CL을 결합한 토폴로지](/ko/notices/specialized-node-topology)로 마이그레이션하지 않은 노드는 크로스체인 의존성을 검증할 수 없습니다.**
+  모든 op-node는 두 체인을 모두 파생하는 op-supernode를 가리키도록 `--l2.follow.source`(env: `OP_NODE_L2_FOLLOW_SOURCE`)를 설정하여 실행해야 합니다.
+  이 연결이 없으면(플래그 미설정 또는 supernode가 아닌 소스를 가리키는 경우) op-node의 safe head가 크로스체인 검증 없이 활성화 블록을 넘어 진행되므로, 해당 노드는 interop 체인의 검증자 또는 RPC 소스로 사용할 수 없습니다.
+  [특화된 op-node 토폴로지 공지](/ko/notices/specialized-node-topology)에서 이 패턴을 자세히 설명합니다.
+  아직 동종(homogeneous) 토폴로지에서 전환하지 않았다면 해당 공지부터 시작하세요.
+</Warning>
+
+<Info>
+  활성화 타임스탬프는 **OP Sepolia**와 **Unichain Sepolia**의 경우 **2026년 12월 10일**, **OP Mainnet**과 **Unichain**의 경우 **2027년 1월 11일**을 목표로 하며, 정확한 타임스탬프는 아직 정해지지 않았습니다.
+  타임스탬프는 [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)에 게시될 예정이며, 확정되면 이 페이지도 업데이트됩니다.
+  mainnet 활성화는 거버넌스 승인을 받아야 합니다.
+</Info>
+
+## 변경 사항
+
+활성화 타임스탬프에 OP Sepolia와 Unichain Sepolia는 testnet에서 2개 체인으로 구성된 dependency set을 형성하고, OP Mainnet과 Unichain도 mainnet에서 동일하게 구성됩니다.
+두 체인의 모든 블록에는 상대 체인의 시작 메시지(initiating message)를 참조하는 실행 메시지(executing message)가 포함될 수 있습니다. 블록은 의존하는 모든 시작 메시지가 동일한 안전성 수준에 도달한 경우에만 [safe](/ko/op-stack/interop/explainer#block-safety-levels) 상태가 됩니다.
+두 체인을 추적하고 이러한 의존성을 증명하는 작업은 새 구성 요소인 [op-supernode](/ko/op-stack/interop/supernode)로 이동합니다. op-supernode는 dependency set의 모든 체인을 하나의 프로세스 안에서 가상 노드로 함께 실행합니다.
+운영자의 나머지 노드들은 로컬 파생을 중단하고, op-node의 [Light CL 모드](/ko/notices/specialized-node-topology)를 통해 supernode의 safe 뷰를 따릅니다.
+
+interop 환경에서 크로스체인 메시지와 블록 안전성이 작동하는 방식은 [interop 설명서](/ko/op-stack/interop/explainer)를 참조하세요.
+
+## 영향 대상
+
+이 공지는 testnet 활성화 이후 OP Sepolia 또는 Unichain Sepolia 노드를 실행하는 모든 운영자와, mainnet 활성화 타임스탬프 이후 OP Mainnet 또는 Unichain 노드를 실행하는 모든 운영자에게 적용됩니다.
+
+replica, RPC 노드 또는 기타 op-node 배포 등 모든 op-node는 두 체인을 모두 파생하는 op-supernode를 가리키는 Light CL로 실행해야 합니다.
+각 운영자는 dependency set에 대해 최소 하나의 op-supernode를 구축하고, 모든 op-node가 이를 따르도록 재구성합니다.
+현재 두 체인 중 하나만 실행하고 있다면 이제 두 체인을 모두 실행해야 합니다. supernode에는 dependency set의 각 체인에 대한 실행 클라이언트가 필요하므로, 두 번째 체인의 실행 클라이언트와 해당 동기화 시간을 마이그레이션 계획에 포함하세요.
+
+이번 배포는 OP Mainnet과 Unichain을 대상으로 하며, OP Sepolia와 Unichain Sepolia가 testnet 쌍입니다.
+다른 OP Stack 체인은 superchain-registry의 체인 구성에 설정된 자체 일정에 따라 동일한 Lagoon 하드포크를 활성화하며, 각자의 타임스탬프까지 Lagoon을 지원하는 릴리스가 필요합니다.
+의존성이 없는 체인은 자기 자신만 포함하는 dependency set을 가지므로 교차 검증할 대상이 없으며, 해당 운영자는 일반 op-node를 계속 실행할 수 있습니다.
+다른 OP Stack 체인은 interop set에 참여할 때에만 supernode 토폴로지로 전환합니다.
+
+## 필수 구성 요소
+
+활성화 타임스탬프 전에 다음 구성 요소를 업데이트하거나 설치합니다.
+아래 버전은 토폴로지 구축을 위한 현재 최소 버전입니다. Lagoon 타임스탬프를 포함하는 활성화 릴리스는 출시되는 대로 이 공지에 명시됩니다.
+업그레이드는 두 번 진행됩니다. 지금 이 버전들로 토폴로지를 마이그레이션한 다음, 활성화 릴리스가 여기에 명시되면 네트워크의 활성화 타임스탬프 전에 모든 구성 요소를 해당 활성화 릴리스로 업그레이드합니다.
+타임스탬프를 포함하지 않은 바이너리는 활성화 시점에 체인과 분기되며 다시 동기화해야 합니다. [네트워크 업그레이드](/ko/op-stack/protocol/network-upgrades#activations)를 참조하세요.
+
+| 구성 요소        | 버전 | 역할 |
+| ---------------- | ------- | ---- |
+| `op-supernode`   | [`v1.0.6`](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) 이상 | 하나의 바이너리 안에서 OP Mainnet과 Unichain(또는 OP Sepolia와 Unichain Sepolia)을 가상 노드로 실행하고 크로스체인 메시지를 검증합니다. 필수 구성 요소입니다. [supernode 설명서](/ko/op-stack/interop/supernode)와 [구성 가이드](/ko/node-operators/guides/configuration/supernode)를 참조하세요. |
+| `op-node`        | [`v1.19.11`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.11) 이상 | 모든 노드에서 [Light CL](/ko/notices/specialized-node-topology)로 실행되며, safe 및 finalized 뷰는 supernode에서 상속됩니다. |
+| `op-reth`        | [`v2.6.1`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.6.1) 이상 | 필수 실행 클라이언트입니다. dependency set의 체인마다 하나씩 실행합니다. 하나의 실행 클라이언트로 두 체인을 지원할 수 없으므로(op-node는 시작 시 일치하지 않는 chain ID를 거부함), 두 체인을 모두 서비스하는 호스트는 최소 두 개의 실행 클라이언트 프로세스를 실행합니다. |
+
+Lagoon 활성화 타임스탬프와 dependency set은 각 릴리스에 포함된 superchain-registry 번들에서 읽어옵니다.
+op-node에서 `--network`, op-supernode에서 `--vn.<chainID>.network`를 사용하면 추가 플래그가 필요하지 않습니다. 활성화 릴리스가 중요한 이유도 여기에 있습니다. 레지스트리 업데이트 이전에 빌드된 바이너리는 타임스탬프를 알지 못합니다.
+dependency set은 chain ID로 조회되므로 사용자 정의 롤업 구성을 전달하는 경우에도 적용됩니다. 사용자 정의 롤업 구성에서는 `lagoon_time`을 직접 설정해야 합니다.
+레지스트리의 dependency set을 재정의하려면 op-node에 `--interop.dependency-set`을, op-supernode에 `--dependency-set`을 전달합니다.
+
+<Info>
+  op-supernode는 [v1.0.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.0)(2026년 8월)부터 안정 릴리스를 제공하고 있습니다. 현재 [v1.0.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) 이상을 실행하세요.
+  op-supernode, op-node, op-reth의 활성화 릴리스는 출시되는 대로 여기에 명시됩니다.
+  그때까지는 [op-supernode](https://github.com/ethereum-optimism/optimism/releases?q=op-supernode), [op-node](https://github.com/ethereum-optimism/optimism/releases?q=op-node), [op-reth](https://github.com/ethereum-optimism/optimism/releases?q=op-reth) 릴리스 페이지를 확인하세요.
+</Info>
+
+## 조치 체크리스트
+
+마이그레이션은 4단계로 구성됩니다.
+각 단계를 먼저 OP Sepolia와 Unichain Sepolia에서 완료한 다음, mainnet 활성화 타임스탬프 전에 mainnet에서 반복합니다.
+실행 클라이언트를 먼저 시작한 다음 supernode를 시작합니다. EL은 스스로 어떤 체인 head를 목표로 해야 하는지 알 수 없기 때문에, supernode가 실행 클라이언트(EL)의 동기화를 주도합니다.
+Light CL은 supernode를 따르므로 마지막에 시작합니다.
+supernode의 전체 플래그 참조는 [op-supernode 구성 참조](/ko/node-operators/reference/op-supernode-config)에 있으며, 이 공지에서는 두 가지 설정을 모두 단계별로 안내합니다.
+
+각 단계의 명령 예시는 최소한의 실행 가능한 구성으로, interop 토폴로지에 필요한 플래그만 다룹니다.
+환경에 따라 일반적으로 사용하는 프로덕션 플래그(모니터링, 로깅, P2P 튜닝, RPC 모듈, 리소스 제한)를 추가하세요.
+
+<Info>
+  각 명령 블록에는 **Sepolia** 탭과 **Mainnet** 탭이 있습니다. 준비 중인 네트워크에 맞는 탭을 선택하세요.
+  Sepolia 명령은 Sepolia L1 및 beacon 엔드포인트를 사용하고, mainnet 명령은 Ethereum mainnet 엔드포인트를 사용합니다.
+  op-node와 op-reth는 같은 네트워크를 다르게 표기하므로 각 값을 표시된 그대로 사용하세요.
+</Info>
+
+<Steps>
+  <Step title="두 체인의 실행 클라이언트 구축">
+  쌍을 이루는 각 체인마다 최소 하나의 op-reth 프로세스를 실행합니다. testnet에서는 OP Sepolia와 Unichain Sepolia, mainnet에서는 OP Mainnet과 Unichain입니다.
+  실행 클라이언트는 체인 간에 공유되지 않습니다.
+  각 체인에 대해 연결되는 합의 클라이언트마다 하나의 EL을 계획합니다. 즉, supernode 가상 노드마다 하나, 그리고 Light CL마다 하나씩입니다.
+  각 실행 클라이언트에는 자체 JWT secret 파일(두 EL이 하나의 파일을 공유해도 됩니다. 이 단계 끝의 참고 사항 참조)과 자체 engine-API 수신 주소가 필요합니다.
+  EL은 동기화되지 않은 상태로 시작할 수 있으며, supernode가 연결될 때까지 어떤 체인 head로 동기화해야 할지 알지 못한 채 대기합니다.
+  이후 supernode가 engine API를 통해 각 EL의 초기 동기화를 주도하며, 한 체인의 EL은 이미 동기화되어 있고 다른 체인의 EL은 그렇지 않은 일반적인 경우도 처리합니다.
+  재시작이나 다운타임 이후 supernode가 시작 메시지 로그를 백필(backfill)할 수 있도록 각 EL의 히스토리 보존 설정을 구성합니다. supernode 가이드의 [EL 보존 권장 사항](/ko/node-operators/guides/configuration/supernode#configure-el-retention-for-supernode-backfill)에서 보존 기간, 관련 op-reth pruning 플래그, op-challenger도 실행하는 경우 적용되는 추가 요구 사항을 다룹니다.
+
+  <CodeGroup>
+  ```bash Sepolia
+  # OP Sepolia execution client
+  op-reth node \
+    --chain=optimism-sepolia \
+    --datadir=/var/lib/op-reth-op-sepolia \
+    --authrpc.addr=127.0.0.1 \
+    --authrpc.port=8551 \
+    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
+
+  # Unichain Sepolia execution client
+  op-reth node \
+    --chain=unichain-sepolia \
+    --datadir=/var/lib/op-reth-unichain-sepolia \
+    --authrpc.addr=127.0.0.1 \
+    --authrpc.port=8561 \
+    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
+  ```
+
+  ```bash Mainnet
+  # OP Mainnet execution client
+  op-reth node \
+    --chain=op-mainnet \
+    --datadir=/var/lib/op-reth-op-mainnet \
+    --authrpc.addr=127.0.0.1 \
+    --authrpc.port=8551 \
+    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
+
+  # Unichain execution client
+  op-reth node \
+    --chain=unichain \
+    --datadir=/var/lib/op-reth-unichain \
+    --authrpc.addr=127.0.0.1 \
+    --authrpc.port=8561 \
+    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
+  ```
+  </CodeGroup>
+
+  예시에서는 engine RPC를 `127.0.0.1`에 바인딩합니다. op-reth가 Docker 컨테이너에서 실행되거나 supernode와 다른 호스트에서 실행되는 경우, `--authrpc.addr=0.0.0.0`(또는 supernode에서 접근 가능한 특정 인터페이스 IP)을 설정하고 네트워크 계층에서 접근을 제한하세요.
+
+  모든 EL에는 정확히 하나의 합의 클라이언트가 연결됩니다.
+  supernode는 체인별 가상 노드를 통해 EL을 구동하며, 각 Light CL에도 자체 EL이 있습니다.
+  supernode는 모든 가상 노드에서 하나의 JWT secret 경로를 공유할 수 있으며, EL에 별도의 secret이 필요한 경우 체인별로 재정의할 수 있습니다. supernode 가이드의 [공유 JWT secret 권장 사항](/ko/node-operators/guides/configuration/supernode)에서 관련 플래그를 다룹니다.
+  각 Light CL은 자체 `--l2.jwt-secret` 플래그로 EL에 연결합니다.
+  </Step>
+
+  <Step title="두 체인을 위한 op-supernode 구축">
+  `--chains`에 두 체인(testnet은 `11155420,1301`, mainnet은 `10,130`)을 지정하고, 이에 맞는 `--vn.<chainID>.network` 값(`op-sepolia`와 `unichain-sepolia`, 또는 `op-mainnet`과 `unichain-mainnet`), 해당 쌍의 L1에 대한 공유 L1 RPC, 공유 beacon 엔드포인트를 설정하여 op-supernode를 실행합니다.
+  supernode 가이드의 [예시 구성](/ko/node-operators/guides/configuration/supernode#example-configuration)은 정확히 이 dependency set(OP Mainnet과 Unichain)을 기준으로 작성되었으므로 이를 출발점으로 사용하세요. 노드들이 op-reth를 실행하므로 두 체인 모두 engine kind를 `reth`로 유지합니다.
+  오랜 기간 오프라인 상태였던 supernode도 정리(prune)된 blob을 복구할 수 있도록, 가이드의 권장 사항에 따라 처음부터 beacon archiver fallback을 구성하세요.
+
+  전체 플래그 참조는 [op-supernode 구성 참조](/ko/node-operators/reference/op-supernode-config)를, 권장 사항은 [supernode 구성 가이드](/ko/node-operators/guides/configuration/supernode)를 참조하세요.
+  </Step>
+
+  <Step title="모든 op-node를 Light CL로 마이그레이션">
+  모든 op-node에서 `--l2.follow.source`를 op-supernode의 체인별 RPC 엔드포인트(`/<chainID>` 경로 접두사)로 설정합니다.
+  이렇게 하면 로컬 파생이 비활성화되고, op-node는 Light CL이 되어 supernode로부터 safe 및 finalized 뷰를 상속합니다.
+
+  <CodeGroup>
+  ```bash Sepolia
+  # OP Sepolia verifier / RPC op-node
+  op-node \
+    --network=op-sepolia \
+    --l1=<your-sepolia-l1-eth-rpc> \
+    --l1.beacon=<your-sepolia-l1-beacon-rpc> \
+    --l2=http://op-sepolia-reth:8551 \
+    --l2.jwt-secret=/etc/op/jwt-secret.txt \
+    --l2.follow.source=http://op-supernode:8545/11155420 \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=9545
+
+  # Unichain Sepolia verifier / RPC op-node
+  op-node \
+    --network=unichain-sepolia \
+    --l1=<your-sepolia-l1-eth-rpc> \
+    --l1.beacon=<your-sepolia-l1-beacon-rpc> \
+    --l2=http://unichain-sepolia-reth:8561 \
+    --l2.jwt-secret=/etc/op/jwt-secret.txt \
+    --l2.follow.source=http://op-supernode:8545/1301 \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=9546
+  ```
+
+  ```bash Mainnet
+  # OP Mainnet verifier / RPC op-node
+  op-node \
+    --network=op-mainnet \
+    --l1=<your-mainnet-l1-eth-rpc> \
+    --l1.beacon=<your-mainnet-l1-beacon-rpc> \
+    --l2=http://op-mainnet-reth:8551 \
+    --l2.jwt-secret=/etc/op/jwt-secret.txt \
+    --l2.follow.source=http://op-supernode:8545/10 \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=9545
+
+  # Unichain verifier / RPC op-node
+  op-node \
+    --network=unichain-mainnet \
+    --l1=<your-mainnet-l1-eth-rpc> \
+    --l1.beacon=<your-mainnet-l1-beacon-rpc> \
+    --l2=http://unichain-reth:8561 \
+    --l2.jwt-secret=/etc/op/jwt-secret.txt \
+    --l2.follow.source=http://op-supernode:8545/130 \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=9546
+  ```
+  </CodeGroup>
+
+  Light CL 모드에서도 시작 시 `--l1`과 `--l1.beacon`은 여전히 필요합니다. 이 값이 없으면 op-node가 구성을 거부합니다.
+  Light CL은 파생 작업을 위한 L1 RPC 호출을 직접 수행하지 않지만, 런타임 구성 업데이트와 engine-API 관리를 위해 L1 참조는 계속 유지합니다.
+  P2P를 통한 unsafe head 진행은 변경되지 않습니다.
+
+  이 토폴로지의 배경과 확장성이 좋은 이유는 [특화된 op-node 토폴로지 공지](/ko/notices/specialized-node-topology)를 참조하세요.
+  </Step>
+
+  <Step title="활성화 전 프로덕션 토폴로지 계획">
+  프로덕션 환경에서는 여러 supernode를 합의 인식(consensus-aware) proxyd 뒤에 고가용성 풀로 실행하고, Light CL이 단일 supernode가 아닌 풀을 가리키도록 합니다. 단일 supernode는 설정을 평가하는 용도로는 괜찮지만, 두 체인 모두의 safe head 진행에 있어 단일 장애 지점이 됩니다.
+  활성화 타임스탬프 전에 이를 갖추세요. supernode 가이드의 [HA 풀 권장 사항](/ko/node-operators/guides/configuration/supernode#run-an-ha-pool-of-supernodes-behind-a-consensus-aware-proxyd)에서 풀 크기, 라우팅 전략, 장애 시 동작을 다룹니다.
+  </Step>
+</Steps>
+
+## 활성화 전 설정 확인
+
+활성화 타임스탬프 전에 토폴로지에 대해 다음 점검을 실행합니다.
+이 점검들은 어느 체인에서도 interop이 활성화되어 있을 필요가 없습니다. supernode와 Light CL 연결 구성만 독립적으로 점검하므로, 활성화 블록에서 구성 오류가 처음 드러나는 일을 방지할 수 있습니다.
+
+### supernode가 두 체인을 모두 호스팅하는지 확인
+
+기존에 사용하는 도구(`docker logs -f op-supernode`, `journalctl -fu op-supernode`, `kubectl logs -f op-supernode` 등)로 supernode의 로그를 확인합니다.
+각 체인 컨테이너는 로그 라인에 `chain_id` 태그를 붙이므로, 정상적인 supernode는 두 체인의 파생 로그를 번갈아 출력합니다.
+따라잡기(catch-up) 중 가장 흔한 로그는 `"Advancing bq origin"`입니다(batch-queue가 L1을 따라 앞으로 진행 중임을 의미).
+
+<CodeGroup>
+```text Sepolia
+t=2026-11-20T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=11155420 vn_id=7754 origin=0x...:12500000 originBehind=false
+t=2026-11-20T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=1301     vn_id=d5ca origin=0x...:12500000 originBehind=false
+```
+
+```text Mainnet
+t=2026-12-01T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=10  vn_id=7754 origin=0x...:26800000 originBehind=false
+t=2026-12-01T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=130 vn_id=d5ca origin=0x...:26800000 originBehind=false
+```
+</CodeGroup>
+
+쌍을 이루는 두 chain ID(testnet은 `11155420`과 `1301`, mainnet은 `10`과 `130`)가 모두 주기적으로 나타나야 합니다.
+샘플 로그의 블록 번호는 예시입니다.
+한 체인만 보인다면 다른 체인의 컨테이너가 시작되지 않았거나 해당 실행 클라이언트에 접근할 수 없는 것입니다. 누락된 체인 태그가 붙은 error 수준 로그에서 원인을 확인할 수 있습니다.
+supernode가 따라잡고 head를 승격하기 시작하면, 동일한 `chain_id` 태그가 붙은 `l2_safe`, `l2_unsafe`, `l2_finalized` 필드가 포함된 `msg="Sync progress"` 로그도 표시됩니다.
+
+Prometheus로 supernode를 수집(scrape)하고 있다면, `op_node_supernode_refs_number{layer="l2",type="l2_safe"}` 게이지가 `virtual_node_chain_id` 레이블에 체인별 safe head를 담고 있습니다. Grafana 패널 하나로 체인별 진행 상황을 지속적으로 확인할 수 있습니다.
+
+### Light CL이 supernode를 따르는지 확인
+
+같은 방법으로 Light CL의 로그를 확인하고 `"Follow Source: Process external refs"` 및 `"Follow Upstream"` 로그를 찾습니다.
+정상적으로 동작하는 Light CL은 supernode의 `optimism_syncStatus`를 폴링하는 동안 이 로그를 지속적으로 출력합니다.
+
+<CodeGroup>
+```text Sepolia
+t=2026-11-20T12:00:00+0000 lvl=info msg="Safety levels" unsafe=enabled safe=http://op-supernode:8545/11155420
+t=2026-11-20T12:00:00+0000 lvl=info msg="Follow Upstream" eSafe=0x...:40000000 eLocalSafe=0x...:40000000 eFinalized=0x...:39999900 eCurrentL1=0x...:12500200
+t=2026-11-20T12:00:00+0000 lvl=info msg="Follow Source: Process external refs" externalSafe=0x...:40000000 externalLocalSafe=0x...:40000000 externalFinalized=0x...:39999900
+```
+
+```text Mainnet
+t=2026-12-01T12:00:00+0000 lvl=info msg="Safety levels" unsafe=enabled safe=http://op-supernode:8545/10
+t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Upstream" eSafe=0x...:145000000 eLocalSafe=0x...:145000000 eFinalized=0x...:144999900 eCurrentL1=0x...:26800200
+t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Source: Process external refs" externalSafe=0x...:145000000 externalLocalSafe=0x...:145000000 externalFinalized=0x...:144999900
+```
+</CodeGroup>
+
+첫 번째 `"Safety levels"` 로그가 기본 점검(smoke test)입니다. `safe=`에 supernode URL과 체인별 접두사가 표시되면 연결이 올바른 것입니다. 블록 번호는 예시입니다.
+supernode가 초기 동기화를 마치고 safe head를 승격하기 시작하면 `eSafe`와 `externalSafe`의 블록 번호가 증가합니다.
+Light CL이 수 분 동안 genesis(`eSafe=...:0`)를 넘어 진행하지 않는다면 `--l2.follow.source`가 잘못된 URL 또는 네임스페이스를 가리키고 있는 것입니다. 체인별 접두사(OP Sepolia는 `/11155420`, Unichain Sepolia는 `/1301`, mainnet에서는 `/10`과 `/130`)를 다시 확인하세요.
+
+Prometheus를 수집하고 있다면 Light CL의 해당 게이지는 `op_node_default_refs_number{layer="l2",type="l2_safe"}`입니다. Light CL마다 Grafana 패널 하나, supernode 체인마다 패널 하나를 나란히 배치하면 불일치를 쉽게 파악할 수 있습니다.
+
+## 문제 해결
+
+* **safe head는 진행되지만 RPC 소비자가 유효하지 않은 블록을 보고하는 경우.** op-node가 op-supernode를 따르지 않고 있으므로(`--l2.follow.source`가 설정되지 않았거나 supernode가 아닌 소스를 가리킴), safe head 승격 시 크로스체인 검증을 건너뜁니다. `--l2.follow.source`가 두 체인을 모두 파생하는 supernode를 가리키도록 설정하세요.
+* **약 18일보다 오래된 L1 블록의 blob이 누락된 경우.** 기본 beacon 노드가 해당 blob을 정리(prune)한 것입니다. pruning하지 않는 beacon 또는 archiver 서비스를 대상으로 `--l1.beacon-fallbacks`를 구성하세요. 옵션은 [blob archiver 가이드](/ko/node-operators/guides/management/blobs#configuring-a-blob-archiver)를 참조하세요.
+* **Light CL의 safe head가 supernode보다 몇 블록 이상 뒤처지는 경우.** Light CL과 supernode(또는 supernode `proxyd`) 사이의 네트워크 경로를 확인하세요. Light CL은 RPC를 통해 `optimism_syncStatus`를 폴링하므로, 이 경로의 지연 시간이 길거나 속도 제한이 있으면 safe head 전파가 직접적으로 지연됩니다.
+
+## 참고 자료
+
+* [Interop 설명서](/ko/op-stack/interop/explainer) — interop 환경에서 크로스체인 메시지와 블록 안전성이 작동하는 방식
+* [op-supernode 설명서](/ko/op-stack/interop/supernode) — op-supernode의 정의, 필요한 이유, Light CL과의 결합 방식
+* [Supernode 구성 가이드](/ko/node-operators/guides/configuration/supernode) — 권장 설정 및 시작 구성
+* [op-supernode 구성 참조](/ko/node-operators/reference/op-supernode-config) — 전체 플래그 및 환경 변수 목록
+* [특화된 op-node 토폴로지 공지](/ko/notices/specialized-node-topology) — safe 소스 뒤에서 Light CL 노드들을 운영하기 위한 운영자용 패턴
+* [Interop reorg 인식](/ko/op-stack/interop/reorg) — 안전성 모델이 equivocation과 L1 reorg를 처리하는 방식
+* [크로스체인 보안 조치](/ko/op-stack/security/interop-security) — 수신 크로스체인 메시지의 안전성 수준을 체인 수준에서 구성하는 방법
+* [Historical Proofs와 함께 op-reth 실행](/ko/node-operators/tutorials/reth-historical-proofs) — op-challenger도 실행하는 경우에만 해당하며, supernode의 EL이 historical proof를 제공하도록 구성합니다

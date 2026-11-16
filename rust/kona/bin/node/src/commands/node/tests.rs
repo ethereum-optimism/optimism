@@ -1,4 +1,5 @@
 use super::*;
+use crate::flags::GlobalArgs;
 use anyhow::anyhow;
 use clap::Parser;
 use kona_node_service::NodeMode;
@@ -32,6 +33,31 @@ fn test_node_cli_defaults() {
     let args =
         NodeCommand::parse_from(std::iter::once(&"node").chain(default_flags().iter()).copied());
     assert_eq!(args.node_mode, NodeMode::Validator);
+    assert_eq!(args.verifier_l1_confs, 0);
+    assert_eq!(NodeCommand::default().verifier_l1_confs, 0);
+}
+
+#[test]
+fn verifier_confirmation_depth_is_available_in_both_node_modes() {
+    for mode in ["Validator", "Sequencer"] {
+        let args = NodeCommand::parse_from(
+            std::iter::once("node").chain(default_flags().iter().copied()).chain([
+                "--mode",
+                mode,
+                "--verifier.l1-confs",
+                "4",
+            ]),
+        );
+        assert_eq!(args.verifier_l1_confs, 4);
+    }
+}
+
+#[test]
+fn verifier_confirmation_depth_has_the_expected_environment_variable() {
+    use clap::CommandFactory;
+    let command = NodeCommand::command();
+    let arg = command.get_arguments().find(|arg| arg.get_id() == "verifier_l1_confs").unwrap();
+    assert_eq!(arg.get_env().unwrap(), "KONA_NODE_VERIFIER_L1_CONFS");
 }
 
 #[test]
@@ -119,4 +145,17 @@ fn a_safe_database_open_failure_reports_the_path() {
     let error = command.open_safe_db().unwrap_err();
 
     assert!(error.to_string().contains(&directory.path().display().to_string()));
+}
+
+#[tokio::test]
+async fn alt_da_chains_are_refused() {
+    // Redstone uses keccak commitments, Celo Sepolia generic commitments.
+    for chain_id in [690, 11142220] {
+        let args = GlobalArgs {
+            l2_chain_id: alloy_chains::Chain::from_id(chain_id),
+            ..Default::default()
+        };
+        let err = NodeCommand::default().run(&args).await.unwrap_err();
+        assert!(err.to_string().contains("alt-DA"), "chain {chain_id}: {err}");
+    }
 }

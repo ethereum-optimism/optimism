@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Claim, Duration, GameType, Proposal } from "src/dispute/lib/Types.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 
 library Types {
     /// @notice Represents a set of L1 contracts. Used to represent a set of proxies.
@@ -58,5 +59,7 @@ library Types {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 withdrawalDelaySeconds;
+        // Bridge hook to configure on the portal, or the zero address for no hook.
+        IBridgeHook bridgeHook;
     }
 }

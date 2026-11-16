@@ -1,0 +1,175 @@
+---
+title: 입금(디파짓) 및 출금 추적하기
+description: viem 라이브러리를 사용하여 L1과 L2 간의 입금(디파짓) 및 출금을 추적하는 방법을 알아봅니다.
+diataxis: tutorial
+---
+
+import TutorialSetupNodeProject from '/ko/snippets/tutorial-setup-node-project.mdx';
+import TutorialSetupRepl from '/ko/snippets/tutorial-setup-repl.mdx';
+
+이 튜토리얼에서는 [viem](https://viem.sh) 라이브러리를 사용하여 L1과 L2 간의 [Standard Bridge](/ko/app-developers/guides/bridging/standard-bridge) 입금(디파짓) 또는 출금을 추적하는 방법을 알아봅니다.
+특히 입금 또는 출금의 상태를 확인하는 방법과, L1(출금의 경우) 또는 L2(입금의 경우)에서 실행된 트랜잭션의 영수증을 조회하는 방법을 배웁니다.
+
+## 의존성
+
+*   [node](https://nodejs.org/en/)
+*   [pnpm](https://pnpm.io/installation)
+
+## 데모 프로젝트 생성하기
+
+<TutorialSetupNodeProject lib="viem" folder="trace-trx" packages="viem" />
+
+## 환경에 RPC URL 추가하기
+
+이 튜토리얼에서는 viem 라이브러리의 `getTransactionReceipt` 함수를 사용합니다. 이 함수는 이벤트 쿼리를 사용하여 입금 또는 출금의 영수증을 조회합니다.
+이 함수는 대규모 이벤트 쿼리를 사용하므로, 인덱싱된 이벤트 쿼리를 지원하는 [Alchemy](https://alchemy.com)와 같은 RPC 제공업체를 사용해야 합니다.
+Sepolia와 OP Sepolia용 L1 및 L2 RPC URL을 각각 준비하십시오.
+
+```bash
+export L1_RPC_URL="https://YOUR_L1_ SEPOLIA_RPC_URL_HERE"
+export L2_RPC_URL="https://YOUR_L2_OP_SEPOLIA_RPC_URL_HERE"
+```
+
+## Node REPL 시작하기
+
+<TutorialSetupRepl lib="viem" />
+
+## 의존성 가져오기
+
+Node REPL 세션에 몇 가지 의존성을 가져와야 합니다.
+
+### viem 가져오기
+
+```js
+const { createPublicClient, http } = require('viem');
+const { optimismSepolia, sepolia } = require('viem/chains');
+```
+  
+## 세션 변수 설정하기
+
+이 튜토리얼 전반에서 몇 가지 변수가 필요합니다. 지금 설정해 보겠습니다.
+
+<Steps>
+  <Step title="RPC URL 가져오기">
+
+  ```js
+  const l1RpcUrl = process.env.L1_RPC_URL;
+  const l2RpcUrl = process.env.L2_RPC_URL;
+  ```
+
+  </Step>
+  <Step title="추적할 입금 설정하기">
+
+  이 튜토리얼에서는 특정 입금을 추적합니다. 입금 추적은 일반적으로 입금을 트리거한 트랜잭션의 해시를 기반으로 합니다. 원하는 경우 이 트랜잭션 해시를 자신의 해시로 바꿀 수 있습니다.
+
+  ```js
+  const depositHash = '0x5896d6e4a47b465e0d925723bab838c62ef53468139a5e9ba501efd70f90cccb'
+  ```
+
+  </Step>
+  <Step title="추적할 출금 설정하기">
+
+  이 튜토리얼에서는 특정 출금도 추적합니다. 입금과 마찬가지로 출금 추적은 일반적으로 출금을 트리거한 트랜잭션의 해시를 기반으로 합니다. 원하는 경우 이 트랜잭션 해시를 자신의 해시로 바꿀 수 있습니다.
+
+  ```js
+  const withdrawalHash = '0x18b8b4022b8d9e380fd89417a2e897adadf31e4f41ca17442870bf89ad024f42'
+  ```
+
+  </Step>
+  <Step title="RPC provider 생성하기">
+
+  ```js
+  const l1Client = createPublicClient({
+    chain: sepolia,
+    transport: http(l1RpcUrl),
+  });
+
+  const l2Client = createPublicClient({
+    chain: optimismSepolia,
+    transport: http(l2RpcUrl),
+  });
+  ```
+  </Step>
+</Steps>
+
+## 입금 추적하기
+
+viem을 사용하여 입금을 추적할 수 있습니다.
+
+<Steps>
+  <Step title="입금 상태 조회하기">
+
+  입금 트랜잭션 해시를 사용하여 입금 상태를 조회할 수 있습니다.
+
+  ```js
+  console.log('Grabbing deposit status...')
+  const depositStatus = await l2Client.getTransactionReceipt({ hash: depositHash });
+  console.log(depositStatus);
+  ```
+
+  </Step>
+  <Step title="입금 트랜잭션 영수증 조회하기">
+
+  viem client를 사용하여 입금의 트랜잭션 영수증을 조회합니다.
+
+  ```js
+console.log('Grabbing deposit receipt...')
+const depositReceipt = await l2Client.getTransaction({ hash: depositHash });
+console.log(depositReceipt);
+```
+
+  </Step>
+  <Step title="입금 트랜잭션 조회하기">
+
+  입금을 실행한 L2 트랜잭션을 직접 조회할 수 있습니다.
+
+  ```js
+console.log('Grabbing deposit txn...')
+const depositTransaction = await l2Client.getTransaction({ hash: depositHash });
+console.log(depositTransaction);
+```
+  </Step>
+</Steps>
+
+## 출금 추적하기
+
+viem의 함수를 사용하여 출금을 추적할 수 있습니다.
+
+<Steps>
+  <Step title="출금 상태 조회하기">
+
+  입금과 마찬가지로 출금은 프로세스상 어느 단계에 있는지에 따라 여러 상태를 가질 수 있습니다.
+
+  ```js
+console.log('Grabbing withdrawal status...')
+const withdrawalStatus = await l1Client.getTransactionReceipt({ hash: withdrawalHash });
+console.log(withdrawalStatus);
+```
+
+  </Step>
+  <Step title="출금 트랜잭션 영수증 조회하기">
+
+  출금의 L1 트랜잭션 영수증을 조회합니다.
+
+  ```js
+console.log('Grabbing withdrawal receipt...')
+const withdrawalReceipt = await l1Client.getTransaction({ hash: withdrawalHash });
+console.log(withdrawalReceipt);
+```
+
+  </Step>
+  <Step title="출금 트랜잭션 조회하기">
+
+  출금을 실행한 L1 트랜잭션을 직접 조회합니다.
+
+  ```js
+console.log('Grabbing withdrawal txn...')
+const withdrawalTransaction = await l1Client.getTransaction({ hash: withdrawalHash });
+console.log(withdrawalTransaction);
+```
+  </Step>
+</Steps>
+
+## 다음 단계
+
+*   입금과 출금을 생성하는 방법을 알아보려면 [@eth-optimism/viem 패키지로 ERC-20 토큰 브리징하기](/ko/app-developers/tutorials/bridging/cross-dom-bridge-erc20) 튜토리얼을 확인하십시오.
