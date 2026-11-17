@@ -341,6 +341,63 @@ fn test_a_record_dated_after_now_doesnt_age_the_others() {
     }
 }
 
+/// A driver with a bootstore of one record, `old`, whose evidence is older than it counts, that
+/// saves its bootstore every 50 ms and expires the evidence at the first store interval it may.
+fn driver_with_old_evidence() -> (Discv5Driver, tempfile::TempDir, Enr) {
+    let old = enr_at_localhost(TEST_CHAIN_ID);
+    let (mut driver, dir) = driver_with_bootstore(accept_all, std::slice::from_ref(&old));
+    let reached = SystemTime::now() - EVIDENCE_TTL - Duration::from_secs(60 * 60);
+    reach(&mut driver.bootstore, &old, reached);
+    driver.store_interval = Duration::from_millis(50);
+    driver.expiry_interval = Duration::ZERO;
+    (driver, dir, old)
+}
+
+/// The driver should expire the bootstore's old evidence only once a session has shown that the
+/// node hears from the network, as geth does: a node that was down for longer than the evidence
+/// counts would otherwise drop the records it could reconnect to before a session could refresh
+/// them, and one without network access would drop them all.
+///
+/// The node has no bootnodes, and its saved record is on loopback, where nothing answers, so no
+/// session starts. Ten store intervals pass.
+#[tokio::test]
+async fn test_evidence_expires_only_after_a_session() {
+    let (driver, dir, old) = driver_with_old_evidence();
+    let path = dir.path().join("bootstore.json");
+    let (_handler, _records) = driver.start();
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let saved = BootStore::open(path).expect("the bootstore opens");
+    assert!(saved.get(old.node_id()).is_some(), "the driver expired evidence before any session");
+}
+
+/// Once a session has started, the driver should expire the old evidence, and save the
+/// bootstore without the records it leaves without any, but keep the record of the session.
+///
+/// N holds the old record. L has N as its bootnode, given by an enode URL, so L's bootstrap
+/// starts a session with N.
+#[tokio::test]
+async fn test_evidence_expires_after_a_session() {
+    let (node, dir, old) = driver_with_old_evidence();
+    let path = dir.path().join("bootstore.json");
+    let enode = loopback_enode(&node.disc.local_enr());
+    let (_node, _records) = node.start();
+
+    let mut loopback = offline_driver();
+    loopback.bootnodes = BootNodes(vec![BootNode::Enode(enode)]);
+    let loopback_id = loopback.disc.local_enr().node_id();
+    let (_loopback, _) = loopback.start();
+
+    wait_for_bootstore(&path, |saved| {
+        saved.iter().any(|enr| enr.node_id() == loopback_id) && !saved.contains(&old)
+    })
+    .await
+    .expect(
+        "the driver didn't expire old evidence after a session, or dropped the session's record",
+    );
+}
+
 /// A bootstore that can't be opened, here because its path is a directory as in our docker
 /// recipes, should stop the node from starting, as op-node's stores do. Otherwise the node
 /// runs with a bootstore that it never saves, and nothing says so.

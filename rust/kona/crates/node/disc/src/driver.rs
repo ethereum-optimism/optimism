@@ -56,6 +56,22 @@ const REDIAL_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 /// to be noted.
 const SESSION_GRACE: Duration = Duration::from_secs(60 * 60);
 
+/// How long the evidence for a saved record's address counts, see [`BootStore::expire`]: a week,
+/// as long as op-node keeps the addresses of its static peers. Longer than [`SEED_MAX_AGE`], so
+/// that the peers gossip reached in the five days before the node stopped still have their
+/// evidence: geth forgets it after a day, but counts its five days from the restart.
+const EVIDENCE_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+
+// The seeds and the redials go by the evidence that expiry keeps.
+const _: () = assert!(
+    SEED_MAX_AGE.as_secs() < EVIDENCE_TTL.as_secs() &&
+        REDIAL_MAX_AGE.as_secs() < EVIDENCE_TTL.as_secs()
+);
+
+/// How often the driver expires the bootstore's evidence, see [`Discv5Driver::expiry_interval`]:
+/// as often as geth (`dbCleanupCycle`).
+const EXPIRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
 /// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
 #[derive(Debug, PartialEq, Eq)]
 struct RecordToDial {
@@ -111,6 +127,12 @@ pub struct Discv5Driver {
     /// The frequency at which to remove random nodes from the discovery table.
     /// This is not enabled (`None`) by default.
     pub remove_interval: Option<Duration>,
+    /// How long after the first session since startup the driver first expires the bootstore's
+    /// old evidence, and how often after that, [`EXPIRY_INTERVAL`] by default. Not before the
+    /// first session, as geth: a node that was down for longer than the evidence counts would
+    /// otherwise drop its records before a session could refresh them, and one without network
+    /// access would drop them all.
+    pub(crate) expiry_interval: Duration,
 }
 
 impl Discv5Driver {
@@ -144,6 +166,7 @@ impl Discv5Driver {
             forward: true,
             remove_interval: None,
             store_interval: Duration::from_secs(60),
+            expiry_interval: EXPIRY_INTERVAL,
             bootstore,
         })
     }
@@ -445,6 +468,9 @@ impl Discv5Driver {
 
             // Step 6: Run the core driver loop.
             let mut handlers_dropped = false;
+            // When the bootstore's old evidence expires next: `None` until the first session,
+            // see `expiry_interval`.
+            let mut expire_at: Option<SystemTime> = None;
             loop {
                 tokio::select! {
                     msg = req_recv.recv(), if !handlers_dropped => {
@@ -521,6 +547,13 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
+                        let session = matches!(
+                            event,
+                            discv5::Event::SessionEstablished(..) | discv5::Event::UnverifiableEnr { .. }
+                        );
+                        if session && expire_at.is_none() {
+                            expire_at = SystemTime::now().checked_add(self.expiry_interval);
+                        }
                         if let Some(RecordToDial { event: kind, enr, socket }) =
                             Self::record_to_dial(event, chain_id, table_filter)
                         {
@@ -546,7 +579,13 @@ impl Discv5Driver {
                     }
                     _ = store_interval.tick() => {
                         let start = std::time::Instant::now();
-                        refresh_connected(&mut store, &self.disc.table_entries(), SystemTime::now());
+                        let now = SystemTime::now();
+                        refresh_connected(&mut store, &self.disc.table_entries(), now);
+                        if expire_at.is_some_and(|at| at <= now) {
+                            let dropped = store.expire(now, EVIDENCE_TTL);
+                            debug!(target: "discovery", dropped, "Expired the bootstore's old evidence");
+                            expire_at = now.checked_add(self.expiry_interval);
+                        }
                         // Only what the driver added: the bootnodes, and the records a session
                         // confirmed. discv5's table also holds records from other nodes' answers
                         // to our lookups, which nothing confirmed, and the bootstore would dial
