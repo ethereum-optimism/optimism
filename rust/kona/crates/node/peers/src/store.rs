@@ -528,8 +528,10 @@ impl BootStore {
         let Some(entry) = self.records.entries.get_mut(&node_id.raw()) else {
             return;
         };
-        let lasted =
-            entry.session_started_at.is_some_and(|started| started + self.verified_refresh <= at);
+        let lasted = entry
+            .session_started_at
+            .and_then(|started| started.checked_add(self.verified_refresh))
+            .is_some_and(|due| due <= at);
         if lasted && holds_socket(udp_sockets(&entry.enr), socket) {
             self.dirty |= refresh(&mut entry.udp_verified_at, at, self.verified_refresh);
         }
@@ -647,10 +649,12 @@ fn tcp_sockets(enr: &Enr) -> (Option<SocketAddrV4>, Option<SocketAddrV6>) {
     (enr.tcp4_socket(), enr.tcp6_socket())
 }
 
-/// Sets `evidence` to `at`, unless the time it holds is less than `delay` before `at`, or after
-/// it. Returns whether it changed.
+/// Sets `evidence` to `at`, which is now, unless the time it holds is less than `delay` before
+/// `at`. Returns whether it changed. A time after `at` is replaced: it can't be true, as the file
+/// was written while the clock ran ahead, or edited.
 fn refresh(evidence: &mut Option<SystemTime>, at: SystemTime, delay: Duration) -> bool {
-    if evidence.is_some_and(|last| last + delay > at) {
+    let fresh = |last: SystemTime| last <= at && last.checked_add(delay).is_none_or(|due| due > at);
+    if evidence.is_some_and(fresh) {
         return false;
     }
     *evidence = Some(at);
@@ -850,8 +854,8 @@ mod tests {
         assert_eq!(records.entries.values().collect::<Vec<_>>(), [&expected]);
     }
 
-    /// A session's newer evidence is a change to save, and its older evidence isn't. Adding the
-    /// same record again, without evidence, keeps the evidence it has.
+    /// A session's newer evidence is a change to save. Adding the same record again, without
+    /// evidence, keeps the evidence it has.
     #[test]
     fn test_session_evidence_only_moves_forward() {
         let enr = enr_of_new_node();
@@ -864,8 +868,6 @@ mod tests {
         });
         store.sync().unwrap();
 
-        confirm_session(&mut store, enr.node_id(), socket, at(1_000));
-        assert!(!store.sync().unwrap(), "older evidence was a change");
         store.add_enr(enr.clone());
         assert!(!store.sync().unwrap(), "the same record without evidence was a change");
 
