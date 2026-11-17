@@ -1720,6 +1720,7 @@ jobs:
               - matches:
                   pattern: "^gh-readonly-queue/.*$"
                   value: << pipeline.git.branch >>
+              # PR branches targeting proposal/* still fetch develop's. Tests develop lacks get the 1m default.
               - matches:
                   pattern: "^proposal/.*$"
                   value: << pipeline.git.branch >>
@@ -1727,7 +1728,8 @@ jobs:
             - run:
                 name: Fetch develop's timings
                 # The API needs no token while the project is public. If it goes private, set
-                # CIRCLE_TIMINGS_TOKEN (a personal API token, v2 rejects project tokens) as a project env var.
+                # CIRCLE_TIMINGS_TOKEN (a personal API token, v2 rejects project tokens) in a restricted
+                # context on this job. A project env var would be readable by every job.
                 environment:
                   # The fork must follow acceptance_l1_forks. A job with no file splits as today.
                   JOBS: memory-all-opn-op-reth-fusaka memory-all-kona-op-reth-fusaka
