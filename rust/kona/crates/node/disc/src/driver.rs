@@ -264,14 +264,16 @@ impl Discv5Driver {
     }
 
     /// Bootstraps the [`Discv5`] table with bootnodes, and adds those of our chain to `store`.
+    /// Returns the records of those of our chain, for gossip to dial.
     async fn bootstrap_peers(
         store: &mut BootStore,
         bootnodes: BootNodes,
         chain_id: u64,
         table_filter: fn(&Enr) -> bool,
         disc: &Discv5,
-    ) {
+    ) -> Vec<Enr> {
         let initial_store_length = store.len();
+        let mut ours = Vec::new();
 
         for bn in bootnodes.0.into_iter().chain(BootNodes::from_chain_id(chain_id).0) {
             let res = match bn {
@@ -322,7 +324,8 @@ impl Discv5Driver {
                 continue;
             }
 
-            store.add_enr(enr);
+            store.add_enr(enr.clone());
+            ours.push(enr);
         }
 
         let new_store_len = store.len();
@@ -332,15 +335,16 @@ impl Discv5Driver {
             total=%new_store_len,
             "Added new ENRs to discv5 bootstore"
         );
+        ours
     }
 
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Returns a [`Discv5Handler`] to communicate with the spawned task, and a receiver of the
     /// records for gossip to dial: those of the peers discovery has a session with, at the address
-    /// the session came from, and the saved records of the peers gossip reached lately, at startup
-    /// and again every store interval, so that gossip redials the peers it lost. It doesn't yield
-    /// the results of lookups.
+    /// the session came from, the bootnodes of our chain, once at startup, and the saved records
+    /// of the peers gossip reached lately, at startup and again every store interval, so that
+    /// gossip redials the peers it lost. It doesn't yield the results of lookups.
     ///
     /// The task is detached and stops when:
     /// - startup fails: [`Discv5`] does not start after `START_MAX_RETRIES` retries with
@@ -452,8 +456,14 @@ impl Discv5Driver {
 
             // Step 3: Bootstrap the discovery table with bootnodes.
             let mut store = self.bootstore;
-            Self::bootstrap_peers(&mut store, self.bootnodes, chain_id, table_filter, &self.disc)
-                .await;
+            let bootnodes = Self::bootstrap_peers(
+                &mut store,
+                self.bootnodes,
+                chain_id,
+                table_filter,
+                &self.disc,
+            )
+            .await;
 
             // Step 4: Remove the saved records the table filter rejects: the bootstore may hold
             // records saved by an earlier version, which didn't check them, or while the filter
@@ -469,7 +479,14 @@ impl Discv5Driver {
             let enrs = self.disc.table_entries_enr();
             info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
 
-            // Step 6: Run the core driver loop.
+            // Step 6: Hand gossip the bootnodes of our chain, once. Gossip redials one only once
+            // it has reached it, and one that doesn't answer discovery, as a bootnode that runs
+            // gossip only, gets no session that would hand it over.
+            if self.forward {
+                forward_bootnodes(bootnodes, &enr_sender);
+            }
+
+            // Step 7: Run the core driver loop.
             let mut handlers_dropped = false;
             // When the bootstore's old evidence expires next: `None` until the first session,
             // see `expiry_interval`.
@@ -839,6 +856,16 @@ fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>, n
     for enr in enrs {
         // Nothing else sends meanwhile, so they all fit, and only a closed channel refuses them.
         if sender.try_send(enr.clone()).is_err() {
+            return;
+        }
+    }
+}
+
+/// Hands gossip the records of the bootnodes, those with a TCP address, which gossip dials. The
+/// channel is empty at startup, so only a closed one refuses them.
+fn forward_bootnodes(bootnodes: Vec<Enr>, sender: &mpsc::Sender<Enr>) {
+    for enr in bootnodes.into_iter().filter(|enr| kona_peers::enr_tcp_socket(enr).is_some()) {
+        if sender.try_send(enr).is_err() {
             return;
         }
     }
