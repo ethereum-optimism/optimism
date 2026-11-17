@@ -109,6 +109,23 @@ fn test_candidates_are_not_handed_over() {
     assert_eq!(handed_over, [reached], "the driver handed over a candidate");
 }
 
+/// Gossip redials a lost peer only for a day, as op-node keeps a discovered address for 24
+/// hours: a connection refreshes its record's evidence, so the evidence of a lost peer dates from
+/// about when gossip lost it, and redialing it every minute after that long only fails. The day
+/// counts from now, not from the record gossip reached last: after a restart, the saved records
+/// seed the table instead.
+#[test]
+fn test_records_lost_a_day_ago_are_not_handed_over() {
+    let lost = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
+    let mut store = store_with_tiers(&[], std::slice::from_ref(&lost));
+    reach(&mut store, &lost, SystemTime::now() - Duration::from_secs(25 * 60 * 60));
+    let (sender, mut receiver) = mpsc::channel(8);
+
+    forward_saved(&store, TEST_CHAIN_ID, &sender);
+
+    assert!(receiver.try_recv().is_err(), "the driver handed over a peer lost a day ago");
+}
+
 /// Session records go through the same channel to gossip, and the driver hands a session's
 /// record over only once, when the session starts. So the saved records should leave half of
 /// the channel free, rather than fill it at every store interval, which drops the session records
