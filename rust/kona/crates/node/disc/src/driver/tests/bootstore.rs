@@ -265,3 +265,37 @@ fn test_store_interval_saves_no_unsaved_connected_node() {
 
     assert!(store.is_empty());
 }
+
+/// A session that has just started shouldn't confirm its record's UDP address: anyone can start
+/// one, under a fresh key, and a full store keeps the candidates confirmed most recently, so a
+/// flood of fresh sessions would push out the candidates whose sessions last. Only a session that
+/// discovery still holds once the refresh delay has passed should, much as geth saves a node only
+/// once it has answered several pings. So right after a session, its saved record has no
+/// `udp_verified_at`.
+///
+/// N accepts every record, and saves its bootstore every 100 ms. L has N as its bootnode, given
+/// by an enode URL, so L's bootstrap starts a session with N, and N saves L's record.
+#[tokio::test]
+async fn test_a_new_session_doesnt_confirm_its_record() {
+    let (mut node, dir) = driver_with_bootstore(accept_all, &[]);
+    node.store_interval = Duration::from_millis(100);
+    let path = dir.path().join("bootstore.json");
+    let enode = loopback_enode(&node.disc.local_enr());
+    let (_node, _records) = node.start();
+
+    let mut loopback = offline_driver();
+    loopback.bootnodes = BootNodes(vec![BootNode::Enode(enode)]);
+    let loopback_id = loopback.disc.local_enr().node_id();
+    let (_loopback, _) = loopback.start();
+
+    wait_for_bootstore(&path, |saved| saved.iter().any(|enr| enr.node_id() == loopback_id))
+        .await
+        .expect("the node saves the record of its session");
+    let saved = BootStore::open(path).expect("the bootstore opens");
+    let entry = saved.get(loopback_id).expect("the record is saved");
+    assert_eq!(
+        entry.udp_verified_at(),
+        None,
+        "a session that had just started confirmed its record"
+    );
+}
