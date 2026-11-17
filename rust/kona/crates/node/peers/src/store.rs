@@ -576,16 +576,25 @@ impl BootStore {
         self.records.entries.get(&node_id.raw())
     }
 
+    /// Returns the entries, the records with their evidence, in node ID order.
+    pub fn entries(&self) -> impl Iterator<Item = &BootStoreEntry> {
+        self.records.entries.values()
+    }
+
     /// Returns the records, in node ID order.
     pub fn iter(&self) -> impl Iterator<Item = &Enr> {
         self.records.entries.values().map(|entry| &entry.enr)
     }
 
-    /// Returns the records of peers of the chain `chain_id`: those with an
+    /// Returns the entries of peers of the chain `chain_id`: those whose records have an
     /// [`crate::OpStackEnr::OP_CL_KEY`] of that chain and a version this node knows, in node ID
     /// order.
-    pub fn valid_peers_with_chain_id(&self, chain_id: u64) -> impl Iterator<Item = &Enr> {
-        self.iter().filter(move |enr| crate::EnrValidation::validate(enr, chain_id).is_valid())
+    pub fn valid_peers_with_chain_id(
+        &self,
+        chain_id: u64,
+    ) -> impl Iterator<Item = &BootStoreEntry> {
+        self.entries()
+            .filter(move |entry| crate::EnrValidation::validate(&entry.enr, chain_id).is_valid())
     }
 
     /// Returns the number of peers in the in-memory store.

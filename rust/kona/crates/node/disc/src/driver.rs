@@ -5,7 +5,8 @@ use derive_more::Debug;
 use discv5::{Config, Discv5, Enr, NodeContact, kbucket::NodeStatus};
 use enr::NodeId;
 use kona_peers::{
-    BootNode, BootNodes, BootStore, BootStoreError, EnrValidation, peer_id_to_node_id,
+    BootNode, BootNodes, BootStore, BootStoreEntry, BootStoreError, EnrValidation,
+    peer_id_to_node_id,
 };
 use libp2p::{Multiaddr, multiaddr::Protocol};
 use rand::seq::SliceRandom;
@@ -34,6 +35,10 @@ const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 
 /// The number of records the channel to gossip holds.
 const ENR_CHANNEL_CAPACITY: usize = 1024;
+
+/// The most saved records that seed the discovery table at startup, see [`seed_table`]: as many
+/// as geth seeds from its node database (`seedCount`).
+const SEED_COUNT: usize = 30;
 
 /// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
 #[derive(Debug, PartialEq, Eq)]
@@ -407,9 +412,6 @@ impl Discv5Driver {
             Self::bootstrap_peers(&mut store, self.bootnodes, chain_id, table_filter, &self.disc)
                 .await;
 
-            let enrs = self.disc.table_entries_enr();
-            info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
-
             // Step 4: Remove the saved records the table filter rejects: the bootstore may hold
             // records saved by an earlier version, which didn't check them, or while the filter
             // allowed more. The file changes at the next sync, once the driver has started.
@@ -418,7 +420,13 @@ impl Discv5Driver {
                 debug!(target: "discovery", removed, "Removed saved records at addresses discovery doesn't use");
             }
 
-            // Step 5: Run the core driver loop.
+            // Step 5: Seed the discovery table with saved records, besides the bootnodes.
+            seed_table(&store, chain_id, &self.disc);
+
+            let enrs = self.disc.table_entries_enr();
+            info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
+
+            // Step 6: Run the core driver loop.
             let mut handlers_dropped = false;
             loop {
                 tokio::select! {
@@ -668,6 +676,56 @@ fn refresh_connected(store: &mut BootStore, table: &[(NodeId, Enr, NodeStatus)],
     }
 }
 
+/// Adds up to [`SEED_COUNT`] of the saved records of peers of the chain `chain_id` to `disc`'s
+/// table, in [`seed_order`], so that after a restart discovery starts from the peers that answered
+/// before, not only from the bootnodes, many of which are dead. Its lookups then contact them, and
+/// the sessions that start hand them to gossip.
+///
+/// Skips the records already in the table, the bootnodes, and those without a UDP address that
+/// discovery can contact, which discv5 refuses with a WARN. Counts only the records the table
+/// takes: a full bucket refuses the rest.
+fn seed_table(store: &BootStore, chain_id: u64, disc: &Discv5) {
+    let ip_mode = disc.ip_mode();
+    let mut seeded = 0;
+    for enr in seed_order(store, chain_id) {
+        if seeded == SEED_COUNT {
+            break;
+        }
+        if ip_mode.get_contactable_addr(enr).is_none() || disc.find_enr(&enr.node_id()).is_some() {
+            continue;
+        }
+        match disc.add_enr(enr.clone()) {
+            Ok(()) => seeded += 1,
+            Err(err) => {
+                trace!(target: "discovery", %enr, err, "The table didn't take a saved record")
+            }
+        }
+    }
+    debug!(target: "discovery", seeded, "Seeded the discovery table with saved records");
+}
+
+/// Returns the saved records of peers of the chain `chain_id` in the order they seed the table:
+/// those gossip reached first, and then the candidates, which only sessions confirmed. Anyone can
+/// start sessions, under fresh keys, so these alone shouldn't take the seeds of the peers gossip
+/// reached.
+///
+/// Each tier is in a random order, drawn afresh at each startup, not the most recently confirmed
+/// first, as geth seeds random nodes from its node database. A connection keeps its record's
+/// evidence fresh, so the most recent records are the peers the node was connected to when it
+/// stopped: if those were all an attacker's, seeding them first would eclipse the node again.
+///
+/// So a record gossip reached once, long ago, is as likely to seed as one it reached yesterday,
+/// and comes before every candidate, however recent: the store keeps evidence until a record is
+/// evicted, and is full only after 2048 records. geth seeds only nodes that answered within the
+/// last five days.
+fn seed_order(store: &BootStore, chain_id: u64) -> Vec<&Enr> {
+    let mut entries: Vec<_> = store.valid_peers_with_chain_id(chain_id).collect();
+    entries.shuffle(&mut rand::rng());
+    // A stable sort, so each tier keeps the shuffled order.
+    entries.sort_by_key(|entry| entry.tcp_verified_at().is_none());
+    entries.into_iter().map(|entry| entry.enr()).collect()
+}
+
 /// Hands gossip the saved records, the bootnodes and the records a session confirmed. Gossip dials
 /// those it isn't connected to. It redials a peer only when discovery hands it over again, and
 /// discovery reports a session only when it starts, which discv5 keeps going for as long as it
@@ -684,6 +742,7 @@ fn refresh_connected(store: &mut BootStore, table: &[(NodeId, Enr, NodeStatus)],
 fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>) {
     let mut enrs: Vec<_> = store
         .valid_peers_with_chain_id(chain_id)
+        .map(BootStoreEntry::enr)
         .filter(|enr| kona_peers::enr_tcp_socket(enr).is_some())
         .collect();
     enrs.shuffle(&mut rand::rng());

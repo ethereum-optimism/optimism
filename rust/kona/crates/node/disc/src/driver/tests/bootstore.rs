@@ -217,6 +217,72 @@ async fn test_saved_records_seed_the_table() {
     }
 }
 
+/// A node with many saved records should seed only [`SEED_COUNT`] of them, as geth does: lookups
+/// find the rest, and a table full of records that no longer answer delays the ones that do.
+///
+/// Without the limit, most of these would fit: discv5's buckets hold 16 records each, and half
+/// of the records fall into the farthest one, a quarter into the next, and so on.
+#[tokio::test]
+async fn test_seeds_are_limited() {
+    let saved: Vec<_> = (0..2 * SEED_COUNT).map(|_| enr_at_localhost(TEST_CHAIN_ID)).collect();
+    let (driver, _dir) = driver_with_bootstore(accept_all, &saved);
+    let (handler, _records) = driver.start();
+    wait_until_started(&handler).await;
+
+    let table = handler.table_enrs().await.expect("the driver runs");
+    assert!(table.len() <= SEED_COUNT, "{} saved records seeded the table", table.len());
+}
+
+/// A store with `reached` records that gossip reached, and `candidates` without that evidence.
+fn store_with_tiers(reached: &[Enr], candidates: &[Enr]) -> BootStore {
+    let mut store = BootStore::in_memory();
+    for record in reached.iter().chain(candidates) {
+        store.add_enr(record.clone());
+    }
+    for record in reached {
+        let addr = kona_peers::enr_tcp_socket(record).expect("the record has a TCP address");
+        store.set_tcp_verified(record.node_id(), addr, SystemTime::now());
+    }
+    store
+}
+
+/// The records gossip reached should seed the table before the candidates: anyone can start
+/// sessions under fresh keys, so a flood of candidates shouldn't take the seeds of the peers
+/// gossip reached.
+#[test]
+fn test_reached_records_seed_before_candidates() {
+    let reached: Vec<_> = (0..3).map(|_| enr_at_localhost(TEST_CHAIN_ID)).collect();
+    let candidates: Vec<_> = (0..3).map(|_| enr_at_localhost(TEST_CHAIN_ID)).collect();
+    let store = store_with_tiers(&reached, &candidates);
+
+    let order = seed_order(&store, TEST_CHAIN_ID);
+    assert_eq!(order.len(), reached.len() + candidates.len());
+    let (first, rest) = order.split_at(reached.len());
+    assert!(first.iter().all(|enr| reached.contains(enr)), "a candidate seeded before a peer");
+    assert!(rest.iter().all(|enr| candidates.contains(enr)));
+}
+
+/// Within a tier, the seeds should be drawn at random, not the most recently confirmed first:
+/// those are the peers the node was connected to when it stopped, and if they were all an
+/// attacker's, seeding them first would eclipse the node again.
+///
+/// The chance that one of three records never comes first in 50 rounds is `3 * (2/3)^50`, about
+/// 5 in a billion.
+#[test]
+fn test_seeds_are_drawn_at_random() {
+    let reached: Vec<_> = (0..3).map(|_| enr_at_localhost(TEST_CHAIN_ID)).collect();
+    let store = store_with_tiers(&reached, &[]);
+
+    let mut first = Vec::new();
+    for _ in 0..50 {
+        let seed = seed_order(&store, TEST_CHAIN_ID)[0].clone();
+        if !first.contains(&seed) {
+            first.push(seed);
+        }
+    }
+    assert_eq!(first.len(), reached.len(), "a saved record never seeded first");
+}
+
 /// A bootstore that can't be opened, here because its path is a directory as in our docker
 /// recipes, should stop the node from starting, as op-node's stores do. Otherwise the node
 /// runs with a bootstore that it never saves, and nothing says so.
