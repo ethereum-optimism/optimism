@@ -160,9 +160,10 @@ func postExecGethTx(data []byte) *gethtypes.Transaction {
 	return gethtypes.NewTx(&gethtypes.PostExecTx{Data: data})
 }
 
-// TestPostExecTxJSONDifferential mirrors TestDepositTxJSONDifferential for the
-// 0x7D post-exec transaction. It will be removed in the final cutover, when
-// the op-geth dependency is replaced with upstream go-ethereum.
+// TestPostExecTxJSONDifferential checks, for the 0x7D post-exec transaction, that
+// PostExecTx and op-geth agree on the binary encoding and the hash, and that each
+// decodes the other's JSON. It will be removed in the final cutover, when the op-geth
+// dependency is replaced with upstream go-ethereum.
 func TestPostExecTxJSONDifferential(t *testing.T) {
 	for _, v := range postExecTxJSONVectors {
 		gethTx := postExecGethTx(v.data)
@@ -194,9 +195,9 @@ func TestPostExecTxJSONDifferential(t *testing.T) {
 
 func TestPostExecTxUnmarshalJSONErrors(t *testing.T) {
 	valid := func() map[string]json.RawMessage {
-		gethJSON, err := postExecGethTx([]byte{0x01}).MarshalJSON()
+		data, err := json.Marshal(&optypes.PostExecTx{Data: []byte{0x01}})
 		require.NoError(t, err)
-		return toJSONMap(t, gethJSON)
+		return toJSONMap(t, data)
 	}
 	mutate := func(mut func(map[string]json.RawMessage)) []byte {
 		obj := valid()

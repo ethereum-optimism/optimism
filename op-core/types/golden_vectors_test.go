@@ -123,6 +123,18 @@ var postExecTxJSONVectors = []struct {
 	},
 }
 
+// postExecTxOpRethJSON is the first of postExecTxJSONVectors as op-reth serves it in a
+// block: with the block-context fields.
+const postExecTxOpRethJSON = `{"blockHash":"0x8b8d8fa48baa0bd828ec42624cee4c2f6a91aeacc277172dbec555acd7f9ba7d","blockNumber":"0x2a","blockTimestamp":"0x6af58972","from":"0x0000000000000000000000000000000000000000","gas":"0x0","hash":"0xcbc64a9665039744307b562634bf760d96f3bed235fecd9e09a1f1276a1823c7","input":"0xc6012ac3c20307","transactionIndex":"0x11","type":"0x7d","value":"0x0"}`
+
+// TestPostExecTxJSONDecodeOpRethGoldenVector decodes a post-exec transaction with the
+// block-context fields that an RPC server adds.
+func TestPostExecTxJSONDecodeOpRethGoldenVector(t *testing.T) {
+	var decoded optypes.PostExecTx
+	require.NoError(t, json.Unmarshal([]byte(postExecTxOpRethJSON), &decoded))
+	require.Equal(t, postExecTxJSONVectors[0].data, decoded.Data)
+}
+
 func TestPostExecTxJSONGoldenVectors(t *testing.T) {
 	for _, v := range postExecTxJSONVectors {
 		t.Run(hexutil.Encode(v.data), func(t *testing.T) {
