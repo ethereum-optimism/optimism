@@ -3,8 +3,11 @@
 use discv5::{Enr, RequestError, kbucket::NodeStatus, metrics::Metrics};
 use enr::NodeId;
 use libp2p::{Multiaddr, PeerId};
-use std::{collections::HashSet, string::String, time::Duration};
-use tokio::sync::{mpsc::Sender, oneshot};
+use std::{collections::HashSet, net::SocketAddr, string::String, time::Duration};
+use tokio::sync::{
+    mpsc::{Sender, error::TrySendError},
+    oneshot,
+};
 
 /// Request message for communicating with the Discv5 discovery service.
 ///
@@ -70,6 +73,15 @@ pub enum HandlerRequest {
         /// Duration for which the peers should be banned.
         ban_duration: Duration,
     },
+
+    /// Gossip reached the node `node_id` at its TCP address `addr`, over a connection it dialed,
+    /// for the bootstore to record, see [`kona_peers::BootStore::set_tcp_verified`].
+    TcpVerified {
+        /// The node gossip reached.
+        node_id: NodeId,
+        /// The address it reached the node at.
+        addr: SocketAddr,
+    },
 }
 
 /// Handler to the spawned [`discv5::Discv5`] service.
@@ -129,6 +141,18 @@ impl Discv5Handler {
     /// Returns the number of connected peers in the discovery table.
     pub async fn peer_count(&self) -> Result<usize, DiscoveryStopped> {
         self.request(HandlerRequest::PeerCount).await
+    }
+
+    /// Tells discovery that gossip reached the node `node_id` at its TCP address `addr`, over a
+    /// connection it dialed, see [`HandlerRequest::TcpVerified`]. Doesn't wait for room in the
+    /// request channel: the next ping on the connection repeats a report that doesn't fit.
+    pub fn tcp_verified(&self, node_id: NodeId, addr: SocketAddr) {
+        // A closed channel means discovery stopped, and the node with it.
+        if let Err(TrySendError::Full(_)) =
+            self.sender.try_send(HandlerRequest::TcpVerified { node_id, addr })
+        {
+            debug!(target: "discovery", %addr, "Discovery's request channel is full, dropping a report that gossip reached a peer");
+        }
     }
 
     /// Sends the request that `make` builds around a response channel, and waits for the response.

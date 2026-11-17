@@ -11,12 +11,17 @@ use std::{
     io::{self, Write},
     net::{SocketAddr, SocketAddrV4, SocketAddrV6},
     path::{Path, PathBuf},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 use tempfile::NamedTempFile;
 
 /// The maximum number of peers that can be stored in the bootstore.
 const MAX_PEERS: usize = 2048;
+
+/// How long `tcp_verified_at` is kept before new evidence replaces it. Gossip repeats the
+/// evidence at each ping on a connection it dialed, every 15 seconds, and refreshing each time
+/// would make the store save at every store interval.
+const TCP_VERIFIED_REFRESH: Duration = Duration::from_secs(5 * 60);
 
 /// The format version of the bootstore files that [`Records::to_json_vec`] writes.
 /// [`Contents::from_json_slice`] reads this one and every earlier one.
@@ -432,20 +437,35 @@ impl BootStore {
         let Some(entry) = self.records.0.get_mut(&node_id.raw()) else {
             return;
         };
-        // A socket that listens on both families reports an IPv4 sender at an IPv4-mapped IPv6
-        // address, which the record holds as its IPv4 one.
-        let socket = SocketAddr::new(socket.ip().to_canonical(), socket.port());
-        let recorded = match socket {
-            SocketAddr::V4(_) => entry.enr.udp4_socket().map(SocketAddr::V4),
-            SocketAddr::V6(_) => entry.enr.udp6_socket().map(SocketAddr::V6),
-        };
-        if recorded != Some(socket) {
+        if !holds_socket(udp_sockets(&entry.enr), socket) {
             return;
         }
         if entry.udp_verified_at < Some(at) {
             entry.udp_verified_at = Some(at);
             self.dirty = true;
         }
+    }
+
+    /// Notes that gossip reached the node `node_id` at `addr` at `at`, over a connection it
+    /// dialed, which authenticated the node's key: it confirmed the TCP address of its stored
+    /// record, if the record's TCP address of the family of `addr` is `addr`. A connection to
+    /// another address leaves the record's evidence as it is.
+    ///
+    /// Does nothing for a node the store doesn't hold, nor until the evidence it has is five
+    /// minutes old, as gossip repeats it at every ping. A newer time changes the file at the next
+    /// [`Self::sync`].
+    pub fn set_tcp_verified(&mut self, node_id: NodeId, addr: SocketAddr, at: SystemTime) {
+        let Some(entry) = self.records.0.get_mut(&node_id.raw()) else {
+            return;
+        };
+        if !holds_socket(tcp_sockets(&entry.enr), addr) {
+            return;
+        }
+        if entry.tcp_verified_at.is_some_and(|last| last + TCP_VERIFIED_REFRESH > at) {
+            return;
+        }
+        entry.tcp_verified_at = Some(at);
+        self.dirty = true;
     }
 
     /// Adds `entry`, see [`Records::add`].
@@ -541,6 +561,16 @@ fn udp_sockets(enr: &Enr) -> (Option<SocketAddrV4>, Option<SocketAddrV6>) {
 /// Returns the TCP sockets of `enr`, which a gossip connection confirms.
 fn tcp_sockets(enr: &Enr) -> (Option<SocketAddrV4>, Option<SocketAddrV6>) {
     (enr.tcp4_socket(), enr.tcp6_socket())
+}
+
+/// Returns whether `addr` is the socket of its family in `sockets`, a record's
+/// [`udp_sockets`] or [`tcp_sockets`]. A socket that listens on both families reports an IPv4
+/// peer at an IPv4-mapped IPv6 address, which a record holds as its IPv4 one.
+fn holds_socket((v4, v6): (Option<SocketAddrV4>, Option<SocketAddrV6>), addr: SocketAddr) -> bool {
+    match SocketAddr::new(addr.ip().to_canonical(), addr.port()) {
+        SocketAddr::V4(addr) => v4 == Some(addr),
+        SocketAddr::V6(addr) => v6 == Some(addr),
+    }
 }
 
 /// Serializes an optional time as whole seconds since the Unix epoch, the format of the bootstore
@@ -782,10 +812,10 @@ mod tests {
         assert_eq!(store.records.0.values().collect::<Vec<_>>(), [&expected]);
     }
 
-    /// A session with a node the store doesn't hold adds nothing: its record comes from
-    /// [`BootStore::add_enr`], which the table filter decides on.
+    /// Evidence for a node the store doesn't hold, from a session or a gossip connection, adds
+    /// nothing: its record comes from [`BootStore::add_enr`], which the table filter decides on.
     #[test]
-    fn test_session_with_an_unknown_node_adds_nothing() {
+    fn test_evidence_for_an_unknown_node_adds_nothing() {
         let enr = make_enr();
         let mut store = BootStore::in_memory();
         store.sync().unwrap();
@@ -795,9 +825,72 @@ mod tests {
             SocketAddr::V4(enr.udp4_socket().unwrap()),
             at(1_000),
         );
+        store.set_tcp_verified(
+            enr.node_id(),
+            SocketAddr::V4(enr.tcp4_socket().unwrap()),
+            at(1_000),
+        );
 
         assert!(store.is_empty());
-        assert!(!store.sync().unwrap(), "a session with an unknown node was a change");
+        assert!(!store.sync().unwrap(), "evidence for an unknown node was a change");
+    }
+
+    /// A gossip connection we dialed confirms the TCP address of the stored record only if the
+    /// record has a TCP address of the connection's family, and the connection is to it: not to
+    /// its UDP port, say. It leaves the UDP evidence as it is. A connection to another address
+    /// leaves the TCP evidence as it is too.
+    #[rstest::rstest]
+    #[case::matching("1.2.3.4:9223", true)]
+    #[case::ipv4_mapped("[::ffff:1.2.3.4]:9223", true)]
+    #[case::udp_port("1.2.3.4:9222", false)]
+    #[case::other_ip("5.6.7.8:9223", false)]
+    #[case::no_tcp_address_in_the_family("[::1]:9223", false)]
+    fn test_gossip_confirms_only_the_record_tcp_address(
+        #[case] addr: SocketAddr,
+        #[case] confirms: bool,
+    ) {
+        let enr = make_enr_of(&CombinedKey::generate_secp256k1(), 1, [1, 2, 3, 4], 9222, 9223);
+        let mut store = BootStore::in_memory();
+        store.records.add(BootStoreEntry {
+            udp_verified_at: Some(at(1_000)),
+            tcp_verified_at: Some(at(1_000)),
+            ..BootStoreEntry::candidate(enr.clone())
+        });
+        store.sync().unwrap();
+
+        // Long enough after the stored evidence to replace it.
+        store.set_tcp_verified(enr.node_id(), addr, at(2_000));
+
+        assert_eq!(store.sync().unwrap(), confirms);
+        let expected = BootStoreEntry {
+            udp_verified_at: Some(at(1_000)),
+            tcp_verified_at: Some(at(if confirms { 2_000 } else { 1_000 })),
+            ..BootStoreEntry::candidate(enr)
+        };
+        assert_eq!(store.records.0.values().collect::<Vec<_>>(), [&expected]);
+    }
+
+    /// Gossip repeats its evidence at every ping on a connection it dialed, so the store takes it
+    /// only once the evidence it has is [`TCP_VERIFIED_REFRESH`] old. Otherwise every store
+    /// interval would save the file.
+    #[test]
+    fn test_gossip_evidence_is_refreshed_once_it_is_old() {
+        let enr = make_enr();
+        let addr = SocketAddr::V4(enr.tcp4_socket().unwrap());
+        let refresh = TCP_VERIFIED_REFRESH.as_secs();
+        let mut store = BootStore::in_memory();
+        store.add_enr(enr.clone());
+        store.sync().unwrap();
+
+        store.set_tcp_verified(enr.node_id(), addr, at(1_000));
+        assert!(store.sync().unwrap(), "the first evidence wasn't a change");
+        store.set_tcp_verified(enr.node_id(), addr, at(1_000 + refresh - 1));
+        assert!(!store.sync().unwrap(), "evidence before the refresh was a change");
+        store.set_tcp_verified(enr.node_id(), addr, at(1_000 + refresh));
+        assert!(store.sync().unwrap(), "evidence at the refresh wasn't a change");
+
+        let entry = store.get(enr.node_id()).unwrap();
+        assert_eq!(entry.tcp_verified_at(), Some(at(1_000 + refresh)));
     }
 
     /// A full store evicts the record whose UDP address a session confirmed longest ago, the

@@ -9,13 +9,18 @@ use kona_genesis::RollupConfig;
 use kona_peers::{EnrValidation, PeerMonitoring, enr_to_multiaddr};
 use libp2p::{
     Multiaddr, PeerId, Swarm,
-    core::transport::ListenerId,
+    core::{ConnectedPoint, transport::ListenerId},
     gossipsub::{IdentTopic, MessageId},
+    multiaddr::Protocol,
     swarm::{ConnectionId, SwarmEvent, dial_opts::DialOpts},
 };
 use libp2p_identity::Keypair;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{collections::HashMap, net::IpAddr, time::Duration};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, SocketAddr},
+    time::Duration,
+};
 use tokio::{sync::oneshot, time::Instant};
 
 use crate::{
@@ -286,6 +291,40 @@ where
     /// Returns the peers the swarm has a connection to.
     pub fn connected_peers(&self) -> impl Iterator<Item = &PeerId> {
         self.swarm.connected_peers()
+    }
+
+    /// Returns the peer, and its TCP address, if `event` shows that this node can reach the peer
+    /// there. Only an outbound connection shows that: this node dialed the address, and the
+    /// handshake authenticated the peer's key. Two events on an outbound connection do:
+    ///
+    /// - The connection is established.
+    /// - A ping on it succeeds, which shows that the address still works.
+    ///
+    /// An inbound connection doesn't count, even if it comes from the peer's listen address, as
+    /// op-node's do: it shows that the peer can reach this node, not the other way around.
+    ///
+    /// Returns `None` for any other event, and for an address that isn't an IP and a TCP port.
+    pub fn reached_peer(&self, event: &SwarmEvent<Event>) -> Option<(PeerId, SocketAddr)> {
+        let (peer_id, addr) = match event {
+            SwarmEvent::ConnectionEstablished {
+                peer_id,
+                endpoint: ConnectedPoint::Dialer { address, .. },
+                ..
+            } => (*peer_id, address),
+            SwarmEvent::Behaviour(Event::Ping(libp2p::ping::Event {
+                peer,
+                connection,
+                result: Ok(_),
+            })) => {
+                let connection = self.connections.get(peer)?.get(connection)?;
+                if connection.dialer != *self.local_peer_id() {
+                    return None;
+                }
+                (*peer, &connection.remote_addr)
+            }
+            _ => return None,
+        };
+        Some((peer_id, tcp_socket(addr)?))
     }
 
     /// Returns whether the swarm has a connection to `peer_id`.
@@ -948,6 +987,21 @@ where
 
         None
     }
+}
+
+/// Returns the IP and TCP port that `addr` starts with, if it does, as a connection's address
+/// does, followed by the peer ID.
+fn tcp_socket(addr: &Multiaddr) -> Option<SocketAddr> {
+    let mut protocols = addr.iter();
+    let ip = match protocols.next()? {
+        Protocol::Ip4(ip) => IpAddr::V4(ip),
+        Protocol::Ip6(ip) => IpAddr::V6(ip),
+        _ => return None,
+    };
+    let Protocol::Tcp(port) = protocols.next()? else {
+        return None;
+    };
+    Some(SocketAddr::new(ip, port))
 }
 
 #[cfg(test)]

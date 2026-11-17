@@ -481,6 +481,9 @@ impl Discv5Driver {
                                     self.disc.ban_node(&node_id, Some(ban_duration));
                                 }
                             },
+                            HandlerRequest::TcpVerified { node_id, addr } => {
+                                store.set_tcp_verified(node_id, addr, SystemTime::now());
+                            }
                         }
                     }
                     // Nobody is left to send requests or to receive ENRs.
