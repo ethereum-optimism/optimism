@@ -304,7 +304,7 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
     actor.step().await.unwrap();
     assert_eq!(actor.engine.len(), 1, "only the unsafe import may remain queued");
     assert!(!actor.reset_pending);
-    l2.expect("engine_newPayloadV1", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+    l2.expect("engine_newPayloadV2", PayloadStatus::from_status(PayloadStatusEnum::Valid));
     l2.expect_forkchoice_updated(
         forkchoice(unsafe_head, genesis, genesis),
         PayloadStatusEnum::Valid,
