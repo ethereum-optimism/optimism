@@ -1727,7 +1727,7 @@ jobs:
             - run:
                 name: Fetch develop's timings
                 # The API needs no token while the project is public. If it goes private, set
-                # CIRCLE_TIMINGS_TOKEN (a read-only project API token) as a project env var.
+                # CIRCLE_TIMINGS_TOKEN (a personal API token, v2 rejects project tokens) as a project env var.
                 environment:
                   # The fork must follow acceptance_l1_forks. A job with no file splits as today.
                   JOBS: memory-all-opn-op-reth-fusaka memory-all-kona-op-reth-fusaka
@@ -1736,7 +1736,7 @@ jobs:
                   trap 'echo "Could not fetch develop timings, memory-all splits as today"; exit 0' ERR
                   API=https://circleci.com/api
                   SLUG=gh/ethereum-optimism/optimism
-                  CURL=(curl -fsS --max-time 10 --retry 2 --retry-delay 1)
+                  CURL=(curl -fsS --max-time 10 --retry 2 --retry-delay 1 --retry-max-time 10)
                   if [ -n "${CIRCLE_TIMINGS_TOKEN:-}" ]; then CURL+=(-H "Circle-Token: $CIRCLE_TIMINGS_TOKEN"); fi
                   cd "$(mktemp -d)"
                   # Green develop jobs, newest first. A develop pipeline adds about 100.
@@ -2893,7 +2893,8 @@ workflows:
             - rust-op-reth-binary
             - rust-sp1-super-range-executor
             - go-binaries-for-sysgo
-            - memory-all-shard-timings
+            # terminal: with no timings file the split runs as before.
+            - memory-all-shard-timings: terminal
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
