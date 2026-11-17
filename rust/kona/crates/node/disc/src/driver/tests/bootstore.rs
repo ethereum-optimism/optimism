@@ -88,6 +88,27 @@ fn test_saved_records_without_a_tcp_address_are_not_handed_over() {
     assert_eq!(handed_over, [dialable], "the driver handed over a record gossip can't dial");
 }
 
+/// The saved records handed over again every store interval should be only those gossip reached
+/// before, not the candidates, which only sessions confirmed: anyone can start sessions under
+/// fresh keys, and gossip would redial the candidates of a flood every minute. A candidate is
+/// dialed when its session starts, and after a restart the saved candidates seed the table, so
+/// they are dialed once a session with them starts again.
+#[test]
+fn test_candidates_are_not_handed_over() {
+    let reached = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
+    let candidate = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 2)), TEST_CHAIN_ID);
+    let store = store_with_tiers(std::slice::from_ref(&reached), &[candidate]);
+    let (sender, mut receiver) = mpsc::channel(8);
+
+    forward_saved(&store, TEST_CHAIN_ID, &sender);
+
+    let mut handed_over = Vec::new();
+    while let Ok(record) = receiver.try_recv() {
+        handed_over.push(record);
+    }
+    assert_eq!(handed_over, [reached], "the driver handed over a candidate");
+}
+
 /// Session records go through the same channel to gossip, and the driver hands a session's
 /// record over only once, when the session starts. So the saved records should leave half of
 /// the channel free, rather than fill it at every store interval, which drops the session records
