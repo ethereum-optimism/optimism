@@ -1,7 +1,4 @@
-use super::{
-    DelegateDerivationActor, DerivationDelegateClientError, DerivationDelegateProvider,
-    actor::DERIVATION_DELEGATE_POLL_INTERVAL,
-};
+use super::{DelegateDerivationActor, SyncStatusSource, actor::DERIVATION_DELEGATE_POLL_INTERVAL};
 use crate::{DerivationActorRequest, EngineActorRequest, NodeActor, QueuedDerivationEngineClient};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
@@ -22,15 +19,17 @@ const SAFE_ORIGIN: u64 = 1;
 const FINALIZED_ORIGIN: u64 = 2;
 const CURRENT_L1: u64 = 3;
 
-type SyncStatusReply = Result<SyncStatus, DerivationDelegateClientError>;
+type SyncStatusReply = Result<SyncStatus, &'static str>;
 
 /// Answers each sync status poll with the next scripted reply.
 #[derive(Debug)]
 struct ScriptedDelegate(Mutex<VecDeque<SyncStatusReply>>);
 
 #[async_trait]
-impl DerivationDelegateProvider for ScriptedDelegate {
-    async fn fetch_sync_status(&self) -> SyncStatusReply {
+impl SyncStatusSource for ScriptedDelegate {
+    type Error = &'static str;
+
+    async fn sync_status(&self) -> SyncStatusReply {
         self.0.lock().unwrap().pop_front().expect("unexpected sync status poll")
     }
 }
@@ -274,7 +273,7 @@ impl DelegateReply {
                 status.current_l1.hash = non_canonical(status.current_l1.id()).hash
             }
             Self::FetchFailed => {
-                return Err(DerivationDelegateClientError::FetchFailed("unreachable".into()));
+                return Err("unreachable");
             }
             Self::FinalizedOriginNotCanonical => {
                 status.finalized_l2.l1_origin = non_canonical(status.finalized_l2.l1_origin)
