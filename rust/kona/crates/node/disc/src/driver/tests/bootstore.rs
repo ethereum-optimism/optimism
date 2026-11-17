@@ -282,24 +282,8 @@ async fn test_seeds_are_limited() {
 
     let table = handler.table_enrs().await.expect("the driver runs");
     assert!(table.len() <= SEED_COUNT, "{} saved records seeded the table", table.len());
-}
-
-/// The time the tests of the driver's functions pass them as now, rather than read the clock.
-fn fixed_now() -> SystemTime {
-    SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000)
-}
-
-/// A store with `reached` records that gossip reached at [`fixed_now`], and `candidates` without
-/// that evidence.
-fn store_with_tiers(reached: &[Enr], candidates: &[Enr]) -> BootStore {
-    let mut store = BootStore::in_memory();
-    for record in reached.iter().chain(candidates) {
-        store.add_enr(record.clone());
-    }
-    for record in reached {
-        reach(&mut store, record, fixed_now());
-    }
-    store
+    // The table takes about as many: half of the records fall into the farthest bucket, of 16.
+    assert!(table.len() > SEED_COUNT / 2, "only {} saved records seeded the table", table.len());
 }
 
 /// The records gossip reached should seed the table before the candidates: anyone can start
@@ -385,18 +369,6 @@ fn test_a_record_dated_after_now_doesnt_age_the_others() {
         let order = seed_order(&store, TEST_CHAIN_ID, fixed_now());
         assert_eq!(order[2], &candidate, "a record dated after now aged one reached since");
     }
-}
-
-/// A driver with a bootstore of one record, `old`, whose evidence is older than it counts, that
-/// saves its bootstore every 50 ms and expires the evidence at the first store interval it may.
-fn driver_with_old_evidence() -> (Discv5Driver, tempfile::TempDir, Enr) {
-    let old = enr_at_localhost(TEST_CHAIN_ID);
-    let (mut driver, dir) = driver_with_bootstore(accept_all, std::slice::from_ref(&old));
-    let reached = SystemTime::now() - EVIDENCE_TTL - Duration::from_secs(60 * 60);
-    reach(&mut driver.bootstore, &old, reached);
-    driver.store_interval = Duration::from_millis(50);
-    driver.expiry_interval = Duration::ZERO;
-    (driver, dir, old)
 }
 
 /// The driver should expire the bootstore's old evidence only once a session has shown that the

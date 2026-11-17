@@ -127,3 +127,33 @@ async fn wait_until_started(handler: &Discv5Handler) {
         .expect("driver should finish startup")
         .expect("driver should not stop during startup");
 }
+
+/// The time the tests of the driver's functions pass them as now, rather than read the clock.
+fn fixed_now() -> SystemTime {
+    SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000)
+}
+
+/// A store with `reached` records that gossip reached at [`fixed_now`], and `candidates` without
+/// that evidence.
+fn store_with_tiers(reached: &[Enr], candidates: &[Enr]) -> BootStore {
+    let mut store = BootStore::in_memory();
+    for record in reached.iter().chain(candidates) {
+        store.add_enr(record.clone());
+    }
+    for record in reached {
+        reach(&mut store, record, fixed_now());
+    }
+    store
+}
+
+/// A driver with a bootstore of one record, `old`, whose evidence is older than it counts, that
+/// saves its bootstore every 50 ms and expires the evidence at the first store interval it may.
+fn driver_with_old_evidence() -> (Discv5Driver, tempfile::TempDir, Enr) {
+    let old = enr_at_localhost(TEST_CHAIN_ID);
+    let (mut driver, dir) = driver_with_bootstore(accept_all, std::slice::from_ref(&old));
+    let reached = SystemTime::now() - EVIDENCE_TTL - Duration::from_secs(60 * 60);
+    reach(&mut driver.bootstore, &old, reached);
+    driver.store_interval = Duration::from_millis(50);
+    driver.expiry_interval = Duration::ZERO;
+    (driver, dir, old)
+}

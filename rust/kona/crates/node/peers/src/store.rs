@@ -783,6 +783,12 @@ mod tests {
     use enr::CombinedKey;
     use std::{fs::File, io::Read};
 
+    /// The TTL of the expiry tests.
+    const TTL: Duration = Duration::from_secs(1_000);
+
+    /// The time the expiry tests expire at, in seconds after the epoch, well after [`TTL`].
+    const NOW: u64 = 10_000;
+
     /// A record of a new node, at `1.1.1.1` with UDP port 9222 and TCP port 9223.
     fn enr_of_new_node() -> Enr {
         enr_of(&CombinedKey::generate_secp256k1(), 1, [1, 1, 1, 1], 9222, 9223)
@@ -1141,12 +1147,6 @@ mod tests {
         store.set_udp_verified(enr.node_id(), socket, at(1_000 + refresh));
         assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), Some(at(1_000 + refresh)));
     }
-
-    /// The TTL of the expiry tests.
-    const TTL: Duration = Duration::from_secs(1_000);
-
-    /// The time the expiry tests expire at, in seconds after the epoch, well after [`TTL`].
-    const NOW: u64 = 10_000;
 
     /// Evidence older than the TTL should be forgotten, each timestamp on its own, so that a peer
     /// gossip last reached long ago no longer outranks the candidates when the store evicts,
