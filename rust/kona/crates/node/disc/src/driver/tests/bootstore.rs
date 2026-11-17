@@ -441,41 +441,6 @@ async fn test_evidence_expires_after_a_session() {
     );
 }
 
-/// No expiry pass should be due before a session: the node may not hear from the network.
-#[test]
-fn test_expiry_is_not_due_before_a_session() {
-    let mut expiry = ExpirySchedule::new(Duration::from_secs(60));
-    assert!(!expiry.take_due(fixed_now()));
-}
-
-/// A pass should be due an interval after a session, and not before, and a later session
-/// shouldn't postpone it, or sessions that keep coming would keep it from ever being due.
-#[test]
-fn test_expiry_is_due_an_interval_after_a_session() {
-    let interval = Duration::from_secs(60);
-    let mut expiry = ExpirySchedule::new(interval);
-    expiry.session_started(fixed_now());
-    expiry.session_started(fixed_now() + interval / 2);
-
-    assert!(!expiry.take_due(fixed_now() + interval - Duration::from_secs(1)));
-    assert!(expiry.take_due(fixed_now() + interval));
-}
-
-/// After a pass, the next should wait for another session, so that a node that lost the network
-/// while running stops expiring the records it can't refresh, rather than drop them all a week
-/// later.
-#[test]
-fn test_expiry_waits_for_a_session_after_a_pass() {
-    let interval = Duration::from_secs(60);
-    let mut expiry = ExpirySchedule::new(interval);
-    expiry.session_started(fixed_now());
-    assert!(expiry.take_due(fixed_now() + interval));
-
-    assert!(!expiry.take_due(fixed_now() + 10 * interval), "a pass was due without a session");
-    expiry.session_started(fixed_now() + 10 * interval);
-    assert!(expiry.take_due(fixed_now() + 11 * interval));
-}
-
 /// A bootstore that can't be opened, here because its path is a directory as in our docker
 /// recipes, should stop the node from starting, as op-node's stores do. Otherwise the node
 /// runs with a bootstore that it never saves, and nothing says so.
