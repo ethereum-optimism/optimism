@@ -195,6 +195,28 @@ async fn test_bootstore_is_saved_in_a_missing_directory() {
         .expect("the driver didn't save the bootstore in a directory it had to create");
 }
 
+/// After a restart, the saved records should seed discovery's table, as geth seeds its table
+/// from its node database. Otherwise only the bootnodes do, many of which are dead (#24094), and
+/// a node whose bootnodes are all down finds no peers through discovery, although its bootstore
+/// names peers that answered before.
+///
+/// The node has no bootnodes, and its saved records are on loopback, where nothing answers.
+#[tokio::test]
+async fn test_saved_records_seed_the_table() {
+    let saved = [enr_at_localhost(TEST_CHAIN_ID), enr_at_localhost(TEST_CHAIN_ID)];
+    let (driver, _dir) = driver_with_bootstore(accept_all, &saved);
+    let (handler, _records) = driver.start();
+    wait_until_started(&handler).await;
+
+    let table = handler.table_enrs().await.expect("the driver runs");
+    for record in &saved {
+        assert!(
+            table.iter().any(|enr| enr.node_id() == record.node_id()),
+            "a saved record didn't seed the table"
+        );
+    }
+}
+
 /// A bootstore that can't be opened, here because its path is a directory as in our docker
 /// recipes, should stop the node from starting, as op-node's stores do. Otherwise the node
 /// runs with a bootstore that it never saves, and nothing says so.
