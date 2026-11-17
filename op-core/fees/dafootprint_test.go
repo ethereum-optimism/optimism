@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -60,6 +61,16 @@ func userTxMix() []*types.Transaction {
 	}
 }
 
+func marshalTxs(t *testing.T, txs []*types.Transaction) []hexutil.Bytes {
+	raw := make([]hexutil.Bytes, len(txs))
+	for i, tx := range txs {
+		var err error
+		raw[i], err = tx.MarshalBinary()
+		require.NoError(t, err)
+	}
+	return raw
+}
+
 // TestDAFootprintConstantsParity pins the ported L1-attributes constants to op-geth's.
 func TestDAFootprintConstantsParity(t *testing.T) {
 	require.Equal(t, types.IsthmusL1AttributesLen, IsthmusL1AttributesLen)
@@ -104,10 +115,11 @@ func TestExtractDAFootprintGasScalarParity(t *testing.T) {
 	}
 }
 
-// TestCalcDAFootprintParity is a live differential check that CalcDAFootprint matches op-geth's
-// types.CalcDAFootprint across pre-Lagoon deposit/user-transaction mixes, attribute layouts, and
-// scalar values, including error cases. Post-exec transactions intentionally diverge because
-// op-geth does not support Lagoon. Remove this test when the op-geth dependency is dropped.
+// TestCalcDAFootprintParity is a live differential check that CalcDAFootprint, given the
+// binary encodings of a block's transactions, matches op-geth's types.CalcDAFootprint on the
+// transactions themselves, across pre-Lagoon deposit/user-transaction mixes, attribute layouts,
+// and scalar values. Post-exec transactions intentionally diverge because op-geth does not
+// support Lagoon. Remove this test when the op-geth dependency is dropped.
 func TestCalcDAFootprintParity(t *testing.T) {
 	userTxs := userTxMix()
 	secondDeposit := l1AttributesDepositTx(nil)
@@ -137,7 +149,7 @@ func TestCalcDAFootprintParity(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			want, wantErr := types.CalcDAFootprint(tc.txs)
-			got, gotErr := CalcDAFootprint(tc.txs)
+			got, gotErr := CalcDAFootprint(marshalTxs(t, tc.txs))
 			require.Equal(t, want, got)
 			if wantErr != nil {
 				require.EqualError(t, gotErr, wantErr.Error())
@@ -150,36 +162,34 @@ func TestCalcDAFootprintParity(t *testing.T) {
 
 // TestCalcDAFootprintDirected pins CalcDAFootprint to hand-computed reference values.
 func TestCalcDAFootprintDirected(t *testing.T) {
-	to := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
-	// Two small legacy transactions whose Fjord DA-size estimates both clamp to the
-	// 100-byte minimum, so the footprint is (100 + 100) * scalar.
-	smallTx := func(nonce uint64) *types.Transaction {
-		return types.NewTx(&types.LegacyTx{Nonce: nonce, To: &to, Value: big.NewInt(1), Gas: 21000, GasPrice: big.NewInt(1)})
-	}
-	txs := []*types.Transaction{l1AttributesDepositTx(jovianL1AttributesData(3)), smallTx(0), smallTx(1)}
+	// A small legacy and a small dynamic-fee transaction whose Fjord DA-size estimates both clamp
+	// to the 100-byte minimum, so the footprint is (100 + 100) * scalar.
+	userTxs := userTxMix()
+	txs := marshalTxs(t, []*types.Transaction{l1AttributesDepositTx(jovianL1AttributesData(3)), userTxs[0], userTxs[2]})
 	got, err := CalcDAFootprint(txs)
 	require.NoError(t, err)
 	require.Equal(t, uint64(600), got)
 
 	// The Jovian activation block carries Isthmus-length attributes and yields a zero footprint.
-	got, err = CalcDAFootprint([]*types.Transaction{l1AttributesDepositTx(isthmusL1AttributesData())})
+	got, err = CalcDAFootprint(marshalTxs(t, []*types.Transaction{l1AttributesDepositTx(isthmusL1AttributesData())}))
 	require.NoError(t, err)
 	require.Zero(t, got)
 }
 
 func TestCalcDAFootprintExcludesPostExec(t *testing.T) {
-	deposit := l1AttributesDepositTx(jovianL1AttributesData(3))
-	userTx := userTxMix()[0]
-
-	rawPostExec, err := (&optypes.PostExecTx{Data: []byte{0xc0}}).MarshalBinary()
+	txs := marshalTxs(t, []*types.Transaction{l1AttributesDepositTx(jovianL1AttributesData(3)), userTxMix()[0]})
+	postExecTx, err := (&optypes.PostExecTx{Data: []byte{0xc0}}).MarshalBinary()
 	require.NoError(t, err)
-	postExecTx := new(types.Transaction)
-	require.NoError(t, postExecTx.UnmarshalBinary(rawPostExec))
-	require.True(t, optypes.IsPostExecTx(postExecTx))
 
-	withoutPostExec, err := CalcDAFootprint([]*types.Transaction{deposit, userTx})
+	withoutPostExec, err := CalcDAFootprint(txs)
 	require.NoError(t, err)
-	withPostExec, err := CalcDAFootprint([]*types.Transaction{deposit, userTx, postExecTx})
+	withPostExec, err := CalcDAFootprint(append(txs, postExecTx))
 	require.NoError(t, err)
 	require.Equal(t, withoutPostExec, withPostExec)
+}
+
+func TestCalcDAFootprintRejectsEmptyTx(t *testing.T) {
+	txs := marshalTxs(t, []*types.Transaction{l1AttributesDepositTx(jovianL1AttributesData(3)), userTxMix()[0]})
+	_, err := CalcDAFootprint(append(txs, hexutil.Bytes{}))
+	require.EqualError(t, err, "empty transaction at index 2")
 }
