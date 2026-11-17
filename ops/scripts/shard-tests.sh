@@ -43,7 +43,7 @@ if [ -s "$TIMINGS_FILE" ]; then
   echo "Splitting by develop's timings from $TIMINGS_FILE" >&2
   set -- --timings-file "$TIMINGS_FILE"
 elif [ -d "$(dirname "$TIMINGS_FILE")" ]; then
-  echo "No develop timings for ${CIRCLE_JOB:-}, splitting by CircleCI's own" >&2
+  echo "No fetched timings for ${CIRCLE_JOB:-}, splitting by CircleCI's own" >&2
 fi
 
 # Canceled runs can leave partial history. CircleCI's tiny default weight for

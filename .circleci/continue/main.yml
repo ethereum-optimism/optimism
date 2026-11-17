@@ -1720,7 +1720,7 @@ jobs:
               - matches:
                   pattern: "^gh-readonly-queue/.*$"
                   value: << pipeline.git.branch >>
-              # Branches into proposal/* still fetch develop's. Tests develop lacks get the 1m default.
+              # PR branches targeting proposal/* still fetch develop's. Tests develop lacks get the 1m default.
               - matches:
                   pattern: "^proposal/.*$"
                   value: << pipeline.git.branch >>
