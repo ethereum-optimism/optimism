@@ -535,7 +535,7 @@ type PayloadAttributes struct {
 // type. Empty transactions are also considered non-Deposit transactions.
 func (a *PayloadAttributes) IsDepositsOnly() bool {
 	for _, tx := range a.Transactions {
-		if len(tx) == 0 || tx[0] != optypes.DepositTxType {
+		if !optypes.IsDepositTxBytes(tx) {
 			return false
 		}
 	}
@@ -548,7 +548,7 @@ func (a *PayloadAttributes) WithDepositsOnly() *PayloadAttributes {
 	clone := *a
 	depositTxs := make([]Data, 0, len(a.Transactions))
 	for _, tx := range a.Transactions {
-		if len(tx) > 0 && tx[0] == optypes.DepositTxType {
+		if optypes.IsDepositTxBytes(tx) {
 			depositTxs = append(depositTxs, tx)
 		}
 	}
