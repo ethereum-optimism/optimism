@@ -68,7 +68,9 @@ services:
       - "${KONA_NODE_METRICS_PORT:-9002}:9002" # metrics
       - "${KONA_NODE_RPC_PORT:-5060}:5060" # rpc
     volumes:
-      - "kona_data:/db"
+      # The node keeps its bootstore in its home, at ~/.kona/<chain_id>/bootstore.json. The image
+      # owns /home/app, so the volume gets that owner, and the node can write it.
+      - "kona_data:/home/app"
       - "./jwttoken:/root/jwt:ro"
     environment:
       L1_PROVIDER_RPC: ${L1_PROVIDER_RPC:?}
@@ -86,7 +88,6 @@ services:
       --rpc.port 5060
       --p2p.listen.tcp 9223
       --p2p.listen.udp 9223
-      --p2p.bootstore /db
 
 volumes:
   prometheus_data:
