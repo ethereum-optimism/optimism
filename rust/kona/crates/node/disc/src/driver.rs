@@ -50,6 +50,12 @@ const SEED_MAX_AGE: Duration = Duration::from_secs(5 * 24 * 60 * 60);
 /// (`discoveredAddrTTL`).
 const REDIAL_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
+/// How long a session keeps its saved record without evidence, see
+/// [`BootStore::session_started`]: long enough for the session to last the five minutes that
+/// confirm its record, or for gossip's dial to reach the node, and a store interval for the result
+/// to be noted.
+const SESSION_GRACE: Duration = Duration::from_secs(60 * 60);
+
 /// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
 #[derive(Debug, PartialEq, Eq)]
 struct RecordToDial {
@@ -521,7 +527,7 @@ impl Discv5Driver {
                             debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
                             store.add_enr(enr.clone());
-                            store.session_started(enr.node_id(), socket, SystemTime::now());
+                            store.session_started(enr.node_id(), socket, SystemTime::now(), SESSION_GRACE);
                             forward_session(enr, &enr_sender);
                         }
                     }

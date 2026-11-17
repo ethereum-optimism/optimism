@@ -147,16 +147,32 @@ pub struct BootStoreEntry {
     /// The record.
     enr: Enr,
     /// When a discovery session last confirmed the record's UDP address.
+    ///
+    /// Ranks the candidates when a full store evicts one, and keeps the record when it expires.
     #[serde(default, skip_serializing_if = "Option::is_none", with = "unix_secs")]
     udp_verified_at: Option<SystemTime>,
     /// When a gossip connection we dialed last reached the record's TCP address, which
     /// authenticated the peer ID of its key.
+    ///
+    /// Sets the peers gossip reached above the candidates, which anyone can make under fresh
+    /// keys: evicted last, seeded first, and redialed.
     #[serde(default, skip_serializing_if = "Option::is_none", with = "unix_secs")]
     tcp_verified_at: Option<SystemTime>,
     /// When the discovery session with the node at the record's UDP address started, if one did
     /// since the store was opened. Not saved: the session ends with the process.
+    ///
+    /// Lets a session confirm the record only once it has lasted, so that a flood of fresh
+    /// sessions can't outrank the ones that last.
     #[serde(skip)]
     session_started_at: Option<SystemTime>,
+    /// Until when the record is kept without evidence, see [`BootStore::expire`]: a while after
+    /// the last discovery session with its node started, from any socket. Not saved, as
+    /// [`Self::session_started_at`].
+    ///
+    /// Gives a fresh session the time to confirm the record, or gossip to reach it, before
+    /// expiry drops it: discovery reports a session only once.
+    #[serde(skip)]
+    expiry_grace: Option<SystemTime>,
 }
 
 impl BootStoreEntry {
@@ -184,7 +200,13 @@ impl BootStoreEntry {
 
     /// Returns an entry for `enr` without evidence.
     const fn candidate(enr: Enr) -> Self {
-        Self { enr, udp_verified_at: None, tcp_verified_at: None, session_started_at: None }
+        Self {
+            enr,
+            udp_verified_at: None,
+            tcp_verified_at: None,
+            session_started_at: None,
+            expiry_grace: None,
+        }
     }
 
     /// Returns the entry's key in [`Records`]: the bytes of its node ID, as `NodeId` isn't ordered.
@@ -196,8 +218,10 @@ impl BootStoreEntry {
     /// evidence of this entry for the addresses that `newer` keeps, where it is newer: a timestamp
     /// is kept only if the sockets it proves are unchanged. A record has one IP for each family,
     /// which UDP and TCP share, so a new IP drops both, and a new TCP port only `tcp_verified_at`.
-    /// The same record keeps all its sockets, so it takes the newer of each timestamp.
+    /// The same record keeps all its sockets, so it takes the newer of each timestamp. The later
+    /// `expiry_grace` is kept whatever changed, as it is for the node, not for an address.
     fn replaced_by(&self, mut newer: Self) -> Self {
+        newer.expiry_grace = newer.expiry_grace.max(self.expiry_grace);
         if udp_sockets(&self.enr) == udp_sockets(&newer.enr) {
             newer.udp_verified_at = newer.udp_verified_at.max(self.udp_verified_at);
             newer.session_started_at = newer.session_started_at.max(self.session_started_at);
@@ -510,9 +534,19 @@ impl BootStore {
     /// That keeps the peers whose sessions last from being crowded out of a full store: anyone
     /// can start sessions under fresh keys, and if each confirmed its record at once, a flood of
     /// them would always be the most recently confirmed.
-    pub fn session_started(&mut self, node_id: NodeId, socket: SocketAddr, at: SystemTime) {
+    ///
+    /// A session from any socket keeps the record without evidence until `grace` after `at`, see
+    /// [`Self::expire`], so that it has the time to confirm the record, or gossip to reach it.
+    pub fn session_started(
+        &mut self,
+        node_id: NodeId,
+        socket: SocketAddr,
+        at: SystemTime,
+        grace: Duration,
+    ) {
         if let Some(entry) = self.records.entries.get_mut(&node_id.raw()) {
             entry.session_started_at = holds_socket(udp_sockets(&entry.enr), socket).then_some(at);
+            entry.expiry_grace = entry.expiry_grace.max(at.checked_add(grace));
         }
     }
 
@@ -607,12 +641,35 @@ impl BootStore {
         self.records.entries.is_empty()
     }
 
-    /// Forgets the evidence dated before `before`, one timestamp at a time, and drops the records
-    /// it leaves without any: with no evidence for either address, and no session that started
-    /// since `before`. Returns how many it dropped. The file changes at the next [`Self::sync`].
-    pub fn expire(&mut self, before: SystemTime) -> usize {
-        let _ = before;
-        0
+    /// Forgets the evidence older than `ttl` at `now`, one timestamp at a time, and drops the
+    /// records it leaves without any, unless they are still in the grace a session gave them, see
+    /// [`Self::session_started`]. Returns how many it dropped. The file changes at the next
+    /// [`Self::sync`].
+    ///
+    /// Evidence dated after `now`, which a clock that ran ahead wrote, is kept.
+    pub fn expire(&mut self, now: SystemTime, ttl: Duration) -> usize {
+        let Some(before) = now.checked_sub(ttl) else {
+            return 0;
+        };
+        let forget = |evidence: &mut Option<SystemTime>| {
+            let is_old = evidence.is_some_and(|at| at < before);
+            if is_old {
+                *evidence = None;
+            }
+            is_old
+        };
+        let len = self.records.entries.len();
+        let mut forgot = false;
+        self.records.entries.retain(|_, entry| {
+            forgot |= forget(&mut entry.udp_verified_at);
+            forgot |= forget(&mut entry.tcp_verified_at);
+            entry.udp_verified_at.is_some() ||
+                entry.tcp_verified_at.is_some() ||
+                entry.expiry_grace.is_some_and(|until| until > now)
+        });
+        let dropped = len - self.records.entries.len();
+        self.dirty |= forgot || dropped > 0;
+        dropped
     }
 
     /// Keeps only the records `keep` accepts, and returns how many it removed. The file changes at
@@ -773,7 +830,7 @@ mod tests {
     /// [`VERIFIED_REFRESH`] before `at`, and that discovery still held at `at`, so that it confirms
     /// the record's UDP address at `at`, if `socket` is that address.
     fn confirm_session(store: &mut BootStore, node_id: NodeId, socket: SocketAddr, at: SystemTime) {
-        store.session_started(node_id, socket, at - VERIFIED_REFRESH);
+        store.session_started(node_id, socket, at - VERIFIED_REFRESH, Duration::ZERO);
         store.set_udp_verified(node_id, socket, at);
     }
 
@@ -798,6 +855,7 @@ mod tests {
             udp_verified_at: Some(at(2_000)),
             tcp_verified_at: Some(at(3_000)),
             session_started_at: None,
+            expiry_grace: None,
         });
         store.sync().unwrap();
 
@@ -855,6 +913,7 @@ mod tests {
             udp_verified_at: Some(at(1_000)),
             tcp_verified_at: Some(at(2_000)),
             session_started_at: None,
+            expiry_grace: None,
         };
         records.add(stored.clone());
         let newer = enr_of(&key, 2, ip, udp, tcp);
@@ -867,6 +926,7 @@ mod tests {
             udp_verified_at: keeps_udp.then(|| at(1_000)),
             tcp_verified_at: keeps_tcp.then(|| at(2_000)),
             session_started_at: None,
+            expiry_grace: None,
         };
         assert_eq!(records.entries.values().collect::<Vec<_>>(), [&expected]);
     }
@@ -898,6 +958,7 @@ mod tests {
                 udp_verified_at: Some(at(3_000)),
                 tcp_verified_at: Some(at(2_000)),
                 session_started_at: Some(at(3_000) - VERIFIED_REFRESH),
+                expiry_grace: Some(at(3_000) - VERIFIED_REFRESH),
             }]
         );
     }
@@ -932,6 +993,8 @@ mod tests {
         let expected = BootStoreEntry {
             udp_verified_at: Some(at(if confirms { 2_000 } else { 1_000 })),
             session_started_at: confirms.then(|| at(2_000) - VERIFIED_REFRESH),
+            // Whatever the socket, see `test_expire_keeps_a_record_in_its_grace`.
+            expiry_grace: Some(at(2_000) - VERIFIED_REFRESH),
             ..BootStoreEntry::candidate(enr)
         };
         assert_eq!(store.records.entries.values().collect::<Vec<_>>(), [&expected]);
@@ -1073,15 +1136,21 @@ mod tests {
         store.set_udp_verified(enr.node_id(), socket, at(1_000));
         assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), None);
 
-        store.session_started(enr.node_id(), socket, at(1_000));
+        store.session_started(enr.node_id(), socket, at(1_000), Duration::ZERO);
         store.set_udp_verified(enr.node_id(), socket, at(1_000 + refresh - 1));
         assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), None);
         store.set_udp_verified(enr.node_id(), socket, at(1_000 + refresh));
         assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), Some(at(1_000 + refresh)));
     }
 
-    /// Evidence dated before the cutoff should be forgotten, each timestamp on its own, so that a
-    /// peer gossip last reached long ago no longer outranks the candidates when the store evicts,
+    /// The TTL of the expiry tests.
+    const TTL: Duration = Duration::from_secs(1_000);
+
+    /// The time the expiry tests expire at, in seconds after the epoch, well after [`TTL`].
+    const NOW: u64 = 10_000;
+
+    /// Evidence older than the TTL should be forgotten, each timestamp on its own, so that a peer
+    /// gossip last reached long ago no longer outranks the candidates when the store evicts,
     /// while its UDP address, which discovery still confirms, keeps the record.
     #[rstest::rstest]
     #[case::tcp_old(true, false)]
@@ -1090,38 +1159,100 @@ mod tests {
         let enr = enr_of_new_node();
         let udp = SocketAddr::V4(enr.udp4_socket().unwrap());
         let tcp = SocketAddr::V4(enr.tcp4_socket().unwrap());
-        let before = 10_000;
-        let dated = |old: bool| at(if old { before - 1 } else { before });
+        // Just older than the TTL, or just as old.
+        let dated = |old: bool| at(NOW - TTL.as_secs() - u64::from(old));
         let mut store = BootStore::in_memory();
         store.add_enr(enr.clone());
         store.set_tcp_verified(enr.node_id(), tcp, dated(tcp_old));
         confirm_session(&mut store, enr.node_id(), udp, dated(udp_old));
 
-        assert_eq!(store.expire(at(before)), 0, "a record with recent evidence was dropped");
+        assert_eq!(store.expire(at(NOW), TTL), 0, "a record with recent evidence was dropped");
 
         let entry = store.get(enr.node_id()).expect("the record is kept");
         assert_eq!(entry.tcp_verified_at().is_none(), tcp_old, "tcp_verified_at");
         assert_eq!(entry.udp_verified_at().is_none(), udp_old, "udp_verified_at");
     }
 
-    /// A record left without evidence since the cutoff for either address, and without a session
-    /// since then, should be dropped, and the file saved without it: otherwise a store that never
-    /// fills up keeps dead records for good, and the seeds are drawn from them.
+    /// A record left without evidence younger than the TTL for either address should be dropped,
+    /// and the file saved without it: otherwise a store that never fills up keeps dead records
+    /// for good, and the seeds are drawn from them.
     #[test]
     fn test_expire_drops_a_record_without_recent_evidence() {
         let enr = enr_of_new_node();
         let udp = SocketAddr::V4(enr.udp4_socket().unwrap());
         let tcp = SocketAddr::V4(enr.tcp4_socket().unwrap());
-        let before = 10_000;
+        let old = at(NOW - TTL.as_secs() - 1);
         let mut store = BootStore::in_memory();
         store.add_enr(enr.clone());
-        store.set_tcp_verified(enr.node_id(), tcp, at(before - 1));
-        confirm_session(&mut store, enr.node_id(), udp, at(before - 1));
+        store.set_tcp_verified(enr.node_id(), tcp, old);
+        confirm_session(&mut store, enr.node_id(), udp, old);
         store.sync().unwrap();
 
-        assert_eq!(store.expire(at(before)), 1);
+        assert_eq!(store.expire(at(NOW), TTL), 1);
         assert!(store.get(enr.node_id()).is_none(), "a record without recent evidence was kept");
         assert!(store.sync().unwrap(), "the store didn't save its file without the record");
+    }
+
+    /// A record without evidence should be kept while the grace of its last session lasts,
+    /// whatever socket the session came from: the session confirms the record only once it has
+    /// lasted, or gossip once it has dialed it, and discovery reports a session only when it
+    /// starts, so nothing would add the record again. A session from another socket than the
+    /// record's UDP address, as behind a NAT that rewrites the source port, can't confirm it, but
+    /// gossip can.
+    #[rstest::rstest]
+    #[case::record_socket("1.1.1.1:9222")]
+    #[case::another_socket("1.1.1.1:9000")]
+    fn test_expire_keeps_a_record_in_its_grace(#[case] socket: SocketAddr) {
+        let enr = enr_of_new_node();
+        let mut store = BootStore::in_memory();
+        store.add_enr(enr.clone());
+        store.session_started(enr.node_id(), socket, at(NOW - 10), Duration::from_secs(11));
+
+        assert_eq!(store.expire(at(NOW), TTL), 0);
+        assert!(store.get(enr.node_id()).is_some(), "a record in its grace was dropped");
+    }
+
+    /// A record whose session's grace ended without evidence should be dropped, although the
+    /// session started within the TTL: a session that neither lasted nor led gossip to the node,
+    /// as under one of a flood of fresh keys, shouldn't keep its record for the TTL.
+    #[test]
+    fn test_expire_drops_a_record_past_its_grace() {
+        let enr = enr_of_new_node();
+        let udp = SocketAddr::V4(enr.udp4_socket().unwrap());
+        let mut store = BootStore::in_memory();
+        store.add_enr(enr.clone());
+        store.session_started(enr.node_id(), udp, at(NOW - 10), Duration::from_secs(10));
+
+        assert_eq!(store.expire(at(NOW), TTL), 1);
+        assert!(store.get(enr.node_id()).is_none(), "a record past its grace was kept");
+    }
+
+    /// A record that nothing ever confirmed, and that no session gave a grace, should be dropped
+    /// too, as a record from a file of an earlier version, or a bootnode that doesn't answer: the
+    /// configured bootnodes are added again at the next startup.
+    #[test]
+    fn test_expire_drops_a_record_never_confirmed() {
+        let enr = enr_of_new_node();
+        let mut store = BootStore::in_memory();
+        store.add_enr(enr.clone());
+
+        assert_eq!(store.expire(at(NOW), TTL), 1);
+        assert!(store.get(enr.node_id()).is_none(), "a record never confirmed was kept");
+    }
+
+    /// Evidence dated after now, which a clock that ran ahead wrote, should be kept, as should
+    /// its record.
+    #[test]
+    fn test_expire_keeps_evidence_dated_after_now() {
+        let enr = enr_of_new_node();
+        let tcp = SocketAddr::V4(enr.tcp4_socket().unwrap());
+        let mut store = BootStore::in_memory();
+        store.add_enr(enr.clone());
+        store.set_tcp_verified(enr.node_id(), tcp, at(NOW + 1));
+
+        assert_eq!(store.expire(at(NOW), TTL), 0);
+        let entry = store.get(enr.node_id()).expect("the record is kept");
+        assert_eq!(entry.tcp_verified_at(), Some(at(NOW + 1)));
     }
 
     /// A session from another socket than the record's UDP address ends the count for the
@@ -1134,9 +1265,14 @@ mod tests {
         let refresh = VERIFIED_REFRESH.as_secs();
         let mut store = BootStore::in_memory();
         store.add_enr(enr.clone());
-        store.session_started(enr.node_id(), socket, at(1_000));
+        store.session_started(enr.node_id(), socket, at(1_000), Duration::ZERO);
 
-        store.session_started(enr.node_id(), "1.1.1.1:9000".parse().unwrap(), at(1_100));
+        store.session_started(
+            enr.node_id(),
+            "1.1.1.1:9000".parse().unwrap(),
+            at(1_100),
+            Duration::ZERO,
+        );
         store.set_udp_verified(enr.node_id(), socket, at(1_000 + refresh));
 
         let entry = store.get(enr.node_id()).unwrap();
@@ -1153,7 +1289,7 @@ mod tests {
         let mut store = BootStore::in_memory().with_max_peers(2);
         store.add_enr(lasting.clone());
         let socket = SocketAddr::V4(lasting.udp4_socket().unwrap());
-        store.session_started(lasting.node_id(), socket, at(1_000));
+        store.session_started(lasting.node_id(), socket, at(1_000), Duration::ZERO);
         store.set_udp_verified(lasting.node_id(), socket, at(1_000 + refresh));
 
         // One more than fits beside the lasting candidate, so that one record must go.
@@ -1161,7 +1297,7 @@ mod tests {
             let fresh = enr_of_new_node();
             store.add_enr(fresh.clone());
             let udp = SocketAddr::V4(fresh.udp4_socket().unwrap());
-            store.session_started(fresh.node_id(), udp, at(1_000 + refresh + 10));
+            store.session_started(fresh.node_id(), udp, at(1_000 + refresh + 10), Duration::ZERO);
             store.set_udp_verified(fresh.node_id(), udp, at(1_000 + refresh + 10));
         }
 
@@ -1186,6 +1322,7 @@ mod tests {
             older.node_id(),
             SocketAddr::V4(older.udp4_socket().unwrap()),
             at(1_000),
+            Duration::ZERO,
         );
 
         let mut fresh = Vec::new();
@@ -1196,6 +1333,7 @@ mod tests {
                 enr.node_id(),
                 SocketAddr::V4(enr.udp4_socket().unwrap()),
                 at(secs),
+                Duration::ZERO,
             );
             fresh.push(enr);
         }
@@ -1234,7 +1372,12 @@ mod tests {
         let enr = enr_of_new_node();
         let mut store = BootStore::open(path.clone()).unwrap();
         store.add_enr(enr.clone());
-        store.session_started(enr.node_id(), SocketAddr::V4(enr.udp4_socket().unwrap()), at(1_000));
+        store.session_started(
+            enr.node_id(),
+            SocketAddr::V4(enr.udp4_socket().unwrap()),
+            at(1_000),
+            Duration::ZERO,
+        );
         store.sync().unwrap();
 
         let opened = BootStore::open(path).unwrap();
@@ -1278,7 +1421,7 @@ mod tests {
         let socket = SocketAddr::V4(enr.udp4_socket().unwrap());
         let mut store = BootStore::in_memory().with_verified_refresh(Duration::MAX);
         store.add_enr(enr.clone());
-        store.session_started(enr.node_id(), socket, at(1_000));
+        store.session_started(enr.node_id(), socket, at(1_000), Duration::ZERO);
 
         store.set_udp_verified(enr.node_id(), socket, at(2_000));
 
@@ -1534,6 +1677,7 @@ mod tests {
             udp_verified_at: Some(at(100)),
             tcp_verified_at: Some(at(200)),
             session_started_at: None,
+            expiry_grace: None,
         });
         expected.add(BootStoreEntry::candidate(candidate));
         assert_eq!(store.records, expected);

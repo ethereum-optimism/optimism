@@ -400,7 +400,12 @@ fn test_store_interval_refreshes_connected_sessions(
     store.add_enr(saved.clone());
     let now = SystemTime::now();
     let socket = SocketAddr::V4(saved.udp4_socket().unwrap());
-    store.session_started(saved.node_id(), socket, now - Duration::from_secs(session_secs));
+    store.session_started(
+        saved.node_id(),
+        socket,
+        now - Duration::from_secs(session_secs),
+        Duration::ZERO,
+    );
 
     refresh_connected(&mut store, &[table_entry(&in_table, state)], now);
 
