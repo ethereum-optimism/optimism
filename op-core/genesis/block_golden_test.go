@@ -39,13 +39,13 @@ func TestToBlockHashGoldenVectors(t *testing.T) {
 	// the forks after it, up to the next name, give the same block. The hashes are in the order
 	// of messagePasserVariants.
 	var (
-		bedrock = [2]string{"0xbfb63475f2ba5ddd1e2981745f3cb9612d8134fb4280f224620e0f6739a99a20", "0x6521f0610747b787789a78eb78aad9e9fc62776b75a71adc4bedd22d787782bc"}
-		canyon  = [2]string{"0x7a5f390c5507f9c6446dbdbc4f6466cb2c82f12ee65142afdb4071a119e3480b", "0xf2933b70faa68d188171df99c39b76136cc47976a590edc4f8fe1375781eaf5b"}
-		ecotone = [2]string{"0xfaff5be8c9bb92871a97c1d2f2f2f18dab0ef66914f5f582fb9d0e41ee2f6f40", "0xcfc53f7d3fe68fbb144d9ca0bd09e9501a2a01dff2b92437125a0425d64a8c70"}
-		isthmus = [2]string{"0xc34387921589ff94c75e83aee14e9de72e2b94f44ded3a9f20187a55b7cd5c97", "0x09cea63168c49973e437f28491302ea30a2f24d4bf20f77d3a3c7924529c07ab"}
+		bedrock = [2]common.Hash{common.HexToHash("0xbfb63475f2ba5ddd1e2981745f3cb9612d8134fb4280f224620e0f6739a99a20"), common.HexToHash("0x6521f0610747b787789a78eb78aad9e9fc62776b75a71adc4bedd22d787782bc")}
+		canyon  = [2]common.Hash{common.HexToHash("0x7a5f390c5507f9c6446dbdbc4f6466cb2c82f12ee65142afdb4071a119e3480b"), common.HexToHash("0xf2933b70faa68d188171df99c39b76136cc47976a590edc4f8fe1375781eaf5b")}
+		ecotone = [2]common.Hash{common.HexToHash("0xfaff5be8c9bb92871a97c1d2f2f2f18dab0ef66914f5f582fb9d0e41ee2f6f40"), common.HexToHash("0xcfc53f7d3fe68fbb144d9ca0bd09e9501a2a01dff2b92437125a0425d64a8c70")}
+		isthmus = [2]common.Hash{common.HexToHash("0xc34387921589ff94c75e83aee14e9de72e2b94f44ded3a9f20187a55b7cd5c97"), common.HexToHash("0x09cea63168c49973e437f28491302ea30a2f24d4bf20f77d3a3c7924529c07ab")}
 	)
 	// The genesis block hashes with the forks up to and including the key active at genesis.
-	throughFork := map[forks.Name][2]string{
+	throughFork := map[forks.Name][2]common.Hash{
 		forks.Regolith: bedrock,
 		forks.Canyon:   canyon,
 		forks.Ecotone:  ecotone,
@@ -57,12 +57,12 @@ func TestToBlockHashGoldenVectors(t *testing.T) {
 		forks.Karst:    isthmus,
 		forks.Lagoon:   isthmus,
 	}
-	check := func(t *testing.T, name string, schedule forkstest.Schedule, hashes [2]string) {
+	check := func(t *testing.T, name string, schedule forkstest.Schedule, hashes [2]common.Hash) {
 		for i, variant := range messagePasserVariants {
 			t.Run(name+"/"+variant.name, func(t *testing.T) {
 				g := fixture(schedule)
 				variant.editAlloc(g.Alloc)
-				require.Equal(t, common.HexToHash(hashes[i]), g.ToBlock().Hash())
+				require.Equal(t, hashes[i], g.ToBlock().Hash())
 			})
 		}
 	}

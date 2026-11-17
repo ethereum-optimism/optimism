@@ -34,15 +34,15 @@ func TestReceiptGoldenVectorsMatchOpGeth(t *testing.T) {
 
 			var preimage bytes.Buffer
 			gethtypes.Receipts{gr}.EncodeIndex(0, &preimage)
-			require.Equal(t, v.preimage, hexutil.Encode(preimage.Bytes()))
+			require.Equal(t, v.preimage, hexutil.Bytes(preimage.Bytes()))
 
 			binary, err := gr.MarshalBinary()
 			require.NoError(t, err)
-			require.Equal(t, v.binary, hexutil.Encode(binary))
+			require.Equal(t, v.binary, hexutil.Bytes(binary))
 
 			encoded, err := rlp.EncodeToBytes(gr)
 			require.NoError(t, err)
-			require.Equal(t, v.rlp, hexutil.Encode(encoded))
+			require.Equal(t, v.rlp, hexutil.Bytes(encoded))
 		})
 	}
 }
@@ -54,7 +54,7 @@ func TestReceiptsRootGoldenVectorsMatchOpGeth(t *testing.T) {
 			for _, r := range v.receipts() {
 				receipts = append(receipts, opGethReceiptOf(r.Receipt, r.DepositNonce, r.DepositReceiptVersion))
 			}
-			require.Equal(t, v.root, gethtypes.DeriveSha(receipts, trie.NewStackTrie(nil)).Hex())
+			require.Equal(t, v.root, gethtypes.DeriveSha(receipts, trie.NewStackTrie(nil)))
 		})
 	}
 }
@@ -88,7 +88,7 @@ func TestDepositTxJSONWithoutIsSystemTxMatchesOpGeth(t *testing.T) {
 			require.NoError(t, tx.UnmarshalJSON(depositTxWithoutIsSystemTxJSON(t, tc)))
 			raw, err := tx.MarshalBinary()
 			require.NoError(t, err)
-			require.Equal(t, tc.binary, hexutil.Encode(raw))
+			require.Equal(t, tc.binary, hexutil.Bytes(raw))
 		})
 	}
 }

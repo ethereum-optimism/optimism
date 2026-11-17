@@ -33,8 +33,8 @@ func TestDepositTxGoldenVectors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			raw, err := tc.tx.MarshalBinary()
 			require.NoError(t, err)
-			require.Equal(t, tc.binary, hexutil.Encode(raw))
-			require.Equal(t, tc.hash, tc.tx.Hash().Hex())
+			require.Equal(t, tc.binary, hexutil.Bytes(raw))
+			require.Equal(t, tc.hash, tc.tx.Hash())
 
 			data, err := json.Marshal(&tc.tx)
 			require.NoError(t, err)
@@ -44,7 +44,7 @@ func TestDepositTxGoldenVectors(t *testing.T) {
 			require.NoError(t, json.Unmarshal([]byte(tc.json), &decoded))
 			reencoded, err := decoded.MarshalBinary()
 			require.NoError(t, err)
-			require.Equal(t, tc.binary, hexutil.Encode(reencoded))
+			require.Equal(t, tc.binary, hexutil.Bytes(reencoded))
 		})
 	}
 }
@@ -74,7 +74,7 @@ func TestDepositTxJSONDecodeGoldenVectors(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(depositTxWithNonceJSON), &d))
 		raw, err := d.MarshalBinary()
 		require.NoError(t, err)
-		require.Equal(t, cases[0].binary, hexutil.Encode(raw))
+		require.Equal(t, cases[0].binary, hexutil.Bytes(raw))
 	})
 	for _, tc := range cases {
 		if tc.tx.IsSystemTransaction {
@@ -85,7 +85,7 @@ func TestDepositTxJSONDecodeGoldenVectors(t *testing.T) {
 			require.NoError(t, json.Unmarshal(depositTxWithoutIsSystemTxJSON(t, tc), &d))
 			raw, err := d.MarshalBinary()
 			require.NoError(t, err)
-			require.Equal(t, tc.binary, hexutil.Encode(raw))
+			require.Equal(t, tc.binary, hexutil.Bytes(raw))
 		})
 	}
 }
@@ -162,12 +162,12 @@ type receiptVector struct {
 	name    string
 	receipt *optypes.Receipt
 	// preimage is the receipt's encoding in the receipts trie (Receipts.EncodeIndex).
-	preimage string
+	preimage hexutil.Bytes
 	// binary is the receipt's MarshalBinary encoding, which has the deposit nonce whenever
 	// it is set.
-	binary string
+	binary hexutil.Bytes
 	// rlp is the receipt's RLP encoding: binary as an RLP string.
-	rlp string
+	rlp hexutil.Bytes
 }
 
 // receiptVectors are deposit receipts in each consensus shape and a post-exec receipt:
@@ -194,37 +194,37 @@ func receiptVectors() []receiptVector {
 		{
 			name:     "deposit pre-Regolith",
 			receipt:  mk(optypes.DepositTxType, gethtypes.ReceiptStatusSuccessful, noLogs, nil, nil),
-			preimage: "0x7ef901080182a410" + zeroBloomRLP + "c0",
-			binary:   "0x7ef901080182a410" + zeroBloomRLP + "c0",
-			rlp:      "0xb9010c7ef901080182a410" + zeroBloomRLP + "c0",
+			preimage: hexutil.MustDecode("0x7ef901080182a410" + zeroBloomRLP + "c0"),
+			binary:   hexutil.MustDecode("0x7ef901080182a410" + zeroBloomRLP + "c0"),
+			rlp:      hexutil.MustDecode("0xb9010c7ef901080182a410" + zeroBloomRLP + "c0"),
 		},
 		{
 			name:     "deposit pre-Canyon",
 			receipt:  mk(optypes.DepositTxType, gethtypes.ReceiptStatusSuccessful, noLogs, ptr.New[uint64](7), nil),
-			preimage: "0x7ef901080182a410" + zeroBloomRLP + "c0",
-			binary:   "0x7ef901090182a410" + zeroBloomRLP + "c007",
-			rlp:      "0xb9010d7ef901090182a410" + zeroBloomRLP + "c007",
+			preimage: hexutil.MustDecode("0x7ef901080182a410" + zeroBloomRLP + "c0"),
+			binary:   hexutil.MustDecode("0x7ef901090182a410" + zeroBloomRLP + "c007"),
+			rlp:      hexutil.MustDecode("0xb9010d7ef901090182a410" + zeroBloomRLP + "c007"),
 		},
 		{
 			name:     "deposit post-Canyon",
 			receipt:  mk(optypes.DepositTxType, gethtypes.ReceiptStatusFailed, noLogs, ptr.New[uint64](8), ptr.New[uint64](optypes.CanyonDepositReceiptVersion)),
-			preimage: "0x7ef9010a8082a410" + zeroBloomRLP + "c00801",
-			binary:   "0x7ef9010a8082a410" + zeroBloomRLP + "c00801",
-			rlp:      "0xb9010e7ef9010a8082a410" + zeroBloomRLP + "c00801",
+			preimage: hexutil.MustDecode("0x7ef9010a8082a410" + zeroBloomRLP + "c00801"),
+			binary:   hexutil.MustDecode("0x7ef9010a8082a410" + zeroBloomRLP + "c00801"),
+			rlp:      hexutil.MustDecode("0xb9010e7ef9010a8082a410" + zeroBloomRLP + "c00801"),
 		},
 		{
 			name:     "deposit post-Canyon with logs",
 			receipt:  mk(optypes.DepositTxType, gethtypes.ReceiptStatusSuccessful, receiptLogs(), ptr.New[uint64](9), ptr.New[uint64](optypes.CanyonDepositReceiptVersion)),
-			preimage: "0x7ef901690182a410" + logsBloomRLP + logsRLP + "0901",
-			binary:   "0x7ef901690182a410" + logsBloomRLP + logsRLP + "0901",
-			rlp:      "0xb9016d7ef901690182a410" + logsBloomRLP + logsRLP + "0901",
+			preimage: hexutil.MustDecode("0x7ef901690182a410" + logsBloomRLP + logsRLP + "0901"),
+			binary:   hexutil.MustDecode("0x7ef901690182a410" + logsBloomRLP + logsRLP + "0901"),
+			rlp:      hexutil.MustDecode("0xb9016d7ef901690182a410" + logsBloomRLP + logsRLP + "0901"),
 		},
 		{
 			name:     "post-exec",
 			receipt:  mk(optypes.PostExecTxType, gethtypes.ReceiptStatusSuccessful, receiptLogs(), nil, nil),
-			preimage: "0x7df901670182a410" + logsBloomRLP + logsRLP,
-			binary:   "0x7df901670182a410" + logsBloomRLP + logsRLP,
-			rlp:      "0xb9016b7df901670182a410" + logsBloomRLP + logsRLP,
+			preimage: hexutil.MustDecode("0x7df901670182a410" + logsBloomRLP + logsRLP),
+			binary:   hexutil.MustDecode("0x7df901670182a410" + logsBloomRLP + logsRLP),
+			rlp:      hexutil.MustDecode("0xb9016b7df901670182a410" + logsBloomRLP + logsRLP),
 		},
 	}
 }
@@ -236,20 +236,20 @@ func TestReceiptGoldenVectors(t *testing.T) {
 		t.Run(v.name, func(t *testing.T) {
 			var preimage bytes.Buffer
 			optypes.Receipts{v.receipt}.EncodeIndex(0, &preimage)
-			require.Equal(t, v.preimage, hexutil.Encode(preimage.Bytes()))
+			require.Equal(t, v.preimage, hexutil.Bytes(preimage.Bytes()))
 
 			binary, err := v.receipt.MarshalBinary()
 			require.NoError(t, err)
-			require.Equal(t, v.binary, hexutil.Encode(binary))
+			require.Equal(t, v.binary, hexutil.Bytes(binary))
 
 			encoded, err := rlp.EncodeToBytes(v.receipt)
 			require.NoError(t, err)
-			require.Equal(t, v.rlp, hexutil.Encode(encoded))
+			require.Equal(t, v.rlp, hexutil.Bytes(encoded))
 
 			var fromBinary optypes.Receipt
-			require.NoError(t, fromBinary.UnmarshalBinary(hexutil.MustDecode(v.binary)))
+			require.NoError(t, fromBinary.UnmarshalBinary(v.binary))
 			var fromRLP optypes.Receipt
-			require.NoError(t, rlp.DecodeBytes(hexutil.MustDecode(v.rlp), &fromRLP))
+			require.NoError(t, rlp.DecodeBytes(v.rlp, &fromRLP))
 			for _, got := range []*optypes.Receipt{&fromBinary, &fromRLP} {
 				require.Equal(t, v.receipt.Type, got.Type)
 				require.Equal(t, v.receipt.Status, got.Status)
@@ -297,26 +297,26 @@ func blockReceipts(version *uint64, postExec bool) optypes.Receipts {
 var receiptsRootVectors = []struct {
 	name     string
 	receipts func() optypes.Receipts
-	root     string
+	root     common.Hash
 }{
 	{
 		name:     "regolith",
 		receipts: func() optypes.Receipts { return blockReceipts(nil, false) },
-		root:     "0xa4c0c707d9cdef04414d5c134951ae4abccf4934a2dac2cb2f82d11d13d1c784",
+		root:     common.HexToHash("0xa4c0c707d9cdef04414d5c134951ae4abccf4934a2dac2cb2f82d11d13d1c784"),
 	},
 	{
 		name: "lagoon",
 		receipts: func() optypes.Receipts {
 			return blockReceipts(ptr.New[uint64](optypes.CanyonDepositReceiptVersion), true)
 		},
-		root: "0x8422690808b80fbc8b93ff908f7f22e4b645d84995e7f28ae681972e47997500",
+		root: common.HexToHash("0x8422690808b80fbc8b93ff908f7f22e4b645d84995e7f28ae681972e47997500"),
 	},
 }
 
 func TestReceiptsRootGoldenVectors(t *testing.T) {
 	for _, v := range receiptsRootVectors {
 		t.Run(v.name, func(t *testing.T) {
-			require.Equal(t, v.root, gethtypes.DeriveSha(v.receipts(), trie.NewStackTrie(nil)).Hex())
+			require.Equal(t, v.root, gethtypes.DeriveSha(v.receipts(), trie.NewStackTrie(nil)))
 		})
 	}
 }

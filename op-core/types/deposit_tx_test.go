@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
@@ -19,8 +20,8 @@ import (
 type depositTxTestCase struct {
 	name   string
 	tx     optypes.DepositTx
-	binary string
-	hash   string
+	binary hexutil.Bytes
+	hash   common.Hash
 	json   string
 }
 
@@ -39,8 +40,8 @@ func depositTxTestCases() []depositTxTestCase {
 				IsSystemTransaction: false,
 				Data:                []byte{0xde, 0xad, 0xbe, 0xef},
 			},
-			binary: "0x7ef85aa000000000000000000000000000000000000000000000000000000000000000019411111111111111111111111111111111111111119442424242424242424242424242424242424242428204d282162e8252088084deadbeef",
-			hash:   "0xa549b7517be66c7890e09cf1f598b8faefbe83f997f59f96b9fc99b60e75bd8a",
+			binary: hexutil.MustDecode("0x7ef85aa000000000000000000000000000000000000000000000000000000000000000019411111111111111111111111111111111111111119442424242424242424242424242424242424242428204d282162e8252088084deadbeef"),
+			hash:   common.HexToHash("0xa549b7517be66c7890e09cf1f598b8faefbe83f997f59f96b9fc99b60e75bd8a"),
 			json:   `{"type":"0x7e","nonce":null,"to":"0x4242424242424242424242424242424242424242","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x162e","input":"0xdeadbeef","v":null,"r":null,"s":null,"sourceHash":"0x0000000000000000000000000000000000000000000000000000000000000001","from":"0x1111111111111111111111111111111111111111","mint":"0x4d2","isSystemTx":false,"hash":"0xa549b7517be66c7890e09cf1f598b8faefbe83f997f59f96b9fc99b60e75bd8a"}`,
 		},
 		{
@@ -54,8 +55,8 @@ func depositTxTestCases() []depositTxTestCase {
 				Gas:        1_000_000,
 				Data:       []byte{0x60, 0x80, 0x60, 0x40},
 			},
-			binary: "0x7ef843a00000000000000000000000000000000000000000000000000000000000000002942222222222222222222222222222222222222222808080830f4240808460806040",
-			hash:   "0x83646ae3ccddb5bc7fe88b7eb68162925c625d7705ac9b5ec1888ad4c7c2963c",
+			binary: hexutil.MustDecode("0x7ef843a00000000000000000000000000000000000000000000000000000000000000002942222222222222222222222222222222222222222808080830f4240808460806040"),
+			hash:   common.HexToHash("0x83646ae3ccddb5bc7fe88b7eb68162925c625d7705ac9b5ec1888ad4c7c2963c"),
 			json:   `{"type":"0x7e","nonce":null,"to":null,"gas":"0xf4240","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0x60806040","v":null,"r":null,"s":null,"sourceHash":"0x0000000000000000000000000000000000000000000000000000000000000002","from":"0x2222222222222222222222222222222222222222","mint":"0x0","isSystemTx":false,"hash":"0x83646ae3ccddb5bc7fe88b7eb68162925c625d7705ac9b5ec1888ad4c7c2963c"}`,
 		},
 		{
@@ -69,8 +70,8 @@ func depositTxTestCases() []depositTxTestCase {
 				Gas:        50_000,
 				Data:       nil,
 			},
-			binary: "0x7ef852a00000000000000000000000000000000000000000000000000000000000000003943333333333333333333333333333333333333333944242424242424242424242424242424242424242800782c3508080",
-			hash:   "0x610207e56454cd1a5d52bbe5378de8cc5c0ad1981b1476b797b9af24edaadd86",
+			binary: hexutil.MustDecode("0x7ef852a00000000000000000000000000000000000000000000000000000000000000003943333333333333333333333333333333333333333944242424242424242424242424242424242424242800782c3508080"),
+			hash:   common.HexToHash("0x610207e56454cd1a5d52bbe5378de8cc5c0ad1981b1476b797b9af24edaadd86"),
 			json:   `{"type":"0x7e","nonce":null,"to":"0x4242424242424242424242424242424242424242","gas":"0xc350","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x7","input":"0x","v":null,"r":null,"s":null,"sourceHash":"0x0000000000000000000000000000000000000000000000000000000000000003","from":"0x3333333333333333333333333333333333333333","isSystemTx":false,"hash":"0x610207e56454cd1a5d52bbe5378de8cc5c0ad1981b1476b797b9af24edaadd86"}`,
 		},
 		{
@@ -84,8 +85,8 @@ func depositTxTestCases() []depositTxTestCase {
 				Gas:        0,
 				Data:       []byte{},
 			},
-			binary: "0x7ef83ca00000000000000000000000000000000000000000000000000000000000000000940000000000000000000000000000000000000000808080808080",
-			hash:   "0xa7ab2336fc12e6d4545aa50baf09bddb751a67f9ddd9fd90ef7474d2b15f23ac",
+			binary: hexutil.MustDecode("0x7ef83ca00000000000000000000000000000000000000000000000000000000000000000940000000000000000000000000000000000000000808080808080"),
+			hash:   common.HexToHash("0xa7ab2336fc12e6d4545aa50baf09bddb751a67f9ddd9fd90ef7474d2b15f23ac"),
 			json:   `{"type":"0x7e","nonce":null,"to":null,"gas":"0x0","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0x","v":null,"r":null,"s":null,"sourceHash":"0x0000000000000000000000000000000000000000000000000000000000000000","from":"0x0000000000000000000000000000000000000000","isSystemTx":false,"hash":"0xa7ab2336fc12e6d4545aa50baf09bddb751a67f9ddd9fd90ef7474d2b15f23ac"}`,
 		},
 		{
@@ -98,8 +99,8 @@ func depositTxTestCases() []depositTxTestCase {
 				Value:      nil,
 				Gas:        21000,
 			},
-			binary: "0x7ef852a0000000000000000000000000000000000000000000000000000000000000000494444444444444444444444444444444444444444494424242424242424242424242424242424242424280808252088080",
-			hash:   "0xfb3ed58bbce8bf29671862ab8717dddf189693640be65e4951942558ff8db142",
+			binary: hexutil.MustDecode("0x7ef852a0000000000000000000000000000000000000000000000000000000000000000494444444444444444444444444444444444444444494424242424242424242424242424242424242424280808252088080"),
+			hash:   common.HexToHash("0xfb3ed58bbce8bf29671862ab8717dddf189693640be65e4951942558ff8db142"),
 			json:   `{"type":"0x7e","nonce":null,"to":"0x4242424242424242424242424242424242424242","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0x","v":null,"r":null,"s":null,"sourceHash":"0x0000000000000000000000000000000000000000000000000000000000000004","from":"0x4444444444444444444444444444444444444444","isSystemTx":false,"hash":"0xfb3ed58bbce8bf29671862ab8717dddf189693640be65e4951942558ff8db142"}`,
 		},
 		{
@@ -114,8 +115,8 @@ func depositTxTestCases() []depositTxTestCase {
 				IsSystemTransaction: true,
 				Data:                []byte{0x01},
 			},
-			binary: "0x7ef854a0000000000000000000000000000000000000000000000000000000000000000594555555555555555555555555555555555555555594424242424242424242424242424242424242424280808408f0d1800101",
-			hash:   "0x446e30e119f710dd0f6deb8fe67038cd3e4351bf090308734ebef6eee719f5c8",
+			binary: hexutil.MustDecode("0x7ef854a0000000000000000000000000000000000000000000000000000000000000000594555555555555555555555555555555555555555594424242424242424242424242424242424242424280808408f0d1800101"),
+			hash:   common.HexToHash("0x446e30e119f710dd0f6deb8fe67038cd3e4351bf090308734ebef6eee719f5c8"),
 			json:   `{"type":"0x7e","nonce":null,"to":"0x4242424242424242424242424242424242424242","gas":"0x8f0d180","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0x01","v":null,"r":null,"s":null,"sourceHash":"0x0000000000000000000000000000000000000000000000000000000000000005","from":"0x5555555555555555555555555555555555555555","mint":"0x0","isSystemTx":true,"hash":"0x446e30e119f710dd0f6deb8fe67038cd3e4351bf090308734ebef6eee719f5c8"}`,
 		},
 		{
@@ -129,10 +130,10 @@ func depositTxTestCases() []depositTxTestCase {
 				Gas:        ^uint64(0),
 				Data:       make([]byte, 512),
 			},
-			binary: "0x7ef9028aa0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff94ffffffffffffffffffffffffffffffffffffffff944242424242424242424242424242424242424242" +
+			binary: hexutil.MustDecode("0x7ef9028aa0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff94ffffffffffffffffffffffffffffffffffffffff944242424242424242424242424242424242424242" +
 				"90ffffffffffffffffffffffffffffffffa0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff88ffffffffffffffff80" +
-				"b90200" + zeroBytesHex(512),
-			hash: "0x37dc99204b60f5f7cf42429fcdb586d3b59fa48b80519112afef0c49841ed440",
+				"b90200" + zeroBytesHex(512)),
+			hash: common.HexToHash("0x37dc99204b60f5f7cf42429fcdb586d3b59fa48b80519112afef0c49841ed440"),
 			json: `{"type":"0x7e","nonce":null,"to":"0x4242424242424242424242424242424242424242","gas":"0xffffffffffffffff","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",` +
 				`"input":"0x` + zeroBytesHex(512) + `","v":null,"r":null,"s":null,"sourceHash":"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","from":"0xffffffffffffffffffffffffffffffffffffffff",` +
 				`"mint":"0xffffffffffffffffffffffffffffffff","isSystemTx":false,"hash":"0x37dc99204b60f5f7cf42429fcdb586d3b59fa48b80519112afef0c49841ed440"}`,

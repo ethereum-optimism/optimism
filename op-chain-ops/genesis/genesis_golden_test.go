@@ -43,16 +43,16 @@ func testL2Genesis(t *testing.T, s forkstest.Schedule) *opgenesis.Genesis {
 func TestNewL2GenesisHashGoldenVectors(t *testing.T) {
 	// Each hash is named after the last fork that changes the genesis block; the forks after it,
 	// up to the next name, give the same block.
-	const (
-		bedrock  = "0x6bfba05d9126f48e5eedc91b55a5833b3b3b3e61c9547289660a9d3794b81ed3"
-		canyon   = "0x4674eeaa7212ca57660498a8702babe935e4fd604959581484ed9227e431886e"
-		ecotone  = "0x223e9633f540095a871e18094e74eec30e036fd36d9211ca7dd62b039624f6d0"
-		holocene = "0xeecb9038e10c9e3e5cfcd4683e795f9a2fd03dc116e6cf8bb86c0e4a10af5c0c"
-		isthmus  = "0x0143b340162366f67f6dd9021a44ceb2d8272292703beb02a2cb7047492f6331"
-		jovian   = "0x05e17369a50a85899838878005765ce64886dada9139349ad9360066ca8be908"
+	var (
+		bedrock  = common.HexToHash("0x6bfba05d9126f48e5eedc91b55a5833b3b3b3e61c9547289660a9d3794b81ed3")
+		canyon   = common.HexToHash("0x4674eeaa7212ca57660498a8702babe935e4fd604959581484ed9227e431886e")
+		ecotone  = common.HexToHash("0x223e9633f540095a871e18094e74eec30e036fd36d9211ca7dd62b039624f6d0")
+		holocene = common.HexToHash("0xeecb9038e10c9e3e5cfcd4683e795f9a2fd03dc116e6cf8bb86c0e4a10af5c0c")
+		isthmus  = common.HexToHash("0x0143b340162366f67f6dd9021a44ceb2d8272292703beb02a2cb7047492f6331")
+		jovian   = common.HexToHash("0x05e17369a50a85899838878005765ce64886dada9139349ad9360066ca8be908")
 	)
 	// The genesis block hash with the forks up to and including the key active at genesis.
-	throughFork := map[forks.Name]string{
+	throughFork := map[forks.Name]common.Hash{
 		forks.Regolith: bedrock,
 		forks.Canyon:   canyon,
 		forks.Ecotone:  ecotone,
@@ -73,7 +73,7 @@ func TestNewL2GenesisHashGoldenVectors(t *testing.T) {
 				require.NoError(t, err)
 				t.Fatalf("no golden genesis block hash for fork %s; add op-reth's hash for this genesis:\n%s", fork, data)
 			}
-			require.Equal(t, common.HexToHash(hash), g.ToBlock().Hash())
+			require.Equal(t, hash, g.ToBlock().Hash())
 		})
 	}
 
@@ -84,7 +84,7 @@ func TestNewL2GenesisHashGoldenVectors(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			g := testL2Genesis(t, schedule)
-			require.Equal(t, common.HexToHash(bedrock), g.ToBlock().Hash())
+			require.Equal(t, bedrock, g.ToBlock().Hash())
 		})
 	}
 }
