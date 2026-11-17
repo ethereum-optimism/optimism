@@ -219,16 +219,19 @@ fn table_entry(enr: &Enr, state: discv5::ConnectionState) -> (NodeId, Enr, NodeS
 }
 
 /// At each store interval, a node should note that its sessions with the nodes discovery holds
-/// as connected still work, as discv5 pings them: otherwise a session's evidence is only as recent
-/// as the session, which lasts for days. Only a saved record that is as the table holds it gets
-/// the evidence: a newer record in the table would need the checks a session's record gets.
+/// as connected still work, as discv5 pings them: a session confirms its record only once it has
+/// lasted the refresh delay, and its evidence would otherwise be no more recent than that. Only a
+/// saved record that is as the table holds it gets the evidence: a newer record in the table
+/// would need the checks a session's record gets.
 #[rstest::rstest]
-#[case::connected(discv5::ConnectionState::Connected, false, true)]
-#[case::disconnected(discv5::ConnectionState::Disconnected, false, false)]
-#[case::connected_with_a_newer_record(discv5::ConnectionState::Connected, true, false)]
+#[case::connected(discv5::ConnectionState::Connected, false, 120, true)]
+#[case::connected_too_briefly(discv5::ConnectionState::Connected, false, 30, false)]
+#[case::disconnected(discv5::ConnectionState::Disconnected, false, 120, false)]
+#[case::connected_with_a_newer_record(discv5::ConnectionState::Connected, true, 120, false)]
 fn test_store_interval_refreshes_connected_sessions(
     #[case] state: discv5::ConnectionState,
     #[case] newer_in_table: bool,
+    #[case] session_secs: u64,
     #[case] refreshed: bool,
 ) {
     let key = CombinedKey::generate_secp256k1();
@@ -239,9 +242,11 @@ fn test_store_interval_refreshes_connected_sessions(
     if newer_in_table {
         in_table.set_udp4(9000, &key).unwrap();
     }
-    let mut store = BootStore::in_memory();
+    let mut store = BootStore::in_memory().with_verified_refresh(Duration::from_secs(60));
     store.add_enr(saved.clone());
     let now = SystemTime::now();
+    let socket = SocketAddr::V4(saved.udp4_socket().unwrap());
+    store.session_started(saved.node_id(), socket, now - Duration::from_secs(session_secs));
 
     refresh_connected(&mut store, &[table_entry(&in_table, state)], now);
 

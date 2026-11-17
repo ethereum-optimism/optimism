@@ -502,7 +502,7 @@ impl Discv5Driver {
                             debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
                             store.add_enr(enr.clone());
-                            store.set_udp_verified(enr.node_id(), socket, SystemTime::now());
+                            store.session_started(enr.node_id(), socket, SystemTime::now());
                             forward_session(enr, &enr_sender);
                         }
                     }
@@ -645,8 +645,9 @@ fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
 
 /// Notes in `store` that discovery's sessions with the nodes `table` holds as connected still
 /// work: discv5 pings each of them at the UDP address in its record every five minutes, and holds
-/// it as disconnected once a request to it fails. A session's evidence would otherwise only be as
-/// old as the session, which lasts as long as the pings answer, for days.
+/// it as disconnected once a request to it fails. A session confirms its record's UDP address only
+/// once it has lasted, see [`BootStore::set_udp_verified`], and this is how the store learns that
+/// it has, and later that it still does: the session lasts as long as the pings answer, for days.
 ///
 /// Only a record the store holds as it is in the table gets the evidence. A node may have replaced
 /// its record since its session started, and discv5 then holds the new one. But saving it would

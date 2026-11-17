@@ -116,10 +116,13 @@ impl Records {
     ///
     /// Of the candidates, the one whose UDP address a session confirmed longest ago goes first,
     /// those that no session confirmed before any. Of the reached records, the one gossip reached
-    /// longest ago. Of those confirmed at the same time, the first in node ID order.
+    /// longest ago. Of those confirmed at the same time, or not at all, the one whose session
+    /// started first, those without a session since the store was opened before any, and then
+    /// the first in node ID order.
     fn evict(&mut self) -> Option<BootStoreEntry> {
         let (&key, _) = self.entries.iter().min_by_key(|(_, entry)| {
-            (entry.tcp_verified_at.is_some(), entry.tcp_verified_at, entry.udp_verified_at)
+            let reached = entry.tcp_verified_at.is_some();
+            (reached, entry.tcp_verified_at, entry.udp_verified_at, entry.session_started_at)
         })?;
         self.entries.remove(&key)
     }
@@ -140,6 +143,10 @@ pub struct BootStoreEntry {
     /// of its key.
     #[serde(default, skip_serializing_if = "Option::is_none", with = "unix_secs")]
     tcp_verified_at: Option<SystemTime>,
+    /// When the discovery session with the node at the record's UDP address started, if one did
+    /// since the store was opened. Not saved: the session ends with the process.
+    #[serde(skip)]
+    session_started_at: Option<SystemTime>,
 }
 
 impl BootStoreEntry {
@@ -159,9 +166,15 @@ impl BootStoreEntry {
         self.tcp_verified_at
     }
 
+    /// Returns when the discovery session with the node at the record's UDP address started, if
+    /// one did since the store was opened.
+    pub const fn session_started_at(&self) -> Option<SystemTime> {
+        self.session_started_at
+    }
+
     /// Returns an entry for `enr` without evidence.
     const fn candidate(enr: Enr) -> Self {
-        Self { enr, udp_verified_at: None, tcp_verified_at: None }
+        Self { enr, udp_verified_at: None, tcp_verified_at: None, session_started_at: None }
     }
 
     /// Returns the entry's key in [`Records`]: the bytes of its node ID, as `NodeId` isn't ordered.
@@ -177,6 +190,7 @@ impl BootStoreEntry {
     fn replaced_by(&self, mut newer: Self) -> Self {
         if udp_sockets(&self.enr) == udp_sockets(&newer.enr) {
             newer.udp_verified_at = newer.udp_verified_at.max(self.udp_verified_at);
+            newer.session_started_at = newer.session_started_at.max(self.session_started_at);
         }
         if tcp_sockets(&self.enr) == tcp_sockets(&newer.enr) {
             newer.tcp_verified_at = newer.tcp_verified_at.max(self.tcp_verified_at);
@@ -475,19 +489,38 @@ impl BootStore {
     }
 
     /// Notes that a discovery session with the node `node_id`, whose packets came from `socket`,
-    /// confirmed the UDP address of its stored record at `at`, if the record's UDP address of the
-    /// family of `socket` is `socket`. discv5 doesn't check that for a record without a UDP
-    /// address of that family, nor for an unverifiable record. A session from another socket
-    /// leaves the record's evidence as it is: it says nothing against the record's address.
+    /// started at `at`, if the record's UDP address of the family of `socket` is `socket`. discv5
+    /// doesn't check that for a record without a UDP address of that family, nor for an
+    /// unverifiable record. A session from another socket says nothing about the record's
+    /// address. Does nothing for a node the store doesn't hold.
+    ///
+    /// The session confirms the address only once it has lasted, see [`Self::set_udp_verified`].
+    /// That keeps the peers whose sessions last from being crowded out of a full store: anyone
+    /// can start sessions under fresh keys, and if each confirmed its record at once, a flood of
+    /// them would always be the most recently confirmed.
+    pub fn session_started(&mut self, node_id: NodeId, socket: SocketAddr, at: SystemTime) {
+        if let Some(entry) = self.records.entries.get_mut(&node_id.raw()) &&
+            holds_socket(udp_sockets(&entry.enr), socket)
+        {
+            entry.session_started_at = Some(at);
+        }
+    }
+
+    /// Notes that discovery still holds the session with the node `node_id` at `socket` at `at`,
+    /// so that the session confirms the UDP address of its stored record, if it started at that
+    /// address, see [`Self::session_started`], at least as long ago as
+    /// [`Self::with_verified_refresh`] sets, five minutes by default. geth likewise saves a node
+    /// only once it has answered several pings.
     ///
     /// Does nothing for a node the store doesn't hold, nor until the evidence it has is as old as
-    /// [`Self::with_verified_refresh`] sets. A newer time changes the file at the next
-    /// [`Self::sync`].
+    /// that either. A newer time changes the file at the next [`Self::sync`].
     pub fn set_udp_verified(&mut self, node_id: NodeId, socket: SocketAddr, at: SystemTime) {
         let Some(entry) = self.records.entries.get_mut(&node_id.raw()) else {
             return;
         };
-        if holds_socket(udp_sockets(&entry.enr), socket) {
+        let lasted =
+            entry.session_started_at.is_some_and(|started| started + self.verified_refresh <= at);
+        if lasted && holds_socket(udp_sockets(&entry.enr), socket) {
             self.dirty |= refresh(&mut entry.udp_verified_at, at, self.verified_refresh);
         }
     }
@@ -705,6 +738,14 @@ mod tests {
         Enr::builder().ip4(ip.into()).udp4(udp).tcp4(tcp).seq(seq).build(key).unwrap()
     }
 
+    /// Notes in `store` a session with the node `node_id` from `socket` that started
+    /// [`VERIFIED_REFRESH`] before `at`, and that discovery still held at `at`, so that it confirms
+    /// the record's UDP address at `at`, if `socket` is that address.
+    fn confirm_session(store: &mut BootStore, node_id: NodeId, socket: SocketAddr, at: SystemTime) {
+        store.session_started(node_id, socket, at - VERIFIED_REFRESH);
+        store.set_udp_verified(node_id, socket, at);
+    }
+
     /// The time `secs` seconds after the Unix epoch: the file keeps whole seconds.
     fn at(secs: u64) -> SystemTime {
         SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(secs)
@@ -725,6 +766,7 @@ mod tests {
             enr: enr_of_new_node(),
             udp_verified_at: Some(at(2_000)),
             tcp_verified_at: Some(at(3_000)),
+            session_started_at: None,
         });
         store.sync().unwrap();
 
@@ -781,6 +823,7 @@ mod tests {
             enr: enr_of(&key, 1, [1, 1, 1, 1], 9222, 9223),
             udp_verified_at: Some(at(1_000)),
             tcp_verified_at: Some(at(2_000)),
+            session_started_at: None,
         };
         records.add(stored.clone());
         let newer = enr_of(&key, 2, ip, udp, tcp);
@@ -792,6 +835,7 @@ mod tests {
             enr: newer,
             udp_verified_at: keeps_udp.then(|| at(1_000)),
             tcp_verified_at: keeps_tcp.then(|| at(2_000)),
+            session_started_at: None,
         };
         assert_eq!(records.entries.values().collect::<Vec<_>>(), [&expected]);
     }
@@ -810,12 +854,12 @@ mod tests {
         });
         store.sync().unwrap();
 
-        store.set_udp_verified(enr.node_id(), socket, at(1_000));
+        confirm_session(&mut store, enr.node_id(), socket, at(1_000));
         assert!(!store.sync().unwrap(), "older evidence was a change");
         store.add_enr(enr.clone());
         assert!(!store.sync().unwrap(), "the same record without evidence was a change");
 
-        store.set_udp_verified(enr.node_id(), socket, at(3_000));
+        confirm_session(&mut store, enr.node_id(), socket, at(3_000));
         assert!(store.sync().unwrap(), "newer evidence wasn't a change");
         let entries: Vec<_> = store.records.entries.values().collect();
         assert_eq!(
@@ -823,7 +867,8 @@ mod tests {
             [&BootStoreEntry {
                 enr,
                 udp_verified_at: Some(at(3_000)),
-                tcp_verified_at: Some(at(2_000))
+                tcp_verified_at: Some(at(2_000)),
+                session_started_at: Some(at(3_000) - VERIFIED_REFRESH),
             }]
         );
     }
@@ -852,11 +897,12 @@ mod tests {
         });
         store.sync().unwrap();
 
-        store.set_udp_verified(enr.node_id(), socket, at(2_000));
+        confirm_session(&mut store, enr.node_id(), socket, at(2_000));
 
         assert_eq!(store.sync().unwrap(), confirms);
         let expected = BootStoreEntry {
             udp_verified_at: Some(at(if confirms { 2_000 } else { 1_000 })),
+            session_started_at: confirms.then(|| at(2_000) - VERIFIED_REFRESH),
             ..BootStoreEntry::candidate(enr)
         };
         assert_eq!(store.records.entries.values().collect::<Vec<_>>(), [&expected]);
@@ -870,7 +916,8 @@ mod tests {
         let mut store = BootStore::in_memory();
         store.sync().unwrap();
 
-        store.set_udp_verified(
+        confirm_session(
+            &mut store,
             enr.node_id(),
             SocketAddr::V4(enr.udp4_socket().unwrap()),
             at(1_000),
@@ -925,7 +972,7 @@ mod tests {
     #[rstest::rstest]
     #[case::session(
         |enr: &Enr| SocketAddr::V4(enr.udp4_socket().unwrap()),
-        BootStore::set_udp_verified,
+        confirm_session,
         BootStoreEntry::udp_verified_at
     )]
     #[case::gossip(
@@ -965,7 +1012,7 @@ mod tests {
         let mut store = BootStore::in_memory().with_max_peers(2);
         store.add_enr(reached.clone());
         let (udp, tcp) = (reached.udp4_socket().unwrap(), reached.tcp4_socket().unwrap());
-        store.set_udp_verified(reached.node_id(), SocketAddr::V4(udp), at(1_000));
+        confirm_session(&mut store, reached.node_id(), SocketAddr::V4(udp), at(1_000));
         store.set_tcp_verified(reached.node_id(), SocketAddr::V4(tcp), at(1_000));
 
         // One more than fits beside the reached peer, so that one record must go.
@@ -973,7 +1020,7 @@ mod tests {
             let fresh = enr_of_new_node();
             store.add_enr(fresh.clone());
             let udp = SocketAddr::V4(fresh.udp4_socket().unwrap());
-            store.set_udp_verified(fresh.node_id(), udp, at(2_000));
+            confirm_session(&mut store, fresh.node_id(), udp, at(2_000));
         }
 
         assert_eq!(store.len(), 2);
@@ -981,6 +1028,92 @@ mod tests {
             .get(reached.node_id())
             .expect("sessions under fresh keys pushed out a reached peer");
         assert_eq!(entry.tcp_verified_at(), Some(at(1_000)));
+    }
+
+    /// A session confirms its record's UDP address only once it has lasted the refresh delay:
+    /// anyone can start one, under a fresh key. Without a session since the store was opened, as
+    /// for a record from the file, discovery holding the node confirms nothing.
+    #[test]
+    fn test_a_session_confirms_only_once_it_has_lasted() {
+        let enr = enr_of_new_node();
+        let socket = SocketAddr::V4(enr.udp4_socket().unwrap());
+        let refresh = VERIFIED_REFRESH.as_secs();
+        let mut store = BootStore::in_memory();
+        store.add_enr(enr.clone());
+
+        store.set_udp_verified(enr.node_id(), socket, at(1_000));
+        assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), None);
+
+        store.session_started(enr.node_id(), socket, at(1_000));
+        store.set_udp_verified(enr.node_id(), socket, at(1_000 + refresh - 1));
+        assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), None);
+        store.set_udp_verified(enr.node_id(), socket, at(1_000 + refresh));
+        assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), Some(at(1_000 + refresh)));
+    }
+
+    /// Sessions under fresh keys shouldn't push out a candidate whose session has lasted: they
+    /// confirm nothing until they have lasted too, so a full store evicts one of them first.
+    #[test]
+    fn test_sessions_under_fresh_keys_keep_a_lasting_candidate() {
+        let lasting = enr_of_new_node();
+        let refresh = VERIFIED_REFRESH.as_secs();
+        let mut store = BootStore::in_memory().with_max_peers(2);
+        store.add_enr(lasting.clone());
+        let socket = SocketAddr::V4(lasting.udp4_socket().unwrap());
+        store.session_started(lasting.node_id(), socket, at(1_000));
+        store.set_udp_verified(lasting.node_id(), socket, at(1_000 + refresh));
+
+        // One more than fits beside the lasting candidate, so that one record must go.
+        for _ in 0..2 {
+            let fresh = enr_of_new_node();
+            store.add_enr(fresh.clone());
+            let udp = SocketAddr::V4(fresh.udp4_socket().unwrap());
+            store.session_started(fresh.node_id(), udp, at(1_000 + refresh + 10));
+            store.set_udp_verified(fresh.node_id(), udp, at(1_000 + refresh + 10));
+        }
+
+        assert_eq!(store.len(), 2);
+        assert!(
+            store.get(lasting.node_id()).is_some(),
+            "sessions under fresh keys pushed out a candidate whose session lasted"
+        );
+    }
+
+    /// Of the candidates no session has confirmed, a full store evicts the one without a session
+    /// since it was opened first, as from the file, and then the one whose session started first.
+    #[test]
+    fn test_evicts_the_unconfirmed_candidate_whose_session_started_first() {
+        let session_at = |secs| BootStoreEntry {
+            session_started_at: Some(at(secs)),
+            ..BootStoreEntry::candidate(enr_of_new_node())
+        };
+        let (earlier, later) = (session_at(1_000), session_at(2_000));
+        let from_file = BootStoreEntry::candidate(enr_of_new_node());
+        let mut records = Records::default();
+        for entry in [&later, &from_file, &earlier] {
+            records.add(entry.clone());
+        }
+
+        assert_eq!(records.evict(), Some(from_file));
+        assert_eq!(records.evict(), Some(earlier));
+        assert_eq!(records.evict(), Some(later));
+    }
+
+    /// When a session started isn't saved: the session ends with the process, so a record opened
+    /// from the file has had no session yet.
+    #[test]
+    fn test_session_start_is_not_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bootstore.json");
+        let enr = enr_of_new_node();
+        let mut store = BootStore::open(path.clone()).unwrap();
+        store.add_enr(enr.clone());
+        store.session_started(enr.node_id(), SocketAddr::V4(enr.udp4_socket().unwrap()), at(1_000));
+        store.sync().unwrap();
+
+        let opened = BootStore::open(path).unwrap();
+
+        assert_eq!(opened.get(enr.node_id()).unwrap().session_started_at(), None);
     }
 
     /// A store given a lower limit than it holds evicts the records over it, as it would to make
@@ -991,7 +1124,8 @@ mod tests {
         let enrs = [enr_of_new_node(), enr_of_new_node(), enr_of_new_node()];
         for (secs, enr) in [1_000, 2_000, 3_000].into_iter().zip(&enrs) {
             store.add_enr(enr.clone());
-            store.set_udp_verified(
+            confirm_session(
+                &mut store,
                 enr.node_id(),
                 SocketAddr::V4(enr.udp4_socket().unwrap()),
                 at(secs),
@@ -1212,6 +1346,7 @@ mod tests {
             enr: verified,
             udp_verified_at: Some(at(100)),
             tcp_verified_at: Some(at(200)),
+            session_started_at: None,
         });
         expected.add(BootStoreEntry::candidate(candidate));
         assert_eq!(store.records, expected);
