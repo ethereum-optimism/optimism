@@ -15,7 +15,7 @@ use super::*;
 /// that it never comes.
 #[tokio::test]
 async fn test_public_node_leaves_out_saved_loopback_record() {
-    let loopback = localhost_enr(TEST_CHAIN_ID);
+    let loopback = enr_at_localhost(TEST_CHAIN_ID);
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let (driver, _dir) = public_driver_with_bootstore(&[loopback, public.clone()]);
     let (_handler, mut records) = driver.start();
@@ -130,7 +130,7 @@ async fn test_saved_records_are_handed_over_again() {
 /// then every minute.
 #[tokio::test]
 async fn test_public_node_removes_saved_loopback_record() {
-    let loopback = localhost_enr(TEST_CHAIN_ID);
+    let loopback = enr_at_localhost(TEST_CHAIN_ID);
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let (driver, dir) = public_driver_with_bootstore(&[loopback.clone(), public.clone()]);
     let path = dir.path().join("bootstore.json");
@@ -181,7 +181,7 @@ async fn test_bootstore_saves_only_confirmed_records() {
 async fn test_bootstore_is_saved_in_a_missing_directory() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("datadir").join("bootstore.json");
-    let bootnode = localhost_enr(TEST_CHAIN_ID);
+    let bootnode = enr_at_localhost(TEST_CHAIN_ID);
     let driver = loopback_builder(loopback_config().build())
         .with_bootstore_file(Some(BootStoreFile::Custom(path.clone())))
         .with_bootnodes(BootNodes(vec![BootNode::Enr(bootnode.clone())]))
@@ -212,11 +212,6 @@ async fn test_bootstore_that_cannot_be_opened_fails_the_build() {
     );
 }
 
-/// A record of a node with `key`, at `1.1.1.1`.
-fn record_with(key: &CombinedKey) -> Enr {
-    Enr::builder().ip4(Ipv4Addr::new(1, 1, 1, 1)).udp4(9222).tcp4(9223).build(key).unwrap()
-}
-
 /// The table entry of `enr`, in `state`.
 fn table_entry(enr: &Enr, state: discv5::ConnectionState) -> (NodeId, Enr, NodeStatus) {
     let status = NodeStatus { direction: discv5::ConnectionDirection::Outgoing, state };
@@ -237,7 +232,9 @@ fn test_store_interval_refreshes_connected_sessions(
     #[case] refreshed: bool,
 ) {
     let key = CombinedKey::generate_secp256k1();
-    let saved = record_with(&key);
+    let saved = enr_signed_with(&key, TEST_CHAIN_ID, |record| {
+        record.ip4(Ipv4Addr::new(1, 1, 1, 1)).udp4(9222).tcp4(9223);
+    });
     let mut in_table = saved.clone();
     if newer_in_table {
         in_table.set_udp4(9000, &key).unwrap();
@@ -258,7 +255,7 @@ fn test_store_interval_refreshes_connected_sessions(
 #[test]
 fn test_store_interval_saves_no_unsaved_connected_node() {
     let mut store = BootStore::in_memory();
-    let record = record_with(&CombinedKey::generate_secp256k1());
+    let record = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
 
     refresh_connected(
         &mut store,

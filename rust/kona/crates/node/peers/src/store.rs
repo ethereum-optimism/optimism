@@ -615,9 +615,9 @@ mod tests {
     use enr::CombinedKey;
     use std::{fs::File, io::Read};
 
-    /// Makes a record of a new node, at `1.1.1.1` with UDP port 9222 and TCP port 9223.
-    fn make_enr() -> Enr {
-        make_enr_of(&CombinedKey::generate_secp256k1(), 1, [1, 1, 1, 1], 9222, 9223)
+    /// A record of a new node, at `1.1.1.1` with UDP port 9222 and TCP port 9223.
+    fn enr_of_new_node() -> Enr {
+        enr_of(&CombinedKey::generate_secp256k1(), 1, [1, 1, 1, 1], 9222, 9223)
     }
 
     /// A store opened at a path whose directory doesn't exist is empty, and writes nothing until
@@ -642,7 +642,7 @@ mod tests {
         let path = dir.path().join("bootstore.json");
 
         let mut store = BootStore::open(path).unwrap();
-        store.add_enr(make_enr());
+        store.add_enr(enr_of_new_node());
         store.sync().unwrap();
 
         let files: Vec<_> = std::fs::read_dir(dir.path())
@@ -652,9 +652,8 @@ mod tests {
         assert_eq!(files, ["bootstore.json"]);
     }
 
-    /// Makes a record of the node with `key`, with `seq`, at IPv4 `ip` with these UDP and TCP
-    /// ports.
-    fn make_enr_of(key: &CombinedKey, seq: u64, ip: [u8; 4], udp: u16, tcp: u16) -> Enr {
+    /// A record of the node with `key`, with `seq`, at IPv4 `ip` with these UDP and TCP ports.
+    fn enr_of(key: &CombinedKey, seq: u64, ip: [u8; 4], udp: u16, tcp: u16) -> Enr {
         Enr::builder().ip4(ip.into()).udp4(udp).tcp4(tcp).seq(seq).build(key).unwrap()
     }
 
@@ -669,13 +668,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
         let mut store = BootStore::open(path.clone()).unwrap();
-        store.add_enr(make_enr());
+        store.add_enr(enr_of_new_node());
         store.records.add(BootStoreEntry {
             udp_verified_at: Some(at(1_000)),
-            ..BootStoreEntry::candidate(make_enr())
+            ..BootStoreEntry::candidate(enr_of_new_node())
         });
         store.records.add(BootStoreEntry {
-            enr: make_enr(),
+            enr: enr_of_new_node(),
             udp_verified_at: Some(at(2_000)),
             tcp_verified_at: Some(at(3_000)),
         });
@@ -691,7 +690,7 @@ mod tests {
     /// saving the same records writes the same file, and a diff of two files shows what changed.
     #[test]
     fn test_file_lists_records_in_node_id_order() {
-        let records = [make_enr(), make_enr(), make_enr()];
+        let records = [enr_of_new_node(), enr_of_new_node(), enr_of_new_node()];
         let mut forwards = BootStore::in_memory();
         let mut backwards = BootStore::in_memory();
         for record in &records {
@@ -731,12 +730,12 @@ mod tests {
         let key = CombinedKey::generate_secp256k1();
         let mut records = Records::default();
         let stored = BootStoreEntry {
-            enr: make_enr_of(&key, 1, [1, 1, 1, 1], 9222, 9223),
+            enr: enr_of(&key, 1, [1, 1, 1, 1], 9222, 9223),
             udp_verified_at: Some(at(1_000)),
             tcp_verified_at: Some(at(2_000)),
         };
         records.add(stored.clone());
-        let newer = make_enr_of(&key, 2, ip, udp, tcp);
+        let newer = enr_of(&key, 2, ip, udp, tcp);
 
         let added = records.add(BootStoreEntry::candidate(newer.clone()));
 
@@ -753,7 +752,7 @@ mod tests {
     /// same record again, without evidence, keeps the evidence it has.
     #[test]
     fn test_session_evidence_only_moves_forward() {
-        let enr = make_enr();
+        let enr = enr_of_new_node();
         let socket = SocketAddr::V4(enr.udp4_socket().unwrap());
         let mut store = BootStore::in_memory();
         store.records.add(BootStoreEntry {
@@ -797,7 +796,7 @@ mod tests {
         #[case] socket: SocketAddr,
         #[case] confirms: bool,
     ) {
-        let enr = make_enr_of(&CombinedKey::generate_secp256k1(), 1, [1, 2, 3, 4], 9222, 9223);
+        let enr = enr_of(&CombinedKey::generate_secp256k1(), 1, [1, 2, 3, 4], 9222, 9223);
         let mut store = BootStore::in_memory();
         store.records.add(BootStoreEntry {
             udp_verified_at: Some(at(1_000)),
@@ -819,7 +818,7 @@ mod tests {
     /// nothing: its record comes from [`BootStore::add_enr`], which the table filter decides on.
     #[test]
     fn test_evidence_for_an_unknown_node_adds_nothing() {
-        let enr = make_enr();
+        let enr = enr_of_new_node();
         let mut store = BootStore::in_memory();
         store.sync().unwrap();
 
@@ -852,7 +851,7 @@ mod tests {
         #[case] addr: SocketAddr,
         #[case] confirms: bool,
     ) {
-        let enr = make_enr_of(&CombinedKey::generate_secp256k1(), 1, [1, 2, 3, 4], 9222, 9223);
+        let enr = enr_of(&CombinedKey::generate_secp256k1(), 1, [1, 2, 3, 4], 9222, 9223);
         let mut store = BootStore::in_memory();
         store.records.add(BootStoreEntry {
             udp_verified_at: Some(at(1_000)),
@@ -891,7 +890,7 @@ mod tests {
         #[case] set: fn(&mut BootStore, NodeId, SocketAddr, SystemTime),
         #[case] verified_at: fn(&BootStoreEntry) -> Option<SystemTime>,
     ) {
-        let enr = make_enr();
+        let enr = enr_of_new_node();
         let addr = addr_of(&enr);
         let refresh = VERIFIED_REFRESH.as_secs();
         let mut store = BootStore::in_memory();
@@ -914,17 +913,19 @@ mod tests {
     /// they were added in.
     #[test]
     fn test_evicts_the_record_confirmed_longest_ago() {
-        let mut never =
-            [BootStoreEntry::candidate(make_enr()), BootStoreEntry::candidate(make_enr())];
+        let mut never = [
+            BootStoreEntry::candidate(enr_of_new_node()),
+            BootStoreEntry::candidate(enr_of_new_node()),
+        ];
         never.sort_by_key(BootStoreEntry::key);
         let [never_lower, never_higher] = never;
         let earlier = BootStoreEntry {
             udp_verified_at: Some(at(1_000)),
-            ..BootStoreEntry::candidate(make_enr())
+            ..BootStoreEntry::candidate(enr_of_new_node())
         };
         let later = BootStoreEntry {
             udp_verified_at: Some(at(2_000)),
-            ..BootStoreEntry::candidate(make_enr())
+            ..BootStoreEntry::candidate(enr_of_new_node())
         };
         let mut records = Records::default();
         for entry in [&later, &never_higher, &earlier, &never_lower] {
@@ -953,8 +954,8 @@ mod tests {
     ) {
         let key = CombinedKey::generate_secp256k1();
         // Different UDP ports, so that the two records differ even with the same `seq`.
-        let first = make_enr_of(&key, first_seq, [1, 1, 1, 1], 9222, 9223);
-        let second = make_enr_of(&key, second_seq, [1, 1, 1, 1], 9000, 9223);
+        let first = enr_of(&key, first_seq, [1, 1, 1, 1], 9222, 9223);
+        let second = enr_of(&key, second_seq, [1, 1, 1, 1], 9000, 9223);
         let mut store = BootStore::in_memory();
 
         store.add_enr(first.clone());
@@ -980,7 +981,7 @@ mod tests {
     fn test_open_skips_entries_that_are_not_records() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
-        let kept = make_enr();
+        let kept = enr_of_new_node();
         let json = serde_json::json!({
             "version": 1,
             "records": [{"enr": "enr:-not-base64!"}, {"enr": kept.to_base64()}, 42],
@@ -1007,9 +1008,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
         let key = CombinedKey::generate_secp256k1();
-        let older = make_enr_of(&key, 1, [1, 1, 1, 1], 9222, 9223);
-        let newer = make_enr_of(&key, 2, [1, 1, 1, 1], 9222, 9223);
-        let conflicting = make_enr_of(&key, 2, [2, 2, 2, 2], 9222, 9223);
+        let older = enr_of(&key, 1, [1, 1, 1, 1], 9222, 9223);
+        let newer = enr_of(&key, 2, [1, 1, 1, 1], 9222, 9223);
+        let conflicting = enr_of(&key, 2, [2, 2, 2, 2], 9222, 9223);
         let json = serde_json::json!([older, newer, conflicting, newer]);
         std::fs::write(&path, json.to_string()).unwrap();
 
@@ -1025,7 +1026,7 @@ mod tests {
     fn test_open_list_of_records() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
-        let listed = make_enr();
+        let listed = enr_of_new_node();
         std::fs::write(&path, serde_json::json!([listed]).to_string()).unwrap();
 
         let mut store = BootStore::open(path.clone()).unwrap();
@@ -1048,8 +1049,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
         let key = CombinedKey::generate_secp256k1();
-        let verified = make_enr_of(&key, 1, [1, 1, 1, 1], 9222, 9223);
-        let candidate = make_enr();
+        let verified = enr_of(&key, 1, [1, 1, 1, 1], 9222, 9223);
+        let candidate = enr_of_new_node();
         let contents = format!(
             r#"{{"version": 1, "records": [
                 {{"enr": "{}", "udp_verified_at": 100, "tcp_verified_at": 200}},
@@ -1133,12 +1134,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
         let mut store = BootStore::open(path.clone()).unwrap();
-        store.add_enr(make_enr());
+        store.add_enr(enr_of_new_node());
         store.sync().unwrap();
         let before = std::fs::read(&path).unwrap();
         let mut reader = File::open(&path).unwrap();
 
-        store.add_enr(make_enr());
+        store.add_enr(enr_of_new_node());
         store.sync().unwrap();
 
         let mut read = Vec::new();
@@ -1157,7 +1158,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
         let mut store = BootStore::open(path.clone()).unwrap();
-        store.add_enr(make_enr());
+        store.add_enr(enr_of_new_node());
         store.sync().unwrap();
         let written = dir.path().join("written");
         File::create(&written).unwrap();
@@ -1181,7 +1182,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
         let mut store = BootStore::open(path.clone()).unwrap();
-        store.add_enr(make_enr());
+        store.add_enr(enr_of_new_node());
         store.sync().unwrap();
         let inode = || std::fs::metadata(&path).unwrap().ino();
 
@@ -1190,7 +1191,7 @@ mod tests {
         store.sync().unwrap();
         assert_eq!(inode(), opened, "a save rewrote the file it had just opened");
 
-        store.add_enr(make_enr());
+        store.add_enr(enr_of_new_node());
         store.sync().unwrap();
         let changed = inode();
         assert_ne!(changed, opened, "a save didn't write a change");
@@ -1214,7 +1215,7 @@ mod tests {
         // A missing file is a change to save, so that it gets created.
         assert_eq!(store.sync().unwrap(), file);
 
-        let added = make_enr();
+        let added = enr_of_new_node();
         store.add_enr(added.clone());
         assert!(store.sync().unwrap(), "an added record wasn't a change");
         assert!(!store.sync().unwrap(), "a save without changes said it had some");
@@ -1248,7 +1249,7 @@ mod tests {
         let path = dir.path().join("bootstore.json");
         let mut store = BootStore::open(path.clone()).unwrap();
         for _ in 0..RECORDS {
-            store.add_enr(make_enr());
+            store.add_enr(enr_of_new_node());
         }
         store.sync().unwrap();
 
@@ -1270,7 +1271,7 @@ mod tests {
             }
         });
         for _ in 0..SAVES {
-            store.add_enr(make_enr());
+            store.add_enr(enr_of_new_node());
             store.sync().unwrap();
         }
         done.store(true, Ordering::Relaxed);

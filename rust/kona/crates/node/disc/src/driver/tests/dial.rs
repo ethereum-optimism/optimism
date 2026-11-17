@@ -1,7 +1,6 @@
 //! Tests for the records the driver hands over to gossip to dial, and which of them it saves.
 
 use super::*;
-use crate::test_utils::enr_with;
 use rstest::rstest;
 
 /// The socket a session in these tests is with.
@@ -29,14 +28,14 @@ fn test_record_to_dial(
     #[case] event: impl Fn(Enr) -> discv5::Event,
     #[case] expected: Option<&'static str>,
 ) {
-    let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
+    let enr = enr_at_localhost(OP_SEPOLIA_CHAIN_ID);
     assert_eq!(
         Discv5Driver::record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID, accept_all),
         expected.map(|event| RecordToDial { event, enr, socket: SOCKET })
     );
     assert_eq!(
         Discv5Driver::record_to_dial(
-            event(localhost_enr(OP_MAINNET_CHAIN_ID)),
+            event(enr_at_localhost(OP_MAINNET_CHAIN_ID)),
             OP_SEPOLIA_CHAIN_ID,
             accept_all
         ),
@@ -146,7 +145,7 @@ fn test_record_to_dial_only_what_the_table_filter_accepts(
     #[case] table_filter: fn(&Enr) -> bool,
     #[case] dialed: bool,
 ) {
-    let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
+    let enr = enr_at_localhost(OP_SEPOLIA_CHAIN_ID);
     let event = session_from("127.0.0.1")(enr.clone());
     assert_eq!(
         Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, table_filter),
@@ -227,7 +226,7 @@ async fn test_public_only_node_leaves_the_dial_to_a_private_session() {
 #[tokio::test]
 async fn test_driver_reports_sessions_started_during_bootstrap() {
     let silent = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("a free UDP port");
-    let silent_peer_id = kona_peers::enr_to_multiaddr(&localhost_enr(OP_SEPOLIA_CHAIN_ID))
+    let silent_peer_id = kona_peers::enr_to_multiaddr(&enr_at_localhost(OP_SEPOLIA_CHAIN_ID))
         .and_then(|addr| addr.iter().last().map(|protocol| protocol.acquire()))
         .expect("the record has a peer ID");
     let silent_enode = Multiaddr::from(Ipv4Addr::LOCALHOST)

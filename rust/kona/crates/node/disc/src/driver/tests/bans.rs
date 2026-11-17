@@ -6,10 +6,7 @@ use super::*;
 /// same key: banning a node also removes it from the table.
 #[tokio::test]
 async fn test_ban_peers_bans_by_peer_id() {
-    let key = CombinedKey::generate_secp256k1();
-    let mut builder = Enr::builder();
-    builder.ip4(Ipv4Addr::LOCALHOST).udp4(30303).tcp4(9222);
-    let enr = builder.build(&key).unwrap();
+    let enr = enr_at_localhost(TEST_CHAIN_ID);
     // The libp2p peer ID of the same key, at the end of its gossip address.
     let peer_id = match kona_peers::enr_to_multiaddr(&enr).unwrap().pop() {
         Some(libp2p::multiaddr::Protocol::P2p(peer_id)) => peer_id,
