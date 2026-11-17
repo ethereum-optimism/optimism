@@ -33,8 +33,13 @@ func testL2Genesis(t *testing.T, s forkstest.Schedule) *opgenesis.Genesis {
 	return g
 }
 
-// TestNewL2GenesisHashGoldenVectors pins the genesis block hash of NewL2Genesis, as
-// op-geth computes it, for a range of fork schedules.
+// TestNewL2GenesisHashGoldenVectors pins the genesis block hash of NewL2Genesis with each fork
+// active at genesis. The hashes are those that op-geth computed, and op-reth computes the same
+// for these genesis files.
+//
+// A new fork fails the test until it has an entry in throughFork. Take the hash from op-reth,
+// not from this code: the failure prints the genesis, and `op-reth init --chain <file>` logs the
+// hash of the genesis block it writes.
 func TestNewL2GenesisHashGoldenVectors(t *testing.T) {
 	// Each hash is named after the last fork that changes the genesis block; the forks after it,
 	// up to the next name, give the same block.
@@ -46,33 +51,49 @@ func TestNewL2GenesisHashGoldenVectors(t *testing.T) {
 		isthmus  = "0x0143b340162366f67f6dd9021a44ceb2d8272292703beb02a2cb7047492f6331"
 		jovian   = "0x05e17369a50a85899838878005765ce64886dada9139349ad9360066ca8be908"
 	)
-	for _, tc := range []struct {
-		name     string
-		schedule forkstest.Schedule
-		hash     string
-	}{
-		{name: "staggered", schedule: forkstest.Staggered(), hash: bedrock},
-		{name: "all after genesis", schedule: forkstest.StaticSchedule(2), hash: bedrock},
-		{name: "through Regolith", schedule: forkstest.AtGenesisThrough(forks.Regolith), hash: bedrock},
-		{name: "through Canyon", schedule: forkstest.AtGenesisThrough(forks.Canyon), hash: canyon},
-		{name: "through Ecotone", schedule: forkstest.AtGenesisThrough(forks.Ecotone), hash: ecotone},
-		{name: "through Fjord", schedule: forkstest.AtGenesisThrough(forks.Fjord), hash: ecotone},
-		{name: "through Granite", schedule: forkstest.AtGenesisThrough(forks.Granite), hash: ecotone},
-		{name: "through Holocene", schedule: forkstest.AtGenesisThrough(forks.Holocene), hash: holocene},
-		{name: "through Isthmus", schedule: forkstest.AtGenesisThrough(forks.Isthmus), hash: isthmus},
-		{name: "through Jovian", schedule: forkstest.AtGenesisThrough(forks.Jovian), hash: jovian},
-		{name: "through Karst", schedule: forkstest.AtGenesisThrough(forks.Karst), hash: jovian},
-		{name: "through Lagoon", schedule: forkstest.AtGenesisThrough(forks.Lagoon), hash: jovian},
+	// The genesis block hash with the forks up to and including the key active at genesis.
+	throughFork := map[forks.Name]string{
+		forks.Regolith: bedrock,
+		forks.Canyon:   canyon,
+		forks.Ecotone:  ecotone,
+		forks.Fjord:    ecotone,
+		forks.Granite:  ecotone,
+		forks.Holocene: holocene,
+		forks.Isthmus:  isthmus,
+		forks.Jovian:   jovian,
+		forks.Karst:    jovian,
+		forks.Lagoon:   jovian,
+	}
+	for _, fork := range forkstest.TimestampELForks {
+		t.Run("through "+string(fork), func(t *testing.T) {
+			g := testL2Genesis(t, forkstest.AtGenesisThrough(fork))
+			hash, ok := throughFork[fork]
+			if !ok {
+				data, err := json.Marshal(g)
+				require.NoError(t, err)
+				t.Fatalf("no golden genesis block hash for fork %s; add op-reth's hash for this genesis:\n%s", fork, data)
+			}
+			require.Equal(t, common.HexToHash(hash), g.ToBlock().Hash())
+		})
+	}
+
+	// A fork that activates after genesis leaves the genesis block unchanged.
+	for name, schedule := range map[string]forkstest.Schedule{
+		"staggered":         forkstest.Staggered(),
+		"all after genesis": forkstest.StaticSchedule(2),
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			g := testL2Genesis(t, tc.schedule)
-			require.Equal(t, common.HexToHash(tc.hash), g.ToBlock().Hash())
+		t.Run(name, func(t *testing.T) {
+			g := testL2Genesis(t, schedule)
+			require.Equal(t, common.HexToHash(bedrock), g.ToBlock().Hash())
 		})
 	}
 }
 
 // TestNewL2GenesisJSONGoldenVector pins the genesis.json of NewL2Genesis for the
 // staggered schedule, as op-geth encodes it.
+//
+// The staggered schedule activates every fork, so a new fork fails the test until its
+// activation time is added here, with the time of the Ethereum fork it implies, if any.
 func TestNewL2GenesisJSONGoldenVector(t *testing.T) {
 	const want = `{"config":{"chainId":902,"homesteadBlock":0,"eip150Block":0,"eip155Block":0,"eip158Block":0,"byzantiumBlock":0,"constantinopleBlock":0,"petersburgBlock":0,"istanbulBlock":0,"muirGlacierBlock":0,"berlinBlock":0,"londonBlock":0,"arrowGlacierBlock":0,"grayGlacierBlock":0,"mergeNetsplitBlock":0,` +
 		`"shanghaiTime":1700002000,"cancunTime":1700003000,"pragueTime":1700007000,"osakaTime":1700009000,` +
