@@ -1240,19 +1240,23 @@ mod tests {
         assert!(store.get(enr.node_id()).is_none(), "a record never confirmed was kept");
     }
 
-    /// Evidence dated after now, which a clock that ran ahead wrote, should be kept, as should
-    /// its record.
+    /// Evidence dated after now, which a clock that ran ahead wrote, should age from now, so that
+    /// it expires a TTL later. Otherwise, once the clock is set right, a peer that never answers
+    /// again stays in the first tier of the seeds and the redials until the clock catches up
+    /// with it, and a store saved by a clock years ahead keeps such records for years.
     #[test]
-    fn test_expire_keeps_evidence_dated_after_now() {
+    fn test_expire_ages_evidence_dated_after_now() {
         let enr = enr_of_new_node();
         let tcp = SocketAddr::V4(enr.tcp4_socket().unwrap());
         let mut store = BootStore::in_memory();
         store.add_enr(enr.clone());
-        store.set_tcp_verified(enr.node_id(), tcp, at(NOW + 1));
+        store.set_tcp_verified(enr.node_id(), tcp, at(NOW + 1_000_000));
 
         assert_eq!(store.expire(at(NOW), TTL), 0);
         let entry = store.get(enr.node_id()).expect("the record is kept");
-        assert_eq!(entry.tcp_verified_at(), Some(at(NOW + 1)));
+        assert_eq!(entry.tcp_verified_at(), Some(at(NOW)), "evidence dated after now isn't now");
+
+        assert_eq!(store.expire(at(NOW + TTL.as_secs() + 1), TTL), 1, "the evidence didn't age");
     }
 
     /// A session from another socket than the record's UDP address ends the count for the
