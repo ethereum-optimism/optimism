@@ -220,17 +220,19 @@ fn table_entry(enr: &Enr, state: discv5::ConnectionState) -> (NodeId, Enr, NodeS
 
 /// At each store interval, a node should note that its sessions with the nodes discovery holds
 /// as connected still work, as discv5 pings them: a session confirms its record only once it has
-/// lasted the refresh delay, and its evidence would otherwise be no more recent than that. Only a
-/// saved record that is as the table holds it gets the evidence: a newer record in the table
-/// would need the checks a session's record gets.
+/// lasted the refresh delay, and its evidence would otherwise be no more recent than that. The
+/// table may hold a newer record of the node, which isn't saved, as that would need the checks a
+/// session's record gets: the saved record gets the evidence only if the newer one keeps its UDP
+/// address, which discv5 pings.
 #[rstest::rstest]
-#[case::connected(discv5::ConnectionState::Connected, false, 120, true)]
-#[case::connected_too_briefly(discv5::ConnectionState::Connected, false, 30, false)]
-#[case::disconnected(discv5::ConnectionState::Disconnected, false, 120, false)]
-#[case::connected_with_a_newer_record(discv5::ConnectionState::Connected, true, 120, false)]
+#[case::connected(discv5::ConnectionState::Connected, Newer::Same, 120, true)]
+#[case::connected_too_briefly(discv5::ConnectionState::Connected, Newer::Same, 30, false)]
+#[case::disconnected(discv5::ConnectionState::Disconnected, Newer::Same, 120, false)]
+#[case::newer_with_another_udp_port(discv5::ConnectionState::Connected, Newer::UdpPort, 120, false)]
+#[case::newer_with_another_tcp_port(discv5::ConnectionState::Connected, Newer::TcpPort, 120, true)]
 fn test_store_interval_refreshes_connected_sessions(
     #[case] state: discv5::ConnectionState,
-    #[case] newer_in_table: bool,
+    #[case] newer: Newer,
     #[case] session_secs: u64,
     #[case] refreshed: bool,
 ) {
@@ -239,8 +241,14 @@ fn test_store_interval_refreshes_connected_sessions(
         record.ip4(Ipv4Addr::new(1, 1, 1, 1)).udp4(9222).tcp4(9223);
     });
     let mut in_table = saved.clone();
-    if newer_in_table {
-        in_table.set_udp4(9000, &key).unwrap();
+    match newer {
+        Newer::Same => {}
+        Newer::UdpPort => {
+            in_table.set_udp4(9000, &key).unwrap();
+        }
+        Newer::TcpPort => {
+            in_table.set_tcp4(9000, &key).unwrap();
+        }
     }
     let mut store = BootStore::in_memory().with_verified_refresh(Duration::from_secs(60));
     store.add_enr(saved.clone());
@@ -253,6 +261,17 @@ fn test_store_interval_refreshes_connected_sessions(
     let entry = store.get(saved.node_id()).expect("the record stays saved");
     assert_eq!(entry.enr(), &saved);
     assert_eq!(entry.udp_verified_at(), refreshed.then_some(now));
+}
+
+/// The record the table holds of a node, compared with the saved one.
+#[derive(std::fmt::Debug)]
+enum Newer {
+    /// The same record.
+    Same,
+    /// A newer record with another UDP port.
+    UdpPort,
+    /// A newer record with another TCP port.
+    TcpPort,
 }
 
 /// A connected node in the table whose record the node didn't save gets no record: only the

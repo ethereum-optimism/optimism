@@ -649,14 +649,15 @@ fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
 /// once it has lasted, see [`BootStore::set_udp_verified`], and this is how the store learns that
 /// it has, and later that it still does: the session lasts as long as the pings answer, for days.
 ///
-/// Only a record the store holds as it is in the table gets the evidence. A node may have replaced
-/// its record since its session started, and discv5 then holds the new one. But saving it would
-/// need the checks [`Discv5Driver::record_to_dial`] makes of a session's record, against the
-/// address the session came from, which the table doesn't have. The node's next session brings
-/// the new record.
+/// The evidence is for the UDP address in the table's record, which discv5 pings, so a stored
+/// record gets it only if it holds that address. A node may have replaced its record since its
+/// session started, and discv5 then holds the new one. Saving that would need the checks
+/// [`Discv5Driver::record_to_dial`] makes of a session's record, against the address the session
+/// came from, which the table doesn't have: the node's next session brings it. But if the new
+/// record keeps the UDP address, the stored one's still works.
 fn refresh_connected(store: &mut BootStore, table: &[(NodeId, Enr, NodeStatus)], at: SystemTime) {
     for (node_id, enr, status) in table {
-        if !status.is_connected() || store.get(*node_id).is_none_or(|entry| entry.enr() != enr) {
+        if !status.is_connected() {
             continue;
         }
         let socket =
