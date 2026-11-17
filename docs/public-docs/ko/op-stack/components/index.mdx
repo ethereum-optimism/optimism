@@ -14,7 +14,7 @@ diataxis: explanation
 구성 요소는 구현하는 프로토콜 계층별로 분류됩니다. 계층 자체는 정식 분류 체계인
 [OP Stack 구성 요소](/ko/op-stack/protocol/components)에 정의되어 있습니다. 구성 요소가 런타임에
 어떻게 상호 작용하는지는 [OP Stack 아키텍처](/ko/op-stack/architecture)를 참조하십시오. 모든 구성
-요소의 릴리스 이력은 [릴리스](/ko/releases)를 참조하십시오.
+요소의 릴리스 이력은 [GitHub Releases](https://github.com/ethereum-optimism/optimism/releases)를 참조하십시오.
 
 | 그룹 | 구현하는 계층 |
 | --- | --- |
@@ -33,8 +33,8 @@ L2 블록을 생성하고 그 데이터를 사용 가능하게 만듭니다. **S
 
 | 구성 요소 | 하는 일 | 허브 | 릴리스 |
 | --- | --- | --- | --- |
-| op-batcher | L2 트랜잭션 배치를 데이터 가용성 계층에 게시합니다 | [허브](/ko/op-stack/components/op-batcher) | [릴리스](/ko/releases/op-batcher) |
-| op-conductor | 고가용성 sequencer 조정 서비스 | [허브](/ko/op-stack/components/op-conductor) | [릴리스](/ko/releases/op-conductor) |
+| op-batcher | L2 트랜잭션 배치를 데이터 가용성 계층에 게시합니다 | [허브](/ko/op-stack/components/op-batcher) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-batcher%2Fv&expanded=false) |
+| op-conductor | 고가용성 sequencer 조정 서비스 | [허브](/ko/op-stack/components/op-conductor) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-conductor%2Fv&expanded=false) |
 
 ## 파생 및 실행
 
@@ -43,9 +43,9 @@ L2 블록을 생성하고 그 데이터를 사용 가능하게 만듭니다. **S
 
 | 구성 요소 | 하는 일 | 허브 | 릴리스 |
 | --- | --- | --- | --- |
-| op-node | Go로 작성된 OP Stack 합의 계층(rollup node) 클라이언트 | [허브](/ko/op-stack/components/op-node) | [릴리스](/ko/releases/op-node) |
-| kona-node | OP Stack rollup node의 Rust 구현 | [허브](/ko/op-stack/components/kona-node) | [릴리스](/ko/releases/kona-node) |
-| op-reth | reth 기반의 OP Stack 실행 계층 클라이언트 | [허브](/ko/op-stack/components/op-reth) | [릴리스](/ko/releases/op-reth) |
+| op-node | Go로 작성된 OP Stack 합의 계층(rollup node) 클라이언트 | [허브](/ko/op-stack/components/op-node) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-node%2Fv&expanded=false) |
+| kona-node | OP Stack rollup node의 Rust 구현 | [허브](/ko/op-stack/components/kona-node) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=kona-node%2Fv&expanded=false) |
+| op-reth | reth 기반의 OP Stack 실행 계층 클라이언트 | [허브](/ko/op-stack/components/op-reth) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-reth%2Fv&expanded=false) |
 
 ## 정산 및 증명
 
@@ -53,12 +53,12 @@ L2 상태를 L1에 제안하고 그 유효성을 증명합니다. **Settlement**
 
 | 구성 요소 | 하는 일 | 허브 | 릴리스 |
 | --- | --- | --- | --- |
-| op-proposer | L2 output root를 L1에 제안합니다 | [허브](/ko/op-stack/components/op-proposer) | [릴리스](/ko/releases/op-proposer) |
-| op-challenger | 분쟁 게임(dispute game) 이의 제기 에이전트 | [허브](/ko/op-stack/components/op-challenger) | [릴리스](/ko/releases/op-challenger) |
+| op-proposer | L2 output root를 L1에 제안합니다 | [허브](/ko/op-stack/components/op-proposer) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-proposer%2Fv&expanded=false) |
+| op-challenger | 분쟁 게임(dispute game) 이의 제기 에이전트 | [허브](/ko/op-stack/components/op-challenger) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-challenger%2Fv&expanded=false) |
 | cannon | 온체인 MIPS 명령어 에뮬레이터 — 결함 증명 VM | [허브](/ko/op-stack/components/cannon) | [릴리스 태그](https://github.com/ethereum-optimism/optimism/releases?q=cannon%2Fv&expanded=false) |
-| kona-client | OP Stack 상태 전이를 실행하는 결함 증명 프로그램(클라이언트) | [허브](/ko/op-stack/components/kona-client) | [릴리스](/ko/releases/kona-client) |
-| kona-host | kona-client에 preimage 데이터를 제공하는 결함 증명 호스트 | [허브](/ko/op-stack/components/kona-host) | [릴리스](/ko/releases/kona-host) |
-| op-contracts | OP Stack L1 및 L2 스마트 컨트랙트 | [허브](/ko/op-stack/components/op-contracts) | [릴리스](/ko/releases/op-contracts) |
+| kona-client | OP Stack 상태 전이를 실행하는 결함 증명 프로그램(클라이언트) | [허브](/ko/op-stack/components/kona-client) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=kona-client%2Fv&expanded=false) |
+| kona-host | kona-client에 preimage 데이터를 제공하는 결함 증명 호스트 | [허브](/ko/op-stack/components/kona-host) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=kona-host%2Fv&expanded=false) |
+| op-contracts | OP Stack L1 및 L2 스마트 컨트랙트 | [허브](/ko/op-stack/components/op-contracts) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-contracts%2Fv&expanded=false) |
 
 ## 배포 및 인프라
 
@@ -66,5 +66,5 @@ L2 상태를 L1에 제안하고 그 유효성을 증명합니다. **Settlement**
 
 | 구성 요소 | 하는 일 | 허브 | 릴리스 |
 | --- | --- | --- | --- |
-| op-deployer | OP Stack 체인 배포 도구 | [허브](/ko/op-stack/components/op-deployer) | [릴리스](/ko/releases/op-deployer) |
-| proxyd | RPC 요청 라우터 및 프록시 | [허브](/ko/op-stack/components/proxyd) | [릴리스](/ko/releases/proxyd) |
+| op-deployer | OP Stack 체인 배포 도구 | [허브](/ko/op-stack/components/op-deployer) | [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-deployer%2Fv&expanded=false) |
+| proxyd | RPC 요청 라우터 및 프록시 | [허브](/ko/op-stack/components/proxyd) | [릴리스](https://github.com/ethereum-optimism/infra/releases?q=proxyd%2Fv&expanded=false) |

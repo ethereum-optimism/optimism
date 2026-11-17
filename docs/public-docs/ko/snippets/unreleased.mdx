@@ -44,7 +44,7 @@ export const Unreleased = ({ component, version }) => (
       <span>향후 출시될 <code>{component}</code> 릴리스</span>
     )}
     에 포함되어 출시됩니다. 그때까지 현재 릴리스는 이 페이지의 나머지 부분에
-    설명된 대로 동작합니다. 이미 출시된 내용은 <a href="/ko/releases">릴리스
+    설명된 대로 동작합니다. 이미 출시된 내용은 <a href={`https://github.com/ethereum-optimism/optimism/releases?q=${component}%2F&expanded=true`}>릴리스
     기록</a>을 참조하십시오.
   </Warning>
 );

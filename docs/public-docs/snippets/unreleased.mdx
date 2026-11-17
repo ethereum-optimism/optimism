@@ -44,7 +44,7 @@ export const Unreleased = ({ component, version }) => (
       <span>an upcoming <code>{component}</code> release</span>
     )}
     . Until then, the current release behaves as documented in the rest of
-    this page; see the <a href="/releases">release history</a> for what has
+    this page; see the <a href={`https://github.com/ethereum-optimism/optimism/releases?q=${component}%2F&expanded=true`}>release history</a> for what has
     shipped.
   </Warning>
 );

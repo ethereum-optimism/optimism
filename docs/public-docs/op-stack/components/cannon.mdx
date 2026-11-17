@@ -20,8 +20,8 @@ cannon has two halves that must behave identically:
     needed to repeat any one step onchain.
 
 The program cannon executes is the fault proof program,
-[kona-client](/releases/kona-client), compiled to a MIPS ELF binary; the
-[kona-host](/releases/kona-host) binary runs alongside as the preimage
+[kona-client](/op-stack/components/kona-client), compiled to a MIPS ELF binary; the
+[kona-host](/op-stack/components/kona-host) binary runs alongside as the preimage
 server that supplies chain data during execution. Together they make fault
 disputes resolvable: participants bisect an execution trace down to a single
 MIPS instruction, and that one instruction is proven onchain.
@@ -58,7 +58,6 @@ proofs. For how cannon fits into the dispute game, see the
 ## Releases
 
 *   [cannon release tags on GitHub](https://github.com/ethereum-optimism/optimism/releases?q=cannon%2Fv&expanded=false)
-    — cannon does not have a page under [Releases](/releases) yet.
 
 ## Source & spec links
 

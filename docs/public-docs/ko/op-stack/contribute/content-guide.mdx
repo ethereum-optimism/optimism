@@ -28,7 +28,7 @@ import { Unreleased } from "/ko/snippets/unreleased.mdx"
 1.  **퍼스트파티 OP Stack 소프트웨어를 문서화합니다** — 진실의 원천(source of
     truth)이 [Optimism](https://github.com/ethereum-optimism)
     저장소에 있는 소프트웨어로, 예를 들어
-    [Releases](/ko/releases) 페이지에 나열된 컴포넌트가 있습니다.
+    [OP Stack 구성 요소](/ko/op-stack/components) 페이지에 나열된 컴포넌트가 있습니다.
 2.  **OP Stack이 작동하는 데 필요한 서드파티 소프트웨어를 문서화합니다**
     — 예를 들어, OP Stack 체인이 없으면 실행될 수 없는 L1 실행 클라이언트나 키 관리
     도구입니다. 이러한 콘텐츠는
@@ -174,8 +174,8 @@ pre-release에서는 절대 생성하지 않습니다. 또한 [버전](#versions
     생성기의 manifest는 컴포넌트별, 버전별로 태그,
     산출물, 콘텐츠 해시를 기록합니다.
 *   릴리스 노트는 링크하며, 절대 복사하지 않습니다. 출처 링크가 해당 릴리스의
-    변경 사항을 가리키는 포인터이며, 생성된
-    [릴리스 이력](/ko/releases) 페이지가 여전히 릴리스 노트의 위치입니다.
+    변경 사항을 가리키는 포인터이며,
+    [GitHub Releases](https://github.com/ethereum-optimism/optimism/releases)가 여전히 릴리스 노트의 위치입니다.
 *   **최상위 `reference/` 디렉터리 아래의 어떤 것도 수동으로 작성하지 않습니다.**
     방향 안내("CLI가 어떻게 구성되어 있는가"), 값 선택에 대한 조언, 그리고
     선택된 플래그에 대한 참고 사항은 페르소나 탭의 가이드에 두고
@@ -209,9 +209,7 @@ pre-release에서는 절대 생성하지 않습니다. 또한 [버전](#versions
     편집 콘텐츠가 없고 검색 색인에도 포함되지 않기 때문입니다.
 *   **모든 문서 pull request마다** CI가 문서 린트(내비게이션,
     리디렉션, 레퍼런스, 링크 정책)를 실행합니다.
-*   **매주** CI가 GitHub Releases에서 [릴리스 이력](/ko/releases) 페이지를
-    다시 생성하여 하나의 누적 pull request로 만들고, 레퍼런스
-    린트를 strict 모드로 실행합니다. strict 모드에서는 이미 릴리스가 태그된
+*   **매주** CI가 레퍼런스 린트를 strict 모드로 실행합니다. strict 모드에서는 이미 릴리스가 태그된
     `<Unreleased>` 콜아웃이 있으면 실패하고, 버전을 명시하지 않은 콜아웃을 나열하여
     유지 관리자가 무엇이 배포되었는지 확인할 수 있게 합니다.
 

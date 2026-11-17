@@ -20,7 +20,7 @@ Cannon은 모든 OP Stack 블록체인의 분쟁 게임(Dispute Game)의 일부�
 *   Onchain [`MIPS64.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol): 단일 MIPS 명령어의 실행을 검증하는 EVM 구현입니다.
 *   Offchain `mipsevm`: onchain에서 검증할 수 있도록 모든 MIPS 명령어에 대한 증명을 생성하는 Go 구현입니다.
 
-Cannon 내부에서 실행되는 프로그램은 결함 증명 프로그램인 [kona-client](/ko/releases/kona-client)이며, 빅 엔디언 64비트 MIPS(MIPS64) ELF 바이너리로 컴파일됩니다.
+Cannon 내부에서 실행되는 프로그램은 결함 증명 프로그램인 [kona-client](/ko/op-stack/components/kona-client)이며, 빅 엔디언 64비트 MIPS(MIPS64) ELF 바이너리로 컴파일됩니다.
 
 <Info>
   이전 세대의 Cannon은 Go로 작성된 결함 증명 프로그램 `op-program`을 실행했습니다. 처음에는 32비트 MIPS32 명령어로 컴파일되어 onchain에서
@@ -65,7 +65,7 @@ Cannon 내부에는 `mips64` 컴파일러 타깃이 요구하는 빅 엔디언 6
 `mipsevm`이 있습니다. ELF 파일에는 MIPS 명령어가 담겨 있으며, MIPS 명령어로 컴파일된 코드가 바로 kona-client입니다.
 
 kona-client는 `mips64-unknown-none` 타깃으로 컴파일되어 Cannon FPVM 내에서 실행되는 Rust 코드입니다. kona-client는 네이티브로 실행되든
-Cannon에서 실행되든, 동반 프로그램인 [kona-host](/ko/releases/kona-host)가 가져온 데이터로부터 L2의 상태를 도출합니다. kona-client는
+Cannon에서 실행되든, 동반 프로그램인 [kona-host](/ko/op-stack/components/kona-host)가 가져온 데이터로부터 L2의 상태를 도출합니다. kona-client는
 동일한 입력이 동일한 출력뿐만 아니라 동일한 실행 트레이스를 생성하도록 만들어졌습니다. 따라서 결함 분쟁 게임의 모든 참여자는
 kona-client를 실행하여, 동일한 L2 output root 상태 전이가 주어지면 동일한 실행 트레이스를 생성할 수 있습니다. 이는 결과적으로 onchain에서
 실행될 정확히 동일한 MIPS 명령어에 대해 동일한 witness 증명을 생성합니다.
@@ -228,7 +228,7 @@ offchain `mips.go`와 onchain Cannon `MIPS64.sol`은 MIPS64 Release 1 명령어�
 또한 Cannon은 Pre-image 서버와 상호작용하고, `MIPS64.sol`에서 실행될 명령어에 필요한 경우 op-challenger가
 onchain `PreimageOracle.sol`에 Pre-image를 제공하도록 지시하는 역할도 합니다.
 
-Pre-image 서버는 [kona-host](/ko/releases/kona-host)입니다. `run.go`는 이를 하위 프로세스로 실행하며(host 명령은 `--` 구분자 뒤에
+Pre-image 서버는 [kona-host](/ko/op-stack/components/kona-host)입니다. `run.go`는 이를 하위 프로세스로 실행하며(host 명령은 `--` 구분자 뒤에
 `cannon run`으로 전달됨), kona-host는 실행 중에 kona-client가 요청하는 체인 데이터를 제공합니다.
 `mips.go`는 MIPS syscall 명령어의 일부로 Pre-image를 읽을 때 Pre-image 서버와 통신하며,
 Pre-image 서버에 힌트를 전달할 때도 통신합니다.
