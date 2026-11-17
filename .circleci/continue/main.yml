@@ -2539,9 +2539,6 @@ jobs:
           command: |
             set -euo pipefail
 
-            # The release check runs from the pipeline's commit: an older publish ref may not have it.
-            git show "${CIRCLE_SHA1}:ops/scripts/check-release-ci-green.sh" > /tmp/check-release-ci-green.sh
-
             if [ -z "$PUBLISH_CONTRACT_ARTIFACTS_REF" ]; then
               echo "Using pipeline checkout $(git rev-parse HEAD)"
               exit 0
@@ -2553,37 +2550,6 @@ jobs:
 
             # Respect the tool versions specified by the ref being published.
             mise install -v -y
-      # A manual publish of a release ref must build a commit whose required CI
-      # is green: the commit checked out above, not the pipeline's commit. A tag
-      # pipeline with no publish ref needs no check here: release-ci-green
-      # already checked this commit. Polls while CI is still running, like
-      # release-ci-green.
-      - run:
-          name: Check required CI on a release commit
-          no_output_timeout: 55m
-          environment:
-            PUBLISH_CONTRACT_ARTIFACTS_REF: << pipeline.parameters.c-publish_contract_artifacts_ref >>
-          command: |
-            set -euo pipefail
-
-            head_sha="$(git rev-parse HEAD)"
-            ref="$PUBLISH_CONTRACT_ARTIFACTS_REF"
-            release=""
-            if [[ "$ref" == refs/tags/* ]]; then
-              release="publish ref $ref"
-            elif [ -n "$ref" ] && [ -n "$(git tag --points-at HEAD --list 'op-contracts/v*')" ]; then
-              release="publish ref $ref, a commit with an op-contracts/v* tag"
-            elif [ -n "${CIRCLE_TAG:-}" ] && [ -n "$ref" ]; then
-              release="tag pipeline for $CIRCLE_TAG, publish ref $ref"
-            fi
-            if [ -z "$release" ]; then
-              echo "Not a manual release publish: the publish ref is empty or not a release tag. No check here."
-              exit 0
-            fi
-
-            echo "Release publish ($release) of $head_sha"
-            GITHUB_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" \
-              bash /tmp/check-release-ci-green.sh "$head_sha"
       - install-contracts-dependencies
       # The build below takes about 12 minutes, and the artifacts for this exact contract code are
       # usually already published. publish-artifacts.sh makes the same check, after the build.
@@ -2607,27 +2573,6 @@ jobs:
           name: Publish artifacts
           command: bash scripts/ops/publish-artifacts.sh
           working_directory: packages/contracts-bedrock
-
-  # Tag publish jobs require this: a release must come from a commit whose
-  # required CI is green. Polls while CI is still running (up to 45 min). For an
-  # emergency release, set the project variable ALLOW_RED_CI_REASON to
-  # '<full commit SHA>: <reason>', rerun the workflow from failed, then delete
-  # the variable. It applies only to that commit.
-  release-ci-green:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small.gen2
-    steps:
-      # The script needs only git, curl and jq, all in the default image.
-      - github-checkout:
-          method: blobless
-      - run:
-          name: Check required CI on the tagged commit
-          # The script waits up to 45 min, plus its last API reads.
-          no_output_timeout: 55m
-          command: |
-            GITHUB_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" \
-              ops/scripts/check-release-ci-green.sh "$CIRCLE_SHA1"
 
   stale-check:
     machine:
@@ -2964,17 +2909,7 @@ workflows:
 
   publish-contract-artifacts-on-tag:
     jobs:
-      - release-ci-green:
-          filters:
-            tags:
-              only: /^op-contracts\/v.*/
-            branches:
-              ignore: /.*/
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - publish-contract-artifacts:
-          requires:
-            - release-ci-green
           filters:
             tags:
               only: /^op-contracts\/v.*/

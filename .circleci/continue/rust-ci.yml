@@ -967,6 +967,27 @@ jobs:
       - store_artifacts:
           path: rust/kona/sp1/elf/
 
+  # The kona prestate tag publish jobs require this: a release must come from a
+  # commit whose required CI is green. Polls while CI is still running (up to 45
+  # min). For an emergency release, set the project variable ALLOW_RED_CI_REASON
+  # to '<full commit SHA>: <reason>', rerun the workflow from failed, then delete
+  # the variable. It applies only to that commit.
+  release-ci-green:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      # The script needs only git, curl and jq, all in the default image.
+      - github-checkout:
+          method: blobless
+      - run:
+          name: Check required CI on the tagged commit
+          # The script waits up to 45 min, plus its last API reads.
+          no_output_timeout: 55m
+          command: |
+            GITHUB_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" \
+              ops/scripts/check-release-ci-green.sh "$CIRCLE_SHA1"
+
   required-rust-ci:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>

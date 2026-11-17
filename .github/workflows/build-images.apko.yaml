@@ -89,7 +89,6 @@ jobs:
       # The same rule plan uses (factory apko-plan): a tag builds an image only
       # when it matches release.tag_regex and its service is in the catalog.
       # op-contracts/v*, kona-sp1-program/v* and op-reth/bench* tags build none.
-      # Their release paths check CI elsewhere.
       - name: Does this tag build an image
         id: scope
         if: github.ref_type == 'tag'

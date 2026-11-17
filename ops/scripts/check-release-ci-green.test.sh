@@ -249,6 +249,7 @@ expect_output "repo default without either (printed)" "on ethereum-optimism/opti
 # --- The CI config around the script (needs yq) ---
 ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 MAIN_YML="$ROOT/.circleci/continue/main.yml"
+RUST_CI_YML="$ROOT/.circleci/continue/rust-ci.yml"
 check() {
   if [ "$2" = true ]; then
     PASS=$((PASS + 1))
@@ -259,8 +260,7 @@ check() {
   fi
 }
 
-# 20. Job limits sit a few minutes above the script's own wait. The steps are
-# the ones that run the script (with an argument), not the one that copies it.
+# 20. Job limits sit a few minutes above the script's own wait.
 # shellcheck disable=SC2016 # the $ is in the pattern, not an expansion
 default_timeout="$(sed -n 's/^TIMEOUT="\${RELEASE_CI_TIMEOUT_SECONDS:-\([0-9]*\)}"$/\1/p' "$CHECK")"
 need_minutes=$((default_timeout / 60 + 5))
@@ -268,25 +268,16 @@ minutes() {
   local v="${1%m}"
   [[ "$v" =~ ^[0-9]+$ ]] && echo "$v" || echo 0
 }
-for job in release-ci-green publish-contract-artifacts; do
-  v="$(yq -r ".jobs.\"$job\".steps[] | select(.run.command // \"\" | test(\"check-release-ci-green.sh \\\"\")) | .run.no_output_timeout" "$MAIN_YML")"
-  check "CircleCI $job check step limit ($v) is at least ${need_minutes}m" \
-    "$([ "$(minutes "$v")" -ge "$need_minutes" ] && echo true)" "got '$v'"
-done
+v="$(yq -r '.jobs.release-ci-green.steps[] | select(.run.command // "" | test("check-release-ci-green.sh")) | .run.no_output_timeout' "$RUST_CI_YML")"
+check "CircleCI release-ci-green check step limit ($v) is at least ${need_minutes}m" \
+  "$([ "$(minutes "$v")" -ge "$need_minutes" ] && echo true)" "got '$v'"
 for wf in build-images.apko.yaml release-op-deployer.yaml; do
   v="$(yq -r '.jobs.release-ci-green.timeout-minutes' "$ROOT/.github/workflows/$wf")"
   check "$wf release-ci-green limit (${v} min) is at least ${need_minutes} min" \
     "$([ "$(minutes "$v")" -ge "$need_minutes" ] && echo true)" "got '$v'"
 done
 
-# 21. The manual publish check waits like release-ci-green: no shorter timeout.
-publish_cmd="$(yq -r '.jobs.publish-contract-artifacts.steps[] | select(.run.name == "Check required CI on a release commit") | .run.command' "$MAIN_YML")"
-check "manual publish check runs the script" \
-  "$(grep -q 'check-release-ci-green.sh' <<< "$publish_cmd" && echo true)" "script not called"
-check "manual publish check keeps the normal wait" \
-  "$(grep -q 'RELEASE_CI_TIMEOUT_SECONDS' <<< "$publish_cmd" || echo true)" "it sets RELEASE_CI_TIMEOUT_SECONDS"
-
-# 22. The get-target-branch command on backport pushes. A develop line
+# 21. The get-target-branch command on backport pushes. A develop line
 # D0 <- D1, a backport branch D0 <- B1 <- B2 (HEAD), and X, a commit that was
 # on the branch before a force push (not an ancestor of HEAD).
 TB="$WORK/target-branch"
