@@ -307,8 +307,7 @@ fn test_records_reached_long_ago_seed_with_candidates(#[case] downtime: Duration
     let candidate = enr_at_localhost(TEST_CHAIN_ID);
     let mut store = store_with_tiers(&[], &[recent.clone(), old.clone(), candidate.clone()]);
     reach(&mut store, &recent, stopped);
-    // More than geth's five days before the other.
-    reach(&mut store, &old, stopped - Duration::from_secs(6 * 24 * 60 * 60));
+    reach(&mut store, &old, stopped - SEED_MAX_AGE - Duration::from_secs(60 * 60));
 
     let mut candidate_before_old = false;
     for _ in 0..50 {
@@ -317,6 +316,25 @@ fn test_records_reached_long_ago_seed_with_candidates(#[case] downtime: Duration
         candidate_before_old |= order[1] == &candidate;
     }
     assert!(candidate_before_old, "a record reached long ago always seeded before a candidate");
+}
+
+/// A record dated after now, written while the clock ran ahead, shouldn't push the records
+/// reached since out of the first tier: the age of a record counts from the most recently reached
+/// one only up to now.
+#[test]
+fn test_a_record_dated_after_now_doesnt_age_the_others() {
+    let now = SystemTime::now();
+    let ahead = enr_at_localhost(TEST_CHAIN_ID);
+    let recent = enr_at_localhost(TEST_CHAIN_ID);
+    let candidate = enr_at_localhost(TEST_CHAIN_ID);
+    let mut store = store_with_tiers(&[], &[ahead.clone(), recent.clone(), candidate.clone()]);
+    reach(&mut store, &ahead, now + 2 * SEED_MAX_AGE);
+    reach(&mut store, &recent, now - Duration::from_secs(60 * 60));
+
+    for _ in 0..50 {
+        let order = seed_order(&store, TEST_CHAIN_ID);
+        assert_eq!(order[2], &candidate, "a record dated after now aged one reached since");
+    }
 }
 
 /// A bootstore that can't be opened, here because its path is a directory as in our docker

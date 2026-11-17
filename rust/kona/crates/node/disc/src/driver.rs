@@ -40,6 +40,11 @@ const ENR_CHANNEL_CAPACITY: usize = 1024;
 /// as geth seeds from its node database (`seedCount`).
 const SEED_COUNT: usize = 30;
 
+/// How long before the most recently reached saved record gossip may have reached another for it
+/// to seed before the candidates, see [`seed_order`]: as long after a node last answered as geth
+/// still seeds it (`seedMaxAge`).
+const SEED_MAX_AGE: Duration = Duration::from_secs(5 * 24 * 60 * 60);
+
 /// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
 #[derive(Debug, PartialEq, Eq)]
 struct RecordToDial {
@@ -705,24 +710,36 @@ fn seed_table(store: &BootStore, chain_id: u64, disc: &Discv5) {
 }
 
 /// Returns the saved records of peers of the chain `chain_id` in the order they seed the table:
-/// those gossip reached first, and then the candidates, which only sessions confirmed. Anyone can
-/// start sessions, under fresh keys, so these alone shouldn't take the seeds of the peers gossip
-/// reached.
+/// those gossip reached recently first, and then the rest, the candidates, which only sessions
+/// confirmed, with the records gossip reached long ago. Anyone can start sessions, under fresh
+/// keys, so these alone shouldn't take the seeds of the peers gossip reached.
+///
+/// Gossip reached a record recently if it did at most [`SEED_MAX_AGE`] before the most recently
+/// reached one, about when the node stopped, as geth seeds only nodes that answered within that
+/// long. Otherwise a peer reached once, months ago, would come before every candidate, however
+/// recent, as the store keeps evidence until it evicts a record. Not within that long of now: a
+/// node that was down for longer would seed none of the peers it reached first. And not of a time
+/// after now, which a clock that ran ahead wrote, and would push every other record out of the
+/// first tier.
 ///
 /// Each tier is in a random order, drawn afresh at each startup, not the most recently confirmed
 /// first, as geth seeds random nodes from its node database. A connection keeps its record's
 /// evidence fresh, so the most recent records are the peers the node was connected to when it
 /// stopped: if those were all an attacker's, seeding them first would eclipse the node again.
-///
-/// So a record gossip reached once, long ago, is as likely to seed as one it reached yesterday,
-/// and comes before every candidate, however recent: the store keeps evidence until a record is
-/// evicted, and is full only after 2048 records. geth seeds only nodes that answered within the
-/// last five days.
 fn seed_order(store: &BootStore, chain_id: u64) -> Vec<&Enr> {
     let mut entries: Vec<_> = store.valid_peers_with_chain_id(chain_id).collect();
+    let cutoff = entries
+        .iter()
+        .filter_map(|entry| entry.tcp_verified_at())
+        .max()
+        .map(|newest| newest.min(SystemTime::now()))
+        .and_then(|newest| newest.checked_sub(SEED_MAX_AGE));
+    let reached_recently = |entry: &BootStoreEntry| {
+        entry.tcp_verified_at().is_some_and(|at| cutoff.is_none_or(|cutoff| at >= cutoff))
+    };
     entries.shuffle(&mut rand::rng());
     // A stable sort, so each tier keeps the shuffled order.
-    entries.sort_by_key(|entry| entry.tcp_verified_at().is_none());
+    entries.sort_by_key(|entry| !reached_recently(entry));
     entries.into_iter().map(|entry| entry.enr()).collect()
 }
 
