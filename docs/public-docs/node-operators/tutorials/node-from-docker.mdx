@@ -25,7 +25,7 @@ This tutorial runs an OP Stack node using the **official op-reth and op-node Doc
 </Info>
 
 <Warning>
-  **OP Mainnet requires a one-time pre-Bedrock state import.** OP Sepolia does not. If you point this tutorial at OP Mainnet on a fresh datadir, op-reth will fail at startup with `Op-mainnet has been launched without importing the pre-Bedrock state`. Before running OP Mainnet, follow the [op-reth sync-op-mainnet guide](https://reth.rs/run/sync-op-mainnet.html) to either restore from a [pre-synced snapshot](https://datadirs.optimism.io/) or run the minimal-bootstrap import. OP Sepolia bootstraps via snap sync with no extra steps — start there if you're just testing the setup.
+  **OP Mainnet requires a one-time pre-Bedrock state import.** OP Sepolia does not. If you point this tutorial at OP Mainnet on a fresh datadir, op-reth will fail at startup with `Op-mainnet has been launched without importing the pre-Bedrock state`. Before running OP Mainnet, follow the [op-reth sync-op-mainnet guide](https://reth.rs/run/sync-op-mainnet.html) to either restore from a [pre-synced snapshot](/op-mainnet/network-information/snapshots) or run the minimal-bootstrap import. OP Sepolia bootstraps via snap sync with no extra steps — start there if you're just testing the setup.
 </Warning>
 
 ## Dependencies
@@ -193,7 +193,7 @@ docker compose logs op-node | grep -E "Sync progress|Finished EL sync"
 
 ## Bootstrap from a snapshot
 
-Syncing from scratch is fine for OP Sepolia (~30–50 GB, hours) but slow for OP Mainnet (~700 GB, days). For Mainnet — or anytime you'd rather skip the initial sync — bootstrap op-reth from a pre-synced snapshot.
+Syncing from scratch is fine for OP Sepolia (~30–50 GB, hours) but slow for OP Mainnet (~700 GB, days). For Mainnet — or anytime you'd rather skip the initial sync — bootstrap op-reth from a pre-synced snapshot. The OP Labs OP Mainnet snapshot is a complete-history (archive) data directory, so it is considerably larger than a pruned full node; check its size on the snapshot site before downloading.
 
 <Info>
   For OP Mainnet, a snapshot also handles the pre-Bedrock state requirement (see the warning at the top of this page) in one step.
@@ -208,12 +208,12 @@ Syncing from scratch is fine for OP Sepolia (~30–50 GB, hours) but slow for OP
   </Step>
 
   <Step title="Download a snapshot">
-    Browse [datadirs.optimism.io](https://datadirs.optimism.io/) for the snapshot matching your network and pick a recent file. Then download and verify the SHA256:
+    Select your network on [snapshots.optimism.io](https://snapshots.optimism.io/) and pick a recent `op-reth` snapshot. Then download it and verify the SHA256:
 
     ```bash
-    curl -fLO https://datadirs.optimism.io/<snapshot-file>.tar.zst
+    curl -fLO <snapshot-download-url>
 
-    # Verify checksum against the value on the index page
+    # Verify against the checksum published with the snapshot
     sha256sum <snapshot-file>.tar.zst   # Linux
     shasum -a 256 <snapshot-file>.tar.zst   # macOS
     ```
