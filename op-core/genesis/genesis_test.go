@@ -48,22 +48,26 @@ func fixtureAlloc() types.GenesisAlloc {
 	}
 }
 
-// fixture returns a genesis with the fork schedule s, like the ones op-chain-ops builds.
+// fixture returns a genesis with the fork schedule s, like the ones op-chain-ops builds. It
+// has the blob gas fields only if Ecotone, and with it Cancun, is active at genesis.
 func fixture(s forkstest.Schedule) *Genesis {
-	return &Genesis{
-		Config:        opChainConfig(s),
-		Nonce:         7,
-		Timestamp:     1234,
-		ExtraData:     eip1559.EncodeJovianExtraData(250, 6, 0),
-		GasLimit:      30_000_000,
-		Difficulty:    big.NewInt(0),
-		Mixhash:       common.Hash{0xaa},
-		Coinbase:      predeploys.SequencerFeeVaultAddr,
-		Alloc:         fixtureAlloc(),
-		BaseFee:       big.NewInt(1_000_000_000),
-		ExcessBlobGas: ptr.New[uint64](0),
-		BlobGasUsed:   ptr.New[uint64](0),
+	g := &Genesis{
+		Config:     opChainConfig(s),
+		Nonce:      7,
+		Timestamp:  1234,
+		ExtraData:  eip1559.EncodeJovianExtraData(250, 6, 0),
+		GasLimit:   30_000_000,
+		Difficulty: big.NewInt(0),
+		Mixhash:    common.Hash{0xaa},
+		Coinbase:   predeploys.SequencerFeeVaultAddr,
+		Alloc:      fixtureAlloc(),
+		BaseFee:    big.NewInt(1_000_000_000),
 	}
+	if g.Config.IsEcotone(g.Timestamp) {
+		g.ExcessBlobGas = ptr.New[uint64](0)
+		g.BlobGasUsed = ptr.New[uint64](0)
+	}
+	return g
 }
 
 // requireGenesisEqual compares big.Int fields by value: a decoded zero and big.NewInt(0)
@@ -258,12 +262,14 @@ func TestUnmarshalRejects(t *testing.T) {
 	}
 }
 
-// setBlockFields sets the block fields that are zero in a genesis.json op-chain-ops
-// writes.
+// setBlockFields sets the block fields that are zero or absent in a genesis.json
+// op-chain-ops writes.
 func setBlockFields(g *Genesis) {
 	g.Number = 3
 	g.GasUsed = 21_000
 	g.ParentHash = common.Hash{0xbb}
+	g.ExcessBlobGas = ptr.New[uint64](0)
+	g.BlobGasUsed = ptr.New[uint64](0)
 	g.SlotNumber = ptr.New[uint64](9)
 }
 
@@ -300,7 +306,7 @@ const (
 		`"terminalTotalDifficulty":0,"depositContractAddress":"0x0000000000000000000000000000000000000000","optimism":{"eip1559Elasticity":6,"eip1559Denominator":50,"eip1559DenominatorCanyon":250}},` +
 		`"nonce":"0x7","timestamp":"0x4d2","extraData":"0x01000000fa000000060000000000000000","gasLimit":"0x1c9c380","difficulty":"0x0","mixHash":"0xaa00000000000000000000000000000000000000000000000000000000000000","coinbase":"0x4200000000000000000000000000000000000011",` +
 		fixtureAllocJSON + `,` +
-		`"number":"0x0","gasUsed":"0x0","parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000","baseFeePerGas":"0x3b9aca00","excessBlobGas":"0x0","blobGasUsed":"0x0","slotNumber":null}`
+		`"number":"0x0","gasUsed":"0x0","parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000","baseFeePerGas":"0x3b9aca00","excessBlobGas":null,"blobGasUsed":null,"slotNumber":null}`
 
 	opGethGenesisJSON             = opGethGenesisJSONHead + `"osakaTime":9000,` + opGethGenesisJSONTail
 	opGethGenesisJSONWithoutOsaka = opGethGenesisJSONHead + opGethGenesisJSONTail

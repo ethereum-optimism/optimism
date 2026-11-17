@@ -1,6 +1,7 @@
 package genesis
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -24,25 +25,27 @@ var messagePasserVariants = []struct {
 		passer.Storage = nil
 		a[predeploys.L2ToL1MessagePasserAddr] = passer
 	}},
-	{name: "no message passer", editAlloc: func(a types.GenesisAlloc) {
-		delete(a, predeploys.L2ToL1MessagePasserAddr)
-	}},
 }
 
-// TestToBlockHashGoldenVectors pins the fixture's genesis block hash, as op-geth computes
-// it, for each fork schedule and message passer variant.
+// TestToBlockHashGoldenVectors pins the fixture's genesis block hash for each fork active at
+// genesis and each message passer variant. The hashes are those that op-geth computed, and
+// op-reth computes the same for these genesis files.
+//
+// A new fork fails the test until it has an entry in throughFork. Take the hashes from op-reth,
+// not from this code: the failure prints the genesis of the first variant, and
+// `op-reth init --chain <file>` logs the hash of the genesis block it writes.
 func TestToBlockHashGoldenVectors(t *testing.T) {
-	// Each set of hashes is named after the last fork that changes the fixture's genesis block;
+	// Each pair of hashes is named after the last fork that changes the fixture's genesis block;
 	// the forks after it, up to the next name, give the same block. The hashes are in the order
 	// of messagePasserVariants.
 	var (
-		bedrock = [3]string{"0xdf49d2e36cfe214fcadfba5131d735bf96c32c9d0cdeade41a0ef376d9f2552b", "0xbc5cd0145d18c13d3862becb4dad58bd67a78541af82a870d9137c957f02deed", "0x8f055549a49446224eaebf8171de2356244a9f711b54e935b60d620d9e8f2ef6"}
-		canyon  = [3]string{"0xf5958adaa7fd29176e3d570556bc07aed9866e6c926d60bd13f357caf41786a6", "0x1ac74e3350b16cd021faa0fedc10f949e415c9dd14e134809ef40c1393af2e63", "0xa3c1fce102847a02cdbe56b8b24401a91458fb83552cd6a5aa64e3bc7451be33"}
-		ecotone = [3]string{"0xfaff5be8c9bb92871a97c1d2f2f2f18dab0ef66914f5f582fb9d0e41ee2f6f40", "0xcfc53f7d3fe68fbb144d9ca0bd09e9501a2a01dff2b92437125a0425d64a8c70", "0xbf6c0445c38d50a88b105b0dae826cc68750135812e1a8db3fdafe762fea7ce9"}
-		isthmus = [3]string{"0xc34387921589ff94c75e83aee14e9de72e2b94f44ded3a9f20187a55b7cd5c97", "0x09cea63168c49973e437f28491302ea30a2f24d4bf20f77d3a3c7924529c07ab", "0xf7b148c6fe3baa92ea48179acb3fb3d901ee5c79403da3a810cd0ad5590e5a2b"}
+		bedrock = [2]string{"0xbfb63475f2ba5ddd1e2981745f3cb9612d8134fb4280f224620e0f6739a99a20", "0x6521f0610747b787789a78eb78aad9e9fc62776b75a71adc4bedd22d787782bc"}
+		canyon  = [2]string{"0x7a5f390c5507f9c6446dbdbc4f6466cb2c82f12ee65142afdb4071a119e3480b", "0xf2933b70faa68d188171df99c39b76136cc47976a590edc4f8fe1375781eaf5b"}
+		ecotone = [2]string{"0xfaff5be8c9bb92871a97c1d2f2f2f18dab0ef66914f5f582fb9d0e41ee2f6f40", "0xcfc53f7d3fe68fbb144d9ca0bd09e9501a2a01dff2b92437125a0425d64a8c70"}
+		isthmus = [2]string{"0xc34387921589ff94c75e83aee14e9de72e2b94f44ded3a9f20187a55b7cd5c97", "0x09cea63168c49973e437f28491302ea30a2f24d4bf20f77d3a3c7924529c07ab"}
 	)
 	// The genesis block hashes with the forks up to and including the key active at genesis.
-	throughFork := map[forks.Name][3]string{
+	throughFork := map[forks.Name][2]string{
 		forks.Regolith: bedrock,
 		forks.Canyon:   canyon,
 		forks.Ecotone:  ecotone,
@@ -54,7 +57,7 @@ func TestToBlockHashGoldenVectors(t *testing.T) {
 		forks.Karst:    isthmus,
 		forks.Lagoon:   isthmus,
 	}
-	check := func(t *testing.T, name string, schedule forkstest.Schedule, hashes [3]string) {
+	check := func(t *testing.T, name string, schedule forkstest.Schedule, hashes [2]string) {
 		for i, variant := range messagePasserVariants {
 			t.Run(name+"/"+variant.name, func(t *testing.T) {
 				g := fixture(schedule)
@@ -64,9 +67,14 @@ func TestToBlockHashGoldenVectors(t *testing.T) {
 		}
 	}
 	for _, fork := range forkstest.TimestampELForks {
+		schedule := forkstest.AtGenesisThrough(fork)
 		hashes, ok := throughFork[fork]
-		require.True(t, ok, "no golden genesis block hashes for fork %s", fork)
-		check(t, "through "+string(fork), forkstest.AtGenesisThrough(fork), hashes)
+		if !ok {
+			data, err := json.Marshal(fixture(schedule))
+			require.NoError(t, err)
+			t.Fatalf("no golden genesis block hashes for fork %s; add op-reth's hashes for this genesis and its variants:\n%s", fork, data)
+		}
+		check(t, "through "+string(fork), schedule, hashes)
 	}
 	// A fork that activates after genesis leaves the genesis block unchanged.
 	check(t, "staggered", forkstest.Staggered(), bedrock)

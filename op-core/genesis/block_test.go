@@ -86,7 +86,7 @@ func TestToBlockHash(t *testing.T) {
 		hash     common.Hash
 	}{
 		{name: "through Karst", schedule: forkstest.AtGenesisThrough(forks.Karst), hash: common.HexToHash("0xc34387921589ff94c75e83aee14e9de72e2b94f44ded3a9f20187a55b7cd5c97")},
-		{name: "staggered", schedule: forkstest.Staggered(), hash: common.HexToHash("0xdf49d2e36cfe214fcadfba5131d735bf96c32c9d0cdeade41a0ef376d9f2552b")},
+		{name: "staggered", schedule: forkstest.Staggered(), hash: common.HexToHash("0xbfb63475f2ba5ddd1e2981745f3cb9612d8134fb4280f224620e0f6739a99a20")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := fixture(tc.schedule)
