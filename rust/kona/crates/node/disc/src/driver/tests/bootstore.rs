@@ -98,6 +98,45 @@ fn test_records_lost_a_day_ago_are_not_handed_over() {
     assert!(receiver.try_recv().is_err(), "the driver handed over a peer lost a day ago");
 }
 
+/// After a restart, the driver should hand gossip again only the peers gossip reached since,
+/// not those it reached before: those are the peers the node was connected to when it stopped,
+/// and if they were all an attacker's, redialing them would eclipse it again, which the random
+/// seeds avoid. Gossip redials the peers it lost while running.
+///
+/// Gossip reached `before` a minute before the restart, and reaches `since` after it, which the
+/// driver hands over at the next store interval, 100 ms later.
+#[tokio::test]
+async fn test_peers_reached_before_a_restart_are_not_redialed() {
+    let before = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
+    let since = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 2)), TEST_CHAIN_ID);
+    let (mut driver, _dir) = public_driver_with_bootstore(&[before.clone(), since.clone()]);
+    reach(&mut driver.bootstore, &before, SystemTime::now() - Duration::from_secs(60));
+    driver.store_interval = Duration::from_millis(100);
+    let (handler, mut records) = driver.start();
+    wait_until_started(&handler).await;
+    let addr = kona_peers::enr_tcp_socket(&since).expect("the record has a TCP address");
+    handler.tcp_verified(since.node_id(), addr);
+
+    let mut handed_over = Vec::new();
+    let until_since = async {
+        loop {
+            let record = records.recv().await.expect("the driver runs");
+            let done = record == since;
+            handed_over.push(record);
+            if done {
+                break;
+            }
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), until_since)
+        .await
+        .expect("the driver didn't hand over a peer gossip reached since the restart");
+    assert!(
+        !handed_over.contains(&before),
+        "the driver redialed a peer reached before the restart"
+    );
+}
+
 /// Session records go through the same channel to gossip, and the driver hands a session's
 /// record over only once, when the session starts. So the saved records should leave half of
 /// the channel free, rather than fill it at every store interval, which drops the session records
