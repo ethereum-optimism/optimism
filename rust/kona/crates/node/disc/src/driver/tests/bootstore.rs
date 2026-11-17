@@ -304,3 +304,38 @@ async fn test_a_new_session_doesnt_confirm_its_record() {
         "a session that had just started confirmed its record"
     );
 }
+
+/// A session's record is confirmed at a store interval once the session has lasted the refresh
+/// delay: the driver checks discovery's table at each one. With no delay, the first store
+/// interval after the session confirms it.
+///
+/// As in [`test_a_new_session_doesnt_confirm_its_record`], L's bootstrap starts a session with N,
+/// and N saves L's record.
+#[tokio::test]
+async fn test_store_interval_confirms_a_lasting_session() {
+    let (mut node, dir) = driver_with_bootstore(accept_all, &[]);
+    node.store_interval = Duration::from_millis(100);
+    node.bootstore = std::mem::replace(&mut node.bootstore, BootStore::in_memory())
+        .with_verified_refresh(Duration::ZERO);
+    let path = dir.path().join("bootstore.json");
+    let enode = loopback_enode(&node.disc.local_enr());
+    let (_node, _records) = node.start();
+
+    let mut loopback = offline_driver();
+    loopback.bootnodes = BootNodes(vec![BootNode::Enode(enode)]);
+    let loopback_id = loopback.disc.local_enr().node_id();
+    let (_loopback, _) = loopback.start();
+
+    let confirmed = async {
+        loop {
+            let saved = BootStore::open(path.clone()).expect("the bootstore opens");
+            if saved.get(loopback_id).is_some_and(|entry| entry.udp_verified_at().is_some()) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), confirmed)
+        .await
+        .expect("a store interval didn't confirm the record of a session that lasted");
+}
