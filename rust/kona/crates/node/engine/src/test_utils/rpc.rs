@@ -204,3 +204,13 @@ pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock, Rpc
     let client = EngineClient::new(l1.provider(), l2.provider(), cfg);
     (client, l1, l2)
 }
+
+/// Expects the sync start a reset performs: the execution layer answering `block` for its
+/// finalized, safe and latest blocks, and `forkchoice` being sent. The unsafe head is the
+/// finalized one, so its L1 origin is not looked up.
+pub fn expect_sync_start(l2: &RpcMock, block: &TestRpcBlock, forkchoice: ForkchoiceState) {
+    for label in ["finalized", "safe", "latest"] {
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!([label, true]), block);
+    }
+    l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
+}

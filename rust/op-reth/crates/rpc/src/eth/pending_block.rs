@@ -23,7 +23,7 @@ use reth_rpc_eth_types::{
 use reth_storage_api::{
     BlockReaderIdExt, StateProviderBox, StateProviderFactory, errors::ProviderResult,
 };
-use tracing::warn;
+use tracing::{trace, warn};
 
 /// Block time, in seconds, of a chain with neither a configured block time nor an alloy-chains
 /// hint: the OP Stack default.
@@ -91,6 +91,32 @@ const fn pending_state_history_lookup_hash<N: NodePrimitives>(
     pending_block: &PendingFlashBlock<N>,
 ) -> B256 {
     pending_block.canonical_anchor_hash
+}
+
+/// Returns the pending flashblock unless the canonical chain has reached its height.
+///
+/// A stalled subblocks feed leaves its last subblock in place while canonical blocks keep
+/// importing, and answering `pending` from it then reads state behind `latest`, such as a nonce
+/// below the `latest` one. The check is against the tip rather than the subblock's age: a subblock
+/// still ahead of the tip is the best answer available, however old.
+pub(super) fn unsuperseded_pending_flashblock<N: NodePrimitives>(
+    pending_block: Option<&PendingFlashBlock<N>>,
+    latest_block_number: u64,
+) -> Option<PendingFlashBlock<N>> {
+    let pending_block = pending_block?;
+    let pending_block_number = pending_block.pending.block().header().number();
+
+    if pending_block_number <= latest_block_number {
+        trace!(
+            target: "flashblocks",
+            pending_block_number,
+            latest_block_number,
+            "Pending subblock superseded by the canonical chain, falling back to latest"
+        );
+        return None;
+    }
+
+    Some(pending_block.clone())
 }
 
 /// Returns the pending state: the tip's bundle on its canonical anchor's state.
@@ -206,7 +232,7 @@ where
 mod tests {
     use super::{
         OpPendingEnvBuilder, PendingEnvBuilder, pending_flashblock_state,
-        pending_state_history_lookup_hash,
+        pending_state_history_lookup_hash, unsuperseded_pending_flashblock,
     };
     use alloy_consensus::Header;
     use alloy_primitives::{Address, B256, U256};
@@ -234,6 +260,37 @@ mod tests {
     };
     use rstest::rstest;
     use std::{sync::Arc, time::Instant};
+
+    #[rstest]
+    #[case::ahead_of_the_tip(101, 100, true)]
+    #[case::at_the_tip(100, 100, false)]
+    #[case::behind_the_tip(100, 4_000, false)]
+    fn pending_flashblock_is_served_only_ahead_of_the_canonical_tip(
+        #[case] pending_number: u64,
+        #[case] latest_number: u64,
+        #[case] served: bool,
+    ) {
+        let block = alloy_consensus::Block::new(
+            Header { number: pending_number, ..Default::default() },
+            Default::default(),
+        );
+        let executed = ExecutedBlock::<OpPrimitives> {
+            recovered_block: Arc::new(RecoveredBlock::new_unhashed(block, Vec::new())),
+            ..Default::default()
+        };
+        let pending = PendingFlashBlock::new(
+            PendingBlock::with_executed_block(Instant::now(), executed),
+            B256::ZERO,
+            0,
+            B256::ZERO,
+            false,
+        );
+
+        assert_eq!(
+            unsuperseded_pending_flashblock(Some(&pending), latest_number).is_some(),
+            served
+        );
+    }
 
     #[test]
     fn pending_env_stays_before_a_fork_one_block_time_ahead() {
