@@ -1159,6 +1159,49 @@ mod tests {
         assert_eq!(opened.get(enr.node_id()).unwrap().session_started_at(), None);
     }
 
+    /// Evidence dated after now, as in a file written while the clock ran ahead, or edited by
+    /// hand, should be replaced by the next evidence rather than kept: it can't be true, and it
+    /// would otherwise stay until the clock catches up, and rank as the most recent. Adding the
+    /// refresh delay to the latest time a `SystemTime` holds would panic the discovery task.
+    #[rstest::rstest]
+    #[case::ahead(at(1_000_000))]
+    #[case::latest(SystemTime::UNIX_EPOCH + Duration::from_secs(i64::MAX as u64))]
+    fn test_evidence_after_now_is_replaced(#[case] future: SystemTime) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bootstore.json");
+        let enr = enr_of_new_node();
+        let secs = future.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let contents = format!(
+            r#"{{"version": 1, "records": [{{"enr": "{}", "tcp_verified_at": {secs}}}]}}"#,
+            enr.to_base64()
+        );
+        std::fs::write(&path, contents).unwrap();
+        let mut store = BootStore::open(path).unwrap();
+
+        store.set_tcp_verified(
+            enr.node_id(),
+            SocketAddr::V4(enr.tcp4_socket().unwrap()),
+            at(2_000),
+        );
+
+        assert_eq!(store.get(enr.node_id()).unwrap().tcp_verified_at(), Some(at(2_000)));
+    }
+
+    /// A refresh delay too long to add to a session's start, set by mistake, makes the session
+    /// never last, rather than panic.
+    #[test]
+    fn test_longest_refresh_delay_never_confirms() {
+        let enr = enr_of_new_node();
+        let socket = SocketAddr::V4(enr.udp4_socket().unwrap());
+        let mut store = BootStore::in_memory().with_verified_refresh(Duration::MAX);
+        store.add_enr(enr.clone());
+        store.session_started(enr.node_id(), socket, at(1_000));
+
+        store.set_udp_verified(enr.node_id(), socket, at(2_000));
+
+        assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), None);
+    }
+
     /// A store given a lower limit than it holds evicts the records over it, as it would to make
     /// room for new ones, and saves the file without them.
     #[test]
