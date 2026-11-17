@@ -14,11 +14,11 @@ pub struct RpcArgs {
     pub rpc_disabled: bool,
     /// RPC listening address.
     ///
-    /// Defaults to `0.0.0.0`: the node is released as a Docker image, where binding `127.0.0.1`
-    /// makes the RPC unreachable from outside the container. The admin API (`admin_*`) is always
-    /// served on this port, without authentication, so operators placing the node on an untrusted
-    /// network must firewall the port.
-    #[arg(long = "rpc.addr", default_value = "0.0.0.0", env = "KONA_NODE_RPC_ADDR")]
+    /// The admin API (`admin_*`, including `admin_startSequencer`, `admin_stopSequencer` and
+    /// `admin_postUnsafePayload`) is always served on this port, without authentication. Binding
+    /// a non-loopback address, such as `0.0.0.0` to publish the port from a Docker container,
+    /// exposes it: firewall the port so that only trusted callers reach it.
+    #[arg(long = "rpc.addr", default_value = "127.0.0.1", env = "KONA_NODE_RPC_ADDR")]
     pub listen_addr: IpAddr,
     /// RPC listening port.
     #[arg(long = "port", alias = "rpc.port", default_value = "9545", env = "KONA_NODE_RPC_PORT")]
@@ -62,8 +62,8 @@ mod tests {
     }
 
     #[test]
-    fn rpc_addr_defaults_to_all_interfaces() {
-        // 0.0.0.0 is intentional: released as a Docker image, where 127.0.0.1 is unreachable.
-        assert_eq!(RpcArgs::default().listen_addr, IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+    fn rpc_addr_defaults_to_loopback() {
+        // The admin API is always served, so the RPC must not be reachable remotely by default.
+        assert_eq!(RpcArgs::default().listen_addr, IpAddr::V4(Ipv4Addr::LOCALHOST));
     }
 }
