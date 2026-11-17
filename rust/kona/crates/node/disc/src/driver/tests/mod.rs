@@ -119,6 +119,25 @@ fn loopback_enode(enr: &Enr) -> Multiaddr {
         .with(peer_id)
 }
 
+/// Reads the discovery table of the driver of `handler` until `done` holds for the records it
+/// holds, and returns those, or `None` after 5s. The driver seeds the table at its first store
+/// interval, which may come after the first requests.
+async fn wait_for_table(
+    handler: &Discv5Handler,
+    done: impl Fn(&[Enr]) -> bool,
+) -> Option<Vec<Enr>> {
+    let poll = async {
+        loop {
+            let table = handler.table_enrs().await.expect("the driver runs");
+            if done(&table) {
+                return table;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), poll).await.ok()
+}
+
 /// Waits until the driver has finished startup and runs its main loop.
 async fn wait_until_started(handler: &Discv5Handler) {
     // Requests are only answered by the main loop.

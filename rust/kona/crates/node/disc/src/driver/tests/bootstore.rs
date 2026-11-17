@@ -257,15 +257,12 @@ async fn test_saved_records_seed_the_table() {
     let saved = [enr_at_localhost(TEST_CHAIN_ID), enr_at_localhost(TEST_CHAIN_ID)];
     let (driver, _dir) = driver_with_bootstore(accept_all, &saved);
     let (handler, _records) = driver.start();
-    wait_until_started(&handler).await;
 
-    let table = handler.table_enrs().await.expect("the driver runs");
-    for record in &saved {
-        assert!(
-            table.iter().any(|enr| enr.node_id() == record.node_id()),
-            "a saved record didn't seed the table"
-        );
-    }
+    wait_for_table(&handler, |table| {
+        saved.iter().all(|record| table.iter().any(|enr| enr.node_id() == record.node_id()))
+    })
+    .await
+    .expect("a saved record didn't seed the table");
 }
 
 /// A node with many saved records should seed only [`SEED_COUNT`] of them, as geth does: lookups
@@ -278,12 +275,88 @@ async fn test_seeds_are_limited() {
     let saved: Vec<_> = (0..2 * SEED_COUNT).map(|_| enr_at_localhost(TEST_CHAIN_ID)).collect();
     let (driver, _dir) = driver_with_bootstore(accept_all, &saved);
     let (handler, _records) = driver.start();
+
+    // The table takes about as many: half of the records fall into the farthest bucket, of 16.
+    let table = wait_for_table(&handler, |table| table.len() > SEED_COUNT / 2)
+        .await
+        .expect("only a few saved records seeded the table");
+    assert!(table.len() <= SEED_COUNT, "{} saved records seeded the table", table.len());
+}
+
+/// While discovery has few peers connected, the driver should replace the seeds that didn't
+/// answer with other saved records, at each store interval, until it has tried the bootstore:
+/// otherwise a node whose seeds and bootnodes are dead finds no peers through discovery,
+/// although its bootstore names others that may answer.
+///
+/// The node has no bootnodes, saves its bootstore every 100 ms, and its saved records are on
+/// loopback, where nothing answers.
+#[tokio::test]
+async fn test_seeds_that_dont_answer_are_replaced() {
+    let saved: Vec<_> = (0..3 * SEED_COUNT).map(|_| enr_at_localhost(TEST_CHAIN_ID)).collect();
+    let (mut driver, _dir) = driver_with_bootstore(accept_all, &saved);
+    driver.store_interval = Duration::from_millis(100);
+    let (handler, _records) = driver.start();
     wait_until_started(&handler).await;
 
-    let table = handler.table_enrs().await.expect("the driver runs");
-    assert!(table.len() <= SEED_COUNT, "{} saved records seeded the table", table.len());
-    // The table takes about as many: half of the records fall into the farthest bucket, of 16.
-    assert!(table.len() > SEED_COUNT / 2, "only {} saved records seeded the table", table.len());
+    let mut seeded = std::collections::HashSet::new();
+    let tried_more = async {
+        loop {
+            let table = handler.table_enrs().await.expect("the driver runs");
+            seeded.extend(table.iter().map(|enr| enr.node_id()));
+            if seeded.len() > 2 * SEED_COUNT {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), tried_more)
+        .await
+        .expect("the driver didn't replace the seeds that didn't answer");
+}
+
+/// Reseeding should remove only the driver's own seeds that didn't answer: not the table's other
+/// records, as a bootnode, which is there for lookups whether or not it answers, and not a seed
+/// that answered, which discovery holds connected.
+///
+/// N saves its bootstore every 100 ms. Its bootnode is of another chain, so the bootstore doesn't
+/// save it, and a seed can't bring it back, and on loopback, where nothing answers. Its saved
+/// record is L's, which runs.
+#[tokio::test]
+async fn test_reseeding_keeps_bootnodes_and_seeds_that_answered() {
+    let bootnode = enr_at_localhost(OP_MAINNET_CHAIN_ID);
+    let live = offline_driver();
+    let live_enr = live.disc.local_enr();
+    let (_live, _) = live.start();
+    let (mut node, _dir) = driver_with_bootstore(accept_all, std::slice::from_ref(&live_enr));
+    node.bootnodes = BootNodes(vec![BootNode::Enr(bootnode.clone())]);
+    node.store_interval = Duration::from_millis(100);
+    let (node, _records) = node.start();
+
+    let connected = async {
+        loop {
+            let infos = node.table_infos().await.expect("the driver runs");
+            if infos
+                .iter()
+                .any(|(id, _, status)| *id == live_enr.node_id() && status.is_connected())
+            {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), connected)
+        .await
+        .expect("the saved record of a node that runs didn't connect");
+    // Three store intervals, each of which reseeds: the node has one peer connected.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    let infos = node.table_infos().await.expect("the driver runs");
+    assert!(infos.iter().any(|(_, enr, _)| *enr == bootnode), "reseeding removed a bootnode");
+    // A seed removed and drawn again is back, but disconnected.
+    assert!(
+        infos.iter().any(|(id, _, status)| *id == live_enr.node_id() && status.is_connected()),
+        "reseeding removed a seed that answered"
+    );
 }
 
 /// The records gossip reached should seed the table before the candidates: anyone can start

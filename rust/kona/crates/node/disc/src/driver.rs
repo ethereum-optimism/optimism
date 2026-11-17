@@ -40,8 +40,9 @@ const ENR_CHANNEL_CAPACITY: usize = 1024;
 /// the peers it lost, by default, see [`Discv5Driver::store_interval`].
 const STORE_INTERVAL: Duration = Duration::from_secs(60);
 
-/// The most saved records that seed the discovery table at startup, see [`seed_table`]: as many
-/// as geth seeds from its node database (`seedCount`).
+/// The most saved records that seed the discovery table at a time, see [`reseed`]: as many as
+/// geth seeds from its node database (`seedCount`). Also how many peers discovery must hold
+/// connected for the driver to stop seeding.
 const SEED_COUNT: usize = 30;
 
 /// How long before the most recently reached saved record gossip may have reached another for it
@@ -420,8 +421,8 @@ impl Discv5Driver {
             let mut removal_interval = tokio::time::interval(remove_dur);
             let mut interval = tokio::time::interval(self.interval);
             // Its first tick is due at once, which the loop gets on its first poll, after startup:
-            // it then saves the bootstore and hands gossip the peers it lost, and does so again
-            // every store interval.
+            // it then seeds the table, saves the bootstore and hands gossip the peers it lost,
+            // and does so again every store interval.
             let mut store_interval = tokio::time::interval(self.store_interval);
 
             // Step 1: Start the discovery service.
@@ -472,21 +473,22 @@ impl Discv5Driver {
                 debug!(target: "discovery", removed, "Removed saved records at addresses discovery doesn't use");
             }
 
-            // Step 5: Seed the discovery table with saved records, besides the bootnodes.
-            seed_table(&store, chain_id, &self.disc, SystemTime::now());
-
+            // The saved records seed the table at the first store interval, right after.
             let enrs = self.disc.table_entries_enr();
-            info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
+            info!(target: "discovery", "Discv5 started with {} ENRs from its bootnodes", enrs.len());
 
-            // Step 6: Hand gossip the bootnodes of our chain, once. Gossip redials one only once
+            // Step 5: Hand gossip the bootnodes of our chain, once. Gossip redials one only once
             // it has reached it, and one that doesn't answer discovery, as a bootnode that runs
             // gossip only, gets no session that would hand it over.
             if self.forward {
                 forward_bootnodes(bootnodes, &enr_sender);
             }
 
-            // Step 7: Run the core driver loop.
+            // Step 6: Run the core driver loop.
             let mut handlers_dropped = false;
+            // The node IDs of the saved records the driver seeded the table with last, see
+            // `reseed`.
+            let mut seeds = Vec::new();
             let mut expiry = ExpirySchedule::new(self.expiry_interval);
             loop {
                 tokio::select! {
@@ -597,11 +599,13 @@ impl Discv5Driver {
                     _ = store_interval.tick() => {
                         let start = std::time::Instant::now();
                         let now = SystemTime::now();
-                        refresh_connected(&mut store, &self.disc.table_entries(), now);
+                        let table = self.disc.table_entries();
+                        refresh_connected(&mut store, &table, now);
                         if expiry.take_due(now) {
                             let dropped = store.expire(now, EVIDENCE_TTL);
                             debug!(target: "discovery", dropped, "Expired the bootstore's old evidence");
                         }
+                        reseed(&store, chain_id, &self.disc, &table, &mut seeds, now);
                         // Only what the driver added: the bootnodes, and the records a session
                         // confirmed. discv5's table also holds records from other nodes' answers
                         // to our lookups, which nothing confirmed, and the bootstore would dial
@@ -786,32 +790,63 @@ fn refresh_connected(store: &mut BootStore, table: &[(NodeId, Enr, NodeStatus)],
     }
 }
 
+/// Seeds `disc`'s table with saved records while discovery holds fewer than [`SEED_COUNT`] peers
+/// connected in `table`, its entries: at startup, and then at each store interval, so that a node
+/// whose seeds and bootnodes don't answer goes on to the other saved records, rather than finding
+/// no peers although its bootstore names others that may answer. Once enough are connected, the
+/// lookups find the rest.
+///
+/// A store interval is a dozen lookups, which contact each seed several times, so a seed that is
+/// still disconnected then won't answer. Those of `seeds`, the node IDs of the last seeds, are
+/// removed first, to make room for the next: discv5 adds a seed as disconnected, which it refuses
+/// into a full bucket, and the farthest holds half of the node IDs. Only the driver's own seeds
+/// are removed, not the bootnodes, the records lookups found, or the seeds that answered.
+fn reseed(
+    store: &BootStore,
+    chain_id: u64,
+    disc: &Discv5,
+    table: &[(NodeId, Enr, NodeStatus)],
+    seeds: &mut Vec<NodeId>,
+    now: SystemTime,
+) {
+    let connected = table.iter().filter(|(_, _, status)| status.is_connected()).count();
+    if connected >= SEED_COUNT {
+        return;
+    }
+    for (node_id, _, status) in table {
+        if !status.is_connected() && seeds.contains(node_id) {
+            disc.remove_node(node_id);
+        }
+    }
+    *seeds = seed_table(store, chain_id, disc, now);
+}
+
 /// Adds up to [`SEED_COUNT`] of the saved records of peers of the chain `chain_id` to `disc`'s
-/// table, in [`seed_order`], so that after a restart discovery starts from the peers that answered
-/// before, not only from the bootnodes, many of which are dead. Its lookups then contact them, and
-/// the sessions that start hand them to gossip.
+/// table, in [`seed_order`], and returns their node IDs. Discovery's lookups then contact them,
+/// and the sessions that start hand them to gossip.
 ///
 /// Skips the records already in the table, the bootnodes, and those without a UDP address that
 /// discovery can contact, which discv5 refuses with a WARN. Counts only the records the table
 /// takes: a full bucket refuses the rest.
-fn seed_table(store: &BootStore, chain_id: u64, disc: &Discv5, now: SystemTime) {
+fn seed_table(store: &BootStore, chain_id: u64, disc: &Discv5, now: SystemTime) -> Vec<NodeId> {
     let ip_mode = disc.ip_mode();
-    let mut seeded = 0;
+    let mut seeded = Vec::new();
     for enr in seed_order(store, chain_id, now) {
-        if seeded == SEED_COUNT {
+        if seeded.len() == SEED_COUNT {
             break;
         }
         if ip_mode.get_contactable_addr(enr).is_none() || disc.find_enr(&enr.node_id()).is_some() {
             continue;
         }
         match disc.add_enr(enr.clone()) {
-            Ok(()) => seeded += 1,
+            Ok(()) => seeded.push(enr.node_id()),
             Err(err) => {
                 trace!(target: "discovery", %enr, err, "The table didn't take a saved record")
             }
         }
     }
-    debug!(target: "discovery", seeded, "Seeded the discovery table with saved records");
+    debug!(target: "discovery", seeded = seeded.len(), "Seeded the discovery table with saved records");
+    seeded
 }
 
 /// Returns the saved records of peers of the chain `chain_id` in the order they seed the table:
