@@ -646,29 +646,28 @@ impl BootStore {
     /// [`Self::session_started`]. Returns how many it dropped. The file changes at the next
     /// [`Self::sync`].
     ///
-    /// Evidence dated after `now`, which a clock that ran ahead wrote, is kept.
+    /// Evidence dated after `now`, which a clock that ran ahead wrote, is dated `now`, so that it
+    /// ages from then on: once the clock is set right, a peer that never answers again would
+    /// otherwise keep it until the clock catches up.
     pub fn expire(&mut self, now: SystemTime, ttl: Duration) -> usize {
-        let Some(before) = now.checked_sub(ttl) else {
-            return 0;
-        };
-        let forget = |evidence: &mut Option<SystemTime>| {
-            let is_old = evidence.is_some_and(|at| at < before);
-            if is_old {
-                *evidence = None;
-            }
-            is_old
-        };
+        let before = now.checked_sub(ttl);
         let len = self.records.entries.len();
-        let mut forgot = false;
+        let mut changed = false;
         self.records.entries.retain(|_, entry| {
-            forgot |= forget(&mut entry.udp_verified_at);
-            forgot |= forget(&mut entry.tcp_verified_at);
+            for evidence in [&mut entry.udp_verified_at, &mut entry.tcp_verified_at] {
+                if evidence.take_if(|at| before.is_some_and(|before| *at < before)).is_some() {
+                    changed = true;
+                } else if let Some(at) = evidence.as_mut().filter(|at| **at > now) {
+                    *at = now;
+                    changed = true;
+                }
+            }
             entry.udp_verified_at.is_some() ||
                 entry.tcp_verified_at.is_some() ||
                 entry.expiry_grace.is_some_and(|until| until > now)
         });
         let dropped = len - self.records.entries.len();
-        self.dirty |= forgot || dropped > 0;
+        self.dirty |= changed || dropped > 0;
         dropped
     }
 

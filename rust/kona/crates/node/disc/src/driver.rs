@@ -862,7 +862,7 @@ fn seed_order(store: &BootStore, chain_id: u64, now: SystemTime) -> Vec<&Enr> {
 /// started: those are the peers the node was connected to when it stopped, and if they were all
 /// an attacker's, redialing them would eclipse it again. After a restart, the saved records seed
 /// the table instead, at random, see [`seed_order`]. A record dated after now, by a clock that
-/// ran ahead, counts as reached lately.
+/// ran ahead, counts as reached lately, until expiry dates it now, see [`BootStore::expire`].
 ///
 /// Every record gossip reached has a TCP address, the one it reached: the store confirms only a
 /// record's own address, and a newer record keeps that evidence only if its TCP address is the
