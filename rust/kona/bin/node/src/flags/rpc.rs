@@ -4,10 +4,7 @@
 
 use clap::Parser;
 use kona_rpc::RpcBuilder;
-use std::{
-    net::{IpAddr, SocketAddr},
-    path::PathBuf,
-};
+use std::net::{IpAddr, SocketAddr};
 
 /// RPC CLI Arguments
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
@@ -18,21 +15,14 @@ pub struct RpcArgs {
     /// RPC listening address.
     ///
     /// Defaults to `0.0.0.0`: the node is released as a Docker image, where binding `127.0.0.1`
-    /// makes the RPC unreachable from outside the container. Privileged methods are not exposed
-    /// by this alone — the admin API is registered only with `--rpc.enable-admin` — but operators
-    /// placing the node on an untrusted network should still firewall the port.
+    /// makes the RPC unreachable from outside the container. The admin API (`admin_*`) is always
+    /// served on this port, without authentication, so operators placing the node on an untrusted
+    /// network must firewall the port.
     #[arg(long = "rpc.addr", default_value = "0.0.0.0", env = "KONA_NODE_RPC_ADDR")]
     pub listen_addr: IpAddr,
     /// RPC listening port.
     #[arg(long = "port", alias = "rpc.port", default_value = "9545", env = "KONA_NODE_RPC_PORT")]
     pub listen_port: u16,
-    /// Enable the admin API.
-    #[arg(long = "rpc.enable-admin", env = "KONA_NODE_RPC_ENABLE_ADMIN")]
-    pub enable_admin: bool,
-    /// File path used to persist state changes made via the admin API so they persist across
-    /// node restarts. Disabled if not set.
-    #[arg(long = "rpc.admin-state", env = "KONA_NODE_RPC_ADMIN_STATE")]
-    pub admin_persistence: Option<PathBuf>,
 }
 
 impl Default for RpcArgs {
@@ -48,11 +38,7 @@ impl From<RpcArgs> for Option<RpcBuilder> {
         if args.rpc_disabled {
             return None;
         }
-        Some(RpcBuilder {
-            socket: SocketAddr::new(args.listen_addr, args.listen_port),
-            enable_admin: args.enable_admin,
-            admin_persistence: args.admin_persistence,
-        })
+        Some(RpcBuilder { socket: SocketAddr::new(args.listen_addr, args.listen_port) })
     }
 }
 
@@ -67,8 +53,6 @@ mod tests {
     #[case::disable_rpc(&["--rpc.addr", "1.1.1.1"], |args: &mut RpcArgs| { args.listen_addr = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)); })]
     #[case::disable_rpc(&["--port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
     #[case::disable_rpc_alias(&["--rpc.port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
-    #[case::disable_rpc(&["--rpc.enable-admin"], |args: &mut RpcArgs| { args.enable_admin = true; })]
-    #[case::disable_rpc(&["--rpc.admin-state", "/"], |args: &mut RpcArgs| { args.admin_persistence = Some(PathBuf::from("/")); })]
     fn test_parse_rpc_args(#[case] args: &[&str], #[case] mutate: impl Fn(&mut RpcArgs)) {
         let args = [&["kona-node"], args].concat();
         let cli = RpcArgs::parse_from(args);
@@ -81,10 +65,5 @@ mod tests {
     fn rpc_addr_defaults_to_all_interfaces() {
         // 0.0.0.0 is intentional: released as a Docker image, where 127.0.0.1 is unreachable.
         assert_eq!(RpcArgs::default().listen_addr, IpAddr::V4(Ipv4Addr::UNSPECIFIED));
-    }
-
-    #[test]
-    fn admin_api_disabled_by_default() {
-        assert!(!RpcArgs::default().enable_admin);
     }
 }
