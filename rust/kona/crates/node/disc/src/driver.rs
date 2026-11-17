@@ -42,8 +42,6 @@ struct RecordToDial {
     event: &'static str,
     /// The record.
     enr: Enr,
-    /// Whether the bootstore should save it, which the table filter decides.
-    save: bool,
     /// The socket the session's packets came from. The bootstore checks it against the record's
     /// UDP address, which discv5 doesn't always do.
     socket: SocketAddr,
@@ -153,10 +151,12 @@ impl Discv5Driver {
     /// dials the same address after a restart. Only a record valid for `chain_id` is dialed.
     ///
     /// A record that `table_filter` rejects, such as a private one on a node that uses only public
-    /// addresses, is dialed, but not saved. Our lookups and bootnodes go through the filter, so
-    /// such a session is one the other node started, from the address we dial. Refusing the dial
-    /// wouldn't keep the two apart, as that node can dial us, and gossip accepts it. But after a
-    /// restart, the bootstore would dial the record without a session.
+    /// addresses, is neither dialed nor saved. Our lookups and bootnodes go through the filter, so
+    /// such a session is one the other node started. Refusing the dial doesn't keep the two apart:
+    /// that node can dial us, and gossip accepts it. It leaves the dial to the node that saves the
+    /// record. A node that dialed a record it doesn't save could never redial it, and its dial can
+    /// come first, so that the other node holds only a connection it didn't dial, which doesn't
+    /// confirm our record. Then neither node would redial once the connection drops.
     ///
     /// The record comes from these events:
     ///
@@ -209,11 +209,11 @@ impl Discv5Driver {
             debug!(target: "discovery", event = kind, %socket, "Ignoring a record without a TCP address at the IP its session came from");
             return None;
         }
-        let save = table_filter(&enr);
-        if !save {
-            debug!(target: "discovery", event = kind, %socket, "Not saving a session at an address discovery doesn't use; --p2p.discovery.private allows private ones");
+        if !table_filter(&enr) {
+            debug!(target: "discovery", event = kind, %socket, "Leaving the dial to a session at an address discovery doesn't use; --p2p.discovery.private allows private ones");
+            return None;
         }
-        Some(RecordToDial { event: kind, enr, save, socket })
+        Some(RecordToDial { event: kind, enr, socket })
     }
 
     /// Bootstraps the [`Discv5`] table with bootnodes, and adds those of our chain to `store`.
@@ -493,15 +493,13 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        if let Some(RecordToDial { event: kind, enr, save, socket }) =
+                        if let Some(RecordToDial { event: kind, enr, socket }) =
                             Self::record_to_dial(event, chain_id, table_filter)
                         {
                             debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
-                            if save {
-                                store.add_enr(enr.clone());
-                                store.set_udp_verified(enr.node_id(), socket, SystemTime::now());
-                            }
+                            store.add_enr(enr.clone());
+                            store.set_udp_verified(enr.node_id(), socket, SystemTime::now());
                             forward_session(enr, &enr_sender);
                         }
                     }
