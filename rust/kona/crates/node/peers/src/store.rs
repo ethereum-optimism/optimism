@@ -4,6 +4,7 @@ use discv5::Enr;
 use enr::NodeId;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use serde_with::{InspectError, VecSkipError};
 use std::{
     cmp::Ordering,
     collections::BTreeMap,
@@ -35,51 +36,31 @@ const FILE_MODE: u32 = 0o666;
 struct Records(BTreeMap<[u8; 32], Entry>);
 
 impl Records {
-    /// Parses the contents of a bootstore file. An entry that isn't valid, or that [`Self::add`]
-    /// doesn't keep, is skipped, so that one bad entry doesn't lose the others.
+    /// Parses the contents of a bootstore file, keeping one record for each node, see
+    /// [`Self::add`]. An entry that isn't a valid record is skipped, see [`Contents`].
     ///
     /// Empty contents hold no records: an earlier version truncated the file before it wrote it,
     /// and a crash in between left it empty.
-    fn parse_json_slice(json: &[u8]) -> Result<Parsed, ParseError> {
-        let mut parsed = Parsed { records: Self::default(), skipped: Vec::new(), current: false };
+    fn parse_json_slice(json: &[u8]) -> Result<Self, ParseError> {
+        let mut records = Self::default();
         if json.iter().all(u8::is_ascii_whitespace) {
-            return Ok(parsed);
+            return Ok(records);
         }
-        let contents = Contents::from_json_slice(json)?;
-        parsed.current = contents.version() == FILE_VERSION;
-        type ParseEntry = fn(&Value) -> Result<Entry, serde_json::Error>;
-        let (entries, parse_entry): (_, ParseEntry) = match contents {
-            Contents::V0(enrs) => (enrs, |value| Enr::deserialize(value).map(Entry::candidate)),
-            Contents::V1(entries) => (entries, |value| Entry::deserialize(value)),
+        let entries: Vec<Entry> = match Contents::from_json_slice(json)? {
+            Contents::V0(enrs) => enrs.into_iter().map(Entry::candidate).collect(),
+            Contents::V1(entries) => entries,
         };
-        for value in entries {
-            let entry = match parse_entry(&value) {
-                Ok(entry) => entry,
-                Err(error) => {
-                    parsed
-                        .skipped
-                        .push(SkippedEntry { entry: value, reason: SkipReason::Invalid(error) });
-                    continue;
-                }
-            };
-            let skipped = match parsed.records.add(entry) {
-                Added::New { evicted: None } => continue,
-                Added::New { evicted: Some(evicted) } => {
-                    SkippedEntry::of(&evicted, SkipReason::OverLimit)
-                }
-                Added::Replaced { old } => SkippedEntry::of(&old, SkipReason::Stale),
-                Added::Same { .. } => SkippedEntry { entry: value, reason: SkipReason::Duplicate },
-                Added::Stale => SkippedEntry { entry: value, reason: SkipReason::Stale },
-            };
-            parsed.skipped.push(skipped);
+        for entry in entries {
+            records.add(entry);
         }
-        Ok(parsed)
+        Ok(records)
     }
 
-    /// Returns the contents of a bootstore file that holds these records, in node ID order.
+    /// Returns the contents of a bootstore file that holds these records, in format version 1, see
+    /// [`Contents::V1`], in node ID order.
     fn to_json_vec(&self) -> Result<Vec<u8>, serde_json::Error> {
-        let entries = self.0.values().map(serde_json::to_value).collect::<Result<_, _>>()?;
-        Contents::V1(entries).to_json_vec()
+        let records: Vec<_> = self.0.values().collect();
+        serde_json::to_vec(&serde_json::json!({"version": 1, "records": records}))
     }
 
     /// Adds `entry`, keeping one record for each node, the one with the highest `seq`:
@@ -90,7 +71,7 @@ impl Records {
     /// - The same record replaces the stored one too, which takes only its newer evidence.
     /// - A record with a lower `seq`, or another with the same `seq`, is ignored.
     fn add(&mut self, entry: Entry) -> Added {
-        let key = entry.enr.node_id().raw();
+        let key = entry.key();
         if let Some(stored) = self.0.get_mut(&key) {
             return match entry.enr.seq().cmp(&stored.enr.seq()) {
                 Ordering::Greater => {
@@ -139,6 +120,11 @@ impl Entry {
     /// Returns an entry for `enr` without evidence.
     const fn candidate(enr: Enr) -> Self {
         Self { enr, udp_verified_at: None, tcp_verified_at: None }
+    }
+
+    /// Returns the entry's key in [`Records`]: the bytes of its node ID, as `NodeId` isn't ordered.
+    const fn key(&self) -> [u8; 32] {
+        self.enr.node_id().raw()
     }
 
     /// Returns `newer`, a record of the same node with a higher `seq`, or the same record, with the
@@ -190,15 +176,18 @@ impl Added {
     }
 }
 
-/// The contents of a bootstore file, in each format version. The entries are left as JSON:
-/// [`Records::parse_json_slice`] reads them one by one, so that one that isn't valid doesn't lose
-/// the others.
+/// The contents of a bootstore file, in each format version.
+///
+/// An entry that isn't a valid record is skipped, and logged, rather than failing the file: the
+/// records come from other nodes, and one that a later version can't read shouldn't stop the node
+/// from starting. Without them, the node finds its peers again through discovery, as op-node does
+/// when geth drops its node database for another version.
 #[derive(Debug)]
 enum Contents {
     /// Format version 0, which has no version field: a list of records, without evidence.
-    V0(Vec<Value>),
-    /// Format version 1, `{"version": 1, "records": [...]}`, whose records are [`Entry`]s.
-    V1(Vec<Value>),
+    V0(Vec<Enr>),
+    /// Format version 1, `{"version": 1, "records": [...]}`.
+    V1(Vec<Entry>),
 }
 
 impl Contents {
@@ -215,59 +204,42 @@ impl Contents {
             version: u64,
         }
 
-        /// The fields of a format version that lists its entries in `records`.
+        /// The fields of format version 1 besides the version.
+        #[serde_with::serde_as]
         #[derive(Deserialize)]
-        struct RecordValues {
-            records: Vec<Value>,
+        struct V1 {
+            #[serde_as(as = "VecSkipError<_, LogInvalid>")]
+            records: Vec<Entry>,
         }
 
         let json: Value = serde_json::from_slice(json).map_err(ParseError::Json)?;
-        if let Value::Array(records) = json {
-            return Ok(Self::V0(records));
+        if json.is_array() {
+            return serde_with::As::<VecSkipError<serde_with::Same, LogInvalid>>::deserialize(json)
+                .map(Self::V0)
+                .map_err(ParseError::Json);
         }
         let Versioned { version } = Versioned::deserialize(&json).map_err(ParseError::Json)?;
         match version {
             0 => Err(ParseError::Json(serde::de::Error::custom(
                 "format version 0 is a list of records, without a version",
             ))),
-            1 => {
-                let RecordValues { records } =
-                    RecordValues::deserialize(json).map_err(ParseError::Json)?;
-                Ok(Self::V1(records))
-            }
+            1 => V1::deserialize(json)
+                .map(|V1 { records }| Self::V1(records))
+                .map_err(ParseError::Json),
             FIRST_NEWER_VERSION.. => Err(ParseError::Newer(version)),
-        }
-    }
-
-    /// Returns the contents of a bootstore file in this format version.
-    fn to_json_vec(&self) -> Result<Vec<u8>, serde_json::Error> {
-        match self {
-            Self::V0(records) => serde_json::to_vec(records),
-            Self::V1(records) => {
-                serde_json::to_vec(&serde_json::json!({"version": 1, "records": records}))
-            }
-        }
-    }
-
-    /// Returns the format version.
-    const fn version(&self) -> u64 {
-        match self {
-            Self::V0(_) => 0,
-            Self::V1(_) => 1,
         }
     }
 }
 
-/// What [`Records::parse_json_slice`] read from a bootstore file.
-#[derive(Debug)]
-struct Parsed {
-    /// The records it kept.
-    records: Records,
-    /// The entries it skipped.
-    skipped: Vec<SkippedEntry>,
-    /// Whether the file is in the format [`FILE_VERSION`], which the store writes. One that isn't
-    /// is written again in that format.
-    current: bool,
+/// Logs an entry of a bootstore file that isn't a valid record, which [`Contents`] skips. Only a
+/// hand edit, or a record that this version can't read, makes one, so it is a WARN. The next save
+/// leaves it out.
+struct LogInvalid;
+
+impl InspectError for LogInvalid {
+    fn inspect_error(error: impl serde::de::Error) {
+        warn!(target: "bootstore", %error, "Dropping a bootstore entry that isn't a node record");
+    }
 }
 
 /// Why the contents of a file can't be read as a bootstore.
@@ -277,41 +249,6 @@ enum ParseError {
     Json(serde_json::Error),
     /// It is in a format version after [`FILE_VERSION`].
     Newer(u64),
-}
-
-/// An entry of a bootstore file that [`BootStore::open`] skipped. The store's next save leaves it
-/// out.
-#[derive(Debug)]
-pub struct SkippedEntry {
-    /// The entry, as it is in the file, or the record it holds.
-    pub entry: Value,
-    /// Why it was skipped.
-    pub reason: SkipReason,
-}
-
-impl SkippedEntry {
-    /// Returns the entry of the record of `entry`, which the store skipped for `reason`.
-    fn of(entry: &Entry, reason: SkipReason) -> Self {
-        Self { entry: Value::String(entry.enr.to_base64()), reason }
-    }
-}
-
-/// Why [`BootStore::open`] skipped an entry of its file.
-#[derive(Debug, thiserror::Error)]
-pub enum SkipReason {
-    /// The entry isn't a node record.
-    #[error("not a node record: {0}")]
-    Invalid(serde_json::Error),
-    /// The entry is the same record as an earlier one.
-    #[error("a duplicate of another entry")]
-    Duplicate,
-    /// Another entry holds a record of the same node with a higher `seq`, or one with the same
-    /// `seq` that came first.
-    #[error("superseded by another record of its node")]
-    Stale,
-    /// The file holds more than the store keeps, and this record was evicted to make room.
-    #[error("over the limit of {} records", MAX_PEERS)]
-    OverLimit,
 }
 
 /// An error opening or saving a [`BootStore`].
@@ -368,8 +305,8 @@ pub struct BootStore {
     path: Option<PathBuf>,
     /// The records.
     records: Records,
-    /// Whether the file differs from the records: they changed since they were last saved, the
-    /// file is missing or in an earlier format, or it holds entries the store skipped.
+    /// Whether the file differs from what a save would write: the records changed since they were
+    /// last saved, or the file isn't as the store writes it, see [`Self::open`].
     dirty: bool,
 }
 
@@ -431,36 +368,30 @@ impl BootStore {
         Self { path: None, records: Records::default(), dirty: false }
     }
 
-    /// Opens the store saved at `path`, and returns it with the entries it skipped, for the caller
-    /// to log: those that aren't valid records, and those it doesn't keep, such as an older record
-    /// of a node than another entry. They count as a change, so the next [`Self::sync`] writes the
-    /// file without them. A missing file holds no records.
+    /// Opens the store saved at `path`. It only reads the file, so that others can read it while
+    /// the node saves it. A missing file holds no records.
     ///
-    /// A file in the format earlier versions wrote, a list of records, is read as records without
-    /// evidence, and the next [`Self::sync`] writes it in the current format.
-    ///
-    /// Only reads the file, so that other readers can open it while the node saves it. If the file
-    /// is missing, the first [`Self::sync`] creates it, and its directory. The node saves the store
-    /// once it has opened it, so that a bootstore it can't create stops it from starting.
+    /// Of the records of a node, it keeps the one with the highest `seq`. A list of records, the
+    /// format of earlier versions, is read as records without evidence. An entry that isn't a
+    /// valid record is skipped, and logged at WARN. If the file isn't what a save would write, the
+    /// next [`Self::sync`] writes it, and creates its directory if needed.
     ///
     /// Fails if the file can't be read, isn't a bootstore, or is in a format version a newer
     /// version of the node wrote. Such a file is left as it is.
-    pub fn open(path: PathBuf) -> Result<(Self, Vec<SkippedEntry>), BootStoreError> {
+    pub fn open(path: PathBuf) -> Result<Self, BootStoreError> {
         let json = match std::fs::read(&path) {
             Ok(json) => json,
             Err(err) if err.kind() == io::ErrorKind::NotFound => Vec::new(),
             Err(source) => return Err(BootStoreError::Open { path, source }),
         };
-        let Parsed { records, skipped, current } =
-            Records::parse_json_slice(&json).map_err(|err| match err {
-                ParseError::Json(source) => BootStoreError::Parse { path: path.clone(), source },
-                ParseError::Newer(version) => {
-                    BootStoreError::NewerVersion { path: path.clone(), version }
-                }
-            })?;
-        // A missing file isn't in the current format either.
-        let dirty = !current || !skipped.is_empty();
-        Ok((Self { path: Some(path), records, dirty }, skipped))
+        let records = Records::parse_json_slice(&json).map_err(|err| match err {
+            ParseError::Json(source) => BootStoreError::Parse { path: path.clone(), source },
+            ParseError::Newer(version) => {
+                BootStoreError::NewerVersion { path: path.clone(), version }
+            }
+        })?;
+        let dirty = records.to_json_vec().map_or(true, |saved| saved != json);
+        Ok(Self { path: Some(path), records, dirty })
     }
 
     /// Adds `enr` without evidence, as a candidate. The store keeps one record for each node, the
@@ -502,8 +433,16 @@ impl BootStore {
     /// Adds `entry`, see [`Records::add`].
     fn add(&mut self, entry: Entry) {
         let added = self.records.add(entry);
-        if let Added::New { evicted: Some(evicted) } = &added {
-            debug!(target: "bootstore", enr = %evicted.enr, "Bootstore full, evicted a record");
+        match &added {
+            Added::New { evicted: Some(evicted) } => {
+                debug!(target: "bootstore", enr = %evicted.enr, "Bootstore full, evicted a record");
+            }
+            Added::Replaced { old } => {
+                if let Some(new) = self.records.0.get(&old.key()) {
+                    debug!(target: "bootstore", old = ?old.enr, new = ?new.enr, "Replaced a record with its node's newer one");
+                }
+            }
+            Added::New { evicted: None } | Added::Same { .. } | Added::Stale => {}
         }
         self.dirty |= added.changed();
     }
@@ -632,9 +571,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("datadir").join("bootstore.json");
 
-        let (mut store, skipped) = BootStore::open(path.clone()).unwrap();
+        let mut store = BootStore::open(path.clone()).unwrap();
         assert!(store.is_empty());
-        assert!(skipped.is_empty());
         assert!(!path.parent().unwrap().exists(), "opening the store wrote to the disk");
 
         assert!(store.sync().unwrap(), "a save didn't create the missing file");
@@ -647,7 +585,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
 
-        let (mut store, _) = BootStore::open(path).unwrap();
+        let mut store = BootStore::open(path).unwrap();
         store.add_enr(make_enr());
         store.sync().unwrap();
 
@@ -674,7 +612,7 @@ mod tests {
     fn test_saved_records_open_again() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
-        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        let mut store = BootStore::open(path.clone()).unwrap();
         store.add_enr(make_enr());
         store
             .records
@@ -686,10 +624,10 @@ mod tests {
         });
         store.sync().unwrap();
 
-        let (opened, skipped) = BootStore::open(path).unwrap();
+        let opened = BootStore::open(path).unwrap();
 
         assert_eq!(opened.records, store.records);
-        assert!(skipped.is_empty());
+        assert!(!opened.dirty, "a file the store saved wasn't as it writes it");
     }
 
     /// The file lists the records in node ID order, whatever order they were added in, so that
@@ -709,15 +647,12 @@ mod tests {
         let json = forwards.records.to_json_vec().unwrap();
 
         assert_eq!(json, backwards.records.to_json_vec().unwrap());
-        let contents = Contents::from_json_slice(&json).unwrap();
-        assert_eq!(contents.version(), FILE_VERSION);
-        let Contents::V1(listed) = contents else {
+        let saved: Value = serde_json::from_slice(&json).unwrap();
+        assert_eq!(saved["version"], FILE_VERSION);
+        let Contents::V1(listed) = Contents::from_json_slice(&json).unwrap() else {
             panic!("the file isn't in format version 1");
         };
-        let ids: Vec<_> = listed
-            .iter()
-            .map(|entry| Entry::deserialize(entry).unwrap().enr.node_id().raw())
-            .collect();
+        let ids: Vec<_> = listed.iter().map(Entry::key).collect();
         assert!(ids.is_sorted(), "the file doesn't list the records in node ID order");
     }
 
@@ -738,16 +673,17 @@ mod tests {
     ) {
         let key = CombinedKey::generate_secp256k1();
         let mut records = Records::default();
-        records.add(Entry {
+        let stored = Entry {
             enr: make_enr_of(&key, 1, [1, 1, 1, 1], 9222, 9223),
             udp_verified_at: Some(at(1_000)),
             tcp_verified_at: Some(at(2_000)),
-        });
+        };
+        records.add(stored.clone());
         let newer = make_enr_of(&key, 2, ip, udp, tcp);
 
         let added = records.add(Entry::candidate(newer.clone()));
 
-        assert!(matches!(added, Added::Replaced { .. }), "{added:?}");
+        assert!(matches!(&added, Added::Replaced { old } if *old == stored), "{added:?}");
         let expected = Entry {
             enr: newer,
             udp_verified_at: keeps_udp.then(|| at(1_000)),
@@ -842,7 +778,7 @@ mod tests {
     #[test]
     fn test_evicts_the_record_confirmed_longest_ago() {
         let mut never = [Entry::candidate(make_enr()), Entry::candidate(make_enr())];
-        never.sort_by_key(|entry| entry.enr.node_id().raw());
+        never.sort_by_key(Entry::key);
         let [never_lower, never_higher] = never;
         let earlier = Entry { udp_verified_at: Some(at(1_000)), ..Entry::candidate(make_enr()) };
         let later = Entry { udp_verified_at: Some(at(2_000)), ..Entry::candidate(make_enr()) };
@@ -894,8 +830,8 @@ mod tests {
         Second,
     }
 
-    /// An entry that isn't a record is skipped, and returned with the reason, and the others are
-    /// kept.
+    /// An entry that isn't a record is skipped, and the others are kept. The next save leaves it
+    /// out.
     #[test]
     fn test_open_skips_entries_that_are_not_records() {
         let dir = tempfile::tempdir().unwrap();
@@ -907,17 +843,9 @@ mod tests {
         });
         std::fs::write(&path, json.to_string()).unwrap();
 
-        let (mut store, skipped) = BootStore::open(path.clone()).unwrap();
+        let mut store = BootStore::open(path.clone()).unwrap();
 
         assert_eq!(store.iter().collect::<Vec<_>>(), [&kept]);
-        assert!(skipped.iter().all(|skipped| matches!(skipped.reason, SkipReason::Invalid(_))));
-        let skipped: Vec<_> = skipped.into_iter().map(|skipped| skipped.entry).collect();
-        assert_eq!(
-            skipped,
-            [serde_json::json!({"enr": "enr:-not-base64!"}), serde_json::json!(42)]
-        );
-
-        // The next save writes the file without them.
         assert!(store.sync().unwrap(), "skipped entries weren't a change to save");
         let saved: serde_json::Value =
             serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
@@ -927,11 +855,11 @@ mod tests {
         );
     }
 
-    /// Of the entries for one node, only the record with the highest `seq` is kept, and the others
-    /// are returned as skipped, with the reason: an older record, another with the same `seq`, or
-    /// the same record twice. An earlier version saved every record a node had.
+    /// Of the entries for one node, only the record with the highest `seq` is kept: not an older
+    /// record, another with the same `seq`, or the same record twice. An earlier version saved
+    /// every record a node had. The next save leaves the others out.
     #[test]
-    fn test_open_skips_records_it_does_not_keep() {
+    fn test_open_keeps_one_record_per_node() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
         let key = CombinedKey::generate_secp256k1();
@@ -941,22 +869,10 @@ mod tests {
         let json = serde_json::json!([older, newer, conflicting, newer]);
         std::fs::write(&path, json.to_string()).unwrap();
 
-        let (store, skipped) = BootStore::open(path).unwrap();
+        let mut store = BootStore::open(path).unwrap();
 
         assert_eq!(store.iter().collect::<Vec<_>>(), [&newer]);
-        let skipped: Vec<_> = skipped
-            .into_iter()
-            .map(|skipped| (skipped.entry, skipped.reason.to_string()))
-            .collect();
-        let reason = |reason: SkipReason| reason.to_string();
-        assert_eq!(
-            skipped,
-            [
-                (serde_json::json!(older), reason(SkipReason::Stale)),
-                (serde_json::json!(conflicting), reason(SkipReason::Stale)),
-                (serde_json::json!(newer), reason(SkipReason::Duplicate)),
-            ]
-        );
+        assert!(store.sync().unwrap(), "the records it didn't keep weren't a change to save");
     }
 
     /// A file in the format earlier versions wrote, a list of records, opens as records without
@@ -968,9 +884,8 @@ mod tests {
         let listed = make_enr();
         std::fs::write(&path, serde_json::json!([listed]).to_string()).unwrap();
 
-        let (mut store, skipped) = BootStore::open(path.clone()).unwrap();
+        let mut store = BootStore::open(path.clone()).unwrap();
 
-        assert!(skipped.is_empty());
         let entries: Vec<_> = store.records.0.values().collect();
         assert_eq!(entries, [&Entry::candidate(listed.clone())]);
         assert!(store.sync().unwrap(), "a file in an earlier format wasn't a change to save");
@@ -1001,9 +916,8 @@ mod tests {
         );
         std::fs::write(&path, contents).unwrap();
 
-        let (store, skipped) = BootStore::open(path).unwrap();
+        let store = BootStore::open(path).unwrap();
 
-        assert!(skipped.is_empty());
         let mut expected = Records::default();
         expected.add(Entry {
             enr: verified,
@@ -1041,10 +955,9 @@ mod tests {
         let path = dir.path().join("bootstore.json");
         std::fs::write(&path, contents).unwrap();
 
-        let (store, skipped) = BootStore::open(path).unwrap();
+        let store = BootStore::open(path).unwrap();
 
         assert!(store.is_empty());
-        assert!(skipped.is_empty());
     }
 
     /// A file that isn't a bootstore fails to open, and is left as it is: it may be another file
@@ -1075,7 +988,7 @@ mod tests {
     fn test_save_replaces_the_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
-        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        let mut store = BootStore::open(path.clone()).unwrap();
         store.add_enr(make_enr());
         store.sync().unwrap();
         let before = std::fs::read(&path).unwrap();
@@ -1099,7 +1012,7 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
-        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        let mut store = BootStore::open(path.clone()).unwrap();
         store.add_enr(make_enr());
         store.sync().unwrap();
         let written = dir.path().join("written");
@@ -1123,12 +1036,12 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
-        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        let mut store = BootStore::open(path.clone()).unwrap();
         store.add_enr(make_enr());
         store.sync().unwrap();
         let inode = || std::fs::metadata(&path).unwrap().ino();
 
-        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        let mut store = BootStore::open(path.clone()).unwrap();
         let opened = inode();
         store.sync().unwrap();
         assert_eq!(inode(), opened, "a save rewrote the file it had just opened");
@@ -1150,7 +1063,7 @@ mod tests {
     fn test_save_says_whether_there_were_changes(#[case] file: bool) {
         let dir = tempfile::tempdir().unwrap();
         let mut store = if file {
-            BootStore::open(dir.path().join("bootstore.json")).unwrap().0
+            BootStore::open(dir.path().join("bootstore.json")).unwrap()
         } else {
             BootStore::in_memory()
         };
@@ -1189,7 +1102,7 @@ mod tests {
         const SAVES: usize = 200;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
-        let (mut store, _) = BootStore::open(path.clone()).unwrap();
+        let mut store = BootStore::open(path.clone()).unwrap();
         for _ in 0..RECORDS {
             store.add_enr(make_enr());
         }
@@ -1203,7 +1116,7 @@ mod tests {
                     let json = std::fs::read(&path).unwrap();
                     let whole = matches!(
                         Records::parse_json_slice(&json),
-                        Ok(Parsed { records, .. }) if records.0.len() >= RECORDS
+                        Ok(records) if records.0.len() >= RECORDS
                     );
                     if !whole {
                         return true;

@@ -203,7 +203,7 @@ async fn test_public_only_node_dials_a_private_session_back_without_saving_it() 
     tokio::time::timeout(Duration::from_secs(5), next_tick)
         .await
         .expect("the driver hands its saved records over every store interval");
-    let (saved, _) = BootStore::open(path).expect("the bootstore opens");
+    let saved = BootStore::open(path).expect("the bootstore opens");
     assert!(
         !saved.iter().any(|enr| enr == &handed_over),
         "a public-only node saved a loopback record"
