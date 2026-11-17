@@ -1,4 +1,4 @@
-use super::{DelegateDerivationActor, DerivationDelegateClientError, DerivationDelegateProvider};
+use super::{DelegateDerivationActor, SyncStatusSource};
 use crate::{DerivationActorRequest, EngineActorRequest, NodeActor, QueuedDerivationEngineClient};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
@@ -9,22 +9,24 @@ use kona_engine::{
 };
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use rstest::rstest;
-use std::{collections::VecDeque, sync::Mutex};
+use std::{collections::VecDeque, convert::Infallible, sync::Mutex};
 use tokio::sync::{mpsc, watch};
 
 const SAFE_ORIGIN: u64 = 1;
 const FINALIZED_ORIGIN: u64 = 2;
 const CURRENT_L1: u64 = 3;
 
-type SyncStatusReply = Result<SyncStatus, DerivationDelegateClientError>;
+type SyncStatusReply = Result<SyncStatus, Infallible>;
 
 /// Answers each sync status poll with the next scripted reply.
 #[derive(Debug)]
 struct ScriptedDelegate(Mutex<VecDeque<SyncStatusReply>>);
 
 #[async_trait]
-impl DerivationDelegateProvider for ScriptedDelegate {
-    async fn fetch_sync_status(&self) -> SyncStatusReply {
+impl SyncStatusSource for ScriptedDelegate {
+    type Error = Infallible;
+
+    async fn sync_status(&self) -> SyncStatusReply {
         self.0.lock().unwrap().pop_front().expect("unexpected sync status poll")
     }
 }
