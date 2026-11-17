@@ -1,6 +1,5 @@
 //! Sync start algorithm for the OP Stack rollup node.
 
-use alloy_eips::BlockNumberOrTag;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 
@@ -51,12 +50,7 @@ pub async fn find_starting_forkchoice(
 
     // An L1 origin above the L1 head cannot be checked yet, so it is never looked up by number:
     // most L1 clients answer `null` above their head, but some answer with an error.
-    let l1_head = engine_client
-        .get_l1_block(BlockNumberOrTag::Latest.into())
-        .await?
-        .ok_or(SyncStartError::BlockNotFound(BlockNumberOrTag::Latest.into()))?
-        .header
-        .number;
+    let l1_head = engine_client.l1_head().await?;
 
     // Walk back to the highest `unsafe` block whose L1 origin is plausible, as op-node's
     // `FindL2Heads` does. A lookup by hash cannot decide that, because L1 clients still serve
@@ -96,12 +90,12 @@ pub async fn find_starting_forkchoice(
             None
         } else {
             let canonical = engine_client
-                .get_l1_block(l1_origin.number.into())
+                .l1_block_hash_by_number(l1_origin.number)
                 .await?
                 // L1 reported a head at or above this height, so it is serving an inconsistent
                 // view, as a lagging backend behind a load balancer can.
                 .ok_or(SyncStartError::L1BlockMissing { number: l1_origin.number, l1_head })?;
-            Some(canonical.header.hash)
+            Some(canonical)
         };
         // The L2 genesis's L1 origin is the L1 genesis, so a different canonical block there
         // means the L1 RPC serves another chain.
