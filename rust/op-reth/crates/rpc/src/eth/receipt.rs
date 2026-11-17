@@ -354,11 +354,17 @@ impl OpReceiptBuilder {
         // consumed by the `build_receipt` function.
         if chain_spec.is_jovian_active_at_timestamp(timestamp) {
             // Estimate the transaction's DA footprint from its encoded size and footprint scalar.
+            // Deposits are skipped in the block's DA footprint, so their receipts report zero and
+            // the receipts of a block sum to the header's `blobGasUsed`.
             // Jovian specs: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#da-footprint-block-limit>
-            let tx_da_footprint = tx_da_footprint(
-                tx_signed,
-                l1_block_info.da_footprint_gas_scalar.unwrap_or_default().into(),
-            );
+            let tx_da_footprint = if tx_signed.is_deposit() {
+                0
+            } else {
+                tx_da_footprint(
+                    tx_signed,
+                    l1_block_info.da_footprint_gas_scalar.unwrap_or_default().into(),
+                )
+            };
 
             core_receipt.blob_gas_used = Some(tx_da_footprint);
         }

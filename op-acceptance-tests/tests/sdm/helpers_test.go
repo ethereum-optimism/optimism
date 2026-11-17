@@ -189,7 +189,7 @@ func isNullJSONResult(raw json.RawMessage) bool {
 }
 
 // assertPostExecDAFootprint verifies Jovian's blobGasUsed accounting for a block with a 0x7D.
-// Deposits are omitted because block accounting excludes them while their receipts do not.
+// Deposits are omitted because they carry no DA footprint.
 func assertPostExecDAFootprint(t devtest.T, l2EL *dsl.L2ELNode, block *sdmpkg.RPCBlock) {
 	rpcClient := l2EL.Escape().L2EthClient().RPC()
 
