@@ -1084,6 +1084,39 @@ mod tests {
         );
     }
 
+    /// Fresh sessions shouldn't push out an unconfirmed session that started before them, which
+    /// may be about to be confirmed: their rate is the attacker's to choose, so evicting the oldest
+    /// first would let a flood evict every session before it lasts long enough. A full store
+    /// should evict the youngest instead, as Kademlia prefers the nodes that have been around
+    /// longer. A new record still gets in, pushing out the one that came before it.
+    #[test]
+    fn test_fresh_sessions_keep_an_older_unconfirmed_session() {
+        let older = enr_of_new_node();
+        let mut store = BootStore::in_memory().with_max_peers(2);
+        store.add_enr(older.clone());
+        store.session_started(
+            older.node_id(),
+            SocketAddr::V4(older.udp4_socket().unwrap()),
+            at(1_000),
+        );
+
+        let mut fresh = Vec::new();
+        for secs in [1_100, 1_200] {
+            let enr = enr_of_new_node();
+            store.add_enr(enr.clone());
+            store.session_started(
+                enr.node_id(),
+                SocketAddr::V4(enr.udp4_socket().unwrap()),
+                at(secs),
+            );
+            fresh.push(enr);
+        }
+
+        assert_eq!(store.len(), 2);
+        assert!(store.get(older.node_id()).is_some(), "fresh sessions pushed out an older one");
+        assert!(store.get(fresh[1].node_id()).is_some(), "the newest record didn't get in");
+    }
+
     /// Of the candidates no session has confirmed, a full store evicts the one without a session
     /// since it was opened first, as from the file, and then the one whose session started first.
     #[test]
