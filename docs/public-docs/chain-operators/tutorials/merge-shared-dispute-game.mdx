@@ -12,8 +12,6 @@ import { SuperchainOpsPrereqs } from "/snippets/superchain-ops-prereqs.mdx"
 
 <Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
 
-<Info>This guide requires `op-contracts/v9.0.0`, which ships in Upgrade 21. Upgrade 21 is pending Optimism Governance approval, and a chain can follow this guide only once the upgrade is executed on it.</Info>
-
 This runbook walks you through merging two existing OP Stack chains into a shared dispute game by calling `OPContractsManagerV2.migrate` (`opcm.migrate`). `OPContractsManagerV2.migrate` checks each chain's release and then delegates to `OPContractsManagerMigrator`, so most of the reverts listed below carry the `OPContractsManagerMigrator_` prefix. After migration, both chains share a newly deployed `DisputeGameFactory`, `AnchorStateRegistry`, and `ETHLockbox`. New proposals are super-root claims defended on the shared factory; the per-chain dispute game factories are emptied of implementations and exist only to let still-in-flight games resolve so their bonds can be reclaimed.
 
 By the end you will have one `op-proposer` proposing super-root claims to the shared factory against an `op-supernode` that derives both chains, one `op-challenger` defending super-root games on the shared factory, one `op-dispute-mon` watching it, and per-chain `op-challenger` and `op-dispute-mon` "drain" instances — each using that shared op-supernode's `/<chainID>/` endpoint — winding down the retired games on the old per-chain factories.

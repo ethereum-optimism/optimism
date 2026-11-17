@@ -205,11 +205,6 @@ event Unpaused(address identifier);
     `SystemConfig`에서 `isFeatureEnabled(bytes32)`로 기능을 확인하되, `cast format-bytes32-string ETH_LOCKBOX`로 인코딩한 `ETH_LOCKBOX`를 전달하십시오.
     컨트랙트 릴리스 v9.0.0 이상에서는 식별자가 항상 체인의 `ETHLockbox` 주소입니다.
 
-<Info>
-  컨트랙트 릴리스 v9.0.0은 Upgrade 21에 포함되며, Upgrade 21은 Optimism Governance 승인을 기다리고 있습니다.
-  v4.1.0부터 v8.0.0까지의 체인은 Upgrade 21이 해당 체인에 실행될 때까지 위 규칙을 유지합니다.
-</Info>
-
 체인이 어떤 식별자를 사용하든 `OptimismPortal.paused()`가 이를 대신 확인해 주므로, 이 함수가 계속 의존해야 할 확인 방법입니다.
 
 `SuperchainConfig` 주소는 `OptimismPortal`의 `superchainConfig()`로 읽으십시오.
