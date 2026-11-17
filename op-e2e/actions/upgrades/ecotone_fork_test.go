@@ -246,6 +246,8 @@ func TestEcotoneBeforeL1(gt *testing.T) {
 	farOffset := hexutil.Uint64(10000)
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = &offset
 	dp.DeployConfig.L1CancunTimeOffset = &farOffset // L1 Dencun will not be active at genesis
+	dp.DeployConfig.L1PragueTimeOffset = nil
+	dp.DeployConfig.L1OsakaTimeOffset = nil
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset

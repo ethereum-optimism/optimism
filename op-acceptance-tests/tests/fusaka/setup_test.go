@@ -21,7 +21,6 @@ func newMinimalFusaka(t devtest.T) *presets.Minimal {
 		),
 		presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {
 			cfg.DataAvailabilityType = flags.BlobsType
-			cfg.TxMgrConfig.CellProofTime = 0 // Force cell proofs to be used
 		}),
 	)
 }

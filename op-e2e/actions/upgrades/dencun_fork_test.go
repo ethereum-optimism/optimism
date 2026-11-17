@@ -23,6 +23,8 @@ func TestDencunL1ForkAfterGenesis(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	offset := hexutil.Uint64(24)
 	dp.DeployConfig.L1CancunTimeOffset = &offset
+	dp.DeployConfig.L1PragueTimeOffset = nil
+	dp.DeployConfig.L1OsakaTimeOffset = nil
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, _, verifier, _, batcher := helpers.SetupReorgTestActors(t, dp, sd, log)

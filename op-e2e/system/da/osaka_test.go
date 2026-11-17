@@ -26,7 +26,6 @@ func TestSystemE2EOsakaAtGenesisWithBlobs(t *testing.T) {
 	defer cancel()
 
 	cfg := e2esys.DefaultSystemConfig(t)
-	cfg.ActivateL1BlobForks()
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
