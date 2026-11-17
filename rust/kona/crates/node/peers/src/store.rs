@@ -33,7 +33,7 @@ const FILE_MODE: u32 = 0o666;
 /// When a new node would make the records exceed `MAX_PEERS`, one is evicted to make room for it,
 /// see [`Records::evict`].
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-struct Records(BTreeMap<[u8; 32], Entry>);
+struct Records(BTreeMap<[u8; 32], BootStoreEntry>);
 
 impl Records {
     /// Parses the contents of a bootstore file, keeping one record for each node, see
@@ -46,8 +46,8 @@ impl Records {
         if json.iter().all(u8::is_ascii_whitespace) {
             return Ok(records);
         }
-        let entries: Vec<Entry> = match Contents::from_json_slice(json)? {
-            Contents::V0(enrs) => enrs.into_iter().map(Entry::candidate).collect(),
+        let entries: Vec<BootStoreEntry> = match Contents::from_json_slice(json)? {
+            Contents::V0(enrs) => enrs.into_iter().map(BootStoreEntry::candidate).collect(),
             Contents::V1(entries) => entries,
         };
         for entry in entries {
@@ -67,10 +67,10 @@ impl Records {
     ///
     /// - A record of a new node is added, evicting another if there are then too many.
     /// - A record with a higher `seq` replaces the stored one, and keeps its evidence for the
-    ///   addresses it keeps, see [`Entry::replaced_by`].
+    ///   addresses it keeps, see [`BootStoreEntry::replaced_by`].
     /// - The same record replaces the stored one too, which takes only its newer evidence.
     /// - A record with a lower `seq`, or another with the same `seq`, is ignored.
-    fn add(&mut self, entry: Entry) -> Added {
+    fn add(&mut self, entry: BootStoreEntry) -> Added {
         let key = entry.key();
         if let Some(stored) = self.0.get_mut(&key) {
             return match entry.enr.seq().cmp(&stored.enr.seq()) {
@@ -95,7 +95,7 @@ impl Records {
     /// Removes and returns the record to evict to make room for a new one: the one whose UDP
     /// address a session confirmed longest ago, those that no session confirmed first. Of those
     /// confirmed at the same time, the first in node ID order.
-    fn evict(&mut self) -> Option<Entry> {
+    fn evict(&mut self) -> Option<BootStoreEntry> {
         let (&key, _) = self.0.iter().min_by_key(|(_, entry)| entry.udp_verified_at)?;
         self.0.remove(&key)
     }
@@ -103,8 +103,10 @@ impl Records {
 
 /// A record a bootstore holds, with the evidence that the node it names is at its addresses. A
 /// record without `tcp_verified_at` is a candidate: nothing showed that gossip can reach it.
+///
+/// Only the store changes the evidence, see [`BootStore::set_udp_verified`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct Entry {
+pub struct BootStoreEntry {
     /// The record.
     enr: Enr,
     /// When a discovery session last confirmed the record's UDP address.
@@ -116,7 +118,23 @@ struct Entry {
     tcp_verified_at: Option<SystemTime>,
 }
 
-impl Entry {
+impl BootStoreEntry {
+    /// Returns the record.
+    pub const fn enr(&self) -> &Enr {
+        &self.enr
+    }
+
+    /// Returns when a discovery session last confirmed the record's UDP address, if one did.
+    pub const fn udp_verified_at(&self) -> Option<SystemTime> {
+        self.udp_verified_at
+    }
+
+    /// Returns when a gossip connection we dialed last reached the record's TCP address, and the
+    /// peer ID of its key, if one did.
+    pub const fn tcp_verified_at(&self) -> Option<SystemTime> {
+        self.tcp_verified_at
+    }
+
     /// Returns an entry for `enr` without evidence.
     const fn candidate(enr: Enr) -> Self {
         Self { enr, udp_verified_at: None, tcp_verified_at: None }
@@ -149,12 +167,12 @@ enum Added {
     /// The records held no record of its node. `evicted` made room for it.
     New {
         /// The entry evicted to make room, if there were too many.
-        evicted: Option<Entry>,
+        evicted: Option<BootStoreEntry>,
     },
     /// It replaced an older record of its node.
     Replaced {
         /// The entry it replaced.
-        old: Entry,
+        old: BootStoreEntry,
     },
     /// The records held the same record.
     Same {
@@ -187,7 +205,7 @@ enum Contents {
     /// Format version 0, which has no version field: a list of records, without evidence.
     V0(Vec<Enr>),
     /// Format version 1, `{"version": 1, "records": [...]}`.
-    V1(Vec<Entry>),
+    V1(Vec<BootStoreEntry>),
 }
 
 impl Contents {
@@ -209,7 +227,7 @@ impl Contents {
         #[derive(Deserialize)]
         struct V1 {
             #[serde_as(as = "VecSkipError<_, LogInvalid>")]
-            records: Vec<Entry>,
+            records: Vec<BootStoreEntry>,
         }
 
         let json: Value = serde_json::from_slice(json).map_err(ParseError::Json)?;
@@ -399,7 +417,7 @@ impl BootStore {
     /// `seq` is higher. A new node evicts another if there are then too many. The file changes at
     /// the next [`Self::sync`].
     pub fn add_enr(&mut self, enr: Enr) {
-        self.add(Entry::candidate(enr));
+        self.add(BootStoreEntry::candidate(enr));
     }
 
     /// Notes that a discovery session with the node `node_id`, whose packets came from `socket`,
@@ -431,7 +449,7 @@ impl BootStore {
     }
 
     /// Adds `entry`, see [`Records::add`].
-    fn add(&mut self, entry: Entry) {
+    fn add(&mut self, entry: BootStoreEntry) {
         let added = self.records.add(entry);
         match &added {
             Added::New { evicted: Some(evicted) } => {
@@ -445,6 +463,11 @@ impl BootStore {
             Added::New { evicted: None } | Added::Same { .. } | Added::Stale => {}
         }
         self.dirty |= added.changed();
+    }
+
+    /// Returns the entry of the node `node_id`, if the store holds one.
+    pub fn get(&self, node_id: NodeId) -> Option<&BootStoreEntry> {
+        self.records.0.get(&node_id.raw())
     }
 
     /// Returns the records, in node ID order.
@@ -614,10 +637,11 @@ mod tests {
         let path = dir.path().join("bootstore.json");
         let mut store = BootStore::open(path.clone()).unwrap();
         store.add_enr(make_enr());
-        store
-            .records
-            .add(Entry { udp_verified_at: Some(at(1_000)), ..Entry::candidate(make_enr()) });
-        store.records.add(Entry {
+        store.records.add(BootStoreEntry {
+            udp_verified_at: Some(at(1_000)),
+            ..BootStoreEntry::candidate(make_enr())
+        });
+        store.records.add(BootStoreEntry {
             enr: make_enr(),
             udp_verified_at: Some(at(2_000)),
             tcp_verified_at: Some(at(3_000)),
@@ -652,7 +676,7 @@ mod tests {
         let Contents::V1(listed) = Contents::from_json_slice(&json).unwrap() else {
             panic!("the file isn't in format version 1");
         };
-        let ids: Vec<_> = listed.iter().map(Entry::key).collect();
+        let ids: Vec<_> = listed.iter().map(BootStoreEntry::key).collect();
         assert!(ids.is_sorted(), "the file doesn't list the records in node ID order");
     }
 
@@ -673,7 +697,7 @@ mod tests {
     ) {
         let key = CombinedKey::generate_secp256k1();
         let mut records = Records::default();
-        let stored = Entry {
+        let stored = BootStoreEntry {
             enr: make_enr_of(&key, 1, [1, 1, 1, 1], 9222, 9223),
             udp_verified_at: Some(at(1_000)),
             tcp_verified_at: Some(at(2_000)),
@@ -681,10 +705,10 @@ mod tests {
         records.add(stored.clone());
         let newer = make_enr_of(&key, 2, ip, udp, tcp);
 
-        let added = records.add(Entry::candidate(newer.clone()));
+        let added = records.add(BootStoreEntry::candidate(newer.clone()));
 
         assert!(matches!(&added, Added::Replaced { old } if *old == stored), "{added:?}");
-        let expected = Entry {
+        let expected = BootStoreEntry {
             enr: newer,
             udp_verified_at: keeps_udp.then(|| at(1_000)),
             tcp_verified_at: keeps_tcp.then(|| at(2_000)),
@@ -699,10 +723,10 @@ mod tests {
         let enr = make_enr();
         let socket = SocketAddr::V4(enr.udp4_socket().unwrap());
         let mut store = BootStore::in_memory();
-        store.records.add(Entry {
+        store.records.add(BootStoreEntry {
             udp_verified_at: Some(at(2_000)),
             tcp_verified_at: Some(at(2_000)),
-            ..Entry::candidate(enr.clone())
+            ..BootStoreEntry::candidate(enr.clone())
         });
         store.sync().unwrap();
 
@@ -716,7 +740,11 @@ mod tests {
         let entries: Vec<_> = store.records.0.values().collect();
         assert_eq!(
             entries,
-            [&Entry { enr, udp_verified_at: Some(at(3_000)), tcp_verified_at: Some(at(2_000)) }]
+            [&BootStoreEntry {
+                enr,
+                udp_verified_at: Some(at(3_000)),
+                tcp_verified_at: Some(at(2_000))
+            }]
         );
     }
 
@@ -738,17 +766,18 @@ mod tests {
     ) {
         let enr = make_enr_of(&CombinedKey::generate_secp256k1(), 1, [1, 2, 3, 4], 9222, 9223);
         let mut store = BootStore::in_memory();
-        store
-            .records
-            .add(Entry { udp_verified_at: Some(at(1_000)), ..Entry::candidate(enr.clone()) });
+        store.records.add(BootStoreEntry {
+            udp_verified_at: Some(at(1_000)),
+            ..BootStoreEntry::candidate(enr.clone())
+        });
         store.sync().unwrap();
 
         store.set_udp_verified(enr.node_id(), socket, at(2_000));
 
         assert_eq!(store.sync().unwrap(), confirms);
-        let expected = Entry {
+        let expected = BootStoreEntry {
             udp_verified_at: Some(at(if confirms { 2_000 } else { 1_000 })),
-            ..Entry::candidate(enr)
+            ..BootStoreEntry::candidate(enr)
         };
         assert_eq!(store.records.0.values().collect::<Vec<_>>(), [&expected]);
     }
@@ -777,11 +806,18 @@ mod tests {
     /// they were added in.
     #[test]
     fn test_evicts_the_record_confirmed_longest_ago() {
-        let mut never = [Entry::candidate(make_enr()), Entry::candidate(make_enr())];
-        never.sort_by_key(Entry::key);
+        let mut never =
+            [BootStoreEntry::candidate(make_enr()), BootStoreEntry::candidate(make_enr())];
+        never.sort_by_key(BootStoreEntry::key);
         let [never_lower, never_higher] = never;
-        let earlier = Entry { udp_verified_at: Some(at(1_000)), ..Entry::candidate(make_enr()) };
-        let later = Entry { udp_verified_at: Some(at(2_000)), ..Entry::candidate(make_enr()) };
+        let earlier = BootStoreEntry {
+            udp_verified_at: Some(at(1_000)),
+            ..BootStoreEntry::candidate(make_enr())
+        };
+        let later = BootStoreEntry {
+            udp_verified_at: Some(at(2_000)),
+            ..BootStoreEntry::candidate(make_enr())
+        };
         let mut records = Records::default();
         for entry in [&later, &never_higher, &earlier, &never_lower] {
             records.add(entry.clone());
@@ -887,7 +923,7 @@ mod tests {
         let mut store = BootStore::open(path.clone()).unwrap();
 
         let entries: Vec<_> = store.records.0.values().collect();
-        assert_eq!(entries, [&Entry::candidate(listed.clone())]);
+        assert_eq!(entries, [&BootStoreEntry::candidate(listed.clone())]);
         assert!(store.sync().unwrap(), "a file in an earlier format wasn't a change to save");
         let saved: serde_json::Value =
             serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
@@ -919,12 +955,12 @@ mod tests {
         let store = BootStore::open(path).unwrap();
 
         let mut expected = Records::default();
-        expected.add(Entry {
+        expected.add(BootStoreEntry {
             enr: verified,
             udp_verified_at: Some(at(100)),
             tcp_verified_at: Some(at(200)),
         });
-        expected.add(Entry::candidate(candidate));
+        expected.add(BootStoreEntry::candidate(candidate));
         assert_eq!(store.records, expected);
     }
 
