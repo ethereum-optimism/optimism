@@ -168,6 +168,27 @@ var (
 		Usage:   "Existing StateBloat contract on chain B",
 		EnvVars: op_service.PrefixEnvVar(prefix, "SDM_CONTRACT_B"),
 	}
+	ExpiryL2 = &cli.StringSliceFlag{
+		Name:    "expiry.l2",
+		Usage:   "Interop chain execution RPC (repeat for each chain)",
+		EnvVars: op_service.PrefixEnvVar(prefix, "EXPIRY_L2"),
+	}
+	ExpiryL1 = &cli.StringFlag{
+		Name:    "expiry.l1",
+		Usage:   "L1 execution RPC, to compare each chain's ETHLiquidity pause with its L1 pause",
+		EnvVars: op_service.PrefixEnvVar(prefix, "EXPIRY_L1"),
+	}
+	ExpiryL1Messenger = &cli.StringSliceFlag{
+		Name:    "expiry.l1-messenger",
+		Usage:   "L1CrossDomainMessenger of each L2 chain, in the same order as the L2 RPCs",
+		EnvVars: op_service.PrefixEnvVar(prefix, "EXPIRY_L1_MESSENGER"),
+	}
+	ExpiryPeriod = &cli.Uint64Flag{
+		Name:    "expiry.period",
+		Usage:   "Expected L2ToL2CrossDomainMessenger expiryPeriod() in seconds",
+		EnvVars: op_service.PrefixEnvVar(prefix, "EXPIRY_PERIOD"),
+		Value:   checks.DefaultExpiryPeriod,
+	}
 	AllJSON = &cli.BoolFlag{
 		Name:    "json",
 		Usage:   "Print the combined result as JSON",
@@ -299,6 +320,82 @@ func dialFilterAdmins(ctx context.Context, logger log.Logger, urls, jwtSecrets [
 	return clients, nil
 }
 
+func expiryFlags() []cli.Flag {
+	return append([]cli.Flag{
+		ConfigFile,
+		altsrc.NewStringSliceFlag(ExpiryL2),
+		altsrc.NewStringFlag(ExpiryL1),
+		altsrc.NewStringSliceFlag(ExpiryL1Messenger),
+		altsrc.NewUint64Flag(ExpiryPeriod),
+	}, logcli.CLIFlags(prefix)...)
+}
+
+// expiryConfig dials the L2 RPCs and, when set, the L1 RPC, and pairs each L2 with its
+// L1CrossDomainMessenger. requireL1 makes the L1 pause comparison mandatory.
+func expiryConfig(ctx context.Context, logger log.Logger, c *cli.Context, l2URLs []string, requireL1 bool) (_ *checks.CheckExpiryConfig, err error) {
+	cfg := &checks.CheckExpiryConfig{Log: logger, ExpiryPeriod: c.Uint64(ExpiryPeriod.Name)}
+	defer func() {
+		if err != nil {
+			closeExpiryConfig(cfg)
+		}
+	}()
+	if len(l2URLs) == 0 {
+		return nil, fmt.Errorf("--%s is required", ExpiryL2.Name)
+	}
+	l1URL := c.String(ExpiryL1.Name)
+	messengers := c.StringSlice(ExpiryL1Messenger.Name)
+	if requireL1 && (l1URL == "" || len(messengers) == 0) {
+		return nil, fmt.Errorf("--%s and --%s are required", ExpiryL1.Name, ExpiryL1Messenger.Name)
+	}
+	if (l1URL == "") != (len(messengers) == 0) {
+		return nil, fmt.Errorf("--%s and --%s must be set together", ExpiryL1.Name, ExpiryL1Messenger.Name)
+	}
+	if len(messengers) != 0 && len(messengers) != len(l2URLs) {
+		return nil, fmt.Errorf("need one --%s per L2 chain (got %d for %d chains)", ExpiryL1Messenger.Name, len(messengers), len(l2URLs))
+	}
+	messengerAddrs := make([]common.Address, len(l2URLs))
+	for i, m := range messengers {
+		if !common.IsHexAddress(m) || common.HexToAddress(m) == (common.Address{}) {
+			return nil, fmt.Errorf("--%s %d must be a non-zero hex address, got %q", ExpiryL1Messenger.Name, i, m)
+		}
+		messengerAddrs[i] = common.HexToAddress(m)
+	}
+	if l1URL != "" {
+		if cfg.L1, err = dialEthClient(ctx, logger, l1URL); err != nil {
+			return nil, fmt.Errorf("failed to dial L1: %w", err)
+		}
+	} else {
+		logger.Warn("no L1 RPC set, skipping the ETHLiquidity pause comparison")
+	}
+	for i, url := range l2URLs {
+		l2, err := dialEthClient(ctx, logger, url)
+		if err != nil {
+			return nil, fmt.Errorf("failed to dial L2 chain %d: %w", i, err)
+		}
+		cfg.Chains = append(cfg.Chains, checks.ExpiryChain{L2: l2, L1Messenger: messengerAddrs[i]})
+	}
+	return cfg, nil
+}
+
+func closeExpiryConfig(cfg *checks.CheckExpiryConfig) {
+	if cfg.L1 != nil {
+		cfg.L1.Close()
+	}
+	for _, chain := range cfg.Chains {
+		chain.L2.Close()
+	}
+}
+
+func expiryAction(c *cli.Context) error {
+	logger, ctx := setup(c, c.App.Writer)
+	cfg, err := expiryConfig(ctx, logger, c, c.StringSlice(ExpiryL2.Name), true)
+	if err != nil {
+		return err
+	}
+	defer closeExpiryConfig(cfg)
+	return checks.CheckExpiry(ctx, cfg)
+}
+
 func roundTripAction(c *cli.Context) error {
 	logger, ctx := setup(c, c.App.Writer)
 	cfg, err := baseConfig(ctx, logger, c)
@@ -333,6 +430,8 @@ const (
 type lagoonAllResult struct {
 	InteropPassed     bool             `json:"interop_passed"`
 	InteropError      string           `json:"interop_error,omitempty"`
+	ExpiryPassed      bool             `json:"expiry_passed"`
+	ExpiryError       string           `json:"expiry_error,omitempty"`
 	SDMAccount        common.Address   `json:"sdm_account"`
 	SDMAccountDerived bool             `json:"sdm_account_derived"`
 	SDMChainA         *sdmcheck.Result `json:"sdm_chain_a"`
@@ -354,6 +453,9 @@ func lagoonAllFlags() []cli.Flag {
 		altsrc.NewStringFlag(AllSDMContractA),
 		altsrc.NewStringFlag(AllSDMContractB),
 		altsrc.NewBoolFlag(SDMOptIn),
+		altsrc.NewStringFlag(ExpiryL1),
+		altsrc.NewStringSliceFlag(ExpiryL1Messenger),
+		altsrc.NewUint64Flag(ExpiryPeriod),
 		altsrc.NewBoolFlag(AllJSON),
 	}
 	return append(flags, logcli.CLIFlags(prefix)...)
@@ -444,6 +546,12 @@ func lagoonAllAction(c *cli.Context) error {
 	cfgB.Contract = contractB
 	cfgB.Rollup = rollupB
 
+	expiryCfg, err := expiryConfig(ctx, logger, c, []string{cfgA.RPCURL, cfgB.RPCURL}, false)
+	if err != nil {
+		return err
+	}
+	defer closeExpiryConfig(expiryCfg)
+
 	logger.Info("funding SDM account", "account", sdmAccount, "minimumBalance", fundAmount, "derived", sdmAccountDerived)
 	fundGroup, fundCtx := errgroup.WithContext(ctx)
 	fundGroup.Go(func() error {
@@ -467,8 +575,9 @@ func lagoonAllAction(c *cli.Context) error {
 		interop: func(ctx context.Context) error {
 			return interopsmoke.RunAll(ctx, c.App.ErrWriter, cfgA.RPCURL, cfgB.RPCURL, interopKeyHex)
 		},
-		sdmA: func(ctx context.Context) (*sdmcheck.Result, error) { return sdmcheck.CheckAll(ctx, cfgA) },
-		sdmB: func(ctx context.Context) (*sdmcheck.Result, error) { return sdmcheck.CheckAll(ctx, cfgB) },
+		expiry: func(ctx context.Context) error { return checks.CheckExpiry(ctx, expiryCfg) },
+		sdmA:   func(ctx context.Context) (*sdmcheck.Result, error) { return sdmcheck.CheckAll(ctx, cfgA) },
+		sdmB:   func(ctx context.Context) (*sdmcheck.Result, error) { return sdmcheck.CheckAll(ctx, cfgB) },
 	}, &result)
 
 	if c.Bool(AllJSON.Name) {
@@ -489,6 +598,7 @@ func lagoonAllAction(c *cli.Context) error {
 
 type lagoonLegs struct {
 	interop func(context.Context) error
+	expiry  func(context.Context) error
 	sdmA    func(context.Context) (*sdmcheck.Result, error)
 	sdmB    func(context.Context) (*sdmcheck.Result, error)
 }
@@ -497,7 +607,7 @@ type lagoonLegs struct {
 // not cut the others short, and records each outcome in result.
 func runLagoonLegs(ctx context.Context, legs lagoonLegs, result *lagoonAllResult) error {
 	var wg sync.WaitGroup
-	var interopErr, sdmAErr, sdmBErr error
+	var interopErr, expiryErr, sdmAErr, sdmBErr error
 	wg.Go(func() {
 		if err := legs.interop(ctx); err != nil {
 			result.InteropError = err.Error()
@@ -505,6 +615,14 @@ func runLagoonLegs(ctx context.Context, legs lagoonLegs, result *lagoonAllResult
 			return
 		}
 		result.InteropPassed = true
+	})
+	wg.Go(func() {
+		if err := legs.expiry(ctx); err != nil {
+			result.ExpiryError = err.Error()
+			expiryErr = fmt.Errorf("message expiry: %w", err)
+			return
+		}
+		result.ExpiryPassed = true
 	})
 	wg.Go(func() {
 		check, err := legs.sdmA(ctx)
@@ -523,7 +641,7 @@ func runLagoonLegs(ctx context.Context, legs lagoonLegs, result *lagoonAllResult
 		}
 	})
 	wg.Wait()
-	return errors.Join(interopErr, sdmAErr, sdmBErr)
+	return errors.Join(interopErr, expiryErr, sdmAErr, sdmBErr)
 }
 
 func sdmCheckFlags() []cli.Flag {
@@ -678,7 +796,7 @@ func newApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "check-lagoon"
 	app.Usage = "Run Interop and SDM checks for the Lagoon upgrade."
-	app.Description = "Smoke-test Interop messaging, the Interop filter failsafe, and SDM PostExec conformance."
+	app.Description = "Smoke-test Interop messaging, the Interop filter failsafe, message expiry configuration, and SDM PostExec conformance."
 	app.Action = func(c *cli.Context) error {
 		return errors.New("see sub-commands")
 	}
@@ -687,6 +805,7 @@ func newApp() *cli.App {
 	allCmdFlags := cliapp.ProtectFlags(lagoonAllFlags())
 	roundtripCmdFlags := cliapp.ProtectFlags(roundtripFlags())
 	failsafeCmdFlags := cliapp.ProtectFlags(failsafeFlags())
+	expiryCmdFlags := cliapp.ProtectFlags(expiryFlags())
 	tomlSource := altsrc.NewTomlSourceFromFlagFunc(ConfigFile.Name)
 	app.Commands = []*cli.Command{
 		{
@@ -709,6 +828,13 @@ func newApp() *cli.App {
 			Flags:  failsafeCmdFlags,
 			Before: altsrc.InitInputSourceWithContext(failsafeCmdFlags, tomlSource),
 			Action: failsafeAction,
+		},
+		{
+			Name:   "expiry",
+			Usage:  "Verify each chain's message expiry period and that its ETHLiquidity pause matches L1.",
+			Flags:  expiryCmdFlags,
+			Before: altsrc.InitInputSourceWithContext(expiryCmdFlags, tomlSource),
+			Action: expiryAction,
 		},
 		makeSDMCommand(tomlSource),
 	}
