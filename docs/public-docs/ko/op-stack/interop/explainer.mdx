@@ -20,7 +20,7 @@ diataxis: explanation
   [Docker로 node 실행하기](/ko/node-operators/tutorials/node-from-docker)로 이동하십시오.
 </Info>
 
-# OP Stack 상호운용성
+# OP Stack 상호운용성 {#op-stack-interoperability}
 
 블록체인이 스스로 생성한 정보에 대해 확신하기는 쉽습니다.
 다른 출처에서 오는 정보를 안전하고 탈중앙화되며 검열 불가능한 방식으로 제공하기는 더 어렵습니다(이를 [오라클 문제(The Oracle Problem)](https://chain.link/education-hub/oracle-problem)라고 합니다).
@@ -34,7 +34,7 @@ OP Stack 상호운용성은 다음과 같은 이점을 제공합니다.
 *   앱이 다른 체인에 존재하는 데이터와 조합(compose)될 수 있습니다.
 *   이를 필요로 하는 애플리케이션을 위한 수평적 확장성을 제공합니다.
 
-## 상호운용성 아키텍처
+## 상호운용성 아키텍처 {#interoperability-architecture}
 
 interop 이전의 OP Stack node는 두 가지 소프트웨어로 구성됩니다. 파생(derivation)을 주도하는 합의 클라이언트(예: op-node)와, 사용자 트랜잭션을 처리하고 블록을 구성하는 실행 클라이언트(예: op-geth)입니다.
 
@@ -77,7 +77,7 @@ interop 참여자는 종속성 집합에 있는 모든 체인의 로그 이벤�
 
 종속성 집합의 모든 체인을 팔로우하는 데는 많은 비용이 듭니다. 각 체인마다 파생, 실행 엔진, 그리고 interop이 도입하는 크로스체인 기록 관리가 필요합니다. op-supernode는 모든 체인을 단일 프로세스에서 함께 실행하고 공유 L1 클라이언트와 beacon 클라이언트가 모든 체인에 서비스를 제공하도록 하여 이 비용을 줄입니다. [Superchain interop 클러스터](#superchain-interop-cluster)와 같이 완전히 연결된 클러스터의 경우, 이것이 크로스체인 검증이 실행되도록 설계된 토폴로지입니다. 아키텍처에 대해서는 [op-supernode 설명](/ko/op-stack/interop/supernode)을 참조하십시오.
 
-## 메시지가 한 체인에서 다른 체인으로 전달되는 방식
+## 메시지가 한 체인에서 다른 체인으로 전달되는 방식 {#how-messages-get-from-one-chain-to-the-other}
 
 크로스체인 메시지에는 두 개의 트랜잭션이 필요합니다. 하나는 소스 체인에서, 다른 하나는 목적지 체인에서 실행됩니다.
 
@@ -102,7 +102,7 @@ sequenceDiagram
 
 각 실행 메시지는 소스 체인 ID, 소스 컨트랙트 주소(`origin`), 소스 블록 번호, 블록 내 로그 인덱스, 소스 블록 타임스탬프로 [시작 메시지를 고유하게 식별](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L13-L19)합니다. 모든 검사를 통과하면 `CrossL2Inbox`는 크로스체인 참조를 기록하는 `ExecutingMessage` 이벤트를 발생시킵니다.
 
-### 액세스 리스트를 사용한 메시지 검증
+### 액세스 리스트를 사용한 메시지 검증 {#validating-messages-with-access-lists}
 
 `CrossL2Inbox` 자체는 다른 체인의 상태를 절대 읽지 않습니다. 실행 트랜잭션이 사용하려는 모든 크로스체인 메시지를 *사전에 선언*했는지만 검증합니다. 이를 통해 목적지 체인의 node는 트랜잭션이 블록에 포함되기 *전에* 소스 체인 로그 인덱스와 그 선언을 대조하여 확인할 수 있습니다.
 
@@ -118,7 +118,7 @@ EVM 내부에서 [`CrossL2Inbox.validateMessage`](https://github.com/ethereum-op
 
 액세스 리스트 메커니즘은 sequencer, 빌더, 검증자에게 참조된 메시지가 존재하지 않는 트랜잭션을 블록에 포함되기 전에 폐기할 수 있는, EVM을 사용하지 않는 균일한 방법을 제공합니다. 이는 reorg와 equivocation 상황에서도 마찬가지입니다.
 
-## 블록 안전성 수준
+## 블록 안전성 수준 {#block-safety-levels}
 
 OP Stack interop은 앱 개발자와 노드 운영자가 이미 익숙한 세 가지 안전성 수준을 그대로 유지합니다.
 
@@ -146,6 +146,8 @@ flowchart LR
 
 interop의 핵심 속성은 두 번째 항목입니다. 블록은 그것이 의존하는 모든 것이 safe 상태가 된 후에만 safe로 취급됩니다. 위 다이어그램에서 체인 B의 블록 B<sub>302</sub>와 B<sub>303</sub>은 모두 체인 A의 시작 메시지를 참조합니다. 이 블록들은 A<sub>101</sub>(및 그에 이르는 모든 블록)도 L1에 기록될 때까지 safe 상태가 될 수 없습니다.
 
+실제로는 이 종속성이 개별 메시지보다 더 넓게 적용됩니다. [op-supernode](/ko/op-stack/interop/supernode#safe-heads-advance-together)는 전체 종속성 집합을 한 번에 하나의 타임스탬프씩 검증하므로, 집합에 속한 모든 체인의 safe head와 finalized head는 함께 진행됩니다. 한 체인에서 safe head가 지연되면 크로스체인 메시지가 없는 블록이라도 다른 체인들의 safe head와 finalized head도 함께 지연됩니다. 그동안에도 모든 체인은 계속 블록을 생성하고 unsafe head를 진행시킵니다.
+
 이 종속성 검사가 사용자를 [체인 간 이중 지불(double-spend)](/ko/op-stack/interop/reorg)로부터 보호합니다. sequencer가 unsafe 시작 메시지를 참조하는 실행 메시지를 수락하기로 선택하면 가능한 가장 낮은 크로스체인 지연 시간을 얻을 수 있지만, 자신의 [전이적 종속성 집합(transitive dependency set)](#what-is-the-transitive-dependency-set)에 있는 모든 sequencer가 gossip한 데이터를 결국 게시할 것이라는 신뢰 가정을 떠안게 됩니다. 그중 하나라도 equivocation을 하면, 실행 메시지를 포함한 블록은 reorg로 제거되고 입금 전용 블록으로 대체됩니다. 지연 시간과 보안 간의 트레이드오프, 그리고 체인 운영자가 인바운드 메시지에 대해 수락할 최소 안전성 수준을 구성하는 방법에 대한 자세한 논의는 [크로스체인 보안 조치](/ko/op-stack/security/interop-security)를 참조하십시오.
 
 <Accordion title="전이적 종속성 집합이란 무엇입니까?">
@@ -167,7 +169,7 @@ interop의 핵심 속성은 두 번째 항목입니다. 블록은 그것이 의�
   전이적으로 검증하기 때문에 체인은 전혀 알지 못하는 체인으로부터 무제한의 신뢰를 물려받지 않고도 지연 시간이 짧은 메시지를 수락할 수 있습니다. 체인 A는 자신의 전이적 종속성 집합에 속한 체인들의 신뢰 가정만 수락하면 됩니다.
 </Accordion>
 
-## Interop 클러스터
+## Interop 클러스터 {#interop-clusters}
 
 각 체인은 *종속성 집합*, 즉 시작 메시지를 수락할 의향이 있는 체인들의 집합을 구성합니다. 종속성 집합이 서로에게 닿는 체인들의 그룹이 함께 interop 클러스터를 형성합니다.
 
@@ -185,7 +187,7 @@ flowchart LR
 
 종속성 집합이 대칭이거나 완전히 연결될 필요는 없습니다. 위 예에서 체인 B의 종속성 집합은 `{A, C}`이므로, 체인 E에서 체인 B로 보내는 메시지는 체인 A를 통해 중계되어야 합니다. 즉, E에서 A로 보낸 다음 A에서 B로 보냅니다.
 
-### Superchain interop 클러스터
+### Superchain interop 클러스터 {#superchain-interop-cluster}
 
 OP Stack은 기반 interop 프로토콜 위에 단일한 완전 연결 메시(mesh)를 구축합니다. Superchain interop 클러스터의 모든 체인은 다른 모든 체인을 자신의 종속성 집합에 포함하므로, 어떤 체인이든 다른 어떤 체인에게나 메시지를 직접 보낼 수 있습니다.
 
@@ -202,7 +204,7 @@ Superchain interop 클러스터의 모든 체인은 크로스체인 메시징의
 
 Superchain interop 클러스터는 단계적으로 출시되고 있습니다. 어떤 체인이 참여할 자격이 있는지 확인하려면 [Superchain Index](https://www.superchain.eco/superchain-index)를 방문하여 `Standard` charter를 가진 체인을 찾아보십시오.
 
-## 다음 단계
+## 다음 단계 {#next-steps}
 
 *   [메시지가 한 체인에서 다른 체인으로 전달되는 방식](/ko/app-developers/guides/interoperability/message-passing)을 알아보십시오.
 *   [interop이 reorg를 처리하고 이중 지불을 방지하는 방식](/ko/op-stack/interop/reorg)을 알아보십시오.
