@@ -5,7 +5,7 @@
 pub struct Metrics;
 
 impl Metrics {
-    /// Identifier for discv5 events.
+    /// The session records handed to gossip to dial, by the discv5 event that brought them.
     pub const DISCOVERY_EVENT: &str = "kona_node_discovery_events";
 
     /// Counter for the number of `FIND_NODE` requests.
@@ -32,7 +32,10 @@ impl Metrics {
 
     /// Describes metrics used in the discovery service.
     pub fn describe() {
-        metrics::describe_gauge!(Self::DISCOVERY_EVENT, "Events received by the discv5 service");
+        metrics::describe_gauge!(
+            Self::DISCOVERY_EVENT,
+            "Session records handed to gossip to dial, by the discv5 event that brought them"
+        );
         metrics::describe_histogram!(
             Self::ENR_STORE_TIME,
             "Observations of elapsed time to store ENRs in the on-disk bootstore"
