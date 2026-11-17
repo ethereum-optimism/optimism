@@ -409,7 +409,7 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 	} else if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.BlobsType {
 		var b eth.Blob
 		require.NoError(t, b.FromData(payload), "must turn data into blob")
-		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b}, true)
+		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b})
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
 		blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
@@ -494,7 +494,7 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 	require.NoError(t, err, "need l1 pending header for gas price estimation")
 	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
 
-	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs, true)
+	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs)
 	require.NoError(t, err)
 	blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
 	require.NoError(t, err, "need blob base fee")

@@ -10,7 +10,6 @@ import (
 var (
 	emptyBlob           *kzg4844.Blob
 	emptyBlobCommit     kzg4844.Commitment
-	emptyBlobProof      kzg4844.Proof
 	emptyBlobCellProofs []kzg4844.Proof
 )
 
@@ -21,10 +20,6 @@ func init() {
 	if err != nil {
 		panic("failed to create empty blob commitment: " + err.Error())
 	}
-	emptyBlobProof, err = kzg4844.ComputeBlobProof(emptyBlob, emptyBlobCommit)
-	if err != nil {
-		panic("failed to create empty blob proof: " + err.Error())
-	}
 	emptyBlobCellProofs, err = kzg4844.ComputeCellProofs(emptyBlob)
 	if err != nil {
 		panic("failed to create empty blob cell proofs: " + err.Error())
@@ -32,18 +27,13 @@ func init() {
 }
 
 // CreateEmptyBlobTx returns a blob transaction carrying one empty blob. Its sidecar, if any,
-// has cell proofs if cellProofs is set, as an L1 from Osaka on requires, and a blob proof
-// otherwise.
+// has cell proofs (EIP-7594).
 //
 // with thanks to fjl
 // https://github.com/ethereum/go-ethereum/commit/2a6beb6a39d7cb3c5906dd4465d65da6efcc73cd
-func CreateEmptyBlobTx(withSidecar, cellProofs bool, chainID uint64) *types.BlobTx {
-	sidecar := types.NewBlobTxSidecar(types.BlobSidecarVersion0,
-		[]kzg4844.Blob{*emptyBlob}, []kzg4844.Commitment{emptyBlobCommit}, []kzg4844.Proof{emptyBlobProof})
-	if cellProofs {
-		sidecar = types.NewBlobTxSidecar(types.BlobSidecarVersion1,
-			[]kzg4844.Blob{*emptyBlob}, []kzg4844.Commitment{emptyBlobCommit}, emptyBlobCellProofs)
-	}
+func CreateEmptyBlobTx(withSidecar bool, chainID uint64) *types.BlobTx {
+	sidecar := types.NewBlobTxSidecar(types.BlobSidecarVersion1,
+		[]kzg4844.Blob{*emptyBlob}, []kzg4844.Commitment{emptyBlobCommit}, emptyBlobCellProofs)
 	blobTx := &types.BlobTx{
 		ChainID:    uint256.NewInt(chainID),
 		Nonce:      0,

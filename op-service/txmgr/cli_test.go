@@ -141,11 +141,3 @@ func TestCLIConfigCheck(t *testing.T) {
 		})
 	}
 }
-
-// TestCellProofTimeDefaultsToZero checks that the cell proof time defaults to 0, so that blob
-// transactions carry cell proofs on every L1 unless the flag is set.
-func TestCellProofTimeDefaultsToZero(t *testing.T) {
-	require.Zero(t, NewCLIConfig(l1EthRpcValue, DefaultBatcherFlagValues).CellProofTime)
-	require.Zero(t, NewCLIConfig(l1EthRpcValue, DefaultChallengerFlagValues).CellProofTime)
-	require.Zero(t, configForArgs().CellProofTime)
-}
