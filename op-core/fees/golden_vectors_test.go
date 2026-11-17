@@ -16,7 +16,8 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
-// The vectors in this file are the values op-geth computes for the same inputs.
+// The vectors in this file are the values op-geth computes for the same inputs, and op-revm
+// computes the same. op-revm has no counterpart of the errors.
 
 var l1CostBedrockVectors = []struct {
 	rollupDataGas               uint64
