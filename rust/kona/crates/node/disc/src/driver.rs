@@ -210,7 +210,7 @@ impl Discv5Driver {
             return None;
         }
         if !table_filter(&enr) {
-            debug!(target: "discovery", event = kind, %socket, "Leaving the dial to a session at an address discovery doesn't use; --p2p.discovery.private allows private ones");
+            debug!(target: "discovery", event = kind, %socket, "Leaving the dial to a session whose record the table filter rejects");
             return None;
         }
         Some(RecordToDial { event: kind, enr, socket })
@@ -233,7 +233,7 @@ impl Discv5Driver {
                     match accepts_enode(table_filter, &enode) {
                         Ok(true) => {}
                         Ok(false) => {
-                            warn!(target: "discovery::bootstrap", %enode, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
+                            warn!(target: "discovery::bootstrap", %enode, "Ignoring a boot node that the table filter rejects");
                             continue;
                         }
                         Err(err) => {
@@ -253,7 +253,7 @@ impl Discv5Driver {
             // A bootnode given by enode URL may be in the table already, from the session that
             // fetched its record, which skips the table filter: remove the ones not kept.
             if !table_filter(&enr) {
-                warn!(target: "discovery::bootstrap", ?enr, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
+                warn!(target: "discovery::bootstrap", ?enr, "Ignoring a boot node that the table filter rejects");
                 disc.remove_node(&enr.node_id());
                 continue;
             }
