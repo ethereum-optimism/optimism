@@ -35,7 +35,7 @@ const MAX_REORG_SEQ_WINDOWS: u64 = 5;
 ///
 /// Like op-node's `FindL2Heads`, this fails rather than return a forkchoice that rewinds past the
 /// finalized head, builds on another L1 genesis, or rewinds the unsafe head across more than
-/// [`MAX_REORG_SEQ_WINDOWS`] sequence windows.
+/// `MAX_REORG_SEQ_WINDOWS` sequence windows.
 pub async fn find_starting_forkchoice(
     cfg: &RollupConfig,
     engine_client: &EngineClient,
