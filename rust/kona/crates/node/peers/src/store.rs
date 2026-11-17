@@ -607,6 +607,14 @@ impl BootStore {
         self.records.entries.is_empty()
     }
 
+    /// Forgets the evidence dated before `before`, one timestamp at a time, and drops the records
+    /// it leaves without any: with no evidence for either address, and no session that started
+    /// since `before`. Returns how many it dropped. The file changes at the next [`Self::sync`].
+    pub fn expire(&mut self, before: SystemTime) -> usize {
+        let _ = before;
+        0
+    }
+
     /// Keeps only the records `keep` accepts, and returns how many it removed. The file changes at
     /// the next [`Self::sync`].
     pub fn retain(&mut self, mut keep: impl FnMut(&Enr) -> bool) -> usize {
@@ -1070,6 +1078,50 @@ mod tests {
         assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), None);
         store.set_udp_verified(enr.node_id(), socket, at(1_000 + refresh));
         assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), Some(at(1_000 + refresh)));
+    }
+
+    /// Evidence dated before the cutoff should be forgotten, each timestamp on its own, so that a
+    /// peer gossip last reached long ago no longer outranks the candidates when the store evicts,
+    /// while its UDP address, which discovery still confirms, keeps the record.
+    #[rstest::rstest]
+    #[case::tcp_old(true, false)]
+    #[case::udp_old(false, true)]
+    fn test_expire_forgets_old_evidence(#[case] tcp_old: bool, #[case] udp_old: bool) {
+        let enr = enr_of_new_node();
+        let udp = SocketAddr::V4(enr.udp4_socket().unwrap());
+        let tcp = SocketAddr::V4(enr.tcp4_socket().unwrap());
+        let before = 10_000;
+        let dated = |old: bool| at(if old { before - 1 } else { before });
+        let mut store = BootStore::in_memory();
+        store.add_enr(enr.clone());
+        store.set_tcp_verified(enr.node_id(), tcp, dated(tcp_old));
+        confirm_session(&mut store, enr.node_id(), udp, dated(udp_old));
+
+        assert_eq!(store.expire(at(before)), 0, "a record with recent evidence was dropped");
+
+        let entry = store.get(enr.node_id()).expect("the record is kept");
+        assert_eq!(entry.tcp_verified_at().is_none(), tcp_old, "tcp_verified_at");
+        assert_eq!(entry.udp_verified_at().is_none(), udp_old, "udp_verified_at");
+    }
+
+    /// A record left without evidence since the cutoff for either address, and without a session
+    /// since then, should be dropped, and the file saved without it: otherwise a store that never
+    /// fills up keeps dead records for good, and the seeds are drawn from them.
+    #[test]
+    fn test_expire_drops_a_record_without_recent_evidence() {
+        let enr = enr_of_new_node();
+        let udp = SocketAddr::V4(enr.udp4_socket().unwrap());
+        let tcp = SocketAddr::V4(enr.tcp4_socket().unwrap());
+        let before = 10_000;
+        let mut store = BootStore::in_memory();
+        store.add_enr(enr.clone());
+        store.set_tcp_verified(enr.node_id(), tcp, at(before - 1));
+        confirm_session(&mut store, enr.node_id(), udp, at(before - 1));
+        store.sync().unwrap();
+
+        assert_eq!(store.expire(at(before)), 1);
+        assert!(store.get(enr.node_id()).is_none(), "a record without recent evidence was kept");
+        assert!(store.sync().unwrap(), "the store didn't save its file without the record");
     }
 
     /// A session from another socket than the record's UDP address ends the count for the
