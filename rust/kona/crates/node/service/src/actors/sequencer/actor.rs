@@ -161,14 +161,14 @@ where
     SequencerEngineClient_: SequencerEngineClient,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
-    /// Instantiate a new [`SequencerActor`].
+    /// Instantiate a new, stopped [`SequencerActor`]. It builds blocks only after an
+    /// `admin_startSequencer` command.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
         attributes_builder: AttributesBuilder_,
         conductor: Option<Conductor_>,
         engine_client: SequencerEngineClient_,
-        is_active: bool,
         in_recovery_mode: bool,
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
@@ -177,7 +177,7 @@ where
     ) -> Self {
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
         let (state_tx, _) = watch::channel(SequencerState {
-            active: is_active,
+            active: false,
             conductor_enabled: conductor.is_some(),
             recovery_mode: in_recovery_mode,
         });

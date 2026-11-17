@@ -65,7 +65,8 @@ pub(super) enum JwtValidationError {
 ///           --l1-beacon http://localhost:5052 \
 ///           --l2-engine-rpc http://localhost:8551
 ///
-/// # Run as sequencer with custom JWT secret
+/// # Run as sequencer with custom JWT secret. The sequencer boots stopped and builds no
+/// # blocks until it is started with the `admin_startSequencer` RPC.
 /// kona node --mode sequencer \
 ///           --l1-eth-rpc http://localhost:8545 \
 ///           --l1-beacon http://localhost:5052 \
