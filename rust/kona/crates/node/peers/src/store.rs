@@ -502,17 +502,17 @@ impl BootStore {
     /// started at `at`, if the record's UDP address of the family of `socket` is `socket`. discv5
     /// doesn't check that for a record without a UDP address of that family, nor for an
     /// unverifiable record. A session from another socket says nothing about the record's
-    /// address. Does nothing for a node the store doesn't hold.
+    /// address, and ends the count for the session before it: the node now talks to discovery
+    /// from elsewhere, so that session lasting no longer shows the record's address works. Does
+    /// nothing for a node the store doesn't hold.
     ///
     /// The session confirms the address only once it has lasted, see [`Self::set_udp_verified`].
     /// That keeps the peers whose sessions last from being crowded out of a full store: anyone
     /// can start sessions under fresh keys, and if each confirmed its record at once, a flood of
     /// them would always be the most recently confirmed.
     pub fn session_started(&mut self, node_id: NodeId, socket: SocketAddr, at: SystemTime) {
-        if let Some(entry) = self.records.entries.get_mut(&node_id.raw()) &&
-            holds_socket(udp_sockets(&entry.enr), socket)
-        {
-            entry.session_started_at = Some(at);
+        if let Some(entry) = self.records.entries.get_mut(&node_id.raw()) {
+            entry.session_started_at = holds_socket(udp_sockets(&entry.enr), socket).then_some(at);
         }
     }
 
@@ -1061,6 +1061,26 @@ mod tests {
         assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), None);
         store.set_udp_verified(enr.node_id(), socket, at(1_000 + refresh));
         assert_eq!(store.get(enr.node_id()).unwrap().udp_verified_at(), Some(at(1_000 + refresh)));
+    }
+
+    /// A session from another socket than the record's UDP address ends the count for the
+    /// session before it, which then doesn't confirm the record however long ago it started: the
+    /// node talks to discovery from elsewhere now.
+    #[test]
+    fn test_session_from_another_socket_ends_the_count() {
+        let enr = enr_of_new_node();
+        let socket = SocketAddr::V4(enr.udp4_socket().unwrap());
+        let refresh = VERIFIED_REFRESH.as_secs();
+        let mut store = BootStore::in_memory();
+        store.add_enr(enr.clone());
+        store.session_started(enr.node_id(), socket, at(1_000));
+
+        store.session_started(enr.node_id(), "1.1.1.1:9000".parse().unwrap(), at(1_100));
+        store.set_udp_verified(enr.node_id(), socket, at(1_000 + refresh));
+
+        let entry = store.get(enr.node_id()).unwrap();
+        assert_eq!(entry.session_started_at(), None);
+        assert_eq!(entry.udp_verified_at(), None);
     }
 
     /// Sessions under fresh keys shouldn't push out a candidate whose session has lasted: they
