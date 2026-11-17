@@ -296,7 +296,9 @@ impl Discv5Builder {
         let mut driver =
             Discv5Driver::new(disc, table_filter, interval, chain_id, bootstore, self.bootnodes)
                 .map_err(|e| Discv5BuilderError::Discv5CreationFailed(e.to_string()))?;
-        driver.store_interval = self.store_interval.unwrap_or(Duration::from_secs(60));
+        if let Some(store_interval) = self.store_interval {
+            driver.store_interval = store_interval;
+        }
         driver.forward = self.forward;
         driver.remove_interval = self.randomize;
         Ok(driver)

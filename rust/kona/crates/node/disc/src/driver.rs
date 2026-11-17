@@ -36,6 +36,10 @@ const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 /// The number of records the channel to gossip holds.
 const ENR_CHANNEL_CAPACITY: usize = 1024;
 
+/// How often the driver saves the bootstore, refreshes the sessions it holds and hands gossip
+/// the peers it lost, by default, see [`Discv5Driver::store_interval`].
+const STORE_INTERVAL: Duration = Duration::from_secs(60);
+
 /// The most saved records that seed the discovery table at startup, see [`seed_table`]: as many
 /// as geth seeds from its node database (`seedCount`).
 const SEED_COUNT: usize = 30;
@@ -121,8 +125,7 @@ pub struct Discv5Driver {
     /// Whether to hand the saved records of the peers gossip reached lately to the enr receiver,
     /// at startup and then every `store_interval`, so that gossip redials the peers it lost.
     pub forward: bool,
-    /// The interval at which to store the ENRs in the bootstore.
-    /// This is set to 60 seconds by default.
+    /// The interval at which to store the ENRs in the bootstore, a minute by default.
     pub store_interval: Duration,
     /// The frequency at which to remove random nodes from the discovery table.
     /// This is not enabled (`None`) by default.
@@ -165,7 +168,7 @@ impl Discv5Driver {
             interval,
             forward: true,
             remove_interval: None,
-            store_interval: Duration::from_secs(60),
+            store_interval: STORE_INTERVAL,
             expiry_interval: EXPIRY_INTERVAL,
             bootstore,
         })
