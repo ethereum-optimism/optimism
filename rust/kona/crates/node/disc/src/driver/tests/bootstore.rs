@@ -240,10 +240,16 @@ fn store_with_tiers(reached: &[Enr], candidates: &[Enr]) -> BootStore {
         store.add_enr(record.clone());
     }
     for record in reached {
-        let addr = kona_peers::enr_tcp_socket(record).expect("the record has a TCP address");
-        store.set_tcp_verified(record.node_id(), addr, SystemTime::now());
+        reach(&mut store, record, SystemTime::now());
     }
     store
+}
+
+/// Notes in `store` that gossip reached the node of `record`, which it holds, at its TCP address
+/// at `at`.
+fn reach(store: &mut BootStore, record: &Enr, at: SystemTime) {
+    let addr = kona_peers::enr_tcp_socket(record).expect("the record has a TCP address");
+    store.set_tcp_verified(record.node_id(), addr, at);
 }
 
 /// The records gossip reached should seed the table before the candidates: anyone can start
@@ -281,6 +287,36 @@ fn test_seeds_are_drawn_at_random() {
         }
     }
     assert_eq!(first.len(), reached.len(), "a saved record never seeded first");
+}
+
+/// A record gossip reached long before the others should seed with the candidates, not before
+/// them, much as geth seeds only nodes that answered within five days. Otherwise a peer reached
+/// once, months ago, comes before every candidate, however recent, until the store evicts it.
+///
+/// The age counts from the newest record gossip reached, about when the node stopped, not from
+/// now: a node that was down for a month should still seed the peers it reached last first.
+///
+/// The chance that the candidate never comes before the old record in 50 rounds is `(1/2)^50`.
+#[rstest::rstest]
+#[case::running(Duration::ZERO)]
+#[case::after_downtime(Duration::from_secs(30 * 24 * 60 * 60))]
+fn test_records_reached_long_ago_seed_with_candidates(#[case] downtime: Duration) {
+    let stopped = SystemTime::now() - downtime;
+    let recent = enr_at_localhost(TEST_CHAIN_ID);
+    let old = enr_at_localhost(TEST_CHAIN_ID);
+    let candidate = enr_at_localhost(TEST_CHAIN_ID);
+    let mut store = store_with_tiers(&[], &[recent.clone(), old.clone(), candidate.clone()]);
+    reach(&mut store, &recent, stopped);
+    // More than geth's five days before the other.
+    reach(&mut store, &old, stopped - Duration::from_secs(6 * 24 * 60 * 60));
+
+    let mut candidate_before_old = false;
+    for _ in 0..50 {
+        let order = seed_order(&store, TEST_CHAIN_ID);
+        assert_eq!(order[0], &recent, "a record reached long ago seeded before a recent one");
+        candidate_before_old |= order[1] == &candidate;
+    }
+    assert!(candidate_before_old, "a record reached long ago always seeded before a candidate");
 }
 
 /// A bootstore that can't be opened, here because its path is a directory as in our docker
