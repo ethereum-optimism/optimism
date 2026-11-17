@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::{InspectError, VecSkipError};
 use std::{
-    cmp::Ordering,
+    cmp::{Ordering, Reverse},
     collections::BTreeMap,
     hash::{BuildHasher, RandomState},
     io::{self, Write},
@@ -117,16 +117,21 @@ impl Records {
     ///
     /// Of the candidates, the one whose UDP address a session confirmed longest ago goes first,
     /// those that no session confirmed before any. Of the reached records, the one gossip reached
-    /// longest ago. Of those confirmed at the same time, or not at all, the one whose session
-    /// started first, those without a session since the store was opened before any. Of those
-    /// that still tie, any of them: not the first in node ID order, as a node ID is the hash of a
-    /// key, and an attacker could grind keys until its records sort after the others. The order
-    /// is drawn afresh at each eviction, by hashing the node IDs with a random key.
+    /// longest ago. Of those confirmed at the same time, or not at all, those without a session
+    /// since the store was opened go first, and then the one whose session started last: the
+    /// attacker picks the rate of fresh sessions, so evicting the oldest first would let a flood
+    /// evict every session before it lasts long enough to confirm its record.
+    ///
+    /// Of those that still tie, any of them, drawn afresh at each eviction by hashing their node
+    /// IDs with a random key. Not the first in node ID order: a node ID is the hash of a key, and
+    /// an attacker could grind keys until its records sort after the others.
     fn evict(&mut self) -> Option<BootStoreEntry> {
         let tie_break = RandomState::new();
         let (&key, _) = self.entries.iter().min_by_key(|&(key, entry)| {
             let reached = entry.tcp_verified_at.is_some();
-            let evidence = (entry.tcp_verified_at, entry.udp_verified_at, entry.session_started_at);
+            let session =
+                (entry.session_started_at.is_some(), entry.session_started_at.map(Reverse));
+            let evidence = (entry.tcp_verified_at, entry.udp_verified_at, session);
             (reached, evidence, tie_break.hash_one(key))
         })?;
         self.entries.remove(&key)
@@ -1118,9 +1123,9 @@ mod tests {
     }
 
     /// Of the candidates no session has confirmed, a full store evicts the one without a session
-    /// since it was opened first, as from the file, and then the one whose session started first.
+    /// since it was opened first, as from the file, and then the one whose session started last.
     #[test]
-    fn test_evicts_the_unconfirmed_candidate_whose_session_started_first() {
+    fn test_evicts_the_unconfirmed_candidate_whose_session_started_last() {
         let session_at = |secs| BootStoreEntry {
             session_started_at: Some(at(secs)),
             ..BootStoreEntry::candidate(enr_of_new_node())
@@ -1133,8 +1138,8 @@ mod tests {
         }
 
         assert_eq!(records.evict(), Some(from_file));
-        assert_eq!(records.evict(), Some(earlier));
         assert_eq!(records.evict(), Some(later));
+        assert_eq!(records.evict(), Some(earlier));
     }
 
     /// When a session started isn't saved: the session ends with the process, so a record opened
