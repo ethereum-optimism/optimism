@@ -1,7 +1,7 @@
 //! Finding the highest unsafe block whose L1 origin is canonical.
 
 use crate::{EngineClient, SyncStartError};
-use alloy_eips::{BlockId, BlockNumHash};
+use alloy_eips::BlockNumHash;
 use kona_protocol::L2BlockInfo;
 use tracing::info;
 
@@ -83,8 +83,5 @@ pub(super) async fn is_canonical_l1(
     engine_client: &EngineClient,
     block: BlockNumHash,
 ) -> Result<bool, SyncStartError> {
-    Ok(engine_client
-        .get_l1_block(BlockId::number(block.number))
-        .await?
-        .is_some_and(|canonical| canonical.header.hash == block.hash))
+    Ok(engine_client.l1_block_hash_by_number(block.number).await? == Some(block.hash))
 }

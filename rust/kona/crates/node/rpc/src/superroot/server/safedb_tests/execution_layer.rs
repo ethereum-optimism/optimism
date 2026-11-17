@@ -180,7 +180,7 @@ where
     let address = server.local_addr().unwrap();
     let server = server.start(module);
     let engine = EngineClient::new(
-        RpcMock::default().provider(),
+        RpcMock::default().l1_provider(),
         EngineClient::rpc_client(
             format!("http://{address}").parse().unwrap(),
             JwtSecret::from_hex("00".repeat(32)).unwrap(),
