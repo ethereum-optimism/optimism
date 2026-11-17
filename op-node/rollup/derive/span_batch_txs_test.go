@@ -557,9 +557,9 @@ func TestSpanBatchTxsPostExecSkipsChainIDValidation(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestSpanBatchTxsPostExecFields pins the span batch fields of a post-exec tx, which are
-// op-geth's view of it: type 0x7D, nonce and gas 0, a zero signature, no recipient, and
-// the canonical encoding as its data.
+// TestSpanBatchTxsPostExecFields pins the span batch fields of a post-exec tx: type 0x7D,
+// nonce and gas 0, a zero signature, no recipient, and the canonical encoding as its data.
+// op-geth computes these fields, and kona computes the same.
 func TestSpanBatchTxsPostExecFields(t *testing.T) {
 	raw, err := testPostExecTx().MarshalBinary()
 	require.NoError(t, err)
@@ -575,7 +575,7 @@ func TestSpanBatchTxsPostExecFields(t *testing.T) {
 	require.Equal(t, uint(0), sbt.yParityBits.Bit(0))
 	require.Empty(t, sbt.txTos)
 	require.Equal(t, uint(1), sbt.zeroToBits.Bit(0))
-	require.Equal(t, hexutil.MustDecode("0x7dc201c0"), []byte(sbt.txDatas[0]))
+	require.Equal(t, hexutil.MustDecode("0x7dc6012ac3c20307"), []byte(sbt.txDatas[0]))
 }
 
 func TestSpanBatchTxsRejectsWrongChainIDForProtectedTx(t *testing.T) {

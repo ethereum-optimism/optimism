@@ -90,22 +90,36 @@ func TestDepositTxJSONDecodeGoldenVectors(t *testing.T) {
 	}
 }
 
-// postExecTxJSONVectors are post-exec transactions with their RPC JSON encoding.
+// postExecPayloadData returns the RLP encoding of p, the Data of a post-exec transaction.
+func postExecPayloadData(p optypes.PostExecPayload) []byte {
+	data, err := rlp.EncodeToBytes(&p)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+// postExecTxJSONVectors are post-exec transactions with their RPC JSON encoding, which
+// holds the hash that op-alloy computes too. The first is the payload of
+// TestPostExecTxHashGoldenVector.
 var postExecTxJSONVectors = []struct {
 	data []byte
 	json string
 }{
 	{
-		data: []byte{0x01},
-		json: `{"type":"0x7d","nonce":null,"to":null,"gas":"0x0","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0x01","v":null,"r":null,"s":null,"hash":"0x12b72a1cf763f3084b38506a32995d2bfcb83b3b7ea0045f0d367ca21cc870fd"}`,
+		data: postExecPayloadData(optypes.PostExecPayload{Version: optypes.PostExecPayloadVersion, BlockNumber: 42,
+			GasRefundEntries: []optypes.SDMGasEntry{{Index: 3, GasRefund: 7}}}),
+		json: `{"type":"0x7d","nonce":null,"to":null,"gas":"0x0","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0xc6012ac3c20307","v":null,"r":null,"s":null,"hash":"0xcbc64a9665039744307b562634bf760d96f3bed235fecd9e09a1f1276a1823c7"}`,
 	},
 	{
-		data: []byte{0xc2, 0x80, 0x80},
-		json: `{"type":"0x7d","nonce":null,"to":null,"gas":"0x0","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0xc28080","v":null,"r":null,"s":null,"hash":"0x9b7c909256b87c342f4bbe84bc7d42bacf14448124e00f8bb8962149c19b898f"}`,
+		data: postExecPayloadData(optypes.PostExecPayload{Version: optypes.PostExecPayloadVersion, BlockNumber: 1,
+			GasRefundEntries: []optypes.SDMGasEntry{{Index: 1, GasRefund: 21_000}, {Index: 2, GasRefund: 1}}}),
+		json: `{"type":"0x7d","nonce":null,"to":null,"gas":"0x0","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0xcb0101c8c401825208c20201","v":null,"r":null,"s":null,"hash":"0xad5a96debf4068e1ccd92a170a601f1be244547f7e47fde3244dac73d494482d"}`,
 	},
 	{
-		data: make([]byte, 64),
-		json: `{"type":"0x7d","nonce":null,"to":null,"gas":"0x0","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0x` + zeroBytesHex(64) + `","v":null,"r":null,"s":null,"hash":"0xca1f045b3a509d5e59170a201e15c8be7450c832831e339c9596faf08d1df0db"}`,
+		data: postExecPayloadData(optypes.PostExecPayload{Version: optypes.PostExecPayloadVersion, BlockNumber: 123_456_789,
+			GasRefundEntries: []optypes.SDMGasEntry{{Index: 1, GasRefund: 21_000}, {Index: 5, GasRefund: 4800}, {Index: 17, GasRefund: 100_000}}}),
+		json: `{"type":"0x7d","nonce":null,"to":null,"gas":"0x0","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0x0","input":"0xd70184075bcd15d0c401825208c4058212c0c511830186a0","v":null,"r":null,"s":null,"hash":"0x99f492786fb9a8224176e5d79693f3d61e4ef216320f9d5e3f612972b42f1bb0"}`,
 	},
 }
 
