@@ -62,7 +62,6 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	cfg := e2esys.DefaultSystemConfig(t)
 	cfg.DataAvailabilityType = batcherFlags.BlobsType
 
-	cfg.ActivateL1BlobForks()
 	genesisActivation := hexutil.Uint64(0)
 	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
 	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
