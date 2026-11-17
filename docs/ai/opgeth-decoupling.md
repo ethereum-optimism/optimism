@@ -709,12 +709,13 @@ Compiling every Go module in those repos against upstream go-ethereum with the r
   several private service modules.
 - **Decoupled now** — the replace drops with no other change. A small number of private service
   modules, mostly ones that only ever used geth's `log` package.
-- **Waiting on the final cutover** — everything else, which is most of them. Almost every
-  service imports `op-service/{rpc,metrics}` or another importer of `op-core/types`, which
-  builds against upstream only once the deposit edge goes at the final cutover (#20266):
+- **Waiting on the final cutover** — a module that imports `op-service/rpc`, whose
+  `node.NewHTTPHandlerStack` call the final cutover (#20266) rewrites for upstream's signature,
+  or another monorepo package on the ratchet allowlist (§19). That compile predates
+  `op-core/types` building against upstream, and it put most modules here:
   `infra/{op-signer,op-conductor-mon,op-ufm,peer-mgmt-service}`, `monitorism/op-monitorism`, and
-  most private service modules. A module that needs only `op-service/{log,testlog,jsonrpc,client}`
-  is unblocked on a monorepo pin that includes §15.
+  most private service modules. One of them that reaches `op-core/types` only through a package
+  such as `op-service/metrics` is unblocked on a current monorepo pin; recompile it to tell.
 
 One case is worth generalising because it is a trap rather than a blocker. A module pinned to a
 years-old op-geth pseudo-version compiled fine with the replace dropped, and dependency scanning
@@ -785,5 +786,5 @@ monorepo-only (#22678).
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | **done** (#23217) |
 | CI ratchet (§19) | required upstream type-check against a shrinking allowlist | **done** |
-| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
-| Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
+| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | unblocked unless the module imports `op-service/rpc`, which waits for the final cutover (its `node.NewHTTPHandlerStack` call) |
+| Final cutover: flip replace, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
