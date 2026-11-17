@@ -179,7 +179,7 @@ func isDepositTx(opaqueTx eth.Data) (bool, error) {
 	if len(opaqueTx) == 0 {
 		return false, errors.New("empty transaction")
 	}
-	return opaqueTx[0] == optypes.DepositTxType, nil
+	return optypes.IsDepositTxBytes(opaqueTx), nil
 }
 
 // lastDeposit finds the index of last deposit at the start of the transactions.
@@ -206,7 +206,11 @@ func sanityCheckPayload(payload *eth.ExecutionPayload) error {
 	if len(payload.Transactions) == 0 {
 		return errors.New("no transactions in returned payload")
 	}
-	if payload.Transactions[0][0] != optypes.DepositTxType {
+	deposit, err := isDepositTx(payload.Transactions[0])
+	if err != nil {
+		return fmt.Errorf("invalid first transaction: %w", err)
+	}
+	if !deposit {
 		return fmt.Errorf("first transaction was not deposit tx. Got %v", payload.Transactions[0][0])
 	}
 	// Ensure that the deposits are first

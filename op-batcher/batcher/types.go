@@ -35,7 +35,7 @@ func (b *SizedBlock) RawSize() uint64 {
 		b.rawSize = uint64(70)
 		for _, tx := range b.Transactions {
 			// Deposit transactions are not included in batches
-			if len(tx) > 0 && tx[0] == optypes.DepositTxType {
+			if optypes.IsDepositTxBytes(tx) {
 				continue
 			}
 			// Add 2 for the overhead of encoding the tx bytes in a RLP list
@@ -50,7 +50,7 @@ func (b *SizedBlock) EstimatedDABytes() uint64 {
 		daSize := uint64(70) // estimated overhead of batch metadata
 		for _, tx := range b.Transactions {
 			// Deposit transactions are not included in batches
-			if len(tx) > 0 && tx[0] == optypes.DepositTxType {
+			if optypes.IsDepositTxBytes(tx) {
 				continue
 			}
 			// It is safe to assume that the estimated DA size is always a uint64
