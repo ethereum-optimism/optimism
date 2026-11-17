@@ -96,10 +96,9 @@ func requireUnsupported(t *testing.T, fork forks.Name) {
 }
 
 // TestGethChainConfig is a direct unit test of ChainConfig.GethChainConfig: it
-// asserts the OP→go-ethereum mapping — the Ethereum fork schedule derived from the
-// OP schedule (Shanghai=Canyon, Cancun=Ecotone, Prague=Isthmus, Osaka=Karst), the
-// OP fork timestamps carried through unchanged, and the OptimismConfig mapping.
-// Distinct fork times are used so a mis-wired mapping can't pass.
+// asserts the Ethereum fork schedule derived from the OP schedule (Shanghai=Canyon,
+// Cancun=Ecotone, Prague=Isthmus, Osaka=Karst). Distinct fork times are used so a
+// mis-wired mapping can't pass.
 func TestGethChainConfig(t *testing.T) {
 	cfg := &opparams.ChainConfig{
 		ChainID:      big.NewInt(1234),
@@ -107,34 +106,18 @@ func TestGethChainConfig(t *testing.T) {
 		Optimism:     &opparams.OptimismConfig{EIP1559Elasticity: 6, EIP1559Denominator: 50, EIP1559DenominatorCanyon: ptr.New(uint64(250))},
 	}
 	for i, fork := range forkstest.TimestampELForks {
-		requireField(t, forkstest.Title(fork)+"Time", reflect.TypeFor[*uint64](), string(fork)+"Time,omitempty")
 		cfg.SetActivationTime(fork, ptr.New(uint64(10*(i+1))))
 	}
 
 	geth := cfg.GethChainConfig()
 
 	require.Equal(t, cfg.ChainID, geth.ChainID)
-	require.Equal(t, cfg.BedrockBlock, geth.BedrockBlock)
 
 	// Ethereum fork schedule is derived from the OP schedule.
 	require.Equal(t, cfg.CanyonTime, geth.ShanghaiTime, "Shanghai activates with Canyon")
 	require.Equal(t, cfg.EcotoneTime, geth.CancunTime, "Cancun activates with Ecotone")
 	require.Equal(t, cfg.IsthmusTime, geth.PragueTime, "Prague activates with Isthmus")
 	require.Equal(t, cfg.KarstTime, geth.OsakaTime, "Osaka activates with Karst")
-
-	gethFields := reflect.ValueOf(geth).Elem()
-	for _, fork := range forkstest.TimestampELForks {
-		name := forkstest.Title(fork) + "Time"
-		f := gethFields.FieldByName(name)
-		require.Truef(t, f.IsValid(), "go-ethereum ChainConfig lacks field %s", name)
-		require.Equal(t, cfg.ActivationTime(fork), f.Interface(), name)
-	}
-
-	// OptimismConfig maps across.
-	require.NotNil(t, geth.Optimism)
-	require.Equal(t, cfg.Optimism.EIP1559Elasticity, geth.Optimism.EIP1559Elasticity)
-	require.Equal(t, cfg.Optimism.EIP1559Denominator, geth.Optimism.EIP1559Denominator)
-	require.Equal(t, cfg.Optimism.EIP1559DenominatorCanyon, geth.Optimism.EIP1559DenominatorCanyon)
 
 	// Non-OP-Mainnet chains get no pre-Bedrock block overrides (base values stay 0).
 	require.Equal(t, int64(0), geth.BerlinBlock.Int64())

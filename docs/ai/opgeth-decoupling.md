@@ -226,9 +226,10 @@ concrete go-ethereum config converts explicitly via `GethChainConfig()` (Ethereu
 derived from the OP schedule: Shanghai=Canyon, Cancun=Ecotone, Prague=Isthmus, Osaka=Karst —
 op-geth's own loader is missing Osaka=Karst; the monorepo follows op-reth, which is correct).
 
-While the build still resolves go-ethereum to op-geth, `GethChainConfig()` also carries the OP
-fork fields and `Optimism` struct on the produced config (in-process test ELs need them). Those
-fields don't exist upstream — **shedding them is a cutover edit** (#20266).
+The produced config carries only the Ethereum fork schedule, no OP fork fields or `Optimism`
+struct, so go-ethereum code reading it applies Ethereum rules. It is fit for the genesis state
+root and header encoding (§14); anything that builds or executes blocks or computes fee or
+EIP-1559 values belongs in op-reth or `op-core`.
 
 **Swaps landed (#20270, closed):** `rollup.Config.ChainOpConfig` is now
 `*opparams.OptimismConfig` (JSON tags identical → wire-compatible), and
@@ -457,13 +458,10 @@ hooks to geth's infrastructure packages, and op-service foundations grew to depe
 sit under every service, so they break the whole tree at cutover, and two of them are *features*
 rather than symbols. (Found by the 2026-07 upstream-build spike; §19 keeps finding such uses.)
 
-**§15's seams are owned; what keeps most of op-service on op-geth is the `op-core/types`
-deposit edge** (see §20). `op-core/params`, `op-core/predeploys` and
-`op-service/{log,testlog,jsonrpc,client}` build against upstream go-ethereum today.
-`op-core/types` still fails where `FromGethReceipt` and the other receipt wrappers copy op-geth's
-deposit fields (`Receipt.DepositNonce`, `DepositReceiptVersion`). Those assignments are removed at
-the final cutover (#20266). Until then `op-core/types` and every package importing it, including
-`op-service/{eth,signer,metrics,rpc}`, build only against op-geth.
+**§15's seams are owned, and `op-core/types` builds against upstream go-ethereum** (see §20):
+its receipt wrappers read and write only their own deposit fields, never op-geth's
+`Receipt.DepositNonce` and `DepositReceiptVersion`. What remains of op-service's op-geth use is
+on the ratchet allowlist (§19).
 
 **Log context extensions** — fork adds `Logger.SetContext`, `WriteCtx`, `LogAttrs`, and the
 `Trace/…/ErrorContext` methods; `op-service/log`'s logfilter feature and `op-service/testlog`
@@ -711,12 +709,13 @@ Compiling every Go module in those repos against upstream go-ethereum with the r
   several private service modules.
 - **Decoupled now** — the replace drops with no other change. A small number of private service
   modules, mostly ones that only ever used geth's `log` package.
-- **Waiting on the final cutover** — everything else, which is most of them. Almost every
-  service imports `op-service/{rpc,metrics}` or another importer of `op-core/types`, which
-  builds against upstream only once the deposit edge goes at the final cutover (#20266):
+- **Waiting on the final cutover** — a module that imports `op-service/rpc`, whose
+  `node.NewHTTPHandlerStack` call the final cutover (#20266) rewrites for upstream's signature,
+  or another monorepo package on the ratchet allowlist (§19). That compile predates
+  `op-core/types` building against upstream, and it put most modules here:
   `infra/{op-signer,op-conductor-mon,op-ufm,peer-mgmt-service}`, `monitorism/op-monitorism`, and
-  most private service modules. A module that needs only `op-service/{log,testlog,jsonrpc,client}`
-  is unblocked on a monorepo pin that includes §15.
+  most private service modules. One of them that reaches `op-core/types` only through a package
+  such as `op-service/metrics` is unblocked on a current monorepo pin; recompile it to tell.
 
 One case is worth generalising because it is a trap rather than a blocker. A module pinned to a
 years-old op-geth pseudo-version compiled fine with the replace dropped, and dependency scanning
@@ -787,5 +786,5 @@ monorepo-only (#22678).
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | **done** (#23217) |
 | CI ratchet (§19) | required upstream type-check against a shrinking allowlist | **done** |
-| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
-| Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
+| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | unblocked unless the module imports `op-service/rpc`, which waits for the final cutover (its `node.NewHTTPHandlerStack` call) |
+| Final cutover: flip replace, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
