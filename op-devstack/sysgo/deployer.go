@@ -57,6 +57,11 @@ func FunderKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
 const devFeatureBitmapKey = "devFeatureBitmap"
 const DevstackL1ForkEnvVar = "DEVSTACK_L1_FORK"
 
+// defaultL1Fork is the L1 fork devstack activates at genesis unless DevstackL1ForkEnvVar is set.
+// It is at least the newest execution fork that go-ethereum schedules on mainnet, which a test
+// enforces, so that test L1s move to a fork after the testnets activate it and before mainnet does.
+const defaultL1Fork = forks.Osaka
+
 // proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used
 // by every L2 predeploy proxy (`bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)`).
 // Mirrors Constants.PROXY_IMPLEMENTATION_ADDRESS in packages/contracts-bedrock.
@@ -299,7 +304,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		// Amsterdam state gas raises live OPCM deployment above 50 million gas.
 		l1Config.WithGasLimit(60_000_000)
 
-		l1Fork := forks.Prague // activate Pectra on L1 by default
+		l1Fork := defaultL1Fork
 		if value, ok := os.LookupEnv(DevstackL1ForkEnvVar); ok {
 			var err error
 			l1Fork, err = parseL1Fork(value)

@@ -4,7 +4,9 @@ use alloy_primitives::B256;
 use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
 use kona_engine::{
     Engine, EngineActorRequest, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
-    test_utils::{TestAttributesBuilder, TestChain, expect_l1_block, test_engine_client},
+    test_utils::{
+        TestAttributesBuilder, TestChain, expect_l1_block, expect_l1_head, test_engine_client,
+    },
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -82,9 +84,17 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
     actor.step().await.unwrap();
     assert_eq!(state_rx.borrow().sync_state.safe_head(), genesis);
 
-    // The unsafe head is the finalized head, so the reset makes no L1 call.
     for tag in ["finalized", "safe", "latest"] {
         l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
+    }
+    // The default block's hash is zero, as is the default genesis L1 origin's, so the origin is
+    // canonical. It is also the L1 head.
+    for number in ["latest", "0x0"] {
+        l1.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([number, false]),
+            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+        );
     }
     l2.expect(
         "engine_forkchoiceUpdatedV3",
@@ -191,6 +201,7 @@ async fn admin_reset_recovers_and_completes_original_request(
     for number in [18, 20, 26] {
         l2.expect_with_delay("eth_getBlockByNumber", chain.rpc(number), read_delay);
     }
+    expect_l1_head(&l1, 106);
     expect_l1_block(&l1, 105, 106);
     for number in (18..26).rev() {
         chain.expect_by_hash(&l2, number);

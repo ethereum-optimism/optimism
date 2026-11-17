@@ -228,7 +228,11 @@ impl EngineResetError {
     /// Whether retrying the reset can recover without changing the node configuration.
     pub fn is_temporary(&self) -> bool {
         match self {
-            Self::SyncStart(SyncStartError::RpcError(_)) => true,
+            // An L1 RPC can serve a missing block below its head while a lagging backend
+            // catches up.
+            Self::SyncStart(
+                SyncStartError::RpcError(_) | SyncStartError::L1BlockMissing { .. },
+            ) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }
@@ -407,7 +411,7 @@ mod recovery_tests {
         let state = TestEngineStateBuilder::new().with_unsafe_head(genesis).build();
         let forkchoice = state.sync_state.create_forkchoice_state();
         let (client, l1, l2) = test_engine_client(config.clone());
-        expect_sync_start(&l2, &block, forkchoice);
+        expect_sync_start(&l1, &l2, &block, forkchoice);
         let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
         let mut engine = Engine::new(state, state_tx);
 

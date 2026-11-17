@@ -85,13 +85,10 @@ func TestEIP4844DataAvailability(gt *testing.T) {
 
 func TestEIP4844MultiBlobs(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
-	// Feel free to bump to Prague when updating this test's L1 config to activate Prague
 
 	log := testlog.Logger(t, log.LevelDebug)
 	sd, dp, miner, sequencer, seqEngine, verifier, _ := setupEIP4844Test(t, log)
-	// We could use eip4844.MaxBlobsPerBlock(sd.L1Cfg.Config, sd.L1Cfg.Timestamp) here, but
-	// we don't have the L1 chain config available in the action test batcher. So we just
-	// stick to Cancun max blobs for now, which is sufficient for this test.
+	// Osaka caps a transaction at 6 blobs (EIP-7594), the Cancun maximum per block.
 	maxBlobsPerBlock := params.DefaultCancunBlobConfig.Max
 
 	batcher := setupBatcher(t, log, sd, dp, miner, sequencer, seqEngine, batcherFlags.BlobsType)

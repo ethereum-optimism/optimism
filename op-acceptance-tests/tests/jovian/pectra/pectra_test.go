@@ -7,11 +7,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 func setupPectra(t devtest.T) *presets.Minimal {
 	return presets.NewMinimal(t,
-		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
+		presets.WithDeployerOptions(
+			sysgo.WithJovianAtGenesis,
+			sysgo.WithForkAtL1Genesis(forks.Prague),
+		),
 	)
 }
 

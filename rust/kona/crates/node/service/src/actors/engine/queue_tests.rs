@@ -209,8 +209,13 @@ fn forkchoice(head: L2BlockInfo, safe: L2BlockInfo, finalized: L2BlockInfo) -> F
 
 /// The reset finds the EL's finalized, safe and unsafe heads all at genesis, then synchronizes
 /// the EL to them.
-fn expect_reset_to_genesis(l2: &RpcMock, genesis_block: &TestRpcBlock, genesis: L2BlockInfo) {
-    expect_sync_start(l2, genesis_block, forkchoice(genesis, genesis, genesis));
+fn expect_reset_to_genesis(
+    l1: &RpcMock,
+    l2: &RpcMock,
+    genesis_block: &TestRpcBlock,
+    genesis: L2BlockInfo,
+) {
+    expect_sync_start(l1, l2, genesis_block, forkchoice(genesis, genesis, genesis));
 }
 
 fn reset_request() -> (EngineActorRequest, mpsc::Receiver<kona_engine::EngineRequestResult<()>>) {
@@ -286,7 +291,7 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
     let (reset, mut first_reset_result) = reset_request();
     requests.send(reset).await.unwrap();
     actor.step().await.unwrap();
-    expect_reset_to_genesis(&l2, &genesis_block, genesis);
+    expect_reset_to_genesis(&l1, &l2, &genesis_block, genesis);
     requests.send(target_kind.finalize_request(target)).await.unwrap();
     actor.step().await.unwrap();
     assert!(first_reset_result.try_recv().unwrap().is_ok());
@@ -313,7 +318,7 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
     assert_eq!(state_rx.borrow().sync_state.unsafe_head(), unsafe_head);
 
     // A second reset lowers the heads again, and the same target is requested again.
-    expect_reset_to_genesis(&l2, &genesis_block, genesis);
+    expect_reset_to_genesis(&l1, &l2, &genesis_block, genesis);
     requests.send(target_kind.finalize_request(target)).await.unwrap();
     actor.step().await.unwrap();
     assert!(second_reset_result.try_recv().unwrap().is_ok());

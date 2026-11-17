@@ -58,7 +58,6 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	op_e2e.InitParallel(t)
 
 	cfg := e2esys.EcotoneSystemConfig(t, new(hexutil.Uint64))
-	cfg.ActivateL1BlobForks()
 	cfg.DataAvailabilityType = daType
 	cfg.BatcherBatchType = derive.SpanBatchType
 	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7000))
@@ -250,8 +249,7 @@ func TestBatcherAutoDA(t *testing.T) {
 
 	// System setup
 	cfg := e2esys.HoloceneSystemConfig(t, new(hexutil.Uint64))
-	// Prague also gives the higher calldata cost that this test relies on.
-	cfg.ActivateL1BlobForks()
+	// The L1 runs Prague, whose higher calldata cost this test relies on.
 	cfg.DataAvailabilityType = batcherFlags.AutoType
 	// We set the genesis fee values and block gas limit such that calldata txs are initially cheaper,
 	// but then manipulate the fee markets over the coming L1 blocks such that blobs become cheaper again.

@@ -25,6 +25,13 @@ pub fn expect_l1_block(l1: &RpcMock, number: u64, replaced_from: u64) {
     l1.expect_params("eth_getBlockByNumber", json!([format!("{number:#x}"), false]), block);
 }
 
+/// Scripts the L1 node's answer for its head: block `number`.
+pub fn expect_l1_head(l1: &RpcMock, number: u64) {
+    let mut block = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+    block.header.inner.number = number;
+    l1.expect_params("eth_getBlockByNumber", json!(["latest", false]), block);
+}
+
 /// A real L2 chain from block 18 to block 26, so the unsafe walks can fetch and decode its
 /// blocks. Blocks 18 to 20 have L1 origins 99, 100 and 100, blocks 21 to 24 have L1 origins
 /// 101 to 104, and blocks 25 and 26 share L1 origin 105.

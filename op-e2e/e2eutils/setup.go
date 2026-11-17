@@ -366,6 +366,9 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	// Canyon and lower is activated by default
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-	// Activated by default, contracts depend on it
+	// The L1 forks up to Osaka are active by default, as on every public L1: the contracts depend
+	// on Cancun, and an L1 includes blob transactions with cell proofs only from Osaka on.
 	deployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
+	deployConfig.L1PragueTimeOffset = new(hexutil.Uint64)
+	deployConfig.L1OsakaTimeOffset = new(hexutil.Uint64)
 }

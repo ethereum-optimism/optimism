@@ -192,9 +192,6 @@ func (s *interopE2ESystem) startBatcherForL2(id string) {
 		daType = batcherFlags.BlobsType
 	}
 	txMgrConfig := setuputils.NewTxMgrConfig(s.l1.UserRPC(), &batcherSecret)
-	// NewTxMgrConfig pins blob proofs, and this L1 runs Osaka from genesis, so always send cell
-	// proofs. geth converts legacy sidecars on submission, but only for a transition period.
-	txMgrConfig.CellProofTime = 0
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 s.l1.UserRPC().RPC(),
 		L2EthRpc:                 []string{l2EL.UserRPC().RPC()},
