@@ -74,11 +74,11 @@ impl Records {
         Ok(records)
     }
 
-    /// Returns the contents of a bootstore file that holds these records, in format version 1, see
-    /// [`Contents::V1`], in node ID order.
+    /// Returns the contents of a bootstore file that holds these records, in format version
+    /// [`FILE_VERSION`], see [`Contents::V1`], in node ID order.
     fn to_json_vec(&self) -> Result<Vec<u8>, serde_json::Error> {
         let records: Vec<_> = self.entries.values().collect();
-        serde_json::to_vec(&serde_json::json!({"version": 1, "records": records}))
+        serde_json::to_vec(&serde_json::json!({"version": FILE_VERSION, "records": records}))
     }
 
     /// Adds `entry`, keeping one record for each node, the one with the highest `seq`:
@@ -113,7 +113,7 @@ impl Records {
     /// Removes and returns the record to evict to make room for a new one, by tier: a candidate,
     /// which only sessions confirmed, and a record gossip reached only once there is none.
     /// Anyone can start sessions, under fresh keys, so these alone shouldn't push out the peers
-    /// gossip reached.
+    /// gossip reached, unless the store holds nothing else.
     ///
     /// Of the candidates, the one whose UDP address a session confirmed longest ago goes first,
     /// those that no session confirmed before any. Of the reached records, the one gossip reached
@@ -149,8 +149,8 @@ pub struct BootStoreEntry {
     /// When a discovery session last confirmed the record's UDP address.
     #[serde(default, skip_serializing_if = "Option::is_none", with = "unix_secs")]
     udp_verified_at: Option<SystemTime>,
-    /// When a gossip connection we dialed last reached the record's TCP address, and the peer ID
-    /// of its key.
+    /// When a gossip connection we dialed last reached the record's TCP address, which
+    /// authenticated the peer ID of its key.
     #[serde(default, skip_serializing_if = "Option::is_none", with = "unix_secs")]
     tcp_verified_at: Option<SystemTime>,
     /// When the discovery session with the node at the record's UDP address started, if one did
@@ -170,8 +170,8 @@ impl BootStoreEntry {
         self.udp_verified_at
     }
 
-    /// Returns when a gossip connection we dialed last reached the record's TCP address, and the
-    /// peer ID of its key, if one did.
+    /// Returns when a gossip connection we dialed last reached the record's TCP address, which
+    /// authenticated the peer ID of its key, if one did.
     pub const fn tcp_verified_at(&self) -> Option<SystemTime> {
         self.tcp_verified_at
     }
