@@ -36,9 +36,14 @@ func testL2Genesis(t *testing.T, s forkstest.Schedule) *opgenesis.Genesis {
 // TestNewL2GenesisHashGoldenVectors pins the genesis block hash of NewL2Genesis, as
 // op-geth computes it, for a range of fork schedules.
 func TestNewL2GenesisHashGoldenVectors(t *testing.T) {
+	// Each hash is named after the last fork that changes the genesis block; the forks after it,
+	// up to the next name, give the same block.
 	const (
-		regolith = "0x6bfba05d9126f48e5eedc91b55a5833b3b3b3e61c9547289660a9d3794b81ed3"
+		bedrock  = "0x6bfba05d9126f48e5eedc91b55a5833b3b3b3e61c9547289660a9d3794b81ed3"
+		canyon   = "0x4674eeaa7212ca57660498a8702babe935e4fd604959581484ed9227e431886e"
 		ecotone  = "0x223e9633f540095a871e18094e74eec30e036fd36d9211ca7dd62b039624f6d0"
+		holocene = "0xeecb9038e10c9e3e5cfcd4683e795f9a2fd03dc116e6cf8bb86c0e4a10af5c0c"
+		isthmus  = "0x0143b340162366f67f6dd9021a44ceb2d8272292703beb02a2cb7047492f6331"
 		jovian   = "0x05e17369a50a85899838878005765ce64886dada9139349ad9360066ca8be908"
 	)
 	for _, tc := range []struct {
@@ -46,15 +51,15 @@ func TestNewL2GenesisHashGoldenVectors(t *testing.T) {
 		schedule forkstest.Schedule
 		hash     string
 	}{
-		{name: "staggered", schedule: forkstest.Staggered(), hash: regolith},
-		{name: "all after genesis", schedule: forkstest.StaticSchedule(2), hash: regolith},
-		{name: "through Regolith", schedule: forkstest.AtGenesisThrough(forks.Regolith), hash: regolith},
-		{name: "through Canyon", schedule: forkstest.AtGenesisThrough(forks.Canyon), hash: "0x4674eeaa7212ca57660498a8702babe935e4fd604959581484ed9227e431886e"},
+		{name: "staggered", schedule: forkstest.Staggered(), hash: bedrock},
+		{name: "all after genesis", schedule: forkstest.StaticSchedule(2), hash: bedrock},
+		{name: "through Regolith", schedule: forkstest.AtGenesisThrough(forks.Regolith), hash: bedrock},
+		{name: "through Canyon", schedule: forkstest.AtGenesisThrough(forks.Canyon), hash: canyon},
 		{name: "through Ecotone", schedule: forkstest.AtGenesisThrough(forks.Ecotone), hash: ecotone},
 		{name: "through Fjord", schedule: forkstest.AtGenesisThrough(forks.Fjord), hash: ecotone},
 		{name: "through Granite", schedule: forkstest.AtGenesisThrough(forks.Granite), hash: ecotone},
-		{name: "through Holocene", schedule: forkstest.AtGenesisThrough(forks.Holocene), hash: "0xeecb9038e10c9e3e5cfcd4683e795f9a2fd03dc116e6cf8bb86c0e4a10af5c0c"},
-		{name: "through Isthmus", schedule: forkstest.AtGenesisThrough(forks.Isthmus), hash: "0x0143b340162366f67f6dd9021a44ceb2d8272292703beb02a2cb7047492f6331"},
+		{name: "through Holocene", schedule: forkstest.AtGenesisThrough(forks.Holocene), hash: holocene},
+		{name: "through Isthmus", schedule: forkstest.AtGenesisThrough(forks.Isthmus), hash: isthmus},
 		{name: "through Jovian", schedule: forkstest.AtGenesisThrough(forks.Jovian), hash: jovian},
 		{name: "through Karst", schedule: forkstest.AtGenesisThrough(forks.Karst), hash: jovian},
 		{name: "through Lagoon", schedule: forkstest.AtGenesisThrough(forks.Lagoon), hash: jovian},
