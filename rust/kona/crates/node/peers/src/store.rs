@@ -36,10 +36,21 @@ const FILE_MODE: u32 = 0o666;
 /// The records a bootstore holds, one for each node, by node ID: the contents of its file, and
 /// nothing else.
 ///
-/// When a new node would make the records exceed `MAX_PEERS`, one is evicted to make room for it,
+/// When a new node would make the records exceed `max_peers`, one is evicted to make room for it,
 /// see [`Records::evict`].
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-struct Records(BTreeMap<[u8; 32], BootStoreEntry>);
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Records {
+    /// The records, by the bytes of their node IDs.
+    entries: BTreeMap<[u8; 32], BootStoreEntry>,
+    /// The most records there may be, [`MAX_PEERS`] by default.
+    max_peers: usize,
+}
+
+impl Default for Records {
+    fn default() -> Self {
+        Self { entries: BTreeMap::new(), max_peers: MAX_PEERS }
+    }
+}
 
 impl Records {
     /// Parses the contents of a bootstore file, keeping one record for each node, see
@@ -65,7 +76,7 @@ impl Records {
     /// Returns the contents of a bootstore file that holds these records, in format version 1, see
     /// [`Contents::V1`], in node ID order.
     fn to_json_vec(&self) -> Result<Vec<u8>, serde_json::Error> {
-        let records: Vec<_> = self.0.values().collect();
+        let records: Vec<_> = self.entries.values().collect();
         serde_json::to_vec(&serde_json::json!({"version": 1, "records": records}))
     }
 
@@ -78,7 +89,7 @@ impl Records {
     /// - A record with a lower `seq`, or another with the same `seq`, is ignored.
     fn add(&mut self, entry: BootStoreEntry) -> Added {
         let key = entry.key();
-        if let Some(stored) = self.0.get_mut(&key) {
+        if let Some(stored) = self.entries.get_mut(&key) {
             return match entry.enr.seq().cmp(&stored.enr.seq()) {
                 Ordering::Greater => {
                     let replacement = stored.replaced_by(entry);
@@ -93,8 +104,8 @@ impl Records {
                 Ordering::Equal | Ordering::Less => Added::Stale,
             };
         }
-        let evicted = if self.0.len() >= MAX_PEERS { self.evict() } else { None };
-        self.0.insert(key, entry);
+        let evicted = if self.entries.len() >= self.max_peers { self.evict() } else { None };
+        self.entries.insert(key, entry);
         Added::New { evicted }
     }
 
@@ -102,8 +113,8 @@ impl Records {
     /// address a session confirmed longest ago, those that no session confirmed first. Of those
     /// confirmed at the same time, the first in node ID order.
     fn evict(&mut self) -> Option<BootStoreEntry> {
-        let (&key, _) = self.0.iter().min_by_key(|(_, entry)| entry.udp_verified_at)?;
-        self.0.remove(&key)
+        let (&key, _) = self.entries.iter().min_by_key(|(_, entry)| entry.udp_verified_at)?;
+        self.entries.remove(&key)
     }
 }
 
@@ -332,6 +343,9 @@ pub struct BootStore {
     /// Whether the file differs from what a save would write: the records changed since they were
     /// last saved, or the file isn't as the store writes it, see [`Self::open`].
     dirty: bool,
+    /// How long the evidence for an address is kept before new evidence replaces it,
+    /// [`VERIFIED_REFRESH`] by default.
+    verified_refresh: Duration,
 }
 
 /// Where the bootstore file is.
@@ -389,7 +403,12 @@ fn temp_file(path: &Path) -> io::Result<NamedTempFile> {
 impl BootStore {
     /// Returns an empty store that keeps its records only in memory.
     pub fn in_memory() -> Self {
-        Self { path: None, records: Records::default(), dirty: false }
+        Self {
+            path: None,
+            records: Records::default(),
+            dirty: false,
+            verified_refresh: VERIFIED_REFRESH,
+        }
     }
 
     /// Opens the store saved at `path`. It only reads the file, so that others can read it while
@@ -415,7 +434,29 @@ impl BootStore {
             }
         })?;
         let dirty = records.to_json_vec().map_or(true, |saved| saved != json);
-        Ok(Self { path: Some(path), records, dirty })
+        Ok(Self { path: Some(path), records, dirty, verified_refresh: VERIFIED_REFRESH })
+    }
+
+    /// Sets the most records the store holds, 2048 by default, which should be at least one: a new
+    /// record always gets in. If it holds more, it evicts them, as it would to make room for new
+    /// ones, and the next [`Self::sync`] saves the file without them.
+    pub fn with_max_peers(mut self, max: usize) -> Self {
+        self.records.max_peers = max;
+        while self.records.entries.len() > max {
+            if self.records.evict().is_none() {
+                break;
+            }
+            self.dirty = true;
+        }
+        self
+    }
+
+    /// Sets how long the evidence for an address is kept before new evidence replaces it, five
+    /// minutes by default. Discovery and gossip repeat their evidence, and refreshing it each time
+    /// would make the store save at every store interval.
+    pub const fn with_verified_refresh(mut self, refresh: Duration) -> Self {
+        self.verified_refresh = refresh;
+        self
     }
 
     /// Adds `enr` without evidence, as a candidate. The store keeps one record for each node, the
@@ -432,15 +473,15 @@ impl BootStore {
     /// address of that family, nor for an unverifiable record. A session from another socket
     /// leaves the record's evidence as it is: it says nothing against the record's address.
     ///
-    /// Does nothing for a node the store doesn't hold, nor until the evidence it has is five
-    /// minutes old, as discovery repeats it. A newer time changes the file at the next
+    /// Does nothing for a node the store doesn't hold, nor until the evidence it has is as old as
+    /// [`Self::with_verified_refresh`] sets. A newer time changes the file at the next
     /// [`Self::sync`].
     pub fn set_udp_verified(&mut self, node_id: NodeId, socket: SocketAddr, at: SystemTime) {
-        let Some(entry) = self.records.0.get_mut(&node_id.raw()) else {
+        let Some(entry) = self.records.entries.get_mut(&node_id.raw()) else {
             return;
         };
         if holds_socket(udp_sockets(&entry.enr), socket) {
-            self.dirty |= refresh(&mut entry.udp_verified_at, at);
+            self.dirty |= refresh(&mut entry.udp_verified_at, at, self.verified_refresh);
         }
     }
 
@@ -449,15 +490,15 @@ impl BootStore {
     /// record, if the record's TCP address of the family of `addr` is `addr`. A connection to
     /// another address leaves the record's evidence as it is.
     ///
-    /// Does nothing for a node the store doesn't hold, nor until the evidence it has is five
-    /// minutes old, as gossip repeats it at every ping. A newer time changes the file at the next
+    /// Does nothing for a node the store doesn't hold, nor until the evidence it has is as old as
+    /// [`Self::with_verified_refresh`] sets. A newer time changes the file at the next
     /// [`Self::sync`].
     pub fn set_tcp_verified(&mut self, node_id: NodeId, addr: SocketAddr, at: SystemTime) {
-        let Some(entry) = self.records.0.get_mut(&node_id.raw()) else {
+        let Some(entry) = self.records.entries.get_mut(&node_id.raw()) else {
             return;
         };
         if holds_socket(tcp_sockets(&entry.enr), addr) {
-            self.dirty |= refresh(&mut entry.tcp_verified_at, at);
+            self.dirty |= refresh(&mut entry.tcp_verified_at, at, self.verified_refresh);
         }
     }
 
@@ -469,7 +510,7 @@ impl BootStore {
                 debug!(target: "bootstore", enr = %evicted.enr, "Bootstore full, evicted a record");
             }
             Added::Replaced { old } => {
-                if let Some(new) = self.records.0.get(&old.key()) {
+                if let Some(new) = self.records.entries.get(&old.key()) {
                     debug!(target: "bootstore", old = ?old.enr, new = ?new.enr, "Replaced a record with its node's newer one");
                 }
             }
@@ -480,12 +521,12 @@ impl BootStore {
 
     /// Returns the entry of the node `node_id`, if the store holds one.
     pub fn get(&self, node_id: NodeId) -> Option<&BootStoreEntry> {
-        self.records.0.get(&node_id.raw())
+        self.records.entries.get(&node_id.raw())
     }
 
     /// Returns the records, in node ID order.
     pub fn iter(&self) -> impl Iterator<Item = &Enr> {
-        self.records.0.values().map(|entry| &entry.enr)
+        self.records.entries.values().map(|entry| &entry.enr)
     }
 
     /// Returns the records of peers of the chain `chain_id`: those with an
@@ -497,20 +538,20 @@ impl BootStore {
 
     /// Returns the number of peers in the in-memory store.
     pub fn len(&self) -> usize {
-        self.records.0.len()
+        self.records.entries.len()
     }
 
     /// Returns if the in-memory store is empty.
     pub fn is_empty(&self) -> bool {
-        self.records.0.is_empty()
+        self.records.entries.is_empty()
     }
 
     /// Keeps only the records `keep` accepts, and returns how many it removed. The file changes at
     /// the next [`Self::sync`].
     pub fn retain(&mut self, mut keep: impl FnMut(&Enr) -> bool) -> usize {
-        let len = self.records.0.len();
-        self.records.0.retain(|_, entry| keep(&entry.enr));
-        let removed = len - self.records.0.len();
+        let len = self.records.entries.len();
+        self.records.entries.retain(|_, entry| keep(&entry.enr));
+        let removed = len - self.records.entries.len();
         self.dirty |= removed > 0;
         removed
     }
@@ -556,10 +597,10 @@ fn tcp_sockets(enr: &Enr) -> (Option<SocketAddrV4>, Option<SocketAddrV6>) {
     (enr.tcp4_socket(), enr.tcp6_socket())
 }
 
-/// Sets `evidence` to `at`, unless the time it holds is less than [`VERIFIED_REFRESH`] before
-/// `at`, or after it. Returns whether it changed.
-fn refresh(evidence: &mut Option<SystemTime>, at: SystemTime) -> bool {
-    if evidence.is_some_and(|last| last + VERIFIED_REFRESH > at) {
+/// Sets `evidence` to `at`, unless the time it holds is less than `delay` before `at`, or after
+/// it. Returns whether it changed.
+fn refresh(evidence: &mut Option<SystemTime>, at: SystemTime, delay: Duration) -> bool {
+    if evidence.is_some_and(|last| last + delay > at) {
         return false;
     }
     *evidence = Some(at);
@@ -745,7 +786,7 @@ mod tests {
             udp_verified_at: keeps_udp.then(|| at(1_000)),
             tcp_verified_at: keeps_tcp.then(|| at(2_000)),
         };
-        assert_eq!(records.0.values().collect::<Vec<_>>(), [&expected]);
+        assert_eq!(records.entries.values().collect::<Vec<_>>(), [&expected]);
     }
 
     /// A session's newer evidence is a change to save, and its older evidence isn't. Adding the
@@ -769,7 +810,7 @@ mod tests {
 
         store.set_udp_verified(enr.node_id(), socket, at(3_000));
         assert!(store.sync().unwrap(), "newer evidence wasn't a change");
-        let entries: Vec<_> = store.records.0.values().collect();
+        let entries: Vec<_> = store.records.entries.values().collect();
         assert_eq!(
             entries,
             [&BootStoreEntry {
@@ -811,7 +852,7 @@ mod tests {
             udp_verified_at: Some(at(if confirms { 2_000 } else { 1_000 })),
             ..BootStoreEntry::candidate(enr)
         };
-        assert_eq!(store.records.0.values().collect::<Vec<_>>(), [&expected]);
+        assert_eq!(store.records.entries.values().collect::<Vec<_>>(), [&expected]);
     }
 
     /// Evidence for a node the store doesn't hold, from a session or a gossip connection, adds
@@ -869,7 +910,7 @@ mod tests {
             tcp_verified_at: Some(at(if confirms { 2_000 } else { 1_000 })),
             ..BootStoreEntry::candidate(enr)
         };
-        assert_eq!(store.records.0.values().collect::<Vec<_>>(), [&expected]);
+        assert_eq!(store.records.entries.values().collect::<Vec<_>>(), [&expected]);
     }
 
     /// Discovery and gossip repeat their evidence, so the store takes it only once the evidence
@@ -905,6 +946,49 @@ mod tests {
         assert!(store.sync().unwrap(), "evidence at the refresh wasn't a change");
 
         assert_eq!(verified_at(store.get(enr.node_id()).unwrap()), Some(at(1_000 + refresh)));
+    }
+
+    /// A store given a lower limit than it holds evicts the records over it, as it would to make
+    /// room for new ones, and saves the file without them.
+    #[test]
+    fn test_lower_limit_evicts_the_records_over_it() {
+        let mut store = BootStore::in_memory();
+        let enrs = [enr_of_new_node(), enr_of_new_node(), enr_of_new_node()];
+        for (secs, enr) in [1_000, 2_000, 3_000].into_iter().zip(&enrs) {
+            store.add_enr(enr.clone());
+            store.set_udp_verified(
+                enr.node_id(),
+                SocketAddr::V4(enr.udp4_socket().unwrap()),
+                at(secs),
+            );
+        }
+        store.sync().unwrap();
+
+        let mut store = store.with_max_peers(2);
+
+        assert!(store.get(enrs[0].node_id()).is_none(), "the record confirmed longest ago stayed");
+        assert_eq!(store.len(), 2);
+        assert!(store.sync().unwrap(), "evicting records wasn't a change to save");
+
+        // A new record still gets in.
+        store.add_enr(enr_of_new_node());
+        assert_eq!(store.len(), 2);
+    }
+
+    /// A store with no refresh delay takes all newer evidence.
+    #[test]
+    fn test_no_refresh_delay_takes_all_newer_evidence() {
+        let enr = enr_of_new_node();
+        let addr = SocketAddr::V4(enr.tcp4_socket().unwrap());
+        let mut store = BootStore::in_memory().with_verified_refresh(Duration::ZERO);
+        store.add_enr(enr.clone());
+        store.set_tcp_verified(enr.node_id(), addr, at(1_000));
+        store.sync().unwrap();
+
+        store.set_tcp_verified(enr.node_id(), addr, at(1_001));
+
+        assert!(store.sync().unwrap(), "newer evidence wasn't a change");
+        assert_eq!(store.get(enr.node_id()).unwrap().tcp_verified_at(), Some(at(1_001)));
     }
 
     /// A full store evicts the record whose UDP address a session confirmed longest ago, the
@@ -1031,7 +1115,7 @@ mod tests {
 
         let mut store = BootStore::open(path.clone()).unwrap();
 
-        let entries: Vec<_> = store.records.0.values().collect();
+        let entries: Vec<_> = store.records.entries.values().collect();
         assert_eq!(entries, [&BootStoreEntry::candidate(listed.clone())]);
         assert!(store.sync().unwrap(), "a file in an earlier format wasn't a change to save");
         let saved: serde_json::Value =
@@ -1261,7 +1345,7 @@ mod tests {
                     let json = std::fs::read(&path).unwrap();
                     let whole = matches!(
                         Records::parse_json_slice(&json),
-                        Ok(records) if records.0.len() >= RECORDS
+                        Ok(records) if records.entries.len() >= RECORDS
                     );
                     if !whole {
                         return true;
