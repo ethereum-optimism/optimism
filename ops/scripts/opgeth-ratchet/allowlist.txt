@@ -22,10 +22,10 @@ op-acceptance-tests/tests (tests) | missing go-ethereum/params.BlobScheduleConfi
 op-acceptance-tests/tests (tests) | missing go-ethereum/params.BlobScheduleConfig.Osaka | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
 op-acceptance-tests/tests (tests) | missing go-ethereum/params.DefaultOsakaBlobConfig | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
 op-batcher/batcher | changed signature of go-ethereum/core.FloorDataGas | #20266 cutover edit: core.FloorDataGas(rules, from, to, value, data, accessList); revisit maxFloorDataGas (opgeth-decoupling.md §15)
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.CanyonTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.LagoonTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.Optimism | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.OptimismConfig | #20266 op-core transition code, removed at the cutover
+op-core/params (tests) | missing go-ethereum/params.ChainConfig.CanyonTime | #20266 cutover edit: TestChainConfigJSONDirectFieldsDominate sets OP fields on go-ethereum's config; keep its ChainID check
+op-core/params (tests) | missing go-ethereum/params.ChainConfig.LagoonTime | #20266 cutover edit: TestChainConfigJSONDirectFieldsDominate sets OP fields on go-ethereum's config; keep its ChainID check
+op-core/params (tests) | missing go-ethereum/params.ChainConfig.Optimism | #20266 cutover edit: TestChainConfigJSONDirectFieldsDominate sets OP fields on go-ethereum's config; keep its ChainID check
+op-core/params (tests) | missing go-ethereum/params.OptimismConfig | #20266 cutover edit: TestChainConfigJSONDirectFieldsDominate sets OP fields on go-ethereum's config; keep its ChainID check
 op-deployer/pkg/deployer/integration_test/cli | missing go-ethereum/params.BlobScheduleConfig.Osaka | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
 op-devstack/sysgo | missing go-ethereum/params.BlobScheduleConfig.Amsterdam | #20266 cutover edit: upstream forks carry no blob schedule of their own; schedule Amsterdam's blob parameters as a BPO fork
 op-devstack/sysgo | missing go-ethereum/params.BlobScheduleConfig.Osaka | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)

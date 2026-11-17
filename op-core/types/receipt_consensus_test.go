@@ -90,10 +90,9 @@ func TestReceiptsEncodeIndexDepositArms(t *testing.T) {
 	require.NotEqual(t, preCanyon, postCanyon, "post-Canyon deposit receipt hash preimage must include nonce+version")
 }
 
-// TestReceiptBinaryRoundTrip pins, op-geth-independently, that the wrapper's
-// binary codec round-trips — in particular that a deposit receipt built only
-// through this package's own decoder re-encodes identically (P2 of the #21907
-// review: the encoder must read the outer deposit fields).
+// TestReceiptBinaryRoundTrip pins that the wrapper's binary codec round-trips.
+// That the encoding carries the outer deposit fields is pinned by
+// TestReceiptGoldenVectors.
 func TestReceiptBinaryRoundTrip(t *testing.T) {
 	for i, want := range consensusReceiptCases() {
 		raw, err := want.MarshalBinary()

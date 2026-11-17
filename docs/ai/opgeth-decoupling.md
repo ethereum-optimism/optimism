@@ -77,8 +77,9 @@ All op-geth-specific code lives in `op-core/` packages (alongside the pre-existi
 ### Design principles (apply to all future op-core additions)
 
 - **Monorepo-best, not op-geth-faithful.** Names and shapes diverge freely; only *computed
-  values* and *wire formats* must match. Equivalence is pinned by **golden vectors**: the values
-  op-geth computes, asserted as literals rather than by running op-geth.
+  values* and *wire formats* must match. Equivalence is pinned by **golden vectors**: literal
+  values from the reference implementation, op-geth for the types it implemented and op-reth
+  and op-alloy otherwise, asserted without running that implementation.
 - **Naming**: inside `op-core/` the `Optimism`/`OPStack` prefix is dropped (redundant), with two
   deliberate exceptions: `OptimismConfig` (pairs with the JSON-wire-load-bearing
   `ChainConfig.Optimism` field name) and the `{Validate,Decode,Encode}OptimismExtraData` helpers
@@ -107,8 +108,10 @@ the other rejects is a consensus split — and agreeing with op-geth establishes
   `rust/op-alloy/crates/consensus/src/post_exec/tests.rs` pin the post-exec (`0x7D`) tx hash this
   way. Reference-implementation fixtures are not a substitute: they only cover values that
   implementation can produce.
-- **The vectors are the tie.** No test compares the Go types with another implementation at
-  runtime; the cross-implementation vectors are what ties them to op-reth and kona.
+- **The vectors are the tie.** The only test that compares the Go types with another
+  implementation at runtime is the Go/Rust interop-deposits diff
+  (`ops/scripts/test-interop-deposits-diff.sh`); otherwise the cross-implementation vectors are
+  what ties them to op-reth and kona.
 
 For batcher-controlled bytes (batches, frames, channels) the second implementation is kona's own
 decoder rather than op-alloy's types, and the rule takes a different shape — accept-sets compared

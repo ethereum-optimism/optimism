@@ -34,6 +34,12 @@ func TestPayloadID(t *testing.T) {
 	require.Equal(t, id, computePayloadID(parent, attributes(), engine.PayloadV3))
 	require.Equal(t, byte(engine.PayloadV3), id[0])
 
+	// Attributes without any optional field, as before Canyon. Nil withdrawals hash like an
+	// empty list.
+	bare := computePayloadID(parent, &eth.PayloadAttributes{}, engine.PayloadV1)
+	require.NotEqual(t, id, bare)
+	require.Equal(t, bare, computePayloadID(parent, &eth.PayloadAttributes{Withdrawals: &types.Withdrawals{}}, engine.PayloadV1))
+
 	require.NotEqual(t, id, computePayloadID(common.HexToHash("0x05"), attributes(), engine.PayloadV3), "parent")
 	require.NotEqual(t, id, computePayloadID(parent, attributes(), engine.PayloadV2), "version")
 	for name, edit := range map[string]func(*eth.PayloadAttributes){
