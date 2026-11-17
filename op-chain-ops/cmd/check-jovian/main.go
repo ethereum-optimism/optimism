@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -111,7 +112,9 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to dial L2 RPC: %w", err)
 		}
-		l2Source, err := sources.NewEthClient(client.NewBaseRPCClient(l2Cl.Client()), logger, nil, sources.DefaultEthClientConfig(10))
+		// A full block can take longer than the default 10s call timeout on a slow remote RPC.
+		l2RPC := client.NewBaseRPCClient(l2Cl.Client(), client.WithCallTimeout(time.Minute))
+		l2Source, err := sources.NewEthClient(l2RPC, logger, nil, sources.DefaultEthClientConfig(10))
 		if err != nil {
 			return fmt.Errorf("failed to create L2 source client: %w", err)
 		}
