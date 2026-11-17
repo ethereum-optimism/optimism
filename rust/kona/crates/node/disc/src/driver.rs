@@ -461,7 +461,7 @@ impl Discv5Driver {
             }
 
             // Step 5: Seed the discovery table with saved records, besides the bootnodes.
-            seed_table(&store, chain_id, &self.disc);
+            seed_table(&store, chain_id, &self.disc, SystemTime::now());
 
             let enrs = self.disc.table_entries_enr();
             info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
@@ -604,7 +604,7 @@ impl Discv5Driver {
                             Err(e) => warn!(target: "discovery", "Failed to sync bootstore: {:?}", e),
                         }
                         if self.forward {
-                            forward_saved(&store, chain_id, &enr_sender);
+                            forward_saved(&store, chain_id, &enr_sender, now);
                         }
                         metrics::gauge!(crate::Metrics::DISCOVERY_PEER_COUNT).set(self.disc.connected_peers() as f64);
                     }
@@ -740,10 +740,10 @@ fn refresh_connected(store: &mut BootStore, table: &[(NodeId, Enr, NodeStatus)],
 /// Skips the records already in the table, the bootnodes, and those without a UDP address that
 /// discovery can contact, which discv5 refuses with a WARN. Counts only the records the table
 /// takes: a full bucket refuses the rest.
-fn seed_table(store: &BootStore, chain_id: u64, disc: &Discv5) {
+fn seed_table(store: &BootStore, chain_id: u64, disc: &Discv5, now: SystemTime) {
     let ip_mode = disc.ip_mode();
     let mut seeded = 0;
-    for enr in seed_order(store, chain_id) {
+    for enr in seed_order(store, chain_id, now) {
         if seeded == SEED_COUNT {
             break;
         }
@@ -777,13 +777,13 @@ fn seed_table(store: &BootStore, chain_id: u64, disc: &Discv5) {
 /// first, as geth seeds random nodes from its node database. A connection keeps its record's
 /// evidence fresh, so the most recent records are the peers the node was connected to when it
 /// stopped: if those were all an attacker's, seeding them first would eclipse the node again.
-fn seed_order(store: &BootStore, chain_id: u64) -> Vec<&Enr> {
+fn seed_order(store: &BootStore, chain_id: u64, now: SystemTime) -> Vec<&Enr> {
     let mut entries: Vec<_> = store.valid_peers_with_chain_id(chain_id).collect();
     let cutoff = entries
         .iter()
         .filter_map(|entry| entry.tcp_verified_at())
         .max()
-        .map(|newest| newest.min(SystemTime::now()))
+        .map(|newest| newest.min(now))
         .and_then(|newest| newest.checked_sub(SEED_MAX_AGE));
     let reached_recently = |entry: &BootStoreEntry| {
         entry.tcp_verified_at().is_some_and(|at| cutoff.is_none_or(|cutoff| at >= cutoff))
@@ -815,8 +815,7 @@ fn seed_order(store: &BootStore, chain_id: u64) -> Vec<&Enr> {
 /// Doesn't wait for room in the channel, which would pile up tasks waiting to send: it hands over
 /// only as many as [`room_for_saved`] allows, and the rest at a later store interval. They are
 /// handed over in a random order, so that each interval gets a different part of them through.
-fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>) {
-    let now = SystemTime::now();
+fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>, now: SystemTime) {
     let reached_lately = |entry: &BootStoreEntry| {
         // A time after now is an error, and counts as lately.
         entry

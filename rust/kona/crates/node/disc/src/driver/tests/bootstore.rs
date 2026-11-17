@@ -50,7 +50,7 @@ fn test_saved_records_take_turns_in_a_full_channel() {
 
     let mut handed_over = Vec::new();
     for _ in 0..50 {
-        forward_saved(&store, TEST_CHAIN_ID, &sender);
+        forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now());
         let record = receiver.try_recv().expect("the driver hands over a record");
         assert!(receiver.try_recv().is_err(), "the channel holds only one");
         if !handed_over.contains(&record) {
@@ -72,7 +72,7 @@ fn test_candidates_are_not_handed_over() {
     let store = store_with_tiers(std::slice::from_ref(&reached), &[candidate]);
     let (sender, mut receiver) = mpsc::channel(8);
 
-    forward_saved(&store, TEST_CHAIN_ID, &sender);
+    forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now());
 
     let mut handed_over = Vec::new();
     while let Ok(record) = receiver.try_recv() {
@@ -90,10 +90,10 @@ fn test_candidates_are_not_handed_over() {
 fn test_records_lost_a_day_ago_are_not_handed_over() {
     let lost = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let mut store = store_with_tiers(&[], std::slice::from_ref(&lost));
-    reach(&mut store, &lost, SystemTime::now() - REDIAL_MAX_AGE - Duration::from_secs(60 * 60));
+    reach(&mut store, &lost, fixed_now() - REDIAL_MAX_AGE - Duration::from_secs(60 * 60));
     let (sender, mut receiver) = mpsc::channel(8);
 
-    forward_saved(&store, TEST_CHAIN_ID, &sender);
+    forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now());
 
     assert!(receiver.try_recv().is_err(), "the driver handed over a peer lost a day ago");
 }
@@ -110,7 +110,7 @@ fn test_saved_records_leave_room_for_session_records() {
     let store = store_with_tiers(&saved, &[]);
     let (sender, _receiver) = mpsc::channel(4);
 
-    forward_saved(&store, TEST_CHAIN_ID, &sender);
+    forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now());
 
     let free = sender.capacity();
     assert_eq!(free, 2, "the saved records left {free} of 4 places in the channel free");
@@ -244,14 +244,20 @@ async fn test_seeds_are_limited() {
     assert!(table.len() <= SEED_COUNT, "{} saved records seeded the table", table.len());
 }
 
-/// A store with `reached` records that gossip reached, and `candidates` without that evidence.
+/// The time the tests of the driver's functions pass them as now, rather than read the clock.
+fn fixed_now() -> SystemTime {
+    SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000)
+}
+
+/// A store with `reached` records that gossip reached at [`fixed_now`], and `candidates` without
+/// that evidence.
 fn store_with_tiers(reached: &[Enr], candidates: &[Enr]) -> BootStore {
     let mut store = BootStore::in_memory();
     for record in reached.iter().chain(candidates) {
         store.add_enr(record.clone());
     }
     for record in reached {
-        reach(&mut store, record, SystemTime::now());
+        reach(&mut store, record, fixed_now());
     }
     store
 }
@@ -265,7 +271,7 @@ fn test_reached_records_seed_before_candidates() {
     let candidates: Vec<_> = (0..3).map(|_| enr_at_localhost(TEST_CHAIN_ID)).collect();
     let store = store_with_tiers(&reached, &candidates);
 
-    let order = seed_order(&store, TEST_CHAIN_ID);
+    let order = seed_order(&store, TEST_CHAIN_ID, fixed_now());
     assert_eq!(order.len(), reached.len() + candidates.len());
     let (first, rest) = order.split_at(reached.len());
     assert!(first.iter().all(|enr| reached.contains(enr)), "a candidate seeded before a peer");
@@ -285,7 +291,7 @@ fn test_seeds_are_drawn_at_random() {
 
     let mut first = Vec::new();
     for _ in 0..50 {
-        let seed = seed_order(&store, TEST_CHAIN_ID)[0].clone();
+        let seed = seed_order(&store, TEST_CHAIN_ID, fixed_now())[0].clone();
         if !first.contains(&seed) {
             first.push(seed);
         }
@@ -305,7 +311,7 @@ fn test_seeds_are_drawn_at_random() {
 #[case::running(Duration::ZERO)]
 #[case::after_downtime(Duration::from_secs(30 * 24 * 60 * 60))]
 fn test_records_reached_long_ago_seed_with_candidates(#[case] downtime: Duration) {
-    let stopped = SystemTime::now() - downtime;
+    let stopped = fixed_now() - downtime;
     let recent = enr_at_localhost(TEST_CHAIN_ID);
     let old = enr_at_localhost(TEST_CHAIN_ID);
     let candidate = enr_at_localhost(TEST_CHAIN_ID);
@@ -315,7 +321,7 @@ fn test_records_reached_long_ago_seed_with_candidates(#[case] downtime: Duration
 
     let mut candidate_before_old = false;
     for _ in 0..50 {
-        let order = seed_order(&store, TEST_CHAIN_ID);
+        let order = seed_order(&store, TEST_CHAIN_ID, fixed_now());
         assert_eq!(order[0], &recent, "a record reached long ago seeded before a recent one");
         candidate_before_old |= order[1] == &candidate;
     }
@@ -327,7 +333,7 @@ fn test_records_reached_long_ago_seed_with_candidates(#[case] downtime: Duration
 /// one only up to now.
 #[test]
 fn test_a_record_dated_after_now_doesnt_age_the_others() {
-    let now = SystemTime::now();
+    let now = fixed_now();
     let ahead = enr_at_localhost(TEST_CHAIN_ID);
     let recent = enr_at_localhost(TEST_CHAIN_ID);
     let candidate = enr_at_localhost(TEST_CHAIN_ID);
@@ -336,7 +342,7 @@ fn test_a_record_dated_after_now_doesnt_age_the_others() {
     reach(&mut store, &recent, now - Duration::from_secs(60 * 60));
 
     for _ in 0..50 {
-        let order = seed_order(&store, TEST_CHAIN_ID);
+        let order = seed_order(&store, TEST_CHAIN_ID, fixed_now());
         assert_eq!(order[2], &candidate, "a record dated after now aged one reached since");
     }
 }
