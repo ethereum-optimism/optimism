@@ -45,6 +45,11 @@ const SEED_COUNT: usize = 30;
 /// still seeds it (`seedMaxAge`).
 const SEED_MAX_AGE: Duration = Duration::from_secs(5 * 24 * 60 * 60);
 
+/// How long ago gossip may have last reached a saved record for discovery to hand it over again
+/// every store interval, see [`forward_saved`]: as long as op-node keeps a discovered address
+/// (`discoveredAddrTTL`).
+const REDIAL_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
+
 /// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
 #[derive(Debug, PartialEq, Eq)]
 struct RecordToDial {
@@ -91,8 +96,8 @@ pub struct Discv5Driver {
     pub(crate) table_filter: fn(&Enr) -> bool,
     /// The interval to discovery random nodes.
     pub interval: Duration,
-    /// Whether to hand the saved records to the enr receiver, at startup and then every
-    /// `store_interval`, so that gossip redials the peers it lost.
+    /// Whether to hand the saved records of the peers gossip reached lately to the enr receiver,
+    /// at startup and then every `store_interval`, so that gossip redials the peers it lost.
     pub forward: bool,
     /// The interval at which to store the ENRs in the bootstore.
     /// This is set to 60 seconds by default.
@@ -301,8 +306,9 @@ impl Discv5Driver {
     ///
     /// Returns a [`Discv5Handler`] to communicate with the spawned task, and a receiver of the
     /// records for gossip to dial: those of the peers discovery has a session with, at the address
-    /// the session came from, and the saved records, at startup and again every store interval, so
-    /// that gossip redials the peers it lost. It doesn't yield the results of lookups.
+    /// the session came from, and the saved records of the peers gossip reached lately, at startup
+    /// and again every store interval, so that gossip redials the peers it lost. It doesn't yield
+    /// the results of lookups.
     ///
     /// The task is detached and stops when:
     /// - startup fails: [`Discv5`] does not start after `START_MAX_RETRIES` retries with
@@ -379,8 +385,8 @@ impl Discv5Driver {
             let mut removal_interval = tokio::time::interval(remove_dur);
             let mut interval = tokio::time::interval(self.interval);
             // Its first tick is due at once, which the loop gets on its first poll, after startup:
-            // it then saves the bootstore and hands its records to gossip, and does so again every
-            // store interval.
+            // it then saves the bootstore and hands gossip the peers it lost, and does so again
+            // every store interval.
             let mut store_interval = tokio::time::interval(self.store_interval);
 
             // Step 1: Start the discovery service.
@@ -743,24 +749,39 @@ fn seed_order(store: &BootStore, chain_id: u64) -> Vec<&Enr> {
     entries.into_iter().map(|entry| entry.enr()).collect()
 }
 
-/// Hands gossip the saved records, the bootnodes and the records a session confirmed. Gossip dials
-/// those it isn't connected to. It redials a peer only when discovery hands it over again, and
-/// discovery reports a session only when it starts, which discv5 keeps going for as long as it
-/// pings the node.
+/// Hands gossip the saved records of the peers it reached within [`REDIAL_MAX_AGE`] of now, so
+/// that it redials the peers it lost. Gossip dials those it isn't connected to. It redials a peer
+/// only when discovery hands it over again, and discovery reports a session only when it starts,
+/// which discv5 keeps going for as long as it pings the node.
 ///
-/// Hands over only the records with a TCP address, which gossip dials, as for the records of
-/// sessions. The bootstore may hold others: an earlier version saved records from discovery's
-/// table, a discovery-only bootnode has only a UDP address, and a hand-edited file may hold
-/// anything. Gossip would fail to dial them, and count the failure, at every store interval.
+/// Not the candidates, which only sessions confirmed: anyone can start sessions under fresh keys,
+/// and gossip would redial a flood's candidates at every store interval. A candidate, a bootnode
+/// among them, is dialed when its session starts, and after a restart the saved candidates seed
+/// the table, see [`seed_table`], which leads to new sessions. Nor the peers gossip lost longer
+/// ago: a connection keeps its record's evidence fresh, so a lost peer's evidence dates from about
+/// when gossip lost it, and redialing it every minute after that long only fails. The age counts
+/// from now, unlike the seeds': after a restart, the saved records seed the table instead. A
+/// record dated after now, by a clock that ran ahead, counts as reached lately.
+///
+/// Every record gossip reached has a TCP address, the one it reached: the store confirms only a
+/// record's own address, and a newer record keeps that evidence only if its TCP address is the
+/// same.
 ///
 /// Doesn't wait for room in the channel, which would pile up tasks waiting to send: it hands over
 /// only as many as [`room_for_saved`] allows, and the rest at a later store interval. They are
 /// handed over in a random order, so that each interval gets a different part of them through.
 fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>) {
+    let now = SystemTime::now();
+    let reached_lately = |entry: &BootStoreEntry| {
+        // A time after now is an error, and counts as lately.
+        entry
+            .tcp_verified_at()
+            .is_some_and(|at| !now.duration_since(at).is_ok_and(|age| age > REDIAL_MAX_AGE))
+    };
     let mut enrs: Vec<_> = store
         .valid_peers_with_chain_id(chain_id)
+        .filter(|entry| reached_lately(entry))
         .map(BootStoreEntry::enr)
-        .filter(|enr| kona_peers::enr_tcp_socket(enr).is_some())
         .collect();
     enrs.shuffle(&mut rand::rng());
     let room = room_for_saved(sender);

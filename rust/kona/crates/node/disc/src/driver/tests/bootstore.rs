@@ -6,7 +6,7 @@ use super::*;
 /// with the records other nodes relay to it, so it should leave out a loopback record in its
 /// bootstore. Such a record may have been saved by a version that didn't check the records it
 /// dials, or while the node ran on loopback, and nothing says the node it names is on this
-/// host.
+/// host. Gossip reached both records, so only the filter can leave the loopback one out.
 ///
 /// At startup, the driver hands the bootstore's records to gossip all at once, without waiting
 /// in between, and this node has no bootnodes or peers to find others through. On this
@@ -17,7 +17,10 @@ use super::*;
 async fn test_public_node_leaves_out_saved_loopback_record() {
     let loopback = enr_at_localhost(TEST_CHAIN_ID);
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
-    let (driver, _dir) = public_driver_with_bootstore(&[loopback, public.clone()]);
+    let (mut driver, _dir) = public_driver_with_bootstore(&[loopback.clone(), public.clone()]);
+    for record in [&loopback, &public] {
+        reach(&mut driver.bootstore, record, SystemTime::now());
+    }
     let (_handler, mut records) = driver.start();
 
     let first = tokio::time::timeout(Duration::from_secs(5), records.recv())
@@ -39,13 +42,10 @@ async fn test_public_node_leaves_out_saved_loopback_record() {
 /// `3 * (2/3)^50`, about 5 in a billion.
 #[test]
 fn test_saved_records_take_turns_in_a_full_channel() {
-    let mut store = BootStore::in_memory();
     let saved: Vec<Enr> = (1..=3)
         .map(|host| enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, host)), TEST_CHAIN_ID))
         .collect();
-    for record in &saved {
-        store.add_enr(record.clone());
-    }
+    let store = store_with_tiers(&saved, &[]);
     let (sender, mut receiver) = mpsc::channel(1);
 
     let mut handed_over = Vec::new();
@@ -58,34 +58,6 @@ fn test_saved_records_take_turns_in_a_full_channel() {
         }
     }
     assert_eq!(handed_over.len(), saved.len(), "a saved record never got through");
-}
-
-/// Gossip dials a saved record at its TCP address, so the driver should hand over only the saved
-/// records that have one, as it does with the records of sessions. Otherwise gossip fails to dial
-/// one without, and counts the failure, at every store interval. The bootstore may hold such
-/// records: an earlier version saved records from discovery's table, a discovery-only bootnode
-/// has only a UDP address, and a hand-edited file may hold anything.
-#[test]
-fn test_saved_records_without_a_tcp_address_are_not_handed_over() {
-    let dialable = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
-    // Ports, without an IP, as a node's own record before its peers' votes give it one.
-    let without_ip = enr_at(IpAddr::V4(Ipv4Addr::UNSPECIFIED), TEST_CHAIN_ID);
-    let udp_only = crate::test_utils::enr_with(TEST_CHAIN_ID, |record| {
-        record.ip4(Ipv4Addr::new(1, 1, 1, 2)).udp4(9222);
-    });
-    let mut store = BootStore::in_memory();
-    for record in [&dialable, &without_ip, &udp_only] {
-        store.add_enr(record.clone());
-    }
-    let (sender, mut receiver) = mpsc::channel(8);
-
-    forward_saved(&store, TEST_CHAIN_ID, &sender);
-
-    let mut handed_over = Vec::new();
-    while let Ok(record) = receiver.try_recv() {
-        handed_over.push(record);
-    }
-    assert_eq!(handed_over, [dialable], "the driver handed over a record gossip can't dial");
 }
 
 /// The saved records handed over again every store interval should be only those gossip reached
@@ -118,7 +90,7 @@ fn test_candidates_are_not_handed_over() {
 fn test_records_lost_a_day_ago_are_not_handed_over() {
     let lost = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let mut store = store_with_tiers(&[], std::slice::from_ref(&lost));
-    reach(&mut store, &lost, SystemTime::now() - Duration::from_secs(25 * 60 * 60));
+    reach(&mut store, &lost, SystemTime::now() - REDIAL_MAX_AGE - Duration::from_secs(60 * 60));
     let (sender, mut receiver) = mpsc::channel(8);
 
     forward_saved(&store, TEST_CHAIN_ID, &sender);
@@ -132,10 +104,10 @@ fn test_records_lost_a_day_ago_are_not_handed_over() {
 /// that arrive until gossip catches up.
 #[test]
 fn test_saved_records_leave_room_for_session_records() {
-    let mut store = BootStore::in_memory();
-    for host in 1..=4 {
-        store.add_enr(enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, host)), TEST_CHAIN_ID));
-    }
+    let saved: Vec<Enr> = (1..=4)
+        .map(|host| enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, host)), TEST_CHAIN_ID))
+        .collect();
+    let store = store_with_tiers(&saved, &[]);
     let (sender, _receiver) = mpsc::channel(4);
 
     forward_saved(&store, TEST_CHAIN_ID, &sender);
@@ -151,6 +123,7 @@ fn test_saved_records_leave_room_for_session_records() {
 async fn test_saved_records_are_handed_over_again() {
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let (mut driver, _dir) = public_driver_with_bootstore(std::slice::from_ref(&public));
+    reach(&mut driver.bootstore, &public, SystemTime::now());
     driver.store_interval = Duration::from_millis(100);
     let (_handler, mut records) = driver.start();
 
@@ -281,13 +254,6 @@ fn store_with_tiers(reached: &[Enr], candidates: &[Enr]) -> BootStore {
         reach(&mut store, record, SystemTime::now());
     }
     store
-}
-
-/// Notes in `store` that gossip reached the node of `record`, which it holds, at its TCP address
-/// at `at`.
-fn reach(store: &mut BootStore, record: &Enr, at: SystemTime) {
-    let addr = kona_peers::enr_tcp_socket(record).expect("the record has a TCP address");
-    store.set_tcp_verified(record.node_id(), addr, at);
 }
 
 /// The records gossip reached should seed the table before the candidates: anyone can start

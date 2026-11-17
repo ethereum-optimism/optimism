@@ -75,6 +75,13 @@ fn driver_with_bootstore(
     (driver, dir)
 }
 
+/// Notes in `store` that gossip reached the node of `record`, which it holds, at its TCP address
+/// at `at`.
+fn reach(store: &mut BootStore, record: &Enr, at: SystemTime) {
+    let addr = kona_peers::enr_tcp_socket(record).expect("the record has a TCP address");
+    store.set_tcp_verified(record.node_id(), addr, at);
+}
+
 /// Reads the bootstore at `path` until `done` holds for the records it holds, and returns those,
 /// or `None` after 5s. A missing file holds no records.
 async fn wait_for_bootstore(
