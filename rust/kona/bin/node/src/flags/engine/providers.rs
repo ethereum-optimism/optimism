@@ -14,7 +14,8 @@ pub struct L1ClientArgs {
     #[arg(long, visible_alias = "l1", env = "KONA_NODE_L1_ETH_RPC")]
     pub l1_eth_rpc: Url,
     /// Whether to trust the L1 RPC.
-    /// If false, block hash verification is performed for all retrieved blocks.
+    /// If false, headers are checked against their block hashes, transactions and receipts
+    /// against their header's roots, and storage reads with `eth_getProof` proofs.
     #[arg(
         long,
         visible_alias = "l1.trust-rpc",

@@ -4,7 +4,6 @@
 use crate::Metrics;
 use alloy_consensus::{Header, Receipt, TxEnvelope};
 use alloy_primitives::B256;
-use kona_protocol::BlockInfo;
 use lru::LruCache;
 use std::{
     num::NonZeroUsize,
@@ -52,9 +51,6 @@ impl<V> HashCache<V> {
     }
 }
 
-/// A block's [`BlockInfo`] and transactions.
-type BlockInfoAndTransactions = (BlockInfo, Vec<TxEnvelope>);
-
 /// Responses cached by block hash.
 ///
 /// Every entry was fetched under the same trust setting, so sharing never mixes verified and
@@ -67,8 +63,8 @@ pub(super) struct Cache {
     headers: Mutex<HashCache<Header>>,
     /// Block receipts.
     receipts: Mutex<HashCache<Arc<Vec<Receipt>>>>,
-    /// Block info and transactions.
-    block_info_and_transactions: Mutex<HashCache<Arc<BlockInfoAndTransactions>>>,
+    /// Block transactions.
+    transactions: Mutex<HashCache<Arc<Vec<TxEnvelope>>>>,
 }
 
 /// Locks a cache. A panic while holding the lock cannot leave an LRU cache inconsistent, so a
@@ -83,10 +79,7 @@ impl Cache {
         Self {
             headers: Mutex::new(HashCache::new(size, "headers")),
             receipts: Mutex::new(HashCache::new(size, "receipts")),
-            block_info_and_transactions: Mutex::new(HashCache::new(
-                size,
-                "block_info_and_transactions",
-            )),
+            transactions: Mutex::new(HashCache::new(size, "transactions")),
         }
     }
 
@@ -112,23 +105,15 @@ impl Cache {
         lock(&self.receipts).put(hash, Arc::new(receipts));
     }
 
-    /// Returns the cached [`BlockInfo`] and transactions of the block with the given hash.
-    pub(super) fn block_info_and_transactions(
-        &self,
-        hash: B256,
-    ) -> Option<BlockInfoAndTransactions> {
+    /// Returns the cached transactions of the block with the given hash.
+    pub(super) fn transactions(&self, hash: B256) -> Option<Vec<TxEnvelope>> {
         // The guard drops at the end of this statement, so the copy below runs unlocked.
-        let entry = lock(&self.block_info_and_transactions).get(hash).cloned();
-        entry.as_deref().cloned()
+        let transactions = lock(&self.transactions).get(hash).cloned();
+        transactions.as_deref().cloned()
     }
 
-    /// Caches the [`BlockInfo`] and transactions of the block with the given hash.
-    pub(super) fn insert_block_info_and_transactions(
-        &self,
-        hash: B256,
-        block_info: BlockInfo,
-        transactions: Vec<TxEnvelope>,
-    ) {
-        lock(&self.block_info_and_transactions).put(hash, Arc::new((block_info, transactions)));
+    /// Caches the transactions of the block with the given hash.
+    pub(super) fn insert_transactions(&self, hash: B256, transactions: Vec<TxEnvelope>) {
+        lock(&self.transactions).put(hash, Arc::new(transactions));
     }
 }

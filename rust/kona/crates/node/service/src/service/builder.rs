@@ -29,7 +29,7 @@ pub struct L1ConfigBuilder {
     /// The node's L1 client, shared by every component that reads L1.
     ///
     /// Its transport must give each request a deadline: the components that read L1 do not bound
-    /// their own reads.
+    /// their own reads. kona-node wraps its transport with [`kona_engine::with_deadline`].
     pub provider: AlloyChainProvider,
     /// The L1 beacon API.
     pub beacon: Url,
