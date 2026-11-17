@@ -9,16 +9,13 @@ use crate::{
 };
 use alloy_rpc_types_engine::JwtSecret;
 use anyhow::{Context as _, Result, bail};
-use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
-use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use kona_registry::{DEPENDENCY_SETS, L1Config, scr_rollup_config_by_alloy_ident};
 use kona_safedb::{SafeDatabase, SafeDb};
-use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
 use std::{
     fs::File,
@@ -28,15 +25,6 @@ use std::{
 };
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
-
-/// A JWT token validation error.
-#[derive(Debug, thiserror::Error)]
-pub(super) enum JwtValidationError {
-    #[error("JWT signature is invalid")]
-    InvalidSignature,
-    #[error("Failed to exchange capabilities with engine: {0}")]
-    CapabilityExchange(String),
-}
 
 /// Command-line interface for running a Kona rollup node.
 ///
@@ -220,67 +208,6 @@ impl NodeCommand {
         Ok(())
     }
 
-    /// Check if the error is related to JWT signature validation
-    pub(super) fn is_jwt_signature_error(error: &dyn std::error::Error) -> bool {
-        let mut source = Some(error);
-        while let Some(err) = source {
-            let err_str = err.to_string().to_lowercase();
-            if err_str.contains("signature invalid") ||
-                (err_str.contains("jwt") && err_str.contains("invalid")) ||
-                err_str.contains("unauthorized") ||
-                err_str.contains("authentication failed")
-            {
-                return true;
-            }
-            source = err.source();
-        }
-        false
-    }
-
-    /// Helper to check JWT signature error from `anyhow::Error` (for retry condition)
-    pub(super) fn is_jwt_signature_error_from_anyhow(error: &anyhow::Error) -> bool {
-        Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
-    }
-
-    /// Validate the jwt secret if specified by exchanging capabilities with the engine.
-    /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
-    /// that the jwt token passed as a cli arg is correct.
-    pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
-        let jwt_secret = self.l2_jwt_secret()?;
-
-        let engine =
-            EngineClient::rpc_client(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
-
-        let exchange = || async {
-            match engine.exchange_capabilities(vec![]).await {
-                Ok(_) => {
-                    debug!("Successfully exchanged capabilities with engine");
-                    Ok(jwt_secret)
-                }
-                Err(e) => {
-                    if Self::is_jwt_signature_error(&e) {
-                        error!(
-                            "Engine API JWT secret differs from the one specified by --l2.jwt-secret/--l2.jwt-secret-encoded"
-                        );
-                        error!(
-                            "Ensure that the JWT secret file specified is correct (by default it is `jwt.hex` in the current directory)"
-                        );
-                        return Err(JwtValidationError::InvalidSignature.into());
-                    }
-                    Err(JwtValidationError::CapabilityExchange(e.to_string()).into())
-                }
-            }
-        };
-
-        exchange
-            .retry(ExponentialBuilder::default())
-            .when(|e| !Self::is_jwt_signature_error_from_anyhow(e))
-            .notify(|_, duration| {
-                debug!("Retrying engine capability handshake after {duration:?}");
-            })
-            .await
-    }
-
     /// Run the Node subcommand.
     pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
         let cfg = self.get_l2_config(args)?;
@@ -310,7 +237,8 @@ impl NodeCommand {
         // If metrics are enabled, initialize the global cli metrics.
         args.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
 
-        let jwt_secret = self.validate_jwt().await?;
+        // The service checks the secret against the execution layer once its RPC server is up.
+        let jwt_secret = self.l2_jwt_secret()?;
 
         self.p2p_flags.check_ports()?;
         let p2p_config = self

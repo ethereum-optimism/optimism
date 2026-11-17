@@ -48,7 +48,6 @@ alloy-signer-local.workspace = true
 alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
 
 # op-alloy
-op-alloy-provider.workspace = true
 op-alloy-network.workspace = true
 
 # general
@@ -69,7 +68,6 @@ tokio-util.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 clap = { workspace = true, features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
-backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]

@@ -11,7 +11,7 @@ use crate::{
         BlockStream, OriginPrefetcher, OriginPreparation, PreparedAttributesProvider,
         PreparedOriginProvider, QueuedUnsafePayloadGossipClient,
     },
-    service::{BufferImportedBlocks, middleware::RpcObservabilityLayer},
+    service::{BufferImportedBlocks, middleware::RpcObservabilityLayer, startup_gate::StartupGate},
 };
 use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::Address;
@@ -480,8 +480,11 @@ impl RollupNode {
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
+    ///
+    /// The server serves only `healthz` until `startup_gate` opens.
     async fn build_rpc_actor(
         &self,
+        startup_gate: StartupGate,
         l2_query_client: EngineQueryClient,
         engine_state_rx: watch::Receiver<EngineState>,
         admin_rpc: AdminRpc,
@@ -533,8 +536,10 @@ impl RollupNode {
             )
             .timeout(Duration::from_secs(2));
         let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
+        // The observability layer splits batches into calls, so the gate sees each call.
         let rpc_middleware = RpcServiceBuilder::new()
-            .layer(RpcObservabilityLayer::new(modules.method_names(), max_response_body_size));
+            .layer(RpcObservabilityLayer::new(modules.method_names(), max_response_body_size))
+            .layer(startup_gate);
         let server = Server::builder()
             .set_config(
                 ServerConfig::builder().max_response_body_size(max_response_body_size).build(),
@@ -618,16 +623,6 @@ impl RollupNode {
             unsafe_head_tx,
         );
 
-        let derivation = self
-            .build_derivation_actor(
-                engine_actor_request_tx.clone(),
-                derivation_actor_request_rx,
-                derivation_origin_tx,
-                engine_state_rx.clone(),
-                l1_head_updates_rx.clone(),
-            )
-            .await?;
-
         // Start the block signer before the network, so a misconfigured or unreachable remote
         // signer fails before the node binds its p2p ports.
         let signer_actor = self
@@ -672,7 +667,7 @@ impl RollupNode {
             engine_actor_request_tx.clone(),
             gossip_payload_tx,
             unsafe_head_rx,
-            l1_head_updates_rx,
+            l1_head_updates_rx.clone(),
             sequencer_admin_command_rx,
         )?;
         let sequencer_admin = sequencing.as_ref().map(|components| {
@@ -685,10 +680,36 @@ impl RollupNode {
             .map(|components| (Some(components.actor), Some(components.prefetcher)))
             .unwrap_or((None, None));
 
-        let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
+        let admin_rpc =
+            AdminRpc::new(sequencer_admin, engine_actor_request_tx.clone(), admin_payload_tx);
+        // Bind the RPC server before waiting on the execution layer and derivation's L1 setup, so
+        // that `/healthz` answers while the node waits on them; it serves nothing else until the
+        // actors run.
+        let startup_gate = StartupGate::default();
         let rpc = self
-            .build_rpc_actor(l2_query_client, engine_state_rx, admin_rpc, p2p_rpc, l1_query_tx)
+            .build_rpc_actor(
+                startup_gate.clone(),
+                l2_query_client,
+                engine_state_rx.clone(),
+                admin_rpc,
+                p2p_rpc,
+                l1_query_tx,
+            )
             .await?;
+
+        self.engine_config.validate_jwt().await.map_err(|e| e.to_string())?;
+
+        let derivation = self
+            .build_derivation_actor(
+                engine_actor_request_tx,
+                derivation_actor_request_rx,
+                derivation_origin_tx,
+                engine_state_rx,
+                l1_head_updates_rx,
+            )
+            .await?;
+
+        startup_gate.open();
 
         crate::service::spawn_and_wait!(
             cancellation,

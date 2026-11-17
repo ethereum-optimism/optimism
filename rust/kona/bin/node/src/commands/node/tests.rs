@@ -1,23 +1,9 @@
 use super::*;
 use crate::flags::GlobalArgs;
-use anyhow::anyhow;
 use clap::Parser;
 use kona_genesis::{HardForkConfig, RollupConfig};
 use kona_node_service::NodeMode;
 use kona_registry::{DEPENDENCY_SETS, ROLLUP_CONFIGS};
-
-#[derive(Debug)]
-struct MockError {
-    message: String,
-}
-
-impl std::fmt::Display for MockError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl std::error::Error for MockError {}
 
 const fn default_flags() -> &'static [&'static str] {
     &[
@@ -103,24 +89,6 @@ fn test_get_l1_config_from_direct_and_genesis_files() {
             NodeCommand { l1_config_file: Some(file.path().into()), ..Default::default() };
         assert_eq!(command.get_l1_config(123).unwrap().chain_id, 123);
     }
-}
-
-#[test]
-fn test_is_jwt_signature_error() {
-    let jwt_error = MockError { message: "signature invalid".to_string() };
-    assert!(NodeCommand::is_jwt_signature_error(&jwt_error));
-
-    let other_error = MockError { message: "network timeout".to_string() };
-    assert!(!NodeCommand::is_jwt_signature_error(&other_error));
-}
-
-#[test]
-fn test_is_jwt_signature_error_from_anyhow() {
-    let jwt_anyhow_error = anyhow!("signature invalid");
-    assert!(NodeCommand::is_jwt_signature_error_from_anyhow(&jwt_anyhow_error));
-
-    let other_anyhow_error = anyhow!("network timeout");
-    assert!(!NodeCommand::is_jwt_signature_error_from_anyhow(&other_anyhow_error));
 }
 
 #[test]
