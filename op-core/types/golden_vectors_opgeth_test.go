@@ -47,12 +47,16 @@ func TestReceiptGoldenVectorsMatchOpGeth(t *testing.T) {
 	}
 }
 
-func TestReceiptsRootGoldenVectorMatchesOpGeth(t *testing.T) {
-	var receipts gethtypes.Receipts
-	for _, r := range mixedReceipts() {
-		receipts = append(receipts, opGethReceiptOf(r.Receipt, r.DepositNonce, r.DepositReceiptVersion))
+func TestReceiptsRootGoldenVectorsMatchOpGeth(t *testing.T) {
+	for _, v := range receiptsRootVectors {
+		t.Run(v.name, func(t *testing.T) {
+			var receipts gethtypes.Receipts
+			for _, r := range v.receipts() {
+				receipts = append(receipts, opGethReceiptOf(r.Receipt, r.DepositNonce, r.DepositReceiptVersion))
+			}
+			require.Equal(t, v.root, gethtypes.DeriveSha(receipts, trie.NewStackTrie(nil)).Hex())
+		})
 	}
-	require.Equal(t, mixedReceiptsRoot, gethtypes.DeriveSha(receipts, trie.NewStackTrie(nil)).Hex())
 }
 
 func TestReceiptJSONGoldenVectorMatchesOpGeth(t *testing.T) {

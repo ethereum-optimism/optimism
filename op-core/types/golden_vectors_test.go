@@ -263,27 +263,62 @@ func TestReceiptGoldenVectors(t *testing.T) {
 	}
 }
 
-// mixedReceipts are a block's receipts: a user receipt followed by the receipts of
-// receiptVectors.
-func mixedReceipts() optypes.Receipts {
-	user := &optypes.Receipt{Receipt: gethtypes.Receipt{
-		Type:              gethtypes.DynamicFeeTxType,
-		Status:            gethtypes.ReceiptStatusSuccessful,
-		CumulativeGasUsed: 21_000,
-		Logs:              receiptLogs(),
-	}}
-	user.Bloom = gethtypes.CreateBloom(&user.Receipt)
-	rs := optypes.Receipts{user}
-	for _, v := range receiptVectors() {
-		rs = append(rs, v.receipt)
+// blockReceipts are the receipts of a block with two deposits, a user transaction and,
+// if postExec is set, a post-exec transaction. Its deposit receipts have a nonce, and
+// version as their receipt version: nil in a block between Regolith and Canyon.
+func blockReceipts(version *uint64, postExec bool) optypes.Receipts {
+	mk := func(typ uint8, cumulativeGasUsed uint64, logs []*gethtypes.Log, nonce *uint64) *optypes.Receipt {
+		r := &optypes.Receipt{Receipt: gethtypes.Receipt{
+			Type:              typ,
+			Status:            gethtypes.ReceiptStatusSuccessful,
+			CumulativeGasUsed: cumulativeGasUsed,
+			Logs:              logs,
+		}}
+		if typ == optypes.DepositTxType {
+			r.DepositNonce = nonce
+			r.DepositReceiptVersion = version
+		}
+		r.Bloom = gethtypes.CreateBloom(&r.Receipt)
+		return r
+	}
+	rs := optypes.Receipts{
+		mk(optypes.DepositTxType, 50_000, []*gethtypes.Log{}, ptr.New[uint64](7)),
+		mk(optypes.DepositTxType, 100_000, receiptLogs(), ptr.New[uint64](8)),
+		mk(gethtypes.DynamicFeeTxType, 121_000, receiptLogs(), nil),
+	}
+	if postExec {
+		rs = append(rs, mk(optypes.PostExecTxType, 121_000, []*gethtypes.Log{}, nil))
 	}
 	return rs
 }
 
-const mixedReceiptsRoot = "0x6d289c66834e08f16072fcf0064c9cd1256e3e7981b3d87c4e72cc04be575c2a"
+// receiptsRootVectors are block receipts with their receipts root. op-geth computes these
+// roots, and op-reth computes the same for a block in the fork window of each set.
+var receiptsRootVectors = []struct {
+	name     string
+	receipts func() optypes.Receipts
+	root     string
+}{
+	{
+		name:     "regolith",
+		receipts: func() optypes.Receipts { return blockReceipts(nil, false) },
+		root:     "0xa4c0c707d9cdef04414d5c134951ae4abccf4934a2dac2cb2f82d11d13d1c784",
+	},
+	{
+		name: "lagoon",
+		receipts: func() optypes.Receipts {
+			return blockReceipts(ptr.New[uint64](optypes.CanyonDepositReceiptVersion), true)
+		},
+		root: "0x8422690808b80fbc8b93ff908f7f22e4b645d84995e7f28ae681972e47997500",
+	},
+}
 
-func TestReceiptsRootGoldenVector(t *testing.T) {
-	require.Equal(t, mixedReceiptsRoot, gethtypes.DeriveSha(mixedReceipts(), trie.NewStackTrie(nil)).Hex())
+func TestReceiptsRootGoldenVectors(t *testing.T) {
+	for _, v := range receiptsRootVectors {
+		t.Run(v.name, func(t *testing.T) {
+			require.Equal(t, v.root, gethtypes.DeriveSha(v.receipts(), trie.NewStackTrie(nil)).Hex())
+		})
+	}
 }
 
 // receiptAllOpFields is gethReceipt with every OP Stack extension field set. A real
