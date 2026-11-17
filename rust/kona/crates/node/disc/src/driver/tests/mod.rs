@@ -82,6 +82,13 @@ fn reach(store: &mut BootStore, record: &Enr, at: SystemTime) {
     store.set_tcp_verified(record.node_id(), addr, at);
 }
 
+/// Tells the running driver of `handler`, as gossip does, that gossip reached the node of `record`
+/// at its TCP address.
+fn reach_through(handler: &Discv5Handler, record: &Enr) {
+    let addr = kona_peers::enr_tcp_socket(record).expect("the record has a TCP address");
+    handler.tcp_verified(record.node_id(), addr);
+}
+
 /// Reads the bootstore at `path` until `done` holds for the records it holds, and returns those,
 /// or `None` after 5s. A missing file holds no records.
 async fn wait_for_bootstore(

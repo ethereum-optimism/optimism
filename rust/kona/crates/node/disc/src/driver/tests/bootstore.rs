@@ -6,11 +6,12 @@ use super::*;
 /// with the records other nodes relay to it, so it should leave out a loopback record in its
 /// bootstore. Such a record may have been saved by a version that didn't check the records it
 /// dials, or while the node ran on loopback, and nothing says the node it names is on this
-/// host. Gossip reached both records, so only the filter can leave the loopback one out.
+/// host. Gossip reaches both records after startup, so only the filter can leave the loopback
+/// one out.
 ///
-/// At startup, the driver hands the bootstore's records to gossip all at once, without waiting
-/// in between, and this node has no bootnodes or peers to find others through. On this
-/// single-threaded runtime, the whole batch is in the channel once the test gets the first
+/// At each store interval, every 100 ms here, the driver hands the records to gossip all at once,
+/// without waiting in between, and this node has no bootnodes or peers to find others through.
+/// On this single-threaded runtime, the whole batch is in the channel once the test gets the first
 /// record. So the batch shows whether the loopback record was left out, without waiting to see
 /// that it never comes.
 #[tokio::test]
@@ -18,10 +19,11 @@ async fn test_public_node_leaves_out_saved_loopback_record() {
     let loopback = enr_at_localhost(TEST_CHAIN_ID);
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let (mut driver, _dir) = public_driver_with_bootstore(&[loopback.clone(), public.clone()]);
+    driver.store_interval = Duration::from_millis(100);
+    let (handler, mut records) = driver.start();
     for record in [&loopback, &public] {
-        reach(&mut driver.bootstore, record, SystemTime::now());
+        reach_through(&handler, record);
     }
-    let (_handler, mut records) = driver.start();
 
     let first = tokio::time::timeout(Duration::from_secs(5), records.recv())
         .await
@@ -50,7 +52,7 @@ fn test_saved_records_take_turns_in_a_full_channel() {
 
     let mut handed_over = Vec::new();
     for _ in 0..50 {
-        forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now());
+        forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now(), SystemTime::UNIX_EPOCH);
         let record = receiver.try_recv().expect("the driver hands over a record");
         assert!(receiver.try_recv().is_err(), "the channel holds only one");
         if !handed_over.contains(&record) {
@@ -72,7 +74,7 @@ fn test_candidates_are_not_handed_over() {
     let store = store_with_tiers(std::slice::from_ref(&reached), &[candidate]);
     let (sender, mut receiver) = mpsc::channel(8);
 
-    forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now());
+    forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now(), SystemTime::UNIX_EPOCH);
 
     let mut handed_over = Vec::new();
     while let Ok(record) = receiver.try_recv() {
@@ -93,7 +95,7 @@ fn test_records_lost_a_day_ago_are_not_handed_over() {
     reach(&mut store, &lost, fixed_now() - REDIAL_MAX_AGE - Duration::from_secs(60 * 60));
     let (sender, mut receiver) = mpsc::channel(8);
 
-    forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now());
+    forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now(), SystemTime::UNIX_EPOCH);
 
     assert!(receiver.try_recv().is_err(), "the driver handed over a peer lost a day ago");
 }
@@ -114,8 +116,7 @@ async fn test_peers_reached_before_a_restart_are_not_redialed() {
     driver.store_interval = Duration::from_millis(100);
     let (handler, mut records) = driver.start();
     wait_until_started(&handler).await;
-    let addr = kona_peers::enr_tcp_socket(&since).expect("the record has a TCP address");
-    handler.tcp_verified(since.node_id(), addr);
+    reach_through(&handler, &since);
 
     let mut handed_over = Vec::new();
     let until_since = async {
@@ -149,7 +150,7 @@ fn test_saved_records_leave_room_for_session_records() {
     let store = store_with_tiers(&saved, &[]);
     let (sender, _receiver) = mpsc::channel(4);
 
-    forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now());
+    forward_saved(&store, TEST_CHAIN_ID, &sender, fixed_now(), SystemTime::UNIX_EPOCH);
 
     let free = sender.capacity();
     assert_eq!(free, 2, "the saved records left {free} of 4 places in the channel free");
@@ -162,9 +163,9 @@ fn test_saved_records_leave_room_for_session_records() {
 async fn test_saved_records_are_handed_over_again() {
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let (mut driver, _dir) = public_driver_with_bootstore(std::slice::from_ref(&public));
-    reach(&mut driver.bootstore, &public, SystemTime::now());
     driver.store_interval = Duration::from_millis(100);
-    let (_handler, mut records) = driver.start();
+    let (handler, mut records) = driver.start();
+    reach_through(&handler, &public);
 
     for _ in 0..2 {
         let record = tokio::time::timeout(Duration::from_secs(5), records.recv())
