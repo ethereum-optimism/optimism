@@ -948,6 +948,34 @@ mod tests {
         assert_eq!(verified_at(store.get(enr.node_id()).unwrap()), Some(at(1_000 + refresh)));
     }
 
+    /// Sessions under fresh keys, which anyone can start, shouldn't push out a peer that gossip
+    /// reached at its TCP address: a full store should evict a record nothing but a session
+    /// confirmed first. Each such session confirms the record's UDP address later than the
+    /// reached peer's last one, so evicting by that alone forgets the reached peer first.
+    #[test]
+    fn test_sessions_under_fresh_keys_keep_a_reached_peer() {
+        let reached = enr_of_new_node();
+        let mut store = BootStore::in_memory().with_max_peers(2);
+        store.add_enr(reached.clone());
+        let (udp, tcp) = (reached.udp4_socket().unwrap(), reached.tcp4_socket().unwrap());
+        store.set_udp_verified(reached.node_id(), SocketAddr::V4(udp), at(1_000));
+        store.set_tcp_verified(reached.node_id(), SocketAddr::V4(tcp), at(1_000));
+
+        // One more than fits beside the reached peer, so that one record must go.
+        for _ in 0..2 {
+            let fresh = enr_of_new_node();
+            store.add_enr(fresh.clone());
+            let udp = SocketAddr::V4(fresh.udp4_socket().unwrap());
+            store.set_udp_verified(fresh.node_id(), udp, at(2_000));
+        }
+
+        assert_eq!(store.len(), 2);
+        let entry = store
+            .get(reached.node_id())
+            .expect("sessions under fresh keys pushed out a reached peer");
+        assert_eq!(entry.tcp_verified_at(), Some(at(1_000)));
+    }
+
     /// A store given a lower limit than it holds evicts the records over it, as it would to make
     /// room for new ones, and saves the file without them.
     #[test]
