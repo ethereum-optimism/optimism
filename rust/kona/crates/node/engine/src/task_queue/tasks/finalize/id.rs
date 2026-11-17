@@ -11,8 +11,8 @@ use alloy_eips::BlockNumHash;
 ///   `L2Finalizer`). The number is sufficient because there is only one chain to consult.
 /// - [`FinalizeBlockId::ByHash`] is used when an upstream supplies `(number, hash)` and the engine
 ///   must finalize the specific block identified by hash. If the engine's canonical block at that
-///   height has a different hash, the task skips the target rather than finalize the engine's block
-///   in its place.
+///   height has a different hash, or the engine has no block at that height yet, the task skips the
+///   target rather than finalize the engine's block in its place.
 ///
 /// EL finalization is irreversible, so finalizing the wrong block is unrecoverable. Forcing every
 /// caller to pick a variant prevents accidental hash-loss at the boundary.
@@ -21,7 +21,8 @@ pub enum FinalizeBlockId {
     /// Finalize whatever block the engine has at the given L2 block number.
     ByNumber(u64),
     /// Finalize the block matching the given `(number, hash)` pair, only once it is the engine's
-    /// canonical block at that height.
+    /// canonical block at that height. A skipped target leaves the state unchanged and may be
+    /// requested again.
     ByHash(BlockNumHash),
 }
 

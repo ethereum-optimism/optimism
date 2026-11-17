@@ -15,8 +15,9 @@ use std::sync::Arc;
 /// [`EngineState`], and dispatches a forkchoice update to finalize the block.
 ///
 /// Finality only moves forward. A target behind the finalized head, a different block at the
-/// finalized height, or a pinned hash that is not the engine's canonical block fails with an error
-/// that skips the task and leaves the engine state unchanged.
+/// finalized height, a pinned hash that is not the engine's canonical block, a target above the
+/// safe head, or a pinned target the engine has no block for yet fails with an error that skips
+/// the task and leaves the engine state unchanged.
 #[derive(Debug, Clone, Constructor)]
 pub struct FinalizeTask {
     /// The engine client.
@@ -28,6 +29,17 @@ pub struct FinalizeTask {
 }
 
 impl FinalizeTask {
+    /// A pinned target the execution layer answers with null is not available yet, for example
+    /// while it catches up: the task is skipped rather than held at the head of the queue ahead
+    /// of the imports that let it catch up. A missing by-number target is below the safe head, so
+    /// the engine must already have it.
+    const fn block_missing(&self) -> FinalizeTaskError {
+        match self.block_id {
+            FinalizeBlockId::ByHash(target) => FinalizeTaskError::NotYetAvailable { target },
+            FinalizeBlockId::ByNumber(number) => FinalizeTaskError::BlockNotFound(number),
+        }
+    }
+
     /// Whether `target` is the finalized head itself; a different block at its height is an error.
     fn is_already_finalized(
         finalized_head: &L2BlockInfo,
@@ -61,7 +73,7 @@ impl FinalizeTask {
             .full()
             .await
             .map_err(FinalizeTaskError::TransportError)?
-            .ok_or(FinalizeTaskError::BlockNotFound(requested))?;
+            .ok_or_else(|| self.block_missing())?;
         let canonical = BlockNumHash { hash: block.header.hash, number: block.header.number };
         debug!(target: "engine", ?canonical, "Fetched the block to finalize");
 
@@ -106,9 +118,14 @@ impl ExecutableEngineTask for FinalizeTask {
             return Ok(());
         }
 
-        // Sanity check that the block that is being finalized is at least safe.
-        if state.sync_state.safe_head().block_info.number < target_number {
-            return Err(FinalizeTaskError::BlockNotSafe);
+        // Sanity check that the block that is being finalized is at least safe. A later request
+        // finalizes a target skipped here, or a newer block.
+        let safe_number = state.sync_state.safe_head().block_info.number;
+        if safe_number < target_number {
+            return Err(FinalizeTaskError::BlockNotSafe {
+                safe: safe_number,
+                target: target_number,
+            });
         }
 
         let block_info = self.fetch_canonical_block_info().await?;
