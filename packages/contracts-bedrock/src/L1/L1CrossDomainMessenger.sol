@@ -60,8 +60,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 3.3.0
-    string public constant version = "3.3.0";
+    /// @custom:semver 3.4.0
+    string public constant version = "3.4.0";
 
     /// @notice See `GasConstants.L1_RELAY_RESERVED_GAS`.
     uint64 internal constant LOCAL_RELAY_RESERVED_GAS = GasConstants.L1_RELAY_RESERVED_GAS;
@@ -143,8 +143,12 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     ///         - a real L1CrossDomainMessenger: its portal's SystemConfig names it as the chain's
     ///           messenger. A contract that names a real portal as its own fails this;
     ///         - of a chain in this chain's cluster: its portal is authorized by this chain's
-    ///           ETHLockbox. Every such chain can already withdraw this chain's ETH, so trusting
-    ///           its word adds no trust;
+    ///           ETHLockbox and still uses that ETHLockbox and this chain's AnchorStateRegistry.
+    ///           Such a chain can already withdraw this chain's ETH, proven by the same dispute
+    ///           games as this chain's withdrawals, so trusting its word adds no trust. A lockbox
+    ///           never revokes a portal, so a portal moved to another ETHLockbox or
+    ///           AnchorStateRegistry stays authorized but fails this. Like every check here, it
+    ///           looks at the caller as it is when the word arrives, also on a replay;
     ///         - relaying a withdrawal from that chain's UndeliveredMessageExporter, which sends
     ///           this call only for a message to that chain that it has not relayed. See
     ///           UndeliveredMessageExporter for why withdrawals from it can be trusted.
@@ -164,6 +168,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
         if (
             callerPortal.systemConfig().l1CrossDomainMessenger() != msg.sender
                 || !portal.ethLockbox().authorizedPortals(callerPortal)
+                || callerPortal.ethLockbox() != portal.ethLockbox()
+                || callerPortal.anchorStateRegistry() != portal.anchorStateRegistry()
                 || caller.xDomainMessageSender() != Predeploys.UNDELIVERED_MESSAGE_EXPORTER
         ) {
             revert L1CrossDomainMessenger_NotInteropMessenger();
