@@ -164,7 +164,7 @@ impl InMemoryTrieCursor {
             return Ok(());
         }
 
-        let storage = self.inner.try_read().ok_or(OpProofsStorageError::TryLockError)?;
+        let storage = self.inner.read();
 
         // Common logic: collect latest values for each path
         let mut path_to_latest: std::collections::BTreeMap<
@@ -323,7 +323,7 @@ impl InMemoryStorageCursor {
             return Ok(());
         }
 
-        let storage = self.inner.try_read().ok_or(OpProofsStorageError::TryLockError)?;
+        let storage = self.inner.read();
 
         // Collect latest values for each slot
         let mut slot_to_latest: std::collections::BTreeMap<B256, (u64, U256)> =
@@ -597,7 +597,7 @@ impl OpProofsProviderRO for InMemoryProofsProvider {
         &self,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>> {
-        let inner = self.inner.try_read().ok_or(OpProofsStorageError::TryLockError)?;
+        let inner = self.inner.read();
         Ok(InMemoryAccountCursor::new(&inner, max_block_number))
     }
 
