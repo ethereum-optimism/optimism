@@ -360,7 +360,7 @@ func (n *L2Network) deriveData(blocks int) (channels []derive.ChannelID, channel
 	// from Lagoon it can carry a post-exec tx, which has no sender and which go-ethereum cannot
 	// decode, so it is left out.
 	addUserTx := func(txData []byte) {
-		if len(txData) > 0 && txData[0] == optypes.PostExecTxType {
+		if optypes.IsPostExecTxBytes(txData) {
 			return
 		}
 		var tx ethtypes.Transaction

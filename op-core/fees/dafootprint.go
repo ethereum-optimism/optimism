@@ -50,7 +50,7 @@ func CalcDAFootprint(txs []hexutil.Bytes) (uint64, error) {
 			return 0, fmt.Errorf("empty transaction at index %d", i)
 		}
 	}
-	if len(txs) == 0 || !isDeposit(txs[0]) {
+	if len(txs) == 0 || !optypes.IsDepositTxBytes(txs[0]) {
 		return 0, errors.New("missing deposit transaction")
 	}
 	l1Attributes, err := optypes.UnmarshalDepositTx(txs[0])
@@ -62,7 +62,7 @@ func CalcDAFootprint(txs []hexutil.Bytes) (uint64, error) {
 	// it must not have user transactions.
 	data := l1Attributes.Data
 	if len(data) == IsthmusL1AttributesLen {
-		if !isDeposit(txs[len(txs)-1]) {
+		if !optypes.IsDepositTxBytes(txs[len(txs)-1]) {
 			// sufficient to check last transaction because deposits precede non-deposit txs
 			return 0, errors.New("unexpected non-deposit transactions in Jovian activation block")
 		}
@@ -75,18 +75,10 @@ func CalcDAFootprint(txs []hexutil.Bytes) (uint64, error) {
 	}
 	var daFootprint uint64
 	for _, tx := range txs {
-		if isDeposit(tx) || isPostExec(tx) {
+		if optypes.IsDepositTxBytes(tx) || optypes.IsPostExecTxBytes(tx) {
 			continue
 		}
 		daFootprint += bigs.Uint64Strict(NewRollupCostData(tx).EstimatedDASize()) * uint64(daFootprintGasScalar)
 	}
 	return daFootprint, nil
-}
-
-func isDeposit(tx []byte) bool {
-	return tx[0] == optypes.DepositTxType
-}
-
-func isPostExec(tx []byte) bool {
-	return tx[0] == optypes.PostExecTxType
 }
