@@ -8,6 +8,7 @@ use serde_with::{InspectError, VecSkipError};
 use std::{
     cmp::Ordering,
     collections::BTreeMap,
+    hash::{BuildHasher, RandomState},
     io::{self, Write},
     net::{SocketAddr, SocketAddrV4, SocketAddrV6},
     path::{Path, PathBuf},
@@ -117,12 +118,16 @@ impl Records {
     /// Of the candidates, the one whose UDP address a session confirmed longest ago goes first,
     /// those that no session confirmed before any. Of the reached records, the one gossip reached
     /// longest ago. Of those confirmed at the same time, or not at all, the one whose session
-    /// started first, those without a session since the store was opened before any, and then
-    /// the first in node ID order.
+    /// started first, those without a session since the store was opened before any. Of those
+    /// that still tie, any of them: not the first in node ID order, as a node ID is the hash of a
+    /// key, and an attacker could grind keys until its records sort after the others. The order
+    /// is drawn afresh at each eviction, by hashing the node IDs with a random key.
     fn evict(&mut self) -> Option<BootStoreEntry> {
-        let (&key, _) = self.entries.iter().min_by_key(|(_, entry)| {
+        let tie_break = RandomState::new();
+        let (&key, _) = self.entries.iter().min_by_key(|&(key, entry)| {
             let reached = entry.tcp_verified_at.is_some();
-            (reached, entry.tcp_verified_at, entry.udp_verified_at, entry.session_started_at)
+            let evidence = (entry.tcp_verified_at, entry.udp_verified_at, entry.session_started_at);
+            (reached, evidence, tie_break.hash_one(key))
         })?;
         self.entries.remove(&key)
     }
@@ -1161,17 +1166,15 @@ mod tests {
     }
 
     /// Of the candidates, a full store evicts the one whose UDP address a session confirmed
-    /// longest ago, those no session confirmed first, so that the ones confirmed recently stay. Of
-    /// those confirmed at the same time, the one with the lower node ID goes first, whatever the
-    /// order they were added in.
+    /// longest ago, those no session confirmed first, so that the ones confirmed recently stay.
+    /// Those that tie go in any order, see [`test_evicts_records_that_tie_in_no_fixed_order`].
     #[test]
     fn test_evicts_the_candidate_confirmed_longest_ago() {
-        let mut never = [
+        let never = [
             BootStoreEntry::candidate(enr_of_new_node()),
             BootStoreEntry::candidate(enr_of_new_node()),
         ];
-        never.sort_by_key(BootStoreEntry::key);
-        let [never_lower, never_higher] = never;
+        let [never_1, never_2] = never.clone();
         let earlier = BootStoreEntry {
             udp_verified_at: Some(at(1_000)),
             ..BootStoreEntry::candidate(enr_of_new_node())
@@ -1181,12 +1184,15 @@ mod tests {
             ..BootStoreEntry::candidate(enr_of_new_node())
         };
         let mut records = Records::default();
-        for entry in [&later, &never_higher, &earlier, &never_lower] {
+        for entry in [&later, &never_1, &earlier, &never_2] {
             records.add(entry.clone());
         }
 
-        assert_eq!(records.evict(), Some(never_lower));
-        assert_eq!(records.evict(), Some(never_higher));
+        let mut evicted_first = [records.evict().unwrap(), records.evict().unwrap()];
+        evicted_first.sort_by_key(BootStoreEntry::key);
+        let mut never = never;
+        never.sort_by_key(BootStoreEntry::key);
+        assert_eq!(evicted_first, never);
         assert_eq!(records.evict(), Some(earlier));
         assert_eq!(records.evict(), Some(later));
     }
