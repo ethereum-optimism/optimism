@@ -39,6 +39,11 @@ use tokio::{
     time::{Instant, Interval},
 };
 
+/// The labels of the sequencer state gauge.
+fn state_labels(state: &SequencerState) -> [(&'static str, String); 2] {
+    [("active", state.active.to_string()), ("recovery", state.recovery_mode.to_string())]
+}
+
 /// The handle to a block that has been started but not sealed.
 #[derive(Debug)]
 struct UnsealedPayloadHandle {
@@ -208,15 +213,17 @@ where
         *self.state_tx.borrow()
     }
 
-    /// Update and publish sequencer state together with its metrics.
+    /// Update and publish sequencer state together with its metrics. The state gauge is 1 for the
+    /// current label set and 0 for the one it replaces.
     fn update_state(&self, update: impl FnOnce(&mut SequencerState)) {
         self.state_tx.send_modify(|state| {
+            let previous = state_labels(state);
             update(state);
-            let state_flags = [
-                ("active", state.active.to_string()),
-                ("recovery", state.recovery_mode.to_string()),
-            ];
-            metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &state_flags).set(1);
+            let current = state_labels(state);
+            if previous != current {
+                metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &previous).set(0);
+            }
+            metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &current).set(1);
         });
     }
 

@@ -72,6 +72,7 @@ base64.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 libp2p = { workspace = true, features = ["noise", "yamux"] }
 metrics-exporter-prometheus.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
 alloy-json-rpc.workspace = true
 serde_json.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
