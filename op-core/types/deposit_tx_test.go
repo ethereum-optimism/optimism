@@ -13,8 +13,9 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
-// depositTxTestCase pairs a deposit with its golden encodings, captured from op-geth:
-// the canonical binary encoding, the transaction hash, and the RPC JSON encoding.
+// depositTxTestCase pairs a deposit with its golden encodings: the canonical binary
+// encoding, the transaction hash, and the RPC JSON encoding. They are those that op-geth
+// computes, and op-alloy computes the same binary encoding and hash.
 type depositTxTestCase struct {
 	name   string
 	tx     optypes.DepositTx
@@ -123,18 +124,18 @@ func depositTxTestCases() []depositTxTestCase {
 				SourceHash: common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
 				From:       common.HexToAddress("0xffffffffffffffffffffffffffffffffffffffff"),
 				To:         &to,
-				Mint:       new(big.Int).Lsh(big.NewInt(1), 255),
+				Mint:       new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1)),
 				Value:      new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1)),
 				Gas:        ^uint64(0),
 				Data:       make([]byte, 512),
 			},
-			binary: "0x7ef9029aa0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff94ffffffffffffffffffffffffffffffffffffffff944242424242424242424242424242424242424242" +
-				"a08000000000000000000000000000000000000000000000000000000000000000a0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff88ffffffffffffffff80" +
+			binary: "0x7ef9028aa0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff94ffffffffffffffffffffffffffffffffffffffff944242424242424242424242424242424242424242" +
+				"90ffffffffffffffffffffffffffffffffa0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff88ffffffffffffffff80" +
 				"b90200" + zeroBytesHex(512),
-			hash: "0x23ff7004ab9f4502097a525cc7421b979b7a42ebd61a695a46074d2a3deb9363",
+			hash: "0x37dc99204b60f5f7cf42429fcdb586d3b59fa48b80519112afef0c49841ed440",
 			json: `{"type":"0x7e","nonce":null,"to":"0x4242424242424242424242424242424242424242","gas":"0xffffffffffffffff","gasPrice":null,"maxPriorityFeePerGas":null,"maxFeePerGas":null,"value":"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",` +
 				`"input":"0x` + zeroBytesHex(512) + `","v":null,"r":null,"s":null,"sourceHash":"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","from":"0xffffffffffffffffffffffffffffffffffffffff",` +
-				`"mint":"0x8000000000000000000000000000000000000000000000000000000000000000","isSystemTx":false,"hash":"0x23ff7004ab9f4502097a525cc7421b979b7a42ebd61a695a46074d2a3deb9363"}`,
+				`"mint":"0xffffffffffffffffffffffffffffffff","isSystemTx":false,"hash":"0x37dc99204b60f5f7cf42429fcdb586d3b59fa48b80519112afef0c49841ed440"}`,
 		},
 	}
 }
