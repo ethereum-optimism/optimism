@@ -8,11 +8,11 @@ use super::*;
 /// dials, or while the node ran on loopback, and nothing says the node it names is on this
 /// host.
 ///
-/// At startup, the driver hands the bootstore's records to gossip one by one, in the order they
-/// were saved, and this node has no bootnodes or peers to find others through: here the
-/// loopback record, then the public one. If it hands over the loopback record, gossip gets that
-/// one first. If it leaves it out, gossip gets the public one first. So the first record shows
-/// whether the loopback one was left out, without waiting to see that it never comes.
+/// At startup, the driver hands the bootstore's records to gossip all at once, without waiting
+/// in between, and this node has no bootnodes or peers to find others through. On this
+/// single-threaded runtime, the whole batch is in the channel once the test gets the first
+/// record. So the batch shows whether the loopback record was left out, without waiting to see
+/// that it never comes.
 #[tokio::test]
 async fn test_public_node_leaves_out_saved_loopback_record() {
     let loopback = localhost_enr(TEST_CHAIN_ID);
@@ -24,7 +24,58 @@ async fn test_public_node_leaves_out_saved_loopback_record() {
         .await
         .expect("the driver hands over the saved public record")
         .expect("the driver runs");
-    assert_eq!(first, public, "a public node dialed a saved loopback record");
+    let mut batch = vec![first];
+    while let Ok(record) = records.try_recv() {
+        batch.push(record);
+    }
+    assert_eq!(batch, [public], "a public node dialed a saved loopback record");
+}
+
+/// The driver doesn't wait for room in the channel to gossip, so the saved records that don't fit
+/// are dropped until the next store interval. It hands them over in a random order, so that
+/// over a few intervals each gets through, rather than only the oldest ones every time.
+///
+/// With room for one of three records, the chance that one of them is left out of 50 rounds is
+/// `3 * (2/3)^50`, about 5 in a billion.
+#[test]
+fn test_saved_records_take_turns_in_a_full_channel() {
+    let mut store = BootStore::in_memory();
+    let saved: Vec<Enr> = (1..=3)
+        .map(|host| enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, host)), TEST_CHAIN_ID))
+        .collect();
+    for record in &saved {
+        store.add_enr(record.clone());
+    }
+    let (sender, mut receiver) = mpsc::channel(1);
+
+    let mut handed_over = Vec::new();
+    for _ in 0..50 {
+        forward_saved(&store, TEST_CHAIN_ID, &sender);
+        let record = receiver.try_recv().expect("the driver hands over a record");
+        assert!(receiver.try_recv().is_err(), "the channel holds only one");
+        if !handed_over.contains(&record) {
+            handed_over.push(record);
+        }
+    }
+    assert_eq!(handed_over.len(), saved.len(), "a saved record never got through");
+}
+
+/// Session records go through the same channel to gossip, and the driver hands a session's
+/// record over only once, when the session starts. So the saved records should leave half of
+/// the channel free, rather than fill it at every store interval, which drops the session records
+/// that arrive until gossip catches up.
+#[test]
+fn test_saved_records_leave_room_for_session_records() {
+    let mut store = BootStore::in_memory();
+    for host in 1..=4 {
+        store.add_enr(enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, host)), TEST_CHAIN_ID));
+    }
+    let (sender, _receiver) = mpsc::channel(4);
+
+    forward_saved(&store, TEST_CHAIN_ID, &sender);
+
+    let free = sender.capacity();
+    assert_eq!(free, 2, "the saved records left {free} of 4 places in the channel free");
 }
 
 /// Gossip redials a peer only when discovery hands it over again, and discovery reports a
@@ -57,8 +108,7 @@ async fn test_public_node_removes_saved_loopback_record() {
     let path = dir.path().join("bootstore.json");
     let (_handler, _records) = driver.start();
 
-    // A read can come back empty, so wait for one that holds the public record too.
-    wait_for_saved(&path, |_, saved| saved.contains(&public) && !saved.contains(&loopback))
+    wait_for_bootstore(&path, |saved| saved.contains(&public) && !saved.contains(&loopback))
         .await
         .expect("a public node kept a saved loopback record");
 }
@@ -87,8 +137,49 @@ async fn test_bootstore_saves_only_confirmed_records() {
     let (_handler, _records) = driver.start();
 
     let saved =
-        wait_for_saved(&path, |_, saved| saved.contains(&kept) && !saved.contains(&removed))
+        wait_for_bootstore(&path, |saved| saved.contains(&kept) && !saved.contains(&removed))
             .await
             .expect("the driver saves its bootstore at startup");
     assert!(!saved.contains(&unconfirmed), "the bootstore saved an unconfirmed record");
+}
+
+/// The default bootstore, `~/.kona/<chain_id>/bootstore.json`, is in a directory that nothing
+/// creates, and a path given with `--p2p.bootstore` may be too. The driver should create the
+/// directory and save the bootstore there, not keep it only in memory, which loses its records
+/// at every restart.
+///
+/// The node saves its bootnode, at startup.
+#[tokio::test]
+async fn test_bootstore_is_saved_in_a_missing_directory() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("datadir").join("bootstore.json");
+    let bootnode = localhost_enr(TEST_CHAIN_ID);
+    let driver = loopback_builder(loopback_config().build())
+        .with_bootstore_file(Some(BootStoreFile::Custom(path.clone())))
+        .with_bootnodes(BootNodes(vec![BootNode::Enr(bootnode.clone())]))
+        .build()
+        .expect("the driver builds");
+    assert!(path.is_file(), "building the driver didn't create the bootstore");
+    let (_handler, _records) = driver.start();
+
+    wait_for_bootstore(&path, |saved| saved.contains(&bootnode))
+        .await
+        .expect("the driver didn't save the bootstore in a directory it had to create");
+}
+
+/// A bootstore that can't be opened, here because its path is a directory as in our docker
+/// recipes, should stop the node from starting, as op-node's stores do. Otherwise the node
+/// runs with a bootstore that it never saves, and nothing says so.
+#[tokio::test]
+async fn test_bootstore_that_cannot_be_opened_fails_the_build() {
+    let dir = tempdir().unwrap();
+    let result = loopback_builder(loopback_config().build())
+        .with_bootstore_file(Some(BootStoreFile::Custom(dir.path().to_path_buf())))
+        .build();
+
+    let err = result.expect_err("the driver built with a bootstore it can't open");
+    assert!(
+        matches!(err, crate::Discv5BuilderError::Bootstore(BootStoreError::Open { .. })),
+        "{err}"
+    );
 }

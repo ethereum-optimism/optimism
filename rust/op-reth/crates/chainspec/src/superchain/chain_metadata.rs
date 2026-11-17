@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub(crate) struct ChainMetadata {
     pub chain_id: ChainId,
+    /// Seconds between two L2 blocks.
+    pub block_time: u64,
     pub hardforks: HardforkConfig,
     pub optimism: Option<OptimismConfig>,
 }
@@ -195,6 +197,7 @@ mod tests {
     const GENERIC_CHAIN_METADATA: &str = r#"
     {
       "chain_id": 130,
+      "block_time": 1,
       "hardforks": {
         "canyon_time": 1704992401,
         "delta_time": 1708560000,
@@ -320,6 +323,7 @@ mod tests {
         const OP_CHAIN_METADATA: &str = r#"
         {
           "chain_id": 10,
+          "block_time": 2,
           "hardforks": {
             "canyon_time": 1704992401,
             "delta_time": 1708560000,
@@ -370,6 +374,7 @@ mod tests {
         const LAGOON_CHAIN_METADATA: &str = r#"
         {
           "chain_id": 130,
+          "block_time": 1,
           "hardforks": {
             "canyon_time": 0,
             "delta_time": 0,

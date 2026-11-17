@@ -28,13 +28,9 @@ func setupInteropFilterTest(t devtest.T) *presets.TwoL2SupernodeInterop {
 }
 
 // interopTxRejectedError returns true if err matches any known interop
-// transaction rejection from op-geth, op-reth, or the interop filter.
+// transaction rejection from op-reth or the interop filter.
 func interopTxRejectedError(err error) bool {
 	msg := err.Error()
-	// op-geth: generic filter rejection wrapping all causes
-	if strings.Contains(msg, "transaction filtered out") {
-		return true
-	}
 	// op-interop-filter: malformed or unrecognized access list entry
 	if strings.Contains(msg, "failed to parse access entry") {
 		return true
@@ -154,10 +150,9 @@ func (l submissionErrorLogger) SubmissionError(err error) {
 // and recover after failsafe is disabled.
 //
 // NOT TESTED: txpool eviction of pending interop txs on failsafe activation.
-// Both op-reth (poll_failsafe) and op-geth (startBackgroundInteropFailsafeDetection)
-// have background tasks that evict interop txs from the pool when failsafe
-// transitions from disabled to enabled. Testing this reliably is difficult because
-// it requires stopping the sequencer to prevent block inclusion, but StopSequencer
+// op-reth has a background task (poll_failsafe) that evicts interop txs from the
+// pool when failsafe transitions from disabled to enabled. Testing this reliably
+// is difficult because it requires stopping the sequencer to prevent block inclusion, but StopSequencer
 // only stops the op-node from requesting new payloads — an already in-flight
 // engine API payload (forkchoiceUpdated → getPayload → newPayload) can still land
 // after StopSequencer returns. This creates a race where the tx may be included in

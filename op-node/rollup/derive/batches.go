@@ -454,7 +454,7 @@ func checkSpanBatchOverlap(ctx context.Context, cfg *rollup.Config, log log.Logg
 		// execution payload has deposit TXs, but batch does not.
 		depositCount := 0
 		for _, tx := range safeBlockTxs {
-			if tx[0] == optypes.DepositTxType {
+			if optypes.IsDepositTxBytes(tx) {
 				depositCount++
 			}
 		}

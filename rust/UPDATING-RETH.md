@@ -63,6 +63,10 @@ main's CI actually validated.
    git merge-base --is-ancestor <source-sha> <target> && echo contained || echo carry
    ```
 
+   [RETH-CARRIED-PATCHES](RETH-CARRIED-PATCHES.md) lists the patches the
+   current branch carries, the first upstream release of each, and how to carry
+   the ones that need more than a cherry-pick.
+
    Drop contained patches and preserve every other one. Skip `ci:` commits:
    the CI squash carries them whatever their sources say. Any other commit
    without an upstream source is a fork-only patch, or was picked without
@@ -233,11 +237,14 @@ main's CI actually validated.
    - From `rust/`, `just mirrors stale` lists mirrors that still record an older
      pin. Work every entry and advance a tag only after checking its named
      upstream symbol. See `docs/ai/reth-upstream-mirrors.md`.
-   - For anything touching validation or gas, ask which upstream precondition
-     makes the change safe and whether the OP Stack holds it. Deposits skip
-     `validate_env` outright, which exempts them from a long list of checks
-     upstream may treat as guaranteed. `docs/ai/reth-update-review.md`,
-     "The precondition question", has the list and the procedure.
+   - For any consensus-adjacent change (validation, gas, execution, state root
+     and trie persistence), ask what upstream assumes when it calls the change
+     safe, and whether that assumption holds on OP. Upstream often drops a check
+     because "earlier validation already rules this out". But OP skips some of
+     that validation for deposits, since L1 has already checked them, so a check
+     upstream removes as unreachable can still matter for a deposit.
+     [UPSTREAM-ASSUMPTIONS](UPSTREAM-ASSUMPTIONS.md) lists where OP breaks
+     upstream's assumptions and how to check a change.
 
 8. Build, format, and test before pushing:
 
@@ -335,18 +342,18 @@ onto it:
 4. For each reth finding, test whether it cherry-picks cleanly and builds on
    the pin, and list the commits it depends on. For revm and alloy findings,
    check whether a semver-compatible release contains the fix.
-5. Recommend, for a human to decide: cherry-pick the fixes onto the fork
-   branch (or take the patch release), or move the target to a newer upstream
-   release or commit that contains them, preferring a release ([Picking the
-   right target commit](#picking-the-right-target-commit)). Weigh the number
-   and size of the picks against the extra range a retarget adds to review.
+5. Decide between cherry-picking the fixes onto the fork branch (or taking
+   the patch release) and moving the target to a newer upstream release or
+   commit that contains them, preferring a release ([Picking the right target
+   commit](#picking-the-right-target-commit)). Weigh the number and size of the
+   picks against the extra range a retarget adds to review.
 6. Before the fork PR merges, sweep again from the recorded tip to the current
    `<upstream>/main`.
 
-**Pick bar.** Keep the fork small. Recommend a pick by default only for a fix
-that affects consensus or realistic node stability, or that closes a high- or
+**Pick bar.** Keep the fork small. By default, pick only a fix that affects
+consensus or realistic node stability, or that closes a high- or
 critical-severity vulnerability, and argue any other important fix case by
-case. A real but unlikely bug can be a watch item instead, with its pick set
+case in the fork PR. A real but unlikely bug can be a watch item instead, with its pick set
 ready.
 
 Picks go on the fork's `op-*` branch after its CI commit, with `-x` ([The reth
@@ -528,50 +535,6 @@ abbreviated ids.
 are PRs into it, tagged when the monorepo pins them. Keep old branches as a
 historical record.
 
-### Carried patches
-
-Patches the current branch carries beyond upstream, and what to do with each
-on the next base:
-
-- **RPC replay through the block executor** (ethereum-optimism/reth#37 on
-  `op-v2.6.0`, ethereum-optimism/reth#41 on `op-v2.7.0`: a backport of
-  `paradigmxyz/reth#28266`). Op-reth's SDM refund settlement is only visible to
-  `debug_*`, `trace_*` and `ots_*` replays through it, and
-  `rust/op-reth/crates/node/tests/it/rpc_replay_settlement/` fails without
-  it. On a base that still uses alloy-evm 0.39 (`v2.7.0` through `v2.8.1`),
-  cherry-pick the backport from the current branch. Onto v2.7.0 it conflicted
-  in the imports of `helpers/call.rs` and in the replay callback of
-  `rpc/src/trace.rs`, which takes the backport's own `TracingCtx`;
-  `Call::block_executor` had to name the database `StateCacheDb` wraps
-  (`StateProviderDatabase<EvmStateProviderAdapter<StateProviderBox>>`), and its
-  e2e test moved to `test_setup_for(EthereumHardfork::Prague)`. On v2.8.0
-  and v2.8.1, the plain replay loops that the backport replaces carry
-  `paradigmxyz/reth#27462`'s `is_cancelled()` checks: move them into the
-  executor loops, as ethereum-optimism/reth#44 did, or replays lose
-  cancellation with no compile error. On an evm2 base (`v2.9.0` and later),
-  drop the backport and cherry-pick `paradigmxyz/reth#28266` itself until a release contains it; there,
-  upstream's `inspect_transaction_without_commit` installs the tracer through
-  the EVM's inspector slot, which op-reth's `PostExecCompositeInspector`
-  occupies, so `OpBlockExecutor` needs an override or composition for it.
-  Upstream's BAL branch skips per-transaction settlement; op-reth rejects
-  computed BALs, keep that invariant under test.
-- **Trie iterator seek boundary** (`paradigmxyz/reth#28264`, carried as
-  ethereum-optimism/reth#32 on `op-v2.6.0` and ethereum-optimism/reth#40 on
-  `op-v2.7.0`, both picked from upstream with `-x`). No release up to v2.9.0
-  contains it, so carry it until one does; the audit in step 2 drops it then.
-- **Forward fixes** (ethereum-optimism/reth#44 on `op-v2.7.0`, picked from
-  upstream with `-x`): `paradigmxyz/reth#28148` (first released in v2.9.0),
-  `paradigmxyz/reth#28253` (v2.10.0), and `paradigmxyz/reth#28314`,
-  `paradigmxyz/reth#27716`, `paradigmxyz/reth#28370`,
-  `paradigmxyz/reth#28403`, `paradigmxyz/reth#28423` and
-  `paradigmxyz/reth#28431` (v2.11.0). Carry each until the base contains it.
-  On an alloy-evm 0.39 base (`v2.8.1`), cherry-pick them from the current
-  branch, where `paradigmxyz/reth#28253` and `paradigmxyz/reth#28314` are
-  hand-ported from evm2; on an evm2 base, cherry-pick the upstream commits.
-  Op-reth keeps its own copies of the symbols `paradigmxyz/reth#27716` and
-  `paradigmxyz/reth#28431` patch (`UPSTREAM-MIRROR` tags in `rust/op-reth`),
-  so check those mirrors against each pick.
-
 ### Pinning a fork change
 
 This applies to any monorepo PR that needs a fork change, in a reth update or
@@ -618,7 +581,9 @@ the wild:
   op-reth (and the wider OP Stack) still relies on it. In that case the
   smallest correct fix is to vendor the trait locally in the consuming crate
   (with a comment pointing at the upstream PR that removed it). See
-  `rust/op-reth/crates/rpc/src/witness.rs` for an example.
+  `rust/op-reth/crates/rpc/src/witness.rs` for an example. Refactor op-reth
+  away from it only after confirming nothing still uses it: an upstream
+  "stale" label says nothing about downstream use.
 - Type changes in test fixtures (e.g. struct fields flipping from `u16` to
   `Option<u16>`).
 
@@ -658,10 +623,14 @@ onto an older base, or accept the broader catch-up work as part of the bump.
 
 ## See also
 
-- `docs/ai/reth-update-review.md` — the review guide for these bumps: the risk
-  taxonomy, the deliberately-broken upstream preconditions to check against, and
-  the `reth-update-reviewer` agent that surfaces upstream changes which should
-  have forced an op- change but didn't.
+- `rust/UPSTREAM-ASSUMPTIONS.md` — the precondition question for consensus-adjacent
+  upstream changes, and where OP breaks upstream's assumptions (step 7).
+- `rust/RETH-CARRIED-PATCHES.md` — the patches the fork carries, their first upstream
+  releases and how to carry them (step 2).
+- `docs/ai/reth-update-review.md` — the review guide for these bumps: the
+  lockfile funnel, the full-range sweep and the risk taxonomy, run by the
+  `reth-update-reviewer` agent to surface upstream changes which should have
+  forced an op- change but didn't.
 - `docs/ai/reth-upstream-mirrors.md` — the `UPSTREAM-MIRROR` tags marking OP code
   that reproduces upstream logic instead of calling it, each recording the
   upstream version it was last verified against. `just mirrors stale` turns them

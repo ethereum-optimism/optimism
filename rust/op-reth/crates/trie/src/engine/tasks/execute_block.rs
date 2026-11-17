@@ -135,7 +135,7 @@ where
     let sorted_trie_updates = trie_updates.into_sorted();
     let sorted_post_state = hashed_state.into_sorted();
 
-    state.memory.insert(block_ref, BlockStateDiff { sorted_trie_updates, sorted_post_state });
+    state.buffer_block(block_ref, BlockStateDiff { sorted_trie_updates, sorted_post_state });
 
     let total_duration = start.elapsed();
 

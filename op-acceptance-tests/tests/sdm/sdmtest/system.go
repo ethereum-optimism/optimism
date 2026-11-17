@@ -46,8 +46,6 @@ type RethSystem struct {
 // with the test-only fixed policy enabled on its sequencer. The no-supernode preset applies
 // OpRethOptions only to the sequencer target; its super roots and all proof consumers remain stock.
 func NewFixedPolicySingleChainFaultProofSystem(t devtest.T) *presets.SingleChainInterop {
-	sysgo.SkipOnOpGeth(t, "SDM PostExec is op-reth only")
-
 	sys := presets.NewSingleChainInteropNoSupernode(t,
 		presets.WithOpRethOption(FixedPolicyOpRethOption("")),
 	)
@@ -123,7 +121,7 @@ func VerifyOpReth(t devtest.T, l2EL *dsl.L2ELNode) string {
 		strings.Contains(lower, "reth"),
 		"FATAL: Expected op-reth execution client, but got: %q. "+
 			"This test MUST run on op-reth. "+
-			"Set DEVSTACK_L2EL_KIND=op-reth or ensure op-reth binary is available.",
+			"Ensure the op-reth binary is available.",
 		clientVersion,
 	)
 	t.Require().False(

@@ -54,10 +54,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/el"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/reth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -97,7 +97,6 @@ var (
 
 type SystemConfigOpts struct {
 	AllocType config.AllocType
-	L2ELKind  services.ELKind
 }
 
 type SystemConfigOpt func(s *SystemConfigOpts)
@@ -108,17 +107,9 @@ func WithAllocType(allocType config.AllocType) SystemConfigOpt {
 	}
 }
 
-// WithL2ELKind pins the L2 execution-layer backend (op-geth or op-reth).
-func WithL2ELKind(kind services.ELKind) SystemConfigOpt {
-	return func(s *SystemConfigOpts) {
-		s.L2ELKind = kind
-	}
-}
-
 func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 	sco := &SystemConfigOpts{
 		AllocType: config.DefaultAllocType,
-		L2ELKind:  services.DefaultELKind(),
 	}
 	for _, opt := range opts {
 		opt(sco)
@@ -155,7 +146,6 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 		L1FinalizedDistance:    8, // Short, for faster tests.
 		BlobsPath:              t.TempDir(),
 		AllocType:              sco.AllocType,
-		L2ELKind:               sco.L2ELKind,
 		Nodes: map[string]*config2.Config{
 			RoleSeq: {
 				Driver: driver.Config{
@@ -198,7 +188,6 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 			"proposer":  testlog.Logger(t, log.LevelInfo).New("role", "proposer"),
 			"da-server": testlog.Logger(t, log.LevelInfo).New("role", "da-server"),
 		},
-		GethOptions:                   map[string][]geth.GethOption{},
 		P2PTopology:                   nil, // no P2P connectivity by default
 		NonFinalizedProposals:         false,
 		DataAvailabilityType:          batcherFlags.CalldataType,
@@ -241,6 +230,14 @@ func EcotoneSystemConfig(t *testing.T, ecotoneTimeOffset *hexutil.Uint64, opts .
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisTime
 	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = ecotoneTimeOffset
 	return cfg
+}
+
+// ActivateL1BlobForks activates the L1 forks up to Osaka at genesis, for a test whose L1 carries
+// blobs: upstream go-ethereum includes blob transactions in blocks only from Osaka on.
+func (cfg *SystemConfig) ActivateL1BlobForks() {
+	cfg.DeployConfig.L1CancunTimeOffset = &genesisTime
+	cfg.DeployConfig.L1PragueTimeOffset = &genesisTime
+	cfg.DeployConfig.L1OsakaTimeOffset = &genesisTime
 }
 
 func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64, opts ...SystemConfigOpt) SystemConfig {
@@ -312,11 +309,8 @@ type SystemConfig struct {
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*config2.Config // Per node config. Don't use populate rollup.Config
 	Loggers        map[string]log.Logger
-	GethOptions    map[string][]geth.GethOption
 	ProposerLogger log.Logger
 	BatcherLogger  log.Logger
-
-	ExternalL2Shim string
 
 	// map of outbound connections to other nodes. Node names prefixed with "~" are unconnected but linked.
 	// A nil map disables P2P completely.
@@ -332,7 +326,7 @@ type SystemConfig struct {
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
 
-	// Explicitly disable setting `RollupSequencerHTTP` to forward txs from sentry nodes
+	// Explicitly disable forwarding txs from the non-sequencer nodes to the sequencer
 	DisableTxForwarder bool
 
 	// Configure data-availability type that is used by the batcher.
@@ -367,9 +361,6 @@ type SystemConfig struct {
 	SupportL1TimeTravel bool
 
 	AllocType config.AllocType
-
-	// L2ELKind selects the L2 execution-layer backend (op-geth or op-reth).
-	L2ELKind services.ELKind
 }
 
 type System struct {
@@ -774,7 +765,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	// Initialize nodes
 	l1Geth, _, err := geth.InitL1(
 		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, clk,
-		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions[RoleL1]...)
+		path.Join(cfg.BlobsPath, "l1_el"), bcn)
 	if err != nil {
 		return nil, err
 	}
@@ -813,15 +804,9 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			nodeLogger = sysLogger.New("role", name)
 		}
 
-		ethClient, err := el.InitL2(context.Background(), el.L2Config{
-			Kind:          cfg.L2ELKind,
-			Name:          name,
-			Genesis:       l2Genesis,
-			JWTPath:       cfg.JWTFilePath,
-			Logger:        nodeLogger,
+		ethClient, err := reth.InitL2(context.Background(), nodeLogger, name, l2Genesis, cfg.JWTFilePath, reth.Config{
 			SequencerHTTP: sequencerHTTP,
 			DataDir:       t.TempDir(),
-			GethOptions:   cfg.GethOptions[name],
 		})
 		if err != nil {
 			return nil, err
@@ -1018,6 +1003,17 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			MaxConcurrentRequests: cfg.BatcherMaxConcurrentDARequest,
 		}
 	}
+	batcherTxMgrConfig := setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Batcher)
+	// txmgr knows the Osaka time of public L1s only. From Osaka on, the L1 accepts blob
+	// transactions with cell proofs; geth converts legacy sidecars on submission, but only for a
+	// transition period.
+	if osaka := l1Genesis.Config.OsakaTime; osaka != nil {
+		if *osaka <= l1Genesis.Timestamp {
+			batcherTxMgrConfig.CellProofTime = 0
+		} else {
+			batcherTxMgrConfig.CellProofTime = *osaka
+		}
+	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 sys.EthInstances[RoleL1].UserRPC().RPC(),
 		L2EthRpc:                 []string{sys.EthInstances[RoleSeq].UserRPC().RPC()},
@@ -1030,7 +1026,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		ApproxComprRatio:         0.4,
 		SubSafetyMargin:          4,
 		PollInterval:             50 * time.Millisecond,
-		TxMgrConfig:              setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Batcher),
+		TxMgrConfig:              batcherTxMgrConfig,
 		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: log.FormatText,

@@ -4,6 +4,8 @@ description: Configuration options for the op-reth historical proof store.
 diataxis: reference
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 This page documents the configuration options for the **historical proof store** in [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth).
 
 When enabled, op-reth maintains a separate storage database for versioned trie data used to serve `eth_getProof` for historical blocks. This is critical for historical state access (for example, fault proof workloads) without requiring full archive-style behavior from the execution database.
@@ -70,6 +72,32 @@ Periodic verification helps catch data corruption while maintaining good perform
 <Tabs>
   <Tab title="Syntax">`--proofs-history.verification-interval <PROOFS_HISTORY_VERIFICATION_INTERVAL>`</Tab>
   <Tab title="Default">`0`</Tab>
+</Tabs>
+
+### proofs-history.prefetch-threads
+
+<Unreleased component="op-reth" />
+
+Parallel readers that warm the proofs storage's page cache ahead of persistence.
+`0` (default) disables warming.
+Warming reads the pages each buffered block and the next prunes will touch, so the single-threaded persistence transaction waits on fewer disk reads.
+
+Enable it when the proofs storage is on a network-attached disk and proofs fall behind the chain tip at busy times.
+On such a disk, persisting a block waits on about a thousand reads of about a millisecond each, one at a time, while the disk has IOPS to spare.
+Warming has not been measured on local NVMe disks.
+
+Start with `4` to `8` readers.
+On an OP Mainnet node with a 20,000 IOPS network disk, 4 readers shortened persistence nearly as much as 8 in one catch-up run, and 8 readers did not change `eth_getProof` latency in a load test.
+The readers share the disk's IOPS with RPC requests, so use fewer on a disk with less to spare.
+
+Warming does not raise the node's memory needs.
+It brings into the page cache the pages persistence reads soon after.
+Like the rest of the page cache, they count toward the container's memory usage, and the kernel reclaims them when memory runs short.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.prefetch-threads <THREADS>`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Accepted values">`0` to `64`</Tab>
 </Tabs>
 
 

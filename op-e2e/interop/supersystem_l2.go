@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/el"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/reth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
@@ -101,7 +101,7 @@ func (s *interopE2ESystem) L2RollupClient(id string, name string) *sources.Rollu
 	return cl
 }
 
-// newL2 sets up the per-chain state needed before the supernode boots: keys, the L2 EL (op-geth),
+// newL2 sets up the per-chain state needed before the supernode boots: keys, the L2 EL,
 // and an empty node map. The op-node is configured via newSupernodeNodeConfig and started by
 // the supernode; the batcher is started after the supernode is up.
 func (s *interopE2ESystem) newL2(id string, l2Genesis *opgenesis.Genesis, rollupCfg *rollup.Config) l2Net {
@@ -168,12 +168,7 @@ func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.Depend
 func (s *interopE2ESystem) newELForL2(id string, node string, l2Genesis *opgenesis.Genesis) services.EthInstance {
 	jwtPath := writeDefaultJWT(s.t)
 	name := "l2-" + id + "-" + node
-	l2EL, err := el.InitL2(context.Background(), el.L2Config{
-		Kind:    s.config.L2ELKind,
-		Name:    name,
-		Genesis: l2Genesis,
-		JWTPath: jwtPath,
-		Logger:  s.logger.New("role", name),
+	l2EL, err := reth.InitL2(context.Background(), s.logger.New("role", name), name, l2Genesis, jwtPath, reth.Config{
 		DataDir: s.t.TempDir(),
 	})
 	require.NoError(s.t, err)

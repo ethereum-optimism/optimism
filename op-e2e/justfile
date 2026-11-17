@@ -20,13 +20,6 @@ _go_test_flags := if JUNIT_FILE != "" {
 # Run all tests
 test: pre-test test-ws
 
-# Run tests for an external L2
-test-external NAME: pre-test
-    #!/usr/bin/env bash
-    set -euo pipefail
-    make -C ./external_{{NAME}}/
-    {{_go_test}} {{_go_test_flags}} --externalL2 ./external_{{NAME}}/
-
 # Run workspace tests
 test-ws: pre-test
     {{_go_test}} {{_go_test_flags}} ./system/... ./e2eutils/... ./interop/...

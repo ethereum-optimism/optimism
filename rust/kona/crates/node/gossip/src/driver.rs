@@ -566,7 +566,8 @@ where
         }
         let Some(addr) = enr_to_multiaddr(enr) else {
             debug!(target: "gossip", "Failed to extract tcp socket from enr: {:?}", enr);
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr").increment(1);
+            metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr")
+                .increment(1);
             return None;
         };
         // `enr_to_multiaddr` ends the address in the peer ID.
@@ -579,7 +580,7 @@ where
         let addr = addr.into();
         let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
             warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr")
+            metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr")
                 .increment(1);
             return Err(DialError::InvalidMultiaddr { addr });
         };
@@ -608,7 +609,7 @@ where
         // before the gate, which would refuse it as already dialing or count it as a dial.
         if self.is_connected(&peer_id) {
             debug!(target: "gossip", ?peer_id, "Already connected to peer, not dialing");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
+            metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
                 .increment(1);
             return Err(DialError::AlreadyConnected { peer_id });
         }
@@ -652,13 +653,13 @@ where
                 for addr in &addrs {
                     self.connection_gate.dialed(addr);
                 }
-                metrics::gauge!(crate::Metrics::DIAL_PEER).increment(1);
+                metrics::counter!(crate::Metrics::DIAL_PEER).increment(1);
                 Ok(())
             }
             Err(e) => {
                 error!(target: "gossip", "Failed to connect to peer: {:?}", e);
                 self.connection_gate.remove_dial(&peer_id);
-                metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error")
+                metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error")
                     .increment(1);
                 Err(DialError::SwarmRefused { peer_id, reason: e.to_string() })
             }
@@ -847,7 +848,7 @@ where
 
                 let peer_count = self.swarm.connected_peers().count();
                 debug!(target: "gossip", "Connection established: {:?} | Peer Count: {}", peer_id, peer_count);
-                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected")
+                metrics::counter!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected")
                     .increment(1);
                 metrics::gauge!(crate::Metrics::GOSSIP_PEER_COUNT).set(peer_count as f64);
 
@@ -872,12 +873,12 @@ where
                     };
                     self.reply_to_connects(&peer_id, outcome);
                 }
-                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "outgoing_error")
+                metrics::counter!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "outgoing_error")
                     .increment(1);
             }
             SwarmEvent::IncomingConnectionError { error, .. } => {
                 debug!(target: "gossip", "Incoming connection error: {:?}", error);
-                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "incoming_error")
+                metrics::counter!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "incoming_error")
                     .increment(1);
             }
             SwarmEvent::ConnectionClosed {
@@ -889,7 +890,7 @@ where
                         self.connections.remove(&peer_id);
                     }
                 }
-                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed")
+                metrics::counter!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed")
                     .increment(1);
 
                 // The peer is still connected, for example after closing a duplicate connection.

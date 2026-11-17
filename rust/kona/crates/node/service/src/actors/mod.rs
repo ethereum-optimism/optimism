@@ -24,10 +24,9 @@ pub use rpc::{RpcActor, RpcActorError};
 mod derivation;
 pub use derivation::{
     DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
-    DerivationClientResult, DerivationDelegateClient, DerivationDelegateClientError,
-    DerivationDelegateProvider, DerivationEngineClient, DerivationError, DerivationState,
+    DerivationClientResult, DerivationEngineClient, DerivationError, DerivationState,
     DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate,
-    QueuedDerivationEngineClient,
+    QueuedDerivationEngineClient, SyncStatusSource,
 };
 
 mod l1_watcher;

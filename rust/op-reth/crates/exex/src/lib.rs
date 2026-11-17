@@ -16,7 +16,9 @@ use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_api::{FullNodeComponents, NodePrimitives, NodeTypes};
 use reth_optimism_trie::{
     CanonicalInMemoryStateProvider, OpProofStoragePruner, OpProofsProviderRO, OpProofsProviderRw,
-    OpProofsStore, ProofWindowRange, engine::EngineHandle, proof::DatabaseStateRoot,
+    OpProofsStore, ProofWindowRange,
+    engine::{EngineConfig, EngineHandle},
+    proof::DatabaseStateRoot,
 };
 use reth_provider::{BlockHashReader, BlockNumReader, HeaderProvider};
 use reth_trie::{
@@ -54,6 +56,7 @@ where
     storage: Storage,
     proofs_history_window: u64,
     verification_interval: u64,
+    prefetch_threads: usize,
 }
 
 impl<Node, Storage> OpProofsExExBuilder<Node, Storage>
@@ -67,6 +70,7 @@ where
             storage,
             proofs_history_window: DEFAULT_PROOFS_HISTORY_WINDOW,
             verification_interval: DEFAULT_VERIFICATION_INTERVAL,
+            prefetch_threads: 0,
         }
     }
 
@@ -86,6 +90,13 @@ where
         self
     }
 
+    /// Sets how many parallel readers warm the page cache ahead of persistence. `0` (the
+    /// default) disables warming.
+    pub const fn with_prefetch_threads(mut self, prefetch_threads: usize) -> Self {
+        self.prefetch_threads = prefetch_threads;
+        self
+    }
+
     /// Builds the [`OpProofsExEx`].
     pub fn build(self) -> OpProofsExEx<Node, Storage> {
         OpProofsExEx {
@@ -93,6 +104,7 @@ where
             storage: self.storage,
             proofs_history_window: self.proofs_history_window,
             verification_interval: self.verification_interval,
+            prefetch_threads: self.prefetch_threads,
         }
     }
 }
@@ -176,6 +188,8 @@ where
     /// How often (in blocks) to re-execute a block for verification even when pre-computed trie
     /// data is available. `0` disables periodic verification.
     verification_interval: u64,
+    /// Parallel readers warming the page cache ahead of persistence; `0` disables warming.
+    prefetch_threads: usize,
 }
 
 impl<Node, Storage> OpProofsExEx<Node, Storage>
@@ -215,11 +229,12 @@ where
             self.proofs_history_window,
         );
 
-        let engine_handle = EngineHandle::spawn(
+        let engine_handle = EngineHandle::spawn_with_config(
             self.ctx.evm_config().clone(),
             self.ctx.provider().clone(),
             self.storage.clone(),
             pruner,
+            EngineConfig { prefetch_threads: self.prefetch_threads, ..Default::default() },
         );
 
         engine_handle.sync_to(self.ctx.provider().best_block_number()?)?;

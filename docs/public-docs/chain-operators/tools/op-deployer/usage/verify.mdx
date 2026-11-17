@@ -15,7 +15,7 @@ op-deployer verify \
   --l1-rpc-url <l1 rpc url> \
   --input-file <filepath to input .json or state.json file> \
   --verifier-api-key <your api key> \
-  --artifacts-locator <l1 forge-artifacts locator> \
+  --artifacts-locator <l1 artifacts locator> \
   --verifier etherscan
 ```
 
@@ -25,7 +25,7 @@ For Blockscout verification (uses default URLs for mainnet/sepolia, no API key r
 op-deployer verify \
   --l1-rpc-url <l1 rpc url> \
   --input-file <filepath to input .json or state.json file> \
-  --artifacts-locator <l1 forge-artifacts locator> \
+  --artifacts-locator <l1 artifacts locator> \
   --verifier blockscout
 ```
 
@@ -35,7 +35,7 @@ For custom block explorer verification (Etherscan v2-compatible, API key may be 
 op-deployer verify \
   --l1-rpc-url <l1 rpc url> \
   --input-file <filepath to input .json or state.json file> \
-  --artifacts-locator <l1 forge-artifacts locator> \
+  --artifacts-locator <l1 artifacts locator> \
   --verifier custom \
   --verifier-url <custom etherscan v2 compatible api url>
 ```
@@ -86,7 +86,7 @@ Specifies a single contract name, matching a contract key within the input file,
 
 ### `--artifacts-locator`
 
-The locator to forge-artifacts containing the output of the `forge build` command (i.e. compiled bytecode and solidity source code). This can be a local path (with a `file://` prefix), remote URL (with a `http://` or `https://` prefix), or standard contracts tag (with a `tag://op-contracts/v` prefix).
+The [artifacts locator](/chain-operators/tools/op-deployer/reference/artifacts-locators) of the contracts to verify: `embedded`, a built Forge project on local disk (with a `file://` prefix), or a remote archive of one (with an `http://` or `https://` prefix).
 
 ### `--verifier`
 

@@ -12,8 +12,6 @@ import { SuperchainOpsPrereqs } from "/ko/snippets/superchain-ops-prereqs.mdx"
 
 <Warning>이 가이드는 아직 개발 중인 interop 기능에 의존합니다. 프로덕션 체인에서는 이 가이드를 따르지 마십시오.</Warning>
 
-<Info>이 가이드에는 Upgrade 21에 포함되어 배포되는 `op-contracts/v9.0.0`이 필요합니다. Upgrade 21은 Optimism Governance 승인을 기다리고 있으며, 해당 업그레이드가 체인에 실행된 이후에만 이 가이드를 따를 수 있습니다.</Info>
-
 이 런북은 `OPContractsManagerV2.migrate`(`opcm.migrate`)를 호출하여 기존 OP Stack 체인 두 개를 공유 분쟁 게임(dispute game)으로 병합하는 과정을 안내합니다. `OPContractsManagerV2.migrate`는 각 체인의 릴리스를 확인한 후 `OPContractsManagerMigrator`에 처리를 위임하므로, 아래에 나열된 revert 대부분에는 `OPContractsManagerMigrator_` 접두사가 붙습니다. 마이그레이션 후에는 두 체인이 새로 배포된 `DisputeGameFactory`, `AnchorStateRegistry`, `ETHLockbox`를 공유합니다. 새 제안은 공유 factory에서 방어되는 super-root 클레임이며, 체인별 dispute game factory는 구현이 모두 비워진 상태로 진행 중인 게임이 resolve되어 본드를 회수할 수 있도록 하기 위해서만 존재합니다.
 
 이 런북을 마치면 다음 구성을 갖추게 됩니다. 두 체인을 모두 derive하는 `op-supernode`를 기준으로 공유 factory에 super-root 클레임을 제안하는 `op-proposer` 하나, 공유 factory에서 super-root 게임을 방어하는 `op-challenger` 하나, 이를 감시하는 `op-dispute-mon` 하나, 그리고 이전 체인별 factory의 퇴역한 게임을 정리하는 체인별 `op-challenger` 및 `op-dispute-mon` "drain" 인스턴스입니다. drain 인스턴스는 각각 공유 op-supernode의 `/<chainID>/` 엔드포인트를 사용합니다.

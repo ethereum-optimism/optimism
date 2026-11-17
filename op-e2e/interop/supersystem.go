@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -82,16 +81,10 @@ type SuperSystem interface {
 type SuperSystemConfig struct {
 	SupportTimeTravel bool
 	BatcherUsesBlobs  bool
-	// L2ELKind selects the L2 execution-layer backend (op-geth or op-reth).
-	// Defaults to services.DefaultELKind() when unset.
-	L2ELKind services.ELKind
 }
 
 // NewSuperSystem creates a SuperSystem with the chains of world.
 func NewSuperSystem(t *testing.T, world WorldConfig, config SuperSystemConfig) SuperSystem {
-	if config.L2ELKind == "" {
-		config.L2ELKind = services.DefaultELKind()
-	}
 	s2 := &interopE2ESystem{config: &config}
 	s2.prepare(t, world)
 	return s2

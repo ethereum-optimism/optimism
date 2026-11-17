@@ -1387,7 +1387,7 @@ func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWind
 	sys.L2BatcherB.Stop()
 
 	// Build the exec tx without submitting to the mempool.
-	// InteropMempoolFiltering would reject the expired message, so we
+	// The mempool's interop filter would reject the expired message, so we
 	// bypass the mempool by injecting the raw tx via the test sequencer.
 	// This models a malicious sequencer force-including an invalid tx.
 	rawExecTx, execTxHash := aliceB.PrepareExecTx(initMsg)
