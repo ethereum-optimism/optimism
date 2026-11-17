@@ -1191,6 +1191,23 @@ mod tests {
         assert_eq!(records.evict(), Some(later));
     }
 
+    /// Which of two records that tie a full store evicts shouldn't follow from their node IDs: a
+    /// node ID is the hash of a key, and an attacker can grind keys until its records sort after
+    /// the others, so that they outlast them. So the order should vary from one eviction to the
+    /// next. With 64 evictions, the chance that one of the records is never evicted is 2⁻⁶³.
+    #[test]
+    fn test_evicts_records_that_tie_in_no_fixed_order() {
+        let mut records = Records::default();
+        records.add(BootStoreEntry::candidate(enr_of_new_node()));
+        records.add(BootStoreEntry::candidate(enr_of_new_node()));
+
+        let evicted: std::collections::HashSet<_> = (0..64)
+            .map(|_| records.clone().evict().expect("the records aren't empty").key())
+            .collect();
+
+        assert_eq!(evicted.len(), 2, "the same one of two records that tie was always evicted");
+    }
+
     /// A full store evicts a record that gossip reached only once it holds no candidate, however
     /// recently a session confirmed the candidates. Of the reached records, it evicts the one
     /// gossip reached longest ago.
