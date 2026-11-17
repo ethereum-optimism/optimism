@@ -78,17 +78,17 @@ phases:
         retry-clean: true
       - name: size-check
         description: Check contract sizes
-        command: forge build --deny never --sizes --skip "/**/test/**" --skip "/**/scripts/**"
+        command: forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
       - name: nut-bundle
         description: Check NUT bundle is up to date
         command: just nut-bundle-check-no-build
 
   # Phase 4: Dev build checks - needs test artifacts
   # A plain lite build, without forge-build-dev's script cache warm-up: these checks need no scripts.
-  # It is also the compiler-warning gate: it keeps foundry.toml's `deny = "warnings"`, under which
-  # forge compiles everything without a cache.
+  # It is also the compiler-warning gate. Forge skips its compile cache when denying warnings, so
+  # this build compiles everything.
   - name: dev
-    build: FOUNDRY_PROFILE=lite forge build
+    build: FOUNDRY_PROFILE=lite forge build --deny warnings
     checks:
       - name: forge-test-names
         description: Validate forge test conventions

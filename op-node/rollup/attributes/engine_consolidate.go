@@ -8,8 +8,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -39,15 +41,11 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 		return fmt.Errorf("random field does not match. expected: %v. got: %v", attrs.PrevRandao, block.PrevRandao)
 	}
 	if len(attrs.Transactions) != len(block.Transactions) {
-		missingSafeHashes, missingUnsafeHashes, err := getMissingTxnHashes(l, attrs.Transactions, block.Transactions)
-		if err != nil {
-			l.Error("failed to get missing txn hashes", "err", err)
-		} else {
-			l.Error("mismatched hashes",
-				"missingSafeHashes", missingSafeHashes,
-				"missingUnsafeHashes", missingUnsafeHashes,
-			)
-		}
+		missingSafeHashes, missingUnsafeHashes := getMissingTxnHashes(l, attrs.Transactions, block.Transactions)
+		l.Error("mismatched hashes",
+			"missingSafeHashes", missingSafeHashes,
+			"missingUnsafeHashes", missingUnsafeHashes,
+		)
 
 		return fmt.Errorf("transaction count does not match. expected: %d. got: %d", len(attrs.Transactions), len(block.Transactions))
 	}
@@ -191,18 +189,17 @@ func checkWithdrawals(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes, bl
 // logL1InfoTxns reports the values from the L1 info tx when they differ to aid
 // debugging. This check is the one that has been most frequently triggered.
 func logL1InfoTxns(rollupCfg *rollup.Config, l log.Logger, l2Number, l2Timestamp uint64, safeTx, unsafeTx hexutil.Bytes) {
-	// First decode into *types.Transaction to get the tx data.
-	var safeTxValue, unsafeTxValue types.Transaction
-	errSafe := (&safeTxValue).UnmarshalBinary(safeTx)
-	errUnsafe := (&unsafeTxValue).UnmarshalBinary(unsafeTx)
+	// First decode the deposits to get the tx data.
+	safeTxValue, errSafe := optypes.UnmarshalDepositTx(safeTx)
+	unsafeTxValue, errUnsafe := optypes.UnmarshalDepositTx(unsafeTx)
 	if errSafe != nil || errUnsafe != nil {
 		l.Error("failed to umarshal tx", "errSafe", errSafe, "errUnsafe", errUnsafe)
 		return
 	}
 
 	// Then decode the ABI encoded parameters
-	safeInfo, errSafe := derive.L1BlockInfoFromBytes(rollupCfg, l2Timestamp, safeTxValue.Data())
-	unsafeInfo, errUnsafe := derive.L1BlockInfoFromBytes(rollupCfg, l2Timestamp, unsafeTxValue.Data())
+	safeInfo, errSafe := derive.L1BlockInfoFromBytes(rollupCfg, l2Timestamp, safeTxValue.Data)
+	unsafeInfo, errUnsafe := derive.L1BlockInfoFromBytes(rollupCfg, l2Timestamp, unsafeTxValue.Data)
 	if errSafe != nil || errUnsafe != nil {
 		l.Error("failed to umarshal l1 info", "errSafe", errSafe, "errUnsafe", errUnsafe)
 		return
@@ -216,7 +213,7 @@ func logL1InfoTxns(rollupCfg *rollup.Config, l log.Logger, l2Number, l2Timestamp
 		"unsafe_l1_time", unsafeInfo.Time, "unsafe_seq_num", unsafeInfo.SequenceNumber,
 		"unsafe_l1_basefee", unsafeInfo.BaseFee, "unsafe_batcher_addr", unsafeInfo.BatcherAddr,
 	)
-	if bytes.HasPrefix(safeTxValue.Data(), derive.L1InfoFuncEcotoneBytes4) {
+	if bytes.HasPrefix(safeTxValue.Data, derive.L1InfoFuncEcotoneBytes4) {
 		l.Error("L1 Info transaction differs",
 			"safe_l1_blob_basefee", safeInfo.BlobBaseFee,
 			"safe_l1_basefee_scalar", safeInfo.BaseFeeScalar,
@@ -231,34 +228,26 @@ func logL1InfoTxns(rollupCfg *rollup.Config, l log.Logger, l2Number, l2Timestamp
 	}
 }
 
-func getMissingTxnHashes(l log.Logger, safeTxns, unsafeTxns []hexutil.Bytes) ([]common.Hash, []common.Hash, error) {
+// getMissingTxnHashes hashes the opaque transactions directly: the hash of every transaction
+// type, OP Stack deposits included, is the keccak-256 hash of its encoding.
+func getMissingTxnHashes(l log.Logger, safeTxns, unsafeTxns []hexutil.Bytes) ([]common.Hash, []common.Hash) {
 	safeTxnHashes := make(map[common.Hash]struct{}, len(safeTxns))
 	unsafeTxnHashes := make(map[common.Hash]struct{}, len(unsafeTxns))
 
 	for _, tx := range safeTxns {
-		safeTxValue := &types.Transaction{}
-		errSafe := safeTxValue.UnmarshalBinary(tx)
-		if errSafe != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal safe tx: %w", errSafe)
+		hash := crypto.Keccak256Hash(tx)
+		if _, ok := safeTxnHashes[hash]; ok {
+			l.Warn("duplicate safe tx value hash detected", "safeTxValueHash", hash)
 		}
-
-		if _, ok := safeTxnHashes[safeTxValue.Hash()]; ok {
-			l.Warn("duplicate safe tx value hash detected", "safeTxValueHash", safeTxValue.Hash())
-		}
-		safeTxnHashes[safeTxValue.Hash()] = struct{}{}
+		safeTxnHashes[hash] = struct{}{}
 	}
 
 	for _, tx := range unsafeTxns {
-		unsafeTxValue := &types.Transaction{}
-		errUnsafe := unsafeTxValue.UnmarshalBinary(tx)
-		if errUnsafe != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal unsafe tx: %w", errUnsafe)
+		hash := crypto.Keccak256Hash(tx)
+		if _, ok := unsafeTxnHashes[hash]; ok {
+			l.Warn("duplicate unsafe tx value hash detected", "unsafeTxValueHash", hash)
 		}
-
-		if _, ok := unsafeTxnHashes[unsafeTxValue.Hash()]; ok {
-			l.Warn("duplicate unsafe tx value hash detected", "unsafeTxValueHash", unsafeTxValue.Hash())
-		}
-		unsafeTxnHashes[unsafeTxValue.Hash()] = struct{}{}
+		unsafeTxnHashes[hash] = struct{}{}
 	}
 
 	missingUnsafeHashes := []common.Hash{}
@@ -275,5 +264,5 @@ func getMissingTxnHashes(l log.Logger, safeTxns, unsafeTxns []hexutil.Bytes) ([]
 		}
 	}
 
-	return missingSafeHashes, missingUnsafeHashes, nil
+	return missingSafeHashes, missingUnsafeHashes
 }

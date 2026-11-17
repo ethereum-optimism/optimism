@@ -23,6 +23,7 @@ schedules:
     - scheduled_daily_tests
     - scheduled_shipped_binaries
     - scheduled_sp1_elf_smoke
+    - scheduled_rust_advisories
     - circleci_schedule_trigger_check
   build_weekly:
     - scheduled_rust_nightly_bump
@@ -54,6 +55,8 @@ api_dispatch:
     - rust_e2e_ci
   rust_nightly_bump_dispatch:
     - scheduled_rust_nightly_bump
+  rust_advisories_dispatch:
+    - scheduled_rust_advisories
 
 # Workflows that run only in ethereum-optimism/optimism. They publish to OP Labs
 # infrastructure, check this project's CircleCI schedules, or test the images

@@ -62,11 +62,9 @@ mod tests {
     #[rstest]
     #[case::numeric_optimism("10", 10)]
     #[case::numeric_ethereum("1", 1)]
-    #[case::numeric_base("8453", 8453)]
     #[case::numeric_unknown("999999", 999999)]
     #[case::string_optimism("optimism", 10)]
     #[case::string_mainnet("mainnet", 1)]
-    #[case::string_base("base", 8453)]
     fn test_l2_chain_id_parse_valid(#[case] value: &str, #[case] expected_id: u64) {
         let args = GlobalArgs::try_parse_from(["test", "--l2-chain-id", value]).unwrap();
         assert_eq!(args.l2_chain_id.id(), expected_id);

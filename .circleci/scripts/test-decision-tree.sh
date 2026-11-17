@@ -215,7 +215,7 @@ run_scenario \
   "Scheduled: build_daily" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
-  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_shipped_binaries scheduled_sp1_elf_smoke circleci_schedule_trigger_check
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_shipped_binaries scheduled_sp1_elf_smoke scheduled_rust_advisories circleci_schedule_trigger_check
 
 REPO="ethereum-optimism/other" run_scenario \
   "Scheduled: build_daily, outside the public repo" \
@@ -247,6 +247,12 @@ run_scenario \
   "api" "" "" "" \
   '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true}' \
   release scheduled_rust_nightly_bump
+
+run_scenario \
+  "API: rust_advisories_dispatch" \
+  "api" "" "" "" \
+  '{"c-main_dispatch": false, "c-rust_advisories_dispatch": true}' \
+  release scheduled_rust_advisories
 
 run_scenario \
   "API: publish_contract_artifacts_dispatch" \

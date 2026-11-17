@@ -100,7 +100,8 @@ lint-go-fix: build-customlint build-superchain-go
 check-op-geth-version:
   go run ./ops/scripts/check-op-geth-version
 
-# Type-checks the tree against upstream go-ethereum and fails on op-geth-only API uses that are
+# Type-checks the tree against the upstream go-ethereum release the cutover moves to (cutoverVersion
+# in ops/scripts/opgeth-ratchet/upstream.go) and fails on op-geth-only API uses that are
 # not in ops/scripts/opgeth-ratchet/allowlist.txt, or on allowlist entries no longer used.
 opgeth-ratchet: build-superchain-go
   go run ./ops/scripts/opgeth-ratchet
@@ -336,6 +337,12 @@ go-tests-short: cannon build-contracts make-pre-test build-superchain-go
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
   go test -short -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} $(just list-test-packages)
 
+# Fuzzes op-core/fees against the C FastLZ build and the Solidity implementations, which it reads
+# from the forge artifacts. `-parallel=1` keeps one fuzz worker per target so the concurrent
+# `parallel` doesn't oversubscribe the CPU.
+fuzz-op-core-fees: build-contracts
+  parallel --line-buffer --tag -N1 "go test -run NOTAREALTEST -parallel=1 -tags cgo_test -v -fuzztime 10s -fuzz {} ./op-core/fees/fuzz" ::: FuzzFjordCostFunction FuzzFastLzSolidity FuzzFastLzCgo
+
 # Internal: runs Go tests with gotestsum for CI.
 [script('bash')]
 _go-tests-ci-internal go_test_flags="": build-superchain-go
@@ -446,7 +453,7 @@ go-tests-fraud-proofs-ci:
       --rerun-fails=3 \
       --rerun-fails-max-failures=50 \
       --packages="{{FRAUD_PROOF_TEST_PKGS}}" \
-      -- -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}}
+      -- -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} ${FAULT_PROOF_TEST_ARGS:-}
 
 # Runs comprehensive Go tests (alias for go-tests).
 test: go-tests

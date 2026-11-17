@@ -1,7 +1,6 @@
 package batcher
 
 import (
-	"math/big"
 	"runtime"
 	"testing"
 
@@ -10,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,29 +94,29 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	runtime.ReadMemStats(&initialMem)
 
 	// Create the first block (genesis)
-	var prevBlock *types.Block
+	var prevBlock *eth.ExecutionPayload
 
 	// Add many blocks to create multiple channels
 	const numBlocks = 1000
 	for i := 0; i < numBlocks; i++ {
-		var block *types.Block
+		var block *eth.ExecutionPayload
 
 		if i == 0 {
-			block = newMiniL2BlockWithChainID(0, defaultTestRollupConfig.L2ChainID)
+			block = newMiniL2Payload(0, 0, common.Hash{}, 100, 0)
 		} else {
 			// Create a block with proper parent hash and transaction content
-			block = newMiniL2BlockWithChainIDNumberParentAndL1Information(5, defaultTestRollupConfig.L2ChainID, big.NewInt(int64(i)), prevBlock.Hash(), 100, 0)
+			block = newMiniL2Payload(5, uint64(i), prevBlock.BlockHash, 100, 0)
 		}
 
-		require.NoError(t, m.AddL2Block(mustPayloadFromGeth(block)))
+		require.NoError(t, m.AddL2Block(block))
 		prevBlock = block
 
 		// Periodically process blocks and create channels
 		if i%100 == 0 {
 			// Ensure we have a channel
 			require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{
-				Hash:   block.Hash(),
-				Number: block.NumberU64(),
+				Hash:   block.BlockHash,
+				Number: uint64(block.BlockNumber),
 			}))
 
 			// Process blocks into channels

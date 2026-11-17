@@ -253,10 +253,13 @@ pub struct P2PArgs {
     /// node on a public network can't reach other hosts' private addresses, so leave it off there.
     #[arg(long = "p2p.discovery.private", env = "KONA_NODE_P2P_DISCOVERY_PRIVATE")]
     pub discovery_private: bool,
-    /// The directory to store the bootstore.
+    /// The bootstore file, which saves peers' records so that the node can dial them again after
+    /// a restart. If it is missing, the node creates it, and its directory, and doesn't start if
+    /// it can't. Nor does it start if the file can't be read, or isn't a JSON list of records.
+    /// Defaults to `~/.kona/<chain_id>/bootstore.json`.
     #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
     pub bootstore: Option<PathBuf>,
-    /// Disables the bootstore.
+    /// Disables the bootstore: the node neither saves peers' records nor reads saved ones.
     #[arg(long = "p2p.no-bootstore", env = "KONA_NODE_P2P_NO_BOOTSTORE")]
     pub disable_bootstore: bool,
     /// Peer Redialing threshold is the maximum amount of times to attempt to redial a peer that

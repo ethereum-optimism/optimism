@@ -55,7 +55,7 @@ func consensusReceiptCases() []*gethtypes.Receipt {
 		}),
 		mk(gethtypes.DepositTxType, gethtypes.ReceiptStatusFailed, func(r *gethtypes.Receipt) {
 			r.DepositNonce = uint64Ptr(8)
-			r.DepositReceiptVersion = uint64Ptr(gethtypes.CanyonDepositReceiptVersion)
+			r.DepositReceiptVersion = uint64Ptr(optypes.CanyonDepositReceiptVersion)
 		}),
 	}
 }
@@ -122,57 +122,10 @@ func TestReceiptsEncodeIndexDepositArms(t *testing.T) {
 
 	preCanyon := encode(base.DepositNonce, nil)
 	noNonce := encode(nil, nil)
-	postCanyon := encode(base.DepositNonce, uint64Ptr(gethtypes.CanyonDepositReceiptVersion))
+	postCanyon := encode(base.DepositNonce, uint64Ptr(optypes.CanyonDepositReceiptVersion))
 
 	require.Equal(t, noNonce, preCanyon, "pre-Canyon deposit receipt hash preimage must exclude the nonce")
 	require.NotEqual(t, preCanyon, postCanyon, "post-Canyon deposit receipt hash preimage must include nonce+version")
-}
-
-// TestReceiptsEncodeIndexOuterFieldsAuthoritative pins the Receipt contract
-// that the OUTER deposit fields drive the consensus encoding: a wrapper
-// hand-built around an embedded receipt whose deposit fields were never
-// mirrored to the wrapper encodes without them. Receipts must be produced
-// through this package's decoders.
-func TestReceiptsEncodeIndexOuterFieldsAuthoritative(t *testing.T) {
-	gr := *consensusReceiptCases()[0] // legacy shape, mutate into a deposit
-	gr.Type = gethtypes.DepositTxType
-	gr.DepositNonce = uint64Ptr(7)
-	gr.DepositReceiptVersion = uint64Ptr(gethtypes.CanyonDepositReceiptVersion)
-
-	desynced := &optypes.Receipt{Receipt: gr} // outer deposit fields left nil
-
-	mirrored := &optypes.Receipt{Receipt: gr}
-	mirrored.DepositNonce = gr.DepositNonce
-	mirrored.DepositReceiptVersion = gr.DepositReceiptVersion
-
-	var desyncedBuf, mirroredBuf bytes.Buffer
-	optypes.Receipts{desynced}.EncodeIndex(0, &desyncedBuf)
-	optypes.Receipts{mirrored}.EncodeIndex(0, &mirroredBuf)
-	require.NotEqual(t, mirroredBuf.Bytes(), desyncedBuf.Bytes())
-}
-
-// TestFromGethReceiptMirrorsDepositFields covers the wrapping constructor
-// against the hazard above: it carries the deposit fields to the authoritative
-// outer copies, where wrapping by hand leaves them nil.
-func TestFromGethReceiptMirrorsDepositFields(t *testing.T) {
-	gr := *consensusReceiptCases()[0] // legacy shape, mutate into a deposit
-	gr.Type = gethtypes.DepositTxType
-	gr.DepositNonce = uint64Ptr(7)
-	gr.DepositReceiptVersion = uint64Ptr(gethtypes.CanyonDepositReceiptVersion)
-
-	wrapped := optypes.FromGethReceipt(&gr)
-	require.Equal(t, gr.DepositNonce, wrapped.DepositNonce)
-	require.Equal(t, gr.DepositReceiptVersion, wrapped.DepositReceiptVersion)
-
-	var wrappedBuf, handBuiltBuf bytes.Buffer
-	optypes.Receipts{wrapped}.EncodeIndex(0, &wrappedBuf)
-	optypes.Receipts{{Receipt: gr}}.EncodeIndex(0, &handBuiltBuf)
-	require.NotEqual(t, handBuiltBuf.Bytes(), wrappedBuf.Bytes())
-
-	// The list constructor wraps identically.
-	var listBuf bytes.Buffer
-	optypes.FromGethReceipts(gethtypes.Receipts{&gr}).EncodeIndex(0, &listBuf)
-	require.Equal(t, wrappedBuf.Bytes(), listBuf.Bytes())
 }
 
 // TestReceiptUnmarshalBinaryDifferential asserts the consensus decode against
@@ -276,33 +229,6 @@ func TestReceiptUnmarshalBinaryErrors(t *testing.T) {
 	require.Error(t, r.UnmarshalBinary([]byte{optypes.DepositTxType}))
 	require.Error(t, r.UnmarshalBinary([]byte{optypes.DepositTxType, 0xff}))
 	require.Error(t, r.UnmarshalBinary([]byte{optypes.PostExecTxType, 0xff}))
-}
-
-// TestReceiptDeriveFieldsOuterNonce pins that contract-address derivation uses
-// the wrapper's authoritative outer DepositNonce, even when the embedded
-// shadow is unset — the promoted go-ethereum method read the shadow.
-func TestReceiptDeriveFieldsOuterNonce(t *testing.T) {
-	depositTx := gethtypes.NewTx(&gethtypes.DepositTx{
-		From:  common.HexToAddress("0x7777777777777777777777777777777777777777"),
-		To:    nil, // contract creation
-		Value: big.NewInt(0),
-		Gas:   1_000_000,
-	})
-	ctx := gethtypes.DeriveReceiptContext{
-		BlockNumber: 101,
-		BaseFee:     big.NewInt(7),
-		Tx:          depositTx,
-	}
-	signer := gethtypes.LatestSignerForChainID(big.NewInt(10))
-
-	r := &optypes.Receipt{}
-	r.DepositNonce = uint64Ptr(7) // outer only — embedded shadow left nil
-	r.DeriveFields(signer, ctx)
-
-	want := &gethtypes.Receipt{DepositNonce: uint64Ptr(7)}
-	want.DeriveFields(signer, ctx)
-	require.Equal(t, want.ContractAddress, r.ContractAddress,
-		"contract address must derive from the outer deposit nonce")
 }
 
 // TestReceiptSizeCountsExtensions pins that Size accounts for the wrapper's

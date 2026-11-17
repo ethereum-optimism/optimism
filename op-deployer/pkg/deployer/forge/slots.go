@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -39,20 +40,41 @@ func slotDir() string {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("op-deployer-forge-slots-%d", os.Getuid()))
 }
 
-// forgeRunMemory is about the peak memory of a forge run on a contracts bundle whose artifacts have
-// an AST. The artifacts package packs the bundles of built projects without it, and a run then takes
-// a quarter of this or less; sizing for the AST keeps a run safe on any bundle.
-const forgeRunMemory = 1536 << 20
+// RunMemory is the memory of a forge slot: the peak memory of a forge run on a contracts bundle
+// without the AST, as the artifacts package packs every bundle, with room for the contracts to grow.
+// TestForgeRunMemory fails when a run nears it. A run on a build with the AST, which op-deployer
+// uses only when it cannot copy the build, takes about three times this.
+const RunMemory = 512 << 20
 
-// slotCount returns the number of forge runs that three quarters of memLimit hold, at least one: one
-// run per forgeRunMemory, and a quarter for the rest of the host. Runs beyond the CPUs only take
-// longer, but runs beyond the memory get killed. Where the memory is unknown, memLimit is 0, and it
-// allows one run per CPU.
+// peakRunMemory is the largest peak memory of a forge script run in this process.
+var peakRunMemory atomic.Uint64
+
+// PeakRunMemory returns the largest peak memory of a forge script run in this process, in bytes: 0
+// before the first run, or where the peak is unknown.
+func PeakRunMemory() uint64 {
+	return peakRunMemory.Load()
+}
+
+// recordRunMemory raises the PeakRunMemory to peak.
+func recordRunMemory(peak uint64) {
+	for {
+		old := peakRunMemory.Load()
+		if peak <= old || peakRunMemory.CompareAndSwap(old, peak) {
+			return
+		}
+	}
+}
+
+// slotCount returns the number of forge runs that three quarters of memLimit hold, at most two per
+// CPU and at least one: one run per RunMemory, and a quarter for the rest of the host. Runs beyond
+// the memory get killed, and runs beyond the CPUs take longer and hold their memory longer; two per
+// CPU leave room for runs that wait on L1. Where the memory is unknown, memLimit is 0, and it allows
+// one run per CPU.
 func slotCount(cpus int, memLimit uint64) int {
 	if memLimit == 0 {
 		return max(1, cpus)
 	}
-	return max(1, int(memLimit/4*3/forgeRunMemory))
+	return max(1, min(2*cpus, int(memLimit/4*3/RunMemory)))
 }
 
 // acquire waits for a free slot and returns its release function.

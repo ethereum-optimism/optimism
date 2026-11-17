@@ -40,7 +40,7 @@ kona-node \
   --p2p.listen.tcp 9223 \
   --p2p.listen.udp 9223 \
   --p2p.scoring off \
-  --p2p.bootstore /path/to/bootstore
+  --p2p.bootstore /path/to/bootstore.json
 ```
 
 ### Example: OP Sepolia Configuration
@@ -66,7 +66,7 @@ kona-node \
   --p2p.listen.tcp 9223 \
   --p2p.listen.udp 9223 \
   --p2p.scoring off \
-  --p2p.bootstore ./bootstore
+  --p2p.bootstore ./bootstore.json
 ```
 
 ### Configuration via Environment Variables

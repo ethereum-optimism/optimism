@@ -69,8 +69,6 @@ abstract contract L1CrossDomainMessenger_TestInit is CommonTest {
 /// @notice Tests for the `constructor` of the L1CrossDomainMessenger.
 contract L1CrossDomainMessenger_Constructor_Test is L1CrossDomainMessenger_TestInit {
     /// @notice Tests that the implementation is initialized correctly.
-    /// @notice Marked virtual to be overridden in
-    ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         IL1CrossDomainMessenger impl = IL1CrossDomainMessenger(addressManager.getAddress("OVM_L1CrossDomainMessenger"));
         assertEq(address(impl.systemConfig()), address(0));
@@ -400,8 +398,6 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
 
     /// @notice Tests that the `relayMessage` function reverts when the message version is not 0 or
     ///         1.
-    /// @notice Marked virtual to be overridden in
-    ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_relayMessage_v2_reverts() external virtual {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;

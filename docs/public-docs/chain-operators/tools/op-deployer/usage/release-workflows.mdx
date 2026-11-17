@@ -75,6 +75,9 @@ The OP Deployer release is cut from the same commit.
 
 ### Step 3: Update the SR With the New Release
 
+A test release, or a variant that should not become the standard release, can skip this step and Step 4. See
+[Release Without a Registry Entry](#release-without-a-registry-entry).
+
 Add the new RC to the [standard versions](https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard)
 in the superchain-registry, with the addresses from the OPCM deployment.
 
@@ -111,3 +114,21 @@ The tag triggers the CircleCI `release` workflow, which publishes the docker ima
 GitHub Actions workflow, which attaches the binaries to a draft GitHub release and marks a release candidate as a
 pre-release. Wait for both to finish, then add the release notes and [publish the draft](#publish-a-release). Announce
 the release in `#proj-op-deployer` and `#solutions`.
+
+### Release Without a Registry Entry
+
+A test release, or a variant that should not become the standard release, can leave its deployment addresses out of
+the superchain-registry and leave `CurrentTag` (see Step 4) unchanged. Users then pick the new OPCM by setting
+`opcmAddress` in their intent:
+
+```toml
+opcmAddress = "0x..."
+```
+
+This requires the `custom` or `standard-overrides` intent type. A `standard` intent accepts only the OPCM that the
+registry lists for `CurrentTag`. `op-deployer init` writes that address into `standard` and `standard-overrides` intents,
+so a chain that doesn't replace it keeps the registry's release. An intent that sets `opcmAddress` must leave
+`superchainRoles` unset.
+
+Because the registry doesn't list the release, the release notes must give the OPCM address for each L1 network and tell
+users to set `opcmAddress`. Release candidates and final releases go through Steps 3 and 4.

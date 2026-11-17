@@ -313,6 +313,30 @@ mod tests {
         assert!(driver.discovery.is_none());
     }
 
+    /// Nor is its bootstore opened, so a bootstore that can't be opened, here a directory, fails
+    /// the build only if discovery is enabled.
+    #[test]
+    fn test_build_without_discovery_ignores_its_bootstore() {
+        let dir = tempfile::tempdir().unwrap();
+        let builder = || {
+            network_builder(Default::default())
+                .with_bootstore(Some(BootStoreFile::Custom(dir.path().to_path_buf())))
+        };
+
+        let err = builder().build().unwrap_err();
+        assert!(
+            matches!(
+                err,
+                NetworkBuilderError::DiscoveryDriverBuilder(
+                    kona_disc::Discv5BuilderError::Bootstore(_)
+                )
+            ),
+            "{err}"
+        );
+        let driver = builder().with_discovery_enabled(false).build().unwrap();
+        assert!(driver.discovery.is_none());
+    }
+
     /// A network starts without discovery, and its handler then holds none.
     #[tokio::test]
     async fn test_start_without_discovery() {

@@ -7,10 +7,10 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
@@ -18,10 +18,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -59,6 +63,7 @@ func main() {
 type actionEnv struct {
 	log        log.Logger
 	l2         *ethclient.Client
+	l2Source   *sources.EthClient
 	l2endpoint string
 	secretKey  string
 }
@@ -107,6 +112,12 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to dial L2 RPC: %w", err)
 		}
+		// A full block can take longer than the default 10s call timeout on a slow remote RPC.
+		l2RPC := client.NewBaseRPCClient(l2Cl.Client(), client.WithCallTimeout(time.Minute))
+		l2Source, err := sources.NewEthClient(l2RPC, logger, nil, sources.DefaultEthClientConfig(10))
+		if err != nil {
+			return fmt.Errorf("failed to create L2 source client: %w", err)
+		}
 		secretKey := c.String(SecretKeyFlag.Name)
 		if secretKey != "" {
 			// Normalize possible 0x prefix
@@ -115,6 +126,7 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		if err := fn(c.Context, &actionEnv{
 			log:        logger,
 			l2:         l2Cl,
+			l2Source:   l2Source,
 			l2endpoint: c.String(EndpointL2.Name),
 			secretKey:  secretKey,
 		}); err != nil {
@@ -164,7 +176,7 @@ func checkL1Block(ctx context.Context, env *actionEnv) error {
 // then use the block containing that tx as the block to check.
 func checkBlock(ctx context.Context, env *actionEnv) error {
 	var err error
-	var latest *types.Block
+	var latest *eth.ExecutionPayloadEnvelope
 
 	// If a secret key was provided, attempt to send a tx-to-self and wait for it to be mined.
 	if env.secretKey != "" {
@@ -197,42 +209,41 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 		}
 
 		// Fetch the block that contained the receipt
-		blk, err := env.l2.BlockByNumber(ctx, receipt.BlockNumber)
+		latest, err = env.l2Source.PayloadByNumber(ctx, bigs.Uint64Strict(receipt.BlockNumber))
 		if err != nil {
 			return fmt.Errorf("failed to fetch block containing tx: %w", err)
 		}
-		latest = blk
 	} else {
-		latest, err = env.l2.BlockByNumber(ctx, nil)
+		latest, err = env.l2Source.PayloadByLabel(ctx, eth.Unsafe)
 		if err != nil {
 			return fmt.Errorf("failed to get latest block: %w", err)
 		}
 	}
+	payload := latest.ExecutionPayload
 
-	bguPtr := latest.BlobGasUsed()
-	if bguPtr == nil {
-		return fmt.Errorf("block %d has nil BlobGasUsed field", latest.Number())
+	if payload.BlobGasUsed == nil {
+		return fmt.Errorf("block %d has nil BlobGasUsed field", payload.BlockNumber)
 	}
-	bgu := *bguPtr
+	bgu := uint64(*payload.BlobGasUsed)
 
-	txs := latest.Body().Transactions
+	txs := payload.Transactions
 	switch len(txs) {
 	case 0:
-		return fmt.Errorf("block %d has no transactions at all", latest.Number())
+		return fmt.Errorf("block %d has no transactions at all", payload.BlockNumber)
 	case 1:
 		env.log.Warn("Block has no user txs - inconclusive for Jovian activation",
-			"blockNumber", latest.Number(),
+			"blockNumber", payload.BlockNumber,
 			"note", "Zero could indicate an empty block or pre-Jovian state")
 	default:
 		expectedDAFootprint, err := opfees.CalcDAFootprint(txs)
 		if err != nil {
-			return fmt.Errorf("failed to calculate DA footprint for block %d: %w", latest.Number(), err)
+			return fmt.Errorf("failed to calculate DA footprint for block %d: %w", payload.BlockNumber, err)
 		}
 		if expectedDAFootprint != bgu {
 			return fmt.Errorf("expected DA footprint %d stored in header.blobGasUsed but got %d", expectedDAFootprint, bgu)
 		}
 		env.log.Info("Block header test: success - non-zero BlobGasUsed is hard evidence of Jovian being active",
-			"blockNumber", latest.Number,
+			"blockNumber", payload.BlockNumber,
 			"blobGasUsed", bgu,
 			"expectedDAFootprint", expectedDAFootprint)
 	}

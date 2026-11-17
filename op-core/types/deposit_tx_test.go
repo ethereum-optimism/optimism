@@ -206,6 +206,22 @@ func TestUnmarshalDepositTxErrors(t *testing.T) {
 	require.ErrorContains(t, err, "invalid deposit tx payload")
 }
 
+func TestTxTypeByteChecks(t *testing.T) {
+	deposit := []byte{optypes.DepositTxType, 0xc0}
+	postExec := []byte{optypes.PostExecTxType, 0xc0}
+	dynamicFee := []byte{gethtypes.DynamicFeeTxType, 0xc0}
+
+	require.True(t, optypes.IsDepositTxBytes(deposit))
+	require.False(t, optypes.IsDepositTxBytes(postExec))
+	require.False(t, optypes.IsDepositTxBytes(dynamicFee))
+	require.False(t, optypes.IsDepositTxBytes(nil))
+
+	require.True(t, optypes.IsPostExecTxBytes(postExec))
+	require.False(t, optypes.IsPostExecTxBytes(deposit))
+	require.False(t, optypes.IsPostExecTxBytes(dynamicFee))
+	require.False(t, optypes.IsPostExecTxBytes(nil))
+}
+
 // TestDepositTxHelpers checks the free-function replacements for op-geth's
 // Transaction methods against op-geth's methods themselves, on transactions
 // decoded from raw bytes the way they arrive from the Engine API. Note that

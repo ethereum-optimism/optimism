@@ -38,8 +38,6 @@ type Config struct {
 	// Callers should pass t.TempDir() so the test framework owns cleanup even if
 	// the test panics before Close.
 	DataDir string
-	// ExtraArgs are appended verbatim to the op-reth `node` invocation.
-	ExtraArgs []string
 }
 
 // Instance is a running op-reth process exposed through services.EthInstance.
@@ -186,7 +184,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *opgenesis
 	if cfg.SequencerHTTP != "" {
 		args = append(args, "--rollup.sequencer-http="+cfg.SequencerHTTP)
 	}
-	args = append(args, cfg.ExtraArgs...)
 
 	inst := &Instance{
 		logger: lgr,

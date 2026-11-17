@@ -1,7 +1,7 @@
 //go:build cgo_test
 // +build cgo_test
 
-package fastlz
+package fuzz
 
 // #include <stdlib.h>
 // #include "fastlz.h"

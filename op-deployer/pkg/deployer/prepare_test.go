@@ -539,8 +539,8 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 		{
 			name:     "L2_CHAIN_ID_1337",
 			gameType: opcm.GameTypeSuperCannonKona,
-			// The prediction runs on an L1 fork, so it sees the L1 chain ID, not the 1337 of genesis
-			// runs, and 1337 is a valid L2 chain ID.
+			// 1337 was the chain ID that genesis runs saw. The prediction runs on an L1 fork, so it
+			// sees the L1 chain ID, and 1337 is a valid L2 chain ID.
 			chainID: common.HexToHash("0x0539"),
 			salt:    common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901236"),
 		},

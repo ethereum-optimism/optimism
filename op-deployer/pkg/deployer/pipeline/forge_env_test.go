@@ -13,8 +13,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// newTestGenesisEnv returns an env that runs the local scripts offline on an empty genesis state.
-func newTestGenesisEnv(t *testing.T, deployer common.Address) *Env {
+// newTestGenesisEnv returns an env that runs the local scripts offline on an empty genesis state
+// of the L1 chain with the given ID.
+func newTestGenesisEnv(t *testing.T, deployer common.Address, l1ChainID uint64) *Env {
 	t.Helper()
 	_, afs := testutil.LocalArtifacts(t)
 	client, err := opcm.NewForgeClient(afs, "", opcm.L1ForgeScripts)
@@ -27,7 +28,7 @@ func newTestGenesisEnv(t *testing.T, deployer common.Address) *Env {
 			Client:    client,
 			Artifacts: afs,
 			Context:   ctx,
-			Genesis:   opcm.NewGenesisState(deployer, true),
+			Genesis:   opcm.NewGenesisState(deployer, l1ChainID, true),
 		},
 		IsGenesis:                 true,
 		AllowUnoptimizedContracts: true,

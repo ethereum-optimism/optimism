@@ -101,6 +101,7 @@ var mainnetCfg = rollup.Config{
 	JovianTime:             u64Ptr(1764691201),
 	KarstTime:              u64Ptr(1783526401),
 	KeepKarstUpgradeGas:    true,
+	LagoonTime:             u64Ptr(1799683201),
 	ChainOpConfig:          defaultOpConfig,
 }
 
@@ -143,6 +144,7 @@ var sepoliaCfg = rollup.Config{
 	JovianTime:             u64Ptr(1763568001),
 	KarstTime:              u64Ptr(1781712001),
 	KeepKarstUpgradeGas:    true,
+	LagoonTime:             u64Ptr(1796918401),
 	ChainOpConfig:          defaultOpConfig,
 }
 
@@ -182,6 +184,7 @@ var sepoliaDevnet2Cfg = rollup.Config{
 	IsthmusTime:            u64Ptr(0),
 	JovianTime:             u64Ptr(0),
 	KarstTime:              u64Ptr(0),
+	LagoonTime:             u64Ptr(1796054401),
 	ChainOpConfig:          defaultOpConfig,
 }
 

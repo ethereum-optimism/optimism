@@ -262,7 +262,6 @@ search for these patterns:
 
 ### op-e2e
 
-- `op-e2e/opgeth/op_geth_test.go` has fixed deposit gas, expects exactly 21000 gas used, and compares SSTORE refunds.
 - `op-e2e/actions/upgrades/fjord_fork_test.go` expects an exact `getL1GasUsed` result.
 - Many `op-e2e/actions/` tests send transfers with `Gas: params.TxGas`.
 - `op-e2e/actions/helpers/l2_batcher.go` uses `TxGas` or 1,000,000 gas for batch transactions.

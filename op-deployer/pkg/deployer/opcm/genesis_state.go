@@ -13,38 +13,33 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
-// offlineScriptChainID is the chain ID that offline forge runs see, the one that the genesis of
-// earlier releases was built with. It matters for the L1 dev genesis, whose Permit2 preinstall has
-// the chain ID built in; L2Genesis sets the L2 chain ID itself.
-const offlineScriptChainID = 1337
-
-// GenesisState is the L1 state of a genesis deployment. Each script runs offline in its own forge
+// GenesisState is the state of a genesis deployment. Each script runs offline in its own forge
 // process: it loads this state, and the state it leaves replaces it.
 type GenesisState struct {
-	// Allocs holds the L1 accounts, the sender included.
+	// Allocs holds the accounts, the sender included.
 	Allocs *foundry.ForgeAllocs
 	// Sender sends the transactions of the scripts.
 	Sender common.Address
+	// ChainID is the chain ID that the scripts see. Some code has it built in, such as the Permit2
+	// preinstall.
+	ChainID uint64
 	// NoCodeSizeLimit admits contracts over the EIP-170 limit, such as the lite profile's, and lets
 	// the scripts run a build of such a profile.
 	NoCodeSizeLimit bool
 }
 
-// NewGenesisState returns an empty state for a genesis deployment.
-func NewGenesisState(sender common.Address, noCodeSizeLimit bool) *GenesisState {
+// NewGenesisState returns an empty state for a genesis deployment on the chain with the given ID.
+// forge puts its own CREATE2 deployer in the state.
+func NewGenesisState(sender common.Address, chainID uint64, noCodeSizeLimit bool) *GenesisState {
 	return &GenesisState{
-		Allocs: &foundry.ForgeAllocs{Accounts: types.GenesisAlloc{
-			// No code, so forge keeps its own CREATE2 deployer here. Nonce 0, not a contract's 1, keeps
-			// the L1 dev genesis of earlier releases.
-			predeploys.DeterministicDeploymentProxyAddr: {Balance: new(big.Int)},
-		}},
+		Allocs:          &foundry.ForgeAllocs{Accounts: types.GenesisAlloc{}},
 		Sender:          sender,
+		ChainID:         chainID,
 		NoCodeSizeLimit: noCodeSizeLimit,
 	}
 }
@@ -116,7 +111,7 @@ func (g *GenesisState) run(client *forge.Client, fn func(client *forge.Client, f
 	}
 	flags := []string{
 		"--sender", g.Sender.Hex(),
-		"--chain", strconv.Itoa(offlineScriptChainID),
+		"--chain", strconv.FormatUint(g.ChainID, 10),
 		"--block-number", "0",
 		"--block-timestamp", "0",
 	}

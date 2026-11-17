@@ -114,7 +114,7 @@ mod tests {
     use enr::EnrPublicKey;
     use std::str::FromStr;
 
-    use kona_genesis::{BASE_MAINNET_CHAIN_ID, OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
+    use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
 
     use super::*;
 
@@ -150,11 +150,6 @@ mod tests {
 
         let unknown = BootNodes::from_chain_id(0);
         assert!(unknown.is_empty());
-
-        // Base was removed from the superchain registry, so its chain id no
-        // longer resolves to a known parent and yields no bootnodes.
-        let base = BootNodes::from_chain_id(BASE_MAINNET_CHAIN_ID);
-        assert!(base.is_empty());
     }
 
     #[test]
