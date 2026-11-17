@@ -49,13 +49,34 @@ sequencer 모드에는 모든 표준 node 인수와 함께 `--mode=Sequencer` �
 
 | 플래그 | 환경 변수 | 기본값 | 설명 |
 |------|---------------------|---------|-------------|
-| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | `false` | sequencer를 중지된 상태로 시작합니다 |
 | `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | origin 선택을 위한 L1 확인(confirmation) 수 |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | `false` | 복구 모드 동작을 강제합니다 |
 | `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor 서비스 RPC 엔드포인트 |
 | `--conductor.rpc.timeout` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | `1` | Conductor RPC 타임아웃(초) |
 
 validator 모드와 공유하는 표준 node 인수를 포함한 전체 플래그 목록은 [Kona node CLI 레퍼런스](/ko/node-operators/kona-node/configuration)에 있습니다.
+
+## Sequencer 시작하기 {#starting-the-sequencer}
+
+sequencer는 재시작 후를 포함해 항상 중지된 상태로 시작하며, 항상 RPC 포트에서 제공되는 [admin API](/ko/node-operators/kona-node/rpc/admin)를 통해 시작될 때까지 블록을 만들지 않습니다.
+
+- **op-conductor를 사용하는 경우**, conductor가 leader의 sequencer를 시작합니다. 다른 작업은 필요하지 않습니다.
+- **conductor를 사용하지 않는 경우**, 노드를 시작할 때마다 현재 unsafe head로 `admin_startSequencer`를 호출하십시오.
+
+  ```bash
+  HEAD=$(curl -s -X POST -H 'Content-Type: application/json' \
+    --data '{"jsonrpc":"2.0","id":1,"method":"optimism_syncStatus","params":[]}' \
+    http://127.0.0.1:9545 | jq -r .result.unsafe_l2.hash)
+  curl -s -X POST -H 'Content-Type: application/json' \
+    --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"admin_startSequencer\",\"params\":[\"$HEAD\"]}" \
+    http://127.0.0.1:9545
+  ```
+
+  unsafe head가 바뀌었거나 노드가 시작 후 아직 unsafe head를 게시하지 않아 호출이 실패하면 다시 시도하십시오.
+
+<Warning>
+admin API에는 인증이 없습니다. RPC는 기본적으로 `127.0.0.1`에 바인딩됩니다. `--rpc.addr`로 다른 주소에 바인딩하는 경우, 신뢰할 수 있는 호출자만 접근할 수 있도록 포트에 방화벽을 설정하십시오.
+</Warning>
 
 ## 예시 설정 {#example-configurations}
 
@@ -76,6 +97,7 @@ kona-node node \
   --mode=Sequencer \
   --conductor.rpc=http://conductor:8080 \
   --conductor.rpc.timeout=5 \
+  --rpc.addr=0.0.0.0 \
   --sequencer.l1-confs=6 \
   --l1-eth-rpc=http://l1-node:8545 \
   --l1-beacon=http://l1-beacon:5052 \
@@ -83,6 +105,8 @@ kona-node node \
   --p2p.sequencer.key.path=./p2p-sequencer.key \
   --chain=123456
 ```
+
+op-conductor는 admin API를 포함한 노드의 RPC를 호출하므로, `--rpc.addr`를 conductor가 접근할 수 있는 주소에 바인딩하고 신뢰할 수 있는 호출자만 접근할 수 있도록 포트에 방화벽을 설정하십시오.
 
 ### 복구 모드 Sequencer {#recovery-mode-sequencer}
 ```bash

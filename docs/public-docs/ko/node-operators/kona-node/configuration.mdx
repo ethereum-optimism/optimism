@@ -225,20 +225,21 @@ RPC 서버는 한 번 시작됩니다. 예기치 않게 중지되면 노드는 �
 | 플래그 | 환경 변수 | 설명 | 기본값 |
 |------|-----|-------------|---------|
 | `--rpc.disabled` | `KONA_NODE_RPC_DISABLED` | RPC 서버 비활성화 | `false` |
-| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC 수신 주소 | `0.0.0.0` |
+| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC 수신 주소 | `127.0.0.1` |
 | `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC 수신 포트 | `9545` |
-| `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | admin API 활성화 | `false` |
-| `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | admin 상태를 영구 저장할 파일 경로 | - |
+
+[admin API](/ko/node-operators/kona-node/rpc/admin)는 항상 RPC 포트에서 인증 없이 제공됩니다. admin API는 sequencer를 시작하고 중지할 수 있으며 unsafe 블록을 주입할 수 있습니다. `admin_postUnsafePayload`는 서명이 아니라 블록 해시만 확인합니다. Docker 컨테이너에서 포트를 게시하기 위한 `--rpc.addr 0.0.0.0`처럼 loopback이 아닌 주소에 바인딩하면 admin API가 노출되므로, 신뢰할 수 있는 호출자만 접근할 수 있도록 포트에 방화벽을 설정하십시오.
 
 ## Sequencer 인수 {#sequencer-arguments}
 
 | 플래그 | 환경 변수 | 설명 | 기본값 |
 |------|-----|-------------|---------|
-| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | sequencer를 중지된 상태로 시작 | `false` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | sequencer의 L1 블록 확인(confirmation) 수 | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | 다음 L1 origin을 엄격하게 준비하고 빈 L2 블록을 생성 | `false` |
 | `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | 외부 conductor 서비스의 RPC 엔드포인트 URL입니다. 이 값을 지정하면 sequencer 모드에서 conductor 연동이 활성화되며, validator 모드에서는 효과가 없습니다. | - |
 | `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | conductor 서비스 RPC 타임아웃 | `1` |
+
+sequencer는 재시작할 때마다 항상 중지된 상태로 시작합니다. [`admin_startSequencer`](/ko/node-operators/kona-node/rpc/admin#admin_startsequencer)로 시작하십시오. conductor를 사용하는 경우 op-conductor가 leader를 시작합니다.
 
 ## Interop 인수 {#interop-arguments}
 
@@ -261,7 +262,7 @@ RPC 서버는 한 번 시작됩니다. 예기치 않게 중지되면 노드는 �
 - P2P 스택이 시작됩니다. libp2p swarm은 블록 gossip을 수신하기 위해
   TCP `9222`에서 수신 대기합니다. `discv5` 탐색 서비스는
   UDP 포트 `9223`에서 실행됩니다. 피어 점수 산정이 활성화됩니다.
-- RPC 서버가 `0.0.0.0:9545`에서 노출됩니다. Websocket 연결은
+- admin API를 포함한 RPC 서버가 `127.0.0.1:9545`에서 노출됩니다. Websocket 연결은
   기본적으로 비활성화되어 있습니다.
 - Prometheus 메트릭은 비활성화되어 있습니다.
   `--metrics.enabled` 플래그로 활성화할 수 있으며, 그러면 메트릭이 `0.0.0.0:9090`에서 제공되고,

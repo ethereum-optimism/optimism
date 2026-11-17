@@ -22,6 +22,6 @@ JSON-RPC 메서드는 네임스페이스로 그룹화되며, 목록은 다음과
 
 ### RPC와 상호작용하기
 
-Kona는 이러한 RPC 메서드를 기본적으로 활성화합니다.
+Kona는 `admin` 네임스페이스를 포함한 이러한 RPC 메서드를 항상 제공합니다. RPC는 기본적으로 `127.0.0.1`에 바인딩됩니다. 다른 주소에 바인딩하기 전에 [RPC 인수](/ko/node-operators/kona-node/configuration#rpc-arguments)를 참조하십시오.
 
 `curl`, `httpie` 또는 원하는 프로그래밍 언어로 작성한 사용자 지정 클라이언트 등 모든 JSON-RPC 클라이언트를 사용해 RPC와 상호작용할 수 있습니다.
