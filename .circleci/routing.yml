@@ -45,8 +45,6 @@ api_dispatch:
     - scheduled_stale_check
   heavy_fuzz_dispatch:
     - scheduled_heavy_fuzz_tests
-  publish_contract_artifacts_dispatch:
-    - publish_contract_artifacts
   l2_fork_test_dispatch:
     - l2_fork_test
   rust_ci_dispatch:
@@ -63,7 +61,6 @@ api_dispatch:
 # published for this repo's commits, so other repos sharing this config lack the
 # credentials, schedules or images they need.
 public_repo_only:
-  - publish_contract_artifacts
   - kona_publish_prestates
   - circleci_schedule_trigger_check
   - scheduled_shipped_binaries
@@ -94,4 +91,3 @@ passthrough_params:
   - c-rust_base_image
   - c-base_image
   - c-go-cache-version
-  - c-publish_contract_artifacts_ref
