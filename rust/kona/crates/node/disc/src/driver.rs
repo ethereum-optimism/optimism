@@ -130,11 +130,8 @@ pub struct Discv5Driver {
     /// The frequency at which to remove random nodes from the discovery table.
     /// This is not enabled (`None`) by default.
     pub remove_interval: Option<Duration>,
-    /// How long after the first session since startup the driver first expires the bootstore's
-    /// old evidence, and how often after that, [`EXPIRY_INTERVAL`] by default. Not before the
-    /// first session, as geth: a node that was down for longer than the evidence counts would
-    /// otherwise drop its records before a session could refresh them, and one without network
-    /// access would drop them all.
+    /// How long after a session the driver expires the bootstore's old evidence,
+    /// [`EXPIRY_INTERVAL`] by default, see [`ExpirySchedule`].
     pub(crate) expiry_interval: Duration,
 }
 
@@ -490,9 +487,7 @@ impl Discv5Driver {
 
             // Step 7: Run the core driver loop.
             let mut handlers_dropped = false;
-            // When the bootstore's old evidence expires next: `None` until the first session,
-            // see `expiry_interval`.
-            let mut expire_at: Option<SystemTime> = None;
+            let mut expiry = ExpirySchedule::new(self.expiry_interval);
             loop {
                 tokio::select! {
                     msg = req_recv.recv(), if !handlers_dropped => {
@@ -573,8 +568,8 @@ impl Discv5Driver {
                             event,
                             discv5::Event::SessionEstablished(..) | discv5::Event::UnverifiableEnr { .. }
                         );
-                        if session && expire_at.is_none() {
-                            expire_at = SystemTime::now().checked_add(self.expiry_interval);
+                        if session {
+                            expiry.session_started(SystemTime::now());
                         }
                         if let Some(RecordToDial { event: kind, enr, socket }) =
                             Self::record_to_dial(event, chain_id, table_filter)
@@ -603,10 +598,9 @@ impl Discv5Driver {
                         let start = std::time::Instant::now();
                         let now = SystemTime::now();
                         refresh_connected(&mut store, &self.disc.table_entries(), now);
-                        if expire_at.is_some_and(|at| at <= now) {
+                        if expiry.take_due(now) {
                             let dropped = store.expire(now, EVIDENCE_TTL);
                             debug!(target: "discovery", dropped, "Expired the bootstore's old evidence");
-                            expire_at = now.checked_add(self.expiry_interval);
                         }
                         // Only what the driver added: the bootnodes, and the records a session
                         // confirmed. discv5's table also holds records from other nodes' answers
@@ -727,6 +721,44 @@ async fn sync_on_blocking_thread(store: &mut BootStore) -> Option<Result<bool, B
 /// sessions that start before gossip catches up, which are handed over only once.
 fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
     sender.capacity().saturating_sub(sender.max_capacity() / 2)
+}
+
+/// When the driver expires the bootstore's old evidence next: an interval after a session, and
+/// only after a session since the last pass, so that expiry runs only while discovery hears from
+/// the network. A node without network access, at startup or later, would otherwise drop records
+/// that it can't refresh, and after a week all of them. geth starts its expiry at the first
+/// session, but then keeps it going.
+///
+/// The interval after the session gives the nodes that answer the time to refresh their records:
+/// after a restart, a node that was down for longer than the evidence counts would otherwise drop
+/// its records before a session could refresh them.
+#[derive(Debug)]
+struct ExpirySchedule {
+    /// How long after a session the pass is due.
+    interval: Duration,
+    /// When the next pass is due, if a session since the last one set it.
+    due: Option<SystemTime>,
+}
+
+impl ExpirySchedule {
+    /// Returns a schedule with no pass due, until a session.
+    const fn new(interval: Duration) -> Self {
+        Self { interval, due: None }
+    }
+
+    /// Notes that a session started at `now`, so that a pass is due an interval later, unless one
+    /// is due already.
+    fn session_started(&mut self, now: SystemTime) {
+        if self.due.is_none() {
+            self.due = now.checked_add(self.interval);
+        }
+    }
+
+    /// Returns whether a pass is due at `now`. A due pass is taken: the next is due only an
+    /// interval after the next session.
+    fn take_due(&mut self, now: SystemTime) -> bool {
+        self.due.take_if(|due| *due <= now).is_some()
+    }
 }
 
 /// Notes in `store` that discovery's sessions with the nodes `table` holds as connected still
