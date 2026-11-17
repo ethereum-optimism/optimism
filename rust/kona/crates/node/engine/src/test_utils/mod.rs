@@ -2,10 +2,10 @@ mod attributes;
 pub use attributes::TestAttributesBuilder;
 
 mod blocks;
-pub use blocks::{TestRpcBlock, test_l2_block, test_rpc_block};
+pub use blocks::{TestRpcBlock, rpc_l2_block, test_l2_block, test_rpc_block};
 
 mod deposits;
-pub use deposits::l1_info_deposit;
+pub use deposits::{l1_info_deposit, l1_info_deposit_for};
 
 mod rpc;
 pub use rpc::{RpcMock, expect_sync_start, test_engine_client};

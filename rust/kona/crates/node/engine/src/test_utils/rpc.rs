@@ -207,7 +207,12 @@ pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock, Rpc
 }
 
 /// Expects the sync start a reset performs: the execution layer answering `block` for its
-/// finalized, safe and latest blocks, the L1 lookup of its origin, and `forkchoice` being sent.
+/// finalized, safe and latest blocks, the L1 head and canonical L1 lookup of its origin, and
+/// `forkchoice` being sent.
+///
+/// `block` must be the default block at genesis: its hash is zero, as is the default genesis L1
+/// origin's, so the default L1 block at height zero is its canonical origin. It is also the L1
+/// head.
 pub fn expect_sync_start(
     l1: &RpcMock,
     l2: &RpcMock,
@@ -217,6 +222,12 @@ pub fn expect_sync_start(
     for label in ["finalized", "safe", "latest"] {
         l2.expect_params("eth_getBlockByNumber", serde_json::json!([label, true]), block);
     }
-    l1.expect("eth_getBlockByHash", EthBlock::<EthTransaction>::default());
+    for number in ["latest", "0x0"] {
+        l1.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([number, false]),
+            EthBlock::<EthTransaction>::default(),
+        );
+    }
     l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
 }
