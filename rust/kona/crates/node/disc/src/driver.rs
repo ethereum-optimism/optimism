@@ -2,7 +2,7 @@
 
 use backon::{ExponentialBuilder, RetryableWithContext};
 use derive_more::Debug;
-use discv5::{Config, Discv5, Enr, NodeContact};
+use discv5::{Config, Discv5, Enr, NodeContact, kbucket::NodeStatus};
 use enr::NodeId;
 use kona_peers::{
     BootNode, BootNodes, BootStore, BootStoreError, EnrValidation, peer_id_to_node_id,
@@ -521,6 +521,7 @@ impl Discv5Driver {
                     }
                     _ = store_interval.tick() => {
                         let start = std::time::Instant::now();
+                        refresh_connected(&mut store, &self.disc.table_entries(), SystemTime::now());
                         // Only what the driver added: the bootnodes, and the records a session
                         // confirmed. discv5's table also holds records from other nodes' answers
                         // to our lookups, which nothing confirmed, and the bootstore would dial
@@ -640,6 +641,29 @@ async fn sync_on_blocking_thread(store: &mut BootStore) -> Option<Result<bool, B
 /// sessions that start before gossip catches up, which are handed over only once.
 fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
     sender.capacity().saturating_sub(sender.max_capacity() / 2)
+}
+
+/// Notes in `store` that discovery's sessions with the nodes `table` holds as connected still
+/// work: discv5 pings each of them at the UDP address in its record every five minutes, and holds
+/// it as disconnected once a request to it fails. A session's evidence would otherwise only be as
+/// old as the session, which lasts as long as the pings answer, for days.
+///
+/// Only a record the store holds as it is in the table gets the evidence. A node may have replaced
+/// its record since its session started, and discv5 then holds the new one. But saving it would
+/// need the checks [`Discv5Driver::record_to_dial`] makes of a session's record, against the
+/// address the session came from, which the table doesn't have. The node's next session brings
+/// the new record.
+fn refresh_connected(store: &mut BootStore, table: &[(NodeId, Enr, NodeStatus)], at: SystemTime) {
+    for (node_id, enr, status) in table {
+        if !status.is_connected() || store.get(*node_id).is_none_or(|entry| entry.enr() != enr) {
+            continue;
+        }
+        let socket =
+            enr.udp4_socket().map(SocketAddr::V4).or_else(|| enr.udp6_socket().map(SocketAddr::V6));
+        if let Some(socket) = socket {
+            store.set_udp_verified(*node_id, socket, at);
+        }
+    }
 }
 
 /// Hands gossip the saved records, the bootnodes and the records a session confirmed. Gossip dials

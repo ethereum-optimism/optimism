@@ -211,3 +211,60 @@ async fn test_bootstore_that_cannot_be_opened_fails_the_build() {
         "{err}"
     );
 }
+
+/// A record of a node with `key`, at `1.1.1.1`.
+fn record_with(key: &CombinedKey) -> Enr {
+    Enr::builder().ip4(Ipv4Addr::new(1, 1, 1, 1)).udp4(9222).tcp4(9223).build(key).unwrap()
+}
+
+/// The table entry of `enr`, in `state`.
+fn table_entry(enr: &Enr, state: discv5::ConnectionState) -> (NodeId, Enr, NodeStatus) {
+    let status = NodeStatus { direction: discv5::ConnectionDirection::Outgoing, state };
+    (enr.node_id(), enr.clone(), status)
+}
+
+/// At each store interval, a node should note that its sessions with the nodes discovery holds
+/// as connected still work, as discv5 pings them: otherwise a session's evidence is only as recent
+/// as the session, which lasts for days. Only a saved record that is as the table holds it gets
+/// the evidence: a newer record in the table would need the checks a session's record gets.
+#[rstest::rstest]
+#[case::connected(discv5::ConnectionState::Connected, false, true)]
+#[case::disconnected(discv5::ConnectionState::Disconnected, false, false)]
+#[case::connected_with_a_newer_record(discv5::ConnectionState::Connected, true, false)]
+fn test_store_interval_refreshes_connected_sessions(
+    #[case] state: discv5::ConnectionState,
+    #[case] newer_in_table: bool,
+    #[case] refreshed: bool,
+) {
+    let key = CombinedKey::generate_secp256k1();
+    let saved = record_with(&key);
+    let mut in_table = saved.clone();
+    if newer_in_table {
+        in_table.set_udp4(9000, &key).unwrap();
+    }
+    let mut store = BootStore::in_memory();
+    store.add_enr(saved.clone());
+    let now = SystemTime::now();
+
+    refresh_connected(&mut store, &[table_entry(&in_table, state)], now);
+
+    let entry = store.get(saved.node_id()).expect("the record stays saved");
+    assert_eq!(entry.enr(), &saved);
+    assert_eq!(entry.udp_verified_at(), refreshed.then_some(now));
+}
+
+/// A connected node in the table whose record the node didn't save gets no record: only the
+/// records sessions bring are saved, after their checks.
+#[test]
+fn test_store_interval_saves_no_unsaved_connected_node() {
+    let mut store = BootStore::in_memory();
+    let record = record_with(&CombinedKey::generate_secp256k1());
+
+    refresh_connected(
+        &mut store,
+        &[table_entry(&record, discv5::ConnectionState::Connected)],
+        SystemTime::now(),
+    );
+
+    assert!(store.is_empty());
+}

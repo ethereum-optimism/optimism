@@ -18,10 +18,11 @@ use tempfile::NamedTempFile;
 /// The maximum number of peers that can be stored in the bootstore.
 const MAX_PEERS: usize = 2048;
 
-/// How long `tcp_verified_at` is kept before new evidence replaces it. Gossip repeats the
-/// evidence at each ping on a connection it dialed, every 15 seconds, and refreshing each time
-/// would make the store save at every store interval.
-const TCP_VERIFIED_REFRESH: Duration = Duration::from_secs(5 * 60);
+/// How long the evidence for an address is kept before new evidence replaces it. Gossip repeats
+/// its evidence at each ping on a connection it dialed, every 15 seconds, and discovery at each
+/// store interval for the nodes its table holds as connected: refreshing each time would make the
+/// store save at every store interval.
+const VERIFIED_REFRESH: Duration = Duration::from_secs(5 * 60);
 
 /// The format version of the bootstore files that [`Records::to_json_vec`] writes.
 /// [`Contents::from_json_slice`] reads this one and every earlier one.
@@ -431,18 +432,15 @@ impl BootStore {
     /// address of that family, nor for an unverifiable record. A session from another socket
     /// leaves the record's evidence as it is: it says nothing against the record's address.
     ///
-    /// Does nothing for a node the store doesn't hold, nor for a time before the one it has. A
-    /// newer time changes the file at the next [`Self::sync`].
+    /// Does nothing for a node the store doesn't hold, nor until the evidence it has is five
+    /// minutes old, as discovery repeats it. A newer time changes the file at the next
+    /// [`Self::sync`].
     pub fn set_udp_verified(&mut self, node_id: NodeId, socket: SocketAddr, at: SystemTime) {
         let Some(entry) = self.records.0.get_mut(&node_id.raw()) else {
             return;
         };
-        if !holds_socket(udp_sockets(&entry.enr), socket) {
-            return;
-        }
-        if entry.udp_verified_at < Some(at) {
-            entry.udp_verified_at = Some(at);
-            self.dirty = true;
+        if holds_socket(udp_sockets(&entry.enr), socket) {
+            self.dirty |= refresh(&mut entry.udp_verified_at, at);
         }
     }
 
@@ -458,14 +456,9 @@ impl BootStore {
         let Some(entry) = self.records.0.get_mut(&node_id.raw()) else {
             return;
         };
-        if !holds_socket(tcp_sockets(&entry.enr), addr) {
-            return;
+        if holds_socket(tcp_sockets(&entry.enr), addr) {
+            self.dirty |= refresh(&mut entry.tcp_verified_at, at);
         }
-        if entry.tcp_verified_at.is_some_and(|last| last + TCP_VERIFIED_REFRESH > at) {
-            return;
-        }
-        entry.tcp_verified_at = Some(at);
-        self.dirty = true;
     }
 
     /// Adds `entry`, see [`Records::add`].
@@ -561,6 +554,16 @@ fn udp_sockets(enr: &Enr) -> (Option<SocketAddrV4>, Option<SocketAddrV6>) {
 /// Returns the TCP sockets of `enr`, which a gossip connection confirms.
 fn tcp_sockets(enr: &Enr) -> (Option<SocketAddrV4>, Option<SocketAddrV6>) {
     (enr.tcp4_socket(), enr.tcp6_socket())
+}
+
+/// Sets `evidence` to `at`, unless the time it holds is less than [`VERIFIED_REFRESH`] before
+/// `at`, or after it. Returns whether it changed.
+fn refresh(evidence: &mut Option<SystemTime>, at: SystemTime) -> bool {
+    if evidence.is_some_and(|last| last + VERIFIED_REFRESH > at) {
+        return false;
+    }
+    *evidence = Some(at);
+    true
 }
 
 /// Returns whether `addr` is the socket of its family in `sockets`, a record's
@@ -870,27 +873,39 @@ mod tests {
         assert_eq!(store.records.0.values().collect::<Vec<_>>(), [&expected]);
     }
 
-    /// Gossip repeats its evidence at every ping on a connection it dialed, so the store takes it
-    /// only once the evidence it has is [`TCP_VERIFIED_REFRESH`] old. Otherwise every store
-    /// interval would save the file.
-    #[test]
-    fn test_gossip_evidence_is_refreshed_once_it_is_old() {
+    /// Discovery and gossip repeat their evidence, so the store takes it only once the evidence
+    /// it has is [`VERIFIED_REFRESH`] old. Otherwise every store interval would save the file.
+    #[rstest::rstest]
+    #[case::session(
+        |enr: &Enr| SocketAddr::V4(enr.udp4_socket().unwrap()),
+        BootStore::set_udp_verified,
+        BootStoreEntry::udp_verified_at
+    )]
+    #[case::gossip(
+        |enr: &Enr| SocketAddr::V4(enr.tcp4_socket().unwrap()),
+        BootStore::set_tcp_verified,
+        BootStoreEntry::tcp_verified_at
+    )]
+    fn test_evidence_is_refreshed_once_it_is_old(
+        #[case] addr_of: fn(&Enr) -> SocketAddr,
+        #[case] set: fn(&mut BootStore, NodeId, SocketAddr, SystemTime),
+        #[case] verified_at: fn(&BootStoreEntry) -> Option<SystemTime>,
+    ) {
         let enr = make_enr();
-        let addr = SocketAddr::V4(enr.tcp4_socket().unwrap());
-        let refresh = TCP_VERIFIED_REFRESH.as_secs();
+        let addr = addr_of(&enr);
+        let refresh = VERIFIED_REFRESH.as_secs();
         let mut store = BootStore::in_memory();
         store.add_enr(enr.clone());
         store.sync().unwrap();
 
-        store.set_tcp_verified(enr.node_id(), addr, at(1_000));
+        set(&mut store, enr.node_id(), addr, at(1_000));
         assert!(store.sync().unwrap(), "the first evidence wasn't a change");
-        store.set_tcp_verified(enr.node_id(), addr, at(1_000 + refresh - 1));
+        set(&mut store, enr.node_id(), addr, at(1_000 + refresh - 1));
         assert!(!store.sync().unwrap(), "evidence before the refresh was a change");
-        store.set_tcp_verified(enr.node_id(), addr, at(1_000 + refresh));
+        set(&mut store, enr.node_id(), addr, at(1_000 + refresh));
         assert!(store.sync().unwrap(), "evidence at the refresh wasn't a change");
 
-        let entry = store.get(enr.node_id()).unwrap();
-        assert_eq!(entry.tcp_verified_at(), Some(at(1_000 + refresh)));
+        assert_eq!(verified_at(store.get(enr.node_id()).unwrap()), Some(at(1_000 + refresh)));
     }
 
     /// A full store evicts the record whose UDP address a session confirmed longest ago, the
