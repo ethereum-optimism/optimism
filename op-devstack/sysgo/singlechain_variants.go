@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -500,25 +498,7 @@ func startConductorCluster(
 	// head and cannot create competing forks before this point.
 	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, t.Logger(), bootstrapNode.UserRPC())
 	require.NoError(err, "failed to dial bootstrap sequencer node")
-	var initialStatus *eth.SyncStatus
-	// RPC can be available before the initial engine reset publishes a head. Read a
-	// ready head on every attempt, including if derivation changes it before start.
-	err = retry.Do0(ctx, 90, retry.Fixed(500*time.Millisecond), func() error {
-		status, err := rollupClient.SyncStatus(ctx)
-		if err != nil {
-			return err
-		}
-		if status == nil || status.UnsafeL2.Hash == (common.Hash{}) {
-			t.Logger().Info("Waiting for bootstrap sequencer to publish its unsafe head")
-			return errors.New("bootstrap sequencer has not published its unsafe head yet")
-		}
-		if err := rollupClient.StartSequencer(ctx, status.UnsafeL2.Hash); err != nil {
-			t.Logger().Info("Waiting to start bootstrap sequencer at its current head", "err", err)
-			return err
-		}
-		initialStatus = status
-		return nil
-	})
+	initialStatus, err := startSequencerAtUnsafeHead(ctx, t.Logger(), rollupClient)
 	require.NoError(err, "failed to start sequencing on bootstrap node")
 	err = retry.Do0(ctx, 90, retry.Fixed(500*time.Millisecond), func() error {
 		status, err := rollupClient.SyncStatus(ctx)
