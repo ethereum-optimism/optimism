@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
@@ -27,10 +26,7 @@ func TestSystemE2EOsakaAtGenesisWithBlobs(t *testing.T) {
 	defer cancel()
 
 	cfg := e2esys.DefaultSystemConfig(t)
-	cfg.DeployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
-	// Upstream go-ethereum accepts blob transactions, and includes them in blocks, only from Osaka on.
-	cfg.DeployConfig.L1PragueTimeOffset = new(hexutil.Uint64)
-	cfg.DeployConfig.L1OsakaTimeOffset = new(hexutil.Uint64)
+	cfg.ActivateL1BlobForks()
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")

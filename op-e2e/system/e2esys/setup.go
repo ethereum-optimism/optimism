@@ -232,6 +232,14 @@ func EcotoneSystemConfig(t *testing.T, ecotoneTimeOffset *hexutil.Uint64, opts .
 	return cfg
 }
 
+// ActivateL1BlobForks activates the L1 forks up to Osaka at genesis, for a test whose L1 carries
+// blobs: upstream go-ethereum includes blob transactions in blocks only from Osaka on.
+func (cfg *SystemConfig) ActivateL1BlobForks() {
+	cfg.DeployConfig.L1CancunTimeOffset = &genesisTime
+	cfg.DeployConfig.L1PragueTimeOffset = &genesisTime
+	cfg.DeployConfig.L1OsakaTimeOffset = &genesisTime
+}
+
 func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64, opts ...SystemConfigOpt) SystemConfig {
 	cfg := EcotoneSystemConfig(t, &genesisTime, opts...)
 	cfg.DeployConfig.L2GenesisFjordTimeOffset = fjordTimeOffset
