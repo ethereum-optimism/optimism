@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -90,7 +89,7 @@ type DefaultFlagValues struct {
 }
 
 var (
-	defaultCellProofTime     uint64 = math.MaxUint64
+	defaultCellProofTime     uint64 = 0
 	DefaultBatcherFlagValues        = DefaultFlagValues{
 		NumConfirmations:          uint64(10),
 		SafeAbortNonceTooLowCount: uint64(3),
@@ -307,7 +306,7 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 		},
 		&cli.Uint64Flag{
 			Name:    CellProofTimeFlagName,
-			Usage:   "Enables cell proofs in blob transactions for Fusaka (EIP-7742) compatibility from the provided unix timestamp. Should be set to the L1 Fusaka time. May be left blank for Ethereum Mainnet, Sepolia, or Hoodi L1s.",
+			Usage:   "Unix timestamp from which blob transactions carry cell proofs (EIP-7594) instead of blob proofs. Defaults to always. Set it only for an L1 that has not activated Osaka yet: to the L1 Osaka time, or to a far-future value if no Osaka is scheduled.",
 			EnvVars: prefixEnvVars("TXMGR_CELL_PROOF_TIME"),
 			Value:   defaults.CellProofTime,
 		},
@@ -526,8 +525,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		}
 	}
 
-	cellProofTime := fallbackToOsakaCellProofTimeIfKnown(chainID, cfg.CellProofTime)
-
 	res := Config{
 		Backend: l1,
 		ChainID: chainID,
@@ -543,7 +540,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		NumConfirmations:           cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount:  cfg.SafeAbortNonceTooLowCount,
 		AlreadyPublishedCustomErrs: cfg.AlreadyPublishedCustomErrs,
-		CellProofTime:              cellProofTime,
+		CellProofTime:              cfg.CellProofTime,
 	}
 
 	if cfg.BlobTipCapDynamic {
@@ -573,17 +570,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
 
 	return &res, nil
-}
-
-func fallbackToOsakaCellProofTimeIfKnown(chainID *big.Int, cellProofTime uint64) uint64 {
-	if cellProofTime != defaultCellProofTime {
-		return cellProofTime // We only fallback if nothing is set
-	}
-	l1ChainConfig := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(chainID))
-	if l1ChainConfig != nil && l1ChainConfig.OsakaTime != nil {
-		return *l1ChainConfig.OsakaTime
-	}
-	return math.MaxUint64 // Network not known and no override specified, so we never use cell proofs
 }
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
@@ -672,7 +658,7 @@ type Config struct {
 	// already been published.
 	AlreadyPublishedCustomErrs []string
 
-	// CellProofTime is the time at which cell proofs are enabled in blob transaction (for Fusaka (EIP-7742) compatibility).
+	// CellProofTime is the time from which blob transactions carry cell proofs (EIP-7594).
 	CellProofTime uint64
 
 	// BlobTipCapDynamic enables dynamic blob tip cap from the blob tip oracle

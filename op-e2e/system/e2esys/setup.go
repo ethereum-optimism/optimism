@@ -1004,9 +1004,8 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		}
 	}
 	batcherTxMgrConfig := setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Batcher)
-	// txmgr knows the Osaka time of public L1s only. From Osaka on, the L1 accepts blob
-	// transactions with cell proofs; geth converts legacy sidecars on submission, but only for a
-	// transition period.
+	// NewTxMgrConfig pins blob proofs. From Osaka on, the L1 accepts blob transactions with cell
+	// proofs; geth converts legacy sidecars on submission, but only for a transition period.
 	if osaka := l1Genesis.Config.OsakaTime; osaka != nil {
 		if *osaka <= l1Genesis.Timestamp {
 			batcherTxMgrConfig.CellProofTime = 0
