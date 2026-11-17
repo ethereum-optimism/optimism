@@ -109,11 +109,18 @@ impl Records {
         Added::New { evicted }
     }
 
-    /// Removes and returns the record to evict to make room for a new one: the one whose UDP
-    /// address a session confirmed longest ago, those that no session confirmed first. Of those
-    /// confirmed at the same time, the first in node ID order.
+    /// Removes and returns the record to evict to make room for a new one, by tier: a candidate,
+    /// which only sessions confirmed, and a record gossip reached only once there is none.
+    /// Anyone can start sessions, under fresh keys, so these alone shouldn't push out the peers
+    /// gossip reached.
+    ///
+    /// Of the candidates, the one whose UDP address a session confirmed longest ago goes first,
+    /// those that no session confirmed before any. Of the reached records, the one gossip reached
+    /// longest ago. Of those confirmed at the same time, the first in node ID order.
     fn evict(&mut self) -> Option<BootStoreEntry> {
-        let (&key, _) = self.entries.iter().min_by_key(|(_, entry)| entry.udp_verified_at)?;
+        let (&key, _) = self.entries.iter().min_by_key(|(_, entry)| {
+            (entry.tcp_verified_at.is_some(), entry.tcp_verified_at, entry.udp_verified_at)
+        })?;
         self.entries.remove(&key)
     }
 }
@@ -1019,12 +1026,12 @@ mod tests {
         assert_eq!(store.get(enr.node_id()).unwrap().tcp_verified_at(), Some(at(1_001)));
     }
 
-    /// A full store evicts the record whose UDP address a session confirmed longest ago, the
-    /// records no session confirmed first, so that the ones confirmed recently stay. Of those
-    /// confirmed at the same time, the one with the lower node ID goes first, whatever the order
-    /// they were added in.
+    /// Of the candidates, a full store evicts the one whose UDP address a session confirmed
+    /// longest ago, those no session confirmed first, so that the ones confirmed recently stay. Of
+    /// those confirmed at the same time, the one with the lower node ID goes first, whatever the
+    /// order they were added in.
     #[test]
-    fn test_evicts_the_record_confirmed_longest_ago() {
+    fn test_evicts_the_candidate_confirmed_longest_ago() {
         let mut never = [
             BootStoreEntry::candidate(enr_of_new_node()),
             BootStoreEntry::candidate(enr_of_new_node()),
@@ -1048,6 +1055,31 @@ mod tests {
         assert_eq!(records.evict(), Some(never_higher));
         assert_eq!(records.evict(), Some(earlier));
         assert_eq!(records.evict(), Some(later));
+    }
+
+    /// A full store evicts a record that gossip reached only once it holds no candidate, however
+    /// recently a session confirmed the candidates. Of the reached records, it evicts the one
+    /// gossip reached longest ago.
+    #[test]
+    fn test_evicts_a_reached_peer_last() {
+        let reached = |secs| BootStoreEntry {
+            udp_verified_at: Some(at(1_000)),
+            tcp_verified_at: Some(at(secs)),
+            ..BootStoreEntry::candidate(enr_of_new_node())
+        };
+        let (reached_earlier, reached_later) = (reached(1_000), reached(2_000));
+        let candidate = BootStoreEntry {
+            udp_verified_at: Some(at(3_000)),
+            ..BootStoreEntry::candidate(enr_of_new_node())
+        };
+        let mut records = Records::default();
+        for entry in [&reached_later, &candidate, &reached_earlier] {
+            records.add(entry.clone());
+        }
+
+        assert_eq!(records.evict(), Some(candidate));
+        assert_eq!(records.evict(), Some(reached_earlier));
+        assert_eq!(records.evict(), Some(reached_later));
     }
 
     /// A store holds one record per node, the one with the highest `seq`. A node that changes its
