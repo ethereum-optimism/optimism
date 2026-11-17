@@ -10,17 +10,10 @@ use std::{num::ParseIntError, time::Duration};
 use url::Url;
 
 /// Sequencer CLI Flags
+///
+/// The sequencer always starts stopped; start it with the `admin_startSequencer` RPC.
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct SequencerArgs {
-    /// Initialize the sequencer in a stopped state. The sequencer can be started using the
-    /// `admin_startSequencer` RPC.
-    #[arg(
-        long = "sequencer.stopped",
-        default_value = "false",
-        env = "KONA_NODE_SEQUENCER_STOPPED"
-    )]
-    pub stopped: bool,
-
     /// Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1
     /// origin.
     #[arg(long = "sequencer.l1-confs", default_value = "4", env = "KONA_NODE_SEQUENCER_L1_CONFS")]
@@ -60,7 +53,6 @@ impl SequencerArgs {
     /// Creates a [`SequencerConfig`] from the [`SequencerArgs`].
     pub fn config(&self) -> SequencerConfig {
         SequencerConfig {
-            sequencer_stopped: self.stopped,
             sequencer_recovery_mode: self.recover,
             conductor_rpc_url: self.conductor_rpc.clone(),
             conductor_rpc_timeout: self.conductor_rpc_timeout,
