@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
-	"github.com/ethereum-optimism/optimism/op-core/forks"
 	forkstest "github.com/ethereum-optimism/optimism/op-core/forks/test"
 	"github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -88,65 +87,6 @@ func parseJSON(t *testing.T, data []byte) map[string]any {
 	var obj map[string]any
 	require.NoError(t, json.Unmarshal(data, &obj))
 	return obj
-}
-
-// TestMarshalMatchesOpGeth pins the encoding to the genesis.json that op-geth's
-// core.Genesis writes for the equivalent op-geth config, built from op-geth's
-// OptimismTestConfig. It is a pre-cutover check: it depends on op-geth's config type and
-// test config, and goes away with op-geth.
-func TestMarshalMatchesOpGeth(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		schedule forkstest.Schedule
-	}{
-		{name: "pre-Karst", schedule: forkstest.AtGenesisThrough(forks.Jovian)},
-		{name: "Karst", schedule: forkstest.Override(forkstest.AtGenesisThrough(forks.Jovian), forks.Karst, ptr.New[uint64](9000))},
-		{name: "staggered", schedule: forkstest.Staggered()},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			g := fixture(tc.schedule)
-			setBlockFields(g)
-			opGethJSON, err := json.Marshal(opGethGenesis(t, g, tc.schedule))
-			require.NoError(t, err)
-
-			got, err := json.Marshal(g)
-			require.NoError(t, err)
-			obj := parseJSON(t, got)
-			require.Equal(t, parseJSON(t, opGethJSON), obj)
-
-			config := obj["config"].(map[string]any)
-			if karst := tc.schedule(forks.Karst); karst != nil {
-				require.Equal(t, float64(*karst), config["osakaTime"], "Osaka activates with Karst")
-			} else {
-				require.NotContains(t, config, "osakaTime")
-			}
-		})
-	}
-}
-
-// TestUnmarshalOpGeth decodes the genesis.json that op-geth's core.Genesis encodes, and
-// the same without osakaTime, as op-chain-ops writes it for Karst.
-func TestUnmarshalOpGeth(t *testing.T) {
-	for name, withOsaka := range map[string]bool{"with osakaTime": true, "without osakaTime": false} {
-		t.Run(name, func(t *testing.T) {
-			want := fixture(forkstest.Staggered())
-			gg := opGethGenesis(t, want, forkstest.Staggered())
-			if !withOsaka {
-				gg.Config.OsakaTime = nil
-			}
-			data, err := json.Marshal(gg)
-			require.NoError(t, err)
-			wantJSON := opGethGenesisJSON
-			if !withOsaka {
-				wantJSON = opGethGenesisJSONWithoutOsaka
-			}
-			require.Equal(t, wantJSON, string(data))
-
-			var got Genesis
-			require.NoError(t, json.Unmarshal(data, &got))
-			requireGenesisEqual(t, want, &got)
-		})
-	}
 }
 
 func TestRoundTrip(t *testing.T) {

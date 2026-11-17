@@ -1,13 +1,11 @@
 package params_test
 
 import (
-	"encoding/json"
 	"math/big"
 	"reflect"
 	"slices"
 	"testing"
 
-	gethparams "github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
@@ -129,30 +127,4 @@ func TestGethChainConfig(t *testing.T) {
 		require.Equal(t, int64(3950000), geth.BerlinBlock.Int64())
 		require.Equal(t, int64(opparams.OPMainnetGenesisBlockNum), geth.LondonBlock.Int64())
 	})
-}
-
-// TestOptimismConfigJSONWireCompat asserts the OP-core OptimismConfig serialises
-// byte-for-byte identically to op-geth's, and round-trips through op-geth's type.
-// This guards the wire format of rollup.Config.ChainOpConfig.
-func TestOptimismConfigJSONWireCompat(t *testing.T) {
-	cases := map[string]*uint64{
-		"with canyon denominator":    ptr.New(uint64(250)),
-		"without canyon denominator": nil,
-	}
-	for name, canyon := range cases {
-		t.Run(name, func(t *testing.T) {
-			op := &opparams.OptimismConfig{EIP1559Elasticity: 6, EIP1559Denominator: 50, EIP1559DenominatorCanyon: canyon}
-			geth := &gethparams.OptimismConfig{EIP1559Elasticity: 6, EIP1559Denominator: 50, EIP1559DenominatorCanyon: canyon}
-
-			opJSON, err := json.Marshal(op)
-			require.NoError(t, err)
-			gethJSON, err := json.Marshal(geth)
-			require.NoError(t, err)
-			require.Equal(t, string(gethJSON), string(opJSON))
-
-			var back gethparams.OptimismConfig
-			require.NoError(t, json.Unmarshal(opJSON, &back))
-			require.Equal(t, *geth, back)
-		})
-	}
 }

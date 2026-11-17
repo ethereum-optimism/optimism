@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	gethtypes "github.com/ethereum/go-ethereum/core/types"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
@@ -17,78 +16,6 @@ func toJSONMap(t *testing.T, data []byte) map[string]json.RawMessage {
 	var m map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(data, &m))
 	return m
-}
-
-// TestDepositTxJSONDifferential asserts the deposit JSON codec against op-geth's
-// RPC transaction marshaling: op-geth JSON decodes into an identical canonical
-// binary encoding, and our JSON is accepted by op-geth's decoder with an
-// identical result. It will be removed in the final cutover, when the op-geth
-// dependency is replaced with upstream go-ethereum.
-func TestDepositTxJSONDifferential(t *testing.T) {
-	for _, tc := range depositTxTestCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			gethJSON, err := tc.gethTx().MarshalJSON()
-			require.NoError(t, err)
-			require.JSONEq(t, tc.json, string(gethJSON))
-
-			// op-geth JSON -> optypes -> binary equals op-geth binary
-			var d optypes.DepositTx
-			require.NoError(t, json.Unmarshal(gethJSON, &d))
-			ours, err := d.MarshalBinary()
-			require.NoError(t, err)
-			theirs, err := tc.gethTx().MarshalBinary()
-			require.NoError(t, err)
-			require.Equal(t, theirs, ours)
-
-			// optypes JSON is object-identical to op-geth's
-			ourJSON, err := json.Marshal(&d)
-			require.NoError(t, err)
-			require.Equal(t, toJSONMap(t, gethJSON), toJSONMap(t, ourJSON))
-
-			// and op-geth's decoder accepts our JSON with the same result
-			var back gethtypes.Transaction
-			require.NoError(t, back.UnmarshalJSON(ourJSON))
-			raw, err := back.MarshalBinary()
-			require.NoError(t, err)
-			require.Equal(t, theirs, raw)
-		})
-	}
-}
-
-// TestDepositTxJSONWithNonceDifferential exercises the post-Regolith RPC shape:
-// op-geth's depositTxWithNonce marshaling carries a non-zero effective nonce,
-// which must be accepted and ignored — it is not part of the canonical
-// encoding. It will be removed in the final cutover, when the op-geth
-// dependency is replaced with upstream go-ethereum.
-func TestDepositTxJSONWithNonceDifferential(t *testing.T) {
-	tc := depositTxTestCases()[0]
-
-	// Route through op-geth's real depositTxWithNonce path: JSON with a nonce
-	// decodes into the nonce-carrying inner type, whose re-marshal is the
-	// post-Regolith RPC response shape.
-	gethJSON, err := tc.gethTx().MarshalJSON()
-	require.NoError(t, err)
-	obj := toJSONMap(t, gethJSON)
-	obj["nonce"] = json.RawMessage(`"0x7"`)
-	withNonceJSON, err := json.Marshal(obj)
-	require.NoError(t, err)
-
-	var gethTx gethtypes.Transaction
-	require.NoError(t, gethTx.UnmarshalJSON(withNonceJSON))
-	nonce := gethTx.EffectiveNonce()
-	require.NotNil(t, nonce)
-	require.EqualValues(t, 7, *nonce) // proves the depositTxWithNonce path
-	rpcJSON, err := gethTx.MarshalJSON()
-	require.NoError(t, err)
-	require.JSONEq(t, depositTxWithNonceJSON, string(rpcJSON))
-
-	var d optypes.DepositTx
-	require.NoError(t, json.Unmarshal(rpcJSON, &d))
-	ours, err := d.MarshalBinary()
-	require.NoError(t, err)
-	canonical, err := tc.tx.MarshalBinary()
-	require.NoError(t, err)
-	require.Equal(t, canonical, ours)
 }
 
 // TestDepositTxJSONNilValueRoundTrip pins that a nil Value — valid for the
@@ -119,9 +46,7 @@ func TestDepositTxJSONNilValueRoundTrip(t *testing.T) {
 
 func TestDepositTxUnmarshalJSONErrors(t *testing.T) {
 	valid := func() map[string]json.RawMessage {
-		gethJSON, err := depositTxTestCases()[0].gethTx().MarshalJSON()
-		require.NoError(t, err)
-		return toJSONMap(t, gethJSON)
+		return toJSONMap(t, []byte(depositTxTestCases()[0].json))
 	}
 	mutate := func(mut func(map[string]json.RawMessage)) []byte {
 		obj := valid()
@@ -153,43 +78,6 @@ func TestDepositTxUnmarshalJSONErrors(t *testing.T) {
 			var d optypes.DepositTx
 			require.ErrorContains(t, json.Unmarshal(tc.input, &d), tc.errStr)
 		})
-	}
-}
-
-func postExecGethTx(data []byte) *gethtypes.Transaction {
-	return gethtypes.NewTx(&gethtypes.PostExecTx{Data: data})
-}
-
-// TestPostExecTxJSONDifferential checks, for the 0x7D post-exec transaction, that
-// PostExecTx and op-geth agree on the binary encoding and the hash, and that each
-// decodes the other's JSON. It will be removed in the final cutover, when the op-geth
-// dependency is replaced with upstream go-ethereum.
-func TestPostExecTxJSONDifferential(t *testing.T) {
-	for _, v := range postExecTxJSONVectors {
-		gethTx := postExecGethTx(v.data)
-		gethJSON, err := gethTx.MarshalJSON()
-		require.NoError(t, err)
-
-		var p optypes.PostExecTx
-		require.NoError(t, json.Unmarshal(gethJSON, &p))
-		ours, err := p.MarshalBinary()
-		require.NoError(t, err)
-		theirs, err := gethTx.MarshalBinary()
-		require.NoError(t, err)
-		require.Equal(t, theirs, ours)
-
-		require.Equal(t, gethTx.Hash(), p.Hash())
-
-		// The two encodings differ: op-geth reports the user transaction fields as null,
-		// PostExecTx omits them. Each side decodes the other's.
-		ourJSON, err := json.Marshal(&p)
-		require.NoError(t, err)
-
-		var back gethtypes.Transaction
-		require.NoError(t, back.UnmarshalJSON(ourJSON))
-		raw, err := back.MarshalBinary()
-		require.NoError(t, err)
-		require.Equal(t, theirs, raw)
 	}
 }
 

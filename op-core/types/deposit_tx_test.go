@@ -1,7 +1,6 @@
 package types_test
 
 import (
-	"encoding/json"
 	"math/big"
 	"testing"
 
@@ -141,48 +140,6 @@ func depositTxTestCases() []depositTxTestCase {
 	}
 }
 
-func (tc depositTxTestCase) gethTx() *gethtypes.Transaction {
-	return gethtypes.NewTx(&gethtypes.DepositTx{
-		SourceHash:          tc.tx.SourceHash,
-		From:                tc.tx.From,
-		To:                  tc.tx.To,
-		Mint:                tc.tx.Mint,
-		Value:               tc.tx.Value,
-		Gas:                 tc.tx.Gas,
-		IsSystemTransaction: tc.tx.IsSystemTransaction,
-		Data:                tc.tx.Data,
-	})
-}
-
-// TestDepositTxMarshalBinaryDifferential asserts that DepositTx.MarshalBinary is
-// byte-for-byte identical to op-geth's encoding of the same transaction.
-// It will be removed in the final cutover, when the op-geth dependency is
-// replaced with upstream go-ethereum.
-func TestDepositTxMarshalBinaryDifferential(t *testing.T) {
-	for _, tc := range depositTxTestCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			ours, err := tc.tx.MarshalBinary()
-			require.NoError(t, err)
-
-			theirs, err := tc.gethTx().MarshalBinary()
-			require.NoError(t, err)
-
-			require.Equal(t, theirs, ours)
-		})
-	}
-}
-
-// TestDepositHashParity asserts DepositTx.Hash is identical to op-geth's
-// types.Transaction.Hash for the same deposit. It will be removed in the final
-// cutover, when the op-geth dependency is replaced with upstream go-ethereum.
-func TestDepositHashParity(t *testing.T) {
-	for _, tc := range depositTxTestCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.gethTx().Hash(), tc.tx.Hash())
-		})
-	}
-}
-
 // TestBedrockSystemDepositHashGoldenVector pins the cross-client hash of a pre-Regolith
 // L1-info deposit captured from op-geth. The system flag is part of the canonical encoding,
 // so both the flag and this hash must stay aligned with op-alloy after op-geth is removed.
@@ -254,80 +211,6 @@ func TestTxTypeByteChecks(t *testing.T) {
 	require.False(t, optypes.IsPostExecTxBytes(nil))
 }
 
-// TestDepositTxHelpers checks the free-function replacements for op-geth's
-// Transaction methods against op-geth's methods themselves, on transactions
-// decoded from raw bytes the way they arrive from the Engine API. Note that
-// a nil Mint round-trips to zero through the wire encoding, in both
-// implementations.
-func TestDepositTxHelpers(t *testing.T) {
-	for _, tc := range depositTxTestCases() {
-		t.Run(tc.name, func(t *testing.T) {
-			raw, err := tc.gethTx().MarshalBinary()
-			require.NoError(t, err)
-			tx := new(gethtypes.Transaction)
-			require.NoError(t, tx.UnmarshalBinary(raw))
-
-			require.True(t, optypes.IsDepositTx(tx))
-			require.Equal(t, tx.IsDepositTx(), optypes.IsDepositTx(tx))
-
-			sourceHash, err := optypes.SourceHash(tx)
-			require.NoError(t, err)
-			require.Equal(t, tx.SourceHash(), sourceHash)
-			require.Equal(t, tc.tx.SourceHash, sourceHash)
-
-			mint, err := optypes.Mint(tx)
-			require.NoError(t, err)
-			require.Equal(t, tx.Mint(), mint)
-
-			isSystemTx, err := optypes.IsSystemTx(tx)
-			require.NoError(t, err)
-			require.Equal(t, tx.IsSystemTx(), isSystemTx)
-			require.Equal(t, tc.tx.IsSystemTransaction, isSystemTx)
-		})
-	}
-}
-
-// TestDepositTxHelpersJSONDecoded checks the helpers on deposits decoded from
-// JSON-RPC responses, where op-geth uses a different inner type that carries
-// the deposit nonce (depositTxWithNonce). The nonce must not leak into the
-// re-encoded wire bytes the helpers decode.
-func TestDepositTxHelpersJSONDecoded(t *testing.T) {
-	tc := depositTxTestCases()[0]
-	gethTx := tc.gethTx()
-
-	rpcJSON, err := gethTx.MarshalJSON()
-	require.NoError(t, err)
-	var obj map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(rpcJSON, &obj))
-	obj["nonce"] = json.RawMessage(`"0x7"`)
-	rpcJSON, err = json.Marshal(obj)
-	require.NoError(t, err)
-
-	tx := new(gethtypes.Transaction)
-	require.NoError(t, tx.UnmarshalJSON(rpcJSON))
-	nonce := tx.EffectiveNonce()
-	require.NotNil(t, nonce)
-	require.EqualValues(t, 7, *nonce) // proves we hit the depositTxWithNonce path
-
-	raw, err := tx.MarshalBinary()
-	require.NoError(t, err)
-	canonical, err := tc.tx.MarshalBinary()
-	require.NoError(t, err)
-	require.Equal(t, canonical, raw)
-
-	sourceHash, err := optypes.SourceHash(tx)
-	require.NoError(t, err)
-	require.Equal(t, tx.SourceHash(), sourceHash)
-
-	mint, err := optypes.Mint(tx)
-	require.NoError(t, err)
-	require.Equal(t, tx.Mint(), mint)
-
-	isSystemTx, err := optypes.IsSystemTx(tx)
-	require.NoError(t, err)
-	require.Equal(t, tx.IsSystemTx(), isSystemTx)
-}
-
 func TestDepositTxHelpersNonDeposit(t *testing.T) {
 	tx := gethtypes.NewTx(&gethtypes.LegacyTx{
 		Nonce:    1,
@@ -338,11 +221,4 @@ func TestDepositTxHelpersNonDeposit(t *testing.T) {
 	})
 
 	require.False(t, optypes.IsDepositTx(tx))
-
-	_, err := optypes.SourceHash(tx)
-	require.ErrorContains(t, err, "not a deposit transaction")
-	_, err = optypes.Mint(tx)
-	require.ErrorContains(t, err, "not a deposit transaction")
-	_, err = optypes.IsSystemTx(tx)
-	require.ErrorContains(t, err, "not a deposit transaction")
 }

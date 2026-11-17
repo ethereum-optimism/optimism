@@ -5,52 +5,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-core/forks"
-	forkstest "github.com/ethereum-optimism/optimism/op-core/forks/test"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
-	"github.com/ethereum-optimism/optimism/op-core/params/opgethtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
-
-// TestNewL2GenesisMatchesOpGeth checks NewL2Genesis against op-geth for a range of fork
-// schedules: the genesis.json is op-geth's encoding of op-geth's chain config for the
-// deploy config, with osakaTime following Karst, and the genesis block is op-geth's. It is
-// a pre-cutover check and goes away with op-geth.
-func TestNewL2GenesisMatchesOpGeth(t *testing.T) {
-	schedules := map[string]forkstest.Schedule{
-		"staggered":         forkstest.Staggered(),
-		"all after genesis": forkstest.StaticSchedule(2),
-	}
-	for _, fork := range forkstest.TimestampELForks {
-		schedules["through "+string(fork)] = forkstest.AtGenesisThrough(fork)
-	}
-	for name, schedule := range schedules {
-		t.Run(name, func(t *testing.T) {
-			g := testL2Genesis(t, schedule)
-			config := testDeployConfig(t)
-			want := g.GethGenesis()
-			want.Config = opgethtest.ChainConfig(t, config.L2ChainID, func(fork forks.Name) *uint64 {
-				return offsetToUpgradeTime((*hexutil.Uint64)(schedule(fork)), g.Timestamp)
-			})
-			want.Config.Optimism = &params.OptimismConfig{
-				EIP1559Denominator:       config.EIP1559Denominator,
-				EIP1559Elasticity:        config.EIP1559Elasticity,
-				EIP1559DenominatorCanyon: &config.EIP1559DenominatorCanyon,
-			}
-
-			wantJSON, err := json.Marshal(want)
-			require.NoError(t, err)
-			gotJSON, err := json.Marshal(g)
-			require.NoError(t, err)
-			require.JSONEq(t, string(wantJSON), string(gotJSON))
-			require.Equal(t, want.ToBlock().Header(), g.ToBlock().Header())
-		})
-	}
-}
 
 func TestNewL2GenesisRefusesOPMainnetChainID(t *testing.T) {
 	config := testDeployConfig(t)

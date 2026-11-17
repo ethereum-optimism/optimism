@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
@@ -26,65 +25,6 @@ func isthmusL1AttributesData() []byte {
 	data := make([]byte, IsthmusL1AttributesLen)
 	binary.BigEndian.PutUint32(data[:4], isthmusL1AttributesSelector)
 	return data
-}
-
-// TestDAFootprintConstantsParity pins the ported L1-attributes constants to op-geth's.
-func TestDAFootprintConstantsParity(t *testing.T) {
-	require.Equal(t, types.IsthmusL1AttributesLen, IsthmusL1AttributesLen)
-	require.Equal(t, types.JovianL1AttributesLen, JovianL1AttributesLen)
-	require.Equal(t, binary.BigEndian.Uint32(types.JovianL1AttributesSelector), jovianL1AttributesSelector)
-	require.Equal(t, binary.BigEndian.Uint32(types.IsthmusL1AttributesSelector), isthmusL1AttributesSelector)
-}
-
-// TestExtractDAFootprintGasScalarParity is a live differential check that
-// ExtractDAFootprintGasScalar matches op-geth's types.ExtractDAFootprintGasScalar, including
-// error cases. It runs while the build still resolves go-ethereum to op-geth; remove it when
-// the op-geth dependency is dropped.
-func TestExtractDAFootprintGasScalarParity(t *testing.T) {
-	for _, tc := range extractDAFootprintGasScalarVectors {
-		t.Run(tc.name, func(t *testing.T) {
-			want, wantErr := types.ExtractDAFootprintGasScalar(tc.data)
-			got, gotErr := ExtractDAFootprintGasScalar(tc.data)
-			require.Equal(t, want, got)
-			if wantErr != nil {
-				require.EqualError(t, gotErr, wantErr.Error())
-			} else {
-				require.NoError(t, gotErr)
-			}
-		})
-	}
-}
-
-// decodeTxs decodes binary-encoded transactions into op-geth transactions, which can hold
-// deposits.
-func decodeTxs(t *testing.T, raw []hexutil.Bytes) []*types.Transaction {
-	t.Helper()
-	txs := make([]*types.Transaction, len(raw))
-	for i, r := range raw {
-		txs[i] = new(types.Transaction)
-		require.NoError(t, txs[i].UnmarshalBinary(r))
-	}
-	return txs
-}
-
-// TestCalcDAFootprintParity is a live differential check that CalcDAFootprint, given the
-// binary encodings of a block's transactions, matches op-geth's types.CalcDAFootprint on the
-// transactions themselves, across pre-Lagoon deposit/user-transaction mixes, attribute layouts,
-// and scalar values. Post-exec transactions intentionally diverge because op-geth does not
-// support Lagoon. Remove this test when the op-geth dependency is dropped.
-func TestCalcDAFootprintParity(t *testing.T) {
-	for _, tc := range daFootprintVectors(t) {
-		t.Run(tc.name, func(t *testing.T) {
-			want, wantErr := types.CalcDAFootprint(decodeTxs(t, tc.txs))
-			got, gotErr := CalcDAFootprint(tc.txs)
-			require.Equal(t, want, got)
-			if wantErr != nil {
-				require.EqualError(t, gotErr, wantErr.Error())
-			} else {
-				require.NoError(t, gotErr)
-			}
-		})
-	}
 }
 
 // TestCalcDAFootprintDirected pins CalcDAFootprint to hand-computed reference values.

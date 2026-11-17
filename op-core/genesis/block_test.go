@@ -13,31 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
 
-// TestToBlockMatchesOpGeth checks that ToBlock computes the genesis block op-geth
-// computes from the genesis that op-chain-ops builds, for a staggered schedule and for
-// every timestamp fork as the latest at genesis. It is a pre-cutover check and goes away
-// with op-geth.
-func TestToBlockMatchesOpGeth(t *testing.T) {
-	schedules := map[string]forkstest.Schedule{"staggered": forkstest.Staggered()}
-	for _, fork := range forkstest.TimestampELForks {
-		schedules["through "+string(fork)] = forkstest.AtGenesisThrough(fork)
-	}
-	for name, s := range schedules {
-		for _, variant := range messagePasserVariants {
-			t.Run(name+"/"+variant.name, func(t *testing.T) {
-				g := fixture(s)
-				variant.editAlloc(g.Alloc)
-				gg := opGethGenesis(t, g, s)
-				want := gg.ToBlock()
-				got := g.ToBlock()
-				require.Equal(t, want.Header(), got.Header())
-				require.Equal(t, want.Hash(), got.Hash())
-				require.Equal(t, want.Withdrawals(), got.Withdrawals())
-			})
-		}
-	}
-}
-
 // TestToBlockWithdrawalsRoot pins the withdrawals root of the fixture genesis: from
 // Isthmus it is the L2ToL1MessagePasser storage root, before it the empty withdrawals
 // root.
