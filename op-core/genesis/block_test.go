@@ -74,7 +74,7 @@ func TestStorageRoot(t *testing.T) {
 		common.HexToHash("0x41b76207fef93e9417eb978dbe52a985974570bb80fb092cd4365257ec7f4069"),
 		storageRoot(types.GenesisAlloc{addr: {Storage: many}}, addr))
 	require.Equal(t, types.EmptyRootHash, storageRoot(types.GenesisAlloc{addr: {}}, addr))
-	require.Equal(t, common.Hash{}, storageRoot(types.GenesisAlloc{}, addr))
+	require.Equal(t, types.EmptyRootHash, storageRoot(types.GenesisAlloc{}, addr))
 }
 
 // TestToBlockHash pins the fixture's genesis block hash, as op-geth computed it, so that
