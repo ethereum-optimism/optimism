@@ -188,8 +188,9 @@ func isNullJSONResult(raw json.RawMessage) bool {
 	return len(raw) == 0 || strings.TrimSpace(string(raw)) == "null"
 }
 
-// assertPostExecDAFootprint verifies Jovian's blobGasUsed accounting for a block with a 0x7D.
-// Deposits are omitted because they carry no DA footprint.
+// assertPostExecDAFootprint verifies Jovian's blobGasUsed accounting for a block with a 0x7D:
+// every receipt reports its transaction's DA footprint, which is zero for a deposit and for the
+// post-exec transaction, and the receipts sum to the header's total.
 func assertPostExecDAFootprint(t devtest.T, l2EL *dsl.L2ELNode, block *sdmpkg.RPCBlock) {
 	rpcClient := l2EL.Escape().L2EthClient().RPC()
 
@@ -207,10 +208,6 @@ func assertPostExecDAFootprint(t devtest.T, l2EL *dsl.L2ELNode, block *sdmpkg.RP
 		postExecSeen     bool
 	)
 	for _, tx := range block.Transactions {
-		if uint64(tx.Type) == uint64(optypes.DepositTxType) {
-			continue
-		}
-
 		var receipt struct {
 			BlobGasUsed *hexutil.Uint64 `json:"blobGasUsed"`
 		}
@@ -218,7 +215,11 @@ func assertPostExecDAFootprint(t devtest.T, l2EL *dsl.L2ELNode, block *sdmpkg.RP
 		t.Require().NoError(err, "eth_getTransactionReceipt RPC failed for tx %s", tx.Hash)
 		t.Require().NotNil(receipt.BlobGasUsed, "nil receipt blobGasUsed for tx %s", tx.Hash)
 
-		if uint64(tx.Type) == uint64(optypes.PostExecTxType) {
+		switch uint64(tx.Type) {
+		case uint64(optypes.DepositTxType):
+			t.Require().Zero(uint64(*receipt.BlobGasUsed),
+				"deposit tx %s must report a zero DA footprint on its receipt", tx.Hash)
+		case uint64(optypes.PostExecTxType):
 			postExecSeen = true
 			t.Require().Zero(uint64(*receipt.BlobGasUsed),
 				"post-exec tx %s must report a zero DA footprint on its receipt", tx.Hash)

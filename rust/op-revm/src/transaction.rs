@@ -33,6 +33,8 @@ pub fn estimate_tx_compressed_size(input: &[u8]) -> u64 {
 /// Computes a transaction's DA footprint from its EIP-2718 encoding, or zero for a post-exec
 /// transaction.
 ///
+/// A deposit is not excluded here, although it has no DA footprint: the caller skips deposits.
+///
 /// <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#da-footprint-block-limit>
 pub fn tx_da_footprint<T: Encodable2718>(tx: &T, da_footprint_gas_scalar: u64) -> u64 {
     encoded_tx_da_footprint(&tx.encoded_2718(), da_footprint_gas_scalar)
@@ -40,6 +42,8 @@ pub fn tx_da_footprint<T: Encodable2718>(tx: &T, da_footprint_gas_scalar: u64) -
 
 /// Computes a transaction's DA footprint from its complete EIP-2718 encoding, or zero for a
 /// post-exec transaction.
+///
+/// A deposit is not excluded here, although it has no DA footprint: the caller skips deposits.
 ///
 /// `encoded_2718` must include the EIP-2718 transaction type byte, not only the inner transaction
 /// payload.
