@@ -24,6 +24,7 @@ use futures::StreamExt;
 use op_alloy_consensus::OpReceipt;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
+use pending_block::unsuperseded_pending_flashblock;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks, Hardforks};
@@ -49,7 +50,7 @@ use reth_rpc_eth_types::{
     EthApiSettings, EthStateCache, FeeHistoryCache, GasPriceOracle,
     logs_utils::matching_block_logs_with_tx_hashes,
 };
-use reth_storage_api::ProviderHeader;
+use reth_storage_api::{BlockNumReader, ProviderHeader};
 use reth_tasks::{
     Runtime,
     pool::{BlockingTaskGuard, BlockingTaskPool},
@@ -229,15 +230,8 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         self.inner.flashblocks.as_ref().and_then(|f| *f.in_progress_rx.borrow())
     }
 
-    /// Extracts the latest pending flashblock from flashblocks state, if available.
-    fn extract_pending_flashblock(
-        &self,
-        block: Option<&PendingFlashBlock<N::Primitives>>,
-    ) -> Option<PendingFlashBlock<N::Primitives>> {
-        block.cloned()
-    }
-
-    /// Awaits a fresh flashblock if one is being built, otherwise returns current.
+    /// Awaits a fresh flashblock if one is being built, otherwise returns current, or `None` once
+    /// the canonical chain has reached its height.
     async fn flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>> {
         let Some(rx) = self.inner.flashblocks.as_ref().map(|f| &f.pending_block_rx) else {
             return Ok(None);
@@ -258,15 +252,18 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             }
         }
 
-        // Fall back to current block
-        Ok(self.extract_pending_flashblock(rx.borrow().as_ref()))
+        // Fall back to the current block, unless the canonical chain has already reached it.
+        let latest_block_number = self.inner.eth_api().provider().best_block_number()?;
+
+        Ok(unsuperseded_pending_flashblock(rx.borrow().as_ref(), latest_block_number))
     }
 
     /// Returns a [`PendingFlashBlock`] that is built out of flashblocks.
     ///
     /// If flashblocks receiver is not set, then it always returns `None`.
     ///
-    /// It may wait up to 50ms for a fresh flashblock if one is currently being built.
+    /// It may wait up to 50ms for a fresh flashblock if one is currently being built. Returns
+    /// `None` once the canonical chain has reached the flashblock's height.
     pub async fn pending_flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>>
     where
         OpEthApiError: FromEvmError<N::Evm>,

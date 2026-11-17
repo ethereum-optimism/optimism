@@ -109,8 +109,10 @@ impl<Stream, S, C> WsFlashBlockStream<Stream, S, C> {
         Poll::Ready(Some(Err(eyre::eyre!("{error} for {IDLE_TIMEOUT:?}"))))
     }
 
-    /// Drops both halves of the connection, closing the socket, so the next poll reconnects.
+    /// Drops the connection, closing the socket, so the next poll reconnects.
     fn disconnect(&mut self) {
+        // A handshake still in flight owns its socket too.
+        self.connect = Box::pin(async move { Err(Error::ConnectionClosed)? });
         self.stream = None;
         self.sink = None;
         self.idle_deadline = None;
@@ -129,7 +131,7 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
-        'start: loop {
+        loop {
             if this.state == State::Initial {
                 this.connect();
             }
@@ -172,10 +174,14 @@ where
                     .poll_next_unpin(cx)
                 {
                     Poll::Ready(Some(msg)) => msg,
+                    // Reported as an error so the service backs off: a peer that closes right
+                    // after every handshake would otherwise be reconnected in a tight loop.
                     Poll::Ready(None) => {
                         this.disconnect();
 
-                        continue 'start;
+                        return Poll::Ready(Some(Err(eyre::eyre!(
+                            "Connection closed by upstream"
+                        ))));
                     }
                     Poll::Pending => return this.park(cx, "Connection idle"),
                 };
@@ -336,7 +342,7 @@ mod tests {
     use super::*;
     use alloy_primitives::bytes::Bytes;
     use brotli::enc::BrotliEncoderParams;
-    use std::{future, iter};
+    use std::{future, iter, sync::Arc};
     use tokio::time;
     use tokio_tungstenite::tungstenite::{
         Error,
@@ -564,8 +570,10 @@ mod tests {
 
     /// Simulates a peer that accepts the connection attempt and then never completes the
     /// handshake, leaving the connect future pending with nothing to wake it.
+    ///
+    /// Each connect future holds a clone of the `Arc`, standing in for the socket it owns.
     #[derive(Clone)]
-    struct HangingConnector;
+    struct HangingConnector(Arc<()>);
 
     impl WsConnect for HangingConnector {
         type Stream = FakeStream;
@@ -575,7 +583,12 @@ mod tests {
             &mut self,
             _ws_url: Url,
         ) -> impl Future<Output = eyre::Result<(Self::Sink, Self::Stream)>> + Send {
-            future::pending()
+            let socket = self.0.clone();
+
+            async move {
+                let _socket = socket;
+                future::pending().await
+            }
         }
     }
 
@@ -793,8 +806,10 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_stream_gives_up_on_a_handshake_that_never_completes() {
+        let socket = Arc::new(());
         let ws_url = "http://localhost".parse().unwrap();
-        let mut stream = WsFlashBlockStream::with_connector(ws_url, HangingConnector);
+        let mut stream =
+            WsFlashBlockStream::with_connector(ws_url, HangingConnector(socket.clone()));
 
         let received = time::timeout(Duration::from_secs(60), stream.next())
             .await
@@ -802,6 +817,23 @@ mod tests {
         let err = received.expect("stream should not end").unwrap_err();
 
         assert!(err.to_string().contains("no progress"), "unexpected error: {err}");
+        // Only the test's and the connector's handles remain.
+        assert_eq!(Arc::strong_count(&socket), 2, "the stalled handshake should be dropped");
+    }
+
+    #[tokio::test]
+    async fn test_stream_end_is_reported_as_an_error() {
+        let flashblock = flashblock();
+        let connector = FakeConnector::from([to_json_binary_message(&flashblock)]);
+        let ws_url = "http://localhost".parse().unwrap();
+        let mut stream = WsFlashBlockStream::with_connector(ws_url, connector);
+
+        assert_eq!(stream.next().await.expect("stream should not end").unwrap(), flashblock);
+
+        let err = stream.next().await.expect("stream should not end").unwrap_err();
+
+        assert!(err.to_string().contains("closed by upstream"), "unexpected error: {err}");
+        assert_eq!(stream.state, State::Initial, "the next poll should reconnect");
     }
 
     #[tokio::test(start_paused = true)]
