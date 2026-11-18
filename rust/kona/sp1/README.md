@@ -299,7 +299,12 @@ The proposer service (ported from op-succinct's fault-proof proposer) plays the
 super-root `ZKDisputeGame` (game type 10) end to end:
 
 1. **Create**: proposes the supernode's canonical super root on a fixed interval
-   (`proposer.rs` creation scheduling).
+   (`proposer.rs` creation scheduling). A game built on the head spans one
+   interval, which is what the bond and prove duration are sized for. After
+   downtime the proposer catches up one interval-sized game per loop iteration;
+   in fast finality mode each catch-up game also waits for proving capacity.
+   While the registered anchor is not a ZK game, every game is a root from the
+   anchor placed on the interval grid, so its span is not capped.
 2. **Defend**: when a game in the owned set is challenged, fetches the span's super
    roots, collects witnesses through the kona `InteropHost`
    (`super-range-executor` library), obtains SP1 proofs (`prover.rs` providers,
@@ -626,7 +631,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_ROLLUP_CONFIG_PATHS` | comma-separated rollup config files; absent = registry fallback |
 | `OP_ZK_PROPOSER_L1_CONFIG_PATH` | L1 chain config file; absent = registry fallback |
 | `OP_ZK_PROPOSER_DEPENDENCY_SET_PATH` | dependency-set config file; absent = registry fallback |
-| `OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval (default `3600`) |
+| `OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval and the span of each created game, in seconds; positive (default `3600`) |
 | `OP_ZK_PROPOSER_PROPOSAL_SAFETY` | `safe` or `finalized` (default `finalized`) |
 | `OP_ZK_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
 | `OP_ZK_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
