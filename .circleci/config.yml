@@ -201,7 +201,7 @@ jobs:
       - run:
           name: Test decision tree
           command: .circleci/scripts/test-decision-tree.sh
-      # Offline: a stub curl serves recorded CircleCI API responses.
+      # Offline: a stub curl serves CircleCI API responses the test builds.
       - run:
           name: Test merge queue verification
           command: .circleci/scripts/test-merge-queue-verified.sh

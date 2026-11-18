@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
 # Offline test for merge-queue-verified.sh. A stub curl answers each request
-# from recorded CircleCI API responses in testdata/merge-queue-verified, or
-# fails the way curl does, so every scenario is deterministic.
-#
-# The fixtures are real responses, trimmed to the fields the script reads:
-#   pipelines-page{1,2}.json  v2 project pipeline list (page tokens rewritten)
-#   tree-<case>-0.json        v1.1 job list of the case's merge queue branch
-#   jobs-<case>-<wf>.json     v2 job list of each workflow in that pipeline
-# The cases are three queue pipelines: "verified" ran main, rust-ci and
-# rust-e2e-ci; "rustskip" ran main with the Rust gates on their fast paths;
-# "docsonly" ran only the fast paths.
+# with a CircleCI API response built below, holding only the fields the script
+# reads, or fails the way curl does, so every scenario is deterministic.
 #
 # Usage:
 #   bash .circleci/scripts/test-merge-queue-verified.sh
@@ -17,20 +9,77 @@
 # Requires: jq
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT="${SCRIPT_DIR}/merge-queue-verified.sh"
-FIXTURES="${SCRIPT_DIR}/testdata/merge-queue-verified"
+SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/merge-queue-verified.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
 
-SHA_VERIFIED=89b4a22c130ef374fd15859bf5137b9a1b65b1da
-SHA_RUSTSKIP=416753f094b0edcfa37b378b43d8a629eec83d53
-SHA_DOCSONLY=e5423ae69b154100a77361d74eb6d7170b2c34aa
-SHA_UNKNOWN=0123456789abcdef0123456789abcdef01234567
+SHA=1111111111111111111111111111111111111111
+BASE_SHA=2222222222222222222222222222222222222222
+QUEUE="gh-readonly-queue/develop/pr-1-${BASE_SHA}"
+PIPELINES="*/v2/project/gh/ethereum-optimism/optimism/pipeline"
+TREE="*/v1.1/project/gh/ethereum-optimism/optimism/tree/gh-readonly-queue%2Fdevelop%2Fpr-1-${BASE_SHA}?shallow=true&limit=100&offset=0"
+ID_MAIN=10000000-0000-4000-8000-000000000000
+ID_RUST_CI=20000000-0000-4000-8000-000000000000
+ID_RUST_E2E=30000000-0000-4000-8000-000000000000
+ID_FAST_1=40000000-0000-4000-8000-000000000000
+ID_FAST_2=50000000-0000-4000-8000-000000000000
+ID_FAST_3=60000000-0000-4000-8000-000000000000
+# Sorts before ID_MAIN, so the script checks it first.
+ID_FAILED_MAIN=00000000-0000-4000-8000-000000000000
+
+# page <file> <next page token or ""> <branch>=<sha>...: a v2 pipeline list page.
+page() {
+  local file="$1" next="$2" pair
+  shift 2
+  for pair in "$@"; do
+    jq -n --arg b "${pair%%=*}" --arg s "${pair#*=}" '{vcs: {branch: $b, revision: $s}}'
+  done | jq -s --arg next "${next}" '{items: ., next_page_token: (if $next == "" then null else $next end)}' > "${WORK}/${file}"
+}
+
+# tree <file> <sha> <workflow name>=<workflow id>...: a v1.1 job list with one
+# job per workflow.
+tree() {
+  local file="$1" sha="$2" pair
+  shift 2
+  for pair in "$@"; do
+    jq -n --arg s "${sha}" --arg w "${pair%%=*}" --arg id "${pair#*=}" \
+      '{vcs_revision: $s, workflows: {workflow_name: $w, workflow_id: $id}}'
+  done | jq -s . > "${WORK}/${file}"
+}
+
+# job_list <file> <job>=<status>...: a v2 workflow job list.
+job_list() {
+  local file="$1" pair
+  shift
+  for pair in "$@"; do
+    jq -n --arg n "${pair%%=*}" --arg s "${pair#*=}" '{name: $n, status: $s}'
+  done | jq -s '{items: ., next_page_token: null}' > "${WORK}/${file}"
+}
+
+page queue.json "" "feat/x=${BASE_SHA}" "develop=${SHA}" "${QUEUE}=${SHA}"
+page queue-twice.json "" "${QUEUE}=${SHA}" "develop=${SHA}" "${QUEUE}=${SHA}"
+page no-queue.json "page-2" "feat/x=${BASE_SHA}" "develop=${SHA}"
+page no-queue-again.json "page-n" "feat/y=${BASE_SHA}"
+tree full.json "${SHA}" main="${ID_MAIN}" rust-ci="${ID_RUST_CI}" rust-e2e-ci="${ID_RUST_E2E}"
+tree full-other-sha.json "${BASE_SHA}" main="${ID_MAIN}" rust-ci="${ID_RUST_CI}" rust-e2e-ci="${ID_RUST_E2E}"
+tree rerun.json "${SHA}" main="${ID_FAILED_MAIN}" main="${ID_MAIN}" rust-ci="${ID_RUST_CI}" rust-e2e-ci="${ID_RUST_E2E}"
+# The queue's fast paths report the gate names as success without testing.
+tree rust-fast.json "${SHA}" main="${ID_MAIN}" rust-ci-gate-short="${ID_FAST_2}" rust-e2e-gate-skip="${ID_FAST_3}"
+tree docs-fast.json "${SHA}" ci-gate-skip="${ID_FAST_1}" rust-ci-gate-short="${ID_FAST_2}" rust-e2e-gate-skip="${ID_FAST_3}"
+job_list main.json go-tests=success ci-gate=success
+job_list main-failed.json go-tests=failed ci-gate=failed
+job_list rust-ci.json required-rust-ci=success
+job_list rust-ci-running.json required-rust-ci=running
+job_list rust-e2e.json required-rust-e2e=success
+job_list fast-1.json ci-gate=success
+job_list fast-2.json required-rust-ci=success
+job_list fast-3.json required-rust-e2e=success
+echo "garbage" > "${WORK}/not-json.json"
+: > "${WORK}/empty.json"
 
 # Stub curl. Each line of $ROUTES is "<glob> <response>", first match wins. The
-# response is a file (relative to $FIXTURES, or absolute) or "exit:<code>". An
-# unrouted URL fails like an HTTP 404 (exit 22). Every URL is logged to $CURL_LOG.
+# response is a file in $WORK or "exit:<code>". An unrouted URL fails like an
+# HTTP 404 (exit 22). Every URL is logged to $CURL_LOG.
 mkdir "${WORK}/bin"
 cat > "${WORK}/bin/curl" << 'EOF'
 #!/usr/bin/env bash
@@ -50,8 +99,7 @@ while read -r pattern response; do
     ${pattern})
       case "${response}" in
         exit:*) exit "${response#exit:}" ;;
-        /*) cp "${response}" "${out}" ;;
-        *) cp "${FIXTURES}/${response}" "${out}" ;;
+        *) cp "${WORK}/${response}" "${out}" ;;
       esac
       exit 0
       ;;
@@ -61,59 +109,39 @@ echo "curl stub: no route for ${url}" >&2
 exit 22
 EOF
 chmod +x "${WORK}/bin/curl"
-export FIXTURES
+export WORK
 
-# routes <case> <sha>: the routes that serve a case's recorded responses. The
-# pipeline list is two pages; the second page names a third page that is the
-# second page again, so a SHA that is on neither page exhausts the page limit.
+# routes <name> <route>...: writes a routes file. Each route is "<glob> <response>".
+# The workflow job lists are always routed, so only the script's own checks keep
+# a fast path or a failed gate from counting.
 routes() {
-  local case_name="$1" sha="$2" branch name id
-  echo "*/v2/project/gh/ethereum-optimism/optimism/pipeline pipelines-page1.json"
-  echo "*/v2/project/gh/ethereum-optimism/optimism/pipeline?page-token=fixture-page-2 pipelines-page2.json"
-  echo "*/v2/project/gh/ethereum-optimism/optimism/pipeline?page-token=fixture-page-3 pipelines-page2.json"
-  branch=$(jq -r --arg sha "${sha}" \
-    '.items[] | select(.vcs.revision == $sha and (.vcs.branch | startswith("gh-readonly-queue/"))) | .vcs.branch | @uri' \
-    "${FIXTURES}"/pipelines-page*.json)
-  [ -n "${branch}" ] || return 0
-  echo "*/v1.1/project/gh/ethereum-optimism/optimism/tree/${branch}?shallow=true&limit=100&offset=0 tree-${case_name}-0.json"
-  jq -r '[.[] | "\(.workflows.workflow_name) \(.workflows.workflow_id)"] | unique | .[]' \
-    "${FIXTURES}/tree-${case_name}-0.json" > "${WORK}/workflows"
-  while read -r name id; do
-    if [ -f "${FIXTURES}/jobs-${case_name}-${name}.json" ]; then
-      echo "*/v2/workflow/${id}/job jobs-${case_name}-${name}.json"
-    fi
-  done < "${WORK}/workflows"
-}
-
-# workflow_id <case> <workflow name>
-workflow_id() {
-  jq -r --arg w "$2" '[.[] | select(.workflows.workflow_name == $w) | .workflows.workflow_id][0]' \
-    "${FIXTURES}/tree-$1-0.json"
-}
-
-# with_status <case> <workflow name> <gate> <status>: a copy of the recorded job
-# list with the gate's status replaced. Prints its path.
-with_status() {
-  local path="${WORK}/jobs-$1-$2-$4.json"
-  jq --arg gate "$3" --arg status "$4" \
-    '.items |= map(if .name == $gate then .status = $status else . end)' \
-    "${FIXTURES}/jobs-$1-$2.json" > "${path}"
-  echo "${path}"
+  local name="$1"
+  shift
+  {
+    printf '%s\n' "$@"
+    echo "*/v2/workflow/${ID_MAIN}/job main.json"
+    echo "*/v2/workflow/${ID_FAILED_MAIN}/job main-failed.json"
+    echo "*/v2/workflow/${ID_RUST_CI}/job rust-ci.json"
+    echo "*/v2/workflow/${ID_RUST_E2E}/job rust-e2e.json"
+    echo "*/v2/workflow/${ID_FAST_1}/job fast-1.json"
+    echo "*/v2/workflow/${ID_FAST_2}/job fast-2.json"
+    echo "*/v2/workflow/${ID_FAST_3}/job fast-3.json"
+  } > "${WORK}/routes-${name}"
 }
 
 PASS=0
 FAIL=0
 
-# scenario <name> <routes file> <expected main> <expected rust_ci> <expected rust_e2e> <max requests>
-# Runs the script with the environment in ENV_* (a develop push by default).
+# scenario <name> <routes name> <expected main> <expected rust_ci> <expected rust_e2e> <max requests>
+# Runs the script with the environment in ENV_* (a develop push of $SHA by default).
 scenario() {
   local name="$1" expected="$3 $4 $5" max_requests="$6" got requests status=0
-  export ROUTES="$2" CURL_LOG="${WORK}/curl.log"
+  export ROUTES="${WORK}/routes-$2" CURL_LOG="${WORK}/curl.log"
   : > "${CURL_LOG}"
   echo '{"c-rust_changes_detected": false}' > "${WORK}/params.json"
   PATH="${WORK}/bin:${PATH}" OUTPUT="${WORK}/params.json" \
     BRANCH="${ENV_BRANCH:-develop}" TRIGGER_SOURCE="${ENV_TRIGGER:-webhook}" TAG="${ENV_TAG:-}" \
-    CIRCLE_SHA1="${ENV_SHA}" CIRCLE_PROJECT_USERNAME="${ENV_ORG:-ethereum-optimism}" \
+    CIRCLE_SHA1="${SHA}" CIRCLE_PROJECT_USERNAME="${ENV_ORG:-ethereum-optimism}" \
     CIRCLE_PROJECT_REPONAME="optimism" MQ_VERIFY_DEADLINE="${ENV_DEADLINE:-30}" \
     bash "${SCRIPT}" > "${WORK}/out.log" 2>&1 || status=$?
   got=$(jq -r '[."c-mq_verified_main", ."c-mq_verified_rust_ci", ."c-mq_verified_rust_e2e"] | map(tostring) | join(" ")' \
@@ -149,152 +177,70 @@ expect_requests() {
 
 echo "=== merge-queue-verified.sh offline tests ==="
 
-routes verified "${SHA_VERIFIED}" > "${WORK}/routes-verified"
-routes rustskip "${SHA_RUSTSKIP}" > "${WORK}/routes-rustskip"
-routes docsonly "${SHA_DOCSONLY}" > "${WORK}/routes-docsonly"
+routes verified "${PIPELINES} queue.json" "${TREE} full.json"
+scenario "queue passed main, rust-ci and rust-e2e-ci" verified true true true 5
 
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "queue passed main, rust-ci and rust-e2e-ci" \
-  "${WORK}/routes-verified" true true true 5
+routes rust-fast "${PIPELINES} queue.json" "${TREE} rust-fast.json"
+scenario "queue ran the Rust fast paths" rust-fast true false false 3
 
-# rust-ci-gate-short and rust-e2e-gate-skip report required-rust-ci and
-# required-rust-e2e as success without testing. Their job lists are routed, so
-# only the workflow name check keeps them from counting.
-ENV_SHA="${SHA_RUSTSKIP}" scenario \
-  "queue ran the Rust fast paths" \
-  "${WORK}/routes-rustskip" true false false 3
-
-# ci-gate-skip reports ci-gate as success; the SHA is on the second page.
-ENV_SHA="${SHA_DOCSONLY}" scenario \
-  "queue ran only the docs fast paths" \
-  "${WORK}/routes-docsonly" false false false 3
+# The docs fast paths' pipeline is on the second page of the pipeline list.
+routes docs-fast "${PIPELINES} no-queue.json" "${PIPELINES}?page-token=page-2 queue.json" "${TREE} docs-fast.json"
+scenario "queue ran only the docs fast paths" docs-fast false false false 3
 expect_requests "docs fast paths" "/pipeline" 2
 expect_requests "docs fast paths" "/tree/" 1
 
-# The verified queue pipeline is on the second page of the pipeline list.
-jq --arg sha "${SHA_VERIFIED}" '.items |= map(select(.vcs.revision != $sha))' \
-  "${FIXTURES}/pipelines-page1.json" > "${WORK}/page1-without.json"
-jq --arg sha "${SHA_VERIFIED}" --slurpfile p1 "${FIXTURES}/pipelines-page1.json" \
-  '.items += [$p1[0].items[] | select(.vcs.revision == $sha)]' \
-  "${FIXTURES}/pipelines-page2.json" > "${WORK}/page2-with.json"
-{
-  echo "*/v2/project/gh/ethereum-optimism/optimism/pipeline ${WORK}/page1-without.json"
-  echo "*/v2/project/gh/ethereum-optimism/optimism/pipeline?page-token=fixture-page-2 ${WORK}/page2-with.json"
-  grep -v '/pipeline' "${WORK}/routes-verified"
-} > "${WORK}/routes-page2"
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "queue pipeline on the second page" \
-  "${WORK}/routes-page2" true true true 6
+routes page-2 "${PIPELINES} no-queue.json" "${PIPELINES}?page-token=page-2 queue.json" "${TREE} full.json"
+scenario "queue pipeline on the second page" page-2 true true true 6
 expect_requests "second page" "/pipeline" 2
 
-# The same queue branch twice on a page, as when its pipeline is triggered again.
-jq --arg sha "${SHA_VERIFIED}" \
-  '.items += [.items[] | select(.vcs.revision == $sha and (.vcs.branch | startswith("gh-readonly-queue/")))]' \
-  "${FIXTURES}/pipelines-page1.json" > "${WORK}/page1-dup.json"
-{
-  echo "*/v2/project/gh/ethereum-optimism/optimism/pipeline ${WORK}/page1-dup.json"
-  grep -v '/pipeline' "${WORK}/routes-verified"
-} > "${WORK}/routes-dup"
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "queue branch listed twice" \
-  "${WORK}/routes-dup" true true true 5
+# As when the queue branch's pipeline is triggered again.
+routes twice "${PIPELINES} queue-twice.json" "${TREE} full.json"
+scenario "queue branch listed twice" twice true true true 5
 expect_requests "queue branch listed twice" "/tree/" 1
 
-# A re-run: the queue pipeline's first main workflow failed and a second one
-# passed. The failed one's id sorts first, so it is checked first.
-RERUN_ID=00000000-0000-4000-8000-000000000000
-jq --arg id "${RERUN_ID}" \
-  '. + [[.[] | select(.workflows.workflow_name == "main")][0] | .workflows.workflow_id = $id]' \
-  "${FIXTURES}/tree-verified-0.json" > "${WORK}/tree-rerun.json"
-{
-  sed -n 's|^\(\*/v1.1/.*/tree/[^ ]*\) .*|\1 '"${WORK}"'/tree-rerun.json|p' "${WORK}/routes-verified"
-  echo "*/v2/workflow/${RERUN_ID}/job $(with_status verified main ci-gate failed)"
-  grep -v '/tree/' "${WORK}/routes-verified"
-} > "${WORK}/routes-rerun"
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "main failed, then passed on a re-run" \
-  "${WORK}/routes-rerun" true true true 6
-expect_requests "re-run" "/v2/workflow/${RERUN_ID}/job" 1
+routes rerun "${PIPELINES} queue.json" "${TREE} rerun.json"
+scenario "main failed, then passed on a re-run" rerun true true true 6
+expect_requests "re-run" "/v2/workflow/${ID_FAILED_MAIN}/job" 1
 
-{
-  echo "*/v2/workflow/$(workflow_id verified main)/job $(with_status verified main ci-gate failed)"
-  echo "*/v2/workflow/$(workflow_id verified rust-ci)/job $(with_status verified rust-ci required-rust-ci running)"
-  cat "${WORK}/routes-verified"
-} > "${WORK}/routes-gates"
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "ci-gate failed, required-rust-ci still running" \
-  "${WORK}/routes-gates" false false true 5
+routes gates "*/v2/workflow/${ID_MAIN}/job main-failed.json" "*/v2/workflow/${ID_RUST_CI}/job rust-ci-running.json" \
+  "${PIPELINES} queue.json" "${TREE} full.json"
+scenario "ci-gate failed, required-rust-ci still running" gates false false true 5
 
-# The rustskip queue branch answers with the verified pipeline's jobs, which
-# built another commit, so none of them count.
-{
-  sed -n 's|^\(\*/v1.1/.*/tree/[^ ]*\) .*|\1 tree-verified-0.json|p' "${WORK}/routes-rustskip"
-  grep '/v2/workflow/' "${WORK}/routes-verified"
-  grep -v '/tree/' "${WORK}/routes-rustskip"
-} > "${WORK}/routes-other-sha"
-ENV_SHA="${SHA_RUSTSKIP}" scenario \
-  "queue branch's jobs built another commit" \
-  "${WORK}/routes-other-sha" false false false 5
+routes other-sha "${PIPELINES} queue.json" "${TREE} full-other-sha.json"
+scenario "queue branch's jobs built another commit" other-sha false false false 2
 
-ENV_SHA="${SHA_UNKNOWN}" scenario \
-  "no queue pipeline (admin merge or direct push) stops after 5 pages" \
-  "${WORK}/routes-verified" false false false 5
+routes no-queue "${PIPELINES} no-queue.json" "${PIPELINES}?page-token=* no-queue-again.json"
+scenario "no queue pipeline (admin merge or direct push) stops after 5 pages" no-queue false false false 5
 expect_requests "no queue pipeline" "/pipeline" 5
 expect_requests "no queue pipeline" "/tree/" 0
 
-echo "*/pipeline exit:22" > "${WORK}/routes-error"
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "pipeline list returns an HTTP error" \
-  "${WORK}/routes-error" false false false 1
+routes http-error "${PIPELINES} exit:22"
+scenario "pipeline list returns an HTTP error" http-error false false false 1
 
-{
-  echo "*/tree/* exit:28"
-  cat "${WORK}/routes-verified"
-} > "${WORK}/routes-timeout"
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "job list times out" \
-  "${WORK}/routes-timeout" false false false 2
+routes tree-timeout "*/tree/* exit:28" "${PIPELINES} queue.json"
+scenario "job list times out" tree-timeout false false false 2
 
-{
-  echo "*/v2/workflow/$(workflow_id verified main)/job exit:28"
-  cat "${WORK}/routes-verified"
-} > "${WORK}/routes-wf-timeout"
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "one workflow's job list times out" \
-  "${WORK}/routes-wf-timeout" false true true 5
+routes wf-timeout "*/v2/workflow/${ID_MAIN}/job exit:28" "${PIPELINES} queue.json" "${TREE} full.json"
+scenario "one workflow's job list times out" wf-timeout false true true 5
 
-cp "${FIXTURES}/pipelines-page1.json" "${WORK}/not-json.json"
-echo "garbage" >> "${WORK}/not-json.json"
-echo "*/pipeline ${WORK}/not-json.json" > "${WORK}/routes-bad-json"
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "pipeline list is not JSON" \
-  "${WORK}/routes-bad-json" false false false 1
+routes not-json "${PIPELINES} not-json.json"
+scenario "pipeline list is not JSON" not-json false false false 1
 
-: > "${WORK}/empty.json"
-echo "*/pipeline ${WORK}/empty.json" > "${WORK}/routes-empty"
-ENV_SHA="${SHA_VERIFIED}" scenario \
-  "pipeline list is an empty 200" \
-  "${WORK}/routes-empty" false false false 1
+routes empty "${PIPELINES} empty.json"
+scenario "pipeline list is an empty 200" empty false false false 1
 if ! grep -q "Could not list pipelines" "${WORK}/out.log"; then
   echo "FAIL: empty pipeline list: not reported as a listing error"
   FAIL=$((FAIL + 1))
 fi
 
-ENV_SHA="${SHA_VERIFIED}" ENV_DEADLINE=0 scenario \
-  "deadline already passed" \
-  "${WORK}/routes-verified" false false false 0
+ENV_DEADLINE=0 scenario "deadline already passed" verified false false false 0
 
 # Every other pipeline records false without a request.
-ENV_SHA="${SHA_VERIFIED}" ENV_BRANCH="feat/my-thing" scenario \
-  "PR branch push" "${WORK}/routes-verified" false false false 0
-ENV_SHA="${SHA_VERIFIED}" ENV_BRANCH="gh-readonly-queue/develop/pr-24242-416753f094b0edcfa37b378b43d8a629eec83d53" scenario \
-  "merge queue push" "${WORK}/routes-verified" false false false 0
-ENV_SHA="${SHA_VERIFIED}" ENV_TRIGGER="scheduled_pipeline" scenario \
-  "scheduled pipeline on develop" "${WORK}/routes-verified" false false false 0
-ENV_SHA="${SHA_VERIFIED}" ENV_TRIGGER="api" scenario \
-  "API-triggered pipeline on develop" "${WORK}/routes-verified" false false false 0
-ENV_SHA="${SHA_VERIFIED}" ENV_ORG="other-org" scenario \
-  "develop push outside ethereum-optimism/optimism" "${WORK}/routes-verified" false false false 0
+ENV_BRANCH="feat/my-thing" scenario "PR branch push" verified false false false 0
+ENV_BRANCH="${QUEUE}" scenario "merge queue push" verified false false false 0
+ENV_TRIGGER="scheduled_pipeline" scenario "scheduled pipeline on develop" verified false false false 0
+ENV_TRIGGER="api" scenario "API-triggered pipeline on develop" verified false false false 0
+ENV_ORG="other-org" scenario "develop push outside ethereum-optimism/optimism" verified false false false 0
 
 echo ""
 echo "=== Results: ${PASS} passed, ${FAIL} failed ==="
