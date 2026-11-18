@@ -50,9 +50,14 @@ CI runs two variants of the `op-acceptance-tests` job: `memory-all-opn-op-reth-<
 (op-node + op-reth) and `memory-all-kona-op-reth-<l1_fork>` (kona-node + op-reth).
 
 A test that cannot run under kona-node skips itself in code with `sysgo.SkipOnKonaNode` rather
-than being left out of a list. Skip only for a real client gap. A test that pins the CL kind of
-every node itself runs the same way in both CL variants; let it run twice rather than skipping
-one variant to save CI time.
+than being left out of a list. Skip only for a real client gap.
+
+The supernode runtimes and the interop runtimes without a supernode start only op-node and
+op-supernode CLs, whatever `DEVSTACK_L2CL_KIND` says, so under kona-node they would repeat the
+op-node job. Their sysgo constructors skip the test under kona-node before starting anything
+(`skipOpNodeOnlyRuntimeOnKonaNode`), so a new test on those presets needs no handling of its own.
+A test that starts both CLs itself, through `sysgo.NewMixedSingleChainRuntime` with explicit CL
+kinds, still runs in both jobs.
 
 ### Kona Prestate
 

@@ -91,7 +91,9 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 	l1Config.WithPrefundedAccount(addrFor(devkeys.SystemConfigOwner), *millionEth)
 }
 
-// startL2CLForKey starts an L2 CL node of the given kind for the given key.
+// startL2CLForKey starts an L2 CL node of the given kind for the given key. A runtime that calls
+// skipOpNodeOnlyRuntimeOnKonaNode must drop that call when it starts a CL through here, or the
+// kona-node run keeps skipping its tests.
 func startL2CLForKey(
 	t devtest.T,
 	keys devkeys.Keys,

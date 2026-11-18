@@ -21,6 +21,7 @@ func NewSingleSupernodeWithSyncTesterRuntime(t devtest.T) *MultiChainRuntime {
 }
 
 func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
+	skipOpNodeOnlyRuntimeOnKonaNode(t)
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)

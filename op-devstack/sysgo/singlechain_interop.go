@@ -54,6 +54,7 @@ func startSingleChainInteropPrimaryNoSupernode(
 // NewMinimalInteropNoSupernodeRuntime constructs the single-chain interop world
 // without supernode wiring.
 func NewMinimalInteropNoSupernodeRuntime(t devtest.T) *SingleChainRuntime {
+	skipOpNodeOnlyRuntimeOnKonaNode(t)
 	return newSingleChainRuntimeWithConfig(t, PresetConfig{}, singleChainRuntimeSpec{
 		BuildWorld:      newSingleChainInteropWorldNoSupernode,
 		SequencerCLKind: MixedL2CLOpNode,
@@ -70,6 +71,7 @@ func NewMinimalInteropNoSupernodeRuntime(t devtest.T) *SingleChainRuntime {
 // games sourcing super roots directly from the op-node's superroot_atTimestamp endpoint.
 // The primary op-node enables its safe DB (required by superroot_atTimestamp).
 func NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	skipOpNodeOnlyRuntimeOnKonaNode(t)
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
 	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.SuperCannonKonaGameType)
 	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
@@ -88,6 +90,7 @@ func NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t devtest.T, cfg
 // roots directly from the op-node's superroot_atTimestamp endpoint. The primary op-node enables
 // its safe DB (required by superroot_atTimestamp).
 func NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	skipOpNodeOnlyRuntimeOnKonaNode(t)
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
 	// ZK games resolve only after the challenge/prove windows elapse, so time travel is required.
 	cfg.EnableTimeTravel = true
