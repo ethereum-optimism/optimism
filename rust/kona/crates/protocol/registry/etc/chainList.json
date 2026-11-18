@@ -1,26 +1,5 @@
 [
   {
-    "name": "Automata Mainnet",
-    "identifier": "mainnet/automata",
-    "chainId": 65536,
-    "rpc": [
-      "https://rpc.ata.network"
-    ],
-    "explorers": [
-      "https://explorer.ata.network"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "gasPayingToken": "0xA2120b9e674d3fC3875f415A7DF52e382F141225",
-    "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
     "name": "BOB",
     "identifier": "mainnet/bob",
     "chainId": 60808,
@@ -183,26 +162,6 @@
     }
   },
   {
-    "name": "Lisk",
-    "identifier": "mainnet/lisk",
-    "chainId": 1135,
-    "rpc": [
-      "https://rpc.api.lisk.com"
-    ],
-    "explorers": [
-      "https://blockscout.lisk.com"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Lyra Chain",
     "identifier": "mainnet/lyra",
     "chainId": 957,
@@ -231,26 +190,6 @@
     ],
     "explorers": [
       "https://explorer.metall2.com"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
-    "name": "Mint Mainnet",
-    "identifier": "mainnet/mint",
-    "chainId": 185,
-    "rpc": [
-      "https://rpc.mintchain.io"
-    ],
-    "explorers": [
-      "https://explorer.mintchain.io"
     ],
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
@@ -323,26 +262,6 @@
     }
   },
   {
-    "name": "Polynomial",
-    "identifier": "mainnet/polynomial",
-    "chainId": 8008,
-    "rpc": [
-      "https://rpc.polynomial.fi"
-    ],
-    "explorers": [
-      "https://polynomialscan.io"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "RACE Mainnet",
     "identifier": "mainnet/race",
     "chainId": 6805,
@@ -354,26 +273,6 @@
     ],
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
-    "name": "Redstone",
-    "identifier": "mainnet/redstone",
-    "chainId": 690,
-    "rpc": [
-      "https://rpc.redstonechain.com"
-    ],
-    "explorers": [
-      "https://explorer.redstone.xyz"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
     "parent": {
       "type": "L2",
       "chain": "mainnet"
@@ -443,26 +342,6 @@
     }
   },
   {
-    "name": "Superseed",
-    "identifier": "mainnet/sseed",
-    "chainId": 5330,
-    "rpc": [
-      "https://mainnet.superseed.xyz"
-    ],
-    "explorers": [
-      "https://explorer.superseed.xyz"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Swan Chain Mainnet",
     "identifier": "mainnet/swan",
     "chainId": 254,
@@ -520,26 +399,6 @@
     },
     "faultProofs": {
       "status": "permissioned"
-    }
-  },
-  {
-    "name": "Xterio Chain (ETH)",
-    "identifier": "mainnet/xterio-eth",
-    "chainId": 2702128,
-    "rpc": [
-      "https://xterio-eth.alt.technology/"
-    ],
-    "explorers": [
-      "https://eth.xterscan.io/"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "none"
     }
   },
   {
@@ -661,26 +520,6 @@
     },
     "faultProofs": {
       "status": "permissionless"
-    }
-  },
-  {
-    "name": "Lisk Sepolia Testnet",
-    "identifier": "sepolia/lisk",
-    "chainId": 4202,
-    "rpc": [
-      "https://rpc.sepolia-api.lisk.com"
-    ],
-    "explorers": [
-      "https://sepolia-blockscout.lisk.com"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
-    },
-    "faultProofs": {
-      "status": "none"
     }
   },
   {
