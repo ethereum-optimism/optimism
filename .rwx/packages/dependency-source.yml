@@ -1,0 +1,25 @@
+# The repository at the commit that last changed a dependency's build inputs, with its
+# submodules. ops/ci/runtime/go-dependency-source.py names that commit. A build from this
+# source has the same cache key for every later commit that leaves those inputs unchanged,
+# and for every workload that builds the same dependency in one run.
+package:
+  parameters:
+    ref:
+      required: true
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ params.ref }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: checkout
+    use: code
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m

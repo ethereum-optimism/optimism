@@ -143,12 +143,26 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     run: 'true'
 
+  # Each dependency builds from the commit that last changed its build inputs, so the
+  # build is a cache hit for later commits and for the other workloads of the run.
+  - key: dependency-plan
+    use: code
+    run: python3 ops/ci/runtime/go-dependency-source.py plan
+    outputs:
+      filesystem: false
+
+  - key: go-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    call: ${{ run.dir }}/packages/dependency-source.yml
+    with:
+      ref: ${{ tasks.dependency-plan.values.go }}
+
   - key: go
-    use: [source, go-build-tools]
+    use: [go-build-tools, go-source]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     call: ${{ run.dir }}/packages/go-go.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
+      commit-sha: ${{ tasks.dependency-plan.values.go }}
       cache-epoch: ${{ init.cache-epoch }}
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
@@ -171,12 +185,18 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       cache-epoch: ${{ init.cache-epoch }}
 
+  - key: prestate-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    call: ${{ run.dir }}/packages/dependency-source.yml
+    with:
+      ref: ${{ tasks.dependency-plan.values.prestate }}
+
   - key: prestate
-    use: [source, go-build-tools]
+    use: [go-build-tools, prestate-source]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     call: ${{ run.dir }}/packages/go-prestate.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
+      commit-sha: ${{ tasks.dependency-plan.values.prestate }}
       cache-epoch: ${{ init.cache-epoch }}
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}

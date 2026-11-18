@@ -61,10 +61,11 @@ def compiler_base(root):
     Source-only PR edits reuse this ancestor's compiler filesystem. Fresh workers
     always overlay HEAD and run Cargo, which checks changed source dependencies.
     No compiler-cache writer permission is needed to reuse a task result.
+    `.rwx` is not an input: RWX's own cache key covers the task definition.
     """
     paths = ['mise.toml', 'rust/Cargo.lock', ':(glob)rust/**/Cargo.toml',
              'rust/.cargo', 'rust/.config', 'rust/rust-toolchain.toml', 'rust/justfile',
-             'ops/ci/runtime', '.rwx/rust.yml', '.rwx/packages',
+             'ops/ci/runtime',
              'rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256']
     anchor = subprocess.check_output(['git', 'log', '-1', '--format=%H', 'HEAD', '--',
                                      *paths], cwd=root, text=True).strip()

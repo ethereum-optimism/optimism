@@ -8,7 +8,9 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[3]
-COMMON = ['mise.toml', '.gitmodules', 'superchain-registry', 'justfile', 'justfiles', 'ops/ci/runtime', '.rwx',
+# The files that a build reads. `.rwx` is not one of them: RWX's own cache key covers the
+# task definition, so a changed definition rebuilds from the same commit.
+COMMON = ['mise.toml', '.gitmodules', 'superchain-registry', 'justfile', 'justfiles', 'ops/ci/runtime',
           'go.mod', 'go.sum', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc']
 RUST = ['rust', 'op-core/nuts/bundles', 'op-core/superchain']
 SCOPES = {
@@ -17,6 +19,7 @@ SCOPES = {
                             'op-deployer/pkg/deployer/artifacts', 'op-service/ioutil'],
     'kona': COMMON + RUST,
     'op-reth': COMMON + RUST,
+    'sp1-executor': COMMON + RUST,
     'prestate': COMMON + RUST + ['cannon', 'op-service', 'op-preimage', 'ops/scripts',
                                  'Dockerfile*', '.dockerignore'],
     'compiler': COMMON + ['packages/contracts-bedrock', 'op-deployer/justfile',

@@ -29,8 +29,11 @@ class SourceIdentityTests(unittest.TestCase):
                     self.assertEqual(len(SOURCE.fingerprint(kind)), 64)
                 metadata={'commit_sha':old,'build_inputs_sha256':SOURCE.fingerprint('kona')}
                 commit('op-service/errutil/errors.go', 'new go')
+                # RWX's own cache key covers a task definition, so a .rwx change keeps the ancestor.
+                commit('.rwx/go-tests.yml', 'changed task definition')
                 SOURCE.verify('kona', metadata)
-                self.assertEqual(SOURCE.ancestor('kona'), old)
+                for kind in ('kona', 'op-reth', 'sp1-executor'):
+                    self.assertEqual(SOURCE.ancestor(kind), old)
                 prestate = SOURCE.fingerprint('prestate')
                 commit('cannon/mipsevm/state.go', 'changed cannon')
                 self.assertNotEqual(prestate, SOURCE.fingerprint('prestate'))

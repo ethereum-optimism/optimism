@@ -45,8 +45,13 @@ class RustTargetCacheTest(unittest.TestCase):
         self.source.write_text('pub fn source_changed() {}')
         commit('ordinary source edit')
         self.assertEqual(CACHE.compiler_base(self.root), initial)
+        # RWX's own cache key covers a task definition, so a .rwx change keeps the anchor.
+        (self.root / '.rwx').mkdir()
+        (self.root / '.rwx/rust.yml').write_text('changed task definition')
+        commit('.rwx/rust.yml')
+        self.assertEqual(CACHE.compiler_base(self.root), initial)
         for name in ('rust/Cargo.lock', 'rust/local/Cargo.toml', 'ops/ci/runtime/helper.py',
-                     '.rwx/rust.yml', 'rust/.cargo/config.toml'):
+                     'rust/.cargo/config.toml'):
             path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('changed build input')
             changed = commit(name)
