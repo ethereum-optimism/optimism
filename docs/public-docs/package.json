@@ -4,6 +4,7 @@
   "description": "Optimism Documentation",
   "main": "index.js",
   "scripts": {
+    "dev": "bun --bun mint dev",
     "prebuild": "bun scripts/generate-actions-components.ts && bun scripts/generate-releases.ts",
     "prebuild:local": "bun scripts/generate-actions-components.ts --local && bun scripts/generate-releases.ts",
     "lint:nav": "bun scripts/lint/validate-nav.ts",
@@ -16,6 +17,7 @@
     "@eth-optimism/actions-sdk": "^0.8.1",
     "@types/node": "^25.9.1",
     "@types/react": "^18.0.0",
+    "mint": "4.2.1203",
     "ts-morph": "^21.0.0",
     "typescript": "^5.0.0"
   },

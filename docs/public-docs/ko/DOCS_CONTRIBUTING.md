@@ -45,7 +45,7 @@ Optimism 문서는 오픈 소스이며, GitHub의 [`ethereum-optimism/optimism`]
 
 이제 콘텐츠를 수정할 수 있으며, 새 파일을 저장할 때마다 웹사이트가 실시간으로 업데이트되는 것을 확인할 수 있습니다. 🤓
 
-미리 보기는 `mise.toml`에 고정된 `bun`으로 [Mintlify CLI](https://www.mintlify.com/docs/installation)를 실행하므로 Node나 `bun install`이 필요하지 않습니다. 추가 `mint dev` 플래그도 그대로 전달할 수 있습니다(예: `just public-docs --port 3333`).
+`just public-docs`는 `bun install`로 문서 의존성을 설치하고, `package.json`에 고정된 [Mintlify CLI](https://www.mintlify.com/docs/installation)를 `mise.toml`에 고정된 `bun`으로 실행하므로 Node가 필요하지 않습니다. 의존성이 설치되어 있다면 `docs/public-docs`에서 `bun run dev`로도 같은 작업을 할 수 있습니다. 추가 `mint dev` 플래그도 그대로 전달할 수 있습니다(예: `just public-docs --port 3333`).
 
 ## 기여 절차
 

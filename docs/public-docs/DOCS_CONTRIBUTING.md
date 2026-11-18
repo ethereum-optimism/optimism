@@ -45,7 +45,7 @@ All contributions, pull requests, and issues should be in English at this time.
 
 You can now start changing content and see the website updated live each time you save a new file. 🤓
 
-The preview runs the [Mintlify CLI](https://www.mintlify.com/docs/installation) on the `bun` pinned in `mise.toml`, so it needs no Node and no `bun install`. Pass extra `mint dev` flags through, e.g. `just public-docs --port 3333`.
+`just public-docs` installs the docs dependencies with `bun install` and runs the [Mintlify CLI](https://www.mintlify.com/docs/installation) (pinned in `package.json`) on the `bun` pinned in `mise.toml`, so it needs no Node. From `docs/public-docs`, `bun run dev` does the same once dependencies are installed. Pass extra `mint dev` flags through, e.g. `just public-docs --port 3333`.
 
 ## Contributing Process
 
