@@ -17,8 +17,7 @@ const EXPECTED_ETH_VERSION: u64 = 71;
 async fn peers_negotiate_eth_71() -> eyre::Result<()> {
     // This test intermittently segfaults during teardown, after the body below has
     // passed (ethereum-optimism/optimism#20973). The handler outlives the body, so it
-    // reports the faulting thread and stack when that happens. `rust/.config/nextest.toml`
-    // retries this test by name.
+    // reports the faulting thread and stack when that happens.
     crate::crash_backtrace::install();
     reth_tracing::init_test_tracing();
 
