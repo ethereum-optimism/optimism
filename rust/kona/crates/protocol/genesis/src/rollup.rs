@@ -522,6 +522,56 @@ mod tests {
         RollupConfig::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap();
     }
 
+    /// Runs an `arbtest` property in one of three modes:
+    ///
+    /// - `ARBTEST_SEED` set (the seed arbtest prints on failure): replay that seed. Filter the run
+    ///   to one test, since arbtest applies the variable to every arbtest in the process.
+    /// - `CI` set: run a fixed number of seeds from a fixed-seed RNG, so CI is deterministic for a
+    ///   given `Cargo.lock` (a `rand` upgrade may change `StdRng`'s output and so the seeds).
+    /// - otherwise: arbtest's random search, for its time budget (`ARBTEST_BUDGET_MS`, 100ms by
+    ///   default).
+    ///
+    /// Inputs range from a few dozen bytes, where `Unstructured` runs out and most fields come out
+    /// as their default or `None`, to a few KiB, where every field gets a value. A property that
+    /// returns `Err` fails a replayed or CI seed, whereas the random search skips it.
+    #[cfg(all(feature = "arbitrary", feature = "serde"))]
+    fn run_arbtest(property: impl Fn(&mut arbitrary::Unstructured<'_>) -> arbitrary::Result<()>) {
+        use rand::{Rng, SeedableRng};
+        const SIZE_MIN: u32 = 32;
+        const SIZE_MAX: u32 = 4 * 1024;
+        const CI_CASES: usize = 1000;
+
+        if std::env::var_os("CI").is_none() || std::env::var_os("ARBTEST_SEED").is_some() {
+            // arbtest itself replays `ARBTEST_SEED` when set, ignoring the size bounds.
+            arbtest::arbtest(property).size_min(SIZE_MIN).size_max(SIZE_MAX).run();
+            return;
+        }
+        let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+        for _ in 0..CI_CASES {
+            // arbtest's seed layout: the input size in the low 32 bits, the RNG seed above.
+            let size = rng.random_range(SIZE_MIN..=SIZE_MAX);
+            let seed = u64::from(size) | (u64::from(rng.random::<u32>()) << 32);
+            arbtest::arbtest(&property).seed(seed).run();
+        }
+    }
+
+    /// Every `RollupConfig` survives a serde round trip. Several attributes act differently on
+    /// the way out and the way in: `skip_serializing_if` with `default`, the flattened
+    /// `hardforks`, renames such as `blobs_data` and `alt_da`, and `serialize_with` on
+    /// `l2_chain_id`.
+    #[test]
+    #[cfg(all(feature = "arbitrary", feature = "serde"))]
+    fn test_arbitrary_rollup_config_serde_roundtrip() {
+        use arbitrary::Arbitrary;
+        run_arbtest(|u| {
+            let config = RollupConfig::arbitrary(u)?;
+            let json = serde_json::to_string(&config).unwrap();
+            let decoded: RollupConfig = serde_json::from_str(&json).unwrap();
+            assert_eq!(decoded, config, "{json}");
+            Ok(())
+        });
+    }
+
     #[test]
     fn test_ethereum_fork_activation_follows_op_forks() {
         let config = RollupConfig {
@@ -916,6 +966,10 @@ mod tests {
         assert_eq!(serde_json::from_value::<RollupConfig>(json).unwrap().settlement_chain_id, 0);
     }
 
+    /// The config that the inline JSON of kona's own deserialization tests
+    /// (`test_deserialize_reference_rollup_config`, `test_rollup_config_unknown_field`) decodes
+    /// to. It is not part of the cross-language contract with op-node; that is
+    /// [`cross_language_rollup_config`].
     fn expected_rollup_config() -> RollupConfig {
         use crate::{OP_MAINNET_BASE_FEE_CONFIG, SystemConfig};
         RollupConfig {
@@ -1031,26 +1085,129 @@ mod tests {
         assert_eq!(deserialized, expected);
     }
 
-    /// Golden serialization of [`expected_rollup_config`] on OP Mainnet's chain ID, which alloy
-    /// names `"optimism"`. op-node's `TestDecodeKonaRollupConfig` (`op-node/rollup/types_test.go`)
-    /// decodes the same file into its `rollup.Config`, as `optimism_rollupConfig` clients do.
-    #[cfg(feature = "serde")]
-    const NAMED_CHAIN_ROLLUP_CONFIG: &str =
-        include_str!("../tests/fixtures/rollup_config_named_chain.json");
-
     #[test]
     #[cfg(feature = "serde")]
     fn test_serialize_named_l2_chain_id_as_number() {
-        let config =
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..expected_rollup_config() };
-        let mut json = serde_json::to_value(&config).unwrap();
+        let config = RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() };
+        let json = serde_json::to_value(&config).unwrap();
         assert_eq!(json["l2_chain_id"], 10);
+    }
 
-        // Present only with `rollup_config_override`; op-node has no such field.
+    /// The config in the cross-language golden file, `rollup_config_cross_language.json`.
+    ///
+    /// The file is the contract between kona's `RollupConfig` serialization (which kona-node's
+    /// `optimism_rollupConfig` returns) and op-node's `rollup.Config`: op-node's
+    /// `TestDecodeKonaRollupConfig` (`op-node/rollup/types_test.go`) decodes it field by field.
+    ///
+    /// - Every struct here, nested ones included, is an exhaustive literal with no
+    ///   `..Default::default()`. A new field does not compile until it gets a value, and then the
+    ///   Go test sees it.
+    /// - Values are distinct and non-zero, so a field that one side drops or names differently, or
+    ///   two swapped fields, change the decoded result.
+    /// - The config passes op-node's `Check()`: fork times increase, and the L2 chain ID is OP
+    ///   Mainnet's, which alloy names `"optimism"`. The alt-DA config uses a generic commitment,
+    ///   because op-node reads the challenge address under another key and would otherwise reject
+    ///   the config; a generic commitment must also leave `da_max_input_size` unset.
+    ///
+    /// After changing this config, regenerate the file with
+    /// `UPDATE_GOLDEN=1 cargo test -p kona-genesis test_cross_language_rollup_config_golden`, then
+    /// update the Go test.
+    #[cfg(feature = "serde")]
+    fn cross_language_rollup_config() -> RollupConfig {
+        use crate::SystemConfig;
+        RollupConfig {
+            genesis: ChainGenesis {
+                l1: BlockNumHash {
+                    hash: b256!("438335a20d98863a4c0c97999eb2481921ccd28553eac6f913af7c12aec04108"),
+                    number: 17_422_590,
+                },
+                l2: BlockNumHash {
+                    hash: b256!("dbf6a80fef073de06add9b0d14026d6e5a86c85f6d102c36d3d8e9cf89c2afd3"),
+                    number: 105_235_063,
+                },
+                l2_time: 1_686_068_903,
+                system_config: Some(SystemConfig {
+                    batcher_address: address!("6887246668a3b87f54deb3b94ba47a6f63f32985"),
+                    overhead: U256::from(0xbc),
+                    scalar: U256::from(0xa6fe0),
+                    gas_limit: 30_000_000,
+                    base_fee_scalar: Some(5_227),
+                    blob_base_fee_scalar: Some(1_014_213),
+                    eip1559_denominator: Some(251),
+                    eip1559_elasticity: Some(7),
+                    operator_fee_scalar: Some(17),
+                    operator_fee_constant: Some(19),
+                    min_base_fee: Some(23),
+                    da_footprint_gas_scalar: Some(29),
+                }),
+            },
+            block_time: 2,
+            max_sequencer_drift: 600,
+            seq_window_size: 3600,
+            channel_timeout: 300,
+            granite_channel_timeout: 45,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
+            l1_chain_id: 1,
+            l2_chain_id: Chain::optimism_mainnet(),
+            hardforks: HardForkConfig {
+                regolith_time: Some(1_686_068_904),
+                canyon_time: Some(1_704_992_401),
+                delta_time: Some(1_708_560_001),
+                ecotone_time: Some(1_710_374_401),
+                fjord_time: Some(1_720_627_201),
+                granite_time: Some(1_726_070_401),
+                holocene_time: Some(1_736_445_601),
+                pectra_blob_schedule_time: Some(1_742_486_401),
+                isthmus_time: Some(1_746_806_401),
+                jovian_time: Some(1_764_691_201),
+                karst_time: Some(1_780_000_001),
+                keep_karst_upgrade_gas: true,
+                lagoon_time: Some(1_790_000_001),
+            },
+            batch_inbox_address: address!("ff00000000000000000000000000000000000010"),
+            deposit_contract_address: address!("beb5fc579115071764c7423a4f12edde41f106ed"),
+            l1_system_config_address: address!("229047fed2591dbec1ef1118d64f7af3db9eb290"),
+            superchain_config_address: Some(address!("95703e0982140d16f8eba6d158fccede42f04a4c")),
+            blobs_enabled_l1_timestamp: Some(1_710_374_402),
+            da_challenge_address: Some(address!("0000000000000000000000000000000000000da1")),
+            alt_da_config: Some(AltDAConfig {
+                da_challenge_address: Some(address!("0000000000000000000000000000000000000da2")),
+                da_challenge_window: Some(160),
+                da_resolve_window: Some(161),
+                da_commitment_type: Some("GenericCommitment".into()),
+                da_max_input_size: None,
+            }),
+            // Not OP Mainnet's values, which are also the serde default.
+            chain_op_config: BaseFeeConfig {
+                eip1559_elasticity: 8,
+                eip1559_denominator: 60,
+                eip1559_denominator_canyon: 260,
+            },
+            settlement_chain_id: 424,
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_cross_language_rollup_config_golden() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/rollup_config_cross_language.json"
+        );
+        let config = cross_language_rollup_config();
+        let mut json = serde_json::to_value(&config).unwrap();
+        // Present only with `rollup_config_override`. Removing it keeps the file the same under
+        // every feature set, and op-node has no such field.
         json.as_object_mut().unwrap().remove("fjord_max_sequencer_drift");
-        let golden: serde_json::Value = serde_json::from_str(NAMED_CHAIN_ROLLUP_CONFIG).unwrap();
-        assert_eq!(json, golden);
-        assert_eq!(serde_json::from_value::<RollupConfig>(json).unwrap(), config);
+
+        if std::env::var_os("UPDATE_GOLDEN").is_some() {
+            std::fs::write(path, serde_json::to_string_pretty(&json).unwrap() + "\n").unwrap();
+        }
+        let golden: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(json, golden, "rerun with UPDATE_GOLDEN=1 to regenerate {path}");
+        assert_eq!(serde_json::from_value::<RollupConfig>(golden).unwrap(), config);
     }
 
     #[test]

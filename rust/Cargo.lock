@@ -7423,6 +7423,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "arbitrary",
+ "arbtest",
  "derive_more 2.1.1",
  "kona-genesis",
  "rand 0.9.4",
