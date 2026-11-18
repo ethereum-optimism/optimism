@@ -385,6 +385,16 @@ func (m *SimpleTxManager) SendAsync(ctx context.Context, candidate TxCandidate, 
 
 // prepare prepares the transaction for sending.
 func (m *SimpleTxManager) prepare(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
+	// Cancel the retries when the tx manager closes, because each later attempt fails.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-m.closed:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
 		if m.IsClosed() {
 			return nil, ErrClosed
@@ -396,6 +406,9 @@ func (m *SimpleTxManager) prepare(ctx context.Context, candidate TxCandidate) (*
 		return tx, err
 	})
 	if err != nil {
+		if m.IsClosed() {
+			return nil, ErrClosed
+		}
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
 	}
 	return tx, nil

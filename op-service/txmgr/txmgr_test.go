@@ -237,6 +237,9 @@ type mockBackend struct {
 
 	// onReceipt, if set, runs each time TransactionReceipt returns a receipt.
 	onReceipt func()
+
+	// onSuggestGasTipCap, if set, runs at the start of each SuggestGasTipCap call.
+	onSuggestGasTipCap func()
 }
 
 // newMockBackend initializes a new mockBackend.
@@ -311,6 +314,12 @@ func (b *mockBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (ui
 }
 
 func (b *mockBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+	b.mu.RLock()
+	onSuggestGasTipCap := b.onSuggestGasTipCap
+	b.mu.RUnlock()
+	if onSuggestGasTipCap != nil {
+		onSuggestGasTipCap()
+	}
 	tip, _, _ := b.g.sample()
 	return tip, nil
 }
@@ -1712,6 +1721,21 @@ func TestCloseWhileWaitingForConfirmation(t *testing.T) {
 		_, err := send(ctx, h, h.createTxCandidate())
 		require.ErrorIs(t, err, ErrClosed)
 		require.True(t, h.mgr.IsClosed())
+	})
+}
+
+// TestCloseWhilePreparing ensures that Close stops the retries in prepare. Each retry fails
+// because the backend is closed, so the retries can only delay the result.
+func TestCloseWhilePreparing(t *testing.T) {
+	testSendVariants(t, func(t *testing.T, send testSendVariantsFn) {
+		h := newTestHarnessWithConfig(t, configWithNumConfs(1))
+		// Close during the first craftTx attempt. The next backend call then fails.
+		h.backend.onSuggestGasTipCap = h.mgr.Close
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, err := send(ctx, h, h.createTxCandidate())
+		require.ErrorIs(t, err, ErrClosed)
 	})
 }
 
