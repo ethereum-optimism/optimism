@@ -1,0 +1,65 @@
+{
+  "alt_da": {
+    "da_challenge_address": "0x0000000000000000000000000000000000000da2",
+    "da_challenge_window": 160,
+    "da_commitment_type": "GenericCommitment",
+    "da_resolve_window": 161
+  },
+  "batch_inbox_address": "0xff00000000000000000000000000000000000010",
+  "blobs_data": 1710374402,
+  "block_time": 2,
+  "canyon_time": 1704992401,
+  "chain_op_config": {
+    "eip1559Denominator": 60,
+    "eip1559DenominatorCanyon": 260,
+    "eip1559Elasticity": 8
+  },
+  "channel_timeout": 300,
+  "da_challenge_address": "0x0000000000000000000000000000000000000da1",
+  "delta_time": 1708560001,
+  "deposit_contract_address": "0xbeb5fc579115071764c7423a4f12edde41f106ed",
+  "ecotone_time": 1710374401,
+  "fjord_time": 1720627201,
+  "genesis": {
+    "l1": {
+      "hash": "0x438335a20d98863a4c0c97999eb2481921ccd28553eac6f913af7c12aec04108",
+      "number": 17422590
+    },
+    "l2": {
+      "hash": "0xdbf6a80fef073de06add9b0d14026d6e5a86c85f6d102c36d3d8e9cf89c2afd3",
+      "number": 105235063
+    },
+    "l2_time": 1686068903,
+    "system_config": {
+      "baseFeeScalar": 5227,
+      "batcherAddr": "0x6887246668a3b87f54deb3b94ba47a6f63f32985",
+      "blobBaseFeeScalar": 1014213,
+      "daFootprintGasScalar": 29,
+      "eip1559Denominator": 251,
+      "eip1559Elasticity": 7,
+      "gasLimit": 30000000,
+      "minBaseFee": 23,
+      "operatorFeeConstant": 19,
+      "operatorFeeScalar": 17,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "granite_channel_timeout": 45,
+  "granite_time": 1726070401,
+  "holocene_time": 1736445601,
+  "isthmus_time": 1746806401,
+  "jovian_time": 1764691201,
+  "karst_time": 1780000001,
+  "keep_karst_upgrade_gas": true,
+  "l1_chain_id": 1,
+  "l1_system_config_address": "0x229047fed2591dbec1ef1118d64f7af3db9eb290",
+  "l2_chain_id": 10,
+  "lagoon_time": 1790000001,
+  "max_sequencer_drift": 600,
+  "pectra_blob_schedule_time": 1742486401,
+  "regolith_time": 1686068904,
+  "seq_window_size": 3600,
+  "settlement_chain_id": 424,
+  "superchain_config_address": "0x95703e0982140d16f8eba6d158fccede42f04a4c"
+}
