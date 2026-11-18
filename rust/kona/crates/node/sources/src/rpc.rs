@@ -2,7 +2,7 @@
 //!
 //! [`l1`] and [`engine`] build the node's two clients. Each bounds every request by [`TIMEOUT`]
 //! and records it, under the client's label, in the [`REQUEST_DURATION`] histogram and a
-//! completion log.
+//! completion log. A failed request's error carries no URL.
 
 use alloy_json_rpc::{RequestPacket, ResponsePacket, RpcError};
 use alloy_primitives::Bytes;
@@ -101,6 +101,8 @@ pub fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
 /// A failed request logs at warn. A successful Engine API call (`engine_*`) logs at info, and
 /// any other successful request at debug: while the node catches up, derivation reads several
 /// L1 and L2 blocks a second.
+///
+/// Before it logs or returns a failure, it removes the request URL from it.
 #[derive(Debug, Clone, Copy)]
 pub struct Observe {
     /// The `client` label on the recorded metrics and logs.
@@ -153,7 +155,7 @@ where
         let start = Instant::now();
         let response = self.inner.call(request);
         Box::pin(async move {
-            let response = response.await;
+            let response = response.await.map_err(without_url);
             let duration = start.elapsed();
             let (outcome, kind) = classify(&response);
             // A log level is fixed per call site, so each level gets its own.
@@ -192,6 +194,24 @@ where
             .record(duration.as_secs_f64());
             response
         })
+    }
+}
+
+/// Removes the request URL from a reqwest error, which names it when printed.
+///
+/// Some L1 providers put the API key in the URL path, and callers log the errors a client returns.
+/// [`l1`]'s reqwest transport returns its error at the top level, never nested in another custom
+/// error the way [`engine`]'s hyper transport and JWT layer nest theirs, so one downcast is
+/// enough. [`engine`]'s hyper errors carry no URL.
+fn without_url(error: TransportError) -> TransportError {
+    match error {
+        RpcError::Transport(TransportErrorKind::Custom(source)) => {
+            match source.downcast::<reqwest::Error>() {
+                Ok(reqwest) => TransportErrorKind::custom(reqwest.without_url()),
+                Err(source) => RpcError::Transport(TransportErrorKind::Custom(source)),
+            }
+        }
+        error => error,
     }
 }
 
@@ -550,6 +570,28 @@ mod tests {
 
         let response = client.transport().clone().call(request("eth_blockNumber")).await;
 
+        assert_eq!(classify(&response), ("transport_error", Cow::Borrowed("connect")));
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn a_failed_request_does_not_reveal_the_url(
+        #[values(CLIENTS[0], CLIENTS[1])] client: (&str, Build),
+    ) {
+        let (_, build) = client;
+        let (logs, _guard) = capture_logs(Level::WARN);
+        // Nothing listens on port 1, so the request fails in the transport; reqwest's errors name
+        // the URL they were sending to.
+        let client = build("http://127.0.0.1:1/secret-api-key".parse().unwrap());
+
+        let response = client.transport().clone().call(request("eth_blockNumber")).await;
+
+        let error = response.as_ref().unwrap_err();
+        assert!(!format!("{error} {error:?}").contains("secret-api-key"), "{error:?}");
+        let requests = request_logs(&logs);
+        assert_eq!(requests.len(), 1, "{requests:?}");
+        assert!(!requests[0].contains("secret-api-key"), "{}", requests[0]);
+        // The error still says what failed.
         assert_eq!(classify(&response), ("transport_error", Cow::Borrowed("connect")));
     }
 
