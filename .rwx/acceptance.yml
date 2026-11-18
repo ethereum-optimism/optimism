@@ -115,22 +115,16 @@ tasks:
       git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
     timeout: 20m
 
-  # Each dependency builds from the commit that last changed its build inputs, so the
-  # build is a cache hit for later commits and for the other workloads of the run.
+  # A dependency build checks out the commit that last changed its build inputs, so it
+  # is a cache hit for later commits and for the other workloads of the run.
   - key: dependency-plan
     use: code
     run: python3 ops/ci/runtime/go-dependency-source.py plan
     outputs:
       filesystem: false
 
-  - key: go-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/dependency-source.yml
-    with:
-      ref: ${{ tasks.dependency-plan.values.go }}
-
   - key: go
-    use: [go-build-tools, go-source]
+    use: go-build-tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-go.yml
     with:
@@ -139,14 +133,8 @@ tasks:
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
-  - key: contracts-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/dependency-source.yml
-    with:
-      ref: ${{ tasks.dependency-plan.values.contracts }}
-
   - key: contracts
-    use: [go-build-tools, contract-tools, contracts-source]
+    use: [go-build-tools, contract-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-contracts.yml
     with:
@@ -155,14 +143,8 @@ tasks:
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
-  - key: kona-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/dependency-source.yml
-    with:
-      ref: ${{ tasks.dependency-plan.values.kona }}
-
   - key: kona
-    use: [rust-tools, kona-source]
+    use: rust-tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-kona.yml
     with:
@@ -171,14 +153,8 @@ tasks:
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
-  - key: op-reth-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/dependency-source.yml
-    with:
-      ref: ${{ tasks.dependency-plan.values.op-reth }}
-
   - key: op-reth
-    use: [rust-tools, op-reth-source]
+    use: rust-tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-op-reth.yml
     with:
@@ -187,14 +163,8 @@ tasks:
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
-  - key: prestate-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/dependency-source.yml
-    with:
-      ref: ${{ tasks.dependency-plan.values.prestate }}
-
   - key: prestate
-    use: [go-build-tools, prestate-source]
+    use: go-build-tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-prestate.yml
     with:
@@ -203,14 +173,8 @@ tasks:
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
-  - key: sp1-executor-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/dependency-source.yml
-    with:
-      ref: ${{ tasks.dependency-plan.values.sp1-executor }}
-
   - key: sp1-executor
-    use: [rust-tools, sp1-executor-source]
+    use: rust-tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-sp1-executor.yml
     with:

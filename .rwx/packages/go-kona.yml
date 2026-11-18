@@ -7,7 +7,16 @@ package:
 tasks:
   - key: build
     use: package.use
-    run: mise exec -- bash ops/ci/runtime/go-dependencies.sh kona
+    run: |
+      # Check out the commit in this task. The files that a task writes stay out of its
+      # filtered output, so a task that uses this build does not inherit another checkout.
+      git init -q .
+      git remote add origin https://github.com/ethereum-optimism/optimism.git
+      git fetch -q origin "$CI_COMMIT_SHA"
+      git checkout -qf FETCH_HEAD
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+      mise exec -- bash ops/ci/runtime/go-dependencies.sh kona
     env:
       CI_GO_REUSABLE_DEPENDENCY: "1"
       CI_COMMIT_SHA: ${{ params.commit-sha }}

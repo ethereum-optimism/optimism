@@ -77,7 +77,8 @@
     },
     "required-rust-e2e": {
       "dependencies": [
-        {"name": "rust-e2e-binaries", "also": ["rust-workspace-release"], "group": "rust-e2e", "tasks": ["release"]},
+        {"name": "rust-e2e-binaries", "group": "rust-e2e", "tasks": ["binaries"]},
+        {"name": "rust-workspace-release", "group": "rust-e2e", "tasks": ["release"]},
         {"name": "rust-e2e-simple-kona", "group": "rust-e2e", "tasks": ["verdict-simple-kona-0"]},
         {"name": "rust-e2e-simple-kona-sequencer", "group": "rust-e2e", "tasks": ["verdict-simple-kona-sequencer-0"]},
         {"name": "rust-e2e-restart", "group": "rust-e2e", "tasks": ["verdict-restart-0", "verdict-restart-1", "verdict-restart-2"]},

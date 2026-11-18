@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [go, contracts, release, prestate, compile-proof, compile-restart, compile-simple-kona, compile-simple-kona-sequencer, compile-op-reth]
+    target: [go, contracts, binaries, prestate, compile-proof, compile-restart, compile-simple-kona, compile-simple-kona-sequencer, compile-op-reth]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -143,22 +143,16 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     run: 'true'
 
-  # Each dependency builds from the commit that last changed its build inputs, so the
-  # build is a cache hit for later commits and for the other workloads of the run.
+  # A dependency build checks out the commit that last changed its build inputs, so it
+  # is a cache hit for later commits and for the other workloads of the run.
   - key: dependency-plan
     use: code
     run: python3 ops/ci/runtime/go-dependency-source.py plan
     outputs:
       filesystem: false
 
-  - key: go-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
-    call: ${{ run.dir }}/packages/dependency-source.yml
-    with:
-      ref: ${{ tasks.dependency-plan.values.go }}
-
   - key: go
-    use: [go-build-tools, go-source]
+    use: go-build-tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     call: ${{ run.dir }}/packages/go-go.yml
     with:
@@ -177,7 +171,8 @@ tasks:
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
-  - key: release
+  # CircleCI's rust-e2e-binaries: the binaries that the verdict tasks run.
+  - key: binaries
     use: [rust-tools, head-source]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     call: ${{ run.dir }}/packages/rust-e2e-release.yml
@@ -185,14 +180,28 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       cache-epoch: ${{ init.cache-epoch }}
 
-  - key: prestate-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
-    call: ${{ run.dir }}/packages/dependency-source.yml
-    with:
-      ref: ${{ tasks.dependency-plan.values.prestate }}
+  # CircleCI's rust-workspace-release: every other binary of the release workspace. It
+  # starts from the binaries build, so the two tasks compile each unit once. No verdict
+  # waits for it, so it has a smaller runner.
+  - key: release
+    use: [rust-tools, head-source, binaries.build]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-e2e-release.sh workspace
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    timeout: 120m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: false
 
   - key: prestate
-    use: [go-build-tools, prestate-source]
+    use: go-build-tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     call: ${{ run.dir }}/packages/go-prestate.yml
     with:
@@ -305,7 +314,7 @@ tasks:
       CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
-      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.binaries.tasks.build.artifacts.dependency }}
     tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -388,7 +397,7 @@ tasks:
       CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
-      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.binaries.tasks.build.artifacts.dependency }}
       PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
     tool-cache: rust-e2e-runtime-restart-${{ init.cache-epoch }}
     timeout: 60m
@@ -484,7 +493,7 @@ tasks:
       CI_E2E_COMPILED: ${{ tasks.compile-op-reth.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
-      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.binaries.tasks.build.artifacts.dependency }}
     tool-cache: rust-e2e-runtime-op-reth-${{ init.cache-epoch }}
     outputs:
       <<: *verdict-node-outputs
@@ -499,11 +508,14 @@ tasks:
 
   - key: rust-e2e-gate-receipt
     use: [code, tools]
-    after: ${{ (release.succeeded || release.failed || release.skipped) && (verdict-op-reth-0.succeeded || verdict-op-reth-0.failed || verdict-op-reth-0.skipped) && (verdict-proof-0.succeeded || verdict-proof-0.failed || verdict-proof-0.skipped) && (verdict-proof-1.succeeded || verdict-proof-1.failed || verdict-proof-1.skipped) && (verdict-proof-2.succeeded || verdict-proof-2.failed || verdict-proof-2.skipped) && (verdict-proof-3.succeeded || verdict-proof-3.failed || verdict-proof-3.skipped) && (verdict-proof-4.succeeded || verdict-proof-4.failed || verdict-proof-4.skipped) && (verdict-proof-5.succeeded || verdict-proof-5.failed || verdict-proof-5.skipped) && (verdict-proof-6.succeeded || verdict-proof-6.failed || verdict-proof-6.skipped) && (verdict-proof-7.succeeded || verdict-proof-7.failed || verdict-proof-7.skipped) && (verdict-restart-0.succeeded || verdict-restart-0.failed || verdict-restart-0.skipped) && (verdict-restart-1.succeeded || verdict-restart-1.failed || verdict-restart-1.skipped) && (verdict-restart-2.succeeded || verdict-restart-2.failed || verdict-restart-2.skipped) && (verdict-simple-kona-0.succeeded || verdict-simple-kona-0.failed || verdict-simple-kona-0.skipped) && (verdict-simple-kona-sequencer-0.succeeded || verdict-simple-kona-sequencer-0.failed || verdict-simple-kona-sequencer-0.skipped) }}
+    after: ${{ (binaries.succeeded || binaries.failed || binaries.skipped) && (release.succeeded || release.failed || release.skipped) && (verdict-op-reth-0.succeeded || verdict-op-reth-0.failed || verdict-op-reth-0.skipped) && (verdict-proof-0.succeeded || verdict-proof-0.failed || verdict-proof-0.skipped) && (verdict-proof-1.succeeded || verdict-proof-1.failed || verdict-proof-1.skipped) && (verdict-proof-2.succeeded || verdict-proof-2.failed || verdict-proof-2.skipped) && (verdict-proof-3.succeeded || verdict-proof-3.failed || verdict-proof-3.skipped) && (verdict-proof-4.succeeded || verdict-proof-4.failed || verdict-proof-4.skipped) && (verdict-proof-5.succeeded || verdict-proof-5.failed || verdict-proof-5.skipped) && (verdict-proof-6.succeeded || verdict-proof-6.failed || verdict-proof-6.skipped) && (verdict-proof-7.succeeded || verdict-proof-7.failed || verdict-proof-7.skipped) && (verdict-restart-0.succeeded || verdict-restart-0.failed || verdict-restart-0.skipped) && (verdict-restart-1.succeeded || verdict-restart-1.failed || verdict-restart-1.skipped) && (verdict-restart-2.succeeded || verdict-restart-2.failed || verdict-restart-2.skipped) && (verdict-simple-kona-0.succeeded || verdict-simple-kona-0.failed || verdict-simple-kona-0.skipped) && (verdict-simple-kona-sequencer-0.succeeded || verdict-simple-kona-sequencer-0.failed || verdict-simple-kona-sequencer-0.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt rust-e2e
     env:
       GROUP_SELECTED: ${{ tasks.route.values.run-rust-e2e-ci }}
+      TASK_BINARIES_SUCCEEDED: ${{ tasks.binaries.succeeded }}
+      TASK_BINARIES_FAILED: ${{ tasks.binaries.failed }}
+      TASK_BINARIES_SKIPPED: ${{ tasks.binaries.skipped }}
       TASK_RELEASE_SUCCEEDED: ${{ tasks.release.succeeded }}
       TASK_RELEASE_FAILED: ${{ tasks.release.failed }}
       TASK_RELEASE_SKIPPED: ${{ tasks.release.skipped }}

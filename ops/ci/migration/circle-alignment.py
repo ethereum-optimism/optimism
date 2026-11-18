@@ -3,9 +3,8 @@
 
 For each gate, CircleCI's `requires:` list must name the same jobs as RWX's
 policy, ops/ci/runtime/pr-gates.json, each as `terminal`. A row of the policy
-names one job, and in `also` the other jobs that the same RWX tasks mirror. The
-order of the list has no meaning in CircleCI, so the check ignores it. The
-check prints each difference and exits with 1.
+names one job. The order of the list has no meaning in CircleCI, so the check
+ignores it. The check prints each difference and exits with 1.
 """
 import collections
 import json
@@ -28,7 +27,7 @@ HINT = 'After a CircleCI gate change, update ops/ci/runtime/pr-gates.json.'
 def rwx_prerequisites():
     """Return {gate: [name of each CircleCI job that RWX's policy mirrors]}."""
     manifest = json.loads((ROOT / MANIFEST).read_text())
-    return {gate: [name for row in policy['dependencies'] for name in (row['name'], *row.get('also', []))]
+    return {gate: [row['name'] for row in policy['dependencies']]
             for gate, policy in manifest['gates'].items()}
 
 

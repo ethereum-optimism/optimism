@@ -123,7 +123,7 @@ tasks:
     timeout: 40m
     runner:
       cpus: 4
-      memory: 16gb
+      memory: 32gb
     outputs:
       filesystem:
         filter:

@@ -26,6 +26,10 @@ elif command == 'sccache':
     if args[:1] == ['--show-stats']: print('{}')
 elif args == ['--version']:
     print('pinned tool')
+elif command == 'cargo' and args[:1] == ['metadata']:
+    names = os.environ['BUILT_BINARIES'].split()
+    print(json.dumps({'packages': [{'targets': [{'name': name, 'kind': ['bin']} for name in names]
+                                                + [{'name': 'library', 'kind': ['lib']}]}]}))
 elif command == 'cargo' and args[:1] == ['build']:
     release = Path(os.environ['CARGO_TARGET_DIR']) / 'release'
     release.mkdir(parents=True, exist_ok=True)
@@ -59,21 +63,35 @@ class ReleaseBuildTests(unittest.TestCase):
                     'CI_COMMIT_SHA': sha, 'BUILT_BINARIES': ' '.join(BINARIES + ('utility',))}
         self.metadata = self.root / '.ci/go-tests/dependencies/rust-e2e-release/metadata.json'
 
-    def build(self, **env):
-        return subprocess.run(['bash', 'ops/ci/runtime/rust-e2e-release.sh'], cwd=self.root, env={**self.env, **env},
+    def build(self, part='binaries', **env):
+        return subprocess.run(['bash', 'ops/ci/runtime/rust-e2e-release.sh', part], cwd=self.root, env={**self.env, **env},
                               text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-    def test_locked_release_workspace_build_packs_the_four_runtime_binaries(self):
+    def builds(self):
+        return [call for call in map(json.loads, self.log.read_text().splitlines())
+                if call['command'] == 'cargo' and call['args'][:1] == ['build']]
+
+    WORKSPACE = ['build', '--locked', '--profile', 'release', '--workspace', '--features', 'default', '--lib']
+
+    def test_binaries_half_builds_and_packs_the_four_runtime_binaries(self):
         result = self.build()
         self.assertEqual(result.returncode, 0, result.stdout)
-        builds = [call for call in map(json.loads, self.log.read_text().splitlines())
-                  if call['command'] == 'cargo' and call['args'][:1] == ['build']]
+        builds = self.builds()
+        # CircleCI's rust-e2e-binaries: every library, and the binaries of its `binary` parameter.
         self.assertEqual([call['args'] for call in builds],
-                         [['build', '--locked', '--profile', 'release', '--workspace', '--features', 'default']])
+                         [self.WORKSPACE + ['--bin', 'op-reth', '--bin', 'op-reth-test-engine', '--bin', 'kona-node', '--bin', 'kona-host']])
         self.assertEqual((builds[0]['cwd'], builds[0]['lto']), (str(self.root / 'rust'), 'off'))
         metadata = json.loads(self.metadata.read_text())
         self.assertEqual((metadata['kind'], metadata['commit_sha']), ('rust-e2e-release', self.env['CI_COMMIT_SHA']))
         self.assertEqual(set(metadata['files']), {'rust/target/release/' + name for name in BINARIES})
+
+    def test_workspace_half_builds_every_other_binary_and_packs_nothing(self):
+        result = self.build('workspace')
+        self.assertEqual(result.returncode, 0, result.stdout)
+        # CircleCI's rust-workspace-release: every library, and each binary that the other half leaves out.
+        self.assertEqual([call['args'] for call in self.builds()], [self.WORKSPACE + ['--bin', 'utility']])
+        self.assertFalse(self.metadata.exists())
+        self.assertNotEqual(self.build('everything').returncode, 0)
 
     def test_failed_build_keeps_its_status_and_packs_nothing(self):
         result = self.build(BUILD_EXIT='23')

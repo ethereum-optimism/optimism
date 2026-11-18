@@ -102,22 +102,16 @@ tasks:
       branch: ${{ init.branch }}
       cache-epoch: ${{ init.cache-epoch }}
 
-  # Each dependency builds from the commit that last changed its build inputs, so the
-  # build is a cache hit for later commits and for the other workloads of the run.
+  # A dependency build checks out the commit that last changed its build inputs, so it
+  # is a cache hit for later commits and for the other workloads of the run.
   - key: dependency-plan
     use: code
     run: python3 ops/ci/runtime/go-dependency-source.py plan
     outputs:
       filesystem: false
 
-  - key: contracts-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/dependency-source.yml
-    with:
-      ref: ${{ tasks.dependency-plan.values.contracts }}
-
   - key: contracts
-    use: [go-tools, contract-tools, contracts-source]
+    use: [go-tools, contract-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-contracts.yml
     with:

@@ -29,9 +29,10 @@ class LocalPackageTests(unittest.TestCase):
                              {phase + '-' + str(index) for index in range(12)})
         for index in range(12):
             compile_task = graph['compile-' + str(index)]
-            # RWX lays later entries over earlier ones. The seed holds an older checkout, so the
-            # head checkout follows it. `discovery` uses `source`, so RWX applies it above `source`.
-            self.assertEqual(compile_task['use'], ['compiler-seed-' + str(index), 'go-build-tools', 'source', 'discovery'])
+            # RWX lays later entries over earlier ones. The seed uses the tools and holds an older
+            # checkout, so it follows the tools and the head checkout follows it. `discovery`
+            # uses `source`, so RWX applies it above `source`.
+            self.assertEqual(compile_task['use'], ['go-build-tools', 'compiler-seed-' + str(index), 'source', 'discovery'])
             verdict = graph['verdict-' + str(index)]
             self.assertEqual([key for key in verdict['use'] if key.startswith('compile-')],
                              ['compile-' + str(index) + '.build'])
@@ -42,9 +43,9 @@ class LocalPackageTests(unittest.TestCase):
         self.assertTrue({'!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies', '!.ci/rust-cache', '!rust/target'} <= set(leaf['filter']))
         self.assertEqual(leaf['outputs']['filesystem']['filter']['workspace'], ['.ci/go-cache/full/run'])
 
-    def test_every_workload_builds_a_dependency_from_the_same_planned_checkout(self):
+    def test_every_workload_builds_a_dependency_at_the_planned_commit_with_the_same_tools(self):
         # A dependency build has one cache key for all workloads and for later commits only if
-        # each caller passes the same tool tasks, then the checkout of the planned commit.
+        # each caller passes the planned commit and the same tool tasks, and nothing else.
         tools = {'go': ['go'], 'contracts': ['go', 'anvil'], 'kona': ['release'], 'op-reth': ['release'],
                  'sp1-executor': ['release'], 'prestate': ['go']}
         calls = 0
@@ -54,13 +55,17 @@ class LocalPackageTests(unittest.TestCase):
                 match = re.fullmatch(r'\$\{\{ run\.dir \}\}/packages/go-(' + '|'.join(tools) + r')\.yml', task.get('call', ''))
                 if not match: continue
                 kind, calls = match.group(1), calls + 1
-                planned = '${{ tasks.dependency-plan.values.' + kind + ' }}'
-                self.assertEqual(task['with']['commit-sha'], planned, (path.name, key))
-                self.assertEqual(task['use'][-1], key + '-source', (path.name, key))
-                source = graph[key + '-source']
-                self.assertEqual((source['call'], source['with']), ('${{ run.dir }}/packages/dependency-source.yml', {'ref': planned}))
-                self.assertEqual([graph[tool]['with']['mode'] for tool in task['use'][:-1]], tools[kind], (path.name, key))
+                self.assertEqual(task['with']['commit-sha'], '${{ tasks.dependency-plan.values.' + kind + ' }}', (path.name, key))
+                used = task['use'] if isinstance(task['use'], list) else [task['use']]
+                self.assertEqual([graph[tool]['with']['mode'] for tool in used], tools[kind], (path.name, key))
         self.assertEqual(calls, 17)
+        for kind in tools:
+            build = tasks('packages/go-' + kind + '.yml')['build']
+            # The build checks out its commit itself. A checkout from a `use` layer would reach
+            # every task that uses the build, and replace that task's own checkout.
+            self.assertEqual(build['use'], 'package.use')
+            self.assertIn('git fetch -q origin "$CI_COMMIT_SHA"\ngit checkout -qf FETCH_HEAD\n', build['run'])
+            self.assertEqual(build['env']['CI_COMMIT_SHA'], '${{ params.commit-sha }}')
 
     def test_acceptance_keeps_both_variants_and_excludes_compiler_state(self):
         graph = tasks('acceptance.yml')

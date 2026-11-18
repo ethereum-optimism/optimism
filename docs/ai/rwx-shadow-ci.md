@@ -88,8 +88,9 @@ with its outcome. `ops/ci/tests/test_pr_gate.py` fails when `pr-gates.json` and
 the definitions name different tasks.
 
 CircleCI splits the release build that `required-rust-e2e` requires across two
-jobs. RWX builds the whole workspace in one task, `release`, so one row of the
-policy names both jobs: the first in `name`, the second in `also`. `JOBS` in
+jobs, so that the E2E jobs wait only for the binaries they run. RWX has the
+same two tasks: `binaries`, and `release`, which starts from the output of
+`binaries` and builds the rest. `JOBS` in
 `ops/ci/runtime/rust-e2e.py` holds the package, shard count and timeout of each
 E2E suite. After a CircleCI E2E change, update it together with `pr-gates.json`
 and `.rwx/rust-e2e.yml`.
@@ -149,10 +150,13 @@ organization can start has 16 CPUs.
 - **Dependency builds.** `ops/ci/runtime/go-dependency-source.py plan` names,
   for each dependency, the commit that last changed its build inputs. The
   dependencies are the Go dependency, the contracts, kona, op-reth, the SP1
-  executor, the prestate and the Go compiler seed. Every workload builds a
-  dependency from `.rwx/packages/dependency-source.yml` at that commit, with the
-  same tool tasks. The build then has one cache key: a later commit that leaves
-  the inputs unchanged reuses it, and so do the other workloads of the run.
+  executor, the prestate and the Go compiler seed. Every workload passes that
+  commit and the same tool tasks to the build package (`.rwx/packages/go-*.yml`),
+  and the build checks the commit out itself. The build then has one cache key:
+  a later commit that leaves the inputs unchanged reuses it, and so do the other
+  workloads of the run. The checkout happens inside the build task because a
+  task passes on every layer that it uses: a checkout from a `use` layer would
+  replace the checkout of each task that uses the build.
   Before a task restores an output, `go-artifacts.py` checks that the inputs
   equal those of the task's commit. `SCOPES` in the script lists the inputs;
   add a file there when a build starts to read it. `.rwx` is not an input,

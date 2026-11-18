@@ -200,8 +200,7 @@ class VerdictTests(unittest.TestCase):
     def test_policy_names_each_circleci_job_and_each_task_once(self):
         seen = {}
         for gate, policy in G.gates().items():
-            # `also` names the other CircleCI jobs that the tasks of a row mirror.
-            names = [name for row in policy['dependencies'] for name in (row['name'], *row.get('also', []))]
+            names = [row['name'] for row in policy['dependencies']]
             self.assertEqual(len(set(names)), len(names))
             for row in policy['dependencies']:
                 self.assertTrue(row['tasks'])
