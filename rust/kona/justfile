@@ -37,7 +37,7 @@ test-online:
 
 # Test custom embedded chain configuration functionality
 test-custom-embeds:
-  cargo test --release --package kona-registry \
+  cargo test --release --locked --package kona-registry \
       --config 'env.KONA_CUSTOM_CONFIGS="true"' \
       --config "env.KONA_CUSTOM_CONFIGS_DIR=\"{{justfile_directory()}}/crates/protocol/registry/tests/fixtures/custom\"" \
       --config 'env.KONA_CUSTOM_CONFIGS_TEST="true"' \

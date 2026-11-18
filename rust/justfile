@@ -110,7 +110,7 @@ test-beacon-blob-stack:
   cargo test --profile fast-build --locked -p kona-providers-alloy \
     test_filtered_beacon_blobs_deserializes_on_small_stack
 
-# Build kona-registry with the custom chain configuration fixture and run its tests.
+# Build kona-registry with the custom chain configuration fixture and run the tests that use it.
 test-custom-embeds:
   just --justfile {{KONA_DIR}}/justfile test-custom-embeds
 

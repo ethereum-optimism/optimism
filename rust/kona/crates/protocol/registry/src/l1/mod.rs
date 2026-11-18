@@ -250,7 +250,8 @@ impl L1Config {
     /// Build the configs of the L1s in [`REGISTRY_L1_CHAIN_IDS`].
     pub fn build_l1_configs() -> HashMap<u64, L1ChainConfig> {
         REGISTRY_L1_CHAIN_IDS
-            .into_iter()
+            .iter()
+            .copied()
             .map(|chain_id| {
                 let config = Self::get_l1_genesis(chain_id)
                     .unwrap_or_else(|e| panic!("no config for registry L1 {chain_id}: {e}"));

@@ -9,12 +9,13 @@ use std::collections::BTreeSet;
 
 use build_checks::{CustomConfigError, check_dependency_sets, check_l1s};
 use kona_genesis::{
-    Chain, ChainConfig, ChainDependency, ChainList, DependencySet, InteropConfig, Superchain,
-    SuperchainConfig, SuperchainL1Info, Superchains,
+    Chain, ChainConfig, ChainDependency, ChainList, ClusterError, DependencySet, InteropConfig,
+    Superchain, SuperchainConfig, SuperchainL1Info, Superchains,
 };
 
 const A: u64 = 901;
 const B: u64 = 902;
+const C: u64 = 903;
 const SEPOLIA: u64 = 11_155_111;
 
 fn depset(chain_ids: &[u64]) -> DependencySet {
@@ -102,6 +103,28 @@ fn an_interop_cluster_must_be_one_of_the_sets() {
     assert_eq!(
         check_dependency_sets(&[depset(&[A]), depset(&[B])], &chains, &configs),
         Err(CustomConfigError::ClusterWithoutSet(vec![A, B]))
+    );
+}
+
+#[test]
+fn a_set_extending_an_interop_cluster_fails() {
+    // The set would give chain C, which runs self-only, a multi-chain set, so the program would
+    // derive C's Lagoon block with interop activation transactions that its node does not add.
+    let chains = chain_list(&[A, B, C]);
+    let configs = superchains(SEPOLIA, &[(A, Some(&[A, B])), (B, Some(&[A, B])), (C, None)]);
+    assert_eq!(
+        check_dependency_sets(&[depset(&[A, B, C])], &chains, &configs),
+        Err(CustomConfigError::ClusterWithoutSet(vec![A, B]))
+    );
+}
+
+#[test]
+fn inconsistent_interop_sections_fail() {
+    let chains = chain_list(&[A, B]);
+    let configs = superchains(SEPOLIA, &[(A, Some(&[A, B])), (B, Some(&[B]))]);
+    assert_eq!(
+        check_dependency_sets(&[depset(&[A, B])], &chains, &configs),
+        Err(CustomConfigError::InconsistentInterop(ClusterError::Inconsistent { a: A, b: B }))
     );
 }
 

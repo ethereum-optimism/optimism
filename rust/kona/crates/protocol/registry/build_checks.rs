@@ -37,12 +37,11 @@ pub(crate) enum CustomConfigError {
     },
 }
 
-/// Checks the merged dependency sets against the merged chain list and chain configs: every set
-/// lists only known chains, every chain is in a set, and every cluster that the `interop`
-/// sections declare is one of the sets.
+/// Checks that every chain is in a dependency set, every set lists only known chains, and
+/// every declared `interop` cluster is one of the sets.
 ///
-/// Without an embedded set for its chains, the interop program reads the set from local
-/// preimage key 8, which no dispute game can load.
+/// Without an embedded set, the interop program reads `DEPENDENCY_SET_KEY`, which no dispute
+/// game can load.
 pub(crate) fn check_dependency_sets(
     depsets: &[DependencySet],
     chain_list: &ChainList,
@@ -61,13 +60,13 @@ pub(crate) fn check_dependency_sets(
         });
     }
 
+    let interop_chains = superchains
+        .superchains
+        .iter()
+        .flat_map(|superchain| &superchain.chains)
+        .filter_map(|chain| chain.interop.as_ref().map(|interop| (chain.chain_id, interop)));
     let clusters =
-        aggregate_clusters(
-            superchains.superchains.iter().flat_map(|superchain| &superchain.chains).filter_map(
-                |chain| chain.interop.as_ref().map(|interop| (chain.chain_id, interop)),
-            ),
-        )
-        .map_err(CustomConfigError::InconsistentInterop)?;
+        aggregate_clusters(interop_chains).map_err(CustomConfigError::InconsistentInterop)?;
     if let Some(cluster) = clusters
         .iter()
         .find(|cluster| !depsets.iter().any(|ds| ds.dependencies == cluster.dependencies))
@@ -82,8 +81,8 @@ pub(crate) fn check_dependency_sets(
 /// Checks that every chain group holding one of `custom_chain_ids` has an L1 in
 /// [`REGISTRY_L1_CHAIN_IDS`].
 ///
-/// On any other L1 the fault proof programs read the L1 config from local preimage key 7, which
-/// no dispute game can load.
+/// On any other L1 the fault proof programs read the L1 config from `L1_CONFIG_KEY`, which no
+/// dispute game can load.
 pub(crate) fn check_l1s(
     superchains: &Superchains,
     custom_chain_ids: &BTreeSet<u64>,
