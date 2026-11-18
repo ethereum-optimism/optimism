@@ -81,6 +81,12 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	sfp.RunInvalidBlockTest(t, sys, proofRunners()...)
 }
 
+func TestInteropFaultProofs_DestroyedAndRecreatedAccount(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunDestroyedAndRecreatedAccountTest(t, sys, proofRunners()...)
+}
+
 func TestInteropFaultProofs_ReplacedBlockStorageDeletion(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
