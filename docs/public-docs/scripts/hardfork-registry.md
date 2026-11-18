@@ -19,8 +19,8 @@ This registry is shared infrastructure: it was built by the Option B program
 From `docs/public-docs/`:
 
 ```bash
-pnpm gen:hardforks         # validate + regenerate snippets
-pnpm gen:hardforks:check   # drift check (fails when snippets are stale)
+bun run gen:hardforks         # validate + regenerate snippets
+bun run gen:hardforks:check   # drift check (fails when snippets are stale)
 ```
 
 The superchain-registry submodule must be initialized
@@ -88,5 +88,5 @@ hardfork_min_versions_source: "[Upgrade 19 notice](/notices/archive/upgrade-19)"
     upgrades group).
 3.  When the superchain-registry schedules activation times, update the
     frontmatter to `scheduled` (later `active`) with those timestamps.
-4.  Run `pnpm gen:hardforks` and commit the page and regenerated snippets
+4.  Run `bun run gen:hardforks` and commit the page and regenerated snippets
     together; the drift check fails otherwise.

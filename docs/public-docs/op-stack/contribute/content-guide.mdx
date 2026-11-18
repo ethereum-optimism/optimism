@@ -190,7 +190,7 @@ pages render one table (name, type, labels, description).
 *   **Nothing under the top-level `reference/` directory is hand-written.**
     Orientation ("how the CLI is organized"), advice on choosing values, and
     notes on selected flags live in guides in the persona tabs and link into
-    the reference. `pnpm lint:reference` fails any page under `reference/`
+    the reference. `bun run lint:reference` fails any page under `reference/`
     without the generated header.
 *   A hand edit to a generated page fails the generator's drift check on the
     next run; regenerate instead.
@@ -256,7 +256,7 @@ same pull request, as follows:
 
     <Unreleased component="op-reth" />
 
-    The callout is temporary. When it names a version, `pnpm lint:reference`
+    The callout is temporary. When it names a version, `bun run lint:reference`
     warns on every run once that tag exists, and the weekly CI sweep, which
     runs the lint in strict mode, fails until the callout is removed. The
     check lives in the weekly job rather than in pull-request CI so that a

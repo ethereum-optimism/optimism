@@ -533,7 +533,7 @@ shfmt-check:
 shfmt-fix:
   {{SHELL_SCRIPTS}} -exec shfmt --write {} \;
 
-# Runs mint on the mise-pinned bun so docs contributors need no Node, pnpm or `pnpm install`.
+# Runs mint on the mise-pinned bun so docs contributors need no Node or `bun install`.
 [doc("Serves a live preview of docs/public-docs at http://localhost:3000.")]
 public-docs *args:
   cd docs/public-docs && bunx --bun mint@4.2.1203 dev {{args}}

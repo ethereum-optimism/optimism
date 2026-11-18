@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // gen-op-reth-cli — regenerates the op-reth CLI reference for docs.optimism.io.
 //
 // Walks the `--help` tree of a pinned op-reth release binary and emits:
@@ -13,9 +13,9 @@
 // zero-dependency Node script so it runs with the docs toolchain.
 //
 // Usage (from anywhere; paths are resolved relative to this script):
-//   node docs/public-docs/scripts/gen-op-reth-cli/main.mjs \
+//   bun docs/public-docs/scripts/gen-op-reth-cli/main.mjs \
 //     --bin /path/to/op-reth --tag op-reth/vX.Y.Z
-//   node docs/public-docs/scripts/gen-op-reth-cli/main.mjs --bin ... --check
+//   bun docs/public-docs/scripts/gen-op-reth-cli/main.mjs --bin ... --check
 //
 // Rules:
 //   - Regenerate only from a finalized (non-rc) op-reth release tag's binary.

@@ -322,9 +322,9 @@ function generateMdx(
   lines.push(``);
   lines.push(`  To update this documentation:`);
   lines.push(
-    `  1. Bump the SDK version in package.json: pnpm add ${sdkPackageName}@latest`
+    `  1. Bump the SDK version in package.json: bun add ${sdkPackageName}@latest`
   );
-  lines.push(`  2. Run the generation script: pnpm prebuild`);
+  lines.push(`  2. Run the generation script: bun run prebuild`);
   lines.push(``);
   lines.push(`  Any manual edits will be overwritten on the next generation.`);
   lines.push(`*/}`);

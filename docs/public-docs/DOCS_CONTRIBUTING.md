@@ -45,7 +45,7 @@ All contributions, pull requests, and issues should be in English at this time.
 
 You can now start changing content and see the website updated live each time you save a new file. 🤓
 
-The preview runs the [Mintlify CLI](https://www.mintlify.com/docs/installation) on the `bun` pinned in `mise.toml`, so it needs no Node, pnpm or `pnpm install`. Pass extra `mint dev` flags through, e.g. `just public-docs --port 3333`.
+The preview runs the [Mintlify CLI](https://www.mintlify.com/docs/installation) on the `bun` pinned in `mise.toml`, so it needs no Node and no `bun install`. Pass extra `mint dev` flags through, e.g. `just public-docs --port 3333`.
 
 ## Contributing Process
 
@@ -143,12 +143,12 @@ until it lands, running them locally before pushing is the gate):
 Run them locally before pushing:
 
 ```bash
-# from docs/public-docs (uses the tsx devDependency)
-pnpm lint:nav
-pnpm lint:redirects
-pnpm lint:reference
+# from docs/public-docs
+bun run lint:nav
+bun run lint:redirects
+bun run lint:reference
 
-# or from the monorepo root with bun (zero-dependency)
+# or from the monorepo root
 bun docs/public-docs/scripts/lint/validate-nav.ts
 bun docs/public-docs/scripts/lint/validate-redirects.ts
 bun docs/public-docs/scripts/lint/validate-reference.ts

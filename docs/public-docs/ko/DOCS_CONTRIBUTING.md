@@ -45,7 +45,7 @@ Optimism 문서는 오픈 소스이며, GitHub의 [`ethereum-optimism/optimism`]
 
 이제 콘텐츠를 수정할 수 있으며, 새 파일을 저장할 때마다 웹사이트가 실시간으로 업데이트되는 것을 확인할 수 있습니다. 🤓
 
-미리 보기는 `mise.toml`에 고정된 `bun`으로 [Mintlify CLI](https://www.mintlify.com/docs/installation)를 실행하므로 Node, pnpm 또는 `pnpm install`이 필요하지 않습니다. 추가 `mint dev` 플래그도 그대로 전달할 수 있습니다(예: `just public-docs --port 3333`).
+미리 보기는 `mise.toml`에 고정된 `bun`으로 [Mintlify CLI](https://www.mintlify.com/docs/installation)를 실행하므로 Node나 `bun install`이 필요하지 않습니다. 추가 `mint dev` 플래그도 그대로 전달할 수 있습니다(예: `just public-docs --port 3333`).
 
 ## 기여 절차
 
@@ -142,12 +142,12 @@ pull request에서 CI로 실행됩니다(CI job은
 push 전에 로컬에서 실행하십시오.
 
 ```bash
-# from docs/public-docs (uses the tsx devDependency)
-pnpm lint:nav
-pnpm lint:redirects
-pnpm lint:reference
+# from docs/public-docs
+bun run lint:nav
+bun run lint:redirects
+bun run lint:reference
 
-# or from the monorepo root with bun (zero-dependency)
+# or from the monorepo root
 bun docs/public-docs/scripts/lint/validate-nav.ts
 bun docs/public-docs/scripts/lint/validate-redirects.ts
 bun docs/public-docs/scripts/lint/validate-reference.ts

@@ -26,7 +26,7 @@
 //
 // Usage:
 //   bun docs/public-docs/scripts/lint/validate-redirects.ts   (from monorepo root, CI)
-//   pnpm lint:redirects                                        (from docs/public-docs)
+//   bun run lint:redirects                                    (from docs/public-docs)
 //
 // Exit codes: 0 = clean, 1 = violations, 2 = setup error.
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * lint-link-policy.mjs — deterministic cross-repo link-policy linter for docs.optimism.io.
  *
@@ -23,7 +23,7 @@
  *                          slug in the corresponding specs source file (requires --specs-src)
  *
  * Usage:
- *   node scripts/lint-link-policy.mjs [options]
+ *   bun scripts/lint-link-policy.mjs [options]
  *     --docs <dir>          docs root (default: the directory containing scripts/)
  *     --specs-src <dir>     checkout of ethereum-optimism/specs for path/anchor resolution;
  *                           when omitted, spec path/anchor resolution checks are SKIPPED
@@ -555,7 +555,7 @@ function main(argv) {
           comment:
             "Pre-existing link-policy violations, baselined so CI blocks only NEW violations. " +
             "This file is the worklist for the B2 remediation sweep — shrink it, never grow it. " +
-            "Regenerate: node scripts/lint-link-policy.mjs --update-baseline [--specs-src <dir>]",
+            "Regenerate: bun scripts/lint-link-policy.mjs --update-baseline [--specs-src <dir>]",
           findings: findings.map(({ rule, file, url }) => ({ rule, file, url })),
         },
         null,
