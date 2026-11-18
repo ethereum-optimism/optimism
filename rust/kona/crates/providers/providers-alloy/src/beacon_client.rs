@@ -149,9 +149,10 @@ fn blob_versioned_hash(blob: &FixedBytes<BLOB_SIZE>) -> Result<B256, BeaconClien
 /// An error that can occur when interacting with the beacon client.
 #[derive(Error, Debug)]
 pub enum BeaconClientError {
-    /// HTTP request failed.
+    /// HTTP request failed. The error carries no URL, since some beacon providers put the API key
+    /// in the URL path.
     #[error("HTTP request failed: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(#[source] reqwest::Error),
 
     /// The beacon node returned HTTP 404 for the requested slot. This means the slot was missed
     /// or orphaned and the blobs will never be available.
@@ -165,6 +166,13 @@ pub enum BeaconClientError {
     /// KZG error.
     #[error("KZG error: {0}")]
     KZG(#[from] c_kzg::Error),
+}
+
+impl From<reqwest::Error> for BeaconClientError {
+    /// Drops the request URL, which a reqwest error names when printed.
+    fn from(error: reqwest::Error) -> Self {
+        Self::Http(error.without_url())
+    }
 }
 
 /// An error deriving the L1 slot duration from a beacon config spec.
@@ -502,5 +510,23 @@ mod tests {
             matches!(response, Err(BeaconClientError::SlotNotFound(s)) if s == slot),
             "expected SlotNotFound({slot}), got {response:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn a_failed_request_does_not_reveal_the_url() {
+        let slot = 1u64;
+        let server = MockServer::start();
+        let blobs_mock = server.mock(|when, then| {
+            when.method(GET).path(format!("/secret-api-key/eth/v1/beacon/blobs/{slot}"));
+            then.status(500);
+        });
+
+        // Some beacon providers put the API key in the URL path.
+        let client = OnlineBeaconClient::new_http(server.url("/secret-api-key"));
+        let error = client.filtered_beacon_blobs(slot, &[]).await.unwrap_err();
+        blobs_mock.assert();
+
+        assert!(matches!(error, BeaconClientError::Http(_)), "{error:?}");
+        assert!(!format!("{error} {error:?}").contains("secret-api-key"), "{error:?}");
     }
 }
