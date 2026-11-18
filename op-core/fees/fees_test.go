@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
@@ -32,19 +31,9 @@ func TestNewRollupCostData(t *testing.T) {
 	require.Equal(t, RollupCostData{}, empty)
 }
 
-// TestL1CostBedrockParity checks L1CostBedrock against op-geth's exported types.L1Cost.
-func TestL1CostBedrockParity(t *testing.T) {
-	for _, tc := range l1CostBedrockVectors {
-		want := types.L1Cost(tc.rollupDataGas, tc.l1BaseFee, tc.overhead, tc.scalar)
-		got := L1CostBedrock(tc.rollupDataGas, tc.l1BaseFee, tc.overhead, tc.scalar)
-		require.Zero(t, want.Cmp(got), "want %s, got %s", want, got)
-	}
-}
-
 // TestEcotoneL1CostFunc pins L1CostEcotone to op-geth's TestEcotoneL1CostFunc reference
 // (rollup_cost_test.go): baseFee=1000*1e6, blobBaseFee=10*1e6, scalars 2 and 3, and a calldata
-// gas of 480 (op-geth's ecotoneGas; here 30 non-zero bytes) yield ecotoneFee == 960900. A live
-// differential (as for Fjord below) isn't possible: op-geth's Ecotone constructor is unexported.
+// gas of 480 (op-geth's ecotoneGas; here 30 non-zero bytes) yield ecotoneFee == 960900.
 func TestEcotoneL1CostFunc(t *testing.T) {
 	c := L1CostEcotone(RollupCostData{Ones: 30}, L1FeeParams{
 		L1BaseFee:     big.NewInt(1000 * 1e6),
@@ -89,19 +78,6 @@ func TestFjordL1CostSolidityParity(t *testing.T) {
 	require.Equal(t, big.NewInt(105484), c)
 }
 
-// TestFjordL1CostParity is a live differential check that L1CostFjord matches op-geth's
-// exported NewL1CostFuncFjord across a range of fee parameters and tx sizes. It runs while the
-// build still resolves go-ethereum to op-geth; remove it when the op-geth dependency is dropped.
-func TestFjordL1CostParity(t *testing.T) {
-	for _, v := range l1CostFjordVectors {
-		p := v.params
-		gethFee, _ := types.NewL1CostFuncFjord(p.L1BaseFee, p.L1BlobBaseFee, p.BaseFeeScalar, p.BlobFeeScalar)(
-			types.RollupCostData{FastLzSize: v.fastLzSize})
-		got := L1CostFjord(RollupCostData{FastLzSize: v.fastLzSize}, p)
-		require.Zero(t, gethFee.Cmp(got), "fastLzSize=%d params=%+v: op-geth %s, op-core %s", v.fastLzSize, p, gethFee, got)
-	}
-}
-
 func TestEstimatedDASize(t *testing.T) {
 	// Below the regression minimum, the estimate clamps to MinTransactionSize (100).
 	small := RollupCostData{FastLzSize: 50}
@@ -136,35 +112,10 @@ func TestOperatorCostJovian(t *testing.T) {
 	require.Equal(t, 0, OperatorCostJovian(21000, 0, 0).Sign())
 }
 
-// TestTxRollupCostDataParity is the decisive check that TxRollupCostData faithfully replaces
-// op-geth's (*types.Transaction).RollupCostData(): cost data is derived from the full
-// binary-encoded transaction (MarshalBinary), not from tx.Data(), and deposits are empty.
-func TestTxRollupCostDataParity(t *testing.T) {
-	to := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
-	deposit := txRollupCostDataVector{
-		name: "deposit",
-		tx:   types.NewTx(&types.DepositTx{SourceHash: common.Hash{0x01}, From: to, To: &to, Value: big.NewInt(0), Gas: 21000, Data: []byte{0x00, 0x01, 0x00, 0xff}}),
-	}
-	for _, tc := range append(txRollupCostDataVectors(t), deposit) {
-		t.Run(tc.name, func(t *testing.T) {
-			want := tc.tx.RollupCostData() // op-geth's method, the behaviour we must preserve
-			got := TxRollupCostData(tc.tx)
-			require.Equal(t, want.Zeroes, got.Zeroes, "Zeroes")
-			require.Equal(t, want.Ones, got.Ones, "Ones")
-			require.Equal(t, want.FastLzSize, got.FastLzSize, "FastLzSize")
-		})
-	}
-}
-
-func TestTxRollupCostDataDepositIsEmpty(t *testing.T) {
-	to := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
-	deposit := types.NewTx(&types.DepositTx{
-		SourceHash: common.Hash{0x01},
-		From:       to,
-		To:         &to,
-		Value:      big.NewInt(0),
-		Gas:        21000,
-		Data:       []byte{0x01, 0x02, 0x03},
-	})
+// TestTxRollupCostDataDeposit decodes a deposit into a go-ethereum transaction, which only
+// op-geth can do, so it goes with the deposit branch of TxRollupCostData at the cutover.
+func TestTxRollupCostDataDeposit(t *testing.T) {
+	deposit := new(types.Transaction)
+	require.NoError(t, deposit.UnmarshalBinary(l1AttributesDeposit(t, nil)))
 	require.Equal(t, RollupCostData{}, TxRollupCostData(deposit))
 }

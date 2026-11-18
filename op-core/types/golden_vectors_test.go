@@ -386,4 +386,8 @@ func TestReceiptJSONGoldenVector(t *testing.T) {
 	require.Equal(t, want.DAFootprintGasScalar, got.DAFootprintGasScalar)
 	require.Equal(t, want.TxHash, got.TxHash)
 	require.Equal(t, want.GasUsed, got.GasUsed)
+
+	again, err := json.Marshal(&got)
+	require.NoError(t, err)
+	require.JSONEq(t, receiptAllOpFieldsJSON, string(again))
 }

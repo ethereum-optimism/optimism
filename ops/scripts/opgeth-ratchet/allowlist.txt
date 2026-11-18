@@ -11,9 +11,9 @@
 #
 # A reason starts with the issue tracking the entry's removal, so grepping for the issue number
 # lists that issue's remaining entries, and the file's history shows its progress. Entries for
-# #20266 are uses that only the cutover removes or rewrites: op-core transition code, op-geth
-# differential tests, and "cutover edits" of APIs whose upstream form differs, often because
-# upstream changed them after the release op-geth is based on. The reason of a cutover edit gives
+# #20266 are uses that only the cutover removes or rewrites: op-core transition code and
+# "cutover edits" of APIs whose upstream form differs, often because upstream changed them
+# after the release op-geth is based on. The reason of a cutover edit gives
 # the upstream form to rewrite the use to.
 cannon/mipsevm/testutil | changed signature of go-ethereum/core.NewEVMBlockContext | #20266 drop the op-geth-only argument at the flip (core.NewEVMBlockContext(header, chain, author))
 cannon/mipsevm/testutil | changed signature of go-ethereum/core/vm.EVM.Call | #20266 cutover edit: the gas and the leftover gas are a vm.GasBudget (EVM.Call(caller, addr, input, gas vm.GasBudget, value) (ret, result vm.GasBudget, err))
@@ -22,46 +22,10 @@ op-acceptance-tests/tests (tests) | missing go-ethereum/params.BlobScheduleConfi
 op-acceptance-tests/tests (tests) | missing go-ethereum/params.BlobScheduleConfig.Osaka | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
 op-acceptance-tests/tests (tests) | missing go-ethereum/params.DefaultOsakaBlobConfig | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
 op-batcher/batcher | changed signature of go-ethereum/core.FloorDataGas | #20266 cutover edit: core.FloorDataGas(rules, from, to, value, data, accessList); revisit maxFloorDataGas (opgeth-decoupling.md §15)
-op-chain-ops/genesis (tests) | missing go-ethereum/params.ChainConfig.Optimism | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
-op-chain-ops/genesis (tests) | missing go-ethereum/params.OptimismConfig | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.CalcDAFootprint | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.DepositTx | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.ExtractDAFootprintGasScalar | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.IsthmusL1AttributesLen | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.IsthmusL1AttributesSelector | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.JovianL1AttributesLen | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.JovianL1AttributesSelector | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.L1Cost | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.RollupCostData | #20266 op-core transition code, removed at the cutover
-op-core/fees (tests) | missing go-ethereum/core/types.Transaction.RollupCostData | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.CanyonTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.LagoonTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.Optimism | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.OptimismConfig | #20266 op-core transition code, removed at the cutover
-op-core/params/opgethtest | missing go-ethereum/params.OptimismTestConfig | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
-op-core/predeploys (tests) | missing go-ethereum/core/types.L1BlockAddr | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.DepositTx | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.DepositTxType | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.PostExecTx | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.PostExecTxType | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.DAFootprintGasScalar | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.DepositNonce | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.DepositReceiptVersion | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.FeeScalar | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.L1BaseFeeScalar | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.L1BlobBaseFee | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.L1BlobBaseFeeScalar | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.L1Fee | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.L1GasPrice | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.L1GasUsed | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeConstant | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeScalar | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Transaction.EffectiveNonce | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Transaction.IsDepositTx | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Transaction.IsSystemTx | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Transaction.Mint | #20266 op-core transition code, removed at the cutover
-op-core/types (tests) | missing go-ethereum/core/types.Transaction.SourceHash | #20266 op-core transition code, removed at the cutover
+op-core/params (tests) | missing go-ethereum/params.ChainConfig.CanyonTime | #20266 cutover edit: TestChainConfigJSONDirectFieldsDominate sets OP fields on go-ethereum's config; keep its ChainID check
+op-core/params (tests) | missing go-ethereum/params.ChainConfig.LagoonTime | #20266 cutover edit: TestChainConfigJSONDirectFieldsDominate sets OP fields on go-ethereum's config; keep its ChainID check
+op-core/params (tests) | missing go-ethereum/params.ChainConfig.Optimism | #20266 cutover edit: TestChainConfigJSONDirectFieldsDominate sets OP fields on go-ethereum's config; keep its ChainID check
+op-core/params (tests) | missing go-ethereum/params.OptimismConfig | #20266 cutover edit: TestChainConfigJSONDirectFieldsDominate sets OP fields on go-ethereum's config; keep its ChainID check
 op-deployer/pkg/deployer/integration_test/cli | missing go-ethereum/params.BlobScheduleConfig.Osaka | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
 op-devstack/sysgo | missing go-ethereum/params.BlobScheduleConfig.Amsterdam | #20266 cutover edit: upstream forks carry no blob schedule of their own; schedule Amsterdam's blob parameters as a BPO fork
 op-devstack/sysgo | missing go-ethereum/params.BlobScheduleConfig.Osaka | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
@@ -91,11 +55,6 @@ op-e2e/e2eutils/geth (tests) | missing go-ethereum/params.DefaultOsakaBlobConfig
 op-e2e/system/da (tests) | changed signature of go-ethereum/core.IntrinsicGas | #20266 cutover edit: core.IntrinsicGas(data, accessList, authList, from, to, value, rules params.Rules)
 op-node/rollup/derive (tests) | changed signature of go-ethereum/core/state.StateDB.Commit | #20266 cutover edit: StateDB.Commit(rules params.Rules, block), the rules replace deleteEmptyObjects and noStorageWiping
 op-service/rpc | changed signature of go-ethereum/node.NewHTTPHandlerStack | #20266 cutover edit: node.NewHTTPHandlerStack(srv, cors, vhosts, jwtSecret, disableGzip bool)
-op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.EIP1559Params | #20266 op-geth differential test, removed at the cutover
-op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.GasLimit | #20266 op-geth differential test, removed at the cutover
-op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.MinBaseFee | #20266 op-geth differential test, removed at the cutover
-op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.NoTxPool | #20266 op-geth differential test, removed at the cutover
-op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.Transactions | #20266 op-geth differential test, removed at the cutover
 op-test-sequencer/sequencer/backend/work/builders/fakepos | changed signature of go-ethereum/beacon/engine.ExecutableDataToBlockNoHash | #20266 cutover edit: drop the block-type argument, a no-op for L1 blocks
 rust/kona/tests/proofs (tests) | missing go-ethereum/params.BlobScheduleConfig.Osaka | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
 rust/kona/tests/proofs (tests) | missing go-ethereum/params.DefaultOsakaBlobConfig | #20266 cutover edit: drop it, upstream Osaka has no blob schedule of its own and uses Prague's (ChainConfig.BlobConfig)
