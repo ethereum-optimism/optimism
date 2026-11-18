@@ -741,6 +741,10 @@ fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
 /// [`Discv5Driver::record_to_dial`] makes of a session's record, against the address the session
 /// came from, which the table doesn't have: the node's next session brings it. But if the new
 /// record keeps the UDP address, the stored one's still works.
+///
+/// The table doesn't say either which address a session pings, so a record with both is checked
+/// at its IPv4 address, and at its IPv6 address only if it has no IPv4 one. A session over IPv6
+/// with a dual-stack node then confirms the IPv4 address in its record, which the node signed.
 fn refresh_connected(store: &mut BootStore, table: &[(NodeId, Enr, NodeStatus)], at: SystemTime) {
     for (node_id, enr, status) in table {
         if !status.is_connected() {
