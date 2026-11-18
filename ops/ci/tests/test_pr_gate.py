@@ -17,7 +17,7 @@ RECEIPT = re.compile(r'python3 ops/ci/runtime/pr-gate\.py receipt (\S+)')
 
 
 def definition(path):
-    return json.loads(subprocess.check_output(['yq', '-o=json', '.', str(path)], text=True))
+    return json.loads(subprocess.check_output(['yq', '-o=json', 'explode(.)', str(path)], text=True))
 
 
 def tasks(path):

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 def definition(name):
     return json.loads(subprocess.check_output(
-        ['yq', '-o=json', '.', str(ROOT / '.rwx' / name)], text=True))
+        ['yq', '-o=json', 'explode(.)', str(ROOT / '.rwx' / name)], text=True))
 
 
 def tasks(name):
