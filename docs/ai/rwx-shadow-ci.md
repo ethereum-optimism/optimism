@@ -224,3 +224,5 @@ only the fields that differ.
 
 A hosted run costs money. An authenticated operator can start one from a pushed
 commit with `rwx run .rwx/pr-gates.yml --wait`; a branch push also starts one.
+Either one cancels a run of `pr-gates.yml` that is still in progress for the
+same branch, even when the new run names only some tasks with `--target`.
