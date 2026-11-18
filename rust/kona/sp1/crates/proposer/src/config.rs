@@ -144,9 +144,13 @@ pub struct ProposerConfig {
     pub prestates_url: Url,
 
     /// Spacing, in seconds of super-root timestamps, between the canonical head and a new
-    /// proposal; positive. A game built on the head spans one interval, plus any seconds a
-    /// UUID-collision walk adds.
+    /// proposal; positive. A game built on the head spans one interval while the proposer keeps
+    /// up, plus any seconds a UUID-collision walk adds.
     pub proposal_interval_seconds: u64,
+
+    /// Longest span, in proposal intervals, of a game built on the head while the proposer
+    /// catches up from two or more intervals behind.
+    pub max_proposal_span_intervals: NonZeroU64,
 
     /// Safety level bounding the newest proposable timestamp.
     pub proposal_safety: ProposalSafety,
@@ -379,7 +383,7 @@ impl ProposerConfig {
         let proposal_interval_seconds = parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?;
         anyhow::ensure!(
             proposal_interval_seconds > 0,
-            "{} must be positive (each game spans one interval)",
+            "{} must be positive",
             env_var("PROPOSAL_INTERVAL_SECONDS")
         );
 
@@ -411,6 +415,10 @@ impl ProposerConfig {
             factory_address,
             prestates_url: parsed_required_env("PRESTATES_URL")?,
             proposal_interval_seconds,
+            max_proposal_span_intervals: parsed_env_or(
+                "MAX_PROPOSAL_SPAN_INTERVALS",
+                NonZeroU64::new(4).expect("4 is non-zero"),
+            )?,
             proposal_safety: parsed_env_or("PROPOSAL_SAFETY", ProposalSafety::Finalized)?,
             fetch_interval: parsed_env_or("FETCH_INTERVAL", 30u64)?,
             metrics_listen: parsed_env_or("METRICS_PORT", MetricsListen::default())?,

@@ -301,11 +301,13 @@ super-root `ZKDisputeGame` (game type 10) end to end:
 1. **Create**: proposes the supernode's canonical super root on a fixed interval
    (`proposer.rs` creation scheduling), extending only the anchor or its own
    chain (see [Ownership](#ownership-which-games-it-defends)). A game built on
-   the head spans one interval, which is what the bond and prove duration are
-   sized for. After downtime the proposer catches up one interval-sized game per
-   loop iteration; in fast finality mode each catch-up game also waits for
-   proving capacity. While the registered anchor is not a ZK game, every game is
-   a root from the anchor placed on the interval grid, so its span is not capped.
+   the head spans one interval while the proposer keeps up. When it falls two or
+   more intervals behind, after downtime or because each game takes longer than
+   an interval to create or, in fast finality mode, to prove, a game spans up to
+   `OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS` intervals, so the bond and prove
+   duration must cover that span. While the registered anchor is not a ZK game,
+   every game is a root from the anchor placed on the interval grid, so its span
+   is not capped.
 2. **Defend**: when an owned game is challenged, fetches the span's super
    roots, collects witnesses through the kona `InteropHost`
    (`super-range-executor` library), obtains SP1 proofs (`prover.rs` providers,
@@ -339,19 +341,22 @@ plus any addresses listed in `OP_ZK_PROPOSER_OWNED_CREATORS`. The proposer logs
 the resolved set at startup.
 
 - **Head and creation**: the proposer builds only on the registered anchor or on
-  a game whose every link down to the anchor (which may be foreign) or a root has
-  an owned creator, whatever its prestate. A parent missing from the cache
-  disqualifies the chain. With no such game, it creates a root from the anchor.
+  a game whose every link down to the anchor (which may be foreign), a root, or
+  an owned game that won has an owned creator, whatever its prestate. A parent
+  missing from the cache before any of those disqualifies the chain. With no
+  such game, it creates a root from the anchor.
 - **Validation**: only games from owned creators are checked against the
   supernode. Other games are cached as records, without validation, so anchor
   tracking keeps working when a foreign game becomes the anchor. They are never a
   parent, a proof target, or a resolution target. A resolved record leaves the
   cache once the signer holds no credit in it, and a lost one unless it has a
   cached child.
-- **Defense and resolution**: owned games only. A challenged game from an owned
-  creator with an unknown or poisoned prestate is skipped, with the
-  `op_zk_proposer_unknown_prestate_challenged` gauge as the alarm. The defense
-  deadline checks cover games from owned creators, whatever their prestate.
+- **Defense and resolution**: owned games only. The proposer resolves a listed
+  creator's game when it wins, and a signer game on any outcome. A challenged
+  game from an owned creator with an unknown or poisoned prestate is skipped,
+  with the `op_zk_proposer_unknown_prestate_challenged` gauge as the alarm. The
+  defense deadline checks cover games from owned creators, whatever their
+  prestate.
 - **Claims**: credit-driven for the signer on every cached game, including
   foreign games the signer proved. The proposer closes a finalized game that owes
   it nothing only when its creator is owned or it is the registered anchor. It
@@ -362,18 +367,26 @@ the resolved set at startup.
 
 Fast finality uses a narrower spend policy. It proves only unchallenged owned
 games created by the configured signer. Listed creators' games are defended and
-resolved, but not fast-finalized.
+resolved when they win, but not fast-finalized.
 
 **Key rotation**: set `OP_ZK_PROPOSER_OWNED_CREATORS=<old signer>` in the same
 deploy that rotates the signer key, and keep the old prestate artifacts published
-under `OP_ZK_PROPOSER_PRESTATES_URL`. The proposer then keeps defending and
-resolving the old signer's games and keeps extending its chain. Remove the
+under `OP_ZK_PROPOSER_PRESTATES_URL`. The proposer then keeps defending the old
+signer's games, resolving the ones that win, and extending its chain. Remove the
 variable only once the registered anchor has moved past the old signer's last
 game, about the max challenge duration plus the max prove duration plus the
 finality delay after it; removing it earlier makes the chain built on those games
 foreign, and the proposer starts a new root from the anchor. A listed address is
 trusted like the signer, so never list a compromised key. Leaving the variable
 unset is the steady state.
+
+**Upgrading to this ownership policy**: earlier versions adopted valid foreign
+games as parents and defended them. This version no longer defends them, so if a
+foreign ancestor of an in-progress signer game is challenged and loses, the
+signer games built on it lose their bonds. Before upgrading, check that no
+in-progress signer game has an unresolved foreign ancestor. If one does, list
+that creator in `OP_ZK_PROPOSER_OWNED_CREATORS` until the anchor has moved past
+it.
 
 **Operational requirement**: rotated-out prestate artifacts must remain published
 under `OP_ZK_PROPOSER_PRESTATES_URL` for as long as owned games created under
@@ -676,7 +689,8 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_ROLLUP_CONFIG_PATHS` | comma-separated rollup config files; absent = registry fallback |
 | `OP_ZK_PROPOSER_L1_CONFIG_PATH` | L1 chain config file; absent = registry fallback |
 | `OP_ZK_PROPOSER_DEPENDENCY_SET_PATH` | dependency-set config file; absent = registry fallback |
-| `OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval and the span of each created game, in seconds; positive (default `3600`) |
+| `OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval, in seconds; positive (default `3600`) |
+| `OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS` | longest span of a game built on the head, in proposal intervals, used when catching up from two or more intervals behind; positive, `1` keeps every span at one interval (default `4`) |
 | `OP_ZK_PROPOSER_PROPOSAL_SAFETY` | `safe` or `finalized` (default `finalized`) |
 | `OP_ZK_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
 | `OP_ZK_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |

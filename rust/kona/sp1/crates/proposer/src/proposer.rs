@@ -336,7 +336,7 @@ pub struct Game {
     pub absolute_prestate: B256,
     /// The game's creator address (`gameCreator()`). Ownership starts here: only games whose
     /// creator is the signer or listed in `OP_ZK_PROPOSER_OWNED_CREATORS` are extended,
-    /// validated, and defended (see [`owns`]).
+    /// validated, and defended (see `owns`).
     pub creator: Address,
     /// The game's own `DelayedWETH` address, from its immutable args. Bond
     /// reads and claims bind this address, not the currently registered one:
@@ -611,10 +611,12 @@ impl ProposerState {
         removed_addresses
     }
 
-    /// Whether every link from `game` down to the registered anchor or a `u32::MAX` root has an
-    /// owned creator. The anchor itself may be foreign. A parent missing from the cache fails
-    /// closed: the cost is at most one extra root from the anchor, while failing open could
-    /// extend a chain with a foreign ancestor.
+    /// Whether every link from `game` down to the registered anchor, a `u32::MAX` root, or an
+    /// owned game that resolved `DefenderWins` has an owned creator. The anchor itself may be
+    /// foreign. A game resolves `DefenderWins` only after its parent did, so nothing below a won
+    /// link can still lose; the walk stops there, which keeps our chain when a third party moves
+    /// the anchor to its own game and our root has left the cache. A parent missing from the
+    /// cache above every won link fails closed, since it could be a foreign ancestor.
     fn owned_lineage(&self, game: &Game, owned_creators: &HashSet<Address>) -> bool {
         let anchor_index = self.anchor_game.as_ref().map(|anchor| anchor.index);
         let mut link = game;
@@ -625,7 +627,7 @@ impl ProposerState {
             if !owned_creators.contains(&link.creator) {
                 return false;
             }
-            if link.parent_index == u32::MAX {
+            if link.parent_index == u32::MAX || link.status == GameStatus::DefenderWins {
                 return true;
             }
             let parent_index = U256::from(link.parent_index);
@@ -3892,7 +3894,12 @@ impl Proposer {
                 .map(|elapsed| baseline_sequence_number + elapsed / interval * interval)
                 .filter(|&next| next > baseline_sequence_number)
         } else {
-            next_proposal_timestamp(baseline_sequence_number, interval, max_proposable)
+            next_proposal_timestamp(
+                baseline_sequence_number,
+                interval,
+                self.config.max_proposal_span_intervals.get(),
+                max_proposable,
+            )
         };
         let Some(next_sequence_number) = next_sequence_number else {
             tracing::debug!(
@@ -4461,7 +4468,7 @@ pub enum GameFetchResult {
         /// Claim deadline of the game (L1 timestamp, seconds), used by the
         /// pending eviction cutoff.
         deadline: u64,
-        /// The game's `absolutePrestate()`: owned ([`owns`]) games
+        /// The game's `absolutePrestate()`: owned (`owns`) games
         /// are exempt from pending eviction.
         prestate: B256,
         /// The game's creator.
@@ -4520,11 +4527,26 @@ impl From<U256> for Cursor {
     }
 }
 
-/// Picks the sequence number for the next proposal: `head + interval`, or `None` when that is
-/// beyond the safety bound. A head that lags by several intervals catches up one interval-sized
-/// game per tick, so no game we create spans more than one interval.
-pub fn next_proposal_timestamp(head: u64, interval: u64, max_proposable: u64) -> Option<u64> {
-    head.checked_add(interval).filter(|&next| next <= max_proposable)
+/// Picks the sequence number for the next proposal, or `None` when the proposal interval has
+/// not elapsed under the safety bound.
+///
+/// Normally `head + interval` (fixed grid). When the head lags the bound by two or more
+/// intervals, the game reaches toward `max_proposable` but spans at most `max_span_intervals`
+/// intervals, so the proposer catches up when one game takes longer than an interval to create
+/// or prove, and no game it creates exceeds what the bond and prove duration are sized for.
+pub fn next_proposal_timestamp(
+    head: u64,
+    interval: u64,
+    max_span_intervals: u64,
+    max_proposable: u64,
+) -> Option<u64> {
+    let next = head.checked_add(interval).filter(|&next| next <= max_proposable)?;
+    if max_proposable - head >= interval.saturating_mul(2) {
+        let max_span = interval.saturating_mul(max_span_intervals);
+        Some(max_proposable.min(head.saturating_add(max_span)))
+    } else {
+        Some(next)
+    }
 }
 
 /// Advances the UUID-collision walk by one second, bounded by the safety
@@ -4853,7 +4875,7 @@ impl PrestateCache {
 
     /// Snapshot of the prestates the proposer can currently prove: loaded
     /// artifacts whose proving keys are not poisoned. Defense and resolution
-    /// need one ([`owns`]); claims do not.
+    /// need one (`owns`); claims do not.
     pub async fn known_prestates(&self) -> HashSet<B256> {
         self.programs
             .read()
@@ -5673,6 +5695,7 @@ mod tests {
             factory_address: Address::ZERO,
             prestates_url: "file:///nonexistent".parse().unwrap(),
             proposal_interval_seconds: 3600,
+            max_proposal_span_intervals: std::num::NonZeroU64::MIN,
             proposal_safety: ProposalSafety::Finalized,
             fetch_interval: 30,
             metrics_listen: MetricsListen::Disabled,
@@ -9799,33 +9822,33 @@ mod tests {
     mod proposal_timing {
         use super::next_proposal_timestamp;
 
-        /// A lagging head catches up one interval-sized game at a time: the span of a
-        /// game we create stays within what the bond and prove duration are sized for.
         #[test]
-        fn lagging_head_proposes_one_interval_ahead() {
-            assert_eq!(next_proposal_timestamp(100, 6, 700_000), Some(106));
+        fn lagging_head_catches_up_by_at_most_the_max_span() {
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 700_000), Some(124));
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 118), Some(118));
+        }
+
+        #[test]
+        fn max_span_of_one_interval_never_jumps() {
+            assert_eq!(next_proposal_timestamp(100, 6, 1, 700_000), Some(106));
         }
 
         #[test]
         fn steady_state_proposes_at_fixed_step() {
-            assert_eq!(next_proposal_timestamp(100, 6, 107), Some(106));
-            assert_eq!(next_proposal_timestamp(100, 6, 111), Some(106));
+            // Gap below two intervals: keep the fixed grid.
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 107), Some(106));
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 111), Some(106));
         }
 
         #[test]
         fn interval_not_elapsed_skips() {
-            assert_eq!(next_proposal_timestamp(100, 6, 105), None);
-            assert_eq!(next_proposal_timestamp(100, 6, 100), None);
-        }
-
-        #[test]
-        fn two_intervals_of_lag_still_proposes_one_interval_ahead() {
-            assert_eq!(next_proposal_timestamp(100, 6, 112), Some(106));
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 105), None);
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 100), None);
         }
 
         #[test]
         fn overflow_is_none() {
-            assert_eq!(next_proposal_timestamp(u64::MAX, 1, u64::MAX), None);
+            assert_eq!(next_proposal_timestamp(u64::MAX, 1, 4, u64::MAX), None);
         }
     }
 

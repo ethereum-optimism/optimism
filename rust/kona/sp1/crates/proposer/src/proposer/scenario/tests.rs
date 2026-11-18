@@ -372,6 +372,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
         factory_address: Address::ZERO,
         prestates_url: "file:///nonexistent".parse().unwrap(),
         proposal_interval_seconds: 3_600,
+        max_proposal_span_intervals: NonZeroU64::MIN,
         proposal_safety: ProposalSafety::Finalized,
         fetch_interval,
         metrics_listen: MetricsListen::Disabled,
@@ -4665,6 +4666,64 @@ async fn pending_anchor_revalidation_fault_preserves_cache_for_retry() {
     );
     assert!(recovered.snapshot.pending_games.is_empty());
     scenario.settle_scheduled(&recovered).await.unwrap();
+}
+
+#[tokio::test]
+async fn lagging_head_catches_up_by_at_most_the_max_span() {
+    let world = ScenarioWorld::new();
+    world.add_game(ScenarioGame::new(0, u32::MAX, 100, ScenarioWorld::default_prestate()).owned());
+    world.set_horizons(1_000, 1_000);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    config.max_proposal_span_intervals = NonZeroU64::new(4).unwrap();
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let tick = scenario.tick().await.unwrap();
+    assert!(tick.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 500, parent_game_index: 0 }
+    )));
+    scenario.settle_scheduled(&tick).await.unwrap();
+}
+
+/// A third party can move the anchor to its own valid game, after which our chain's root lies
+/// beyond the discovery horizon. A won game of ours ends the lineage walk, so the proposer keeps
+/// extending its chain instead of starting a new one from the foreign anchor.
+#[tokio::test]
+async fn foreign_anchor_keeps_the_own_chain_as_head_after_restart() {
+    let world = ScenarioWorld::new();
+    // Discovery stops at the first game past the anchor's deadline lag, so `old` is cached and
+    // `root` is not.
+    let mut root = ScenarioGame::new(0, u32::MAX, 5, ScenarioWorld::default_prestate()).owned();
+    root.deadline = 1;
+    let mut old = ScenarioGame::new(1, 0, 10, ScenarioWorld::default_prestate()).owned();
+    old.deadline = 1;
+    let mut won =
+        ScenarioGame::new(2, 1, 20, ScenarioWorld::default_prestate()).owned().claimable(0);
+    won.deadline = 2_000_000 - 1;
+    let mut tip = ScenarioGame::new(3, 2, 30, ScenarioWorld::default_prestate()).owned();
+    tip.deadline = 2_000_000 + MAX_GAME_DEADLINE_LAG;
+    let tip_target = tip.target();
+    let mut foreign_anchor =
+        ScenarioGame::new(4, u32::MAX, 15, ScenarioWorld::default_prestate()).claimable(0);
+    foreign_anchor.deadline = 2_000_000;
+    let foreign_anchor_target = foreign_anchor.target();
+    for game in [root, old, won, tip, foreign_anchor] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&foreign_anchor_target);
+    world.set_horizons(130, 130);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let tick = scenario.tick().await.unwrap();
+    assert_eq!(tick.snapshot.canonical_head_index, Some(tip_target.factory_index));
+    assert!(tick.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 130, parent_game_index: 3 }
+    )));
+    scenario.settle_scheduled(&tick).await.unwrap();
 }
 
 #[tokio::test]
