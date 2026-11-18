@@ -146,6 +146,7 @@ async fn main() -> Result<()> {
     }
 
     let proposer = Arc::new(Proposer::new(config, signer, factory, proof_provider).await?);
+    tracing::info!(owned_creators = ?proposer.owned_creators(), "Owning games from these creators");
     #[cfg(unix)]
     proposer.install_proof_retry_signal()?;
 

@@ -75,6 +75,10 @@ type zkProposerConfig struct {
 	RangeGasLimit         uint64
 	RangeSplitCount       uint64
 	TestingMaxRangeChains uint64
+	// OwnedCreator names, by dev key, an account whose games the proposer owns
+	// besides its signer's. A key, unlike an address, can be named before the
+	// system's keys exist.
+	OwnedCreator devkeys.Key
 	// L2RPCProxy, when set, starts a proxy in front of an L2 EL endpoint and
 	// returns the URL the proposer uses instead.
 	L2RPCProxy func(p devtest.T, name string, targetURL string) string
@@ -102,7 +106,7 @@ func WithZKProposalInterval(interval time.Duration) ZKProposerOption {
 	}
 }
 
-// WithZKFastFinality makes the proposer prove every game it owns while it
+// WithZKFastFinality makes the proposer prove every game it creates while it
 // is still unchallenged.
 func WithZKFastFinality() ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
@@ -150,6 +154,14 @@ func WithZKRangeSplitCount(count uint64) ZKProposerOption {
 func WithZKTestingMaxRangeChains(limit uint64) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.TestingMaxRangeChains = limit
+	}
+}
+
+// WithZKOwnedCreator makes the proposer extend and defend games created by
+// the account of key, as it does its own.
+func WithZKOwnedCreator(key devkeys.Key) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.OwnedCreator = key
 	}
 }
 
@@ -290,6 +302,11 @@ func startZKProposer(
 	}
 	if cfg.TestingMaxRangeChains != 0 {
 		env = append(env, zkProposerEnv("TESTING_MAX_RANGE_CHAINS", strconv.FormatUint(cfg.TestingMaxRangeChains, 10)))
+	}
+	if cfg.OwnedCreator != nil {
+		ownedCreator, err := keys.Address(cfg.OwnedCreator)
+		require.NoError(err, "need owned creator address for ZK proposer")
+		env = append(env, zkProposerEnv("OWNED_CREATORS", ownedCreator.Hex()))
 	}
 	// Always pin the metrics port so inherited host configuration cannot
 	// reach every devstack proposer and collide across parallel systems.

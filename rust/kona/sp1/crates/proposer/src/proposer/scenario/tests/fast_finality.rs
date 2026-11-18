@@ -65,21 +65,19 @@ async fn created_games_are_accelerated_only_when_fast_finality_is_enabled() {
 }
 
 #[tokio::test]
-async fn foreign_games_are_defended_but_only_owned_unchallenged_games_are_accelerated() {
+async fn foreign_challenged_game_is_not_proven() {
     let world = ScenarioWorld::new();
     let foreign = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
-    let defended =
+    let foreign_challenged =
         ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate()).challenged();
-    let mut owned = ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate());
-    owned.creator = ScenarioWorld::proposer_address();
-    let mut owned_challenged =
-        ScenarioGame::new(3, u32::MAX, 4, ScenarioWorld::default_prestate()).challenged();
-    owned_challenged.creator = ScenarioWorld::proposer_address();
+    let owned = ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate()).owned();
+    let owned_challenged =
+        ScenarioGame::new(3, u32::MAX, 4, ScenarioWorld::default_prestate()).owned().challenged();
     let owned_challenged_target = owned_challenged.target();
     let foreign_target = foreign.target();
-    let defended_target = defended.target();
+    let foreign_challenged_target = foreign_challenged.target();
     let owned_target = owned.target();
-    for game in [foreign, defended, owned, owned_challenged] {
+    for game in [foreign, foreign_challenged, owned, owned_challenged] {
         world.add_game(game);
     }
     world.set_horizons(4, 4);
@@ -98,14 +96,14 @@ async fn foreign_games_are_defended_but_only_owned_unchallenged_games_are_accele
     assert_eq!(
         proofs,
         vec![
-            (defended_target.address, ProvingPurpose::Defense),
             (owned_target.address, ProvingPurpose::FastFinality),
             (owned_challenged_target.address, ProvingPurpose::Defense),
         ]
     );
     scenario.settle_scheduled(&tick).await.unwrap();
     assert!(world.proof_record(&foreign_target, 1).is_none());
-    for target in [defended_target, owned_target, owned_challenged_target] {
+    assert!(world.proof_record(&foreign_challenged_target, 1).is_none());
+    for target in [owned_target, owned_challenged_target] {
         assert_eq!(
             world.action_record(&ActionTarget::Prove(target.clone()), 1).unwrap().effect,
             CommittedEffect::Proven { game: target.address }
@@ -236,10 +234,12 @@ async fn parked_fast_finality_does_not_consume_defense_slots_but_defense_counts_
     scenario.wait_for_proof_barrier(fast_id, &owned_target, 1).await.unwrap();
     scenario.settle(&first.task_ids_except(fast_id)).await.unwrap();
 
-    let mut defended = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).challenged();
+    let mut defended =
+        ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).owned().challenged();
     defended.deadline = 5_000;
     let defended_target = defended.target();
-    let mut waiting = ScenarioGame::new(2, 1, 3, ScenarioWorld::default_prestate()).challenged();
+    let mut waiting =
+        ScenarioGame::new(2, 1, 3, ScenarioWorld::default_prestate()).owned().challenged();
     waiting.deadline = 6_000;
     let waiting_target = waiting.target();
     for game in [defended, waiting] {
