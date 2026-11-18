@@ -1,8 +1,9 @@
-# Full acceptance variants. CircleCI retains all required gates.
+# CircleCI's memory-all acceptance jobs: op-node and kona-node, on four shards
+# each. CircleCI retains all required gates.
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [go, contracts, kona, op-reth, prestate, sp1-executor, acceptance-tools, discovery-opn, discovery-kona]
+    target: [go, contracts, kona, op-reth, prestate, sp1-executor, acceptance-tools]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -10,7 +11,6 @@ on:
       cache-epoch: v1
       build-probe: ""
       target-cache-mode: keep
-      shard-total: "4"
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -19,7 +19,6 @@ on:
       cache-epoch: v1
       build-probe: ""
       target-cache-mode: keep
-      shard-total: "4"
 
 # Shared cache baseline: only develop may write; PRs restore it read-only.
 tool-cache:
@@ -184,134 +183,100 @@ tasks:
       printf '%s\n' "$(mise bin-paths | paste -sd: -):$PATH" >"$RWX_ENV/PATH"
     timeout: 30m
 
-  - key: discovery-opn
-    use: [source, go-build-tools, go.build, contracts.build]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/acceptance-compile.yml
-    with:
-      commit-sha: ${{ init.commit-sha }}
-      shard-total: ${{ init.shard-total }}
-      cl-kind: op-node
-      cache-key: acceptance-discovery-opn-${{ init.cache-epoch }}
-
+  # Each verdict task is one node of CircleCI's memory-all-opn-op-reth-fusaka
+  # or memory-all-kona-op-reth-fusaka job. Shard indexes 0 to 3 cover every test.
   - key: verdict-opn-0
-    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '0'
-      shard-total: ${{ init.shard-total }}
       cl-kind: op-node
       cache-key: acceptance-runtime-opn-0-${{ init.cache-epoch }}
-      memory: 32gb
 
   - key: verdict-opn-1
-    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '1'
-      shard-total: ${{ init.shard-total }}
       cl-kind: op-node
       cache-key: acceptance-runtime-opn-1-${{ init.cache-epoch }}
-      memory: 32gb
 
   - key: verdict-opn-2
-    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '2'
-      shard-total: ${{ init.shard-total }}
       cl-kind: op-node
       cache-key: acceptance-runtime-opn-2-${{ init.cache-epoch }}
-      memory: 32gb
 
   - key: verdict-opn-3
-    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '3'
-      shard-total: ${{ init.shard-total }}
       cl-kind: op-node
       cache-key: acceptance-runtime-opn-3-${{ init.cache-epoch }}
-      memory: 32gb
-
-  - key: discovery-kona
-    use: [source, go-build-tools, go.build, contracts.build]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/acceptance-compile.yml
-    with:
-      commit-sha: ${{ init.commit-sha }}
-      shard-total: ${{ init.shard-total }}
-      cl-kind: kona-node
-      cache-key: acceptance-discovery-kona-${{ init.cache-epoch }}
 
   - key: verdict-kona-0
-    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '0'
-      shard-total: ${{ init.shard-total }}
       cl-kind: kona-node
       cache-key: acceptance-runtime-kona-0-${{ init.cache-epoch }}
-      memory: 32gb
 
   - key: verdict-kona-1
-    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '1'
-      shard-total: ${{ init.shard-total }}
       cl-kind: kona-node
       cache-key: acceptance-runtime-kona-1-${{ init.cache-epoch }}
-      memory: 32gb
 
   - key: verdict-kona-2
-    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '2'
-      shard-total: ${{ init.shard-total }}
       cl-kind: kona-node
       cache-key: acceptance-runtime-kona-2-${{ init.cache-epoch }}
-      memory: 32gb
 
   - key: verdict-kona-3
-    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '3'
-      shard-total: ${{ init.shard-total }}
       cl-kind: kona-node
       cache-key: acceptance-runtime-kona-3-${{ init.cache-epoch }}
-      memory: 32gb
 
   - key: main-gate-receipt
     use: [code, tools]
     after: ${{ (verdict-kona-0.succeeded || verdict-kona-0.failed || verdict-kona-0.skipped) && (verdict-kona-1.succeeded || verdict-kona-1.failed || verdict-kona-1.skipped) && (verdict-kona-2.succeeded || verdict-kona-2.failed || verdict-kona-2.skipped) && (verdict-kona-3.succeeded || verdict-kona-3.failed || verdict-kona-3.skipped) && (verdict-opn-0.succeeded || verdict-opn-0.failed || verdict-opn-0.skipped) && (verdict-opn-1.succeeded || verdict-opn-1.failed || verdict-opn-1.skipped) && (verdict-opn-2.succeeded || verdict-opn-2.failed || verdict-opn-2.skipped) && (verdict-opn-3.succeeded || verdict-opn-3.failed || verdict-opn-3.skipped) }}
-    if: ${{ init.cache-warm != 'true' && init.shard-total == '4' }}
+    if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt main-acceptance
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}

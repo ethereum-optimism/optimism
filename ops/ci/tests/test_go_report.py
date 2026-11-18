@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Native reporting must preserve verdicts/retries and the immutable original."""
-import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -21,8 +20,6 @@ class GoReportTest(unittest.TestCase):
         source.write_text(original)
         REPORT.project(source, native)
         self.assertEqual(source.read_text(), original)
-        metadata = json.loads(native.with_suffix('.metadata.json').read_text())
-        self.assertEqual(metadata['original_sha256'], hashlib.sha256(original.encode()).hexdigest())
         return [json.loads(line) for line in native.read_text().splitlines()]
 
     def test_original_retries_and_skips_survive_without_passed_output_noise(self):

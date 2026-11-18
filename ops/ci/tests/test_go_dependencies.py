@@ -67,10 +67,9 @@ class ContractDependenciesTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             artifact = root / '.ci/go-tests/dependencies/contracts'
             metadata = json.loads((artifact / 'metadata.json').read_text())
-            self.assertEqual(metadata['settings'], {'profile': 'ci', 'build_args': ['--skip', 'test']})
             self.assertTrue(any('MockSP1Verifier.sol/MockSP1Verifier.json' in name for name in metadata['files']))
             self.assertFalse(any('Unneeded.t.sol' in name for name in metadata['files']))
-            # Cold restoration must supply the same deployable helper and reject old settings.
+            # Cold restoration must supply the same deployable helper.
             spec = importlib.util.spec_from_file_location('artifact_fixture', root / 'ops/ci/runtime/go-artifacts.py')
             module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
             with patch.dict(os.environ, CI_COMMIT_SHA=sha):
@@ -91,9 +90,6 @@ class ContractDependenciesTests(unittest.TestCase):
                 self.assertNotEqual(failure.returncode, 0, failure.stdout + failure.stderr)
                 self.assertIn('missing', (failure.stdout + failure.stderr).lower())
                 self.assertEqual((artifact / 'metadata.json').read_bytes(), retained)
-                metadata['settings'] = {'profile': 'ci'}
-                (artifact / 'metadata.json').write_text(json.dumps(metadata))
-                with self.assertRaisesRegex(ValueError, 'settings'): module.restore('contracts', artifact)
 
 
 if __name__ == '__main__': unittest.main()

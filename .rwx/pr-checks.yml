@@ -1,8 +1,10 @@
-# Complete remaining PR checks, with Circle continuing to own required gates.
+# The small checks of CircleCI's main workflow and its contracts fast check.
+# CircleCI owns the required gates. Each check task runs the command of the
+# CircleCI job that its comment names, from .circleci/continue/main.yml.
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [go-modules, contract-tools, main-tools, main-superchain, static-tools]
+    target: [go-modules, contract-tools, main-tools, static-tools]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -106,28 +108,15 @@ tasks:
       printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
     timeout: 30m
 
-  - key: static-helper-tests
-    use: [code, static-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      RWX_LIVE_SHELL_FIXTURE=1 RWX_LIVE_SEMGREP_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_static_checks.py'
-    env:
-      RWX_STATIC_FIXTURE_RETAIN_DIR: .ci/static-fixture-evidence
-    cache: false
-    timeout: 15m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: original-failure-fixtures
-          path: .ci/static-fixture-evidence
-
+  # Mirrors CircleCI's shell-check job. That job has its find expression inline,
+  # so this task reads the command from the job and the two cannot drift.
   - key: shell-check
     use: [code, static-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/runtime/static-checks.py shell-check
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
+    run: |
+      command="$(yq -r '.jobs["shell-check"].steps[] | select(.run.name? == "Run shellcheck") | .run.command' .circleci/continue/main.yml)"
+      if [[ -z "$command" || "$command" == null ]]; then echo "CircleCI's shell-check command is missing" >&2; exit 1; fi
+      bash -eo pipefail -c "$command"
     cache: false
     timeout: 20m
     runner:
@@ -135,19 +124,20 @@ tasks:
       memory: 8gb
     outputs:
       filesystem: false
-      test-results:
-        - path: .ci/static-checks/shell-check/derived.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/static-checks/shell-check
 
+  # Mirrors CircleCI's shfmt-check job.
   - key: shfmt-check
     use: [code, static-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: just shfmt-check
     cache: false
     timeout: 10m
+    outputs:
+      filesystem: false
 
+  # Mirrors CircleCI's semgrep-scan job as semgrep-test. Like that job, a branch
+  # other than develop sets SEMGREP_BASELINE_REF to develop. `semgrep scan` reads
+  # no other variable of that job's Semgrep environment; `semgrep ci` reads the rest.
   - key: semgrep-test
     use: [code, static-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
@@ -155,10 +145,10 @@ tasks:
       if [[ "$CI_BRANCH" != develop ]]; then
         git fetch --no-tags origin develop
         git update-ref refs/heads/develop FETCH_HEAD
+        export SEMGREP_BASELINE_REF=develop
       fi
-      python3 ops/ci/runtime/static-checks.py semgrep-test
+      semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
     cache: false
     timeout: 20m
@@ -167,12 +157,9 @@ tasks:
       memory: 16gb
     outputs:
       filesystem: false
-      test-results:
-        - path: .ci/static-checks/semgrep-test/derived.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/static-checks/semgrep-test
 
+  # Mirrors CircleCI's semgrep-scan job as semgrep-scan-local, with the same
+  # baseline as semgrep-test.
   - key: semgrep-scan-local
     use: [code, static-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
@@ -180,10 +167,10 @@ tasks:
       if [[ "$CI_BRANCH" != develop ]]; then
         git fetch --no-tags origin develop
         git update-ref refs/heads/develop FETCH_HEAD
+        export SEMGREP_BASELINE_REF=develop
       fi
-      python3 ops/ci/runtime/static-checks.py semgrep-scan-local
+      semgrep scan --timeout=100 --config .semgrep/rules/ --error .
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
     cache: false
     timeout: 30m
@@ -192,46 +179,20 @@ tasks:
       memory: 16gb
     outputs:
       filesystem: false
-      test-results:
-        - path: .ci/static-checks/semgrep-scan-local/derived.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/static-checks/semgrep-scan-local
 
-  - key: helper-tests
-    use: [code, go-tools]
-    if: ${{ init.cache-warm != 'true' && (tasks.route.values.run-main == 'true' || tasks.route.values.run-contracts == 'true') }}
-    run: |
-      RWX_LIVE_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_pr_checks.py'
-    cache: false
-    timeout: 10m
-    outputs:
-      filesystem: false
-
+  # Mirrors CircleCI's prep-go-modules job. Later tasks read the module cache at
+  # .ci/go-cache/pr-checks/modules.
   - key: go-modules
     use: [code, go-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
-      mkdir -p "$GOMODCACHE"
-      python3 ops/ci/runtime/pr-checks.py go-modules
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-    tool-cache: pr-checks-go-modules-${{ init.cache-epoch }}
-    timeout: 30m
-    runner:
-      cpus: 2
-      memory: 4gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/pr-checks/modules]
-          system: []
-      artifacts:
-        - key: reports
-          path: .ci/pr-checks/go-modules
+    call: ${{ run.dir }}/packages/go-modules.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-epoch: ${{ init.cache-epoch }}
 
+  # Mirrors CircleCI's contracts-bedrock-checks-fast job, which required-contracts-ci
+  # requires as contracts-bedrock-checks-fast-feature-tests.
   - key: contracts-fast
     use: [code, go-tools, go-modules, contract-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
@@ -240,10 +201,16 @@ tasks:
       export GOCACHE="$PWD/.ci/go-cache/pr-checks/fast-build"
       git submodule sync --recursive
       git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
-      python3 ops/ci/runtime/pr-checks.py contracts-fast
+      cd packages/contracts-bedrock
+      # scripts/checks/check-semver-diff.sh compares with origin/<target branch>.
+      # The clone of one commit can lack that ref.
+      source scripts/ops/get-target-branch.sh
+      git fetch --no-tags origin "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
+      forge --version
+      just check-fast
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
+      # checks.yaml formats the sources in place unless CI is set.
+      CI: "true"
       # scripts/ops/get-target-branch.sh reads it to find a merge-queue base.
       CIRCLE_BRANCH: ${{ init.branch }}
       RWX_RUN_ID:
@@ -260,54 +227,14 @@ tasks:
         filter:
           workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, .ci/go-cache/pr-checks/fast-build]
           system: []
-      test-results:
-        - path: .ci/pr-checks/contracts-fast/checks.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/pr-checks/contracts-fast
 
-  - key: main-helper-tests
-    use: [code, main-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      RWX_LIVE_MAIN_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_main_checks.py'
-      RWX_LIVE_MAIN_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_l2_chains_sync_check.py'
-    cache: false
-    timeout: 15m
-    outputs:
-      filesystem: false
-
-  - key: main-superchain
-    use: [code, go-tools]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/runtime/main-checks.py --prepare-superchain
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-    timeout: 15m
-    runner:
-      cpus: 2
-      memory: 4gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [op-core/superchain/bundle/superchain-configs.zip]
-          system: []
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/prep-superchain
-
+  # Mirrors CircleCI's todo-issues job as todo-issues-check (check_closed: false).
+  # No gate requires it. ripgrep reads a stdin that is not a terminal instead of
+  # searching the checkout, so stdin is /dev/null.
   - key: todo-issues-check
     use: [code, main-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      python3 ops/ci/runtime/main-checks.py todo-issues-check
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
+    run: ./ops/scripts/todo-checker.sh --verbose --strict </dev/null
     cache: false
     timeout: 30m
     runner:
@@ -315,24 +242,12 @@ tasks:
       memory: 16gb
     outputs:
       filesystem: false
-      test-results:
-        - path: .ci/main-checks/todo-issues-check/check.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/todo-issues-check
 
+  # Mirrors CircleCI's l2-chains-sync-check job.
   - key: l2-chains-sync-check
-    use: [code, main-tools]
+    use: [code, tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      python3 ops/ci/migration/l2-chains-sync-check.py
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
+    run: bash .circleci/scripts/check-l2-chains-sync.sh
     cache: false
     timeout: 30m
     runner:
@@ -340,24 +255,15 @@ tasks:
       memory: 8gb
     outputs:
       filesystem: false
-      test-results:
-        - path: .ci/main-checks/l2-chains-sync-check/check.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/l2-chains-sync-check
 
+  # Mirrors CircleCI's op-deployer-forge-version job. The recipe runs a Go test.
   - key: op-deployer-forge-version
-    use: [code, main-tools]
+    use: [code, main-tools, go-modules]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
-      python3 ops/ci/runtime/main-checks.py op-deployer-forge-version
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      cd op-deployer
+      just check-forge-version
     cache: false
     timeout: 30m
     runner:
@@ -365,54 +271,38 @@ tasks:
       memory: 8gb
     outputs:
       filesystem: false
-      test-results:
-        - path: .ci/main-checks/op-deployer-forge-version/check.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/op-deployer-forge-version
 
+  # Mirrors CircleCI's opgeth-ratchet job. That job attaches the bundle that
+  # prep-superchain builds; this task runs prep-superchain's two commands first.
   - key: opgeth-ratchet
-    use: [code, main-tools, go-modules, main-superchain]
+    use: [code, main-tools, go-modules]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/main-checks/opgeth-ratchet"
-      python3 ops/ci/runtime/main-checks.py opgeth-ratchet
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      SUPERCHAIN_PREPARED: ${{ tasks.main-superchain.artifacts.reports }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
+      just sync-superchain-go
+      git diff --exit-code op-core/superchain/bundle/superchain-configs.zip.sha256
+      just opgeth-ratchet
     cache: false
+    tool-cache: main-checks-opgeth-ratchet-${{ init.cache-epoch }}
     timeout: 30m
     runner:
       cpus: 2
       memory: 4gb
     outputs:
-      filesystem: false
-      test-results:
-        - path: .ci/main-checks/opgeth-ratchet/check.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/opgeth-ratchet
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/main-checks/opgeth-ratchet]
+          system: []
 
+  # Mirrors CircleCI's check-op-geth-version job.
   - key: check-op-geth-version
     use: [code, main-tools, go-modules]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/main-checks/check-op-geth-version"
-      python3 ops/ci/runtime/main-checks.py check-op-geth-version
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
+      just check-op-geth-version
     cache: false
     tool-cache: main-checks-check-op-geth-version-${{ init.cache-epoch }}
     timeout: 30m
@@ -424,26 +314,17 @@ tasks:
         filter:
           workspace: [.ci/go-cache/main-checks/check-op-geth-version]
           system: []
-      test-results:
-        - path: .ci/main-checks/check-op-geth-version/check.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/check-op-geth-version
 
+  # Mirrors CircleCI's check-nut-locks job. The check requires each locked commit
+  # to be an ancestor of origin/develop. The clone of one commit can lack that ref.
   - key: check-nut-locks
     use: [code, main-tools, go-modules]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/main-checks/check-nut-locks"
-      python3 ops/ci/runtime/main-checks.py check-nut-locks
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
+      git fetch --no-tags origin +refs/heads/develop:refs/remotes/origin/develop
+      go run ./ops/scripts/check-nut-locks
     cache: false
     tool-cache: main-checks-check-nut-locks-${{ init.cache-epoch }}
     timeout: 30m
@@ -455,27 +336,15 @@ tasks:
         filter:
           workspace: [.ci/go-cache/main-checks/check-nut-locks]
           system: []
-      test-results:
-        - path: .ci/main-checks/check-nut-locks/check.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/check-nut-locks
 
+  # Mirrors CircleCI's check-generated-mocks-op-node job.
   - key: check-generated-mocks-op-node
-    use: [code, main-tools, go-modules, main-superchain]
+    use: [code, main-tools, go-modules]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/main-checks/check-generated-mocks-op-node"
-      python3 ops/ci/runtime/main-checks.py check-generated-mocks-op-node
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      SUPERCHAIN_PREPARED: ${{ tasks.main-superchain.artifacts.reports }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
+      just generate-mocks-op-node && git diff --exit-code
     cache: false
     tool-cache: main-checks-check-generated-mocks-op-node-${{ init.cache-epoch }}
     timeout: 30m
@@ -487,27 +356,15 @@ tasks:
         filter:
           workspace: [.ci/go-cache/main-checks/check-generated-mocks-op-node]
           system: []
-      test-results:
-        - path: .ci/main-checks/check-generated-mocks-op-node/check.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/check-generated-mocks-op-node
 
+  # Mirrors CircleCI's check-generated-mocks-op-service job.
   - key: check-generated-mocks-op-service
-    use: [code, main-tools, go-modules, main-superchain]
+    use: [code, main-tools, go-modules]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/main-checks/check-generated-mocks-op-service"
-      python3 ops/ci/runtime/main-checks.py check-generated-mocks-op-service
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      SUPERCHAIN_PREPARED: ${{ tasks.main-superchain.artifacts.reports }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
+      just generate-mocks-op-service && git diff --exit-code
     cache: false
     tool-cache: main-checks-check-generated-mocks-op-service-${{ init.cache-epoch }}
     timeout: 30m
@@ -519,11 +376,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/main-checks/check-generated-mocks-op-service]
           system: []
-      test-results:
-        - path: .ci/main-checks/check-generated-mocks-op-service/check.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/check-generated-mocks-op-service
 
   # Exact Main dependency states; unrelated workload failures stay outside this gate.
   - key: main-gate-receipt

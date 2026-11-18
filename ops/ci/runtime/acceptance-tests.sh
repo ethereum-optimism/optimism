@@ -1,67 +1,42 @@
 #!/usr/bin/env bash
-# Provider-independent discovery and fresh verdicts for the shared Just runner.
+# Run shard CI_SHARD_INDEX of CircleCI's op-acceptance-tests job with the
+# unchanged recipe. The caller restores the build outputs that the job attaches.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
-phase="${1:?Pass discover or run}"
-# CircleCI's memory-all jobs run on 4 nodes with ACCEPTANCE_TEST_JOBS=16.
-[[ "$CI_SHARD_TOTAL" == 4 ]] || {
-  echo "Acceptance workflow requires exactly four shards" >&2
-  exit 1
-}
-export ACCEPTANCE_TEST_JOBS=16 ACCEPTANCE_TEST_PARALLEL=1 ACCEPTANCE_TEST_TIMEOUT=30m LOG_LEVEL=info
+# CircleCI's memory-all jobs set acceptance_test_jobs: "16" and LOG_LEVEL=info.
+export ACCEPTANCE_TEST_JOBS=16 LOG_LEVEL=info
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
-export GOCACHE="$PWD/.ci/go-cache/acceptance/$phase"
+export GOCACHE="$PWD/.ci/go-cache/acceptance/run"
 export GOROOT
 GOROOT="$(go env GOROOT)"
 export PATH="$GOROOT/bin:$PATH"
 mkdir -p "$GOCACHE"
-case "$phase" in
-  discover)
-    mkdir -p .ci/acceptance/discovery
-    go list -e -json ./op-acceptance-tests/tests/... > .ci/acceptance/discovery/packages.json
-    go test -list '^Test' -json ./op-acceptance-tests/tests/... > .ci/acceptance/discovery/listing.json
-    python3 ops/ci/runtime/acceptance-manifest.py create --directory .ci/acceptance/discovery --total "$CI_SHARD_TOTAL"
-    ;;
-  run)
-    export RUST_BINARY_PATH_KONA_HOST="$PWD/rust/target/release/kona-host"
-    export RUST_BINARY_PATH_KONA_CLIENT="$PWD/rust/target/release/kona-client"
-    export RUST_BINARY_PATH_KONA_NODE="$PWD/rust/target/release/kona-node"
-    export RUST_BINARY_PATH_OP_ZK_PROPOSER="$PWD/rust/target/release/op-zk-proposer"
-    export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
-    export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR="$PWD/.circleci-cache/rust-binaries/kona-sp1-super-range-executor"
-    for binary in "$RUST_BINARY_PATH_KONA_HOST" "$RUST_BINARY_PATH_KONA_CLIENT" \
-      "$RUST_BINARY_PATH_KONA_NODE" "$RUST_BINARY_PATH_OP_ZK_PROPOSER" \
-      "$RUST_BINARY_PATH_OP_RETH" \
-      "$RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR"; do
-      test -x "$binary" || {
-        echo "Missing executable runtime dependency: $binary" >&2
-        exit 1
-      }
-    done
-    # Match Circle's mock verifier setup; real SP1 ELFs are a separate gate.
-    unset KONA_SP1_ELF_DIR RUST_JIT_BUILD
-    # Fail before the suite starts when the pinned geth is not installed.
-    test -x "$(mise which geth)"
-    export LD_PRELOAD=libeatmydata.so
-    # The unchanged recipe shards through ops/scripts/shard-tests.sh. Its
-    # `circleci tests split` call reaches the shim, which prints this shard's
-    # assignment from the discovery manifest in CI_ACCEPTANCE_DISCOVERY.
-    export CIRCLE_NODE_INDEX="$CI_SHARD_INDEX" CIRCLE_NODE_TOTAL="$CI_SHARD_TOTAL"
-    export PATH="$PWD/ops/ci/runtime/acceptance-circleci:$PATH"
-    mkdir -p .ci/acceptance/reports
-    finish() {
-      local status=$?
-      trap - EXIT
-      if ! python3 ops/ci/runtime/acceptance-report.py .ci/acceptance/reports; then
-        [[ "$status" -ne 0 ]] || status=1
-      fi
-      exit "$status"
-    }
-    trap finish EXIT
-    (cd op-acceptance-tests && just acceptance-test)
-    ;;
-  *)
-    echo 'Expected discover or run' >&2
+export RUST_BINARY_PATH_KONA_HOST="$PWD/rust/target/release/kona-host"
+export RUST_BINARY_PATH_KONA_CLIENT="$PWD/rust/target/release/kona-client"
+export RUST_BINARY_PATH_KONA_NODE="$PWD/rust/target/release/kona-node"
+export RUST_BINARY_PATH_OP_ZK_PROPOSER="$PWD/rust/target/release/op-zk-proposer"
+export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR="$PWD/.circleci-cache/rust-binaries/kona-sp1-super-range-executor"
+for binary in "$RUST_BINARY_PATH_KONA_HOST" "$RUST_BINARY_PATH_KONA_CLIENT" \
+  "$RUST_BINARY_PATH_KONA_NODE" "$RUST_BINARY_PATH_OP_ZK_PROPOSER" \
+  "$RUST_BINARY_PATH_OP_RETH" \
+  "$RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR"; do
+  test -x "$binary" || {
+    echo "Missing executable runtime dependency: $binary" >&2
     exit 1
-    ;;
-esac
+  }
+done
+# Fail before the suite starts when the pinned geth is not installed.
+test -x "$(mise which geth)"
+# Like CircleCI's "Disable fsync for all subprocesses" step.
+if [[ -f /usr/lib/x86_64-linux-gnu/libeatmydata.so ]]; then
+  export LD_PRELOAD=libeatmydata.so
+fi
+# The recipe shards through ops/scripts/shard-tests.sh. Its `circleci tests
+# split` call reaches the shim, which prints this shard's share of the tests.
+# CircleCI's memory-all jobs have parallelism: 4, and .rwx/acceptance.yml has
+# one verdict task for each of the four shards.
+export CIRCLE_NODE_INDEX="$CI_SHARD_INDEX" CIRCLE_NODE_TOTAL=4
+export PATH="$PWD/ops/ci/runtime/acceptance-circleci:$PATH"
+cd op-acceptance-tests
+just acceptance-test

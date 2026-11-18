@@ -22,12 +22,10 @@ case "${1:-common}" in
     mise install just jq yq python
     ;;
   go) mise install go gotestsum ;;
-  # depguard tests execute go list at runtime; keep the pinned Go toolchain.
-  go-runtime) mise install go gotestsum ;;
   go-lint) mise install go golangci-lint ;;
   rust) mise install rust ;;
   *)
-    echo "Usage: $0 [common|go|go-runtime|go-lint|rust]" >&2
+    echo "Usage: $0 [common|go|go-lint|rust]" >&2
     exit 1
     ;;
 esac

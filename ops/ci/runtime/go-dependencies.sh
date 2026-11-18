@@ -5,6 +5,23 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 job="${1:?Pass a dependency name}"
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules" GOCACHE="$PWD/.ci/go-cache/full/dependencies"
 mkdir -p "$GOMODCACHE" "$GOCACHE"
+
+# Runs `cargo build --locked --profile release` in rust/ with the given cargo
+# arguments. Like Circle's rust-build, release builds that only feed CI tests
+# skip LTO. Writes the sccache statistics next to the dependency's artifact.
+rust_release() {
+  export CARGO_HOME="$PWD/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$PWD/rust/target"
+  export CARGO_INCREMENTAL=0 RUSTC_WRAPPER=sccache SCCACHE_DIR="$PWD/.ci/rust-cache/sccache"
+  export SCCACHE_BASEDIRS="$PWD" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
+  mkdir -p "$CARGO_HOME" "$SCCACHE_DIR" ".ci/go-tests/dependencies/$job"
+  sccache --start-server
+  sccache --zero-stats
+  trap 'sccache --show-stats --stats-format json >".ci/go-tests/dependencies/$job/sccache.json"; sccache --stop-server' EXIT
+  python3 ops/ci/runtime/rust-target-cache.py prepare
+  (cd rust && CARGO_PROFILE_RELEASE_LTO=off mold -run cargo build --locked --profile release "$@")
+  python3 ops/ci/runtime/rust-target-cache.py commit
+}
+
 case "$job" in
   go)
     attempt=0
@@ -35,36 +52,14 @@ case "$job" in
       op-deployer/pkg/deployer/artifacts/forge-artifacts
     ;;
   kona)
-    export CARGO_HOME="$PWD/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$PWD/rust/target"
-    export CARGO_INCREMENTAL=0 RUSTC_WRAPPER=sccache SCCACHE_DIR="$PWD/.ci/rust-cache/sccache"
-    export SCCACHE_BASEDIRS="$PWD" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
-    mkdir -p "$CARGO_HOME" "$SCCACHE_DIR"
     if [[ "${TARGET_CACHE_MODE:-keep}" == sccache-only ]]; then rm -rf rust/target; fi
-    mkdir -p .ci/go-tests/dependencies/kona
-    sccache --start-server
-    sccache --zero-stats
-    trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/kona/sccache.json; sccache --stop-server' EXIT
-    python3 ops/ci/runtime/rust-target-cache.py prepare
-    # Like Circle's rust-build, release builds that only feed CI tests skip LTO.
-    (cd rust && CARGO_PROFILE_RELEASE_LTO=off mold -run cargo build --locked --profile release --features default \
-      --package kona-host --package kona-client --package kona-node --package op-zk-proposer)
-    python3 ops/ci/runtime/rust-target-cache.py commit
+    rust_release --features default \
+      --package kona-host --package kona-client --package kona-node --package op-zk-proposer
     python3 ops/ci/runtime/go-artifacts.py pack kona rust/target/release/kona-host rust/target/release/kona-client \
       rust/target/release/kona-node rust/target/release/op-zk-proposer
     ;;
   sp1-executor)
-    export CARGO_HOME="$PWD/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$PWD/rust/target"
-    export CARGO_INCREMENTAL=0 RUSTC_WRAPPER=sccache SCCACHE_DIR="$PWD/.ci/rust-cache/sccache"
-    export SCCACHE_BASEDIRS="$PWD" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
-    mkdir -p "$CARGO_HOME" "$SCCACHE_DIR" .ci/go-tests/dependencies/sp1-executor
-    sccache --start-server
-    sccache --zero-stats
-    trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/sp1-executor/sccache.json; sccache --stop-server' EXIT
-    python3 ops/ci/runtime/rust-target-cache.py prepare
-    # Like Circle's rust-build, release builds that only feed CI tests skip LTO.
-    (cd rust && CARGO_PROFILE_RELEASE_LTO=off mold -run cargo build --locked --profile release --all-features \
-      --package kona-sp1-super-range-executor --bin kona-sp1-super-range-executor)
-    python3 ops/ci/runtime/rust-target-cache.py commit
+    rust_release --all-features --package kona-sp1-super-range-executor --bin kona-sp1-super-range-executor
     mkdir -p .circleci-cache/rust-binaries
     cp rust/target/release/kona-sp1-super-range-executor .circleci-cache/rust-binaries/
     python3 ops/ci/runtime/go-artifacts.py pack sp1-executor .circleci-cache/rust-binaries/kona-sp1-super-range-executor

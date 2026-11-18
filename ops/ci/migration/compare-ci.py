@@ -27,7 +27,7 @@ PACKAGE = '(package)'
 
 
 def helper(name):
-    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), Path(__file__).resolve().parents[1] / 'runtime' / (name + '.py'))
+    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), Path(__file__).with_name(name + '.py'))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

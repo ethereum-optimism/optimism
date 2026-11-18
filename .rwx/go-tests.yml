@@ -10,8 +10,6 @@ on:
       cache-epoch: v1
       build-probe: ""
       target-cache-mode: keep
-      shard-total: "12"
-      test-parallel: "8"
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -20,8 +18,6 @@ on:
       cache-epoch: v1
       build-probe: ""
       target-cache-mode: keep
-      shard-total: "12"
-      test-parallel: "8"
 
 # Shared cache baseline: only develop may write; PRs restore it read-only.
 tool-cache:
@@ -125,12 +121,9 @@ tasks:
     after: ${{ rpc-preflight.succeeded || rpc-preflight.skipped }}
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
-      git reset --hard "$CI_COMMIT_SHA"
       git submodule sync --recursive
       git submodule update --init --recursive --jobs 8
       git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
     timeout: 20m
 
   # Producers build an immutable ancestor with identical tracked build inputs.
@@ -369,7 +362,7 @@ tasks:
       target-cache-mode: ${{ init.target-cache-mode }}
 
   # Immutable parent compiler state is reusable by PR readers. Current-source
-  # compilation and every verdict still execute with the current sealed plan.
+  # compilation and every verdict still use the discovery of the current commit.
   - key: compiler-code
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: git/clone 2.2.0
@@ -408,9 +401,6 @@ tasks:
       mise exec -- bash ops/ci/runtime/go-full-tests.sh discover
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
-      CI_BRANCH: compiler-base
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 30m
 
@@ -421,8 +411,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '0'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -433,9 +421,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-1
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -444,8 +429,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '1'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -456,9 +439,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-2
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -467,8 +447,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '2'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -479,9 +457,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-3
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -490,8 +465,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '3'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -502,9 +475,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-4
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -513,8 +483,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '4'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -525,9 +493,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-5
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -536,8 +501,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '5'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -548,9 +511,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-6
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -559,8 +519,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '6'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -571,9 +529,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-7
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -582,8 +537,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '7'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -594,9 +547,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-8
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -605,8 +555,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '8'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -617,9 +565,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-9
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -628,8 +573,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '9'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -640,9 +583,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-10
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -651,8 +591,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '10'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -663,9 +601,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: compiler-seed-11
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -674,8 +609,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '11'
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -686,9 +619,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/full/build]
           system: []
-      artifacts:
-        - key: report
-          path: .ci/go-tests/build/metadata.json
 
   - key: discovery
     use: [go-build-tools, go.build, contracts.build, source]
@@ -699,24 +629,16 @@ tasks:
       git submodule sync --recursive
       git submodule update --init --recursive --jobs 8
       git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
-      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/runtime/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore go .ci/go-tests/dependencies/go
+      python3 ops/ci/runtime/go-artifacts.py restore contracts .ci/go-tests/dependencies/contracts
       mise exec -- bash ops/ci/runtime/go-full-tests.sh discover
     env:
-      CI_BRANCH: ${{ init.branch }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_SHARD_TOTAL: ${{ init.shard-total }}
-      PARALLEL: ${{ init.test-parallel }}
-      GO_ARTIFACT: .ci/go-tests/dependencies/go
-      CONTRACT_ARTIFACT: .ci/go-tests/dependencies/contracts
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/go-tests/manifest.json, .ci/go-tests/go-list.json, .ci/go-tests/all-packages.txt, .ci/go-cache/full/modules, cannon/bin, cannon/multicannon/embeds, cannon/testdata/bin, op-core/superchain/bundle/superchain-configs.zip, packages/contracts-bedrock/cache, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/forge-artifacts, op-deployer/pkg/deployer/artifacts/forge-artifacts]
+          workspace: [.ci/go-tests/manifest.json, .ci/go-cache/full/modules, cannon/bin, cannon/multicannon/embeds, cannon/testdata/bin, op-core/superchain/bundle/superchain-configs.zip, packages/contracts-bedrock/cache, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/forge-artifacts, op-deployer/pkg/deployer/artifacts/forge-artifacts]
           system: []
-      artifacts:
-        - key: discovery
-          path: .ci/go-tests
     filter: ['!.ci/go-cache/full/dependencies']
 
   - key: compile-0
@@ -726,8 +648,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '0'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-0-${{ init.cache-epoch }}
 
@@ -739,8 +659,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '0'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-0-${{ init.cache-epoch }}
 
   - key: compile-1
@@ -750,8 +668,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '1'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-1-${{ init.cache-epoch }}
 
@@ -763,8 +679,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '1'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-1-${{ init.cache-epoch }}
 
   - key: compile-2
@@ -774,8 +688,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '2'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-2-${{ init.cache-epoch }}
 
@@ -787,8 +699,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '2'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-2-${{ init.cache-epoch }}
 
   - key: compile-3
@@ -798,8 +708,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '3'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-3-${{ init.cache-epoch }}
 
@@ -811,8 +719,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '3'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-3-${{ init.cache-epoch }}
 
   - key: compile-4
@@ -822,8 +728,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '4'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-4-${{ init.cache-epoch }}
 
@@ -835,8 +739,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '4'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-4-${{ init.cache-epoch }}
 
   - key: compile-5
@@ -846,8 +748,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '5'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-5-${{ init.cache-epoch }}
 
@@ -859,8 +759,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '5'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-5-${{ init.cache-epoch }}
 
   - key: compile-6
@@ -870,8 +768,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '6'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-6-${{ init.cache-epoch }}
 
@@ -883,8 +779,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '6'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-6-${{ init.cache-epoch }}
 
   - key: compile-7
@@ -894,8 +788,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '7'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-7-${{ init.cache-epoch }}
 
@@ -907,8 +799,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '7'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-7-${{ init.cache-epoch }}
 
   - key: compile-8
@@ -918,8 +808,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '8'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-8-${{ init.cache-epoch }}
 
@@ -931,8 +819,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '8'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-8-${{ init.cache-epoch }}
 
   - key: compile-9
@@ -942,8 +828,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '9'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-9-${{ init.cache-epoch }}
 
@@ -955,8 +839,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '9'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-9-${{ init.cache-epoch }}
 
   - key: compile-10
@@ -966,8 +848,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '10'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-10-${{ init.cache-epoch }}
 
@@ -979,8 +859,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '10'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-10-${{ init.cache-epoch }}
 
   - key: compile-11
@@ -990,8 +868,6 @@ tasks:
     with:
       commit-sha: ${{ init.commit-sha }}
       shard-index: '11'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       build-probe: ${{ init.build-probe }}
       cache-key: go-full-compile-11-${{ init.cache-epoch }}
 
@@ -1003,8 +879,6 @@ tasks:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       shard-index: '11'
-      shard-total: ${{ init.shard-total }}
-      test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-11-${{ init.cache-epoch }}
 
   # op-e2e/actions has its own Circle job (go-actions-tests); list-test-packages
@@ -1046,7 +920,7 @@ tasks:
   - key: main-gate-receipt
     use: [tools, code]
     after: ${{ (actions-verdict.succeeded || actions-verdict.failed || actions-verdict.skipped) && (verdict-0.succeeded || verdict-0.failed || verdict-0.skipped) && (verdict-1.succeeded || verdict-1.failed || verdict-1.skipped) && (verdict-10.succeeded || verdict-10.failed || verdict-10.skipped) && (verdict-11.succeeded || verdict-11.failed || verdict-11.skipped) && (verdict-2.succeeded || verdict-2.failed || verdict-2.skipped) && (verdict-3.succeeded || verdict-3.failed || verdict-3.skipped) && (verdict-4.succeeded || verdict-4.failed || verdict-4.skipped) && (verdict-5.succeeded || verdict-5.failed || verdict-5.skipped) && (verdict-6.succeeded || verdict-6.failed || verdict-6.skipped) && (verdict-7.succeeded || verdict-7.failed || verdict-7.skipped) && (verdict-8.succeeded || verdict-8.failed || verdict-8.skipped) && (verdict-9.succeeded || verdict-9.failed || verdict-9.skipped) }}
-    if: ${{ init.cache-warm != 'true' && init.shard-total == '12' }}
+    if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt main-go
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}

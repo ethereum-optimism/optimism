@@ -40,24 +40,23 @@ class LocalPackageTests(unittest.TestCase):
         self.assertTrue({'!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies', '!.ci/rust-cache', '!rust/target'} <= set(leaf['filter']))
         self.assertEqual(leaf['outputs']['filesystem']['filter']['workspace'], ['.ci/go-cache/full/run'])
 
-    def test_acceptance_keeps_both_variants_and_excludes_discovery_compiler_state(self):
+    def test_acceptance_keeps_both_variants_and_excludes_compiler_state(self):
         graph = tasks('acceptance.yml')
         # Like Circle's memory-all jobs: 4 nodes each, on 32 GiB (2xlarge.gen2).
         self.assertEqual({key for key in graph if key.startswith('verdict-')},
                          {'verdict-' + variant + '-' + str(index)
                           for variant in ('opn', 'kona') for index in range(4)})
         for variant, cl in [('opn', 'op-node'), ('kona', 'kona-node')]:
-            self.assertEqual(graph['discovery-' + variant]['with']['cl-kind'], cl)
             for index in range(4):
                 verdict = graph['verdict-' + variant + '-' + str(index)]
-                self.assertEqual([key for key in verdict['use'] if key.startswith('discovery-')],
-                                 ['discovery-' + variant + '.build'])
-                self.assertEqual(verdict['with']['memory'], '32gb')
+                # The circleci shim gives each shard index its own share of the tests.
+                self.assertEqual((verdict['with']['cl-kind'], verdict['with']['shard-index']), (cl, str(index)))
         leaf = tasks('packages/acceptance-verdict.yml')['run']
         self.assertIs(leaf['cache'], False)
+        self.assertEqual(leaf['runner']['memory'], '32gb')
         # Compiler state stays out; the producer's module cache stays in, as in Circle.
         self.assertTrue({'!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies',
-                         '!.ci/go-cache/acceptance/run', '!.ci/go-cache/acceptance/discover'} <= set(leaf['filter']))
+                         '!.ci/go-cache/acceptance/run'} <= set(leaf['filter']))
         self.assertFalse([rule for rule in leaf['filter']
                           if '.ci/go-cache/full/modules'.startswith(rule.lstrip('!').rstrip('/'))])
         self.assertIn('!.ci/rust-cache', leaf['filter'])

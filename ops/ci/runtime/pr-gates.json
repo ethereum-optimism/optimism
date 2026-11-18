@@ -573,11 +573,9 @@
         "cache-warm": "false",
         "cache-epoch": "v1",
         "build-probe": "",
-        "target-cache-mode": "keep",
-        "shard-total": "12",
-        "test-parallel": "8"
+        "target-cache-mode": "keep"
       },
-      "receipt_if": "${{ init.cache-warm != 'true' && init.shard-total == '12' }}"
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
     },
     "main-acceptance": {
       "config": ".rwx/acceptance.yml",
@@ -589,10 +587,9 @@
         "cache-warm": "false",
         "cache-epoch": "v1",
         "build-probe": "",
-        "target-cache-mode": "keep",
-        "shard-total": "4"
+        "target-cache-mode": "keep"
       },
-      "receipt_if": "${{ init.cache-warm != 'true' && init.shard-total == '4' }}"
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
     },
     "main-cannon": {
       "config": ".rwx/cannon-go.yml",

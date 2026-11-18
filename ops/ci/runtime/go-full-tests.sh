@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Fresh aggregate Go verdicts; reusable compilation lives in a separate task.
+# The Go test workload of .rwx/go-tests.yml: discover the packages, compile one
+# shard's test binaries, or run them. Compilation and the run are separate tasks.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
-export PARALLEL="${PARALLEL:-8}" TEST_TIMEOUT="${TEST_TIMEOUT:-40m}"
-export ENABLE_KURTOSIS=true OP_E2E_CANNON_ENABLED=false OP_E2E_USE_HTTP=true ENABLE_ANVIL=true
-export NAT_INTEROP_LOADTEST_TARGET=10 NAT_INTEROP_LOADTEST_TIMEOUT=30s
+phase="${1:?Expected discover, build or run}"
+# .rwx/go-tests.yml has one compile task and one verdict task per shard.
+shards=12
 # Each phase has its own writable build cache. Test binaries inherit the run
 # cache, module cache and toolchain, e.g. for the deployer CLI's TestMain build.
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
-export GOCACHE="$PWD/.ci/go-cache/full/${1:-run}"
+export GOCACHE="$PWD/.ci/go-cache/full/$phase"
 mkdir -p "$GOMODCACHE" "$GOCACHE"
 # Unlike `go test`, invoking compiled binaries does not replace mise's GOROOT
 # when GOTOOLCHAIN selects the newer version required by go.mod.
@@ -16,65 +17,40 @@ unset GOROOT
 export GOROOT
 GOROOT="$(go env GOROOT)"
 export PATH="$GOROOT/bin:$PATH"
-phase="${1:-run}"
-phase_started="$(date +%s)"
-finish_phase() {
-  local status=$?
-  trap - EXIT
-  if [[ "$phase" == run && -f tmp/testlogs/log.json ]]; then
-    if ! python3 ops/ci/runtime/go-report.py tmp/testlogs/log.json tmp/testlogs/native.json; then
-      [[ "$status" -ne 0 ]] || status=1
-    fi
-  fi
-  python3 - "$phase" "$phase_started" "$status" << 'PYCODE'
-import json, os, sys, time
-from pathlib import Path
-phase, started, status = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
-output = Path('tmp/testlogs') if phase == 'run' else Path('.ci/go-tests') / phase
-output.mkdir(parents=True, exist_ok=True)
-metadata = {'phase': phase, 'started_at_unix': started, 'finished_at_unix': time.time(),
-            'exit_code': status, 'commit_sha': os.environ['CI_COMMIT_SHA'],
-            'shard_index': os.environ.get('CI_SHARD_INDEX'), 'shard_total': os.environ.get('CI_SHARD_TOTAL')}
-(output / 'phase.json').write_text(json.dumps(metadata, indent=2) + '\n')
-PYCODE
-  exit "$status"
-}
-trap finish_phase EXIT
-case "${1:-run}" in
+case "$phase" in
   discover)
-    case "${CI_SHARD_TOTAL:-12}" in 12) ;; *)
-      echo "Full suite requires 12 shards" >&2
-      exit 1
-      ;;
-    esac
-    python3 ops/ci/runtime/go-suite.py discover --suite go-tests --total "${CI_SHARD_TOTAL:-12}" --timings ops/ci/runtime/go-tests-timings.json
+    python3 ops/ci/runtime/go-suite.py --total "$shards" --timings ops/ci/runtime/go-tests-timings.json
     ;;
   build)
-    python3 ops/ci/runtime/go-compiled-tests.py build --suite go-tests
+    python3 ops/ci/runtime/go-compiled-tests.py build
     ;;
   run)
-    mkdir -p tmp/test-results tmp/testlogs/per-test
-    # Compiler ancestry can contain the seed's older discovery layer. Restore
-    # the exact discovery sealed with this shard before selecting or running it.
-    python3 ops/ci/runtime/go-compiled-tests.py restore --suite go-tests
-    cp .ci/go-tests/{manifest.json,go-list.json,all-packages.txt} tmp/testlogs/
-    python3 ops/ci/runtime/go-package-shards.py select --prefix github.com/ethereum-optimism/optimism \
-      --total "$CI_SHARD_TOTAL" --index "$CI_SHARD_INDEX" --manifest .ci/go-tests/manifest.json > tmp/testlogs/packages.txt
+    mkdir -p tmp/test-results tmp/testlogs
+    # Compiler-seed layers can carry an older commit's manifest. Use the one
+    # that this shard's binaries were compiled from.
+    python3 ops/ci/runtime/go-compiled-tests.py restore
+    # The environment and gotestsum options of the `_go-tests-ci-internal`
+    # recipe in the root justfile. The restored `go` dependency already holds
+    # cannon/testdata/bin/hello.64.elf, which the recipe builds at this point.
     export ENABLE_KURTOSIS=true OP_E2E_CANNON_ENABLED=false OP_E2E_USE_HTTP=true ENABLE_ANVIL=true
-    export NAT_INTEROP_LOADTEST_TARGET=10 NAT_INTEROP_LOADTEST_TIMEOUT=30s
+    PARALLEL="$(nproc 2> /dev/null || sysctl -n hw.ncpu 2> /dev/null || echo 4)"
+    export PARALLEL TEST_TIMEOUT="${TEST_TIMEOUT:-40m}"
     export OP_TESTLOG_FILE_LOGGER_OUTDIR="$PWD/tmp/testlogs"
     # shellcheck disable=SC1091
     source ops/scripts/source-ci-archive-rpcs.sh
-    (cd cannon && just diff-hello-elf)
-    python3 ops/ci/runtime/go-compiled-tests.py verify --suite go-tests
-    cp .ci/go-tests/build/metadata.json tmp/testlogs/compilation.json
-    mkdir -p tmp/testlogs/compilation
-    cp .ci/go-tests/build/*.compile.log tmp/testlogs/compilation/ 2> /dev/null || [[ -z "$(cat tmp/testlogs/packages.txt)" ]]
-    # Keep full output in JSON/per-test artifacts without exhausting live-log quotas.
+    export NAT_INTEROP_LOADTEST_TARGET=10 NAT_INTEROP_LOADTEST_TIMEOUT=30s
+    status=0
+    # --format=pkgname keeps full output in the JSON and per-test artifacts
+    # without exhausting live-log quotas.
     ./ops/scripts/gotestsum-split.sh --format=pkgname \
       --junitfile="tmp/test-results/results-${CI_SHARD_INDEX}.xml" --jsonfile=tmp/testlogs/log.json \
       --rerun-fails=3 --rerun-fails-max-failures=50 --raw-command \
-      -- python3 ops/ci/runtime/go-compiled-tests.py run --suite go-tests
+      -- python3 ops/ci/runtime/go-compiled-tests.py run || status=$?
+    # RWX reads the shortened copy. The go-json artifact keeps the complete log.
+    if [[ -f tmp/testlogs/log.json ]]; then
+      python3 ops/ci/runtime/go-report.py tmp/testlogs/log.json tmp/testlogs/native.json || [[ "$status" -ne 0 ]] || status=1
+    fi
+    exit "$status"
     ;;
   *)
     echo 'Expected discover, build or run' >&2

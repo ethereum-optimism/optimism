@@ -2,7 +2,7 @@
 """Compare real reporter fixtures and decode synthetic Go and JUnit edge cases.
 
 The fixtures hold selected real records, not complete runs. The edge-case tests
-are the only direct tests of ops/ci/runtime/ci-test-results.py.
+are the only direct tests of ops/ci/migration/ci-test-results.py.
 """
 import contextlib
 import importlib.util

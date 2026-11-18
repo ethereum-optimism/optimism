@@ -262,8 +262,6 @@ tasks:
       cache-epoch: "v1"
       build-probe: ""
       target-cache-mode: "keep"
-      shard-total: "12"
-      test-parallel: "8"
 
   - key: native-acceptance
     call: ${{ run.dir }}/acceptance.yml
@@ -274,7 +272,6 @@ tasks:
       cache-epoch: "v1"
       build-probe: ""
       target-cache-mode: "keep"
-      shard-total: "4"
 
   - key: native-cannon
     call: ${{ run.dir }}/cannon-go.yml

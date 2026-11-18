@@ -10,8 +10,6 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
 PACKAGE = 'github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base'
-# The recipe names each test's JUnit after "<shard>-<package, / as .>.<test>".
-JUNIT = 'results-0-' + PACKAGE.replace('/', '.') + '.TestOne.xml'
 
 
 @unittest.skipUnless(shutil.which('just'), 'Just required')
@@ -20,32 +18,30 @@ class AcceptanceRunnerTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.reports = self.root / '.ci/acceptance/reports'
         for directory in ['op-acceptance-tests/tests', 'ops/ci/runtime', 'ops/scripts', 'bin']:
             (self.root / directory).mkdir(parents=True)
         justfile = (ROOT / 'op-acceptance-tests/justfile').read_text().splitlines()
         justfile[0] = 'REPO_ROOT := "' + str(self.root) + '"'
         (self.root / 'op-acceptance-tests/justfile').write_text('\n'.join(justfile) + '\n')
-        for name in ['acceptance-tests.sh', 'acceptance-manifest.py', 'acceptance-report.py', 'go-package-shards.py', 'go-report.py']:
-            shutil.copyfile(ROOT / 'ops/ci/runtime' / name, self.root / 'ops/ci/runtime' / name)
+        shutil.copyfile(ROOT / 'ops/ci/runtime/acceptance-tests.sh', self.root / 'ops/ci/runtime/acceptance-tests.sh')
         shutil.copytree(ROOT / 'ops/ci/runtime/acceptance-circleci', self.root / 'ops/ci/runtime/acceptance-circleci')
-        for name in ['gotestsum-split.sh', 'split-test-logs.sh', 'shard-tests.sh']:
+        for name in ['gotestsum-split.sh', 'shard-tests.sh']:
             shutil.copy2(ROOT / 'ops/scripts' / name, self.root / 'ops/scripts' / name)
+        # The real split-test-logs.sh runs `python3 - <file>`. An endpoint security
+        # tool can treat that file as a script, so a laptop run uses a stand-in.
+        # No assertion below reads the per-test logs.
+        stand_in = self.root / 'ops/scripts/split-test-logs.sh'
+        stand_in.write_text('#!/bin/sh\nexit 0\n'); stand_in.chmod(0o755)
         for binary in ['rust/target/release/' + name for name in ['kona-host', 'kona-client', 'kona-node', 'op-zk-proposer', 'op-reth']] \
                 + ['.circleci-cache/rust-binaries/kona-sp1-super-range-executor']:
             path = self.root / binary
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o755)
-        # Discovery lists JSON events; the recipe lists plain names.
-        self.script('go', '''import json, os, sys
+        # The recipe lists plain test names with `go test -list`.
+        self.script('go', '''import os, sys
 p, names = os.environ['FIXTURE_PACKAGE'], os.environ.get('FIXTURE_TESTS', 'TestOne TestTwo').split()
-if sys.argv[1] == 'version': print('go version fixture linux/amd64')
-elif sys.argv[1] == 'env': print('/fixture/go')
-elif sys.argv[1] == 'list': print(json.dumps({'ImportPath': p}))
-elif os.environ.get('DISCOVERY_FAIL'): sys.exit(2)
-elif '-json' in sys.argv:
- for n in names: print(json.dumps({'Action':'output','Package':p,'Output':n+'\\n'}))
- print(json.dumps({'Action':'pass','Package':p}))
+if sys.argv[1] == 'env': print('/fixture/go')
+elif os.environ.get('LISTING_FAIL'): sys.exit(2)
 else: print('\\n'.join(names) + '\\nok  \\t' + p + '\\t0.01s')
 ''')
         self.script('gotestsum', '''import json, os, re, sys
@@ -69,47 +65,41 @@ sys.exit(status)
         self.script('geth', "print('Geth fixture pinned version')")
         self.script('mise', "import os; print(os.environ['FIXTURE_GETH'])")
         self.env = {**os.environ, 'PATH': str(self.root / 'bin') + ':' + os.environ['PATH'],
-                    'CI_COMMIT_SHA': 'a'*40, 'CI_SHARD_INDEX': '0', 'CI_SHARD_TOTAL': '4',
-                    'CI_ACCEPTANCE_DISCOVERY': str(self.root / '.ci/acceptance/discovery'),
-                    'FIXTURE_PACKAGE': PACKAGE, 'FIXTURE_ARGS': str(self.root / 'args.json'),
-                    'FIXTURE_GETH': str(self.root / 'bin/geth')}
+                    'CI_SHARD_INDEX': '0', 'FIXTURE_PACKAGE': PACKAGE,
+                    'FIXTURE_ARGS': str(self.root / 'args.json'), 'FIXTURE_GETH': str(self.root / 'bin/geth')}
 
     def script(self, name, body):
         path = self.root / 'bin' / name
         path.write_text('#!' + shutil.which('python3') + '\n' + body)
         path.chmod(0o755)
 
-    def wrapper(self, phase, **env):
-        return subprocess.run(['bash', str(self.root / 'ops/ci/runtime/acceptance-tests.sh'), phase],
+    def wrapper(self, **env):
+        return subprocess.run(['bash', str(self.root / 'ops/ci/runtime/acceptance-tests.sh')],
                               env={**self.env, **env}, text=True, capture_output=True)
 
-    def verdict(self, index, **env):
-        discovery = self.wrapper('discover')
-        self.assertEqual(discovery.returncode, 0, discovery.stderr)
-        return self.wrapper('run', CI_SHARD_INDEX=str(index), **env)
-
-    def test_static_workflow_rejects_an_unsupported_shard_total(self):
-        result = self.wrapper('discover', CI_SHARD_TOTAL='9')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('exactly four shards', result.stderr)
-        self.assertFalse((self.root / '.ci/acceptance/discovery').exists())
+    def split(self, listed, index, total):
+        shim = self.root / 'ops/ci/runtime/acceptance-circleci/circleci'
+        result = subprocess.run([str(shim), 'tests', 'split', '--split-by=timings', '--timings-type=testname', '--time-default=1m', str(listed)],
+                                env={**self.env, 'CIRCLE_NODE_INDEX': str(index), 'CIRCLE_NODE_TOTAL': str(total)},
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.splitlines()
 
     def test_runtime_supplies_verified_rust_paths_and_pinned_geth(self):
-        (self.root / 'ops/ci/runtime/acceptance-report.py').write_text('')
         self.script('just', "import json, os; from pathlib import Path; Path(os.environ['FIXTURE_ARGS']).write_text(json.dumps({k:v for k,v in os.environ.items() if k.startswith('RUST_BINARY_PATH_')}))")
-        result = self.wrapper('run')
+        result = self.wrapper()
         self.assertEqual(result.returncode, 0, result.stderr)
         paths = json.loads((self.root / 'args.json').read_text())
         self.assertEqual(len(paths), 6)
         self.assertTrue(all(Path(value).is_file() for value in paths.values()))
         (self.root / 'args.json').unlink()
         (self.root / 'bin/geth').unlink()
-        missing = self.wrapper('run')
+        missing = self.wrapper()
         self.assertNotEqual(missing.returncode, 0)
         self.assertFalse((self.root / 'args.json').exists())
 
-    def test_verdict_runs_only_its_assignment_with_fresh_flags(self):
-        result = self.verdict(0)
+    def test_verdict_runs_only_its_shard_and_writes_the_reports_that_rwx_collects(self):
+        result = self.wrapper()
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         # CircleCI's memory-all jobs run 16 tests at once on each of 4 nodes.
         self.assertIn('TEST JOBS: 16\n', result.stdout)
@@ -117,33 +107,38 @@ sys.exit(status)
         args = json.loads((self.root / 'args.json').read_text())
         self.assertIn('-count=1', args)
         self.assertEqual(args[args.index('-run') + 1:], ['^TestOne$', PACKAGE])
-        coverage = json.loads((self.reports / 'coverage.json').read_text())
-        self.assertEqual((coverage['expected'], coverage['observed']), (1, 1))
-        for name in ['original.json', 'native.json', 'junit/' + JUNIT]:
-            self.assertTrue((self.reports / name).is_file(), name)
+        # The verdict task's outputs name the files that the recipe writes.
+        definition = json.loads(subprocess.check_output(
+            ['yq', '-o=json', '.', str(ROOT / '.rwx/packages/acceptance-verdict.yml')], text=True))
+        outputs = definition['tasks'][0]['outputs']
+        junit = list(self.root.glob(outputs['test-results'][0]['path']))
+        self.assertEqual([path.name for path in junit], ['results-0-' + PACKAGE.replace('/', '.') + '.TestOne.xml'])
+        self.assertTrue(list((self.root / outputs['artifacts'][0]['path']).glob('testrun-*/all.log')))
 
-    def test_failing_verdict_preserves_status_and_original_reports(self):
-        result = self.verdict(0, VERDICT_STATUS='1')
+    def test_failing_verdict_fails_the_wrapper(self):
+        result = self.wrapper(VERDICT_STATUS='1')
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(json.loads((self.reports / 'coverage.json').read_text())['missing'], [])
-        self.assertIn('"fail"', (self.reports / 'original.json').read_text())
-        self.assertTrue((self.reports / 'junit' / JUNIT).is_file())
+        self.assertTrue((self.root / 'args.json').exists())
+
+    def test_shim_gives_every_listed_name_to_exactly_one_shard(self):
+        listed = self.root / 'listed.txt'
+        for count in (1, 4, 7):
+            names = ['Test%02d' % number for number in range(count)]
+            listed.write_text(''.join(name + '\n' for name in names))
+            for total in (2, 4):
+                with self.subTest(count=count, total=total):
+                    shards = [self.split(listed, index, total) for index in range(total)]
+                    self.assertEqual(sorted(name for shard in shards for name in shard), names)
 
     def test_empty_shard_fails_without_running_tests(self):
         # The recipe treats an empty shard as a failed split.
-        result = self.verdict(3)
+        result = self.wrapper(CI_SHARD_INDEX='3')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('no tests assigned', result.stdout + result.stderr)
         self.assertFalse((self.root / 'args.json').exists())
 
-    def test_listing_that_differs_from_discovery_never_runs_verdict(self):
-        result = self.verdict(0, FIXTURE_TESTS='TestOne TestTwo TestNew')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('differs from acceptance discovery', result.stderr)
-        self.assertFalse((self.root / 'args.json').exists())
-
     def test_listing_failure_never_runs_verdict(self):
-        result = self.verdict(0, DISCOVERY_FAIL='1')
+        result = self.wrapper(LISTING_FAIL='1')
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.root / 'args.json').exists())
 

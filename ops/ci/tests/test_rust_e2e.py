@@ -117,8 +117,7 @@ class LiveE2ETests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        for name in ('rust-e2e.py', 'rust-e2e.sh', 'go-compiled-tests.py', 'go-package-shards.py', 'go-suite.py',
-                     'rust-workspace-report.py', 'ci-report.py', 'go-report.py'):
+        for name in ('rust-e2e.py', 'rust-e2e.sh', 'go-compiled-tests.py', 'rust-workspace-report.py', 'ci-report.py', 'go-report.py'):
             path = self.root / 'ops/ci/runtime' / name; path.parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(SCRIPTS / name, path)
         path = self.root / 'ops/scripts/split-test-logs.sh'; path.parent.mkdir(); shutil.copyfile(SCRIPTS.parents[1] / 'scripts/split-test-logs.sh', path)
         (self.root / 'go.mod').write_text('module github.com/ethereum-optimism/optimism\n\ngo 1.24.0\n')

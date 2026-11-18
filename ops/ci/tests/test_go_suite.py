@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Authoritative selection, tagged discovery and effective settings evidence."""
+"""Check the manifest that Go discovery writes."""
 
 import importlib.util
 import json
@@ -13,44 +13,55 @@ from unittest.mock import patch
 SPEC = importlib.util.spec_from_file_location("suite", Path(__file__).resolve().parents[1] / 'runtime' / 'go-suite.py')
 SUITE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SUITE)
+MODULE = "github.com/ethereum-optimism/optimism"
 
 
 class GoSuiteTest(unittest.TestCase):
     def setUp(self):
-        self.packages = [SUITE.MODULE + "/op-batcher", SUITE.MODULE + "/op-e2e"]
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.timings = self.root / "timings.json"
+        self.timings.write_text(json.dumps({"packages": {MODULE + "/op-e2e": 60, MODULE + "/op-batcher": 1}}))
+        self.objects = [{"ImportPath": MODULE + "/op-batcher", "TestGoFiles": ["batcher_test.go"]},
+                        {"ImportPath": MODULE + "/op-e2e", "XTestGoFiles": ["e2e_test.go"]},
+                        {"ImportPath": MODULE + "/op-service/mocks", "GoFiles": ["mocks.go"]}]
+        self.calls = []
 
-    def test_tagged_discovery_must_exactly_match_selection(self):
-        source = "\n".join(json.dumps({"ImportPath": p}) for p in reversed(self.packages))
-        self.assertEqual(SUITE.validate_discovery(self.packages, source, SUITE.MODULE), self.packages)
-        for selected in (self.packages[:1], self.packages + [SUITE.MODULE + "/new"], self.packages * 2):
-            with self.subTest(selected=selected), self.assertRaises(ValueError):
-                SUITE.validate_discovery(selected, source, SUITE.MODULE)
-        broken = json.dumps({"ImportPath": self.packages[0], "DepsErrors": [{"Err": "missing bundle"}]})
-        with self.assertRaises(ValueError):
-            SUITE.validate_discovery(self.packages[:1], broken, SUITE.MODULE)
+    def discover(self, total, selected=None, objects=None):
+        outputs = {"just": "\n".join(self.packages() if selected is None else selected) + "\n",
+                   "go": "\n".join(json.dumps(item) for item in (self.objects if objects is None else objects))}
+        def command(argv, **_):
+            self.calls.append(argv)
+            return outputs[argv[0]]
+        with patch.object(SUITE, "ROOT", self.root), patch.object(SUITE.subprocess, "check_output", side_effect=command), \
+                patch.dict(os.environ, {"CI_COMMIT_SHA": "a" * 40}):
+            SUITE.discover(total, self.timings)
+        return json.loads((self.root / ".ci/go-tests/manifest.json").read_text())
 
-    def test_independent_test_concurrency_is_retained(self):
-        for parallel in (8, 16, 32):
-            with patch.dict(os.environ, {"PARALLEL": str(parallel)}):
-                self.assertEqual(SUITE.settings()["parallel"], parallel)
+    def packages(self):
+        return [item["ImportPath"] for item in self.objects]
 
-    def test_discovery_retains_fresh_selection_settings_and_no_secret_values(self):
-        source = "\n".join(json.dumps({"ImportPath": p}) for p in self.packages)
-        outputs = {"list-test-packages": "\n".join(self.packages) + "\n", "list": source, "version": "go version fixture"}
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            with patch.object(SUITE, "ROOT", root), patch.object(SUITE, "go_environment", return_value={"GOOS": "linux"}), \
-                    patch.object(SUITE.subprocess, "check_output", side_effect=lambda argv, **_: outputs[argv[1]]), \
-                    patch.dict(os.environ, {"CI_COMMIT_SHA": "a" * 40, "CI_BRANCH": "feature/example", "PARALLEL": "8",
-                                            "TEST_TIMEOUT": "40m", "OP_CI_MAINNET_L1_ARCHIVE_RPC_URL": "secret-fixture-never-retained"}):
-                SUITE.discover("go-tests", "1", None)
-            text = (root / ".ci/go-tests/manifest.json").read_text()
-            manifest = json.loads(text)
-            self.assertEqual(manifest["packages"], self.packages)
-            self.assertEqual((root / ".ci/go-tests/all-packages.txt").read_text().splitlines(), self.packages)
-            self.assertEqual((manifest["branch"], manifest["settings"]["count"], manifest["settings"]["short"]), ("feature/example", 1, False))
-            self.assertEqual(manifest["settings"]["parallel"], 8)
-            self.assertNotIn("secret-fixture", text)
+    def test_manifest_holds_the_commit_every_package_once_and_the_packages_without_tests(self):
+        manifest = self.discover(2)
+        self.assertEqual(set(manifest), {"commit_sha", "shards", "no_tests"})
+        self.assertEqual(manifest["commit_sha"], "a" * 40)
+        # The 60-second package gets a shard of its own.
+        self.assertEqual(manifest["shards"], [[MODULE + "/op-e2e"], [MODULE + "/op-batcher", MODULE + "/op-service/mocks"]])
+        self.assertEqual(manifest["no_tests"], [MODULE + "/op-service/mocks"])
+
+    def test_discovery_lists_the_recipe_selection_with_the_ci_tag(self):
+        self.discover(1)
+        self.assertEqual(self.calls, [["just", "list-test-packages"],
+                                      ["go", "list", "-e", "-tags=ci", "-json", *self.packages()]])
+
+    def test_empty_selection_and_go_list_errors_fail(self):
+        with self.assertRaisesRegex(ValueError, "no packages"):
+            self.discover(1, selected=[])
+        broken = [{"ImportPath": MODULE + "/op-batcher", "DepsErrors": [{"Err": "missing bundle"}]}]
+        with self.assertRaisesRegex(ValueError, "go list reported an error"):
+            self.discover(1, objects=broken)
+        self.assertFalse((self.root / ".ci/go-tests/manifest.json").exists())
 
 
 if __name__ == "__main__":

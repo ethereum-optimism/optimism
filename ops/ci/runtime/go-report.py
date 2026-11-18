@@ -2,7 +2,6 @@
 """Produce a bounded native Go report while retaining the original JSON unchanged."""
 import argparse
 from collections import deque
-import hashlib
 import json
 from pathlib import Path
 
@@ -26,13 +25,10 @@ def project(source, destination):
     # Retain failure and skip messages from every attempt, including recovered failures.
     interesting = {key(e) for e in events(source) if e['Action'] in ('fail', 'skip')}
     buffered, sizes, truncated = {}, {}, set()
-    original_count = reported_count = 0
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open('w') as output:
         def emit(event):
-            nonlocal reported_count
             output.write(json.dumps(event, separators=(',', ':')) + '\n')
-            reported_count += 1
 
         def flush(identity, terminal):
             if identity in truncated:
@@ -43,7 +39,6 @@ def project(source, destination):
             truncated.discard(identity)
 
         for event in events(source):
-            original_count += 1
             identity = key(event)
             if event['Action'] == 'output':
                 if identity not in interesting:
@@ -67,13 +62,6 @@ def project(source, destination):
         for identity, queue in list(buffered.items()):
             if queue:
                 flush(identity, queue[-1])
-    with source.open('rb') as stream:
-        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-    destination.with_suffix('.metadata.json').write_text(json.dumps({
-        'original_sha256': digest, 'original_events': original_count,
-        'native_events': reported_count, 'output_limit_bytes_per_attempt': LIMIT,
-        'rule': 'all non-output events; bounded output for every failed or skipped case/package'
-    }, indent=2) + '\n')
 
 
 if __name__ == '__main__':

@@ -18,7 +18,7 @@ class GateTests(unittest.TestCase):
     def setUp(self):
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);self.root=Path(temp.name)
         manifest=G.read(G.MANIFEST)
-        names={'ops/ci/runtime/pr-gates.json','ops/ci/runtime/pr-gate.py','ops/ci/runtime/main-checks.py','ops/ci/runtime/pr-checks.py','ops/ci/runtime/rust-workspace-report.py','ops/ci/runtime/ci-report.py'}
+        names={'ops/ci/runtime/pr-gates.json','ops/ci/runtime/pr-gate.py','ops/ci/runtime/rust-workspace-report.py','ops/ci/runtime/ci-report.py'}
         names|={row['config'] for row in manifest['groups'].values()}
         names|={row['native_config'] for row in manifest['gates'].values()}
         names|={str(path.relative_to(G.ROOT)) for path in (G.ROOT/'.rwx/packages').glob('*.yml')}
@@ -267,8 +267,7 @@ class GateTests(unittest.TestCase):
 
     def test_main_mode_and_freshness_cannot_hide_partial_or_reused_verdicts(self):
         path=self.root/self.selection['native_config'];source=path.read_text()
-        for old,new in [('shard-total: "12"','shard-total: "24"'),
-                        ('shard-total: "4"','shard-total: "8"')]:
+        for old,new in [('cache-epoch: "v1"','cache-epoch: "v2"')]:
             path.write_text(source.replace(old,new,1))
             with self.subTest(new=new),self.assertRaisesRegex(ValueError,'mode'):G.configuration('ci-gate')
         path.write_text(source)

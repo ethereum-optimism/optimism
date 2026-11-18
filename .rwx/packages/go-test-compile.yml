@@ -4,10 +4,6 @@ package:
       required: true
     shard-index:
       required: true
-    shard-total:
-      required: true
-    test-parallel:
-      required: true
     build-probe:
       required: true
     cache-key:
@@ -25,8 +21,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_SHARD_INDEX: ${{ params.shard-index }}
-      CI_SHARD_TOTAL: ${{ params.shard-total }}
-      PARALLEL: ${{ params.test-parallel }}
       BUILD_PROBE: ${{ params.build-probe }}
     tool-cache: ${{ params.cache-key }}
     timeout: 60m
@@ -38,6 +32,3 @@ tasks:
         filter:
           workspace: [.ci/go-tests/build]
           system: []
-      artifacts:
-        - key: binaries
-          path: .ci/go-tests/build
