@@ -193,7 +193,7 @@ docker compose logs op-node | grep -E "Sync progress|Finished EL sync"
 
 ## Bootstrap from a snapshot
 
-Syncing from scratch is fine for OP Sepolia (~30–50 GB, hours) but slow for OP Mainnet (days). For Mainnet — or anytime you'd rather skip the initial sync — bootstrap op-reth from a pre-synced snapshot. Optimism publishes OP Mainnet `op-reth` snapshots in two sync types: full (pruned to the last 30 days, about 1.3 TB zstd-compressed) and archive (complete history, about 1.7 TB zstd-compressed). The extracted data directory is larger than the download, and you need room for both during the restore, so check the current size on the snapshot site before downloading.
+Syncing from scratch is fine for OP Sepolia (hours) but slow for OP Mainnet (days). For Mainnet — or anytime you'd rather skip the initial sync — bootstrap op-reth from a pre-synced snapshot. Optimism publishes `op-reth` snapshots in two sync types: full (pruned to the last 30 days) and archive (complete history). Current zstd-compressed download sizes are about 1.3 TB (full) and 1.7 TB (archive) for OP Mainnet, and about 265 GB (full) and 262 GB (archive) for OP Sepolia. The extracted data directory is larger than the download, and you need room for both during the restore, so check the current size on the snapshot site before downloading.
 
 <Info>
   For OP Mainnet, a snapshot also handles the pre-Bedrock state requirement (see the warning at the top of this page) in one step.

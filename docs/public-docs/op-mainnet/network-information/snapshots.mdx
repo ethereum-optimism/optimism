@@ -35,7 +35,7 @@ The site currently offers snapshots for the networks below. The list on [snapsho
 | Network | Client | Sync types |
 | ------- | ------ | ---------- |
 | OP Mainnet | `op-reth` (storage v2) | Full (pruned to the last 30 days of state and history) and archive (unpruned, complete state and history) |
-| OP Sepolia | `op-reth` | See [snapshots.optimism.io](https://snapshots.optimism.io/) |
+| OP Sepolia | `op-reth` | Full (pruned to the last 30 days of state and history) and archive (unpruned, complete state and history) |
 | Ink Mainnet | `op-reth` | See [snapshots.optimism.io](https://snapshots.optimism.io/) |
 | Ink Sepolia | `op-reth` | See [snapshots.optimism.io](https://snapshots.optimism.io/) |
 | Collect Chain Testnet | `op-reth` | See [snapshots.optimism.io](https://snapshots.optimism.io/) |
@@ -53,7 +53,12 @@ Each snapshot is a data directory from an OP Mainnet `op-reth` node that has alr
 
 ### OP Sepolia
 
-OP Sepolia `op-reth` snapshots are published on [snapshots.optimism.io](https://snapshots.optimism.io/).
+OP Sepolia `op-reth` snapshots are published on [snapshots.optimism.io](https://snapshots.optimism.io/) in the same two sync types:
+
+*   **Full**: pruned to the last 30 days of state and history. About 265 GB compressed.
+*   **Archive**: unpruned, with complete state and history. About 262 GB compressed.
+
+As with OP Mainnet, the extracted data directory is larger than the compressed download.
 OP Sepolia does not require a snapshot: `op-reth` can bootstrap with execution-layer sync from an empty data directory.
 
 ### Storage v1 snapshots
