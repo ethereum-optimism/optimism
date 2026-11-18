@@ -244,8 +244,8 @@ pub fn validate_op_version_specific_fields<ChainSpec: OpHardforks>(
 /// The gas limit, EIP-1559 and minimum base fee checks fail with
 /// [`EngineObjectValidationError::InvalidParams`], which the engine API answers with `-32602`.
 /// The version-specific checks answer with `-38003` (invalid payload attributes) or `-38005`, as
-/// the engine API spec requires. op-node retries a call that fails with `-32602`, so a fork
-/// schedule mismatch stalls it instead of changing what it derives.
+/// the engine API spec requires. op-node retries a call that fails with `-32602`, so a Holocene
+/// or Jovian schedule mismatch stalls it instead of changing what it derives.
 pub fn ensure_well_formed_payload_attributes<ChainSpec: OpHardforks>(
     chain_spec: &ChainSpec,
     version: EngineApiMessageVersion,
