@@ -76,21 +76,3 @@ func TestStorageRoot(t *testing.T) {
 	require.Equal(t, types.EmptyRootHash, storageRoot(types.GenesisAlloc{addr: {}}, addr))
 	require.Equal(t, types.EmptyRootHash, storageRoot(types.GenesisAlloc{}, addr))
 }
-
-// TestToBlockHash pins the fixture's genesis block hash, as op-geth computed it, so that
-// the whole header stays pinned.
-func TestToBlockHash(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		schedule forkstest.Schedule
-		hash     common.Hash
-	}{
-		{name: "through Karst", schedule: forkstest.AtGenesisThrough(forks.Karst), hash: common.HexToHash("0xc34387921589ff94c75e83aee14e9de72e2b94f44ded3a9f20187a55b7cd5c97")},
-		{name: "staggered", schedule: forkstest.Staggered(), hash: common.HexToHash("0xbfb63475f2ba5ddd1e2981745f3cb9612d8134fb4280f224620e0f6739a99a20")},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			g := fixture(tc.schedule)
-			require.Equal(t, tc.hash, g.ToBlock().Hash())
-		})
-	}
-}

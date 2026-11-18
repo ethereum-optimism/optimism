@@ -77,22 +77,27 @@ type txRollupCostDataVector struct {
 	want RollupCostData
 }
 
-// txRollupCostDataTestKey signs the signed transactions of txRollupCostDataVectors.
-// Signatures are deterministic (RFC 6979), so the cost data is too.
+// txRollupCostDataTestKey signs the signed transactions of this file. Signatures are
+// deterministic (RFC 6979), so the values computed from the signed encodings are too.
 const txRollupCostDataTestKey = "b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291"
 
-// txRollupCostDataVectors covers every transaction type a user can send, unsigned and
-// signed. The cost data is that of the whole binary-encoded transaction, signature
-// included, not of its calldata alone.
-func txRollupCostDataVectors(t *testing.T) []txRollupCostDataVector {
+func signTestTx(t *testing.T, signer types.Signer, txdata types.TxData) *types.Transaction {
 	t.Helper()
 	key, err := crypto.HexToECDSA(txRollupCostDataTestKey)
 	require.NoError(t, err)
+	tx, err := types.SignNewTx(key, signer, txdata)
+	require.NoError(t, err)
+	return tx
+}
+
+// txRollupCostDataVectors covers every transaction type a user can send on an L2, unsigned,
+// as fee estimation sees it, and signed. The cost data is that of the whole binary-encoded
+// transaction, signature included, not of its calldata alone.
+func txRollupCostDataVectors(t *testing.T) []txRollupCostDataVector {
+	t.Helper()
 	chainID := big.NewInt(10)
 	sign := func(signer types.Signer, txdata types.TxData) *types.Transaction {
-		tx, err := types.SignNewTx(key, signer, txdata)
-		require.NoError(t, err)
-		return tx
+		return signTestTx(t, signer, txdata)
 	}
 	latest := types.LatestSignerForChainID(chainID)
 
@@ -105,8 +110,6 @@ func txRollupCostDataVectors(t *testing.T) []txRollupCostDataVector {
 	dynamicFee := &types.DynamicFeeTx{ChainID: chainID, Nonce: 3, GasTipCap: big.NewInt(2), GasFeeCap: big.NewInt(5), Gas: 60000, To: &to, Value: big.NewInt(7), Data: mixedData}
 	setCode := &types.SetCodeTx{ChainID: uint256.NewInt(10), Nonce: 4, GasTipCap: uint256.NewInt(2), GasFeeCap: uint256.NewInt(5), Gas: 60000, To: to, Value: uint256.NewInt(0), Data: mixedData,
 		AuthList: []types.SetCodeAuthorization{{ChainID: *uint256.NewInt(10), Address: to, Nonce: 5}}}
-	blob := &types.BlobTx{ChainID: uint256.NewInt(10), Nonce: 5, GasTipCap: uint256.NewInt(2), GasFeeCap: uint256.NewInt(5), Gas: 21000, To: to, Value: uint256.NewInt(0), Data: mixedData,
-		BlobFeeCap: uint256.NewInt(3), BlobHashes: []common.Hash{{0x01}}}
 
 	return []txRollupCostDataVector{
 		{name: "legacy without data", tx: types.NewTx(legacy), want: RollupCostData{Zeroes: 0, Ones: 32, FastLzSize: 33}},
@@ -114,13 +117,11 @@ func txRollupCostDataVectors(t *testing.T) []txRollupCostDataVector {
 		{name: "access list", tx: types.NewTx(accessList), want: RollupCostData{Zeroes: 36, Ones: 66, FastLzSize: 63}},
 		{name: "dynamic fee", tx: types.NewTx(dynamicFee), want: RollupCostData{Zeroes: 5, Ones: 40, FastLzSize: 47}},
 		{name: "set code", tx: types.NewTx(setCode), want: RollupCostData{Zeroes: 5, Ones: 69, FastLzSize: 59}},
-		{name: "blob", tx: types.NewTx(blob), want: RollupCostData{Zeroes: 36, Ones: 45, FastLzSize: 59}},
 		{name: "signed legacy without EIP-155", tx: sign(types.HomesteadSigner{}, legacyWithData), want: RollupCostData{Zeroes: 5, Ones: 101, FastLzSize: 110}},
 		{name: "signed EIP-155 legacy", tx: sign(types.NewEIP155Signer(chainID), legacyWithData), want: RollupCostData{Zeroes: 5, Ones: 101, FastLzSize: 110}},
 		{name: "signed access list", tx: sign(latest, accessList), want: RollupCostData{Zeroes: 36, Ones: 130, FastLzSize: 127}},
 		{name: "signed dynamic fee", tx: sign(latest, dynamicFee), want: RollupCostData{Zeroes: 5, Ones: 105, FastLzSize: 114}},
 		{name: "signed set code", tx: sign(latest, setCode), want: RollupCostData{Zeroes: 5, Ones: 133, FastLzSize: 125}},
-		{name: "signed blob", tx: sign(latest, blob), want: RollupCostData{Zeroes: 36, Ones: 109, FastLzSize: 123}},
 	}
 }
 
@@ -212,13 +213,15 @@ func l1AttributesDeposit(t *testing.T, data []byte) hexutil.Bytes {
 	})
 }
 
-// encodedUserTxs returns the binary encodings of the transactions of
-// txRollupCostDataVectors.
+// encodedUserTxs returns the binary encodings of the signed transactions of
+// txRollupCostDataVectors: only a signed transaction can be in a block.
 func encodedUserTxs(t *testing.T) []hexutil.Bytes {
 	t.Helper()
 	var txs []hexutil.Bytes
 	for _, v := range txRollupCostDataVectors(t) {
-		txs = append(txs, encodeTx(t, v.tx))
+		if _, r, _ := v.tx.RawSignatureValues(); r.Sign() != 0 {
+			txs = append(txs, encodeTx(t, v.tx))
+		}
 	}
 	return txs
 }
@@ -236,7 +239,7 @@ func daFootprintVectors(t *testing.T) []daFootprintVector {
 		largeData = append(largeData, crypto.Keccak256([]byte{i})...)
 	}
 	to := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
-	largeTx := encodeTx(t, types.NewTx(&types.DynamicFeeTx{ChainID: big.NewInt(10), Nonce: 6, GasTipCap: big.NewInt(2), GasFeeCap: big.NewInt(5), Gas: 100_000, To: &to, Data: largeData}))
+	largeTx := encodeTx(t, signTestTx(t, types.LatestSignerForChainID(big.NewInt(10)), &types.DynamicFeeTx{ChainID: big.NewInt(10), Nonce: 6, GasTipCap: big.NewInt(2), GasFeeCap: big.NewInt(5), Gas: 100_000, To: &to, Data: largeData}))
 
 	return []daFootprintVector{
 		{name: "no txs", wantErr: "missing deposit transaction"},
@@ -246,12 +249,12 @@ func daFootprintVectors(t *testing.T) []daFootprintVector {
 		{name: "isthmus attributes, user txs", txs: block(isthmusL1AttributesData(), userTxs...), wantErr: "unexpected non-deposit transactions in Jovian activation block"},
 		{name: "jovian attributes, deposit only", txs: block(jovianL1AttributesData(400))},
 		{name: "jovian attributes, single legacy tx", txs: block(jovianL1AttributesData(400), userTxs[0]), want: 40_000},
-		{name: "jovian attributes, mixed user txs", txs: block(jovianL1AttributesData(400), userTxs...), want: 480_000},
-		{name: "jovian attributes, extra deposit and user txs", txs: block(jovianL1AttributesData(400), append([]hexutil.Bytes{secondDeposit}, userTxs...)...), want: 480_000},
+		{name: "jovian attributes, mixed user txs", txs: block(jovianL1AttributesData(400), userTxs...), want: 200_000},
+		{name: "jovian attributes, extra deposit and user txs", txs: block(jovianL1AttributesData(400), append([]hexutil.Bytes{secondDeposit}, userTxs...)...), want: 200_000},
 		{name: "jovian attributes, zero scalar", txs: block(jovianL1AttributesData(0), userTxs...)},
-		{name: "jovian attributes, scalar one", txs: block(jovianL1AttributesData(1), userTxs...), want: 1200},
-		{name: "jovian attributes, max scalar", txs: block(jovianL1AttributesData(math.MaxUint16), userTxs...), want: 78_642_000},
-		{name: "jovian attributes, tx above the minimum size", txs: block(jovianL1AttributesData(400), userTxs[0], largeTx), want: 214_000},
+		{name: "jovian attributes, scalar one", txs: block(jovianL1AttributesData(1), userTxs...), want: 500},
+		{name: "jovian attributes, max scalar", txs: block(jovianL1AttributesData(math.MaxUint16), userTxs...), want: 32_767_500},
+		{name: "jovian attributes, tx above the minimum size", txs: block(jovianL1AttributesData(400), userTxs[0], largeTx), want: 236_000},
 		{name: "jovian attributes, wrong selector", txs: block(isthmusSelectorJovianL1AttributesData(), userTxs...), wantErr: "L1 attributes transaction data does not have Jovian selector"},
 		{name: "jovian attributes, truncated", txs: block(make([]byte, 100), userTxs...), wantErr: "L1 attributes transaction data too short for DA footprint gas scalar: 100"},
 	}
