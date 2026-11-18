@@ -1057,9 +1057,10 @@ jobs:
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
-  # Full build, tests included, for the contracts-bedrock-tests jobs that set
-  # attach_build. Kept separate from contracts-bedrock-build so the two never
-  # persist the same workspace paths into one workflow.
+  # Full build, tests included, for the contracts-bedrock-tests and
+  # contracts-bedrock-tests-upgrade jobs that set attach_build. Kept separate
+  # from contracts-bedrock-build so the two never persist the same workspace
+  # paths into one workflow.
   contracts-bedrock-build-tests:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -1314,6 +1315,13 @@ jobs:
           "INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
+      attach_build:
+        description: >-
+          Attach the build persisted by an upstream contracts-bedrock-build-tests
+          job, so forge test reuses it instead of compiling. The job must require
+          that build, and its profile must match test_profile.
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
@@ -1321,6 +1329,11 @@ jobs:
       - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - when:
+          condition: << parameters.attach_build >>
+          steps:
+            - attach_workspace:
+                at: .
       - go-restore-cache:
           namespace: contracts-bedrock-tests-upgrade
       - install-contracts-dependencies
@@ -3301,8 +3314,8 @@ workflows:
             branches:
               ignore: develop
       # On develop, run tests with ci profile to mirror production. Build once
-      # and share it through the workspace, so the matrix entries don't each
-      # compile the same artifacts.
+      # and share it through the workspace, so the matrix entries and the
+      # develop upgrade tests don't each compile the same artifacts.
       - contracts-bedrock-build-tests:
           name: contracts-bedrock-build-tests-develop
           profile: ci
@@ -3380,14 +3393,16 @@ workflows:
       # On develop, run upgrade tests with ci profile to mirror production. No
       # BRIDGE_HOOK job: its extra tests deploy a new chain through the OPCM
       # instead of upgrading the forked one, and contracts-bedrock-tests-develop
-      # BRIDGE_HOOK runs them with the ci profile.
+      # BRIDGE_HOOK runs them with the ci profile. Reuse the shared ci build.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade-develop <<matrix.fork_op_chain>>-mainnet
           requires:
             - prep-go-modules
+            - contracts-bedrock-build-tests-develop
           fork_op_chain: <<matrix.fork_op_chain>>
           fork_base_chain: mainnet
           test_profile: ci
+          attach_build: true
           matrix:
             parameters:
               fork_op_chain: ["op", "ink", "unichain"]
