@@ -138,6 +138,42 @@ For those, compare the task's command and its conclusion.
 Compare wall time and cost per workload, including setup and cache transfer,
 rather than per test.
 
+## Speed and cost
+
+RWX bills each vCPU by the second. A larger runner costs the same for the same
+work only when the task uses its CPUs. Choose a runner size, a shard count and
+a cache key for RWX from a measurement on RWX. A CircleCI resource class or
+`parallelism` value is not a default. The largest runner that this RWX
+organization can start has 16 CPUs.
+
+- **Dependency builds.** `ops/ci/runtime/go-dependency-source.py plan` names,
+  for each dependency, the commit that last changed its build inputs. The
+  dependencies are the Go dependency, the contracts, kona, op-reth, the SP1
+  executor, the prestate and the Go compiler seed. Every workload builds a
+  dependency from `.rwx/packages/dependency-source.yml` at that commit, with the
+  same tool tasks. The build then has one cache key: a later commit that leaves
+  the inputs unchanged reuses it, and so do the other workloads of the run.
+  Before a task restores an output, `go-artifacts.py` checks that the inputs
+  equal those of the task's commit. `SCOPES` in the script lists the inputs;
+  add a file there when a build starts to read it. `.rwx` is not an input,
+  because RWX's own cache key covers a task's definition.
+  `test_rwx_local_packages.py` fails when a workload builds a dependency in
+  another way.
+- **Rust baselines.** `ops/ci/runtime/rust-target-cache.py base` names the
+  commit in the same way for the nextest archive and the cargo-hack partitions.
+- **Runner sizes.** A task on the critical path of a gate gets the size at
+  which it stops scaling; a task off that path stays small. Measured: clippy
+  takes 9:12 on 4 CPUs and 2:50 on 16, udeps 9:16 and 2:43, the workspace build
+  9:57 on 8 CPUs and 6:14 on 16, and the slowest cargo-hack baseline 31:08 on 4
+  CPUs and 17:52 on 16. no-std is no faster on 16 CPUs than on 8. The L2 fork
+  compile spends eight of its nine minutes in one solc process, so it has 4
+  CPUs.
+- **Floors.** More shards do not shorten the main gate: one acceptance test,
+  `TestExecuteStep_CannonKona`, runs for six minutes, after each shard has
+  listed the tests for one minute. The four longest Go test packages each have
+  a shard to themselves. The contracts gate waits for the L2 fork compile and
+  then for the paced fork tests.
+
 ## Known differences from CircleCI
 
 - **Skipped jobs.** CircleCI halts some jobs unless their paths changed
