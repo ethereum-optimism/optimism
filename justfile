@@ -534,8 +534,9 @@ shfmt-fix:
   {{SHELL_SCRIPTS}} -exec shfmt --write {} \;
 
 [doc("Serves a live preview of docs/public-docs at http://localhost:3000.")]
+[positional-arguments]
 public-docs *args:
-  cd docs/public-docs && bun install --frozen-lockfile && bun run dev {{args}}
+  cd docs/public-docs && bun install --frozen-lockfile && bun run dev "$@"
 
 # Generates a table of contents for the README.md file.
 toc:
