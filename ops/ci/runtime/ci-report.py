@@ -15,9 +15,6 @@ import subprocess
 import sys
 import time
 
-EMPTY_SHA256 = hashlib.sha256(b'').hexdigest()
-
-
 def read(path):
     return json.loads(Path(path).read_text())
 
@@ -33,17 +30,6 @@ def digest(path):
 
 def command(argv, *, cwd=None):
     return subprocess.check_output(argv, cwd=cwd, text=True).strip()
-
-
-def normalize(value, root):
-    """Replace only the caller's workspace path in nested report values."""
-    if isinstance(value, str):
-        return value.replace(root, '<repo>')
-    if isinstance(value, dict):
-        return {key: normalize(item, root) for key, item in value.items()}
-    if isinstance(value, list):
-        return [normalize(item, root) for item in value]
-    return value
 
 
 def file_hashes(directory, *, exclude=()):

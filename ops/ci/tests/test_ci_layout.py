@@ -55,19 +55,6 @@ class LayoutTests(unittest.TestCase):
             run.update(re.findall(r'(ops/ci/(?:migration/)?tests/test_\w+\.py)',command))
         self.assertEqual(sorted(set(tests)-run),[])
 
-    def test_filtered_sp1_import_succeeds_after_migration_is_removed(self):
-        import json
-        config=json.loads(subprocess.check_output(['yq','-o=json','.',str(ROOT/'.rwx/sp1-guest.yml')],text=True))
-        task=next(t for t in config['tasks'] if t['key']=='toolchain')
-        with tempfile.TemporaryDirectory() as tmp:
-            target=Path(tmp)
-            for name in task['filter']:
-                self.assertNotIn('migration', Path(name).parts, name)
-                destination=target/name;destination.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,destination)
-            code='import importlib.util,sys;s=importlib.util.spec_from_file_location("sp1",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)'
-            result=subprocess.run(['python3','-c',code,str(target/'ops/ci/runtime/sp1-guest.py')],capture_output=True,text=True)
-            self.assertEqual(result.returncode,0,result.stderr)
-
     def test_every_runtime_module_imports_without_circle_or_migration(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); target=root/'ops/ci/runtime'

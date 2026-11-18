@@ -147,28 +147,3 @@ class LocalPackageTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-    def test_filtered_common_go_and_foundry_setup_run_from_component_directories(self):
-        # Execute the declared scripts against command stubs. No system package
-        # writes or tool downloads occur; missing helper bytes still fail.
-        for name,mode in [('common',''),('go','go'),('foundry','compiler')]:
-            with self.subTest(package=name), tempfile.TemporaryDirectory() as tmp:
-                root=Path(tmp)/'scratch/project';root.mkdir(parents=True)
-                task=tasks('packages/toolchain-'+name+'.yml')['prepare']
-                selected=task.get('filter',{}).get('workspace',tasks('packages/toolchain-common.yml')['prepare']['filter']['workspace'])
-                for filename in selected:
-                    target=root/filename;target.parent.mkdir(parents=True,exist_ok=True)
-                    shutil.copy2(ROOT/filename,target)
-                binaries=root/'bin';binaries.mkdir()
-                log=root/'commands.log'
-                for binary in ('mise','sudo','svm'):
-                    path=binaries/binary
-                    path.write_text('#!/bin/bash\nset -eu\nprintf "%s:%s:%s\\n" "$(basename "$0")" "$PWD" "$*" >> "$BOOTSTRAP_LOG"\nif [[ "$(basename "$0")" == mise && "${1:-}" == bin-paths ]]; then printf "%s\\n" "$(dirname "$0")"; fi\n')
-                    path.chmod(0o755)
-                component=root/'component';component.mkdir()
-                env=dict(os.environ,PATH=str(binaries)+os.pathsep+os.environ['PATH'],RWX_ENV=str(root/'exports'),BOOTSTRAP_LOG=str(log),GO_TOOL_MODE=mode,FOUNDRY_TOOL_MODE=mode)
-                result=subprocess.run(['bash','-e','-o','pipefail','-c',task['run']],cwd=component,env=env,capture_output=True,text=True)
-                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-                self.assertTrue((root/'exports/PATH').is_file())
-                self.assertTrue(all(str(root.resolve()) in line for line in log.read_text().splitlines()))
-                self.assertFalse((root/'ops/ci/migration').exists())

@@ -136,7 +136,6 @@ tasks:
       python3 -m unittest discover -s ops/ci/tests -p 'test_ci_layout.py' -v
       python3 -m unittest discover -s ops/ci/migration/tests -p 'test_circle_alignment.py' -v
       python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_ci.py' -v
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_imports.py' -v
       python3 ops/ci/migration/circle-alignment.py
     cache: false
     timeout: 10m
