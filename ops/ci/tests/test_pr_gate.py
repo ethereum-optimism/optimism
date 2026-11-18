@@ -85,6 +85,19 @@ class WiringTests(unittest.TestCase):
                 self.assertIs(status['cache'], False)
                 self.assertEqual([check['tasks'] for check in checks].count(status['key']), 1)
 
+    def test_each_workload_has_one_status_check_that_names_its_call(self):
+        # `rwx lint` accepts a check that names no task, and a run from the CLI reports no checks.
+        coordinator = definition(ROOT / '.rwx/pr-gates.yml')
+        checks = coordinator['on']['github']['push']['status-checks']['custom']
+        named = [check['tasks'] for check in checks]
+        self.assertLessEqual(set(named), {task['key'] for task in coordinator['tasks']})
+        calls = [task['key'] for task in coordinator['tasks'] if str(task.get('call', '')).startswith('${{ run.dir }}/') and 'init' in task]
+        self.assertEqual(sorted(key for key in named if key.startswith('native-')), sorted(calls))
+        self.assertEqual(len({check['name'] for check in checks}), len(checks))
+        # The coordinator is the one definition that a push starts.
+        for path in sorted((ROOT / '.rwx').glob('*.yml')):
+            self.assertEqual('github' in definition(path)['on'], path.name == 'pr-gates.yml', path.name)
+
     def test_each_gated_task_runs_in_every_run(self):
         # RWX reuses the result of a task whose inputs it has seen. A gated task
         # must run anyway: it sets `cache: false`, or it includes the run id and

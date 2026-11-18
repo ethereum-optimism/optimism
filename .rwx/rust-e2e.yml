@@ -10,19 +10,6 @@ on:
       cache-epoch: v1
       build-probe: ""
       target-cache-mode: keep
-  github:
-    push:
-      # Every branch push to this repository, like CircleCI. Fork PRs cannot push here.
-      if: ${{ event.git.branch != '' }}
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        cache-warm: "false"
-        cache-epoch: v1
-        build-probe: ""
-        target-cache-mode: keep
-      status-checks:
-        name: optimism-rust-e2e-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -45,13 +32,6 @@ defaults:
   runner:
     cpus: 2
     memory: 8gb
-
-# A new push to a branch cancels the older run on that branch. develop runs every commit.
-concurrency-pools:
-  - id: ethereum-optimism/optimism:rust-e2e:${{ init.branch }}
-    if: ${{ init.branch != 'develop' }}
-    capacity: 1
-    on-overflow: cancel-running
 
 tasks:
   - key: code

@@ -10,7 +10,7 @@ CircleCI runs.
 
 | Trigger | Definition | Condition |
 | --- | --- | --- |
-| GitHub push | `.rwx/pr-gates.yml`, `.rwx/rust-e2e.yml` | Any branch push to this repository; tag pushes start no run |
+| GitHub push | `.rwx/pr-gates.yml` | Any branch push to this repository; tag pushes start no run |
 | Cache rebuild | Every definition with `on.cache-rebuild` | Branch is `develop`; RWX starts these to re-warm caches |
 | CLI | Every definition | An operator runs `rwx run` |
 
@@ -29,10 +29,10 @@ takes effect for the next push that contains it.
 
 ## Turning RWX off
 
-- **From the repository:** set the `if:` of the two `on.github.push` triggers
-  to `false`, or delete the `github:` blocks, and merge. Later pushes of branches
-  that contain the change start no runs; older branches keep their old
-  triggers until they merge develop. The `cache-rebuild` triggers stop being useful without pushes;
+- **From the repository:** set the `if:` of the `on.github.push` trigger in
+  `.rwx/pr-gates.yml` to `false`, or delete the `github:` block, and merge. Later
+  pushes of branches that contain the change start no runs; older branches keep
+  their old trigger until they merge develop. The `cache-rebuild` triggers stop being useful without pushes;
   delete them too for a full stop.
 - **Immediately, without a merge:** a GitHub organization owner suspends the RWX
   GitHub App installation, or removes this repository from its access list.
@@ -87,13 +87,15 @@ every receipt of the gate succeeded, and it records each CircleCI prerequisite
 with its outcome. `ops/ci/tests/test_pr_gate.py` fails when `pr-gates.json` and
 the definitions name different tasks.
 
-`required-rust-e2e` is shadowed by `.rwx/rust-e2e.yml`, whose job list lives in
-`JOBS` in `ops/ci/runtime/rust-e2e.py`. The same alignment check fails when
+`required-rust-e2e` is shadowed by `.rwx/rust-e2e.yml`, which the coordinator
+calls as `native-rust-e2e`. Its job list lives in `JOBS` in
+`ops/ci/runtime/rust-e2e.py`. The same alignment check fails when
 CircleCI's `required-rust-e2e` stops requiring exactly its release builds
 (`E2E_RELEASE_JOBS` in `ops/ci/migration/circle-alignment.py`) and the
 `circle_job` of each `JOBS` entry. CircleCI splits the release workspace build
 across two jobs; RWX builds the whole workspace in one task. After a CircleCI E2E change, update `JOBS` and
-`.rwx/rust-e2e.yml`. The check of that definition is the whole run.
+`.rwx/rust-e2e.yml`. This gate has no receipt: its check,
+`optimism-rust-e2e-shadow`, is the result of the call.
 
 The RWX checks (`optimism-rwx-pr-coordinator` and the `optimism-*-shadow`
 checks) are not required by any ruleset.

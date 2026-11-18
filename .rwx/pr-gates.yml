@@ -17,6 +17,8 @@ on:
             tasks: native-op-reth
           - name: optimism-rust-gate-shadow
             tasks: gate-status
+          - name: optimism-rust-e2e-shadow
+            tasks: native-rust-e2e
           - name: optimism-pr-checks-shadow
             tasks: native-pr-checks
           - name: optimism-go-tests-shadow
@@ -169,6 +171,17 @@ tasks:
       artifacts:
         - key: status
           path: .ci/pr-gates/status/required-rust-ci
+
+  # Mirrors CircleCI's required-rust-e2e. The result of this call is the verdict.
+  - key: native-rust-e2e
+    call: ${{ run.dir }}/rust-e2e.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
 
   - key: native-pr-checks
     call: ${{ run.dir }}/pr-checks.yml
