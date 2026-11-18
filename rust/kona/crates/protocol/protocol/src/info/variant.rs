@@ -215,7 +215,7 @@ impl L1BlockInfoTx {
             source_hash: source.source_hash(),
             from: L1_INFO_DEPOSITOR_ADDRESS,
             to: TxKind::Call(Predeploys::L1_BLOCK_INFO),
-            mint: 0,
+            mint: U256::ZERO,
             value: U256::ZERO,
             gas_limit: 150_000_000,
             is_system_transaction: true,
