@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Install only the pinned NUT generators and immutable Solidity compilers.
+# Install the tools that the historical NUT bundle generators need beyond the
+# contract tool layer. nut-provenance.py calls this script.
 set -euo pipefail
 
 retry_install() {
@@ -13,17 +14,18 @@ retry_install() {
 
 case "${1:-}" in
   solc)
-    retry_install mise install svm-rs
-    # Circle's four common versions plus 0.8.30 observed in both historical
-    # generators. Forge still discovers the complete graph from original source.
-    for version in 0.8.15 0.8.19 0.8.25 0.8.28 0.8.30; do
-      if ! mise exec svm-rs -- svm which "${version}"; then
-        retry_install mise exec svm-rs -- svm install "${version}"
-      fi
-    done
+    # The contract tool layer installs the four versions that CircleCI installs.
+    # The historical generators were also observed to compile with 0.8.30.
+    # Install it here, so that the verdict task downloads no compiler.
+    if ! svm which 0.8.30; then
+      retry_install svm install 0.8.30
+    fi
     ;;
   generators)
-    [[ "${2:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "${3:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+    if ! [[ "${2:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "${3:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      echo "The recorded commit must pin exact Forge and Just versions: '${2:-}' '${3:-}'" >&2
+      exit 1
+    fi
     retry_install mise install "forge@${2}" "just@${3}"
     ;;
   *)

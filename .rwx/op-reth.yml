@@ -1,8 +1,9 @@
-# Four complete op-reth workloads. CircleCI retains the required checks.
+# Three op-reth workloads: integration tests, compact codec and superchain snapshot.
+# CircleCI retains the required checks.
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [release-build, integration-build, codec-base-build, codec-head-build, snapshot-build]
+    target: [integration-build, codec-base-build, codec-head-build, snapshot-build]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -93,14 +94,14 @@ tasks:
 
   - key: rust-tools
     use: [bootstrap-inputs, tools]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     call: ${{ run.dir }}/packages/toolchain-rust.yml
     with:
       mode: release
 
   - key: rust-dependencies
     use: [code, rust-tools]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: |
       export CARGO_HOME="$PWD/.ci/rust-cache/cargo"
       cd rust
@@ -122,7 +123,7 @@ tasks:
   # Keep full source, Git metadata and the pinned submodule as build inputs.
   - key: head-source
     use: [code, rust-dependencies]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
     timeout: 15m
 
@@ -170,42 +171,11 @@ tasks:
   # sccache entries, then Cargo checks source, flags, profiles and lockfiles.
   # BUILD_PROBE forces a content miss for measurements without disabling the
   # tool cache. A new CACHE_EPOCH gives genuinely cold build/compile caches.
-  - key: release-build
-    use: head-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/go-op-reth.yml
-    with:
-      commit-sha: ${{ init.commit-sha }}
-      cache-epoch: ${{ init.cache-epoch }}
-      build-probe: ${{ init.build-probe }}
-      target-cache-mode: ${{ init.target-cache-mode }}
-
-  - key: release
-    # Artifact references create dependencies without inheriting Cargo/sccache
-    # filesystem layers. Input filters affect cache keys, not layer downloads.
-    use: [code, rust-tools]
-    if: ${{ tasks.route.values.run-main == 'true' }}
-    run: |
-      mkdir -p .ci/op-reth/release-build
-      cp -a "$RELEASE_ARTIFACT/." .ci/op-reth/release-build/
-      bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      RELEASE_ARTIFACT: ${{ tasks.release-build.tasks.build.artifacts.release-binaries }}
-    cache: false
-    timeout: 10m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: release-verification
-          path: .ci/op-reth/release
-
   - key: integration-build
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh integration-build
     env: &build-env
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
       CACHE_EPOCH: ${{ init.cache-epoch }}
       BUILD_PROBE: ${{ init.build-probe }}
       TARGET_CACHE_MODE: ${{ init.target-cache-mode }}
@@ -224,6 +194,8 @@ tasks:
           path: .ci/op-reth/integration-build
 
   - key: integration
+    # Artifact references create dependencies without inheriting Cargo/sccache
+    # filesystem layers. Input filters affect cache keys, not layer downloads.
     use: [code, rust-tools]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: |
@@ -231,7 +203,6 @@ tasks:
       cp -a "$INTEGRATION_ARTIFACT/." .ci/op-reth/integration-build/
       bash /usr/local/lib/optimism-ci/op-reth-shadow.sh integration
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
       INTEGRATION_ARTIFACT: ${{ tasks.integration-build.artifacts.integration-build-report }}
     cache: false
     timeout: 60m
@@ -255,7 +226,6 @@ tasks:
       CACHE_EPOCH: ${{ init.cache-epoch }}
       BUILD_PROBE: ${{ init.build-probe }}
       TARGET_CACHE_MODE: ${{ init.target-cache-mode }}
-      CODEC_BASE_SHA: ${{ tasks.codec-base-revision.values.sha }}
     tool-cache: op-reth-codec-base-${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -299,7 +269,6 @@ tasks:
       cp -a "$CODEC_BASE_ARTIFACT/." .ci/op-reth/codec-base-build/
       bash /usr/local/lib/optimism-ci/op-reth-shadow.sh codec-vectors
     env:
-      CODEC_BASE_SHA: ${{ tasks.codec-base-revision.values.sha }}
       CODEC_BASE_ARTIFACT: ${{ tasks.codec-base-build.artifacts.codec-base-build-report }}
     cache: false
     timeout: 10m
@@ -311,7 +280,7 @@ tasks:
       artifacts:
         - key: codec-vectors
           path: testdata/micro/compact
-        - key: codec-vector-provenance
+        - key: codec-vectors-report
           path: .ci/op-reth/codec-vectors
 
   - key: codec
@@ -319,18 +288,14 @@ tasks:
     use: [code, rust-tools]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: |
-      mkdir -p .ci/op-reth/codec-head-build .ci/op-reth/codec-vectors
+      mkdir -p .ci/op-reth/codec-head-build
       cp -a "$CODEC_HEAD_ARTIFACT/." .ci/op-reth/codec-head-build/
-      cp -a "$CODEC_PROVENANCE/." .ci/op-reth/codec-vectors/
       rm -rf testdata/micro/compact
       mkdir -p testdata/micro/compact
       cp -a "$CODEC_VECTORS/." testdata/micro/compact/
       bash /usr/local/lib/optimism-ci/op-reth-shadow.sh codec
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CODEC_BASE_SHA: ${{ tasks.codec-base-revision.values.sha }}
       CODEC_HEAD_ARTIFACT: ${{ tasks.codec-head-build.artifacts.codec-head-build-report }}
-      CODEC_PROVENANCE: ${{ tasks.codec-vectors.artifacts.codec-vector-provenance }}
       CODEC_VECTORS: ${{ tasks.codec-vectors.artifacts.codec-vectors }}
     cache: false
     timeout: 10m

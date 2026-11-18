@@ -122,7 +122,6 @@ tasks:
       bash ops/ci/runtime/apt-install.sh zstd
       RWX_LIVE_GO_FIXTURE=1 RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e_release.py'
-      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e_gate.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_go_artifacts.py'
     cache: false
     timeout: 10m
@@ -347,7 +346,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -388,7 +386,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "1"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -429,7 +426,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "2"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -470,7 +466,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "3"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -511,7 +506,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "4"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -552,7 +546,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "5"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -593,7 +586,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "6"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -634,7 +626,6 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "7"
       PARALLEL: "8"
       RWX_RUN_ID:
@@ -676,9 +667,7 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run restart
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "0"
-      PARALLEL: "8"
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -719,9 +708,7 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run restart
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "1"
-      PARALLEL: "8"
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -762,9 +749,7 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run restart
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "2"
-      PARALLEL: "8"
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -805,9 +790,7 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run simple-kona
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "0"
-      PARALLEL: "8"
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -848,9 +831,7 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run simple-kona-sequencer
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "0"
-      PARALLEL: "8"
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -890,9 +871,7 @@ tasks:
       bash ops/ci/runtime/rust-e2e.sh run op-reth
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "0"
-      PARALLEL: "8"
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -919,57 +898,3 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/rust-e2e/reports/op-reth
-
-  - key: required-rust-e2e
-    use: [code, tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
-    after: [release, verdict-proof-0, verdict-proof-1, verdict-proof-2, verdict-proof-3, verdict-proof-4, verdict-proof-5, verdict-proof-6, verdict-proof-7, verdict-restart-0, verdict-restart-1, verdict-restart-2, verdict-simple-kona-0, verdict-simple-kona-sequencer-0, verdict-op-reth-0]
-    run: |
-      reports=()
-      for index in 0 1 2 3 4 5 6 7 8 9 10 11 12 13; do
-        name="REPORT_$index"
-        reports+=("${!name}")
-      done
-      python3 ops/ci/runtime/rust-e2e-gate.py --release "$RELEASE_REPORT" --sha "$CI_COMMIT_SHA" \
-        --output .ci/rust-e2e/gate.json "${reports[@]}"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      RELEASE_REPORT: ${{ tasks.release.tasks.build.artifacts.reports }}
-      REPORT_0: ${{ tasks.verdict-proof-0.artifacts.reports }}
-      REPORT_1: ${{ tasks.verdict-proof-1.artifacts.reports }}
-      REPORT_2: ${{ tasks.verdict-proof-2.artifacts.reports }}
-      REPORT_3: ${{ tasks.verdict-proof-3.artifacts.reports }}
-      REPORT_4: ${{ tasks.verdict-proof-4.artifacts.reports }}
-      REPORT_5: ${{ tasks.verdict-proof-5.artifacts.reports }}
-      REPORT_6: ${{ tasks.verdict-proof-6.artifacts.reports }}
-      REPORT_7: ${{ tasks.verdict-proof-7.artifacts.reports }}
-      REPORT_8: ${{ tasks.verdict-restart-0.artifacts.reports }}
-      REPORT_9: ${{ tasks.verdict-restart-1.artifacts.reports }}
-      REPORT_10: ${{ tasks.verdict-restart-2.artifacts.reports }}
-      REPORT_11: ${{ tasks.verdict-simple-kona-0.artifacts.reports }}
-      REPORT_12: ${{ tasks.verdict-simple-kona-sequencer-0.artifacts.reports }}
-      REPORT_13: ${{ tasks.verdict-op-reth-0.artifacts.reports }}
-    cache: false
-    timeout: 10m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: gate
-          path: .ci/rust-e2e/gate.json
-
-  # The overall optional check fails on a build failure even if no consumer ran.
-  # RWX cancels all tasks when the run is canceled; this task cannot turn it green.
-  - key: required-rust-e2e-failure
-    use: [code, tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
-    after: ${{ release.failed || verdict-proof-0.failed || verdict-proof-1.failed || verdict-proof-2.failed || verdict-proof-3.failed || verdict-proof-4.failed || verdict-proof-5.failed || verdict-proof-6.failed || verdict-proof-7.failed || verdict-restart-0.failed || verdict-restart-1.failed || verdict-restart-2.failed || verdict-simple-kona-0.failed || verdict-simple-kona-sequencer-0.failed || verdict-op-reth-0.failed }}
-    run: |
-      mkdir -p .ci/rust-e2e
-      printf '%s\n' '{"passed":false,"reason":"E2E dependency or verdict failed or was aborted"}' >.ci/rust-e2e/gate-failure.json
-      exit 1
-    cache: false
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: gate
-          path: .ci/rust-e2e/gate-failure.json

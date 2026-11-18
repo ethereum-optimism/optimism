@@ -18,10 +18,6 @@ tasks:
         filter:
           workspace: [.ci/rust-cache, rust/target]
           system: []
-      test-results:
-        - path: .ci/rust-workspace/e2e-release/checks.junit.xml
       artifacts:
-        - key: reports
-          path: .ci/rust-workspace/e2e-release
         - key: dependency
           path: .ci/go-tests/dependencies/rust-e2e-release

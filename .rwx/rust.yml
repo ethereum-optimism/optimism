@@ -7,7 +7,6 @@ on:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
       cache-epoch: v1
-      cargo-incremental: "0"
       cache-warm: "true"
   # Automatic pushes are coordinated by pr-gates.yml; CLI and warming remain.
   cli:
@@ -15,7 +14,6 @@ on:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
       cache-epoch: v1
-      cargo-incremental: "0"
       cache-warm: "false"
 
 base:
@@ -32,10 +30,6 @@ defaults:
   runner:
     cpus: 2
     memory: 8gb
-
-aliases:
-  rust-env: &rust-env
-    CI_COMMIT_SHA: ${{ init.commit-sha }}
 
 tasks:
   - key: code
@@ -203,8 +197,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py tests-build
     env: &compiler-base-env
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
-      CI_COMMIT_SHA: ${{ tasks.compiler-base.values.sha }}
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
     timeout: 90m
     runner: &test-runner
       cpus: 16
@@ -223,9 +215,6 @@ tasks:
     use: [tests-cache, head-source]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests-build
-    env: &incremental-rust-env
-      <<: *rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
     # Compile the current source afresh using the ancestor's compiler state.
     cache: false
     timeout: 90m
@@ -235,17 +224,14 @@ tasks:
       artifacts:
         - key: report
           path: .ci/rust-workspace/tests-build
-        - key: compiler-state
-          path: .ci/rust-workspace/tests-build/compiler.json
 
-  # Execution-only nextest workers receive the verified test archive, never the
-  # full compiler snapshot.
+  # Execution-only nextest workers receive the test archive, never the full
+  # compiler snapshot.
   - key: tests-unit
     use: head-source
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests-unit
     env:
-      <<: *incremental-rust-env
       TEST_ARCHIVE: ${{ tasks.tests-build.artifacts.report }}
       RWX_RUN_ID:
         cache-key: included
@@ -269,8 +255,6 @@ tasks:
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests-compiler
     env:
-      <<: *incremental-rust-env
-      COMPILED_STATE: ${{ tasks.tests-build.artifacts.compiler-state }}
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -280,38 +264,15 @@ tasks:
     runner: *test-runner
     outputs:
       filesystem: false
-      test-results:
-        - path: .ci/rust-workspace/tests-compiler/beacon.junit.xml
-        - path: .ci/rust-workspace/tests-compiler/doctests.junit.xml
       artifacts:
         - key: report
           path: .ci/rust-workspace/tests-compiler
-
-  # Preserve the existing full-suite artifact and task key. Finished expressions
-  # collect original child failures; compiler layers never reach this fan-in.
-  - key: tests
-    use: head-source
-    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
-    after: ${{ tests-unit.finished && tests-compiler.finished }}
-    run: bash ops/ci/runtime/rust-workspace.sh tests-merge
-    env:
-      <<: *incremental-rust-env
-      UNIT_REPORT: ${{ tasks.tests-unit.artifacts.report }}
-      COMPILER_REPORT: ${{ tasks.tests-compiler.artifacts.report }}
-    cache: false
-    timeout: 10m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: report
-          path: .ci/rust-workspace/tests
 
   - key: build
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh build
     env: &fresh-rust-env
-      <<: *rust-env
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -401,7 +362,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "0"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -420,7 +380,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "0"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -441,7 +400,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "1"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -460,7 +418,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "1"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -481,7 +438,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "2"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -500,7 +456,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "2"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -521,7 +476,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "3"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -540,7 +494,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "3"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -561,7 +514,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "4"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -580,7 +532,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "4"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -601,7 +552,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "5"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -620,7 +570,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "5"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -641,7 +590,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "6"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -660,7 +608,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "6"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -681,7 +628,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "7"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -700,7 +646,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "7"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -721,7 +666,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "8"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -740,7 +684,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "8"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -761,7 +704,6 @@ tasks:
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
       <<: *compiler-base-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "9"
       CI_RUST_PARTITION_TOTAL: "10"
     timeout: 120m
@@ -780,7 +722,6 @@ tasks:
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "9"
       CI_RUST_PARTITION_TOTAL: "10"
     cache: false
@@ -929,7 +870,6 @@ tasks:
     use: [head-source, cannon-witness]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-cannon.sh env
-    env: *rust-env
     docker: preserve-data
     tool-cache: rust-cannon-env-${{ init.cache-epoch }}
     timeout: 90m
@@ -946,7 +886,6 @@ tasks:
     use: [head-source, go-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-cannon.sh go
-    env: *rust-env
     tool-cache: rust-cannon-go-${{ init.cache-epoch }}
     timeout: 30m
     runner:
@@ -966,7 +905,6 @@ tasks:
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-cannon.sh witness
-    env: *rust-env
     timeout: 15m
     outputs:
       filesystem:
@@ -981,9 +919,7 @@ tasks:
     use: [head-source, cannon-env]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-cannon.sh lint
-    env:
-      <<: *fresh-rust-env
-      CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
+    env: *fresh-rust-env
     docker: preserve-data
     tool-cache: rust-cannon-lint-${{ init.cache-epoch }}
     timeout: 90m
@@ -1002,9 +938,7 @@ tasks:
     use: [head-source, cannon-env]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-cannon.sh build
-    env:
-      <<: *fresh-rust-env
-      CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
+    env: *fresh-rust-env
     docker: preserve-data
     tool-cache: rust-cannon-build-${{ init.cache-epoch }}
     timeout: 90m
@@ -1023,11 +957,7 @@ tasks:
     use: [head-source, go-tools, cannon-witness, cannon-go, cannon-build]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-cannon.sh offline
-    env:
-      <<: *fresh-rust-env
-      CANNON_GO_ARTIFACT: ${{ tasks.cannon-go.artifacts.report }}
-      CANNON_WITNESS_ARTIFACT: ${{ tasks.cannon-witness.artifacts.report }}
-      CANNON_BUILD_ARTIFACT: ${{ tasks.cannon-build.artifacts.report }}
+    env: *fresh-rust-env
     docker: preserve-data
     tool-cache: rust-cannon-offline-${{ init.cache-epoch }}
     timeout: 90m
@@ -1049,7 +979,7 @@ tasks:
   - key: rust-gate-receipt
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' }}
-    after: ${{ (build.succeeded || build.failed || build.skipped) && (cannon-build.succeeded || cannon-build.failed || cannon-build.skipped) && (cannon-lint.succeeded || cannon-lint.failed || cannon-lint.skipped) && (cannon-offline.succeeded || cannon-offline.failed || cannon-offline.skipped) && (clippy.succeeded || clippy.failed || clippy.skipped) && (deny.succeeded || deny.failed || deny.skipped) && (docs.succeeded || docs.failed || docs.skipped) && (features-0.succeeded || features-0.failed || features-0.skipped) && (features-1.succeeded || features-1.failed || features-1.skipped) && (features-2.succeeded || features-2.failed || features-2.skipped) && (features-3.succeeded || features-3.failed || features-3.skipped) && (features-4.succeeded || features-4.failed || features-4.skipped) && (features-5.succeeded || features-5.failed || features-5.skipped) && (features-6.succeeded || features-6.failed || features-6.skipped) && (features-7.succeeded || features-7.failed || features-7.skipped) && (features-8.succeeded || features-8.failed || features-8.skipped) && (features-9.succeeded || features-9.failed || features-9.skipped) && (interop.succeeded || interop.failed || interop.skipped) && (no-std.succeeded || no-std.failed || no-std.skipped) && (registry.succeeded || registry.failed || registry.skipped) && (tests.succeeded || tests.failed || tests.skipped) && (tests-compiler.succeeded || tests-compiler.failed || tests-compiler.skipped) && (tests-unit.succeeded || tests-unit.failed || tests-unit.skipped) && (typos.succeeded || typos.failed || typos.skipped) && (udeps.succeeded || udeps.failed || udeps.skipped) && (wasm-unknown.succeeded || wasm-unknown.failed || wasm-unknown.skipped) && (wasm-wasi.succeeded || wasm-wasi.failed || wasm-wasi.skipped) && (zepter.succeeded || zepter.failed || zepter.skipped) }}
+    after: ${{ (build.succeeded || build.failed || build.skipped) && (cannon-build.succeeded || cannon-build.failed || cannon-build.skipped) && (cannon-lint.succeeded || cannon-lint.failed || cannon-lint.skipped) && (cannon-offline.succeeded || cannon-offline.failed || cannon-offline.skipped) && (clippy.succeeded || clippy.failed || clippy.skipped) && (deny.succeeded || deny.failed || deny.skipped) && (docs.succeeded || docs.failed || docs.skipped) && (features-0.succeeded || features-0.failed || features-0.skipped) && (features-1.succeeded || features-1.failed || features-1.skipped) && (features-2.succeeded || features-2.failed || features-2.skipped) && (features-3.succeeded || features-3.failed || features-3.skipped) && (features-4.succeeded || features-4.failed || features-4.skipped) && (features-5.succeeded || features-5.failed || features-5.skipped) && (features-6.succeeded || features-6.failed || features-6.skipped) && (features-7.succeeded || features-7.failed || features-7.skipped) && (features-8.succeeded || features-8.failed || features-8.skipped) && (features-9.succeeded || features-9.failed || features-9.skipped) && (interop.succeeded || interop.failed || interop.skipped) && (no-std.succeeded || no-std.failed || no-std.skipped) && (registry.succeeded || registry.failed || registry.skipped) && (tests-compiler.succeeded || tests-compiler.failed || tests-compiler.skipped) && (tests-unit.succeeded || tests-unit.failed || tests-unit.skipped) && (typos.succeeded || typos.failed || typos.skipped) && (udeps.succeeded || udeps.failed || udeps.skipped) && (wasm-unknown.succeeded || wasm-unknown.failed || wasm-unknown.skipped) && (wasm-wasi.succeeded || wasm-wasi.failed || wasm-wasi.skipped) && (zepter.succeeded || zepter.failed || zepter.skipped) }}
     run: python3 ops/ci/runtime/pr-gate.py receipt rust-workspace
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1125,9 +1055,6 @@ tasks:
       TASK_TESTS_UNIT_SUCCEEDED: ${{ tasks.tests-unit.succeeded }}
       TASK_TESTS_UNIT_FAILED: ${{ tasks.tests-unit.failed }}
       TASK_TESTS_UNIT_SKIPPED: ${{ tasks.tests-unit.skipped }}
-      TASK_TESTS_SUCCEEDED: ${{ tasks.tests.succeeded }}
-      TASK_TESTS_FAILED: ${{ tasks.tests.failed }}
-      TASK_TESTS_SKIPPED: ${{ tasks.tests.skipped }}
       TASK_TYPOS_SUCCEEDED: ${{ tasks.typos.succeeded }}
       TASK_TYPOS_FAILED: ${{ tasks.typos.failed }}
       TASK_TYPOS_SKIPPED: ${{ tasks.typos.skipped }}

@@ -1,47 +1,21 @@
 #!/usr/bin/env bash
-# Preserve Circle's entire default-feature workspace release build.
+# Build the whole default-feature release workspace, which CircleCI splits across
+# rust-e2e-binaries and rust-workspace-release. Pack the four binaries that the
+# E2E verdict tasks run.
 set -euo pipefail
-ROOT="$(git rev-parse --show-toplevel)"
-cd "$ROOT"
+cd "$(git rev-parse --show-toplevel)"
 export CI_COMMIT_SHA="${CI_COMMIT_SHA:?Missing source SHA}"
-report="$ROOT/.ci/rust-workspace/e2e-release"
-rm -rf "$report"
-mkdir -p "$report"
-mkdir -p .ci/go-tests/dependencies/rust-e2e-release
-export CARGO_INCREMENTAL=0
-export CARGO_HOME="$ROOT/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$ROOT/rust/target"
-export RUSTC_WRAPPER=sccache SCCACHE_DIR="$ROOT/.ci/rust-cache/sccache"
-export SCCACHE_BASEDIRS="$ROOT" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
-mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR" "$SCCACHE_DIR"
+export CARGO_HOME="$PWD/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$PWD/rust/target"
+export CARGO_INCREMENTAL=0 RUSTC_WRAPPER=sccache SCCACHE_DIR="$PWD/.ci/rust-cache/sccache"
+export SCCACHE_BASEDIRS="$PWD" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
+mkdir -p "$CARGO_HOME" "$CARGO_TARGET_DIR" "$SCCACHE_DIR" .ci/go-tests/dependencies/rust-e2e-release
 sccache --start-server
 sccache --zero-stats
-python3 ops/ci/runtime/op-reth-report.py prepare-superchain "$report"
-python3 ops/ci/runtime/rust-target-cache.py prepare > "$report/cache-source.json"
-python3 ops/ci/runtime/rust-e2e-release-report.py begin "$report"
-finish() {
-  local status=$? diagnostics=0
-  trap - EXIT
-  sccache --show-stats --stats-format json > "$report/sccache.json" || diagnostics=$?
-  sccache --stop-server > "$report/sccache-stop.log" 2>&1 || diagnostics=$?
-  if [[ "$status" == 0 ]]; then python3 ops/ci/runtime/rust-target-cache.py commit || diagnostics=$?; fi
-  if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
-  python3 ops/ci/runtime/rust-e2e-release-report.py finish "$report" "$status" || status=$?
-  exit "$status"
-}
-trap finish EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
-python3 ops/ci/runtime/rust-workspace-report.py json-stage "$report" workspace \
-  cargo metadata --no-deps --locked --format-version 1
+trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/rust-e2e-release/sccache.json; sccache --stop-server' EXIT
+python3 ops/ci/runtime/op-reth-report.py prepare-superchain
+python3 ops/ci/runtime/rust-target-cache.py prepare
 # Like Circle's rust-build: --locked, and no LTO for release builds that only feed CI tests.
-CARGO_PROFILE_RELEASE_LTO=off python3 ops/ci/runtime/rust-workspace-report.py json-stage "$report" build \
-  mold -run cargo build --locked --profile release --workspace --features default --message-format=json
-python3 ops/ci/runtime/rust-e2e-release-report.py artifacts "$report"
-paths=()
-while IFS= read -r path; do paths+=("$path"); done < <(python3 ops/ci/runtime/rust-e2e-release-report.py binary-paths "$report")
-[[ "${#paths[@]}" -gt 0 ]] || {
-  echo 'Missing workspace release binaries' >&2
-  exit 1
-}
-python3 ops/ci/runtime/go-artifacts.py pack rust-e2e-release "${paths[@]}"
-cp .ci/go-tests/dependencies/rust-e2e-release/metadata.json "$report/dependency.json"
+(cd rust && CARGO_PROFILE_RELEASE_LTO=off mold -run cargo build --locked --profile release --workspace --features default)
+python3 ops/ci/runtime/rust-target-cache.py commit
+python3 ops/ci/runtime/go-artifacts.py pack rust-e2e-release rust/target/release/kona-host \
+  rust/target/release/kona-node rust/target/release/op-reth rust/target/release/op-reth-test-engine

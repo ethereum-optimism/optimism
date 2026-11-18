@@ -21,10 +21,8 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/release-build, .ci/go-tests/dependencies/op-reth]
+          workspace: [rust/target, .ci/rust-cache, .ci/go-tests/dependencies/op-reth]
           system: []
       artifacts:
         - key: dependency
           path: .ci/go-tests/dependencies/op-reth
-        - key: release-binaries
-          path: .ci/op-reth/release-build

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Preserve Circle's full Cannon recipes with shared artifacts and guest evidence.
+# Run one of Circle's Cannon recipes in an RWX task. A task receives the output
+# of its producer tasks through the `use` layers that .rwx/rust.yml gives it.
 set -euo pipefail
 HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(git rev-parse --show-toplevel)"
@@ -33,16 +34,9 @@ trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 stage_at() { python3 "$HELPERS/rust-workspace-report.py" stage-at "$report" "$@"; }
-stage_at rust variants just kona-prestate-variants
-python3 "$HELPERS/rust-cannon-report.py" inventory "$report"
 export CARGO_HOME="$ROOT/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$ROOT/rust/target"
 export GOPATH="$ROOT/.ci/cannon-cache/go/modules" GOCACHE="$ROOT/.ci/cannon-cache/go/build"
 mkdir -p "$CARGO_HOME" "$GOPATH" "$GOCACHE"
-if [[ "$job" == offline ]]; then
-  # Never accept a restored state as evidence of this invocation's guest exit.
-  # Remove it before the source snapshot, so the cache commit sees no change.
-  rm -f rust/kona/state.bin.gz rust/kona/out.bin.gz rust/kona/meta.json
-fi
 if [[ "$job" == env || "$job" == lint || "$job" == build || "$job" == offline ]]; then
   # Stamp COPY inputs before Docker builds as well as bound runtime sources.
   # Normalized checkout mtimes must not make old BuildKit Cargo targets fresh.
@@ -56,12 +50,13 @@ if [[ "$job" == offline ]]; then
   sccache --zero-stats
 fi
 config=()
-while IFS= read -r value; do config+=("$value"); done < <(python3 "$HELPERS/rust-cannon-report.py" config)
-if [[ "${#config[@]}" != 8 ]]; then
-  echo 'Missing Cannon witness configuration.' >&2
-  exit 1
+if [[ "$job" == witness || "$job" == offline ]]; then
+  while IFS= read -r value; do config+=("$value"); done < <(python3 "$HELPERS/rust-cannon-report.py" config)
+  if [[ "${#config[@]}" != 8 ]]; then
+    echo 'Missing Cannon witness configuration.' >&2
+    exit 1
+  fi
 fi
-verify() { python3 "$HELPERS/rust-cannon-report.py" verify "$report" "$1" "$2"; }
 pull_base() {
   local base attempt=0
   base="$(python3 "$HELPERS/rust-cannon-report.py" base)"
@@ -72,72 +67,23 @@ pull_base() {
     sleep "$((2 ** attempt))"
   done
 }
-prepare_image() {
-  if [[ "$job" == offline && -n "${CANNON_BUILD_ARTIFACT:-}" ]]; then
-    # The build recipe rebuilds its environment. Its sealed image and ELFs
-    # own the runtime handoff, even when a cold rebuild changes the image ID.
-    verify "$CANNON_BUILD_ARTIFACT" build
-  elif [[ -n "${CANNON_ENV_ARTIFACT:-}" ]]; then
-    verify "$CANNON_ENV_ARTIFACT" env
-  else
-    # Record the actual base digest even when BuildKit resolves only cached layers.
+case "$job" in
+  env)
     export -f pull_base
     export HELPERS
     stage_at . base-pull bash -c pull_base
-  fi
-}
-capture_elfs() {
-  mkdir -p "$report/elfs"
-  while read -r binary _; do
-    cp "rust/target/mips64-unknown-none/release-client-lto/$binary" "$report/elfs/$binary"
-  done < "$report/variants.log"
-  python3 "$HELPERS/rust-cannon-report.py" elfs "$report" "$report/elfs"
-}
-build_go() {
-  if [[ -n "${CANNON_GO_ARTIFACT:-}" ]]; then
-    verify "$CANNON_GO_ARTIFACT" go
-    cp "$CANNON_GO_ARTIFACT/go-binaries.json" "$report/"
-  else
-    stage_at cannon go just cannon
-    python3 "$HELPERS/rust-cannon-report.py" go "$report"
-  fi
-  export PATH="$ROOT/cannon/bin:$PATH"
-}
-case "$job" in
-  env)
-    prepare_image
     stage_at rust/kona env just build-kona-env
-    python3 "$HELPERS/rust-cannon-report.py" image "$report"
     ;;
-  go) build_go ;;
+  go) stage_at cannon go just cannon ;;
   witness)
     stage_at . witness bash rust/kona/bin/client/scripts/fetch-witness-tar.sh "${config[6]}" "${config[7]}"
-    python3 "$HELPERS/rust-cannon-report.py" witness "$report"
+    python3 "$HELPERS/rust-cannon-report.py" witness
     ;;
-  lint | build)
-    prepare_image
-    recipe=lint-cannon
-    if [[ "$job" == build ]]; then recipe=build-cannon-client; fi
-    stage_at rust/kona "$job" just "$recipe"
-    python3 "$HELPERS/rust-cannon-report.py" image "$report"
-    if [[ "$job" == build ]]; then capture_elfs; fi
-    ;;
+  lint) stage_at rust/kona lint just lint-cannon ;;
+  build) stage_at rust/kona build just build-cannon-client ;;
   offline)
-    if [[ -n "${CANNON_WITNESS_ARTIFACT:-}" ]]; then
-      verify "$CANNON_WITNESS_ARTIFACT" witness
-    else
-      stage_at . witness bash rust/kona/bin/client/scripts/fetch-witness-tar.sh "${config[6]}" "${config[7]}"
-    fi
-    python3 "$HELPERS/rust-cannon-report.py" witness "$report"
-    build_go
-    prepare_image
+    # The recipe runs the Cannon binary that the cannon-go task built.
+    export PATH="$ROOT/cannon/bin:$PATH"
     stage_at rust/kona/bin/client offline just run-client-cannon-offline "${config[@]}"
-    # Cannon writes the final state into rust/kona, and git does not ignore it
-    # there. Move it out, or the Rust target cache commit sees a source change.
-    mv rust/kona/out.bin.gz "$report/out.bin.gz"
-    python3 "$HELPERS/rust-workspace-report.py" json-stage "$report" guest \
-      "$ROOT/cannon/bin/cannon" witness --input "$report/out.bin.gz"
-    capture_elfs
-    python3 "$HELPERS/rust-cannon-report.py" image "$report"
     ;;
 esac

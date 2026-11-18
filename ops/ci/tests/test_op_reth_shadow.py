@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise cache invalidation, artifact provenance and fresh failing verdicts."""
+"""Exercise cache invalidation, integration evidence and fresh failing verdicts."""
 
 import copy
 import hashlib
@@ -13,7 +13,6 @@ import unittest
 
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'runtime'
-SHA = "1" * 40
 DISCOVERY = {"rust-suites": {"reth-optimism-node::e2e": {"testcases": {
     "passes": {"ignored": False, "filter-match": {"status": "matches"}},
     "ignored": {"ignored": True, "filter-match": {"status": "mismatch", "reason": "ignored"}},
@@ -34,12 +33,8 @@ with open(os.environ["CALL_LOG"], "a") as log:
 if command == "mold":
     os.execvp(args[1], args[1:])
 elif command == "git":
-    if args == ["rev-parse", "HEAD"]:
-        print(os.environ["SOURCE_SHA"])
-    elif args[:1] == ["ls-files"]:
+    if args[:1] == ["ls-files"]:
         sys.stdout.buffer.write(b"rust/Cargo.lock\0mise.toml\0")
-    elif args[:2] == ["submodule", "status"]:
-        print("pinned public submodule")
     elif args[:2] == ["diff", "--exit-code"]:
         sys.exit(int(os.environ.get("DIFF_EXIT", "0")))
     else:
@@ -52,14 +47,8 @@ elif command == "sccache":
     if args[:1] == ["--show-stats"]:
         print('{"stats": {"cache_hits": {"Rust": 1}}}')
         sys.exit(int(os.environ.get("STATS_EXIT", "0")))
-    elif args == ["--version"]:
-        print("sccache 0.18.0")
-elif command == "rustc":
-    print("rustc 1.95.0")
 elif command == "cargo":
-    if args == ["--version"] or args == ["nextest", "--version"]:
-        print("pinned tool")
-    elif args[:1] == ["build"]:
+    if args[:1] == ["build"]:
         target = Path(os.environ["CARGO_TARGET_DIR"])
         profile = "release" if "release" in args else "debug"
         (target / profile).mkdir(parents=True, exist_ok=True)
@@ -109,14 +98,13 @@ class ShadowTest(unittest.TestCase):
             shutil.copyfile(SCRIPTS / name, self.scripts / name)
         self.bin = self.root / "bin"
         self.bin.mkdir()
-        for name in ("git", "just", "mold", "sccache", "rustc", "cargo", "tar"):
+        for name in ("git", "just", "mold", "sccache", "cargo", "tar"):
             path = self.bin / name
             path.write_text(STUB)
             path.chmod(0o755)
         self.log = self.root / "calls.jsonl"
         self.env = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
-                        CALL_LOG=str(self.log), SOURCE_SHA=SHA, CI_COMMIT_SHA=SHA,
-                        CODEC_BASE_SHA=SHA, DISCOVERY_JSON=json.dumps(DISCOVERY), JUNIT_XML=JUNIT)
+                        CALL_LOG=str(self.log), DISCOVERY_JSON=json.dumps(DISCOVERY), JUNIT_XML=JUNIT)
 
     def run_job(self, job, **overrides):
         return subprocess.run(["bash", str(self.scripts / "op-reth-shadow.sh"), job],
@@ -132,23 +120,6 @@ class ShadowTest(unittest.TestCase):
     def build_integration(self):
         result = self.run_job("integration-build")
         self.assertEqual(result.returncode, 0, result.stdout)
-
-    def test_release_exports_verified_current_binary(self):
-        result = self.run_job("release-build")
-        self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertEqual(set(self.report("release-build", "binaries")["files"]), {"op-reth", "op-reth-test-engine"})
-        self.assertEqual(self.run_job("release").returncode, 0)
-
-    def test_changed_binary_fails_verification(self):
-        self.assertEqual(self.run_job("release-build").returncode, 0)
-        (self.root / ".ci/op-reth/release-build/op-reth").write_text("corrupted")
-        self.assertNotEqual(self.run_job("release").returncode, 0)
-
-    def test_wrong_source_revision_fails_before_artifact_consumption(self):
-        self.build_integration()
-        result = self.run_job("integration", CI_COMMIT_SHA="2" * 40)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(any(c["args"][:2] == ["nextest", "run"] for c in self.calls("cargo")))
 
     def test_cold_probe_removes_only_targets_and_keeps_sccache(self):
         target = self.root / "rust/target/old-object"
@@ -191,7 +162,6 @@ class ShadowTest(unittest.TestCase):
     def test_failed_compilation_retains_original_failure(self):
         result = self.run_job("release-build", BUILD_EXIT="23", STATS_EXIT="42")
         self.assertEqual(result.returncode, 23, result.stdout)
-        self.assertEqual(self.report("release-build", "metadata")["exit_code"], 23)
 
     def test_successful_compile_with_failed_stats_fails(self):
         self.assertEqual(self.run_job("release-build", STATS_EXIT="42").returncode, 42)
@@ -270,36 +240,6 @@ class ShadowTest(unittest.TestCase):
 
     def test_failed_submodule_setup_propagates(self):
         self.assertEqual(self.run_job("source", SOURCE_EXIT="17").returncode, 17)
-
-
-class VectorReportTest(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.vectors = self.root / "testdata/micro/compact"
-        self.vectors.mkdir(parents=True)
-        self.report = self.root / "reports"
-        self.report.mkdir()
-        self.path = self.vectors / "TxDeposit.json"
-        self.path.write_text(json.dumps(["00"] * 100))
-
-    def run_report(self, operation, sha=SHA):
-        return subprocess.run(["python3", str(Path(__file__).resolve().parents[1] / 'runtime' / 'op-reth-report.py'), operation,
-                               str(self.report), sha], cwd=self.root, capture_output=True)
-
-    def test_baseline_checksum_and_revision_are_enforced(self):
-        self.assertEqual(self.run_report("vectors").returncode, 0)
-        self.assertEqual(self.run_report("verify-vectors").returncode, 0)
-        self.assertNotEqual(self.run_report("verify-vectors", "2" * 40).returncode, 0)
-        self.path.write_text(json.dumps(["01"] * 100))
-        self.assertNotEqual(self.run_report("verify-vectors").returncode, 0)
-
-    def test_empty_or_partial_vector_sets_fail(self):
-        self.path.write_text(json.dumps(["00"] * 99))
-        self.assertNotEqual(self.run_report("vectors").returncode, 0)
-        self.path.unlink()
-        self.assertNotEqual(self.run_report("vectors").returncode, 0)
 
 
 if __name__ == "__main__":

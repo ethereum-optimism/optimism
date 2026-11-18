@@ -86,14 +86,22 @@ tasks:
       branch: ${{ init.branch }}
       cache-epoch: ${{ init.cache-epoch }}
 
-  - key: historical-tools
-    use: [code, go-tools]
+  # The contract tool layer has the Solidity compilers that CircleCI installs.
+  - key: contract-tools
+    use: [bootstrap-inputs, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/nut-tools.yml
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
-      branch: ${{ init.branch }}
-      cache-epoch: ${{ init.cache-epoch }}
+      mode: compiler
+
+  # Install the Forge and Just versions pinned at each locked bundle's recorded
+  # commit. mise auto-install is off in RWX, so the verdict task cannot.
+  - key: historical-tools
+    use: [code, contract-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/runtime/nut-provenance.py --install-tools
+    tool-cache: nut-provenance-historical-tools-${{ init.cache-epoch }}
+    timeout: 30m
 
   - key: helper-tests
     use: [code, tools]
@@ -104,25 +112,21 @@ tasks:
     outputs:
       filesystem: false
 
+  # CircleCI's nut-provenance-verify, for every locked fork instead of the
+  # changed ones. The verifier's exit status is the verdict.
   - key: verify
-    use: [code, go-tools, historical-tools]
+    use: [code, historical-tools, go-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/nut-provenance/build"
       mkdir -p "$GOCACHE"
-      python3 ops/ci/runtime/nut-provenance.py \
-        --module-artifact "$MODULE_ARTIFACT" --tool-artifact "$TOOL_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore go-modules "$MODULE_ARTIFACT"
+      python3 ops/ci/runtime/nut-provenance.py
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       MODULE_ARTIFACT: ${{ tasks.modules.tasks.build.artifacts.dependency }}
-      TOOL_ARTIFACT: ${{ tasks.historical-tools.tasks.prepare.artifacts.tools }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
     cache: false
     tool-cache: nut-provenance-go-compiler-${{ init.cache-epoch }}
     timeout: 45m
@@ -134,9 +138,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/nut-provenance/build]
           system: []
-      artifacts:
-        - key: reports
-          path: .ci/nut-provenance/run
 
   # Exact Main dependency states; unrelated workload failures stay outside this gate.
   - key: main-gate-receipt

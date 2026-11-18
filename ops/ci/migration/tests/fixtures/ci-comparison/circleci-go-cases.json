@@ -4,7 +4,7 @@
     "url": "https://circleci.com/gh/ethereum-optimism/optimism/5622514",
     "source": "CircleCI test metadata API, selected real records; intentionally incomplete fixture, not a full runtime report"
   },
-  "cases": [
+  "items": [
     {
       "classname": "github.com/ethereum-optimism/optimism/op-node/rollup",
       "name": "TestChainSpec_CanyonForkActivation/Genesis",

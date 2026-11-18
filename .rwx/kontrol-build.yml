@@ -85,34 +85,27 @@ tasks:
       mode: go
       timeout: 20m
 
-  - key: compiler-set
-    use: contract-tools
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: |
-      if ! svm which 0.8.30 >/dev/null 2>&1; then
-        for attempt in 1 2 3 4 5; do
-          if svm install 0.8.30; then break; fi
-          if [ "$attempt" = 5 ]; then exit 1; fi
-          sleep "$((2 ** attempt))"
-        done
-      fi
-    timeout: 15m
-
+  # Pull the image that test/kontrol/scripts/common.sh runs, so that this task
+  # retries a registry failure and the verdict task does not download it.
   - key: image
     use: [code, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    filter: [mise.toml, ops/ci/runtime/kontrol-image.py, ops/ci/runtime/kontrol-image.json]
-    run: python3 ops/ci/runtime/kontrol-image.py prepare
+    filter: [mise.toml]
+    run: |
+      image="runtimeverificationinc/kontrol:ubuntu-jammy-$(yq '.tools.kontrol' mise.toml)"
+      for attempt in 1 2 3 4 5; do
+        if docker pull "$image"; then exit 0; fi
+        sleep "$((2 ** attempt))"
+      done
+      exit 1
     docker: preserve-data
     timeout: 30m
+    # The task changes Docker data only; it hands no file to later tasks.
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/kontrol-build/image]
+          workspace: []
           system: []
-      artifacts:
-        - key: reports
-          path: .ci/kontrol-build/image
 
   - key: source
     use: [code, tools]
@@ -123,40 +116,31 @@ tasks:
       git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
     timeout: 20m
 
+  # CircleCI's contracts-bedrock-build, which check-kontrol-build requires.
   - key: contracts
-    use: [source, go-tools, compiler-set]
+    use: [source, go-tools, contract-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/kontrol-contracts.yml
+    call: ${{ run.dir }}/packages/go-contracts.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ''
+      target-cache-mode: keep
 
-  - key: helper-tests
-    use: [source, go-tools, compiler-set, image]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: RWX_LIVE_KONTROL_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_kontrol_build.py'
-    docker: true
-    cache: false
-    timeout: 20m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: fixtures
-          path: .ci/kontrol-build/helper-fixtures
-
+  # CircleCI's check-kontrol-build. The exit status of its two recipes is the
+  # verdict. Like CircleCI, the task sets no FOUNDRY_PROFILE.
   - key: check
-    use: [source, go-tools, compiler-set, image]
+    use: [source, go-tools, contract-tools, image]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/runtime/kontrol-build.py --contract-artifact "$CONTRACT_ARTIFACT"
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
+      cd packages/contracts-bedrock
+      just kontrol-summary-fp
+      just forge-build ./test/kontrol/proofs
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
     docker: true
     cache: false
     timeout: 90m
@@ -165,9 +149,6 @@ tasks:
       memory: 8gb
     outputs:
       filesystem: false
-      artifacts:
-        - key: reports
-          path: .ci/kontrol-build/run
 
   # Exact Main dependency states; unrelated workload failures stay outside this gate.
   - key: main-gate-receipt

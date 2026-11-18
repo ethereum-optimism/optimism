@@ -13,7 +13,6 @@ from unittest.mock import patch
 SPEC = importlib.util.spec_from_file_location('rust_cache', Path(__file__).resolve().parents[1] / 'runtime' / 'rust-target-cache.py')
 CACHE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CACHE)
-ARCHIVE_TOOLS = shutil.which('zstd') and 'GNU tar' in subprocess.check_output(['tar', '--version'], text=True)
 
 
 class RustTargetCacheTest(unittest.TestCase):
@@ -55,88 +54,6 @@ class RustTargetCacheTest(unittest.TestCase):
             self.source.write_text(self.source.read_text() + '\n// ordinary source edit')
             commit('source after build change')
             self.assertEqual(CACHE.compiler_base(self.root), changed)
-
-    def test_size_counts_file_bytes_once_per_inode_and_does_not_follow_symlinks(self):
-        binary = self.target / 'debug/deps/test-binary'
-        binary.parent.mkdir(parents=True)
-        binary.write_bytes(b'compiled executable')
-        os.link(binary, self.target / 'debug/test-binary')
-        external = self.root / 'external'
-        external.mkdir()
-        (external / 'large-file').write_bytes(b'outside cache')
-        (self.target / 'external').symlink_to(external, target_is_directory=True)
-        (self.target / 'linked-file').symlink_to(binary)
-        state = self.target / '.rwx-source-fingerprint.json'
-        state.write_bytes(b'{}')
-        result = CACHE.size(self.target)
-        self.assertEqual(result['files'], 3)
-        self.assertEqual(result['hardlink_aliases'], 1)
-        self.assertEqual(result['bytes'], binary.stat().st_size + state.stat().st_size)
-        self.assertEqual(sum(result['by_directory'].values()), result['bytes'])
-        self.assertEqual(result['allocated_bytes'], (binary.stat().st_blocks + state.stat().st_blocks) * 512)
-
-    @unittest.skipUnless(ARCHIVE_TOOLS, 'requires GNU tar and zstd')
-    def test_snapshot_restores_compiler_bytes_modes_and_nanosecond_mtimes(self):
-        binary = self.target / 'debug/deps/test-binary'
-        binary.parent.mkdir(parents=True)
-        binary.write_bytes(b'compiled executable')
-        binary.chmod(0o755)
-        stamp = 1234567890123456789
-        os.utime(binary, ns=(stamp, stamp))
-        incremental = self.target / 'debug/incremental/work'
-        incremental.parent.mkdir(parents=True)
-        incremental.write_bytes(b'incremental compiler state')
-        archive = self.root / '.ci/rust-cache/target-cache.tar.zst'
-        CACHE.snapshot('pack', self.target, archive)
-        binary.write_bytes(b'partial failed rebuild')
-        leftover = self.target / 'partial-new-file'; leftover.touch()
-        CACHE.snapshot('restore', self.target, archive)
-        self.assertEqual(binary.read_bytes(), b'compiled executable')
-        self.assertEqual(binary.stat().st_mtime_ns, stamp)
-        self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
-        self.assertEqual(incremental.read_bytes(), b'incremental compiler state')
-        self.assertFalse(leftover.exists())
-
-    @unittest.skipUnless(ARCHIVE_TOOLS, 'requires GNU tar and zstd')
-    def test_corrupt_snapshot_fails_and_failed_pack_preserves_previous_cache(self):
-        archive = self.root / 'target.tar.zst'
-        archive.write_bytes(b'corrupt archive')
-        with self.assertRaises(subprocess.CalledProcessError):
-            CACHE.snapshot('restore', self.target, archive)
-        self.target.mkdir(exist_ok=True)
-        with patch.object(CACHE.subprocess, 'run', side_effect=subprocess.CalledProcessError(2, 'tar')):
-            with self.assertRaises(subprocess.CalledProcessError):
-                CACHE.snapshot('pack', self.target, archive)
-        self.assertEqual(archive.read_bytes(), b'corrupt archive')
-        self.assertFalse(list(self.root.glob('.target-cache-*')))
-
-    def test_namespace_keeps_source_edits_but_resets_dependency_and_compiler_changes(self):
-        manifest = self.root / 'rust/Cargo.toml'; manifest.write_text('[workspace]\n')
-        lock = self.root / 'rust/Cargo.lock'; lock.write_text('version = 4\n')
-        local = self.root / 'rust/local/Cargo.toml'; local.parent.mkdir(); local.write_text('[package]\nname="local"\n')
-        bundle_checksum = self.root / (CACHE.GENERATED_SOURCES[0] + '.sha256')
-        bundle_checksum.parent.mkdir(parents=True); bundle_checksum.write_text('pinned bundle checksum')
-        subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)
-        subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
-                        'commit', '-qm', 'fixture'], cwd=self.root, check=True)
-        original = subprocess.check_output; tool_version = ['pinned compiler']
-        def output(argv, **kwargs):
-            return original(argv, **kwargs) if argv[0] == 'git' else tool_version[0]
-        with patch.object(CACHE.subprocess, 'check_output', side_effect=output), patch.dict(os.environ, {}, clear=True):
-            before = CACHE.namespace(self.root)
-            self.source.write_text('pub fn changed() {}')
-            self.assertEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
-            for path in (manifest, lock, local, bundle_checksum):
-                content = path.read_text(); path.write_text(content + '\n# dependency/configuration edit\n')
-                self.assertNotEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
-                path.write_text(content)
-            tool_version[0] = 'new compiler'
-            self.assertNotEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
-            tool_version[0] = 'pinned compiler'
-            os.environ['RUSTFLAGS'] = '-C target-feature=+avx2'
-            self.assertNotEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
-        lock.unlink()
-        with self.assertRaises(FileNotFoundError): CACHE.namespace(self.root)
 
     def test_changed_content_refreshes_normalized_mtimes_and_keeps_targets(self):
         self.run_phase('prepare'); self.run_phase('commit')

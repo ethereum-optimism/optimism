@@ -4,7 +4,7 @@
     "url": "https://circleci.com/gh/ethereum-optimism/optimism/5622529",
     "source": "Selected original CircleCI API records corresponding to native Foundry fixture identities. Different SHA; parsing fixture only, not a provider equivalence claim."
   },
-  "cases": [
+  "items": [
     {
       "classname": "test/L1/L1StandardBridge.t.sol:L1StandardBridge_DepositETHTo_Test",
       "name": "testFuzz_depositETHTo_withCustomGasToken_reverts(address,uint256,uint32)",

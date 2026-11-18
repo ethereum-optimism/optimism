@@ -84,54 +84,23 @@ tasks:
     with:
       mode: compiler
 
-  - key: rpc-check
-    use: [code, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
-    run: |
-      python3 ops/ci/runtime/contract-upgrades.py preflight
-      printf 'true\n' >"$RWX_VALUES/ready"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
-    cache: false
-    timeout: 10m
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/contract-upgrades/preflight]
-          system: []
-      artifacts:
-        - key: block
-          path: .ci/contract-upgrades/preflight/block.json
-        - key: reports
-          path: .ci/contract-upgrades/preflight
-
   - key: go-modules
     use: [code, go-tools]
-    # Allow an intentionally skipped preflight only for compiler-only warming.
-    after: ${{ rpc-check.succeeded || rpc-check.skipped }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/go-modules.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-epoch: ${{ init.cache-epoch }}
+
+  # One initialized checkout supplies the submodule sources to every compile and verdict task.
+  - key: source
+    use: [code, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
-      mkdir -p "$GOMODCACHE"
-      python3 ops/ci/runtime/pr-checks.py go-modules
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-    tool-cache: contract-upgrades-modules-${{ init.cache-epoch }}
-    timeout: 30m
-    runner:
-      cpus: 2
-      memory: 4gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/contract-upgrades/modules]
-          system: []
-      artifacts:
-        - key: reports
-          path: .ci/pr-checks/go-modules
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+    timeout: 20m
 
   - key: helper-tests
     use: [code, go-tools, contract-tools]
@@ -145,178 +114,146 @@ tasks:
 
   # Explicit producer/verdict pairs keep each variant's filesystem isolated.
   - key: compile-feature-main
-    use: [code, go-tools, contract-tools, go-modules]
+    use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       cache-key: contract-upgrades-feature-main-${{ init.cache-epoch }}
       variant: feature-main
 
   - key: verdict-feature-main
-    use: [code, go-tools, contract-tools, go-modules, compile-feature-main, rpc-check]
-    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    use: [source, go-tools, contract-tools, go-modules, compile-feature-main]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      compiled: .ci/contract-upgrades/feature-main/prepare
-      pinned-block: .ci/contract-upgrades/preflight/block.json
       cache-key: contract-upgrades-rpc-feature-main-${{ init.cache-epoch }}
       variant: feature-main
 
   - key: compile-feature-CUSTOM_GAS_TOKEN
-    use: [code, go-tools, contract-tools, go-modules]
+    use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       cache-key: contract-upgrades-feature-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
       variant: feature-CUSTOM_GAS_TOKEN
 
   - key: verdict-feature-CUSTOM_GAS_TOKEN
-    use: [code, go-tools, contract-tools, go-modules, compile-feature-CUSTOM_GAS_TOKEN, rpc-check]
-    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    use: [source, go-tools, contract-tools, go-modules, compile-feature-CUSTOM_GAS_TOKEN]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      compiled: .ci/contract-upgrades/feature-CUSTOM_GAS_TOKEN/prepare
-      pinned-block: .ci/contract-upgrades/preflight/block.json
       cache-key: contract-upgrades-rpc-feature-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
       variant: feature-CUSTOM_GAS_TOKEN
 
   - key: compile-feature-INTEROP
-    use: [code, go-tools, contract-tools, go-modules]
+    use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       cache-key: contract-upgrades-feature-INTEROP-${{ init.cache-epoch }}
       variant: feature-INTEROP
 
   - key: verdict-feature-INTEROP
-    use: [code, go-tools, contract-tools, go-modules, compile-feature-INTEROP, rpc-check]
-    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    use: [source, go-tools, contract-tools, go-modules, compile-feature-INTEROP]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      compiled: .ci/contract-upgrades/feature-INTEROP/prepare
-      pinned-block: .ci/contract-upgrades/preflight/block.json
       cache-key: contract-upgrades-rpc-feature-INTEROP-${{ init.cache-epoch }}
       variant: feature-INTEROP
 
   - key: compile-feature-BRIDGE_HOOK
-    use: [code, go-tools, contract-tools, go-modules]
+    use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       cache-key: contract-upgrades-feature-BRIDGE_HOOK-${{ init.cache-epoch }}
       variant: feature-BRIDGE_HOOK
 
   - key: compile-feature-OP_PRIVATE
-    use: [code, go-tools, contract-tools, go-modules]
+    use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       cache-key: contract-upgrades-feature-OP_PRIVATE-${{ init.cache-epoch }}
       variant: feature-OP_PRIVATE
 
   - key: verdict-feature-BRIDGE_HOOK
-    use: [code, go-tools, contract-tools, go-modules, compile-feature-BRIDGE_HOOK, rpc-check]
-    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    use: [source, go-tools, contract-tools, go-modules, compile-feature-BRIDGE_HOOK]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      compiled: .ci/contract-upgrades/feature-BRIDGE_HOOK/prepare
-      pinned-block: .ci/contract-upgrades/preflight/block.json
       cache-key: contract-upgrades-rpc-feature-BRIDGE_HOOK-${{ init.cache-epoch }}
       variant: feature-BRIDGE_HOOK
 
   - key: verdict-feature-OP_PRIVATE
-    use: [code, go-tools, contract-tools, go-modules, compile-feature-OP_PRIVATE, rpc-check]
-    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    use: [source, go-tools, contract-tools, go-modules, compile-feature-OP_PRIVATE]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      compiled: .ci/contract-upgrades/feature-OP_PRIVATE/prepare
-      pinned-block: .ci/contract-upgrades/preflight/block.json
       cache-key: contract-upgrades-rpc-feature-OP_PRIVATE-${{ init.cache-epoch }}
       variant: feature-OP_PRIVATE
 
   - key: compile-chain-op
-    use: [code, go-tools, contract-tools, go-modules]
+    use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       cache-key: contract-upgrades-chain-op-${{ init.cache-epoch }}
       variant: chain-op
 
   - key: verdict-chain-op
-    use: [code, go-tools, contract-tools, go-modules, compile-chain-op, rpc-check]
-    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    use: [source, go-tools, contract-tools, go-modules, compile-chain-op]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      compiled: .ci/contract-upgrades/chain-op/prepare
-      pinned-block: .ci/contract-upgrades/preflight/block.json
       cache-key: contract-upgrades-rpc-chain-op-${{ init.cache-epoch }}
       variant: chain-op
 
   - key: compile-chain-ink
-    use: [code, go-tools, contract-tools, go-modules]
+    use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       cache-key: contract-upgrades-chain-ink-${{ init.cache-epoch }}
       variant: chain-ink
 
   - key: verdict-chain-ink
-    use: [code, go-tools, contract-tools, go-modules, compile-chain-ink, rpc-check]
-    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    use: [source, go-tools, contract-tools, go-modules, compile-chain-ink]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      compiled: .ci/contract-upgrades/chain-ink/prepare
-      pinned-block: .ci/contract-upgrades/preflight/block.json
       cache-key: contract-upgrades-rpc-chain-ink-${{ init.cache-epoch }}
       variant: chain-ink
 
   - key: compile-chain-unichain
-    use: [code, go-tools, contract-tools, go-modules]
+    use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
       cache-key: contract-upgrades-chain-unichain-${{ init.cache-epoch }}
       variant: chain-unichain
 
   - key: verdict-chain-unichain
-    use: [code, go-tools, contract-tools, go-modules, compile-chain-unichain, rpc-check]
-    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    use: [source, go-tools, contract-tools, go-modules, compile-chain-unichain]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      compiled: .ci/contract-upgrades/chain-unichain/prepare
-      pinned-block: .ci/contract-upgrades/preflight/block.json
       cache-key: contract-upgrades-rpc-chain-unichain-${{ init.cache-epoch }}
       variant: chain-unichain
 

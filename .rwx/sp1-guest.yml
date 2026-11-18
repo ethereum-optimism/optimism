@@ -79,40 +79,32 @@ tasks:
     with:
       mode: sp1
 
+  # CircleCI's sp1-toolchain-restore-or-install command. The filter lists the
+  # files that the script and its cargo and just calls read.
   - key: toolchain
     use: [code, rust-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/runtime/sp1-guest.py --phase toolchain
+    run: bash ops/ci/runtime/sp1-guest-toolchain.sh
     filter:
       - mise.toml
       - rust/Cargo.toml
       - rust/Cargo.lock
-      - rust/justfile
       - rust/kona/sp1/programs/Cargo.toml
       - rust/kona/sp1/programs/Cargo.lock
       - rust/kona/sp1/justfile
       - rust/rust-toolchain.toml
       - rust/.cargo/config.toml
-      - ops/ci/runtime/sp1-guest.py
-      - ops/ci/runtime/sp1-guest-native-build.py
       - ops/ci/runtime/sp1-guest-toolchain.sh
-      - ops/ci/runtime/rust-workspace-report.py
-      - ops/ci/runtime/ci-report.py
-      - ops/ci/runtime/rust-target-cache.py
     timeout: 40m
-    outputs:
-      artifacts:
-        - key: reports
-          path: .ci/sp1-guest/toolchain
 
+  # CircleCI's steps up to the ELF marker check. The artifact hands the ELFs
+  # and vkeys.toml to the check task.
   - key: build
     use: [code, toolchain]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: python3 ops/ci/runtime/sp1-guest.py --phase build --features test-config-fallback
     env:
       CI: "true"
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CARGO_INCREMENTAL: "0"
       SP1_GUEST_TARGET_MODE: ${{ init.target-cache-mode }}
     tool-cache: sp1-guest-canonical-elf-${{ init.cache-epoch }}
@@ -130,34 +122,25 @@ tasks:
           path: .ci/sp1-guest/dependency
 
   - key: helper-tests
-    use: [code, toolchain]
+    use: [code, tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: RWX_LIVE_SP1_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_sp1_guest.py'
-    env:
-      SP1_GUEST_ARTIFACT: ${{ tasks.build.artifacts.dependency }}
+    run: python3 -m unittest discover -s ops/ci/tests -p 'test_sp1_guest.py'
     cache: false
     timeout: 15m
     outputs:
       filesystem: false
-      artifacts:
-        - key: fixtures
-          path: .ci/sp1-guest/helper-fixtures
 
+  # CircleCI's test, lint and vkey crate steps. The exit status of each recipe
+  # is the verdict.
   - key: check
     use: [code, toolchain]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: python3 ops/ci/runtime/sp1-guest.py --phase checks --features test-config-fallback --artifact "$SP1_GUEST_ARTIFACT"
     env:
       CI: "true"
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       CARGO_INCREMENTAL: "0"
       SP1_GUEST_TARGET_MODE: ${{ init.target-cache-mode }}
       SP1_GUEST_ARTIFACT: ${{ tasks.build.artifacts.dependency }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
     tool-cache: sp1-guest-checks-${{ init.cache-epoch }}
     cache: false
     timeout: 90m
@@ -169,11 +152,6 @@ tasks:
         filter:
           workspace: [.ci/sp1-cache/cargo, .ci/sp1-cache/checks-target, .ci/sp1-cache/checks-sccache]
           system: []
-      test-results:
-        - path: .ci/sp1-guest/run/*.junit.xml
-      artifacts:
-        - key: reports
-          path: .ci/sp1-guest/run
 
   # Exact Main dependency states; unrelated workload failures stay outside this gate.
   - key: main-gate-receipt

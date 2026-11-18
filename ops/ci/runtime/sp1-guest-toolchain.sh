@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Shared original Circle SP1 pin checks and native toolchain installation.
+# Copy of the body of CircleCI's sp1-toolchain-restore-or-install command
+# (.circleci/continue/rust-e2e.yml): SP1 version pin checks, then the Succinct
+# toolchain installation. CircleCI does not run this file and nothing compares
+# the two, so apply a change of that command here by hand.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 

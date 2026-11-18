@@ -1,7 +1,5 @@
 package:
   parameters:
-    commit-sha:
-      required: true
     branch:
       required: true
     cache-key:
@@ -12,13 +10,10 @@ tasks:
   - key: build
     use: package.use
     run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
-      git submodule sync --recursive
-      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
       python3 ops/ci/runtime/contract-upgrades.py prepare --variant "$CI_CONTRACT_VARIANT"
     env:
-      CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}
       CI_CONTRACT_VARIANT: ${{ params.variant }}
     tool-cache: ${{ params.cache-key }}
@@ -29,8 +24,8 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build, '.ci/contract-upgrades']
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build]
           system: []
       artifacts:
-        - key: compiled
+        - key: reports
           path: .ci/contract-upgrades/${{ params.variant }}/prepare

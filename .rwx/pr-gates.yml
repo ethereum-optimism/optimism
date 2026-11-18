@@ -121,7 +121,6 @@ tasks:
       python3 -m unittest discover -s ops/ci/tests -p 'test_pr_gate.py' -v
       python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_local_packages.py' -v
       python3 -m unittest discover -s ops/ci/tests -p 'test_ci_report.py' -v
-      python3 -m unittest discover -s ops/ci/tests -p 'test_ci_source.py' -v
       python3 -m unittest discover -s ops/ci/tests -p 'test_ci_layout.py' -v
       python3 -m unittest discover -s ops/ci/migration/tests -p 'test_circle_alignment.py' -v
       python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_ci.py' -v
@@ -144,7 +143,6 @@ tasks:
       branch: ${{ init.branch }}
       cache-warm: "false"
       cache-epoch: v1
-      cargo-incremental: "0"
 
   - key: native-op-reth
     call: ${{ run.dir }}/op-reth.yml
@@ -457,7 +455,6 @@ tasks:
       branch: ${{ init.branch }}
       cache-warm: "false"
       cache-epoch: "v1"
-      build-probe: ""
 
   - key: native-contract-upgrades
     call: ${{ run.dir }}/contract-upgrades.yml

@@ -16,7 +16,6 @@ export SCCACHE_BASEDIRS="${REPO_ROOT}"
 job="${1:?Pass a build or verdict job}"
 report_dir="${REPO_ROOT}/.ci/op-reth/${job}"
 mkdir -p "$report_dir"
-started="$(date +%s)"
 
 finish() {
   local status=$? diagnostics=0
@@ -28,7 +27,6 @@ finish() {
   if [[ "$job" == *-build && "$status" == 0 ]]; then
     python3 "$(dirname "$REPORT")/rust-target-cache.py" commit || diagnostics=$?
   fi
-  python3 "$REPORT" metadata "$report_dir" "$job" "$started" "$status" || diagnostics=$?
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
   exit "$status"
 }
@@ -49,34 +47,25 @@ if [[ "$job" == *-build ]]; then
   # Keep a checksum-matching bundle without touching its mtime. Removing it on
   # every build dirties chainspec and forces downstream recompilation/relinking.
   # A stale bundle is removed so build.rs regenerates from the pinned submodule.
-  python3 "$REPORT" prepare-superchain "$report_dir"
+  python3 "$REPORT" prepare-superchain
   python3 "$(dirname "$REPORT")/rust-target-cache.py" prepare
 fi
 
 case "$job" in
   source)
     just update-superchain-registry-submodule
-    git submodule status superchain-registry > "$report_dir/submodule.txt"
     ;;
   release-build)
     # Like Circle's rust-build, release builds that only feed CI tests skip LTO.
     (cd rust && CARGO_PROFILE_RELEASE_LTO=off mold -run cargo build --locked --profile release \
       --package op-reth --package op-reth-test-engine --features default) \
       2>&1 | tee "$report_dir/build.log"
-    cp rust/target/release/op-reth rust/target/release/op-reth-test-engine "$report_dir/"
-    python3 "$REPORT" binaries "$report_dir" "${CI_COMMIT_SHA:?}" op-reth op-reth-test-engine
-    ;;
-  release)
-    python3 "$REPORT" verify-binaries .ci/op-reth/release-build "${CI_COMMIT_SHA:?}" op-reth op-reth-test-engine
-    .ci/op-reth/release-build/op-reth --version | tee "$report_dir/op-reth-version.txt"
     ;;
   integration-build)
     (cd rust && mold -run cargo nextest archive --locked -p reth-optimism-node \
       --archive-file "$report_dir/tests.tar.zst") 2>&1 | tee "$report_dir/build.log"
-    python3 "$REPORT" binaries "$report_dir" "${CI_COMMIT_SHA:?}" tests.tar.zst
     ;;
   integration)
-    python3 "$REPORT" verify-binaries .ci/op-reth/integration-build "${CI_COMMIT_SHA:?}" tests.tar.zst
     # Extract manually to a stable path so JUnit and metadata survive nextest's
     # temporary-directory cleanup. Runtime config and source remain from the PR.
     unpacked="$report_dir/unpacked"
@@ -108,18 +97,12 @@ case "$job" in
     (cd rust && mold -run cargo build --locked --bin op-reth --features dev \
       --manifest-path op-reth/bin/Cargo.toml) 2>&1 | tee "$report_dir/build.log"
     cp rust/target/debug/op-reth "$report_dir/op-reth"
-    if [[ "$job" == codec-base-build ]]; then expected="${CODEC_BASE_SHA:?}"; else expected="${CI_COMMIT_SHA:?}"; fi
-    python3 "$REPORT" binaries "$report_dir" "$expected" op-reth
     ;;
   codec-vectors)
-    python3 "$REPORT" verify-binaries .ci/op-reth/codec-base-build "${CODEC_BASE_SHA:?}" op-reth
     rm -rf testdata/micro/compact
     .ci/op-reth/codec-base-build/op-reth test-vectors compact --write 2>&1 | tee "$report_dir/generate.log"
-    python3 "$REPORT" vectors "$report_dir" "${CODEC_BASE_SHA:?}"
     ;;
   codec)
-    python3 "$REPORT" verify-binaries .ci/op-reth/codec-head-build "${CI_COMMIT_SHA:?}" op-reth
-    python3 "$REPORT" verify-vectors .ci/op-reth/codec-vectors "${CODEC_BASE_SHA:?}"
     .ci/op-reth/codec-head-build/op-reth test-vectors compact --read 2>&1 | tee "$report_dir/read.log"
     ;;
   snapshot-build)

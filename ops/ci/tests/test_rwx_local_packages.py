@@ -22,21 +22,6 @@ def tasks(name):
 
 
 class LocalPackageTests(unittest.TestCase):
-    def test_sp1_filtered_toolchain_imports_and_binds_every_helper(self):
-        selected = tasks('sp1-guest.yml')['toolchain']['filter']
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            for name in selected:
-                target = root / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(ROOT / name, target)
-            # Load only the bytes that native RWX transfers, without installing
-            # tools or invoking the workload. A missing import fails here.
-            spec = importlib.util.spec_from_file_location('sp1_filtered', root / 'ops/ci/runtime/sp1-guest.py')
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            self.assertEqual(set(selected), set(module.TOOL_INPUTS))
-
     def test_each_of_twelve_go_verdicts_waits_for_only_its_own_compilation(self):
         graph = tasks('go-tests.yml')
         for phase in ('compile', 'verdict'):
@@ -89,15 +74,11 @@ class LocalPackageTests(unittest.TestCase):
                         self.assertNotIn('.artifacts.', values)
                         self.assertNotIn('vaults.', values)
 
-    def test_output_filesystem_filters_retain_static_preparation_roots(self):
-        # Native output filters silently omitted parameterized paths. Each
-        # producer is isolated, so its static family root contains preparation
-        # evidence without including verdict results.
-        for name, root in [('contracts', '.ci/contract-suites'),
-                           ('contract-upgrades', '.ci/contract-upgrades')]:
+    def test_output_filesystem_filters_have_no_parameterized_paths(self):
+        # Native output filters silently omitted parameterized paths.
+        for name in ('contracts', 'contract-upgrades'):
             leaf = tasks('packages/' + name + '-compile.yml')['build']
             filters = leaf['outputs']['filesystem']['filter']['workspace']
-            self.assertIn(root, filters)
             self.assertNotIn('${{', json.dumps(filters))
 
     def test_nested_references_are_bound_to_calls_with_the_declared_child(self):

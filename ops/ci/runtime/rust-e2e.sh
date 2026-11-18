@@ -4,12 +4,6 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 mode="${1:?Pass compile or run}"
 job="${2:?Pass the E2E job name}"
-export CI_COMMIT_SHA="${CI_COMMIT_SHA:?Missing source revision}"
-case "$job" in proof | restart | simple-kona | simple-kona-sequencer | op-reth) ;; *)
-  echo 'Unknown E2E workload' >&2
-  exit 1
-  ;;
-esac
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
 export GOCACHE="$PWD/.ci/go-cache/rust-e2e/$mode"
 mkdir -p "$GOMODCACHE" "$GOCACHE"
@@ -41,7 +35,6 @@ python3 ops/ci/runtime/rust-e2e.py select "$job"
 if [[ "$job" == op-reth ]]; then
   python3 ops/ci/runtime/rust-workspace-report.py stage-at "$report" rust/op-reth/tests proof-contracts just build-contracts
 fi
-if [[ -d tmp/testlogs/dependencies ]]; then cp -R tmp/testlogs/dependencies "$report/"; fi
 if [[ ! -s "$report/assigned.txt" ]]; then
   echo 'Validated empty E2E shard; no tests assigned.'
   exit 0

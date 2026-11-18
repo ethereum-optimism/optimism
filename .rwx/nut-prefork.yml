@@ -119,21 +119,20 @@ tasks:
       build-probe: ''
       target-cache-mode: keep
 
+  # CircleCI's prep-superchain: regenerate the bundle, then fail if its
+  # committed checksum changed.
   - key: superchain
     use: [source, go-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/runtime/main-checks.py --prepare-superchain
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    run: |
+      just sync-superchain-go
+      git diff --exit-code op-core/superchain/bundle/superchain-configs.zip.sha256
     timeout: 15m
     outputs:
       filesystem:
         filter:
           workspace: [op-core/superchain/bundle/superchain-configs.zip]
           system: []
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/prep-superchain
 
   # The generator runs the L2 chain on op-reth-test-engine.
   - key: op-reth
@@ -146,19 +145,8 @@ tasks:
       build-probe: ''
       target-cache-mode: keep
 
-  - key: helper-tests
-    use: [code, go-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: RWX_LIVE_NUT_PREFORK_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_nut_prefork.py'
-    cache: false
-    timeout: 15m
-    outputs:
-      filesystem: false
-
-      artifacts:
-        - key: fixtures
-          path: .ci/nut-prefork/helper-fixtures
-
+  # CircleCI's check-nut-prefork-states: its three command lines, after the
+  # restores that replace attach_workspace. The recipe's exit status is the verdict.
   - key: tests
     use: [source, go-tools, contract-tools, superchain]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
@@ -166,24 +154,18 @@ tasks:
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/nut-prefork/build"
       mkdir -p "$GOCACHE"
+      python3 ops/ci/runtime/go-artifacts.py restore go-modules "$MODULE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
       python3 ops/ci/runtime/go-artifacts.py restore op-reth "$RETH_ARTIFACT"
       export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$PWD/rust/target/release/op-reth-test-engine"
       test -x "$RUST_BINARY_PATH_OP_RETH_TEST_ENGINE"
-      python3 ops/ci/runtime/nut-prefork.py \
-        --module-artifact "$MODULE_ARTIFACT" --contract-artifact "$CONTRACT_ARTIFACT" \
-        --bundle-artifact "$BUNDLE_ARTIFACT"
+      just _check-nut-prefork-states
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       MODULE_ARTIFACT: ${{ tasks.modules.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
-      BUNDLE_ARTIFACT: ${{ tasks.superchain.artifacts.reports }}
       RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
     cache: false
     tool-cache: nut-prefork-compiler-${{ init.cache-epoch }}
     timeout: 45m
@@ -195,9 +177,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/nut-prefork/build]
           system: []
-      artifacts:
-        - key: reports
-          path: .ci/nut-prefork/run
 
   # Exact Main dependency states; unrelated workload failures stay outside this gate.
   - key: main-gate-receipt
