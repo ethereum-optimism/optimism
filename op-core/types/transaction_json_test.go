@@ -29,14 +29,7 @@ func TestDepositTxJSONDifferential(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gethJSON, err := tc.gethTx().MarshalJSON()
 			require.NoError(t, err)
-
-			// Reject-parity: where op-geth's decoder rejects its own encoding
-			// (e.g. a nil Value marshals to null, which is invalid on decode),
-			// ours must reject too.
-			if err := new(gethtypes.Transaction).UnmarshalJSON(gethJSON); err != nil {
-				require.Error(t, json.Unmarshal(gethJSON, new(optypes.DepositTx)))
-				return
-			}
+			require.JSONEq(t, tc.json, string(gethJSON))
 
 			// op-geth JSON -> optypes -> binary equals op-geth binary
 			var d optypes.DepositTx
@@ -87,6 +80,7 @@ func TestDepositTxJSONWithNonceDifferential(t *testing.T) {
 	require.EqualValues(t, 7, *nonce) // proves the depositTxWithNonce path
 	rpcJSON, err := gethTx.MarshalJSON()
 	require.NoError(t, err)
+	require.JSONEq(t, depositTxWithNonceJSON, string(rpcJSON))
 
 	var d optypes.DepositTx
 	require.NoError(t, json.Unmarshal(rpcJSON, &d))
@@ -170,8 +164,8 @@ func postExecGethTx(data []byte) *gethtypes.Transaction {
 // 0x7D post-exec transaction. It will be removed in the final cutover, when
 // the op-geth dependency is replaced with upstream go-ethereum.
 func TestPostExecTxJSONDifferential(t *testing.T) {
-	for _, data := range [][]byte{{0x01}, {0xc2, 0x80, 0x80}, make([]byte, 64)} {
-		gethTx := postExecGethTx(data)
+	for _, v := range postExecTxJSONVectors {
+		gethTx := postExecGethTx(v.data)
 		gethJSON, err := gethTx.MarshalJSON()
 		require.NoError(t, err)
 
