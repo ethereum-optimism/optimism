@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -230,6 +231,12 @@ type mockBackend struct {
 
 	// minedTxs maps the hash of a mined transaction to its details.
 	minedTxs map[common.Hash]minedTxInfo
+
+	// closed makes RPC calls fail like a closed rpc.Client.
+	closed bool
+
+	// onReceipt, if set, runs each time TransactionReceipt returns a receipt.
+	onReceipt func()
 }
 
 // newMockBackend initializes a new mockBackend.
@@ -278,6 +285,10 @@ func (b *mockBackend) CallContract(ctx context.Context, call ethereum.CallMsg, b
 func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
+
+	if b.closed {
+		return nil, rpc.ErrClientQuit
+	}
 
 	num := big.NewInt(int64(b.blockHeight))
 	if number != nil {
@@ -329,11 +340,18 @@ func (*mockBackend) ChainID(ctx context.Context) (*big.Int, error) {
 // test framework.
 func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
-
 	txInfo, ok := b.minedTxs[txHash]
+	closed, onReceipt := b.closed, b.onReceipt
+	b.mu.RUnlock()
+
+	if closed {
+		return nil, rpc.ErrClientQuit
+	}
 	if !ok {
 		return nil, nil
+	}
+	if onReceipt != nil {
+		defer onReceipt()
 	}
 
 	// Return the gas fee cap for the transaction in the GasUsed field so that
@@ -351,6 +369,9 @@ func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash
 }
 
 func (b *mockBackend) Close() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.closed = true
 }
 
 func (b *mockBackend) BlobBaseFee(ctx context.Context) (*big.Int, error) {
@@ -1609,7 +1630,7 @@ func TestClose(t *testing.T) {
 		sendingSignal := make(chan struct{})
 
 		// Ensure the manager is not closed
-		require.False(t, h.mgr.closed.Load())
+		require.False(t, h.mgr.IsClosed())
 
 		// sendTx will fail until it is called a retry-number of times
 		called := 0
@@ -1644,7 +1665,7 @@ func TestClose(t *testing.T) {
 		require.Equal(t, retries, called)
 		called = 0
 		// Ensure the manager is *still* not closed
-		require.False(t, h.mgr.closed.Load())
+		require.False(t, h.mgr.IsClosed())
 
 		// on the second call, we close the manager while the tx is in progress by consuming the sending signal
 		go func() {
@@ -1658,7 +1679,7 @@ func TestClose(t *testing.T) {
 		require.ErrorIs(t, err, ErrClosed)
 		// confirm that the tx was canceled before it retried to completion
 		require.Less(t, called, retries)
-		require.True(t, h.mgr.closed.Load())
+		require.True(t, h.mgr.IsClosed())
 		called = 0
 
 		// demonstrate that new calls to Send will also fail when the manager is closed
@@ -1672,47 +1693,25 @@ func TestClose(t *testing.T) {
 	})
 }
 
-// TestCloseWaitingForConfirmation ensures that the tx manager will wait for confirmation of a tx in flight, even when closed
-func TestCloseWaitingForConfirmation(t *testing.T) {
+// TestCloseWhileWaitingForConfirmation ensures that Close ends a send whose tx is mined but not
+// yet confirmed. Close closes the backend, so the tx manager can never see the confirmation.
+func TestCloseWhileWaitingForConfirmation(t *testing.T) {
 	testSendVariants(t, func(t *testing.T, send testSendVariantsFn) {
-		// two confirmations required so that we can mine and not yet be fully confirmed
-		conf := configWithNumConfs(2)
-		h := newTestHarnessWithConfig(t, conf)
-
-		// sendDone is a signal that the tx has been sent from the sendTx function
-		sendDone := make(chan struct{})
-		// closeDone is a signal that the txmanager has closed
-		closeDone := make(chan struct{})
-
-		sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		h := newTestHarnessWithConfig(t, configWithNumConfs(1))
+		h.backend.setTxSender(func(ctx context.Context, tx *types.Transaction) error {
 			txHash := tx.Hash()
 			h.backend.mine(&txHash, tx.GasFeeCap(), big.NewInt(1))
-			close(sendDone)
 			return nil
-		}
-		h.backend.setTxSender(sendTx)
-
-		// this goroutine will close the manager when the tx sending is complete
-		// the transaction is not yet confirmed, so the manager will wait for confirmation
-		go func() {
-			<-sendDone
-			h.mgr.Close()
-			close(closeDone)
-		}()
-
-		// this goroutine will complete confirmation of the tx when the manager is closed
-		// by forcing this to happen after close, we are able to observe a closing manager waiting for confirmation
-		go func() {
-			<-closeDone
-			h.backend.mine(nil, nil, big.NewInt(1))
-		}()
-
-		ctx := context.Background()
-		_, err := send(ctx, h, TxCandidate{
-			To: &common.Address{},
 		})
-		require.True(t, h.mgr.closed.Load())
-		require.NoError(t, err)
+		// Close after the receipt is found but before the tip is fetched for the confirmation check.
+		// The tx manager then records the tx as mined but cannot confirm it.
+		h.backend.onReceipt = h.mgr.Close
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err := send(ctx, h, h.createTxCandidate())
+		require.ErrorIs(t, err, ErrClosed)
+		require.True(t, h.mgr.IsClosed())
 	})
 }
 
