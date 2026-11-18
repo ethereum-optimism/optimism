@@ -22,7 +22,7 @@ You don't always need one. With [execution-layer sync](/node-operators/reference
 Use a snapshot when:
 
 *   You are running an **archive node**, or otherwise need to trace the entire chain.
-*   You simply want to skip the initial sync entirely: a mature chain's data directory can run to hundreds of gigabytes (OP Mainnet is roughly 700 GB for a full node), and even execution-layer sync takes days from scratch.
+*   You simply want to skip the initial sync entirely: a mature chain's data directory can run to terabytes, and even execution-layer sync takes days from scratch. For scale, the current zstd-compressed snapshot downloads are about 1.3 TB (full) and 1.7 TB (archive) for OP Mainnet, and about 265 GB (full) and 262 GB (archive) for OP Sepolia; the extracted data directory is larger.
 
 <Note>
   On **OP Mainnet**, syncing `op-reth` on a fresh data directory is another reason to use a snapshot: it satisfies the [pre-Bedrock state import requirement](/node-operators/op-reth/run/faq/sync-op-mainnet) in one step, even when execution-layer sync is enabled.
