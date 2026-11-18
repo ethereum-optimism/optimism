@@ -11,10 +11,11 @@ import (
 )
 
 // txJSON is the JSON representation of OP Stack transactions on the
-// eth_getBlockBy*/eth_getTransactionBy* wire. It mirrors op-geth's txJSON:
-// fields without omitempty are emitted as null when unset, matching op-geth's
-// encoding byte-for-byte (modulo key order). Fields of other transaction types
-// are carried only to detect and reject their presence.
+// eth_getBlockBy*/eth_getTransactionBy* wire. Both transaction types decode from
+// it; only deposits encode to it. It mirrors op-geth's txJSON: fields without
+// omitempty are emitted as null when unset, matching op-geth's encoding
+// byte-for-byte (modulo key order). Fields of other transaction types are carried
+// only to detect and reject their presence.
 type txJSON struct {
 	Type                 *hexutil.Uint64    `json:"type"`
 	Nonce                *hexutil.Uint64    `json:"nonce"`
@@ -139,24 +140,29 @@ func (p *PostExecTx) Hash() common.Hash {
 	return crypto.Keccak256Hash(raw)
 }
 
-// MarshalJSON encodes the post-exec transaction in op-geth's RPC transaction
-// format, including the transaction hash.
-func (p *PostExecTx) MarshalJSON() ([]byte, error) {
-	typ := hexutil.Uint64(PostExecTxType)
-	zeroGas := hexutil.Uint64(0)
-	enc := &txJSON{
-		Type:  &typ,
-		Gas:   &zeroGas,
-		Value: (*hexutil.Big)(new(big.Int)),
-		Input: (*hexutil.Bytes)(&p.Data),
-		Hash:  p.Hash(),
-	}
-	return json.Marshal(enc)
+// postExecTxJSON is the JSON representation of a post-exec transaction: the transaction
+// fields the Lagoon spec lists for a generic transaction interface, and none of the user
+// transaction fields. The RPC layer adds the block-context fields.
+type postExecTxJSON struct {
+	Type  hexutil.Uint64 `json:"type"`
+	Hash  common.Hash    `json:"hash"`
+	From  common.Address `json:"from"`
+	Gas   hexutil.Uint64 `json:"gas"`
+	Value hexutil.Big    `json:"value"`
+	Input hexutil.Bytes  `json:"input"`
 }
 
-// UnmarshalJSON decodes a post-exec transaction from op-geth's RPC transaction
-// format, applying the same field validation as op-geth, plus one stricter
-// check: the input must not be empty. Empty input would encode to the one-byte
+// MarshalJSON encodes the post-exec transaction in the RPC transaction format of the
+// Lagoon spec: type, hash, the zero address as sender, zero gas and value, and the
+// payload as input.
+func (p *PostExecTx) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&postExecTxJSON{Type: PostExecTxType, Hash: p.Hash(), Input: p.Data})
+}
+
+// UnmarshalJSON decodes a post-exec transaction from its RPC transaction format. It
+// accepts the format of the Lagoon spec, with or without block-context fields, and
+// op-geth's, which reports the user transaction fields as null. It applies the same field
+// validation as op-geth, plus one stricter check: the input must not be empty. Empty input would encode to the one-byte
 // value 0x7D, which the binary decoders (UnmarshalPostExecTx, op-geth,
 // op-alloy) all reject — accepting it here would produce a transaction with no
 // canonical encoding.
