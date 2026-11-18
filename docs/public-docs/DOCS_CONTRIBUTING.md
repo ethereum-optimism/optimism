@@ -37,15 +37,15 @@ All contributions, pull requests, and issues should be in English at this time.
 - Basic knowledge of Git and GitHub
 - Familiarity with Markdown
 - Understanding of technical documentation principles
-- Node.js and npm installed
+- [mise](https://mise.jdx.dev) installed, then `mise install bun just` from the monorepo root
 
 ### Development Setup
-1. Install [pnpm](https://pnpm.io/installation)
-2. Run `pnpm i` to install dependencies
-3. Run `pnpm dev` to start development server
-4. Visit [localhost:3000](http://localhost:3000)
+1. From the monorepo root, run `just public-docs` to start the development server
+2. Visit [localhost:3000](http://localhost:3000)
 
 You can now start changing content and see the website updated live each time you save a new file. 🤓
+
+The preview runs the [Mintlify CLI](https://www.mintlify.com/docs/installation) on the `bun` pinned in `mise.toml`, so it needs no Node, pnpm or `pnpm install`. Pass extra `mint dev` flags through, e.g. `just public-docs --port 3333`.
 
 ## Contributing Process
 
@@ -110,7 +110,7 @@ prose that ought to read differently per audience.
 
 ### Local Testing
 
-Follow these [docs](https://www.mintlify.com/docs/installation) for local changes.
+Preview local changes with `just public-docs` (see [Development Setup](#development-setup)).
 
 ### Docs lints
 
