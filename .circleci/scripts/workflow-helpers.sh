@@ -7,7 +7,7 @@
 # Usage (from compute-workflow-conditions.sh):
 #   source .circleci/scripts/workflow-helpers.sh
 #   init_json
-#   ...routing logic using run/run_group/param/is_true...
+#   ...routing logic using run/run_group/set_true/param/is_true...
 #   finalize
 
 # OUTPUT is overridable so tests can point at an isolated file instead of the
@@ -48,6 +48,16 @@ skip_group() {
   for wf in $(yq -r ".${1}[]?" "${ROUTING}"); do
     _json=$(echo "${_json}" | jq 'del(."c-run_'"${wf}"'")')
     echo "  [skip] c-run_${wf}"
+  done
+}
+
+# set_true <name...>: set the boolean param c-<name> to true. For params other
+# than the c-run_* flags; finalize keeps only those listed as passthrough.
+set_true() {
+  local name
+  for name in "$@"; do
+    _json=$(echo "${_json}" | jq '. + {"c-'"${name}"'": true}')
+    echo "  [set] c-${name}"
   done
 }
 

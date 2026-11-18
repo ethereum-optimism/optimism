@@ -1,0 +1,7 @@
+[
+{"build_num": 5924525, "status": "success", "vcs_revision": "e5423ae69b154100a77361d74eb6d7170b2c34aa", "workflows": {"job_name": "required-rust-e2e", "workflow_id": "689df14a-b467-457c-be8e-da7d4c810fd0", "workflow_name": "rust-e2e-gate-skip"}},
+{"build_num": 5924524, "status": "success", "vcs_revision": "e5423ae69b154100a77361d74eb6d7170b2c34aa", "workflows": {"job_name": "required-rust-ci", "workflow_id": "65ed7182-5a04-47d9-a58b-221e2017cd42", "workflow_name": "rust-ci-gate-short"}},
+{"build_num": 5924523, "status": "success", "vcs_revision": "e5423ae69b154100a77361d74eb6d7170b2c34aa", "workflows": {"job_name": "ci-gate", "workflow_id": "3cd821a8-0423-4cad-bbb7-30937c31c616", "workflow_name": "ci-gate-skip"}},
+{"build_num": 5924522, "status": "success", "vcs_revision": "e5423ae69b154100a77361d74eb6d7170b2c34aa", "workflows": {"job_name": "required-contracts-ci", "workflow_id": "8cf31814-998e-4817-9c20-e8d215ef1684", "workflow_name": "contracts-feature-tests-short"}},
+{"build_num": 5924521, "status": "success", "vcs_revision": "e5423ae69b154100a77361d74eb6d7170b2c34aa", "workflows": {"job_name": "prepare-continuation-config", "workflow_id": "7d96095a-2751-4b7d-8c41-b49d5bde7a0f", "workflow_name": "setup"}}
+]

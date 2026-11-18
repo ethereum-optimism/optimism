@@ -25,6 +25,13 @@ schedules:
     - scheduled_sp1_elf_smoke
     - scheduled_rust_advisories
     - circleci_schedule_trigger_check
+    # The full develop run. A develop push halts the test-only jobs of the
+    # workflows the merge queue already passed on that commit, so this run is
+    # what still samples flakes on develop, posts their Slack alerts, and
+    # records develop timings and caches from those jobs.
+    - main
+    - rust_ci
+    - rust_e2e_ci
   build_weekly:
     - scheduled_rust_nightly_bump
 
@@ -68,6 +75,15 @@ public_repo_only:
   - circleci_schedule_trigger_check
   - scheduled_shipped_binaries
 
+# Workflows that schedules run only in ethereum-optimism/optimism. build_daily's
+# full develop run stands in for the tests its develop pushes skip after the
+# merge queue passed them. merge-queue-verified.sh never verifies a push in
+# another repo, so there every develop push already runs these in full.
+public_repo_only_scheduled:
+  - main
+  - rust_ci
+  - rust_e2e_ci
+
 # Change-detection patterns. Each value is a POSIX Extended Regular Expression
 # (ERE, like grep -E) matched line-by-line against the changed file list
 # (git diff --name-only origin/develop...HEAD). collect-params.sh reads these.
@@ -95,3 +111,8 @@ passthrough_params:
   - c-base_image
   - c-go-cache-version
   - c-publish_contract_artifacts_ref
+  # Set only on a develop push whose commit passed that workflow's gate in the
+  # merge queue; they halt the workflow's test-only jobs.
+  - c-develop_mq_verified_main
+  - c-develop_mq_verified_rust_ci
+  - c-develop_mq_verified_rust_e2e

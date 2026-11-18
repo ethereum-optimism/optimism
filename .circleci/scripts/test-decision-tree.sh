@@ -2,7 +2,8 @@
 # Dry-run test for the workflow routing policy (compute-workflow-conditions.sh).
 # Seeds the params JSON, sets the trigger/branch/tag/schedule environment, runs
 # the routing script, then asserts the expected c-run_* flags are (or are not)
-# set in the resulting JSON.
+# set in the resulting JSON. An expectation of the form <name>=true|false|absent
+# asserts the param c-<name> instead: true, not true, or not in the JSON.
 #
 # Usage:
 #   bash .circleci/scripts/test-decision-tree.sh
@@ -63,13 +64,24 @@ run_scenario() {
   local all_pass=true
   for wf in "${expected[@]}"; do
     local val
+    if [[ "${wf}" == *=* ]]; then
+      local param="${wf%%=*}" want="${wf#*=}"
+      val=$(echo "${_json}" | jq -r --arg k "c-${param}" 'if has($k) then .[$k] | tostring else "absent" end')
+      if [[ "${want}" == "false" && "${val}" != "true" ]] || [[ "${want}" == "${val}" ]]; then
+        continue
+      fi
+      echo "  FAIL: expected c-${param}=${want}, got ${val}"
+      all_pass=false
+      continue
+    fi
     val=$(echo "${_json}" | jq -r ".\"c-run_${wf}\" // false")
     if [[ "${val}" != "true" ]]; then
       echo "  FAIL: expected c-run_${wf}=true, got ${val}"
       all_pass=false
     fi
   done
-  for wf in "${unexpected[@]}"; do
+  # The +-expansion keeps an empty list from failing set -u on bash 3.2 (macOS).
+  for wf in ${unexpected[@]+"${unexpected[@]}"}; do
     local val
     val=$(echo "${_json}" | jq -r ".\"c-run_${wf}\" // false")
     if [[ "${val}" != "false" ]]; then
@@ -173,14 +185,78 @@ run_scenario \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-circleci_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
   main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
-  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
+  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short scheduled_shipped_binaries
 
 run_scenario \
   "After merge (develop), change detection must not alter routing" \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
   main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
-  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
+  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short scheduled_shipped_binaries
+
+# merge-queue-verified.sh records c-mq_verified_* for each workflow whose gate
+# passed in the merge queue on the develop push's commit. A develop push still
+# runs the same workflows, and only sets c-develop_mq_verified_* (which halt
+# test-only jobs) for the verified ones. The c-mq_verified_* facts themselves
+# never reach the continuation.
+run_scenario \
+  "After merge (develop), merge queue passed main, rust-ci and rust-e2e-ci" \
+  "webhook" "develop" "" "" \
+  '{"c-mq_verified_main": true, "c-mq_verified_rust_ci": true, "c-mq_verified_rust_e2e": true}' \
+  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
+  develop_mq_verified_main=true develop_mq_verified_rust_ci=true develop_mq_verified_rust_e2e=true \
+  mq_verified_main=absent mq_verified_rust_ci=absent mq_verified_rust_e2e=absent \
+  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short scheduled_shipped_binaries
+
+run_scenario \
+  "After merge (develop), merge queue verified nothing (admin merge, direct push, API error)" \
+  "webhook" "develop" "" "" \
+  '{"c-mq_verified_main": false, "c-mq_verified_rust_ci": false, "c-mq_verified_rust_e2e": false}' \
+  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
+  develop_mq_verified_main=absent develop_mq_verified_rust_ci=absent develop_mq_verified_rust_e2e=absent
+
+# The queue ran rust-ci-gate-short and rust-e2e-gate-skip (no Rust change), so
+# develop runs the Rust workflows in full and halts only main's test jobs.
+run_scenario \
+  "After merge (develop), merge queue passed main and skipped Rust" \
+  "webhook" "develop" "" "" \
+  '{"c-mq_verified_main": true, "c-mq_verified_rust_ci": false, "c-mq_verified_rust_e2e": false}' \
+  main rust_ci rust_e2e_ci \
+  develop_mq_verified_main=true develop_mq_verified_rust_ci=absent develop_mq_verified_rust_e2e=absent
+
+# The facts only matter on a develop push. Nothing else halts jobs.
+run_scenario \
+  "PR (feature branch), merge queue facts are ignored" \
+  "webhook" "feat/my-thing" "" "" \
+  '{"c-rust_changes_detected": true, "c-mq_verified_main": true, "c-mq_verified_rust_ci": true, "c-mq_verified_rust_e2e": true}' \
+  main rust_ci rust_e2e_ci \
+  develop_mq_verified_main=absent develop_mq_verified_rust_ci=absent develop_mq_verified_rust_e2e=absent
+
+run_scenario \
+  "Merge queue, merge queue facts are ignored" \
+  "webhook" "gh-readonly-queue/develop/pr-123" "" "" \
+  '{"c-rust_changes_detected": true, "c-mq_verified_main": true, "c-mq_verified_rust_ci": true, "c-mq_verified_rust_e2e": true}' \
+  main rust_ci rust_e2e_ci \
+  develop_mq_verified_main=absent develop_mq_verified_rust_ci=absent develop_mq_verified_rust_e2e=absent
+
+run_scenario \
+  "Scheduled: build_daily, merge queue facts are ignored (full develop run)" \
+  "scheduled_pipeline" "develop" "" "build_daily" \
+  '{"c-mq_verified_main": true, "c-mq_verified_rust_ci": true, "c-mq_verified_rust_e2e": true}' \
+  main rust_ci rust_e2e_ci \
+  develop_mq_verified_main=absent develop_mq_verified_rust_ci=absent develop_mq_verified_rust_e2e=absent
+
+run_scenario \
+  "API: main_dispatch on develop, merge queue facts are ignored" \
+  "api" "develop" "" "" \
+  '{"c-main_dispatch": true, "c-mq_verified_main": true}' \
+  release main develop_mq_verified_main=absent
+
+run_scenario \
+  "Tag push, merge queue facts are ignored" \
+  "webhook" "" "v1.0.0" "" \
+  '{"c-mq_verified_main": true}' \
+  release develop_mq_verified_main=absent
 
 # Other repos sharing this config run the same post-merge set minus the
 # routing.yml public_repo_only workflows.
@@ -211,18 +287,23 @@ run_scenario \
   '{}' \
   scheduled_todo_issues scheduled_cannon_full_tests
 
+# build_daily also runs main, rust-ci and rust-e2e-ci in full, because a develop
+# push the merge queue already tested halts their test-only jobs.
 run_scenario \
   "Scheduled: build_daily" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
-  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_shipped_binaries scheduled_sp1_elf_smoke scheduled_rust_advisories circleci_schedule_trigger_check
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_shipped_binaries scheduled_sp1_elf_smoke scheduled_rust_advisories circleci_schedule_trigger_check \
+  main rust_ci rust_e2e_ci \
+  develop_mq_verified_main=absent develop_mq_verified_rust_ci=absent develop_mq_verified_rust_e2e=absent
 
+# Other repos never skip develop tests, so they get no extra full develop run.
 REPO="ethereum-optimism/other" run_scenario \
   "Scheduled: build_daily, outside the public repo" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
   scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke \
-  --not circleci_schedule_trigger_check scheduled_shipped_binaries
+  --not circleci_schedule_trigger_check scheduled_shipped_binaries main rust_ci rust_e2e_ci
 
 run_scenario \
   "Scheduled: build_weekly" \

@@ -28,6 +28,11 @@ parameters:
   c-run_scheduled_sp1_elf_smoke:
     type: boolean
     default: false
+  # True only on a develop push whose commit passed required-rust-e2e in the
+  # merge queue; halts the e2e test jobs (halt-if-merge-queue-verified).
+  c-develop_mq_verified_rust_e2e:
+    type: boolean
+    default: false
 
 # ============================================================================
 # RUST E2E COMMANDS
@@ -133,6 +138,11 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
+      # The four e2e test jobs run prebuilt binaries, so they write no sccache
+      # entries. A day-old kona-ci or op-reth-e2e Go build cache compiled about
+      # 4 s slower than one a commit old (measured locally).
+      - halt-if-merge-queue-verified:
+          verified: << pipeline.parameters.c-develop_mq_verified_rust_e2e >>
       - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
@@ -182,6 +192,8 @@ jobs:
     # One test per node via the timing split in test-e2e-sysgo-run.
     parallelism: 3
     steps:
+      - halt-if-merge-queue-verified:
+          verified: << pipeline.parameters.c-develop_mq_verified_rust_e2e >>
       - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
@@ -219,6 +231,8 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
+      - halt-if-merge-queue-verified:
+          verified: << pipeline.parameters.c-develop_mq_verified_rust_e2e >>
       - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
@@ -258,6 +272,13 @@ jobs:
     # At 8 nodes the longest test (~190s) sets the wall.
     parallelism: 8
     steps:
+      # The split uses CircleCI's own timings: the newest green job of this name
+      # on the branch, or in the project for a new branch. Every merge queue
+      # branch is new, so a queue run (or rust-e2e-restart's) can take them from a
+      # halted develop run, which records none, and split by count instead:
+      # longer wall clock, about the same credits.
+      - halt-if-merge-queue-verified:
+          verified: << pipeline.parameters.c-develop_mq_verified_rust_e2e >>
       - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:

@@ -123,6 +123,11 @@ parameters:
   c-run_publish_contract_artifacts:
     type: boolean
     default: false
+  # True only on a develop push whose commit passed ci-gate in the merge queue;
+  # halts main's test-only jobs (halt-if-merge-queue-verified).
+  c-develop_mq_verified_main:
+    type: boolean
+    default: false
 
 orbs:
   utils: ethereum-optimism/circleci-utils@1.0.34
@@ -1702,24 +1707,29 @@ jobs:
 
   # develop's latest timings for the memory-all test splits (see shard-tests.sh), from
   # CircleCI's API. Fetched once, in a job both memory-all jobs wait for, so every node
-  # gets the same file. Not on develop, tags, the merge queue or proposal branches, which
-  # keep CircleCI's own timings. Any failure writes no file, and the split works as today.
+  # gets the same file. Not on tags or proposal branches, which keep CircleCI's own
+  # timings. Any failure writes no file, and the split works as today.
+  #
+  # A develop push that the merge queue already tested halts memory-all before it runs a
+  # test (halt-if-merge-queue-verified). That job is green but records no tests, so the
+  # fetch skips it and keeps looking. develop and the merge queue fetch too, because
+  # CircleCI's own timings there come from the newest green job of the same name, which
+  # can now be one of those halted jobs.
   memory-all-shard-timings:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small.gen2
     steps:
+      # Only memory-all uses the file, and it halts too.
+      - halt-if-merge-queue-verified:
+          verified: << pipeline.parameters.c-develop_mq_verified_main >>
       - run:
           name: Create the timings dir
           command: mkdir -p /tmp/_shard-timings && touch /tmp/_shard-timings/.keep
       - unless:
           condition:
             or:
-              - equal: ["develop", << pipeline.git.branch >>]
               - equal: ["", << pipeline.git.branch >>]
-              - matches:
-                  pattern: "^gh-readonly-queue/.*$"
-                  value: << pipeline.git.branch >>
               # PR branches targeting proposal/* still fetch develop's. Tests develop lacks get the 1m default.
               - matches:
                   pattern: "^proposal/.*$"
@@ -1735,28 +1745,24 @@ jobs:
                   JOBS: memory-all-opn-op-reth-fusaka memory-all-kona-op-reth-fusaka
                 command: |
                   # Any failure logs one line and passes, leaving no file for the jobs not yet done.
-                  trap 'echo "Could not fetch develop timings, memory-all splits as today"; exit 0' ERR
+                  # errtrace (-E) makes the functions below fire the trap too. It also fires in
+                  # $(...), where it must fail the substitution so the outer shell's trap runs.
+                  set -E
+                  trap '[ "$BASH_SUBSHELL" -eq 0 ] || exit 1; echo "Could not fetch develop timings, memory-all splits as today"; exit 0' ERR
                   API=https://circleci.com/api
                   SLUG=gh/ethereum-optimism/optimism
                   CURL=(curl -fsS --max-time 10 --retry 2 --retry-delay 1 --retry-max-time 10)
                   if [ -n "${CIRCLE_TIMINGS_TOKEN:-}" ]; then CURL+=(-H "Circle-Token: $CIRCLE_TIMINGS_TOKEN"); fi
                   cd "$(mktemp -d)"
-                  # Green develop jobs, newest first. A develop pipeline adds about 100.
-                  for offset in 0 100 200; do
-                    [ "$SECONDS" -lt 60 ]
-                    "${CURL[@]}" -o jobs.json "$API/v1.1/project/$SLUG/tree/develop?filter=successful&shallow=true&limit=100&offset=$offset"
-                    jq -r '.[] | "\(.workflows.job_name) \(.build_num)"' jobs.json >> jobs.txt
-                    if awk -v want="$JOBS" 'BEGIN { n = split(want, w, " ") } { seen[$1] = 1 }
-                        END { for (i = 1; i <= n; i++) if (!seen[w[i]]) exit 1 }' jobs.txt; then break; fi
-                  done
-                  for job in $JOBS; do
-                    num=$(awk -v j="$job" '$1 == j && $2 > n { n = $2 } END { print n + 0 }' jobs.txt)
-                    if [ "$num" -eq 0 ]; then echo "No green develop run of $job found"; continue; fi
+                  need="$JOBS"
+                  # use_job <job> <number>: write that job's test timings and drop <job> from need.
+                  # A job that recorded no tests stays in need.
+                  use_job() {
                     : > tests.jsonl
                     token=
                     while :; do
-                      [ "$SECONDS" -lt 60 ]
-                      "${CURL[@]}" -o page.json "$API/v2/project/$SLUG/$num/tests${token:+?page-token=$token}"
+                      [ "$SECONDS" -lt 120 ]
+                      "${CURL[@]}" -o page.json "$API/v2/project/$SLUG/$2/tests${token:+?page-token=$token}"
                       jq -c '.items[]' page.json >> tests.jsonl
                       token=$(jq -r '.next_page_token // empty | @uri' page.json)
                       [ -n "$token" ] || break
@@ -1768,10 +1774,58 @@ jobs:
                       | {name: .[0].name, classname: .[0].classname, result: "success",
                          run_time: (map(.run_time // 0) | add)}]}' tests.jsonl > timings.json
                     n=$(jq '.tests | length' timings.json)
-                    if [ "$n" -eq 0 ]; then echo "No tests in develop job $num"; continue; fi
-                    mv timings.json "/tmp/_shard-timings/$job.json"
-                    echo "Wrote $n test timings from develop job $num to $job.json"
+                    if [ "$n" -eq 0 ]; then
+                      echo "Skipping job $2 of $1: it recorded no tests"
+                      return 0
+                    fi
+                    mv timings.json "/tmp/_shard-timings/$1.json"
+                    echo "Wrote $n test timings from job $2 to $1.json"
+                    need=$(for j in $need; do if [ "$j" != "$1" ]; then printf '%s ' "$j"; fi; done)
+                  }
+                  # search <branch>: try the branch's green jobs that are still needed, newest first.
+                  # Without a token the API serves only a branch's newest 1,000 jobs, about ten
+                  # develop pipelines. Jobs under a minute are passed over without fetching their
+                  # tests: a job that halted because the merge queue verified its commit takes
+                  # seconds and records none, while a full run takes about eight minutes.
+                  search() {
+                    offset=0
+                    while [ -n "$need" ] && [ "$offset" -lt 1000 ]; do
+                      [ "$SECONDS" -lt 120 ]
+                      "${CURL[@]}" -o jobs.json "$API/v1.1/project/$SLUG/tree/$1?filter=successful&shallow=true&limit=100&offset=$offset"
+                      for job in $need; do
+                        nums=$(jq -r --arg j "$job" '[.[] | select(.workflows.job_name == $j and (.build_time_millis // 0) > 60000) | .build_num] | sort | reverse | .[]' jobs.json)
+                        for num in $nums; do
+                          use_job "$job" "$num"
+                          case " $need " in *" $job "*) ;; *) break ;; esac
+                        done
+                      done
+                      rows=$(jq 'length' jobs.json)
+                      if [ "$rows" -lt 100 ]; then break; fi
+                      offset=$((offset + 100))
+                    done
+                  }
+                  search develop
+                  # develop's newest 1,000 jobs can all come from pushes the merge queue tested,
+                  # with the daily full run further back. The queue runs memory-all on nearly
+                  # every merge, so its newest green runs stand in.
+                  # Up to 5 pages of 20 pipelines, as merge-queue-verified.sh reads.
+                  pages=0
+                  pipeline_token=
+                  seen=
+                  while [ -n "$need" ] && [ "$pages" -lt 5 ]; do
+                    [ "$SECONDS" -lt 120 ]
+                    "${CURL[@]}" -o pipelines.json "$API/v2/project/$SLUG/pipeline${pipeline_token:+?page-token=$pipeline_token}"
+                    pages=$((pages + 1))
+                    queue=$(jq -r '[.items[] | .vcs.branch // empty | select(startswith("gh-readonly-queue/develop/"))] | unique | .[] | @uri' pipelines.json)
+                    for branch in $queue; do
+                      case " $seen " in *" $branch "*) continue ;; esac
+                      seen="$seen $branch"
+                      if [ -n "$need" ]; then search "$branch"; fi
+                    done
+                    pipeline_token=$(jq -r '.next_page_token // empty | @uri' pipelines.json)
+                    [ -n "$pipeline_token" ] || break
                   done
+                  for job in $need; do echo "No green run of $job with tests found"; done
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -2118,6 +2172,12 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge.gen2
     steps:
+      # Its develop run feeds nothing else: no test-result cache hits (the
+      # engine binary changes every pipeline), and the queue compiling from a
+      # day-old go-actions-tests cache instead of one a commit old took 4 s
+      # longer (measured locally, with the kona and op-reth e2e packages).
+      - halt-if-merge-queue-verified:
+          verified: << pipeline.parameters.c-develop_mq_verified_main >>
       - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
@@ -2265,11 +2325,24 @@ jobs:
         description: "Post failures on develop to Slack. Off where a ci-gate posts instead."
         type: boolean
         default: true
+      mq_verified:
+        description: "Halt green before checkout (halt-if-merge-queue-verified). Set it only
+          on main's memory-all jobs, from c-develop_mq_verified_main."
+        type: boolean
+        default: false
     docker:
       - image: <<parameters.image>>
     resource_class: <<parameters.resource_class>>
     parallelism: <<parameters.parallelism>>
     steps:
+      # Only main's memory-all jobs pass mq_verified, so a job that tests
+      # something the merge queue never ran can't halt. memory-all-shard-timings
+      # skips the halted runs, which record no tests. The tests run with
+      # -count=1, so the develop run only refreshes the op-acceptance-tests Go
+      # build cache: a day-old one compiled 10 s slower than one a commit old
+      # (measured locally), and build_daily and shipped-memory-all refresh it.
+      - halt-if-merge-queue-verified:
+          verified: << parameters.mq_verified >>
       # apt-install needs the working tree, so it runs after checkout.
       - checkout-with-mise:
           checkout-method: blobless
@@ -2875,6 +2948,7 @@ workflows:
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests: &memory_all_opn
           name: memory-all-opn-op-reth-<<matrix.l1_fork>>
+          mq_verified: << pipeline.parameters.c-develop_mq_verified_main >>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
@@ -2903,6 +2977,7 @@ workflows:
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests: &memory_all_kona
           name: memory-all-kona-op-reth-<<matrix.l1_fork>>
+          mq_verified: << pipeline.parameters.c-develop_mq_verified_main >>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
@@ -3209,6 +3284,8 @@ workflows:
             parameters:
               l1_fork: *acceptance_l1_forks
           notify_on_fail: false
+          # They test the published images, which the merge queue never ran.
+          mq_verified: false
           requires: &shipped_memory_all_requires
             - contracts-bedrock-build
             - cannon-prestate
@@ -3225,6 +3302,7 @@ workflows:
             parameters:
               l1_fork: *acceptance_l1_forks
           notify_on_fail: false
+          mq_verified: false
           requires: *shipped_memory_all_requires
       # Pages on-call once if any job here fails, including a build job that
       # stops the memory-all jobs from running at all. The one exception: when
