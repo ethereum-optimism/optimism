@@ -195,10 +195,6 @@ commands:
       mise-cache-checksum:
         type: string
         default: '{{ checksum "mise.toml" }}'
-      fresh-install:
-        description: Skip every mise cache and install mise and all tools fresh. See install-mise's fresh_install.
-        type: boolean
-        default: false
     steps:
       - github-checkout:
           method: << parameters.checkout-method >>
@@ -206,4 +202,3 @@ commands:
           enable_mise_cache: << parameters.enable-mise-cache >>
           mise_cache_key_prefix: << parameters.mise-cache-key-prefix >>
           mise_cache_checksum: << parameters.mise-cache-checksum >>
-          fresh_install: << parameters.fresh-install >>
