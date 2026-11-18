@@ -116,8 +116,11 @@ tasks:
       mise install uv shellcheck shfmt
       PATH="$(mise bin-paths | paste -sd: -):$PATH"
       export PATH
-      mise install pipx:semgrep@1.178.0
-      mise exec shellcheck shfmt pipx:semgrep@1.178.0 -- sh -c 'printf "%s\n" "$PATH"' >"$RWX_ENV/PATH"
+      # The pinned Semgrep's MCP dependency imports a Pydantic private API
+      # removed in later releases, as in packages/toolchain-foundry.yml.
+      semgrep_version="$(mise tool pipx:semgrep --requested)"
+      mise install "pipx:semgrep[uvx_args=--with pydantic==2.11.10]@$semgrep_version"
+      printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
     timeout: 30m
 
   - key: static-helper-tests
@@ -258,6 +261,8 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
+      # scripts/ops/get-target-branch.sh reads it to find a merge-queue base.
+      CIRCLE_BRANCH: ${{ init.branch }}
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:

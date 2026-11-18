@@ -226,7 +226,9 @@ def verdict(directory, pinned):
         os.environ['L2_FORK_RPC_URL'] = endpoint
         status = UP.stage(directory, 'tests', ['just', 'test-l2-fork-upgrade'] + TEST_ARGS)
         if status and status < 128:
-            os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
+            # CircleCI's trace step runs without JUNIT_TEST_PATH. With it set, the
+            # recipe redirects forge's output, traces included, into the report file.
+            os.environ.pop('JUNIT_TEST_PATH')
             UP.stage(directory, 'rerun', ['just', 'test-l2-fork-upgrade-rerun'] + TEST_ARGS)
     if status: return status, 0
     coverage = UP.junit(directory / 'original.junit.xml', read(directory / 'selection.json'), read(directory / 'signature-bindings.json'))

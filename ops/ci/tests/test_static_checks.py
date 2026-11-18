@@ -19,7 +19,9 @@ class Reports(unittest.TestCase):
         # Discovery and the check run one find; ShellCheck is the mise pin.
         self.assertEqual(shlex.split(C.SHELL_COMMAND.split(' -print0 |')[0]),C.SHELL_FIND)
         self.assertEqual(C.COMMANDS['shell-check'],['bash','-eo','pipefail','-c',C.SHELL_COMMAND])
-        self.assertEqual(C.expected_version('shell-check'),C.tomllib.loads((C.ROOT/'mise.toml').read_text())['tools']['shellcheck'])
+        pins = C.tomllib.loads((C.ROOT/'mise.toml').read_text())['tools']
+        self.assertEqual(C.expected_version('shell-check'),pins['shellcheck'])
+        self.assertEqual(C.expected_version('semgrep-test'),pins['pipx:semgrep'])
         self.assertEqual(C.shell_files('./folder with spaces/a.sh\n./b.sh\n'),['./b.sh','./folder with spaces/a.sh'])
         for bad in ('','./a.sh\n./a.sh','../a.sh','./a.sh/../b.sh'):
             with self.subTest(bad=bad),self.assertRaises(ValueError):C.shell_files(bad)

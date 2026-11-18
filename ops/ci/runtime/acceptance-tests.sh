@@ -40,17 +40,8 @@ case "$phase" in
     done
     # Match Circle's mock verifier setup; real SP1 ELFs are a separate gate.
     unset KONA_SP1_ELF_DIR RUST_JIT_BUILD
-    geth_binary="$(mise which geth)"
-    test -x "$geth_binary"
-    mkdir -p tmp/testlogs/dependencies
-    python3 - "$geth_binary" << 'PYCODE'
-import hashlib, json, subprocess, sys
-from pathlib import Path
-binary = Path(sys.argv[1])
-metadata = {'geth_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
-            'geth_version': subprocess.check_output([str(binary), 'version'], text=True).strip()}
-Path('tmp/testlogs/dependencies/runtime-tools.json').write_text(json.dumps(metadata, indent=2) + '\n')
-PYCODE
+    # Fail before the suite starts when the pinned geth is not installed.
+    test -x "$(mise which geth)"
     export LD_PRELOAD=libeatmydata.so
     # The unchanged recipe shards through ops/scripts/shard-tests.sh. Its
     # `circleci tests split` call reaches the shim, which prints this shard's

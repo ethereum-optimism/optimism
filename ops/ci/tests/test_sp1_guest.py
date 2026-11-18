@@ -101,7 +101,7 @@ class SelectionTests(unittest.TestCase):
     def test_guest_feature_markers_and_source_suffix_bind_actual_elf_bytes(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)
-            settings = {'programs':['super-range','super-aggregation'], 'source_sha':'a'*40,
+            settings = {'programs':['log-commitment','super-range','super-aggregation'], 'source_sha':'a'*40,
                         'tools':{'sp1-version':'6.0.0'}, 'features':'test-config-fallback',
                         'elf_source_sha':'a'*40+'-test'}
             def write(features, source):
@@ -122,6 +122,10 @@ class SelectionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'test-config'): G.elf_record(settings,path)
             write(False, settings['source_sha'])
             self.assertEqual(set(G.elf_record(settings,path)),set(settings['programs']))
+            # CircleCI greps the manifest for the names its consumers read.
+            (path/'log-commitment-elf').unlink(); settings['programs'].remove('log-commitment')
+            write(False, settings['source_sha'])
+            with self.assertRaisesRegex(ValueError, 'consumers'): G.elf_record(settings,path)
 
     def test_report_seals_reject_missing_extra_corrupt_and_linked_originals(self):
         with tempfile.TemporaryDirectory() as temp:

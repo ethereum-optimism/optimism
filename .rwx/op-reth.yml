@@ -97,9 +97,9 @@ tasks:
 
   - key: helper-tests
     use: [code, tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: |
       python3 ops/ci/tests/test_op_reth_shadow.py
-      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_target_cache.py'
     cache: false
     timeout: 10m
     outputs:

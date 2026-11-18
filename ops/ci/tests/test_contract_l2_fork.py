@@ -171,9 +171,15 @@ print(json.dumps({'rpc':os.environ['L2_FORK_RPC_URL'],'chain':chain,'modules':os
                'policy':'pinned original OP Mainnet L2 fork block','requested':'66'}
         L.write(preflight/'block.json',value);L.seal(preflight,0,[])
         with mock.patch.object(L.UP,'revision',return_value='a'*40),mock.patch.object(L,'block',return_value={k:value[k] for k in ('chain_id','number','hash','timestamp')}), \
-             mock.patch.object(L,'CONTRACTS',self.directory),mock.patch.object(L.UP,'stage',side_effect=[0,23,0]) as stage, \
+             mock.patch.object(L,'CONTRACTS',self.directory),mock.patch.object(L.UP,'stage') as stage, \
              mock.patch.dict(os.environ,{},clear=True):
+            statuses=iter([0,23,0]);reports=[]
+            def record(*args,**kwargs):
+                reports.append(os.environ.get('JUNIT_TEST_PATH'));return next(statuses)
+            stage.side_effect=record
             self.assertEqual(L.verdict(runtime,preflight/'block.json'),(23,0))
+        # Like CircleCI's trace step, the rerun writes no JUnit, so forge prints its traces.
+        self.assertEqual(reports,[str(runtime/'original.junit.xml')]*2+[None])
         self.assertEqual([call.args[2] for call in stage.call_args_list],
                          [['just','nut-bundle-check-no-build'],
                           ['just','test-l2-fork-upgrade','--threads','1','--compute-units-per-second','100'],

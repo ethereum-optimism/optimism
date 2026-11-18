@@ -24,16 +24,16 @@ SHELL_FIND = ['find', *SHELL_PREDICATES]
 SHELL_COMMAND = ("find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' "
                  "-not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' "
                  "-not -path './rust/*target*/*' -print0 | xargs -0 shellcheck")
-SEMGREP_VERSION = '1.178.0'
 COMMANDS = {'shell-check': ['bash', '-eo', 'pipefail', '-c', SHELL_COMMAND],
             'semgrep-test': ['semgrep', 'scan', '--test', '--config', '.semgrep/rules/', '--json', '.semgrep/tests/'],
             'semgrep-scan-local': ['semgrep', 'scan', '--timeout=100', '--config', '.semgrep/rules/', '--error', '--json', '--verbose', '.']}
 
 
 def expected_version(job):
-    # Circle's shell-check job uses the mise-pinned ShellCheck.
-    if job == 'shell-check': return tomllib.loads((ROOT / 'mise.toml').read_text())['tools']['shellcheck']
-    return SEMGREP_VERSION
+    # CircleCI runs the mise.toml pin of each tool: ShellCheck through mise, and
+    # the Semgrep image tag that its job keeps in step with "pipx:semgrep".
+    tools = tomllib.loads((ROOT / 'mise.toml').read_text())['tools']
+    return tools['shellcheck' if job == 'shell-check' else 'pipx:semgrep']
 
 
 def digest(path):
@@ -206,7 +206,7 @@ def execute(job):
         tool = 'shellcheck' if job == 'shell-check' else 'semgrep'
         version = subprocess.check_output([tool, '--version'], text=True).strip()
         parsed = re.findall(r'^version: (\S+)$', version, re.M) if job == 'shell-check' else [version]
-        if parsed != [expected_version(job)]: raise ValueError('Static-check tool differs from the recorded Circle image version')
+        if parsed != [expected_version(job)]: raise ValueError('Static-check tool differs from its mise.toml pin')
         settings = {'source_sha': sha, 'branch': branch, 'job': job, 'provider': 'rwx',
                     'workspace_root': str(ROOT), 'tool_version': version, 'environment': environment, 'input_sha256': before,
                     'baseline': baseline(branch) if job != 'shell-check' else None,

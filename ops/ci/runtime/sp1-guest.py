@@ -199,6 +199,9 @@ def elf_record(settings, directory):
     files = {p.name for p in directory.iterdir() if p.name != '.gitignore'}
     if files != expected: raise ValueError('Missing or extra complete original guest ELF inventory')
     values = tomllib.loads((directory / 'vkeys.toml').read_text())
+    # CircleCI's "Check vkeys manifest names expected by consumers" step.
+    if not {'super-aggregation', 'log-commitment'} <= set(values):
+        raise ValueError('vkeys manifest lacks a name that its consumers read')
     if (set(values) != {'git_sha','sp1_toolchain_tag',*names} or values['git_sha'] != settings['elf_source_sha']
             or values['sp1_toolchain_tag'] != 'v'+settings['tools']['sp1-version']):
         raise ValueError('Wrong source, version or complete vkeys manifest selection')

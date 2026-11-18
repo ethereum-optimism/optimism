@@ -92,6 +92,7 @@ tasks:
 
   - key: routing-tests
     use: [code, tools]
+    if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: |
       mise exec -- python -m unittest discover -s ops/ci/tests -p 'test_rwx_metadata.py'
     cache: false

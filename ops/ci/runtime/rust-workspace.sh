@@ -150,7 +150,7 @@ case "$job" in
     ;;
   docs) stage docs just lint-docs ;;
   clippy) stage clippy cargo clippy --workspace --all-targets --all-features --locked ;;
-  build) stage build mold -run cargo build --profile dev --workspace --features default ;;
+  build) stage build mold -run cargo build --locked --profile dev --workspace --features default ;;
   features)
     # Circle's recipes and partition argument. One seed shuffles every partition.
     # The ancestor compiler producer has the same manifests and Cargo.lock, so

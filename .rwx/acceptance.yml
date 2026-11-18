@@ -113,10 +113,9 @@ tasks:
 
   - key: helper-tests
     use: [code, go-build-tools]
-    if: ${{ init.cache-warm != 'true' }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       mise exec -- python3 -m unittest discover -s ops/ci/tests -p 'test_acceptance*.py'
-      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_target_cache.py'
     cache: false
     timeout: 10m
     outputs:

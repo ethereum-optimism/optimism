@@ -97,6 +97,7 @@ tasks:
 
   - key: helper-tests
     use: [code, tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: |
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_workspace.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_compiler_baseline.py'
