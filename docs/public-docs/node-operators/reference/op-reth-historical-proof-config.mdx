@@ -114,11 +114,11 @@ Their block numbers stay in the history index, where reads ignore them.
 Each prune instead cleans a share of the index in key order, in proportion to the blocks it prunes, so that a full pass takes about one proof window of blocks.
 
 Enable it together with `--proofs-history.prefetch-threads` when the proofs storage is on a network-attached disk and proofs should follow the chain tip more closely, or the node should write less to its disk.
-On an OP Mainnet node with warming, over 70 hours, it cut the time to persist a block from 208 ms to 79 ms, and the node's disk write operations by 44%.
+On an OP Mainnet node with warming, over 94 hours, it cut the time to persist a block from 216 ms to 85 ms, and the node's disk write operations by about 42%.
 It has not been measured without warming, or on local NVMe disks.
 
 The history index grows, because a block number stays in it for up to one more proof window.
-On the same node its tables were 18% larger (34 GiB against 29 GiB, in a proofs DB of about 1,050 GiB) after 22% of the first pass, and were still growing.
+On the same node its tables were 25% larger (34 GiB against 27 GiB, in a proofs DB of about 1,020 GiB) after 25% of the first pass, and were still growing.
 Their size after a full pass has not been measured.
 
 A proofs DB that has been pruned with this flag cannot be backfilled: `op-reth proofs backfill` refuses it, also after the flag has been turned off again.
