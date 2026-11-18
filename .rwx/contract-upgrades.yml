@@ -266,13 +266,7 @@ tasks:
       TASK_VERDICT_FEATURE_BRIDGE_HOOK_SUCCEEDED: ${{ tasks.verdict-feature-BRIDGE_HOOK.succeeded }}
       TASK_VERDICT_FEATURE_BRIDGE_HOOK_FAILED: ${{ tasks.verdict-feature-BRIDGE_HOOK.failed }}
       TASK_VERDICT_FEATURE_BRIDGE_HOOK_SKIPPED: ${{ tasks.verdict-feature-BRIDGE_HOOK.skipped }}
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
       TASK_VERDICT_CHAIN_INK_SUCCEEDED: ${{ tasks.verdict-chain-ink.succeeded }}
       TASK_VERDICT_CHAIN_INK_FAILED: ${{ tasks.verdict-chain-ink.failed }}
       TASK_VERDICT_CHAIN_INK_SKIPPED: ${{ tasks.verdict-chain-ink.skipped }}

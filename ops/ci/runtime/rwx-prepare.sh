@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare the pinned tools needed by the RWX pilot on its Ubuntu base.
+# Prepare the pinned tools that RWX tasks need on the Ubuntu base.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"

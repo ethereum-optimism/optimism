@@ -146,13 +146,7 @@ tasks:
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt main-nut-provenance
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-main }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
       TASK_VERIFY_SUCCEEDED: ${{ tasks.verify.succeeded }}
       TASK_VERIFY_FAILED: ${{ tasks.verify.failed }}
       TASK_VERIFY_SKIPPED: ${{ tasks.verify.skipped }}

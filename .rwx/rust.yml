@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [tests-cache, tests-build, build, clippy, docs, no-std, udeps, features-build-0, features-build-1, features-build-2, features-build-3, features-build-4, features-build-5, features-build-6, features-build-7, features-build-8, features-build-9, wasm-unknown, wasm-wasi, registry, cannon-env, cannon-go, cannon-witness, cannon-build]
+    target: [tests-cache, tests-build, build, clippy, docs, no-std, udeps, features-build-0, features-build-1, features-build-2, features-build-3, features-build-4, features-build-5, features-build-6, features-build-7, features-build-8, features-build-9, wasm-unknown, wasm-wasi, registry, cannon-env, cannon-go, cannon-witness, cannon-build, rust-fmt-tools]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -975,20 +975,53 @@ tasks:
         - key: report
           path: .ci/rust-workspace/cannon-offline
 
+  - key: rust-fmt-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rwx-prepare.sh rust
+    timeout: 30m
+
+  # Mirrors CircleCI's rust-fmt job.
+  - key: rust-fmt
+    use: [code, rust-fmt-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      # Run CircleCI's own toolchain pin check, read from its config, so it cannot drift.
+      pins="$(mise exec -- yq -r '.jobs["rust-ci-fmt"].steps[] | select(.run.name? == "Check Rust toolchain pins agree") | .run.command' .circleci/continue/rust-ci.yml)"
+      if [[ -z "$pins" || "$pins" == null ]]; then echo "CircleCI's Rust toolchain pin check is missing" >&2; exit 1; fi
+      mise exec -- bash -eo pipefail -c "$pins"
+      mise exec -- just update-superchain-registry-submodule
+      cd rust
+      mise exec -- just fmt-check
+      mise exec -- just check-upstream-mirrors
+    cache: false
+    timeout: 20m
+    runner:
+      cpus: 2
+      memory: 4gb
+    outputs:
+      filesystem: false
+
+  # Mirrors CircleCI's rust-reth-tag-pin job. The script needs only git, Python and the GitHub API.
+  - key: rust-reth-tag-pin
+    use: [code, rust-fmt-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      cd rust
+      mise exec -- python3 scripts/upstream-mirrors.py --check-tag-pin
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
   # Terminal task states preserve exact Rust dependencies without Main-only failures.
   - key: rust-gate-receipt
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' }}
-    after: ${{ (build.succeeded || build.failed || build.skipped) && (cannon-build.succeeded || cannon-build.failed || cannon-build.skipped) && (cannon-lint.succeeded || cannon-lint.failed || cannon-lint.skipped) && (cannon-offline.succeeded || cannon-offline.failed || cannon-offline.skipped) && (clippy.succeeded || clippy.failed || clippy.skipped) && (deny.succeeded || deny.failed || deny.skipped) && (docs.succeeded || docs.failed || docs.skipped) && (features-0.succeeded || features-0.failed || features-0.skipped) && (features-1.succeeded || features-1.failed || features-1.skipped) && (features-2.succeeded || features-2.failed || features-2.skipped) && (features-3.succeeded || features-3.failed || features-3.skipped) && (features-4.succeeded || features-4.failed || features-4.skipped) && (features-5.succeeded || features-5.failed || features-5.skipped) && (features-6.succeeded || features-6.failed || features-6.skipped) && (features-7.succeeded || features-7.failed || features-7.skipped) && (features-8.succeeded || features-8.failed || features-8.skipped) && (features-9.succeeded || features-9.failed || features-9.skipped) && (interop.succeeded || interop.failed || interop.skipped) && (no-std.succeeded || no-std.failed || no-std.skipped) && (registry.succeeded || registry.failed || registry.skipped) && (tests-compiler.succeeded || tests-compiler.failed || tests-compiler.skipped) && (tests-unit.succeeded || tests-unit.failed || tests-unit.skipped) && (typos.succeeded || typos.failed || typos.skipped) && (udeps.succeeded || udeps.failed || udeps.skipped) && (wasm-unknown.succeeded || wasm-unknown.failed || wasm-unknown.skipped) && (wasm-wasi.succeeded || wasm-wasi.failed || wasm-wasi.skipped) && (zepter.succeeded || zepter.failed || zepter.skipped) }}
+    after: ${{ (build.succeeded || build.failed || build.skipped) && (cannon-build.succeeded || cannon-build.failed || cannon-build.skipped) && (cannon-lint.succeeded || cannon-lint.failed || cannon-lint.skipped) && (cannon-offline.succeeded || cannon-offline.failed || cannon-offline.skipped) && (clippy.succeeded || clippy.failed || clippy.skipped) && (deny.succeeded || deny.failed || deny.skipped) && (docs.succeeded || docs.failed || docs.skipped) && (features-0.succeeded || features-0.failed || features-0.skipped) && (features-1.succeeded || features-1.failed || features-1.skipped) && (features-2.succeeded || features-2.failed || features-2.skipped) && (features-3.succeeded || features-3.failed || features-3.skipped) && (features-4.succeeded || features-4.failed || features-4.skipped) && (features-5.succeeded || features-5.failed || features-5.skipped) && (features-6.succeeded || features-6.failed || features-6.skipped) && (features-7.succeeded || features-7.failed || features-7.skipped) && (features-8.succeeded || features-8.failed || features-8.skipped) && (features-9.succeeded || features-9.failed || features-9.skipped) && (interop.succeeded || interop.failed || interop.skipped) && (no-std.succeeded || no-std.failed || no-std.skipped) && (registry.succeeded || registry.failed || registry.skipped) && (tests-compiler.succeeded || tests-compiler.failed || tests-compiler.skipped) && (tests-unit.succeeded || tests-unit.failed || tests-unit.skipped) && (typos.succeeded || typos.failed || typos.skipped) && (udeps.succeeded || udeps.failed || udeps.skipped) && (wasm-unknown.succeeded || wasm-unknown.failed || wasm-unknown.skipped) && (wasm-wasi.succeeded || wasm-wasi.failed || wasm-wasi.skipped) && (zepter.succeeded || zepter.failed || zepter.skipped) && (rust-fmt.succeeded || rust-fmt.failed || rust-fmt.skipped) && (rust-reth-tag-pin.succeeded || rust-reth-tag-pin.failed || rust-reth-tag-pin.skipped) }}
     run: python3 ops/ci/runtime/pr-gate.py receipt rust-workspace
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-rust-ci }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
       TASK_BUILD_SUCCEEDED: ${{ tasks.build.succeeded }}
       TASK_BUILD_FAILED: ${{ tasks.build.failed }}
       TASK_BUILD_SKIPPED: ${{ tasks.build.skipped }}
@@ -1070,6 +1103,12 @@ tasks:
       TASK_ZEPTER_SUCCEEDED: ${{ tasks.zepter.succeeded }}
       TASK_ZEPTER_FAILED: ${{ tasks.zepter.failed }}
       TASK_ZEPTER_SKIPPED: ${{ tasks.zepter.skipped }}
+      TASK_RUST_FMT_SUCCEEDED: ${{ tasks.rust-fmt.succeeded }}
+      TASK_RUST_FMT_FAILED: ${{ tasks.rust-fmt.failed }}
+      TASK_RUST_FMT_SKIPPED: ${{ tasks.rust-fmt.skipped }}
+      TASK_RUST_RETH_TAG_PIN_SUCCEEDED: ${{ tasks.rust-reth-tag-pin.succeeded }}
+      TASK_RUST_RETH_TAG_PIN_FAILED: ${{ tasks.rust-reth-tag-pin.failed }}
+      TASK_RUST_RETH_TAG_PIN_SKIPPED: ${{ tasks.rust-reth-tag-pin.skipped }}
     cache: false
     timeout: 10m
     outputs:

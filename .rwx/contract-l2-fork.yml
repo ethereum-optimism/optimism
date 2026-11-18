@@ -169,13 +169,7 @@ tasks:
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt contracts-l2-fork
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
       TASK_VERDICT_SUCCEEDED: ${{ tasks.verdict.succeeded }}
       TASK_VERDICT_FAILED: ${{ tasks.verdict.failed }}
       TASK_VERDICT_SKIPPED: ${{ tasks.verdict.skipped }}

@@ -349,13 +349,7 @@ tasks:
     after: ${{ (codec.succeeded || codec.failed || codec.skipped) && (integration.succeeded || integration.failed || integration.skipped) && (snapshot.succeeded || snapshot.failed || snapshot.skipped) }}
     run: python3 ops/ci/runtime/pr-gate.py receipt op-reth-rust
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-rust-ci }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
       TASK_CODEC_SUCCEEDED: ${{ tasks.codec.succeeded }}
       TASK_CODEC_FAILED: ${{ tasks.codec.failed }}
       TASK_CODEC_SKIPPED: ${{ tasks.codec.skipped }}

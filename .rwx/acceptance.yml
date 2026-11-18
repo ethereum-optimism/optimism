@@ -279,13 +279,7 @@ tasks:
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt main-acceptance
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-main }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
       TASK_VERDICT_KONA_0_SUCCEEDED: ${{ tasks.verdict-kona-0.succeeded }}
       TASK_VERDICT_KONA_0_FAILED: ${{ tasks.verdict-kona-0.failed }}
       TASK_VERDICT_KONA_0_SKIPPED: ${{ tasks.verdict-kona-0.skipped }}

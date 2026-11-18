@@ -4,7 +4,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [go-modules, contract-tools, main-tools, static-tools]
+    target: [go-modules, contract-tools, main-tools, static-tools, go-lint-tools]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -377,20 +377,48 @@ tasks:
           workspace: [.ci/go-cache/main-checks/check-generated-mocks-op-service]
           system: []
 
+  - key: go-lint-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: bash ops/ci/runtime/rwx-prepare.sh go-lint
+    timeout: 30m
+
+  # Mirrors CircleCI's prep-superchain job, whose bundle go-lint attaches.
+  - key: prep-superchain
+    use: [code, go-lint-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      mise exec -- just sync-superchain-go
+      git diff --exit-code op-core/superchain/bundle/superchain-configs.zip.sha256
+    cache: false
+    timeout: 15m
+    runner:
+      cpus: 2
+      memory: 4gb
+
+  # Mirrors CircleCI's go-lint job.
+  - key: go-lint
+    use: prep-superchain
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      mise exec -- just lint-go
+      mise exec -- bash ops/prestate-reproducibility/test-build-prestates.sh
+    cache: false
+    timeout: 30m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: false
+
   # Exact Main dependency states; unrelated workload failures stay outside this gate.
   - key: main-gate-receipt
     use: [code, tools]
-    after: ${{ (check-generated-mocks-op-node.succeeded || check-generated-mocks-op-node.failed || check-generated-mocks-op-node.skipped) && (check-generated-mocks-op-service.succeeded || check-generated-mocks-op-service.failed || check-generated-mocks-op-service.skipped) && (check-nut-locks.succeeded || check-nut-locks.failed || check-nut-locks.skipped) && (check-op-geth-version.succeeded || check-op-geth-version.failed || check-op-geth-version.skipped) && (l2-chains-sync-check.succeeded || l2-chains-sync-check.failed || l2-chains-sync-check.skipped) && (op-deployer-forge-version.succeeded || op-deployer-forge-version.failed || op-deployer-forge-version.skipped) && (opgeth-ratchet.succeeded || opgeth-ratchet.failed || opgeth-ratchet.skipped) && (semgrep-scan-local.succeeded || semgrep-scan-local.failed || semgrep-scan-local.skipped) && (semgrep-test.succeeded || semgrep-test.failed || semgrep-test.skipped) && (shell-check.succeeded || shell-check.failed || shell-check.skipped) && (shfmt-check.succeeded || shfmt-check.failed || shfmt-check.skipped) }}
+    after: ${{ (check-generated-mocks-op-node.succeeded || check-generated-mocks-op-node.failed || check-generated-mocks-op-node.skipped) && (check-generated-mocks-op-service.succeeded || check-generated-mocks-op-service.failed || check-generated-mocks-op-service.skipped) && (check-nut-locks.succeeded || check-nut-locks.failed || check-nut-locks.skipped) && (check-op-geth-version.succeeded || check-op-geth-version.failed || check-op-geth-version.skipped) && (l2-chains-sync-check.succeeded || l2-chains-sync-check.failed || l2-chains-sync-check.skipped) && (op-deployer-forge-version.succeeded || op-deployer-forge-version.failed || op-deployer-forge-version.skipped) && (opgeth-ratchet.succeeded || opgeth-ratchet.failed || opgeth-ratchet.skipped) && (semgrep-scan-local.succeeded || semgrep-scan-local.failed || semgrep-scan-local.skipped) && (semgrep-test.succeeded || semgrep-test.failed || semgrep-test.skipped) && (shell-check.succeeded || shell-check.failed || shell-check.skipped) && (shfmt-check.succeeded || shfmt-check.failed || shfmt-check.skipped) && (go-lint.succeeded || go-lint.failed || go-lint.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt main-checks
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-main }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
       TASK_CHECK_GENERATED_MOCKS_OP_NODE_SUCCEEDED: ${{ tasks.check-generated-mocks-op-node.succeeded }}
       TASK_CHECK_GENERATED_MOCKS_OP_NODE_FAILED: ${{ tasks.check-generated-mocks-op-node.failed }}
       TASK_CHECK_GENERATED_MOCKS_OP_NODE_SKIPPED: ${{ tasks.check-generated-mocks-op-node.skipped }}
@@ -424,6 +452,9 @@ tasks:
       TASK_SHFMT_CHECK_SUCCEEDED: ${{ tasks.shfmt-check.succeeded }}
       TASK_SHFMT_CHECK_FAILED: ${{ tasks.shfmt-check.failed }}
       TASK_SHFMT_CHECK_SKIPPED: ${{ tasks.shfmt-check.skipped }}
+      TASK_GO_LINT_SUCCEEDED: ${{ tasks.go-lint.succeeded }}
+      TASK_GO_LINT_FAILED: ${{ tasks.go-lint.failed }}
+      TASK_GO_LINT_SKIPPED: ${{ tasks.go-lint.skipped }}
     cache: false
     timeout: 10m
     outputs:
@@ -439,13 +470,7 @@ tasks:
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt contracts-checks
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
       TASK_CONTRACTS_FAST_SUCCEEDED: ${{ tasks.contracts-fast.succeeded }}
       TASK_CONTRACTS_FAST_FAILED: ${{ tasks.contracts-fast.failed }}
       TASK_CONTRACTS_FAST_SKIPPED: ${{ tasks.contracts-fast.skipped }}
