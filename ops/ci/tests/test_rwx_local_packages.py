@@ -42,6 +42,26 @@ class LocalPackageTests(unittest.TestCase):
         self.assertTrue({'!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies', '!.ci/rust-cache', '!rust/target'} <= set(leaf['filter']))
         self.assertEqual(leaf['outputs']['filesystem']['filter']['workspace'], ['.ci/go-cache/full/run'])
 
+    def test_every_workload_builds_a_dependency_from_the_same_planned_checkout(self):
+        # A dependency build has one cache key for all workloads and for later commits only if
+        # each caller passes the same tool tasks, then the checkout of the planned commit.
+        tools = {'go': ['go'], 'contracts': ['go', 'anvil'], 'kona': ['release'], 'op-reth': ['release'],
+                 'sp1-executor': ['release'], 'prestate': ['go']}
+        calls = 0
+        for path in sorted((ROOT / '.rwx').glob('*.yml')):
+            graph = tasks(path.name)
+            for key, task in graph.items():
+                match = re.fullmatch(r'\$\{\{ run\.dir \}\}/packages/go-(' + '|'.join(tools) + r')\.yml', task.get('call', ''))
+                if not match: continue
+                kind, calls = match.group(1), calls + 1
+                planned = '${{ tasks.dependency-plan.values.' + kind + ' }}'
+                self.assertEqual(task['with']['commit-sha'], planned, (path.name, key))
+                self.assertEqual(task['use'][-1], key + '-source', (path.name, key))
+                source = graph[key + '-source']
+                self.assertEqual((source['call'], source['with']), ('${{ run.dir }}/packages/dependency-source.yml', {'ref': planned}))
+                self.assertEqual([graph[tool]['with']['mode'] for tool in task['use'][:-1]], tools[kind], (path.name, key))
+        self.assertEqual(calls, 17)
+
     def test_acceptance_keeps_both_variants_and_excludes_compiler_state(self):
         graph = tasks('acceptance.yml')
         # Like Circle's memory-all jobs: 4 nodes each, on 32 GiB (2xlarge.gen2).

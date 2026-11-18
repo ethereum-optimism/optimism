@@ -83,7 +83,6 @@ tasks:
     call: ${{ run.dir }}/packages/toolchain-go.yml
     with:
       mode: go
-      timeout: 20m
 
   # Pull the image that test/kontrol/scripts/common.sh runs, so that this task
   # retries a registry failure and the verdict task does not download it.

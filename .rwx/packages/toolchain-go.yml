@@ -3,12 +3,10 @@ package:
   parameters:
     mode:
       required: true
-    timeout:
-      default: 30m
 tasks:
   - key: prepare
     use: package.use
     run: bash ops/ci/runtime/rwx-prepare.sh "$GO_TOOL_MODE"
     env:
       GO_TOOL_MODE: ${{ params.mode }}
-    timeout: ${{ params.timeout }}
+    timeout: 30m
