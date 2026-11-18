@@ -641,24 +641,34 @@ impl BootStore {
         self.records.entries.is_empty()
     }
 
+    /// Dates the evidence dated after `at`, which a clock that ran ahead wrote, `at`, so that it
+    /// ages from then on: once the clock is set right, a peer that never answers again would
+    /// otherwise keep it until the clock catches up. The file changes at the next [`Self::sync`].
+    pub fn cap_evidence(&mut self, at: SystemTime) {
+        for entry in self.records.entries.values_mut() {
+            for evidence in [&mut entry.udp_verified_at, &mut entry.tcp_verified_at] {
+                if let Some(evidence) = evidence.as_mut().filter(|evidence| **evidence > at) {
+                    *evidence = at;
+                    self.dirty = true;
+                }
+            }
+        }
+    }
+
     /// Forgets the evidence older than `ttl` at `now`, one timestamp at a time, and drops the
     /// records it leaves without any, unless they are still in the grace a session gave them, see
     /// [`Self::session_started`]. Returns how many it dropped. The file changes at the next
     /// [`Self::sync`].
     ///
-    /// Evidence dated after `now`, which a clock that ran ahead wrote, is dated `now`, so that it
-    /// ages from then on: once the clock is set right, a peer that never answers again would
-    /// otherwise keep it until the clock catches up.
+    /// Evidence dated after `now` is dated `now`, see [`Self::cap_evidence`].
     pub fn expire(&mut self, now: SystemTime, ttl: Duration) -> usize {
+        self.cap_evidence(now);
         let before = now.checked_sub(ttl);
         let len = self.records.entries.len();
         let mut changed = false;
         self.records.entries.retain(|_, entry| {
             for evidence in [&mut entry.udp_verified_at, &mut entry.tcp_verified_at] {
                 if evidence.take_if(|at| before.is_some_and(|before| *at < before)).is_some() {
-                    changed = true;
-                } else if let Some(at) = evidence.as_mut().filter(|at| **at > now) {
-                    *at = now;
                     changed = true;
                 }
             }

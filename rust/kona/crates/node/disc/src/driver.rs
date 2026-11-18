@@ -448,6 +448,9 @@ impl Discv5Driver {
 
             // Step 3: Bootstrap the discovery table with bootnodes.
             let mut store = self.bootstore;
+            // Evidence from before the restart, dated after it by a clock that ran ahead, would
+            // count as reached since, see `forward_saved`.
+            store.cap_evidence(started_at);
             let bootnodes = Self::bootstrap_peers(
                 &mut store,
                 self.bootnodes,
@@ -839,8 +842,9 @@ fn seed_order(store: &BootStore, chain_id: u64) -> Vec<&Enr> {
 /// it every minute after that long only fails. Nor the peers it reached before the driver
 /// started: those are the peers the node was connected to when it stopped, and if they were all
 /// an attacker's, redialing them would eclipse it again. After a restart, the saved records seed
-/// the table instead, at random, see [`seed_order`]. A record dated after now, by a clock that
-/// ran ahead, counts as reached lately, until expiry dates it now, see [`BootStore::expire`].
+/// the table instead, at random, see [`seed_order`]. Evidence from before the restart that a
+/// clock which ran ahead dated after it is dated `started_at` when the driver starts, so that it
+/// doesn't count, see [`BootStore::cap_evidence`].
 ///
 /// Every record gossip reached has a TCP address, the one it reached: the store confirms only a
 /// record's own address, and a newer record keeps that evidence only if its TCP address is the
@@ -860,7 +864,7 @@ fn forward_saved(
         now.checked_sub(REDIAL_MAX_AGE).map_or(started_at, |cutoff| cutoff.max(started_at));
     let mut enrs: Vec<_> = store
         .valid_peers_with_chain_id(chain_id)
-        .filter(|entry| entry.tcp_verified_at().is_some_and(|at| at >= cutoff))
+        .filter(|entry| entry.tcp_verified_at().is_some_and(|at| at > cutoff))
         .map(BootStoreEntry::enr)
         .collect();
     enrs.shuffle(&mut rand::rng());
