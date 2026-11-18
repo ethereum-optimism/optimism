@@ -26,8 +26,8 @@ use tower::ServiceBuilder;
 /// The [`AlloyL2ChainProvider`] is a concrete implementation of the [`L2ChainProvider`] trait,
 /// providing data over Ethereum JSON-RPC using an alloy provider as the backend.
 ///
-/// The endpoint is the node's own execution client, so its responses are trusted as returned:
-/// nothing is recomputed from the header or body, matching op-node's engine client.
+/// Responses are used as returned, without checking hashes or roots against the request, so point
+/// it only at an execution client you control, as op-node does with its engine client.
 #[derive(Debug, Clone)]
 pub struct AlloyL2ChainProvider {
     /// The inner Ethereum JSON-RPC provider.

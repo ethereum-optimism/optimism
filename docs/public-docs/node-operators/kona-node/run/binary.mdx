@@ -4,6 +4,8 @@ description: "Run the kona-node binary against an op-reth execution client, from
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 <Note>
 If you don't have a `kona-node` binary yet, download the latest pre-built
 binary from the [GitHub releases page](https://github.com/ethereum-optimism/optimism/releases),
@@ -101,6 +103,8 @@ kona-node node \
 
 That's it! Your node should connect to P2P and start syncing
 quickly.
+
+<Unreleased component="kona-node" />
 
 <Note>
 By default, `kona-node` verifies L1 RPC responses, matching op-node.

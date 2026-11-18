@@ -4,6 +4,8 @@ description: "Run kona-node with op-reth using Kona's pre-packaged docker-compos
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 <Info>
 This guide uses Kona's pre-packaged docker config.
 
@@ -94,6 +96,8 @@ By default, the recipe is configured for **OP Sepolia**. To sync a different OP 
    - Update `kona-node --chain` parameter
 
 ### RPC Trust Configuration
+
+<Unreleased component="kona-node" />
 
 By default, `kona-node` verifies L1 RPC responses (`KONA_NODE_L1_TRUST_RPC=false`), matching op-node. Verification requires the L1 RPC to serve `eth_getProof`. The L2 engine is the node's own execution client and is always trusted. For a public or untrusted L1 RPC endpoint, keep the default:
 

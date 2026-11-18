@@ -183,4 +183,13 @@ mod tests {
         let err = ClientArgs::try_parse_from(["kona-node", "--l1.trust-rpc=invalid"]).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
     }
+
+    #[rstest]
+    #[case::flag("--l2-trust-rpc=false")]
+    #[case::alias("--l2.trust-rpc=false")]
+    fn test_reject_removed_l2_trust_rpc(#[case] flag: &str) {
+        let err =
+            ClientArgs::try_parse_from(CLIENT_ARGS.iter().copied().chain([flag])).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
+    }
 }

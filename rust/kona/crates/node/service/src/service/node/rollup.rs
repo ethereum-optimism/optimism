@@ -201,7 +201,7 @@ impl RollupNode {
         )
     }
 
-    /// Returns the sequencer builder for the node.
+    /// Returns the attributes builder for the node.
     fn create_attributes_builder(
         &self,
         l1_derivation_provider: PreparedAttributesProvider,
