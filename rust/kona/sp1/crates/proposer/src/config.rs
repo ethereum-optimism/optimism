@@ -143,8 +143,9 @@ pub struct ProposerConfig {
     /// setup.
     pub prestates_url: Url,
 
-    /// Minimum spacing, in seconds of super-root timestamps, between the
-    /// canonical head and a new proposal.
+    /// Spacing, in seconds of super-root timestamps, between the canonical head and a new
+    /// proposal; positive. A game built on the head spans one interval, plus any seconds a
+    /// UUID-collision walk adds.
     pub proposal_interval_seconds: u64,
 
     /// Safety level bounding the newest proposable timestamp.
@@ -370,6 +371,12 @@ impl ProposerConfig {
             "{} must be positive (0 would time out every transaction immediately)",
             env_var("TX_CONFIRMATION_TIMEOUT")
         );
+        let proposal_interval_seconds = parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?;
+        anyhow::ensure!(
+            proposal_interval_seconds > 0,
+            "{} must be positive (each game spans one interval)",
+            env_var("PROPOSAL_INTERVAL_SECONDS")
+        );
 
         let proof_provider_name = env_var("PROOF_PROVIDER");
         let proof_provider = env::var(&proof_provider_name)
@@ -398,7 +405,7 @@ impl ProposerConfig {
             superroot_rpcs,
             factory_address,
             prestates_url: parsed_required_env("PRESTATES_URL")?,
-            proposal_interval_seconds: parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?,
+            proposal_interval_seconds,
             proposal_safety: parsed_env_or("PROPOSAL_SAFETY", ProposalSafety::Finalized)?,
             fetch_interval: parsed_env_or("FETCH_INTERVAL", 30u64)?,
             metrics_listen: parsed_env_or("METRICS_PORT", MetricsListen::default())?,
@@ -1336,6 +1343,20 @@ mod tests {
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
             assert!(
                 err.contains("OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
+                "unexpected error: {err}"
+            );
+        }
+
+        /// A zero interval would plan every game at its parent's timestamp.
+        #[test]
+        #[serial]
+        fn zero_proposal_interval_is_rejected() {
+            clear_proposer_env();
+            set_required_mock_env();
+            set_proposer_env("PROPOSAL_INTERVAL_SECONDS", "0");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(
+                err.contains("OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS"),
                 "unexpected error: {err}"
             );
         }

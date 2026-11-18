@@ -2962,10 +2962,20 @@ impl Proposer {
             // collision). If WE created it - a previous create tx landed
             // after its confirmation timed out, leaving the guard unarmed -
             // adopt it instead of advancing the timestamp, which would bond
-            // a second game on the same parent. Only a third-party
-            // collision advances.
+            // a second game on the same parent. An own game the cache already
+            // holds as lost or disallowed cannot be a parent: adopting it would
+            // arm the guard on a dead game, so it advances like a third-party
+            // collision.
             let existing_creator = self.l1_view.game_creator(existing_game).await?;
-            if existing_creator == self.proposer_address {
+            let adoptable = {
+                let state = self.state.read().await;
+                state
+                    .games
+                    .values()
+                    .find(|game| game.address == existing_game)
+                    .is_none_or(|game| state.ancestry_eligible(game))
+            };
+            if existing_creator == self.proposer_address && adoptable {
                 tracing::info!(
                     sequence_number,
                     parent_game_index,
@@ -2975,7 +2985,7 @@ impl Proposer {
                 self.arm_creation_guard(sequence_number, parent_game_index, existing_game).await;
                 return Ok(());
             }
-            if parent_game_index == u32::MAX && self.config.proposal_interval_seconds != 0 {
+            if parent_game_index == u32::MAX {
                 let latest_head = self
                     .l1_view
                     .latest_head()
@@ -2994,10 +3004,10 @@ impl Proposer {
                     return Ok(());
                 }
             }
-            // Third-party collision: advance the timestamp - bounded by the
-            // safety limit - and refetch a fresh super root (the proof
-            // embeds the timestamp). On reaching the bound, defer: the next
-            // sync adopts the existing game as canonical head.
+            // Third-party collision, or a dead own game: advance the timestamp
+            // - bounded by the safety limit - and refetch a fresh super root
+            // (the proof embeds the timestamp). On reaching the bound, defer
+            // to the next sync.
             match advance_collision_timestamp(sequence_number, max_proposable) {
                 Some(next) => {
                     tracing::debug!(
@@ -3836,22 +3846,19 @@ impl Proposer {
         };
 
         let max_proposable = self.max_proposable_timestamp().await?;
-        let max_proposable = if ancestry_decision == AncestryDecision::UnsupportedAnchor &&
-            self.config.proposal_interval_seconds != 0 &&
-            max_proposable >= baseline_sequence_number
-        {
-            // A stable interval grid lets a restart find and adopt an unconfirmed own root.
-            let interval = self.config.proposal_interval_seconds;
-            let elapsed = max_proposable - baseline_sequence_number;
-            baseline_sequence_number + elapsed / interval * interval
-        } else {
+        let interval = self.config.proposal_interval_seconds;
+        let next_sequence_number = if ancestry_decision == AncestryDecision::UnsupportedAnchor {
+            // Every game here is a root from the anchor, so no cap bounds its span. The latest
+            // point on a stable interval grid lets a restart find and adopt an unconfirmed own
+            // root.
             max_proposable
+                .checked_sub(baseline_sequence_number)
+                .map(|elapsed| baseline_sequence_number + elapsed / interval * interval)
+                .filter(|&next| next > baseline_sequence_number)
+        } else {
+            next_proposal_timestamp(baseline_sequence_number, interval, max_proposable)
         };
-        let Some(next_sequence_number) = next_proposal_timestamp(
-            baseline_sequence_number,
-            self.config.proposal_interval_seconds,
-            max_proposable,
-        ) else {
+        let Some(next_sequence_number) = next_sequence_number else {
             tracing::debug!(
                 head = baseline_sequence_number,
                 max_proposable,
@@ -4472,23 +4479,11 @@ impl From<U256> for Cursor {
     }
 }
 
-/// Picks the sequence number for the next proposal, or `None` when the
-/// proposal interval has not elapsed under the safety bound.
-///
-/// Normally `head + interval` (fixed grid); when the head lags the bound by
-/// two or more intervals, jumps to `max_proposable` directly (catch-up), so a
-/// restart after downtime - or a devstack time-travel warp - yields one game
-/// per tick instead of a crawl across the gap.
+/// Picks the sequence number for the next proposal: `head + interval`, or `None` when that is
+/// beyond the safety bound. A head that lags by several intervals catches up one interval-sized
+/// game per tick, so no game we create spans more than one interval.
 pub fn next_proposal_timestamp(head: u64, interval: u64, max_proposable: u64) -> Option<u64> {
-    let next = head.checked_add(interval)?;
-    if next > max_proposable {
-        return None;
-    }
-    if max_proposable.saturating_sub(head) >= interval.saturating_mul(2) {
-        Some(max_proposable)
-    } else {
-        Some(next)
-    }
+    head.checked_add(interval).filter(|&next| next <= max_proposable)
 }
 
 /// Advances the UUID-collision walk by one second, bounded by the safety
@@ -9619,11 +9614,11 @@ mod tests {
     mod proposal_timing {
         use super::next_proposal_timestamp;
 
-        /// `FlowGaps` #3 regression: a head lagging by many intervals yields one
-        /// proposal at `max_proposable`, not a crawl across the gap.
+        /// A lagging head catches up one interval-sized game at a time: the span of a
+        /// game we create stays within what the bond and prove duration are sized for.
         #[test]
-        fn catch_up_proposes_at_max() {
-            assert_eq!(next_proposal_timestamp(100, 6, 700_000), Some(700_000));
+        fn lagging_head_proposes_one_interval_ahead() {
+            assert_eq!(next_proposal_timestamp(100, 6, 700_000), Some(106));
         }
 
         #[test]
@@ -9640,9 +9635,8 @@ mod tests {
         }
 
         #[test]
-        fn catch_up_boundary_is_two_intervals() {
-            // Exactly two intervals of lag jumps to the tip.
-            assert_eq!(next_proposal_timestamp(100, 6, 112), Some(112));
+        fn two_intervals_of_lag_still_proposes_one_interval_ahead() {
+            assert_eq!(next_proposal_timestamp(100, 6, 112), Some(106));
         }
 
         #[test]

@@ -2469,7 +2469,7 @@ async fn rejected_foreign_topology_never_becomes_a_create_parent() {
     assert!(result.snapshot.pending_games.is_empty());
     assert!(result.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ProposeGame { sequence_number: 6, parent_game_index: 3 }
+        OperationSummary::ProposeGame { sequence_number: 5, parent_game_index: 3 }
     )));
     scenario.settle_scheduled(&result).await.unwrap();
     assert!(world.action_records().iter().all(|record| !matches!(
@@ -2734,7 +2734,7 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
     world.set_horizons(2, 2);
     world.mine_block();
     world.mine_block();
-    let create = ActionTarget::Create { sequence_number: 2, parent_game_index: u32::MAX };
+    let create = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
     world.script_action(create.clone(), 1, ActionOutcome::Timeout);
     let mut config = scenario_config();
     config.sync_l1_confirmations = 2;
@@ -2748,7 +2748,7 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
     assert_eq!(adopted.snapshot.sync_disposition, SyncDisposition::Advanced);
     assert!(adopted.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ReconcileCreation { sequence_number: 2, .. }
+        OperationSummary::ReconcileCreation { sequence_number: 1, .. }
     )));
     scenario.settle_scheduled(&adopted).await.unwrap();
 
@@ -2771,20 +2771,13 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
         OperationSummary::ProposeGame { .. } | OperationSummary::ReconcileCreation { .. }
     )));
     scenario.settle_scheduled(&lagged_empty).await.unwrap();
-    assert!(
-        world
-            .action_record(
-                &ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX },
-                1,
-            )
-            .is_none()
-    );
+    assert!(world.action_record(&create, 2).is_none());
 
     world.set_horizons(2, 2);
     world.mine_block();
     let caught_up = scenario.tick().await.unwrap();
     assert_eq!(caught_up.snapshot.canonical_head_index, Some(U256::ZERO));
-    assert_eq!(caught_up.snapshot.canonical_head_sequence_number, Some(2));
+    assert_eq!(caught_up.snapshot.canonical_head_sequence_number, Some(1));
     scenario.settle_scheduled(&caught_up).await.unwrap();
 }
 
@@ -2908,13 +2901,13 @@ async fn challenger_wins_removal_resets_the_address_matched_creation_guard() {
     scenario.settle(&[descendant_id]).await.unwrap();
     scenario.settle_scheduled(&removed).await.unwrap();
 
-    // The fallback has the removed descendant's timestamp but a different parent/UUID. It is
-    // possible only if subtree removal cleared the old guard and the delayed receipt did not arm a
-    // stale replacement guard.
+    // The fallback plans one interval past the root, the lost game's UUID, and walks to the next
+    // timestamp. It is possible only if subtree removal cleared the old guard, the delayed receipt
+    // did not arm a stale replacement guard, and the collision did not adopt the lost game.
     let fallback = scenario.tick().await.unwrap();
     assert!(fallback.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ProposeGame { sequence_number: 3, parent_game_index: 0 }
+        OperationSummary::ProposeGame { sequence_number: 2, parent_game_index: 0 }
     )));
     scenario.settle_scheduled(&fallback).await.unwrap();
     assert!(
@@ -2996,12 +2989,19 @@ async fn disallowed_parent_does_not_rearm_delayed_creation_guard() {
     scenario.settle(&[descendant_id]).await.unwrap();
     scenario.settle_scheduled(&blocked).await.unwrap();
 
+    // One interval past the root collides with the blacklisted game; creation walks past it
+    // instead of adopting it.
     let fallback = scenario.tick().await.unwrap();
     assert!(fallback.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ProposeGame { sequence_number: 3, parent_game_index: 0 }
+        OperationSummary::ProposeGame { sequence_number: 2, parent_game_index: 0 }
     )));
     scenario.settle_scheduled(&fallback).await.unwrap();
+    assert!(
+        world
+            .action_record(&ActionTarget::Create { sequence_number: 3, parent_game_index: 0 }, 1)
+            .is_some()
+    );
 }
 
 #[tokio::test]
@@ -4786,7 +4786,7 @@ async fn creation_recheck_at_latest_block_rejects_a_freshly_disallowed_parent() 
     assert_eq!(resumed.snapshot.canonical_head_index, Some(U256::from(2)));
     assert!(resumed.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ProposeGame { sequence_number: 220, parent_game_index: 2 }
+        OperationSummary::ProposeGame { sequence_number: 115, parent_game_index: 2 }
     )));
     scenario.settle_scheduled(&resumed).await.unwrap();
 }
