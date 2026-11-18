@@ -8,6 +8,7 @@ pub use error::OpTransactionError;
 
 use crate::fast_lz::flz_compress_len;
 use alloy_eips::Encodable2718;
+use deposit::DEPOSIT_TRANSACTION_TYPE;
 use op_alloy_consensus::POST_EXEC_TX_TYPE_ID;
 
 /// <https://github.com/ethereum-optimism/op-geth/blob/647c346e2bef36219cc7b47d76b1cb87e7ca29e4/core/types/rollup_cost.go#L79>
@@ -30,8 +31,8 @@ pub fn estimate_tx_compressed_size(input: &[u8]) -> u64 {
         .max(MIN_TX_SIZE_SCALED)
 }
 
-/// Computes a transaction's DA footprint from its EIP-2718 encoding, or zero for a post-exec
-/// transaction.
+/// Computes a transaction's DA footprint from its EIP-2718 encoding, or zero for a deposit or
+/// post-exec transaction.
 ///
 /// <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#da-footprint-block-limit>
 pub fn tx_da_footprint<T: Encodable2718>(tx: &T, da_footprint_gas_scalar: u64) -> u64 {
@@ -39,14 +40,15 @@ pub fn tx_da_footprint<T: Encodable2718>(tx: &T, da_footprint_gas_scalar: u64) -
 }
 
 /// Computes a transaction's DA footprint from its complete EIP-2718 encoding, or zero for a
-/// post-exec transaction.
+/// deposit or post-exec transaction.
 ///
 /// `encoded_2718` must include the EIP-2718 transaction type byte, not only the inner transaction
 /// payload.
 ///
 /// <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#da-footprint-block-limit>
 pub fn encoded_tx_da_footprint(encoded_2718: &[u8], da_footprint_gas_scalar: u64) -> u64 {
-    if encoded_2718.first() == Some(&POST_EXEC_TX_TYPE_ID) {
+    // Deposits are skipped by the spec's block `daFootprint` sum, so their footprint is zero.
+    if matches!(encoded_2718.first(), Some(&(POST_EXEC_TX_TYPE_ID | DEPOSIT_TRANSACTION_TYPE))) {
         return 0;
     }
 
@@ -58,13 +60,27 @@ pub fn encoded_tx_da_footprint(encoded_2718: &[u8], da_footprint_gas_scalar: u64
 #[cfg(test)]
 mod tests {
     use super::*;
-    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
+    use op_alloy_consensus::{SDMGasEntry, TxDeposit, build_post_exec_tx};
 
     #[test]
     fn post_exec_tx_da_footprint_is_zero() {
         const SCALAR: u64 = 100;
         let tx = build_post_exec_tx(1, vec![SDMGasEntry { index: 1, gas_refund: 77 }]);
         let encoded = tx.encoded_2718();
+
+        let encoded_size_footprint =
+            estimate_tx_compressed_size(&encoded).saturating_div(1_000_000).saturating_mul(SCALAR);
+        assert!(encoded_size_footprint > 0);
+        assert_eq!(encoded_tx_da_footprint(&encoded, SCALAR), 0);
+        assert_eq!(tx_da_footprint(&tx, SCALAR), 0);
+    }
+
+    #[test]
+    fn deposit_tx_da_footprint_is_zero() {
+        const SCALAR: u64 = 100;
+        let tx = TxDeposit { input: vec![0xab; 164].into(), ..Default::default() };
+        let encoded = tx.encoded_2718();
+        assert_eq!(encoded.first(), Some(&DEPOSIT_TRANSACTION_TYPE));
 
         let encoded_size_footprint =
             estimate_tx_compressed_size(&encoded).saturating_div(1_000_000).saturating_mul(SCALAR);
