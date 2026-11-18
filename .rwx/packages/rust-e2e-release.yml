@@ -8,6 +8,11 @@ tasks:
     run: bash ops/ci/runtime/rust-e2e-release.sh
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
+      # The gate receipt reads this task, so it runs in every run. The tool cache keeps it incremental.
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
     tool-cache: rust-e2e-workspace-release-${{ params.cache-epoch }}
     timeout: 120m
     runner:

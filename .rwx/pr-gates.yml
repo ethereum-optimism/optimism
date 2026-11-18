@@ -19,6 +19,8 @@ on:
             tasks: gate-status
           - name: optimism-rust-e2e-shadow
             tasks: native-rust-e2e
+          - name: optimism-rust-e2e-gate-shadow
+            tasks: rust-e2e-gate-status
           - name: optimism-pr-checks-shadow
             tasks: native-pr-checks
           - name: optimism-go-tests-shadow
@@ -172,7 +174,6 @@ tasks:
         - key: status
           path: .ci/pr-gates/status/required-rust-ci
 
-  # Mirrors CircleCI's required-rust-e2e. The result of this call is the verdict.
   - key: native-rust-e2e
     call: ${{ run.dir }}/rust-e2e.yml
     init:
@@ -182,6 +183,25 @@ tasks:
       cache-epoch: v1
       build-probe: ""
       target-cache-mode: keep
+
+  # RWX fails a custom status check when one of its tasks is skipped. This task
+  # has no `if:`; it reads the state of each receipt of the gate.
+  - key: rust-e2e-gate-status
+    use: [code, tools]
+    after: ${{ (native-rust-e2e.succeeded || native-rust-e2e.failed || native-rust-e2e.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py status required-rust-e2e
+    env:
+      GATE_SELECTED: ${{ tasks.route.values.run-rust-e2e-ci }}
+      GROUP_RUST_E2E_SUCCEEDED: ${{ tasks.native-rust-e2e.tasks.rust-e2e-gate-receipt.succeeded }}
+      GROUP_RUST_E2E_FAILED: ${{ tasks.native-rust-e2e.tasks.rust-e2e-gate-receipt.failed }}
+      GROUP_RUST_E2E_SKIPPED: ${{ tasks.native-rust-e2e.tasks.rust-e2e-gate-receipt.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/required-rust-e2e
 
   - key: native-pr-checks
     call: ${{ run.dir }}/pr-checks.yml

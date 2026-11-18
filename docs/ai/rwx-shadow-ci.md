@@ -73,8 +73,8 @@ branch. The two providers therefore select the same workloads for a PR into
 ## Gates
 
 `ops/ci/runtime/pr-gates.json` lists the prerequisites of `ci-gate`,
-`required-contracts-ci` and `required-rust-ci`, and the RWX tasks that mirror
-each one. `ops/ci/migration/circle-alignment.py`, which runs in RWX's
+`required-contracts-ci`, `required-rust-ci` and `required-rust-e2e`, and the RWX
+tasks that mirror each one. `ops/ci/migration/circle-alignment.py`, which runs in RWX's
 `ci-unit-tests` task, fails when one of those gates' `requires:` lists no longer
 names the same jobs, and prints each difference. After a CircleCI gate change,
 update `pr-gates.json`.
@@ -87,15 +87,12 @@ every receipt of the gate succeeded, and it records each CircleCI prerequisite
 with its outcome. `ops/ci/tests/test_pr_gate.py` fails when `pr-gates.json` and
 the definitions name different tasks.
 
-`required-rust-e2e` is shadowed by `.rwx/rust-e2e.yml`, which the coordinator
-calls as `native-rust-e2e`. Its job list lives in `JOBS` in
-`ops/ci/runtime/rust-e2e.py`. The same alignment check fails when
-CircleCI's `required-rust-e2e` stops requiring exactly its release builds
-(`E2E_RELEASE_JOBS` in `ops/ci/migration/circle-alignment.py`) and the
-`circle_job` of each `JOBS` entry. CircleCI splits the release workspace build
-across two jobs; RWX builds the whole workspace in one task. After a CircleCI E2E change, update `JOBS` and
-`.rwx/rust-e2e.yml`. This gate has no receipt: its check,
-`optimism-rust-e2e-shadow`, is the result of the call.
+CircleCI splits the release build that `required-rust-e2e` requires across two
+jobs. RWX builds the whole workspace in one task, `release`, so one row of the
+policy names both jobs: the first in `name`, the second in `also`. `JOBS` in
+`ops/ci/runtime/rust-e2e.py` holds the package, shard count and timeout of each
+E2E suite. After a CircleCI E2E change, update it together with `pr-gates.json`
+and `.rwx/rust-e2e.yml`.
 
 The RWX checks (`optimism-rwx-pr-coordinator` and the `optimism-*-shadow`
 checks) are not required by any ruleset.

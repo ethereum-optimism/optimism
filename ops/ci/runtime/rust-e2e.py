@@ -24,25 +24,20 @@ def helper(name):
 GO = helper('go-compiled-tests')
 PROJECT = helper('go-report')
 REPORT = helper('ci-report')
-# One entry per CircleCI E2E job. RWX runs the compiled suite, not the recipe that the
-# CircleCI job runs (named in each comment). `package` and `timeout` copy that recipe,
+# One entry per CircleCI E2E job. Each comment names the job and the recipe that it runs.
+# RWX runs the compiled suite, not the recipe. `package` and `timeout` copy that recipe,
 # `shards` copies the job's `parallelism`, and environment() copies the recipe's exports.
 JOBS = {
-    # rust/kona: just action-tests-single-run
-    'proof': {'circle_job': 'kona-proof-action-single', 'package': 'rust/kona/tests/proofs', 'shards': 8,
-              'timeout': '60m'},
-    # rust/kona: just test-e2e-sysgo-run node node/restart
-    'restart': {'circle_job': 'rust-e2e-restart', 'package': 'rust/kona/tests/node/restart', 'shards': 3,
-                'timeout': '40m'},
-    # rust/kona: just test-e2e-sysgo-run node node/common simple-kona
-    'simple-kona': {'circle_job': 'rust-e2e-simple-kona', 'package': 'rust/kona/tests/node/common', 'shards': 1,
-                    'timeout': '40m'},
-    # rust/kona: just test-e2e-sysgo-run node node/common simple-kona-sequencer
-    'simple-kona-sequencer': {'circle_job': 'rust-e2e-simple-kona-sequencer', 'package': 'rust/kona/tests/node/common',
-                              'shards': 1, 'timeout': '40m'},
-    # rust/op-reth/tests: just test-e2e-sysgo
-    'op-reth': {'circle_job': 'op-reth-e2e-sysgo-tests', 'package': 'rust/op-reth/tests/proofs/core', 'shards': 1,
-                'timeout': '40m'},
+    # kona-proof-action-single. rust/kona: just action-tests-single-run
+    'proof': {'package': 'rust/kona/tests/proofs', 'shards': 8, 'timeout': '60m'},
+    # rust-e2e-restart. rust/kona: just test-e2e-sysgo-run node node/restart
+    'restart': {'package': 'rust/kona/tests/node/restart', 'shards': 3, 'timeout': '40m'},
+    # rust-e2e-simple-kona. rust/kona: just test-e2e-sysgo-run node node/common simple-kona
+    'simple-kona': {'package': 'rust/kona/tests/node/common', 'shards': 1, 'timeout': '40m'},
+    # rust-e2e-simple-kona-sequencer. rust/kona: just test-e2e-sysgo-run node node/common simple-kona-sequencer
+    'simple-kona-sequencer': {'package': 'rust/kona/tests/node/common', 'shards': 1, 'timeout': '40m'},
+    # op-reth-e2e-sysgo-tests. rust/op-reth/tests: just test-e2e-sysgo
+    'op-reth': {'package': 'rust/op-reth/tests/proofs/core', 'shards': 1, 'timeout': '40m'},
 }
 
 

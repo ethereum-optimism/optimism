@@ -2,8 +2,10 @@
 """Report the RWX mirror of a CircleCI gate from the states of its prerequisite tasks.
 
 ops/ci/runtime/pr-gates.json names, for each CircleCI gate, the jobs that the
-gate requires and the RWX tasks that mirror each job. Tasks of one workload
-definition form a group.
+gate requires and the RWX tasks that mirror each job. Where CircleCI splits
+across several jobs what RWX runs in the same tasks, one row names those jobs:
+the first in `name`, the others in `also`. Tasks of one workload definition
+form a group.
 
 `receipt GROUP` runs in the workload. RWX passes it the state of each task of
 the group and whether the route selected the workload. The receipt passes if

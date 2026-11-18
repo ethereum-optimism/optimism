@@ -2,16 +2,12 @@
 """Check that RWX's gate policy names the prerequisites of CircleCI's required gates.
 
 For each gate, CircleCI's `requires:` list must name the same jobs as RWX's
-policy, each as `terminal`. The order of the list has no meaning in CircleCI,
-so the check ignores it. The check prints each difference and exits with 1.
-
-RWX's policy for `required-rust-e2e` is `JOBS` in ops/ci/runtime/rust-e2e.py
-plus E2E_RELEASE_JOBS: CircleCI splits the release build across those jobs, and
-RWX runs it as one task. RWX's policy for the other gates is
-ops/ci/runtime/pr-gates.json.
+policy, ops/ci/runtime/pr-gates.json, each as `terminal`. A row of the policy
+names one job, and in `also` the other jobs that the same RWX tasks mirror. The
+order of the list has no meaning in CircleCI, so the check ignores it. The
+check prints each difference and exits with 1.
 """
 import collections
-import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -19,35 +15,21 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[3]
 MANIFEST = 'ops/ci/runtime/pr-gates.json'
-E2E_GATE = 'required-rust-e2e'
-E2E_RELEASE_JOBS = ['rust-e2e-binaries', 'rust-workspace-release']
 # Gate: (CircleCI config fragment, workflow that runs the gate with its prerequisites).
 GATES = {
     'ci-gate': ('.circleci/continue/main.yml', 'main'),
     'required-contracts-ci': ('.circleci/continue/main.yml', 'contracts-feature-tests'),
     'required-rust-ci': ('.circleci/continue/rust-ci.yml', 'rust-ci'),
-    E2E_GATE: ('.circleci/continue/rust-e2e.yml', 'rust-e2e-ci'),
+    'required-rust-e2e': ('.circleci/continue/rust-e2e.yml', 'rust-e2e-ci'),
 }
-HINT = ('After a CircleCI gate change, update ops/ci/runtime/pr-gates.json; '
-        'for required-rust-e2e, update JOBS in ops/ci/runtime/rust-e2e.py and .rwx/rust-e2e.yml.')
-
-
-def helper(name):
-    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), Path(__file__).resolve().parents[1] / 'runtime' / (name + '.py'))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-E2E = helper('rust-e2e')
+HINT = 'After a CircleCI gate change, update ops/ci/runtime/pr-gates.json.'
 
 
 def rwx_prerequisites():
     """Return {gate: [name of each CircleCI job that RWX's policy mirrors]}."""
     manifest = json.loads((ROOT / MANIFEST).read_text())
-    gates = {gate: [row['name'] for row in policy['dependencies']] for gate, policy in manifest['gates'].items()}
-    gates[E2E_GATE] = [*E2E_RELEASE_JOBS, *(job['circle_job'] for job in E2E.JOBS.values())]
-    return gates
+    return {gate: [name for row in policy['dependencies'] for name in (row['name'], *row.get('also', []))]
+            for gate, policy in manifest['gates'].items()}
 
 
 def circle_prerequisites(gate):

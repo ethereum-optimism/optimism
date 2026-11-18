@@ -58,7 +58,7 @@ class WiringTests(unittest.TestCase):
                 # The receipt waits for every task, and runs whatever their states are.
                 self.assertEqual(sorted(receipt['after'].removeprefix('${{ ').removesuffix(' }}').split(' && ')),
                                  sorted(terminal(key) for key in names))
-                self.assertRegex(receipt['env']['GROUP_SELECTED'], r'^\$\{\{ tasks\.route\.values\.run-[a-z-]+ \}\}$')
+                self.assertRegex(receipt['env']['GROUP_SELECTED'], r'^\$\{\{ tasks\.route\.values\.run-[a-z0-9-]+ \}\}$')
                 self.assertIs(receipt['cache'], False)
 
     def test_each_gate_has_one_status_task_that_reads_every_receipt_of_the_gate(self):
@@ -197,10 +197,12 @@ class VerdictTests(unittest.TestCase):
                     self.assertEqual(outcomes[names[0]], 'failed')
                     self.assertEqual({outcomes[name] for name in names[1:]} or {'passed'}, {'passed'})
 
-    def test_policy_assigns_each_task_to_one_circleci_job(self):
+    def test_policy_names_each_circleci_job_and_each_task_once(self):
         seen = {}
         for gate, policy in G.gates().items():
-            self.assertEqual(len({row['name'] for row in policy['dependencies']}), len(policy['dependencies']))
+            # `also` names the other CircleCI jobs that the tasks of a row mirror.
+            names = [name for row in policy['dependencies'] for name in (row['name'], *row.get('also', []))]
+            self.assertEqual(len(set(names)), len(names))
             for row in policy['dependencies']:
                 self.assertTrue(row['tasks'])
                 for task in row['tasks']:

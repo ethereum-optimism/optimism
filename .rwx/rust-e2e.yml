@@ -476,3 +476,63 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/rust-e2e/reports/op-reth
+
+  - key: rust-e2e-gate-receipt
+    use: [code, tools]
+    after: ${{ (release.succeeded || release.failed || release.skipped) && (verdict-op-reth-0.succeeded || verdict-op-reth-0.failed || verdict-op-reth-0.skipped) && (verdict-proof-0.succeeded || verdict-proof-0.failed || verdict-proof-0.skipped) && (verdict-proof-1.succeeded || verdict-proof-1.failed || verdict-proof-1.skipped) && (verdict-proof-2.succeeded || verdict-proof-2.failed || verdict-proof-2.skipped) && (verdict-proof-3.succeeded || verdict-proof-3.failed || verdict-proof-3.skipped) && (verdict-proof-4.succeeded || verdict-proof-4.failed || verdict-proof-4.skipped) && (verdict-proof-5.succeeded || verdict-proof-5.failed || verdict-proof-5.skipped) && (verdict-proof-6.succeeded || verdict-proof-6.failed || verdict-proof-6.skipped) && (verdict-proof-7.succeeded || verdict-proof-7.failed || verdict-proof-7.skipped) && (verdict-restart-0.succeeded || verdict-restart-0.failed || verdict-restart-0.skipped) && (verdict-restart-1.succeeded || verdict-restart-1.failed || verdict-restart-1.skipped) && (verdict-restart-2.succeeded || verdict-restart-2.failed || verdict-restart-2.skipped) && (verdict-simple-kona-0.succeeded || verdict-simple-kona-0.failed || verdict-simple-kona-0.skipped) && (verdict-simple-kona-sequencer-0.succeeded || verdict-simple-kona-sequencer-0.failed || verdict-simple-kona-sequencer-0.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt rust-e2e
+    env:
+      GROUP_SELECTED: ${{ tasks.route.values.run-rust-e2e-ci }}
+      TASK_RELEASE_SUCCEEDED: ${{ tasks.release.succeeded }}
+      TASK_RELEASE_FAILED: ${{ tasks.release.failed }}
+      TASK_RELEASE_SKIPPED: ${{ tasks.release.skipped }}
+      TASK_VERDICT_OP_RETH_0_SUCCEEDED: ${{ tasks.verdict-op-reth-0.succeeded }}
+      TASK_VERDICT_OP_RETH_0_FAILED: ${{ tasks.verdict-op-reth-0.failed }}
+      TASK_VERDICT_OP_RETH_0_SKIPPED: ${{ tasks.verdict-op-reth-0.skipped }}
+      TASK_VERDICT_PROOF_0_SUCCEEDED: ${{ tasks.verdict-proof-0.succeeded }}
+      TASK_VERDICT_PROOF_0_FAILED: ${{ tasks.verdict-proof-0.failed }}
+      TASK_VERDICT_PROOF_0_SKIPPED: ${{ tasks.verdict-proof-0.skipped }}
+      TASK_VERDICT_PROOF_1_SUCCEEDED: ${{ tasks.verdict-proof-1.succeeded }}
+      TASK_VERDICT_PROOF_1_FAILED: ${{ tasks.verdict-proof-1.failed }}
+      TASK_VERDICT_PROOF_1_SKIPPED: ${{ tasks.verdict-proof-1.skipped }}
+      TASK_VERDICT_PROOF_2_SUCCEEDED: ${{ tasks.verdict-proof-2.succeeded }}
+      TASK_VERDICT_PROOF_2_FAILED: ${{ tasks.verdict-proof-2.failed }}
+      TASK_VERDICT_PROOF_2_SKIPPED: ${{ tasks.verdict-proof-2.skipped }}
+      TASK_VERDICT_PROOF_3_SUCCEEDED: ${{ tasks.verdict-proof-3.succeeded }}
+      TASK_VERDICT_PROOF_3_FAILED: ${{ tasks.verdict-proof-3.failed }}
+      TASK_VERDICT_PROOF_3_SKIPPED: ${{ tasks.verdict-proof-3.skipped }}
+      TASK_VERDICT_PROOF_4_SUCCEEDED: ${{ tasks.verdict-proof-4.succeeded }}
+      TASK_VERDICT_PROOF_4_FAILED: ${{ tasks.verdict-proof-4.failed }}
+      TASK_VERDICT_PROOF_4_SKIPPED: ${{ tasks.verdict-proof-4.skipped }}
+      TASK_VERDICT_PROOF_5_SUCCEEDED: ${{ tasks.verdict-proof-5.succeeded }}
+      TASK_VERDICT_PROOF_5_FAILED: ${{ tasks.verdict-proof-5.failed }}
+      TASK_VERDICT_PROOF_5_SKIPPED: ${{ tasks.verdict-proof-5.skipped }}
+      TASK_VERDICT_PROOF_6_SUCCEEDED: ${{ tasks.verdict-proof-6.succeeded }}
+      TASK_VERDICT_PROOF_6_FAILED: ${{ tasks.verdict-proof-6.failed }}
+      TASK_VERDICT_PROOF_6_SKIPPED: ${{ tasks.verdict-proof-6.skipped }}
+      TASK_VERDICT_PROOF_7_SUCCEEDED: ${{ tasks.verdict-proof-7.succeeded }}
+      TASK_VERDICT_PROOF_7_FAILED: ${{ tasks.verdict-proof-7.failed }}
+      TASK_VERDICT_PROOF_7_SKIPPED: ${{ tasks.verdict-proof-7.skipped }}
+      TASK_VERDICT_RESTART_0_SUCCEEDED: ${{ tasks.verdict-restart-0.succeeded }}
+      TASK_VERDICT_RESTART_0_FAILED: ${{ tasks.verdict-restart-0.failed }}
+      TASK_VERDICT_RESTART_0_SKIPPED: ${{ tasks.verdict-restart-0.skipped }}
+      TASK_VERDICT_RESTART_1_SUCCEEDED: ${{ tasks.verdict-restart-1.succeeded }}
+      TASK_VERDICT_RESTART_1_FAILED: ${{ tasks.verdict-restart-1.failed }}
+      TASK_VERDICT_RESTART_1_SKIPPED: ${{ tasks.verdict-restart-1.skipped }}
+      TASK_VERDICT_RESTART_2_SUCCEEDED: ${{ tasks.verdict-restart-2.succeeded }}
+      TASK_VERDICT_RESTART_2_FAILED: ${{ tasks.verdict-restart-2.failed }}
+      TASK_VERDICT_RESTART_2_SKIPPED: ${{ tasks.verdict-restart-2.skipped }}
+      TASK_VERDICT_SIMPLE_KONA_0_SUCCEEDED: ${{ tasks.verdict-simple-kona-0.succeeded }}
+      TASK_VERDICT_SIMPLE_KONA_0_FAILED: ${{ tasks.verdict-simple-kona-0.failed }}
+      TASK_VERDICT_SIMPLE_KONA_0_SKIPPED: ${{ tasks.verdict-simple-kona-0.skipped }}
+      TASK_VERDICT_SIMPLE_KONA_SEQUENCER_0_SUCCEEDED: ${{ tasks.verdict-simple-kona-sequencer-0.succeeded }}
+      TASK_VERDICT_SIMPLE_KONA_SEQUENCER_0_FAILED: ${{ tasks.verdict-simple-kona-sequencer-0.failed }}
+      TASK_VERDICT_SIMPLE_KONA_SEQUENCER_0_SKIPPED: ${{ tasks.verdict-simple-kona-sequencer-0.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/rust-e2e

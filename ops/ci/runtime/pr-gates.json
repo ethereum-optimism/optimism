@@ -74,6 +74,16 @@
         {"name": "contracts-bedrock-tests-l2-fork op-mainnet", "group": "contracts-l2-fork", "tasks": ["verdict"]},
         {"name": "contracts-bedrock-checks-fast-feature-tests", "group": "contracts-checks", "tasks": ["contracts-fast"]}
       ]
+    },
+    "required-rust-e2e": {
+      "dependencies": [
+        {"name": "rust-e2e-binaries", "also": ["rust-workspace-release"], "group": "rust-e2e", "tasks": ["release"]},
+        {"name": "rust-e2e-simple-kona", "group": "rust-e2e", "tasks": ["verdict-simple-kona-0"]},
+        {"name": "rust-e2e-simple-kona-sequencer", "group": "rust-e2e", "tasks": ["verdict-simple-kona-sequencer-0"]},
+        {"name": "rust-e2e-restart", "group": "rust-e2e", "tasks": ["verdict-restart-0", "verdict-restart-1", "verdict-restart-2"]},
+        {"name": "op-reth-e2e-sysgo-tests", "group": "rust-e2e", "tasks": ["verdict-op-reth-0"]},
+        {"name": "kona-proof-action-single", "group": "rust-e2e", "tasks": ["verdict-proof-0", "verdict-proof-1", "verdict-proof-2", "verdict-proof-3", "verdict-proof-4", "verdict-proof-5", "verdict-proof-6", "verdict-proof-7"]}
+      ]
     }
   }
 }
