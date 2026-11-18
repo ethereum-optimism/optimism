@@ -6,12 +6,16 @@ import os
 from pathlib import Path
 import sys
 
-SPEC = importlib.util.spec_from_file_location('contract_upgrades', Path(__file__).with_name('contract-upgrades.py'))
-UP = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(UP)
+
+def helper(name):
+    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), Path(__file__).with_name(name + '.py'))
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    return module
+
+
+UP = helper('contract-upgrades')
+PACER = helper('rpc-pacer')
 RPC = 'https://mainnet.optimism.io'
-# Concurrent fork setup can burst requests at the public RPC before any assertion.
-# Keep every test, but serialize the suites and bound forge's request rate.
-TEST_ARGS = ['--threads', '1', '--compute-units-per-second', '100']
 
 
 def main():
@@ -24,9 +28,13 @@ def main():
     # Like the CircleCI job, `latest` forks the current head.
     block = UP.REPORT.command(['cast', 'block-number', '--rpc-url', RPC]) if args.fork_block == 'latest' else args.fork_block
     print('Forking OP Mainnet at block ' + block, flush=True)
-    os.environ.update(L2_FORK_RPC_URL=RPC, L2_FORK_BLOCK_NUMBER=block, JUNIT_TEST_PATH=str(directory / 'results.xml'))
-    return (UP.stage(directory, 'nut-bundle-check', ['just', 'nut-bundle-check-no-build'])
-            or UP.run_tests(directory, 'test-l2-fork-upgrade', TEST_ARGS))
+    os.environ.update(L2_FORK_BLOCK_NUMBER=block, JUNIT_TEST_PATH=str(directory / 'results.xml'))
+    status = UP.stage(directory, 'nut-bundle-check', ['just', 'nut-bundle-check-no-build'])
+    if status: return status
+    # CircleCI forks a private RPC. The public one needs paced requests: see rpc-pacer.py.
+    with PACER.serve(RPC) as endpoint:
+        os.environ['L2_FORK_RPC_URL'] = endpoint
+        return UP.run_tests(directory, 'test-l2-fork-upgrade')
 
 
 if __name__ == '__main__': sys.exit(main())

@@ -163,9 +163,12 @@ rather than per test.
   count, is the shard index.
 - **Contract tests.** RWX compiles in a task of its own before the test recipe.
   On `develop`, CircleCI shards the standard suite; RWX does not.
-- **L2 fork tests.** RWX forks the public `https://mainnet.optimism.io` with
-  `--threads 1 --compute-units-per-second 100`. CircleCI uses a private RPC and
-  no extra arguments.
+- **L2 fork tests.** CircleCI forks a private RPC. RWX has no such URL in a
+  vault, so it forks the public `https://mainnet.optimism.io` through
+  `ops/ci/runtime/rpc-pacer.py`, which starts at most two requests per second.
+  At forge's own rate the public RPC answers HTTP 429 for longer than forge
+  retries. The recipe and its arguments are CircleCI's. To remove the pacer,
+  add the private URL to an RWX vault and pass it as `L2_FORK_RPC_URL`.
 - **cargo-hack partitions.** RWX seeds the package shuffle with the hash of
   `rust/Cargo.lock` instead of the CircleCI workflow ID, so each partition
   checks different crates. All partitions together check the same set.
