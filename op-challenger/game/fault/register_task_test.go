@@ -63,15 +63,15 @@ func TestCannonRegisterTask_BottomPrestateProvider(t *testing.T) {
 	})
 }
 
-func TestCannonKonaRegisterTask_BottomPrestateProvider(t *testing.T) {
+func TestSuperCannonKonaRegisterTask_BottomPrestateProvider(t *testing.T) {
 	baseURL, err := url.Parse("file:///nonexistent-prestates/")
 	require.NoError(t, err)
 	cfg := &config.Config{
 		Datadir:                           t.TempDir(),
-		CannonKona:                        vm.Config{VmType: gameTypes.CannonKonaGameType},
+		CannonKona:                        vm.Config{VmType: gameTypes.SuperCannonKonaGameType},
 		CannonKonaAbsolutePreStateBaseURL: baseURL,
 	}
-	task := NewCannonKonaRegisterTask(gameTypes.CannonKonaGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+	task := NewSuperCannonKonaRegisterTask(gameTypes.SuperCannonKonaGameType, cfg, metrics.NoopMetrics, nil, nil, nil)
 	_, err = task.getBottomPrestateProvider(context.Background(), common.Hash{0xaa})
 	require.ErrorIs(t, err, prestates.ErrPrestateUnavailable)
 }
@@ -131,7 +131,7 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			for _, gameType := range []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType} {
+			for _, gameType := range []gameTypes.GameType{gameTypes.AlphabetGameType, gameTypes.SuperCannonKonaGameType} {
 				t.Run(fmt.Sprintf("%v", gameType), func(t *testing.T) {
 					gameFactoryAddr := common.Address{0xaa}
 					gameImplAddr := common.Address{0xbb}
@@ -139,7 +139,7 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 					oracleAddr := common.Address{0xdd}
 					rpc := test.NewAbiBasedRpc(t, gameFactoryAddr, snapshots.LoadDisputeGameFactoryABI())
 					rpc.SetResponse(gameFactoryAddr, "version", rpcblock.Latest, nil, []interface{}{testCase.version})
-					if gameType == gameTypes.CannonKonaGameType {
+					if gameType == gameTypes.AlphabetGameType {
 						rpc.AddContract(gameImplAddr, snapshots.LoadFaultDisputeGameABI())
 					} else if gameType == gameTypes.SuperCannonKonaGameType {
 						rpc.AddContract(gameImplAddr, snapshots.LoadSuperFaultDisputeGameABI())

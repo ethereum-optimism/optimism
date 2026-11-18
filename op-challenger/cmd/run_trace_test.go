@@ -25,10 +25,10 @@ func TestParseRunArg(t *testing.T) {
 		{arg: "zk", err: ErrNotTraceGameType},
 		{arg: "alphabet", err: ErrNotTraceGameType},
 		{arg: "fast/test1", err: ErrNotTraceGameType},
-		{arg: "cannon-kona/test1", expected: runner.RunConfig{GameType: gameTypes.CannonKonaGameType, Name: "test1"}},
-		{arg: "cannon-kona/test1/0x1234", expected: runner.RunConfig{GameType: gameTypes.CannonKonaGameType, Name: "test1", Prestate: common.HexToHash("0x1234")}},
-		{arg: "cannon-kona/test1/0xinvalid", err: ErrInvalidPrestateHash},
-		{arg: "cannon-kona/test1/develop.bin.gz", expected: runner.RunConfig{GameType: gameTypes.CannonKonaGameType, Name: "test1", PrestateFilename: "develop.bin.gz"}},
+		{arg: "super-cannon-kona/test1", expected: runner.RunConfig{GameType: gameTypes.SuperCannonKonaGameType, Name: "test1"}},
+		{arg: "super-cannon-kona/test1/0x1234", expected: runner.RunConfig{GameType: gameTypes.SuperCannonKonaGameType, Name: "test1", Prestate: common.HexToHash("0x1234")}},
+		{arg: "super-cannon-kona/test1/0xinvalid", err: ErrInvalidPrestateHash},
+		{arg: "super-cannon-kona/test1/develop.bin.gz", expected: runner.RunConfig{GameType: gameTypes.SuperCannonKonaGameType, Name: "test1", PrestateFilename: "develop.bin.gz"}},
 	}
 	for _, test := range tests {
 		test := test

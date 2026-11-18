@@ -145,44 +145,44 @@ func TestValidConfigIsValid(t *testing.T) {
 
 func TestTxMgrConfig(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
-		config := validConfig(t, gameTypes.CannonKonaGameType)
+		config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 		config.TxMgrConfig = txmgr.CLIConfig{}
 		require.Equal(t, config.Check().Error(), "must provide a L1 RPC url")
 	})
 }
 
 func TestL1EthRpcRequired(t *testing.T) {
-	config := validConfig(t, gameTypes.CannonKonaGameType)
+	config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 	config.L1EthRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingL1EthRPC)
 }
 
 func TestL1EthRpcKindRequired(t *testing.T) {
-	config := validConfig(t, gameTypes.CannonKonaGameType)
+	config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 	config.L1RPCKind = ""
 	require.ErrorIs(t, config.Check(), ErrMissingL1RPCKind)
 }
 
 func TestL1BeaconRequired(t *testing.T) {
-	config := validConfig(t, gameTypes.CannonKonaGameType)
+	config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 	config.L1Beacon = ""
 	require.ErrorIs(t, config.Check(), ErrMissingL1Beacon)
 }
 
 func TestGameFactoryAddressRequired(t *testing.T) {
-	config := validConfig(t, gameTypes.CannonKonaGameType)
+	config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 	config.GameFactoryAddress = common.Address{}
 	require.ErrorIs(t, config.Check(), ErrMissingGameFactoryAddress)
 }
 
 func TestSelectiveClaimResolutionNotRequired(t *testing.T) {
-	config := validConfig(t, gameTypes.CannonKonaGameType)
+	config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 	require.Equal(t, false, config.SelectiveClaimResolution)
 	require.NoError(t, config.Check())
 }
 
 func TestGameAllowlistNotRequired(t *testing.T) {
-	config := validConfig(t, gameTypes.CannonKonaGameType)
+	config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 	config.GameAllowlist = []common.Address{}
 	require.NoError(t, config.Check())
 }
@@ -574,15 +574,14 @@ func TestSuperRootRpc(t *testing.T) {
 }
 
 func TestSuperPermissionedGameTypeUnsupported(t *testing.T) {
-	config := validConfig(t, gameTypes.CannonKonaGameType)
+	config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 	config.GameTypes = []gameTypes.GameType{gameTypes.SuperPermissionedGameType}
 	require.ErrorIs(t, config.Check(), gameTypes.ErrUnknownGameType)
 }
 
-func TestRequireConfigForMultipleGameTypesForCannonKona(t *testing.T) {
-	cfg := validConfig(t, gameTypes.CannonKonaGameType)
-	cfg.SuperRootRPC = validSuperRootRpc
-	cfg.GameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}
+func TestRequireConfigForMultipleGameTypesForSuperCannonKona(t *testing.T) {
+	cfg := validConfig(t, gameTypes.SuperCannonKonaGameType)
+	cfg.GameTypes = []gameTypes.GameType{gameTypes.SuperCannonKonaGameType, gameTypes.ZKDisputeGameType}
 	// Set all required options and check its valid
 	require.NoError(t, cfg.Check())
 
@@ -591,10 +590,10 @@ func TestRequireConfigForMultipleGameTypesForCannonKona(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrMissingSuperRootRpc)
 	cfg.SuperRootRPC = validSuperRootRpc
 
-	// Require output root specific args
-	cfg.RollupRpc = ""
-	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
-	cfg.RollupRpc = validRollupRpc
+	// Require super-cannon-kona specific args
+	cfg.CannonKonaAbsolutePreStateBaseURL = nil
+	require.ErrorIs(t, cfg.Check(), ErrMissingCannonKonaAbsolutePreState)
+	cfg.CannonKonaAbsolutePreStateBaseURL = validCannonKonaAbsolutePreStateBaseURL
 
 	// Check final config is valid
 	require.NoError(t, cfg.Check())

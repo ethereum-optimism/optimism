@@ -160,35 +160,35 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 		expectedWarning string
 	}{
 		{
-			name:            "configured CannonKona",
-			gameType:        types.CannonKonaGameType,
-			configuredTypes: []types.GameType{types.CannonKonaGameType},
+			name:            "configured SuperCannonKona",
+			gameType:        types.SuperCannonKonaGameType,
+			configuredTypes: []types.GameType{types.SuperCannonKonaGameType},
 			expectLifecycle: true,
 			expectPlayable:  true,
 		},
 		{
-			name:            "supported unconfigured SuperCannonKona",
-			gameType:        types.SuperCannonKonaGameType,
-			configuredTypes: []types.GameType{types.CannonKonaGameType},
+			name:            "supported unconfigured ZKDispute",
+			gameType:        types.ZKDisputeGameType,
+			configuredTypes: []types.GameType{types.SuperCannonKonaGameType},
 			expectLifecycle: true,
 			expectedWarning: lifecycleOnlyWarning,
 		},
 		{
 			name:            "unconfigured SuperPermissioned",
 			gameType:        types.SuperPermissionedGameType,
-			configuredTypes: []types.GameType{types.CannonKonaGameType},
+			configuredTypes: []types.GameType{types.SuperCannonKonaGameType},
 			expectLifecycle: true,
 		},
 		{
-			name:            "allowlisted-out CannonKona",
-			gameType:        types.CannonKonaGameType,
-			configuredTypes: []types.GameType{types.CannonKonaGameType},
+			name:            "allowlisted-out SuperCannonKona",
+			gameType:        types.SuperCannonKonaGameType,
+			configuredTypes: []types.GameType{types.SuperCannonKonaGameType},
 			allowedGames:    []common.Address{otherAddr},
 		},
 		{
 			name:            "allowlisted-out SuperPermissioned",
 			gameType:        types.SuperPermissionedGameType,
-			configuredTypes: []types.GameType{types.CannonKonaGameType},
+			configuredTypes: []types.GameType{types.SuperCannonKonaGameType},
 			allowedGames:    []common.Address{otherAddr},
 		},
 		{
@@ -243,28 +243,28 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 }
 
 func TestMonitorProgressGamesPreservesIndependentBatchOrder(t *testing.T) {
-	allowedCannonKona := newTypedFDG(common.Address{0xa1}, 9999, types.CannonKonaGameType)
+	allowedSuperCannonKona := newTypedFDG(common.Address{0xa1}, 9999, types.SuperCannonKonaGameType)
 	unsupported := newTypedFDG(common.Address{0xa2}, 9999, types.GameType(11_111))
-	unconfiguredZKDispute := newTypedFDG(common.Address{0xa3}, 9999, types.ZKDisputeGameType)
+	allowlistedOutZKDispute := newTypedFDG(common.Address{0xa3}, 9999, types.ZKDisputeGameType)
 	superPermissioned := newTypedFDG(common.Address{0xa4}, 9999, types.SuperPermissionedGameType)
-	allowlistedOutCannonKona := newTypedFDG(common.Address{0xa5}, 9999, types.CannonKonaGameType)
-	allowedSuperCannonKona := newTypedFDG(common.Address{0xa6}, 9999, types.SuperCannonKonaGameType)
+	allowlistedOutSuperCannonKona := newTypedFDG(common.Address{0xa5}, 9999, types.SuperCannonKonaGameType)
+	allowedZKDispute := newTypedFDG(common.Address{0xa6}, 9999, types.ZKDisputeGameType)
 	monitor, source, playable, _, _, lifecycle := setupMonitorTest(t, []common.Address{
-		allowedCannonKona.Proxy,
 		allowedSuperCannonKona.Proxy,
+		allowedZKDispute.Proxy,
 	}, 0)
 	monitor.gameTypes = []types.GameType{
-		types.CannonKonaGameType,
 		types.SuperCannonKonaGameType,
+		types.ZKDisputeGameType,
 		types.SuperPermissionedGameType,
 	}
 	source.games = []types.GameMetadata{
-		allowedCannonKona,
-		unsupported,
-		unconfiguredZKDispute,
-		superPermissioned,
-		allowlistedOutCannonKona,
 		allowedSuperCannonKona,
+		unsupported,
+		allowlistedOutZKDispute,
+		superPermissioned,
+		allowlistedOutSuperCannonKona,
+		allowedZKDispute,
 	}
 	const blockNumber = uint64(456)
 
@@ -273,14 +273,14 @@ func TestMonitorProgressGamesPreservesIndependentBatchOrder(t *testing.T) {
 	require.Equal(t, []scheduledClaimBatch{{
 		blockNumber: blockNumber,
 		games: []types.GameMetadata{
-			allowedCannonKona,
 			allowedSuperCannonKona,
+			allowedZKDispute,
 		},
 	}}, lifecycle.scheduledBatches)
 	require.Equal(t, 2, lifecycle.scheduledGames)
 	require.Equal(t, [][]common.Address{{
-		allowedCannonKona.Proxy,
 		allowedSuperCannonKona.Proxy,
+		allowedZKDispute.Proxy,
 	}}, playable.Scheduled())
 }
 
@@ -337,7 +337,7 @@ func TestMinUpdatePeriod(t *testing.T) {
 }
 
 func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
-	return newTypedFDG(proxy, timestamp, types.CannonKonaGameType)
+	return newTypedFDG(proxy, timestamp, types.SuperCannonKonaGameType)
 }
 
 func newTypedFDG(proxy common.Address, timestamp uint64, gameType types.GameType) types.GameMetadata {
@@ -367,7 +367,7 @@ func setupMonitorTest(
 		preimages,
 		time.Duration(0),
 		stubClaimer,
-		[]types.GameType{types.CannonKonaGameType},
+		[]types.GameType{types.SuperCannonKonaGameType},
 		allowedGames,
 		mockHeadSource,
 		time.Duration(minUpdatePeriodSeconds)*time.Second,
