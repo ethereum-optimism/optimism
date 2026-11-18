@@ -22,7 +22,7 @@ func memoryLimit() uint64 {
 			break
 		}
 	}
-	return smallerLimit(parseMemTotal(meminfo), parseCgroupLimit(cgroup))
+	return smallerLimit(parseKiBField(meminfo, "MemTotal:"), parseCgroupLimit(cgroup))
 }
 
 // smallerLimit returns the smaller of two memory limits, where 0 means no limit.
@@ -33,12 +33,13 @@ func smallerLimit(a, b uint64) uint64 {
 	return a
 }
 
-// parseMemTotal returns the MemTotal of /proc/meminfo in bytes, or 0.
-func parseMemTotal(meminfo []byte) uint64 {
-	scanner := bufio.NewScanner(bytes.NewReader(meminfo))
+// parseKiBField returns the value in bytes of the field name, such as "MemTotal:", of data in the
+// format of /proc/meminfo, which gives values in kB, or 0.
+func parseKiBField(data []byte, name string) uint64 {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
-		if len(fields) == 3 && fields[0] == "MemTotal:" && fields[2] == "kB" {
+		if len(fields) == 3 && fields[0] == name && fields[2] == "kB" {
 			kb, err := strconv.ParseUint(fields[1], 10, 64)
 			if err != nil {
 				return 0

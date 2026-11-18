@@ -13,20 +13,19 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
-// TestSystemE2EDencunAtGenesis tests if L2 finalizes when blobs are present on L1
-func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
+// TestSystemE2EOsakaAtGenesisWithBlobs tests if L2 finalizes when blobs are present on L1. The
+// L1 runs Osaka from genesis, so the blob transaction carries cell proofs.
+func TestSystemE2EOsakaAtGenesisWithBlobs(t *testing.T) {
 	op_e2e.InitParallel(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	cfg := e2esys.DefaultSystemConfig(t)
-	cfg.DeployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")

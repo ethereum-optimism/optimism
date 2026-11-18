@@ -47,7 +47,8 @@
     ]
   },
   "customCSS": [
-    "/styles/homepage.css"
+    "/styles/homepage.css",
+    "/styles/op-enterprise.css"
   ],
   "customJS": [
     "/mixpanel-custom.js"

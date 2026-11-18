@@ -10,6 +10,7 @@ mod block;
 mod call;
 mod memory_overlay;
 mod pending_block;
+pub use pending_block::OpPendingEnvBuilder;
 
 use crate::{
     OpEthApiError, SequencerClient,
@@ -23,9 +24,10 @@ use futures::StreamExt;
 use op_alloy_consensus::OpReceipt;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
+use pending_block::unsuperseded_pending_flashblock;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
-use reth_chainspec::{EthereumHardforks, Hardforks};
+use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks, Hardforks};
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_evm::ConfigurePostExecEvm;
@@ -48,7 +50,7 @@ use reth_rpc_eth_types::{
     EthApiSettings, EthStateCache, FeeHistoryCache, GasPriceOracle,
     logs_utils::matching_block_logs_with_tx_hashes,
 };
-use reth_storage_api::ProviderHeader;
+use reth_storage_api::{BlockNumReader, ProviderHeader};
 use reth_tasks::{
     Runtime,
     pool::{BlockingTaskGuard, BlockingTaskPool},
@@ -228,15 +230,8 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         self.inner.flashblocks.as_ref().and_then(|f| *f.in_progress_rx.borrow())
     }
 
-    /// Extracts the latest pending flashblock from flashblocks state, if available.
-    fn extract_pending_flashblock(
-        &self,
-        block: Option<&PendingFlashBlock<N::Primitives>>,
-    ) -> Option<PendingFlashBlock<N::Primitives>> {
-        block.cloned()
-    }
-
-    /// Awaits a fresh flashblock if one is being built, otherwise returns current.
+    /// Awaits a fresh flashblock if one is being built, otherwise returns current, or `None` once
+    /// the canonical chain has reached its height.
     async fn flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>> {
         let Some(rx) = self.inner.flashblocks.as_ref().map(|f| &f.pending_block_rx) else {
             return Ok(None);
@@ -257,15 +252,18 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             }
         }
 
-        // Fall back to current block
-        Ok(self.extract_pending_flashblock(rx.borrow().as_ref()))
+        // Fall back to the current block, unless the canonical chain has already reached it.
+        let latest_block_number = self.inner.eth_api().provider().best_block_number()?;
+
+        Ok(unsuperseded_pending_flashblock(rx.borrow().as_ref(), latest_block_number))
     }
 
     /// Returns a [`PendingFlashBlock`] that is built out of flashblocks.
     ///
     /// If flashblocks receiver is not set, then it always returns `None`.
     ///
-    /// It may wait up to 50ms for a fresh flashblock if one is currently being built.
+    /// It may wait up to 50ms for a fresh flashblock if one is currently being built. Returns
+    /// `None` once the canonical chain has reached the flashblock's height.
     pub async fn pending_flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>>
     where
         OpEthApiError: FromEvmError<N::Evm>,
@@ -536,6 +534,9 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// Whether to retain forwarded transactions in the local pool after
     /// forwarding to the configured sequencer if it exists.
     retain_forwarded_txs: bool,
+    /// Seconds between two blocks, which dates the pending block. Without one, the pending block
+    /// builder uses the chain's alloy-chains hint.
+    block_time: Option<u64>,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
 }
@@ -549,6 +550,7 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
             flashblocks_url: None,
             flashblock_consensus: false,
             retain_forwarded_txs: false,
+            block_time: None,
             _nt: PhantomData,
         }
     }
@@ -564,6 +566,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
             flashblocks_url: None,
             flashblock_consensus: false,
             retain_forwarded_txs: false,
+            block_time: None,
             _nt: PhantomData,
         }
     }
@@ -604,6 +607,12 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
         self.retain_forwarded_txs = retain_forwarded_txs;
         self
     }
+
+    /// With the chain's block time in seconds, which dates the pending block.
+    pub const fn with_block_time(mut self, block_time: Option<u64>) -> Self {
+        self.block_time = block_time;
+        self
+    }
 }
 
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
@@ -640,6 +649,7 @@ where
             flashblocks_url,
             flashblock_consensus,
             retain_forwarded_txs,
+            block_time,
             ..
         } = self;
         let rpc_converter =
@@ -695,7 +705,13 @@ where
             None
         };
 
-        let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
+        let pending_env_builder =
+            OpPendingEnvBuilder::new(block_time, ctx.components.provider().chain_spec().chain());
+        let eth_api = ctx
+            .eth_api_builder()
+            .with_rpc_converter(rpc_converter)
+            .with_pending_env_builder(pending_env_builder)
+            .build_inner();
 
         Ok(OpEthApi::new(
             eth_api,

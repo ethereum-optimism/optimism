@@ -3,7 +3,6 @@
 use alloy_consensus::{SignableTransaction, TxEip1559};
 use alloy_genesis::Genesis;
 use alloy_network::{TxSignerSync, eip2718::Encodable2718};
-use alloy_op_hardforks::OP_MAINNET_BEDROCK_BLOCK;
 use alloy_primitives::{Address, Bytes, TxKind};
 use jsonrpsee::{
     RpcModule,
@@ -148,6 +147,9 @@ async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
     Ok(())
 }
 
+/// Any non-zero Bedrock block; this is OP Mainnet's.
+const BEDROCK_BLOCK: u64 = 105_235_063;
+
 #[tokio::test]
 async fn test_eth_capabilities_starts_at_bedrock() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
@@ -156,7 +158,7 @@ async fn test_eth_capabilities_starts_at_bedrock() -> eyre::Result<()> {
     let chain_spec = Arc::new(
         OpChainSpecBuilder::optimism_sepolia()
             .genesis(genesis)
-            .with_fork(OpHardfork::Bedrock, ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK))
+            .with_fork(OpHardfork::Bedrock, ForkCondition::Block(BEDROCK_BLOCK))
             .build(),
     );
 
@@ -177,7 +179,7 @@ async fn test_eth_capabilities_starts_at_bedrock() -> eyre::Result<()> {
     for resource in ["state", "tx", "logs", "receipts", "blocks", "stateproofs"] {
         assert_eq!(
             capabilities[resource]["oldestBlock"],
-            format!("{OP_MAINNET_BEDROCK_BLOCK:#x}"),
+            format!("{BEDROCK_BLOCK:#x}"),
             "{resource}: {capabilities}"
         );
     }

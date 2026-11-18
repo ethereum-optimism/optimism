@@ -5,9 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
@@ -15,7 +13,6 @@ import (
 	forkstest "github.com/ethereum-optimism/optimism/op-core/forks/test"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/params/opgethtest"
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -33,21 +30,11 @@ func TestNewL2GenesisMatchesOpGeth(t *testing.T) {
 	}
 	for name, schedule := range schedules {
 		t.Run(name, func(t *testing.T) {
+			g := testL2Genesis(t, schedule)
 			config := testDeployConfig(t)
-			for _, fork := range forkstest.TimestampELForks {
-				config.SetForkTimeOffset(fork, schedule(fork))
-			}
-
-			g, err := NewL2Genesis(config, &eth.BlockRef{Time: 1_700_000_000})
-			require.NoError(t, err)
-			// Non-empty storage, so that the Isthmus withdrawals root is not the empty root.
-			g.Alloc[predeploys.L2ToL1MessagePasserAddr] = types.Account{
-				Storage: map[common.Hash]common.Hash{{0x01}: {0x02}},
-				Balance: common.Big0,
-			}
 			want := g.GethGenesis()
 			want.Config = opgethtest.ChainConfig(t, config.L2ChainID, func(fork forks.Name) *uint64 {
-				return offsetToUpgradeTime((*hexutil.Uint64)(config.ForkTimeOffset(fork)), g.Timestamp)
+				return offsetToUpgradeTime((*hexutil.Uint64)(schedule(fork)), g.Timestamp)
 			})
 			want.Config.Optimism = &params.OptimismConfig{
 				EIP1559Denominator:       config.EIP1559Denominator,

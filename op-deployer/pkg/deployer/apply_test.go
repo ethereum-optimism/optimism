@@ -2,13 +2,19 @@ package deployer
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"log/slog"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -28,6 +34,45 @@ func TestApplyPipelineRejectsMockSP1VerifierOnReleaseL1(t *testing.T) {
 			})
 			require.ErrorContains(t, err, fmt.Sprintf("L1 chain ID %d has a release SP1 verifier", l1ChainID), "target %s", target)
 		}
+	}
+}
+
+// A genesis apply removes the deployer's account from the L1 genesis, so it must refuse any L1
+// prefund entry for the deployer before a stage runs. Every intent here is otherwise invalid, so an
+// apply that passes the check fails on the missing L1 chain ID instead.
+func TestApplyPipelineRejectsL1DeployerPrefund(t *testing.T) {
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	deployer := crypto.PubkeyToAddress(key.PublicKey)
+	prefund := func(addr common.Address, amount uint64) *state.Intent {
+		return &state.Intent{L1DevGenesisParams: &state.L1DevGenesisParams{
+			Prefund: map[common.Address]*hexutil.U256{addr: (*hexutil.U256)(uint256.NewInt(amount))},
+		}}
+	}
+	const refused, invalid = "l1DevGenesisParams.prefund has an entry for the deployer", "l1ChainID cannot be 0"
+	for _, tt := range []struct {
+		name    string
+		target  DeploymentTarget
+		key     *ecdsa.PrivateKey
+		intent  *state.Intent
+		wantErr string
+	}{
+		{"deployer prefunded", DeploymentTargetGenesis, key, prefund(deployer, 1), refused},
+		{"zero deployer prefund", DeploymentTargetGenesis, key, prefund(deployer, 0), refused},
+		{"placeholder deployer prefunded", DeploymentTargetGenesis, nil, prefund(standard.PlaceholderAddress, 1), refused},
+		{"other account prefunded", DeploymentTargetGenesis, key, prefund(common.Address{0xaa}, 1), invalid},
+		{"no L1 dev genesis params", DeploymentTargetGenesis, key, &state.Intent{}, invalid},
+		{"live target", DeploymentTargetLive, key, prefund(deployer, 1), invalid},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ApplyPipeline(t.Context(), ApplyPipelineOpts{
+				DeploymentTarget:   tt.target,
+				DeployerPrivateKey: tt.key,
+				Intent:             tt.intent,
+				State:              &state.State{},
+			})
+			require.ErrorContains(t, err, tt.wantErr)
+		})
 	}
 }
 

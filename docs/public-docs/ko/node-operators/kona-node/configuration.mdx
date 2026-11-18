@@ -43,16 +43,14 @@ import { Unreleased } from "/ko/snippets/unreleased.mdx"
 
 **숫자 체인 ID:**
 ```bash
-kona-node --l2-chain-id 10 node [args...]      # Optimism mainnet
-kona-node --l2-chain-id 8453 node [args...]    # Base mainnet
-kona-node --l2-chain-id 1 node [args...]       # Ethereum mainnet
+kona-node --l2-chain-id 10 node [args...]        # Optimism mainnet
+kona-node --l2-chain-id 11155420 node [args...]  # OP Sepolia
 ```
 
 **문자열 체인 이름:**
 ```bash
 kona-node --l2-chain-id optimism node [args...]
-kona-node --l2-chain-id base node [args...]
-kona-node --l2-chain-id mainnet node [args...]
+kona-node --l2-chain-id optimism-sepolia node [args...]
 ```
 
 **짧은 플래그와 환경 변수:**
@@ -61,7 +59,7 @@ kona-node -c optimism node [args...]
 export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
 ```
 
-지원되는 체인 이름에는 `alloy_chains`가 인식하는 모든 이름(예: `optimism`, `base`, `mainnet`)이 포함됩니다. 사용자 지정 네트워크를 위해 알려지지 않은 숫자 체인 ID도 허용됩니다.
+지원되는 체인 이름에는 `alloy_chains`가 인식하는 모든 이름(예: `optimism`, `optimism-sepolia`)이 포함됩니다. 사용자 지정 네트워크를 위해 알려지지 않은 숫자 체인 ID도 허용됩니다.
 
 ## P2P 인수 {#p2p-arguments}
 

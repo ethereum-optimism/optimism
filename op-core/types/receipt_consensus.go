@@ -16,28 +16,17 @@ import (
 // block can be recomputed with types.DeriveSha. The OP Stack synthetic receipt
 // types are encoded by this package; everything else delegates to go-ethereum.
 //
-// The encoding reads the OUTER Receipt fields (DepositNonce,
-// DepositReceiptVersion) — they are authoritative, per the Receipt contract.
-// Receipts must be produced through this package's decoders; a wrapper
-// hand-built around a receipt whose deposit fields live only on the embedded
-// struct encodes without them.
+// The deposit encoding reads the Receipt's own DepositNonce and
+// DepositReceiptVersion fields.
 type Receipts []*Receipt
 
 var _ types.DerivableList = (Receipts)(nil)
 
-// FromGethReceipt wraps a go-ethereum receipt. The receipt struct is
-// shallow-copied (reference fields like Logs still alias the source). While
-// go-ethereum resolves to op-geth, the deposit receipt fields are mirrored to
-// the authoritative outer copies so consensus encoding stays correct; those two
-// assignments stop compiling at the final cutover and are removed then.
-//
-// Use this rather than wrapping by hand: a Receipt built as &Receipt{Receipt: *r}
-// leaves the outer deposit fields nil and encodes a deposit receipt without them.
+// FromGethReceipt wraps a go-ethereum receipt, leaving the OP Stack fields
+// unset. The receipt struct is shallow-copied (reference fields like Logs still
+// alias the source).
 func FromGethReceipt(r *types.Receipt) *Receipt {
-	wrapped := &Receipt{Receipt: *r}
-	wrapped.DepositNonce = r.DepositNonce
-	wrapped.DepositReceiptVersion = r.DepositReceiptVersion
-	return wrapped
+	return &Receipt{Receipt: *r}
 }
 
 // FromGethReceipts wraps go-ethereum receipts into Receipts, per FromGethReceipt.
@@ -160,18 +149,6 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 	}
 }
 
-// DeriveFields overrides the promoted go-ethereum method, which reads the
-// deposit nonce for contract-address derivation off the embedded receipt —
-// the shadow of the wrapper's authoritative outer field. While go-ethereum
-// resolves to op-geth, the shadows are synced before delegating; the two
-// assignments stop compiling at the final cutover and the method is rewritten
-// then.
-func (r *Receipt) DeriveFields(signer types.Signer, context types.DeriveReceiptContext) {
-	r.Receipt.DepositNonce = r.DepositNonce
-	r.Receipt.DepositReceiptVersion = r.DepositReceiptVersion
-	r.Receipt.DeriveFields(signer, context)
-}
-
 // Size overrides the promoted go-ethereum method, which measures only the
 // embedded receipt: it adds the wrapper's OP Stack extension fields and their
 // pointees, so cache accounting does not undercount wrapped receipts.
@@ -196,7 +173,7 @@ func (r *Receipt) Size() common.StorageSize {
 
 // EncodeRLP implements rlp.Encoder, overriding the promoted go-ethereum
 // encoder so the OP Stack synthetic receipt types encode from this package —
-// the deposit arm reads the authoritative OUTER nonce/version fields. Like
+// the deposit arm reads the Receipt's own nonce/version fields. Like
 // go-ethereum, a typed receipt is encoded as an RLP byte string wrapping its
 // consensus envelope; legacy receipts delegate.
 func (r *Receipt) EncodeRLP(w io.Writer) error {
@@ -235,10 +212,9 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 
 // MarshalBinary returns the consensus encoding of the receipt, routing the
 // OP Stack synthetic receipt types (0x7E deposit, 0x7D post-exec) to this
-// package and everything else to go-ethereum. The deposit encoding reads the
-// authoritative OUTER DepositNonce/DepositReceiptVersion fields and — unlike
-// the receipts-root derivation in EncodeIndex — always includes the nonce when
-// set, matching op-geth's MarshalBinary. Inverse of UnmarshalBinary.
+// package and everything else to go-ethereum. Unlike the receipts-root
+// derivation in EncodeIndex, the deposit encoding always includes the nonce
+// when set. Inverse of UnmarshalBinary.
 func (r *Receipt) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 	switch r.Type {
@@ -275,12 +251,6 @@ func (r *Receipt) UnmarshalBinary(b []byte) error {
 		r.Type = DepositTxType
 		r.DepositNonce = data.DepositNonce
 		r.DepositReceiptVersion = data.DepositReceiptVersion
-		// While go-ethereum resolves to op-geth, the embedded receipt carries
-		// identically-named shadow fields; keep them consistent so op-geth code
-		// reading through Geth() sees the same values. These two assignments
-		// stop compiling at the final cutover and are removed then.
-		r.Receipt.DepositNonce = data.DepositNonce
-		r.Receipt.DepositReceiptVersion = data.DepositReceiptVersion
 		r.CumulativeGasUsed, r.Bloom, r.Logs = data.CumulativeGasUsed, data.Bloom, data.Logs
 		return r.setStatus(data.PostStateOrStatus)
 	case PostExecTxType:

@@ -77,6 +77,12 @@ func UnmarshalDepositTx(raw []byte) (*DepositTx, error) {
 	return d, nil
 }
 
+// IsDepositTxBytes reports whether raw, a transaction's EIP-2718 encoding, starts with the
+// deposit type byte. Empty input is not a deposit. It does not check the payload.
+func IsDepositTxBytes(raw []byte) bool {
+	return len(raw) > 0 && raw[0] == DepositTxType
+}
+
 // The helpers below operate on a go-ethereum *types.Transaction. They exist
 // only for the decoupling transition: while the build still resolves
 // go-ethereum to op-geth, a *types.Transaction can hold a deposit, so these let

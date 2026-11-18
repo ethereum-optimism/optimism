@@ -5,6 +5,7 @@ use crate::test_utils::{enr_at, localhost_enr};
 use discv5::{ConfigBuilder, ListenConfig};
 use enr::CombinedKey;
 use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
+use kona_peers::{BootStoreError, BootStoreFile};
 use tempfile::tempdir;
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -38,6 +39,11 @@ fn loopback_config() -> ConfigBuilder {
 /// Builds a driver on [`TEST_CHAIN_ID`] that advertises loopback, with `config`, which should
 /// listen there too, see [`loopback_config`]. It has no bootnodes.
 fn loopback_driver(config: Config) -> Discv5Driver {
+    loopback_builder(config).build().expect("the driver builds")
+}
+
+/// A builder of the driver [`loopback_driver`] builds, for the settings it leaves out.
+fn loopback_builder(config: Config) -> Discv5Builder {
     let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
         unreachable!()
     };
@@ -46,8 +52,6 @@ fn loopback_driver(config: Config) -> Discv5Driver {
         TEST_CHAIN_ID,
         config,
     )
-    .build()
-    .expect("the driver builds")
 }
 
 /// A driver with [`crate::public_only`] as its table filter, with a bootstore of `records`, see
@@ -64,38 +68,29 @@ fn driver_with_bootstore(
     records: &[Enr],
 ) -> (Discv5Driver, tempfile::TempDir) {
     let dir = tempdir().unwrap();
-    let path = dir.path().join("bootstore.json");
-    let mut store: BootStore =
-        BootStoreFile::Custom(path.clone()).try_into().expect("the bootstore opens");
+    let (mut store, _) =
+        BootStore::open(dir.path().join("bootstore.json")).expect("the bootstore opens");
     for record in records {
         store.add_enr(record.clone());
     }
-    store.sync().expect("the bootstore saves");
-    drop(store);
 
     let mut driver = loopback_driver(loopback_config().table_filter(table_filter).build());
-    driver.bootstore = Some(BootStoreFile::Custom(path));
+    driver.bootstore = store;
     (driver, dir)
 }
 
-/// Reads the bootstore at `path` until `done` holds for the file's modification time, taken
-/// before the read, and the records it holds, and returns those, or `None` after 5s. The driver
-/// truncates the file before it writes it, so a read can come back empty: `done` should
-/// require a record the driver keeps.
-async fn wait_for_saved(
+/// Reads the bootstore at `path` until `done` holds for the records it holds, and returns those,
+/// or `None` after 5s. A missing file holds no records.
+async fn wait_for_bootstore(
     path: &std::path::Path,
-    done: impl Fn(std::time::SystemTime, &[Enr]) -> bool,
+    done: impl Fn(&[Enr]) -> bool,
 ) -> Option<Vec<Enr>> {
     let poll = async {
         loop {
-            if let Ok(modified) = std::fs::metadata(path).and_then(|meta| meta.modified()) {
-                let store: BootStore = BootStoreFile::Custom(path.to_path_buf())
-                    .try_into()
-                    .expect("the bootstore opens");
-                let saved = store.valid_peers().into_iter().cloned().collect::<Vec<_>>();
-                if done(modified, &saved) {
-                    return saved;
-                }
+            let (store, _) = BootStore::open(path.to_path_buf()).expect("the bootstore opens");
+            let saved = store.iter().cloned().collect::<Vec<_>>();
+            if done(&saved) {
+                return saved;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }

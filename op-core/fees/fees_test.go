@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,15 +34,7 @@ func TestNewRollupCostData(t *testing.T) {
 
 // TestL1CostBedrockParity checks L1CostBedrock against op-geth's exported types.L1Cost.
 func TestL1CostBedrockParity(t *testing.T) {
-	cases := []struct {
-		rollupDataGas               uint64
-		l1BaseFee, overhead, scalar *big.Int
-	}{
-		{1618, big.NewInt(1000 * 1e6), big.NewInt(50), big.NewInt(7 * 1e6)},
-		{0, big.NewInt(1), big.NewInt(0), big.NewInt(1_000_000)},
-		{530, big.NewInt(2300000), big.NewInt(1000), big.NewInt(684000)},
-	}
-	for _, tc := range cases {
+	for _, tc := range l1CostBedrockVectors {
 		want := types.L1Cost(tc.rollupDataGas, tc.l1BaseFee, tc.overhead, tc.scalar)
 		got := L1CostBedrock(tc.rollupDataGas, tc.l1BaseFee, tc.overhead, tc.scalar)
 		require.Zero(t, want.Cmp(got), "want %s, got %s", want, got)
@@ -102,19 +93,12 @@ func TestFjordL1CostSolidityParity(t *testing.T) {
 // exported NewL1CostFuncFjord across a range of fee parameters and tx sizes. It runs while the
 // build still resolves go-ethereum to op-geth; remove it when the op-geth dependency is dropped.
 func TestFjordL1CostParity(t *testing.T) {
-	paramSets := []L1FeeParams{
-		{L1BaseFee: fjordBaseFee, L1BlobBaseFee: fjordBlobBaseFee, BaseFeeScalar: fjordBaseFeeScalar, BlobFeeScalar: fjordBlobBaseFeeScalar},
-		{L1BaseFee: big.NewInt(2 * 1e6), L1BlobBaseFee: big.NewInt(3 * 1e6), BaseFeeScalar: big.NewInt(20), BlobFeeScalar: big.NewInt(15)},
-		{L1BaseFee: big.NewInt(1), L1BlobBaseFee: big.NewInt(1), BaseFeeScalar: big.NewInt(1), BlobFeeScalar: big.NewInt(1)},
-		{L1BaseFee: big.NewInt(7 * 1e9), L1BlobBaseFee: big.NewInt(5 * 1e8), BaseFeeScalar: big.NewInt(684000), BlobFeeScalar: big.NewInt(810949)},
-	}
-	for _, fastLzSize := range []uint64{0, 50, 100, 170, 171, 500, 12345} {
-		for _, p := range paramSets {
-			gethFee, _ := types.NewL1CostFuncFjord(p.L1BaseFee, p.L1BlobBaseFee, p.BaseFeeScalar, p.BlobFeeScalar)(
-				types.RollupCostData{FastLzSize: fastLzSize})
-			got := L1CostFjord(RollupCostData{FastLzSize: fastLzSize}, p)
-			require.Zero(t, gethFee.Cmp(got), "fastLzSize=%d params=%+v: op-geth %s, op-core %s", fastLzSize, p, gethFee, got)
-		}
+	for _, v := range l1CostFjordVectors {
+		p := v.params
+		gethFee, _ := types.NewL1CostFuncFjord(p.L1BaseFee, p.L1BlobBaseFee, p.BaseFeeScalar, p.BlobFeeScalar)(
+			types.RollupCostData{FastLzSize: v.fastLzSize})
+		got := L1CostFjord(RollupCostData{FastLzSize: v.fastLzSize}, p)
+		require.Zero(t, gethFee.Cmp(got), "fastLzSize=%d params=%+v: op-geth %s, op-core %s", v.fastLzSize, p, gethFee, got)
 	}
 }
 
@@ -157,20 +141,11 @@ func TestOperatorCostJovian(t *testing.T) {
 // binary-encoded transaction (MarshalBinary), not from tx.Data(), and deposits are empty.
 func TestTxRollupCostDataParity(t *testing.T) {
 	to := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
-	mixedData := []byte{0x00, 0x01, 0x00, 0xff, 0x00, 0x42, 0x00, 0x00, 0xab}
-
-	txs := []struct {
-		name string
-		tx   *types.Transaction
-	}{
-		{"legacy no data", types.NewTx(&types.LegacyTx{Nonce: 0, To: &to, Value: big.NewInt(1), Gas: 21000, GasPrice: big.NewInt(1)})},
-		{"legacy with data", types.NewTx(&types.LegacyTx{Nonce: 7, To: &to, Value: big.NewInt(0), Gas: 50000, GasPrice: big.NewInt(3), Data: mixedData})},
-		{"dynamic fee", types.NewTx(&types.DynamicFeeTx{ChainID: big.NewInt(10), Nonce: 3, GasTipCap: big.NewInt(2), GasFeeCap: big.NewInt(5), Gas: 60000, To: &to, Value: big.NewInt(7), Data: mixedData})},
-		{"blob", types.NewTx(&types.BlobTx{ChainID: uint256.NewInt(10), Nonce: 1, GasTipCap: uint256.NewInt(2), GasFeeCap: uint256.NewInt(5), Gas: 21000, To: to, Value: uint256.NewInt(0), Data: mixedData, BlobFeeCap: uint256.NewInt(3), BlobHashes: []common.Hash{{0x01}}})},
-		{"deposit", types.NewTx(&types.DepositTx{SourceHash: common.Hash{0x01}, From: to, To: &to, Value: big.NewInt(0), Gas: 21000, Data: mixedData})},
+	deposit := txRollupCostDataVector{
+		name: "deposit",
+		tx:   types.NewTx(&types.DepositTx{SourceHash: common.Hash{0x01}, From: to, To: &to, Value: big.NewInt(0), Gas: 21000, Data: []byte{0x00, 0x01, 0x00, 0xff}}),
 	}
-
-	for _, tc := range txs {
+	for _, tc := range append(txRollupCostDataVectors(t), deposit) {
 		t.Run(tc.name, func(t *testing.T) {
 			want := tc.tx.RollupCostData() // op-geth's method, the behaviour we must preserve
 			got := TxRollupCostData(tc.tx)

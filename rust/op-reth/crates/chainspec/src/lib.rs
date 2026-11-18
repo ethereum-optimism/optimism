@@ -541,7 +541,6 @@ pub(crate) fn make_op_sealed_genesis_header(
 mod tests {
     use alloc::string::{String, ToString};
     use alloy_genesis::{ChainConfig, Genesis};
-    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
     use alloy_primitives::b256;
     use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, test_fork_ids};
     use reth_ethereum_forks::{EthereumHardfork, ForkCondition, ForkHash, ForkId, Head};
@@ -588,143 +587,106 @@ mod tests {
         assert_eq!(root_fix, expected_root);
     }
 
+    /// One entry per timestamp-activated fork: `(fork, activation, ForkHash once active)`. These
+    /// are literals, so they pin what op-reth parses from the superchain-registry.
+    type ForkIdTable = [(OpHardfork, u64, ForkHash)];
+
+    const OP_SEPOLIA_FORK_IDS: &ForkIdTable = &[
+        (OpHardfork::Canyon, 1_699_981_200, ForkHash([0xa4, 0x8d, 0x6a, 0x00])),
+        (OpHardfork::Ecotone, 1_708_534_800, ForkHash([0xcc, 0x17, 0xc7, 0xeb])),
+        (OpHardfork::Fjord, 1_716_998_400, ForkHash([0x54, 0x0a, 0x8c, 0x5d])),
+        (OpHardfork::Granite, 1_723_478_400, ForkHash([0x75, 0xde, 0xa4, 0x1e])),
+        (OpHardfork::Holocene, 1_732_633_200, ForkHash([0x4a, 0x1c, 0x79, 0x2e])),
+        (OpHardfork::Isthmus, 1_744_905_600, ForkHash([0x6c, 0x62, 0x5e, 0xe1])),
+        (OpHardfork::Jovian, 1_763_568_001, ForkHash([0x07, 0x9f, 0x2f, 0xd8])),
+        (OpHardfork::Karst, 1_781_712_001, ForkHash([0x91, 0x62, 0x04, 0x56])),
+    ];
+
+    /// OP Sepolia's Lagoon activation, the next fork after [`OP_SEPOLIA_FORK_IDS`].
+    const OP_SEPOLIA_LAGOON: u64 = 1_796_918_401;
+
+    const OP_MAINNET_FORK_IDS: &ForkIdTable = &[
+        (OpHardfork::Canyon, 1_704_992_401, ForkHash([0xbd, 0xd4, 0xfd, 0xb2])),
+        (OpHardfork::Ecotone, 1_710_374_401, ForkHash([0x19, 0xda, 0x4c, 0x52])),
+        (OpHardfork::Fjord, 1_720_627_201, ForkHash([0x49, 0xfb, 0xfe, 0x1e])),
+        (OpHardfork::Granite, 1_726_070_401, ForkHash([0x44, 0x70, 0x4c, 0xde])),
+        (OpHardfork::Holocene, 1_736_445_601, ForkHash([0x2b, 0xd9, 0x3d, 0xc8])),
+        (OpHardfork::Isthmus, 1_746_806_401, ForkHash([0x37, 0xbe, 0x75, 0x8f])),
+        (OpHardfork::Jovian, 1_764_691_201, ForkHash([0xd5, 0x3e, 0x56, 0x8f])),
+        (OpHardfork::Karst, 1_783_526_401, ForkHash([0xc2, 0x92, 0x39, 0xaf])),
+    ];
+
+    /// OP Mainnet's Lagoon activation, the next fork after [`OP_MAINNET_FORK_IDS`].
+    const OP_MAINNET_LAGOON: u64 = 1_799_683_201;
+
+    /// Checks `spec` schedules each fork in `table` at its listed time, and returns the fork-ID
+    /// cases one second before and at each activation, at block `number`. `prior` is the fork hash
+    /// before the first entry and `last_next` the activation after the last.
+    fn timestamp_fork_id_cases(
+        spec: &OpChainSpec,
+        number: u64,
+        prior: ForkHash,
+        table: &ForkIdTable,
+        last_next: u64,
+    ) -> Vec<(Head, ForkId)> {
+        let mut cases = Vec::new();
+        let mut hash = prior;
+        for (i, &(fork, activation, active_hash)) in table.iter().enumerate() {
+            assert_eq!(
+                spec.op_fork_activation(fork),
+                ForkCondition::Timestamp(activation),
+                "{fork} activation"
+            );
+            let next = table.get(i + 1).map_or(last_next, |&(_, next, _)| next);
+            let head = |timestamp| Head { number, timestamp, ..Default::default() };
+            cases.push((head(activation - 1), ForkId { hash, next: activation }));
+            cases.push((head(activation), ForkId { hash: active_hash, next }));
+            hash = active_hash;
+        }
+        cases
+    }
+
     #[test]
     fn op_sepolia_forkids() {
-        test_fork_ids(
+        let genesis = ForkHash([0x67, 0xa4, 0x03, 0x28]);
+        let mut cases = vec![(
+            Head { number: 0, ..Default::default() },
+            ForkId { hash: genesis, next: 1_699_981_200 },
+        )];
+        cases.extend(timestamp_fork_id_cases(
             &OP_SEPOLIA,
-            &[
-                (
-                    Head { number: 0, ..Default::default() },
-                    ForkId { hash: ForkHash([0x67, 0xa4, 0x03, 0x28]), next: 1699981200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1699981199, ..Default::default() },
-                    ForkId { hash: ForkHash([0x67, 0xa4, 0x03, 0x28]), next: 1699981200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1699981200, ..Default::default() },
-                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: 1708534800 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1708534799, ..Default::default() },
-                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: 1708534800 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1708534800, ..Default::default() },
-                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: 1716998400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1716998399, ..Default::default() },
-                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: 1716998400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1716998400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x54, 0x0a, 0x8c, 0x5d]), next: 1723478400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1723478399, ..Default::default() },
-                    ForkId { hash: ForkHash([0x54, 0x0a, 0x8c, 0x5d]), next: 1723478400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1723478400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x75, 0xde, 0xa4, 0x1e]), next: 1732633200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1732633200, ..Default::default() },
-                    ForkId { hash: ForkHash([0x4a, 0x1c, 0x79, 0x2e]), next: 1744905600 },
-                ),
-                // Isthmus
-                (
-                    Head { number: 0, timestamp: 1744905600, ..Default::default() },
-                    ForkId {
-                        hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]),
-                        next: OP_SEPOLIA_JOVIAN_TIMESTAMP,
-                    },
-                ),
-                // Jovian
-                (
-                    Head {
-                        number: 0,
-                        timestamp: OP_SEPOLIA_JOVIAN_TIMESTAMP,
-                        ..Default::default()
-                    },
-                    OP_SEPOLIA.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
-                ),
-            ],
-        );
+            0,
+            genesis,
+            OP_SEPOLIA_FORK_IDS,
+            OP_SEPOLIA_LAGOON,
+        ));
+        test_fork_ids(&OP_SEPOLIA, &cases);
     }
 
     #[test]
     fn op_mainnet_forkids() {
+        const BEDROCK_BLOCK: u64 = 105_235_063;
+        let bedrock = ForkHash([0xe3, 0x39, 0x8d, 0x7c]);
         let op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
-        test_fork_ids(
+        let mut cases = vec![
+            // Pre-Bedrock history: legacy Berlin, then London through Paris at Bedrock.
+            (
+                Head { number: 0, ..Default::default() },
+                ForkId { hash: ForkHash([0xca, 0xf5, 0x17, 0xed]), next: 3_950_000 },
+            ),
+            (
+                Head { number: BEDROCK_BLOCK, ..Default::default() },
+                ForkId { hash: bedrock, next: 1_704_992_401 },
+            ),
+        ];
+        cases.extend(timestamp_fork_id_cases(
             &op_mainnet,
-            &[
-                (
-                    Head { number: 0, ..Default::default() },
-                    ForkId { hash: ForkHash([0xca, 0xf5, 0x17, 0xed]), next: 3950000 },
-                ),
-                // London
-                (
-                    Head { number: 105235063, ..Default::default() },
-                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: 1704992401 },
-                ),
-                // Bedrock
-                (
-                    Head { number: 105235063, ..Default::default() },
-                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: 1704992401 },
-                ),
-                // Shanghai
-                (
-                    Head { number: 105235063, timestamp: 1704992401, ..Default::default() },
-                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: 1710374401 },
-                ),
-                // OP activation timestamps
-                // https://specs.optimism.io/protocol/superchain-upgrades.html#activation-timestamps
-                // Canyon
-                (
-                    Head { number: 105235063, timestamp: 1704992401, ..Default::default() },
-                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: 1710374401 },
-                ),
-                // Ecotone
-                (
-                    Head { number: 105235063, timestamp: 1710374401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x19, 0xda, 0x4c, 0x52]), next: 1720627201 },
-                ),
-                // Fjord
-                (
-                    Head { number: 105235063, timestamp: 1720627201, ..Default::default() },
-                    ForkId { hash: ForkHash([0x49, 0xfb, 0xfe, 0x1e]), next: 1726070401 },
-                ),
-                // Granite
-                (
-                    Head { number: 105235063, timestamp: 1726070401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x44, 0x70, 0x4c, 0xde]), next: 1736445601 },
-                ),
-                // Holocene
-                (
-                    Head { number: 105235063, timestamp: 1736445601, ..Default::default() },
-                    ForkId { hash: ForkHash([0x2b, 0xd9, 0x3d, 0xc8]), next: 1746806401 },
-                ),
-                // Isthmus
-                (
-                    Head { number: 105235063, timestamp: 1746806401, ..Default::default() },
-                    ForkId {
-                        hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]),
-                        next: OP_MAINNET_JOVIAN_TIMESTAMP,
-                    },
-                ),
-                // Jovian
-                (
-                    Head {
-                        number: 105235063,
-                        timestamp: OP_MAINNET_JOVIAN_TIMESTAMP,
-                        ..Default::default()
-                    },
-                    OP_MAINNET.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
-                ),
-            ],
-        );
+            BEDROCK_BLOCK,
+            bedrock,
+            OP_MAINNET_FORK_IDS,
+            OP_MAINNET_LAGOON,
+        ));
+        test_fork_ids(&op_mainnet, &cases);
     }
 
     #[test]

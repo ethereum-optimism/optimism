@@ -27,11 +27,10 @@ of three fates:
    `engine.ExecutableDataToBlockNoHash` signature (a cutover edit); and the **fork's infrastructure
    extensions** to geth's `log`/`rpc` packages, re-homed into owned op-service layers (§15).
 2. **Migrate execution to op-reth / Rust** — anything that builds or executes blocks, or needs
-   fork-only EVM hooks. op-acceptance-tests sequences op-reth-only for Karst+ (#21182);
-   op-e2e/actions and the kona proof tests (`rust/kona/tests/proofs`) run on an
-   op-reth-test-engine subprocess EL (#20415, #21196, #21905);
-   op-e2e system tests run op-reth as their only L2 EL; op-devstack/sysgo still has an
-   in-process op-geth L2 EL to retire (§17); and
+   fork-only EVM hooks. op-e2e/actions and the kona proof tests (`rust/kona/tests/proofs`) run on
+   an op-reth-test-engine subprocess EL (#20415, #21196, #21905);
+   op-e2e system tests and op-devstack/sysgo, which op-acceptance-tests runs on, have op-reth as
+   their only L2 EL (§17); and
    op-deployer runs all its scripts on upstream forge; `op-chain-ops/script` is deleted (§16).
 3. **Delete** — geth-as-library tools with no remaining need, to be reimplemented in Rust against
    op-reth if ever needed again: op-simulate and op-run-block (#21282), `op-wheel/cheat`, the
@@ -227,9 +226,10 @@ concrete go-ethereum config converts explicitly via `GethChainConfig()` (Ethereu
 derived from the OP schedule: Shanghai=Canyon, Cancun=Ecotone, Prague=Isthmus, Osaka=Karst —
 op-geth's own loader is missing Osaka=Karst; the monorepo follows op-reth, which is correct).
 
-While the build still resolves go-ethereum to op-geth, `GethChainConfig()` also carries the OP
-fork fields and `Optimism` struct on the produced config (in-process test ELs need them). Those
-fields don't exist upstream — **shedding them is a cutover edit** (#20266).
+The produced config carries only the Ethereum fork schedule, no OP fork fields or `Optimism`
+struct, so go-ethereum code reading it applies Ethereum rules. It is fit for the genesis state
+root and header encoding (§14); anything that builds or executes blocks or computes fee or
+EIP-1559 values belongs in op-reth or `op-core`.
 
 **Swaps landed (#20270, closed):** `rollup.Config.ChainOpConfig` is now
 `*opparams.OptimismConfig` (JSON tags identical → wire-compatible), and
@@ -410,8 +410,7 @@ Gates:
   `HeaderAndTxsByHash` (§11).
 - **ethclient path:** a forbidigo rule in `.golangci.yaml` rejects
   `ethclient.Client.{BlockByNumber,BlockByHash,BlockReceipts,TransactionInBlock,TransactionByHash}`
-  under `op-e2e/`, `op-devstack/`, `op-acceptance-tests/`,
-  `op-deployer/pkg/deployer/integration_test/` and `rust/kona/tests/`. An L1 read carries
+  in the whole tree. An L1 read carries
   `//nolint:forbidigo // L1: <reason>`, and an L2 read that can only return a user tx carries
   `//nolint:forbidigo // L2 user tx: <reason>`. The rule matches the receiver's static type, so a
   call through an interface or an embedding type is not seen: don't wrap an L2 read in one.
@@ -438,8 +437,8 @@ is rejected. `Genesis.ToBlock()` computes the genesis block on upstream go-ether
 `core.Genesis.ToBlock()` builds for `GethGenesis()`, with the one OP rule op-geth's genesis path
 adds — from Isthmus the header's `WithdrawalsHash` is the storage root of the
 `L2ToL1MessagePasser` predeploy (upstream `state`/`triedb`) instead of the empty hash.
-`GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum:
-op-devstack/sysgo's in-process op-geth L2 EL (§17). op-e2e's action-test
+`GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum;
+no L2 EL in the tree does (§17). op-e2e's action-test
 `SetupData.L2Cfg` is the `Genesis` itself. op-devstack's `L2Network.ChainConfig()` returns the
 `Genesis`'s own `opparams.ChainConfig` (§5).
 
@@ -458,13 +457,10 @@ hooks to geth's infrastructure packages, and op-service foundations grew to depe
 sit under every service, so they break the whole tree at cutover, and two of them are *features*
 rather than symbols. (Found by the 2026-07 upstream-build spike; §19 keeps finding such uses.)
 
-**§15's seams are owned; what keeps most of op-service on op-geth is the `op-core/types`
-deposit edge** (see §20). `op-core/params`, `op-core/predeploys` and
-`op-service/{log,testlog,jsonrpc,client}` build against upstream go-ethereum today.
-`op-core/types` still fails where `FromGethReceipt` and the other receipt wrappers copy op-geth's
-deposit fields (`Receipt.DepositNonce`, `DepositReceiptVersion`). Those assignments are removed at
-the final cutover (#20266). Until then `op-core/types` and every package importing it, including
-`op-service/{eth,signer,metrics,rpc}`, build only against op-geth.
+**§15's seams are owned, and `op-core/types` builds against upstream go-ethereum** (see §20):
+its receipt wrappers read and write only their own deposit fields, never op-geth's
+`Receipt.DepositNonce` and `DepositReceiptVersion`. What remains of op-service's op-geth use is
+on the ratchet allowlist (§19).
 
 **Log context extensions** — fork adds `Logger.SetContext`, `WriteCtx`, `LogAttrs`, and the
 `Trace/…/ErrorContext` methods; `op-service/log`'s logfilter feature and `op-service/testlog`
@@ -578,21 +574,21 @@ own op-geth — outside this repo, flagged to that team.)
 
 ---
 
-## 17. In-process op-geth L2 EL in op-devstack/sysgo — open (#21744)
+## 17. In-process op-geth L2 EL in op-devstack/sysgo — **DONE** (#21744)
 
-Beyond op-e2e/actions (§ scope fate 2, #21196), op-devstack/sysgo can run op-geth **in-process as
-the L2 EL**: `op-devstack/sysgo/l2_el_opgeth.go`, built on `op-e2e/e2eutils/geth.InitL2`. After the
-go.mod flip it would silently run *upstream* geth as the L2 EL — wrong OP state transition, with
-no compile error to warn us. The in-process **L1** geth miner is unaffected (plain Ethereum
-semantics are exactly right for it under upstream) and stays.
+An in-process op-geth L2 EL would, after the go.mod flip, silently run *upstream* geth as the L2
+EL — wrong OP state transition, with no compile error to warn us. So no test harness starts one:
+op-devstack/sysgo and the op-e2e system tests run op-reth as their only L2 EL, as an external
+process (`op-devstack/sysgo/l2_el_opreth.go`, `op-e2e/e2eutils/reth.InitL2`), and neither has an
+EL-kind selector. sysgo configures its op-nodes as `--l2.enginekind=reth` configures a production
+op-node, so an EL-sync op-node restarted with a finalized block re-enters EL sync. A suite
+outside this repo that tests its own EL build points sysgo at a CLI-superset binary of op-reth
+with `DEVSTACK_L2EL_OVERRIDE_BINARY`. The in-process **L1** geth miner
+(`op-e2e/e2eutils/geth.InitL1`) stays: plain Ethereum semantics are exactly right for it under
+upstream.
 
-op-e2e system tests run op-reth as their only L2 EL: `op-e2e/e2eutils/reth.InitL2` starts it as an
-external process, and no test can select another EL. System tests don't cover pre-Regolith L2
-blocks, since every live chain activated Regolith together with Bedrock.
-
-Left: make op-reth the only sysgo L2 EL kind — delete `l2_el_opgeth.go`, its EL-kind selector and
-skip helpers, and with them `geth.InitL2`. Precedent: #21182 (acceptance tests op-reth-only for
-Karst+).
+System tests don't cover pre-Regolith L2 blocks, since every live chain activated Regolith
+together with Bedrock.
 
 ---
 
@@ -617,15 +613,16 @@ serves only chains with pre-Canyon activity and is deleted like the pre-Holocene
 ## 19. CI ratchet — continuously rehearsing the cutover
 
 `just opgeth-ratchet` (CI job `opgeth-ratchet`, required through `ci-gate`) type-checks the whole
-tree, tests included, against the upstream go-ethereum version op-geth is based on — via a
-temporary go.mod; the repo's go.mod is untouched — and compares the op-geth-only API uses it finds
-with `ops/scripts/opgeth-ratchet/allowlist.txt`. An entry names the package (suffixed `(tests)`
-for uses in its test files) and what it needs from the fork, e.g.
+tree, tests included, against the upstream go-ethereum release the cutover moves to
+(`cutoverVersion` in `ops/scripts/opgeth-ratchet/upstream.go`) — via a temporary go.mod; the repo's
+go.mod is untouched — and compares the op-geth-only API uses it finds with
+`ops/scripts/opgeth-ratchet/allowlist.txt`. An entry names the package (suffixed `(tests)` for
+uses in its test files) and what it needs from the fork, e.g.
 `op-batcher/batcher (tests) | missing go-ethereum/core/types.DefaultBlockConfig | <reason>`.
 
 - **A use not on the allowlist fails the check.** Avoid it using this doc; if there is no way
   around it yet, add the entry by hand with a reason. Review of that line is the gate.
-- **Reasons start with the tracking issue** that removes the entry (e.g. `#21744 …`), so grepping
+- **Reasons start with the tracking issue** that removes the entry (e.g. `#20266 …`), so grepping
   the allowlist and its history for an issue number shows that workstream's remaining entries and
   its progress.
 - **An entry no longer used fails the check too**; `just opgeth-ratchet-update` removes it. The
@@ -640,17 +637,24 @@ for uses in its test files) and what it needs from the fork, e.g.
   type checker can't look up `Mint`, so removing one use can surface another, which then needs its
   own entry. That is a use the tree already had, not a new one.
 - **Compile-compat only.** Code that type-checks against upstream but would behave wrongly (e.g.
-  the in-process L2 EL, §17) is outside the check.
-- **op-geth also carries upstream backports** — later go-ethereum features (block access lists,
-  `CustodyBitmap`, builder deposit addresses, …) that its base version lacks. Uses of them are
-  allowlisted with reason "upstream backport" and are not decoupling work: they go when op-geth's
-  upstream base catches up.
+  an in-process L2 EL, §17) is outside the check.
+- **The check covers upstream's own changes.** Upstream changed APIs after the release op-geth is
+  based on (e.g. `vm.GasBudget` gas in `EVM.Call`, `params.Rules` arguments to
+  `core.IntrinsicGas`, `StateDB.Commit`). Their uses are allowlisted as `#20266 cutover edit: …`
+  with the upstream form, so the allowlist is the cutover's complete compile-level work list.
+  Besides missing APIs and changed signatures, the tool reports a changed struct field type as
+  `changed type of <field>`. A changed result type that only fails where the result meets local
+  code is reported as a changed signature of the function that returned it.
+- **Bumping the cutover target** is a change to `cutoverVersion`: run the check, drop the unused
+  entries with `just opgeth-ratchet-update`, and add the newly reported uses as cutover edits. The
+  CI job keys its module cache on `upstream.go`; refresh the job's list of cached modules as its
+  comment describes.
 
-#20266 is executable when every remaining entry is a cutover edit or an upstream backport that
-the target go-ethereum version contains. Cutover edits carry `#20266` (the op-core differential
-tests, the §2 scaffolding and the fork-changed signatures of §15) or `#23200` (the chain-config
-and genesis codec differential tests). The flip PR removes or rewrites them, then deletes the
-tool, the allowlist, the CI job and the §13 forbidigo rule.
+#20266 is executable when every remaining entry is a cutover edit. Cutover edits carry `#20266`
+(the op-core differential tests, the §2 scaffolding, the fork-changed signatures of §15 and the
+APIs upstream changed) or `#23200` (the chain-config and genesis codec differential tests). The
+flip PR moves go.mod to `cutoverVersion`, removes or rewrites the entries, then deletes the tool,
+the allowlist, the CI job and the §13 forbidigo rule.
 
 ---
 
@@ -704,12 +708,13 @@ Compiling every Go module in those repos against upstream go-ethereum with the r
   several private service modules.
 - **Decoupled now** — the replace drops with no other change. A small number of private service
   modules, mostly ones that only ever used geth's `log` package.
-- **Waiting on the final cutover** — everything else, which is most of them. Almost every
-  service imports `op-service/{rpc,metrics}` or another importer of `op-core/types`, which
-  builds against upstream only once the deposit edge goes at the final cutover (#20266):
+- **Waiting on the final cutover** — a module that imports `op-service/rpc`, whose
+  `node.NewHTTPHandlerStack` call the final cutover (#20266) rewrites for upstream's signature,
+  or another monorepo package on the ratchet allowlist (§19). That compile predates
+  `op-core/types` building against upstream, and it put most modules here:
   `infra/{op-signer,op-conductor-mon,op-ufm,peer-mgmt-service}`, `monitorism/op-monitorism`, and
-  most private service modules. A module that needs only `op-service/{log,testlog,jsonrpc,client}`
-  is unblocked on a monorepo pin that includes §15.
+  most private service modules. One of them that reaches `op-core/types` only through a package
+  such as `op-service/metrics` is unblocked on a current monorepo pin; recompile it to tell.
 
 One case is worth generalising because it is a trap rather than a blocker. A module pinned to a
 years-old op-geth pseudo-version compiled fine with the replace dropped, and dependency scanning
@@ -735,9 +740,6 @@ waiting:
   repo: it would *compile* against upstream and then fail at runtime decoding deposit txs. The
   fix is the same as the monorepo's — use the OP-aware client in `op-service/sources` (§11) —
   and it is the reason §11's guidance needs to reach these repos rather than staying in-tree.
-- A private builder repo couples only through a Go acceptance-test module that drives
-  op-devstack/sysgo's in-process op-geth L2 EL, so it rides §17. Its Rust binary has no Go geth
-  dependency at all.
 
 Two things worth carrying forward. First, a downstream repo cannot "point at op-core" ahead of
 us: the op-core packages that hold the transition scaffolding (§2, §3, §5) do not compile against
@@ -778,10 +780,10 @@ monorepo-only (#22678).
 | One-off fork symbols (§15) | per-symbol swaps | **done**, except the fork-changed signatures the cutover rewrites |
 | Remaining non-test fork uses (§5, §15, §18, op-test-sequencer) | swap or delete | **done**; op-test-sequencer's is a cutover edit |
 | `op-chain-ops/script` + op-deployer (§16) | upstream forge only; delete Go host + interopgen | **done** (#23300) |
-| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only | system tests **done**; sysgo open (#21744) |
+| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only | **done** (#21744) |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | **done** (#21746) |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | **done** (#23217) |
 | CI ratchet (§19) | required upstream type-check against a shrinking allowlist | **done** |
-| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
-| Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
+| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | unblocked unless the module imports `op-service/rpc`, which waits for the final cutover (its `node.NewHTTPHandlerStack` call) |
+| Final cutover: flip replace, delete differential tests + §2 scaffolding | go.mod | open (#20266) |

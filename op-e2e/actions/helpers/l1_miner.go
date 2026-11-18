@@ -187,38 +187,18 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 	s.l1Receipts = append(s.l1Receipts, receipt)
 	s.L1Transactions = append(s.L1Transactions, tx.WithoutBlobTxSidecar())
 	if tx.Type() == types.BlobTxType {
-		require.True(t, s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time), "L1 must be cancun to process blob tx")
+		// Test blob senders send cell proofs, which an L1 includes only from Osaka on.
+		require.True(t, s.l1Cfg.Config.IsOsaka(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time), "L1 must be Osaka to process blob tx")
 		sidecar := tx.BlobTxSidecar()
 		require.NotNil(t, sidecar, "missing sidecar in blob transaction")
 		hashes := tx.BlobHashes()
 		require.Greater(t, len(hashes), 0, "blobless blob transaction")
 		require.NoError(t, sidecar.ValidateBlobCommitmentHashes(hashes))
-		if s.l1Cfg.Config.IsOsaka(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
-			require.NoError(t, validateBlobSidecarOsaka(sidecar, hashes))
-		} else {
-			require.NoError(t, validateBlobSidecarLegacy(sidecar, hashes))
-		}
+		require.NoError(t, validateBlobSidecarOsaka(sidecar, hashes))
 		s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
 		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
 	return receipt
-}
-
-// validateBlobSidecarLegacy implements pre-Osaka sidecar validation.
-// Copied and adapted from op-geth core/txpool/validation.go
-func validateBlobSidecarLegacy(sidecar *types.BlobTxSidecar, hashes []common.Hash) error {
-	if sidecar.Version != types.BlobSidecarVersion0 {
-		return fmt.Errorf("invalid sidecar version pre-osaka: %v", sidecar.Version)
-	}
-	if len(sidecar.Proofs) != len(hashes) {
-		return fmt.Errorf("invalid number of %d blob proofs expected %d", len(sidecar.Proofs), len(hashes))
-	}
-	for i := range sidecar.Blobs {
-		if err := kzg4844.VerifyBlobProof(&sidecar.Blobs[i], sidecar.Commitments[i], sidecar.Proofs[i]); err != nil {
-			return fmt.Errorf("invalid blob %d: %w", i, err)
-		}
-	}
-	return nil
 }
 
 // validateBlobSidecarOsaka implements Osaka sidecar validation.

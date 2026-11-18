@@ -29,7 +29,10 @@ impl<H: alloy_consensus::BlockHeader> reth_rpc_eth_api::helpers::pending_block::
     /// `reth_rpc_eth_api::helpers::pending_block::NextBlockEnvAttributes::build_pending_env`
     ///
     /// Copies upstream pending-environment defaults for the OP attribute type, except that
-    /// `parent_beacon_block_root` carries the parent's actual root where upstream zeroes it.
+    /// `parent_beacon_block_root` carries the parent's actual root where upstream zeroes it. The
+    /// 12 s timestamp default is Ethereum's slot time; op-reth's RPC reaches this through
+    /// `OpPendingEnvBuilder`, which supplies a `time` override of one block time when the request
+    /// sets none.
     fn build_pending_env(
         parent: &crate::SealedHeader<H>,
         block_overrides: Option<&alloy_rpc_types_eth::BlockOverrides>,

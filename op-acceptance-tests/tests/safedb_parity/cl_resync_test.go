@@ -5,20 +5,20 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestSafeHeadRecordsMatchAfterKonaCLResync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := newParitySystemWithExecutionClient(t, true, sysgo.MixedL2ELOpGeth)
+	sys := newParitySystem(t)
 	deriveTogether(t, sys, 3)
 	recordedFloor := sys.Kona.SafeHeadDBFloor()
 
 	sys.Kona.ManagePeer(sys.OpNode)
 	sys.Kona.Stop()
 	sys.KonaEL.Stop()
+	sys.KonaEL.Wipe()
 	sys.OpNode.Advanced(safety.LocalSafe, 3, 60)
 
 	sys.KonaEL.Start()

@@ -46,6 +46,12 @@ func UnmarshalPostExecTx(raw []byte) (*PostExecTx, error) {
 	return &PostExecTx{Data: bytes.Clone(raw[1:])}, nil
 }
 
+// IsPostExecTxBytes reports whether raw, a transaction's EIP-2718 encoding, starts with the
+// post-exec type byte. Empty input is not a post-exec transaction. It does not check the payload.
+func IsPostExecTxBytes(raw []byte) bool {
+	return len(raw) > 0 && raw[0] == PostExecTxType
+}
+
 // IsPostExecTx reports whether tx is an OP Stack post-execution transaction.
 //
 // Like the deposit helpers in deposit_tx.go, this is transition-only: a

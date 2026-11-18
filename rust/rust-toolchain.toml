@@ -1,3 +1,5 @@
 [toolchain]
-# /ops/docker/op-stack-go/Dockerfile must match this version.
-channel = "1.99"
+# Must match the stable rust in /mise.toml and the Rust pins in
+# /ops/docker/op-stack-go/Dockerfile, /rust/op-reth/DockerfileOp and
+# /rust/kona/docker/apps/kona_app_generic.dockerfile (the rust-fmt CI job checks all of them).
+channel = "1.99.1"

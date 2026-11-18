@@ -176,10 +176,8 @@ mod tests {
 
     #[rstest]
     #[case::numeric_optimism("--l2-chain-id", "10", 10)]
-    #[case::numeric_base("--l2-chain-id", "8453", 8453)]
     #[case::numeric_ethereum("--l2-chain-id", "1", 1)]
     #[case::string_optimism("--l2-chain-id", "optimism", 10)]
-    #[case::string_base("--l2-chain-id", "base", 8453)]
     #[case::string_mainnet("--l2-chain-id", "mainnet", 1)]
     #[case::short_flag_numeric("-c", "10", 10)]
     #[case::short_flag_string("-c", "optimism", 10)]

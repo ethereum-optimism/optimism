@@ -72,7 +72,6 @@ var fatalErrs = []error{
 	txpool.ErrNegativeValue,
 	core.ErrInsufficientFunds,
 	core.ErrInsufficientFundsForTransfer,
-	core.ErrInsufficientBalanceWitness,
 	core.ErrGasUintOverflow,
 	core.ErrIntrinsicGas,
 	core.ErrFloorDataGas,

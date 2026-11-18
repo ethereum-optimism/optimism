@@ -92,7 +92,7 @@ just test-docs
 
 ### Running op-reth E2E Tests
 
-The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL by default; `OP_DEVSTACK_PROOF_SEQUENCER_EL` and `OP_DEVSTACK_PROOF_VALIDATOR_EL` override either role (`rust/op-reth/tests/proofs/utils/preset.go`). They require two build prerequisites:
+The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL (`rust/op-reth/tests/proofs/utils/preset.go`). They require two build prerequisites:
 
 1. **Forge artifacts** — the devnet deploys contracts from compiled artifacts:
    ```bash
@@ -158,7 +158,7 @@ This builds affected crates for the `riscv32imac-unknown-none-elf` target.
 
 ## Dependency Auditing
 
-The workspace uses `cargo-deny` for license, banned-crate, and crate-source checks. Advisories are not checked; dependency vulnerabilities are tracked through image scanning. Configuration is in `rust/deny.toml`.
+The workspace uses `cargo-deny` for license, banned-crate, and crate-source checks. RustSec advisories are checked daily by the `rust-deny-advisories` CI job, not on PRs. Configuration is in `rust/deny.toml`.
 
 ```bash
 cd rust
@@ -220,10 +220,9 @@ When **reviewing** a bump (rather than performing one), use [reth-update-review.
 
 Agent-specific tips beyond what's in the guide:
 
-- The bump is iterative — run `cargo check --workspace --tests`, fix the first batch of errors, re-run, repeat. Don't try to enumerate every API change up front and don't ask the user to confirm every line of adaptation; just iterate to a green compile and report the diff at the end.
+- Don't ask the user to confirm each adaptation: iterate the guide's compile loop (step 7) to green and report the diff at the end.
 - If you have a local checkout of `paradigmxyz/reth`, use it to look up upstream trait signatures and run `git log <old-rev>..<new-rev>` to find the commit that changed any given symbol — much faster and more reliable than hand-fetching raw GitHub URLs. If you don't know whether one is available, ask the user. Don't assume a path.
 - For trait methods that gained an ignored parameter, prefix the new param with `_` (e.g. `_block_access_list_hash: Option<B256>`) so it doesn't generate an unused-variable warning. Don't invent a meaningful name unless you're actually plumbing the value through.
-- If upstream removed a trait or re-export that op-reth still uses, vendor it locally with a comment pointing at the upstream removal PR — don't try to refactor op-reth to do without it without first confirming the consumer is actually unused. The "stale" label upstream doesn't mean unused downstream.
 - When the new rev pulls in new transitive deps (visible as `Adding <crate>` lines from `cargo update`), check whether they're from upstream reth's own deps or from a misconfiguration on our side. `cargo tree -i <crate>` traces the path.
 
 ## Skills

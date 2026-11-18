@@ -80,13 +80,15 @@ mod tests {
     fn test_guest_loads_complete_synthetic_configs_and_rejects_mismatched_l1() {
         install_test_seed();
         // The range proves only the synthetic chain, while its previous super root also holds
-        // chain 10, so the configs must cover both.
-        let mut configs = ChainConfigs::from_registry(&["0xa".parse().unwrap()]).unwrap();
+        // Zora, so the configs must cover both. Zora's dependency set holds only itself.
+        const ZORA: u64 = 7777777;
+        let mut configs =
+            ChainConfigs::from_registry(&[ZORA.to_string().parse().unwrap()]).unwrap();
         configs.l1_config = Default::default();
-        let mut rollup = configs.rollup_configs[&10].clone();
+        let mut rollup = configs.rollup_configs[&ZORA].clone();
         rollup.l2_chain_id = u64::MAX.into();
         configs.rollup_configs.insert(u64::MAX, rollup);
-        let dependency = configs.dependency_set.dependencies[&10].clone();
+        let dependency = configs.dependency_set.dependencies[&ZORA].clone();
         configs.dependency_set.dependencies.insert(u64::MAX, dependency);
         let synthetic = u64::MAX.to_string().parse().unwrap();
         let inputs = SuperInteropInputs::Range(SuperRangeInputs {
@@ -96,7 +98,7 @@ mod tests {
             previous_super_root_proofs: vec![SuperRootProof::new(
                 100,
                 vec![
-                    SuperOutputRoot { chain_id: 10, output_root: Default::default() },
+                    SuperOutputRoot { chain_id: ZORA, output_root: Default::default() },
                     SuperOutputRoot { chain_id: u64::MAX, output_root: Default::default() },
                 ],
             )],

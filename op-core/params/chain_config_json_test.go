@@ -38,15 +38,6 @@ func jsonTestConfig(t *testing.T, s forkstest.Schedule) *ChainConfig {
 	return cfg
 }
 
-var jsonTestCases = []struct {
-	name     string
-	schedule forkstest.Schedule
-}{
-	{name: "pre-Karst", schedule: forkstest.AtGenesisThrough(forks.Jovian)},
-	{name: "Karst", schedule: forkstest.Override(forkstest.AtGenesisThrough(forks.Jovian), forks.Karst, ptr.New[uint64](9000))},
-	{name: "staggered", schedule: forkstest.Staggered()},
-}
-
 func requireConfigEqual(t *testing.T, want, got *ChainConfig) {
 	t.Helper()
 	bigEq := cmp.Comparer(func(a, b *big.Int) bool {
@@ -138,7 +129,7 @@ func TestChainConfigJSONDirectFieldsDominate(t *testing.T) {
 // TestChainConfigJSONMatchesOpGeth pins the encoding to op-geth's encoding of the
 // equivalent op-geth chain config.
 func TestChainConfigJSONMatchesOpGeth(t *testing.T) {
-	for _, tc := range jsonTestCases {
+	for _, tc := range chainConfigJSONVectors {
 		t.Run(tc.name, func(t *testing.T) {
 			want, err := json.Marshal(opgethtest.ChainConfig(t, 901, tc.schedule))
 			require.NoError(t, err)
@@ -160,7 +151,7 @@ func TestChainConfigJSONKeyOrder(t *testing.T) {
 			opKeys[name] = true
 		}
 	}
-	for _, tc := range jsonTestCases {
+	for _, tc := range chainConfigJSONVectors {
 		t.Run(tc.name, func(t *testing.T) {
 			opGethJSON, err := json.Marshal(opgethtest.ChainConfig(t, 901, tc.schedule))
 			require.NoError(t, err)
@@ -216,6 +207,11 @@ func TestChainConfigJSONUnmarshalOpGeth(t *testing.T) {
 			opGeth.OsakaTime = osaka
 			data, err := json.Marshal(opGeth)
 			require.NoError(t, err)
+			want := opGethChainConfigJSON
+			if osaka == nil {
+				want = opGethChainConfigJSONWithoutOsaka
+			}
+			require.Equal(t, want, string(data))
 			var got ChainConfig
 			require.NoError(t, json.Unmarshal(data, &got))
 			requireConfigEqual(t, jsonTestConfig(t, s), &got)

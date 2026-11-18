@@ -56,7 +56,7 @@ fn recovered_legacy_from(sender: Address, tx: TxLegacy) -> Recovered<OpTxEnvelop
 fn test_with_encoded() {
     let executor_factory = OpBlockExecutorFactory::new(
         OpAlloyReceiptBuilder::default(),
-        OpChainHardforks::op_mainnet(),
+        hardforks(OpHardfork::Regolith, &[]),
         OpEvmFactory::<crate::OpTx>::default(),
     );
     let mut db = State::builder().with_database(CacheDB::<EmptyDB>::default()).build();
@@ -126,6 +126,23 @@ type JovianTestExecutor<'a> = OpBlockExecutor<
 const DEFAULT_DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
 const DEFAULT_GAS_LIMIT: u64 = 100_000;
 const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
+
+/// Every fork through `genesis` active from genesis, each `scheduled` fork at its timestamp, and
+/// every other fork never.
+fn hardforks(genesis: OpHardfork, scheduled: &[(OpHardfork, u64)]) -> OpChainHardforks {
+    OpChainHardforks::new(OpHardfork::VARIANTS.iter().map(|&fork| {
+        let condition = if fork == OpHardfork::Bedrock {
+            ForkCondition::Block(0)
+        } else if fork <= genesis {
+            ForkCondition::Timestamp(0)
+        } else if let Some(&(_, timestamp)) = scheduled.iter().find(|(f, _)| *f == fork) {
+            ForkCondition::Timestamp(timestamp)
+        } else {
+            ForkCondition::Never
+        };
+        (fork, condition)
+    }))
+}
 
 /// Whether [`build_executor`] attaches an inspector to the EVM — a self-documenting alternative to
 /// a bare `bool` at the call sites.
@@ -198,13 +215,9 @@ struct JovianExecutorFixture {
     beneficiary: Address,
 }
 
-/// Mainnet's schedule with Jovian moved to `jovian_timestamp`.
+/// Every fork through Isthmus at genesis, with Jovian at `jovian_timestamp`.
 fn jovian_hardforks(jovian_timestamp: u64) -> OpChainHardforks {
-    OpChainHardforks::new(
-        OpHardfork::op_mainnet()
-            .into_iter()
-            .chain([(OpHardfork::Jovian, ForkCondition::Timestamp(jovian_timestamp))]),
-    )
+    hardforks(OpHardfork::Isthmus, &[(OpHardfork::Jovian, jovian_timestamp)])
 }
 
 impl JovianExecutorFixture {
@@ -399,21 +412,14 @@ const KARST_TIMESTAMP: u64 = JOVIAN_TIMESTAMP + 1_000;
 /// rejection test's loop over the returned schedule, exercised — automatically. `KARST_TIMESTAMP`
 /// (`JOVIAN_TIMESTAMP + 1_000`) is the schedule's second entry, used by the single-fork tests.
 ///
-/// `OpChainHardforks` indexes by `OpHardfork::idx()`, so the fork list must hold exactly one entry
-/// per fork in canonical order. We keep `op_mainnet()`'s pre-Jovian forks and schedule everything
-/// from Jovian onward ourselves.
+/// Pre-Jovian forks are active from genesis.
 fn no_user_tx_activation_hardforks() -> (OpChainHardforks, Vec<(OpHardfork, u64)>) {
-    let mut forks: Vec<(OpHardfork, ForkCondition)> = OpHardfork::op_mainnet()
-        .into_iter()
-        .filter(|(fork, _)| fork.idx() < OpHardfork::Jovian.idx())
+    let schedule: Vec<_> = OpHardfork::Jovian
+        .forks_from()
+        .enumerate()
+        .map(|(i, fork)| (fork, JOVIAN_TIMESTAMP + i as u64 * 1_000))
         .collect();
-    let mut schedule = Vec::new();
-    for (i, fork) in OpHardfork::Jovian.forks_from().enumerate() {
-        let timestamp = JOVIAN_TIMESTAMP + i as u64 * 1_000;
-        forks.push((fork, ForkCondition::Timestamp(timestamp)));
-        schedule.push((fork, timestamp));
-    }
-    (OpChainHardforks::new(forks), schedule)
+    (hardforks(OpHardfork::Isthmus, &schedule), schedule)
 }
 
 #[test]
@@ -770,7 +776,7 @@ impl PostExecRefundInspector for HookObservingPolicy {
 fn post_exec_composite_dispatches_every_observer_hook() {
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut executor =
         build_policy_executor::<HookObservingPolicy>(&mut db, &receipt_builder, &hardforks);
 
@@ -862,7 +868,7 @@ impl<const REVERTS: bool> PostExecRefundInspector for ScriptedRefundPolicy<REVER
 fn declined_candidate_reverts_refund_policy_checkpoint() {
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut executor =
         build_policy_executor::<ScriptedRefundPolicy>(&mut db, &receipt_builder, &hardforks);
     let tx = observer_test_tx();
@@ -890,7 +896,7 @@ fn assert_refund_policy_revert_error(err: &BlockExecutionError) {
 fn declined_candidate_fails_when_refund_policy_cannot_revert() {
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut executor =
         build_policy_executor::<ScriptedRefundPolicy<false>>(&mut db, &receipt_builder, &hardforks);
 
@@ -906,7 +912,7 @@ fn declined_candidate_fails_when_refund_policy_cannot_revert() {
 fn failed_candidate_reports_refund_policy_revert_error_over_its_own() {
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut executor =
         build_policy_executor::<ScriptedRefundPolicy<false>>(&mut db, &receipt_builder, &hardforks);
     let nonce_too_high = recovered_legacy(TxLegacy {
@@ -926,7 +932,7 @@ fn failed_candidate_reports_refund_policy_revert_error_over_its_own() {
 fn failed_candidate_reports_its_own_error_when_refund_policy_reverts() {
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
-    let hardforks = OpChainHardforks::op_mainnet();
+    let hardforks = hardforks(OpHardfork::Isthmus, &[]);
     let mut executor =
         build_policy_executor::<ScriptedRefundPolicy>(&mut db, &receipt_builder, &hardforks);
     let nonce_too_high = recovered_legacy(TxLegacy {

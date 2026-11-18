@@ -179,7 +179,7 @@ var Subcommands = cli.Commands{
 
 			logger.Info("Using L1 Start Block", "number", startBlock)
 			// retry because local devnet can experience a race condition where L1 geth isn't ready yet
-			l1StartBlock, err := retry.Do(ctx.Context, 24, retry.Fixed(1*time.Second), func() (*types.Block, error) { return client.BlockByNumber(ctx.Context, startBlock) })
+			l1StartBlock, err := retry.Do(ctx.Context, 24, retry.Fixed(1*time.Second), func() (*types.Block, error) { return client.BlockByNumber(ctx.Context, startBlock) }) //nolint:forbidigo // L1: the rollup's L1 start block
 			if err != nil {
 				return fmt.Errorf("fetching start block by number: %w", err)
 			}

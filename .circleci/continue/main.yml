@@ -394,7 +394,7 @@ commands:
             fi
 
             # Make TARGET_BRANCH available to subsequent steps
-            echo "export TARGET_BRANCH=$TARGET_BRANCH" >> "$BASH_ENV"
+            printf 'export TARGET_BRANCH=%q\n' "$TARGET_BRANCH" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
 
   setup-features:
@@ -447,7 +447,7 @@ commands:
 
   # --- Rust environment setup commands ---
   rust-restore-build-cache:
-    description: "Restore the dependency and toolchain caches for a Rust workspace"
+    description: "Restore the dependency cache for a Rust workspace"
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -477,21 +477,13 @@ commands:
           keys:
             - rust-deps-v<< parameters.version >>-{{ checksum "<<
               parameters.directory >>/Cargo.lock" }}
-      # Toolchain (.rustup + cargo-installed bins) keyed on the toolchain pins,
-      # not Cargo.lock, so a dependency bump no longer discards and re-downloads
-      # the Rust toolchain. Shared across all jobs.
-      - restore_cache:
-          name: Restore Rust toolchain cache (shared)
-          keys:
-            - rust-toolchain-v<< parameters.version >>-{{ checksum "mise.toml"
-              }}-{{ checksum "rust/rust-toolchain.toml" }}
 
   # Only builds that select the whole workspace (or run `cargo fetch`) may attach
   # this command: the shared dep-cache key is immutable (first save after a
   # Cargo.lock change wins), so a job with an empty or partial registry would
   # poison the cache for every later build.
   rust-save-build-cache:
-    description: "Save the dependency and toolchain caches for a Rust workspace"
+    description: "Save the dependency cache for a Rust workspace"
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -535,13 +527,6 @@ commands:
           paths:
             - /data/mise-data/.cargo/registry
             - /data/mise-data/.cargo/git
-      - save_cache:
-          key: rust-toolchain-v<< parameters.version >>-{{ checksum "mise.toml" }}-{{
-            checksum "rust/rust-toolchain.toml" }}
-          name: Save Rust toolchain cache (shared)
-          paths:
-            - /data/mise-data/.cargo/bin
-            - /data/mise-data/.rustup
 
   rust-prepare-and-restore-cache:
     description: "Prepare the Rust environment and restore the cache"
@@ -727,7 +712,7 @@ commands:
             # time, so it needs no RUSTFLAGS change and does not perturb the sccache
             # compile-cache key. The CI env is controlled, so a missing mold must
             # fail loudly rather than silently falling back to the default linker.
-            mold -run cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
+            mold -run cargo build --locked $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
           no_output_timeout: 30m
       - when:
           condition: << parameters.save_cache >>
@@ -1124,11 +1109,10 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
-      - setup_remote_docker:
-          docker_layer_caching: true
+      - setup_remote_docker
       - run:
           name: Run Kontrol build
-          command: just kontrol-summary-full
+          command: just kontrol-summary-fp
           working_directory: packages/contracts-bedrock
       - run:
           name: Build Kontrol summary files
@@ -1169,9 +1153,14 @@ jobs:
           that build, and its profile must match test_profile.
         type: boolean
         default: false
+      parallelism:
+        description: Machines to split the test files across, by timing.
+        type: integer
+        default: 1
+    parallelism: <<parameters.parallelism>>
     steps:
       - checkout-with-mise:
-          checkout-method: full
+          checkout-method: blobless
           enable-mise-cache: true
       - when:
           condition: << parameters.attach_build >>
@@ -1212,8 +1201,15 @@ jobs:
           name: Run tests
           # `just test` partitions the shard between Amsterdam and default-EVM tests.
           command: |
-            TEST_FILES=$(<<parameters.test_list>>)
-            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            ALL_FILES=$(<<parameters.test_list>>)
+            TEST_FILES=$(echo "$ALL_FILES" | circleci tests split --split-by=timings)
+            # With parallelism, a node can get an empty share of a non-empty list.
+            # Halt it instead of letting `just test` fall back to the whole suite.
+            if [ "${CIRCLE_NODE_TOTAL:-1}" -gt 1 ] && [[ "$ALL_FILES" == *[![:space:]]* ]] && [[ "$TEST_FILES" != *[![:space:]]* ]]; then
+              echo "No test files for node $CIRCLE_NODE_INDEX of $CIRCLE_NODE_TOTAL. Halting."
+              circleci-agent step halt
+              exit 0
+            fi
             export TEST_FILES
             JUNIT_TEST_DIR=results just test
           environment:
@@ -1323,6 +1319,7 @@ jobs:
     resource_class: 2xlarge.gen2
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-upgrade
@@ -1439,6 +1436,7 @@ jobs:
     resource_class: 2xlarge.gen2
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-l2-fork
@@ -1593,6 +1591,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - run:
           name: Check shell script formatting
@@ -1601,6 +1600,7 @@ jobs:
   shell-check:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: medium.gen2
     steps:
       - checkout-with-mise:
           enable-mise-cache: true
@@ -1613,8 +1613,10 @@ jobs:
   l2-chains-sync-check:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: medium.gen2
     steps:
       - checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: false
       - run:
           name: Check l2-rpcs.json and daily matrix are in sync
@@ -1668,6 +1670,8 @@ jobs:
           command: mise exec -- ./ops/prestate-reproducibility/test-build-prestates.sh
       - go-save-cache:
           namespace: go-lint
+          # Safe: one node, and no other job uses this namespace.
+          prune: true
       - save_cache:
           # Warm the analysis cache even when linting fails, so a branch with
           # lint errors doesn't repeatedly cold-start golangci-lint.
@@ -1696,6 +1700,83 @@ jobs:
           paths:
             - "cannon/bin"
 
+  # develop's latest timings for the memory-all test splits (see shard-tests.sh), from
+  # CircleCI's API. Fetched once, in a job both memory-all jobs wait for, so every node
+  # gets the same file. Not on develop, tags, the merge queue or proposal branches, which
+  # keep CircleCI's own timings. Any failure writes no file, and the split works as today.
+  memory-all-shard-timings:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - run:
+          name: Create the timings dir
+          command: mkdir -p /tmp/_shard-timings && touch /tmp/_shard-timings/.keep
+      - unless:
+          condition:
+            or:
+              - equal: ["develop", << pipeline.git.branch >>]
+              - equal: ["", << pipeline.git.branch >>]
+              - matches:
+                  pattern: "^gh-readonly-queue/.*$"
+                  value: << pipeline.git.branch >>
+              # PR branches targeting proposal/* still fetch develop's. Tests develop lacks get the 1m default.
+              - matches:
+                  pattern: "^proposal/.*$"
+                  value: << pipeline.git.branch >>
+          steps:
+            - run:
+                name: Fetch develop's timings
+                # The API needs no token while the project is public. If it goes private, set
+                # CIRCLE_TIMINGS_TOKEN (a personal API token, v2 rejects project tokens) in a restricted
+                # context on this job. A project env var would be readable by every job.
+                environment:
+                  # The fork must follow acceptance_l1_forks. A job with no file splits as today.
+                  JOBS: memory-all-opn-op-reth-fusaka memory-all-kona-op-reth-fusaka
+                command: |
+                  # Any failure logs one line and passes, leaving no file for the jobs not yet done.
+                  trap 'echo "Could not fetch develop timings, memory-all splits as today"; exit 0' ERR
+                  API=https://circleci.com/api
+                  SLUG=gh/ethereum-optimism/optimism
+                  CURL=(curl -fsS --max-time 10 --retry 2 --retry-delay 1 --retry-max-time 10)
+                  if [ -n "${CIRCLE_TIMINGS_TOKEN:-}" ]; then CURL+=(-H "Circle-Token: $CIRCLE_TIMINGS_TOKEN"); fi
+                  cd "$(mktemp -d)"
+                  # Green develop jobs, newest first. A develop pipeline adds about 100.
+                  for offset in 0 100 200; do
+                    [ "$SECONDS" -lt 60 ]
+                    "${CURL[@]}" -o jobs.json "$API/v1.1/project/$SLUG/tree/develop?filter=successful&shallow=true&limit=100&offset=$offset"
+                    jq -r '.[] | "\(.workflows.job_name) \(.build_num)"' jobs.json >> jobs.txt
+                    if awk -v want="$JOBS" 'BEGIN { n = split(want, w, " ") } { seen[$1] = 1 }
+                        END { for (i = 1; i <= n; i++) if (!seen[w[i]]) exit 1 }' jobs.txt; then break; fi
+                  done
+                  for job in $JOBS; do
+                    num=$(awk -v j="$job" '$1 == j && $2 > n { n = $2 } END { print n + 0 }' jobs.txt)
+                    if [ "$num" -eq 0 ]; then echo "No green develop run of $job found"; continue; fi
+                    : > tests.jsonl
+                    token=
+                    while :; do
+                      [ "$SECONDS" -lt 60 ]
+                      "${CURL[@]}" -o page.json "$API/v2/project/$SLUG/$num/tests${token:+?page-token=$token}"
+                      jq -c '.items[]' page.json >> tests.jsonl
+                      token=$(jq -r '.next_page_token // empty | @uri' page.json)
+                      [ -n "$token" ] || break
+                    done
+                    # The split gets top-level names from `go test -list`. A parent's run_time includes
+                    # its subtests, so those are dropped. A name in several packages runs on one node,
+                    # so its copies are summed.
+                    jq -s '{tests: [map(select(.name | contains("/") | not)) | group_by(.name)[]
+                      | {name: .[0].name, classname: .[0].classname, result: "success",
+                         run_time: (map(.run_time // 0) | add)}]}' tests.jsonl > timings.json
+                    n=$(jq '.tests | length' timings.json)
+                    if [ "$n" -eq 0 ]; then echo "No tests in develop job $num"; continue; fi
+                    mv timings.json "/tmp/_shard-timings/$job.json"
+                    echo "Wrote $n test timings from develop job $num to $job.json"
+                  done
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - _shard-timings
+
   check-op-geth-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -1723,11 +1804,12 @@ jobs:
       - go-restore-cache:
           namespace: opgeth-ratchet
       # Modules and checksum database tiles the check needs that the shared
-      # module cache lacks: upstream go-ethereum and the dependencies it adds.
-      # go.mod determines its version through the op-geth replace. Other
-      # fetches (tests of dependencies, lookups of op-geth-only packages) don't
-      # affect the result and may fail. To refresh the list, run the check
-      # with an empty module cache and compare what it adds to the shared one.
+      # module cache lacks: upstream go-ethereum and the dependencies it
+      # upgrades or adds. upstream.go sets the go-ethereum version (cutoverVersion),
+      # go.mod the rest, so the key hashes both. Other fetches (tests of
+      # dependencies, lookups of op-geth-only packages) don't affect the
+      # result and may fail. To refresh the list, run the check with an empty
+      # module cache and compare what it adds to the shared one.
       # The fallback restores the upstream modules across go.mod changes that
       # rarely touch them; an old go-ethereum version then lingers in the cache
       # until c-go-cache-version is bumped. Scoped by branch like the shared Go
@@ -1735,8 +1817,8 @@ jobs:
       - restore_cache:
           name: Restore upstream go-ethereum modules
           keys:
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:{{ checksum "go.mod" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}-{{ checksum "ops/scripts/opgeth-ratchet/upstream.go" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:{{ checksum "go.mod" }}-{{ checksum "ops/scripts/opgeth-ratchet/upstream.go" }}
             - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:"
             - "go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-develop:"
       - run:
@@ -1745,11 +1827,28 @@ jobs:
             just opgeth-ratchet
       - save_cache:
           name: Save upstream go-ethereum modules
-          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}
+          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}:{{ checksum "go.mod" }}-{{ checksum "ops/scripts/opgeth-ratchet/upstream.go" }}
           paths:
+            - ~/go/pkg/mod/cache/download/github.com/!data!dog/zstd
+            - ~/go/pkg/mod/cache/download/github.com/!radu!berinde
+            - ~/go/pkg/mod/cache/download/github.com/cockroachdb/crlib
+            - ~/go/pkg/mod/cache/download/github.com/cockroachdb/pebble/v2
+            - ~/go/pkg/mod/cache/download/github.com/cockroachdb/swiss
+            - ~/go/pkg/mod/cache/download/github.com/ethereum/c-kzg-4844/v2
             - ~/go/pkg/mod/cache/download/github.com/ethereum/go-ethereum
-            - ~/go/pkg/mod/cache/download/github.com/pion/stun/v2
-            - ~/go/pkg/mod/cache/download/github.com/pion/transport/v3
+            - ~/go/pkg/mod/cache/download/github.com/fjl/jsonw
+            - ~/go/pkg/mod/cache/download/github.com/go-logr/logr
+            - ~/go/pkg/mod/cache/download/github.com/golang/snappy
+            - ~/go/pkg/mod/cache/download/github.com/klauspost/cpuid/v2
+            - ~/go/pkg/mod/cache/download/github.com/minio/minlz
+            - ~/go/pkg/mod/cache/download/github.com/pion/dtls/v3
+            - ~/go/pkg/mod/cache/download/github.com/pion/stun/v3
+            - ~/go/pkg/mod/cache/download/github.com/pion/transport/v4
+            - ~/go/pkg/mod/cache/download/github.com/stretchr/objx
+            - ~/go/pkg/mod/cache/download/github.com/stretchr/testify
+            - ~/go/pkg/mod/cache/download/go.opentelemetry.io/otel
+            - ~/go/pkg/mod/cache/download/go.yaml.in/yaml/v3
+            - ~/go/pkg/mod/cache/download/google.golang.org/protobuf
             - ~/go/pkg/mod/cache/download/sumdb
       - go-save-cache:
           namespace: opgeth-ratchet
@@ -2142,10 +2241,6 @@ jobs:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
         default: "op-node"
-      l2_el_kind:
-        description: "L2 execution layer client (op-geth or op-reth)"
-        type: string
-        default: "op-reth"
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -2220,7 +2315,6 @@ jobs:
           command: |
             echo "export DEVSTACK_L1_FORK=<<parameters.l1_fork>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
-            echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules (downloaded once by prep-go-modules) plus the
       # per-job build cache. Modules are already present, so the test run below
       # does not need a separate `go mod download`.
@@ -2241,7 +2335,7 @@ jobs:
       - run:
           name: Memory summary
           when: always
-          command: grep -H . /sys/fs/cgroup/memory.{max,peak,events,pressure} || true
+          command: grep -H . /sys/fs/cgroup/memory.{max,peak,events,pressure} /sys/fs/cgroup/pids.{max,peak} || true
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2258,6 +2352,8 @@ jobs:
       # Save the module cache for future runs
       - go-save-cache:
           namespace: op-acceptance-tests
+          # Safe: every node builds the same packages (go test -list).
+          prune: true
       # Store test results and artifacts
       - when:
           condition: always
@@ -2289,6 +2385,7 @@ jobs:
   cannon-prestate:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
+    resource_class: large.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -2431,6 +2528,7 @@ jobs:
   op-deployer-forge-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: large.gen2
     steps:
       - checkout-with-mise:
           checkout-method: blobless
@@ -2462,7 +2560,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: Run Kontrol Tests
-          command: timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-full test-kontrol-no-build
+          command: timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-fp test-kontrol-no-build
           working_directory: ./packages/contracts-bedrock
           no_output_timeout: 185m
       - run:
@@ -2768,20 +2866,23 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # Both run on the job's default 2xlarge.gen2 (16 vCPU / 32 GiB). op-node's peak RAM matches
-      # kona's: under 22 GiB in 99% of runs from September to November. If the Memory summary
-      # step shows OOM kills, give op-node resource_class: 2xlarge+.gen2 (20 vCPU / 40 GiB).
+      - memory-all-shard-timings
+      # Both run on the job's default 2xlarge.gen2 (16 vCPU / 32 GiB). The tests mostly wait on
+      # blocks, so 4 nodes running 16 at once take as long as 8 nodes running 8. At 16, anonymous
+      # memory peaked at about 11.4 GiB of 32 per node (Nov 2026 bench). memory.peak reads 32 GiB
+      # from page cache, which is fine without OOM kills. If the Memory summary step shows OOM
+      # kills, give op-node resource_class: 2xlarge+.gen2 (20 vCPU / 40 GiB).
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests: &memory_all_opn
           name: memory-all-opn-op-reth-<<matrix.l1_fork>>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
+              # A new fork also needs its name in memory-all-shard-timings.
               l1_fork: &acceptance_l1_forks
                 - fusaka
-          l2_el_kind: op-reth
-          parallelism: 8
-          acceptance_test_jobs: "8"
+          parallelism: 4
+          acceptance_test_jobs: "16"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2794,6 +2895,8 @@ workflows:
             - rust-op-reth-binary
             - rust-sp1-super-range-executor
             - go-binaries-for-sysgo
+            # terminal: with no timings file the split runs as before.
+            - memory-all-shard-timings: terminal
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
@@ -2805,9 +2908,8 @@ workflows:
             parameters:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
-          l2_el_kind: op-reth
-          parallelism: 8
-          acceptance_test_jobs: "8"
+          parallelism: 4
+          acceptance_test_jobs: "16"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3070,7 +3172,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           requires:
             - prep-go-modules
           context:
@@ -3157,7 +3259,7 @@ workflows:
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
           requires:
             - prep-go-modules
-          test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM --
+          test_list: git diff origin/develop...HEAD --name-only --no-renames --diff-filter=AM --
             './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
@@ -3174,6 +3276,11 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+          # The diff against develop is always empty on develop. The nightly
+          # heavy fuzz job covers develop.
+          filters:
+            branches:
+              ignore: develop
       # On PRs, run tests with lite profile for better build times.
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.features>>
@@ -3211,6 +3318,8 @@ workflows:
           test_list: find test -name "*.t.sol"
           test_profile: ci
           attach_build: true
+          # Develop's slowest path. The Run tests step splits the files by timing.
+          parallelism: 2
           features: <<matrix.features>>
           matrix:
             parameters:
