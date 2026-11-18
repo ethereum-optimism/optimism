@@ -59,7 +59,7 @@ func openLogsDB(logger log.Logger, chainID eth.ChainID, dataDir string) (LogsDB,
 
 	db, err := raftwallogdb.Open(chainDir, chainID)
 	if err != nil {
-		return nil, fmt.Errorf("open raft WAL logs DB: %w", err)
+		return nil, fmt.Errorf("failed to open logs DB for chain %s: %w", chainID, err)
 	}
 
 	logger.Info("Initialized logs DB", "chain", chainID, "path", chainDir)
