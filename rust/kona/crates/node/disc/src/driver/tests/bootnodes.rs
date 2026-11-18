@@ -118,13 +118,9 @@ async fn test_enode_bootnode_with_a_record_the_filter_rejects_is_dropped() {
         .and_then(|socket| socket.local_addr())
         .expect("a free UDP port")
         .port();
-    let record = Enr::builder()
-        .ip4(Ipv4Addr::LOCALHOST)
-        .udp4(port)
-        .tcp4(port)
-        .ip6(Ipv6Addr::LOCALHOST)
-        .build(&key)
-        .expect("the record builds");
+    let record = enr_signed_with(&key, TEST_CHAIN_ID, |record| {
+        record.ip4(Ipv4Addr::LOCALHOST).udp4(port).tcp4(port).ip6(Ipv6Addr::LOCALHOST);
+    });
     let listen = ListenConfig::from_ip(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     let mut bootnode = Discv5::new(record.clone(), key, ConfigBuilder::new(listen).build())
         .expect("the bootnode builds");

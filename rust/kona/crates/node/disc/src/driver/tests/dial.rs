@@ -1,7 +1,6 @@
 //! Tests for the records the driver hands over to gossip to dial, and which of them it saves.
 
 use super::*;
-use crate::test_utils::enr_with;
 use rstest::rstest;
 
 /// The socket a session in these tests is with.
@@ -9,7 +8,8 @@ const SOCKET: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9223
 
 /// Gossip dials the peer a session or an unverifiable record brings, if it is for the driver's
 /// chain, and nothing for other events: a discovered record isn't dialed until a session with
-/// its node shows where it is.
+/// its node shows where it is. The record comes with the socket of its session, for the bootstore
+/// to check against the record's UDP address.
 #[rstest]
 #[case::discovered(discv5::Event::Discovered, None)]
 #[case::session_established(
@@ -28,14 +28,14 @@ fn test_record_to_dial(
     #[case] event: impl Fn(Enr) -> discv5::Event,
     #[case] expected: Option<&'static str>,
 ) {
-    let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
+    let enr = enr_at_localhost(OP_SEPOLIA_CHAIN_ID);
     assert_eq!(
         Discv5Driver::record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID, accept_all),
-        expected.map(|event| RecordToDial { event, enr, save: true })
+        expected.map(|event| RecordToDial { event, enr, socket: SOCKET })
     );
     assert_eq!(
         Discv5Driver::record_to_dial(
-            event(localhost_enr(OP_MAINNET_CHAIN_ID)),
+            event(enr_at_localhost(OP_MAINNET_CHAIN_ID)),
             OP_SEPOLIA_CHAIN_ID,
             accept_all
         ),
@@ -136,30 +136,30 @@ fn test_session_record_is_dialed_only_at_the_session_address(
     );
 }
 
-/// A session's record is dialed whatever the table filter, but saved only if the filter
-/// accepts it, as the bootstore dials what it holds without a session.
+/// A session's record is dialed, and saved, only if the table filter accepts it, as the
+/// bootstore dials what it holds without a session.
 #[rstest]
 #[case::public_only(crate::public_only, false)]
 #[case::allowing_private(accept_all, true)]
-fn test_record_to_dial_saves_only_what_the_table_filter_accepts(
+fn test_record_to_dial_only_what_the_table_filter_accepts(
     #[case] table_filter: fn(&Enr) -> bool,
-    #[case] save: bool,
+    #[case] dialed: bool,
 ) {
-    let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
+    let enr = enr_at_localhost(OP_SEPOLIA_CHAIN_ID);
     let event = session_from("127.0.0.1")(enr.clone());
     assert_eq!(
         Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, table_filter),
-        Some(RecordToDial { event: "session_established", enr, save })
+        dialed.then(|| RecordToDial { event: "session_established", enr, socket: SOCKET })
     );
 }
 
-/// A node with a public-only table filter should dial a node at a private address back after a
-/// session with it, but not save it. The private node reached us first: our lookups and
-/// bootnodes go through the filter, so a session from a private address is one the other node
-/// started. Its packets came from that address, so the dial reaches a node on our own network,
-/// not a host it pointed us at. Refusing the dial wouldn't keep the two apart either, as the
-/// private node can dial us, and gossip accepts it. Not saving the record keeps private
-/// addresses out of the bootstore, which dials what it holds after a restart.
+/// A node with a public-only table filter should neither dial nor save a node at a private
+/// address after a session with it, and leave the dial to that node. Refusing the dial doesn't
+/// keep the two apart: the private node can dial us, and gossip accepts it. But a node that
+/// dials a record it doesn't save can never redial it, and its dial can come first, so that the
+/// other node holds only a connection it didn't dial, which doesn't confirm our record. Then
+/// neither node redials once the connection drops. The private node saves our record, so its
+/// own dial confirms it, and it can redial it.
 ///
 /// The driver dials a record by handing it over to gossip, which dials it. There's no gossip
 /// here, so the test checks the handover.
@@ -168,7 +168,7 @@ fn test_record_to_dial_saves_only_what_the_table_filter_accepts(
 /// N as its bootnode, given by an enode URL on loopback, so L's bootstrap starts a session with
 /// N from loopback, which L's record holds.
 #[tokio::test]
-async fn test_public_only_node_dials_a_private_session_back_without_saving_it() {
+async fn test_public_only_node_leaves_the_dial_to_a_private_session() {
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let (mut node, dir) = public_driver_with_bootstore(std::slice::from_ref(&public));
     node.store_interval = Duration::from_millis(100);
@@ -180,31 +180,38 @@ async fn test_public_only_node_dials_a_private_session_back_without_saving_it() 
     let mut loopback = offline_driver();
     loopback.bootnodes = BootNodes(vec![BootNode::Enode(enode)]);
     let loopback_id = loopback.disc.local_enr().node_id();
-    let (_loopback, _) = loopback.start();
+    let (loopback, _) = loopback.start();
 
-    // The driver also hands over the saved public record, at startup and every store interval.
-    let handed_over = async {
-        loop {
+    // L's bootstrap ends once it has N's record, which needs the session.
+    wait_until_started(&loopback).await;
+
+    // N handles the session about when L's bootstrap ends. Each store interval after that, N
+    // hands over its saved public record, so after two of them, L's record would have come.
+    let mut handed_over = Vec::new();
+    while let Ok(record) = records.try_recv() {
+        handed_over.push(record);
+    }
+    let two_ticks = async {
+        let mut ticks = 0;
+        while ticks < 2 {
             let record = records.recv().await.expect("the driver runs");
-            if record.node_id() == loopback_id {
-                return record;
+            if record == public {
+                ticks += 1;
             }
+            handed_over.push(record);
         }
     };
-    let handed_over = tokio::time::timeout(Duration::from_secs(5), handed_over)
-        .await
-        .expect("a public-only node didn't hand a session at a loopback address to gossip");
-
-    // A store tick saves the bootstore, if the session's record was added to it, and then hands
-    // the saved public record over again. So by the time the public record comes after the
-    // handover, the record would be saved.
-    let next_tick = async { while records.recv().await.expect("the driver runs") != public {} };
-    tokio::time::timeout(Duration::from_secs(5), next_tick)
+    tokio::time::timeout(Duration::from_secs(5), two_ticks)
         .await
         .expect("the driver hands its saved records over every store interval");
-    let (saved, _) = BootStore::open(path).expect("the bootstore opens");
+
     assert!(
-        !saved.iter().any(|enr| enr == &handed_over),
+        !handed_over.iter().any(|enr| enr.node_id() == loopback_id),
+        "a public-only node handed a loopback record it doesn't save to gossip to dial"
+    );
+    let saved = BootStore::open(path).expect("the bootstore opens");
+    assert!(
+        !saved.iter().any(|enr| enr.node_id() == loopback_id),
         "a public-only node saved a loopback record"
     );
 }
@@ -219,7 +226,7 @@ async fn test_public_only_node_dials_a_private_session_back_without_saving_it() 
 #[tokio::test]
 async fn test_driver_reports_sessions_started_during_bootstrap() {
     let silent = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("a free UDP port");
-    let silent_peer_id = kona_peers::enr_to_multiaddr(&localhost_enr(OP_SEPOLIA_CHAIN_ID))
+    let silent_peer_id = kona_peers::enr_to_multiaddr(&enr_at_localhost(OP_SEPOLIA_CHAIN_ID))
         .and_then(|addr| addr.iter().last().map(|protocol| protocol.acquire()))
         .expect("the record has a peer ID");
     let silent_enode = Multiaddr::from(Ipv4Addr::LOCALHOST)

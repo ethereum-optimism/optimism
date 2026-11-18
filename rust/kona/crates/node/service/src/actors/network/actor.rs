@@ -162,6 +162,13 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 if GossipState::changed_by(&event) {
                     let _ = self.gossip_refresh_tx.try_send(());
                 }
+                // Before `handle_event`, which takes the event. Discovery records it in the bootstore.
+                if let Some((peer_id, addr)) = self.handler.gossip.reached_peer(&event) &&
+                    let Some(discovery) = &self.handler.discovery &&
+                    let Some(node_id) = kona_peers::peer_id_to_node_id(&peer_id)
+                {
+                    discovery.handler.tcp_verified(node_id, addr);
+                }
 
                 if let Some(payload) = self.handler.gossip.handle_event(event) &&
                     self.unsafe_block_tx.send(payload).is_err()

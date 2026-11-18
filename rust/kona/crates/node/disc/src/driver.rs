@@ -2,14 +2,18 @@
 
 use backon::{ExponentialBuilder, RetryableWithContext};
 use derive_more::Debug;
-use discv5::{Config, Discv5, Enr, NodeContact};
+use discv5::{Config, Discv5, Enr, NodeContact, kbucket::NodeStatus};
 use enr::NodeId;
 use kona_peers::{
     BootNode, BootNodes, BootStore, BootStoreError, EnrValidation, peer_id_to_node_id,
 };
 use libp2p::{Multiaddr, multiaddr::Protocol};
 use rand::seq::SliceRandom;
-use std::{net::IpAddr, pin::Pin};
+use std::{
+    net::{IpAddr, SocketAddr},
+    pin::Pin,
+    time::SystemTime,
+};
 use tokio::{
     sync::mpsc::{self, channel, error::TrySendError},
     task::JoinHandle,
@@ -38,8 +42,9 @@ struct RecordToDial {
     event: &'static str,
     /// The record.
     enr: Enr,
-    /// Whether the bootstore should save it, which the table filter decides.
-    save: bool,
+    /// The socket the session's packets came from. The bootstore checks it against the record's
+    /// UDP address, which discv5 doesn't always do.
+    socket: SocketAddr,
 }
 
 /// The [`Discv5Driver`] drives the discovery service.
@@ -146,10 +151,12 @@ impl Discv5Driver {
     /// dials the same address after a restart. Only a record valid for `chain_id` is dialed.
     ///
     /// A record that `table_filter` rejects, such as a private one on a node that uses only public
-    /// addresses, is dialed, but not saved. Our lookups and bootnodes go through the filter, so
-    /// such a session is one the other node started, from the address we dial. Refusing the dial
-    /// wouldn't keep the two apart, as that node can dial us, and gossip accepts it. But after a
-    /// restart, the bootstore would dial the record without a session.
+    /// addresses, is neither dialed nor saved. Our lookups and bootnodes go through the filter, so
+    /// such a session is one the other node started. Refusing the dial doesn't keep the two apart:
+    /// that node can dial us, and gossip accepts it. It leaves the dial to the node that saves the
+    /// record. A node that dialed a record it doesn't save could never redial it, and its dial can
+    /// come first, so that the other node holds only a connection it didn't dial, which doesn't
+    /// confirm our record. Then neither node would redial once the connection drops.
     ///
     /// The record comes from these events:
     ///
@@ -202,11 +209,11 @@ impl Discv5Driver {
             debug!(target: "discovery", event = kind, %socket, "Ignoring a record without a TCP address at the IP its session came from");
             return None;
         }
-        let save = table_filter(&enr);
-        if !save {
-            debug!(target: "discovery", event = kind, %socket, "Not saving a session at an address discovery doesn't use; --p2p.discovery.private allows private ones");
+        if !table_filter(&enr) {
+            debug!(target: "discovery", event = kind, %socket, "Leaving the dial to a session whose record the table filter rejects");
+            return None;
         }
-        Some(RecordToDial { event: kind, enr, save })
+        Some(RecordToDial { event: kind, enr, socket })
     }
 
     /// Bootstraps the [`Discv5`] table with bootnodes, and adds those of our chain to `store`.
@@ -226,7 +233,7 @@ impl Discv5Driver {
                     match accepts_enode(table_filter, &enode) {
                         Ok(true) => {}
                         Ok(false) => {
-                            warn!(target: "discovery::bootstrap", %enode, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
+                            warn!(target: "discovery::bootstrap", %enode, "Ignoring a boot node that the table filter rejects");
                             continue;
                         }
                         Err(err) => {
@@ -246,7 +253,7 @@ impl Discv5Driver {
             // A bootnode given by enode URL may be in the table already, from the session that
             // fetched its record, which skips the table filter: remove the ones not kept.
             if !table_filter(&enr) {
-                warn!(target: "discovery::bootstrap", ?enr, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
+                warn!(target: "discovery::bootstrap", ?enr, "Ignoring a boot node that the table filter rejects");
                 disc.remove_node(&enr.node_id());
                 continue;
             }
@@ -474,6 +481,9 @@ impl Discv5Driver {
                                     self.disc.ban_node(&node_id, Some(ban_duration));
                                 }
                             },
+                            HandlerRequest::TcpVerified { node_id, addr } => {
+                                store.set_tcp_verified(node_id, addr, SystemTime::now());
+                            }
                         }
                     }
                     // Nobody is left to send requests or to receive ENRs.
@@ -486,14 +496,13 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        if let Some(RecordToDial { event: kind, enr, save }) =
+                        if let Some(RecordToDial { event: kind, enr, socket }) =
                             Self::record_to_dial(event, chain_id, table_filter)
                         {
                             debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
-                            if save {
-                                store.add_enr(enr.clone());
-                            }
+                            store.add_enr(enr.clone());
+                            store.session_started(enr.node_id(), socket, SystemTime::now());
                             forward_session(enr, &enr_sender);
                         }
                     }
@@ -512,6 +521,7 @@ impl Discv5Driver {
                     }
                     _ = store_interval.tick() => {
                         let start = std::time::Instant::now();
+                        refresh_connected(&mut store, &self.disc.table_entries(), SystemTime::now());
                         // Only what the driver added: the bootnodes, and the records a session
                         // confirmed. discv5's table also holds records from other nodes' answers
                         // to our lookups, which nothing confirmed, and the bootstore would dial
@@ -633,16 +643,49 @@ fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
     sender.capacity().saturating_sub(sender.max_capacity() / 2)
 }
 
+/// Notes in `store` that discovery's sessions with the nodes `table` holds as connected still
+/// work: discv5 pings each of them at the UDP address in its record every five minutes, and holds
+/// it as disconnected once a request to it fails. A session confirms its record's UDP address only
+/// once it has lasted, see [`BootStore::set_udp_verified`], and this is how the store learns that
+/// it has, and later that it still does: the session lasts as long as the pings answer, for days.
+///
+/// The evidence is for the UDP address in the table's record, which discv5 pings, so a stored
+/// record gets it only if it holds that address. A node may have replaced its record since its
+/// session started, and discv5 then holds the new one. Saving that would need the checks
+/// [`Discv5Driver::record_to_dial`] makes of a session's record, against the address the session
+/// came from, which the table doesn't have: the node's next session brings it. But if the new
+/// record keeps the UDP address, the stored one's still works.
+fn refresh_connected(store: &mut BootStore, table: &[(NodeId, Enr, NodeStatus)], at: SystemTime) {
+    for (node_id, enr, status) in table {
+        if !status.is_connected() {
+            continue;
+        }
+        let socket =
+            enr.udp4_socket().map(SocketAddr::V4).or_else(|| enr.udp6_socket().map(SocketAddr::V6));
+        if let Some(socket) = socket {
+            store.set_udp_verified(*node_id, socket, at);
+        }
+    }
+}
+
 /// Hands gossip the saved records, the bootnodes and the records a session confirmed. Gossip dials
 /// those it isn't connected to. It redials a peer only when discovery hands it over again, and
 /// discovery reports a session only when it starts, which discv5 keeps going for as long as it
 /// pings the node.
 ///
+/// Hands over only the records with a TCP address, which gossip dials, as for the records of
+/// sessions. The bootstore may hold others: an earlier version saved records from discovery's
+/// table, a discovery-only bootnode has only a UDP address, and a hand-edited file may hold
+/// anything. Gossip would fail to dial them, and count the failure, at every store interval.
+///
 /// Doesn't wait for room in the channel, which would pile up tasks waiting to send: it hands over
 /// only as many as [`room_for_saved`] allows, and the rest at a later store interval. They are
 /// handed over in a random order, so that each interval gets a different part of them through.
 fn forward_saved(store: &BootStore, chain_id: u64, sender: &mpsc::Sender<Enr>) {
-    let mut enrs = store.valid_peers_with_chain_id(chain_id);
+    let mut enrs: Vec<_> = store
+        .valid_peers_with_chain_id(chain_id)
+        .filter(|enr| kona_peers::enr_tcp_socket(enr).is_some())
+        .collect();
     enrs.shuffle(&mut rand::rng());
     let room = room_for_saved(sender);
     if enrs.len() > room {

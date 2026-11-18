@@ -15,7 +15,7 @@ use super::*;
 /// that it never comes.
 #[tokio::test]
 async fn test_public_node_leaves_out_saved_loopback_record() {
-    let loopback = localhost_enr(TEST_CHAIN_ID);
+    let loopback = enr_at_localhost(TEST_CHAIN_ID);
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let (driver, _dir) = public_driver_with_bootstore(&[loopback, public.clone()]);
     let (_handler, mut records) = driver.start();
@@ -60,6 +60,34 @@ fn test_saved_records_take_turns_in_a_full_channel() {
     assert_eq!(handed_over.len(), saved.len(), "a saved record never got through");
 }
 
+/// Gossip dials a saved record at its TCP address, so the driver should hand over only the saved
+/// records that have one, as it does with the records of sessions. Otherwise gossip fails to dial
+/// one without, and counts the failure, at every store interval. The bootstore may hold such
+/// records: an earlier version saved records from discovery's table, a discovery-only bootnode
+/// has only a UDP address, and a hand-edited file may hold anything.
+#[test]
+fn test_saved_records_without_a_tcp_address_are_not_handed_over() {
+    let dialable = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
+    // Ports, without an IP, as a node's own record before its peers' votes give it one.
+    let without_ip = enr_at(IpAddr::V4(Ipv4Addr::UNSPECIFIED), TEST_CHAIN_ID);
+    let udp_only = crate::test_utils::enr_with(TEST_CHAIN_ID, |record| {
+        record.ip4(Ipv4Addr::new(1, 1, 1, 2)).udp4(9222);
+    });
+    let mut store = BootStore::in_memory();
+    for record in [&dialable, &without_ip, &udp_only] {
+        store.add_enr(record.clone());
+    }
+    let (sender, mut receiver) = mpsc::channel(8);
+
+    forward_saved(&store, TEST_CHAIN_ID, &sender);
+
+    let mut handed_over = Vec::new();
+    while let Ok(record) = receiver.try_recv() {
+        handed_over.push(record);
+    }
+    assert_eq!(handed_over, [dialable], "the driver handed over a record gossip can't dial");
+}
+
 /// Session records go through the same channel to gossip, and the driver hands a session's
 /// record over only once, when the session starts. So the saved records should leave half of
 /// the channel free, rather than fill it at every store interval, which drops the session records
@@ -102,7 +130,7 @@ async fn test_saved_records_are_handed_over_again() {
 /// then every minute.
 #[tokio::test]
 async fn test_public_node_removes_saved_loopback_record() {
-    let loopback = localhost_enr(TEST_CHAIN_ID);
+    let loopback = enr_at_localhost(TEST_CHAIN_ID);
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let (driver, dir) = public_driver_with_bootstore(&[loopback.clone(), public.clone()]);
     let path = dir.path().join("bootstore.json");
@@ -153,7 +181,7 @@ async fn test_bootstore_saves_only_confirmed_records() {
 async fn test_bootstore_is_saved_in_a_missing_directory() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("datadir").join("bootstore.json");
-    let bootnode = localhost_enr(TEST_CHAIN_ID);
+    let bootnode = enr_at_localhost(TEST_CHAIN_ID);
     let driver = loopback_builder(loopback_config().build())
         .with_bootstore_file(Some(BootStoreFile::Custom(path.clone())))
         .with_bootnodes(BootNodes(vec![BootNode::Enr(bootnode.clone())]))
@@ -182,4 +210,151 @@ async fn test_bootstore_that_cannot_be_opened_fails_the_build() {
         matches!(err, crate::Discv5BuilderError::Bootstore(BootStoreError::Open { .. })),
         "{err}"
     );
+}
+
+/// The table entry of `enr`, in `state`.
+fn table_entry(enr: &Enr, state: discv5::ConnectionState) -> (NodeId, Enr, NodeStatus) {
+    let status = NodeStatus { direction: discv5::ConnectionDirection::Outgoing, state };
+    (enr.node_id(), enr.clone(), status)
+}
+
+/// At each store interval, a node should note that its sessions with the nodes discovery holds
+/// as connected still work, as discv5 pings them: a session confirms its record only once it has
+/// lasted the refresh delay, and its evidence would otherwise be no more recent than that. The
+/// table may hold a newer record of the node, which isn't saved, as that would need the checks a
+/// session's record gets: the saved record gets the evidence only if the newer one keeps its UDP
+/// address, which discv5 pings.
+#[rstest::rstest]
+#[case::connected(discv5::ConnectionState::Connected, Newer::Same, 120, true)]
+#[case::connected_too_briefly(discv5::ConnectionState::Connected, Newer::Same, 30, false)]
+#[case::disconnected(discv5::ConnectionState::Disconnected, Newer::Same, 120, false)]
+#[case::newer_with_another_udp_port(discv5::ConnectionState::Connected, Newer::UdpPort, 120, false)]
+#[case::newer_with_another_tcp_port(discv5::ConnectionState::Connected, Newer::TcpPort, 120, true)]
+fn test_store_interval_refreshes_connected_sessions(
+    #[case] state: discv5::ConnectionState,
+    #[case] newer: Newer,
+    #[case] session_secs: u64,
+    #[case] refreshed: bool,
+) {
+    let key = CombinedKey::generate_secp256k1();
+    let saved = enr_signed_with(&key, TEST_CHAIN_ID, |record| {
+        record.ip4(Ipv4Addr::new(1, 1, 1, 1)).udp4(9222).tcp4(9223);
+    });
+    let mut in_table = saved.clone();
+    match newer {
+        Newer::Same => {}
+        Newer::UdpPort => {
+            in_table.set_udp4(9000, &key).unwrap();
+        }
+        Newer::TcpPort => {
+            in_table.set_tcp4(9000, &key).unwrap();
+        }
+    }
+    let mut store = BootStore::in_memory().with_verified_refresh(Duration::from_secs(60));
+    store.add_enr(saved.clone());
+    let now = SystemTime::now();
+    let socket = SocketAddr::V4(saved.udp4_socket().unwrap());
+    store.session_started(saved.node_id(), socket, now - Duration::from_secs(session_secs));
+
+    refresh_connected(&mut store, &[table_entry(&in_table, state)], now);
+
+    let entry = store.get(saved.node_id()).expect("the record stays saved");
+    assert_eq!(entry.enr(), &saved);
+    assert_eq!(entry.udp_verified_at(), refreshed.then_some(now));
+}
+
+/// The record the table holds of a node, compared with the saved one.
+#[derive(std::fmt::Debug)]
+enum Newer {
+    /// The same record.
+    Same,
+    /// A newer record with another UDP port.
+    UdpPort,
+    /// A newer record with another TCP port.
+    TcpPort,
+}
+
+/// A connected node in the table whose record the node didn't save gets no record: only the
+/// records sessions bring are saved, after their checks.
+#[test]
+fn test_store_interval_saves_no_unsaved_connected_node() {
+    let mut store = BootStore::in_memory();
+    let record = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
+
+    refresh_connected(
+        &mut store,
+        &[table_entry(&record, discv5::ConnectionState::Connected)],
+        SystemTime::now(),
+    );
+
+    assert!(store.is_empty());
+}
+
+/// A session that has just started shouldn't confirm its record's UDP address: anyone can start
+/// one, under a fresh key, and a full store keeps the candidates confirmed most recently, so a
+/// flood of fresh sessions would push out the candidates whose sessions last. Only a session that
+/// discovery still holds once the refresh delay has passed should, much as geth saves a node only
+/// once it has answered several pings. So right after a session, its saved record has no
+/// `udp_verified_at`.
+///
+/// N accepts every record, and saves its bootstore every 100 ms. L has N as its bootnode, given
+/// by an enode URL, so L's bootstrap starts a session with N, and N saves L's record.
+#[tokio::test]
+async fn test_a_new_session_doesnt_confirm_its_record() {
+    let (mut node, dir) = driver_with_bootstore(accept_all, &[]);
+    node.store_interval = Duration::from_millis(100);
+    let path = dir.path().join("bootstore.json");
+    let enode = loopback_enode(&node.disc.local_enr());
+    let (_node, _records) = node.start();
+
+    let mut loopback = offline_driver();
+    loopback.bootnodes = BootNodes(vec![BootNode::Enode(enode)]);
+    let loopback_id = loopback.disc.local_enr().node_id();
+    let (_loopback, _) = loopback.start();
+
+    wait_for_bootstore(&path, |saved| saved.iter().any(|enr| enr.node_id() == loopback_id))
+        .await
+        .expect("the node saves the record of its session");
+    let saved = BootStore::open(path).expect("the bootstore opens");
+    let entry = saved.get(loopback_id).expect("the record is saved");
+    assert_eq!(
+        entry.udp_verified_at(),
+        None,
+        "a session that had just started confirmed its record"
+    );
+}
+
+/// A session's record is confirmed at a store interval once the session has lasted the refresh
+/// delay: the driver checks discovery's table at each one. With no delay, the first store
+/// interval after the session confirms it.
+///
+/// As in [`test_a_new_session_doesnt_confirm_its_record`], L's bootstrap starts a session with N,
+/// and N saves L's record.
+#[tokio::test]
+async fn test_store_interval_confirms_a_lasting_session() {
+    let (mut node, dir) = driver_with_bootstore(accept_all, &[]);
+    node.store_interval = Duration::from_millis(100);
+    node.bootstore = std::mem::replace(&mut node.bootstore, BootStore::in_memory())
+        .with_verified_refresh(Duration::ZERO);
+    let path = dir.path().join("bootstore.json");
+    let enode = loopback_enode(&node.disc.local_enr());
+    let (_node, _records) = node.start();
+
+    let mut loopback = offline_driver();
+    loopback.bootnodes = BootNodes(vec![BootNode::Enode(enode)]);
+    let loopback_id = loopback.disc.local_enr().node_id();
+    let (_loopback, _) = loopback.start();
+
+    let confirmed = async {
+        loop {
+            let saved = BootStore::open(path.clone()).expect("the bootstore opens");
+            if saved.get(loopback_id).is_some_and(|entry| entry.udp_verified_at().is_some()) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), confirmed)
+        .await
+        .expect("a store interval didn't confirm the record of a session that lasted");
 }

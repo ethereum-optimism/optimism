@@ -1,7 +1,7 @@
 //! Tests for the [`Discv5Driver`], one file per topic, with the helpers they share.
 
 use super::*;
-use crate::test_utils::{enr_at, localhost_enr};
+use crate::test_utils::{TEST_CHAIN_ID, enr_at, enr_at_localhost, enr_signed_with, enr_with};
 use discv5::{ConfigBuilder, ListenConfig};
 use enr::CombinedKey;
 use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
@@ -16,10 +16,6 @@ mod bootstore;
 mod dial;
 mod lifecycle;
 mod local_enr;
-
-/// The chain ID of the offline tests: not in the registry, so a node on it has no bootnodes of
-/// its own.
-const TEST_CHAIN_ID: u64 = 0xdead_beef;
 
 /// A table filter that accepts every record, for the tests of the other rules.
 fn accept_all(_: &Enr) -> bool {
@@ -68,7 +64,7 @@ fn driver_with_bootstore(
     records: &[Enr],
 ) -> (Discv5Driver, tempfile::TempDir) {
     let dir = tempdir().unwrap();
-    let (mut store, _) =
+    let mut store =
         BootStore::open(dir.path().join("bootstore.json")).expect("the bootstore opens");
     for record in records {
         store.add_enr(record.clone());
@@ -87,7 +83,7 @@ async fn wait_for_bootstore(
 ) -> Option<Vec<Enr>> {
     let poll = async {
         loop {
-            let (store, _) = BootStore::open(path.to_path_buf()).expect("the bootstore opens");
+            let store = BootStore::open(path.to_path_buf()).expect("the bootstore opens");
             let saved = store.iter().cloned().collect::<Vec<_>>();
             if done(&saved) {
                 return saved;
