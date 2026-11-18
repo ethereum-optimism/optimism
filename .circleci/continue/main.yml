@@ -2901,8 +2901,8 @@ workflows:
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
       # IN-MEMORY - kona/op-reth
-      # 2 nodes, not 4: tests whose runtime starts no kona-node skip here (sysgo's
-      # skipOpNodeOnlyRuntimeOnKonaNode), leaving about a third of the test time. The longest
+      # 2 nodes, not 4: tests on presets that start no kona-node skip here (op-devstack presets'
+      # skipOpNodeOnlyPresetOnKonaNode), leaving about a third of the test time. The longest
       # test, TestExecuteStep_CannonKona at about 400 s, still bounds the wall time.
       - op-acceptance-tests: &memory_all_kona
           name: memory-all-kona-op-reth-<<matrix.l1_fork>>

@@ -83,84 +83,6 @@ func TestResolveMixedL2CLKind(t *testing.T) {
 	}
 }
 
-// startupProbeT stops a runtime constructor at a skip or at its first side effect, the temp dir
-// it writes the JWT secret to, whichever comes first, so a test can tell which came first
-// without starting a system.
-type startupProbeT struct {
-	devtest.T
-}
-
-type startupProbeOutcome string
-
-const (
-	probeSkipped startupProbeOutcome = "skipped"
-	probeStarted startupProbeOutcome = "started"
-)
-
-func (*startupProbeT) Skip(...any)                     { panic(probeSkipped) }
-func (*startupProbeT) Skipf(string, ...any)            { panic(probeSkipped) }
-func (*startupProbeT) SkipNow()                        { panic(probeSkipped) }
-func (*startupProbeT) TempDir() string                 { panic(probeStarted) }
-func (*startupProbeT) TempDirWithPrefix(string) string { panic(probeStarted) }
-
-func TestOpNodeOnlyRuntimesSkipOnKonaNodeBeforeStarting(t *testing.T) {
-	runtimes := []struct {
-		name       string
-		newRuntime func(devtest.T)
-	}{
-		{name: "TwoL2Supernode", newRuntime: func(t devtest.T) { NewTwoL2SupernodeRuntimeWithConfig(t, PresetConfig{}) }},
-		{name: "TwoL2SupernodeInterop", newRuntime: func(t devtest.T) {
-			NewTwoL2SupernodeInteropRuntimeWithConfig(t, 0, PresetConfig{})
-		}},
-		{name: "TwoL2SupernodeLightSequencerInterop", newRuntime: func(t devtest.T) {
-			NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t, 0, PresetConfig{})
-		}},
-		{name: "TwoL2SupernodeFollowL2", newRuntime: func(t devtest.T) {
-			NewTwoL2SupernodeFollowL2RuntimeWithConfig(t, 0, PresetConfig{})
-		}},
-		{name: "TwoL2SupernodeProofs", newRuntime: func(t devtest.T) {
-			NewTwoL2SupernodeProofsRuntimeWithConfig(t, true, PresetConfig{})
-		}},
-		{name: "ThreeL2SupernodeProofs", newRuntime: func(t devtest.T) {
-			NewThreeL2SupernodeProofsRuntimeWithConfig(t, true, PresetConfig{})
-		}},
-		{name: "SingleChainSupernodeProofs", newRuntime: func(t devtest.T) {
-			NewSingleChainSupernodeProofsRuntimeWithConfig(t, true, PresetConfig{})
-		}},
-		{name: "SingleChainSuperRootAtGenesis", newRuntime: func(t devtest.T) {
-			NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, PresetConfig{})
-		}},
-		{name: "SingleSupernodeWithSyncTester", newRuntime: func(t devtest.T) {
-			NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t, PresetConfig{})
-		}},
-		{name: "MinimalInteropNoSupernode", newRuntime: func(t devtest.T) { NewMinimalInteropNoSupernodeRuntime(t) }},
-		{name: "SingleChainInteropNoSupernodeSuperRoot", newRuntime: func(t devtest.T) {
-			NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t, PresetConfig{})
-		}},
-		{name: "SingleChainInteropNoSupernodeZKDispute", newRuntime: func(t devtest.T) {
-			NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig(t, PresetConfig{})
-		}},
-	}
-	for _, rt := range runtimes {
-		t.Run(rt.name, func(t *testing.T) {
-			for _, tc := range []struct {
-				name string
-				kind MixedL2CLKind
-				want startupProbeOutcome
-			}{
-				{name: "empty", kind: "", want: probeStarted},
-				{name: "op-node", kind: MixedL2CLOpNode, want: probeStarted},
-				{name: "kona-node", kind: MixedL2CLKona, want: probeSkipped},
-			} {
-				t.Run(tc.name, func(t *testing.T) {
-					t.Setenv("DEVSTACK_L2CL_KIND", string(tc.kind))
-					require.PanicsWithValue(t, tc.want, func() { rt.newRuntime(&startupProbeT{T: devtest.SerialT(t)}) })
-				})
-			}
-		})
-	}
-}
-
 // An unknown kind fails at resolution, before any preset starts a node of that kind.
 func TestResolveMixedL2CLKindRejectsUnknownKind(t *testing.T) {
 	for _, kind := range []string{"kona", "Kona-Node", "op-geth"} {
@@ -171,12 +93,4 @@ func TestResolveMixedL2CLKindRejectsUnknownKind(t *testing.T) {
 			require.Contains(t, dt.failure, "DEVSTACK_L2CL_KIND")
 		})
 	}
-}
-
-// A runtime that starts the CL kind DEVSTACK_L2CL_KIND selects must still run in the kona-node job.
-func TestKonaCapableRuntimeStartsOnKonaNode(t *testing.T) {
-	t.Setenv("DEVSTACK_L2CL_KIND", string(MixedL2CLKona))
-	require.PanicsWithValue(t, probeStarted, func() {
-		NewMinimalRuntimeWithConfig(&startupProbeT{T: devtest.SerialT(t)}, PresetConfig{})
-	})
 }

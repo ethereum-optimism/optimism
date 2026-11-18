@@ -121,7 +121,6 @@ func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [
 }
 
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
-	skipOpNodeOnlyRuntimeOnKonaNode(t)
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
@@ -226,7 +225,6 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 	supernodeSequencerEnabled bool,
 	chainSpecs []runtimeChainSpec,
 ) (*MultiChainRuntime, uint64) {
-	skipOpNodeOnlyRuntimeOnKonaNode(t)
 	require := t.Require()
 	require.NotEmpty(chainSpecs, "multi-chain runtime needs at least one L2 chain")
 

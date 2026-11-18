@@ -62,18 +62,6 @@ func FlakyOnKonaNode(t devtest.T, reason string) {
 	}
 }
 
-// skipOpNodeOnlyRuntimeOnKonaNode skips the test under DEVSTACK_L2CL_KIND=kona-node. Call it first
-// in a runtime constructor that starts only op-node and op-supernode CLs whatever the variable
-// says: under kona-node such a run repeats the op-node run exactly. It is separate from
-// SkipOnKonaNode so that list names only real kona-node gaps. Remove the call once the runtime
-// starts the CL kind the variable selects, as kona-node or lokahi support for supernode and
-// interop topologies would.
-func skipOpNodeOnlyRuntimeOnKonaNode(t devtest.T) {
-	if devstackL2CLKind() == MixedL2CLKona {
-		t.Skip("skipping on kona-node: this runtime starts only op-node and op-supernode CLs whatever DEVSTACK_L2CL_KIND says")
-	}
-}
-
 // devstackL2CLKind returns the L2 CL kind requested via the DEVSTACK_L2CL_KIND
 // environment variable. Returns the empty string when the variable is unset,
 // meaning "use the runtime's default".
