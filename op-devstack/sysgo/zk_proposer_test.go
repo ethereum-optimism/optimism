@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 )
 
 func TestLoadZKProgramVKey(t *testing.T) {
@@ -48,12 +50,14 @@ func TestZKProposerOptions(t *testing.T) {
 		WithZKFastFinality(),
 		WithZKMetrics(),
 		WithZKLogPath("receipts"),
+		WithZKOwnedCreator(devkeys.UserKey(1)),
 	)
 	require.NoError(t, err)
 	require.Equal(t, 12*time.Second, *cfg.ProposalInterval)
 	require.True(t, cfg.FastFinality)
 	require.True(t, cfg.Metrics)
 	require.Equal(t, "receipts", cfg.LogPath)
+	require.Equal(t, devkeys.UserKey(1), cfg.OwnedCreator)
 }
 
 func TestZKProposerDisablesMetricsByDefault(t *testing.T) {

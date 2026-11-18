@@ -412,7 +412,16 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
         local_cuda: Default::default(),
         log_path: crate::config::LogPath::Table,
         data_dir: None,
+        owned_creators: None,
     }
+}
+
+/// A non-signer creator listed in `OP_ZK_PROPOSER_OWNED_CREATORS` by [`listed_creator_config`],
+/// whose games are validated and defended without the signer-only retention paths.
+const LISTED_CREATOR: Address = Address::repeat_byte(0x5a);
+
+fn listed_creator_config() -> ProposerConfig {
+    ProposerConfig { owned_creators: Some(vec![LISTED_CREATOR]), ..scenario_config() }
 }
 
 async fn proposer_with(config: ProposerConfig, l1_view: Arc<ScenarioL1View>) -> Arc<Proposer> {
@@ -1718,7 +1727,7 @@ async fn manual_transaction_updates_reject_an_active_submission() {
 async fn blocked_proof_uses_one_slot_without_blocking_another_game() {
     let world = ScenarioWorld::new();
     let mut first_game =
-        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).challenged();
+        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned().challenged();
     first_game.deadline = 5_000;
     let first_target = first_game.target();
     world.add_game(first_game);
@@ -1738,7 +1747,7 @@ async fn blocked_proof_uses_one_slot_without_blocking_another_game() {
     scenario.settle(&first.task_ids_except(first_id)).await.unwrap();
 
     let mut second_game =
-        ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).challenged();
+        ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).owned().challenged();
     second_game.deadline = 6_000;
     let second_target = second_game.target();
     world.add_game(second_game);
@@ -1770,6 +1779,7 @@ async fn blocked_proof_uses_one_slot_without_blocking_another_game() {
 async fn one_submission_finishes_before_the_next_one_starts() {
     let world = ScenarioWorld::new();
     let game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let game_target = game.target();
     world.add_game(game);
@@ -2067,6 +2077,7 @@ async fn failed_proofs_are_retried_without_blocking_other_games() {
         .map(|index| {
             let mut game =
                 ScenarioGame::new(index, u32::MAX, index + 1, ScenarioWorld::default_prestate())
+                    .owned()
                     .challenged();
             game.deadline = 5_000 + index;
             game
@@ -2116,8 +2127,10 @@ async fn failed_proofs_are_retried_without_blocking_other_games() {
 async fn failed_resolution_does_not_stop_other_games() {
     let world = ScenarioWorld::new();
     let failed_game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let succeeded_game = ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let failed = ActionTarget::Resolve(failed_game.target());
     let succeeded = ActionTarget::Resolve(succeeded_game.target());
@@ -2142,9 +2155,10 @@ async fn failed_resolution_does_not_stop_other_games() {
 }
 
 #[tokio::test]
-async fn third_party_defense_reward_waits_for_finality_then_pays_out() {
+async fn foreign_game_proven_by_the_signer_is_claimed_after_a_third_party_resolves_it() {
     let world = ScenarioWorld::new();
-    let game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).challenged();
+    let game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate())
+        .provable_for_resolution();
     let target = game.target();
     let claim = ActionTarget::ClaimCredit(target.clone());
     let address = game.address;
@@ -2152,40 +2166,27 @@ async fn third_party_defense_reward_waits_for_finality_then_pays_out() {
     world.set_horizons(1, 1);
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
-    let proof = scenario.tick().await.unwrap();
-    assert!(proof.scheduled.iter().any(|scheduled| matches!(
-        scheduled.operation,
-        OperationSummary::ProveGame { address: scheduled_address, .. }
-            if scheduled_address == address
-    )));
-    scenario.settle_scheduled(&proof).await.unwrap();
-    assert_eq!(
-        world.action_record(&ActionTarget::Prove(target.clone()), 1).unwrap().effect,
-        CommittedEffect::Proven { game: address }
-    );
-
-    let resolution = scenario.tick().await.unwrap();
+    let unresolved = scenario.tick().await.unwrap();
     assert!(
-        resolution
+        !unresolved
             .scheduled
             .iter()
-            .any(|scheduled| matches!(scheduled.operation, OperationSummary::ResolutionSweep))
+            .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProveGame { .. }))
     );
-    scenario.settle_scheduled(&resolution).await.unwrap();
-    assert_eq!(
-        world.action_record(&ActionTarget::Resolve(target.clone()), 1).unwrap().effect,
-        CommittedEffect::Resolved { game: address }
-    );
-    let resolved = world.observation();
-    assert_eq!(resolved.games[0].status, GameStatus::DefenderWins);
-    assert_eq!(resolved.games[0].bond.credit, U256::ONE);
-    assert!(!resolved.games[0].finalized);
+    scenario.settle_scheduled(&unresolved).await.unwrap();
+    assert!(world.action_record(&ActionTarget::Resolve(target.clone()), 1).is_none());
 
+    // The creator resolves its game: the signer, as prover, is owed the challenger bond.
+    world.update_game(&target, |game| {
+        game.status = GameStatus::DefenderWins;
+        game.proposal_status = ProposalStatus::Resolved;
+        game.bond.credit = U256::ONE;
+    });
     let waiting = scenario.tick().await.unwrap();
     scenario.settle_scheduled(&waiting).await.unwrap();
     assert!(world.action_record(&claim, 1).is_none());
 
-    world.set_latest_l1_time(resolved.latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1);
+    world.update_game(&target, |game| game.finalized = true);
     let unlock = scenario.tick().await.unwrap();
     assert!(
         unlock
@@ -2298,7 +2299,7 @@ async fn publishing_a_rotated_prestate_enables_defense_on_the_next_tick() {
     let world = ScenarioWorld::new();
     let rotated = B256::repeat_byte(0x33);
     world.rotate_registered_prestate(rotated, 7_200);
-    let mut game = ScenarioGame::new(0, u32::MAX, 1, rotated).challenged();
+    let mut game = ScenarioGame::new(0, u32::MAX, 1, rotated).owned().challenged();
     game.deadline = 5_000;
     let target = game.target();
     world.add_game(game);
@@ -2326,30 +2327,33 @@ async fn publishing_a_rotated_prestate_enables_defense_on_the_next_tick() {
 fn add_hourly_stall_history(
     world: &ScenarioWorld,
     challenged_head: bool,
+    owned_history: bool,
 ) -> (GameTarget, Vec<GameTarget>) {
-    let mut head = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
-    head.creator = ScenarioWorld::proposer_address();
+    let mut head = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
     if challenged_head {
         head.proposal_status = ProposalStatus::Challenged;
     }
     let head_target = head.target();
     world.add_game(head);
 
-    let mut foreign = Vec::new();
+    let mut history = Vec::new();
     for hour in 1..=24 {
-        let game =
+        let mut game =
             ScenarioGame::new(hour, hour as u32 - 1, 1 + hour * 3_600, B256::repeat_byte(0x44));
-        foreign.push(game.target());
+        if owned_history {
+            game = game.owned();
+        }
+        history.push(game.target());
         world.add_game(game);
     }
     world.set_horizons(1, 1);
-    (head_target, foreign)
+    (head_target, history)
 }
 
 #[tokio::test]
-async fn frozen_horizon_keeps_twenty_four_hourly_foreign_games_pending() {
+async fn frozen_horizon_keeps_twenty_four_hourly_owned_games_pending() {
     let world = ScenarioWorld::new();
-    let (head, foreign) = add_hourly_stall_history(&world, false);
+    let (head, history) = add_hourly_stall_history(&world, false, true);
     let mut config = scenario_config();
     config.proposal_interval_seconds = 3_600;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
@@ -2361,7 +2365,7 @@ async fn frozen_horizon_keeps_twenty_four_hourly_foreign_games_pending() {
     assert_eq!(stalled.snapshot.pending_games.len(), 24);
     assert_eq!(
         stalled.snapshot.pending_games.iter().map(|game| game.factory_index).collect::<Vec<_>>(),
-        foreign.iter().map(|game| game.factory_index).collect::<Vec<_>>()
+        history.iter().map(|game| game.factory_index).collect::<Vec<_>>()
     );
     assert!(!stalled.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
@@ -2385,7 +2389,7 @@ async fn frozen_horizon_keeps_twenty_four_hourly_foreign_games_pending() {
 #[tokio::test]
 async fn creation_stall_does_not_starve_defense_of_an_older_owned_game() {
     let world = ScenarioWorld::new();
-    let (head, _) = add_hourly_stall_history(&world, true);
+    let (head, _) = add_hourly_stall_history(&world, true, true);
     let mut config = scenario_config();
     config.proposal_interval_seconds = 3_600;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
@@ -2409,59 +2413,57 @@ async fn creation_stall_does_not_starve_defense_of_an_older_owned_game() {
 }
 
 #[tokio::test]
-async fn superroot_recovery_adopts_the_foreign_tip_before_creating() {
+async fn superroot_recovery_does_not_adopt_a_higher_foreign_tip() {
     let world = ScenarioWorld::new();
-    let (_, foreign) = add_hourly_stall_history(&world, false);
+    let (head, foreign) = add_hourly_stall_history(&world, false, false);
     let mut config = scenario_config();
     config.proposal_interval_seconds = 3_600;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
     let stalled = scenario.tick().await.unwrap();
     scenario.settle_scheduled(&stalled).await.unwrap();
 
-    let tip = foreign.last().unwrap();
     let tip_sequence = 1 + 24 * 3_600;
     world.set_horizons(tip_sequence + 3_600, tip_sequence + 3_600);
     world.mine_block();
     let recovered = scenario.tick().await.unwrap();
 
-    assert!(recovered.snapshot.pending_games.is_empty());
-    assert_eq!(recovered.snapshot.canonical_head_index, Some(tip.factory_index));
-    assert_eq!(recovered.snapshot.canonical_head_sequence_number, Some(tip_sequence));
+    assert_eq!(recovered.snapshot.canonical_head_index, Some(head.factory_index));
+    let foreign_indices = foreign
+        .iter()
+        .map(|game| game.factory_index.to::<u32>())
+        .collect::<std::collections::HashSet<_>>();
     assert!(recovered.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ProposeGame { sequence_number, parent_game_index }
-            if sequence_number == tip_sequence + 3_600 &&
-                parent_game_index == tip.factory_index.to::<u32>()
+        OperationSummary::ProposeGame { parent_game_index, .. }
+            if parent_game_index == head.factory_index.to::<u32>()
     )));
     scenario.settle_scheduled(&recovered).await.unwrap();
-    let create = ActionTarget::Create {
-        sequence_number: tip_sequence + 3_600,
-        parent_game_index: tip.factory_index.to::<u32>(),
-    };
-    assert!(matches!(
-        world.action_record(&create, 1).unwrap().effect,
-        CommittedEffect::Created { .. }
-    ));
+    assert!(world.action_records().iter().all(|record| !matches!(
+        record.target,
+        ActionTarget::Create { parent_game_index, .. } if foreign_indices.contains(&parent_game_index)
+    )));
 }
 
 #[tokio::test]
-async fn rejected_foreign_topology_never_becomes_a_create_parent() {
+async fn rejected_topology_never_becomes_a_create_parent() {
     let world = ScenarioWorld::new();
     let mut invalid = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    invalid.creator = LISTED_CREATOR;
     invalid.root_claim = B256::repeat_byte(0xa1);
     let invalid_target = invalid.target();
     // Keep the invalid descendant ahead of the healthy branch so it would become canonical if
     // pruning failed to remove the whole rejected subtree.
-    let child = ScenarioGame::new(1, 0, 5, ScenarioWorld::default_prestate());
+    let mut child = ScenarioGame::new(1, 0, 5, ScenarioWorld::default_prestate());
+    child.creator = LISTED_CREATOR;
     let child_target = child.target();
-    let valid_root = ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate());
-    let valid_tip = ScenarioGame::new(3, 2, 4, ScenarioWorld::default_prestate());
+    let valid_root = ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate()).owned();
+    let valid_tip = ScenarioGame::new(3, 2, 4, ScenarioWorld::default_prestate()).owned();
     let valid_tip_target = valid_tip.target();
     for game in [invalid, child, valid_root, valid_tip] {
         world.add_game(game);
     }
     world.set_horizons(6, 6);
-    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+    let mut scenario = ScenarioHarness::new(world.clone(), listed_creator_config()).await.unwrap();
 
     let result = scenario.tick().await.unwrap();
 
@@ -2481,10 +2483,9 @@ async fn rejected_foreign_topology_never_becomes_a_create_parent() {
 }
 
 #[tokio::test]
-async fn claim_mismatch_outcome_depends_on_trust_not_creator() {
+async fn claim_mismatch_outcome_depends_on_trust_for_owned_creators() {
     let world = ScenarioWorld::new();
-    let mut own = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
-    own.creator = ScenarioWorld::proposer_address();
+    let mut own = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
     own.root_claim = B256::repeat_byte(0xb1);
     let own_target = own.target();
     let mut foreign = ScenarioGame::new(1, u32::MAX, 1, ScenarioWorld::default_prestate());
@@ -2494,10 +2495,10 @@ async fn claim_mismatch_outcome_depends_on_trust_not_creator() {
     world.add_game(foreign);
     world.set_horizons(1, 1);
     let canonical = canonical_super_root(1);
-    // Reverse discovery visits foreign index 1 first, so attempt 2 belongs to own index 0.
+    // The foreign record is never validated, so the first query belongs to own index 0.
     world.script_superroot(
         1,
-        2,
+        1,
         SuperRootOutcome::Root { root: canonical, current_l1: 1, required_l1: 1 },
     );
     let mut config = scenario_config();
@@ -2527,26 +2528,27 @@ async fn claim_mismatch_outcome_depends_on_trust_not_creator() {
                 record.kind == SuperRootQueryKind::AtTimestamp && record.requested_timestamp == 1
             })
             .count(),
-        3
+        2
     );
 }
 
 #[tokio::test]
 async fn beyond_horizon_game_is_terminal_without_wedging_discovery() {
     let world = ScenarioWorld::new();
-    let far = ScenarioGame::new(
+    let mut far = ScenarioGame::new(
         0,
         u32::MAX,
         1 + MAX_GAME_DEADLINE_LAG + 1,
         ScenarioWorld::default_prestate(),
     );
+    far.creator = LISTED_CREATOR;
     let far_target = far.target();
-    let valid = ScenarioGame::new(1, u32::MAX, 1, ScenarioWorld::default_prestate());
+    let valid = ScenarioGame::new(1, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
     let valid_target = valid.target();
     world.add_game(far);
     world.add_game(valid);
     world.set_horizons(1, 1);
-    let mut config = scenario_config();
+    let mut config = listed_creator_config();
     config.proposal_interval_seconds = 100;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
@@ -2555,7 +2557,7 @@ async fn beyond_horizon_game_is_terminal_without_wedging_discovery() {
     assert!(first.snapshot.pending_games.is_empty());
     scenario.settle_scheduled(&first).await.unwrap();
 
-    let later = ScenarioGame::new(2, 1, 2, ScenarioWorld::default_prestate());
+    let later = ScenarioGame::new(2, 1, 2, ScenarioWorld::default_prestate()).owned();
     let later_target = later.target();
     world.add_game(later);
     world.set_horizons(2, 2);
@@ -2563,6 +2565,42 @@ async fn beyond_horizon_game_is_terminal_without_wedging_discovery() {
     assert_eq!(resumed.snapshot.canonical_head_index, Some(later_target.factory_index));
     assert!(!resumed.snapshot.pending_games.iter().any(|game| game.address == far_target.address));
     scenario.settle_scheduled(&resumed).await.unwrap();
+}
+
+#[tokio::test]
+async fn far_future_foreign_game_is_a_record_until_it_loses() {
+    let world = ScenarioWorld::new();
+    let far_sequence = 1 + MAX_GAME_DEADLINE_LAG + 1;
+    let far = ScenarioGame::new(0, u32::MAX, far_sequence, ScenarioWorld::default_prestate())
+        .challenged();
+    let far_target = far.target();
+    world.add_game(far);
+    world.set_horizons(1, 1);
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let first = scenario.tick().await.unwrap();
+    assert!(first.snapshot.pending_games.is_empty());
+    scenario.settle_scheduled(&first).await.unwrap();
+    assert!(!world.superroot_journal().iter().any(|record| {
+        record.kind == SuperRootQueryKind::AtTimestamp && record.requested_timestamp == far_sequence
+    }));
+    assert!(world.proof_record(&far_target, 1).is_none());
+    let far = L1ReadTarget::Game(far_target.clone());
+    for boundary in [L1ReadBoundary::GameStanding, L1ReadBoundary::GameL1HeadNumber] {
+        assert!(world.l1_read_record(boundary, &far, 1).is_none(), "{boundary:?}");
+    }
+
+    world.update_game(&far_target, |game| {
+        game.status = GameStatus::ChallengerWins;
+        game.proposal_status = ProposalStatus::Resolved;
+    });
+    let lost = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&lost).await.unwrap();
+    assert!(world.l1_read_record(L1ReadBoundary::GameLifecycle, &far, 2).is_some());
+    world.mine_block();
+    let after = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&after).await.unwrap();
+    assert!(world.l1_read_record(L1ReadBoundary::GameLifecycle, &far, 3).is_none());
 }
 
 #[tokio::test]
@@ -2784,7 +2822,7 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
 #[tokio::test]
 async fn pending_trusted_mismatch_releases_the_address_matched_creation_guard() {
     let world = ScenarioWorld::new();
-    world.add_game(ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()));
+    world.add_game(ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned());
     world.set_horizons(2, 2);
     let create = ActionTarget::Create { sequence_number: 2, parent_game_index: 0 };
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
@@ -2834,7 +2872,7 @@ async fn pending_trusted_mismatch_releases_the_address_matched_creation_guard() 
 #[tokio::test]
 async fn challenger_wins_removal_resets_the_address_matched_creation_guard() {
     let world = ScenarioWorld::new();
-    let root = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    let root = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
     let root_target = root.target();
     world.add_game(root);
     world.set_horizons(2, 2);
@@ -2920,7 +2958,7 @@ async fn challenger_wins_removal_resets_the_address_matched_creation_guard() {
 #[tokio::test]
 async fn disallowed_parent_does_not_rearm_delayed_creation_guard() {
     let world = ScenarioWorld::new();
-    let root = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    let root = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
     let root_target = root.target();
     world.add_game(root);
     world.set_horizons(2, 2);
@@ -3005,32 +3043,43 @@ async fn disallowed_parent_does_not_rearm_delayed_creation_guard() {
 }
 
 #[tokio::test]
-async fn stale_foreign_pending_game_is_evicted_but_owned_post_defense_game_is_retained() {
+async fn stale_pending_game_without_a_usable_prestate_is_evicted_but_owned_post_defense_game_is_retained()
+ {
     let world = ScenarioWorld::new();
     let anchor_deadline = 2_000_000;
     let stale_deadline = anchor_deadline - MAX_GAME_DEADLINE_LAG - 1;
-    let mut foreign = ScenarioGame::new(0, 2, 11, B256::repeat_byte(0xe1));
-    foreign.deadline = stale_deadline;
-    let foreign_target = foreign.target();
-    let mut owned = ScenarioGame::new(1, 2, 12, ScenarioWorld::default_prestate());
-    owned.creator = ScenarioWorld::proposer_address();
+    let mut unusable = ScenarioGame::new(0, 2, 11, B256::repeat_byte(0xe1));
+    unusable.creator = LISTED_CREATOR;
+    unusable.deadline = stale_deadline;
+    let unusable_target = unusable.target();
+    let mut owned = ScenarioGame::new(1, 2, 12, ScenarioWorld::default_prestate()).owned();
     owned.proposal_status = ProposalStatus::ChallengedAndValidProofProvided;
     owned.deadline = stale_deadline;
     let owned_target = owned.target();
     let mut anchor = ScenarioGame::new(2, u32::MAX, 10, ScenarioWorld::default_prestate());
     anchor.deadline = anchor_deadline;
     let anchor_target = anchor.target();
-    for game in [foreign, owned, anchor] {
+    let mut foreign = ScenarioGame::new(3, 2, 13, B256::repeat_byte(0xe1));
+    foreign.deadline = anchor_deadline;
+    let foreign_target = foreign.target();
+    for game in [unusable, owned, anchor, foreign] {
         world.add_game(game);
     }
     world.set_anchor_game(&anchor_target);
     world.set_horizons(10, 10);
-    let mut config = scenario_config();
+    let mut config = listed_creator_config();
     config.proposal_interval_seconds = 100;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
     let discovered = scenario.tick().await.unwrap();
     assert_eq!(discovered.snapshot.pending_games.len(), 2);
+    assert!(
+        !discovered
+            .snapshot
+            .pending_games
+            .iter()
+            .any(|game| game.address == foreign_target.address)
+    );
     scenario.settle_scheduled(&discovered).await.unwrap();
 
     world.mine_block();
@@ -3038,7 +3087,7 @@ async fn stale_foreign_pending_game_is_evicted_but_owned_post_defense_game_is_re
     assert_eq!(evicted.snapshot.pending_games.len(), 1);
     assert_eq!(evicted.snapshot.pending_games[0].address, owned_target.address);
     assert!(
-        !evicted.snapshot.pending_games.iter().any(|game| game.address == foreign_target.address)
+        !evicted.snapshot.pending_games.iter().any(|game| game.address == unusable_target.address)
     );
     scenario.settle_scheduled(&evicted).await.unwrap();
 }
@@ -3053,7 +3102,7 @@ async fn incremental_discovery_stops_before_old_history_and_resumes_for_new_entr
     skipped.deadline = 2;
     let skipped_target = skipped.target();
     let mut boundary =
-        ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate()).challenged();
+        ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate()).owned().challenged();
     boundary.deadline = 2_000_000 - MAX_GAME_DEADLINE_LAG - 1;
     let boundary_target = boundary.target();
     let mut anchor = ScenarioGame::new(3, u32::MAX, 4, ScenarioWorld::default_prestate());
@@ -3096,7 +3145,7 @@ async fn incremental_discovery_stops_before_old_history_and_resumes_for_new_entr
     scenario.settle_scheduled(&bounded).await.unwrap();
 
     world.update_game(&anchor_target, |game| game.deadline += 100);
-    let next = ScenarioGame::new(4, 3, 5, ScenarioWorld::default_prestate());
+    let next = ScenarioGame::new(4, 3, 5, ScenarioWorld::default_prestate()).owned();
     let next_target = next.target();
     world.add_game(next);
     world.set_horizons(5, 5);
@@ -3113,14 +3162,16 @@ async fn incremental_discovery_stops_before_old_history_and_resumes_for_new_entr
 #[tokio::test]
 async fn widened_startup_discovery_keeps_old_ancestor_until_bond_payout() {
     let world = ScenarioWorld::new();
-    let root = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
-    let mut ancestor =
-        ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).provable_for_resolution();
-    ancestor.creator = ScenarioWorld::proposer_address();
+    let root =
+        ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).owned().claimable(0);
+    let mut ancestor = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate())
+        .owned()
+        .provable_for_resolution();
     ancestor.deadline = 2_000_000 - MAX_GAME_DEADLINE_LAG - 1;
     let ancestor_target = ancestor.target();
-    let child =
-        ScenarioGame::new(2, 1, 22, ScenarioWorld::default_prestate()).provable_for_resolution();
+    let child = ScenarioGame::new(2, 1, 22, ScenarioWorld::default_prestate())
+        .owned()
+        .provable_for_resolution();
     let child_target = child.target();
     let mut boundary = ScenarioGame::new(3, u32::MAX, 25, ScenarioWorld::default_prestate());
     boundary.deadline = ancestor.deadline;
@@ -3167,8 +3218,8 @@ async fn widened_startup_discovery_keeps_old_ancestor_until_bond_payout() {
 #[tokio::test]
 async fn empty_and_truncated_factories_reset_cached_history() {
     let empty_world = ScenarioWorld::new();
-    let valid = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
-    let pending = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate());
+    let valid = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
+    let pending = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).owned();
     empty_world.add_game(valid);
     empty_world.add_game(pending);
     empty_world.set_horizons(1, 1);
@@ -3188,24 +3239,19 @@ async fn empty_and_truncated_factories_reset_cached_history() {
 
     let truncated_world = ScenarioWorld::new();
     for index in 0..=2 {
-        truncated_world.add_game(ScenarioGame::new(
-            index,
-            u32::MAX,
-            index + 1,
-            ScenarioWorld::default_prestate(),
-        ));
+        truncated_world.add_game(
+            ScenarioGame::new(index, u32::MAX, index + 1, ScenarioWorld::default_prestate())
+                .owned(),
+        );
     }
     truncated_world.set_horizons(10, 10);
     let mut truncated = ScenarioHarness::new(truncated_world.clone(), config).await.unwrap();
     let initial = truncated.tick().await.unwrap();
     truncated.settle_scheduled(&initial).await.unwrap();
 
-    truncated_world.replace_factory(vec![ScenarioGame::new(
-        0,
-        u32::MAX,
-        10,
-        ScenarioWorld::default_prestate(),
-    )]);
+    truncated_world.replace_factory(vec![
+        ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).owned(),
+    ]);
     let reset = truncated.tick().await.unwrap();
     assert_eq!(reset.snapshot.canonical_head_index, Some(U256::ZERO));
     assert_eq!(reset.snapshot.canonical_head_sequence_number, Some(10));
@@ -3268,35 +3314,46 @@ async fn missing_registered_prestate_pauses_creation_and_self_heals() {
 async fn resolution_filters_candidates_and_isolates_preflight_and_transaction_failures() {
     let world = ScenarioWorld::new();
     let mut parent =
-        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned().claimable(0);
     parent.deadline = 1_500;
     let parent_target = parent.target();
-    let eligible =
-        ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).provable_for_resolution();
+    let eligible = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate())
+        .owned()
+        .provable_for_resolution();
     let eligible_target = eligible.target();
-    let unowned = ScenarioGame::new(2, 0, 3, B256::repeat_byte(0xf1)).provable_for_resolution();
+    let unowned =
+        ScenarioGame::new(2, 0, 3, B256::repeat_byte(0xf1)).owned().provable_for_resolution();
     let unowned_target = unowned.target();
-    let mut elapsed = ScenarioGame::new(3, u32::MAX, 4, ScenarioWorld::default_prestate());
+    let mut elapsed = ScenarioGame::new(3, u32::MAX, 4, ScenarioWorld::default_prestate()).owned();
     elapsed.deadline = 1_500;
     let elapsed_target = elapsed.target();
-    let mut future = ScenarioGame::new(4, u32::MAX, 5, ScenarioWorld::default_prestate());
+    let mut future = ScenarioGame::new(4, u32::MAX, 5, ScenarioWorld::default_prestate()).owned();
     future.deadline = 2_000;
     let future_target = future.target();
     let already_resolved = ScenarioGame::new(5, u32::MAX, 6, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let already_resolved_target = already_resolved.target();
     let status_failure = ScenarioGame::new(6, u32::MAX, 7, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let status_failure_target = status_failure.target();
     let invalid_status = ScenarioGame::new(7, u32::MAX, 8, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let invalid_status_target = invalid_status.target();
     let tx_failure = ScenarioGame::new(8, u32::MAX, 9, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let tx_failure_target = tx_failure.target();
     let success = ScenarioGame::new(9, u32::MAX, 10, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let success_target = success.target();
+    let mut foreign_elapsed =
+        ScenarioGame::new(10, u32::MAX, 11, ScenarioWorld::default_prestate());
+    foreign_elapsed.deadline = 1_500;
+    let foreign_elapsed_target = foreign_elapsed.target();
     for game in [
         parent,
         eligible,
@@ -3308,6 +3365,7 @@ async fn resolution_filters_candidates_and_isolates_preflight_and_transaction_fa
         invalid_status,
         tx_failure,
         success,
+        foreign_elapsed,
     ] {
         world.add_game(game);
     }
@@ -3317,7 +3375,7 @@ async fn resolution_filters_candidates_and_isolates_preflight_and_transaction_fa
         game.proposal_status = ProposalStatus::Resolved;
         game.finalized = true;
     });
-    world.set_horizons(10, 10);
+    world.set_horizons(11, 11);
     world.script_l1_fault(
         L1ReadBoundary::GameStatus,
         L1ReadTarget::Game(status_failure_target.clone()),
@@ -3356,7 +3414,13 @@ async fn resolution_filters_candidates_and_isolates_preflight_and_transaction_fa
         world.action_record(&ActionTarget::Resolve(success_target.clone()), 1).unwrap().effect,
         CommittedEffect::Resolved { game } if game == success_target.address
     ));
-    for target in [unowned_target, future_target, already_resolved_target, parent_target] {
+    for target in [
+        unowned_target,
+        future_target,
+        already_resolved_target,
+        parent_target,
+        foreign_elapsed_target,
+    ] {
         assert!(world.action_record(&ActionTarget::Resolve(target), 1).is_none());
     }
     assert_eq!(
@@ -3500,7 +3564,7 @@ async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
 #[tokio::test]
 async fn resolution_eligibility_uses_the_pinned_l1_timestamp() {
     let world = ScenarioWorld::new();
-    let mut elapsed = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    let mut elapsed = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
     elapsed.deadline = 1_500;
     let elapsed_target = elapsed.target();
     world.add_game(elapsed);
@@ -3524,7 +3588,7 @@ async fn resolution_eligibility_uses_the_pinned_l1_timestamp() {
 async fn proof_deadlines_use_latest_l1_time_independently_of_host_time() {
     let world = ScenarioWorld::new();
     let mut challenged =
-        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).challenged();
+        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned().challenged();
     challenged.deadline = 1_500;
     let challenged_target = challenged.target();
     world.add_game(challenged);
@@ -3565,7 +3629,7 @@ async fn proof_deadlines_use_latest_l1_time_independently_of_host_time() {
 #[tokio::test]
 async fn proposal_safety_horizon_uses_host_time_without_conflating_safe_and_finalized() {
     let world = ScenarioWorld::new();
-    let head = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    let head = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
     world.add_game(head);
     world.set_host_time(9_000);
     world.set_horizons(2, 1);
@@ -3654,9 +3718,9 @@ async fn restart_reconstructs_world_state_but_resets_all_proposer_local_memory()
 #[tokio::test]
 async fn factory_discovery_fault_retries_the_same_uncommitted_range() {
     let world = ScenarioWorld::new();
-    let first = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    let first = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
     let first_target = first.target();
-    let second = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate());
+    let second = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).owned();
     let second_target = second.target();
     world.add_game(first);
     world.add_game(second);
@@ -3714,9 +3778,10 @@ async fn factory_discovery_fault_retries_the_same_uncommitted_range() {
 async fn pending_game_read_fault_keeps_unrelated_resolution_actionable() {
     let world = ScenarioWorld::new();
     let actionable = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let actionable_target = actionable.target();
-    let pending = ScenarioGame::new(1, 0, 2, B256::repeat_byte(0xf4));
+    let pending = ScenarioGame::new(1, 0, 2, B256::repeat_byte(0xf4)).owned();
     let pending_target = pending.target();
     world.add_game(actionable);
     world.add_game(pending);
@@ -3758,9 +3823,11 @@ async fn pending_game_read_fault_keeps_unrelated_resolution_actionable() {
 async fn cached_game_refresh_fault_is_isolated_from_other_targets() {
     let world = ScenarioWorld::new();
     let failed_refresh = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let failed_target = failed_refresh.target();
     let actionable = ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate())
+        .owned()
         .provable_for_resolution();
     let actionable_target = actionable.target();
     world.add_game(failed_refresh);
@@ -3809,13 +3876,16 @@ async fn cached_game_refresh_fault_is_isolated_from_other_targets() {
 #[tokio::test]
 async fn lifecycle_refresh_does_not_touch_unused_status_branches() {
     let world = ScenarioWorld::new();
-    let progress_parent = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    let progress_parent =
+        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
     let progress_parent_target = progress_parent.target();
-    let in_progress = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate());
+    let in_progress = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).owned();
     let in_progress_target = in_progress.target();
-    let defender_parent = ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate());
+    let defender_parent =
+        ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate()).owned();
     let defender_parent_target = defender_parent.target();
-    let defender_wins = ScenarioGame::new(3, 2, 4, ScenarioWorld::default_prestate()).claimable(0);
+    let defender_wins =
+        ScenarioGame::new(3, 2, 4, ScenarioWorld::default_prestate()).owned().claimable(0);
     let defender_target = defender_wins.target();
     for game in [progress_parent, in_progress, defender_parent, defender_wins] {
         world.add_game(game);
@@ -3878,10 +3948,10 @@ async fn disallowed_ancestor_blocks_the_branch_and_reparents_creation() {
         let anchor =
             ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
         let anchor_target = anchor.target();
-        let branch_root = ScenarioGame::new(1, 0, 15, ScenarioWorld::default_prestate());
-        let ancestor = ScenarioGame::new(2, 1, 20, ScenarioWorld::default_prestate());
+        let branch_root = ScenarioGame::new(1, 0, 15, ScenarioWorld::default_prestate()).owned();
+        let ancestor = ScenarioGame::new(2, 1, 20, ScenarioWorld::default_prestate()).owned();
         let ancestor_target = ancestor.target();
-        let descendant = ScenarioGame::new(3, 2, 25, B256::repeat_byte(0xf1));
+        let descendant = ScenarioGame::new(3, 2, 25, B256::repeat_byte(0xf1)).owned();
         let descendant_target = descendant.target();
         for game in [anchor, branch_root, ancestor, descendant] {
             world.add_game(game);
@@ -4028,7 +4098,7 @@ async fn standing_refresh_fault_isolates_one_game_without_losing_resolution() {
     let world = ScenarioWorld::new();
     let anchor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
     let anchor_target = anchor.target();
-    let root = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    let root = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).owned();
     let root_target = root.target();
     let mut own_child =
         ScenarioGame::new(2, 1, 30, ScenarioWorld::default_prestate()).provable_for_resolution();
@@ -4142,7 +4212,7 @@ async fn anchor_promotion_restores_eligibility_below_the_new_boundary() {
 #[tokio::test]
 async fn pending_game_promoted_to_anchor_is_installed_in_the_same_cycle() {
     let world = ScenarioWorld::new();
-    let anchor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let anchor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).owned();
     let anchor_target = anchor.target();
     world.add_game(anchor);
     world.set_horizons(0, 0);
@@ -4175,7 +4245,8 @@ async fn pending_game_promoted_to_anchor_is_installed_in_the_same_cycle() {
 #[tokio::test]
 async fn unsupported_registered_anchor_blocks_extension_but_allows_lifecycle_work() {
     let world = ScenarioWorld::new();
-    let valid = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).challenged();
+    let valid =
+        ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).owned().challenged();
     let valid_target = valid.target();
     let mut unsupported = ScenarioGame::new(1, u32::MAX, 20, ScenarioWorld::default_prestate());
     unsupported.game_type = ZK_GAME_TYPE + 1;
@@ -4359,8 +4430,10 @@ async fn unsupported_anchor_spaces_root_creation_across_lag_and_restart() {
     ));
 }
 
+/// A foreign root at our grid point never becomes our head, so waiting for the next interval
+/// would let one copy per interval stop creation while the anchor is not a ZK game.
 #[tokio::test]
-async fn unsupported_anchor_defers_foreign_root_collision_to_next_interval() {
+async fn unsupported_anchor_walks_past_a_foreign_root_collision() {
     let world = ScenarioWorld::new();
     let mut old_anchor = ScenarioGame::new(0, u32::MAX, 20, ScenarioWorld::default_prestate());
     old_anchor.game_type = ZK_GAME_TYPE + 1;
@@ -4373,23 +4446,11 @@ async fn unsupported_anchor_defers_foreign_root_collision_to_next_interval() {
     config.proposal_interval_seconds = 100;
     let scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
-    // The confirmed pin can still miss the competing root when creation checks latest L1.
     scenario.proposer.handle_game_creation(220, u32::MAX).await.unwrap();
-    assert!(
-        world
-            .action_record(
-                &ActionTarget::Create { sequence_number: 221, parent_game_index: u32::MAX },
-                1,
-            )
-            .is_none()
-    );
-
-    world.set_horizons(320, 320);
-    scenario.proposer.handle_game_creation(320, u32::MAX).await.unwrap();
     assert!(matches!(
         world
             .action_record(
-                &ActionTarget::Create { sequence_number: 320, parent_game_index: u32::MAX },
+                &ActionTarget::Create { sequence_number: 221, parent_game_index: u32::MAX },
                 1,
             )
             .unwrap()
@@ -4402,7 +4463,7 @@ async fn unsupported_anchor_defers_foreign_root_collision_to_next_interval() {
 async fn unsupported_anchor_does_not_stop_existing_zk_defense() {
     let world = ScenarioWorld::new();
     let mut challenged =
-        ScenarioGame::new(0, u32::MAX, 30, ScenarioWorld::default_prestate()).challenged();
+        ScenarioGame::new(0, u32::MAX, 30, ScenarioWorld::default_prestate()).owned().challenged();
     challenged.deadline = 5_000;
     let challenged_target = challenged.target();
     world.add_game(challenged);
@@ -4436,7 +4497,7 @@ async fn proof_waits_for_sync_when_a_cached_zk_anchor_becomes_unsupported() {
     let anchor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
     let anchor_target = anchor.target();
     let mut challenged =
-        ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).challenged();
+        ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).owned().challenged();
     challenged.deadline = 5_000;
     let challenged_target = challenged.target();
     world.add_game(anchor);
@@ -4556,9 +4617,9 @@ async fn running_root_creation_stops_when_a_supported_anchor_changes() {
 #[tokio::test]
 async fn pending_anchor_revalidation_fault_preserves_cache_for_retry() {
     let world = ScenarioWorld::new();
-    let cached = ScenarioGame::new(0, u32::MAX, 0, ScenarioWorld::default_prestate());
+    let cached = ScenarioGame::new(0, u32::MAX, 0, ScenarioWorld::default_prestate()).owned();
     let cached_target = cached.target();
-    let anchor = ScenarioGame::new(1, 0, 10, ScenarioWorld::default_prestate());
+    let anchor = ScenarioGame::new(1, 0, 10, ScenarioWorld::default_prestate()).owned();
     let anchor_target = anchor.target();
     world.add_game(cached);
     world.add_game(anchor);
@@ -4615,7 +4676,7 @@ async fn anchor_deadline_cutoff_never_skips_games_newer_than_the_anchor() {
     let mut anchor = ScenarioGame::new(1, u32::MAX, 20, ScenarioWorld::default_prestate());
     anchor.deadline = 2_000_000;
     let anchor_target = anchor.target();
-    let mut newer = ScenarioGame::new(2, 1, 30, ScenarioWorld::default_prestate());
+    let mut newer = ScenarioGame::new(2, 1, 30, ScenarioWorld::default_prestate()).owned();
     newer.deadline = 2_000_000 + MAX_GAME_DEADLINE_LAG + 1;
     let newer_target = newer.target();
     for game in [old, anchor, newer] {
@@ -4650,20 +4711,21 @@ async fn anchor_deadline_cutoff_never_skips_games_newer_than_the_anchor() {
 #[tokio::test]
 async fn discovery_retains_an_owned_late_child_but_not_an_invalid_claim() {
     let world = ScenarioWorld::new();
-    let mut parent = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let mut parent = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).owned();
     parent.standing = GameStanding { blacklisted: true, retired: false };
     let mut own_late = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).challenged();
     own_late.creator = ScenarioWorld::proposer_address();
     own_late.deadline = 1_500;
     let own_late_target = own_late.target();
     let mut bad_claim = ScenarioGame::new(2, 0, 30, B256::repeat_byte(0xf1));
+    bad_claim.creator = LISTED_CREATOR;
     bad_claim.root_claim = B256::repeat_byte(0x52);
     let bad_claim_target = bad_claim.target();
     for game in [parent, own_late, bad_claim] {
         world.add_game(game);
     }
     world.set_horizons(30, 30);
-    let mut config = scenario_config();
+    let mut config = listed_creator_config();
     config.proposal_interval_seconds = 100;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
@@ -4704,7 +4766,7 @@ async fn registered_registry_rejection_falls_back_without_suppressing_defense() 
     let world = ScenarioWorld::new();
     let anchor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
     let anchor_target = anchor.target();
-    let mut parent = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    let mut parent = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).owned();
     parent.proposal_status = ProposalStatus::Challenged;
     parent.deadline = u64::MAX;
     parent.anchor_state_registry = Address::repeat_byte(0x70);
@@ -4736,10 +4798,10 @@ async fn registered_registry_rejection_falls_back_without_suppressing_defense() 
 #[tokio::test]
 async fn creation_recheck_at_latest_block_rejects_a_freshly_disallowed_parent() {
     let world = ScenarioWorld::new();
-    let ancestor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let ancestor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).owned();
     let ancestor_target = ancestor.target();
-    let parent = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
-    let alternate = ScenarioGame::new(2, u32::MAX, 15, ScenarioWorld::default_prestate());
+    let parent = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).owned();
+    let alternate = ScenarioGame::new(2, u32::MAX, 15, ScenarioWorld::default_prestate()).owned();
     for game in [ancestor, parent, alternate] {
         world.add_game(game);
     }
@@ -4926,10 +4988,12 @@ async fn settled_intermediary_preserves_later_ancestry_change() {
     let world = ScenarioWorld::new();
     let anchor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
     let anchor_target = anchor.target();
-    let ancestor = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).claimable(0);
+    let ancestor =
+        ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).owned().claimable(0);
     let ancestor_target = ancestor.target();
-    let intermediary = ScenarioGame::new(2, 1, 25, ScenarioWorld::default_prestate()).claimable(0);
-    let mut descendant = ScenarioGame::new(3, 2, 30, B256::repeat_byte(0xf1));
+    let intermediary =
+        ScenarioGame::new(2, 1, 25, ScenarioWorld::default_prestate()).owned().claimable(0);
+    let mut descendant = ScenarioGame::new(3, 2, 30, B256::repeat_byte(0xf1)).owned();
     descendant.proposal_status = ProposalStatus::Challenged;
     descendant.deadline = u64::MAX;
     for game in [anchor, ancestor, intermediary, descendant] {
@@ -5215,7 +5279,7 @@ async fn proposer_created_loser_blacklisted_before_close_recovers_its_refund() {
 }
 
 #[tokio::test]
-async fn retained_refund_root_keeps_foreign_descendants_and_closes_them() {
+async fn retained_refund_root_keeps_a_foreign_child_record_and_drops_it_without_closing() {
     let world = ScenarioWorld::new();
     let mut root = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
     root.creator = ScenarioWorld::proposer_address();
@@ -5228,7 +5292,7 @@ async fn retained_refund_root_keeps_foreign_descendants_and_closes_them() {
     }
     world.set_horizons(20, 20);
     // The root's validation fails, so discovery retains it through the blacklisted-refund path
-    // after its foreign child was already cached.
+    // after its foreign child was already cached as a record.
     world.script_next_superroot(10, SuperRootOutcome::TransportFailure);
     let mut config = scenario_config();
     config.proposal_interval_seconds = 100;
@@ -5252,12 +5316,30 @@ async fn retained_refund_root_keeps_foreign_descendants_and_closes_them() {
         game.finalized = true;
     });
     world.mine_block();
-    let closed = scenario.tick().await.unwrap();
-    scenario.settle_scheduled(&closed).await.unwrap();
-    assert_eq!(
-        world.action_record(&ActionTarget::ClaimCredit(child_target), 1).unwrap().effect,
-        CommittedEffect::Closed { game: child_address }
+    let removed = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&removed).await.unwrap();
+    assert!(world.action_record(&ActionTarget::ClaimCredit(child_target.clone()), 1).is_none());
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(child_target.clone()),
+                2,
+            )
+            .is_some()
     );
+    world.mine_block();
+    let after = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&after).await.unwrap();
+    assert!(
+        world
+            .l1_read_record(L1ReadBoundary::GameLifecycle, &L1ReadTarget::Game(child_target), 3)
+            .is_none()
+    );
+    assert!(world.action_records().iter().all(|record| !matches!(
+        record.effect,
+        CommittedEffect::Closed { game } if game == child_address
+    )));
 }
 
 #[tokio::test]

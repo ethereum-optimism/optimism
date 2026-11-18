@@ -225,7 +225,7 @@ pub struct ProposerConfig {
     /// rejected at parse time: it would silently disable defense.
     pub max_concurrent_defense_tasks: NonZeroU64,
 
-    /// Prove every owned game while it is still unchallenged (fast finality).
+    /// Prove the signer's owned games while they are still unchallenged (fast finality).
     /// A proven game resolves as soon as its parent does, without waiting out
     /// `maxChallengeDuration`. Trades proof spend for finality latency.
     pub fast_finality_mode: bool,
@@ -247,6 +247,11 @@ pub struct ProposerConfig {
     /// Absent = they stay in memory. At startup the proposer creates it and removes the
     /// `collection-*` entries that a previous process left there.
     pub data_dir: Option<PathBuf>,
+
+    /// Addresses besides the signer whose games this proposer owns
+    /// (`OP_ZK_PROPOSER_OWNED_CREATORS`), such as a rotated-out signer whose games
+    /// still need defense. The signer is always owned and need not be listed.
+    pub owned_creators: Option<Vec<Address>>,
 }
 
 fn required_env(suffix: &str) -> Result<String> {
@@ -441,8 +446,26 @@ impl ProposerConfig {
             local_cuda: LocalCudaConfig::from_env()?,
             log_path: parsed_env_or("LOG_PATH", LogPath::Table)?,
             data_dir: optional_env("DATA_DIR").map(PathBuf::from),
+            owned_creators: optional_env("OWNED_CREATORS")
+                .map(|list| {
+                    parse_address_list(&list)
+                        .with_context(|| format!("invalid {}", env_var("OWNED_CREATORS")))
+                })
+                .transpose()?,
         })
     }
+}
+
+fn parse_address_list(value: &str) -> Result<Vec<Address>> {
+    let mut addresses = Vec::new();
+    for entry in value.split(',').map(str::trim).filter(|entry| !entry.is_empty()) {
+        let address =
+            entry.parse::<Address>().map_err(|err| anyhow!("invalid address {entry}: {err}"))?;
+        anyhow::ensure!(!addresses.contains(&address), "duplicate address {address}");
+        addresses.push(address);
+    }
+    anyhow::ensure!(!addresses.is_empty(), "expected at least one address");
+    Ok(addresses)
 }
 
 fn parse_url_list(value: &str) -> Result<Vec<Url>> {
@@ -1223,6 +1246,29 @@ mod tests {
 
             set_proposer_env("MIN_AUCTION_PERIOD", "270");
             assert_eq!(ProofProviderConfig::from_env().unwrap().min_auction_period, 270);
+        }
+
+        #[test]
+        #[serial]
+        fn owned_creators_parses_comma_list_and_rejects_bad_entries() {
+            clear_proposer_env();
+            set_required_mock_env();
+            assert_eq!(ProposerConfig::from_env(None).unwrap().owned_creators, None);
+
+            let first = Address::repeat_byte(0x11);
+            let second = Address::repeat_byte(0x22);
+            set_proposer_env("OWNED_CREATORS", &format!(" {first}, ,{second} "));
+            assert_eq!(
+                ProposerConfig::from_env(None).unwrap().owned_creators,
+                Some(vec![first, second])
+            );
+
+            for invalid in [format!("{first},{first}"), "0x1234".to_string(), " , ".to_string()] {
+                set_proposer_env("OWNED_CREATORS", &invalid);
+                let err = format!("{:#}", ProposerConfig::from_env(None).unwrap_err());
+                assert!(err.contains("invalid OP_ZK_PROPOSER_OWNED_CREATORS"), "{invalid}: {err}");
+            }
+            remove_proposer_env("OWNED_CREATORS");
         }
 
         #[test]
