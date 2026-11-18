@@ -29,9 +29,8 @@ class LocalPackageTests(unittest.TestCase):
                              {phase + '-' + str(index) for index in range(12)})
         for index in range(12):
             compile_task = graph['compile-' + str(index)]
-            # RWX lays later entries over earlier ones. The seed uses the tools and holds an older
-            # checkout, so it follows the tools and the head checkout follows it. `discovery`
-            # uses `source`, so RWX applies it above `source`.
+            # The seed uses the tools, so RWX applies it above them. `discovery` uses `source`,
+            # so RWX applies it above `source`.
             self.assertEqual(compile_task['use'], ['go-build-tools', 'compiler-seed-' + str(index), 'source', 'discovery'])
             verdict = graph['verdict-' + str(index)]
             self.assertEqual([key for key in verdict['use'] if key.startswith('compile-')],
@@ -61,11 +60,30 @@ class LocalPackageTests(unittest.TestCase):
         self.assertEqual(calls, 17)
         for kind in tools:
             build = tasks('packages/go-' + kind + '.yml')['build']
-            # The build checks out its commit itself. A checkout from a `use` layer would reach
-            # every task that uses the build, and replace that task's own checkout.
-            self.assertEqual(build['use'], 'package.use')
-            self.assertIn('git fetch -q origin "$CI_COMMIT_SHA"\ngit checkout -qf FETCH_HEAD\n', build['run'])
-            self.assertEqual(build['env']['CI_COMMIT_SHA'], '${{ params.commit-sha }}')
+            self.assert_starts_without_a_checkout(build, build['outputs']['filesystem']['filter']['workspace'])
+            self.assertEqual((build['use'], build['env']['CI_COMMIT_SHA']), ('package.use', '${{ params.commit-sha }}'))
+        # The Go compiler seeds follow the same contract.
+        graph = tasks('go-tests.yml')
+        prepared = graph['compiler-preparation']['outputs']['filesystem']['filter']['workspace']
+        self.assert_starts_without_a_checkout(graph['compiler-preparation'], ['.ci/go-tests/dependencies/contracts'])
+        self.assertEqual(graph['discovery']['outputs']['filesystem']['filter']['workspace'], prepared)
+        for index in range(12):
+            seed = graph['compiler-seed-' + str(index)]
+            self.assertEqual(seed['use'], 'compiler-preparation')
+            self.assert_starts_without_a_checkout(seed, prepared)
+            self.assertEqual(seed['outputs']['filesystem']['filter']['workspace'], ['.ci/go-cache/full/build'])
+
+    def assert_starts_without_a_checkout(self, task, inputs):
+        """The task sees mise.toml and `inputs` only, checks out CI_COMMIT_SHA itself and filters its output.
+
+        A task passes on every layer that it uses, and the tool tasks carry the checkout of the
+        run. Without the input filter, that checkout is in the task's cache key and under its
+        own checkout. Without the output filter, the task's checkout reaches each consumer.
+        """
+        flat = [name for entry in task['filter'] for name in (entry if isinstance(entry, list) else [entry])]
+        self.assertEqual(flat, ['mise.toml', *inputs])
+        self.assertIn('git fetch -q origin "$CI_COMMIT_SHA"\ngit checkout -qf FETCH_HEAD\n', task['run'])
+        self.assertEqual(task['outputs']['filesystem']['filter']['system'], [])
 
     def test_acceptance_keeps_both_variants_and_excludes_compiler_state(self):
         graph = tasks('acceptance.yml')

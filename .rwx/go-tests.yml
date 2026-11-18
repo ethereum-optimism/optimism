@@ -193,24 +193,19 @@ tasks:
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
-  # The compiler seeds are reusable in the same way. Current-source compilation
-  # and every verdict still use the discovery of the current commit.
-  - key: compiler-code
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: git/clone 2.2.0
-    with:
-      repository: https://github.com/ethereum-optimism/optimism.git
-      ref: ${{ tasks.dependency-plan.values.compiler }}
-      preserve-git-dir: true
-      fetch-full-depth: true
-      submodules: false
-
+  # The compiler seeds are reusable in the same way as the dependency builds: each
+  # task starts without a checkout, checks out the planned commit itself and passes
+  # on only what it built. Current-source compilation and every verdict still use
+  # the discovery of the current commit.
   - key: compiler-preparation
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    use: [go-build-tools, compiler-code, contracts.build]
+    use: [go-build-tools, contracts.build]
+    filter: [mise.toml, .ci/go-tests/dependencies/contracts]
     run: |
-      git reset --hard "$CI_COMMIT_SHA"
-      git submodule sync --recursive
+      git init -q .
+      git remote add origin https://github.com/ethereum-optimism/optimism.git
+      git fetch -q origin "$CI_COMMIT_SHA"
+      git checkout -qf FETCH_HEAD
       git submodule update --init --recursive --jobs 8
       export GOMODCACHE="$PWD/.ci/go-cache/full/modules" GOCACHE="$PWD/.ci/go-cache/full/build"
       go mod download
@@ -223,12 +218,24 @@ tasks:
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 30m
+    outputs:
+      filesystem:
+        filter:
+          workspace: &go-prepared [.ci/go-tests/manifest.json, .ci/go-cache/full/modules, cannon/bin, cannon/multicannon/embeds, cannon/testdata/bin, op-core/superchain/bundle/superchain-configs.zip, packages/contracts-bedrock/cache, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/forge-artifacts, op-deployer/pkg/deployer/artifacts/forge-artifacts]
+          system: []
 
   - &compiler-seed
     key: compiler-seed-0
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     use: compiler-preparation
-    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    filter: [mise.toml, *go-prepared]
+    run: |
+      git init -q .
+      git remote add origin https://github.com/ethereum-optimism/optimism.git
+      git fetch -q origin "$CI_COMMIT_SHA"
+      git checkout -qf FETCH_HEAD
+      git submodule update --init --recursive --jobs 8
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh build
     env: &compiler-seed-env
       CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
       CI_SHARD_INDEX: '0'
@@ -326,7 +333,7 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/go-tests/manifest.json, .ci/go-cache/full/modules, cannon/bin, cannon/multicannon/embeds, cannon/testdata/bin, op-core/superchain/bundle/superchain-configs.zip, packages/contracts-bedrock/cache, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/forge-artifacts, op-deployer/pkg/deployer/artifacts/forge-artifacts]
+          workspace: *go-prepared
           system: []
     filter: ['!.ci/go-cache/full/dependencies']
 

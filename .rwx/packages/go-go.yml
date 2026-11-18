@@ -5,11 +5,14 @@ package:
     build-probe:
     target-cache-mode:
 tasks:
+  # The tool tasks in package.use carry the caller's checkout. The filter keeps it out of
+  # this task: the cache key then holds only the tools, the command and the commit, and
+  # the task checks that commit out itself. The checkout stays out of the filtered output,
+  # so a task that uses this build gets the build outputs and no other checkout.
   - key: build
     use: package.use
+    filter: [mise.toml, .ci/go-cache/full, .ci/go-tests/dependencies/go]
     run: |
-      # Check out the commit in this task. The files that a task writes stay out of its
-      # filtered output, so a task that uses this build does not inherit another checkout.
       git init -q .
       git remote add origin https://github.com/ethereum-optimism/optimism.git
       git fetch -q origin "$CI_COMMIT_SHA"

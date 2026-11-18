@@ -154,9 +154,12 @@ organization can start has 16 CPUs.
   commit and the same tool tasks to the build package (`.rwx/packages/go-*.yml`),
   and the build checks the commit out itself. The build then has one cache key:
   a later commit that leaves the inputs unchanged reuses it, and so do the other
-  workloads of the run. The checkout happens inside the build task because a
-  task passes on every layer that it uses: a checkout from a `use` layer would
-  replace the checkout of each task that uses the build.
+  workloads of the run. A task passes on every layer that it uses, and the tool
+  tasks carry the checkout of the run. So the build has an input `filter` that
+  leaves it only `mise.toml` and its own outputs, and it writes its checkout
+  itself: the run's checkout stays out of the build's cache key, and the build's
+  checkout stays out of its filtered output. The Go compiler seeds work the same
+  way.
   Before a task restores an output, `go-artifacts.py` checks that the inputs
   equal those of the task's commit. `SCOPES` in the script lists the inputs;
   add a file there when a build starts to read it. `.rwx` is not an input,
