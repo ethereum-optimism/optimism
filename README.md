@@ -152,7 +152,7 @@ Feature branches are typically used when there are conflicts between 2 projects 
 
 ## Downloading & Shallow-Cloning the Monorepo
 
-If you want to use the monorepo as a dependency, e.g. in CI, you can greatly speed up the fetching process by either downloading it directly as an archive from Github instead of cloning as a git repository or shallow-cloning it.
+If you want to use the monorepo as a dependency, e.g. in CI, you can greatly speed up the fetching process by either downloading it directly as an archive from GitHub instead of cloning as a git repository or shallow-cloning it.
 This avoids downloading the full monorepo git history, which is unfortunately a few GBs in size, but which also isn't needed for many use cases, like CI.
 
 To fetch the monorepo at a specific commit/branch/tag `$REF`, download and unpack with
