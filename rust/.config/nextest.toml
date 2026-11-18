@@ -45,12 +45,12 @@ slow-timeout = { period = "2m", terminate-after = 3 }
 # above — it is a stopgap for an unresolved crash tracked in #20973; remove it once that is
 # fixed.
 #
-# Scope: the three tests of that binary that build two nodes with `E2ETestSetupBuilder`
-# (`setup(2)`, `setup_lagoon(2)`). The crash has been seen on two of them: on the p2p test
-# repeatedly, and on `test_buffered_malformed_post_exec_child_is_invalid`. The third test has
-# the same shape. The crash has not been seen on a one-node test, so the override does not
-# cover the rest of the binary. If you add a two-node test to that binary, add it here and call
-# `crash_backtrace::install()` in it.
+# Scope: the two tests on which the crash has been seen — the p2p test repeatedly, and
+# `test_buffered_malformed_post_exec_child_is_invalid`. Both call `setup(2)`. The override
+# covers a test only after the crash has been seen on it. `invalid_post_exec` has a third
+# two-node test (`setup_lagoon(2)`) with no crash on record; it stays under the no-retries
+# policy, as do the one-node tests. That third test installs the fatal-signal handler, so a
+# crash there fails the job with a stack. Add the test here if that happens.
 #
 # The retry turns the red job green, so the cargo-test CI job greps this JUnit report for the
 # `<flakyFailure>` and pings Slack (CircleCI does not parse that element, so its Tests tab and
@@ -67,12 +67,11 @@ slow-timeout = { period = "2m", terminate-after = 3 }
 #   renames the test. The regex follows that rename. Its `^` and `$` are load-bearing — an
 #   unanchored regex is a substring match, so a sibling like `peers_negotiate_eth_71_disconnect`
 #   would silently inherit the retry.
-# - The other two names are exact; the `=` is load-bearing for the same reason. If you rename
-#   one of those tests, rename it here.
+# - The other name is exact; the `=` is load-bearing for the same reason. If you rename that
+#   test, rename it here.
 [[profile.default.overrides]]
 filter = '''
 test(/^p2p_version::peers_negotiate_eth_\d+$/)
 | test(=invalid_post_exec::test_buffered_malformed_post_exec_child_is_invalid)
-| test(=invalid_post_exec::test_lagoon_buffered_child_with_wrong_post_exec_block_number_is_invalid)
 '''
 retries = 2

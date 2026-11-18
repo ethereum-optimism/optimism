@@ -161,8 +161,8 @@ async fn test_lagoon_buffered_child_with_wrong_post_exec_block_number_is_invalid
 -> eyre::Result<()> {
     // A test that starts two nodes in one process intermittently segfaults during teardown,
     // after its body has passed (ethereum-optimism/optimism#20973). The handler outlives the
-    // body, so it reports the faulting thread and stack when that happens.
-    // `rust/.config/nextest.toml` retries this test by name.
+    // body, so it reports the faulting thread and stack if that happens here. This test has
+    // no crash on record, so `rust/.config/nextest.toml` does not retry it.
     crate::crash_backtrace::install();
     reth_tracing::init_test_tracing();
 
