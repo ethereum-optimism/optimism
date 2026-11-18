@@ -582,8 +582,12 @@ where
             .await
         {
             Ok(attrs) => attrs,
-            Err(PipelineErrorKind::Temporary(_)) => {
-                // Temporary error - retry on next tick.
+            Err(PipelineErrorKind::Temporary(err)) => {
+                warn!(
+                    target: "sequencer",
+                    %err,
+                    "Temporary error occurred while preparing payload attributes. Re-attempting on next tick."
+                );
                 return Ok(None);
             }
             Err(PipelineErrorKind::Reset(_)) => {

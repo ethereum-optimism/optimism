@@ -110,8 +110,21 @@ where
                         "JSON-RPC request completed"
                     );
                 }
-                Ok(_) => {
+                // Engine API calls are rare and change the engine's state, so their completion
+                // is logged at info. Reads, which derivation sends several of per block, are not.
+                Ok(_) if method.starts_with("engine_") => {
                     info!(
+                        target: "engine_rpc",
+                        method,
+                        ?id,
+                        request_count,
+                        ?duration,
+                        result = "success",
+                        "JSON-RPC request completed"
+                    );
+                }
+                Ok(_) => {
+                    debug!(
                         target: "engine_rpc",
                         method,
                         ?id,
@@ -243,27 +256,6 @@ impl Provider<Optimism> for EngineClient {
     }
 }
 
-/// Connection settings for an [`EngineClient`].
-#[derive(Debug, Clone)]
-pub struct EngineClientBuilder {
-    /// The L2 Engine API endpoint URL.
-    pub l2: Url,
-    /// The L2 JWT secret.
-    pub l2_jwt: JwtSecret,
-    /// The node's shared L1 client.
-    pub l1: AlloyChainProvider,
-    /// The rollup configuration.
-    pub cfg: Arc<RollupConfig>,
-}
-
-impl EngineClientBuilder {
-    /// Connects to the authenticated L2 engine, whose requests each have a deadline.
-    pub fn build(self) -> EngineClient {
-        let engine = EngineClient::rpc_client(self.l2, self.l2_jwt);
-        EngineClient::new(self.l1, engine, self.cfg)
-    }
-}
-
 #[cfg(test)]
 mod request_observability_tests {
     use super::*;
@@ -306,7 +298,7 @@ mod request_observability_tests {
         let subscriber = tracing_subscriber::fmt()
             .without_time()
             .with_ansi(false)
-            .with_max_level(tracing::Level::INFO)
+            .with_max_level(tracing::Level::DEBUG)
             .with_writer(move || writer.clone())
             .finish();
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -356,17 +348,17 @@ mod request_observability_tests {
         assert_eq!(requests.len(), 4, "{output}");
         assert!(!output.contains("bad state"), "method-specific payloads are opaque: {output}");
         assert!(!output.contains("payload_status="), "{output}");
-        for (method, result, detail) in [
-            ("engine_newPayloadV3", "success", "INFO"),
-            ("engine_getPayloadV3", "error", "unreachable"),
-            ("engine_forkchoiceUpdatedV3", "error", "code=-32602"),
-            ("eth_blockNumber", "success", "INFO"),
+        // A successful Engine API call logs at info; a successful read logs at debug.
+        for (method, result, level, detail) in [
+            ("engine_newPayloadV3", "success", "INFO", "INFO"),
+            ("engine_getPayloadV3", "error", "WARN", "unreachable"),
+            ("engine_forkchoiceUpdatedV3", "error", "WARN", "code=-32602"),
+            ("eth_blockNumber", "success", "DEBUG", "DEBUG"),
         ] {
             let log = requests.iter().find(|line| line.contains(method)).unwrap();
             assert!(log.contains(&format!("result=\"{result}\"")), "{log}");
             assert!(log.contains("duration="), "{log}");
             assert!(log.contains("id="), "{log}");
-            let level = if result == "error" { "WARN" } else { "INFO" };
             assert!(log.contains(level), "{log}");
             assert!(log.contains(detail), "{log}");
         }
@@ -490,6 +482,8 @@ mod request_observability_tests {
 #[cfg(test)]
 mod deadline_tests {
     use super::*;
+    use kona_protocol::BatchValidationProvider;
+    use kona_providers_alloy::AlloyL2ChainProvider;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
@@ -545,21 +539,45 @@ mod deadline_tests {
     #[tokio::test]
     async fn stalled_engine_requests_have_a_deadline(#[case] response: &'static [u8]) {
         let (answered_tx, mut answered) = mpsc::unbounded_channel();
-        let client = EngineClientBuilder {
-            l2: stalled_endpoint(response, answered_tx).await,
-            l2_jwt: JwtSecret::random(),
-            l1: crate::test_utils::trusted_l1_provider(RootProvider::new_http(
+        let client = EngineClient::new(
+            crate::test_utils::trusted_l1_provider(RootProvider::new_http(
                 "http://127.0.0.1:1".parse().unwrap(),
             )),
-            cfg: Arc::new(RollupConfig::default()),
-        }
-        .build();
+            EngineClient::rpc_client(
+                stalled_endpoint(response, answered_tx).await,
+                JwtSecret::random(),
+            ),
+            Arc::new(RollupConfig::default()),
+        );
 
         fails_at_deadline(
             async move { client.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
             &mut answered,
         )
         .await;
+    }
+
+    /// Derivation and the sequencer read L2 through an [`AlloyL2ChainProvider`] over the engine
+    /// connection, so their reads give up on a stalled engine at the same deadline.
+    #[rstest::rstest]
+    #[case::no_response(b"")]
+    #[case::stalled_body(
+        b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 64\r\n\r\n"
+    )]
+    #[tokio::test]
+    async fn stalled_derivation_reads_have_a_deadline(#[case] response: &'static [u8]) {
+        let (answered_tx, mut answered) = mpsc::unbounded_channel();
+        let mut provider = AlloyL2ChainProvider::new(
+            EngineClient::rpc_client(
+                stalled_endpoint(response, answered_tx).await,
+                JwtSecret::random(),
+            ),
+            Arc::new(RollupConfig::default()),
+            8,
+        );
+
+        fails_at_deadline(async move { provider.block_by_number(0).await.is_err() }, &mut answered)
+            .await;
     }
 }
 

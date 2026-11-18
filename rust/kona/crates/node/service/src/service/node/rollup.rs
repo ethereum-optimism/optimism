@@ -14,7 +14,6 @@ use crate::{
 };
 use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
-use alloy_provider::RootProvider;
 use backon::{ExponentialBuilder, Retryable};
 use jsonrpsee::{
     RpcModule,
@@ -40,7 +39,6 @@ use kona_rpc::{
     SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
 };
 use kona_safedb::SafeDb;
-use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
@@ -96,8 +94,6 @@ pub struct RollupNode {
     pub(crate) config: Arc<RollupConfig>,
     /// The L1 configuration.
     pub(crate) l1_config: L1Config,
-    /// The L2 EL provider.
-    pub(crate) l2_provider: RootProvider<Optimism>,
     /// The [`EngineConfig`] for the node.
     pub(crate) engine_config: EngineConfig,
     /// The [`RpcBuilder`] for the node.
@@ -189,12 +185,13 @@ impl RollupNode {
     }
 
     /// Returns the L2 provider that derivation reads from: the engine, behind the buffer of
-    /// blocks the engine has imported.
+    /// blocks the engine has imported. Each call returns its own block cache over the node's one
+    /// engine connection.
     fn l2_derivation_provider(&self) -> BufferedAlloyL2ChainProvider {
         BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new(
-                self.l2_provider.clone(),
+                self.engine_config.provider.clone(),
                 self.config.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             ),

@@ -28,11 +28,9 @@ kona-providers-local.workspace = true
 alloy-serde.workspace = true
 alloy-eips = { workspace = true, features = ["kzg", "serde"] }
 alloy-transport.workspace = true
-alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
-reqwest = { workspace = true, features = ["query"] }
+# The beacon client talks https through reqwest.
+reqwest = { workspace = true, features = ["query", "rustls"] }
 alloy-consensus.workspace = true
-alloy-rpc-types-engine.workspace = true
-alloy-rpc-client.workspace = true
 alloy-provider = { workspace = true, features = ["ipc", "ws", "reqwest"] }
 alloy-primitives = { workspace = true, features = ["map"] }
 alloy-rlp.workspace = true
@@ -51,8 +49,6 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
-tower.workspace = true
-http-body-util.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 
 c-kzg.workspace = true
@@ -70,6 +66,7 @@ metrics = [ "dep:metrics", "kona-derive/metrics", "kona-providers-local/metrics"
 
 [dev-dependencies]
 tokio.workspace = true
+alloy-rpc-client.workspace = true
 kona-protocol = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true
 httpmock.workspace = true
