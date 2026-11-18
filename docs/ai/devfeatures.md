@@ -23,7 +23,7 @@ Active flags:
 
 The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `SuperRootGamesMigration`, which is enabled by default on both the Go and Solidity sides. The bitmap no longer acts as a circuit breaker for it; removal is tracked in #21662.
 
-**Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` (plus each new matrix job, by name, in the `required-contracts-ci` gate's `requires`) all need updating; there is no compile-time link between them.
+**Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` (plus each new matrix job, by name, in the `required-contracts-ci` gate's `requires`) all need updating; there is no compile-time link between them. The contracts upgrade-fork jobs (`contracts-bedrock-tests-upgrade`) don't use the anchor: if the fork path acts on the new feature, add an upgrade job for it too (the comment on those jobs says when).
 
 ## B. Inputs — where operators supply the bitmap
 
