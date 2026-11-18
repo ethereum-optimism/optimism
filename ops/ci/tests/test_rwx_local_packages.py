@@ -29,7 +29,9 @@ class LocalPackageTests(unittest.TestCase):
                              {phase + '-' + str(index) for index in range(12)})
         for index in range(12):
             compile_task = graph['compile-' + str(index)]
-            self.assertEqual(compile_task['use'], ['compiler-seed-' + str(index), 'go-build-tools', 'discovery', 'source'])
+            # RWX lays later entries over earlier ones. The seed holds an older checkout, so the
+            # head checkout follows it. `discovery` uses `source`, so RWX applies it above `source`.
+            self.assertEqual(compile_task['use'], ['compiler-seed-' + str(index), 'go-build-tools', 'source', 'discovery'])
             verdict = graph['verdict-' + str(index)]
             self.assertEqual([key for key in verdict['use'] if key.startswith('compile-')],
                              ['compile-' + str(index) + '.build'])

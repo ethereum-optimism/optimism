@@ -181,7 +181,7 @@ tasks:
       mode: workspace
 
   - key: compiler-source
-    use: [compiler-rust-tools, compiler-code]
+    use: [compiler-code, compiler-rust-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: |
       git reset --hard "$COMPILER_BASE_SHA"
@@ -251,7 +251,7 @@ tasks:
   # Compiler-dependent verdicts inherit the producer's immutable filesystem.
   # Publish reports only: never pack, restore or republish the compiler tree.
   - key: tests-compiler
-    use: [tests-build, head-source]
+    use: [head-source, tests-build]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests-compiler
     env:

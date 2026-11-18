@@ -193,6 +193,11 @@ newer version is informational; bump packages in their own change.
 rwx lint --dir .rwx
 ```
 
+The lint does not check the order of a `use` list. Name a task after the tasks
+that it uses itself. RWX applies a task above the tasks it uses whatever the
+list says, so another order has no effect, and each run prints a warning for
+the task.
+
 Unit tests (Python 3.12+, with `yq`, `jq`, `just` and `git` on `PATH`;
 `mise exec yq jq just --` provides the pinned versions):
 

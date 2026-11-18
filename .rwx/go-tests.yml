@@ -75,7 +75,7 @@ tasks:
       mode: go
 
   - key: route
-    use: [tools, code]
+    use: [code, tools]
     run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -93,7 +93,7 @@ tasks:
       mode: anvil
 
   - key: helper-tests
-    use: [go-build-tools, code]
+    use: [code, go-build-tools]
     if: ${{ init.cache-warm != 'true' }}
     run: mise exec -- python3 -m unittest discover -s ops/ci/tests -p 'test_go*.py'
     cache: false
@@ -117,7 +117,7 @@ tasks:
       filesystem: false
 
   - key: source
-    use: [tools, code]
+    use: [code, tools]
     after: ${{ rpc-preflight.succeeded || rpc-preflight.skipped }}
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
@@ -157,7 +157,7 @@ tasks:
       mode: go
 
   - key: go-source
-    use: [go-go-tools, go-code]
+    use: [go-code, go-go-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
       git reset --hard "$DEPENDENCY_BASE_SHA"
@@ -208,7 +208,7 @@ tasks:
       mode: anvil
 
   - key: contracts-source
-    use: [contracts-go-tools, contracts-foundry-tools, contracts-code]
+    use: [contracts-code, contracts-go-tools, contracts-foundry-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
       git reset --hard "$DEPENDENCY_BASE_SHA"
@@ -252,7 +252,7 @@ tasks:
       mode: release
 
   - key: kona-source
-    use: [kona-rust-tools, kona-code]
+    use: [kona-code, kona-rust-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
       git reset --hard "$DEPENDENCY_BASE_SHA"
@@ -296,7 +296,7 @@ tasks:
       mode: release
 
   - key: op-reth-source
-    use: [op-reth-rust-tools, op-reth-code]
+    use: [op-reth-code, op-reth-rust-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
       git reset --hard "$DEPENDENCY_BASE_SHA"
@@ -340,7 +340,7 @@ tasks:
       mode: go
 
   - key: prestate-source
-    use: [prestate-go-tools, prestate-code]
+    use: [prestate-code, prestate-go-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
       git reset --hard "$DEPENDENCY_BASE_SHA"
@@ -387,7 +387,7 @@ tasks:
 
   - key: compiler-preparation
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    use: [compiler-go-tools, contracts.build, compiler-code]
+    use: [compiler-code, compiler-go-tools, contracts.build]
     run: |
       git reset --hard "$CI_COMMIT_SHA"
       git submodule sync --recursive
@@ -511,7 +511,7 @@ tasks:
     filter: ['!.ci/go-cache/full/dependencies']
 
   - key: compile-0
-    use: [compiler-seed-0, go-build-tools, discovery, source]
+    use: [compiler-seed-0, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -521,7 +521,7 @@ tasks:
       cache-key: go-full-compile-0-${{ init.cache-epoch }}
 
   - key: verdict-0
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-0.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-0.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -531,7 +531,7 @@ tasks:
       cache-key: go-full-runtime-0-${{ init.cache-epoch }}
 
   - key: compile-1
-    use: [compiler-seed-1, go-build-tools, discovery, source]
+    use: [compiler-seed-1, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -541,7 +541,7 @@ tasks:
       cache-key: go-full-compile-1-${{ init.cache-epoch }}
 
   - key: verdict-1
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-1.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-1.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -551,7 +551,7 @@ tasks:
       cache-key: go-full-runtime-1-${{ init.cache-epoch }}
 
   - key: compile-2
-    use: [compiler-seed-2, go-build-tools, discovery, source]
+    use: [compiler-seed-2, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -561,7 +561,7 @@ tasks:
       cache-key: go-full-compile-2-${{ init.cache-epoch }}
 
   - key: verdict-2
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-2.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-2.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -571,7 +571,7 @@ tasks:
       cache-key: go-full-runtime-2-${{ init.cache-epoch }}
 
   - key: compile-3
-    use: [compiler-seed-3, go-build-tools, discovery, source]
+    use: [compiler-seed-3, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -581,7 +581,7 @@ tasks:
       cache-key: go-full-compile-3-${{ init.cache-epoch }}
 
   - key: verdict-3
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-3.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-3.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -591,7 +591,7 @@ tasks:
       cache-key: go-full-runtime-3-${{ init.cache-epoch }}
 
   - key: compile-4
-    use: [compiler-seed-4, go-build-tools, discovery, source]
+    use: [compiler-seed-4, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -601,7 +601,7 @@ tasks:
       cache-key: go-full-compile-4-${{ init.cache-epoch }}
 
   - key: verdict-4
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-4.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-4.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -611,7 +611,7 @@ tasks:
       cache-key: go-full-runtime-4-${{ init.cache-epoch }}
 
   - key: compile-5
-    use: [compiler-seed-5, go-build-tools, discovery, source]
+    use: [compiler-seed-5, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -621,7 +621,7 @@ tasks:
       cache-key: go-full-compile-5-${{ init.cache-epoch }}
 
   - key: verdict-5
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-5.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-5.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -631,7 +631,7 @@ tasks:
       cache-key: go-full-runtime-5-${{ init.cache-epoch }}
 
   - key: compile-6
-    use: [compiler-seed-6, go-build-tools, discovery, source]
+    use: [compiler-seed-6, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -641,7 +641,7 @@ tasks:
       cache-key: go-full-compile-6-${{ init.cache-epoch }}
 
   - key: verdict-6
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-6.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-6.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -651,7 +651,7 @@ tasks:
       cache-key: go-full-runtime-6-${{ init.cache-epoch }}
 
   - key: compile-7
-    use: [compiler-seed-7, go-build-tools, discovery, source]
+    use: [compiler-seed-7, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -661,7 +661,7 @@ tasks:
       cache-key: go-full-compile-7-${{ init.cache-epoch }}
 
   - key: verdict-7
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-7.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-7.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -671,7 +671,7 @@ tasks:
       cache-key: go-full-runtime-7-${{ init.cache-epoch }}
 
   - key: compile-8
-    use: [compiler-seed-8, go-build-tools, discovery, source]
+    use: [compiler-seed-8, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -681,7 +681,7 @@ tasks:
       cache-key: go-full-compile-8-${{ init.cache-epoch }}
 
   - key: verdict-8
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-8.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-8.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -691,7 +691,7 @@ tasks:
       cache-key: go-full-runtime-8-${{ init.cache-epoch }}
 
   - key: compile-9
-    use: [compiler-seed-9, go-build-tools, discovery, source]
+    use: [compiler-seed-9, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -701,7 +701,7 @@ tasks:
       cache-key: go-full-compile-9-${{ init.cache-epoch }}
 
   - key: verdict-9
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-9.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-9.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -711,7 +711,7 @@ tasks:
       cache-key: go-full-runtime-9-${{ init.cache-epoch }}
 
   - key: compile-10
-    use: [compiler-seed-10, go-build-tools, discovery, source]
+    use: [compiler-seed-10, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -721,7 +721,7 @@ tasks:
       cache-key: go-full-compile-10-${{ init.cache-epoch }}
 
   - key: verdict-10
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-10.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-10.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -731,7 +731,7 @@ tasks:
       cache-key: go-full-runtime-10-${{ init.cache-epoch }}
 
   - key: compile-11
-    use: [compiler-seed-11, go-build-tools, discovery, source]
+    use: [compiler-seed-11, go-build-tools, source, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -741,7 +741,7 @@ tasks:
       cache-key: go-full-compile-11-${{ init.cache-epoch }}
 
   - key: verdict-11
-    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, discovery, compile-11.build, source]
+    use: [go-build-tools, contract-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, source, discovery, compile-11.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-test-verdict.yml
     with:
@@ -787,7 +787,7 @@ tasks:
           path: tmp/testlogs
 
   - key: main-gate-receipt
-    use: [tools, code]
+    use: [code, tools]
     after: ${{ (actions-verdict.succeeded || actions-verdict.failed || actions-verdict.skipped) && (verdict-0.succeeded || verdict-0.failed || verdict-0.skipped) && (verdict-1.succeeded || verdict-1.failed || verdict-1.skipped) && (verdict-10.succeeded || verdict-10.failed || verdict-10.skipped) && (verdict-11.succeeded || verdict-11.failed || verdict-11.skipped) && (verdict-2.succeeded || verdict-2.failed || verdict-2.skipped) && (verdict-3.succeeded || verdict-3.failed || verdict-3.skipped) && (verdict-4.succeeded || verdict-4.failed || verdict-4.skipped) && (verdict-5.succeeded || verdict-5.failed || verdict-5.skipped) && (verdict-6.succeeded || verdict-6.failed || verdict-6.skipped) && (verdict-7.succeeded || verdict-7.failed || verdict-7.skipped) && (verdict-8.succeeded || verdict-8.failed || verdict-8.skipped) && (verdict-9.succeeded || verdict-9.failed || verdict-9.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt main-go
