@@ -2456,6 +2456,8 @@ pub(super) fn scenario_config() -> ProposerConfig {
         factory_address: Address::ZERO,
         prestates_url: "file:///replaced-by-scenario-world".parse().unwrap(),
         proposal_interval_seconds: 1,
+        // One interval per game keeps planned timestamps on the fixed grid.
+        max_proposal_span_intervals: NonZeroU64::MIN,
         proposal_safety: ProposalSafety::Finalized,
         fetch_interval: 86_400,
         metrics_listen: MetricsListen::Disabled,
