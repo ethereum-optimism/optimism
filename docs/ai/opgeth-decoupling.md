@@ -77,9 +77,9 @@ All op-geth-specific code lives in `op-core/` packages (alongside the pre-existi
 ### Design principles (apply to all future op-core additions)
 
 - **Monorepo-best, not op-geth-faithful.** Names and shapes diverge freely; only *computed
-  values* and *wire formats* must match. Equivalence is pinned by **live differential tests**
-  that compare against op-geth while the build still resolves go-ethereum to the fork; all
-  differential tests are deleted at the cutover (§ #20266).
+  values* and *wire formats* must match. Equivalence is pinned by **golden vectors**: literal
+  values from the reference implementation, op-geth for the types it implemented and op-reth
+  and op-alloy otherwise, asserted without running that implementation.
 - **Naming**: inside `op-core/` the `Optimism`/`OPStack` prefix is dropped (redundant), with two
   deliberate exceptions: `OptimismConfig` (pairs with the JSON-wire-load-bearing
   `ChainConfig.Optimism` field name) and the `{Validate,Decode,Encode}OptimismExtraData` helpers
@@ -87,8 +87,8 @@ All op-geth-specific code lives in `op-core/` packages (alongside the pre-existi
 - Files needing both upstream and monorepo variants use import aliases `optypes`, `opparams`,
   `opfees`.
 - **Wire compatibility** where types serialise: JSON tags identical to op-geth
-  (`OptimismConfig`), byte-identical encodings (`DepositTx`: `0x7E || RLP(struct)`), verified by
-  the differential tests.
+  (`OptimismConfig`), byte-identical encodings (`DepositTx`: `0x7E || RLP(struct)`), pinned by
+  the golden vectors.
 
 ### Cross-implementation parity
 
@@ -97,8 +97,8 @@ defines the OP transaction and receipt types that both op-reth and kona consume,
 Go definitions that `op-core/*` mirrors. Both sides serve one chain, so a value one produces and
 the other rejects is a consensus split — and agreeing with op-geth establishes only the Go half.
 
-- **op-geth parity is necessary, never sufficient.** The differential tests pin the Go side to
-  the fork; by construction they cannot see a rule where the fork itself is wrong. Any new or
+- **op-geth parity is necessary, never sufficient.** The golden vectors pin the Go side to the
+  fork's values; by construction they cannot see a rule where the fork itself is wrong. Any new or
   changed encoding, hash or accept-set is checked against `rust/op-alloy` too, and a disagreement
   is a question of which one is correct — decided from the [specs](https://specs.optimism.io), not
   from the incumbent. Fixing op-geth (and bumping the pin) is a normal outcome.
@@ -108,9 +108,10 @@ the other rejects is a consensus split — and agreeing with op-geth establishes
   `rust/op-alloy/crates/consensus/src/post_exec/tests.rs` pin the post-exec (`0x7D`) tx hash this
   way. Reference-implementation fixtures are not a substitute: they only cover values that
   implementation can produce.
-- **The vectors outlive the differential tests.** op-geth differential tests are deleted at the
-  cutover (§ #20266). The cross-implementation vectors are not — after the flip they are the only
-  thing tying the Go types to op-reth and kona.
+- **The vectors are the tie.** The only test that compares the Go types with another
+  implementation at runtime is the Go/Rust interop-deposits diff
+  (`ops/scripts/test-interop-deposits-diff.sh`); otherwise the cross-implementation vectors are
+  what ties them to op-reth and kona.
 
 For batcher-controlled bytes (batches, frames, channels) the second implementation is kona's own
 decoder rather than op-alloy's types, and the rule takes a different shape — accept-sets compared
@@ -134,7 +135,7 @@ unrelated libp2p `ProtocolVersion` string — same name, different concept, left
 ## 1. `core/types` – OP Stack transaction types (`DepositTx`, `PostExecTx`) — **DONE** (production)
 
 `op-core/types` ships `DepositTx` (`0x7E || RLP(struct)`) and `PostExecTx` with
-`MarshalBinary`/`Unmarshal*` and differential tests (#20262). Read the package for the API.
+`MarshalBinary`/`Unmarshal*` and golden vectors (#20262). Read the package for the API.
 
 Two wire facts worth keeping in mind (both encoded in the landed implementation):
 
@@ -155,8 +156,8 @@ straight to bytes — and `UnmarshalDepositLogEvent` returns `*optypes.DepositTx
 L2 blocks are execution payloads with raw deposit bytes, never a `*types.Block` holding a
 deposit, and the contracts-bedrock `go-ffi` helper encodes deposits for the Solidity tests with
 `optypes.DepositTx`. Production code needs no fork transaction type: it uses the op-core types
-and the class-partitioned sources accessors (§11); `optypes.IsDepositTx` and its siblings are
-transition scaffolding (§2).
+and the class-partitioned sources accessors (§11); `optypes.IsDepositTx` is transition
+scaffolding (§2).
 
 ---
 
@@ -164,17 +165,18 @@ transition scaffolding (§2).
 
 op-geth adds methods to `*types.Transaction` (`IsDepositTx`, `IsSystemTx`, `SourceHash`, `Mint`,
 `RollupCostData`) that the monorepo calls on txs received via Engine API / RPC. `tx.Type()` and
-`tx.Data()` are standard upstream — no change. The replacements exist in `op-core/types` (free
-functions and `UnmarshalDepositTx`-then-read-fields) and `op-core/fees.TxRollupCostData`.
+`tx.Data()` are standard upstream — no change. The replacements are
+`UnmarshalDepositTx`-then-read-fields, `op-core/types.IsDepositTx` and
+`op-core/fees.TxRollupCostData`.
 
-**These `*types.Transaction` helpers are transition scaffolding, not the destination.** They only
-work while the build resolves go-ethereum to op-geth (where a `*types.Transaction` can carry a
-`0x7E`/`0x7D` tx); they let call sites drop op-geth's methods *before* the underlying
-representation changes. After the cutover an upstream `*types.Transaction` can never hold a
-deposit or post-exec tx, so **the helpers and their differential tests are deleted at the cutover
-(§ #20266)**. The durable shape never wraps an OP tx in `*types.Transaction`: raw bytes decode
-into `optypes.DepositTx`/`optypes.PostExecTx`, and code never asks "is this a deposit?" of a
-generic tx because the sources accessors already partition by class (§11).
+**`optypes.IsDepositTx` is transition scaffolding, not the destination.** It only works while the
+build resolves go-ethereum to op-geth (where a `*types.Transaction` can carry a `0x7E` tx); it lets
+call sites drop op-geth's methods *before* the underlying representation changes. After the
+cutover an upstream `*types.Transaction` can never hold a deposit or post-exec tx, so **it is
+deleted at the cutover (§ #20266)**, with the deposit branch of `TxRollupCostData`. The durable
+shape never wraps an OP tx in `*types.Transaction`: raw bytes decode into
+`optypes.DepositTx`/`optypes.PostExecTx`, and code never asks "is this a deposit?" of a generic
+tx because the sources accessors already partition by class (§11).
 
 ---
 
@@ -182,7 +184,7 @@ generic tx because the sources accessors already partition by class (§11).
 
 `op-core/types.Receipt` (landed, #20262) embeds upstream `types.Receipt` and adds op-geth's
 **complete** OP receipt field set (L1 fee fields, operator fee, deposit nonce, DA footprint) with
-a custom JSON unmarshaler and a differential test. Complete deliberately: the e2e/acceptance
+a custom JSON unmarshaler and golden vectors. Complete deliberately: the e2e/acceptance
 suites read more fields than the one production consumer, and a partial set would silently drop
 fields at cutover — invisible while the replace still points at op-geth.
 
@@ -203,8 +205,8 @@ mainly for txinclude's post-inclusion accounting and the test suites (§13).
 Landed (#20261) and wired into `op-service/txinclude`. API is monorepo-best (see design
 principles): plain per-era free functions (`L1CostBedrock/Ecotone/Fjord` + `L1FeeParams`) instead
 of op-geth's closure factories, `OperatorCostIsthmus/Jovian` replacing inline math,
-`TxRollupCostData(tx)` replacing the fork's Transaction method. Values pinned by differential
-tests. Notable choice: both txinclude sites use the **Jovian** operator-fee formula
+`TxRollupCostData(tx)` replacing the fork's Transaction method. Values pinned by golden
+vectors. Notable choice: both txinclude sites use the **Jovian** operator-fee formula
 unconditionally — exact on all production chains, and on pre-Jovian chains it only
 *over*-estimates, which over-reserves budget rather than under-budgeting.
 
@@ -226,9 +228,10 @@ concrete go-ethereum config converts explicitly via `GethChainConfig()` (Ethereu
 derived from the OP schedule: Shanghai=Canyon, Cancun=Ecotone, Prague=Isthmus, Osaka=Karst —
 op-geth's own loader is missing Osaka=Karst; the monorepo follows op-reth, which is correct).
 
-While the build still resolves go-ethereum to op-geth, `GethChainConfig()` also carries the OP
-fork fields and `Optimism` struct on the produced config (in-process test ELs need them). Those
-fields don't exist upstream — **shedding them is a cutover edit** (#20266).
+The produced config carries only the Ethereum fork schedule, no OP fork fields or `Optimism`
+struct, so go-ethereum code reading it applies Ethereum rules. It is fit for the genesis state
+root and header encoding (§14); anything that builds or executes blocks or computes fee or
+EIP-1559 values belongs in op-reth or `op-core`.
 
 **Swaps landed (#20270, closed):** `rollup.Config.ChainOpConfig` is now
 `*opparams.OptimismConfig` (JSON tags identical → wire-compatible), and
@@ -294,7 +297,7 @@ kona operator-fee test reads the next base fee from the engine's `eth_feeHistory
 ## 9. `beacon/engine` – `PayloadID` type alias — no change needed
 
 `engine.PayloadID` is standard upstream. The OP-aware PayloadID *hash* in op-geth's `miner` is
-not; op-sync-tester carries its own copy, pinned by a differential test until the cutover (#21525).
+not; op-sync-tester carries its own copy (#21525).
 
 ---
 
@@ -409,8 +412,7 @@ Gates:
   `HeaderAndTxsByHash` (§11).
 - **ethclient path:** a forbidigo rule in `.golangci.yaml` rejects
   `ethclient.Client.{BlockByNumber,BlockByHash,BlockReceipts,TransactionInBlock,TransactionByHash}`
-  under `op-e2e/`, `op-devstack/`, `op-acceptance-tests/`,
-  `op-deployer/pkg/deployer/integration_test/` and `rust/kona/tests/`. An L1 read carries
+  in the whole tree. An L1 read carries
   `//nolint:forbidigo // L1: <reason>`, and an L2 read that can only return a user tx carries
   `//nolint:forbidigo // L2 user tx: <reason>`. The rule matches the receiver's static type, so a
   call through an interface or an embedding type is not seen: don't wrap an L2 read in one.
@@ -457,13 +459,10 @@ hooks to geth's infrastructure packages, and op-service foundations grew to depe
 sit under every service, so they break the whole tree at cutover, and two of them are *features*
 rather than symbols. (Found by the 2026-07 upstream-build spike; §19 keeps finding such uses.)
 
-**§15's seams are owned; what keeps most of op-service on op-geth is the `op-core/types`
-deposit edge** (see §20). `op-core/params`, `op-core/predeploys` and
-`op-service/{log,testlog,jsonrpc,client}` build against upstream go-ethereum today.
-`op-core/types` still fails where `FromGethReceipt` and the other receipt wrappers copy op-geth's
-deposit fields (`Receipt.DepositNonce`, `DepositReceiptVersion`). Those assignments are removed at
-the final cutover (#20266). Until then `op-core/types` and every package importing it, including
-`op-service/{eth,signer,metrics,rpc}`, build only against op-geth.
+**§15's seams are owned, and `op-core/types` builds against upstream go-ethereum** (see §20):
+its receipt wrappers read and write only their own deposit fields, never op-geth's
+`Receipt.DepositNonce` and `DepositReceiptVersion`. What remains of op-service's op-geth use is
+on the ratchet allowlist (§19).
 
 **Log context extensions** — fork adds `Logger.SetContext`, `WriteCtx`, `LogAttrs`, and the
 `Trace/…/ErrorContext` methods; `op-service/log`'s logfilter feature and `op-service/testlog`
@@ -654,10 +653,9 @@ uses in its test files) and what it needs from the fork, e.g.
   comment describes.
 
 #20266 is executable when every remaining entry is a cutover edit. Cutover edits carry `#20266`
-(the op-core differential tests, the §2 scaffolding, the fork-changed signatures of §15 and the
-APIs upstream changed) or `#23200` (the chain-config and genesis codec differential tests). The
-flip PR moves go.mod to `cutoverVersion`, removes or rewrites the entries, then deletes the tool,
-the allowlist, the CI job and the §13 forbidigo rule.
+(the op-core transition code, the fork-changed signatures of §15 and the APIs upstream changed).
+The flip PR moves go.mod to `cutoverVersion`, removes or rewrites the entries, then deletes the
+tool, the allowlist, the CI job and the §13 forbidigo rule.
 
 ---
 
@@ -711,12 +709,13 @@ Compiling every Go module in those repos against upstream go-ethereum with the r
   several private service modules.
 - **Decoupled now** — the replace drops with no other change. A small number of private service
   modules, mostly ones that only ever used geth's `log` package.
-- **Waiting on the final cutover** — everything else, which is most of them. Almost every
-  service imports `op-service/{rpc,metrics}` or another importer of `op-core/types`, which
-  builds against upstream only once the deposit edge goes at the final cutover (#20266):
+- **Waiting on the final cutover** — a module that imports `op-service/rpc`, whose
+  `node.NewHTTPHandlerStack` call the final cutover (#20266) rewrites for upstream's signature,
+  or another monorepo package on the ratchet allowlist (§19). That compile predates
+  `op-core/types` building against upstream, and it put most modules here:
   `infra/{op-signer,op-conductor-mon,op-ufm,peer-mgmt-service}`, `monitorism/op-monitorism`, and
-  most private service modules. A module that needs only `op-service/{log,testlog,jsonrpc,client}`
-  is unblocked on a monorepo pin that includes §15.
+  most private service modules. One of them that reaches `op-core/types` only through a package
+  such as `op-service/metrics` is unblocked on a current monorepo pin; recompile it to tell.
 
 One case is worth generalising because it is a trap rather than a blocker. A module pinned to a
 years-old op-geth pseudo-version compiled fine with the replace dropped, and dependency scanning
@@ -787,5 +786,5 @@ monorepo-only (#22678).
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | **done** (#23217) |
 | CI ratchet (§19) | required upstream type-check against a shrinking allowlist | **done** |
-| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
-| Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
+| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | unblocked unless the module imports `op-service/rpc`, which waits for the final cutover (its `node.NewHTTPHandlerStack` call) |
+| Final cutover: flip replace, delete §2 scaffolding | go.mod | open (#20266) |

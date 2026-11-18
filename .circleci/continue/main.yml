@@ -1700,6 +1700,83 @@ jobs:
           paths:
             - "cannon/bin"
 
+  # develop's latest timings for the memory-all test splits (see shard-tests.sh), from
+  # CircleCI's API. Fetched once, in a job both memory-all jobs wait for, so every node
+  # gets the same file. Not on develop, tags, the merge queue or proposal branches, which
+  # keep CircleCI's own timings. Any failure writes no file, and the split works as today.
+  memory-all-shard-timings:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - run:
+          name: Create the timings dir
+          command: mkdir -p /tmp/_shard-timings && touch /tmp/_shard-timings/.keep
+      - unless:
+          condition:
+            or:
+              - equal: ["develop", << pipeline.git.branch >>]
+              - equal: ["", << pipeline.git.branch >>]
+              - matches:
+                  pattern: "^gh-readonly-queue/.*$"
+                  value: << pipeline.git.branch >>
+              # PR branches targeting proposal/* still fetch develop's. Tests develop lacks get the 1m default.
+              - matches:
+                  pattern: "^proposal/.*$"
+                  value: << pipeline.git.branch >>
+          steps:
+            - run:
+                name: Fetch develop's timings
+                # The API needs no token while the project is public. If it goes private, set
+                # CIRCLE_TIMINGS_TOKEN (a personal API token, v2 rejects project tokens) in a restricted
+                # context on this job. A project env var would be readable by every job.
+                environment:
+                  # The fork must follow acceptance_l1_forks. A job with no file splits as today.
+                  JOBS: memory-all-opn-op-reth-fusaka memory-all-kona-op-reth-fusaka
+                command: |
+                  # Any failure logs one line and passes, leaving no file for the jobs not yet done.
+                  trap 'echo "Could not fetch develop timings, memory-all splits as today"; exit 0' ERR
+                  API=https://circleci.com/api
+                  SLUG=gh/ethereum-optimism/optimism
+                  CURL=(curl -fsS --max-time 10 --retry 2 --retry-delay 1 --retry-max-time 10)
+                  if [ -n "${CIRCLE_TIMINGS_TOKEN:-}" ]; then CURL+=(-H "Circle-Token: $CIRCLE_TIMINGS_TOKEN"); fi
+                  cd "$(mktemp -d)"
+                  # Green develop jobs, newest first. A develop pipeline adds about 100.
+                  for offset in 0 100 200; do
+                    [ "$SECONDS" -lt 60 ]
+                    "${CURL[@]}" -o jobs.json "$API/v1.1/project/$SLUG/tree/develop?filter=successful&shallow=true&limit=100&offset=$offset"
+                    jq -r '.[] | "\(.workflows.job_name) \(.build_num)"' jobs.json >> jobs.txt
+                    if awk -v want="$JOBS" 'BEGIN { n = split(want, w, " ") } { seen[$1] = 1 }
+                        END { for (i = 1; i <= n; i++) if (!seen[w[i]]) exit 1 }' jobs.txt; then break; fi
+                  done
+                  for job in $JOBS; do
+                    num=$(awk -v j="$job" '$1 == j && $2 > n { n = $2 } END { print n + 0 }' jobs.txt)
+                    if [ "$num" -eq 0 ]; then echo "No green develop run of $job found"; continue; fi
+                    : > tests.jsonl
+                    token=
+                    while :; do
+                      [ "$SECONDS" -lt 60 ]
+                      "${CURL[@]}" -o page.json "$API/v2/project/$SLUG/$num/tests${token:+?page-token=$token}"
+                      jq -c '.items[]' page.json >> tests.jsonl
+                      token=$(jq -r '.next_page_token // empty | @uri' page.json)
+                      [ -n "$token" ] || break
+                    done
+                    # The split gets top-level names from `go test -list`. A parent's run_time includes
+                    # its subtests, so those are dropped. A name in several packages runs on one node,
+                    # so its copies are summed.
+                    jq -s '{tests: [map(select(.name | contains("/") | not)) | group_by(.name)[]
+                      | {name: .[0].name, classname: .[0].classname, result: "success",
+                         run_time: (map(.run_time // 0) | add)}]}' tests.jsonl > timings.json
+                    n=$(jq '.tests | length' timings.json)
+                    if [ "$n" -eq 0 ]; then echo "No tests in develop job $num"; continue; fi
+                    mv timings.json "/tmp/_shard-timings/$job.json"
+                    echo "Wrote $n test timings from develop job $num to $job.json"
+                  done
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - _shard-timings
+
   check-op-geth-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2789,6 +2866,7 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - memory-all-shard-timings
       # Both run on the job's default 2xlarge.gen2 (16 vCPU / 32 GiB). The tests mostly wait on
       # blocks, so 4 nodes running 16 at once take as long as 8 nodes running 8. At 16, anonymous
       # memory peaked at about 11.4 GiB of 32 per node (Nov 2026 bench). memory.peak reads 32 GiB
@@ -2800,6 +2878,7 @@ workflows:
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
+              # A new fork also needs its name in memory-all-shard-timings.
               l1_fork: &acceptance_l1_forks
                 - fusaka
           parallelism: 4
@@ -2816,6 +2895,8 @@ workflows:
             - rust-op-reth-binary
             - rust-sp1-super-range-executor
             - go-binaries-for-sysgo
+            # terminal: with no timings file the split runs as before.
+            - memory-all-shard-timings: terminal
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain

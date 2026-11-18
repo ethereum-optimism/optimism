@@ -375,6 +375,16 @@ generate_challenger_prestate() {
         log_error "(or set KONA_CUSTOM_CONFIGS_DIR to a directory that contains them)"
         return 1
     fi
+    # The build also needs depsets.json. This chain is never in an interop cluster, so when the
+    # staging holds only this chain, its dependency set holds the chain alone.
+    if [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/depsets.json" ]; then
+        if [ "$(jq -c '[.[].chainId]' "$KONA_CUSTOM_CONFIGS_DIR/chainList.json")" != "[$CHAIN_ID]" ]; then
+            log_error "Create depsets.json in $KONA_CUSTOM_CONFIGS_DIR covering every chain in chainList.json"
+            return 1
+        fi
+        jq -n --arg id "$CHAIN_ID" '[{dependencies: {($id): {}}, overrideMessageExpiryWindow: null}]' > "$KONA_CUSTOM_CONFIGS_DIR/depsets.json"
+        log_info "Wrote self-only dependency set for chain $CHAIN_ID to $KONA_CUSTOM_CONFIGS_DIR/depsets.json"
+    fi
     # The prestate build requires an absolute path
     KONA_CUSTOM_CONFIGS_DIR="$(cd "$KONA_CUSTOM_CONFIGS_DIR" && pwd)"
     export KONA_CUSTOM_CONFIGS_DIR

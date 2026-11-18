@@ -4,6 +4,8 @@ description: "Run the kona-node binary against an op-reth execution client, from
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 <Note>
 If you don't have a `kona-node` binary yet, download the latest pre-built
 binary from the [GitHub releases page](https://github.com/ethereum-optimism/optimism/releases),
@@ -102,12 +104,15 @@ kona-node node \
 That's it! Your node should connect to P2P and start syncing
 quickly.
 
+<Unreleased component="kona-node" />
+
 <Note>
-By default, `kona-node` enables L1 block hash verification and trusts
-the local L2 engine, matching op-node. When pointing the node at public
-RPC endpoints, follow
+By default, `kona-node` verifies L1 RPC responses, matching op-node.
+Verification requires the L1 RPC to serve `eth_getProof`. The L2 engine is
+the node's own execution client and is always trusted. When pointing the
+node at a public L1 RPC endpoint, follow
 [configure RPC trust](/node-operators/kona-node/run/rpc-trust) to configure
-verification for both RPCs.
+verification.
 </Note>
 
 

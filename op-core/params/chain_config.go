@@ -45,7 +45,7 @@ func (o *OptimismConfig) String() string {
 // ChainConfig is the OP-Stack hardfork schedule and configuration of a chain. It is
 // a standalone type: it does not embed go-ethereum's params.ChainConfig, so it carries
 // only OP-specific state and the predicates below. Code that needs a go-ethereum config
-// — to drive an EVM, genesis, or block processor — converts via GethChainConfig.
+// for the Ethereum fork schedule converts via GethChainConfig.
 type ChainConfig struct {
 	ChainID *big.Int `json:"chainId"`
 

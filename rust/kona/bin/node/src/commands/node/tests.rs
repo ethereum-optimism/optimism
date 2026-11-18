@@ -151,10 +151,10 @@ fn a_safe_database_open_failure_reports_the_path() {
 
 #[test]
 fn a_registry_chain_without_the_flag_gets_its_registry_dependency_set() {
-    // OP Sepolia is in no interop cluster, so the registry gives it a dependency set holding only
+    // Ink Sepolia is in no interop cluster, so the registry gives it a dependency set holding only
     // itself, the same set op-node loads. Scheduling Lagoon makes the set required.
-    const OP_SEPOLIA: u64 = 11155420;
-    let registry_cfg = &ROLLUP_CONFIGS[&OP_SEPOLIA];
+    const INK_SEPOLIA: u64 = 763373;
+    let registry_cfg = &ROLLUP_CONFIGS[&INK_SEPOLIA];
     let cfg = RollupConfig {
         hardforks: HardForkConfig { lagoon_time: Some(0), ..registry_cfg.hardforks },
         ..registry_cfg.clone()
@@ -162,22 +162,25 @@ fn a_registry_chain_without_the_flag_gets_its_registry_dependency_set() {
 
     let dependency_set = NodeCommand::default().load_dependency_set(&cfg).unwrap().unwrap();
 
-    assert_eq!(*dependency_set, DEPENDENCY_SETS[&OP_SEPOLIA]);
-    assert_eq!(dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [OP_SEPOLIA]);
+    assert_eq!(*dependency_set, DEPENDENCY_SETS[&INK_SEPOLIA]);
+    assert_eq!(dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [INK_SEPOLIA]);
 }
 
 #[test]
 fn the_flag_overrides_the_registry_dependency_set() {
-    const OP_SEPOLIA: u64 = 11155420;
+    const INK_SEPOLIA: u64 = 763373;
     let file = tempfile::NamedTempFile::new().unwrap();
-    std::fs::write(file.path(), r#"{"dependencies":{"11155420":{},"1301":{}}}"#).unwrap();
+    std::fs::write(file.path(), r#"{"dependencies":{"763373":{},"1301":{}}}"#).unwrap();
     let command =
         NodeCommand { interop_dependency_set: Some(file.path().into()), ..Default::default() };
 
     let dependency_set =
-        command.load_dependency_set(&ROLLUP_CONFIGS[&OP_SEPOLIA]).unwrap().unwrap();
+        command.load_dependency_set(&ROLLUP_CONFIGS[&INK_SEPOLIA]).unwrap().unwrap();
 
-    assert_eq!(dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [1301, OP_SEPOLIA]);
+    assert_eq!(
+        dependency_set.dependencies.keys().copied().collect::<Vec<_>>(),
+        [1301, INK_SEPOLIA]
+    );
 }
 
 #[test]
@@ -199,8 +202,8 @@ fn an_unknown_chain_with_lagoon_scheduled_needs_the_flag() {
 
 #[tokio::test]
 async fn alt_da_chains_are_refused() {
-    // Redstone uses keccak commitments, Celo Sepolia generic commitments.
-    for chain_id in [690, 11142220] {
+    // Cyber uses keccak commitments, Celo Sepolia generic commitments.
+    for chain_id in [7560, 11142220] {
         let args = GlobalArgs {
             l2_chain_id: alloy_chains::Chain::from_id(chain_id),
             ..Default::default()
@@ -208,4 +211,36 @@ async fn alt_da_chains_are_refused() {
         let err = NodeCommand::default().run(&args).await.unwrap_err();
         assert!(err.to_string().contains("alt-DA"), "chain {chain_id}: {err}");
     }
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_l1_client_bounds_each_request_and_records_its_timeout() {
+    use kona_providers_alloy::BlockLabel;
+    use metrics_exporter_prometheus::PrometheusBuilder;
+
+    // An L1 endpoint that accepts connections and never answers.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap()).parse().unwrap();
+    let _endpoint = tokio::spawn(async move {
+        loop {
+            let (connection, _) = listener.accept().await.unwrap();
+            // Hold the connection open without ever answering.
+            tokio::spawn(async move {
+                let _connection = connection;
+                std::future::pending::<()>().await
+            });
+        }
+    });
+    let recorder = PrometheusBuilder::new().build_recorder();
+    let metrics = recorder.handle();
+    let _recorder = metrics::set_default_local_recorder(&recorder);
+
+    // The paused clock jumps to the deadline once the request is waiting on the endpoint.
+    let l1 = command::l1_client(url, true);
+    assert!(l1.block_info_by_label(BlockLabel::Latest).await.is_err());
+
+    // The metrics layer sits outside the deadline, so it records the timeout.
+    let rendered = metrics.render();
+    let timeout = r#"kona_rpc_client_request_duration_seconds_count{client="l1",method="eth_getBlockByNumber",outcome="transport_error",error="timeout"} 1"#;
+    assert!(rendered.contains(timeout), "missing {timeout} in:\n{rendered}");
 }

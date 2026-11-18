@@ -1,54 +1,28 @@
 //! Contains the builder for the [`RollupNode`].
 
-use crate::{
-    EngineConfig, NetworkConfig, RollupNode, SequencerConfig, actors::DerivationDelegateClient,
-    service::node::L1Config,
-};
-use alloy_primitives::Bytes;
-use alloy_provider::RootProvider;
-use alloy_rpc_client::RpcClient;
-use alloy_transport_http::{
-    AuthLayer, Http, HyperClient,
-    hyper_util::{client::legacy::Client, rt::TokioExecutor},
-};
-use http_body_util::Full;
-use op_alloy_network::Optimism;
+use crate::{EngineConfig, NetworkConfig, RollupNode, SequencerConfig, service::node::L1Config};
 use std::sync::Arc;
-use tower::ServiceBuilder;
 use url::Url;
 
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_providers_alloy::OnlineBeaconClient;
+use kona_providers_alloy::{AlloyChainProvider, OnlineBeaconClient};
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::RpcBuilder;
 use kona_safedb::SafeDb;
-
-/// Configuration for Derivation Delegate mode.
-#[derive(Debug, Clone)]
-pub struct DerivationDelegateConfig {
-    /// The L2 consensus layer RPC URL to delegate derivation to.
-    /// This CL must expose the `optimism_syncStatus` RPC endpoint.
-    pub l2_cl_url: Url,
-}
-
-impl Default for DerivationDelegateConfig {
-    fn default() -> Self {
-        Self { l2_cl_url: Url::parse("http://localhost:9545").unwrap() }
-    }
-}
 
 /// The [`L1ConfigBuilder`] is used to construct a [`L1Config`].
 #[derive(Debug)]
 pub struct L1ConfigBuilder {
     /// The L1 chain configuration.
     pub chain_config: L1ChainConfig,
-    /// Whether to trust the L1 RPC.
-    pub trust_rpc: bool,
+    /// The node's L1 client, shared by every component that reads L1.
+    ///
+    /// Its transport must give each request a deadline: the components that read L1 do not bound
+    /// their own reads. kona-node wraps its transport with [`kona_sources::rpc::with_deadline`].
+    pub provider: AlloyChainProvider,
     /// The L1 beacon API.
     pub beacon: Url,
-    /// The L1 RPC URL.
-    pub rpc_url: Url,
     /// The duration in seconds of an L1 slot. This can be used to hardcode a fixed slot
     /// duration if the l1-beacon's slot configuration is not available.
     pub slot_duration_override: Option<u64>,
@@ -63,8 +37,6 @@ pub struct RollupNodeBuilder {
     pub config: RollupConfig,
     /// The L1 chain configuration.
     pub l1_config_builder: L1ConfigBuilder,
-    /// Whether to trust the L2 RPC.
-    pub l2_trust_rpc: bool,
     /// Engine builder configuration.
     pub engine_config: EngineConfig,
     /// The [`NetworkConfig`].
@@ -73,9 +45,9 @@ pub struct RollupNodeBuilder {
     pub rpc_config: Option<RpcBuilder>,
     /// The [`SequencerConfig`].
     pub sequencer_config: Option<SequencerConfig>,
-    /// Optional configuration for Derivation Delegate mode.
-    /// When present, the node does not run derivation, instead trusting the configured delegate.
-    pub derivation_delegate_config: Option<DerivationDelegateConfig>,
+    /// The L2 CL RPC to delegate derivation to. It must expose `optimism_syncStatus`.
+    /// When present, the node does not run derivation, instead trusting the delegate.
+    pub derivation_delegate_url: Option<Url>,
     /// The interop dependency set for this chain.
     pub dependency_set: Option<Arc<DependencySet>>,
     /// Records the safe head reached as of each L1 block when configured.
@@ -90,7 +62,6 @@ impl RollupNodeBuilder {
         version: String,
         config: RollupConfig,
         l1_config_builder: L1ConfigBuilder,
-        l2_trust_rpc: bool,
         engine_config: EngineConfig,
         p2p_config: NetworkConfig,
         rpc_config: Option<RpcBuilder>,
@@ -99,12 +70,11 @@ impl RollupNodeBuilder {
             version,
             config,
             l1_config_builder,
-            l2_trust_rpc,
             engine_config,
             p2p_config,
             rpc_config,
             sequencer_config: None,
-            derivation_delegate_config: None,
+            derivation_delegate_url: None,
             dependency_set: None,
             safe_db: None,
             verifier_l1_confs: 0,
@@ -145,26 +115,12 @@ impl RollupNodeBuilder {
         Self { sequencer_config: Some(sequencer_config), ..self }
     }
 
-    /// Sets the Derivation Delegate configuration, trusting the configured delegate for safe head
-    /// updates.
-    pub fn with_derivation_delegate_config(
-        self,
-        derivation_delegate_config: Option<DerivationDelegateConfig>,
-    ) -> Self {
-        Self { derivation_delegate_config, ..self }
+    /// Sets the L2 CL RPC to delegate derivation to, trusting it for safe head updates.
+    pub fn with_derivation_delegate_url(self, derivation_delegate_url: Option<Url>) -> Self {
+        Self { derivation_delegate_url, ..self }
     }
 
     /// Assembles the [`RollupNode`] service.
-    ///
-    /// ## Panics
-    ///
-    /// Panics if:
-    /// - The L1 provider RPC URL is not set.
-    /// - The L1 beacon API URL is not set.
-    /// - The L2 provider RPC URL is not set.
-    /// - The L2 engine URL is not set.
-    /// - The jwt secret is not set.
-    /// - The P2P config is not set.
     pub fn build(self) -> RollupNode {
         let mut l1_beacon = OnlineBeaconClient::new_http(self.l1_config_builder.beacon.to_string());
         if let Some(l1_slot_duration) = self.l1_config_builder.slot_duration_override {
@@ -173,21 +129,9 @@ impl RollupNodeBuilder {
 
         let l1_config = L1Config {
             chain_config: Arc::new(self.l1_config_builder.chain_config),
-            trust_rpc: self.l1_config_builder.trust_rpc,
             beacon_client: l1_beacon,
-            engine_provider: RootProvider::new_http(self.l1_config_builder.rpc_url.clone()),
+            provider: self.l1_config_builder.provider,
         };
-
-        let jwt_secret = self.engine_config.l2_jwt_secret;
-        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-
-        let auth_layer = AuthLayer::new(jwt_secret);
-        let service = ServiceBuilder::new().layer(auth_layer).service(hyper_client);
-
-        let layer_transport = HyperClient::with_service(service);
-        let http_hyper = Http::with_client(layer_transport, self.engine_config.l2_url.clone());
-        let rpc_client = RpcClient::new(http_hyper, false);
-        let l2_provider = RootProvider::<Optimism>::new(rpc_client);
 
         let rollup_config = Arc::new(self.config);
         // The buffer's reorg depth governs its handling of chain events, which nothing feeds it:
@@ -201,24 +145,16 @@ impl RollupNodeBuilder {
         let p2p_config = self.p2p_config;
         let sequencer_config = self.sequencer_config.unwrap_or_default();
 
-        let derivation_delegate_provider = self.derivation_delegate_config.as_ref().map(|config| {
-            DerivationDelegateClient::new(config.l2_cl_url.clone()).expect(
-                "Failed to create Derivation Delegate provider despite config being present",
-            )
-        });
-
         RollupNode {
             version: self.version,
             config: rollup_config,
             l1_config,
-            l2_provider,
             l2_block_buffer,
-            l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,
             p2p_config,
             sequencer_config,
-            derivation_delegate_provider,
+            derivation_delegate_url: self.derivation_delegate_url,
             dependency_set: self.dependency_set,
             safe_db: self.safe_db,
             verifier_l1_confs: self.verifier_l1_confs,

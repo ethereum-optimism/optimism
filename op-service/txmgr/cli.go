@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -47,7 +46,6 @@ const (
 	TxNotInMempoolTimeoutFlagName      = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName       = "txmgr.receipt-query-interval"
 	AlreadyPublishedCustomErrsFlagName = "txmgr.already-published-custom-errs"
-	CellProofTimeFlagName              = "txmgr.cell-proof-time"
 	BlobTipCapDynamicFlagName          = "txmgr.blob-tip-cap-dynamic"
 	BlobTipCapPercentileFlagName       = "txmgr.blob-tip-cap-percentile"
 	BlobTipCapRangeFlagName            = "txmgr.blob-tip-cap-range"
@@ -83,15 +81,13 @@ type DefaultFlagValues struct {
 	TxSendTimeout             time.Duration
 	TxNotInMempoolTimeout     time.Duration
 	ReceiptQueryInterval      time.Duration
-	CellProofTime             uint64
 	BlobTipCapDynamic         bool
 	BlobTipCapPercentile      int
 	BlobTipCapRange           int
 }
 
 var (
-	defaultCellProofTime     uint64 = math.MaxUint64
-	DefaultBatcherFlagValues        = DefaultFlagValues{
+	DefaultBatcherFlagValues = DefaultFlagValues{
 		NumConfirmations:          uint64(10),
 		SafeAbortNonceTooLowCount: uint64(3),
 		FeeLimitMultiplier:        uint64(5),
@@ -106,7 +102,6 @@ var (
 		TxSendTimeout:             0, // Try sending txs indefinitely, to preserve tx ordering for Holocene
 		TxNotInMempoolTimeout:     2 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
-		CellProofTime:             defaultCellProofTime,
 		BlobTipCapDynamic:         false,
 		BlobTipCapPercentile:      60,
 		BlobTipCapRange:           20,
@@ -125,7 +120,6 @@ var (
 		TxSendTimeout:             2 * time.Minute,
 		TxNotInMempoolTimeout:     1 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
-		CellProofTime:             defaultCellProofTime,
 		BlobTipCapDynamic:         false,
 		BlobTipCapPercentile:      0,
 		BlobTipCapRange:           0,
@@ -305,12 +299,6 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Usage:   "List of custom RPC error messages that indicate that a transaction has already been published.",
 			EnvVars: prefixEnvVars("TXMGR_ALREADY_PUBLISHED_CUSTOM_ERRS"),
 		},
-		&cli.Uint64Flag{
-			Name:    CellProofTimeFlagName,
-			Usage:   "Enables cell proofs in blob transactions for Fusaka (EIP-7742) compatibility from the provided unix timestamp. Should be set to the L1 Fusaka time. May be left blank for Ethereum Mainnet, Sepolia, or Hoodi L1s.",
-			EnvVars: prefixEnvVars("TXMGR_CELL_PROOF_TIME"),
-			Value:   defaults.CellProofTime,
-		},
 	}, opsigner.CLIFlags(envPrefix, "")...)
 }
 
@@ -339,7 +327,6 @@ type CLIConfig struct {
 	TxSendTimeout              time.Duration
 	TxNotInMempoolTimeout      time.Duration
 	AlreadyPublishedCustomErrs []string
-	CellProofTime              uint64
 	BlobTipCapDynamic          bool
 	BlobTipCapPercentile       int
 	BlobTipCapRange            int
@@ -363,7 +350,6 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		TxNotInMempoolTimeout:     defaults.TxNotInMempoolTimeout,
 		ReceiptQueryInterval:      defaults.ReceiptQueryInterval,
 		SignerCLIConfig:           opsigner.NewCLIConfig(),
-		CellProofTime:             defaults.CellProofTime,
 		BlobTipCapDynamic:         defaults.BlobTipCapDynamic,
 		BlobTipCapPercentile:      defaults.BlobTipCapPercentile,
 		BlobTipCapRange:           defaults.BlobTipCapRange,
@@ -457,7 +443,6 @@ func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 		TxSendTimeout:              ctx.Duration(TxSendTimeoutFlagName),
 		TxNotInMempoolTimeout:      ctx.Duration(TxNotInMempoolTimeoutFlagName),
 		AlreadyPublishedCustomErrs: ctx.StringSlice(AlreadyPublishedCustomErrsFlagName),
-		CellProofTime:              ctx.Uint64(CellProofTimeFlagName),
 		BlobTipCapDynamic:          ctx.Bool(BlobTipCapDynamicFlagName),
 		BlobTipCapPercentile:       ctx.Int(BlobTipCapPercentileFlagName),
 		BlobTipCapRange:            ctx.Int(BlobTipCapRangeFlagName),
@@ -526,8 +511,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		}
 	}
 
-	cellProofTime := fallbackToOsakaCellProofTimeIfKnown(chainID, cfg.CellProofTime)
-
 	res := Config{
 		Backend: l1,
 		ChainID: chainID,
@@ -543,7 +526,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		NumConfirmations:           cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount:  cfg.SafeAbortNonceTooLowCount,
 		AlreadyPublishedCustomErrs: cfg.AlreadyPublishedCustomErrs,
-		CellProofTime:              cellProofTime,
 	}
 
 	if cfg.BlobTipCapDynamic {
@@ -573,17 +555,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
 
 	return &res, nil
-}
-
-func fallbackToOsakaCellProofTimeIfKnown(chainID *big.Int, cellProofTime uint64) uint64 {
-	if cellProofTime != defaultCellProofTime {
-		return cellProofTime // We only fallback if nothing is set
-	}
-	l1ChainConfig := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(chainID))
-	if l1ChainConfig != nil && l1ChainConfig.OsakaTime != nil {
-		return *l1ChainConfig.OsakaTime
-	}
-	return math.MaxUint64 // Network not known and no override specified, so we never use cell proofs
 }
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
@@ -671,9 +642,6 @@ type Config struct {
 	// List of custom RPC error messages that indicate that a transaction has
 	// already been published.
 	AlreadyPublishedCustomErrs []string
-
-	// CellProofTime is the time at which cell proofs are enabled in blob transaction (for Fusaka (EIP-7742) compatibility).
-	CellProofTime uint64
 
 	// BlobTipCapDynamic enables dynamic blob tip cap from the blob tip oracle
 	// instead of using static tip cap for blob transactions.

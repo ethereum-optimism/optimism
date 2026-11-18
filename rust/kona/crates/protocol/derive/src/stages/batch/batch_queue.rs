@@ -998,7 +998,7 @@ mod tests {
         let tx = TxDeposit {
             source_hash: B256::left_padding_from(&[0xde, 0xad]),
             from: Address::left_padding_from(&[0xbe, 0xef]),
-            mint: 1,
+            mint: U256::from(1),
             gas_limit: 2,
             to: TxKind::Call(Address::left_padding_from(&[3])),
             value: U256::from(4_u64),

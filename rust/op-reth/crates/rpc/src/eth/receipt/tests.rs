@@ -506,7 +506,7 @@ fn deposit_receipt_contract_address(
         source_hash: Default::default(),
         from,
         to,
-        mint: 0,
+        mint: U256::ZERO,
         value: U256::ZERO,
         gas_limit: 1_000_000,
         is_system_transaction: false,

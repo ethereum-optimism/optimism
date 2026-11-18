@@ -1,12 +1,7 @@
 [
   {
     "dependencies": {
-      "10": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
+      "10": {},
       "130": {}
     },
     "overrideMessageExpiryWindow": null
@@ -20,12 +15,6 @@
   {
     "dependencies": {
       "183": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
-      "185": {}
     },
     "overrideMessageExpiryWindow": null
   },
@@ -79,12 +68,6 @@
   },
   {
     "dependencies": {
-      "690": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
       "863": {}
     },
     "overrideMessageExpiryWindow": null
@@ -103,13 +86,8 @@
   },
   {
     "dependencies": {
-      "1135": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
-      "1301": {}
+      "1301": {},
+      "11155420": {}
     },
     "overrideMessageExpiryWindow": null
   },
@@ -139,19 +117,7 @@
   },
   {
     "dependencies": {
-      "4202": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
       "4801": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
-      "5330": {}
     },
     "overrideMessageExpiryWindow": null
   },
@@ -182,12 +148,6 @@
   {
     "dependencies": {
       "7560": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
-      "8008": {}
     },
     "overrideMessageExpiryWindow": null
   },
@@ -241,12 +201,6 @@
   },
   {
     "dependencies": {
-      "65536": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
       "91342": {}
     },
     "overrideMessageExpiryWindow": null
@@ -271,12 +225,6 @@
   },
   {
     "dependencies": {
-      "2702128": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
       "3397901": {}
     },
     "overrideMessageExpiryWindow": null
@@ -296,12 +244,6 @@
   {
     "dependencies": {
       "11142220": {}
-    },
-    "overrideMessageExpiryWindow": null
-  },
-  {
-    "dependencies": {
-      "11155420": {}
     },
     "overrideMessageExpiryWindow": null
   },

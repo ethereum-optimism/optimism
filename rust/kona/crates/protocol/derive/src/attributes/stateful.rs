@@ -330,7 +330,7 @@ mod tests {
         data[24..32].copy_from_slice(&offset);
         let len: [u8; 8] = U64::from(128).to_be_bytes();
         data[56..64].copy_from_slice(&len);
-        // Copy the u128 mint value
+        // Copy the mint into the low 16 bytes of its word
         let mint: [u8; 16] = 10_u128.to_be_bytes();
         data[80..96].copy_from_slice(&mint);
         // Copy the tx value

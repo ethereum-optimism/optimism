@@ -306,17 +306,34 @@ where
                             // Process first flashblock
                             self.process_flashblock(flashblock);
 
-                            // Batch process all other immediately available flashblocks
+                            // Batch process all other immediately available flashblocks, stopping
+                            // at an error so it gets the same backoff as one received alone.
+                            let mut stream_error = false;
                             while let Some(result) = self.incoming_flashblock_rx.next().now_or_never().flatten() {
                                 match result {
                                     Ok(fb) => self.process_flashblock(fb),
-                                    Err(err) => warn!(target: "flashblocks", %err, "Error receiving flashblock"),
+                                    Err(err) => {
+                                        self.metrics.stream_errors.increment(1);
+                                        warn!(
+                                            target: "flashblocks",
+                                            %err,
+                                            retry_period = CONNECTION_BACKOUT_PERIOD.as_secs(),
+                                            "Error receiving flashblock"
+                                        );
+                                        stream_error = true;
+                                        break;
+                                    }
                                 }
                             }
 
+                            // Schedules the flashblocks already received before backing off.
                             self.try_start_build_job();
+                            if stream_error {
+                                sleep(CONNECTION_BACKOUT_PERIOD).await;
+                            }
                         }
                         Some(Err(err)) => {
+                            self.metrics.stream_errors.increment(1);
                             warn!(
                                 target: "flashblocks",
                                 %err,
@@ -522,6 +539,8 @@ struct FlashBlockServiceMetrics {
     current_block_height: Gauge,
     /// Current flashblock index.
     current_index: Gauge,
+    /// Number of errors from the subblocks stream, idle-timeout reconnects included.
+    stream_errors: Counter,
     /// Number of reorgs detected during canonical block reconciliation.
     reorg_count: Counter,
     /// Number of build results discarded due to state invalidation (reorg during build).

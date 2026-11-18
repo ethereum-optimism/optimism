@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // PostExecTxType is the EIP-2718 type byte of OP Stack post-execution transactions.
@@ -46,13 +44,8 @@ func UnmarshalPostExecTx(raw []byte) (*PostExecTx, error) {
 	return &PostExecTx{Data: bytes.Clone(raw[1:])}, nil
 }
 
-// IsPostExecTx reports whether tx is an OP Stack post-execution transaction.
-//
-// Like the deposit helpers in deposit_tx.go, this is transition-only: a
-// go-ethereum *types.Transaction can hold a post-exec tx only while the build
-// resolves to op-geth. After the cutover to upstream go-ethereum the 0x7D type
-// is rejected on decode, so this is removed; the durable shape decodes raw
-// bytes via [UnmarshalPostExecTx].
-func IsPostExecTx(tx *types.Transaction) bool {
-	return tx.Type() == PostExecTxType
+// IsPostExecTxBytes reports whether raw, a transaction's EIP-2718 encoding, starts with the
+// post-exec type byte. Empty input is not a post-exec transaction. It does not check the payload.
+func IsPostExecTxBytes(raw []byte) bool {
+	return len(raw) > 0 && raw[0] == PostExecTxType
 }

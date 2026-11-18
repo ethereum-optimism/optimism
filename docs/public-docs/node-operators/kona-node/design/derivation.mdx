@@ -50,7 +50,7 @@ The actor coordinates with several other node components:
 
 ### Pipeline Construction
 
-The derivation pipeline is constructed by the `RollupNode` service when it wires up the derivation actor. The node builds caching L1/L2 providers and then creates an `OnlinePipeline`, which traverses L1 by polling its chain provider for the next block:
+The derivation pipeline is constructed by the `RollupNode` service when it wires up the derivation actor. It takes a clone of the node's shared L1 provider, limited to blocks with enough confirmations, builds a caching L2 provider, and then creates an `OnlinePipeline`, which traverses L1 by polling its chain provider for the next block:
 
 ```rust
 OnlinePipeline::new_polled(
@@ -67,13 +67,16 @@ OnlinePipeline::new_polled(
 
 The node uses caching providers to optimize performance:
 
-- **AlloyChainProvider**: Provides L1 blockchain data with configurable cache size
+- **AlloyChainProvider**: Provides L1 blockchain data. `kona-node` builds one and every component reads L1 through a clone, so its caches are shared.
 - **AlloyL2ChainProvider**: Provides L2 blockchain data and system configuration
 - **OnlineBlobProvider**: Retrieves blob data from the beacon chain for post-4844 transactions
 
-The cache size is set to 1024 entries by default:
+Both caches hold 1024 entries by default:
 
 ```rust
+// kona-node's L1 client
+const L1_PROVIDER_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
+// The derivation pipeline's L2 provider
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 ```
 

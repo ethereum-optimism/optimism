@@ -78,7 +78,7 @@ func (f *l1Fork) transactions(ctx context.Context) ([]broadcaster.Broadcast, err
 	}
 	var bcasts []broadcaster.Broadcast
 	for number := f.block + 1; number <= head; number++ {
-		block, err := f.client.BlockByNumber(ctx, new(big.Int).SetUint64(number))
+		block, err := f.client.BlockByNumber(ctx, new(big.Int).SetUint64(number)) //nolint:forbidigo // L1: reads the transactions sent to the anvil fork of L1
 		if err != nil {
 			return nil, fmt.Errorf("failed to read fork block %d: %w", number, err)
 		}

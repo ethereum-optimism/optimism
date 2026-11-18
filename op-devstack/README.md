@@ -105,8 +105,10 @@ and returns a typed output that the test then may use.
   names (`pectra`, `fusaka`, `glamsterdam`) and geth execution-fork names
   (`prague`, `osaka`, `amsterdam`) are accepted. BPO selectors are not accepted until the
   bundled op-geth supports `engine_newPayloadV4` at those forks. Amsterdam inherits BPO4
-  blob parameters until upstream defaults are available. If unset, Prague remains the
-  devstack default.
+  blob parameters until upstream defaults are available. If unset, devstack activates
+  `defaultL1Fork` (`sysgo/deployer.go`), which a test keeps at least at the newest execution
+  fork scheduled on mainnet. A batcher posting blobs needs Osaka: test batchers send cell
+  proofs, which an L1 before Osaka does not include.
 - `DEVSTACK_MONOREPO_ROOT`: Absolute path to a monorepo checkout. Used by out-of-tree acceptance suites (which depend on this module by git rev) so contract-artifact resolution can find `packages/contracts-bedrock` outside the cwd-relative walk. In-tree runs don't need it.
 
 ### Rust stack env vars:

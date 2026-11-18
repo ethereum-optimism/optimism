@@ -9,6 +9,7 @@ mod blocking;
 mod commands;
 mod dial;
 mod duplicates;
+mod reached;
 mod signer;
 mod start;
 mod static_peers;

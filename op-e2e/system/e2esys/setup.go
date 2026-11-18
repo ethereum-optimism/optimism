@@ -252,7 +252,6 @@ func HoloceneSystemConfig(t *testing.T, holoceneTimeOffset *hexutil.Uint64, opts
 
 func IsthmusSystemConfig(t *testing.T, isthmusTimeOffset *hexutil.Uint64, opts ...SystemConfigOpt) SystemConfig {
 	cfg := HoloceneSystemConfig(t, &genesisTime, opts...)
-	cfg.DeployConfig.L1PragueTimeOffset = isthmusTimeOffset
 	cfg.DeployConfig.L2GenesisIsthmusTimeOffset = isthmusTimeOffset
 	return cfg
 }
