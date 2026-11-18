@@ -470,8 +470,8 @@ func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
 			sys, hidden := newReplacedBlockSystem(t,
 				presets.WithL2BlockTimes(map[eth.ChainID]uint64{sysgo.DefaultL2AID: 1, sysgo.DefaultL2BID: 4}),
 				presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(rangeSplitCount)),
-				// A game spans one interval, so from either agreed timestamp it reaches
-				// chain B's block after the idle ones within rangeSplitCount timestamps.
+				// A game spans one to four intervals (8 to 32 s), so from either agreed timestamp
+				// it reaches chain B's block after the idle ones within rangeSplitCount timestamps.
 				presets.WithZKProposerOption(sysgo.WithZKProposalInterval(8*time.Second)),
 			)
 			execTimestamp := sendDeniedMessage(t, sys, hidden)
