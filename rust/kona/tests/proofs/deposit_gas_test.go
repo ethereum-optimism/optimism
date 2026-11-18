@@ -9,6 +9,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -131,9 +132,10 @@ func TestDepositGasParity(gt *testing.T) {
 		testedBlockNum := new(big.Int).SetUint64(testedBlockRef.Number)
 		// A deposit receipt carries the deposit nonce from Regolith and the receipt version from
 		// Canyon. From Canyon both are in the receipt's consensus encoding, which FetchReceipts
-		// checks against the receipts root; before Canyon the nonce is stored and served only. The
-		// nonce is the sender's nonce before the deposit, which is its nonce in the parent block:
-		// no block here holds two txs from one sender.
+		// checks against the receipts root; before Canyon the nonce is stored and served only. From
+		// Regolith the RPC transaction also reports the deposit nonce as its nonce. The nonce is the
+		// sender's nonce before the deposit, which is its nonce in the parent block: no block here
+		// holds two txs from one sender.
 		requireDepositReceiptFields := func(depositTx *optypes.DepositTx, receipt *optypes.Receipt) {
 			if preRegolith {
 				require.Nil(t, receipt.DepositNonce, "deposit receipts carry no deposit nonce before Regolith")
@@ -142,6 +144,14 @@ func TestDepositGasParity(gt *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, receipt.DepositNonce, "deposit receipts carry the deposit nonce from Regolith")
 				require.Equal(t, nonce, *receipt.DepositNonce, "deposit nonce must be the sender's nonce before the deposit")
+
+				// Read as raw JSON: a decoded DepositTx has no nonce.
+				var rpcTx struct {
+					Nonce *hexutil.Uint64 `json:"nonce"`
+				}
+				require.NoError(t, env.Engine.RPCClient().CallContext(t.Ctx(), &rpcTx, "eth_getTransactionByHash", receipt.TxHash))
+				require.NotNil(t, rpcTx.Nonce, "RPC deposit transactions have a nonce from Regolith")
+				require.Equal(t, nonce, uint64(*rpcTx.Nonce), "the RPC nonce of a deposit must be its deposit nonce")
 			}
 			if preCanyon {
 				require.Nil(t, receipt.DepositReceiptVersion, "deposit receipts carry no version before Canyon")

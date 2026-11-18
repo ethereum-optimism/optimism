@@ -242,12 +242,10 @@ pub fn validate_op_version_specific_fields<ChainSpec: OpHardforks>(
 /// `engine_forkchoiceUpdated` call, taking `version` from the method called. They read no state.
 ///
 /// The gas limit, EIP-1559 and minimum base fee checks fail with
-/// [`EngineObjectValidationError::InvalidParams`], which the engine API answers with `-32602`. The
-/// version-specific checks answer as the engine API spec requires, with `-38003` (invalid payload
-/// attributes) or `-38005`. op-node always sets the OP fields, so only a fork schedule that differs
-/// between op-node and op-reth fails their checks. op-node retries a call that fails with
-/// `-32602`, which keeps that mismatch visible as a stall. On `-38003` it gives up on the
-/// attributes: it drops a derived batch, or from Holocene replaces it with a deposits-only block.
+/// [`EngineObjectValidationError::InvalidParams`], which the engine API answers with `-32602`.
+/// The version-specific checks answer with `-38003` (invalid payload attributes) or `-38005`, as
+/// the engine API spec requires. op-node retries a call that fails with `-32602`, so a fork
+/// schedule mismatch stalls it instead of changing what it derives.
 pub fn ensure_well_formed_payload_attributes<ChainSpec: OpHardforks>(
     chain_spec: &ChainSpec,
     version: EngineApiMessageVersion,

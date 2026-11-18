@@ -9,12 +9,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/invoker"
@@ -39,6 +41,11 @@ type statusProbe struct {
 	succeedsFromFork bool
 }
 
+// forkActivationBlocks are the blocks built around a fork's activation.
+type forkActivationBlocks struct {
+	before, activation, after eth.L2BlockRef
+}
+
 // forkActivationCase lists EVM rules that a fork switches on.
 type forkActivationCase struct {
 	fork         forks.Name
@@ -47,7 +54,21 @@ type forkActivationCase struct {
 	// fork, when its address has no code, and the fixture's Output from the fork on. The Invoker
 	// uses PUSH0 and MCOPY, so only a fork after Ecotone can have outputs.
 	outputs []PrecompileTestFixture
+	// probeActivationBlock also sends the probes into the activation block. This catches an engine
+	// that takes its rules from the parent block's timestamp. Only a fork whose activation block
+	// may carry user transactions can set it: op-node's sequencer leaves them out of each activation
+	// block that carries upgrade transactions (Ecotone, Fjord, Isthmus, and Jovian on), and
+	// derivation drops them from Jovian on.
+	probeActivationBlock bool
+	// l2Alloc replaces accounts of the default L2 genesis.
+	l2Alloc types.GenesisAlloc
+	// checkBlocks checks header fields and state that the fork changes.
+	checkBlocks func(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, blocks forkActivationBlocks)
 }
+
+// create2DeployerCodeHash is the code hash of the create2 deployer that Canyon force-deploys
+// (CREATE_2_DEPLOYER_CODEHASH in alloy-op-evm/src/block/canyon.rs).
+var create2DeployerCodeHash = common.HexToHash("0xb0550b5b431e30d38000efb7107aaa0ade03d48a7198a140edda9d27134468b2")
 
 // blsMalformedInputs are the EIP-2537 failure vectors: well-formed calls that each BLS12-381
 // precompile must reject from Isthmus on.
@@ -70,10 +91,11 @@ var blsMalformedInputs = []statusProbe{
 
 // TestForkActivationEVMRules activates a fork after genesis, as live chains activated it, and
 // checks the EVM rules that the fork switches on. It runs the same probes in a block before the
-// activation block and in a block after it, then proves those blocks and the activation block with
-// the fault-proof program. TestPrecompiles activates each precompile's fork at genesis, so it cannot
-// catch an engine that picks its opcodes or precompiles from the genesis fork instead of from each
-// block's timestamp.
+// activation block and in a block after it, and in the activation block too when that block may
+// carry user transactions. For Canyon and Ecotone it also checks header fields and state that the
+// fork changes. It then proves the three blocks with the fault-proof program. TestPrecompiles
+// activates each precompile's fork at genesis, so it cannot catch an engine that picks its opcodes
+// or precompiles from the genesis fork instead of from each block's timestamp.
 func TestForkActivationEVMRules(gt *testing.T) {
 	kzg := precompileFixture(gt, "kzgPointEvaluation")
 	// Changing the claimed evaluation y, at bytes 64..96, makes the proof fail to verify.
@@ -97,13 +119,25 @@ func TestForkActivationEVMRules(gt *testing.T) {
 
 	matrix := helpers.NewMatrix[forkActivationCase]()
 	for _, c := range []forkActivationCase{
-		{fork: forks.Canyon, statusProbes: []statusProbe{
-			{name: "PUSH0", data: []byte{byte(vm.PUSH0)}, succeedsFromFork: true},
-		}},
-		{fork: forks.Ecotone, statusProbes: []statusProbe{
-			{name: "TSTORE", data: []byte{byte(vm.PUSH1), 1, byte(vm.PUSH1), 1, byte(vm.TSTORE)}, succeedsFromFork: true},
-			{name: "kzgPointEvaluationWrongEvaluation", to: &kzg.Address, data: kzgWrongEvaluation},
-		}},
+		{
+			fork: forks.Canyon,
+			statusProbes: []statusProbe{
+				{name: "PUSH0", data: []byte{byte(vm.PUSH0)}, succeedsFromFork: true},
+			},
+			probeActivationBlock: true,
+			// The default L2 genesis preinstalls the create2 deployer, so Canyon's force-deployment
+			// would change nothing. An empty account removes it.
+			l2Alloc:     types.GenesisAlloc{predeploys.Create2DeployerAddr: {Balance: new(big.Int)}},
+			checkBlocks: checkCanyonBlocks,
+		},
+		{
+			fork: forks.Ecotone,
+			statusProbes: []statusProbe{
+				{name: "TSTORE", data: []byte{byte(vm.PUSH1), 1, byte(vm.PUSH1), 1, byte(vm.TSTORE)}, succeedsFromFork: true},
+				{name: "kzgPointEvaluationWrongEvaluation", to: &kzg.Address, data: kzgWrongEvaluation},
+			},
+			checkBlocks: checkEcotoneBlocks,
+		},
 		{fork: forks.Fjord, outputs: []PrecompileTestFixture{p256, p256Unverified}},
 		{fork: forks.Isthmus, statusProbes: blsMalformedInputs, outputs: blsOutputs},
 	} {
@@ -119,6 +153,11 @@ func TestForkActivationEVMRules(gt *testing.T) {
 func runForkActivationTest(gt *testing.T, testCfg *helpers.TestCfg[forkActivationCase]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	c := testCfg.Custom
+	if c.l2Alloc != nil {
+		allocs := *actionsHelpers.DefaultAlloc
+		allocs.L2Alloc = c.l2Alloc
+		testCfg.Allocs = &allocs
+	}
 	batcherCfg := helpers.NewBatcherCfg(func(b *actionsHelpers.BatcherCfg) {
 		// Calldata is the only batch transport before Ecotone.
 		b.DataAvailabilityType = batcherFlags.CalldataType
@@ -126,6 +165,11 @@ func runForkActivationTest(gt *testing.T, testCfg *helpers.TestCfg[forkActivatio
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), batcherCfg, func(dc *genesis.DeployConfig) {
 		dc.ActivateForkAtOffset(c.fork, forkActivationBlock*dc.L2BlockTime)
 	})
+	// The L1 genesis has a zero parent beacon block root. An L1 block timed for the first L2 block
+	// becomes the L1 origin of every block below, so checkEcotoneBlocks sees a real root.
+	env.Miner.ActL1StartBlock(env.Sd.RollupCfg.BlockTime)(t)
+	env.Miner.ActL1EndBlock(t)
+	env.Sequencer.ActL1HeadSignal(t)
 	l2 := env.Engine.EthClient()
 	alice := env.Alice.Address()
 	chainID := env.Sd.RollupCfg.L2ChainID
@@ -222,19 +266,64 @@ func runForkActivationTest(gt *testing.T, testCfg *helpers.TestCfg[forkActivatio
 
 	beforeTxs := sendProbes()
 	before := buildBlock(beforeTxs)
-	env.Sequencer.ActL2EmptyBlock(t)
-	activation := env.Sequencer.L2Unsafe()
+	var activationTxs []*types.Transaction
+	if c.probeActivationBlock {
+		activationTxs = sendProbes()
+	}
+	activation := buildBlock(activationTxs)
 	require.Equal(t, uint64(forkActivationBlock), activation.Number)
 	require.True(t, env.Sd.RollupCfg.IsActivationBlockForFork(activation.Time, c.fork), "block %d must activate %s", activation.Number, c.fork)
 	afterTxs := sendProbes()
 	after := buildBlock(afterTxs)
 
 	checkProbes(before, beforeTxs, false)
+	if c.probeActivationBlock {
+		checkProbes(activation, activationTxs, true)
+	}
 	checkProbes(after, afterTxs, true)
+	if c.checkBlocks != nil {
+		c.checkBlocks(t, env, forkActivationBlocks{before: before, activation: activation, after: after})
+	}
 
 	require.Equal(t, after, env.BatchMineAndSync(t), "derivation must reproduce the engine-built blocks")
 	for _, block := range []eth.L2BlockRef{before, activation, after} {
 		env.RunFaultProofProgram(t, block.Number, testCfg.CheckResult, testCfg.InputParams...)
+	}
+}
+
+// checkCanyonBlocks checks that blocks carry withdrawals from Canyon on, and that the activation
+// block force-deploys the create2 deployer.
+func checkCanyonBlocks(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, blocks forkActivationBlocks) {
+	require.Nil(t, env.Engine.HeaderByHash(t, blocks.before.Hash).WithdrawalsHash, "blocks have no withdrawals before Canyon")
+	for _, block := range []eth.L2BlockRef{blocks.activation, blocks.after} {
+		withdrawalsHash := env.Engine.HeaderByHash(t, block.Hash).WithdrawalsHash
+		require.NotNil(t, withdrawalsHash, "block %d must have withdrawals", block.Number)
+		require.Equal(t, types.EmptyWithdrawalsHash, *withdrawalsHash, "block %d must have empty withdrawals", block.Number)
+	}
+
+	code := func(block eth.L2BlockRef) []byte {
+		code, err := env.Engine.EthClient().CodeAt(t.Ctx(), predeploys.Create2DeployerAddr, new(big.Int).SetUint64(block.Number))
+		require.NoError(t, err)
+		return code
+	}
+	require.Empty(t, code(blocks.before), "the create2 deployer must not exist before Canyon")
+	require.Equal(t, create2DeployerCodeHash, crypto.Keccak256Hash(code(blocks.activation)), "Canyon must force-deploy the create2 deployer")
+}
+
+// checkEcotoneBlocks checks that from Ecotone on each block carries the parent beacon block root of
+// its L1 origin.
+func checkEcotoneBlocks(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, blocks forkActivationBlocks) {
+	require.Nil(t, env.Engine.HeaderByHash(t, blocks.before.Hash).ParentBeaconRoot, "blocks have no parent beacon block root before Ecotone")
+	for _, block := range []eth.L2BlockRef{blocks.activation, blocks.after} {
+		origin, err := env.Miner.EthClient().HeaderByHash(t.Ctx(), block.L1Origin.Hash)
+		require.NoError(t, err)
+		// op-node falls back to the zero hash when the L1 origin has no root, which would make the
+		// check below pass for any engine that defaults to zero.
+		require.NotNil(t, origin.ParentBeaconRoot, "the L1 origin of block %d must have a parent beacon block root", block.Number)
+		require.NotEqual(t, common.Hash{}, *origin.ParentBeaconRoot, "the L1 origin of block %d must have a nonzero parent beacon block root", block.Number)
+		root := env.Engine.HeaderByHash(t, block.Hash).ParentBeaconRoot
+		require.NotNil(t, root, "block %d must have a parent beacon block root", block.Number)
+		require.Equal(t, *origin.ParentBeaconRoot, *root, "block %d must carry the parent beacon block root of its L1 origin", block.Number)
 	}
 }
 
