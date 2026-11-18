@@ -164,9 +164,9 @@ fn test_record_to_dial_only_what_the_table_filter_accepts(
 /// The driver dials a record by handing it over to gossip, which dials it. There's no gossip
 /// here, so the test checks the handover.
 ///
-/// N has a public-only filter, and a bootstore with a public record. L has no filter, and has
-/// N as its bootnode, given by an enode URL on loopback, so L's bootstrap starts a session with
-/// N from loopback, which L's record holds.
+/// N has a public-only filter, and a bootstore with a public record gossip reaches. L has no
+/// filter, and has N as its bootnode, given by an enode URL on loopback, so L's bootstrap starts
+/// a session with N from loopback, which L's record holds.
 #[tokio::test]
 async fn test_public_only_node_leaves_the_dial_to_a_private_session() {
     let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
@@ -175,7 +175,8 @@ async fn test_public_only_node_leaves_the_dial_to_a_private_session() {
     let path = dir.path().join("bootstore.json");
     let node_enr = node.disc.local_enr();
     let enode = loopback_enode(&node_enr);
-    let (_node, mut records) = node.start();
+    let (node, mut records) = node.start();
+    reach_through(&node, &public);
 
     let mut loopback = offline_driver();
     loopback.bootnodes = BootNodes(vec![BootNode::Enode(enode)]);
