@@ -225,9 +225,14 @@ func (block *RPCBlock) validateL1Withdrawals(withdrawals *types.Withdrawals, wit
 
 func (block *RPCBlock) validateL2Withdrawals(withdrawals *types.Withdrawals, withdrawalsRoot *common.Hash) error {
 	if withdrawalsRoot != nil {
-		if !(withdrawals != nil && len(*withdrawals) == 0) {
+		if withdrawals == nil {
+			return errors.New("expected empty withdrawals, but got none")
+		}
+		if len(*withdrawals) != 0 {
 			return fmt.Errorf("expected empty withdrawals, but got %d", len(*withdrawals))
 		}
+	} else if withdrawals != nil {
+		return fmt.Errorf("expected no withdrawals due to missing withdrawals-root, but got %d", len(*withdrawals))
 	}
 	return nil
 }

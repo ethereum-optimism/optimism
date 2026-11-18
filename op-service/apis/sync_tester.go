@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -28,7 +27,7 @@ type SyncAPI interface {
 type EthAPI interface {
 	GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (json.RawMessage, error)
 	GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error)
-	GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error)
+	GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (json.RawMessage, error)
 	ChainId(ctx context.Context) (hexutil.Big, error)
 }
 

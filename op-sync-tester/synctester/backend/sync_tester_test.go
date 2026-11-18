@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -30,8 +32,11 @@ type MockELReader struct {
 	BlocksByHash   map[common.Hash]*json.RawMessage
 	BlocksByNumber map[rpc.BlockNumber]*json.RawMessage
 
-	ReceiptsByHash   map[common.Hash][]*types.Receipt
-	ReceiptsByNumber map[rpc.BlockNumber][]*types.Receipt
+	PayloadsByHash   map[common.Hash]*eth.ExecutionPayloadEnvelope
+	PayloadsByNumber map[uint64]*eth.ExecutionPayloadEnvelope
+
+	ReceiptsByHash   map[common.Hash]json.RawMessage
+	ReceiptsByNumber map[rpc.BlockNumber]json.RawMessage
 
 	Latest    *json.RawMessage
 	Safe      *json.RawMessage
@@ -43,8 +48,10 @@ func NewMockELReader(chainID eth.ChainID) *MockELReader {
 		ChainID:          hexutil.Big(*chainID.ToBig()),
 		BlocksByHash:     make(map[common.Hash]*json.RawMessage),
 		BlocksByNumber:   make(map[rpc.BlockNumber]*json.RawMessage),
-		ReceiptsByHash:   make(map[common.Hash][]*types.Receipt),
-		ReceiptsByNumber: make(map[rpc.BlockNumber][]*types.Receipt),
+		PayloadsByHash:   make(map[common.Hash]*eth.ExecutionPayloadEnvelope),
+		PayloadsByNumber: make(map[uint64]*eth.ExecutionPayloadEnvelope),
+		ReceiptsByHash:   make(map[common.Hash]json.RawMessage),
+		ReceiptsByNumber: make(map[rpc.BlockNumber]json.RawMessage),
 	}
 }
 
@@ -68,15 +75,29 @@ func (m *MockELReader) GetBlockByHashJSON(ctx context.Context, hash common.Hash,
 	return *raw, nil
 }
 
-func (m *MockELReader) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
-	return nil, nil
+func (m *MockELReader) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	env, ok := m.PayloadsByNumber[number]
+	if !ok {
+		return nil, ethereum.NotFound
+	}
+	return env, nil
 }
 
-func (m *MockELReader) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
-	return nil, nil
+func (m *MockELReader) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	env, ok := m.PayloadsByHash[hash]
+	if !ok {
+		return nil, ethereum.NotFound
+	}
+	return env, nil
 }
 
-func (m *MockELReader) GetBlockReceipts(ctx context.Context, bnh rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
+// AddPayload makes the block available by hash and number.
+func (m *MockELReader) AddPayload(env *eth.ExecutionPayloadEnvelope) {
+	m.PayloadsByHash[env.ExecutionPayload.BlockHash] = env
+	m.PayloadsByNumber[uint64(env.ExecutionPayload.BlockNumber)] = env
+}
+
+func (m *MockELReader) GetBlockReceiptsJSON(ctx context.Context, bnh rpc.BlockNumberOrHash) (json.RawMessage, error) {
 	hash, isHash := bnh.Hash()
 	if isHash {
 		receipts, ok := m.ReceiptsByHash[hash]
@@ -340,10 +361,9 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 }
 
 func TestSyncTester_GetBlockReceipts(t *testing.T) {
-	makeReceipts := func(n uint64) []*types.Receipt {
-		r := new(types.Receipt)
-		r.BlockNumber = new(big.Int).SetUint64(n)
-		return []*types.Receipt{r}
+	// The deposit receipt fields are unknown to upstream go-ethereum and must survive the relay.
+	makeReceipts := func(n uint64) json.RawMessage {
+		return json.RawMessage(fmt.Sprintf(`[{"blockNumber":"0x%x","type":"0x7e","depositNonce":"0x5","depositReceiptVersion":"0x1"}]`, n))
 	}
 	type testCase struct {
 		name            string
@@ -351,10 +371,13 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 		arg             rpc.BlockNumberOrHash
 		seedFn          func(el *MockELReader, s *eth.SyncTesterSession)
 		wantFirstBN     uint64
+		wantEmpty       bool
 		wantErrContains string
 	}
 	hashGood := common.HexToHash("0xabc1")
 	hashTooNew := common.HexToHash("0xabc2")
+	hashGenesis := common.HexToHash("0xabc3")
+	hashUnknown := common.HexToHash("0xabc4")
 	tests := []testCase{
 		{
 			name:            "no session",
@@ -392,6 +415,30 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			seedFn: func(el *MockELReader, s *eth.SyncTesterSession) {
 				// strictly greater than Latest so the post-check triggers NotFound
 				el.ReceiptsByHash[hashTooNew] = makeReceipts(s.CurrentState.Latest + 1)
+			},
+			wantErrContains: "not found",
+		},
+		{
+			name: "happy: via hash, genesis has no receipts",
+			session: &eth.SyncTesterSession{
+				SessionID:    uuid.New().String(),
+				CurrentState: eth.FCUState{Latest: 100, Safe: 95, Finalized: 90},
+			},
+			arg: rpc.BlockNumberOrHashWithHash(hashGenesis, false),
+			seedFn: func(el *MockELReader, _ *eth.SyncTesterSession) {
+				el.ReceiptsByHash[hashGenesis] = json.RawMessage(`[]`)
+			},
+			wantEmpty: true,
+		},
+		{
+			name: "bad: via hash, EL returns null for an unknown block",
+			session: &eth.SyncTesterSession{
+				SessionID:    uuid.New().String(),
+				CurrentState: eth.FCUState{Latest: 100, Safe: 95, Finalized: 90},
+			},
+			arg: rpc.BlockNumberOrHashWithHash(hashUnknown, false),
+			seedFn: func(el *MockELReader, _ *eth.SyncTesterSession) {
+				el.ReceiptsByHash[hashUnknown] = json.RawMessage(`null`)
 			},
 			wantErrContains: "not found",
 		},
@@ -466,16 +513,140 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			if tc.session != nil {
 				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
-			recs, err := st.GetBlockReceipts(ctx, tc.arg)
+			raw, err := st.GetBlockReceipts(ctx, tc.arg)
 			if tc.wantErrContains != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
-			require.NotNil(t, recs)
-			require.GreaterOrEqual(t, len(recs), 1)
-			require.EqualValues(t, tc.wantFirstBN, bigs.Uint64Strict(recs[0].BlockNumber))
+			if tc.wantEmpty {
+				require.JSONEq(t, `[]`, string(raw))
+				return
+			}
+			require.Equal(t, makeReceipts(tc.wantFirstBN), raw)
 		})
 	}
+}
+
+// makeDepositPayload returns an Ecotone block, as served by the read only EL, whose
+// first transaction is a deposit.
+func makeDepositPayload(t *testing.T, number uint64, parent common.Hash) *eth.ExecutionPayloadEnvelope {
+	deposit := &optypes.DepositTx{
+		SourceHash: common.HexToHash("0x01"),
+		From:       common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001"),
+		To:         &common.Address{0x42},
+		Value:      big.NewInt(0),
+		Gas:        1_000_000,
+		Data:       []byte{byte(number)},
+	}
+	depositRaw, err := deposit.MarshalBinary()
+	require.NoError(t, err)
+	beaconRoot := common.HexToHash("0xbeac")
+	env := &eth.ExecutionPayloadEnvelope{
+		ParentBeaconBlockRoot: &beaconRoot,
+		ExecutionPayload: &eth.ExecutionPayload{
+			ParentHash:    parent,
+			FeeRecipient:  common.HexToAddress("0x4200000000000000000000000000000000000011"),
+			PrevRandao:    eth.Bytes32{0x07},
+			BlockNumber:   eth.Uint64Quantity(number),
+			GasLimit:      30_000_000,
+			Timestamp:     eth.Uint64Quantity(1000 + 2*number),
+			Transactions:  []eth.Data{depositRaw},
+			Withdrawals:   &types.Withdrawals{},
+			BlobGasUsed:   new(eth.Uint64Quantity),
+			ExcessBlobGas: new(eth.Uint64Quantity),
+		},
+	}
+	env.ExecutionPayload.BlockHash, _ = env.CheckBlockHash()
+	return env
+}
+
+func attributesForPayload(env *eth.ExecutionPayloadEnvelope) *eth.PayloadAttributes {
+	p := env.ExecutionPayload
+	return &eth.PayloadAttributes{
+		Timestamp:             p.Timestamp,
+		PrevRandao:            p.PrevRandao,
+		SuggestedFeeRecipient: p.FeeRecipient,
+		Withdrawals:           &types.Withdrawals{},
+		ParentBeaconBlockRoot: env.ParentBeaconBlockRoot,
+		Transactions:          p.Transactions,
+		NoTxPool:              true,
+		GasLimit:              &p.GasLimit,
+	}
+}
+
+func TestSyncTester_BuildAndInsertDepositBlock(t *testing.T) {
+	el := NewMockELReader(eth.ChainIDFromUInt64(1))
+	head := makeDepositPayload(t, 10, common.HexToHash("0x0a"))
+	next := makeDepositPayload(t, 11, head.ExecutionPayload.BlockHash)
+	el.AddPayload(head)
+	el.AddPayload(next)
+	st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
+	sess := eth.NewSyncTesterSession(uuid.New().String(), 10, 10, 10, false, nil)
+	ctx := session.WithSyncTesterSession(context.Background(), sess)
+	state := &eth.ForkchoiceState{HeadBlockHash: head.ExecutionPayload.BlockHash}
+
+	res, err := st.ForkchoiceUpdatedV3(ctx, state, attributesForPayload(next))
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
+	require.NotNil(t, res.PayloadID)
+
+	built, err := st.GetPayloadV3(ctx, *res.PayloadID)
+	require.NoError(t, err)
+	// The read only EL's block is served as the built payload.
+	require.NoError(t, built.ExecutionPayload.CheckEqual(makeDepositPayload(t, 11, head.ExecutionPayload.BlockHash).ExecutionPayload))
+	require.Equal(t, next.ParentBeaconBlockRoot, built.ParentBeaconBlockRoot)
+
+	payload := *built.ExecutionPayload
+	status, err := st.NewPayloadV3(ctx, &payload, []common.Hash{}, built.ParentBeaconBlockRoot)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, status.Status)
+	require.Equal(t, next.ExecutionPayload.BlockHash, *status.LatestValidHash)
+	require.EqualValues(t, 11, sess.Validated)
+}
+
+func requireInvalidAttributes(t *testing.T, err error, reason string) {
+	var apiErr *engine.EngineAPIError
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, engine.InvalidPayloadAttributes.ErrorCode(), apiErr.ErrorCode())
+	require.Contains(t, fmt.Sprint(apiErr.ErrorData()), reason)
+}
+
+func TestSyncTester_ForkchoiceUpdatedRejectsMismatchingAttributes(t *testing.T) {
+	el := NewMockELReader(eth.ChainIDFromUInt64(1))
+	head := makeDepositPayload(t, 10, common.HexToHash("0x0a"))
+	next := makeDepositPayload(t, 11, head.ExecutionPayload.BlockHash)
+	el.AddPayload(head)
+	el.AddPayload(next)
+	st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
+	state := &eth.ForkchoiceState{HeadBlockHash: head.ExecutionPayload.BlockHash}
+	newCtx := func() context.Context {
+		return session.WithSyncTesterSession(context.Background(), eth.NewSyncTesterSession(uuid.New().String(), 10, 10, 10, false, nil))
+	}
+
+	t.Run("tx mismatch", func(t *testing.T) {
+		attr := attributesForPayload(next)
+		attr.Transactions = makeDepositPayload(t, 12, common.Hash{}).ExecutionPayload.Transactions
+		res, err := st.ForkchoiceUpdatedV3(newCtx(), state, attr)
+		requireInvalidAttributes(t, err, "tx mismatch")
+		require.Equal(t, eth.ExecutionInvalid, res.PayloadStatus.Status)
+	})
+	t.Run("withdrawals mismatch", func(t *testing.T) {
+		// A Canyon block has withdrawals but no beacon root, so only the withdrawals
+		// check can tell it apart from Bedrock attributes.
+		canyonNext := makeDepositPayload(t, 11, head.ExecutionPayload.BlockHash)
+		canyonNext.ParentBeaconBlockRoot = nil
+		canyonNext.ExecutionPayload.BlobGasUsed, canyonNext.ExecutionPayload.ExcessBlobGas = nil, nil
+		canyonNext.ExecutionPayload.BlockHash, _ = canyonNext.CheckBlockHash()
+		canyonEL := NewMockELReader(eth.ChainIDFromUInt64(1))
+		canyonEL.AddPayload(head)
+		canyonEL.AddPayload(canyonNext)
+		st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), canyonEL)
+		attr := attributesForPayload(canyonNext)
+		attr.Withdrawals = nil
+		res, err := st.ForkchoiceUpdatedV1(newCtx(), state, attr)
+		requireInvalidAttributes(t, err, "withdrawals mismatch")
+		require.Equal(t, eth.ExecutionInvalid, res.PayloadStatus.Status)
+	})
 }
