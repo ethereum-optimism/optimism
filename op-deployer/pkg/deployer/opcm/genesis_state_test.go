@@ -14,8 +14,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 )
+
+// testChainID is the chain ID of the genesis states of the tests.
+const testChainID = 900
 
 // TestGenesisStateReadOnlyBundle runs a genesis script on forge in a read-only bundle: the state
 // files must stay out of the bundle, and forge must still be allowed to write them.
@@ -29,7 +33,7 @@ func TestGenesisStateReadOnlyBundle(t *testing.T) {
 	t.Cleanup(func() { setTreeWritable(t, project, true) })
 	setTreeWritable(t, project, false)
 
-	genesis := NewGenesisState(common.Address{0x5e}, false)
+	genesis := NewGenesisState(common.Address{0x5e}, testChainID, false)
 	env := &ForgeEnv{Client: client, Context: ctx, Genesis: genesis}
 	_, err := broadcastScript(env, genesisTestCaller("Genesis"), 0)
 	require.NoError(t, err)
@@ -46,7 +50,7 @@ func TestGenesisStateWithoutIsolation(t *testing.T) {
 	defer cancel()
 	client := newGenesisTestClient(ctx, t, "isolate = true\n")
 
-	genesis := NewGenesisState(common.Address{0x5e}, false)
+	genesis := NewGenesisState(common.Address{0x5e}, testChainID, false)
 	env := &ForgeEnv{Client: client, Context: ctx, Genesis: genesis}
 	_, err := broadcastScript(env, genesisTestCaller("GenesisPrank"), 0)
 	require.NoError(t, err)
@@ -54,11 +58,30 @@ func TestGenesisStateWithoutIsolation(t *testing.T) {
 	require.NotContains(t, genesis.Allocs.Accounts, common.Address{0x56, 0x78})
 }
 
+// TestGenesisStateCreate2Deployer runs a genesis script that deploys a contract through forge's
+// CREATE2 deployer. The deployer is a contract, so its nonce starts at 1, and the deployment bumps
+// it to 2.
+func TestGenesisStateCreate2Deployer(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	client := newGenesisTestClient(ctx, t, "")
+
+	genesis := NewGenesisState(common.Address{0x5e}, testChainID, false)
+	env := &ForgeEnv{Client: client, Context: ctx, Genesis: genesis}
+	_, err := broadcastScript(env, genesisTestCaller("GenesisCreate2"), 0)
+	require.NoError(t, err)
+
+	create2Deployer, ok := genesis.Allocs.Accounts[predeploys.DeterministicDeploymentProxyAddr]
+	require.True(t, ok, "the CREATE2 deployer must be in the state")
+	require.NotEmpty(t, create2Deployer.Code)
+	require.Equal(t, uint64(2), create2Deployer.Nonce)
+}
+
 // TestGenesisStateRunAnyCacheProfile checks that a genesis run without a code size limit may run a
 // contracts build of another profile, such as a lite build, and that a run with the limit may not.
 func TestGenesisStateRunAnyCacheProfile(t *testing.T) {
 	for _, noCodeSizeLimit := range []bool{false, true} {
-		genesis := NewGenesisState(common.Address{0x5e}, noCodeSizeLimit)
+		genesis := NewGenesisState(common.Address{0x5e}, testChainID, noCodeSizeLimit)
 		errStop := errors.New("stop")
 		var anyCacheProfile bool
 		err := genesis.run(&forge.Client{}, func(client *forge.Client, _ []string) error {
@@ -133,6 +156,8 @@ interface Vm {
     function toString(uint256 value) external pure returns (string memory);
     function getNonce(address account) external view returns (uint64);
     function prank(address sender) external;
+    function loadAllocs(string calldata path) external;
+    function broadcast() external;
 }
 contract Target {
     function poke() external {}
@@ -159,6 +184,15 @@ contract GenesisPrank is GenesisBase {
         Target target = new Target();
         vm.prank(address(0x5678000000000000000000000000000000000000));
         target.poke();
+        dump();
+        return "";
+    }
+}
+contract GenesisCreate2 is GenesisBase {
+    function runWithBytes(bytes calldata) external returns (bytes memory) {
+        vm.loadAllocs(vm.envString("OP_DEPLOYER_STATE_IN"));
+        vm.broadcast();
+        new Target{salt: bytes32(0)}();
         dump();
         return "";
     }

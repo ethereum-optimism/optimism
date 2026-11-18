@@ -387,6 +387,5 @@ func isOverdraftErr(err error) bool {
 	var overdraft *accounting.OverdraftError
 	return errors.As(err, &overdraft) ||
 		errors.Is(err, core.ErrInsufficientFunds) ||
-		errors.Is(err, core.ErrInsufficientFundsForTransfer) ||
-		errors.Is(err, core.ErrInsufficientBalanceWitness)
+		errors.Is(err, core.ErrInsufficientFundsForTransfer)
 }

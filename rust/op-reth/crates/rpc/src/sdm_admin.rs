@@ -105,8 +105,14 @@ mod tests {
         Arc::new(OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build())
     }
 
+    /// Removes Lagoon, which OP Mainnet's registry schedule may include.
     fn sdm_inactive_chain_spec() -> Arc<OpChainSpec> {
-        Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build())
+        Arc::new(
+            OpChainSpecBuilder::optimism_mainnet()
+                .regolith_activated()
+                .without_fork(OpHardfork::Lagoon)
+                .build(),
+        )
     }
 
     fn admin_api(protocol_active: bool) -> OpSdmAdminApi<OpChainSpec> {

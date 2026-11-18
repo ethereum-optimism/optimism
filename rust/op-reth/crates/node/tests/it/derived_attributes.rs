@@ -5,7 +5,7 @@
 
 use alloy_consensus::{Sealable, SignableTransaction, TxEip1559};
 use alloy_network::eip2718::Encodable2718;
-use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxKind};
+use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxKind, U256};
 use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated, PayloadStatus};
 use jsonrpsee::{
     core::{ClientError, client::ClientT},
@@ -85,7 +85,7 @@ impl Txs {
             source_hash: B256::with_last_byte(source),
             from,
             to: TxKind::Call(Address::with_last_byte(1)),
-            mint: 1_000_000_000_000_000_000,
+            mint: U256::from(1_000_000_000_000_000_000u64),
             gas_limit: 21_000,
             ..Default::default()
         };

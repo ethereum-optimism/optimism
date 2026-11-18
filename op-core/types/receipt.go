@@ -8,6 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+// CanyonDepositReceiptVersion is the DepositReceiptVersion of deposit receipts from Canyon on.
+const CanyonDepositReceiptVersion = uint64(1)
+
 // Receipt extends go-ethereum's receipt with the OP Stack fields that L2
 // endpoints include in eth_getTransactionReceipt responses. The full op-geth
 // field set is carried — not just the fields the monorepo services read — so
@@ -15,9 +18,11 @@ import (
 // types.Receipt verbatim for wire compatibility; values are hex-encoded on the
 // wire, hence the custom JSON methods.
 //
-// While the go.mod replace still points at op-geth, the embedded types.Receipt
-// carries identically-named fields. UnmarshalJSON populates both copies
-// consistently; when marshaling, the outer fields take precedence.
+// DepositNonce and DepositReceiptVersion are the only source of truth for a
+// deposit receipt's nonce and version: any same-named fields of the embedded
+// go-ethereum receipt are not maintained. A receipt wrapped with FromGethReceipt
+// has neither set, so do not derive a deposit receipt's consensus encoding from
+// one.
 type Receipt struct {
 	types.Receipt
 	// DepositNonce was introduced in Regolith to store the actual nonce used by

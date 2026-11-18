@@ -2,7 +2,6 @@ package dsl
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -608,24 +608,6 @@ func (el *L2ELNode) ForkchoiceUpdateRaw(unsafe, safe, finalized common.Hash, att
 	return result
 }
 
-func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized uint64) {
-	el.log.Info("Trigger EL Sync", "unsafe", unsafe, "safe", safe, "finalized", finalized)
-	trial := 1
-	el.require.NoError(retry.Do0(el.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second}, func() error {
-		el.log.Info("FCU to trigger EL Sync", "trial", trial)
-		res := el.ForkchoiceUpdate(refNode, unsafe, safe, finalized, nil)
-		// If EL Sync triggered, Example logs from L2EL(geth)
-		//  New skeleton head announced
-		//  Backfilling with the network
-		if res.Result.PayloadStatus.Status == eth.ExecutionValid {
-			el.log.Info("Finished EL Sync")
-			return nil
-		}
-		trial += 1
-		return errors.New("EL Sync not finished")
-	}))
-}
-
 func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
 	el.require.Equal(chainID, el.inner.ChainID(), "chain ID mismatch")
 	var blockRef eth.L2BlockRef
@@ -664,6 +646,24 @@ func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 	})
 	el.require.NoError(err, "failed to get receipt for tx %s", txHash.Hex())
 	return &receipt.Receipt
+}
+
+// AccountProofAt returns addr's account and its state-trie proof at blockNum. op-reth serves
+// proofs from a store that can lag the blocks it has inserted, so this retries until the proof
+// is available.
+func (el *L2ELNode) AccountProofAt(addr common.Address, blockNum uint64) *eth.AccountResult {
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "account", addr, "block", blockNum)
+	proof, err := retry.Do(el.ctx, 30, &retry.FixedStrategy{Dur: time.Second}, func() (*eth.AccountResult, error) {
+		ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+		defer cancel()
+		proof, err := el.inner.EthClient().GetProof(ctx, addr, []common.Hash{}, hexutil.EncodeUint64(blockNum))
+		if err != nil {
+			logger.Info("Waiting for account proof", "err", err)
+		}
+		return proof, err
+	})
+	el.require.NoError(err, "account proof of %s at block %d", addr, blockNum)
+	return proof
 }
 
 func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {

@@ -1,18 +1,43 @@
 use crate::{
-    DerivationActorRequest, DerivationEngineClient, NodeActor,
-    actors::derivation::{DerivationDelegateProvider, DerivationError},
+    DerivationActorRequest, DerivationEngineClient, NodeActor, actors::derivation::DerivationError,
 };
+use alloy_eips::BlockNumHash;
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
+use jsonrpsee::core::ClientError;
 use kona_derive::{ChainProvider, Signal};
-use kona_engine::FinalizeBlockId;
+use kona_engine::{EngineState, FinalizeBlockId};
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
+use kona_rpc::RollupNodeApiClient;
 use thiserror::Error;
 use tokio::{
     select,
     sync::{mpsc, watch},
     time,
 };
+
+/// How often the derivation delegate is polled for its sync status.
+pub(super) const DERIVATION_DELEGATE_POLL_INTERVAL: time::Duration = time::Duration::from_secs(4);
+
+/// Supplies the sync status of the external OP Stack CL node that derivation is delegated to.
+#[async_trait]
+pub trait SyncStatusSource: Send + Sync {
+    /// The error returned when the sync status cannot be fetched.
+    type Error: core::fmt::Display + Send;
+
+    /// Fetches the delegate's current sync status.
+    async fn sync_status(&self) -> Result<SyncStatus, Self::Error>;
+}
+
+/// Any jsonrpsee client can serve the delegate's `optimism_syncStatus`.
+#[async_trait]
+impl<C: RollupNodeApiClient + Send + Sync> SyncStatusSource for C {
+    type Error = ClientError;
+
+    async fn sync_status(&self) -> Result<SyncStatus, ClientError> {
+        self.op_sync_status().await
+    }
+}
 
 /// The [`NodeActor`] for the delegate derivation sub-routine.
 ///
@@ -24,10 +49,10 @@ use tokio::{
 /// Once validated, the actor sends the derived safe and finalized L2 info
 /// to the [`NodeActor`] responsible for the execution sub-routine.
 #[derive(Debug)]
-pub struct DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+pub struct DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient,
-    DelegateProvider: DerivationDelegateProvider,
+    Delegate: SyncStatusSource,
     L1Provider: ChainProvider,
 {
     /// The channel on which all inbound requests are received by the [`DelegateDerivationActor`].
@@ -35,45 +60,50 @@ where
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
-    /// Derivation delegate provider.
-    derivation_delegate_provider: DelegateProvider,
+    /// Source of the sync status of the node that derivation is delegated to.
+    delegate: Delegate,
     /// L1 provider for validating L1 info for derivation delegation.
     l1_provider: L1Provider,
     /// Publishes the delegate's `current_l1`: the L1 block that its derivation has reached.
     derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
 
+    /// The engine's state as it publishes it. Delegate statuses are checked against the
+    /// finalized head the engine applied, not the last one forwarded to it, which the engine may
+    /// have skipped.
+    engine_state_rx: watch::Receiver<EngineState>,
     /// The engine's L2 safe head, according to updates from the Engine.
     engine_l2_safe_head: L2BlockInfo,
     /// Whether the engine sync has completed. This will only ever go from false -> true.
     has_engine_sync_completed: bool,
-    /// Ticker driving periodic polls of the derivation delegate provider.
+    /// Ticker driving periodic polls of the derivation delegate.
     delegated_derivation_ticker: time::Interval,
 }
 
-impl<DerivationEngineClient_, DelegateProvider, L1Provider>
-    DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+impl<DerivationEngineClient_, Delegate, L1Provider>
+    DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
-    DelegateProvider: DerivationDelegateProvider + 'static,
+    Delegate: SyncStatusSource + 'static,
     L1Provider: ChainProvider + 'static,
 {
     /// Creates a new instance of the [`DelegateDerivationActor`].
     pub fn new(
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
-        derivation_delegate_provider: DelegateProvider,
+        delegate: Delegate,
         l1_provider: L1Provider,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
+        engine_state_rx: watch::Receiver<EngineState>,
     ) -> Self {
-        let mut delegated_derivation_ticker =
-            time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
+        let mut delegated_derivation_ticker = time::interval(DERIVATION_DELEGATE_POLL_INTERVAL);
         delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         Self {
             inbound_request_rx,
             engine_client,
-            derivation_delegate_provider,
+            delegate,
             l1_provider,
             derivation_origin_tx,
+            engine_state_rx,
             engine_l2_safe_head: L2BlockInfo::default(),
             has_engine_sync_completed: false,
             delegated_derivation_ticker,
@@ -82,11 +112,11 @@ where
 }
 
 #[async_trait]
-impl<DerivationEngineClient_, DelegateProvider, L1Provider> NodeActor
-    for DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+impl<DerivationEngineClient_, Delegate, L1Provider> NodeActor
+    for DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
-    DelegateProvider: DerivationDelegateProvider + 'static,
+    Delegate: SyncStatusSource + 'static,
     L1Provider: ChainProvider + Send + 'static,
 {
     type Error = DerivationError;
@@ -113,17 +143,13 @@ where
     }
 }
 
-impl<DerivationEngineClient_, DelegateProvider, L1Provider>
-    DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+impl<DerivationEngineClient_, Delegate, L1Provider>
+    DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
-    DelegateProvider: DerivationDelegateProvider + 'static,
+    Delegate: SyncStatusSource + 'static,
     L1Provider: ChainProvider + 'static,
 {
-    /// Hardcoded poll interval for Derivation Delegation
-    const DERIVATION_DELEGATE_POLL_INTERVAL: std::time::Duration =
-        std::time::Duration::from_secs(4);
-
     /// Validates a single L1 block height and hash against the canonical L1 chain.
     async fn validate_l1_block(
         &mut self,
@@ -149,9 +175,59 @@ where
         Ok(())
     }
 
-    /// Verifies that the L1 info reported by the derivation delegate
-    /// are consistent with canonical L1 chain.
+    /// The id of an established finalized head. The default head means finality has not been
+    /// established yet, so any finalized block from the delegate may initialize it.
+    fn established_finalized_l2(finalized_head: L2BlockInfo) -> Option<BlockNumHash> {
+        (finalized_head != L2BlockInfo::default()).then(|| finalized_head.block_info.id())
+    }
+
+    /// Rejects a finalized L2 block behind, or at the same height as but different from, the
+    /// engine's. Either means the delegate lags or follows another chain, so none of its status
+    /// applies: its safe head would move the engine back or onto that chain too.
+    ///
+    /// Only a fork at the engine's finalized height is caught here. A chain that forked below it
+    /// and reports a higher finalized block passes, and the execution layer rejects the forkchoice
+    /// update that would move onto it.
+    fn validate_finalized_l2_progress(
+        &self,
+        reported: BlockNumHash,
+    ) -> Result<(), DerivationDelegationError> {
+        let engine_finalized_head = self.engine_state_rx.borrow().sync_state.finalized_head();
+        let Some(engine) = Self::established_finalized_l2(engine_finalized_head) else {
+            return Ok(());
+        };
+        if reported.number < engine.number {
+            return Err(DerivationDelegationError::FinalizedL2Regressed { engine, reported });
+        }
+        if reported.number == engine.number && reported.hash != engine.hash {
+            return Err(DerivationDelegationError::FinalizedL2Conflict { engine, reported });
+        }
+        Ok(())
+    }
+
+    /// Verifies that the derivation delegate's finalized L2 block is not above its safe L2 block
+    /// and does not move back from the engine's, and that its L1 info is consistent with the
+    /// canonical L1 chain.
     async fn validate_sync_status(&mut self, v: &SyncStatus) -> bool {
+        // A finalized block above the safe head is an inconsistent snapshot; the engine would only
+        // refuse to finalize it.
+        if v.finalized_l2.block_info.number > v.safe_l2.block_info.number {
+            let err = DerivationDelegationError::FinalizedAheadOfSafe {
+                finalized: v.finalized_l2.block_info.number,
+                safe: v.safe_l2.block_info.number,
+            };
+            warn!(target: "derivation", error = %err, "Inconsistent sync status from delegate");
+            return false;
+        }
+        if let Err(err) = self.validate_finalized_l2_progress(v.finalized_l2.block_info.id()) {
+            warn!(
+                target: "derivation",
+                error = %err,
+                "Finalized L2 inconsistency detected at sync status from delegate"
+            );
+            return false;
+        }
+
         let checks = [
             ("L1 Origin of Safe L2", v.safe_l2.l1_origin.number, v.safe_l2.l1_origin.hash),
             (
@@ -177,10 +253,14 @@ where
 
     /// Fetches, validates, and applies sync status from the derivation delegate.
     async fn fetch_and_apply_delegate_safe_head(&mut self) -> Result<(), DerivationError> {
-        let sync_status = match self.derivation_delegate_provider.fetch_sync_status().await {
+        let sync_status = match self.delegate.sync_status().await {
             Ok(status) => status,
-            Err(_) => {
-                warn!(target: "derivation", "Failed to fetch sync status from delegate");
+            Err(err) => {
+                warn!(
+                    target: "derivation",
+                    error = %err,
+                    "Failed to fetch sync status from delegate"
+                );
                 return Ok(());
             }
         };
@@ -249,6 +329,18 @@ where
 
 #[derive(Error, Debug)]
 enum DerivationDelegationError {
+    /// The delegate's finalized L2 block is above its safe L2 block.
+    #[error("Finalized L2 {finalized} is ahead of safe L2 {safe}")]
+    FinalizedAheadOfSafe { finalized: u64, safe: u64 },
+
+    /// The delegate's finalized L2 block is a different block at the engine's finalized height.
+    #[error("Finalized L2 {reported:?} conflicts with the engine's finalized L2 {engine:?}")]
+    FinalizedL2Conflict { engine: BlockNumHash, reported: BlockNumHash },
+
+    /// The delegate's finalized L2 block is behind the engine's.
+    #[error("Finalized L2 {reported:?} is behind the engine's finalized L2 {engine:?}")]
+    FinalizedL2Regressed { engine: BlockNumHash, reported: BlockNumHash },
+
     /// The L1 provider returned an error (network, RPC, etc.)
     #[error("L1 provider error: {0}")]
     L1Provider(String),

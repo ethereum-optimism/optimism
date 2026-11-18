@@ -82,8 +82,6 @@ func buildSDMRethSystem(
 	deployerOpts []sysgo.DeployerOption,
 	batcherOpts ...sysgo.BatcherOption,
 ) *sdmtest.RethSystem {
-	sysgo.SkipOnOpGeth(t, "SDM acceptance tests require op-reth post-exec support")
-
 	// Honor DEVSTACK_L2CL_KIND so the kona acceptance suite exercises this test with
 	// kona-node on both the sequencer and verifier (defaults to op-node when unset).
 	clKind := sysgo.ResolveMixedL2CLKind()
@@ -113,7 +111,6 @@ func buildSDMRethSystem(
 			{
 				ELKey:       sequencerKey,
 				CLKey:       "sequencer",
-				ELKind:      sysgo.MixedL2ELOpReth,
 				CLKind:      clKind,
 				IsSequencer: true,
 				OpRethOpts:  sequencerOpts,
@@ -121,7 +118,6 @@ func buildSDMRethSystem(
 			{
 				ELKey:            "verifier-op-reth",
 				CLKey:            "verifier",
-				ELKind:           sysgo.MixedL2ELOpReth,
 				CLKind:           clKind,
 				IsSequencer:      false,
 				IsolateFromL2P2P: isolateVerifier,

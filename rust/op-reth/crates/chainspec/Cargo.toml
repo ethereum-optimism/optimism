@@ -56,7 +56,6 @@ development = ["reth-optimism-chainspec"]
 [dev-dependencies]
 reth-optimism-chainspec = { path = ".", features = ["superchain-configs"] }
 reth-chainspec = { workspace = true, features = ["test-utils"] }
-alloy-op-hardforks.workspace = true
 
 [build-dependencies]
 # Used by build.rs to generate superchain-configs.tar from the submodule.
@@ -110,6 +109,5 @@ serde = [
     "reth-optimism-primitives/serde",
     "reth-primitives-traits/serde",
     "op-alloy-consensus/serde",
-    "alloy-op-hardforks/serde",
     "toml/serde",
 ]

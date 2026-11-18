@@ -557,6 +557,27 @@ func TestSpanBatchTxsPostExecSkipsChainIDValidation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestSpanBatchTxsPostExecFields pins the span batch fields of a post-exec tx: type 0x7D,
+// nonce and gas 0, a zero signature, no recipient, and the canonical encoding as its data.
+// op-geth computes these fields, and kona computes the same.
+func TestSpanBatchTxsPostExecFields(t *testing.T) {
+	raw, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+	sbt, err := newSpanBatchTxs([][]byte{raw}, big.NewInt(901))
+	require.NoError(t, err)
+
+	require.Equal(t, []int{0x7d}, sbt.txTypes)
+	require.Equal(t, []uint64{0}, sbt.txNonces)
+	require.Equal(t, []uint64{0}, sbt.txGases)
+	require.Zero(t, sbt.txSigs[0].v.Sign())
+	require.True(t, sbt.txSigs[0].r.IsZero())
+	require.True(t, sbt.txSigs[0].s.IsZero())
+	require.Equal(t, uint(0), sbt.yParityBits.Bit(0))
+	require.Empty(t, sbt.txTos)
+	require.Equal(t, uint(1), sbt.zeroToBits.Bit(0))
+	require.Equal(t, hexutil.MustDecode("0x7dc6012ac3c20307"), []byte(sbt.txDatas[0]))
+}
+
 func TestSpanBatchTxsRejectsWrongChainIDForProtectedTx(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x901902))
 	chainID := big.NewInt(901)
@@ -567,6 +588,14 @@ func TestSpanBatchTxsRejectsWrongChainIDForProtectedTx(t *testing.T) {
 
 	_, err = newSpanBatchTxs([][]byte{rawTx}, chainID)
 	require.ErrorContains(t, err, "protected tx has chain ID 902, but expected chain ID 901")
+}
+
+func TestSpanBatchTxsRejectsDepositTx(t *testing.T) {
+	deposit, err := (&optypes.DepositTx{SourceHash: common.Hash{1}, Gas: 21_000}).MarshalBinary()
+	require.NoError(t, err)
+	_, err = newSpanBatchTxs([][]byte{deposit}, big.NewInt(1))
+	// The deposit decodes as a protected tx with chain ID 0.
+	require.ErrorContains(t, err, "protected tx has chain ID 0, but expected chain ID 1")
 }
 
 func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {

@@ -1,4 +1,4 @@
-package safeheaddb_elsync
+package safeheaddb_clsync
 
 import (
 	"testing"

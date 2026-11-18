@@ -57,6 +57,11 @@ func FunderKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
 const devFeatureBitmapKey = "devFeatureBitmap"
 const DevstackL1ForkEnvVar = "DEVSTACK_L1_FORK"
 
+// defaultL1Fork is the L1 fork devstack activates at genesis unless DevstackL1ForkEnvVar is set.
+// It is at least the newest execution fork that go-ethereum schedules on mainnet, which a test
+// enforces, so that test L1s move to a fork after the testnets activate it and before mainnet does.
+const defaultL1Fork = forks.Osaka
+
 // proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used
 // by every L2 predeploy proxy (`bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)`).
 // Mirrors Constants.PROXY_IMPLEMENTATION_ADDRESS in packages/contracts-bedrock.
@@ -299,7 +304,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		// Amsterdam state gas raises live OPCM deployment above 50 million gas.
 		l1Config.WithGasLimit(60_000_000)
 
-		l1Fork := forks.Prague // activate Pectra on L1 by default
+		l1Fork := defaultL1Fork
 		if value, ok := os.LookupEnv(DevstackL1ForkEnvVar); ok {
 			var err error
 			l1Fork, err = parseL1Fork(value)
@@ -620,16 +625,6 @@ func (wb *worldBuilder) buildL2Genesis() {
 		id := eth.ChainIDFromBytes32(ch.ID)
 		wb.outL2Genesis[id] = l2Genesis
 		wb.outL2RollupCfg[id] = l2RollupCfg
-		// op-geth is deprecated as of the Karst fork and refuses to build, seal,
-		// or import Karst blocks. The op-geth EL lane therefore cannot run any
-		// chain that ever activates Karst, so skip such tests here — the single
-		// point every runtime builds genesis through — letting Karst+ coverage
-		// run on op-reth (the official Karst EL client). op-geth still covers
-		// chains up to Jovian.
-		if l2Genesis.Config.KarstTime != nil && devstackL2ELKind() == MixedL2ELOpGeth {
-			wb.p.Logf("op-geth is deprecated as of Karst; skipping test: chain %s activates Karst and DEVSTACK_L2EL_KIND=op-geth", id)
-			wb.p.SkipNow()
-		}
 	}
 }
 

@@ -84,7 +84,7 @@ struct CompactTxDeposit {
     source_hash: B256,
     from: Address,
     to: TxKind,
-    mint: Option<u128>,
+    mint: Option<U256>,
     value: U256,
     gas_limit: u64,
     is_system_transaction: bool,
@@ -97,10 +97,7 @@ impl From<&TxDeposit> for CompactTxDeposit {
             source_hash: tx.source_hash,
             from: tx.from,
             to: tx.to,
-            mint: match tx.mint {
-                0 => None,
-                v => Some(v),
-            },
+            mint: (!tx.mint.is_zero()).then_some(tx.mint),
             value: tx.value,
             gas_limit: tx.gas_limit,
             is_system_transaction: tx.is_system_transaction,
@@ -415,5 +412,67 @@ impl reth_codecs::Decompress for OpReceipt {
     fn decompress(value: &[u8]) -> Result<Self, reth_codecs::DecompressError> {
         let (obj, _) = Compact::from_compact(value, value.len());
         Ok(obj)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// [`CompactTxDeposit`] as it was while the mint was a `u128`.
+    #[derive(reth_codecs_derive::Compact)]
+    #[reth_codecs(crate = "reth_codecs")]
+    struct U128MintCompactTxDeposit {
+        source_hash: B256,
+        from: Address,
+        to: TxKind,
+        mint: Option<u128>,
+        value: U256,
+        gas_limit: u64,
+        is_system_transaction: bool,
+        input: Bytes,
+    }
+
+    /// The mint became a `U256`, and the deposits op-reth stored while it was a `u128` must still
+    /// decode: both encode the mint as its big-endian bytes without leading zeros.
+    #[test]
+    fn deposit_compact_encoding_is_unchanged_for_u128_mints() {
+        for mint in [0, 1, 10, u128::MAX] {
+            let tx = TxDeposit {
+                source_hash: B256::repeat_byte(1),
+                from: Address::repeat_byte(2),
+                to: TxKind::Call(Address::repeat_byte(3)),
+                mint: U256::from(mint),
+                value: U256::from(4),
+                gas_limit: 5,
+                is_system_transaction: false,
+                input: Bytes::from_static(&[6]),
+            };
+            let old = U128MintCompactTxDeposit {
+                source_hash: tx.source_hash,
+                from: tx.from,
+                to: tx.to,
+                mint: (mint != 0).then_some(mint),
+                value: tx.value,
+                gas_limit: tx.gas_limit,
+                is_system_transaction: tx.is_system_transaction,
+                input: tx.input.clone(),
+            };
+            let mut old_bytes = Vec::new();
+            let old_len = old.to_compact(&mut old_bytes);
+            let mut new_bytes = Vec::new();
+            let new_len = tx.to_compact(&mut new_bytes);
+
+            assert_eq!((new_len, &new_bytes), (old_len, &old_bytes), "mint {mint}");
+            assert_eq!(TxDeposit::from_compact(&old_bytes, old_len).0, tx, "mint {mint}");
+        }
+    }
+
+    #[test]
+    fn deposit_compact_round_trips_a_mint_above_u128() {
+        let tx = TxDeposit { mint: U256::MAX, ..Default::default() };
+        let mut bytes = Vec::new();
+        let len = tx.to_compact(&mut bytes);
+        assert_eq!(TxDeposit::from_compact(&bytes, len).0, tx);
     }
 }

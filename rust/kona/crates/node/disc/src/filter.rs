@@ -69,6 +69,7 @@ const fn is_public_v6(ip: Ipv6Addr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::{TEST_CHAIN_ID, enr_with};
     use rstest::rstest;
 
     #[rstest]
@@ -123,16 +124,15 @@ mod tests {
     }
 
     /// A record with the given addresses.
-    fn enr(ip4: Option<&str>, ip6: Option<&str>) -> Enr {
-        let key = enr::CombinedKey::generate_secp256k1();
-        let mut builder = Enr::builder();
-        if let Some(ip4) = ip4 {
-            builder.ip4(ip4.parse().expect("a valid IPv4 address"));
-        }
-        if let Some(ip6) = ip6 {
-            builder.ip6(ip6.parse().expect("a valid IPv6 address"));
-        }
-        builder.build(&key).expect("the record builds")
+    fn enr_at_ips(ip4: Option<&str>, ip6: Option<&str>) -> Enr {
+        enr_with(TEST_CHAIN_ID, |record| {
+            if let Some(ip4) = ip4 {
+                record.ip4(ip4.parse().expect("a valid IPv4 address"));
+            }
+            if let Some(ip6) = ip6 {
+                record.ip6(ip6.parse().expect("a valid IPv6 address"));
+            }
+        })
     }
 
     /// Every address in a record must be public, and a record without one fails.
@@ -148,6 +148,6 @@ mod tests {
         #[case] ip6: Option<&str>,
         #[case] expected: bool,
     ) {
-        assert_eq!(public_only(&enr(ip4, ip6)), expected);
+        assert_eq!(public_only(&enr_at_ips(ip4, ip6)), expected);
     }
 }

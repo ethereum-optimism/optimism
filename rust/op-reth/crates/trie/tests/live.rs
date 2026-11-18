@@ -14,17 +14,19 @@ use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
     MdbxProofsStorage, OpProofStoragePruner, OpProofsProviderRO, OpProofsStorage, OpProofsStore,
     RethTrieStorageLayout,
-    engine::{EngineError, EngineHandle},
+    engine::{EngineConfig, EngineError, EngineHandle},
     initialize::InitializationJob,
 };
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateProvider, StateRootProvider, StorageSettingsCache,
+    ProviderFactory, StageCheckpointWriter as _, StateProvider, StateRootProvider,
+    StorageSettingsCache,
     providers::{BlockchainProvider, ProviderNodeTypes},
     test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
+use reth_stages_types::{StageCheckpoint, StageId};
 use secp256k1::{Keypair, Secp256k1, rand::rng};
 use serial_test::serial;
 use std::sync::Arc;
@@ -230,18 +232,48 @@ where
         &execution_outcome,
         hashed_state.into_sorted(),
     )?;
+    // Marks the block as persisted by reth. The proofs pruner stops at reth's persisted head.
+    provider_rw.save_stage_checkpoint(StageId::Finish, StageCheckpoint::new(block.number()))?;
     provider_rw.commit()?;
 
     Ok(())
 }
 
-/// Runs a test scenario with the given configuration
+/// Runs a test scenario with the default engine configuration and a proofs window of 1000 blocks
 fn run_test_scenario<N, S>(
     scenario: TestScenario,
     provider_factory: ProviderFactory<N>,
     chain_spec: Arc<ChainSpec>,
     key_pair: Keypair,
     raw_storage: S,
+) -> eyre::Result<()>
+where
+    N: ProviderNodeTypes<
+            Primitives: NodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
+        > + NodeTypesWithDB,
+    S: OpProofsStore + Send + Sync + Clone + std::fmt::Debug + 'static,
+{
+    run_test_scenario_with_config(
+        scenario,
+        provider_factory,
+        chain_spec,
+        key_pair,
+        raw_storage,
+        EngineConfig::default(),
+        1000,
+    )
+}
+
+/// Runs a test scenario with the given engine configuration, pruning proofs older than
+/// `proofs_window` blocks
+fn run_test_scenario_with_config<N, S>(
+    scenario: TestScenario,
+    provider_factory: ProviderFactory<N>,
+    chain_spec: Arc<ChainSpec>,
+    key_pair: Keypair,
+    raw_storage: S,
+    config: EngineConfig,
+    proofs_window: u64,
 ) -> eyre::Result<()>
 where
     N: ProviderNodeTypes<
@@ -291,8 +323,9 @@ where
     // state between iterations (the new async-persistence architecture requires this).
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let blockchain_db = BlockchainProvider::new(provider_factory.clone())?;
-    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
-    let engine_handle = EngineHandle::spawn(evm_config, blockchain_db, storage, pruner);
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), proofs_window);
+    let engine_handle =
+        EngineHandle::spawn_with_config(evm_config, blockchain_db, storage, pruner, config);
 
     for (idx, block_spec) in scenario.blocks_after_initialization.iter().enumerate() {
         let block_number = last_block_number + idx as u64 + 1;
@@ -632,6 +665,46 @@ where
     );
 
     run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage)
+}
+
+/// Page-cache warming only reads, so blocks persisted and pruned with it enabled must still
+/// produce the state roots the engine verifies on every block.
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[serial]
+fn test_blocks_with_prefetch<S>(storage: Arc<S>) -> Result<(), eyre::Error>
+where
+    S: OpProofsStore + Send + Sync + std::fmt::Debug + 'static,
+{
+    let key_pair = Keypair::new(&Secp256k1::new(), &mut rng());
+    let chain_spec = chain_spec_with_address(public_key_to_address(key_pair.public_key()));
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    let blocks = (0u8..8)
+        .map(|i| {
+            BlockSpec::new(vec![
+                TxSpec::transfer(Address::repeat_byte(0x50 + i), U256::from(1)),
+                TxSpec::transfer(Address::repeat_byte(0x60 + i), U256::from(2)),
+            ])
+        })
+        .collect();
+    // Every block is persisted alone, and from block 3 on each one prunes the window to 2 blocks.
+    let config =
+        EngineConfig { persistence_threshold: 1, backpressure_threshold: 2, prefetch_threads: 4 };
+
+    run_test_scenario_with_config(
+        TestScenario::new(vec![], blocks),
+        provider_factory,
+        chain_spec,
+        key_pair,
+        storage.clone(),
+        config,
+        2,
+    )?;
+    let provider = storage.provider_ro()?;
+    assert_eq!(provider.get_latest_block()?.number, 8);
+    assert_eq!(provider.get_earliest_block()?.number, 6);
+    Ok(())
 }
 
 /// Re-execution uses proofs state and persisted bytecode even when reth cannot construct the

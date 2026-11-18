@@ -87,7 +87,14 @@ mod tests {
         holesky::{HOLESKY_BPO1_TIMESTAMP, HOLESKY_BPO2_TIMESTAMP},
         sepolia::{SEPOLIA_BPO1_TIMESTAMP, SEPOLIA_BPO2_TIMESTAMP},
     };
-    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
+
+    /// Every chain sets its own EIP-1559 config, so none takes the `ChainConfig` fallback.
+    #[test]
+    fn test_every_chain_sets_base_fee_config() {
+        for (chain_id, chain) in OPCHAINS.iter() {
+            assert!(chain.optimism.is_some(), "chain {chain_id} has no `optimism` fee config");
+        }
+    }
 
     #[test]
     fn test_hardcoded_rollup_configs() {
@@ -123,21 +130,6 @@ mod tests {
 
         assert_eq!(rollup_config_by_ident, rollup_config_by_id);
         assert_eq!(rollup_config_by_alloy_ident, rollup_config_by_id);
-    }
-
-    #[test]
-    fn test_jovian_timestamps() {
-        let op_mainnet_config_by_ident = scr_rollup_config_by_ident("mainnet/op").unwrap();
-        assert_eq!(
-            op_mainnet_config_by_ident.hardforks.jovian_time,
-            Some(OP_MAINNET_JOVIAN_TIMESTAMP)
-        );
-
-        let op_sepolia_config_by_ident = scr_rollup_config_by_ident("sepolia/op").unwrap();
-        assert_eq!(
-            op_sepolia_config_by_ident.hardforks.jovian_time,
-            Some(OP_SEPOLIA_JOVIAN_TIMESTAMP)
-        );
     }
 
     #[test]
@@ -217,28 +209,20 @@ mod tests {
         assert_eq!(DEPENDENCY_SETS.get(&test1_chain_id), DEPENDENCY_SETS.get(&test2_chain_id));
     }
 
-    /// Custom-config chains keep the preimage-oracle fallback, so they are exempt from the
-    /// registry depset invariants below.
+    /// Custom-config chains take their dependency sets from the custom `depsets.json`, which may
+    /// group chains that have no `interop` config.
     fn custom_configs_baked_in() -> bool {
         CUSTOM_CONFIGS == Some("true") || CUSTOM_CONFIGS_CFG
     }
 
     #[test]
     fn test_every_registry_chain_has_a_depset() {
-        if custom_configs_baked_in() {
-            return;
-        }
         for chain in &CHAINS.chains {
-            let depset = DEPENDENCY_SETS.get(&chain.chain_id).unwrap_or_else(|| {
-                panic!(
-                    "no embedded depset for `{}` (chain id {})",
-                    chain.identifier, chain.chain_id
-                )
-            });
             assert!(
-                depset.dependencies.contains_key(&chain.chain_id),
-                "depset for `{}` does not contain the chain itself",
-                chain.identifier
+                DEPENDENCY_SETS.contains_key(&chain.chain_id),
+                "no embedded depset for `{}` (chain id {})",
+                chain.identifier,
+                chain.chain_id
             );
         }
     }

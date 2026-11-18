@@ -44,7 +44,6 @@ func WithBlobBatches() faultDisputeConfigOpts {
 			cfg.DataAvailabilityType = batcherFlags.BlobsType
 
 			genesisActivation := hexutil.Uint64(0)
-			cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
 			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
 			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 		})

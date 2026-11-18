@@ -29,12 +29,13 @@ contract SafeCall_Succeeds_Invariants is InvariantTest {
     ///
     ///                   If the check for remaining gas in `SafeCall.callWithMinGas` passes, the
     ///                   subcontext of the call below it must be provided at least `minGas` gas.
+    /// forge-config: default.invariant.fail-on-revert = true
     function invariant_callWithMinGas_alwaysForwardsMinGas_succeeds() public view {
         assertEq(actor.numCalls(), 0, "no failed calls allowed");
     }
 
-    function performSafeCallMinGas(address to, uint64 minGas) external payable {
-        SafeCall.callWithMinGas(to, minGas, msg.value, hex"");
+    function performSafeCallMinGas(address to, uint64 minGas, bytes memory data) external payable {
+        SafeCall.callWithMinGas(to, minGas, msg.value, data);
     }
 }
 
@@ -62,12 +63,13 @@ contract SafeCall_Fails_Invariants is InvariantTest {
     ///                   If there is not enough gas in the callframe to ensure that
     ///                   `callWithMinGas` can provide the specified minimum gas limit
     ///                   to the subcontext of the call, then `callWithMinGas` must revert.
+    /// forge-config: default.invariant.fail-on-revert = true
     function invariant_callWithMinGas_neverForwardsMinGas_reverts() public view {
         assertEq(actor.numCalls(), 0, "no successful calls allowed");
     }
 
-    function performSafeCallMinGas(address to, uint64 minGas) external payable {
-        SafeCall.callWithMinGas(to, minGas, msg.value, hex"");
+    function performSafeCallMinGas(address to, uint64 minGas, bytes memory data) external payable {
+        SafeCall.callWithMinGas(to, minGas, msg.value, data);
     }
 }
 
@@ -76,6 +78,7 @@ contract SafeCaller_Actor is StdUtils {
 
     Vm internal vm;
     uint256 public numCalls;
+    uint256 internal nonce;
 
     constructor(Vm _vm, bool _fails) {
         vm = _vm;
@@ -89,20 +92,29 @@ contract SafeCaller_Actor is StdUtils {
 
         // Bound the minimum gas amount to [2500, type(uint48).max]
         minGas = uint64(bound(minGas, 2500, type(uint48).max));
+        bytes memory data = abi.encode(++nonce);
+        uint256 newAccountGas = value != 0 && to.codehash == bytes32(0) ? SafeCall.NEW_ACCOUNT_STATE_GAS : 0;
         if (FAILS) {
-            // Bound the gas passed to [minGas, ((minGas * 64) / 63)]
-            gas = uint64(bound(gas, minGas, (minGas * 64) / 63));
+            // Bound the gas passed to [minGas, ((minGas * 64) / 63) + newAccountGas]
+            gas = uint64(bound(gas, minGas, ((minGas * 64) / 63) + newAccountGas));
         } else {
             // Bound the gas passed to
-            // [((minGas * 64) / 63) + 40_000 + 1000, type(uint64).max]
-            // The extra 1000 gas is to account for the gas used by the `SafeCall.call` call
-            // itself.
-            gas = uint64(bound(gas, ((minGas * 64) / 63) + 40_000 + 1000, type(uint64).max));
+            // [((minGas * 64) / 63) + 40_000 + newAccountGas + 3600, type(uint64).max]
+            // The extra 3600 gas covers the gas used before the check in `callWithMinGas`,
+            // which is between 2000 and 2600.
+            gas = uint64(bound(gas, ((minGas * 64) / 63) + 40_000 + newAccountGas + 3600, type(uint64).max));
+
+            // A missing call reverts this handler, which fails the invariant. Foundry carries
+            // expected calls with the same target and calldata across handler calls, so `data`
+            // makes each one unique.
+            vm.expectCallMinGas(to, value, minGas, data);
         }
 
-        vm.expectCallMinGas(to, value, minGas, hex"");
         bool success = SafeCall.call(
-            msg.sender, gas, value, abi.encodeCall(SafeCall_Succeeds_Invariants.performSafeCallMinGas, (to, minGas))
+            msg.sender,
+            gas,
+            value,
+            abi.encodeCall(SafeCall_Succeeds_Invariants.performSafeCallMinGas, (to, minGas, data))
         );
 
         if (success && FAILS) numCalls++;

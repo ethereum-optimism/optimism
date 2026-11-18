@@ -76,7 +76,7 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	preRestartSafeBlock := sys.L2CLB.SafeHeadDBFloor()
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 
-	// Restart the verifier op-node, but not the EL so the existing chain data is not deleted.
+	// Keep the EL's chain data while restarting the verifier CL.
 	sys.L2CLB.Stop()
 
 	sys.L2CL.Advanced(safety.LocalSafe, 3, 30)

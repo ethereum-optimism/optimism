@@ -35,8 +35,9 @@ op-deployer apply \
 
 ### `--deploy-mock-sp1-verifier` {#—deploy-mock-sp1-verifier}
 
-`--deployment-target genesis`와 함께 사용하면, ZK 분쟁 게임(dispute game)이 사용할 mock SP1 verifier를 제네시스에
-배포합니다. mock은 모든 증명을 수락하므로 개발 용도로만 사용하십시오.
+ZK 분쟁 게임(dispute game)이 사용할 mock SP1 verifier를 배포합니다. 제네시스에는 SP1 verifier가 없으며, 로컬 devnet처럼
+릴리스 verifier가 없는 live L1에도 없습니다. mock은 모든 증명을 수락하므로 개발 용도로만 사용하십시오.
+Sepolia처럼 릴리스 verifier가 있는 L1 chain ID에서는 op-deployer가 제네시스 배포에서도 이 플래그를 거부합니다.
 
 ### `--l1-rpc-url` {#—l1-rpc-url}
 

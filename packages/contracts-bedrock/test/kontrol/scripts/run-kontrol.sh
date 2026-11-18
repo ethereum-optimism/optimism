@@ -51,9 +51,22 @@ kontrol_prove() {
   return $?
 }
 
+# Copies out the JUnit report, if there is one, and the container log.
+copy_report_and_log() {
+  mkdir -p "$LOG_PATH"
+  # Check if kontrol_prove_report.xml exists in the container and copy it out if it does
+  if docker exec "$CONTAINER_NAME" test -f /home/user/workspace/kontrol_prove_report.xml; then
+    docker cp "$CONTAINER_NAME:/home/user/workspace/kontrol_prove_report.xml" "$LOG_PATH/kontrol_prove_report.xml"
+    notif "Copied kontrol_prove_report.xml to $LOG_PATH"
+  else
+    notif "kontrol_prove_report.xml not found in container"
+  fi
+  RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
+  docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
+}
+
 get_log_results() {
   RESULTS_FILE="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
-  LOG_PATH="test/kontrol/logs"
   RESULTS_LOG="$LOG_PATH/$RESULTS_FILE"
 
   if [ ! -d $LOG_PATH ]; then
@@ -67,13 +80,7 @@ get_log_results() {
     mv results.tar.gz "$RESULTS_LOG"
   else
     docker cp "$CONTAINER_NAME:/home/user/workspace/results.tar.gz" "$RESULTS_LOG"
-    # Check if kontrol_prove_report.xml exists in the container and copy it out if it does
-    if docker exec "$CONTAINER_NAME" test -f /home/user/workspace/kontrol_prove_report.xml; then
-      docker cp "$CONTAINER_NAME:/home/user/workspace/kontrol_prove_report.xml" "$LOG_PATH/kontrol_prove_report.xml"
-      notif "Copied kontrol_prove_report.xml to $LOG_PATH"
-    else
-      notif "kontrol_prove_report.xml not found in container"
-    fi
+    copy_report_and_log
     tar -xzf "$RESULTS_LOG" > /dev/null 2>&1
   fi
   if [ -f "$RESULTS_LOG" ]; then
@@ -86,8 +93,6 @@ get_log_results() {
 
   if [ "$LOCAL" = false ]; then
     notif "Results Log: $RESULTS_LOG generated"
-    RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-    docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
     # Expand the tar folder to kout-proofs for Summary Results and caching
     tar -xzf "$RESULTS_LOG" -C "$WORKSPACE_DIR" > /dev/null 2>&1
   fi
@@ -178,6 +183,7 @@ break_every_step=--break-every-step
 break_every_step=
 bug_report=--bug-report
 bug_report=
+LOG_PATH="test/kontrol/logs"
 state_diff="./snapshots/state-diff/Kontrol-31337.json"
 
 #############
@@ -206,6 +212,12 @@ if [ "${results[1]}" -ne 0 ]; then
   exit 2
 fi
 
-get_log_results
+# A green CI run only copies out the report and the log. The proof archive is for debugging a failure,
+# and building it takes about 3 minutes.
+if [ "${CI:-}" = true ] && [ "$LOCAL" = false ]; then
+  copy_report_and_log
+else
+  get_log_results
+fi
 echo "Kontrol Passed"
 notif "DONE"

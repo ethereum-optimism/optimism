@@ -240,6 +240,12 @@ pub fn validate_op_version_specific_fields<ChainSpec: OpHardforks>(
 ///
 /// These are the checks [`OpEngineValidator`] runs on the attributes of an
 /// `engine_forkchoiceUpdated` call, taking `version` from the method called. They read no state.
+///
+/// The gas limit, EIP-1559 and minimum base fee checks fail with
+/// [`EngineObjectValidationError::InvalidParams`], which the engine API answers with `-32602`.
+/// The version-specific checks answer with `-38003` (invalid payload attributes) or `-38005`, as
+/// the engine API spec requires. op-node retries a call that fails with `-32602`, so a Holocene
+/// or Jovian schedule mismatch stalls it instead of changing what it derives.
 pub fn ensure_well_formed_payload_attributes<ChainSpec: OpHardforks>(
     chain_spec: &ChainSpec,
     version: EngineApiMessageVersion,
@@ -342,10 +348,7 @@ mod test {
 
     use crate::{OpNode, engine};
     use alloy_consensus::{BlockBody, Header};
-    use alloy_op_hardforks::{
-        OP_SEPOLIA_CANYON_TIMESTAMP, OP_SEPOLIA_ECOTONE_TIMESTAMP, OP_SEPOLIA_HOLOCENE_TIMESTAMP,
-        OP_SEPOLIA_JOVIAN_TIMESTAMP, OP_SEPOLIA_KARST_TIMESTAMP,
-    };
+    use alloy_op_hardforks::OpHardfork;
     use alloy_primitives::{Address, B64, B256, b64};
     use alloy_rpc_types_engine::PayloadAttributes;
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -357,6 +360,11 @@ mod test {
         test_utils::create_test_provider_factory_with_node_types,
     };
     use reth_trie_common::KeccakKeyHasher;
+
+    /// OP Sepolia's activation timestamp for `fork`, from its superchain-registry chain spec.
+    fn op_sepolia_activation(fork: OpHardfork) -> u64 {
+        OP_SEPOLIA.op_fork_activation(fork).as_timestamp().expect("fork activates by timestamp")
+    }
 
     macro_rules! assert_invalid_params_error {
         ($result:expr, $msg:expr) => {{
@@ -397,7 +405,8 @@ mod test {
     fn test_well_formed_attributes_pre_holocene() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(None, None, 1732633199);
+        let attributes =
+            get_attributes(None, None, op_sepolia_activation(OpHardfork::Holocene) - 1);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -411,7 +420,7 @@ mod test {
     fn test_well_formed_attributes_holocene_no_eip1559_params() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(None, None, 1732633200);
+        let attributes = get_attributes(None, None, op_sepolia_activation(OpHardfork::Holocene));
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -425,7 +434,11 @@ mod test {
     fn test_well_formed_attributes_holocene_eip1559_params_zero_denominator() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000008")), None, 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000000000008")),
+            None,
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -439,7 +452,11 @@ mod test {
     fn test_well_formed_attributes_holocene_eip1559_params_zero_elasticity() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000800000000")), None, 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000800000000")),
+            None,
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -453,7 +470,11 @@ mod test {
     fn test_well_formed_attributes_holocene_valid() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000800000008")), None, 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000800000008")),
+            None,
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -467,7 +488,11 @@ mod test {
     fn test_well_formed_attributes_holocene_valid_all_zero() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000000")), None, 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000000000000")),
+            None,
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -481,8 +506,11 @@ mod test {
     fn test_well_formed_attributes_jovian_valid() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes =
-            get_attributes(Some(b64!("0000000000000000")), Some(1), OP_SEPOLIA_JOVIAN_TIMESTAMP);
+        let attributes = get_attributes(
+            Some(b64!("0000000000000000")),
+            Some(1),
+            op_sepolia_activation(OpHardfork::Jovian),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -497,7 +525,7 @@ mod test {
     fn test_malformed_attributes_jovian_with_eip_1559_params_none() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(None, Some(1), OP_SEPOLIA_JOVIAN_TIMESTAMP);
+        let attributes = get_attributes(None, Some(1), op_sepolia_activation(OpHardfork::Jovian));
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -512,7 +540,11 @@ mod test {
     fn test_malformed_attributes_pre_jovian_with_min_base_fee() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000000")), Some(1), 1732633200);
+        let attributes = get_attributes(
+            Some(b64!("0000000000000000")),
+            Some(1),
+            op_sepolia_activation(OpHardfork::Holocene),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -527,8 +559,11 @@ mod test {
     fn test_malformed_attributes_post_jovian_with_min_base_fee_none() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
-        let attributes =
-            get_attributes(Some(b64!("0000000000000000")), None, OP_SEPOLIA_JOVIAN_TIMESTAMP);
+        let attributes = get_attributes(
+            Some(b64!("0000000000000000")),
+            None,
+            op_sepolia_activation(OpHardfork::Jovian),
+        );
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -567,12 +602,12 @@ mod test {
     #[test]
     fn ensure_well_formed_payload_attributes_accepts_well_formed_attributes() {
         for (timestamp, version) in [
-            (OP_SEPOLIA_CANYON_TIMESTAMP - 1, EngineApiMessageVersion::V1),
-            (OP_SEPOLIA_CANYON_TIMESTAMP, EngineApiMessageVersion::V2),
-            (OP_SEPOLIA_ECOTONE_TIMESTAMP, EngineApiMessageVersion::V3),
-            (OP_SEPOLIA_HOLOCENE_TIMESTAMP, EngineApiMessageVersion::V3),
-            (OP_SEPOLIA_JOVIAN_TIMESTAMP, EngineApiMessageVersion::V3),
-            (OP_SEPOLIA_KARST_TIMESTAMP, EngineApiMessageVersion::V3),
+            (op_sepolia_activation(OpHardfork::Canyon) - 1, EngineApiMessageVersion::V1),
+            (op_sepolia_activation(OpHardfork::Canyon), EngineApiMessageVersion::V2),
+            (op_sepolia_activation(OpHardfork::Ecotone), EngineApiMessageVersion::V3),
+            (op_sepolia_activation(OpHardfork::Holocene), EngineApiMessageVersion::V3),
+            (op_sepolia_activation(OpHardfork::Jovian), EngineApiMessageVersion::V3),
+            (op_sepolia_activation(OpHardfork::Karst), EngineApiMessageVersion::V3),
         ] {
             let result = ensure_well_formed_on_sepolia(version, &well_formed_attributes(timestamp));
             assert!(result.is_ok(), "timestamp {timestamp}, {version:?}: {result:?}");
@@ -581,7 +616,7 @@ mod test {
 
     #[test]
     fn ensure_well_formed_payload_attributes_rejects_each_rule() {
-        let mut attributes = well_formed_attributes(OP_SEPOLIA_ECOTONE_TIMESTAMP);
+        let mut attributes = well_formed_attributes(op_sepolia_activation(OpHardfork::Ecotone));
         attributes.0.payload_attributes.parent_beacon_block_root = None;
         assert!(matches!(
             ensure_well_formed_on_sepolia(EngineApiMessageVersion::V3, &attributes),
@@ -590,21 +625,21 @@ mod test {
             ))
         ));
 
-        let mut attributes = well_formed_attributes(OP_SEPOLIA_CANYON_TIMESTAMP);
+        let mut attributes = well_formed_attributes(op_sepolia_activation(OpHardfork::Canyon));
         attributes.0.gas_limit = None;
         assert_invalid_params_error!(
             ensure_well_formed_on_sepolia(EngineApiMessageVersion::V2, &attributes),
             "MissingGasLimitInPayloadAttributes"
         );
 
-        let mut attributes = well_formed_attributes(OP_SEPOLIA_HOLOCENE_TIMESTAMP);
+        let mut attributes = well_formed_attributes(op_sepolia_activation(OpHardfork::Holocene));
         attributes.0.eip_1559_params = Some(b64!("0000000000000008"));
         assert_invalid_params_error!(
             ensure_well_formed_on_sepolia(EngineApiMessageVersion::V3, &attributes),
             "Eip1559ParamsDenominatorZero"
         );
 
-        let mut attributes = well_formed_attributes(OP_SEPOLIA_JOVIAN_TIMESTAMP);
+        let mut attributes = well_formed_attributes(op_sepolia_activation(OpHardfork::Jovian));
         attributes.0.min_base_fee = None;
         assert_invalid_params_error!(
             ensure_well_formed_on_sepolia(EngineApiMessageVersion::V3, &attributes),
@@ -618,7 +653,7 @@ mod test {
     ) -> RecoveredBlock<alloy_consensus::Block<OpTransactionSigned>> {
         let header = Header {
             parent_hash,
-            timestamp: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+            timestamp: op_sepolia_activation(OpHardfork::Jovian),
             withdrawals_root: Some(withdrawals_root),
             ..Default::default()
         };

@@ -427,7 +427,7 @@ func newSpanBatchTxs(txs [][]byte, chainID *big.Int) (*spanBatchTxs, error) {
 func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 	offset := sbtx.totalBlockTxCount
 	for idx, rawTx := range txs {
-		if len(rawTx) > 0 && rawTx[0] == optypes.PostExecTxType {
+		if optypes.IsPostExecTxBytes(rawTx) {
 			if err := sbtx.addPostExecTx(rawTx, idx+int(offset)); err != nil {
 				return err
 			}

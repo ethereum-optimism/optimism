@@ -9,13 +9,18 @@ use kona_genesis::RollupConfig;
 use kona_peers::{EnrValidation, PeerMonitoring, enr_to_multiaddr};
 use libp2p::{
     Multiaddr, PeerId, Swarm,
-    core::transport::ListenerId,
+    core::{ConnectedPoint, transport::ListenerId},
     gossipsub::{IdentTopic, MessageId},
+    multiaddr::Protocol,
     swarm::{ConnectionId, SwarmEvent, dial_opts::DialOpts},
 };
 use libp2p_identity::Keypair;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{collections::HashMap, net::IpAddr, time::Duration};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, SocketAddr},
+    time::Duration,
+};
 use tokio::{sync::oneshot, time::Instant};
 
 use crate::{
@@ -286,6 +291,40 @@ where
     /// Returns the peers the swarm has a connection to.
     pub fn connected_peers(&self) -> impl Iterator<Item = &PeerId> {
         self.swarm.connected_peers()
+    }
+
+    /// Returns the peer, and its TCP address, if `event` shows that this node can reach the peer
+    /// there. Only an outbound connection shows that: this node dialed the address, and the
+    /// handshake authenticated the peer's key. Two events on an outbound connection do:
+    ///
+    /// - The connection is established.
+    /// - A ping on it succeeds, which shows that the address still works.
+    ///
+    /// An inbound connection doesn't count, even if it comes from the peer's listen address, as
+    /// op-node's do: it shows that the peer can reach this node, not the other way around.
+    ///
+    /// Returns `None` for any other event, and for an address that isn't an IP and a TCP port.
+    pub fn reached_peer(&self, event: &SwarmEvent<Event>) -> Option<(PeerId, SocketAddr)> {
+        let (peer_id, addr) = match event {
+            SwarmEvent::ConnectionEstablished {
+                peer_id,
+                endpoint: ConnectedPoint::Dialer { address, .. },
+                ..
+            } => (*peer_id, address),
+            SwarmEvent::Behaviour(Event::Ping(libp2p::ping::Event {
+                peer,
+                connection,
+                result: Ok(_),
+            })) => {
+                let connection = self.connections.get(peer)?.get(connection)?;
+                if connection.dialer != *self.local_peer_id() {
+                    return None;
+                }
+                (*peer, &connection.remote_addr)
+            }
+            _ => return None,
+        };
+        Some((peer_id, tcp_socket(addr)?))
     }
 
     /// Returns whether the swarm has a connection to `peer_id`.
@@ -566,7 +605,8 @@ where
         }
         let Some(addr) = enr_to_multiaddr(enr) else {
             debug!(target: "gossip", "Failed to extract tcp socket from enr: {:?}", enr);
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr").increment(1);
+            metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr")
+                .increment(1);
             return None;
         };
         // `enr_to_multiaddr` ends the address in the peer ID.
@@ -579,7 +619,7 @@ where
         let addr = addr.into();
         let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
             warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr")
+            metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr")
                 .increment(1);
             return Err(DialError::InvalidMultiaddr { addr });
         };
@@ -608,7 +648,7 @@ where
         // before the gate, which would refuse it as already dialing or count it as a dial.
         if self.is_connected(&peer_id) {
             debug!(target: "gossip", ?peer_id, "Already connected to peer, not dialing");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
+            metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
                 .increment(1);
             return Err(DialError::AlreadyConnected { peer_id });
         }
@@ -652,13 +692,13 @@ where
                 for addr in &addrs {
                     self.connection_gate.dialed(addr);
                 }
-                metrics::gauge!(crate::Metrics::DIAL_PEER).increment(1);
+                metrics::counter!(crate::Metrics::DIAL_PEER).increment(1);
                 Ok(())
             }
             Err(e) => {
                 error!(target: "gossip", "Failed to connect to peer: {:?}", e);
                 self.connection_gate.remove_dial(&peer_id);
-                metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error")
+                metrics::counter!(crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error")
                     .increment(1);
                 Err(DialError::SwarmRefused { peer_id, reason: e.to_string() })
             }
@@ -847,7 +887,7 @@ where
 
                 let peer_count = self.swarm.connected_peers().count();
                 debug!(target: "gossip", "Connection established: {:?} | Peer Count: {}", peer_id, peer_count);
-                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected")
+                metrics::counter!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected")
                     .increment(1);
                 metrics::gauge!(crate::Metrics::GOSSIP_PEER_COUNT).set(peer_count as f64);
 
@@ -872,12 +912,12 @@ where
                     };
                     self.reply_to_connects(&peer_id, outcome);
                 }
-                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "outgoing_error")
+                metrics::counter!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "outgoing_error")
                     .increment(1);
             }
             SwarmEvent::IncomingConnectionError { error, .. } => {
                 debug!(target: "gossip", "Incoming connection error: {:?}", error);
-                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "incoming_error")
+                metrics::counter!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "incoming_error")
                     .increment(1);
             }
             SwarmEvent::ConnectionClosed {
@@ -889,7 +929,7 @@ where
                         self.connections.remove(&peer_id);
                     }
                 }
-                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed")
+                metrics::counter!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed")
                     .increment(1);
 
                 // The peer is still connected, for example after closing a duplicate connection.
@@ -947,6 +987,21 @@ where
 
         None
     }
+}
+
+/// Returns the IP and TCP port that `addr` starts with, if it does, as a connection's address
+/// does, followed by the peer ID.
+fn tcp_socket(addr: &Multiaddr) -> Option<SocketAddr> {
+    let mut protocols = addr.iter();
+    let ip = match protocols.next()? {
+        Protocol::Ip4(ip) => IpAddr::V4(ip),
+        Protocol::Ip6(ip) => IpAddr::V6(ip),
+        _ => return None,
+    };
+    let Protocol::Tcp(port) = protocols.next()? else {
+        return None;
+    };
+    Some(SocketAddr::new(ip, port))
 }
 
 #[cfg(test)]

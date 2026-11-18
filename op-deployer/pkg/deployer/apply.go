@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -221,10 +222,9 @@ func ApplyL1DevGenesis(ctx context.Context, opts ApplyPipelineOpts) error {
 
 // newPipelineEnv returns the pipeline env for the deployment target.
 func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifacts.Bundle) (*pipeline.Env, error) {
-	deployer := standard.PlaceholderAddress
+	deployer := opts.deployer()
 	var privateKey string
 	if opts.DeployerPrivateKey != nil {
-		deployer = crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
 		privateKey = hexutil.Encode(crypto.FromECDSA(opts.DeployerPrivateKey))
 	}
 	isGenesis := opts.DeploymentTarget == DeploymentTargetGenesis
@@ -264,7 +264,7 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 		ReceiptQueryInterval: opts.ReceiptQueryInterval,
 	}
 	if isGenesis {
-		pEnv.Forge.Genesis = opcm.NewGenesisState(deployer, true)
+		pEnv.Forge.Genesis = opcm.NewGenesisState(deployer, opts.Intent.L1ChainID, true)
 	}
 	pEnv.L2Forge, err = opcm.NewForgeClient(bundle.L2, opts.CacheDir, opcm.L2ForgeScripts)
 	if err != nil {
@@ -296,6 +296,30 @@ type ApplyPipelineOpts struct {
 	ReceiptQueryInterval      time.Duration
 }
 
+// deployer returns the address that runs the deployments: the deployer key's, or a placeholder
+// without a key.
+func (o ApplyPipelineOpts) deployer() common.Address {
+	if o.DeployerPrivateKey == nil {
+		return standard.PlaceholderAddress
+	}
+	return crypto.PubkeyToAddress(o.DeployerPrivateKey.PublicKey)
+}
+
+// checkNoL1DeployerPrefund refuses an L1 prefund for the deployer in ApplyPipeline's genesis apply,
+// which removes the deployer's account from the L1 genesis after its deployments, prefund included.
+// Restoring the balance after that would not be enough: with its nonce reset to zero, the deployer's
+// first CREATEs on the L1 would collide with contracts that it deployed into the genesis.
+// ApplyL1DevGenesis removes the account before its deployments, so it keeps a deployer prefund.
+func checkNoL1DeployerPrefund(intent *state.Intent, deployer common.Address) error {
+	if intent.L1DevGenesisParams == nil {
+		return nil
+	}
+	if _, ok := intent.L1DevGenesisParams.Prefund[deployer]; ok {
+		return fmt.Errorf("l1DevGenesisParams.prefund has an entry for the deployer %s, whose account a genesis apply removes from the L1 genesis; prefund another account instead", deployer)
+	}
+	return nil
+}
+
 func ApplyPipeline(
 	ctx context.Context,
 	opts ApplyPipelineOpts,
@@ -305,6 +329,11 @@ func ApplyPipeline(
 	// Checked before any stage runs, so that a refused apply sends no transactions.
 	if opts.DeployMockSP1Verifier && intent != nil {
 		if err := pipeline.CheckMockSP1Verifier(intent.L1ChainID); err != nil {
+			return err
+		}
+	}
+	if opts.DeploymentTarget == DeploymentTargetGenesis && intent != nil {
+		if err := checkNoL1DeployerPrefund(intent, opts.deployer()); err != nil {
 			return err
 		}
 	}

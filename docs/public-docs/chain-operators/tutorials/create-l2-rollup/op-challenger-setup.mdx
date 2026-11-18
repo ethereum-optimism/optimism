@@ -46,7 +46,7 @@ The challenger needs the absolute prestate to participate in dispute games. The 
 
 2.  **Stage your chain configuration**:
 
-    Because your chain is not in the public Superchain Registry, the prestate build must embed your chain's configuration. Create the two staging files (`chainList.json` and `configs.json`) from your `rollup.json`, L2 genesis, and `op-deployer` state by following [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate), then point the build at them:
+    Because your chain is not in the public Superchain Registry, the prestate build must embed your chain's configuration. Create the three staging files (`chainList.json`, `configs.json` and `depsets.json`) from your `rollup.json`, L2 genesis, and `op-deployer` state by following [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate), then point the build at them:
 
     ```bash
     # Assuming you're in rollup/challenger/optimism directory

@@ -23,7 +23,7 @@ pub trait OpTxTr: Transaction {
     fn source_hash(&self) -> Option<B256>;
 
     /// Mint of the deposit transaction
-    fn mint(&self) -> Option<u128>;
+    fn mint(&self) -> Option<U256>;
 
     /// Whether the transaction is a system transaction
     fn is_system_transaction(&self) -> bool;
@@ -204,7 +204,7 @@ impl<T: Transaction> OpTxTr for OpTransaction<T> {
         Some(self.deposit.source_hash)
     }
 
-    fn mint(&self) -> Option<u128> {
+    fn mint(&self) -> Option<U256> {
         self.deposit.mint
     }
 
@@ -250,7 +250,7 @@ impl OpTransactionBuilder {
     }
 
     /// Set the mint of the deposit transaction.
-    pub const fn mint(mut self, mint: u128) -> Self {
+    pub const fn mint(mut self, mint: U256) -> Self {
         self.deposit.mint = Some(mint);
         self
     }
@@ -373,7 +373,7 @@ mod tests {
             .base(base_tx)
             .enveloped_tx(None)
             .not_system_transaction()
-            .mint(0u128)
+            .mint(U256::ZERO)
             .source_hash(B256::from([1u8; 32]))
             .build()
             .unwrap();

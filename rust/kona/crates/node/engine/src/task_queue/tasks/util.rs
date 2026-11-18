@@ -309,7 +309,7 @@ mod tests {
                 validation_error: "invalid".into(),
             })
         };
-        l2.expect("engine_newPayloadV1", invalid());
+        l2.expect("engine_newPayloadV2", invalid());
         if matches!(fallback, Fallback::ReplacementRejected) {
             l2.expect(
                 "engine_forkchoiceUpdatedV3",
@@ -401,7 +401,7 @@ mod tests {
                 block_value: Default::default(),
             },
         );
-        l2.expect("engine_newPayloadV1", valid());
+        l2.expect("engine_newPayloadV2", valid());
         l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
         let sink = RecordingSink::default();
         let mut state = EngineState::default();

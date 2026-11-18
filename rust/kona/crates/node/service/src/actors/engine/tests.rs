@@ -27,6 +27,7 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
         Default::default();
     let mut config = RollupConfig::default();
     config.genesis.l2.hash = block.header.inner.hash_slow();
+    config.genesis.l1.hash = alloy_consensus::Header::default().hash_slow();
     config.hardforks.ecotone_time = Some(0);
     config.hardforks.holocene_time = holocene.then_some(0);
     let genesis =
@@ -85,10 +86,12 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
     for tag in ["finalized", "safe", "latest"] {
         l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
     }
-    l1.expect(
-        "eth_getBlockByHash",
-        alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
-    );
+    // The L1 genesis, the L2 genesis's origin, is canonical and is also the L1 head.
+    let mut l1_genesis = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+    l1_genesis.header.hash = l1_genesis.header.inner.hash_slow();
+    for number in ["latest", "0x0"] {
+        l1.expect_params("eth_getBlockByNumber", serde_json::json!([number, false]), &l1_genesis);
+    }
     l2.expect(
         "engine_forkchoiceUpdatedV3",
         ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
@@ -156,6 +159,7 @@ async fn admin_reset_recovers_and_completes_original_request(
         Default::default();
     let mut config = RollupConfig::default();
     config.genesis.l2.hash = block.header.inner.hash_slow();
+    config.genesis.l1.hash = alloy_consensus::Header::default().hash_slow();
     let config = Arc::new(config);
     let (client, l1, l2) = test_engine_client(config.clone());
     let client = Arc::new(client);
@@ -163,7 +167,7 @@ async fn admin_reset_recovers_and_completes_original_request(
         for tag in ["finalized", "safe", "latest"] {
             l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
         }
-        l1.expect_error("eth_getBlockByHash");
+        l1.expect_error("eth_getBlockByNumber");
     } else {
         l2.expect_error("eth_getBlockByNumber");
     }
@@ -196,10 +200,12 @@ async fn admin_reset_recovers_and_completes_original_request(
     for _ in 0..3 {
         l2.expect_with_delay("eth_getBlockByNumber", &block, read_delay);
     }
-    l1.expect(
-        "eth_getBlockByHash",
-        alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
-    );
+    // The L1 genesis, the L2 genesis's origin, is canonical and is also the L1 head.
+    let mut l1_genesis = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+    l1_genesis.header.hash = l1_genesis.header.inner.hash_slow();
+    for number in ["latest", "0x0"] {
+        l1.expect_params("eth_getBlockByNumber", serde_json::json!([number, false]), &l1_genesis);
+    }
     l2.expect(
         "engine_forkchoiceUpdatedV3",
         ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),

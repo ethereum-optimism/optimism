@@ -76,6 +76,24 @@ async fn test_accelerated_precompile_inner(
     });
 }
 
+/// The claimed evaluation `y` at which the proof in [`kzg_point_eval_input`] verifies.
+pub(crate) const VALID_KZG_EVALUATION: [u8; 32] =
+    alloy_primitives::hex!("1522a4a7f34e1ea350ae07c29c96c7e79655aa926122e95fe69fcbd932ca49e9");
+
+/// A KZG point-evaluation input claiming that the blob evaluates to `y`.
+pub(crate) fn kzg_point_eval_input(y: [u8; 32]) -> Vec<u8> {
+    use alloy_eips::eip4844::VERSIONED_HASH_VERSION_KZG;
+    use alloy_primitives::hex;
+    use sha2::{Digest, Sha256};
+
+    let commitment = hex!("8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7").to_vec();
+    let mut versioned_hash = Sha256::digest(&commitment).to_vec();
+    versioned_hash[0] = VERSIONED_HASH_VERSION_KZG;
+    let z = hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000").to_vec();
+    let proof = hex!("a62ad71d14c5719385c0686f1871430475bf3a00f0aa3f7b8dd99a9abc2160744faf0070725e00b60ad9a026a15b1a8c").to_vec();
+    [versioned_hash, z, y.to_vec(), commitment, proof].concat()
+}
+
 /// Executes a precompile on [`revm`].
 pub(crate) fn execute_native_precompile<T: Into<Bytes>>(
     address: Address,

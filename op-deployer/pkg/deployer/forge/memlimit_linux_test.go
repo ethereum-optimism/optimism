@@ -26,7 +26,7 @@ func TestSmallerLimit(t *testing.T) {
 		{name: "nothing", want: 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, smallerLimit(parseMemTotal([]byte(tt.meminfo)), parseCgroupLimit([]byte(tt.cgroup))))
+			require.Equal(t, tt.want, smallerLimit(parseKiBField([]byte(tt.meminfo), "MemTotal:"), parseCgroupLimit([]byte(tt.cgroup))))
 		})
 	}
 }

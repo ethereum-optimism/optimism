@@ -43,7 +43,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 	// valid block at the same height: same parent and timestamp, different content.
 	dropUserTxs := func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
 		payload.Transactions = slices.DeleteFunc(payload.Transactions, func(tx eth.Data) bool {
-			return tx[0] != optypes.DepositTxType
+			return !optypes.IsDepositTxBytes(tx)
 		})
 		return payload
 	}

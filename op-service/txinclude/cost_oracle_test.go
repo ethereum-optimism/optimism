@@ -98,9 +98,9 @@ func TestCostOracleOPCost(t *testing.T) {
 		}
 		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.NoError(t, oracle.SetParams(context.Background()))
-		tx := types.NewTx(&types.DynamicFeeTx{})
-		got := oracle.OPCost(tx)
-		want, _ := types.NewL1CostFuncFjord(big.NewInt(102), big.NewInt(104), big.NewInt(103), big.NewInt(105))(tx.RollupCostData())
-		require.Equal(t, want, got)
+		got := oracle.OPCost(types.NewTx(&types.DynamicFeeTx{}))
+		// The empty tx is below the Fjord 100-byte floor:
+		// 100e6 * (103*102*16 + 105*104) / 1e12 = 17.9016 -> 17.
+		require.Equal(t, big.NewInt(17), got)
 	})
 }

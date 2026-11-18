@@ -7,27 +7,45 @@ use crate::{
         SequencerArgs,
     },
 };
+use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::JwtSecret;
 use anyhow::{Context as _, Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
-use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
-use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
+use kona_providers_alloy::AlloyChainProvider;
+use kona_registry::{DEPENDENCY_SETS, L1Config, scr_rollup_config_by_alloy_ident};
 use kona_safedb::{SafeDatabase, SafeDb};
+use kona_sources::rpc;
+use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
 use std::{
     fs::File,
     io::{Read, Write},
+    num::NonZeroUsize,
     path::PathBuf,
     sync::Arc,
 };
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
+use url::Url;
+
+/// How many headers, receipt sets and blocks the node's L1 client caches.
+const L1_PROVIDER_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
+
+/// Builds the node's one L1 client. Every component reads L1 through a clone, sharing its caches
+/// and trust setting.
+///
+/// Every request is bounded by [`rpc::TIMEOUT`], so a stalled endpoint fails its
+/// caller instead of hanging it. This is the only bound on L1 reads: the components do not bound
+/// their own. Metrics wrap the deadline, so a timeout is recorded as a transport error.
+pub(super) fn l1_client(url: Url, trust_rpc: bool) -> AlloyChainProvider {
+    AlloyChainProvider::new(rpc::l1(url), L1_PROVIDER_CACHE_SIZE, trust_rpc)
+}
 
 /// A JWT token validation error.
 #[derive(Debug, thiserror::Error)]
@@ -112,10 +130,11 @@ pub struct NodeCommand {
     #[arg(long, visible_alias = "rollup-l1-cfg", env = "KONA_NODE_L1_CHAIN_CONFIG")]
     pub l1_config_file: Option<PathBuf>,
     /// Path to a JSON file describing the interop dependency set for this
-    /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
-    /// rollup config schedules the Lagoon hardfork; the inner
-    /// `StatefulAttributesBuilder` constructor panics otherwise; turning a
-    /// silent state-divergence bug into a startup crash.
+    /// chain. Mirrors op-node's `--interop.dependency-set`. When unset, the
+    /// dependency set comes from the superchain-registry. Required when the
+    /// rollup config schedules the Lagoon hardfork and the registry has no
+    /// dependency set for the chain; the node refuses to start otherwise,
+    /// rather than risk silent state divergence at Lagoon activation.
     #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
     pub interop_dependency_set: Option<PathBuf>,
     /// Path of the database recording the L2 safe head reached as of each L1 block, as served
@@ -241,20 +260,19 @@ impl NodeCommand {
         Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
     }
 
-    /// Validate the jwt secret if specified by exchanging capabilities with the engine.
-    /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
-    /// that the jwt token passed as a cli arg is correct.
-    pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
+    /// Builds the node's one authenticated engine connection and validates the JWT secret by
+    /// exchanging capabilities over it. Since the engine rejects a request signed with the wrong
+    /// secret, this ensures that the secret passed as a cli arg is correct before the node starts.
+    pub async fn connect_engine(&self) -> anyhow::Result<RootProvider<Optimism>> {
         let jwt_secret = self.l2_jwt_secret()?;
 
-        let engine =
-            EngineClient::rpc_client(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
+        let engine = rpc::engine(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
 
         let exchange = || async {
             match engine.exchange_capabilities(vec![]).await {
                 Ok(_) => {
                     debug!("Successfully exchanged capabilities with engine");
-                    Ok(jwt_secret)
+                    Ok(())
                 }
                 Err(e) => {
                     if Self::is_jwt_signature_error(&e) {
@@ -277,7 +295,8 @@ impl NodeCommand {
             .notify(|_, duration| {
                 debug!("Retrying engine capability handshake after {duration:?}");
             })
-            .await
+            .await?;
+        Ok(engine)
     }
 
     /// Run the Node subcommand.
@@ -298,39 +317,32 @@ impl NodeCommand {
             "Hardfork schedule"
         );
 
+        rpc::describe();
+        let l1_provider =
+            l1_client(self.l1_rpc_args.l1_eth_rpc.clone(), self.l1_rpc_args.l1_trust_rpc);
         let l1_config = L1ConfigBuilder {
             chain_config: self.get_l1_config(cfg.l1_chain_id)?,
-            trust_rpc: self.l1_rpc_args.l1_trust_rpc,
+            provider: l1_provider.clone(),
             beacon: self.l1_rpc_args.l1_beacon.clone(),
-            rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             slot_duration_override: self.l1_rpc_args.l1_slot_duration_override,
         };
 
         // If metrics are enabled, initialize the global cli metrics.
         args.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
 
-        let jwt_secret = self.validate_jwt().await?;
+        let engine = self.connect_engine().await?;
 
         self.p2p_flags.check_ports()?;
-        let p2p_config = self
-            .p2p_flags
-            .clone()
-            .config(&cfg, args, Some(self.l1_rpc_args.l1_eth_rpc.clone()))
-            .await?;
+        let p2p_config = self.p2p_flags.clone().config(&cfg, args, Some(&l1_provider)).await?;
         let rpc_config = self.rpc_flags.clone().into();
 
-        let engine_config = EngineConfig {
-            config: Arc::new(cfg.clone()),
-            l2_url: self.l2_client_args.l2_engine_rpc.clone(),
-            l2_jwt_secret: jwt_secret,
-            l1_url: self.l1_rpc_args.l1_eth_rpc.clone(),
-            mode: self.node_mode,
-        };
+        let engine_config =
+            EngineConfig { config: Arc::new(cfg.clone()), mode: self.node_mode, provider: engine };
 
         let dependency_set = self.load_dependency_set(&cfg)?;
         let safe_db = self.open_safe_db()?;
-        let derivation_delegate_config = self.derivation_delegate_args.config();
-        if safe_db.is_some() && derivation_delegate_config.is_some() {
+        let derivation_delegate_url = self.derivation_delegate_args.l2_follow_source;
+        if safe_db.is_some() && derivation_delegate_url.is_some() {
             bail!(
                 "--safedb.path cannot be combined with derivation delegation: a delegated node \
                  derives nothing itself, so the record would never be written and would be \
@@ -342,13 +354,12 @@ impl NodeCommand {
             crate::version::version().to_owned(),
             cfg,
             l1_config,
-            self.l2_client_args.l2_trust_rpc,
             engine_config,
             p2p_config,
             rpc_config,
         )
         .with_sequencer_config(self.sequencer_flags.config())
-        .with_derivation_delegate_config(derivation_delegate_config)
+        .with_derivation_delegate_url(derivation_delegate_url)
         .with_dependency_set(dependency_set)
         .with_safe_db(safe_db)
         .with_verifier_l1_confs(self.verifier_l1_confs)
@@ -378,31 +389,39 @@ impl NodeCommand {
         Ok(Some(Arc::new(db)))
     }
 
-    /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
+    /// Loads the interop [`DependencySet`] from `--interop.dependency-set`, or else from the
+    /// superchain-registry, as op-node does.
     ///
     /// Enforces the invariant that when the rollup config schedules the
-    /// Lagoon hardfork, the operator must supply a dependency-set JSON file.
-    /// Errors rather than panicking so the operator sees a clear message.
-    fn load_dependency_set(&self, cfg: &RollupConfig) -> Result<Option<Arc<DependencySet>>> {
-        match &self.interop_dependency_set {
-            Some(path) => {
-                let file = File::open(path).map_err(|e| {
-                    anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
-                })?;
-                let dep_set: DependencySet = from_reader(file).map_err(|e| {
-                    anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
-                })?;
-                Ok(Some(Arc::new(dep_set)))
-            }
-            None if cfg.hardforks.lagoon_time.is_some() => bail!(
-                "Lagoon is scheduled for this chain (lagoon_time = {:?}), but \
-                 --interop.dependency-set was not provided. Supply the dependency-set \
-                 JSON file matching op-node's --interop.dependency-set to avoid silent \
-                 state divergence on Lagoon activation.",
-                cfg.hardforks.lagoon_time,
-            ),
-            None => Ok(None),
+    /// Lagoon hardfork, a chain without a registry dependency set needs a
+    /// dependency-set JSON file. Errors rather than panicking so the operator
+    /// sees a clear message.
+    pub(super) fn load_dependency_set(
+        &self,
+        cfg: &RollupConfig,
+    ) -> Result<Option<Arc<DependencySet>>> {
+        if let Some(path) = &self.interop_dependency_set {
+            let file = File::open(path).map_err(|e| {
+                anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
+            })?;
+            let dep_set: DependencySet = from_reader(file).map_err(|e| {
+                anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
+            })?;
+            return Ok(Some(Arc::new(dep_set)));
         }
+        if let Some(dep_set) = DEPENDENCY_SETS.get(&cfg.l2_chain_id.id()) {
+            return Ok(Some(Arc::new(dep_set.clone())));
+        }
+        if let Some(lagoon_time) = cfg.hardforks.lagoon_time {
+            bail!(
+                "Lagoon is scheduled for chain {} (lagoon_time = {lagoon_time}), but the \
+                 superchain-registry has no dependency set for it and --interop.dependency-set \
+                 was not provided. Supply the dependency-set JSON file matching op-node's \
+                 --interop.dependency-set to avoid silent state divergence on Lagoon activation.",
+                cfg.l2_chain_id.id(),
+            );
+        }
+        Ok(None)
     }
 
     /// Parses an L1 chain config from either a direct config or a genesis document.
@@ -494,5 +513,37 @@ impl NodeCommand {
             },
             |content| Ok(JwtSecret::from_hex(content)?),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kona_providers_alloy::BlockLabel;
+    use std::{net::TcpListener, time::Duration};
+    use tokio::time::{self, Instant};
+
+    #[tokio::test(start_paused = true)]
+    async fn l1_requests_to_a_stalled_endpoint_fail_at_the_deadline() {
+        // Nothing ever answers, so the request fails at its deadline at whatever stage it is
+        // pending: connecting, sending, or waiting for the response.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap()).parse().unwrap();
+        let provider = l1_client(url, true);
+
+        let started = Instant::now();
+        let result =
+            time::timeout(rpc::TIMEOUT * 2, provider.block_info_by_label(BlockLabel::Latest))
+                .await
+                .expect("L1 request has no deadline");
+
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("deadline has elapsed"), "{error}");
+        // Timers round up to the next millisecond.
+        let waited = started.elapsed();
+        assert!(
+            waited >= rpc::TIMEOUT && waited <= rpc::TIMEOUT + Duration::from_millis(1),
+            "{waited:?}"
+        );
     }
 }

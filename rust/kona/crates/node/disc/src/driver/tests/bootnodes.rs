@@ -23,6 +23,26 @@ fn test_accepts_enode(
     assert_eq!(accepts_enode(table_filter, &enode).ok(), expected);
 }
 
+/// The driver should hand gossip its chain's bootnodes at startup, so that gossip dials them
+/// although they don't answer discovery, as a bootnode that runs gossip only. Otherwise a
+/// bootnode is dialed only once a session with it starts, as any record that gossip hasn't
+/// reached yet.
+///
+/// The bootnode is on loopback, where nothing answers.
+#[tokio::test]
+async fn test_bootnode_is_dialed_at_startup() {
+    let bootnode = enr_at_localhost(TEST_CHAIN_ID);
+    let (mut driver, _dir) = driver_with_bootstore(accept_all, &[]);
+    driver.bootnodes = BootNodes(vec![BootNode::Enr(bootnode.clone())]);
+    let (_handler, mut records) = driver.start();
+
+    let record = tokio::time::timeout(Duration::from_secs(5), records.recv())
+        .await
+        .expect("the driver didn't hand its bootnode to gossip")
+        .expect("the driver runs");
+    assert_eq!(record, bootnode);
+}
+
 /// A node with a public-only table filter should neither contact nor keep a loopback bootnode
 /// given by enode URL, as discv5 doesn't keep one given by ENR. An enode URL holds only an
 /// address, so the node would ask that address for the bootnode's record, which starts a
@@ -39,7 +59,7 @@ async fn test_public_only_node_drops_loopback_enode_bootnode() {
         .expect("the node starts");
 
     Discv5Driver::bootstrap_peers(
-        None,
+        &mut BootStore::in_memory(),
         BootNodes(vec![BootNode::Enode(enode)]),
         node.chain_id,
         node.table_filter,
@@ -83,8 +103,9 @@ async fn test_bootnode_for_another_chain_is_in_the_table(
     node.chain_id = bootnode.chain_id + 1;
     let node = node.init().await.expect("the node starts");
 
-    let store = Discv5Driver::bootstrap_peers(
-        None,
+    let mut store = BootStore::in_memory();
+    Discv5Driver::bootstrap_peers(
+        &mut store,
         BootNodes(vec![bootnode_as(&bootnode_enr)]),
         node.chain_id,
         node.table_filter,
@@ -117,13 +138,9 @@ async fn test_enode_bootnode_with_a_record_the_filter_rejects_is_dropped() {
         .and_then(|socket| socket.local_addr())
         .expect("a free UDP port")
         .port();
-    let record = Enr::builder()
-        .ip4(Ipv4Addr::LOCALHOST)
-        .udp4(port)
-        .tcp4(port)
-        .ip6(Ipv6Addr::LOCALHOST)
-        .build(&key)
-        .expect("the record builds");
+    let record = enr_signed_with(&key, TEST_CHAIN_ID, |record| {
+        record.ip4(Ipv4Addr::LOCALHOST).udp4(port).tcp4(port).ip6(Ipv6Addr::LOCALHOST);
+    });
     let listen = ListenConfig::from_ip(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     let mut bootnode = Discv5::new(record.clone(), key, ConfigBuilder::new(listen).build())
         .expect("the bootnode builds");
@@ -131,8 +148,9 @@ async fn test_enode_bootnode_with_a_record_the_filter_rejects_is_dropped() {
 
     let (node, _dir) = driver_with_bootstore(ipv4_loopback_only, &[]);
     let node = node.init().await.expect("the node starts");
-    let store = Discv5Driver::bootstrap_peers(
-        None,
+    let mut store = BootStore::in_memory();
+    Discv5Driver::bootstrap_peers(
+        &mut store,
         BootNodes(vec![BootNode::Enode(loopback_enode(&record))]),
         node.chain_id,
         node.table_filter,
@@ -149,11 +167,6 @@ async fn test_enode_bootnode_with_a_record_the_filter_rejects_is_dropped() {
 
 #[tokio::test]
 async fn test_online_discv5_driver_bootstrap_testnet() {
-    // Use a test file to make sure bootstore
-    // doesn't conflict with a local bootstore.
-    let file = tempdir().unwrap();
-    let file = file.path().join("bootstore.json");
-
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
     let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
         unreachable!()
@@ -165,14 +178,12 @@ async fn test_online_discv5_driver_bootstrap_testnet() {
     )
     .build()
     .expect("Failed to build discovery service");
-    discovery.bootstore = Some(BootStoreFile::Custom(file));
-
     discovery = discovery.init().await.expect("Failed to initialize discovery service");
 
     // There are no ENRs for `OP_SEPOLIA_CHAIN_ID` in the bootstore.
     // If an ENR is added, this check will fail.
     Discv5Driver::bootstrap_peers(
-        discovery.bootstore,
+        &mut discovery.bootstore,
         discovery.bootnodes,
         OP_SEPOLIA_CHAIN_ID,
         discovery.table_filter,
@@ -221,11 +232,6 @@ async fn test_online_discv5_driver_bootstrap_testnet() {
 async fn test_online_discv5_driver_bootstrap_mainnet() {
     kona_cli::init_test_tracing();
 
-    // Use a test file to make sure bootstore
-    // doesn't conflict with a local bootstore.
-    let file = tempdir().unwrap();
-    let file = file.path().join("bootstore.json");
-
     // Every bootnode goes into the table, those of other chains too.
     let mainnet: Vec<CombinedPublicKey> = BootNodes::mainnet()
         .iter()
@@ -251,14 +257,12 @@ async fn test_online_discv5_driver_bootstrap_mainnet() {
     )
     .build()
     .expect("Failed to build discovery service");
-    discovery.bootstore = Some(BootStoreFile::Custom(file));
-
     discovery = discovery.init().await.expect("Failed to initialize discovery service");
 
     // There are no ENRs for op mainnet in the bootstore.
     // If an ENR is added, this check will fail.
     Discv5Driver::bootstrap_peers(
-        discovery.bootstore,
+        &mut discovery.bootstore,
         discovery.bootnodes,
         OP_MAINNET_CHAIN_ID,
         discovery.table_filter,

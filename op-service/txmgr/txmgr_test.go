@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"sync"
 	"testing"
@@ -134,7 +133,6 @@ func configWithNumConfs(numConfirmations uint64) *Config {
 		RetryInterval:  1 * time.Millisecond,
 		NetworkTimeout: 1 * time.Second,
 		MaxRetries:     5,
-		CellProofTime:  math.MaxUint64,
 	}
 
 	cfg.RebroadcastInterval.Store(int64(time.Second / 2))
@@ -635,12 +633,11 @@ func TestTxMgr_CraftBlobTx(t *testing.T) {
 	sidecar := tx.BlobTxSidecar()
 	require.Equal(t, 2, len(sidecar.Blobs))
 	require.Equal(t, 2, len(sidecar.Commitments))
-	require.Equal(t, 2, len(sidecar.Proofs))
+	require.Equal(t, types.BlobSidecarVersion1, sidecar.Version)
+	require.Equal(t, 2*kzg4844.CellProofsPerBlob, len(sidecar.Proofs))
 
 	// verify the blobs
-	for i := range sidecar.Blobs {
-		require.NoError(t, kzg4844.VerifyBlobProof(&sidecar.Blobs[i], sidecar.Commitments[i], sidecar.Proofs[i]))
-	}
+	require.NoError(t, kzg4844.VerifyCellProofs(sidecar.Blobs, sidecar.Commitments, sidecar.Proofs))
 	b1 := eth.Blob(sidecar.Blobs[0])
 	d1, err := b1.ToData()
 	require.NoError(t, err)
@@ -1776,22 +1773,9 @@ func TestMakeSidecar(t *testing.T) {
 		blob[32*i] &= 0b0011_1111
 	}
 
-	// Pre Fusaka, blob proof sidecar is Version0
-	sidecar, hashes, err := MakeSidecar([]*eth.Blob{&blob}, false)
+	sidecar, hashes, err := MakeSidecar([]*eth.Blob{&blob})
 	require.NoError(t, err)
-	require.Equal(t, len(hashes), 1)
-	require.Equal(t, len(sidecar.Blobs), len(hashes))
-	require.Equal(t, len(sidecar.Proofs), len(hashes))
-	require.Equal(t, len(sidecar.Commitments), len(hashes))
-
-	for i, commit := range sidecar.Commitments {
-		require.NoError(t, eth.VerifyBlobProof((*eth.Blob)(&sidecar.Blobs[i]), commit, sidecar.Proofs[i]), "proof must be valid")
-		require.Equal(t, hashes[i], eth.KZGToVersionedHash(commit))
-	}
-
-	// Post Fusaka, blob proof sidecar is Version1
-	sidecar, hashes, err = MakeSidecar([]*eth.Blob{&blob}, true)
-	require.NoError(t, err)
+	require.Equal(t, types.BlobSidecarVersion1, sidecar.Version)
 	require.Equal(t, len(hashes), 1)
 	require.Equal(t, len(sidecar.Blobs), len(hashes))
 	require.Equal(t, len(sidecar.Proofs), len(hashes)*kzg4844.CellProofsPerBlob)

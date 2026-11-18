@@ -2,17 +2,10 @@
 
 use alloy_chains::Chain;
 use alloy_eips::BlockNumHash;
-use alloy_op_hardforks::{
-    OP_SEPOLIA_CANYON_TIMESTAMP, OP_SEPOLIA_ECOTONE_TIMESTAMP, OP_SEPOLIA_FJORD_TIMESTAMP,
-    OP_SEPOLIA_GRANITE_TIMESTAMP, OP_SEPOLIA_HOLOCENE_TIMESTAMP, OP_SEPOLIA_ISTHMUS_TIMESTAMP,
-    OP_SEPOLIA_JOVIAN_TIMESTAMP, OP_SEPOLIA_KARST_TIMESTAMP,
-};
 use alloy_primitives::{address, b256, uint};
 #[cfg(feature = "rollup_config_override")]
 use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
-use kona_genesis::{
-    ChainGenesis, HardForkConfig, OP_SEPOLIA_BASE_FEE_CONFIG, RollupConfig, SystemConfig,
-};
+use kona_genesis::{BaseFeeConfig, ChainGenesis, HardForkConfig, RollupConfig, SystemConfig};
 
 /// The [`RollupConfig`] for OP Sepolia.
 pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
@@ -50,23 +43,27 @@ pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
     l1_chain_id: 11155111,
     l2_chain_id: Chain::optimism_sepolia(),
-    chain_op_config: OP_SEPOLIA_BASE_FEE_CONFIG,
+    chain_op_config: BaseFeeConfig {
+        eip1559_elasticity: 6,
+        eip1559_denominator: 50,
+        eip1559_denominator_canyon: 250,
+    },
     settlement_chain_id: 0,
     alt_da_config: None,
     hardforks: HardForkConfig {
         regolith_time: None,
-        canyon_time: Some(OP_SEPOLIA_CANYON_TIMESTAMP),
+        canyon_time: Some(1_699_981_200),
         delta_time: Some(1703203200),
-        ecotone_time: Some(OP_SEPOLIA_ECOTONE_TIMESTAMP),
-        fjord_time: Some(OP_SEPOLIA_FJORD_TIMESTAMP),
-        granite_time: Some(OP_SEPOLIA_GRANITE_TIMESTAMP),
-        holocene_time: Some(OP_SEPOLIA_HOLOCENE_TIMESTAMP),
+        ecotone_time: Some(1_708_534_800),
+        fjord_time: Some(1_716_998_400),
+        granite_time: Some(1_723_478_400),
+        holocene_time: Some(1_732_633_200),
         pectra_blob_schedule_time: Some(1742486400),
-        isthmus_time: Some(OP_SEPOLIA_ISTHMUS_TIMESTAMP),
-        jovian_time: Some(OP_SEPOLIA_JOVIAN_TIMESTAMP),
-        karst_time: Some(OP_SEPOLIA_KARST_TIMESTAMP),
+        isthmus_time: Some(1_744_905_600),
+        jovian_time: Some(1_763_568_001),
+        karst_time: Some(1_781_712_001),
         keep_karst_upgrade_gas: true,
-        lagoon_time: None,
+        lagoon_time: Some(1_796_918_401),
     },
     batch_inbox_address: address!("ff00000000000000000000000000000011155420"),
     deposit_contract_address: address!("16fc5058f25648194471939df75cf27a2fdc48bc"),

@@ -179,11 +179,11 @@ mod tests {
     }
 
     #[test]
-    fn test_base_mainnet_enr() {
-        let base_enr = OpStackEnr::from_chain_id(8453);
-        let bytes = alloy_rlp::encode(base_enr);
-        assert_eq!(Bytes::from(bytes.clone()), bytes!("83854200"));
+    fn test_unichain_mainnet_enr() {
+        let unichain_enr = OpStackEnr::from_chain_id(130);
+        let bytes = alloy_rlp::encode(unichain_enr);
+        assert_eq!(Bytes::from(bytes.clone()), bytes!("83820100"));
         let decoded = OpStackEnr::decode(&mut &bytes[..]).unwrap();
-        assert_eq!(decoded, base_enr);
+        assert_eq!(decoded, unichain_enr);
     }
 }

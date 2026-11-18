@@ -159,6 +159,8 @@ owns the duplicated behavior. Record the version you actually verified against.
 ## See also
 
 - [reth-update-review.md](reth-update-review.md) — the bump review guide: the lockfile
-  funnel, the precondition question, and the risk taxonomy these mirrors sit inside.
+  funnel and the risk taxonomy these mirrors sit inside.
 - [../../rust/UPDATING-RETH.md](../../rust/UPDATING-RETH.md) — the bump procedure.
+- [../../rust/UPSTREAM-ASSUMPTIONS.md](../../rust/UPSTREAM-ASSUMPTIONS.md) — the precondition
+  question.
 - `rust/scripts/upstream-mirrors.py` — the checker.

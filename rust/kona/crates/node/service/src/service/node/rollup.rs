@@ -1,24 +1,23 @@
 //! Contains the [`RollupNode`] implementation.
 use crate::{
     ConductorClient, DelegateDerivationActor, DerivationActor, DerivationActorRequest,
-    DerivationDelegateClient, DerivationError, EngineActor, EngineActorRequest, EngineConfig,
-    L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig,
-    NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
-    QueuedSequencerEngineClient, RpcActor, SequencerActor, SequencerConfig, SignedPayload,
-    SignerActor, SystemClock,
+    DerivationError, EngineActor, EngineActorRequest, EngineConfig, L1OriginSelector,
+    L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
+    NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
+    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
+    RpcActor, SequencerActor, SequencerConfig, SignedPayload, SignerActor, SystemClock,
     actors::{
         BlockStream, OriginPrefetcher, OriginPreparation, PreparedAttributesProvider,
         PreparedOriginProvider, QueuedUnsafePayloadGossipClient,
     },
     service::{BufferImportedBlocks, middleware::RpcObservabilityLayer},
 };
-use alloy_eips::{BlockNumHash, BlockNumberOrTag};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
-use alloy_provider::{Provider, RootProvider};
 use backon::{ExponentialBuilder, Retryable};
 use jsonrpsee::{
     RpcModule,
+    http_client::{HttpClient, HttpClientBuilder},
     server::{
         Server, ServerConfig,
         middleware::{http::ProxyGetRequestLayer, rpc::RpcServiceBuilder},
@@ -30,8 +29,8 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
-    AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
-    OnlineBlobProvider, OnlinePipeline,
+    AlloyChainProvider, AlloyChainProviderError, AlloyL2ChainProvider, BlockLabel,
+    BufferedAlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider, OnlinePipeline,
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
@@ -40,13 +39,15 @@ use kona_rpc::{
     SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
 };
 use kona_safedb::SafeDb;
-use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
+use url::Url;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
+/// Timeout for each `optimism_syncStatus` request to the derivation delegate.
+const DERIVATION_DELEGATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 /// How many recently imported blocks to keep for the local L2 lookups.
 ///
 /// Every lookup served from here is for the block being built on top of, which the engine recorded
@@ -76,12 +77,11 @@ pub(super) fn merge_admin_module(
 pub struct L1Config {
     /// The L1 chain configuration.
     pub chain_config: Arc<L1ChainConfig>,
-    /// Whether to trust the L1 RPC.
-    pub trust_rpc: bool,
     /// The L1 beacon client.
     pub beacon_client: OnlineBeaconClient,
-    /// The L1 engine provider.
-    pub engine_provider: RootProvider,
+    /// The node's L1 client. Every component holds a clone, so all share its caches and trust
+    /// setting.
+    pub provider: AlloyChainProvider,
 }
 
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
@@ -94,10 +94,6 @@ pub struct RollupNode {
     pub(crate) config: Arc<RollupConfig>,
     /// The L1 configuration.
     pub(crate) l1_config: L1Config,
-    /// The L2 EL provider.
-    pub(crate) l2_provider: RootProvider<Optimism>,
-    /// Whether to trust the L2 RPC.
-    pub(crate) l2_trust_rpc: bool,
     /// The [`EngineConfig`] for the node.
     pub(crate) engine_config: EngineConfig,
     /// The [`RpcBuilder`] for the node.
@@ -106,8 +102,8 @@ pub struct RollupNode {
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] for the node.
     pub(crate) sequencer_config: SequencerConfig,
-    /// Optional derivation delegate provider.
-    pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
+    /// The L2 CL RPC to delegate derivation to. It must expose `optimism_syncStatus`.
+    pub(crate) derivation_delegate_url: Option<Url>,
     /// Blocks the engine has imported, shared with the derivation providers so they can be read
     /// locally instead of fetched back from the execution layer.
     pub(crate) l2_block_buffer: BufferedL2Provider,
@@ -130,13 +126,7 @@ pub struct RollupNode {
 /// `RollupNode` wiring logic.
 enum ConfiguredDerivationActor {
     Delegate(
-        Box<
-            DelegateDerivationActor<
-                QueuedDerivationEngineClient,
-                DerivationDelegateClient,
-                AlloyChainProvider,
-            >,
-        >,
+        Box<DelegateDerivationActor<QueuedDerivationEngineClient, HttpClient, AlloyChainProvider>>,
     ),
     Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>>),
 }
@@ -144,11 +134,8 @@ enum ConfiguredDerivationActor {
 #[async_trait::async_trait]
 impl NodeActor for ConfiguredDerivationActor
 where
-    DelegateDerivationActor<
-        QueuedDerivationEngineClient,
-        DerivationDelegateClient,
-        AlloyChainProvider,
-    >: NodeActor<Error = DerivationError>,
+    DelegateDerivationActor<QueuedDerivationEngineClient, HttpClient, AlloyChainProvider>:
+        NodeActor<Error = DerivationError>,
     DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
         NodeActor<Error = DerivationError>,
 {
@@ -197,25 +184,29 @@ impl RollupNode {
         self.rpc_builder.clone()
     }
 
-    /// Returns the sequencer builder for the node.
+    /// Returns the L2 provider that derivation reads from: the engine, behind the buffer of
+    /// blocks the engine has imported. Each call returns its own block cache over the node's one
+    /// engine connection.
+    fn l2_derivation_provider(&self) -> BufferedAlloyL2ChainProvider {
+        BufferedAlloyL2ChainProvider::new(
+            self.l2_block_buffer.clone(),
+            AlloyL2ChainProvider::new(
+                self.engine_config.provider.clone(),
+                self.config.clone(),
+                DERIVATION_PROVIDER_CACHE_SIZE,
+            ),
+        )
+    }
+
+    /// Returns the attributes builder for the node.
     fn create_attributes_builder(
         &self,
         l1_derivation_provider: PreparedAttributesProvider,
     ) -> StatefulAttributesBuilder<PreparedAttributesProvider, BufferedAlloyL2ChainProvider> {
-        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new_with_trust(
-                self.l2_provider.clone(),
-                self.config.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-                self.l2_trust_rpc,
-            ),
-        );
-
         StatefulAttributesBuilder::new(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
-            l2_derivation_provider,
+            self.l2_derivation_provider(),
             l1_derivation_provider,
             self.dependency_set.clone(),
         )
@@ -225,29 +216,18 @@ impl RollupNode {
         &self,
         l1_head: watch::Receiver<Option<BlockInfo>>,
     ) -> Result<OnlinePipeline, BlobProviderError> {
-        // Create the caching L1/L2 EL providers for derivation.
-        let l1_derivation_provider = AlloyChainProvider::new_with_trust(
-            self.l1_config.engine_provider.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l1_config.trust_rpc,
-        )
-        .with_confirmation_depth(self.verifier_l1_confs, l1_head);
-        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new_with_trust(
-                self.l2_provider.clone(),
-                self.config.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-                self.l2_trust_rpc,
-            ),
-        );
+        let l1_derivation_provider = self
+            .l1_config
+            .provider
+            .clone()
+            .with_confirmation_depth(self.verifier_l1_confs, l1_head);
 
         Ok(OnlinePipeline::new_polled(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
             OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await?,
             l1_derivation_provider,
-            l2_derivation_provider,
+            self.l2_derivation_provider(),
             self.dependency_set.clone(),
         ))
     }
@@ -264,7 +244,9 @@ impl RollupNode {
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
         let engine = Engine::new(engine_state, engine_state_tx);
 
-        let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
+        let engine_client = Arc::new(
+            self.engine_config.clone().build_engine_client(self.l1_config.provider.clone()),
+        );
 
         // unsafe_head_tx is only meaningful in sequencer mode; validators ignore it.
         let unsafe_head_tx_opt = self.mode().is_sequencer().then_some(unsafe_head_tx);
@@ -282,27 +264,26 @@ impl RollupNode {
         (actor, engine_client.query_client(), engine_state_rx)
     }
 
-    /// Selects between the standard and delegate derivation actor implementations and constructs
-    /// the chosen one.
+    /// Constructs the delegate derivation actor when a derivation delegate URL is set, and the
+    /// standard one otherwise.
     async fn build_derivation_actor(
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
+        engine_state_rx: watch::Receiver<EngineState>,
         l1_head: watch::Receiver<Option<BlockInfo>>,
     ) -> Result<ConfiguredDerivationActor, String> {
-        if let Some(provider) = self.derivation_delegate_provider.clone() {
-            // L1 Provider for sanity checking Derivation Delegation
-            let l1_provider = AlloyChainProvider::new(
-                self.l1_config.engine_provider.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-            );
+        if let Some(url) = &self.derivation_delegate_url {
+            let derivation_delegate = build_derivation_delegate_client(url)?;
+            // The delegate's reported L1 blocks are checked against our own L1 view.
             Ok(ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
-                provider,
-                l1_provider,
+                derivation_delegate,
+                self.l1_config.provider.clone(),
                 derivation_origin_tx,
+                engine_state_rx,
             ))))
         } else {
             let pipeline = self
@@ -328,17 +309,18 @@ impl RollupNode {
         if self.safe_db.is_none() {
             return Ok(BlockNumHash::default());
         }
-        let provider = &self.l1_config.engine_provider;
+        let provider = &self.l1_config.provider;
         debug!(target: "rollup_node", "Fetching L1 block zero for the safe head database");
-        let block = (|| async { provider.get_block_by_number(BlockNumberOrTag::Number(0)).await })
+        let block = (|| async { provider.block_info_by_number(0).await })
             .retry(ExponentialBuilder::default())
+            // A missing block zero is a misconfigured L1, which retrying cannot fix.
+            .when(|e| !matches!(e, AlloyChainProviderError::BlockNotFound(_)))
             .notify(|e, delay| {
                 warn!(target: "rollup_node", %e, ?delay, "Failed to fetch L1 block zero; retrying")
             })
             .await
-            .map_err(|e| format!("Failed to fetch L1 block zero for the safe head db: {e}"))?
-            .ok_or_else(|| "L1 block zero is missing".to_string())?;
-        let l1_block_zero = BlockNumHash { hash: block.header.hash, number: 0 };
+            .map_err(|e| format!("Failed to fetch L1 block zero for the safe head db: {e}"))?;
+        let l1_block_zero = block.id();
         info!(target: "rollup_node", l1_hash = %l1_block_zero.hash, "Anchoring the safe head db at L1 block zero");
         Ok(l1_block_zero)
     }
@@ -356,18 +338,17 @@ impl RollupNode {
         derivation_origin_rx: watch::Receiver<Option<BlockInfo>>,
         l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
         l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
-    ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
-    {
+    ) -> impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static {
         let head_stream = BlockStream::new_as_stream(
-            self.l1_config.engine_provider.clone(),
-            BlockNumberOrTag::Latest,
+            self.l1_config.provider.clone(),
+            BlockLabel::Latest,
             Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
-        )?;
+        );
         let finalized_stream = BlockStream::new_as_stream(
-            self.l1_config.engine_provider.clone(),
-            BlockNumberOrTag::Finalized,
+            self.l1_config.provider.clone(),
+            BlockLabel::Finalized,
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
-        )?;
+        );
 
         let chain = L1WatcherChain::new(
             self.config.clone(),
@@ -377,13 +358,13 @@ impl RollupNode {
             l1_query_rx,
         );
 
-        Ok(L1WatcherActor::new(
-            self.l1_config.engine_provider.clone(),
+        L1WatcherActor::new(
+            self.l1_config.provider.clone(),
             l1_head_updates_tx,
             head_stream,
             finalized_stream,
             vec![chain],
-        ))
+        )
     }
 
     /// Builds the signer actor when the node is in sequencer mode; otherwise returns `None`.
@@ -430,20 +411,14 @@ impl RollupNode {
             return Ok(None);
         }
 
-        let chain = AlloyChainProvider::new_with_trust(
-            self.l1_config.engine_provider.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l1_config.trust_rpc,
-        );
         let OriginPreparation {
             prefetcher,
             origins: delayed_l1_provider,
             attributes: attributes_provider,
         } = OriginPreparation::new(
-            self.l1_config.engine_provider.clone(),
+            self.l1_config.provider.clone(),
             l1_head_updates_rx,
             self.sequencer_config.l1_conf_delay,
-            chain,
         );
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
@@ -621,6 +596,7 @@ impl RollupNode {
                 engine_actor_request_tx.clone(),
                 derivation_actor_request_rx,
                 derivation_origin_tx,
+                engine_state_rx.clone(),
                 l1_head_updates_rx.clone(),
             )
             .await?;
@@ -663,7 +639,7 @@ impl RollupNode {
             derivation_origin_rx,
             l1_query_rx,
             l1_head_updates_tx,
-        )?;
+        );
 
         let sequencing = self.build_sequencer(
             engine_actor_request_tx.clone(),
@@ -701,5 +677,39 @@ impl RollupNode {
             ]
         );
         Ok(())
+    }
+}
+
+/// Builds the HTTP client the delegate derivation actor polls for the delegate's sync status.
+///
+/// jsonrpsee accepts only `http` and `https` URLs, so any other scheme is a startup error.
+fn build_derivation_delegate_client(url: &Url) -> Result<HttpClient, String> {
+    HttpClientBuilder::default()
+        .request_timeout(DERIVATION_DELEGATE_REQUEST_TIMEOUT)
+        .build(url)
+        .map_err(|e| format!("Failed to build derivation delegate client: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case::http("http://localhost:9545", true)]
+    #[case::https("https://delegate.example.com", true)]
+    #[case::ws("ws://localhost:9545", false)]
+    #[case::wss("wss://delegate.example.com", false)]
+    fn derivation_delegate_client_rejects_non_http_schemes(
+        #[case] url: &str,
+        #[case] builds: bool,
+    ) {
+        let result = build_derivation_delegate_client(&url.parse().unwrap());
+        if builds {
+            assert!(result.is_ok(), "{url}: {:?}", result.err());
+        } else {
+            let err = result.expect_err(url);
+            assert!(err.contains("Failed to build derivation delegate client"), "{url}: {err}");
+        }
     }
 }

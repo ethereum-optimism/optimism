@@ -341,7 +341,9 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::fpvm_evm::precompiles::test_utils::{VALID_KZG_EVALUATION, kzg_point_eval_input};
     use alloy_op_evm::{OpEvmContext, OpTx};
+    use alloy_primitives::hex;
     use kona_preimage::{HintWriterClient, PreimageOracleClient};
     use op_revm::{L1BlockInfo, OpSpecId, OpTransaction};
     use revm::{
@@ -596,6 +598,189 @@ mod test {
         }
     }
 
+    /// A call that passes every check an accelerated precompile makes itself, gas and length, but
+    /// whose input the host rejects. The client learns of the failure only from the host's answer.
+    struct HostRejectedCall {
+        name: &'static str,
+        address: Address,
+        /// The first spec that accelerates `address`.
+        first_spec: OpSpecId,
+        input: Vec<u8>,
+    }
+
+    /// One host-rejected call for each accelerated precompile whose host can reject an input.
+    /// ecrecover is not one: revm returns no output for a bad signature instead of failing, and
+    /// the client maps any host failure to the same empty output.
+    fn host_rejected_calls() -> Vec<HostRejectedCall> {
+        let mut kzg_wrong_evaluation = VALID_KZG_EVALUATION;
+        kzg_wrong_evaluation[31] ^= 1;
+
+        // G1 point (1, 3) is not on y^2 = x^3 + 3; the G2 point is the point at infinity.
+        let mut bn254_off_curve = vec![0u8; bn254::PAIR_ELEMENT_LEN];
+        bn254_off_curve[31] = 1;
+        bn254_off_curve[63] = 3;
+
+        vec![
+            HostRejectedCall {
+                name: "bn254 pairing: G1 point not on the curve",
+                address: bn254::pair::ADDRESS,
+                first_spec: OpSpecId::BEDROCK,
+                input: bn254_off_curve,
+            },
+            HostRejectedCall {
+                name: "kzg point evaluation: proof does not verify",
+                address: KZG_POINT_EVAL_ADDR,
+                first_spec: OpSpecId::ECOTONE,
+                input: kzg_point_eval_input(kzg_wrong_evaluation),
+            },
+            // One failure vector per BLS12-381 precompile from the EIP-2537 test suite, named as
+            // in kona/sp1/crates/bls12-381-check/testdata/eip2537.
+            HostRejectedCall {
+                name: "bls_g1add_point_not_on_curve",
+                address: bls12_381_const::G1_ADD_ADDRESS,
+                first_spec: OpSpecId::ISTHMUS,
+                input: hex!("0000000000000000000000000000000017f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb00000000000000000000000000000000186b28d92356c4dfec4b5201ad099dbdede3781f8998ddf929b4cd7756192185ca7b8f4ef7088f813270ac3d48868a2100000000000000000000000000000000112b98340eee2777cc3c14163dea3ec97977ac3dc5c70da32e6e87578f44912e902ccef9efe28d4a78b8999dfbca942600000000000000000000000000000000186b28d92356c4dfec4b5201ad099dbdede3781f8998ddf929b4cd7756192185ca7b8f4ef7088f813270ac3d48868a21").to_vec(),
+            },
+            HostRejectedCall {
+                name: "bls_g2add_invalid_field_element",
+                address: bls12_381_const::G2_ADD_ADDRESS,
+                first_spec: OpSpecId::ISTHMUS,
+                input: hex!("000000000000000000000000000000001c4bb49d2a0ef12b7123acdd7110bd292b5bc659edc54dc21b81de057194c79b2a5803255959bbef8e7f56c8c12168630000000000000000000000000000000013e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e000000000000000000000000000000000ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801000000000000000000000000000000000606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be00000000000000000000000000000000103121a2ceaae586d240843a398967325f8eb5a93e8fea99b62b9f88d8556c80dd726a4b30e84a36eeabaf3592937f2700000000000000000000000000000000086b990f3da2aeac0a36143b7d7c824428215140db1bb859338764cb58458f081d92664f9053b50b3fbd2e4723121b68000000000000000000000000000000000f9e7ba9a86a8f7624aa2b42dcc8772e1af4ae115685e60abc2c9b90242167acef3d0be4050bf935eed7c3b6fc7ba77e000000000000000000000000000000000d22c3652d0dc6f0fc9316e14268477c2049ef772e852108d269d9c38dba1d4802e8dae479818184c08f9a569d878451").to_vec(),
+            },
+            HostRejectedCall {
+                name: "bls_g1msm_point_not_on_curve",
+                address: bls12_381_const::G1_MSM_ADDRESS,
+                first_spec: OpSpecId::ISTHMUS,
+                input: hex!("0000000000000000000000000000000017f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb00000000000000000000000000000000186b28d92356c4dfec4b5201ad099dbdede3781f8998ddf929b4cd7756192185ca7b8f4ef7088f813270ac3d48868a21000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000112b98340eee2777cc3c14163dea3ec97977ac3dc5c70da32e6e87578f44912e902ccef9efe28d4a78b8999dfbca942600000000000000000000000000000000186b28d92356c4dfec4b5201ad099dbdede3781f8998ddf929b4cd7756192185ca7b8f4ef7088f813270ac3d48868a210000000000000000000000000000000000000000000000000000000000000002").to_vec(),
+            },
+            HostRejectedCall {
+                name: "bls_g2msm_invalid_field_element",
+                address: bls12_381_const::G2_MSM_ADDRESS,
+                first_spec: OpSpecId::ISTHMUS,
+                input: hex!("000000000000000000000000000000001c4bb49d2a0ef12b7123acdd7110bd292b5bc659edc54dc21b81de057194c79b2a5803255959bbef8e7f56c8c12168630000000000000000000000000000000013e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e000000000000000000000000000000000ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801000000000000000000000000000000000606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000103121a2ceaae586d240843a398967325f8eb5a93e8fea99b62b9f88d8556c80dd726a4b30e84a36eeabaf3592937f2700000000000000000000000000000000086b990f3da2aeac0a36143b7d7c824428215140db1bb859338764cb58458f081d92664f9053b50b3fbd2e4723121b68000000000000000000000000000000000f9e7ba9a86a8f7624aa2b42dcc8772e1af4ae115685e60abc2c9b90242167acef3d0be4050bf935eed7c3b6fc7ba77e000000000000000000000000000000000d22c3652d0dc6f0fc9316e14268477c2049ef772e852108d269d9c38dba1d4802e8dae479818184c08f9a569d8784510000000000000000000000000000000000000000000000000000000000000002").to_vec(),
+            },
+            HostRejectedCall {
+                name: "bls_invalid_fq_element",
+                address: bls12_381_const::MAP_FP_TO_G1_ADDRESS,
+                first_spec: OpSpecId::ISTHMUS,
+                input: hex!("000000000000000000000000000000002f6d9c5465982c0421b61e74579709b3b5b91e57bdd4f6015742b4ff301abb7ef895b9cce00c33c7d48f8e5fa4ac09ae").to_vec(),
+            },
+            HostRejectedCall {
+                name: "bls_mapg2_invalid_fq_element",
+                address: bls12_381_const::MAP_FP2_TO_G2_ADDRESS,
+                first_spec: OpSpecId::ISTHMUS,
+                input: hex!("0000000000000000000000000000000021366f100476ce8d3be6cfc90d59fe13349e388ed12b6dd6dc31ccd267ff000e2c993a063ca66beced06f804d4b8e5af0000000000000000000000000000000002829ce3c021339ccb5caf3e187f6370e1e2a311dec9b75363117063ab2015603ff52c3d3b98f19c2f65575e99e8b78c").to_vec(),
+            },
+            HostRejectedCall {
+                name: "bls_pairing_e(G1_not_in_correct_subgroup,-G2)=e(-G1,G2)",
+                address: bls12_381_const::PAIRING_ADDRESS,
+                first_spec: OpSpecId::ISTHMUS,
+                input: hex!("000000000000000000000000000000000123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef00000000000000000000000000000000193fb7cedb32b2c3adc06ec11a96bc0d661869316f5e4a577a9f7c179593987beb4fb2ee424dbb2f5dd891e228b46c4a00000000000000000000000000000000024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb80000000000000000000000000000000013e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e000000000000000000000000000000000ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801000000000000000000000000000000000606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be0000000000000000000000000000000017f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb0000000000000000000000000000000008b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e100000000000000000000000000000000024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb80000000000000000000000000000000013e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e000000000000000000000000000000000d1b3cc2c7027888be51d9ef691d77bcb679afda66c73f17f9ee3837a55024f78c71363275a75d75d86bab79f74782aa0000000000000000000000000000000013fa4d4a0ad8b1ce186ed5061789213d993923066dddaf1040bc3ff59f825c78df74f2d75467e25e0f55f8a00fa030ed").to_vec(),
+            },
+        ]
+    }
+
+    /// For an input the host rejects, an accelerated precompile has to return what the
+    /// [`EthPrecompiles`] it wraps, the one op-reth runs, returns for the same call: a halt that
+    /// spends all of the call's gas. Any other status or gas makes kona and op-reth compute
+    /// different receipts for the same block. Each case runs at every spec from the one that
+    /// first accelerates it, because a fork can swap in its own accelerated function, and with
+    /// and without a reservoir on the call.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_host_rejected_input_matches_wrapped_provider() {
+        use crate::fpvm_evm::precompiles::test_utils::test_accelerated_precompile;
+
+        const SPECS: [OpSpecId; 11] = [
+            OpSpecId::BEDROCK,
+            OpSpecId::REGOLITH,
+            OpSpecId::CANYON,
+            OpSpecId::ECOTONE,
+            OpSpecId::FJORD,
+            OpSpecId::GRANITE,
+            OpSpecId::HOLOCENE,
+            OpSpecId::ISTHMUS,
+            OpSpecId::JOVIAN,
+            OpSpecId::KARST,
+            OpSpecId::LAGOON,
+        ];
+        const GAS_LIMIT: u64 = 1_000_000;
+
+        test_accelerated_precompile(|hint_writer, oracle_reader| {
+            let mut ctx = create_test_context();
+            for spec in SPECS {
+                let mut precompiles = OpFpvmPrecompiles::new_with_spec(
+                    spec,
+                    hint_writer.clone(),
+                    oracle_reader.clone(),
+                );
+                let mut wrapped = precompiles.inner.clone();
+
+                for HostRejectedCall { name, address, first_spec, input } in host_rejected_calls() {
+                    if !spec.is_enabled_in(first_spec) {
+                        continue;
+                    }
+
+                    // Without a host rejection the case would test a check the client makes
+                    // itself, not the host-failure path.
+                    let accelerated = precompiles
+                        .accelerated_precompiles
+                        .get(&address)
+                        .copied()
+                        .unwrap_or_else(|| panic!("{name}: not accelerated at {spec:?}"));
+                    let res = accelerated(&input, GAS_LIMIT, hint_writer, oracle_reader);
+                    assert!(
+                        matches!(&res, Err(revm::precompile::PrecompileHalt::Other(msg)) if msg.contains("Error executing precompile in host")),
+                        "{name} at {spec:?}: expected the host to reject the input, got {res:?}"
+                    );
+
+                    for reservoir in [0, 4_096] {
+                        let call_inputs = create_call_inputs_with_reservoir(
+                            address,
+                            input.clone().into(),
+                            GAS_LIMIT,
+                            reservoir,
+                        );
+                        let ours = precompiles.run(&mut ctx, &call_inputs).unwrap();
+                        let theirs = PrecompileProvider::<TestContext>::run(
+                            &mut wrapped,
+                            &mut ctx,
+                            &call_inputs,
+                        )
+                        .unwrap();
+
+                        assert!(
+                            theirs.as_ref().is_some_and(|r| r.result == InstructionResult::PrecompileError),
+                            "{name} at {spec:?}: the wrapped provider must reject the input, got {theirs:?}"
+                        );
+                        assert_eq!(
+                            ours, theirs,
+                            "{name} at {spec:?} with reservoir {reservoir}: diverged from the wrapped provider"
+                        );
+                    }
+                }
+            }
+
+            // Every accelerated precompile but ecrecover has a case, so a newly accelerated one
+            // fails here until it gets one.
+            let lagoon = OpFpvmPrecompiles::new_with_spec(
+                OpSpecId::LAGOON,
+                hint_writer.clone(),
+                oracle_reader.clone(),
+            );
+            let mut accelerated: Vec<_> = lagoon
+                .accelerated_precompiles
+                .keys()
+                .copied()
+                .filter(|address| *address != ECRECOVER_ADDR)
+                .collect();
+            accelerated.sort();
+            let mut covered: Vec<_> = host_rejected_calls().iter().map(|c| c.address).collect();
+            covered.sort();
+            assert_eq!(accelerated, covered, "accelerated precompiles without a host-rejected call");
+        })
+        .await;
+    }
+
     #[test]
     fn test_run_nonexistent_precompile() {
         let (hint_chan, preimage_chan) = (
@@ -801,13 +986,10 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_provider_dispatches_l1_precompile_gas() {
-        use alloy_eips::eip4844::VERSIONED_HASH_VERSION_KZG;
-        use alloy_primitives::hex;
         use revm::precompile::{
             bls12_381_const::{G1_ADD_INPUT_LENGTH, G2_ADD_INPUT_LENGTH},
             bn254::PAIR_ELEMENT_LEN,
         };
-        use sha2::{Digest, Sha256};
 
         // For each of the four precompiles whose L1 cost diverges from the L2 charge, drive
         // `OpFpvmPrecompiles::run` at JOVIAN and assert the hint payload carries the L1 cost.
@@ -816,20 +998,9 @@ mod test {
         // if the per-leaf tests still pass. Current L1 values reflect EIP-7904.
 
         // KZG: 0x0a, valid input → expect 89_363
-        let kzg_input: Bytes = {
-            let commitment = hex!("8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7").to_vec();
-            let mut versioned_hash = Sha256::digest(&commitment).to_vec();
-            versioned_hash[0] = VERSIONED_HASH_VERSION_KZG;
-            let z =
-                hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000").to_vec();
-            let y =
-                hex!("1522a4a7f34e1ea350ae07c29c96c7e79655aa926122e95fe69fcbd932ca49e9").to_vec();
-            let proof = hex!("a62ad71d14c5719385c0686f1871430475bf3a00f0aa3f7b8dd99a9abc2160744faf0070725e00b60ad9a026a15b1a8c").to_vec();
-            [versioned_hash, z, y, commitment, proof].concat().into()
-        };
         run_dispatch_and_assert_oracle_gas(
             super::super::kzg_point_eval::KZG_POINT_EVAL_ADDR,
-            kzg_input,
+            kzg_point_eval_input(VALID_KZG_EVALUATION).into(),
             89_363,
         )
         .await;

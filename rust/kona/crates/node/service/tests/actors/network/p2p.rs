@@ -13,7 +13,7 @@ use enr::NodeId;
 use kona_genesis::OP_MAINNET_CHAIN_ID;
 use kona_gossip::PeerAddr;
 use kona_node_service::IpVotes;
-use kona_peers::BootNode;
+use kona_peers::{BootNode, BootStore};
 use kona_rpc::OpP2PApiServer;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 
@@ -416,6 +416,47 @@ async fn test_static_peer_connects_at_startup() -> anyhow::Result<()> {
 
     assert!(node_1.has_discovery_disabled().await);
     assert!(node_2.has_discovery_disabled().await);
+
+    Ok(())
+}
+
+/// A node's bootstore records that its gossip reached a peer at the TCP address in the peer's
+/// record, so that it can tell such a peer from one it only had a discovery session with. Only a
+/// connection the node dialed shows that: the peer's dial shows that the peer can reach the node,
+/// not that the node can reach the peer.
+///
+/// N is on loopback and accepts every address. B uses only public addresses, see
+/// [`not_loopback`], and is N's bootnode. N saves B's record, and its gossip dials B. B neither
+/// saves nor dials N, whose address is on loopback, so only N dials, whichever node handles their
+/// session first.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_bootstore_records_that_gossip_reached_a_peer() -> anyhow::Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("bootstore.json");
+    let mut builder = TestNetworkBuilder::new()
+        .with_store_interval(Duration::from_millis(100))
+        .with_next_table_filter(not_loopback);
+    let bootnode = builder.build(vec![]).await;
+    let bootnode_id = bootnode.node_id().await?;
+
+    let mut builder = builder.with_next_bootstore(path.clone());
+    let node = builder.build(vec![bootnode.peer_enr().await?]).await;
+    node.check_connected_to_with_retries(&bootnode).await?;
+
+    // The node saves its bootstore every store interval, so about 20 saves pass in this time.
+    let mut entry = None;
+    for _ in 0..20 {
+        entry = BootStore::open(path.clone())?.get(bootnode_id).cloned();
+        if entry.as_ref().is_some_and(|entry| entry.tcp_verified_at().is_some()) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let entry = entry.context("the node didn't save its bootnode")?;
+    assert!(
+        entry.tcp_verified_at().is_some(),
+        "the node's gossip reached its bootnode, but its bootstore doesn't say so: {entry:?}"
+    );
 
     Ok(())
 }

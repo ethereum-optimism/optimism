@@ -1,14 +1,13 @@
 package batcher
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,9 +34,9 @@ func (tcs testChannelStatuser) isTimedOut() bool {
 
 func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 
-	block101 := mustSizedBlockFromGeth(types.NewBlockWithHeader(&types.Header{Number: big.NewInt(101), BaseFee: big.NewInt(7)}))
-	block102 := mustSizedBlockFromGeth(types.NewBlockWithHeader(&types.Header{Number: big.NewInt(102), BaseFee: big.NewInt(7)}))
-	block103 := mustSizedBlockFromGeth(types.NewBlockWithHeader(&types.Header{Number: big.NewInt(103), BaseFee: big.NewInt(7)}))
+	block101 := ToSizedBlock(newMiniL2Payload(0, 101, common.Hash{}, 100, 0))
+	block102 := ToSizedBlock(newMiniL2Payload(0, 102, common.Hash{}, 100, 0))
+	block103 := ToSizedBlock(newMiniL2Payload(0, 103, common.Hash{}, 100, 0))
 
 	channel103 := testChannelStatuser{
 		latestL2:       eth.ToBlockID(block103),
@@ -46,7 +45,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 		timedOut:       false,
 	}
 
-	block104 := mustSizedBlockFromGeth(types.NewBlockWithHeader(&types.Header{Number: big.NewInt(104), BaseFee: big.NewInt(7)}))
+	block104 := ToSizedBlock(newMiniL2Payload(0, 104, common.Hash{}, 100, 0))
 
 	channel104 := testChannelStatuser{
 		latestL2:       eth.ToBlockID(block104),
