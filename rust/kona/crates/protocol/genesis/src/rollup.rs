@@ -1093,6 +1093,15 @@ mod tests {
         assert_eq!(json["l2_chain_id"], 10);
     }
 
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_deserialize_l2_chain_id_name() {
+        let mut json = serde_json::to_value(expected_rollup_config()).unwrap();
+        json["l2_chain_id"] = "optimism".into();
+        let config: RollupConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(config.l2_chain_id, Chain::optimism_mainnet());
+    }
+
     /// The config in the cross-language golden file, `rollup_config_cross_language.json`.
     ///
     /// The file is the contract between kona's `RollupConfig` serialization (which kona-node's
@@ -1208,15 +1217,6 @@ mod tests {
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         assert_eq!(json, golden, "rerun with UPDATE_GOLDEN=1 to regenerate {path}");
         assert_eq!(serde_json::from_value::<RollupConfig>(golden).unwrap(), config);
-    }
-
-    #[test]
-    #[cfg(feature = "serde")]
-    fn test_deserialize_l2_chain_id_name() {
-        let mut json = serde_json::to_value(expected_rollup_config()).unwrap();
-        json["l2_chain_id"] = "optimism".into();
-        let config: RollupConfig = serde_json::from_value(json).unwrap();
-        assert_eq!(config.l2_chain_id, Chain::optimism_mainnet());
     }
 
     #[test]
