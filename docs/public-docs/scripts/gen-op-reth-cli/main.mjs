@@ -10,7 +10,7 @@
 //
 // Adapted from upstream reth's docs/cli/update.sh + docs/cli/help.rs (the
 // tooling whose output format the original snapshot matches), ported to a
-// zero-dependency Node script so it runs with the docs toolchain.
+// zero-dependency script so it runs with the docs toolchain.
 //
 // Usage (from anywhere; paths are resolved relative to this script):
 //   bun docs/public-docs/scripts/gen-op-reth-cli/main.mjs \

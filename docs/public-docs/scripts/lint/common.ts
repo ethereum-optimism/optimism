@@ -1,7 +1,7 @@
 // Shared helpers for the docs lint scripts (validate-nav.ts, validate-redirects.ts,
 // validate-reference.ts).
 //
-// Both scripts are deterministic and dependency-free (Node builtins only).
+// These scripts are deterministic and dependency-free (Node builtins only).
 
 import * as fs from "fs";
 import * as path from "path";
