@@ -12,15 +12,10 @@
     "gen:hardforks": "bun scripts/generate-hardforks.ts",
     "gen:hardforks:check": "bun scripts/generate-hardforks.ts --check"
   },
-  "dependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
-  },
   "devDependencies": {
     "@eth-optimism/actions-sdk": "^0.8.1",
     "@types/node": "^25.9.1",
     "@types/react": "^18.0.0",
-    "@types/react-dom": "^18.0.0",
     "ts-morph": "^21.0.0",
     "typescript": "^5.0.0"
   },
