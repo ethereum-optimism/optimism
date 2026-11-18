@@ -115,8 +115,14 @@ class JobCommandTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         final = json.loads((self.report('tests-compiler') / 'final.json').read_text())
         self.assertEqual(final['exit_code'], 0)
-        self.assertEqual({name: record['argv'] for name, record in final['stages'].items()},
-                         {'beacon': ['just', 'test-beacon-blob-stack'], 'doctests': ['just', 'test-docs']})
+        stages = {name: record['argv'] for name, record in final['stages'].items()}
+        self.assertEqual(stages, {'beacon': ['just', 'test-beacon-blob-stack'], 'doctests': ['just', 'test-docs'],
+                                  'custom-embeds': ['just', 'test-custom-embeds']})
+        # `just test` is what CircleCI's rust-tests job runs. When that recipe gains a part,
+        # the job runs it at once; RWX runs it only after this job names it.
+        dump = json.loads(subprocess.check_output([shutil.which('just'), '--justfile', str(REPO / 'rust/justfile'), '--dump', '--dump-format', 'json'], text=True))
+        parts = [dependency['recipe'] for dependency in dump['recipes']['test']['dependencies']]
+        self.assertEqual(sorted(parts), sorted(['test-unit', *(argv[1] for argv in stages.values())]))
 
     def test_registry_verdict_is_the_diff_of_the_regenerated_snapshots(self):
         result = self.run_job('registry')

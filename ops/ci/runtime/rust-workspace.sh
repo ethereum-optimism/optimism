@@ -85,8 +85,11 @@ case "$job" in
     exit "$status"
     ;;
   tests-compiler)
+    # CircleCI's rust-tests job runs `just test`. The tests-unit job runs its `test-unit`
+    # recipe from a nextest archive; these are the other recipes that `just test` runs.
     stage beacon just test-beacon-blob-stack
     stage doctests just test-docs
+    stage custom-embeds just test-custom-embeds
     ;;
   docs) stage docs just lint-docs ;;
   clippy) stage clippy cargo clippy --workspace --all-targets --all-features --locked ;;
