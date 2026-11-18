@@ -149,8 +149,7 @@ fn blob_versioned_hash(blob: &FixedBytes<BLOB_SIZE>) -> Result<B256, BeaconClien
 /// An error that can occur when interacting with the beacon client.
 #[derive(Error, Debug)]
 pub enum BeaconClientError {
-    /// HTTP request failed. The error carries no URL, since some beacon providers put the API key
-    /// in the URL path.
+    /// HTTP request failed. Converting through `From<reqwest::Error>` strips the request URL.
     #[error("HTTP request failed: {0}")]
     Http(#[source] reqwest::Error),
 
@@ -169,7 +168,8 @@ pub enum BeaconClientError {
 }
 
 impl From<reqwest::Error> for BeaconClientError {
-    /// Drops the request URL, which a reqwest error names when printed.
+    /// Drops the request URL, which a reqwest error names when printed. Some beacon providers put
+    /// the API key in the URL path.
     fn from(error: reqwest::Error) -> Self {
         Self::Http(error.without_url())
     }
@@ -521,7 +521,6 @@ mod tests {
             then.status(500);
         });
 
-        // Some beacon providers put the API key in the URL path.
         let client = OnlineBeaconClient::new_http(server.url("/secret-api-key"));
         let error = client.filtered_beacon_blobs(slot, &[]).await.unwrap_err();
         blobs_mock.assert();

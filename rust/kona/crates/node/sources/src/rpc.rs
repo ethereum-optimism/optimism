@@ -580,8 +580,8 @@ mod tests {
     ) {
         let (_, build) = client;
         let (logs, _guard) = capture_logs(Level::WARN);
-        // Some L1 providers put the API key in the URL path. Nothing listens on port 1, so the
-        // request fails in the transport; reqwest's errors name the URL they were sending to.
+        // Nothing listens on port 1, so the request fails in the transport; reqwest's errors name
+        // the URL they were sending to.
         let client = build("http://127.0.0.1:1/secret-api-key".parse().unwrap());
 
         let response = client.transport().clone().call(request("eth_blockNumber")).await;
