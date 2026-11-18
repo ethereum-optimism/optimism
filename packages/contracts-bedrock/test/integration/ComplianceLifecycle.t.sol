@@ -57,8 +57,9 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
             .initialize(anyone, IPolicy(anyone), optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
     }
 
-    /// @notice Tests that removing the hook strands held items and stops screening, and that
-    ///         setting the same module again lets the items held before complete.
+    /// @notice Tests that removing the hook strands held items and stops screening, that setting
+    ///         the same module again lets the items held before complete, and that the Portal's
+    ///         re-initialization does not reuse a deposit identifier.
     function test_removeHook_hookSetAgain_succeeds() external {
         Types.WithdrawalTransaction memory unscreened = _withdrawal(1, alice, bob, AMOUNT);
         _prove(unscreened);
@@ -85,6 +86,11 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
 
         _assertItemsHeld(held);
         _completeItems(held);
+
+        // The same deposit as the first held one gets a new identifier.
+        _depositETH(alice, bob, AMOUNT);
+        (bytes32 id,) = _heldDeposit();
+        assertNotEq(id, held.ids[0], "deposit identifier reused");
     }
 
     /// @notice Tests that a Portal upgrade through OPCM keeps the hook, the held items, their
