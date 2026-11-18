@@ -1,12 +1,12 @@
 ---
 title: Snapshots
-description: Find OP Labs op-reth snapshots for OP Mainnet, OP Sepolia, and other networks, the legacy pre-Bedrock data directory, and third-party snapshot providers.
+description: Find op-reth snapshots for OP Mainnet, OP Sepolia, and other OP Enterprise Fully Managed networks, the legacy pre-Bedrock data directory, and third-party snapshot providers.
 diataxis: reference
 ---
 
 # Node snapshots
 
-This page lists where to download node snapshots for OP Mainnet, OP Sepolia, and other networks that OP Labs publishes snapshots for.
+This page lists where to download node snapshots for OP Mainnet, OP Sepolia, and other OP Enterprise Fully Managed networks that Optimism publishes snapshots for.
 Snapshots are pre-synced execution client data directories that let you start a node from a recent chain state instead of replaying from genesis.
 For step-by-step instructions on downloading, verifying, and extracting a snapshot, follow the [Restore a node from a snapshot guide](/node-operators/guides/management/restore-from-snapshot).
 
@@ -19,9 +19,9 @@ For step-by-step instructions on downloading, verifying, and extracting a snapsh
   A snapshot is the fastest way to bootstrap an archive node, and on OP Mainnet it is the simplest way to satisfy `op-reth`'s [pre-Bedrock state requirement](#op-mainnet-pre-bedrock-data).
 </Info>
 
-## OP Labs snapshots
+## Optimism snapshots
 
-OP Labs publishes `op-reth` snapshots at [snapshots.optimism.io](https://snapshots.optimism.io/).
+Optimism publishes `op-reth` snapshots at [snapshots.optimism.io](https://snapshots.optimism.io/).
 Select your network and sync type on the site. For each snapshot, the site shows the `op-reth` version it was taken with, the snapshot date, its size, and its SHA256 checksum.
 Use the **Snapshot** picker to choose the latest snapshot or an older dated one, then copy the download command or the snapshot URL.
 Snapshots are `.tar.zst` archives, and each one has a matching `.sha256sum` checksum file.
@@ -62,19 +62,19 @@ OP Sepolia does not require a snapshot: `op-reth` can bootstrap with execution-l
 See the [op-reth storage v1 deprecation notice](/notices/op-reth-storage-v1-deprecation) for details.
 Start new nodes from a storage v2 snapshot so that you do not need to migrate the data directory later.
 
-OP Labs does not publish a storage v1 snapshot for OP Mainnet.
+Optimism does not publish a storage v1 snapshot for OP Mainnet.
 Storage v1 `op-reth` snapshots for OP Sepolia remain on the [Data Directories](https://datadirs.optimism.io/) website for now, and will stop being published as storage v1 reaches end of support.
 
 ## OP Mainnet pre-Bedrock data
 
 OP Mainnet underwent a large [database migration](https://web.archive.org/web/20240110231645/https://blog.oplabs.co/reproduce-bedrock-migration/) as part of the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) in 2023.
 An `op-reth` node on OP Mainnet must start from the Bedrock state.
-Either restore an [OP Labs OP Mainnet snapshot](#op-mainnet), or import it yourself by following [Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet).
+Either restore an [OP Mainnet snapshot](#op-mainnet), or import it yourself by following [Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet).
 
 ### Legacy Geth data directory
 
 Blocks from before the Bedrock Upgrade cannot be executed by modern OP Mainnet nodes.
-To run stateful queries such as `eth_call` against pre-Bedrock blocks, run a Legacy Geth (`l2geth`) node alongside your modern node, using the Legacy Geth data directory from the OP Labs managed [Data Directories](https://datadirs.optimism.io/) website.
+To run stateful queries such as `eth_call` against pre-Bedrock blocks, run a Legacy Geth (`l2geth`) node alongside your modern node, using the Legacy Geth data directory from the Optimism managed [Data Directories](https://datadirs.optimism.io/) website.
 See [Legacy Geth](/node-operators/guides/configuration/legacy-geth) and the [Legacy Geth steps in the run a node from source tutorial](/node-operators/tutorials/run-node-from-source#legacy-geth-pre-bedrock-optional).
 This is only needed for OP Mainnet archive nodes that must serve pre-Bedrock state.
 
