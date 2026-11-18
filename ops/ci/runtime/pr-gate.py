@@ -144,7 +144,7 @@ def configuration(gate=None):
             embedded=caller_tasks[definition['embedded_task']]
             if embedded['call']!='${{ run.dir }}/'+definition['config'].removeprefix('.rwx/'):
                 raise ValueError('Native coordinator calls a different workload')
-            expected_init={param:'${{ init.'+param+' }}' for param in ('commit-sha','branch','tag')}|definition['init']
+            expected_init={param:'${{ init.'+param+' }}' for param in ('commit-sha','branch')}|definition['init']
             if embedded['init']!=expected_init:raise ValueError('Native coordinator changes workload provenance or mode')
             if embedded['init'].get('cache-warm','false')!='false':raise ValueError('Native gate must execute fresh workloads')
             if custom.count({'name':definition['check_name'],'tasks':definition['embedded_task']})!=1:

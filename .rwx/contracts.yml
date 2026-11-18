@@ -6,7 +6,6 @@ on:
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
-      tag: ""
       cache-warm: "true"
       cache-epoch: v1
       build-probe: ""
@@ -14,7 +13,6 @@ on:
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
-      tag: ""
       cache-warm: "false"
       cache-epoch: v1
       build-probe: ""
@@ -52,13 +50,6 @@ tasks:
         filter:
           workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
-      artifacts:
-        - key: mise-config
-          path: mise.toml
-        - key: ci-scripts
-          path: ops/ci/runtime
-        - key: apt-script
-          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -66,7 +57,7 @@ tasks:
       mise-version: "2026.2.2"
       install: "false"
 
-  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # The filtered bootstrap layer keeps the checkout's Git history out of
   # reusable tools. Language toolchains are added only by their own workload.
   - key: tools
     use: [mise, bootstrap-inputs]
@@ -74,23 +65,15 @@ tasks:
 
   - key: route
     use: [code, tools]
-    run: |
-      bash ops/ci/runtime/rwx-metadata.sh
-      jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contract routing flag") end' \
-        .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
-      CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
       CI_BRANCH: ${{ init.branch }}
-      CI_TAG: ${{ init.tag }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
     cache: false
     timeout: 10m
     outputs:
       filesystem: false
-      artifacts:
-        - key: routing
-          path: .ci/pipeline-parameters.json
 
   - key: go-tools
     use: tools

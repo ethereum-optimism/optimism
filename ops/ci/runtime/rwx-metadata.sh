@@ -14,9 +14,7 @@ cd "${REPO_ROOT}"
 
 : "${CI_COMMIT_SHA:?CI_COMMIT_SHA must identify the checked-out commit}"
 : "${RWX_VALUES:?RWX_VALUES must name the task output-values directory}"
-CI_EVENT="${CI_EVENT:-push}"
 CI_BRANCH="${CI_BRANCH:-}"
-CI_TAG="${CI_TAG:-}"
 CI_BASE_REVISION="${CI_BASE_REVISION:-develop}"
 
 if [[ ! "${CI_COMMIT_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
@@ -25,10 +23,6 @@ if [[ ! "${CI_COMMIT_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
 fi
 if [[ "$(git rev-parse HEAD)" != "${CI_COMMIT_SHA}" ]]; then
   echo "ERROR: checked-out HEAD differs from CI_COMMIT_SHA." >&2
-  exit 1
-fi
-if [[ "${CI_EVENT}" != push ]]; then
-  echo "ERROR: RWX routes push events only; got CI_EVENT=${CI_EVENT}." >&2
   exit 1
 fi
 if [[ "${CI_CACHE_WARM:-false}" == true ]]; then
@@ -45,11 +39,12 @@ if [[ "${CI_CACHE_WARM:-false}" == true ]]; then
   printf 'false\n' > "${RWX_VALUES}/run-main"
   printf 'false\n' > "${RWX_VALUES}/run-rust-ci"
   printf 'false\n' > "${RWX_VALUES}/run-rust-e2e-ci"
+  printf 'false\n' > "${RWX_VALUES}/run-contracts"
   echo "Prepared compiler-only cache warming for ${CI_COMMIT_SHA}."
   exit 0
 fi
-if [[ -z "${CI_BRANCH}" && -z "${CI_TAG}" ]]; then
-  echo "ERROR: a push must identify its branch or tag." >&2
+if [[ -z "${CI_BRANCH}" ]]; then
+  echo "ERROR: a push must identify its branch." >&2
   exit 1
 fi
 git check-ref-format --branch "${CI_BASE_REVISION}" > /dev/null
@@ -84,14 +79,16 @@ if grep -qE '^(\.rwx|ops/ci)/' <<< "${committed}" || [[ -n "${uncommitted}" ]]; 
   mv "${PARAMS}.next" "${PARAMS}"
 fi
 
-TRIGGER_SOURCE=webhook BRANCH="${CI_BRANCH}" TAG="${CI_TAG}" SCHEDULE_NAME="" \
+TRIGGER_SOURCE=webhook BRANCH="${CI_BRANCH}" TAG="" SCHEDULE_NAME="" \
   CIRCLE_PROJECT_USERNAME=ethereum-optimism CIRCLE_PROJECT_REPONAME=optimism OUTPUT="${PARAMS}" \
   bash .circleci/scripts/compute-workflow-conditions.sh
 # The policy writes only the workflows it enables. RWX route tasks and gate
 # aggregates require these four flags as booleans, so write false explicitly.
+# The four route values below are therefore always "true" or "false".
 jq '{"c-run_main": false, "c-run_rust_ci": false, "c-run_rust_e2e_ci": false, "c-run_contracts_feature_tests": false} + .' \
   "${PARAMS}" > .ci/pipeline-parameters.json
 
-jq -r '."c-run_main" // false' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-main"
-jq -r '."c-run_rust_ci" // false' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-rust-ci"
-jq -r '."c-run_rust_e2e_ci" // false' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-rust-e2e-ci"
+jq -r '."c-run_main"' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-main"
+jq -r '."c-run_rust_ci"' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-rust-ci"
+jq -r '."c-run_rust_e2e_ci"' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-rust-e2e-ci"
+jq -r '."c-run_contracts_feature_tests"' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-contracts"

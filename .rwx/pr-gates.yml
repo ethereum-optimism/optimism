@@ -7,7 +7,6 @@ on:
       init:
         commit-sha: ${{ event.git.sha }}
         branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
       status-checks:
         default:
           name: optimism-rwx-pr-coordinator
@@ -50,7 +49,6 @@ on:
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
-      tag: ""
 
 base:
   image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
@@ -88,13 +86,6 @@ tasks:
         filter:
           workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
-      artifacts:
-        - key: mise-config
-          path: mise.toml
-        - key: ci-scripts
-          path: ops/ci/runtime
-        - key: apt-script
-          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -110,9 +101,7 @@ tasks:
     use: [code, tools]
     run: bash ops/ci/runtime/rwx-metadata.sh
     env:
-      CI_EVENT: push
       CI_BRANCH: ${{ init.branch }}
-      CI_TAG: ${{ init.tag }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
     cache: false
     timeout: 10m
@@ -147,14 +136,12 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
 
   - key: native-workspace
     call: ${{ run.dir }}/rust.yml
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: v1
       cargo-incremental: "0"
@@ -164,7 +151,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: v1
       build-probe: ""
@@ -266,7 +252,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
 
@@ -275,7 +260,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
       build-probe: ""
@@ -288,7 +272,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
       build-probe: ""
@@ -300,7 +283,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
 
@@ -309,7 +291,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
 
@@ -318,7 +299,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
 
@@ -327,7 +307,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
       target-cache-mode: "keep"
@@ -337,7 +316,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
 
@@ -477,7 +455,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
       build-probe: ""
@@ -487,7 +464,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
 
@@ -496,7 +472,6 @@ tasks:
     init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: "v1"
       fork-block: "latest"

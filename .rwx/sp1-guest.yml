@@ -6,7 +6,6 @@ on:
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
-      tag: ""
       cache-warm: "true"
       cache-epoch: v1
       target-cache-mode: keep
@@ -14,7 +13,6 @@ on:
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
-      tag: ""
       cache-warm: "false"
       cache-epoch: v1
       target-cache-mode: keep
@@ -51,13 +49,6 @@ tasks:
         filter:
           workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
-      artifacts:
-        - key: mise-config
-          path: mise.toml
-        - key: ci-scripts
-          path: ops/ci/runtime
-        - key: apt-script
-          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -73,18 +64,13 @@ tasks:
     use: [code, tools]
     run: bash ops/ci/runtime/rwx-metadata.sh
     env:
-      CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
       CI_BRANCH: ${{ init.branch }}
-      CI_TAG: ${{ init.tag }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
     cache: false
     timeout: 10m
     outputs:
       filesystem: false
-      artifacts:
-        - key: routing
-          path: .ci/pipeline-parameters.json
 
   - key: rust-tools
     use: [bootstrap-inputs, tools]

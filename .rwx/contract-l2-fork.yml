@@ -6,7 +6,6 @@ on:
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
-      tag: ""
       cache-warm: "true"
       cache-epoch: v1
       fork-block: latest
@@ -14,7 +13,6 @@ on:
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
-      tag: ""
       cache-warm: "false"
       cache-epoch: v1
       fork-block: latest
@@ -48,22 +46,14 @@ tasks:
     timeout: 30m
   - key: route
     use: [code, tools]
-    run: |
-      bash ops/ci/runtime/rwx-metadata.sh
-      jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contracts route") end' \
-        .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
-      CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      CI_TAG: ${{ init.tag }}
     cache: false
     outputs:
       filesystem: false
-      artifacts:
-        - key: routing
-          path: .ci/pipeline-parameters.json
   - key: rpc-check
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}

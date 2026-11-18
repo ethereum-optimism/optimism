@@ -6,7 +6,6 @@ on:
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
-      tag: ""
       cache-warm: "true"
       cache-epoch: v1
   github:
@@ -16,7 +15,6 @@ on:
       init:
         commit-sha: ${{ event.git.sha }}
         branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
         cache-warm: "false"
         cache-epoch: v1
       status-checks:
@@ -25,7 +23,6 @@ on:
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
-      tag: ""
       cache-warm: "false"
       cache-epoch: v1
 
@@ -72,18 +69,13 @@ tasks:
     use: [code, tools]
     run: bash ops/ci/runtime/rwx-metadata.sh
     env:
-      CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
       CI_BRANCH: ${{ init.branch }}
-      CI_TAG: ${{ init.tag }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
     cache: false
     timeout: 10m
     outputs:
       filesystem: false
-      artifacts:
-        - key: routing
-          path: .ci/pipeline-parameters.json
 
   - key: contract-tools
     use: [code, tools]

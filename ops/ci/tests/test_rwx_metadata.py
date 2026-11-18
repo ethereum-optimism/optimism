@@ -72,9 +72,7 @@ class RwxMetadataTests(unittest.TestCase):
         for name in ("BRANCH", "TAG", "TRIGGER_SOURCE", "SCHEDULE_NAME", "BASE_REVISION", "OUTPUT"):
             env.pop(name, None)
         env.update(
-            CI_EVENT="push",
             CI_BRANCH="rwx/example",
-            CI_TAG="",
             CI_COMMIT_SHA=self.git("rev-parse", "HEAD"),
             CI_BASE_REVISION="develop",
             RWX_VALUES=str(self.values),
@@ -98,6 +96,7 @@ class RwxMetadataTests(unittest.TestCase):
         for name in CONSUMED:
             self.assertIs(type(params[name]), bool, name)
         self.assertEqual((self.values / "run-rust-e2e-ci").read_text().strip(), str(params['c-run_rust_e2e_ci']).lower())
+        self.assertEqual((self.values / "run-contracts").read_text().strip(), str(params['c-run_contracts_feature_tests']).lower())
         return params
 
     def test_docs_only(self):
@@ -170,12 +169,8 @@ class RwxMetadataTests(unittest.TestCase):
         self.assertTrue(params["c-run_kona_publish_prestates"])
         self.assertTrue(params["c-run_contracts_feature_tests"])
 
-    def test_tag_routes_release(self):
-        params = self.assert_routes(False, False, CI_BRANCH="", CI_TAG="v1.0.0")
-        self.assertEqual(params, {"c-run_release": True, **dict.fromkeys(CONSUMED, False)})
-
-    def test_non_push_events_are_rejected(self):
-        result = self.run_metadata(CI_EVENT="schedule")
+    def test_a_push_without_a_branch_is_rejected(self):
+        result = self.run_metadata(CI_BRANCH="")
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.values.exists())
 
