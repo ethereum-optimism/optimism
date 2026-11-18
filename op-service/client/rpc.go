@@ -183,11 +183,19 @@ func CheckAndDial(ctx context.Context, log log.Logger, addr string, connectTimeo
 		log.Warn("failed to dial address, but may connect later", "addr", addr)
 		return nil, fmt.Errorf("address unavailable (%s)", addr)
 	}
-	client, err := rpc.DialOptions(ctx, addr, options...)
+	client, err := dialRPCWithOptions(ctx, addr, options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
 	}
 	return client, nil
+}
+
+// dialRPCWithOptions dials addr with no websocket message size limit by default, matching HTTP, which has no
+// response size limit. Otherwise geth's 32 MiB websocket would apply.
+// Options can override it.
+func dialRPCWithOptions(ctx context.Context, addr string, options ...rpc.ClientOption) (*rpc.Client, error) {
+	options = append([]rpc.ClientOption{rpc.WithWebsocketMessageSizeLimit(0)}, options...)
+	return rpc.DialOptions(ctx, addr, options...)
 }
 
 func IsURLAvailable(ctx context.Context, address string, timeout time.Duration) bool {
