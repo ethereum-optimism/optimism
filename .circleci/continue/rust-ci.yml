@@ -344,15 +344,15 @@ jobs:
           path: <<parameters.directory>>/target/nextest/default/junit.xml
           destination: junit
           when: always
-      # A retried flake (e.g. the eth69 teardown SIGSEGV, #20973) passes on rerun and
+      # A retried flake (e.g. the teardown SIGSEGV, #20973) passes on rerun and
       # leaves the job GREEN, so nothing else surfaces it — CircleCI does not parse
       # nextest's <flakyFailure> element, so store_test_results/Insights stay blind. Detect
       # it ourselves and ping Slack. Every occurrence is a rare, precious data point (the
       # crash has never reproduced locally), so alert on every branch, not just develop —
       # a stack lost on a PR run is a stack lost. Fork PRs get no SLACK_ACCESS_TOKEN and
       # self-skip. Only tests with a retry override can emit <flakyFailure>, so today this
-      # fires only for the one tracked flake. This step must never fail the job (the retry
-      # passing is the whole point).
+      # fires only for the tests that the #20973 override in rust/.config/nextest.toml names.
+      # This step must never fail the job (the retry passing is the whole point).
       - run:
           name: Alert Slack on a flaky retry
           when: always

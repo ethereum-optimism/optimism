@@ -2,7 +2,7 @@
 
 [profile.default]
 # No test retries by default: a flaky test should fail loudly and get fixed, not
-# be retried away. The sole exception is the eth69 teardown-SIGSEGV override at the
+# be retried away. The sole exception is the teardown-SIGSEGV override at the
 # bottom of this file (#20973) — a narrowly-scoped stopgap for a crash that happens
 # *after* the test has already passed.
 # Flag tests slower than 30s and terminate any that hang past ~2 minutes.
@@ -10,7 +10,7 @@ slow-timeout = { period = "30s", terminate-after = 4 }
 
 # Emit a JUnit report so CircleCI `store_test_results` can surface individual test
 # outcomes (written to `target/nextest/default/junit.xml`). The cargo-test job also
-# greps it for a `<flakyFailure>` to detect the eth69 retry below and alert Slack.
+# greps it for a `<flakyFailure>` to detect a retry from that override and alert Slack.
 [profile.default.junit]
 path = "junit.xml"
 
@@ -36,23 +36,43 @@ threads-required = "num-test-threads"
 filter = "binary(e2e_testsuite)"
 slow-timeout = { period = "2m", terminate-after = 3 }
 
-# `p2p_version::peers_negotiate_eth_69` intermittently dies with SIGSEGV *after* its body
-# has passed — the assertions succeed and nextest prints `test result: ok`, then the binary
-# segfaults during teardown, failing the run purely on the signal exit and ejecting unrelated
-# PRs from the merge queue. Retrying is sound *because* the crash is teardown-only: nextest
-# reruns in a fresh process, re-establishing every assertion rather than papering over a
-# failure. This deliberately contradicts the no-retries policy above — it is a stopgap for
-# an unresolved crash tracked in #20973; remove it once that is fixed.
+# A `reth-optimism-node::it` test that starts two nodes in one process intermittently dies with
+# SIGSEGV *after* its body has passed — the assertions succeed and nextest prints
+# `test result: ok`, then the binary segfaults during teardown, failing the run purely on the
+# signal exit and ejecting unrelated PRs from the merge queue. Retrying is sound *because* the
+# crash is teardown-only: nextest reruns in a fresh process, re-establishing every assertion
+# rather than papering over a failure. This deliberately contradicts the no-retries policy
+# above — it is a stopgap for an unresolved crash tracked in #20973; remove it once that is
+# fixed.
+#
+# Scope: the three tests of that binary that build two nodes with `E2ETestSetupBuilder`
+# (`setup(2)`, `setup_lagoon(2)`). The crash has been seen on two of them: on the p2p test
+# repeatedly, and on `test_buffered_malformed_post_exec_child_is_invalid`. The third test has
+# the same shape. The crash has not been seen on a one-node test, so the override does not
+# cover the rest of the binary. If you add a two-node test to that binary, add it here and call
+# `crash_backtrace::install()` in it.
 #
 # The retry turns the red job green, so the cargo-test CI job greps this JUnit report for the
 # `<flakyFailure>` and pings Slack (CircleCI does not parse that element, so its Tests tab and
-# Insights stay blind — the detection is ours).
+# Insights stay blind — the detection is ours). Each test below installs the fatal-signal
+# handler in `tests/it/crash_backtrace.rs`, so the failed attempt in that report carries the
+# faulting stack.
 #
-# `test(=exact)`, not `binary_id(...)`: nextest validates override filters against the whole
+# `test(...)`, not `binary_id(...)`: nextest validates override filters against the whole
 # workspace binary namespace, so a future crate/binary rename would hard-error every run in
-# `rust/`; the exact-match predicate degrades to a no-op instead. The `=` is load-bearing —
-# bare `test(...)` is a substring match, so a sibling like `peers_negotiate_eth_69_disconnect`
-# would silently inherit the retry.
+# `rust/`; a `test(...)` predicate that matches nothing degrades to a no-op instead. That no-op
+# is silent: this override was dead from #23046, which renamed `peers_negotiate_eth_69`, until
+# the filter below replaced the exact name.
+# - The p2p test name carries the eth wire version, and a reth update that bumps the version
+#   renames the test. The regex follows that rename. Its `^` and `$` are load-bearing — an
+#   unanchored regex is a substring match, so a sibling like `peers_negotiate_eth_71_disconnect`
+#   would silently inherit the retry.
+# - The other two names are exact; the `=` is load-bearing for the same reason. If you rename
+#   one of those tests, rename it here.
 [[profile.default.overrides]]
-filter = 'test(=p2p_version::peers_negotiate_eth_69)'
+filter = '''
+test(/^p2p_version::peers_negotiate_eth_\d+$/)
+| test(=invalid_post_exec::test_buffered_malformed_post_exec_child_is_invalid)
+| test(=invalid_post_exec::test_lagoon_buffered_child_with_wrong_post_exec_block_number_is_invalid)
+'''
 retries = 2
