@@ -196,4 +196,7 @@ func TestValidateL2Withdrawals(t *testing.T) {
 	require.NoError(t, block.validateL2Withdrawals(&types.Withdrawals{}, &root))
 	require.ErrorContains(t, block.validateL2Withdrawals(nil, &root), "expected empty withdrawals")
 	require.ErrorContains(t, block.validateL2Withdrawals(&types.Withdrawals{{}}, &root), "expected empty withdrawals")
+	// The block hash does not cover the list, so only this check catches one on a pre-Canyon block.
+	require.ErrorContains(t, block.validateL2Withdrawals(&types.Withdrawals{}, nil), "expected no withdrawals")
+	require.ErrorContains(t, block.validateL2Withdrawals(&types.Withdrawals{{}}, nil), "expected no withdrawals")
 }

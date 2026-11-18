@@ -231,6 +231,8 @@ func (block *RPCBlock) validateL2Withdrawals(withdrawals *types.Withdrawals, wit
 		if len(*withdrawals) != 0 {
 			return fmt.Errorf("expected empty withdrawals, but got %d", len(*withdrawals))
 		}
+	} else if withdrawals != nil {
+		return fmt.Errorf("expected no withdrawals due to missing withdrawals-root, but got %d", len(*withdrawals))
 	}
 	return nil
 }

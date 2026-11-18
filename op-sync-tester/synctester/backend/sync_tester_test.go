@@ -633,9 +633,18 @@ func TestSyncTester_ForkchoiceUpdatedRejectsMismatchingAttributes(t *testing.T) 
 		require.Equal(t, eth.ExecutionInvalid, res.PayloadStatus.Status)
 	})
 	t.Run("withdrawals mismatch", func(t *testing.T) {
-		attr := attributesForPayload(next)
+		// A Canyon block has withdrawals but no beacon root, so only the withdrawals
+		// check can tell it apart from Bedrock attributes.
+		canyonNext := makeDepositPayload(t, 11, head.ExecutionPayload.BlockHash)
+		canyonNext.ParentBeaconBlockRoot = nil
+		canyonNext.ExecutionPayload.BlobGasUsed, canyonNext.ExecutionPayload.ExcessBlobGas = nil, nil
+		canyonNext.ExecutionPayload.BlockHash, _ = canyonNext.CheckBlockHash()
+		canyonEL := NewMockELReader(eth.ChainIDFromUInt64(1))
+		canyonEL.AddPayload(head)
+		canyonEL.AddPayload(canyonNext)
+		st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), canyonEL)
+		attr := attributesForPayload(canyonNext)
 		attr.Withdrawals = nil
-		attr.ParentBeaconBlockRoot = nil
 		res, err := st.ForkchoiceUpdatedV1(newCtx(), state, attr)
 		requireInvalidAttributes(t, err, "withdrawals mismatch")
 		require.Equal(t, eth.ExecutionInvalid, res.PayloadStatus.Status)
