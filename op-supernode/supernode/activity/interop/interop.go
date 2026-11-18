@@ -261,11 +261,10 @@ func New(
 	l1Source l1ByNumberSource,
 	logBackfillDepth time.Duration,
 	metrics *resources.SupernodeMetrics,
-) *Interop {
+) (*Interop, error) {
 	verifiedDB, err := OpenVerifiedDB(dataDir)
 	if err != nil {
-		log.Error("failed to open verified DB", "err", err)
-		return nil
+		return nil, fmt.Errorf("open verified DB: %w", err)
 	}
 
 	// Initialize logsDBs for each chain
@@ -273,13 +272,12 @@ func New(
 	for chainID := range chains {
 		logsDB, err := openLogsDB(log, chainID, dataDir)
 		if err != nil {
-			log.Error("failed to open logs DB for chain", "chainID", chainID, "err", err)
 			// Clean up already created logsDBs
 			for _, db := range logsDBs {
 				_ = db.Close()
 			}
 			_ = verifiedDB.Close()
-			return nil
+			return nil, fmt.Errorf("open logs DB for chain %s: %w", chainID, err)
 		}
 		logsDBs[chainID] = logsDB
 	}
@@ -322,7 +320,7 @@ func New(
 	i.verifyFn = i.verifyInteropMessages
 	i.cycleVerifyFn = i.verifyCycleMessages
 	i.l1Checker = newL1ConsistencyChecker(l1Source)
-	return i
+	return i, nil
 }
 
 // Start begins the Interop activity background loop and blocks until ctx is canceled.
