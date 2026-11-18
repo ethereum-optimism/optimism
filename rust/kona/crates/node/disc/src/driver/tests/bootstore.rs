@@ -105,14 +105,18 @@ fn test_records_lost_a_day_ago_are_not_handed_over() {
 /// and if they were all an attacker's, redialing them would eclipse it again, which the random
 /// seeds avoid. Gossip redials the peers it lost while running.
 ///
-/// Gossip reached `before` a minute before the restart, and reaches `since` after it, which the
-/// driver hands over at the next store interval, 100 ms later.
+/// Gossip reached `before` before the restart, at `reached_at`, and reaches `since` after it,
+/// which the driver hands over at the next store interval, 100 ms later. A clock that ran ahead
+/// before the restart dates the evidence after it, which doesn't make the peer one reached since.
+#[rstest::rstest]
+#[case::a_minute_before(SystemTime::now() - Duration::from_secs(60))]
+#[case::dated_ahead(SystemTime::now() + Duration::from_secs(60 * 60))]
 #[tokio::test]
-async fn test_peers_reached_before_a_restart_are_not_redialed() {
+async fn test_peers_reached_before_a_restart_are_not_redialed(#[case] reached_at: SystemTime) {
     let before = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), TEST_CHAIN_ID);
     let since = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 2)), TEST_CHAIN_ID);
     let (mut driver, _dir) = public_driver_with_bootstore(&[before.clone(), since.clone()]);
-    reach(&mut driver.bootstore, &before, SystemTime::now() - Duration::from_secs(60));
+    reach(&mut driver.bootstore, &before, reached_at);
     driver.store_interval = Duration::from_millis(100);
     let (handler, mut records) = driver.start();
     wait_until_started(&handler).await;
