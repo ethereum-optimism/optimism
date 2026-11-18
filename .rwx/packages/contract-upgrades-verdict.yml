@@ -33,7 +33,8 @@ tasks:
           workspace: []
           system: [~/.foundry/cache/rpc]
       test-results:
-        - path: .ci/contract-upgrades/${{ params.variant }}/run/results.xml
+        # RWX does not expand an expression in this path. This task has one variant's directory.
+        - path: .ci/contract-upgrades/*/run/results.xml
           options:
             language: Solidity
             framework: Foundry

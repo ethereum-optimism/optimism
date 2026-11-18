@@ -198,6 +198,10 @@ that it uses itself. RWX applies a task above the tasks it uses whatever the
 list says, so another order has no effect, and each run prints a warning for
 the task.
 
+Write a `test-results` path without a `${{ }}` expression: a literal path or a
+glob. RWX does not expand an expression there, finds no file, and reports no
+tests without a warning. It does expand one in an `artifacts` path.
+
 Unit tests (Python 3.12+, with `yq`, `jq`, `just` and `git` on `PATH`;
 `mise exec yq jq just --` provides the pinned versions):
 

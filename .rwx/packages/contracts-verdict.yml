@@ -36,7 +36,8 @@ tasks:
           system: []
       test-results:
         # `just test` writes one JUnit report per EVM pass: results-amsterdam.xml and results-l2.xml.
-        - path: .ci/contract-suites/${{ params.suite }}-${{ params.feature }}/run/results-*.xml
+        # RWX does not expand an expression in this path. This task has one suite's directory.
+        - path: .ci/contract-suites/*/run/results-*.xml
           options:
             language: Solidity
             framework: Foundry

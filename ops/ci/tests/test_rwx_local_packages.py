@@ -75,12 +75,21 @@ class LocalPackageTests(unittest.TestCase):
                         self.assertNotIn('.artifacts.', values)
                         self.assertNotIn('vaults.', values)
 
-    def test_output_filesystem_filters_have_no_parameterized_paths(self):
-        # Native output filters silently omitted parameterized paths.
+    def test_output_filesystem_filters_and_test_results_have_no_parameterized_paths(self):
+        # RWX does not expand an expression in these paths, and gives no warning. A filter then
+        # omits the path, and a task reports no tests. RWX does expand an artifact path.
         for name in ('contracts', 'contract-upgrades'):
             leaf = tasks('packages/' + name + '-compile.yml')['build']
             filters = leaf['outputs']['filesystem']['filter']['workspace']
             self.assertNotIn('${{', json.dumps(filters))
+        declared = 0
+        for path in sorted((ROOT / '.rwx').rglob('*.yml')):
+            for task in tasks(path.relative_to(ROOT / '.rwx').as_posix()).values():
+                results = task.get('outputs', {}).get('test-results', [])
+                declared += len(results)
+                with self.subTest(path=path.name, task=task['key']):
+                    self.assertNotIn('${{', json.dumps(results))
+        self.assertGreater(declared, 20)
 
     def test_nested_references_are_bound_to_calls_with_the_declared_child(self):
         # The first hosted run caught a reference to a .build child on an
