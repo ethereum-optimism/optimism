@@ -47,7 +47,7 @@ impl Lagoon {
             source_hash: source.source_hash(),
             from: DEPOSITOR_ACCOUNT,
             to: TxKind::Call(Predeploys::L1_BLOCK_INFO),
-            mint: 0,
+            mint: U256::ZERO,
             value: U256::ZERO,
             gas_limit: SET_FEATURE_GAS,
             is_system_transaction: false,
@@ -65,7 +65,7 @@ impl Lagoon {
             source_hash: source.source_hash(),
             from: DEPOSITOR_ACCOUNT,
             to: TxKind::Call(Predeploys::ETH_LIQUIDITY),
-            mint: ETH_LIQUIDITY_FUND_AMOUNT,
+            mint: U256::from(ETH_LIQUIDITY_FUND_AMOUNT),
             value: U256::from(ETH_LIQUIDITY_FUND_AMOUNT),
             gas_limit: ETH_LIQUIDITY_FUND_GAS,
             is_system_transaction: false,
@@ -144,7 +144,7 @@ mod tests {
     fn first_tx_is_set_feature() {
         let deps = Lagoon::deposits(true);
         assert_eq!(deps[0].to, TxKind::Call(Predeploys::L1_BLOCK_INFO));
-        assert_eq!(deps[0].mint, 0);
+        assert_eq!(deps[0].mint, U256::ZERO);
         assert_eq!(deps[0].value, U256::ZERO);
         let expected =
             UpgradeDepositSource { intent: String::from("Interop pre: setFeature(INTEROP)") }
@@ -157,7 +157,7 @@ mod tests {
         let deps = Lagoon::deposits(true);
         let last = deps.last().unwrap();
         assert_eq!(last.to, TxKind::Call(Predeploys::ETH_LIQUIDITY));
-        assert_eq!(last.mint, u128::MAX);
+        assert_eq!(last.mint, U256::from(u128::MAX));
         assert_eq!(last.value, U256::from(u128::MAX));
     }
 

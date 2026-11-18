@@ -142,7 +142,7 @@ where
             // Mind value should be added first before subtracting the effective balance spending.
             let mut new_balance = caller
                 .balance()
-                .saturating_add(U256::from(tx.mint().unwrap_or_default()))
+                .saturating_add(tx.mint().unwrap_or_default())
                 .saturating_sub(effective_balance_spending);
 
             if cfg.is_balance_check_disabled() {
@@ -527,7 +527,7 @@ where
         // the mint amount, even if the transaction fails.
         let mut acc = journal.load_account_mut(caller)?;
         acc.bump_nonce();
-        acc.incr_balance(U256::from(mint.unwrap_or_default()));
+        acc.incr_balance(mint.unwrap_or_default());
 
         drop(acc); // Drop acc to avoid borrow checker issues.
 
@@ -875,7 +875,7 @@ mod tests {
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::REGOLITH));
         ctx.modify_tx(|tx| {
             tx.deposit.source_hash = B256::from([1u8; 32]);
-            tx.deposit.mint = Some(10);
+            tx.deposit.mint = Some(U256::from(10));
         });
 
         let mut evm = ctx.build_op();

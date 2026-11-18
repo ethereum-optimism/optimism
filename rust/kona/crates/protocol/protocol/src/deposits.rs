@@ -74,9 +74,6 @@ pub enum DepositError {
     /// Unexpected opaque data length.
     #[error("Unexpected opaque data length: {0}")]
     UnexpectedOpaqueDataLen(usize),
-    /// Failed to decode the deposit mint value.
-    #[error("Failed to decode the u128 deposit mint value: {0}")]
-    MintDecode(Bytes),
     /// Failed to decode the deposit gas value.
     #[error("Failed to decode the u64 deposit gas value: {0}")]
     GasDecode(Bytes),
@@ -217,10 +214,8 @@ pub(crate) fn unmarshal_deposit_version0(
 
     let mut offset = 0;
 
-    let raw_mint: [u8; 16] = data[offset + 16..offset + 32].try_into().map_err(|_| {
-        DepositError::MintDecode(Bytes::copy_from_slice(&data[offset + 16..offset + 32]))
-    })?;
-    tx.mint = u128::from_be_bytes(raw_mint);
+    // uint256 mint
+    tx.mint = U256::from_be_slice(&data[offset..offset + 32]);
     offset += 32;
 
     // uint256 value
@@ -258,6 +253,7 @@ pub(crate) fn unmarshal_deposit_version0(
 mod test {
     use super::*;
     use alloc::vec;
+    use alloy_eips::eip2718::Decodable2718;
     use alloy_primitives::{LogData, U64, U128, address, b256, hex};
 
     #[test]
@@ -469,7 +465,7 @@ mod test {
         data[24..32].copy_from_slice(&offset);
         let len: [u8; 8] = U64::from(129).to_be_bytes();
         data[56..64].copy_from_slice(&len);
-        // Copy the u128 mint value
+        // Copy the mint into the low 16 bytes of its word
         let mint: [u8; 16] = 10_u128.to_be_bytes();
         data[80..96].copy_from_slice(&mint);
         // Copy the tx value
@@ -509,7 +505,7 @@ mod test {
         data[24..32].copy_from_slice(&offset);
         let len: [u8; 8] = U64::MAX.to_be_bytes();
         data[56..64].copy_from_slice(&len);
-        // Copy the u128 mint value
+        // Copy the mint into the low 16 bytes of its word
         let mint: [u8; 16] = 10_u128.to_be_bytes();
         data[80..96].copy_from_slice(&mint);
         // Copy the tx value
@@ -549,7 +545,7 @@ mod test {
         data[24..32].copy_from_slice(&offset);
         let len: [u8; 8] = U64::from(127).to_be_bytes();
         data[56..64].copy_from_slice(&len);
-        // Copy the u128 mint value
+        // Copy the mint into the low 16 bytes of its word
         let mint: [u8; 16] = 10_u128.to_be_bytes();
         data[80..96].copy_from_slice(&mint);
         // Copy the tx value
@@ -594,7 +590,7 @@ mod test {
         data[24..32].copy_from_slice(&offset);
         let len: [u8; 8] = U64::from(128).to_be_bytes();
         data[56..64].copy_from_slice(&len);
-        // Copy the u128 mint value
+        // Copy the mint into the low 16 bytes of its word
         let mint: [u8; 16] = 10_u128.to_be_bytes();
         data[80..96].copy_from_slice(&mint);
         // Copy the tx value
@@ -631,6 +627,43 @@ mod test {
         assert_eq!(tx, expected);
     }
 
+    /// The log and the encoded deposit are the vector op-node asserts in
+    /// `op-node/rollup/derive/deposit_log_test.go`
+    /// (`TestUnmarshalDepositLogEventMintAbove128Bits`): the mint is a `uint256`, so both clients
+    /// read the whole word and derive the same deposit.
+    #[test]
+    fn test_decode_deposit_mint_above_128_bits() {
+        // 2^128 + 10: both halves of the word are non-zero.
+        let mint = (U256::from(1) << 128usize) + U256::from(10);
+        let mut data = vec![0u8; 192];
+        data[31] = 32; // opaqueData offset
+        data[63] = 128; // opaqueData length
+        data[64..96].copy_from_slice(&mint.to_be_bytes::<32>());
+        data[127] = 100; // value
+        data[128..136].copy_from_slice(&1000_u64.to_be_bytes()); // gas limit
+        data[136] = 1; // isCreation
+        let from = address!("1111111111111111111111111111111111111111");
+        let to = address!("2222222222222222222222222222222222222222");
+        let log = Log {
+            address: Address::default(),
+            data: LogData::new_unchecked(
+                vec![DEPOSIT_EVENT_ABI_HASH, from.into_word(), to.into_word(), B256::ZERO],
+                Bytes::from(data),
+            ),
+        };
+
+        let tx = decode_deposit(B256::ZERO, 0, &log).unwrap();
+
+        assert_eq!(
+            tx,
+            Bytes::from(hex!(
+                "7ef886a0ed428e1c45e1d9561b62834e1a2d3015a0caae3bfdc16b4da059ac885b01a1459411111111111111111111111111111111111111118091010000000000000000000000000000000a648203e880b700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            ))
+        );
+        let decoded = TxDeposit::decode_2718(&mut tx.as_ref()).unwrap();
+        assert_eq!(decoded.mint, mint);
+    }
+
     #[test]
     fn test_unmarshal_deposit_version0_invalid_len() {
         let data = vec![0u8; 72];
@@ -653,7 +686,7 @@ mod test {
         data[24..32].copy_from_slice(&offset);
         let len: [u8; 8] = U64::from(128).to_be_bytes();
         data[56..64].copy_from_slice(&len);
-        // Copy the u128 mint value
+        // Copy the mint into the low 16 bytes of its word
         let mint: [u8; 16] = 10_u128.to_be_bytes();
         data[80..96].copy_from_slice(&mint);
         // Copy the tx value
@@ -669,7 +702,7 @@ mod test {
             to: TxKind::Call(address!("2222222222222222222222222222222222222222")),
             value: U256::from(100),
             gas_limit: 1000,
-            mint: 10,
+            mint: U256::from(10),
             ..Default::default()
         };
         let to = address!("5555555555555555555555555555555555555555");
