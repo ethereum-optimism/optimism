@@ -363,7 +363,7 @@ mod tests {
             source_hash: Default::default(),
             from: signer,
             to: TxKind::Create,
-            mint: 0,
+            mint: U256::ZERO,
             value: U256::ZERO,
             gas_limit: 0,
             is_system_transaction: false,

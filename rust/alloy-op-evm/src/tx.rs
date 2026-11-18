@@ -167,7 +167,7 @@ impl op_revm::transaction::OpTxTr for OpTx {
         self.0.source_hash()
     }
 
-    fn mint(&self) -> Option<u128> {
+    fn mint(&self) -> Option<U256> {
         self.0.mint()
     }
 

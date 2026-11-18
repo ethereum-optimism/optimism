@@ -26,8 +26,8 @@ pub struct TxDeposit {
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "TxKind::is_create"))]
     pub to: TxKind,
     /// The ETH value to mint on L2.
-    #[cfg_attr(feature = "serde", serde(default, with = "alloy_serde::quantity"))]
-    pub mint: u128,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub mint: U256,
     ///  The ETH value to send to the recipient account.
     pub value: U256,
     /// The gas limit for the L2 transaction.
@@ -124,7 +124,7 @@ impl TxDeposit {
         mem::size_of::<B256>() + // source_hash
         mem::size_of::<Address>() + // from
         self.to.size() + // to
-        mem::size_of::<u128>() + // mint
+        mem::size_of::<U256>() + // mint
         mem::size_of::<U256>() + // value
         mem::size_of::<u128>() + // gas_limit
         mem::size_of::<bool>() + // is_system_transaction
@@ -359,11 +359,11 @@ pub trait DepositTransaction: Transaction {
     /// An `Option<B256>` containing the source hash if available.
     fn source_hash(&self) -> Option<B256>;
 
-    /// Returns the optional mint value of the deposit transaction.
+    /// Returns the mint value of the deposit transaction.
     ///
     /// # Returns
-    /// An `u128` representing the ETH value to mint on L2, if any.
-    fn mint(&self) -> u128;
+    /// A `U256` representing the ETH value to mint on L2, zero if none.
+    fn mint(&self) -> U256;
 
     /// Indicates whether the transaction is exempt from the L2 gas limit.
     ///
@@ -379,7 +379,7 @@ impl DepositTransaction for TxDeposit {
     }
 
     #[inline]
-    fn mint(&self) -> u128 {
+    fn mint(&self) -> U256 {
         self.mint
     }
 
@@ -424,7 +424,7 @@ mod tests {
             source_hash: B256::with_last_byte(42),
             from: Address::default(),
             to: TxKind::default(),
-            mint: 100,
+            mint: U256::from(100),
             value: U256::from(1000),
             gas_limit: 50000,
             is_system_transaction: true,
@@ -442,7 +442,7 @@ mod tests {
             source_hash: B256::default(),
             from: Address::default(),
             to: TxKind::default(),
-            mint: 0,
+            mint: U256::ZERO,
             value: U256::default(),
             gas_limit: 50000,
             is_system_transaction: false,
@@ -461,7 +461,7 @@ mod tests {
             source_hash: B256::default(),
             from: Address::default(),
             to: TxKind::Call(contract_address),
-            mint: 200,
+            mint: U256::from(200),
             value: U256::from(500),
             gas_limit: 100000,
             is_system_transaction: false,
@@ -491,7 +491,7 @@ mod tests {
             source_hash: B256::default(),
             from: Address::default(),
             to: TxKind::default(),
-            mint: 100,
+            mint: U256::from(100),
             value: U256::default(),
             gas_limit: 50000,
             is_system_transaction: true,
@@ -511,7 +511,7 @@ mod tests {
             source_hash: B256::default(),
             from: Address::default(),
             to: TxKind::default(),
-            mint: 100,
+            mint: U256::from(100),
             value: U256::default(),
             gas_limit: 50000,
             is_system_transaction: true,
@@ -533,7 +533,7 @@ mod tests {
             source_hash: B256::default(),
             from: Address::default(),
             to: TxKind::default(),
-            mint: 100,
+            mint: U256::from(100),
             value: U256::default(),
             gas_limit: 50000,
             is_system_transaction: true,
@@ -549,7 +549,7 @@ mod tests {
             source_hash: B256::default(),
             from: Address::default(),
             to: TxKind::default(),
-            mint: 100,
+            mint: U256::from(100),
             value: U256::default(),
             gas_limit: 50000,
             is_system_transaction: true,
@@ -565,13 +565,33 @@ mod tests {
         assert!(buffer_with_header.len() > buffer_without_header.len());
     }
 
+    /// The spec types the mint as `uint256`, so a deposit whose mint needs more than 128 bits
+    /// round-trips through RLP and, with serde, JSON.
+    #[test]
+    fn test_mint_above_u128_round_trips() {
+        for mint in [(U256::from(1) << 128usize) + U256::from(10), U256::MAX] {
+            let tx = TxDeposit { mint, ..Default::default() };
+
+            let mut encoded = BytesMut::new();
+            tx.rlp_encode(&mut encoded);
+            assert_eq!(TxDeposit::rlp_decode(&mut &encoded[..]).unwrap(), tx);
+
+            #[cfg(feature = "serde")]
+            {
+                let json = serde_json::to_string(&tx).unwrap();
+                assert!(json.contains(&format!(r#""mint":"{mint:#x}""#)), "{json}");
+                assert_eq!(serde_json::from_str::<TxDeposit>(&json).unwrap(), tx);
+            }
+        }
+    }
+
     #[test]
     fn test_payload_length_header() {
         let tx_deposit = TxDeposit {
             source_hash: B256::default(),
             from: Address::default(),
             to: TxKind::default(),
-            mint: 100,
+            mint: U256::from(100),
             value: U256::default(),
             gas_limit: 50000,
             is_system_transaction: true,
@@ -639,7 +659,7 @@ pub(super) mod serde_bincode_compat {
         #[serde(default)]
         to: TxKind,
         #[serde(default)]
-        mint: u128,
+        mint: U256,
         value: U256,
         gas_limit: u64,
         is_system_transaction: bool,
