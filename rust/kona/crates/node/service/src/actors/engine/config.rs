@@ -18,7 +18,7 @@ pub struct EngineConfig {
     pub mode: NodeMode,
 
     /// Authenticated L2 engine provider. Each request must be bounded by a deadline; see
-    /// [`EngineClient::rpc_client`].
+    /// [`kona_sources::rpc::engine`].
     pub provider: RootProvider<Optimism>,
 }
 
