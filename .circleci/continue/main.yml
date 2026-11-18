@@ -3324,7 +3324,8 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              # TEMPORARY, revert before review: runs the develop upgrade jobs on this PR once.
+              only: [develop, ae/contracts-upgrade-matrix-collapse]
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests-develop <<matrix.features>>
           requires:
@@ -3412,7 +3413,8 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              # TEMPORARY, revert before review: runs the develop upgrade jobs on this PR once.
+              only: [develop, ae/contracts-upgrade-matrix-collapse]
       # Always run L2 fork tests with ci profile
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork op-mainnet
