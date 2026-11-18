@@ -13,6 +13,7 @@ import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
 import { IVisionPolicyV1 } from "interfaces/compliance/IVisionPolicyV1.sol";
 import { IPolicy } from "interfaces/compliance/IPolicy.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IProxy } from "interfaces/universal/IProxy.sol";
 
 /// @title ComplianceLifecycle_Integration_Test
 /// @notice Tests how the hook is deployed, disabled, removed, set again and upgraded, and what
@@ -38,8 +39,7 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
         assertEq(address(module.policy()), address(policy));
         assertEq(module.owner(), moduleOwner);
         assertFalse(module.disabled());
-        assertEq(moduleProxyAdmin.getProxyAdmin(payable(address(module))), address(moduleProxyAdmin));
-        assertEq(moduleProxyAdmin.owner(), custodian);
+        assertEq(_moduleAdmin(), custodian);
 
         assertEq(address(policy.module()), address(module));
         assertEq(policy.owner(), policyOwner);
@@ -48,9 +48,9 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
         assertEq(policy.holdDelay(), HOLD_DELAY);
 
         // Neither the proxy nor its implementation can be initialized again.
-        address impl = moduleProxyAdmin.getProxyImplementation(address(module));
+        address impl = _moduleImpl();
         vm.expectRevert(IComplianceModule.InvalidInitialization.selector);
-        vm.prank(address(moduleProxyAdmin));
+        vm.prank(custodian);
         module.initialize(anyone, IPolicy(anyone), optimismPortal2, l1CrossDomainMessenger, l1StandardBridge);
         vm.expectRevert(IComplianceModule.InvalidInitialization.selector);
         IComplianceModule(impl)
@@ -106,9 +106,9 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
 
         address newImpl = _deployModuleImpl();
         vm.prank(custodian);
-        moduleProxyAdmin.upgrade(payable(address(module)), newImpl);
+        IProxy(payable(address(module))).upgradeTo(newImpl);
 
-        assertEq(moduleProxyAdmin.getProxyImplementation(address(module)), newImpl);
+        assertEq(_moduleImpl(), newImpl);
         assertEq(module.owner(), moduleOwner);
         assertEq(address(module.policy()), address(policy));
         _assertItemsHeld(held);
@@ -197,6 +197,18 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
         assertEq(bob.balance, bobBalance + 2 * AMOUNT);
         assertEq(address(module).balance, 2 * AMOUNT);
         _assertReleased(heldId);
+    }
+
+    /// @notice Returns the module proxy's admin.
+    function _moduleAdmin() internal returns (address) {
+        vm.prank(address(0));
+        return IProxy(payable(address(module))).admin();
+    }
+
+    /// @notice Returns the module proxy's implementation.
+    function _moduleImpl() internal returns (address) {
+        vm.prank(address(0));
+        return IProxy(payable(address(module))).implementation();
     }
 
     /// @notice Holds an ETH deposit, a token deposit and an ETH withdrawal to bob, and records a

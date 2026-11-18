@@ -7,6 +7,8 @@ import { OptimismPortal2_TestInit } from "test/setup/OptimismPortal2TestInit.sol
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Scripts
+import { ConfigureComplianceModule } from "scripts/deploy/compliance/ConfigureComplianceModule.s.sol";
+import { DeployComplianceModule } from "scripts/deploy/compliance/DeployComplianceModule.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Contracts
@@ -27,18 +29,17 @@ import { GameStatus, GameType } from "src/dispute/lib/Types.sol";
 import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
 import { IVisionPolicyV1 } from "interfaces/compliance/IVisionPolicyV1.sol";
-import { IPolicy } from "interfaces/compliance/IPolicy.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
-import { IProxy } from "interfaces/universal/IProxy.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 
 /// @title ComplianceIntegration_TestInit
 /// @notice Deploys the ComplianceModule and VisionPolicyV1 next to the full OP Stack deployment
-///         and sets the module as the Portal's bridge hook through an OPCM upgrade. Nothing is
-///         mocked except the dispute game's root claim, which stands in for the L2 state.
+///         with the production scripts, DeployComplianceModule and ConfigureComplianceModule, and
+///         sets the module as the Portal's bridge hook through an OPCM upgrade between the two.
+///         Nothing is mocked except the dispute game's root claim, which stands in for the L2
+///         state.
 ///
 ///         Deposits are sent through the real entry points. Their items are read back from the
 ///         module's Held event, as a completer does. Withdrawals are built by the helpers below,
@@ -57,7 +58,7 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
     uint64 internal constant DEPOSIT_GAS_LIMIT = 100_000;
     uint32 internal constant MESSAGE_GAS_LIMIT = 200_000;
 
-    /// @notice Owner of the module's ProxyAdmin, and so custodian of held value.
+    /// @notice Admin of the module's proxy, and so custodian of held value.
     address internal custodian = makeAddr("custodian");
     address internal moduleOwner = makeAddr("moduleOwner");
     address internal policyOwner = makeAddr("policyOwner");
@@ -65,7 +66,6 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
     /// @notice An address with no role, used for permissionless calls.
     address internal anyone = makeAddr("anyone");
 
-    IProxyAdmin internal moduleProxyAdmin;
     IComplianceModule internal module;
     IVisionPolicyV1 internal policy;
 
@@ -74,9 +74,11 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         skipIfForkTest("ComplianceIntegration_TestInit: upgrades the chain from its local deploy config");
 
-        _deployCompliance();
+        DeployComplianceModule.Output memory deployed = new DeployComplianceModule().run();
+        module = deployed.module;
         // The upgrade runs before the dispute game used for proofs is created.
         _upgradeChain(address(module));
+        policy = new ConfigureComplianceModule().run(_configureInput(deployed));
         super.setUp();
 
         vm.recordLogs();
@@ -86,36 +88,23 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
     //                    Deployment and upgrades                 //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Deploys the module behind a proxy and the policy that serves it. The policy needs
-    ///         the module's address and the module's initializer needs the policy's, so the proxy
-    ///         is created first and initialized last.
-    function _deployCompliance() internal {
-        moduleProxyAdmin = IProxyAdmin(
-            DeployUtils.create1({
-                _name: "ProxyAdmin",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (custodian)))
-            })
-        );
-        module = IComplianceModule(
-            DeployUtils.create1({
-                _name: "Proxy",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IProxy.__constructor__, (address(moduleProxyAdmin)))
-                )
-            })
-        );
-        policy = _deployPolicy(policyOwner, verdictWriter);
-        address impl = _deployModuleImpl();
-
-        vm.prank(custodian);
-        moduleProxyAdmin.upgradeAndCall(
-            payable(address(module)),
-            impl,
-            abi.encodeCall(
-                IComplianceModule.initialize,
-                (moduleOwner, IPolicy(address(policy)), optimismPortal2, l1CrossDomainMessenger, l1StandardBridge)
-            )
-        );
+    /// @notice The ConfigureComplianceModule input that hands the module to its test roles.
+    function _configureInput(DeployComplianceModule.Output memory _deployed)
+        internal
+        view
+        returns (ConfigureComplianceModule.Input memory input_)
+    {
+        input_.module = _deployed.module;
+        input_.moduleImpl = _deployed.moduleImpl;
+        input_.portal = optimismPortal2;
+        input_.custodyAdmin = custodian;
+        input_.moduleOwner = moduleOwner;
+        input_.policyOwner = policyOwner;
+        input_.verdictWriter = verdictWriter;
+        input_.maxVerdictValidity = MAX_VERDICT_VALIDITY;
+        input_.holdDelay = HOLD_DELAY;
+        input_.allowlist = new address[](0);
+        input_.denylist = new address[](0);
     }
 
     /// @notice Deploys a module implementation.
