@@ -57,13 +57,27 @@ func (c *simpleChainContainer) FinalizedL2Head(ctx context.Context) (rollup.Veri
 		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
 	}
 
-	contribution, err := c.verifierContribution(v.VerifiedBlockAtL1(c.chainID, ss.FinalizedL1))
+	contribution, err := c.verifierContribution(v.VerifiedBlockAtL1(c.chainID, c.monotonicFinalizedL1(ss.FinalizedL1)))
 	if err != nil {
 		c.log.Warn("FinalizedL2Head: verifier read failed, holding previous",
 			"verifier", v.Name(), "err", err)
 		return rollup.VerifierHead{}, false
 	}
 	return contribution, true
+}
+
+// monotonicFinalizedL1 returns the highest finalized L1 block seen for this
+// chain. L1 finality never moves back, but a virtual node created by a rewind
+// reports a zero finalized L1 until its first finality poll; resolving that as
+// "nothing finalized" would drop the finalized L2 head to the interop anchor and
+// floor every reset there until the next L1 finality update.
+func (c *simpleChainContainer) monotonicFinalizedL1(reported eth.L1BlockRef) eth.L1BlockRef {
+	c.finalizedL1Mu.Lock()
+	defer c.finalizedL1Mu.Unlock()
+	if reported.Number > c.finalizedL1.Number {
+		c.finalizedL1 = reported
+	}
+	return c.finalizedL1
 }
 
 // verifierContribution classifies a verifier's (block, ts) return:

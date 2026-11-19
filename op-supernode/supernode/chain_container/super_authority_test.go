@@ -24,6 +24,8 @@ type mockVerificationActivityForSuperAuthority struct {
 	latestFinalizedErr   error
 	currentL1            eth.BlockID
 	activationTimestamp  uint64
+	// verifiedAtL1Fn, when set, drives VerifiedBlockAtL1 from the L1 block it is given.
+	verifiedAtL1Fn func(l1 eth.L1BlockRef) (eth.BlockID, uint64, error)
 	// isActiveAtFn drives IsActiveAt. When nil, IsActiveAt returns true for any
 	// timestamp >= activationTimestamp (matching the production semantics).
 	isActiveAtFn func(ts uint64) bool
@@ -49,6 +51,9 @@ func (m *mockVerificationActivityForSuperAuthority) LatestVerifiedL2Block(chainI
 }
 func (m *mockVerificationActivityForSuperAuthority) Reset(eth.ChainID, uint64, eth.BlockRef) {}
 func (m *mockVerificationActivityForSuperAuthority) VerifiedBlockAtL1(chainID eth.ChainID, l1BlockRef eth.L1BlockRef) (eth.BlockID, uint64, error) {
+	if m.verifiedAtL1Fn != nil {
+		return m.verifiedAtL1Fn(l1BlockRef)
+	}
 	if m.latestFinalizedErr != nil {
 		return eth.BlockID{}, 0, m.latestFinalizedErr
 	}
@@ -310,6 +315,43 @@ func TestChainContainer_FinalizedL2Head_PostActivation_EmptyVerifierContributesA
 		"empty verifier post-activation contributes anchor (fixes the safeDB-to-genesis bug, #20944)")
 	require.Equal(t, uint64(999), head.Timestamp,
 		"anchor timestamp is activationTimestamp - 1; engine_controller resolves to a block")
+}
+
+// A virtual node replaced by a rewind reports a zero finalized L1 until its first
+// finality poll. The finalized L2 head must not fall back to the interop anchor in
+// that window.
+func TestChainContainer_FinalizedL2Head_KeepsFinalizedL1AcrossVirtualNodeRestart(t *testing.T) {
+	t.Parallel()
+
+	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
+	finalized := eth.BlockID{Hash: [32]byte{1}, Number: 100}
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
+		activationTimestamp: 1000,
+		verifiedAtL1Fn: func(l1 eth.L1BlockRef) (eth.BlockID, uint64, error) {
+			if l1.Number >= 400 {
+				return finalized, 1100, nil
+			}
+			return eth.BlockID{}, 999, nil // nothing verified at that L1 block: anchor
+		},
+	})
+
+	setSyncStatus(t, cc, &eth.SyncStatus{
+		FinalizedL1: eth.L1BlockRef{Number: 400},
+		LocalSafeL2: eth.L2BlockRef{Number: 600, Time: 1500},
+	})
+	head, ok := cc.FinalizedL2Head(t.Context())
+	require.True(t, ok)
+	require.Equal(t, rollup.VerifierHeadVerified, head.Source)
+
+	// The virtual node is replaced: it reports no finalized L1 yet.
+	setSyncStatus(t, cc, &eth.SyncStatus{
+		FinalizedL1: eth.L1BlockRef{},
+		LocalSafeL2: eth.L2BlockRef{Number: 600, Time: 1500},
+	})
+	head, ok = cc.FinalizedL2Head(t.Context())
+	require.True(t, ok)
+	require.Equal(t, rollup.VerifierHeadVerified, head.Source, "must not fall back to the anchor")
+	require.Equal(t, finalized, head.Block)
 }
 
 func TestChainContainer_FinalizedL2Head_PreActivation_ReturnsPreActivationSource(t *testing.T) {
