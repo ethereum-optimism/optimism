@@ -13,8 +13,8 @@ use reth_execution_types::BlockExecutionResult;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::{calculate_receipt_root_optimism, isthmus};
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{Receipt, SignedTransaction};
+use reth_optimism_primitives::OpReceipt;
+use reth_primitives_traits::SignedTransaction;
 use revm::context::Block as _;
 
 /// Block builder for Optimism.
@@ -38,7 +38,7 @@ impl OpBlockAssembler {
         F: for<'a> BlockExecutorFactory<
                 ExecutionCtx<'a>: Into<OpBlockExecutionCtx>,
                 Transaction: SignedTransaction,
-                Receipt: Receipt + DepositReceipt,
+                Receipt = OpReceipt,
             >,
         H,
     >(
@@ -142,7 +142,7 @@ where
     F: for<'a> BlockExecutorFactory<
             ExecutionCtx<'a> = OpBlockExecutionCtx,
             Transaction: SignedTransaction,
-            Receipt: Receipt + DepositReceipt,
+            Receipt = OpReceipt,
         >,
 {
     type Block = Block<F::Transaction>;

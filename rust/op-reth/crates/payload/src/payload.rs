@@ -418,7 +418,7 @@ impl BuiltPayload for OpBuiltPayload {
 /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1
 /// `reth_ethereum_engine_primitives::EthBuiltPayload::into_execution_data`
 ///
-/// Counterpart to `OpPayloadTypes::block_to_payload`; the two conversion paths are kept
+/// Counterpart to `OpEngineTypes::block_to_payload`; the two conversion paths are kept
 /// parallel. Upstream also threads the built payload's requests and block access list into
 /// the sidecar; OP execution data carries neither today, so this path discards them.
 /// Re-check when upstream changes the sidecar or OP execution data gains BAL support.

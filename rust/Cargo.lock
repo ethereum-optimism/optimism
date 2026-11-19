@@ -5045,17 +5045,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "example-engine-api-access"
-version = "0.0.0"
-dependencies = [
- "reth-db",
- "reth-node-builder",
- "reth-optimism-chainspec",
- "reth-optimism-node",
- "tokio",
-]
-
-[[package]]
 name = "example-exex-hello-world"
 version = "0.0.0"
 dependencies = [
@@ -14116,7 +14105,6 @@ dependencies = [
  "reth-trie-common",
  "reth-trie-db",
  "revm",
- "serde",
  "serde_json",
  "tokio",
  "url",
@@ -14144,6 +14132,7 @@ dependencies = [
  "proptest",
  "reth-basic-payload-builder",
  "reth-chainspec",
+ "reth-engine-primitives",
  "reth-evm",
  "reth-execution-types",
  "reth-metrics",

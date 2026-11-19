@@ -18,11 +18,16 @@ pub use builder::{
 };
 pub mod error;
 pub mod payload;
-use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadEnvelope};
+use alloy_rpc_types_engine::{ExecutionPayloadEnvelopeV2, ExecutionPayloadV1};
+use op_alloy_rpc_types_engine::{
+    OpExecutionData, OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3,
+    OpExecutionPayloadEnvelopeV4,
+};
 pub use payload::{
     OpBuiltPayload, OpExecData, OpPayloadAttributes, OpPayloadAttrs, OpPayloadBuilderAttributes,
     payload_id_optimism,
 };
+use reth_engine_primitives::EngineTypes;
 use reth_optimism_primitives::OpBlock;
 use reth_payload_primitives::PayloadTypes;
 use reth_primitives_traits::{Block, SealedBlock};
@@ -58,11 +63,11 @@ impl reth_evm::ConfigureEngineEvm<OpExecData> for reth_optimism_evm::OpEvmConfig
     }
 }
 
-/// ZST that aggregates Optimism [`PayloadTypes`].
+/// The payload and engine API types of an OP node.
 #[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
-pub struct OpPayloadTypes;
+pub struct OpEngineTypes;
 
-impl PayloadTypes for OpPayloadTypes {
+impl PayloadTypes for OpEngineTypes {
     type ExecutionData = crate::payload::OpExecData;
     type BuiltPayload = OpBuiltPayload;
     type PayloadAttributes = crate::payload::OpPayloadAttrs;
@@ -87,4 +92,13 @@ impl PayloadTypes for OpPayloadTypes {
             .expect("built OP blocks must normalize"),
         ))
     }
+}
+
+impl EngineTypes for OpEngineTypes {
+    type ExecutionPayloadEnvelopeV1 = ExecutionPayloadV1;
+    type ExecutionPayloadEnvelopeV2 = ExecutionPayloadEnvelopeV2;
+    type ExecutionPayloadEnvelopeV3 = OpExecutionPayloadEnvelopeV3;
+    type ExecutionPayloadEnvelopeV4 = OpExecutionPayloadEnvelopeV4;
+    type ExecutionPayloadEnvelopeV5 = OpExecutionPayloadEnvelopeV4;
+    type ExecutionPayloadEnvelopeV6 = OpExecutionPayloadEnvelopeV4;
 }

@@ -13,12 +13,10 @@ extern crate alloc;
 
 use alloc::{format, sync::Arc};
 use alloy_consensus::{
-    BlockHeader as _, EMPTY_OMMER_ROOT_HASH, constants::MAXIMUM_EXTRA_DATA_SIZE,
+    BlockHeader as _, EMPTY_OMMER_ROOT_HASH, Header, constants::MAXIMUM_EXTRA_DATA_SIZE,
 };
 use alloy_primitives::{B64, B256};
-use core::fmt::Debug;
-use op_alloy_consensus::{OpTransaction, decode_holocene_extra_data, decode_jovian_extra_data};
-use reth_chainspec::EthChainSpec;
+use op_alloy_consensus::{decode_holocene_extra_data, decode_jovian_extra_data};
 use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator, ReceiptRootBloom};
 use reth_consensus_common::validation::{
     validate_against_parent_eip1559_base_fee, validate_against_parent_hash_number,
@@ -26,12 +24,10 @@ use reth_consensus_common::validation::{
     validate_header_extra_data, validate_header_gas,
 };
 use reth_execution_types::BlockExecutionResult;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::{OpHardfork, OpHardforks};
-use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{
-    Block, BlockBody, BlockHeader, GotExpected, NodePrimitives, RecoveredBlock, SealedBlock,
-    SealedHeader,
-};
+use reth_optimism_primitives::{OpBlock, OpBlockBody, OpPrimitives, OpReceipt};
+use reth_primitives_traits::{BlockBody, GotExpected, RecoveredBlock, SealedBlock, SealedHeader};
 
 mod proof;
 pub use proof::calculate_receipt_root_optimism;
@@ -51,14 +47,10 @@ pub use error::OpConsensusError;
 /// Before Holocene, the rollup genesis block may carry arbitrary `extraData`. That is the Bedrock
 /// transition block: block 0, or on chains migrated from a legacy chain (OP Mainnet) the first
 /// Bedrock block, whose chain-spec genesis is the legacy block 0.
-fn validate_op_header_extra_data<H, ChainSpec>(
-    header: &H,
-    chain_spec: &ChainSpec,
-) -> Result<(), ConsensusError>
-where
-    H: BlockHeader,
-    ChainSpec: OpHardforks,
-{
+fn validate_op_header_extra_data(
+    header: &Header,
+    chain_spec: &OpChainSpec,
+) -> Result<(), ConsensusError> {
     if chain_spec.is_jovian_active_at_timestamp(header.timestamp()) {
         decode_jovian_extra_data(header.extra_data()).map_err(ConsensusError::other)?;
     } else if chain_spec.is_holocene_active_at_timestamp(header.timestamp()) {
@@ -76,16 +68,16 @@ where
 ///
 /// Provides basic checks as outlined in the execution specs.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpBeaconConsensus<ChainSpec> {
+pub struct OpBeaconConsensus {
     /// Configuration
-    chain_spec: Arc<ChainSpec>,
+    chain_spec: Arc<OpChainSpec>,
     /// Maximum allowed extra data size in bytes
     max_extra_data_size: usize,
 }
 
-impl<ChainSpec> OpBeaconConsensus<ChainSpec> {
+impl OpBeaconConsensus {
     /// Create a new instance of [`OpBeaconConsensus`]
-    pub const fn new(chain_spec: Arc<ChainSpec>) -> Self {
+    pub const fn new(chain_spec: Arc<OpChainSpec>) -> Self {
         Self { chain_spec, max_extra_data_size: MAXIMUM_EXTRA_DATA_SIZE }
     }
 
@@ -101,15 +93,11 @@ impl<ChainSpec> OpBeaconConsensus<ChainSpec> {
     }
 }
 
-impl<N, ChainSpec> FullConsensus<N> for OpBeaconConsensus<ChainSpec>
-where
-    N: NodePrimitives<Receipt: DepositReceipt, SignedTx: OpTransaction>,
-    ChainSpec: EthChainSpec<Header = N::BlockHeader> + OpHardforks + Debug + Send + Sync,
-{
+impl FullConsensus<OpPrimitives> for OpBeaconConsensus {
     fn validate_block_post_execution(
         &self,
-        block: &RecoveredBlock<N::Block>,
-        result: &BlockExecutionResult<N::Receipt>,
+        block: &RecoveredBlock<OpBlock>,
+        result: &BlockExecutionResult<OpReceipt>,
         receipt_root_bloom: Option<ReceiptRootBloom>,
         _block_access_list_hash: Option<B256>,
     ) -> Result<(), ConsensusError> {
@@ -120,27 +108,26 @@ where
             receipt_root_bloom,
         )?;
         #[cfg(feature = "std")]
-        sdm_metrics::record_validated_block(block.header().gas_used(), block.body().transactions());
+        sdm_metrics::record_validated_block(block.header().gas_used(), &block.body().transactions);
         Ok(())
     }
 }
 
-impl<B, ChainSpec> Consensus<B> for OpBeaconConsensus<ChainSpec>
-where
-    B: Block,
-    ChainSpec: EthChainSpec<Header = B::Header> + OpHardforks + Debug + Send + Sync,
-{
+impl Consensus<OpBlock> for OpBeaconConsensus {
     fn validate_body_against_header(
         &self,
-        body: &B::Body,
-        header: &SealedHeader<B::Header>,
+        body: &OpBlockBody,
+        header: &SealedHeader,
     ) -> Result<(), ConsensusError> {
         validation::validate_body_against_header_op(&self.chain_spec, body, header.header())
     }
 
-    fn validate_block_pre_execution(&self, block: &SealedBlock<B>) -> Result<(), ConsensusError> {
+    fn validate_block_pre_execution(
+        &self,
+        block: &SealedBlock<OpBlock>,
+    ) -> Result<(), ConsensusError> {
         // Check ommers hash
-        let ommers_hash = block.body().calculate_ommers_root();
+        let ommers_hash = BlockBody::calculate_ommers_root(block.body());
         if Some(block.ommers_hash()) != ommers_hash {
             return Err(ConsensusError::BodyOmmersHashDiff(
                 GotExpected {
@@ -190,12 +177,8 @@ where
     }
 }
 
-impl<H, ChainSpec> HeaderValidator<H> for OpBeaconConsensus<ChainSpec>
-where
-    H: BlockHeader,
-    ChainSpec: EthChainSpec<Header = H> + OpHardforks + Debug + Send + Sync,
-{
-    fn validate_header(&self, header: &SealedHeader<H>) -> Result<(), ConsensusError> {
+impl HeaderValidator for OpBeaconConsensus {
+    fn validate_header(&self, header: &SealedHeader) -> Result<(), ConsensusError> {
         let header = header.header();
         // with OP-stack Bedrock activation number determines when TTD (eth Merge) has been reached.
         debug_assert!(
@@ -228,8 +211,8 @@ where
 
     fn validate_header_against_parent(
         &self,
-        header: &SealedHeader<H>,
-        parent: &SealedHeader<H>,
+        header: &SealedHeader,
+        parent: &SealedHeader,
     ) -> Result<(), ConsensusError> {
         validate_against_parent_hash_number(header.header(), parent)?;
 
@@ -615,13 +598,14 @@ mod tests {
 
         let block = RecoveredBlock::new_sealed(block, vec![Address::default()]);
 
-        let post_execution = <OpBeaconConsensus<OpChainSpec> as FullConsensus<OpPrimitives>>::validate_block_post_execution(
-            &beacon_consensus,
-            &block,
-            &result,
-            None,
-            None,
-        );
+        let post_execution =
+            <OpBeaconConsensus as FullConsensus<OpPrimitives>>::validate_block_post_execution(
+                &beacon_consensus,
+                &block,
+                &result,
+                None,
+                None,
+            );
 
         // validate blob, it should pass blob gas used validation
         assert!(post_execution.is_ok());
@@ -686,13 +670,14 @@ mod tests {
 
         let block = RecoveredBlock::new_sealed(block, vec![Address::default()]);
 
-        let post_execution = <OpBeaconConsensus<OpChainSpec> as FullConsensus<OpPrimitives>>::validate_block_post_execution(
-            &beacon_consensus,
-            &block,
-            &result,
-            None,
-            None,
-        );
+        let post_execution =
+            <OpBeaconConsensus as FullConsensus<OpPrimitives>>::validate_block_post_execution(
+                &beacon_consensus,
+                &block,
+                &result,
+                None,
+                None,
+            );
 
         // validate blob, it should fail blob gas used validation post execution.
         assert!(matches!(

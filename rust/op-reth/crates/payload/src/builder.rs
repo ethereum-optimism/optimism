@@ -16,7 +16,7 @@ use op_alloy_consensus::{
 };
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
-use reth_chainspec::{ChainSpecProvider, EthChainSpec};
+use reth_chainspec::ChainSpecProvider;
 use reth_evm::{
     Database,
     execute::{
@@ -28,6 +28,7 @@ use reth_metrics::{
     Metrics,
     metrics::{self, Counter, Gauge},
 };
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::{
     ConfigurePostExecEvm, OpNextBlockEnvAttributes, PostExecExecutorExt, PostExecMode,
     PreRefundGasUsed, RevertToCheckpointError,
@@ -196,7 +197,7 @@ impl<Pool, Client, Evm, Txs> OpPayloadBuilder<Pool, Client, Evm, Txs> {
 impl<Pool, Client, Evm, T> OpPayloadBuilder<Pool, Client, Evm, T>
 where
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>>,
-    Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks>,
+    Client: StateProviderFactory + ChainSpecProvider<ChainSpec = OpChainSpec>,
     Evm:
         ConfigurePostExecEvm<Primitives = OpPrimitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>,
 {
@@ -284,7 +285,7 @@ where
 /// `Attributes` type, converting to [`OpPayloadBuilderAttributes`] internally for building.
 impl<Pool, Client, Evm, Txs> PayloadBuilder for OpPayloadBuilder<Pool, Client, Evm, Txs>
 where
-    Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks> + Clone,
+    Client: StateProviderFactory + ChainSpecProvider<ChainSpec = OpChainSpec> + Clone,
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>>,
     Evm:
         ConfigurePostExecEvm<Primitives = OpPrimitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>,
@@ -403,18 +404,17 @@ impl<'a, Txs> OpBuilder<'a, Txs> {
 
 impl<Txs> OpBuilder<'_, Txs> {
     /// Builds the payload on top of the state.
-    pub fn build<Evm, ChainSpec>(
+    pub fn build<Evm>(
         self,
         db: impl Database<Error = ProviderError>,
         state_provider: impl StateProvider,
-        ctx: OpPayloadBuilderCtx<Evm, ChainSpec>,
+        ctx: OpPayloadBuilderCtx<Evm>,
     ) -> Result<BuildOutcomeKind<OpBuiltPayload>, PayloadBuilderError>
     where
         Evm: ConfigurePostExecEvm<
                 Primitives = OpPrimitives,
                 NextBlockEnvCtx = OpNextBlockEnvAttributes,
             >,
-        ChainSpec: EthChainSpec + OpHardforks,
         Txs: PayloadTransactions<
             Transaction: PoolTransaction<Consensus = OpTransactionSigned> + OpPooledTx,
         >,
@@ -533,11 +533,11 @@ impl<Txs> OpBuilder<'_, Txs> {
     ///
     /// If a transaction makes a derived payload invalid, the witness covers the state read up to
     /// that transaction.
-    pub fn witness<Evm, ChainSpec, HP>(
+    pub fn witness<Evm, HP>(
         self,
         state_provider: impl StateProvider,
         headers_provider: &HP,
-        ctx: &OpPayloadBuilderCtx<Evm, ChainSpec>,
+        ctx: &OpPayloadBuilderCtx<Evm>,
     ) -> Result<ExecutionWitness, PayloadBuilderError>
     where
         HP: HeaderProvider<Header: alloy_rlp::Encodable> + ?Sized,
@@ -545,7 +545,6 @@ impl<Txs> OpBuilder<'_, Txs> {
                 Primitives = OpPrimitives,
                 NextBlockEnvCtx = OpNextBlockEnvAttributes,
             >,
-        ChainSpec: EthChainSpec + OpHardforks,
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = OpTransactionSigned>>,
     {
         let mut db = State::builder()
@@ -808,13 +807,13 @@ impl ExecutionInfo {
 
 /// Container type that holds all necessities to build a new payload.
 #[derive(derive_more::Debug)]
-pub struct OpPayloadBuilderCtx<Evm, ChainSpec> {
+pub struct OpPayloadBuilderCtx<Evm> {
     /// The type that knows how to perform system calls and configure the evm.
     pub evm_config: Evm,
     /// Additional config for the builder/sequencer, e.g. DA and gas limit
     pub builder_config: OpBuilderConfig,
     /// The chainspec
-    pub chain_spec: Arc<ChainSpec>,
+    pub chain_spec: Arc<OpChainSpec>,
     /// How to build the payload.
     pub config: PayloadConfig<OpPayloadBuilderAttributes>,
     /// Marker to check whether the job has been cancelled.
@@ -823,11 +822,10 @@ pub struct OpPayloadBuilderCtx<Evm, ChainSpec> {
     pub best_payload: Option<OpBuiltPayload>,
 }
 
-impl<Evm, ChainSpec> OpPayloadBuilderCtx<Evm, ChainSpec>
+impl<Evm> OpPayloadBuilderCtx<Evm>
 where
     Evm:
         ConfigurePostExecEvm<Primitives = OpPrimitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>,
-    ChainSpec: EthChainSpec + OpHardforks,
 {
     /// Returns the parent block the payload will be build on.
     pub fn parent(&self) -> &SealedHeader {
