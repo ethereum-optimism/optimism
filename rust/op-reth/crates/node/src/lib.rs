@@ -30,7 +30,7 @@ pub use node::*;
 
 /// OP payload-service configuration.
 pub mod payload_service;
-pub use payload_service::OpPayloadServiceBuilder;
+pub use payload_service::{OpPayloadServiceBuilder, WithPayloadEvm};
 
 mod derived_payload_service;
 pub use derived_payload_service::DerivedPayloadServiceBuilder;
