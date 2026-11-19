@@ -696,10 +696,11 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 			if tx, published, err = m.publishTx(ctx, tx, sendState); published {
 				retryCount = 0
 				wg.Add(1)
-				go func() {
+				// Pass tx so that each published version keeps its own waiter after a later fee bump.
+				go func(tx *types.Transaction) {
 					defer wg.Done()
 					m.waitForTx(ctx, tx, sendState, receiptChan)
-				}()
+				}(tx)
 				rebroadcastInterval := m.GetRebroadcastInterval()
 				if rebroadcastInterval > 0 {
 					retryTicker = time.NewTicker(rebroadcastInterval)
