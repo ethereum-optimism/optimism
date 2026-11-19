@@ -23,6 +23,7 @@ COMMON = ['mise.toml', '.gitmodules', 'superchain-registry', 'justfile', 'justfi
           'go.mod', 'go.sum', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc']
 RUST = ['rust', 'op-core/nuts/bundles', 'op-core/superchain']
 SCOPES = {
+    'go-modules': ['mise.toml', 'go.mod', 'go.sum', *BUILD_SCRIPTS],
     'go': COMMON + [':(glob)**/*.go', 'cannon', 'op-core/superchain'],
     'contracts': COMMON + ['packages/contracts-bedrock', 'op-deployer/justfile',
                             'op-deployer/pkg/deployer/artifacts', 'op-service/ioutil'],

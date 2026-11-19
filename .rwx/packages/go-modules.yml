@@ -7,9 +7,16 @@ package:
     branch:
     cache-epoch:
 tasks:
+  # As in go-go.yml: the filter and the checkout in the task keep the cache key to the tools,
+  # the command and the planned commit, which is the one that last changed go.mod or go.sum.
   - key: build
     use: package.use
+    filter: [mise.toml, .ci/go-cache/pr-checks/modules, .ci/go-tests/dependencies/go-modules]
     run: |
+      git init -q .
+      git remote add origin https://github.com/ethereum-optimism/optimism.git
+      git fetch -q origin "$CI_COMMIT_SHA"
+      git checkout -qf FETCH_HEAD
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       mkdir -p "$GOMODCACHE"
       # proxy.golang.org returns transient errors. Like CircleCI, retry with backoff.
@@ -22,6 +29,7 @@ tasks:
       go mod verify
       python3 ops/ci/runtime/go-artifacts.py pack go-modules .ci/go-cache/pr-checks/modules
     env:
+      CI_GO_REUSABLE_DEPENDENCY: "1"
       CI_COMMIT_SHA: ${{ params.commit-sha }}
     tool-cache: pr-checks-go-modules-${{ params.cache-epoch }}
     timeout: 30m

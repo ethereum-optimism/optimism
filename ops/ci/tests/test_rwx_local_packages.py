@@ -46,7 +46,7 @@ class LocalPackageTests(unittest.TestCase):
         # A dependency build has one cache key for all workloads and for later commits only if
         # each caller passes the planned commit and the same tool tasks, and nothing else.
         tools = {'go': ['go'], 'contracts': ['go', 'anvil'], 'kona': ['release'], 'op-reth': ['release'],
-                 'sp1-executor': ['release'], 'prestate': ['go']}
+                 'sp1-executor': ['release'], 'prestate': ['go'], 'modules': ['go']}
         calls = 0
         for path in sorted((ROOT / '.rwx').glob('*.yml')):
             graph = tasks(path.name)
@@ -54,10 +54,11 @@ class LocalPackageTests(unittest.TestCase):
                 match = re.fullmatch(r'\$\{\{ run\.dir \}\}/packages/go-(' + '|'.join(tools) + r')\.yml', task.get('call', ''))
                 if not match: continue
                 kind, calls = match.group(1), calls + 1
-                self.assertEqual(task['with']['commit-sha'], '${{ tasks.dependency-plan.values.' + kind + ' }}', (path.name, key))
+                planned = {'modules': 'go-modules'}.get(kind, kind)
+                self.assertEqual(task['with']['commit-sha'], '${{ tasks.dependency-plan.values.' + planned + ' }}', (path.name, key))
                 used = task['use'] if isinstance(task['use'], list) else [task['use']]
                 self.assertEqual([graph[tool]['with']['mode'] for tool in used], tools[kind], (path.name, key))
-        self.assertEqual(calls, 17)
+        self.assertEqual(calls, 24)
         for kind in tools:
             build = tasks('packages/go-' + kind + '.yml')['build']
             self.assert_starts_without_a_checkout(build, build['outputs']['filesystem']['filter']['workspace'])
@@ -72,6 +73,24 @@ class LocalPackageTests(unittest.TestCase):
             self.assertEqual(seed['use'], 'compiler-preparation')
             self.assert_starts_without_a_checkout(seed, prepared)
             self.assertEqual(seed['outputs']['filesystem']['filter']['workspace'], ['.ci/go-cache/full/build'])
+
+    def test_contract_compiles_exclude_the_trees_that_they_cannot_read(self):
+        # With `.git` or an unrelated tree among its inputs, a compile has a new cache key for
+        # each commit. Thirteen verdict tasks share the one build of packages/contracts-compile.yml.
+        excluded = ['!.git', '!rust', '!docs', '!.rwx', '!.circleci', '!.github', '!ops/ci/tests', '!ops/ci/migration']
+        shared = tasks('packages/contracts-compile.yml')['build']
+        self.assertEqual(shared['filter'], excluded)
+        self.assertEqual(set(shared['env']), {'CI_BRANCH'})
+        self.assertEqual(tasks('contract-l2-fork.yml')['compile']['filter'], excluded)
+        verdicts = 0
+        for path in ('contracts.yml', 'contract-upgrades.yml'):
+            graph = tasks(path)
+            self.assertEqual(graph['compile']['call'], '${{ run.dir }}/packages/contracts-compile.yml')
+            for key, task in graph.items():
+                if key.startswith('verdict-') and '-modified-' not in key:
+                    verdicts += 1
+                    self.assertEqual(task['use'][-1], 'compile', (path, key))
+        self.assertEqual(verdicts, 13)
 
     def assert_starts_without_a_checkout(self, task, inputs):
         """The task sees mise.toml and `inputs` only, checks out CI_COMMIT_SHA itself and filters its output.
@@ -125,8 +144,8 @@ class LocalPackageTests(unittest.TestCase):
     def test_output_filesystem_filters_and_test_results_have_no_parameterized_paths(self):
         # RWX does not expand an expression in these paths, and gives no warning. A filter then
         # omits the path, and a task reports no tests. RWX does expand an artifact path.
-        for name in ('contracts', 'contract-upgrades'):
-            leaf = tasks('packages/' + name + '-compile.yml')['build']
+        for name in ('contracts-compile', 'contracts-compile-modified'):
+            leaf = tasks('packages/' + name + '.yml')['build']
             filters = leaf['outputs']['filesystem']['filter']['workspace']
             self.assertNotIn('${{', json.dumps(filters))
         declared = 0

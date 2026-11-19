@@ -1,25 +1,25 @@
+# One `forge build` for the standard contract suites and the upgrade variants of a commit.
+# CircleCI builds in each of those jobs. The builds are the same: the compiler reads the
+# Foundry profile, and the tests read the feature flags and the fork variables.
 package:
   parameters:
     branch:
       required: true
-    cache-key:
-      required: true
-    suite:
-      required: true
-    feature:
+    cache-epoch:
       required: true
 tasks:
   - key: build
     use: package.use
+    # The build reads the contracts, the Go sources of the FFI helper and the scripts. It reads
+    # none of the excluded trees, so a commit that changes only them keeps the cache key.
+    filter: ['!.git', '!rust', '!docs', '!.rwx', '!.circleci', '!.github', '!ops/ci/tests', '!ops/ci/migration']
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/runtime/contract-suites.py prepare --suite "$CI_CONTRACT_SUITE" --feature "$CI_CONTRACT_FEATURE"
+      export GOCACHE="$PWD/.ci/go-cache/contracts-compile/build"
+      python3 ops/ci/runtime/contract-upgrades.py compile
     env:
       CI_BRANCH: ${{ params.branch }}
-      CI_CONTRACT_SUITE: ${{ params.suite }}
-      CI_CONTRACT_FEATURE: ${{ params.feature }}
-    tool-cache: ${{ params.cache-key }}
+    tool-cache: contracts-compile-${{ params.cache-epoch }}
     timeout: 40m
     runner:
       cpus: 16
@@ -27,8 +27,8 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build]
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contracts-compile/build]
           system: []
       artifacts:
         - key: reports
-          path: .ci/contract-suites/${{ params.suite }}-${{ params.feature }}/prepare
+          path: .ci/contracts-compile

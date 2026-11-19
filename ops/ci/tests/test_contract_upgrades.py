@@ -81,16 +81,15 @@ class UpgradeTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
 
-    def test_prepare_builds_with_the_job_environment_of_the_variant(self):
-        expected = {'CI_BRANCH': 'pilot', 'CI': 'true', 'FOUNDRY_PROFILE': 'liteci', 'FOUNDRY_FUZZ_SEED': '42424242',
-                    'FOUNDRY_FUZZ_RUNS': '1', 'FORK_OP_CHAIN': 'op', 'FORK_BASE_CHAIN': 'mainnet', 'SYS_FEATURE__INTEROP': 'true'}
-        status, calls = drive(UP, self.root, ['prepare', '--variant', 'feature-INTEROP'], environment={'CI_BRANCH': 'pilot'})
+    def test_compile_builds_once_with_the_profile_of_the_branch_and_no_variant_setting(self):
+        # One build serves every variant, so it has the profile and none of a variant's variables.
+        expected = {'CI_BRANCH': 'pilot', 'CI': 'true', 'FOUNDRY_PROFILE': 'liteci'}
+        status, calls = drive(UP, self.root, ['compile'], environment={'CI_BRANCH': 'pilot'})
         self.assertEqual(status, 0)
         self.assertEqual(calls, [('go-ffi', ['just', 'build-go-ffi'], expected), ('contracts-build', ['forge', 'build'], expected)])
         # develop uses the ci profile. A failed helper build stops the task before the contract build.
-        expected = {'CI_BRANCH': 'develop', 'CI': 'true', 'FOUNDRY_PROFILE': 'ci', 'FOUNDRY_FUZZ_SEED': '42424242',
-                    'FOUNDRY_FUZZ_RUNS': '1', 'FORK_OP_CHAIN': 'ink', 'FORK_BASE_CHAIN': 'mainnet'}
-        status, calls = drive(UP, self.root, ['prepare', '--variant', 'chain-ink'], [3], {'CI_BRANCH': 'develop'})
+        expected = {'CI_BRANCH': 'develop', 'CI': 'true', 'FOUNDRY_PROFILE': 'ci'}
+        status, calls = drive(UP, self.root, ['compile'], [3], {'CI_BRANCH': 'develop'})
         self.assertEqual((status, calls), (3, [('go-ffi', ['just', 'build-go-ffi'], expected)]))
 
     def test_every_feature_exports_only_its_own_flag(self):
@@ -207,8 +206,8 @@ class LiveForgeTests(unittest.TestCase):
         self.addCleanup(server.server_close); self.addCleanup(thread.join, 5); self.addCleanup(server.shutdown)
         environment = {'PATH': str(tools) + os.pathsep + os.environ['PATH'],
                        'OP_CI_MAINNET_L1_ARCHIVE_RPC_URL': 'http://127.0.0.1:' + str(server.server_port) + '/short-token?apikey=abc123'}
-        for mode in ('prepare', 'run'):
-            result = invoke('contract-upgrades.py', mode, '--variant', 'feature-main', **environment)
+        for arguments in (['compile'], ['run', '--variant', 'feature-main']):
+            result = invoke('contract-upgrades.py', *arguments, **environment)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         report = root / '.ci/contract-upgrades/feature-main/run'
         cases = {case.get('name'): case for case in ET.parse(report / 'results.xml').iter('testcase')}

@@ -90,13 +90,18 @@ def run_tests(directory, recipe, arguments=(), redactor=lambda data: data):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('prepare', 'run')); parser.add_argument('--variant', choices=VARIANTS, required=True)
+    parser.add_argument('mode', choices=('compile', 'run')); parser.add_argument('--variant', choices=VARIANTS)
     args = parser.parse_args()
+    if args.mode == 'compile':
+        # One build serves every variant and the standard contract suites: the compiler reads
+        # the profile, and the tests read the feature flags and the fork variables.
+        configure('main', FOUNDRY_PROFILE=profile())
+        return build(report('contracts-compile'))
+    if not args.variant: parser.error('run requires --variant')
     chain, feature = VARIANTS[args.variant]
     configure(feature, FOUNDRY_PROFILE=profile(), FOUNDRY_FUZZ_SEED='42424242', FOUNDRY_FUZZ_RUNS='1',
               FORK_OP_CHAIN=chain, FORK_BASE_CHAIN='mainnet')
-    directory = report('contract-upgrades', args.variant, args.mode)
-    if args.mode == 'prepare': return build(directory)
+    directory = report('contract-upgrades', args.variant, 'run')
     # Like CircleCI, the recipe gets the archive URL itself: it pins the block and retries fork reads.
     url = os.environ.get('OP_CI_MAINNET_L1_ARCHIVE_RPC_URL', '')
     try: redactor = Redactor(url)

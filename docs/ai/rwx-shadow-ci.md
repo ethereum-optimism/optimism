@@ -174,6 +174,11 @@ organization can start has 16 CPUs.
   because RWX's own cache key covers a task's definition and its tool tasks.
   `test_rwx_local_packages.py` fails when a workload builds a dependency in
   another way.
+- **Contract compiles.** The shared build of the standard suites and the upgrade
+  variants, and the L2 fork compile, have an input `filter` that excludes `.git`
+  and the trees that a compile cannot read. A commit that changes none of the
+  rest reuses the build. The Go module set is a dependency build of its own,
+  keyed on `go.mod` and `go.sum`.
 - **Rust baselines.** `ops/ci/runtime/rust-target-cache.py base` names the
   commit in the same way for the nextest archive and the cargo-hack partitions.
 - **Runner sizes.** A task on the critical path of a gate gets the size at
@@ -212,6 +217,10 @@ organization can start has 16 CPUs.
   shard the lines of the recipe's test list whose position, modulo the shard
   count, is the shard index.
 - **Contract tests.** RWX compiles in a task of its own before the test recipe.
+  The five standard suites and the eight upgrade variants share one build:
+  CircleCI builds in each job, and the builds are the same, because the compiler
+  reads the Foundry profile and only the tests read the feature flags and the
+  fork variables.
   On `develop`, CircleCI shards the standard suite; RWX does not.
 - **L2 fork tests.** CircleCI forks a private RPC. RWX has no such URL in a
   vault, so it forks the public `https://mainnet.optimism.io` through

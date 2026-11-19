@@ -11,7 +11,7 @@ tasks:
     use: package.use
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      export GOCACHE="$PWD/.ci/go-cache/contracts-compile/build"
       python3 ops/ci/runtime/contract-upgrades.py run --variant "$CI_CONTRACT_VARIANT"
     env:
       CI_BRANCH: ${{ params.branch }}

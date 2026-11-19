@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [compile-feature-main, compile-feature-CUSTOM_GAS_TOKEN, compile-feature-INTEROP, compile-chain-op, compile-chain-ink, compile-chain-unichain, compile-feature-BRIDGE_HOOK, compile-feature-OP_PRIVATE]
+    target: [compile]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -84,12 +84,20 @@ tasks:
     with:
       mode: compiler
 
+  # A dependency build checks out the commit that last changed its build inputs, so it
+  # is a cache hit for later commits and for the other workloads of the run.
+  - key: dependency-plan
+    use: code
+    run: python3 ops/ci/runtime/go-dependency-source.py plan
+    outputs:
+      filesystem: false
+
   - key: go-modules
-    use: [code, go-tools]
+    use: go-tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/go-modules.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
+      commit-sha: ${{ tasks.dependency-plan.values.go-modules }}
       branch: ${{ init.branch }}
       cache-epoch: ${{ init.cache-epoch }}
 
@@ -112,18 +120,17 @@ tasks:
     outputs:
       filesystem: false
 
-  # Explicit producer/verdict pairs keep each variant's filesystem isolated.
-  - key: compile-feature-main
+  # One build for every verdict task below: see packages/contracts-compile.yml.
+  - key: compile
     use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
+    call: ${{ run.dir }}/packages/contracts-compile.yml
     with:
       branch: ${{ init.branch }}
-      cache-key: contract-upgrades-feature-main-${{ init.cache-epoch }}
-      variant: feature-main
+      cache-epoch: ${{ init.cache-epoch }}
 
   - key: verdict-feature-main
-    use: [source, go-tools, contract-tools, go-modules, compile-feature-main]
+    use: [source, go-tools, contract-tools, go-modules, compile]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
@@ -131,17 +138,8 @@ tasks:
       cache-key: contract-upgrades-rpc-feature-main-${{ init.cache-epoch }}
       variant: feature-main
 
-  - key: compile-feature-CUSTOM_GAS_TOKEN
-    use: [source, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
-    with:
-      branch: ${{ init.branch }}
-      cache-key: contract-upgrades-feature-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
-      variant: feature-CUSTOM_GAS_TOKEN
-
   - key: verdict-feature-CUSTOM_GAS_TOKEN
-    use: [source, go-tools, contract-tools, go-modules, compile-feature-CUSTOM_GAS_TOKEN]
+    use: [source, go-tools, contract-tools, go-modules, compile]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
@@ -149,17 +147,8 @@ tasks:
       cache-key: contract-upgrades-rpc-feature-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
       variant: feature-CUSTOM_GAS_TOKEN
 
-  - key: compile-feature-INTEROP
-    use: [source, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
-    with:
-      branch: ${{ init.branch }}
-      cache-key: contract-upgrades-feature-INTEROP-${{ init.cache-epoch }}
-      variant: feature-INTEROP
-
   - key: verdict-feature-INTEROP
-    use: [source, go-tools, contract-tools, go-modules, compile-feature-INTEROP]
+    use: [source, go-tools, contract-tools, go-modules, compile]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
@@ -167,26 +156,8 @@ tasks:
       cache-key: contract-upgrades-rpc-feature-INTEROP-${{ init.cache-epoch }}
       variant: feature-INTEROP
 
-  - key: compile-feature-BRIDGE_HOOK
-    use: [source, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
-    with:
-      branch: ${{ init.branch }}
-      cache-key: contract-upgrades-feature-BRIDGE_HOOK-${{ init.cache-epoch }}
-      variant: feature-BRIDGE_HOOK
-
-  - key: compile-feature-OP_PRIVATE
-    use: [source, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
-    with:
-      branch: ${{ init.branch }}
-      cache-key: contract-upgrades-feature-OP_PRIVATE-${{ init.cache-epoch }}
-      variant: feature-OP_PRIVATE
-
   - key: verdict-feature-BRIDGE_HOOK
-    use: [source, go-tools, contract-tools, go-modules, compile-feature-BRIDGE_HOOK]
+    use: [source, go-tools, contract-tools, go-modules, compile]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
@@ -195,7 +166,7 @@ tasks:
       variant: feature-BRIDGE_HOOK
 
   - key: verdict-feature-OP_PRIVATE
-    use: [source, go-tools, contract-tools, go-modules, compile-feature-OP_PRIVATE]
+    use: [source, go-tools, contract-tools, go-modules, compile]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
@@ -203,17 +174,8 @@ tasks:
       cache-key: contract-upgrades-rpc-feature-OP_PRIVATE-${{ init.cache-epoch }}
       variant: feature-OP_PRIVATE
 
-  - key: compile-chain-op
-    use: [source, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
-    with:
-      branch: ${{ init.branch }}
-      cache-key: contract-upgrades-chain-op-${{ init.cache-epoch }}
-      variant: chain-op
-
   - key: verdict-chain-op
-    use: [source, go-tools, contract-tools, go-modules, compile-chain-op]
+    use: [source, go-tools, contract-tools, go-modules, compile]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
@@ -221,17 +183,8 @@ tasks:
       cache-key: contract-upgrades-rpc-chain-op-${{ init.cache-epoch }}
       variant: chain-op
 
-  - key: compile-chain-ink
-    use: [source, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
-    with:
-      branch: ${{ init.branch }}
-      cache-key: contract-upgrades-chain-ink-${{ init.cache-epoch }}
-      variant: chain-ink
-
   - key: verdict-chain-ink
-    use: [source, go-tools, contract-tools, go-modules, compile-chain-ink]
+    use: [source, go-tools, contract-tools, go-modules, compile]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:
@@ -239,17 +192,8 @@ tasks:
       cache-key: contract-upgrades-rpc-chain-ink-${{ init.cache-epoch }}
       variant: chain-ink
 
-  - key: compile-chain-unichain
-    use: [source, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
-    with:
-      branch: ${{ init.branch }}
-      cache-key: contract-upgrades-chain-unichain-${{ init.cache-epoch }}
-      variant: chain-unichain
-
   - key: verdict-chain-unichain
-    use: [source, go-tools, contract-tools, go-modules, compile-chain-unichain]
+    use: [source, go-tools, contract-tools, go-modules, compile]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
     with:

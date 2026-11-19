@@ -86,12 +86,20 @@ tasks:
     with:
       mode: compiler
 
+  # A dependency build checks out the commit that last changed its build inputs, so it
+  # is a cache hit for later commits and for the other workloads of the run.
+  - key: dependency-plan
+    use: code
+    run: python3 ops/ci/runtime/go-dependency-source.py plan
+    outputs:
+      filesystem: false
+
   - key: go-modules
-    use: [code, go-tools]
+    use: go-tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     call: ${{ run.dir }}/packages/go-modules.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
+      commit-sha: ${{ tasks.dependency-plan.values.go-modules }}
       branch: ${{ init.branch }}
       cache-epoch: ${{ init.cache-epoch }}
 
@@ -114,6 +122,8 @@ tasks:
 
   - key: compile
     use: [source, go-tools, contract-tools, go-modules]
+    # As in packages/contracts-compile.yml: the build reads none of the excluded trees.
+    filter: ['!.git', '!rust', '!docs', '!.rwx', '!.circleci', '!.github', '!ops/ci/tests', '!ops/ci/migration']
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
