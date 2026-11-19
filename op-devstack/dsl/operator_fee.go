@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -29,7 +29,7 @@ type OperatorFee struct {
 }
 
 type OperatorFeeValidationResult struct {
-	TransactionReceipt   *types.Receipt
+	TransactionReceipt   *optypes.Receipt
 	ExpectedOperatorFee  *big.Int
 	ActualTotalFee       *big.Int
 	VaultBalanceIncrease *big.Int
@@ -137,10 +137,7 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 	of.require.NoError(err)
 	of.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
-	l2EL, ok := from.el.stackEL().(stack.L2ELNode)
-	of.require.True(ok, "sender %s must operate against an L2 EL node", from)
-	opReceipt, err := l2EL.EthClient().TransactionReceipt(of.ctx, receipt.TxHash)
-	of.require.NoError(err)
+	l2EL := of.l2Network.PrimaryEL().Escape()
 
 	blockHash := receipt.BlockHash
 	info, txs, err := l2EL.L2EthClient().InfoAndUserTxsByHash(of.ctx, blockHash)
@@ -194,16 +191,16 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 		expectedOperatorFeeVaultIncrease.String(), vaultIncrease.String())
 
 	actualTotalFee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
-	if opReceipt.L1Fee != nil {
-		actualTotalFee.Add(actualTotalFee, opReceipt.L1Fee)
+	if receipt.L1Fee != nil {
+		actualTotalFee.Add(actualTotalFee, receipt.L1Fee)
 	}
 
 	if expectedScalar != 0 || expectedConstant != 0 {
-		of.require.NotNil(opReceipt.OperatorFeeScalar)
-		of.require.NotNil(opReceipt.OperatorFeeConstant)
+		of.require.NotNil(receipt.OperatorFeeScalar)
+		of.require.NotNil(receipt.OperatorFeeConstant)
 
-		of.require.Equal(expectedScalar, uint32(*opReceipt.OperatorFeeScalar))
-		of.require.Equal(expectedConstant, *opReceipt.OperatorFeeConstant)
+		of.require.Equal(expectedScalar, uint32(*receipt.OperatorFeeScalar))
+		of.require.Equal(expectedConstant, *receipt.OperatorFeeConstant)
 	}
 
 	return OperatorFeeValidationResult{

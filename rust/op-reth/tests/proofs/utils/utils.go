@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -80,7 +81,7 @@ func WaitForProofsStoreBlock(t devtest.T, client apis.EthClient, targetBlock uin
 
 // DeployContract deploys the contract creation bytecode from the given artifact.
 // user must provide a Plan() method compatible with txplan.NewPlannedTx (kept generic).
-func DeployContract(t devtest.T, user *dsl.EOA, bin []byte) (common.Address, *types.Receipt) {
+func DeployContract(t devtest.T, user *dsl.EOA, bin []byte) (common.Address, *optypes.Receipt) {
 	tx := txplan.NewPlannedTx(user.Plan(), txplan.WithData(bin))
 	res, err := tx.Included.Eval(t.Ctx())
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -18,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -74,7 +74,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	sys.L2B.CatchUpTo(sys.L2A)
 
 	var initTx *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
-	var initReceipt *types.Receipt
+	var initReceipt *optypes.Receipt
 	// prepare and include initiating message on chain A
 	{
 		initTx = txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](alice.Plan())
@@ -93,7 +93,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	sys.L2B.WaitForBlock()
 
 	var execTx *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
-	var execReceipt *types.Receipt
+	var execReceipt *optypes.Receipt
 	// prepare and include executing message on chain B
 	{
 		execTx = txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](bob.Plan())

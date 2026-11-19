@@ -5,10 +5,10 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -30,7 +30,7 @@ type SentMessage struct {
 
 // SentMessageFromReceipt decodes the first L2ToL2CrossDomainMessenger SentMessage event in a
 // receipt of a transaction on the chain `source`, and computes the message hash.
-func SentMessageFromReceipt(rcpt *types.Receipt, source eth.ChainID) (SentMessage, error) {
+func SentMessageFromReceipt(rcpt *optypes.Receipt, source eth.ChainID) (SentMessage, error) {
 	for i, l := range rcpt.Logs {
 		if l.Address != predeploys.L2toL2CrossDomainMessengerAddr || len(l.Topics) != 4 || l.Topics[0] != sentMessageTopic {
 			continue
