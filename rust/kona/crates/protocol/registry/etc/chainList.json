@@ -1004,5 +1004,45 @@
     "faultProofs": {
       "status": "permissioned"
     }
+  },
+  {
+    "name": "op-int-0",
+    "identifier": "sepolia-devnets/op-int-0",
+    "chainId": 420130023,
+    "rpc": [
+      "https://op-int-0.optimism.io/rpc"
+    ],
+    "explorers": [
+      ""
+    ],
+    "governedByOptimism": false,
+    "dataAvailabilityType": "eth-da",
+    "parent": {
+      "type": "L2",
+      "chain": "sepolia-devnets"
+    },
+    "faultProofs": {
+      "status": "permissionless"
+    }
+  },
+  {
+    "name": "uni-int-0",
+    "identifier": "sepolia-devnets/uni-int-0",
+    "chainId": 420130024,
+    "rpc": [
+      "https://uni-int-0.optimism.io/rpc"
+    ],
+    "explorers": [
+      ""
+    ],
+    "governedByOptimism": false,
+    "dataAvailabilityType": "eth-da",
+    "parent": {
+      "type": "L2",
+      "chain": "sepolia-devnets"
+    },
+    "faultProofs": {
+      "status": "permissionless"
+    }
   }
 ]
