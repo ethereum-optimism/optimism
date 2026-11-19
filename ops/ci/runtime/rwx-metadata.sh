@@ -88,6 +88,18 @@ TRIGGER_SOURCE=webhook BRANCH="${CI_BRANCH}" TAG="" SCHEDULE_NAME="" \
 jq '{"c-run_main": false, "c-run_rust_ci": false, "c-run_rust_e2e_ci": false, "c-run_contracts_feature_tests": false} + .' \
   "${PARAMS}" > .ci/pipeline-parameters.json
 
+# On develop the policy enables every workflow that RWX shadows. A flag that is
+# not true there means that CircleCI renamed it or stopped writing it. The
+# default above would then report "not selected" on every branch, and each
+# receipt would pass with all of its tasks skipped.
+if [[ "${CI_BRANCH}" == develop ]]; then
+  disabled="$(jq -r '[("c-run_main", "c-run_rust_ci", "c-run_rust_e2e_ci", "c-run_contracts_feature_tests") as $flag | select(.[$flag] != true) | $flag] | join(" ")' .ci/pipeline-parameters.json)"
+  if [[ -n "${disabled}" ]]; then
+    echo "ERROR: develop runs every shadowed workflow, but the routing policy did not enable: ${disabled}. Did CircleCI rename a flag?" >&2
+    exit 1
+  fi
+fi
+
 jq -r '."c-run_main"' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-main"
 jq -r '."c-run_rust_ci"' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-rust-ci"
 jq -r '."c-run_rust_e2e_ci"' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-rust-e2e-ci"

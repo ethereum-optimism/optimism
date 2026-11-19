@@ -169,6 +169,25 @@ class RwxMetadataTests(unittest.TestCase):
         self.assertTrue(params["c-run_kona_publish_prestates"])
         self.assertTrue(params["c-run_contracts_feature_tests"])
 
+    def test_develop_fails_when_the_policy_stops_enabling_a_shadowed_workflow(self):
+        # After a rename in CircleCI's policy the adapter's default reports "not selected", and
+        # every receipt passes with all of its tasks skipped. develop enables every workflow.
+        policy = ".circleci/scripts/compute-workflow-conditions.sh"
+        text = (self.checkout / policy).read_text()
+        self.assertIn("run rust_ci\n", text)
+        self.write(policy, text.replace("run rust_ci\n", "run rust_ci_renamed\n"))
+        self.commit(policy)
+        # A PR branch may leave a workflow out, so the renamed flag passes there.
+        self.assert_routes(True, False)
+        self.git("switch", "develop")
+        self.git("merge", "--ff-only", "rwx/example")
+        values = self.root / "develop-values"
+        result = self.run_metadata(CI_BRANCH="develop", RWX_VALUES=str(values))
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("did not enable: c-run_rust_ci.", result.stderr)
+        # The task fails before it reports a route, so no workload reads "not selected".
+        self.assertEqual(list(values.iterdir()), [])
+
     def test_a_push_without_a_branch_is_rejected(self):
         result = self.run_metadata(CI_BRANCH="")
         self.assertNotEqual(result.returncode, 0)
