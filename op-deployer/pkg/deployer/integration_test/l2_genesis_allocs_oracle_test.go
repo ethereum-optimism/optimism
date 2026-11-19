@@ -78,14 +78,6 @@ func allocModes(t *testing.T) []allocMode {
 			},
 		},
 		{
-			name:           "cgt+interop",
-			customGasToken: true,
-			configure: func(t *testing.T, intent *state.Intent) {
-				enableCustomGasToken(t, intent)
-				intent.UseInterop = true
-			},
-		},
-		{
 			name:              "op-private",
 			devFeatureBitmap:  devfeatures.OPPrivateFlag,
 			settlementChainID: 2,

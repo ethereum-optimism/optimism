@@ -87,6 +87,11 @@ abstract contract CommonTest is Test, Setup, Events {
 
         if (useInteropOverride) {
             skipIfDevFeatureEnabled(DevFeatures.BRIDGE_HOOK);
+            // Interop and custom gas token are not a supported combination, and L2 genesis
+            // refuses it.
+            if (Config.sysFeatureCustomGasToken()) {
+                vm.skip(true, "Skipping test because interop is not supported with custom gas token");
+            }
             console.log("CommonTest: enabling interop");
             deploy.cfg().setUseInterop(true);
         }

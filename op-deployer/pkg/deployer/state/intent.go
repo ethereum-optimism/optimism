@@ -165,6 +165,11 @@ func (c *Intent) validateCustomConfig() error {
 		if c.UseInterop && chain.GetBridgeHook() != emptyAddress {
 			return fmt.Errorf("%w: bridgeHook is not supported with useInterop, chainId=%s", ErrIncompatibleValue, chain.ID)
 		}
+		// The OPCM migrator rejects custom gas token chains: interop moves the native asset
+		// between chains as ETH.
+		if c.UseInterop && chain.IsCustomGasTokenEnabled() {
+			return fmt.Errorf("%w: custom gas token is not supported with useInterop, chainId=%s", ErrIncompatibleValue, chain.ID)
+		}
 	}
 
 	return nil
