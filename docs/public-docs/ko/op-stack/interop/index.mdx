@@ -23,7 +23,7 @@ OP Stack interop은 Lagoon 하드포크와 함께 활성화되지만 추가 기�
 튜토리얼에서는 로컬 또는 devnet 체인에서 모든 것을 직접 시도해 볼 수 있으며,
 사양은 전반에 걸쳐 규범적 정의 역할을 합니다.
 
-## 여기서 시작하십시오
+## 여기서 시작하십시오 {#start-here}
 
 *   [OP Stack 상호운용성 설명](/ko/op-stack/interop/explainer): interop이
     가능하게 하는 것(네이티브 자산 전송, 크로스체인 조합성, 수평적 확장성)과
@@ -31,7 +31,21 @@ OP Stack interop은 Lagoon 하드포크와 함께 활성화되지만 추가 기�
     실행 메시지, 액세스 리스트 검증, 블록 안전성 수준, 종속성 집합과 클러스터를
     다룹니다.
 
-## 더 깊이 알아보기
+## interop node 실행하기 {#run-interop-nodes}
+
+interop 의존성 집합(dependency set)에 속한 체인의 node를 운영한다면 여기서 시작하십시오.
+
+*   [OP Mainnet 및 Unichain의 interop 준비](/ko/notices/interop-prep):
+    일정, 실행해야 하는 구성 요소, 토폴로지 선택 방법, FAQ를 다룹니다.
+*   [OP Supernode](/ko/op-stack/interop/supernode): op-supernode의 역할과
+    Light CL 플릿과 결합하는 방식을 설명합니다.
+*   [op-supernode 설정](/ko/node-operators/guides/configuration/supernode-setup)
+    및 [구성](/ko/node-operators/guides/configuration/supernode): 실행 클라이언트
+    보존 설정과 고가용성을 포함합니다.
+*   [특화된 op-node 토폴로지](/ko/notices/specialized-node-topology): 플릿이
+    따르는 Light CL 패턴을 설명합니다.
+
+## 더 깊이 알아보기 {#go-deeper}
 
 *   [Interop 메시지 전달 개요](/ko/app-developers/guides/interoperability/message-passing):
     저수준 `CrossL2Inbox`부터 대부분의 앱이 사용하는
@@ -52,7 +66,7 @@ OP Stack interop은 Lagoon 하드포크와 함께 활성화되지만 추가 기�
     하나의 프로세스에서 호스팅하고 크로스체인 검증 작업을 수행하는 런타임을
     설명합니다.
 
-## 직접 실습하기
+## 직접 실습하기 {#get-hands-on}
 
 *   [OP Stack devnet에서 상호운용 가능한 앱 구축하기](/ko/app-developers/guides/interoperability/get-started):
     개발 환경(로컬 Supersim 또는 interop devnet)을 선택하고 배포를
@@ -67,7 +81,7 @@ OP Stack interop은 Lagoon 하드포크와 함께 활성화되지만 추가 기�
     autorelayer가 대신 처리해 주지 않을 때 실행 메시지를 직접 구성하여
     전송합니다.
 
-## 규범적 사양
+## 규범적 사양 {#the-normative-spec}
 
 interop 동작에 대한 최종 정의는 OP Stack 사양에 있습니다.
 
@@ -82,7 +96,7 @@ interop 동작에 대한 최종 정의는 OP Stack 사양에 있습니다.
 *   [SuperchainETHBridge](https://specs.optimism.io/interop/superchain-eth-bridge.html?utm_source=op-docs&utm_medium=docs):
     interop 체인 간 네이티브 ETH 브리징에 대한 사양입니다.
 
-## 감사 및 보안
+## 감사 및 보안 {#audits-and-security}
 
 *   [크로스체인 보안 조치](/ko/op-stack/security/interop-security):
     신뢰 모델, sequencer equivocation 발생 시 일어나는 일, 그리고 각 체인이

@@ -6,7 +6,7 @@ diataxis: how-to
 
 `proxyd`는 OP Stack 인프라에서 사용되는 중요한 RPC 요청 라우터이자 프록시입니다. 운영자는 이를 통해 여러 백엔드 서비스에 걸쳐 RPC 요청을 효율적으로 라우팅하고 관리할 수 있으며, 성능, 장애 허용성 및 보안을 보장할 수 있습니다.
 
-## 주요 기능
+## 주요 기능 {#key-features}
 *   RPC 메서드 화이트리스트
 *   백엔드 요청 라우팅
 *   실패한 백엔드 요청 자동 재시도
@@ -16,7 +16,7 @@ diataxis: how-to
 *   변경 불가능한 응답의 캐싱
 *   요청 지연 시간, 오류율 및 백엔드 상태에 대한 메트릭
 
-## 작동 방식
+## 작동 방식 {#how-it-works}
 
 `proxyd` 사용을 시작하려면 다음 단계를 따르십시오.
 
@@ -43,27 +43,73 @@ diataxis: how-to
   </Step>
 </Steps>
 
-## 합의 인식
+## 합의 인식 {#consensus-awareness}
 
 버전 4.0.0 이상에는 체인 재구성(reorg)을 최소화하기 위한 합의 인식(consensus awareness) 기능이 포함되어 있습니다.
-
-구성에서 `consensus_aware`를 `true`로 설정하면 다음 기능이 활성화됩니다.
+백엔드 그룹별로 `routing_strategy = "consensus_aware"`를 설정하여 활성화합니다(이전의 `consensus_aware = true` 설정은 더 이상 사용되지 않으며(deprecated), 두 설정을 함께 지정할 수 없습니다). 합의 인식을 활성화하면 다음 기능이 제공됩니다.
 
 *   합의 데이터(latest 블록, safe 블록, 피어 수 등)를 얻기 위해 백엔드 폴링
 *   가장 정상적인 백엔드를 기반으로 합의 그룹 결정
 *   클라이언트 요청 전반에 걸쳐 합의 상태 강제
 
-## 캐싱 및 메트릭
+`consensus_aware`는 실행 클라이언트 백엔드용입니다.
+Light CL 플릿의 follow source와 같은 합의 계층(consensus-layer) 백엔드에는 다음에 설명하는 `consensus_aware_consensus_layer`를 사용하십시오.
 
-### 캐시 가능한 메서드
+### follow source를 위한 합의 계층 라우팅 {#consensus-layer-routing-for-follow-sources}
+
+`routing_strategy = "consensus_aware_consensus_layer"`(proxyd v4.27.5 이상, 최신 릴리스 사용 권장)는 op-node 또는 op-supernode 인스턴스 풀을 고가용성 엔드포인트 하나 뒤에 배치합니다.
+[Light CL](/ko/notices/specialized-node-topology)의 `--l2.follow.source` 플래그가 단일 소스 대신 이 엔드포인트를 가리키도록 하십시오.
+
+이 모드에서 proxyd는 다음과 같이 동작합니다.
+
+*   각 백엔드의 `optimism_syncStatus`를 폴링하여, 도출(derivation)이 L1보다 `consensus_cl_sync_threshold`개(기본값 `10`) 이상의 L1 블록만큼 뒤처지거나 L1 head가 `consensus_cl_head_l1_max_age`(기본값 `5m`)보다 오래된 백엔드를 제외합니다.
+*   폴링할 때마다 합의된 safe 블록에서의 `optimism_outputAtBlock`을 백엔드 간에 비교합니다. 엄격한 과반수와 일치하지 않는 백엔드는 차단됩니다. 과반수가 없으면(예: 1대 1 분할) proxyd는 마지막으로 합의된 값으로 제공 상태를 고정하고 과반수가 회복될 때까지 다른 요청을 거부하므로, **최소 3개**의 백엔드를 실행하십시오.
+*   합의 그룹에 속한 백엔드 중 L1 기준으로 가장 뒤처진 백엔드에서 `optimism_syncStatus` 응답을 제공하므로, 풀에서 가장 보수적인 뷰를 제공합니다.
+*   백엔드에 `consensus_skip_peer_count = true`가 설정되어 있지 않으면 `opp2p_peerStats`를 통해 각 백엔드의 P2P 피어 수를 확인합니다. gossip을 자체적으로 처리하는 Light CL 플릿 뒤의 supernode처럼 P2P를 비활성화한 상태로 실행하는 백엔드에는 이 값을 설정하십시오. 그렇지 않으면 proxyd가 해당 백엔드를 합의 그룹에 절대 포함하지 않습니다.
+
+proxyd는 URL 경로가 아닌 RPC 메서드 기준으로 라우팅하므로, **체인당 하나의 proxyd 인스턴스**를 실행하십시오.
+interop 의존성 집합의 경우, 각 인스턴스의 백엔드는 op-supernode의 체인별 경로(`/<chainID>`)입니다.
+다음 예시는 `--disable-p2p=true`로 실행되는 3개의 supernode에서 OP Mainnet(chain ID `10`)을 제공합니다.
+
+```toml
+[server]
+rpc_port = 8545
+
+[backends]
+[backends.supernode-a]
+rpc_url = "http://supernode-a:8545/10"
+consensus_skip_peer_count = true
+[backends.supernode-b]
+rpc_url = "http://supernode-b:8545/10"
+consensus_skip_peer_count = true
+[backends.supernode-c]
+rpc_url = "http://supernode-c:8545/10"
+consensus_skip_peer_count = true
+
+[backend_groups]
+[backend_groups.follow-source]
+backends = ["supernode-a", "supernode-b", "supernode-c"]
+routing_strategy = "consensus_aware_consensus_layer"
+
+[rpc_method_mappings]
+optimism_syncStatus = "follow-source"
+```
+
+그런 다음 Light CL은 `/<chainID>` 접미사 없이 `--l2.follow.source=http://<this-proxyd>:8545`로 실행합니다.
+Unichain 플릿을 위한 두 번째 인스턴스에는 Unichain 경로(`/130`)로 동일한 설정을 반복하십시오.
+Light CL은 follow source에서 `optimism_syncStatus`만 호출하므로, 인스턴스에서 매핑해야 하는 메서드는 이것뿐입니다.
+
+## 캐싱 및 메트릭 {#caching-and-metrics}
+
+### 캐시 가능한 메서드 {#cacheable-methods}
 
 `eth_chainId` 및 `eth_getBlockByHash`와 같은 특정 변경 불가능한 메서드는 성능 최적화를 위해 Redis를 사용하여 캐시할 수 있습니다.
 
-### 메트릭
+### 메트릭 {#metrics}
 
 요청 지연 시간, 오류율, 백엔드 상태 등을 모니터링하기 위한 다양한 메트릭을 사용할 수 있습니다. 이는 구성 파일의 `metrics.port` 및 `metrics.host`를 통해 구성할 수 있습니다.
 
-## 다음 단계
+## 다음 단계 {#next-steps}
 
 *   [OP Stack 체인 아키텍처](/ko/chain-operators/guides/management/network-architecture)에 대해 읽어보십시오.
 *   체인에서 [snap sync](/ko/chain-operators/guides/features/snap-sync)를

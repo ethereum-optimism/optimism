@@ -16,7 +16,7 @@ diataxis: explanation
 
 고수준 상호운용성(interoperability)을 위해 두 메시지 모두 각 체인의 `L2ToL2CrossDomainMessenger` 컨트랙트를 사용합니다.
 
-## 시작 메시지
+## 시작 메시지 {#initiating-message}
 
 ```mermaid
 
@@ -46,9 +46,15 @@ sequenceDiagram
     이 메시지는 calldata로 `_target`에 제공됩니다. 즉, 함수 selector와 해당 함수 호출의 매개변수를 포함합니다.
 
 3.  소스 체인의 `L2ToL2CrossDomainMessenger`가 메시지가 정당한지 검증합니다.
-    *   대상 체인은 이 체인이 메시지를 보낼 수 있는 체인이어야 합니다.
     *   대상 체인은 소스 체인이 *아니어야* 합니다.
     *   대상은 `L2ToL2CrossDomainMessenger`, `L2CrossDomainMessenger` 또는 `L2ToL1MessagePasser`가 아니어야 합니다.
+
+    <Warning>
+      `sendMessage`는 대상 체인이 소스 체인과 같은 [interop cluster](/ko/op-stack/interop/explainer#superchain-interop-cluster)에 속하는지 확인하지 않습니다.
+      대상 체인이 interop cluster 외부에 있으면 아무도 메시지를 릴레이할 수 없으며, 아무도 [만료](/ko/app-developers/guides/interoperability/message-expiration#the-destination-is-outside-the-interop-cluster)시킬 수 없습니다.
+      전송 시 소각되거나 잠긴 자산(예: `SuperchainETHBridge`를 통해 보낸 ETH)은 모두 손실됩니다.
+      애플리케이션은 전송하기 전에 반드시 대상 체인 ID를 확인해야 합니다.
+    </Warning>
 
 4.  `L2ToL2CrossDomainMessenger`가 로그 항목을 발생시킵니다.
     로그 항목에는 매개변수 외에도 다음이 포함됩니다.
@@ -57,7 +63,7 @@ sequenceDiagram
 
     *   `_sender`: 크로스 도메인 메시지를 보낸 컨트랙트입니다.
 
-## 실행 메시지
+## 실행 메시지 {#executing-message}
 
 ```mermaid
 
@@ -84,6 +90,14 @@ sequenceDiagram
 2.  자동 릴레이어(autorelayer), 애플리케이션 또는 애플리케이션을 대신해 호출하는 컨트랙트가 `L2ToL2CrossDomainMessenger.relayMessage`를 호출합니다.
     이 호출에는 전송된 메시지(`_sentMessage`)와 [해당 메시지를 찾는 데 필요한 필드(`_id`)](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L2/ICrossL2Inbox.sol#L4-L10)가 포함됩니다.
 
+    <Warning>
+      입금(디파짓) 트랜잭션은 메시지를 릴레이할 수 없습니다.
+      입금이 `CrossL2Inbox.validateMessage`를 호출하면 revert됩니다.
+      릴레이는 일반 L2 트랜잭션으로 전송하십시오.
+      대상 체인의 sequencer가 7일 이내에 릴레이를 포함하지 않으면 아무도 메시지를 릴레이할 수 없습니다.
+      이 경우 애플리케이션은 [메시지를 만료시키고 전송을 취소](/ko/app-developers/guides/interoperability/message-expiration#undoing-an-expired-message)할 수 있습니다.
+    </Warning>
+
 3.  `L2ToL2CrossDomainMessenger`는 `CrossL2Inbox`를 사용하여 메시지가 소스에서 전송되었는지 검증합니다.
 
 4.  대상 체인의 `L2ToL2CrossDomainMessenger`가 메시지가 정당한지 검증합니다.
@@ -97,6 +111,6 @@ sequenceDiagram
 
 5.  모든 검증을 통과하면 `L2ToL2CrossDomainMessenger`가 메시지에 제공된 calldata로 대상 컨트랙트를 호출합니다.
 
-## 다음 단계
+## 다음 단계 {#next-steps}
 
 *   [블록체인 간에 메시지를 전달](/ko/app-developers/tutorials/interoperability/message-passing)하는 방법을 알아보십시오.
