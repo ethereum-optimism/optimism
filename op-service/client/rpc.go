@@ -191,8 +191,8 @@ func CheckAndDial(ctx context.Context, log log.Logger, addr string, connectTimeo
 }
 
 // dialRPCWithOptions dials addr with no websocket message size limit by default, matching HTTP, which has no
-// response size limit. Otherwise geth's 32 MiB websocket would apply.
-// Options can override it.
+// response size limit. Otherwise geth's 32 MiB websocket limit would apply.
+// options can set a limit, since they are applied after the default.
 func dialRPCWithOptions(ctx context.Context, addr string, options ...rpc.ClientOption) (*rpc.Client, error) {
 	options = append([]rpc.ClientOption{rpc.WithWebsocketMessageSizeLimit(0)}, options...)
 	return rpc.DialOptions(ctx, addr, options...)
