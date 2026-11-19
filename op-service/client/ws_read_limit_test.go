@@ -34,10 +34,6 @@ const (
 	testPrivateKey = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 )
 
-// TODO: remove: this puts back geth's default websocket limit, so the websocket rows show
-// what op-service clients did without their own default.
-var rpcOpts = []client.RPCOption{client.WithGethRPCOptions(rpc.WithWebsocketMessageSizeLimit(gethWebsocketLimit))}
-
 // ethService answers eth_call with a result of the size given in the call data, and
 // eth_chainId, which txmgr calls when it starts.
 type ethService struct{}
@@ -119,13 +115,13 @@ var dialers = []struct {
 	dial func(t *testing.T, ctx context.Context, lgr log.Logger, url string) callFunc
 }{
 	{"NewRPC", func(t *testing.T, ctx context.Context, lgr log.Logger, url string) callFunc {
-		cl, err := client.NewRPC(ctx, lgr, url, rpcOpts...)
+		cl, err := client.NewRPC(ctx, lgr, url)
 		require.NoError(t, err)
 		t.Cleanup(cl.Close)
 		return rpcCaller(cl)
 	}},
 	{"NewRPC lazy", func(t *testing.T, ctx context.Context, lgr log.Logger, url string) callFunc {
-		cl, err := client.NewRPC(ctx, lgr, url, append([]client.RPCOption{client.WithLazyDial()}, rpcOpts...)...)
+		cl, err := client.NewRPC(ctx, lgr, url, client.WithLazyDial())
 		require.NoError(t, err)
 		t.Cleanup(cl.Close)
 		return rpcCaller(cl)
@@ -167,8 +163,8 @@ func TestResponseSizeParity(t *testing.T) {
 					call := d.dial(t, ctx, testlog.Logger(t, slog.LevelInfo), tr.url)
 					for _, s := range sizes {
 						t.Run(s.name, func(t *testing.T) {
-							// TODO: fails today over websocket: see rpcOpts, and txmgr dials
-							// with geth's default.
+							// TODO: fails today for txmgr over websocket: it dials with
+							// geth's default.
 							require.NoError(t, call(ctx, s.size))
 						})
 					}
