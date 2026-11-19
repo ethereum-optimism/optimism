@@ -2,12 +2,12 @@ package client_test
 
 import (
 	"context"
+	"log/slog"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +33,7 @@ func startWSServer(t *testing.T) string {
 func callSized(t *testing.T, wsURL string, n int, opts ...client.RPCOption) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cl, err := client.NewRPC(ctx, testlog.Logger(t, log.LevelInfo), wsURL, opts...)
+	cl, err := client.NewRPC(ctx, testlog.Logger(t, slog.LevelInfo), wsURL, opts...)
 	require.NoError(t, err)
 	defer cl.Close()
 	var res string
