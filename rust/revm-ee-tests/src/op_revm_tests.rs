@@ -42,7 +42,7 @@ fn test_deposit_tx() {
         .with_tx(
             OpTransaction::builder()
                 .enveloped_tx(None)
-                .mint(100)
+                .mint(U256::from(100))
                 .source_hash(revm::primitives::B256::from([1u8; 32]))
                 .build_fill(),
         )
@@ -67,7 +67,7 @@ fn test_halted_deposit_tx() {
             OpTransaction::builder()
                 .base(TxEnv::builder().caller(BENCH_CALLER).kind(TxKind::Call(BENCH_TARGET)))
                 .enveloped_tx(None)
-                .mint(100)
+                .mint(U256::from(100))
                 .source_hash(revm::primitives::B256::from([1u8; 32]))
                 .build_fill(),
         )

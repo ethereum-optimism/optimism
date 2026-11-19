@@ -98,7 +98,6 @@ vec = "vec"
 # Additional project-specific terms
 flate = "flate"
 ratatui = "ratatui"
-superseed = "superseed"
 jsonrpsee = "jsonrpsee"
 tokio = "tokio"
 async = "async"

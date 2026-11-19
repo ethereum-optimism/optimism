@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/loadtest"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"

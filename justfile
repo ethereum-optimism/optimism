@@ -358,8 +358,6 @@ _go-tests-ci-internal go_test_flags="": build-superchain-go
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
   export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
   source ./ops/scripts/source-ci-archive-rpcs.sh
-  export NAT_INTEROP_LOADTEST_TARGET=10
-  export NAT_INTEROP_LOADTEST_TIMEOUT=30s
   ALL_PACKAGES="$(just list-test-packages | tr '\n' ' ')"
   if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
       NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
@@ -445,8 +443,6 @@ go-tests-fraud-proofs-ci:
   export PARALLEL=${FAULT_PROOF_TEST_PARALLEL:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
   export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
   source ./ops/scripts/source-ci-archive-rpcs.sh
-  export NAT_INTEROP_LOADTEST_TARGET=10
-  export NAT_INTEROP_LOADTEST_TIMEOUT=30s
   ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
       --junitfile=./tmp/test-results/results.xml \
       --jsonfile=./tmp/testlogs/log.json \

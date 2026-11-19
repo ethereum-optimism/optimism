@@ -177,7 +177,7 @@ func TestDencunL2ForkAtGenesis(gt *testing.T) {
 }
 
 func aliceSimpleBlobTx(t helpers.Testing, dp *e2eutils.DeployParams) *types.Transaction {
-	txData := transactions.CreateEmptyBlobTx(true, false, dp.DeployConfig.L2ChainID)
+	txData := transactions.CreateEmptyBlobTx(true, dp.DeployConfig.L2ChainID)
 	// Manual signer creation, so we can sign a blob tx on the chain,
 	// even though we have disabled cancun signer support in Ecotone.
 	signer := types.NewCancunSigner(txData.ChainID.ToBig())

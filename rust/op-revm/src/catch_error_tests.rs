@@ -150,7 +150,7 @@ fn failed_deposit_bumps_sender_nonce_and_persists_mint() {
     let tx = OpTransaction::builder()
         .base(TxEnv::builder().caller(CALLER).gas_limit(21_000))
         .source_hash(B256::with_last_byte(1))
-        .mint(MINT)
+        .mint(U256::from(MINT))
         .build_fill();
     let mut evm = Context::op().with_db(db).with_tx(tx).build_op();
     let handler = OpHandler::<_, TestError, EthFrame<EthInterpreter>>::new();

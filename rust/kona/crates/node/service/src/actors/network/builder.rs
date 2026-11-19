@@ -139,6 +139,12 @@ impl NetworkBuilder {
         Self { discovery: self.discovery.with_interval(interval), ..self }
     }
 
+    /// Sets how often the [`Discv5Builder`]'s driver saves the bootstore, and hands its records
+    /// to gossip again.
+    pub fn with_discovery_store_interval(self, interval: Duration) -> Self {
+        Self { discovery: self.discovery.with_store_interval(interval), ..self }
+    }
+
     /// Sets the address for the [`Discv5Builder`].
     pub fn with_discovery_address(self, address: LocalNode) -> Self {
         Self { discovery: self.discovery.with_local_node(address), ..self }

@@ -53,10 +53,7 @@ mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
 mod client;
-pub use client::{
-    EngineClient, EngineClientBuilder, EngineClientError, EngineQueryClient, RPC_TIMEOUT,
-    with_deadline,
-};
+pub use client::{EngineClient, EngineClientError, EngineQueryClient};
 
 mod request;
 pub use request::{
@@ -68,7 +65,7 @@ mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};
 
 mod state;
-pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
+pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate, FinalityViolation};
 
 mod kinds;
 pub use kinds::EngineKind;

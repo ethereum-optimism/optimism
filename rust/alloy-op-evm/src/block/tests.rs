@@ -391,7 +391,7 @@ fn recovered_deposit() -> Recovered<OpTxEnvelope> {
         source_hash: B256::ZERO,
         from: Address::with_last_byte(1),
         to: TxKind::Call(L1_BLOCK_CONTRACT),
-        mint: 0,
+        mint: U256::ZERO,
         value: U256::ZERO,
         gas_limit: 50_000,
         is_system_transaction: false,

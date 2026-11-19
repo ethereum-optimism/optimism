@@ -56,7 +56,7 @@ impl MemoryL1 {
 /// A stalled request fails once the L1 transport's per-request deadline expires, with the error
 /// that deadline produces.
 async fn stall() -> Result<(), TransportError> {
-    kona_engine::with_deadline(Box::pin(std::future::pending())).await.map(|_| ())
+    kona_sources::rpc::with_deadline(Box::pin(std::future::pending())).await.map(|_| ())
 }
 
 fn transport_failure(error: TransportError) -> PipelineErrorKind {
@@ -310,7 +310,7 @@ async fn prefetched_attributes_match_rpc_with_deposit_and_system_config_update()
         source_hash: UserDepositSource::new(epoch.hash, 1).source_hash(),
         from,
         to: TxKind::Call(to),
-        mint: 100,
+        mint: U256::from(100),
         value: U256::from(42),
         gas_limit: 100_000,
         input: vec![0xaa, 0xbb, 0xcc].into(),

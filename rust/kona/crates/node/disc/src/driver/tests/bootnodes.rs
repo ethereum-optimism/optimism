@@ -23,6 +23,26 @@ fn test_accepts_enode(
     assert_eq!(accepts_enode(table_filter, &enode).ok(), expected);
 }
 
+/// The driver should hand gossip its chain's bootnodes at startup, so that gossip dials them
+/// although they don't answer discovery, as a bootnode that runs gossip only. Otherwise a
+/// bootnode is dialed only once a session with it starts, as any record that gossip hasn't
+/// reached yet.
+///
+/// The bootnode is on loopback, where nothing answers.
+#[tokio::test]
+async fn test_bootnode_is_dialed_at_startup() {
+    let bootnode = enr_at_localhost(TEST_CHAIN_ID);
+    let (mut driver, _dir) = driver_with_bootstore(accept_all, &[]);
+    driver.bootnodes = BootNodes(vec![BootNode::Enr(bootnode.clone())]);
+    let (_handler, mut records) = driver.start();
+
+    let record = tokio::time::timeout(Duration::from_secs(5), records.recv())
+        .await
+        .expect("the driver didn't hand its bootnode to gossip")
+        .expect("the driver runs");
+    assert_eq!(record, bootnode);
+}
+
 /// A node with a public-only table filter should neither contact nor keep a loopback bootnode
 /// given by enode URL, as discv5 doesn't keep one given by ENR. An enode URL holds only an
 /// address, so the node would ask that address for the bootnode's record, which starts a
@@ -118,13 +138,9 @@ async fn test_enode_bootnode_with_a_record_the_filter_rejects_is_dropped() {
         .and_then(|socket| socket.local_addr())
         .expect("a free UDP port")
         .port();
-    let record = Enr::builder()
-        .ip4(Ipv4Addr::LOCALHOST)
-        .udp4(port)
-        .tcp4(port)
-        .ip6(Ipv6Addr::LOCALHOST)
-        .build(&key)
-        .expect("the record builds");
+    let record = enr_signed_with(&key, TEST_CHAIN_ID, |record| {
+        record.ip4(Ipv4Addr::LOCALHOST).udp4(port).tcp4(port).ip6(Ipv6Addr::LOCALHOST);
+    });
     let listen = ListenConfig::from_ip(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     let mut bootnode = Discv5::new(record.clone(), key, ConfigBuilder::new(listen).build())
         .expect("the bootnode builds");

@@ -28,8 +28,8 @@ func TestFastInit_ResumesFromVerifiedDB(t *testing.T) {
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
-	require.NotNil(t, interop)
+	interop, err := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
+	require.NoError(t, err)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
 	interop.tryInitFromVerifiedDB()
@@ -54,8 +54,8 @@ func TestFastInit_ResumeBelowActivationIsAllowed(t *testing.T) {
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 1000, nil, nil, dataDir, nil, 0, nil)
-	require.NotNil(t, interop)
+	interop, err := New(testLogger(), 1000, nil, nil, dataDir, nil, 0, nil)
+	require.NoError(t, err)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
 	interop.tryInitFromVerifiedDB()
@@ -70,8 +70,8 @@ func TestFastInit_ColdStartDefersToLoop(t *testing.T) {
 
 	dataDir := t.TempDir()
 
-	interop := New(testLogger(), 1000, nil, nil, dataDir, nil, 0, nil)
-	require.NotNil(t, interop)
+	interop, err := New(testLogger(), 1000, nil, nil, dataDir, nil, 0, nil)
+	require.NoError(t, err)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
 	interop.tryInitFromVerifiedDB()
@@ -540,8 +540,8 @@ func TestFirstVerifiableTimestamp_PrefersVerifiedDB(t *testing.T) {
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
-	require.NotNil(t, interop)
+	interop, err := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
+	require.NoError(t, err)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
 	// Resume picks verificationStart=201, but RPC accessor returns 200
@@ -559,11 +559,11 @@ func TestFirstVerifiableTimestamp_PrefersVerifiedDB(t *testing.T) {
 func TestFirstVerifiableTimestamp_ErrNotStartedBeforeInit(t *testing.T) {
 
 	dataDir := t.TempDir()
-	interop := New(testLogger(), 1000, nil, nil, dataDir, nil, 0, nil)
-	require.NotNil(t, interop)
+	interop, err := New(testLogger(), 1000, nil, nil, dataDir, nil, 0, nil)
+	require.NoError(t, err)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
-	_, err := interop.firstVerifiableTimestamp()
+	_, err = interop.firstVerifiableTimestamp()
 	require.ErrorIs(t, err, ErrNotStarted)
 }
 

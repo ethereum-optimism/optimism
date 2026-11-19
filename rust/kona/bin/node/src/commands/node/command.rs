@@ -1,6 +1,5 @@
 //! Node Subcommand.
 
-use super::middleware::{self, RpcMetricsLayer};
 use crate::{
     cli_metrics::{CliMetrics, init_rollup_config_metrics},
     flags::{
@@ -9,19 +8,19 @@ use crate::{
     },
 };
 use alloy_provider::RootProvider;
-use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::JwtSecret;
 use anyhow::{Context as _, Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
-use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use kona_providers_alloy::AlloyChainProvider;
 use kona_registry::{DEPENDENCY_SETS, L1Config, scr_rollup_config_by_alloy_ident};
 use kona_safedb::{SafeDatabase, SafeDb};
+use kona_sources::rpc;
+use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
 use std::{
@@ -32,7 +31,6 @@ use std::{
     sync::Arc,
 };
 use strum::IntoEnumIterator;
-use tower::util::MapFutureLayer;
 use tracing::{debug, error, info};
 use url::Url;
 
@@ -42,20 +40,11 @@ const L1_PROVIDER_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 /// Builds the node's one L1 client. Every component reads L1 through a clone, sharing its caches
 /// and trust setting.
 ///
-/// Every request is bounded by [`kona_engine::RPC_TIMEOUT`], so a stalled endpoint fails its
+/// Every request is bounded by [`rpc::TIMEOUT`], so a stalled endpoint fails its
 /// caller instead of hanging it. This is the only bound on L1 reads: the components do not bound
 /// their own. Metrics wrap the deadline, so a timeout is recorded as a transport error.
 pub(super) fn l1_client(url: Url, trust_rpc: bool) -> AlloyChainProvider {
-    AlloyChainProvider::new(
-        RootProvider::new(
-            ClientBuilder::default()
-                .layer(RpcMetricsLayer::new("l1"))
-                .layer(MapFutureLayer::new(kona_engine::with_deadline))
-                .http(url),
-        ),
-        L1_PROVIDER_CACHE_SIZE,
-        trust_rpc,
-    )
+    AlloyChainProvider::new(rpc::l1(url), L1_PROVIDER_CACHE_SIZE, trust_rpc)
 }
 
 /// A JWT token validation error.
@@ -271,20 +260,19 @@ impl NodeCommand {
         Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
     }
 
-    /// Validate the jwt secret if specified by exchanging capabilities with the engine.
-    /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
-    /// that the jwt token passed as a cli arg is correct.
-    pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
+    /// Builds the node's one authenticated engine connection and validates the JWT secret by
+    /// exchanging capabilities over it. Since the engine rejects a request signed with the wrong
+    /// secret, this ensures that the secret passed as a cli arg is correct before the node starts.
+    pub async fn connect_engine(&self) -> anyhow::Result<RootProvider<Optimism>> {
         let jwt_secret = self.l2_jwt_secret()?;
 
-        let engine =
-            EngineClient::rpc_client(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
+        let engine = rpc::engine(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
 
         let exchange = || async {
             match engine.exchange_capabilities(vec![]).await {
                 Ok(_) => {
                     debug!("Successfully exchanged capabilities with engine");
-                    Ok(jwt_secret)
+                    Ok(())
                 }
                 Err(e) => {
                     if Self::is_jwt_signature_error(&e) {
@@ -307,7 +295,8 @@ impl NodeCommand {
             .notify(|_, duration| {
                 debug!("Retrying engine capability handshake after {duration:?}");
             })
-            .await
+            .await?;
+        Ok(engine)
     }
 
     /// Run the Node subcommand.
@@ -328,7 +317,7 @@ impl NodeCommand {
             "Hardfork schedule"
         );
 
-        middleware::describe();
+        rpc::describe();
         let l1_provider =
             l1_client(self.l1_rpc_args.l1_eth_rpc.clone(), self.l1_rpc_args.l1_trust_rpc);
         let l1_config = L1ConfigBuilder {
@@ -341,18 +330,14 @@ impl NodeCommand {
         // If metrics are enabled, initialize the global cli metrics.
         args.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
 
-        let jwt_secret = self.validate_jwt().await?;
+        let engine = self.connect_engine().await?;
 
         self.p2p_flags.check_ports()?;
         let p2p_config = self.p2p_flags.clone().config(&cfg, args, Some(&l1_provider)).await?;
         let rpc_config = self.rpc_flags.clone().into();
 
-        let engine_config = EngineConfig {
-            config: Arc::new(cfg.clone()),
-            l2_url: self.l2_client_args.l2_engine_rpc.clone(),
-            l2_jwt_secret: jwt_secret,
-            mode: self.node_mode,
-        };
+        let engine_config =
+            EngineConfig { config: Arc::new(cfg.clone()), mode: self.node_mode, provider: engine };
 
         let dependency_set = self.load_dependency_set(&cfg)?;
         let safe_db = self.open_safe_db()?;
@@ -369,7 +354,6 @@ impl NodeCommand {
             crate::version::version().to_owned(),
             cfg,
             l1_config,
-            self.l2_client_args.l2_trust_rpc,
             engine_config,
             p2p_config,
             rpc_config,
@@ -535,7 +519,6 @@ impl NodeCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kona_engine::RPC_TIMEOUT;
     use kona_providers_alloy::BlockLabel;
     use std::{net::TcpListener, time::Duration};
     use tokio::time::{self, Instant};
@@ -550,7 +533,7 @@ mod tests {
 
         let started = Instant::now();
         let result =
-            time::timeout(RPC_TIMEOUT * 2, provider.block_info_by_label(BlockLabel::Latest))
+            time::timeout(rpc::TIMEOUT * 2, provider.block_info_by_label(BlockLabel::Latest))
                 .await
                 .expect("L1 request has no deadline");
 
@@ -559,7 +542,7 @@ mod tests {
         // Timers round up to the next millisecond.
         let waited = started.elapsed();
         assert!(
-            waited >= RPC_TIMEOUT && waited <= RPC_TIMEOUT + Duration::from_millis(1),
+            waited >= rpc::TIMEOUT && waited <= rpc::TIMEOUT + Duration::from_millis(1),
             "{waited:?}"
         );
     }

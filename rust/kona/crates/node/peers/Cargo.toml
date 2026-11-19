@@ -42,6 +42,7 @@ tempfile.workspace = true
 lazy_static.workspace = true
 unsigned-varint.workspace = true
 serde_json = { workspace = true, features = ["std"] }
+serde_with = { workspace = true, features = ["alloc"] }
 derive_more = { workspace = true, features = ["display", "deref", "debug"] }
 
 # `arbitrary` feature dependencies

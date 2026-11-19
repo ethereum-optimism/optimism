@@ -32,7 +32,7 @@ func TestSystemE2EOsakaAtGenesisWithBlobs(t *testing.T) {
 
 	// send a blob-containing txn on l1
 	ethPrivKey := sys.Cfg.Secrets.Alice
-	txData := transactions.CreateEmptyBlobTx(true, true, bigs.Uint64Strict(sys.Cfg.L1ChainIDBig()))
+	txData := transactions.CreateEmptyBlobTx(true, bigs.Uint64Strict(sys.Cfg.L1ChainIDBig()))
 	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L1ChainIDBig()), txData)
 	// send blob-containing txn
 	sendCtx, sendCancel := context.WithTimeout(context.Background(), 15*time.Second)

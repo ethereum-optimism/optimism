@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/loadtest"
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherConfig "github.com/ethereum-optimism/optimism/op-batcher/config"
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"

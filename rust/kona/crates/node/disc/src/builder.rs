@@ -2,7 +2,7 @@
 
 use discv5::{Config, Discv5, Enr, ListenConfig};
 use enr::k256;
-use kona_peers::{BootNodes, BootStore, BootStoreFile, OpStackEnr, SkippedEntry};
+use kona_peers::{BootNodes, BootStore, BootStoreFile, OpStackEnr};
 use socket2::{Domain, Protocol, Socket, Type};
 use std::{
     net::{IpAddr, SocketAddr},
@@ -257,19 +257,16 @@ impl Discv5Builder {
     /// Builds a [`Discv5Driver`].
     ///
     /// Opens the bootstore, if one is set, and creates it if it is missing, so that a bootstore
-    /// that can't be read, isn't a list of records, or can't be created fails here, rather than
-    /// leaving the node without its saved records, or with records it never saves.
+    /// that can't be read, isn't a bootstore this version can read, or can't be created fails
+    /// here, rather than leaving the node without its saved records, or with records it never
+    /// saves.
     pub fn build(self) -> Result<Discv5Driver, Discv5BuilderError> {
         let chain_id = self.chain_id;
 
         let bootstore = match &self.bootstore {
             Some(file) => {
                 let path = file.path()?;
-                let (mut bootstore, skipped) = BootStore::open(path.clone())?;
-                // The save below leaves them out, so this is the only record of them.
-                for SkippedEntry { entry, error } in skipped {
-                    warn!(target: "discovery", path = %path.display(), %entry, %error, "Dropping a bootstore entry that isn't a node record");
-                }
+                let mut bootstore = BootStore::open(path)?;
                 bootstore.sync()?;
                 bootstore
             }
@@ -299,7 +296,9 @@ impl Discv5Builder {
         let mut driver =
             Discv5Driver::new(disc, table_filter, interval, chain_id, bootstore, self.bootnodes)
                 .map_err(|e| Discv5BuilderError::Discv5CreationFailed(e.to_string()))?;
-        driver.store_interval = self.store_interval.unwrap_or(Duration::from_secs(60));
+        if let Some(store_interval) = self.store_interval {
+            driver.store_interval = store_interval;
+        }
         driver.forward = self.forward;
         driver.remove_interval = self.randomize;
         Ok(driver)

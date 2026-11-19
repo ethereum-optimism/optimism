@@ -126,6 +126,7 @@ No other OP Stack component needs a new version for the prestate.
 
       <Tab title="Custom chain configuration">
         First, stage your chain data as described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate).
+        The directory must also contain `depsets.json` (see the `depsets.json` tab in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate)). `kona-client/v1.9.0` does not check for it: a build without it succeeds, but onchain games cannot prove a step in the resulting prestate.
         Check out `kona-client/v1.9.0` and, from the root of the monorepo, build the prestates with the same custom configuration:
 
         ```bash

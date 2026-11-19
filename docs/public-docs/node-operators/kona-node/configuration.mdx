@@ -26,7 +26,6 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 | `--l1-trust-rpc=<true/false>` | `KONA_NODE_L1_TRUST_RPC` | Whether to trust the L1 RPC without verification | No | `false` |
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | URL of the engine API endpoint of an L2 execution client | Yes | - |
-| `--l2-trust-rpc=<true/false>` | `KONA_NODE_L2_TRUST_RPC` | Whether to trust the L2 RPC without verification | No | `true` |
 | `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | Path to file containing the hex-encoded JWT secret for the execution client | No | - |
 | `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | Path to a custom L2 rollup configuration file | No | - |
 | `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | Poll interval for reloading runtime config | No | `600` |
@@ -89,7 +88,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5` |
 | `--p2p.discovery.ip-votes <N>` | `KONA_NODE_P2P_DISCOVERY_IP_VOTES` | How many peers must report the same external address before the node advertises it, at least `2`. Ignored with `--p2p.advertise.ip`. Fewer votes let fewer peers decide the address, so keep the default on public networks. op-node has no such flag: its threshold is fixed at `10`. See [advertised address](#advertised-address) | `10` |
 | `--p2p.discovery.private` | `KONA_NODE_P2P_DISCOVERY_PRIVATE` | Let discovery use non-public addresses, such as loopback and LAN ones, in other nodes' records and bootnodes, as on a devnet. See [discovered addresses](#discovered-addresses) | `false` |
-| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | The bootstore file, which saves peers' records so that the node can dial them again after a restart. If it is missing, the node creates it, and its directory, and doesn't start if it can't. Nor does it start if the file can't be read, or isn't a JSON list of records: fix the file or delete it | `~/.kona/<chain_id>/bootstore.json` |
+| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | The bootstore file, which saves peers' records so that the node can find them again after a restart. It forgets a peer whose address it hasn't confirmed for a week, and a new one whose address it can't confirm within an hour or two, counting only while the node hears from the network. The records that kona-node v1.11.0 or earlier saved count as new: those it doesn't confirm in that time are forgotten, whether it tried them or not, which in a full bootstore is most of them. If it is missing, the node creates it, and its directory, and doesn't start if it can't. Nor does it start if the file can't be read, isn't a bootstore, or is in a format a newer version wrote: fix the file, upgrade, or delete it | `~/.kona/<chain_id>/bootstore.json` |
 | `--p2p.no-bootstore` | `KONA_NODE_P2P_NO_BOOTSTORE` | Disable the bootstore: the node neither saves peers' records nor reads saved ones | `false` |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
@@ -137,12 +136,12 @@ op-node never advertises its listen IP: without `--p2p.advertise.ip`, it learns 
 
 Other nodes hand the node records that can name an address it can't reach, such as another host's `127.0.0.1`, or a host that isn't a node at all. So the node follows two rules:
 
-- **Apart from its bootnodes, it dials only nodes discovery has had a session with, and only if the TCP address in their record has the IP the session came from.** It saves such records and the bootnodes of its chain in its bootstore, apart from private ones, see below, and hands them to gossip at startup and every minute after, so that it redials the peers it lost. A record that names another host is dropped. Static peers and [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer) are dialed as given.
+- **Apart from its bootnodes, which it dials once at startup, it dials only nodes discovery has had a session with, and only if the TCP address in their record has the IP the session came from.** It saves such records and the bootnodes of its chain in its bootstore, apart from private ones, see below. The saved records seed discovery: 30 at random at startup, the peers it dialed in the last week first, and 30 others every minute while discovery has fewer than 30 peers. A peer it dialed since startup and lost is dialed again every minute for a day. A bootnode that runs gossip without discovery is better listed in `--p2p.static-peers`. A record that names another host is dropped. Static peers and [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer) are dialed as given.
 - **Discovery uses only public addresses, unless `--p2p.discovery.private` is set.** A record with a "this network" (`0.0.0.0/8`), loopback, private, link-local, shared (`100.64.0.0/10`), IETF protocol assignment (`192.0.0.0/24`), benchmarking (`198.18.0.0/15`), reserved (`240.0.0.0/4`), multicast, broadcast or documentation address isn't contacted, kept in the discovery table, or saved, unless it starts a session with the node, see below, and the bootstore drops it at startup. Some clouds and labs use the benchmarking and reserved ranges for internal addresses. This applies to bootnodes, given as ENRs or enode URLs, so a devnet that uses loopback or LAN bootnodes needs the flag. The other special-purpose ranges, such as anycast and NAT64 addresses, count as public.
 
 Behind a Kubernetes Service with `externalTrafficPolicy: Cluster`, the default, packets from other nodes reach the node from a cluster node's IP rather than their own. A node that starts a session with it then doesn't match its record, so it isn't dialed, and the node finds fewer peers than op-node does. Sessions the node starts itself are unaffected. Set `externalTrafficPolicy: Local` to keep the senders' IPs.
 
-Without `--p2p.discovery.private`, the node never reaches out to a private address first. A node at a private address that starts a session with it is dialed back, at the address the session came from, as it could dial this node over gossip anyway, but it isn't saved, so it isn't dialed after a restart. To peer with private nodes, such as neighbours in a VPC, set the flag, or list them in `--p2p.static-peers`. Discovery also keeps a node it has a session with in its table, and passes its record on to nodes that look it up, as it can't check a record against the node asking for it. Nodes that follow these rules don't contact a private record they get this way.
+Without `--p2p.discovery.private`, the node never reaches out to a private address first. A node at a private address that starts a session with it is neither dialed back nor saved: it can dial this node over gossip, which accepts it, and if it keeps the peers it found, as kona-node does in its bootstore, it can redial this node. To peer with private nodes, such as neighbours in a VPC, set the flag, or list them in `--p2p.static-peers`. Discovery also keeps a node it has a session with in its table, and passes its record on to nodes that look it up, as it can't check a record against the node asking for it. Nodes that follow these rules don't contact a private record they get this way.
 
 <Info>
 
@@ -160,7 +159,7 @@ Like Lighthouse, kona-node uses a fixed rule. op-node instead checks each record
 
 <Warning>
 
-Static peers don't turn discovery off. On a chain in the superchain registry, discovery starts from the chain's built-in bootnodes, even with no `--p2p.bootnodes`, and the node dials the peers saved in its bootstore. So the node still finds other nodes and connects to them, and they can find it. To connect only to static peers, also set `--p2p.no-discovery`, see [running without discovery](#running-without-discovery).
+Static peers don't turn discovery off. On a chain in the superchain registry, discovery starts from the chain's built-in bootnodes, even with no `--p2p.bootnodes`, and from the peers saved in its bootstore. So the node still finds other nodes and connects to them, and they can find it. To connect only to static peers, also set `--p2p.no-discovery`, see [running without discovery](#running-without-discovery).
 
 </Warning>
 
@@ -211,9 +210,9 @@ The node finds its peers as follows:
 
 | Discovery | Bootnodes | Static peers | Behavior |
 |-----------|-----------|--------------|----------|
-| On | None, chain in the registry | Any | Connects to the peers it finds from the chain's built-in bootnodes, to the peers saved in its bootstore, and to its static peers. |
-| On | None, chain not in the registry | Any | Connects to the peers saved in its bootstore, if any, and to its static peers. Otherwise it finds nobody until other nodes bootstrap from it, as the first bootnode of a new network does. |
-| On | Set | Any | Connects to the peers it finds from the bootnodes given and the built-in ones, to the peers saved in its bootstore, and to its static peers. |
+| On | None, chain in the registry | Any | Connects to the peers it finds from the chain's built-in bootnodes, to the peers it finds from its bootstore, and to its static peers. |
+| On | None, chain not in the registry | Any | Connects to the peers it finds from its bootstore, if any, and to its static peers. Otherwise it finds nobody until other nodes bootstrap from it, as the first bootnode of a new network does. |
+| On | Set | Any | Connects to the peers it finds from the bootnodes given and the built-in ones, to the peers it finds from its bootstore, and to its static peers. |
 | Off | Ignored | Set | Connects only to its static peers and the peers that dial it. A static peer that's down is dialed again once a minute, so a node can start before its peers. |
 | Off | Ignored | None | Connects only to peers that dial it, or that are added with `opp2p_connectPeer`, as the hub of a group does. |
 
@@ -251,9 +250,11 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 `kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
 flag group. `--interop.dependency-set` is the node's only interop flag.
 
-## RPC Trust Flags
+## RPC Trust Flag
 
-The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies RPC responses. Without L1 trust, Kona checks L1 headers against their block hashes, and L1 transactions and receipts against the header's roots, and proves the unsafe block signer with `eth_getProof`, which the L1 RPC must therefore serve. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).
+<Unreleased component="kona-node" />
+
+The `--l1-trust-rpc` flag controls whether Kona verifies L1 RPC responses. Without L1 trust, Kona checks L1 headers against their block hashes, and L1 transactions and receipts against the header's roots, and proves the unsafe block signer with `eth_getProof`, which the L1 RPC must therefore serve. The L2 engine is the node's own execution client and is always trusted. For guidance on when to disable L1 trust and worked examples, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).
 
 ## Default Behavior
 

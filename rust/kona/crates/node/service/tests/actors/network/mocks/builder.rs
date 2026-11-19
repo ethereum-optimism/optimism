@@ -1,5 +1,6 @@
 use std::{
     net::{IpAddr, Ipv4Addr},
+    path::PathBuf,
     time::Duration,
 };
 
@@ -18,7 +19,7 @@ use kona_node_service::{
     EngineClientResult, IpVotes, NetworkActor, NetworkBuilder, NetworkConfig, NetworkEngineClient,
     NodeActor, SignerActor,
 };
-use kona_peers::BootNode;
+use kona_peers::{BootNode, BootStoreFile};
 use kona_rpc::P2pRpc;
 use kona_sources::BlockSignerHandler;
 use libp2p::{
@@ -65,6 +66,12 @@ pub(crate) struct TestNetworkBuilder {
     in_memory: bool,
     /// How often nodes look up random nodes, if not the default.
     discovery_interval: Option<Duration>,
+    /// The file the next node built saves its bootstore in. Without one, it keeps its bootstore
+    /// only in memory.
+    bootstore: Option<PathBuf>,
+    /// How often nodes save their bootstore, and hand its records to gossip again, if not the
+    /// default.
+    store_interval: Option<Duration>,
     /// The ID of the next node built, which prefixes its logs.
     next_node_id: usize,
     /// The static peers of the next node built.
@@ -94,6 +101,8 @@ impl TestNetworkBuilder {
             keypair: None,
             in_memory: false,
             discovery_interval: None,
+            bootstore: None,
+            store_interval: None,
             next_node_id: 0,
             static_peers: Vec::new(),
             snapshot_max_age: Duration::ZERO,
@@ -161,6 +170,20 @@ impl TestNetworkBuilder {
     /// Only for tests that wait on discovery to connect nodes: frequent lookups flood debug logs.
     pub(crate) const fn with_discovery_interval(mut self, interval: Duration) -> Self {
         self.discovery_interval = Some(interval);
+        self
+    }
+
+    /// Makes the next node built, and only that one, save its bootstore at `path`, for a test to
+    /// read.
+    pub(crate) fn with_next_bootstore(mut self, path: PathBuf) -> Self {
+        self.bootstore = Some(path);
+        self
+    }
+
+    /// Makes the nodes built from now on save their bootstore, and hand its records to gossip
+    /// again, every `interval`, instead of every minute.
+    pub(crate) const fn with_store_interval(mut self, interval: Duration) -> Self {
+        self.store_interval = Some(interval);
         self
     }
 
@@ -257,10 +280,14 @@ impl TestNetworkBuilder {
             discovery_config,
         )
         .with_discovery_enabled(self.discovery_enabled)
+        .with_bootstore(self.bootstore.take().map(BootStoreFile::Custom))
         .with_bootnodes(bootnodes.into())
         .with_static_peers(std::mem::take(&mut self.static_peers));
         if let Some(interval) = self.discovery_interval {
             builder = builder.with_discovery_interval(interval);
+        }
+        if let Some(interval) = self.store_interval {
+            builder = builder.with_discovery_store_interval(interval);
         }
         if self.in_memory {
             builder = builder.with_gossip_transport(memory_transport());

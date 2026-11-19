@@ -254,8 +254,8 @@ pub struct P2PArgs {
     pub discovery_private: bool,
     /// The bootstore file, which saves peers' records so that the node can dial them again after
     /// a restart. If it is missing, the node creates it, and its directory, and doesn't start if
-    /// it can't. Nor does it start if the file can't be read, or isn't a JSON list of records.
-    /// Defaults to `~/.kona/<chain_id>/bootstore.json`.
+    /// it can't. Nor does it start if the file can't be read, isn't a bootstore, or is in a format
+    /// a newer version wrote. Defaults to `~/.kona/<chain_id>/bootstore.json`.
     #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
     pub bootstore: Option<PathBuf>,
     /// Disables the bootstore: the node neither saves peers' records nor reads saved ones.

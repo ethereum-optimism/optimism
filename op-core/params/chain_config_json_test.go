@@ -1,12 +1,9 @@
 package params
 
 import (
-	"bytes"
 	"encoding/json"
 	"math/big"
 	"reflect"
-	"slices"
-	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -16,7 +13,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	forkstest "github.com/ethereum-optimism/optimism/op-core/forks/test"
-	"github.com/ethereum-optimism/optimism/op-core/params/opgethtest"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
@@ -38,15 +34,6 @@ func jsonTestConfig(t *testing.T, s forkstest.Schedule) *ChainConfig {
 	return cfg
 }
 
-var jsonTestCases = []struct {
-	name     string
-	schedule forkstest.Schedule
-}{
-	{name: "pre-Karst", schedule: forkstest.AtGenesisThrough(forks.Jovian)},
-	{name: "Karst", schedule: forkstest.Override(forkstest.AtGenesisThrough(forks.Jovian), forks.Karst, ptr.New[uint64](9000))},
-	{name: "staggered", schedule: forkstest.Staggered()},
-}
-
 func requireConfigEqual(t *testing.T, want, got *ChainConfig) {
 	t.Helper()
 	bigEq := cmp.Comparer(func(a, b *big.Int) bool {
@@ -63,24 +50,6 @@ func parseJSONObject(t *testing.T, data []byte) map[string]any {
 	var obj map[string]any
 	require.NoError(t, json.Unmarshal(data, &obj))
 	return obj
-}
-
-// objectKeys returns the keys of the JSON object data in encoding order.
-func objectKeys(t *testing.T, data []byte) []string {
-	t.Helper()
-	dec := json.NewDecoder(bytes.NewReader(data))
-	tok, err := dec.Token()
-	require.NoError(t, err)
-	require.Equal(t, json.Delim('{'), tok)
-	var keys []string
-	for dec.More() {
-		tok, err := dec.Token()
-		require.NoError(t, err)
-		keys = append(keys, tok.(string))
-		var value json.RawMessage
-		require.NoError(t, dec.Decode(&value))
-	}
-	return keys
 }
 
 // TestChainConfigJSONFields checks that chainConfigJSON declares every ChainConfig field
@@ -135,50 +104,6 @@ func TestChainConfigJSONDirectFieldsDominate(t *testing.T) {
 	require.Equal(t, float64(0), obj["homesteadBlock"], "go-ethereum-only keys are kept")
 }
 
-// TestChainConfigJSONMatchesOpGeth pins the encoding to op-geth's encoding of the
-// equivalent op-geth chain config.
-func TestChainConfigJSONMatchesOpGeth(t *testing.T) {
-	for _, tc := range jsonTestCases {
-		t.Run(tc.name, func(t *testing.T) {
-			want, err := json.Marshal(opgethtest.ChainConfig(t, 901, tc.schedule))
-			require.NoError(t, err)
-			got, err := json.Marshal(jsonTestConfig(t, tc.schedule))
-			require.NoError(t, err)
-			require.Equal(t, parseJSONObject(t, want), parseJSONObject(t, got))
-		})
-	}
-}
-
-// TestChainConfigJSONKeyOrder checks that keys are encoded in op-geth's order, except
-// that the OP Stack keys follow all Ethereum keys: op-geth declares some Ethereum fields
-// (terminalTotalDifficulty, depositContractAddress, ...) after its OP fork fields.
-func TestChainConfigJSONKeyOrder(t *testing.T) {
-	opKeys := map[string]bool{}
-	cfgType := reflect.TypeFor[ChainConfig]()
-	for i := range cfgType.NumField() {
-		if name, _, _ := strings.Cut(cfgType.Field(i).Tag.Get("json"), ","); name != "chainId" {
-			opKeys[name] = true
-		}
-	}
-	for _, tc := range jsonTestCases {
-		t.Run(tc.name, func(t *testing.T) {
-			opGethJSON, err := json.Marshal(opgethtest.ChainConfig(t, 901, tc.schedule))
-			require.NoError(t, err)
-			opGethKeys := objectKeys(t, opGethJSON)
-			isOP := func(k string) bool { return opKeys[k] }
-			want := slices.Concat(
-				slices.DeleteFunc(slices.Clone(opGethKeys), isOP),
-				slices.DeleteFunc(slices.Clone(opGethKeys), func(k string) bool { return !isOP(k) }),
-			)
-
-			got, err := json.Marshal(jsonTestConfig(t, tc.schedule))
-			require.NoError(t, err)
-			require.Equal(t, want, objectKeys(t, got))
-			require.Equal(t, "chainId", want[0])
-		})
-	}
-}
-
 func TestChainConfigJSONRoundTrip(t *testing.T) {
 	opMainnet := jsonTestConfig(t, forkstest.Staggered())
 	opMainnet.ChainID = big.NewInt(OPMainnetChainID)
@@ -202,23 +127,6 @@ func TestChainConfigJSONRoundTrip(t *testing.T) {
 			again, err := json.Marshal(&got)
 			require.NoError(t, err)
 			require.Equal(t, data, again)
-		})
-	}
-}
-
-// TestChainConfigJSONUnmarshalOpGeth decodes op-geth's encoding of the equivalent op-geth
-// chain config, and the same with osakaTime absent, as op-chain-ops writes it for Karst.
-func TestChainConfigJSONUnmarshalOpGeth(t *testing.T) {
-	s := forkstest.Staggered()
-	opGeth := opgethtest.ChainConfig(t, 901, s)
-	for name, osaka := range map[string]*uint64{"with osakaTime": s(forks.Karst), "without osakaTime": nil} {
-		t.Run(name, func(t *testing.T) {
-			opGeth.OsakaTime = osaka
-			data, err := json.Marshal(opGeth)
-			require.NoError(t, err)
-			var got ChainConfig
-			require.NoError(t, json.Unmarshal(data, &got))
-			requireConfigEqual(t, jsonTestConfig(t, s), &got)
 		})
 	}
 }

@@ -43,6 +43,7 @@ development = ["kona-genesis"]
 
 [dev-dependencies]
 kona-genesis = { path = ".", features = ["std", "serde"] }
+arbtest.workspace = true
 toml = { workspace = true, features = ["parse", "serde"] }
 rand = { workspace = true, features = ["thread_rng"] }
 serde_json.workspace = true
