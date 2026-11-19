@@ -40,7 +40,7 @@ use revm::{
         result::{EVMError, ResultAndState},
     },
     handler::{PrecompileProvider, instructions::EthInstructions},
-    inspector::NoOpInspector,
+    inspector::{InspectSystemCallEvm, NoOpInspector},
     interpreter::{InterpreterResult, interpreter::EthInterpreter},
 };
 
@@ -354,6 +354,7 @@ impl<DB: Database, I, P, Tx, R> DerefMut for OpEvm<DB, I, P, Tx, R> {
 /// Mirrors upstream's `Evm` impl for `EthEvm`, adding the OP transaction wrapper, the post-exec
 /// transaction short-circuit and the post-exec refund tracking. A method added to the `Evm`
 /// trait, or a changed body in upstream's impl, needs mirroring here.
+/// Unlike upstream, system calls also honor the runtime inspector selection.
 impl<DB, I, P, Tx, R> Evm for OpEvm<DB, I, P, Tx, R>
 where
     DB: Database,
@@ -429,7 +430,12 @@ where
         contract: Address,
         data: Bytes,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        self.inner.system_call_with_caller(caller, contract, data).map_err(map_op_err)
+        let result = if self.inspect {
+            self.inner.inspect_system_call_with_caller(caller, contract, data)
+        } else {
+            self.inner.system_call_with_caller(caller, contract, data)
+        };
+        result.map_err(map_op_err)
     }
 
     fn finish(self) -> (Self::DB, EvmEnv<Self::Spec, Self::BlockEnv>) {

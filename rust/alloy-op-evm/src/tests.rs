@@ -28,6 +28,8 @@ use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
 use super::*;
 
+mod system_calls;
+
 /// Runtime of a contract that reads (warms) storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
 #[derive(Debug)]
 struct TestRefundPolicy {
