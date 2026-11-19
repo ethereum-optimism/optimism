@@ -70,3 +70,11 @@ class AlignmentTests(unittest.TestCase):
             with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
                 prerequisites(jobs)
         self.assertIn(f'{gate}: workflow {workflow} of {config} runs the gate with always-succeed, so it has no prerequisites', A.problems())
+        # A gate that requires another job of its own kind waits for that job's prerequisites.
+        inner = f'      - {gate}:\n          name: inner\n          requires: [{{build: terminal}}, lint]\n'
+        outer = f'      - {gate}:\n          requires: [{{inner: terminal}}, {{test: terminal}}]\n'
+        self.assertEqual(prerequisites(inner + outer), [('build', 'terminal'), ('lint', 'success'), ('test', 'terminal')])
+        # Without `terminal`, the gate would not run after a failure of the inner gate: name it.
+        self.assertEqual(prerequisites(inner + outer.replace('{inner: terminal}', 'inner')), [('inner', 'success'), ('test', 'terminal')])
+        with self.assertRaisesRegex(ValueError, 'inner: .* always-succeed'):
+            prerequisites(inner.replace('requires:', 'always-succeed: true\n          requires:') + outer)

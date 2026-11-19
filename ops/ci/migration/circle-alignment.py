@@ -3,8 +3,10 @@
 
 For each gate, CircleCI's `requires:` list must name the same jobs as RWX's
 policy, ops/ci/runtime/pr-gates.json, each as `terminal`. A row of the policy
-names one job. The order of the list has no meaning in CircleCI, so the check
-ignores it. The check prints each difference and exits with 1.
+names one job. Where a gate requires another gate job of its workflow, as
+`ci-gate` requires `ci-gate-proposals`, the policy names the jobs that the
+inner gate requires. The order of the list has no meaning in CircleCI, so the
+check ignores it. The check prints each difference and exits with 1.
 """
 import collections
 import json
@@ -37,23 +39,35 @@ def circle_prerequisites(gate):
     A workflow lists a job as `key` or as `{key: parameters}`, and `name:` in the
     parameters renames the job. The gate is the one job whose resulting name is
     `gate`. A `requires:` entry is `job`, which requires `success`, or
-    `{job: requirement}`. Raises ValueError if the workflow does not run exactly
-    one such job, or runs it with `always-succeed`.
+    `{job: requirement}`. An entry that requires, as `terminal`, another job of
+    the gate's own kind stands for the `requires:` list of that job: the gate
+    waits for those jobs through it. Raises ValueError if the workflow does not
+    run exactly one job with the gate's name, or runs it or such an inner gate
+    with `always-succeed`.
     """
     if gate not in GATES:
         raise ValueError(f'{gate}: RWX has a policy for this gate, but GATES names no CircleCI workflow for it')
     config, workflow = GATES[gate]
     document = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(ROOT / config)], text=True))
-    found = []
+    jobs = collections.defaultdict(list)
     for job in document.get('workflows', {}).get(workflow, {}).get('jobs', []):
         key, parameters = next(iter(job.items())) if isinstance(job, dict) else (job, {})
-        if parameters.get('name', key) == gate:
-            found.append(parameters)
-    if len(found) != 1:
-        raise ValueError(f'{gate}: workflow {workflow} of {config} has {len(found)} jobs with this name; expected 1')
-    if found[0].get('always-succeed', False):
-        raise ValueError(f'{gate}: workflow {workflow} of {config} runs the gate with always-succeed, so it has no prerequisites')
-    return [next(iter(entry.items())) if isinstance(entry, dict) else (entry, 'success') for entry in found[0].get('requires', [])]
+        jobs[parameters.get('name', key)].append((key, parameters))
+    if len(jobs[gate]) != 1:
+        raise ValueError(f'{gate}: workflow {workflow} of {config} has {len(jobs[gate])} jobs with this name; expected 1')
+    kind = jobs[gate][0][0]
+
+    def prerequisites(name):
+        parameters = jobs[name][0][1]
+        if parameters.get('always-succeed', False):
+            raise ValueError(f'{name}: workflow {workflow} of {config} runs the gate with always-succeed, so it has no prerequisites')
+        found = []
+        for entry in parameters.get('requires', []):
+            job, requirement = next(iter(entry.items())) if isinstance(entry, dict) else (entry, 'success')
+            inner = requirement == 'terminal' and [key for key, _ in jobs[job]] == [kind]
+            found += prerequisites(job) if inner else [(job, requirement)]
+        return found
+    return prerequisites(gate)
 
 
 def problems():

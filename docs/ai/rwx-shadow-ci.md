@@ -77,7 +77,9 @@ branch. The two providers therefore select the same workloads for a PR into
 tasks that mirror each one. `ops/ci/migration/circle-alignment.py`, which runs in RWX's
 `ci-unit-tests` task, fails when one of those gates' `requires:` lists no longer
 names the same jobs, and prints each difference. After a CircleCI gate change,
-update `pr-gates.json`.
+update `pr-gates.json`. `ci-gate` requires `ci-gate-proposals`, the gate of the
+release branches; the policy of `ci-gate` names the jobs that
+`ci-gate-proposals` requires, and RWX has no separate mirror of that gate.
 
 Each workload has a receipt task (`ops/ci/runtime/pr-gate.py receipt`). It
 passes if the route selected the workload and every mirrored task succeeded, or
