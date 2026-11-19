@@ -17,6 +17,14 @@ on:
         description: Existing tag to release, e.g. op-deployer/v1.2.3-rc.1
         required: true
         type: string
+      allow_red_ci_reason:
+        description: >-
+          Emergency only. Release a tag whose commit does not have green required CI. Give
+          '<full commit SHA>: <reason>'. A value without the tagged commit's SHA is ignored.
+          Leave empty otherwise.
+        required: false
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -28,12 +36,19 @@ env:
   TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
-  build:
+  # The release must come from a commit whose required CI is green. Polls while
+  # CI is still running (up to 45 min). The script comes from the workflow's
+  # ref, like the rest of this workflow. The gate list comes from the tag's own
+  # CI config, and build checks it builds the commit checked here.
+  release-ci-green:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # The script waits up to 45 min, plus its last API reads and the checkouts.
+    timeout-minutes: 55
     permissions:
       contents: read
+      statuses: read
     outputs:
+      sha: ${{ steps.check.outputs.sha }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden the runner
@@ -41,6 +56,7 @@ jobs:
         with:
           egress-policy: audit
 
+      # Before the tag goes into any checkout or API path.
       - name: Check the tag
         id: version
         shell: bash
@@ -52,12 +68,57 @@ jobs:
           fi
           echo "version=${TAG#op-deployer/v}" >> "$GITHUB_OUTPUT"
 
+      - name: Checkout the check script
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: ops/scripts
+
+      - name: Checkout the tag's CI config
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          path: tagged
+          persist-credentials: false
+          sparse-checkout: .circleci
+
+      - name: Check required CI on the tagged commit
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ALLOW_RED_CI_REASON: ${{ inputs.allow_red_ci_reason }}
+          RELEASE_CI_CONFIG_REPO: tagged
+        run: ops/scripts/check-release-ci-green.sh "refs/tags/$TAG"
+
+  build:
+    needs: release-ci-green
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ needs.release-ci-green.outputs.version }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
         with:
           ref: refs/tags/${{ env.TAG }}
           submodules: recursive
           persist-credentials: false
+
+      - name: Check this is the commit whose CI was checked
+        env:
+          CHECKED_SHA: ${{ needs.release-ci-green.outputs.sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$CHECKED_SHA" ]; then
+            echo "::error::Checked out $(git rev-parse HEAD), but release-ci-green checked ${CHECKED_SHA}."
+            exit 1
+          fi
 
       # No cache anywhere in this job: the release must depend only on the tagged source.
       - name: Install tools
@@ -82,7 +143,7 @@ jobs:
       - name: Build the release assets
         shell: bash
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.release-ci-green.outputs.version }}
         run: |
           set -euo pipefail
           commit=$(git rev-parse HEAD)

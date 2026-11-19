@@ -387,10 +387,36 @@ commands:
             # Use the get-target-branch.sh script
             GH_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" source scripts/ops/get-target-branch.sh
 
-            # A release branch's own pushes compare against itself, not develop.
-            # Not in the script: setup change detection would see an empty diff.
-            if [ -z "${CIRCLE_PULL_REQUEST:-}" ] && [[ "${CIRCLE_BRANCH:-}" == proposal/* ]]; then
-              TARGET_BRANCH="$CIRCLE_BRANCH"
+            # Release branch pushes do not compare against develop. These overrides
+            # are not in the script: setup change detection would see an empty diff.
+            if [ -z "${CIRCLE_PULL_REQUEST:-}" ]; then
+              case "${CIRCLE_BRANCH:-}" in
+                # A proposal branch's own pushes compare against itself (#23622).
+                proposal/*) TARGET_BRANCH="$CIRCLE_BRANCH" ;;
+                # A backport push compares against the branch before the push:
+                # develop's newer reth writes compact vectors a backport's older
+                # reth cannot read, which gave release commits a false red.
+                # TARGET_BRANCH is then a commit SHA, not a branch name.
+                # After a force push the base revision is no longer on the branch
+                # (it may be gone, or carry a newer reth), so it is used only when
+                # it is an ancestor of this commit. The checkout fetched every
+                # branch, so an ancestor is local.
+                backports/*)
+                  BEFORE_PUSH="<< pipeline.git.base_revision >>"
+                  if [[ "$BEFORE_PUSH" =~ ^[0-9a-f]{40}$ ]] && [ "$BEFORE_PUSH" != "$CIRCLE_SHA1" ] &&
+                    git merge-base --is-ancestor "$BEFORE_PUSH" HEAD 2>/dev/null; then
+                    TARGET_BRANCH="$BEFORE_PUSH"
+                    echo "Backport push: comparing against the branch before this push, $TARGET_BRANCH"
+                  elif TARGET_BRANCH="$(git merge-base HEAD refs/remotes/origin/develop)"; then
+                    # No earlier state on this branch (an API trigger, a new branch
+                    # or a force push): use where the branch left develop.
+                    echo "Backport push with no earlier state on this branch (base revision '$BEFORE_PUSH'): comparing against its merge-base with develop, $TARGET_BRANCH"
+                  else
+                    TARGET_BRANCH="$CIRCLE_BRANCH"
+                    echo "Backport push with no earlier state and no merge-base with develop: comparing against itself, so the base comparisons check nothing"
+                  fi
+                  ;;
+              esac
             fi
 
             # Make TARGET_BRANCH available to subsequent steps
@@ -1609,6 +1635,10 @@ jobs:
           name: Run shellcheck
           command: |
             find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -print0 | xargs -0 shellcheck
+      # Generated GitHub API responses and a throwaway git repo, no network. About 5 s.
+      - run:
+          name: Test the release CI check
+          command: bash ops/scripts/check-release-ci-green.test.sh
 
   l2-chains-sync-check:
     docker:
