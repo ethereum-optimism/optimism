@@ -163,8 +163,6 @@ func TestResponseSizeParity(t *testing.T) {
 					call := d.dial(t, ctx, testlog.Logger(t, slog.LevelInfo), tr.url)
 					for _, s := range sizes {
 						t.Run(s.name, func(t *testing.T) {
-							// TODO: fails today for txmgr over websocket: it dials with
-							// geth's default.
 							require.NoError(t, call(ctx, s.size))
 						})
 					}

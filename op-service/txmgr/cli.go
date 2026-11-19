@@ -10,6 +10,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/bgpo"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -456,10 +457,11 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
-	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
+	l1RPC, err := client.CheckAndDial(ctx, l, cfg.L1RPCURL, cfg.NetworkTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("could not dial eth client: %w", err)
 	}
+	l1 := ethclient.NewClient(l1RPC)
 
 	ctx, cancel = context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
