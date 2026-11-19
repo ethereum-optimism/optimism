@@ -121,12 +121,6 @@ Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code
 This naming scheme is required by Golang.
 In the above list, this means these `v<semver>` releases contain all `op-*` components and exclude all `contracts-*` components.
 
-`op-geth` embeds upstream geth’s version inside its own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
-Basically, geth’s version is our minor version.
-For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
-Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
-Since we cannot left-pad with zeroes, the geth major version is not padded.
-
 See the [GitHub releases](https://github.com/ethereum-optimism/optimism/releases) page for more information about releases for the latest node components.
 
 The full set of components that have releases are:

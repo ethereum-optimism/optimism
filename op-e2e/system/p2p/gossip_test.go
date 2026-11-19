@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
+// TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 op-reth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
 	t.Skipf("skipping due to high flakiness")

@@ -10,7 +10,7 @@
 # Usage:
 #   check-game-block-hashes.sh <node-rpc> <reference-rpc> [block ...]
 #
-#   <node-rpc>       EL JSON-RPC of the node under test (e.g. our op-geth).
+#   <node-rpc>       EL JSON-RPC of the node under test (e.g. our op-reth).
 #   <reference-rpc>  EL JSON-RPC trusted as the reference (e.g. a public RPC).
 #   [block ...]      L2 block numbers (decimal). If omitted, read one per line
 #                    from stdin (e.g. piped from the proposal blocks of a game set).

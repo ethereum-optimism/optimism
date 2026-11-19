@@ -1301,8 +1301,8 @@ fn test_disabled_mode_rejects_post_exec_tx() {
 /// End-to-end pin on the observable behaviour, not on any single guard: the exclusion is
 /// over-determined (the `0x7D` returns early with `blob_gas_used: 0`, the accumulator skips
 /// `is_post_exec`, and `encoded_tx_da_footprint` returns zero for the type byte), so this test
-/// survives the removal of any one of them. It exists because op-geth used to recompute the
-/// footprint independently and act as a cross-check; it is no longer a supported verifier.
+/// survives the removal of any one of them. It exists because no second execution client
+/// recomputes the footprint as an independent cross-check.
 #[test]
 fn test_post_exec_tx_does_not_accrue_da_footprint() {
     let mut fixture = JovianExecutorFixture::default();

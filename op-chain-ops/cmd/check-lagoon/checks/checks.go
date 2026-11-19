@@ -254,13 +254,10 @@ func randomRecipient() common.Address {
 }
 
 // interopTxRejected reports whether err is a known interop-transaction rejection
-// from op-geth, op-reth, or the interop filter.
+// from op-reth or the interop filter.
 func interopTxRejected(err error) bool {
 	msg := err.Error()
 	switch {
-	// op-geth: generic filter rejection wrapping all causes
-	case strings.Contains(msg, "transaction filtered out"):
-		return true
 	// op-interop-filter: malformed or unrecognized access list entry
 	case strings.Contains(msg, "failed to parse access entry"):
 		return true

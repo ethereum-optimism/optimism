@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	e2e_config "github.com/ethereum-optimism/optimism/op-e2e/config"
@@ -184,10 +183,8 @@ func TestGranitePrecompiles(t *testing.T) {
 		receipt, err := wait.ForReceiptMaybe(ctx, l2Seq, tx.Hash(), types.ReceiptStatusSuccessful, false)
 		require.NotNil(t, err)
 		errMsg := err.Error()
-		require.Truef(t,
-			strings.Contains(errMsg, "bad elliptic curve pairing input size") || // op-geth
-				strings.Contains(errMsg, "precompiled failed"), // op-reth
-			"expected trace error to contain known Granite precompile failure text, got %q", errMsg)
+		require.Containsf(t, errMsg, "precompiled failed",
+			"expected trace error to contain the Granite precompile failure text, got %q", errMsg)
 
 		t.Logf("Transaction hash %v", tx.Hash())
 		t.Log("Determine L2 claim")

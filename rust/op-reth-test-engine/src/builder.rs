@@ -65,7 +65,7 @@ pub enum IncludeNextOutcome {
     /// Force-empty is set, so nothing was included (mirrors `ActL2IncludeTx`'s force-empty skip).
     Skipped,
     /// No parked transaction from the sender was valid for inclusion next (its next expected nonce
-    /// is not present in the buffer). Mirrors `firstValidTx` finding no pending transaction.
+    /// is not present in the buffer).
     NoTx,
 }
 

@@ -35,8 +35,8 @@ func TestSystemE2EDencunAtGenesis(t *testing.T) {
 	require.NotNil(t, head.ExcessBlobGas, "L1 is building dencun blocks since genesis")
 }
 
-// TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
-// All nodes are run in process (but are the full nodes, not mocked or stubbed).
+// TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 op-reth node and then confirms that L1 deposits are reflected on L2.
+// All nodes are full nodes, not mocked or stubbed; op-reth runs as a subprocess, the others in process.
 func TestSystemE2E(t *testing.T) {
 	op_e2e.InitParallel(t)
 

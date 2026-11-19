@@ -14,7 +14,7 @@ Stack carries on top of upstream Ethereum execution.
   `op-alloy` directly through `kona-executor` (`rust/kona/crates/proof/executor`), keeping the
   proof binary minimal. See [fault-proofs.md](fault-proofs.md).
 - **op-geth** is a **deprecated** execution-layer client (`ethereum-optimism/op-geth`, a fork
-  of go-ethereum) that the monorepo no longer depends on. The Go code uses upstream
+  of go-ethereum) that the monorepo does not depend on. The Go code uses upstream
   go-ethereum, with the OP Stack types, fees and chain config in `op-core/*`; read
   [opgeth-decoupling.md](opgeth-decoupling.md) when Go code touches those or reads L2 blocks
   and receipts.

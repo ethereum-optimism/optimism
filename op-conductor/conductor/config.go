@@ -125,7 +125,7 @@ func (c *Config) Check() error {
 		return fmt.Errorf("missing node RPC")
 	}
 	if c.ExecutionRPC == "" {
-		return fmt.Errorf("missing geth RPC")
+		return fmt.Errorf("missing execution RPC")
 	}
 	if c.RollupBoostEnabled && c.RollupBoostNextEnabled {
 		return fmt.Errorf("only one of rollup-boost or rollup-boost next healthchecks can be enabled")

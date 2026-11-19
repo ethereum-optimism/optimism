@@ -285,7 +285,7 @@ var (
 		Flags: withEngineFlags(
 			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime, AllowGaps,
 		),
-		// TODO: maybe support transaction and tx pool engine flags, since we use op-geth?
+		// TODO: maybe support transaction and tx pool engine flags
 		// TODO: reorg flag
 		// TODO: finalize/safe flag
 

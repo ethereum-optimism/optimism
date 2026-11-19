@@ -81,7 +81,7 @@ participant claim as Fault Dispute Game<br/> contract
 participant dgf as Dispute Game Factory<br/> contract on L1
 participant proposer as op-proposer
 participant opnode as op-node
-participant el as Execution Engine<br/> (e.g. op-geth)
+participant el as Execution Engine<br/> (e.g. op-reth)
 
 proposer ->>opnode: query output-root
 opnode ->>el: query block and withdrawals-root
