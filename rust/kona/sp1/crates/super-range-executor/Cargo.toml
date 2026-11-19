@@ -34,7 +34,6 @@ alloy-eips.workspace = true
 alloy-primitives.workspace = true
 alloy-provider = { workspace = true, features = ["ws", "ipc"] }
 alloy-rlp.workspace = true
-alloy-rpc-client.workspace = true
 op-alloy-consensus.workspace = true
 
 # rpc / serialization
