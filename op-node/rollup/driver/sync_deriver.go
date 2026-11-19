@@ -254,6 +254,8 @@ func (s *SyncDeriver) SyncStep() {
 
 	s.tryBackupUnsafeReorg()
 
+	s.Engine.RetryFailedForkchoiceUpdate(s.Ctx)
+
 	if s.Engine.IsEngineInitialELSyncing() {
 		// The pipeline cannot move forwards if doing initial EL sync.
 		s.Log.Debug("Rollup driver is backing off because execution engine is performing initial EL sync.",

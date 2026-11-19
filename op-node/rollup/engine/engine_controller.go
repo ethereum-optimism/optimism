@@ -147,6 +147,10 @@ type EngineController struct {
 	// lastForkchoice is the forkchoice state last communicated to the engine
 	// via tryUpdateEngineInternal. Used to avoid sending duplicate FCU calls.
 	lastForkchoice eth.ForkchoiceState
+	// forkchoiceRetryPending is set while the last forkchoice update sent by
+	// tryUpdateEngineInternal has not succeeded. RetryFailedForkchoiceUpdate
+	// re-sends it; see there for why the event handlers alone are not enough.
+	forkchoiceRetryPending bool
 	// Track when the rollup node changes the forkchoice to restore previous
 	// known unsafe chain. e.g. Unsafe Reorg caused by Invalid span batch.
 	// This update does not retry except engine returns non-input error
@@ -682,6 +686,7 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 		fc.FinalizedBlockHash = e.FinalizedHead().Hash
 	}
 	if fc == e.lastForkchoice {
+		e.forkchoiceRetryPending = false
 		return nil
 	}
 	if e.isEngineInitialELSyncing() {
@@ -689,6 +694,8 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
+	// Cleared below once the engine accepts the update.
+	e.forkchoiceRetryPending = true
 	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		var rpcErr rpc.Error
@@ -711,6 +718,7 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 		return derive.NewResetError(fmt.Errorf("forkchoice update returned unexpected status %s, need reset to re-sync with engine", fcRes.PayloadStatus.Status))
 	}
 	e.lastForkchoice = fc
+	e.forkchoiceRetryPending = false
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
 		e.requestForkchoiceUpdate(ctx)
 	}
@@ -1078,6 +1086,27 @@ func (e *EngineController) tryBackupUnsafeReorg(ctx context.Context) error {
 func (e *EngineController) TryUpdateEngine(ctx context.Context) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.tryUpdateEngine(ctx)
+}
+
+// RetryFailedForkchoiceUpdate re-sends the forkchoice state if the last attempt to
+// apply it failed, and is a no-op otherwise.
+//
+// Forkchoice updates are sent from event handlers (new unsafe head, L1 origin change,
+// derivation idle, finality), so a failed one is normally retried by the next such
+// event. Derivation can stall before any of them fires: when a derived block is inserted
+// but the update that makes it canonical fails (e.g. it times out while the EL executes
+// a deep reorg), the next derivation step reads that block back from the EL as the
+// parent of the next one. An EL that does not serve non-canonical blocks (op-reth)
+// answers "not found", derivation retries that read forever, and without this retry
+// the EL is never asked again to make the block canonical.
+func (e *EngineController) RetryFailedForkchoiceUpdate(ctx context.Context) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if !e.forkchoiceRetryPending {
+		return
+	}
+	e.log.Info("Retrying failed forkchoice update", "unsafe", e.unsafeHead, "last", e.lastForkchoice)
 	e.tryUpdateEngine(ctx)
 }
 
