@@ -161,9 +161,12 @@ organization can start has 16 CPUs.
   checkout stays out of its filtered output. The Go compiler seeds work the same
   way.
   Before a task restores an output, `go-artifacts.py` checks that the inputs
-  equal those of the task's commit. `SCOPES` in the script lists the inputs;
-  add a file there when a build starts to read it. `.rwx` is not an input,
-  because RWX's own cache key covers a task's definition.
+  equal those of the task's commit, and that the task's checkout has no
+  modified input. `SCOPES` in the script lists the inputs; add a file there when
+  a build starts to read it. Of `ops/ci/runtime`, a scope names only the scripts
+  that the build runs, and `test_go_dependency_source.py` fails when a script
+  that they reach is missing. `.rwx` and the tool scripts are not inputs,
+  because RWX's own cache key covers a task's definition and its tool tasks.
   `test_rwx_local_packages.py` fails when a workload builds a dependency in
   another way.
 - **Rust baselines.** `ops/ci/runtime/rust-target-cache.py base` names the
