@@ -10,7 +10,7 @@ pub(crate) use precompiles::execute;
 /// Connects to the RPC endpoint at `url` over HTTP, websocket or IPC.
 ///
 /// Uses Reqwest explicitly for HTTP while preserving the configured websocket and IPC transports.
-/// Websocket connections use [`ws_config`].
+/// Websocket messages and frames have no size limit, as over HTTP.
 pub async fn connect<N: Network>(url: &str) -> TransportResult<RootProvider<N>> {
     let connection = url.parse::<BuiltInConnectionString>()?;
     if let BuiltInConnectionString::Http(url) = connection {
@@ -26,7 +26,8 @@ pub async fn rpc_provider<N: Network>(url: &str) -> RootProvider<N> {
     connect(url).await.unwrap()
 }
 
-/// The websocket settings of [`connect`]: messages and frames have no size limit, to match HTTP.
+/// The websocket settings of [`connect`]: messages and frames have no size limit, as over HTTP.
+/// There should be no limit: don't add one.
 fn ws_config() -> WebSocketConfig {
     WebSocketConfig::default().max_message_size(None).max_frame_size(None)
 }
@@ -66,6 +67,7 @@ mod tests {
         (addr, server.start(module))
     }
 
+    /// Checks that [`ws_config`] keeps no limit. A response size test can't catch a large limit.
     #[test]
     fn websocket_messages_and_frames_have_no_size_limit() {
         let config = ws_config();
