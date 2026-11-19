@@ -193,7 +193,6 @@ test frameworks use `txplan`. Only op-acceptance-tests and op-devstack use `txin
 |---|---|---|---|
 | `txplan` defaults (`op-service/txplan/txplan.go`) | Both | Fixed gas | The default `GasRatio` is 1.0. A plan with no estimation step uses `params.TxGas` (21000). |
 | Resubmitter errors (`op-service/txinclude/resubmitter.go`) | Both | Introspection | `ErrGasLimit`, `ErrIntrinsicGas`, and `ErrFloorDataGas` are fatal. A transaction with a fixed limit stops after a repricing and does not retry. |
-| Transaction budget (`op-service/txinclude/cost_oracle.go`, `op-service/txinclude/txbudget.go`) | L2 | Gas-scaled formula | The budget uses the L1 cost and operator cost formulas with gas used. |
 
 ## Test and dev code
 
@@ -256,7 +255,6 @@ search for these patterns:
   - `op-node/rollup/derive/upgrade_transaction_test.go`
   - `op-core/fees/fees_test.go`
   - `op-core/fees/dafootprint_test.go`
-  - `op-service/txinclude/*_test.go`
   - `op-service/txmgr/txmgr_test.go`
 - **Fixture gas only:** many other `*_test.go` files hold gas values in fixtures, but do not check costs. Expect little effect.
 

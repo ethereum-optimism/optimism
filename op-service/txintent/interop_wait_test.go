@@ -80,7 +80,7 @@ func TestInteropDependencyWait(t *testing.T) {
 		require.Empty(t, waited)
 	})
 
-	// The interop load test sets the access-list with an Option applied after the plan.
+	// Callers may set the access-list with an Option applied after the plan.
 	t.Run("waits for an access-list set after the plan", func(t *testing.T) {
 		accessList, err := execTriggerAt(1000).AccessList()
 		require.NoError(t, err)
