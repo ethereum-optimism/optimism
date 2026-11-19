@@ -879,9 +879,10 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
     }
 
     /// @notice Builds a GasMeasurement from raw body/intrinsic gas and logs the transaction line.
-    /// @dev Emulates op-geth's post-execution EIP-7623 floor: receipt.gasUsed = max(exec, floor).
-    ///      Without this, forge reports execution gas while op-geth reports the floor when it binds
-    ///      (e.g. ConditionalDeployer collision paths), making the two diverge by up to 67k gas.
+    /// @dev Emulates the execution client's post-execution EIP-7623 floor: receipt.gasUsed =
+    ///      max(exec, floor). Without this, forge reports execution gas while the execution client
+    ///      reports the floor when it binds (e.g. ConditionalDeployer collision paths), making the
+    ///      two diverge by up to 67k gas.
     /// @param _i Transaction index (0-based).
     /// @param _total Total number of transactions.
     /// @param _txn The NUT bundle transaction.
@@ -981,7 +982,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             // Forward gasLimit - 21_000 so that transact_inner() sets tx.gas_limit =
             // (gasLimit - 21_000) + 21_000 = gasLimit, and after revm deducts full intrinsic
             // (21_000 + calldata_costs) the body receives gasLimit - 21_000 - calldata_costs —
-            // exactly what op-geth gives it in production.
+            // exactly what the execution client gives it in production.
             uint256 gasBefore = gasleft();
             (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit - 21_000 }(txn.data);
 
