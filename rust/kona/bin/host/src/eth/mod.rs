@@ -17,3 +17,61 @@ pub async fn rpc_provider<N: Network>(url: &str) -> RootProvider<N> {
         RootProvider::connect_with(connection).await.unwrap()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::Bytes;
+    use alloy_provider::{Provider, network::Ethereum};
+    use jsonrpsee::{
+        RpcModule,
+        server::{Server, ServerConfig, ServerHandle},
+    };
+    use rstest::rstest;
+    use std::{sync::Arc, time::Duration};
+
+    /// tungstenite's default maximum websocket frame size, which alloy's websocket transport
+    /// uses.
+    const TUNGSTENITE_FRAME_LIMIT: usize = 16 << 20;
+
+    /// A response far larger than typical, and above tungstenite's default message size.
+    const LARGE_RESPONSE: usize = 72 << 20;
+
+    /// How long a call in these tests may take. A local call of [`LARGE_RESPONSE`] takes well
+    /// under a second.
+    const CALL_DEADLINE: Duration = Duration::from_secs(30);
+
+    /// Serves `eth_call` over HTTP and websocket on one address, answering with `size / 2` zero
+    /// bytes, which hex encodes to `size` bytes. Returns the HTTP and websocket URLs.
+    async fn large_response_server(size: usize) -> (String, String, ServerHandle) {
+        let config = ServerConfig::builder().max_response_body_size(u32::MAX).build();
+        let server = Server::builder().set_config(config).build("127.0.0.1:0").await.unwrap();
+        let addr = server.local_addr().unwrap();
+        let result: Arc<str> = format!("0x{}", "00".repeat(size / 2)).into();
+        let mut module = RpcModule::new(());
+        module.register_method("eth_call", move |_, _, _| result.to_string()).unwrap();
+        (format!("http://{addr}"), format!("ws://{addr}"), server.start(module))
+    }
+
+    #[rstest]
+    #[case::above_tungstenite_frame_limit(TUNGSTENITE_FRAME_LIMIT + (1 << 20))]
+    #[case::large(LARGE_RESPONSE)]
+    #[tokio::test]
+    async fn large_responses_arrive_over_http_and_websocket(
+        #[case] size: usize,
+        #[values("http", "ws")] transport: &str,
+    ) {
+        let (http, ws, _server) = large_response_server(size).await;
+        let url = if transport == "http" { http } else { ws };
+        let provider = rpc_provider::<Ethereum>(&url).await;
+        let call = provider.client().request::<_, Bytes>("eth_call", ());
+        // TODO: fails today over websocket: alloy's websocket transport keeps tungstenite's
+        // default frame and message size limits. The call then never completes, because alloy
+        // reconnects and sends it again.
+        let result = tokio::time::timeout(CALL_DEADLINE, call)
+            .await
+            .expect("the call completes before its deadline")
+            .unwrap();
+        assert_eq!(result.len(), size / 2);
+    }
+}

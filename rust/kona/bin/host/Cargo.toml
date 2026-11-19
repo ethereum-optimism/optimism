@@ -72,7 +72,9 @@ ark-ff.workspace = true
 
 [dev-dependencies]
 alloy-json-rpc.workspace = true
+jsonrpsee = { workspace = true, features = ["server"] }
 proptest.workspace = true
+rstest.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 [features]
