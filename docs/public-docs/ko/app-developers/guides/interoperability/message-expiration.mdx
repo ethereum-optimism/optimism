@@ -4,17 +4,19 @@ description: 메시지 만료란 무엇이며 왜 존재하는지, 그리고 애
 diataxis: explanation
 ---
 
-# 메시지 만료
+# 메시지 만료 {#message-expiration}
 
 OP Stack 체인 간에 참조되는 [메시지](/ko/app-developers/guides/interoperability/message-passing)에는 만료 기간(expiry window)이라고 하는 제한된 유효 기간이 있습니다. 이 기간이 지나면 참조된 메시지는 유효하지 않게 되며 더 이상 참조할 수 없습니다.
 
 [`L2ToL2CrossDomainMessenger`](/ko/app-developers/guides/interoperability/message-passing)를 사용하는 메시지의 경우, 릴레이되기 전에 만료된 메시지는 절대 릴레이될 수 없습니다. 소스 체인은 이 사실을 파악하고 보고할 수 있으므로, 애플리케이션은 전송을 취소할 수 있습니다.
 
-## 만료 기간
+## 만료 기간 {#the-expiry-window}
 
 만료 기간은 크로스체인 메시지 또는 발생한 이벤트가 얼마 동안 유효한지를 정의하는 오프체인 상수입니다. [Superchain interop cluster](/ko/op-stack/interop/explainer#superchain-interop-cluster)에 속한 모든 체인에서 메시지는 로그가 생성된 후 7일(604,800초) 이내에 참조되어야 합니다.
 
-## 만료된 메시지 취소하기
+이 기간이 지나면 어떤 트랜잭션도 메시지를 릴레이할 수 없습니다. 입금(디파짓) 트랜잭션은 어느 시점에서도 메시지를 릴레이할 수 없으므로, 릴레이를 포함하지 않는 sequencer를 입금으로 우회하여 메시지를 전달할 수 없습니다. 유일한 복구 방법은 메시지를 만료시키고 전송을 취소하는 것입니다.
+
+## 만료된 메시지 취소하기 {#undoing-an-expired-message}
 
 대상 체인에서 릴레이되지 않은 메시지는 소스 체인에서 만료된 것으로 표시할 수 있으며, 이를 통해 애플리케이션은 전송을 취소할 수 있습니다.
 
@@ -22,9 +24,43 @@ OP Stack 체인 간에 참조되는 [메시지](/ko/app-developers/guides/intero
 2.  **출금(Withdrawal).** 내보내기는 소스 체인의 `L1CrossDomainMessenger`로 향하는 L2에서 L1으로의 출금입니다. 대상 체인의 출금 지연 기간이 지난 후 누군가가 L1에서 이를 증명하고 최종 확정하면, 소스 체인의 `L1CrossDomainMessenger`가 이를 입금으로 소스 체인에 전달합니다.
 3.  **만료(Expiry).** 소스 체인의 `L2ToL2CrossDomainMessenger`는 `expiredMessages(messageHash)`를 설정하고 `MessageExpired(messageHash, undeliveredAt)`를 발생시킵니다. 단, 이는 메시지가 전송된 후 8일(만료 기간에 하루의 여유를 더한 기간)이 지난 시점에 내보내기가 이루어진 경우에만 해당합니다. 그보다 이른 내보내기는 결코 유효해지지 않습니다. 이 경우 소스 체인에서 실패한 메시지로 남게 되며, 해당 메시지는 나중에 다시 내보낼 수 있습니다.
 
+## 전송 취소하기 {#undoing-the-send}
+
 `SuperchainETHBridge`는 `refundETH`로 만료된 전송을 취소합니다. `sendETH`를 호출했던 주소가 이 함수를 호출하면 ETH를 돌려받습니다. 다른 애플리케이션도 같은 방식으로 자체 전송을 취소할 수 있습니다. 소스 체인의 `L2ToL2CrossDomainMessenger`에서 `expiredMessages(messageHash)`를 확인하거나 `MessageExpired`를 감시하고, 전송을 취소했다는 사실을 기록하여 취소가 한 번만 일어나도록 하십시오. 이 플래그는 설정된 상태로 유지됩니다.
 
-## 다음 단계
+## 알려진 제한 사항 {#known-limitations}
+
+만료로 릴레이되지 않은 모든 메시지를 복구할 수 있는 것은 아닙니다. 아래 사례는 설계상 알려진 제한 사항입니다. 각 사례에서 전송 시 소각되거나 잠긴 자산은 손실될 수 있습니다.
+
+### 대상 체인이 interop cluster 외부에 있는 경우 {#the-destination-is-outside-the-interop-cluster}
+
+만료는 대상 체인이 소스 체인과 같은 interop cluster에 속한 경우에만 작동합니다. interop cluster에 속한 체인들은 L1에서 하나의 `ETHLockbox`를 공유합니다. 소스 체인의 `L1CrossDomainMessenger`는 해당 `ETHLockbox`가 승인한 portal을 가진 체인에서 온 내보내기만 수락합니다. `sendMessage`와 `sendETH`는 대상 체인이 interop cluster에 속하는지 확인하지 않습니다. 따라서 interop cluster 외부 체인으로 보낸 메시지는 릴레이할 수도, 만료시킬 수도 없습니다. 이러한 전송에서 소각되거나 잠긴 자산은 모두 손실됩니다.
+
+### 전송한 애플리케이션이 만료를 지원하지 않는 경우 {#the-sending-application-does-not-support-expiry}
+
+만료는 소스 체인에서 메시지를 만료된 것으로 표시할 뿐이며, 자산을 반환하지 않습니다. 메시지를 보낸 애플리케이션이 직접 전송을 취소해야 합니다. 애플리케이션이 `expiredMessages`를 확인하지 않고 전송을 취소할 방법도 없다면, 해당 자산은 만료 후에도 소각되거나 잠긴 상태로 남습니다. 애플리케이션을 통해 전송하기 전에, 해당 애플리케이션이 만료된 전송을 취소할 수 있는지 확인하십시오.
+
+### 발신자가 환불을 청구할 수 없는 경우 {#the-sender-can’t-claim-the-refund}
+
+`sendETH`를 호출한 주소만 `refundETH`를 호출할 수 있으며, 환불은 해당 주소로 지급됩니다. 환불은 수신자에게 지급되지 않으며, 컨트랙트가 대신 전송해 준 사용자에게도 지급되지 않습니다. 사용자를 대신하여 ETH를 전송하는 컨트랙트는 `refundETH`를 호출하고 ETH를 올바른 사용자에게 전달해야 합니다. 컨트랙트가 `refundETH`를 호출할 수 없다면 아무도 환불을 청구할 수 없습니다. 컨트랙트가 ETH를 전달할 수 없다면 ETH는 컨트랙트에 남게 됩니다.
+
+### 발신자가 환불된 ETH를 사용할 수 없는 경우 {#the-sender-can’t-use-the-refunded-eth}
+
+`refundETH`는 `SafeSend`로 ETH를 보냅니다. `SafeSend`는 수신자의 코드를 호출하지 않으므로, 수신자가 ETH를 받을 수 없는 경우에도 ETH가 도착합니다. 또한 수신자는 환불을 알리는 호출을 받지 않습니다. ETH를 사용하거나 전달할 방법이 없는 컨트랙트는 환불을 보유하게 되며, 해당 ETH는 손실됩니다.
+
+### L1에서 `L2CrossDomainMessenger`를 통해 전송한 경우 {#the-send-came-from-l1-through-l2crossdomainmessenger}
+
+L1 메시지는 `L2CrossDomainMessenger`를 통해 `sendETH`를 호출할 수 있습니다. 이 경우 전송의 발신자는 L1 계정이 아니라 `L2CrossDomainMessenger`가 됩니다. L1의 누구나 `L2CrossDomainMessenger`가 `refundETH`를 호출하도록 할 수 있으므로, 환불은 `L2CrossDomainMessenger`로 지급됩니다. `L2CrossDomainMessenger`는 이를 사용할 수 없으므로 ETH는 손실됩니다. 환불 가능한 방식으로 L1에서 ETH를 보내려면, portal을 통해 자신의 주소로 입금한 다음 그 주소에서 `sendETH`를 호출하십시오.
+
+### 릴레이된 interop 메시지에서 전송한 경우 {#the-send-came-from-a-relayed-interop-message}
+
+`SuperchainETHBridge`를 대상으로 하는 릴레이된 interop 메시지는 `sendETH`를 호출할 수 없습니다. 호출할 수 있다면 전송의 발신자는 환불을 청구할 수 없는 `L2ToL2CrossDomainMessenger`가 됩니다. 따라서 `sendETH`는 `L2ToL2CrossDomainMessenger`를 발신자로 거부하며, 릴레이는 항상 revert됩니다. 이후 해당 메시지는 만료시킬 수 있으며, 메시지를 보낸 애플리케이션이 직접 전송을 취소해야 합니다. 릴레이된 메시지는 `sendETH`를 호출하는 컨트랙트를 대상으로 할 수 있습니다. 이 경우 해당 컨트랙트가 발신자가 되며, 환불은 그 컨트랙트가 청구해야 합니다.
+
+### 대상 체인에 대상 컨트랙트의 코드가 없는 경우 {#the-target-has-no-code-on-the-destination}
+
+메시지가 릴레이될 때 메시지의 대상에 코드가 없으면, 릴레이는 성공하지만 아무 작업도 하지 않습니다. 예를 들어 대상 컨트랙트가 아직 대상 체인에 배포되지 않은 경우입니다. 이 릴레이로 메시지는 소진됩니다. 컨트랙트가 배포된 후에도 아무도 메시지를 다시 릴레이할 수 없으며, 만료시킬 수도 없습니다. 전송 시 소각되거나 잠긴 자산은 모두 손실됩니다. `SuperchainETHBridge` 전송은 항상 `SuperchainETHBridge`를 대상으로 하므로 이 사례에 해당하지 않습니다.
+
+## 다음 단계 {#next-steps}
 
 *   [블록체인 간에 메시지를 전달](/ko/app-developers/tutorials/interoperability/message-passing)하는 방법을 알아보십시오
 *   ETH 브리지가 [만료된 전송을 환불](/ko/op-stack/interop/superchain-eth-bridge#refunds)하는 방식을 확인하십시오

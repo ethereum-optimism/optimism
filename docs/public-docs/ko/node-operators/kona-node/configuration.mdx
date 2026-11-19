@@ -89,7 +89,8 @@ export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
 | `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | 피어 탐색 간격 | `5` |
 | `--p2p.discovery.ip-votes <N>` | `KONA_NODE_P2P_DISCOVERY_IP_VOTES` | 노드가 외부 주소를 알리기 전에 같은 주소를 보고해야 하는 피어 수로, 최소 `2`입니다. `--p2p.advertise.ip`를 사용하면 무시됩니다. 투표 수가 적을수록 더 적은 피어가 주소를 결정하므로, 공개 네트워크에서는 기본값을 유지하십시오. op-node에는 이러한 플래그가 없으며 임계값이 `10`으로 고정되어 있습니다. [알리는 주소](#advertised-address)를 참고하십시오 | `10` |
 | `--p2p.discovery.private` | `KONA_NODE_P2P_DISCOVERY_PRIVATE` | devnet에서처럼, 탐색이 다른 노드의 레코드와 bootnode에 있는 loopback 및 LAN 주소 등 공개되지 않은 주소를 사용하도록 허용합니다. [탐색된 주소](#discovered-addresses)를 참조하십시오 | `false` |
-| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | bootstore를 저장할 디렉터리 | - |
+| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | 피어의 레코드를 저장하여 노드가 재시작 후에도 해당 피어에 다시 연결할 수 있도록 하는 bootstore 파일입니다. 파일이 없으면 노드가 파일과 해당 디렉터리를 생성하며, 생성할 수 없으면 시작하지 않습니다. 파일을 읽을 수 없거나 파일이 레코드의 JSON 목록이 아닌 경우에도 노드는 시작하지 않습니다. 이 경우 파일을 수정하거나 삭제하십시오 | `~/.kona/<chain_id>/bootstore.json` |
+| `--p2p.no-bootstore` | `KONA_NODE_P2P_NO_BOOTSTORE` | bootstore를 비활성화합니다. 노드는 피어의 레코드를 저장하지 않으며, 저장된 레코드도 읽지 않습니다 | `false` |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | 피어 재연결(redial) 임계값 | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | 피어 연결 시도 주기 | `60` |
 | `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | bootnode ENR 또는 enode URL 목록입니다. 공개되지 않은 주소에 있는 bootnode에는 `--p2p.discovery.private`가 필요합니다. [탐색된 주소](#discovered-addresses)를 참조하십시오 | - |
@@ -244,7 +245,7 @@ RPC 서버는 한 번 시작됩니다. 예기치 않게 중지되면 노드는 �
 
 | 플래그 | 환경 변수 | 설명 | 기본값 |
 |------|-----|-------------|---------|
-| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | 이 체인의 interop dependency set을 기술하는 JSON 파일의 경로입니다. rollup 구성에 Lagoon 하드포크가 예정되어 있으면 필수입니다. | - |
+| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | 이 체인의 interop dependency set을 기술하는 JSON 파일의 경로입니다. 설정하지 않으면 노드는 superchain-registry에 있는 해당 체인의 dependency set을 사용합니다. registry에 포함되지 않은 체인의 rollup 구성에 Lagoon 하드포크가 예정되어 있으면 필수입니다. | - |
 | `--safedb.path <PATH>` | `KONA_NODE_SAFEDB_PATH` | safe head 데이터베이스의 디렉터리입니다. 이 데이터베이스는 각 L1 블록 시점에 도달한 L2 safe head를 기록하며 `optimism_safeHeadAtL1Block`과 `superroot_atTimestamp`의 기반이 됩니다. op-challenger, op-proposer, op-dispute-mon에 필요합니다. 설정하지 않으면 아무것도 기록되지 않습니다. | - |
 
 `kona-node`는 supervisor RPC 서버를 실행하지 않으므로 `--supervisor.*`

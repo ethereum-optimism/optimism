@@ -9,7 +9,6 @@ use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::{B256, Bytes, U64, keccak256};
 use alloy_provider::{Provider, RootProvider};
 use alloy_rlp::Decodable;
-use alloy_rpc_client::BuiltInConnectionString;
 use anyhow::{Context, Result, ensure};
 use op_alloy_consensus::OpReceiptEnvelope;
 
@@ -20,17 +19,11 @@ pub struct L2BlockClient {
 }
 
 impl L2BlockClient {
-    /// Connects to the node at `url` over HTTP, `WebSocket`, or IPC.
+    /// Connects to the node at `url` over HTTP, `WebSocket`, or IPC, as kona-host does.
     pub async fn connect(url: &str) -> Result<Self> {
-        let connection = url
-            .parse::<BuiltInConnectionString>()
-            .with_context(|| format!("invalid L2 node URL {url}"))?;
-        let provider = match connection {
-            BuiltInConnectionString::Http(url) => RootProvider::new_http(url),
-            connection => RootProvider::connect_with(connection)
-                .await
-                .with_context(|| format!("failed to connect to L2 node {url}"))?,
-        };
+        let provider = kona_host::eth::connect(url)
+            .await
+            .with_context(|| format!("failed to connect to L2 node {url}"))?;
         Ok(Self { provider })
     }
 

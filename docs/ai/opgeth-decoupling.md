@@ -185,30 +185,28 @@ tx because the sources accessors already partition by class (§11).
 `op-core/types.Receipt` (landed, #20262) embeds upstream `types.Receipt` and adds op-geth's
 **complete** OP receipt field set (L1 fee fields, operator fee, deposit nonce, DA footprint) with
 a custom JSON unmarshaler and golden vectors. Complete deliberately: the e2e/acceptance
-suites read more fields than the one production consumer, and a partial set would silently drop
-fields at cutover — invisible while the replace still points at op-geth.
+suites read the OP fields, and a partial set would silently drop fields at cutover — invisible
+while the replace still points at op-geth.
 
-Production consumer: `op-service/txinclude` reads the fee fields off receipts fetched via RPC.
-Its `EL.TransactionReceipt` (and `apis.EthClient` / `FetchReceipts` generally) now return
+`op-service/txinclude` passes receipts fetched via RPC through to its callers without reading
+the fee fields (it read them for budget accounting until that was removed). Its
+`EL.TransactionReceipt` (and `apis.EthClient` / `FetchReceipts` generally) now return
 `*optypes.Receipt` rather than `*types.Receipt` — landed with §11 (#20264). This matters because
 under upstream the standard unmarshaler drops the OP fields silently; only the raw-RPC path
 through `op-service/sources` + `optypes.Receipt` preserves them.
 
 Context: op-node itself never reads receipt fields — it reads `L1BlockInfo` from deposit-tx
-calldata; `txinclude`'s cost oracle reads the L1Block predeploy via `eth_call`. Receipts matter
-mainly for txinclude's post-inclusion accounting and the test suites (§13).
+calldata. Receipts matter mainly for the test suites (§13).
 
 ---
 
 ## 4. `op-core/fees` – L1 cost and operator-fee math — **DONE**
 
-Landed (#20261) and wired into `op-service/txinclude`. API is monorepo-best (see design
-principles): plain per-era free functions (`L1CostBedrock/Ecotone/Fjord` + `L1FeeParams`) instead
-of op-geth's closure factories, `OperatorCostIsthmus/Jovian` replacing inline math,
-`TxRollupCostData(tx)` replacing the fork's Transaction method. Values pinned by golden
-vectors. Notable choice: both txinclude sites use the **Jovian** operator-fee formula
-unconditionally — exact on all production chains, and on pre-Jovian chains it only
-*over*-estimates, which over-reserves budget rather than under-budgeting.
+Landed (#20261). It was also wired into `op-service/txinclude`'s budget accounting, which has
+since been removed. API is monorepo-best (see design principles): plain per-era free functions
+(`L1CostBedrock/Ecotone/Fjord` + `L1FeeParams`) instead of op-geth's closure factories,
+`OperatorCostIsthmus/Jovian` replacing inline math, `TxRollupCostData(tx)` replacing the fork's
+Transaction method. Values pinned by golden vectors.
 
 The `op-batcher` `tx.RollupCostData()` site swapped to `op-core/fees` as part of the
 op-batcher → sources migration (§11); it now calls `opfees.NewRollupCostData`.

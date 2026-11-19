@@ -1305,6 +1305,11 @@ Rollup:
 
           [default: 0]
 
+      --proofs-history.prefetch-threads <THREADS>
+          Parallel readers that warm the proofs storage's page cache ahead of persistence (0 to 64). `0` (default) disables warming. Warming reads the pages each buffered block and the next prunes will touch, so the single-threaded persistence transaction waits on fewer disk reads
+
+          [default: 0]
+
 Logging:
       --log.stdout.format <FORMAT>
           The format to use for logs written to stdout

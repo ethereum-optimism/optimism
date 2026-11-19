@@ -205,6 +205,3 @@ acceptance-test:
 
     cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
     exit "$TEST_STATUS"
-
-clean:
-    rm -rf tests/interop/loadtest/artifacts

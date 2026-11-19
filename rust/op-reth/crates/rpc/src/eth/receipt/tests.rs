@@ -380,6 +380,69 @@ fn blob_gas_used_included_in_receipt_post_jovian() {
     assert_eq!(op_receipt.core_receipt.blob_gas_used, Some(expected_blob_gas_used));
 }
 
+/// A deposit (`0x7E`) receipt reports zero DA footprint, while a user transaction in the same
+/// Jovian block reports its non-zero footprint.
+#[test]
+fn blob_gas_used_zero_in_deposit_receipt_post_jovian() {
+    use op_alloy_consensus::{OpDepositReceipt, TxDeposit};
+
+    const DA_FOOTPRINT_GAS_SCALAR: u16 = 100;
+    let inner =
+        Receipt { status: Eip658Value::Eip658(true), cumulative_gas_used: 100, logs: vec![] };
+    let blob_gas_used = |tx: &OpTransactionSigned, receipt: OpReceipt| {
+        let mut l1_block_info = op_revm::L1BlockInfo {
+            da_footprint_gas_scalar: Some(DA_FOOTPRINT_GAS_SCALAR),
+            ..Default::default()
+        };
+        OpReceiptBuilder::new(
+            &*OP_MAINNET,
+            ConvertReceiptInput::<OpPrimitives> {
+                tx: Recovered::new_unchecked(tx, Address::default()),
+                receipt,
+                gas_used: 100,
+                next_log_index: 0,
+                meta: TransactionMeta {
+                    timestamp: op_mainnet_activation(OpHardfork::Jovian),
+                    ..Default::default()
+                },
+            },
+            &mut l1_block_info,
+            None,
+        )
+        .unwrap()
+        .core_receipt
+        .blob_gas_used
+    };
+
+    let deposit = OpTransactionSigned::new_unhashed(
+        OpTypedTransaction::Deposit(TxDeposit {
+            from: Address::with_last_byte(0x42),
+            to: alloy_primitives::TxKind::Call(Address::with_last_byte(0x99)),
+            gas_limit: 1_000_000,
+            input: Bytes::from(vec![0; 1_000]),
+            ..Default::default()
+        }),
+        Signature::new(U256::ZERO, U256::ZERO, false),
+    );
+    let deposit_receipt = OpReceipt::Deposit(OpDepositReceipt {
+        inner: inner.clone(),
+        deposit_nonce: Some(1),
+        deposit_receipt_version: Some(1),
+    });
+    assert_eq!(blob_gas_used(&deposit, deposit_receipt), Some(0));
+
+    let user_tx: OpTransactionSigned = OpTypedTransaction::Eip7702(TxEip7702 {
+        chain_id: 1u64,
+        input: Bytes::from(vec![0; 1_000]),
+        ..Default::default()
+    })
+    .into_signed(Signature::new(U256::default(), U256::default(), true))
+    .into();
+    let user_footprint = tx_da_footprint(&user_tx, DA_FOOTPRINT_GAS_SCALAR.into());
+    assert!(user_footprint > 0);
+    assert_eq!(blob_gas_used(&user_tx, OpReceipt::Eip7702(inner)), Some(user_footprint));
+}
+
 /// OP Mainnet's activation timestamp for `fork`, from its superchain-registry chain spec.
 fn op_mainnet_activation(fork: OpHardfork) -> u64 {
     OP_MAINNET.op_fork_activation(fork).as_timestamp().expect("fork activates by timestamp")

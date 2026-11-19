@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -25,7 +24,6 @@ var _ Includer = (*Persistent)(nil)
 
 type persistentConfig struct {
 	nonces *nonceManager
-	budget Budget
 }
 
 type PersistentOption func(cfg *persistentConfig)
@@ -38,13 +36,6 @@ func WithStartNonce(nonce uint64) PersistentOption {
 	}
 }
 
-// WithBudget adds a budget to the Includer. The default is unlimited.
-func WithBudget(budget Budget) PersistentOption {
-	return func(cfg *persistentConfig) {
-		cfg.budget = budget
-	}
-}
-
 // NewPersistent creates a Persistent Includer. The returned includer exclusively
 // owns the account used by signer and manages all of its transaction nonces.
 //
@@ -54,7 +45,6 @@ func WithBudget(budget Budget) PersistentOption {
 func NewPersistent(signer Signer, el EL, opts ...PersistentOption) *Persistent {
 	cfg := &persistentConfig{
 		nonces: newNonceManager(0),
-		budget: UnlimitedBudget{},
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -66,10 +56,9 @@ func NewPersistent(signer Signer, el EL, opts ...PersistentOption) *Persistent {
 	}
 }
 
-// Include attempts to persist tx to p's EL, updating its budget in real time throughout the
-// transaction lifecycle. It fails to include a transaction in the event of an error from the
-// context, budget, signer, or EL. It tries to recover from EL nonce and fee errors by adjusting
-// those parameters accordingly.
+// Include attempts to persist tx to p's EL. It fails on an error from the context, signer, or
+// EL, except that it takes the next nonce on a too-low nonce and retries an underpriced
+// transaction unchanged (fee bumping is TODO(16368)).
 func (p *Persistent) Include(ctx context.Context, tx types.TxData) (*IncludedTx, error) {
 	// These channels could also go at the top of p.try, but we reuse them across
 	// p.try calls for efficiency.
@@ -80,11 +69,7 @@ func (p *Persistent) Include(ctx context.Context, tx types.TxData) (*IncludedTx,
 
 	unincluded := newUnincludedTx(tx)
 	unincluded.SetNonce(p.cfg.nonces.Next())
-	state := &tryState{
-		Transaction: unincluded,
-		Budget:      p.cfg.budget,
-		Cost:        eth.ZeroWei,
-	}
+	state := &tryState{Transaction: unincluded}
 
 	var included *IncludedTx
 	var err error
@@ -103,8 +88,6 @@ func (p *Persistent) Include(ctx context.Context, tx types.TxData) (*IncludedTx,
 
 type tryState struct {
 	Transaction *unincludedTx
-	Budget      Budget
-	Cost        eth.ETH
 }
 
 // try attempts to include the state.Transaction.
@@ -124,12 +107,6 @@ func (p *Persistent) try(parentCtx context.Context, state *tryState, includedCh 
 	signed, err := p.signer.Sign(ctx, state.Transaction.Opaque())
 	if err != nil {
 		return nil, nil, fmt.Errorf("sign tx: %w", err)
-	}
-
-	// Budget.
-	state.Cost, err = state.Budget.BeforeResubmit(state.Cost, signed)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	// Submit.
@@ -158,11 +135,10 @@ func (p *Persistent) try(parentCtx context.Context, state *tryState, includedCh 
 
 	select {
 	case included := <-includedCh:
-		state.Budget.AfterIncluded(state.Cost, included)
 		return included, nil, nil
 
 	case <-ctx.Done():
-		p.cancel(state, signed)
+		p.cfg.nonces.InsertGap(signed.Nonce())
 		return nil, nil, ctx.Err()
 
 	case err := <-errCh:
@@ -174,15 +150,10 @@ func (p *Persistent) try(parentCtx context.Context, state *tryState, includedCh 
 			// TODO(16368): bump fees.
 			return nil, state, nil
 		default:
-			p.cancel(state, signed)
+			p.cfg.nonces.InsertGap(signed.Nonce())
 			return nil, nil, err
 		}
 	}
-}
-
-func (p *Persistent) cancel(state *tryState, tx *types.Transaction) {
-	state.Budget.AfterCancel(state.Cost, tx)
-	p.cfg.nonces.InsertGap(tx.Nonce())
 }
 
 func safeSend[T any](ctx context.Context, ch chan<- T, v T) {

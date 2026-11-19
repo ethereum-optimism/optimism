@@ -24,7 +24,8 @@ Notes that matter in practice:
 
 - **Wait for the gates the ruleset requires,** not the individual jobs: the four
   CircleCI fan-in gates (`ci-gate`, `required-contracts-ci`, `required-rust-ci`,
-  `required-rust-e2e`) plus the `dependency-review` GitHub Actions check. A gate reports
+  `required-rust-e2e`) plus the `dependency-review` GitHub Actions check; on a
+  `proposal/**` branch, `ci-gate-proposals` and `required-contracts-ci`. A gate reports
   last, so it can still be pending while every job you were watching is green. On skip
   paths the gate is produced by an `always-succeed` companion, so a gate that never
   reports at all is a config bug (see [ci-config-review.md](ci-config-review.md) item 2),

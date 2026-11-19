@@ -60,6 +60,7 @@ default = []
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "net", "io-util", "test-util"] }
 tempfile.workspace = true
 serde_json.workspace = true
+jsonrpsee = { workspace = true, features = ["server"] }
 metrics-exporter-prometheus.workspace = true
 rstest.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt"] }

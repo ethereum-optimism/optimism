@@ -5,7 +5,7 @@ diataxis: reference
 
 `optimism` API는 Kona의 rollup 상태 및 구성과 상호작용하기 위한 메서드를 제공합니다.
 
-## `optimism_outputAtBlock`
+## `optimism_outputAtBlock` {#optimism_outputatblock}
 
 특정 블록 번호의 output root를 반환합니다. 여기에는 L2 블록 참조, 출금(withdrawal) storage root, state root, 동기화 상태가 포함됩니다.
 
@@ -13,11 +13,11 @@ diataxis: reference
 | ------ | -------------------------------------------------------------- |
 | RPC    | `{"method": "optimism_outputAtBlock", "params": [blockNumber]}` |
 
-### 매개변수
+### 매개변수 {#parameters}
 
 - `blockNumber` (`BlockNumberOrTag`): output을 가져올 블록 번호입니다. 숫자, "latest", "earliest", "pending", "safe", "finalized" 중 하나를 사용할 수 있습니다.
 
-### 반환값
+### 반환값 {#returns}
 
 `OutputResponse` - 다음을 포함하는 객체:
 - `version` (`string`): output 버전 해시
@@ -27,7 +27,7 @@ diataxis: reference
 - `stateRoot` (`string`): state root
 - `syncStatus` (`SyncStatus`): 노드의 현재 동기화 상태
 
-### 예시
+### 예시 {#example}
 
 ```js
 // > {"jsonrpc":"2.0","id":1,"method":"optimism_outputAtBlock","params":["latest"]}
@@ -120,7 +120,137 @@ diataxis: reference
 }
 ```
 
-## `optimism_syncStatus`
+## `optimism_rollupConfig` {#optimism_rollupconfig}
+
+rollup 체인의 동작과 속성을 정의하는 rollup 구성 매개변수를 반환합니다.
+
+| 클라이언트 | 메서드 호출                              |
+| ------ | ---------------------------------------------- |
+| RPC    | `{"method": "optimism_rollupConfig", "params": []}` |
+
+### 반환값 {#returns}
+
+`RollupConfig` - 전체 rollup 구성을 포함하는 객체:
+- `genesis` (`ChainGenesis`): rollup의 제네시스 상태
+- `blockTime` (`number`): 초 단위의 L2 블록 시간
+- `maxSequencerDrift` (`number`): 초 단위의 최대 sequencer drift
+- `seqWindowSize` (`number`): sequencer window 크기
+- `channelTimeout` (`number`): 채널 열림과 닫힘 사이의 L1 블록 수
+- `graniteChannelTimeout` (`number`): Granite 하드포크 이후의 채널 타임아웃
+- `l1ChainId` (`number`): L1 체인 ID
+- `l2ChainId` (`number`): L2 체인 ID
+- `batchInboxAddress` (`string`): 배치가 전송되는 L1 주소
+- `depositContractAddress` (`string`): 입금(디파짓)용 L1 주소
+- `l1SystemConfigAddress` (`string`): 시스템 구성용 L1 주소
+- `protocolVersionsAddress` (`string`): 프로토콜 버전용 L1 주소
+- 하드포크, 수수료, 상호운용성(interoperability)을 위한 추가 구성 필드
+
+### 예시 {#example}
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_rollupConfig","params":[]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "genesis": {
+      "l1": {
+        "hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        "number": 18000000
+      },
+      "l2": {
+        "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        "number": 0,
+        "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "timestamp": 1699000000,
+        "l1Origin": {
+          "hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          "number": 18000000
+        },
+        "sequenceNumber": 0
+      },
+      "l2Time": 1699000000,
+      "systemConfig": {
+        "batcherAddr": "0x1234567890123456789012345678901234567890",
+        "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+        "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+        "gasLimit": 30000000
+      }
+    },
+    "blockTime": 2,
+    "maxSequencerDrift": 600,
+    "seqWindowSize": 3600,
+    "channelTimeout": 300,
+    "graniteChannelTimeout": 50,
+    "l1ChainId": 1,
+    "l2ChainId": 10,
+    "batchInboxAddress": "0xff00000000000000000000000000000000000010",
+    "depositContractAddress": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed",
+    "l1SystemConfigAddress": "0x229047fed2591dbec1eF1118d64F7aF3dB9EB290",
+    "protocolVersionsAddress": "0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935",
+    "superchainConfigAddress": "0x95703e0982140D16f8ebA6d158FccEde42f04a4C",
+    "blobs_data": 1710374400,
+    "interopMessageExpiryWindow": 3600,
+    "chainOpConfig": {
+      "canyon_denominator": 250,
+      "canyon_elasticity": 6
+    }
+  }
+}
+```
+
+## `optimism_safeHeadAtL1Block` {#optimism_safeheadatl1block}
+
+요청한 L1 블록과 같거나 그 이전의 L1 블록을 derivation 소스로 하는, 가장 최근에 기록된 L2 safe head를 반환합니다. `--safedb.path` 또는 `KONA_NODE_SAFEDB_PATH`로 영속성(persistence)을 활성화해야 합니다.
+
+| 클라이언트 | 메서드 호출                                                  |
+| ------ | ------------------------------------------------------------------ |
+| RPC    | `{"method": "optimism_safeHeadAtL1Block", "params": [l1BlockNumber]}` |
+
+### 매개변수 {#parameters}
+
+- `l1BlockNumber` (`string`): `"0x64"`와 같이 16진수 quantity로 인코딩된 L1 블록 번호입니다. 블록 태그는 지원되지 않습니다.
+
+### 반환값 {#returns}
+
+다음을 포함하는 객체:
+
+- `l1Block`: 기록된 derivation 소스 L1 블록으로, `hash` 및 `number` 필드를 포함합니다.
+- `safeHead`: 해당 L2 safe head로, `hash` 및 `number` 필드를 포함합니다.
+
+응답의 두 블록 번호는 모두 JSON 정수입니다. 기록은 드문드문(sparse) 저장되므로 기록된 L1 블록이 요청한 블록보다 앞설 수 있습니다. 기록된 tip보다 높은 블록을 요청하면 최신 기록이 반환됩니다. 이는 derivation이 요청한 L1 블록을 처리했음을 보장하지 않습니다.
+
+### 오류 {#errors}
+
+| 조건 | 코드 | 메시지 |
+| --- | --- | --- |
+| 요청한 L1 블록과 같거나 그 이전에 해당하는 기록이 없음 | `-32000` | `not found` |
+| SafeDB가 비활성화됨 | `-32000` | `safe head database not enabled` 포함 |
+| 잘못된 매개변수 인코딩 | `-32602` | Invalid parameters |
+
+데이터베이스가 비활성화된 경우와, 활성화되어 있지만 일치하는 기록이 없는 경우는 서로 구분됩니다. 데이터베이스 읽기 실패 시에도 RPC 오류가 반환됩니다. 호출자는 실패한 조회를 과거 안전성(historical safety)의 증거로 해석해서는 안 됩니다.
+
+### 예시 {#example}
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_safeHeadAtL1Block","params":["0x64"]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "l1Block": {
+      "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "number": 98
+    },
+    "safeHead": {
+      "hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "number": 42
+    }
+  }
+}
+```
+
+## `optimism_syncStatus` {#optimism_syncstatus}
 
 L1 및 L2 블록 상태 정보를 포함하여 rollup node의 현재 동기화 상태를 반환합니다.
 
@@ -128,7 +258,7 @@ L1 및 L2 블록 상태 정보를 포함하여 rollup node의 현재 동기화 �
 | ------ | -------------------------------------------- |
 | RPC    | `{"method": "optimism_syncStatus", "params": []}` |
 
-### 반환값
+### 반환값 {#returns}
 
 `SyncStatus` - 상세한 동기화 정보를 포함하는 객체:
 - `current_l1` (`BlockInfo`): derivation이 현재 대기 중인 L1 블록
@@ -141,7 +271,7 @@ L1 및 L2 블록 상태 정보를 포함하여 rollup node의 현재 동기화 �
 - `finalized_l2` (`L2BlockInfo`): 최종 확정된 L2 블록 참조
 - `local_safe_l2` (`L2BlockInfo`): L1에서 derive되었지만 아직 교차 검증되지 않은 로컬 safe L2 블록
 
-### 예시
+### 예시 {#example}
 
 ```js
 // > {"jsonrpc":"2.0","id":1,"method":"optimism_syncStatus","params":[]}
@@ -217,86 +347,7 @@ L1 및 L2 블록 상태 정보를 포함하여 rollup node의 현재 동기화 �
 }
 ```
 
-## `optimism_rollupConfig`
-
-rollup 체인의 동작과 속성을 정의하는 rollup 구성 매개변수를 반환합니다.
-
-| 클라이언트 | 메서드 호출                              |
-| ------ | ---------------------------------------------- |
-| RPC    | `{"method": "optimism_rollupConfig", "params": []}` |
-
-### 반환값
-
-`RollupConfig` - 전체 rollup 구성을 포함하는 객체:
-- `genesis` (`ChainGenesis`): rollup의 제네시스 상태
-- `blockTime` (`number`): 초 단위의 L2 블록 시간
-- `maxSequencerDrift` (`number`): 초 단위의 최대 sequencer drift
-- `seqWindowSize` (`number`): sequencer window 크기
-- `channelTimeout` (`number`): 채널 열림과 닫힘 사이의 L1 블록 수
-- `graniteChannelTimeout` (`number`): Granite 하드포크 이후의 채널 타임아웃
-- `l1ChainId` (`number`): L1 체인 ID
-- `l2ChainId` (`number`): L2 체인 ID
-- `batchInboxAddress` (`string`): 배치가 전송되는 L1 주소
-- `depositContractAddress` (`string`): 입금(디파짓)용 L1 주소
-- `l1SystemConfigAddress` (`string`): 시스템 구성용 L1 주소
-- `protocolVersionsAddress` (`string`): 프로토콜 버전용 L1 주소
-- 하드포크, 수수료, 상호운용성(interoperability)을 위한 추가 구성 필드
-
-### 예시
-
-```js
-// > {"jsonrpc":"2.0","id":1,"method":"optimism_rollupConfig","params":[]}
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "genesis": {
-      "l1": {
-        "hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-        "number": 18000000
-      },
-      "l2": {
-        "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-        "number": 0,
-        "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-        "timestamp": 1699000000,
-        "l1Origin": {
-          "hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-          "number": 18000000
-        },
-        "sequenceNumber": 0
-      },
-      "l2Time": 1699000000,
-      "systemConfig": {
-        "batcherAddr": "0x1234567890123456789012345678901234567890",
-        "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
-        "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
-        "gasLimit": 30000000
-      }
-    },
-    "blockTime": 2,
-    "maxSequencerDrift": 600,
-    "seqWindowSize": 3600,
-    "channelTimeout": 300,
-    "graniteChannelTimeout": 50,
-    "l1ChainId": 1,
-    "l2ChainId": 10,
-    "batchInboxAddress": "0xff00000000000000000000000000000000000010",
-    "depositContractAddress": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed",
-    "l1SystemConfigAddress": "0x229047fed2591dbec1eF1118d64F7aF3dB9EB290",
-    "protocolVersionsAddress": "0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935",
-    "superchainConfigAddress": "0x95703e0982140D16f8ebA6d158FccEde42f04a4C",
-    "blobs_data": 1710374400,
-    "interopMessageExpiryWindow": 3600,
-    "chainOpConfig": {
-      "canyon_denominator": 250,
-      "canyon_elasticity": 6
-    }
-  }
-}
-```
-
-## `optimism_version`
+## `optimism_version` {#optimism_version}
 
 Kona rollup node의 소프트웨어 버전을 반환합니다.
 
@@ -304,11 +355,11 @@ Kona rollup node의 소프트웨어 버전을 반환합니다.
 | ------ | ---------------------------------------- |
 | RPC    | `{"method": "optimism_version", "params": []}` |
 
-### 반환값
+### 반환값 {#returns}
 
 `string` - Kona 소프트웨어의 버전 문자열(예: "0.1.0")
 
-### 예시
+### 예시 {#example}
 
 ```js
 // > {"jsonrpc":"2.0","id":1,"method":"optimism_version","params":[]}
@@ -316,5 +367,72 @@ Kona rollup node의 소프트웨어 버전을 반환합니다.
   "jsonrpc": "2.0",
   "id": 1,
   "result": "0.1.0"
+}
+```
+
+## `superroot_atTimestamp` {#superroot_attimestamp}
+
+interop 이전(pre-interop)의 단일 체인 super root와 해당 L1 derivation 요구 사항을 반환합니다. 이 메서드는 `optimism` 네임스페이스가 아닌 `superroot` 네임스페이스를 사용합니다. 로컬 safe 상태인 제네시스 이외의 블록에 대해서는 SafeDB가 활성화되어 있어야 하며 관련 기록을 포함하고 있어야 합니다.
+
+| 클라이언트 | 메서드 호출                                          |
+| ------ | ---------------------------------------------------------- |
+| RPC    | `{"method": "superroot_atTimestamp", "params": [timestamp]}` |
+
+### 매개변수 {#parameters}
+
+- `timestamp` (`string`): 16진수 quantity로 인코딩된 L2 타임스탬프입니다. rollup 구성에 따라 타임스탬프가 L2 블록 번호에 매핑됩니다.
+
+### 반환값 {#returns}
+
+요청한 블록이 아직 로컬 safe 상태가 아니더라도 응답에는 derivation 진행 상황이 포함됩니다.
+
+- `chain_ids`: 10진수 문자열로 인코딩된 단일 체인 ID입니다.
+- `current_l1`: derivation 커서로, `hash` 및 `number` 필드를 포함합니다. 이 커서보다 엄격히 아래에 있는 모든 L1 블록은 완전히 처리된 상태입니다. L1 범위 `X`를 확인하는 소비자는 `current_l1.number > X`가 될 때까지 기다려야 합니다.
+- `finalized_timestamp`: 최종 확정된 L2 head의 타임스탬프로, JSON 정수입니다.
+- `local_safe_timestamp`: 로컬 safe L2 head의 타임스탬프로, JSON 정수입니다.
+- `optimistic_at_timestamp`: 10진수 체인 ID를 키로 하는 맵입니다. 요청한 블록이 로컬 safe 상태가 되면 해당 항목에 `output`, `output_root`, 그리고 SafeDB 기반의 `required_l1` 블록이 포함됩니다.
+- `safe_timestamp`: safe L2 head의 타임스탬프로, JSON 정수입니다.
+
+블록이 로컬 safe 상태인 경우 `data`에는 다음이 포함됩니다.
+
+- `super`: 버전 1 preimage로, `chains`와 16진수 `timestamp`를 포함합니다. 각 체인 항목에는 10진수 문자열인 `ChainID`와 output root 해시인 `Output`이 포함됩니다.
+- `super_root`: super root 해시입니다.
+- `verified_required_l1`: output을 derive하는 데 필요한 SafeDB 기반 L1 블록입니다. 단일 체인 응답에서는 해당 체인의 `required_l1`과 같습니다.
+
+`output` preimage에는 `blockHash`, `messagePasserStorageRoot`, `stateRoot`가 포함됩니다. L1 블록 참조에는 해시와 JSON 정수 블록 번호가 포함됩니다. 제네시스의 L1 요구 사항은 0입니다.
+
+요청한 블록이 로컬 safe보다 위에 있으면 `optimistic_at_timestamp`는 비어 있고 `data`는 생략됩니다. 소비자는 진행 상황만 포함된 응답을 검증된 super root로 취급해서는 안 되며, 요청한 output이 포함된 응답을 받을 때까지 기다려야 합니다.
+
+### 오류 {#errors}
+
+- L2 제네시스 이전의 타임스탬프는 `-32602`를 반환합니다.
+- 아직 기록되지 않은 기록은 `l1 at safe head not found`를 포함하는 메시지와 함께 `-32000`을 반환합니다.
+- 사용 가능한 범위 이전의 기록은 `l1 at safe head history unavailable`을 포함하는 메시지와 함께 `-32000`을 반환합니다. derivation이 더 진행되기를 기다려도 누락된 과거 범위는 복원되지 않습니다.
+- 제네시스 이외의 과거 조회가 필요한 경우, 데이터베이스가 비활성화되어 있으면 `safe head database not enabled`를 포함하는 메시지와 함께 `-32000`을 반환합니다.
+- output을 읽는 동안 기록이 반복적으로 변경되면 요청은 `safe head history changed during query; retry`와 함께 `-32000`을 반환합니다.
+- 데이터베이스 및 엔진 읽기 실패 시에는 검증되지 않은 root 대신 RPC 오류가 반환됩니다.
+
+이 메서드의 SafeDB 조회 메시지에는 작업 접두사 `l1AtSafeHead@<blockNumber>`가 포함됩니다. 이는 `optimism_safeHeadAtL1Block`이 반환하는 접두사 없는 `not found` 메시지와 다릅니다.
+
+### 예시 {#example}
+
+요청한 블록이 아직 로컬 safe 상태가 아닐 때 반환되는, 진행 상황만 포함된 응답:
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"superroot_atTimestamp","params":["0x6553f100"]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "chain_ids": ["901"],
+    "current_l1": {
+      "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "number": 100
+    },
+    "finalized_timestamp": 1699999900,
+    "local_safe_timestamp": 1699999998,
+    "optimistic_at_timestamp": {},
+    "safe_timestamp": 1699999998
+  }
 }
 ```

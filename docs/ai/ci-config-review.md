@@ -32,6 +32,13 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   `required-rust-e2e`. These are fan-in jobs (no work, just `requires:`). A merge
   is gated *only* by what they transitively require; anything outside their
   `requires:` chain can fail without blocking merge. Gates use `utils/ci-gate`.
+  Release branches (`proposal/**`) run the same workflows but their ruleset
+  requires only `ci-gate-proposals` and `required-contracts-ci`.
+  `ci-gate-proposals` fans in on the `main` jobs that validate op-contracts and
+  op-deployer, and `ci-gate` requires it, so a job added there gates both
+  branches; every other job still runs on a release branch without blocking it.
+  A required check must be produced on every routing path, so `ci-gate-skip`
+  emits both `ci-gate` and `ci-gate-proposals`.
 - **Continuation limits**: a setup pipeline continues exactly once, within 6h, no
   setup→setup. A param declared in both `config.yml` and a fragment with
   different defaults fails with "Conflicting pipeline parameters".
@@ -273,6 +280,43 @@ here. Treat items 1–4 as **blocking**.
     `--deny never` from the `forge-build` recipe. That nightly build then denied
     warnings, which turns forge's compile cache off, and `warm-script-cache.sh`
     failed. #24103 merged green, and #24162 fixed the nightly build.
+
+12. **Cost cuts must not regress coverage, maintainability or security.** A diff
+    that saves CI time or credits (skipped tests, fewer shards, a narrower matrix, a
+    job moved off the PR path) must not buy the saving with a loss on any of these.
+    Each small trade looks harmless, and together they wear CI down. This covers
+    skips in test code (`t.Skip`, build tags, test filters) as well as CI config.
+    - **Coverage.** Name what stops running and show which job still runs it, on
+      the same trigger (PR, merge queue), with the same binaries, config and inputs,
+      or show that the difference doesn't reach what the tests exercise. A run that
+      looks duplicated can differ in image, env or client kind, so check rather than
+      assume. Moving a job to develop-only or scheduled keeps coverage but loses
+      pre-merge signal: judge it by "Choosing where a new job runs" and item 11.
+    - **Security.** A cut must not drop a security check (`cargo deny`, digest or
+      signature verification) or move it off the PR path, and must not let PR code
+      write a cache that privileged jobs restore.
+    - **Drift.** If the saving depends on contributors remembering something (a
+      skip call in each new constructor, a list kept in sync, a doc rule), require
+      a check that fails when they forget. Without one, the duplication or the
+      coverage gap creeps back with no signal. Better still, derive the decision
+      from data the code already has, so there is nothing to remember.
+    - **Skip expiry.** A skip must end when its reason does. Check that something
+      notices when the skipped variant gains the support it lacked; otherwise the
+      skip keeps dropping coverage after it is no longer needed.
+    - **Numbers.** Item 8 applies: cite before/after wall time and cost from a real
+      run.
+
+    Grade a coverage loss that no other run covers like item 11, by what then fails
+    after merge. Grade drift and skip-expiry gaps below that.
+
+    Example: the acceptance job that sets `DEVSTACK_L2CL_KIND=kona-node` can skip
+    tests whose preset starts only op-node, but only with a check that fails when a
+    new op-node-only preset doesn't skip. A hand-written list of the presets that
+    skip is not such a check: a new preset is on no list, so nothing fails and the
+    job silently runs the op-node tests a second time. Checks that catch it: a test
+    that requires every exported preset to declare which CL kinds it starts, or a
+    guard that fails a test in that job that never started a CL of the kind
+    `DEVSTACK_L2CL_KIND` selects.
 
 ## General best practices
 

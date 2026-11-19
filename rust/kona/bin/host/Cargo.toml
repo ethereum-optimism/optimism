@@ -38,7 +38,7 @@ alloy-rlp.workspace = true
 alloy-transport.workspace = true
 alloy-eips = { workspace = true, features = ["kzg"] }
 alloy-serde.workspace = true
-alloy-provider = { workspace = true, features = ["reqwest", "ipc"] }
+alloy-provider = { workspace = true, features = ["reqwest", "ipc", "ws"] }
 alloy-consensus = { workspace = true, features = ["std"] }
 alloy-rpc-client.workspace = true
 alloy-transport-http.workspace = true
@@ -72,7 +72,9 @@ ark-ff.workspace = true
 
 [dev-dependencies]
 alloy-json-rpc.workspace = true
+jsonrpsee = { workspace = true, features = ["server"] }
 proptest.workspace = true
+rstest.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 [features]

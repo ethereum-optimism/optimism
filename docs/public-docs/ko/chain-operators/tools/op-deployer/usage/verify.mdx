@@ -6,7 +6,7 @@ diataxis: reference
 
 [`bootstrap`](/ko/chain-operators/tools/op-deployer/usage/bootstrap) 또는 [`apply`](/ko/chain-operators/tools/op-deployer/usage/apply)로 컨트랙트를 배포한 후에는 `verify` 명령을 사용하여 Etherscan 또는 Blockscout와 같은 블록 탐색기에서 소스 코드를 검증할 수 있습니다. 이 명령은 `forge verify-contract` 바이너리를 사용하며, 생성자 인수 감지와 소스 코드 검증을 자동으로 처리합니다.
 
-## 사용법
+## 사용법 {#usage}
 
 `verify` 명령은 다음과 같이 호출할 수 있습니다.
 
@@ -15,7 +15,7 @@ op-deployer verify \
   --l1-rpc-url <l1 rpc url> \
   --input-file <filepath to input .json or state.json file> \
   --verifier-api-key <your api key> \
-  --artifacts-locator <l1 forge-artifacts locator> \
+  --artifacts-locator <l1 artifacts locator> \
   --verifier etherscan
 ```
 
@@ -25,7 +25,7 @@ Blockscout 검증의 경우(mainnet/sepolia의 기본 URL 사용, API 키 불필
 op-deployer verify \
   --l1-rpc-url <l1 rpc url> \
   --input-file <filepath to input .json or state.json file> \
-  --artifacts-locator <l1 forge-artifacts locator> \
+  --artifacts-locator <l1 artifacts locator> \
   --verifier blockscout
 ```
 
@@ -35,18 +35,18 @@ op-deployer verify \
 op-deployer verify \
   --l1-rpc-url <l1 rpc url> \
   --input-file <filepath to input .json or state.json file> \
-  --artifacts-locator <l1 forge-artifacts locator> \
+  --artifacts-locator <l1 artifacts locator> \
   --verifier custom \
   --verifier-url <custom etherscan v2 compatible api url>
 ```
 
-## CLI 인수
+## CLI 인수 {#cli-arguments}
 
-### `--l1-rpc-url`
+### `--l1-rpc-url` {#—l1-rpc-url}
 
 배포할 L1 체인의 RPC URL을 정의합니다(현재 mainnet과 sepolia만 지원).
 
-### `--input-file`
+### `--input-file` {#—input-file}
 
 입력 파일의 전체 경로입니다. 다음 중 하나일 수 있습니다.
 
@@ -80,15 +80,15 @@ verifier는 파일 형식을 자동으로 감지하고 모든 컨트랙트를 �
 }
 ```
 
-### `--contract-name`(선택 사항)
+### `--contract-name`(선택 사항) {#—contract-name-optional}
 
 검증할 단일 컨트랙트 이름을 지정하며, 입력 파일 내의 컨트랙트 키와 일치해야 합니다. 지정하지 않으면 입력 파일의 모든 컨트랙트가 검증됩니다.
 
-### `--artifacts-locator`
+### `--artifacts-locator` {#—artifacts-locator}
 
-`forge build` 명령의 출력(즉, 컴파일된 바이트코드와 solidity 소스 코드)이 포함된 forge-artifacts의 locator입니다. 로컬 경로(`file://` 접두사), 원격 URL(`http://` 또는 `https://` 접두사), 또는 표준 컨트랙트 태그(`tag://op-contracts/v` 접두사)를 사용할 수 있습니다.
+검증할 컨트랙트의 [artifacts locator](/ko/chain-operators/tools/op-deployer/reference/artifacts-locators)입니다. `embedded`, 로컬 디스크에 있는 빌드된 Forge 프로젝트(`file://` 접두사), 또는 그 원격 아카이브(`http://` 또는 `https://` 접두사)를 사용할 수 있습니다.
 
-### `--verifier`
+### `--verifier` {#—verifier}
 
 검증에 사용할 블록 탐색기입니다. 쉼표로 구분하여 여러 verifier를 지정할 수 있습니다.
 
@@ -103,7 +103,7 @@ verifier는 파일 형식을 자동으로 감지하고 모든 컨트랙트를 �
 *   단일 verifier: `--verifier etherscan`
 *   여러 verifier: `--verifier etherscan,blockscout`(둘 다에서 검증)
 
-### `--verifier-url`
+### `--verifier-url` {#—verifier-url}
 
 verifier API URL입니다. 사용 방법은 verifier 유형에 따라 다릅니다.
 
@@ -111,7 +111,7 @@ verifier API URL입니다. 사용 방법은 verifier 유형에 따라 다릅니�
 *   `blockscout`: 선택 사항입니다(기본값은 mainnet/sepolia의 표준 Blockscout URL)
 *   `custom`: 필수입니다. 예: `https://etherscanv2.compat-api.example.com/api`
 
-## 출력
+## 출력 {#output}
 
 출력 로그는 콘솔에 다음과 같은 형태로 표시됩니다. 최종 결과에 `numFailed=0`이 표시되면 모든 컨트랙트가 성공적으로 검증된 것입니다.
 
@@ -128,7 +128,7 @@ INFO [03-05|15:57:07.971] --- COMPLETE ---
 INFO [03-05|15:57:07.971] final results                            numVerified=2 numSkipped=1 numFailed=0
 ```
 
-## 자동 검증
+## 자동 검증 {#automatic-verification}
 
 `apply` 또는 `bootstrap` 명령에 `--verify` 플래그를 사용하면 배포 후 컨트랙트를 자동으로 검증할 수 있습니다.
 
@@ -143,7 +143,7 @@ op-deployer apply \
 
 이렇게 하면 배포 프로세스가 끝날 때 배포된 모든 컨트랙트가 검증됩니다.
 
-### 다중 verifier 배포
+### 다중 verifier 배포 {#multi-verifier-deployment}
 
 여러 블록 탐색기에서 동시에 검증할 수 있습니다.
 
@@ -166,7 +166,7 @@ op-deployer bootstrap superchain \
 3.  Blockscout에서 검증합니다(API 키 불필요)
 4.  두 verifier의 결과를 합쳐 보고합니다
 
-## 지원되는 컨트랙트 번들
+## 지원되는 컨트랙트 번들 {#supported-contract-bundles}
 
 verify 명령은 이제 모든 컨트랙트 번들을 지원합니다.
 
@@ -176,6 +176,6 @@ verify 명령은 이제 모든 컨트랙트 번들을 지원합니다.
 
 `apply`의 `state.json` 파일을 사용하면 verifier가 모든 배포 단계의 컨트랙트를 자동으로 추출하고 검증합니다.
 
-## 블록 탐색기 지원
+## 블록 탐색기 지원 {#block-explorer-support}
 
 verify 명령은 forge 바이너리를 통해 Etherscan 및 Blockscout 블록 탐색기를 모두 지원하며, 모든 Etherscan v2 호환 API도 지원합니다.
