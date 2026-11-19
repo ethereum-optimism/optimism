@@ -573,6 +573,25 @@ func Subcommands(envPrefix string) []*cli.Command {
 			},
 		},
 		{
+			Name:  "invalid-spam",
+			Usage: "send invalid executing messages back to back on both chains for --duration, without waiting for reorgs (load generator for reorg stress tests)",
+			Flags: append(append([]cli.Flag{}, flags...),
+				&cli.DurationFlag{Name: "duration", Usage: "How long to keep sending.", Value: 30 * time.Minute},
+				&cli.DurationFlag{Name: "interval", Usage: "Pause between invalid txs per direction (0 = back to back).", Value: 0},
+				&cli.StringFlag{
+					Name:  invalidDirectionFlagName,
+					Usage: "Which flows to run: a-to-b, b-to-a or both.",
+					Value: directionBoth,
+				},
+			),
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Invalid Exec Message Spam", func(env *smokeEnv) error {
+					env.direction = cliCtx.String(invalidDirectionFlagName)
+					return smokeInvalidSpam(env, cliCtx.Duration("duration"), cliCtx.Duration("interval"))
+				})
+			},
+		},
+		{
 			Name:  "invalid-message",
 			Usage: "send invalid executing messages on both chains at once and verify they are reorged out",
 			Flags: append(flags,
