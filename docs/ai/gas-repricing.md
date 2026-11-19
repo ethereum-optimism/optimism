@@ -277,7 +277,7 @@ search for these patterns:
 - `op-acceptance-tests/tests/glamsterdam_test.go` and `op-acceptance-tests/tests/osaka_on_l2_test.go` use fixed limits. One limit is close to the EIP-7825 cap.
 - `op-acceptance-tests/tests/sdm/` asserts exact raw and canonical gas used.
 - Fixed gas limits also occur in these directories under `op-acceptance-tests/tests/`:
-  - `interop/loadtest/`
+  - `loadtest/`
   - `interop/filter/`
   - `interop/expiry/`
   - `superfaultproofs/`
