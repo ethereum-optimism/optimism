@@ -4,12 +4,14 @@ use crate::Metrics;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
 use alloy_network::{Ethereum, Network};
-use alloy_primitives::Bytes;
+use alloy_primitives::{B256, Bytes};
 use alloy_provider::{EthGetBlock, Provider, RootProvider};
 use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::JwtSecret;
 use alloy_rpc_types_eth::Block;
-use alloy_transport::{RpcError, TransportError, TransportErrorKind, TransportFut};
+use alloy_transport::{
+    RpcError, TransportError, TransportErrorKind, TransportFut, TransportResult,
+};
 use alloy_transport_http::{
     AuthLayer, Http, HyperClient,
     hyper_util::{client::legacy::Client, rt::TokioExecutor},
@@ -196,6 +198,17 @@ impl EngineClient {
         block: BlockId,
     ) -> EthGetBlock<<Optimism as Network>::BlockResponse> {
         self.engine.get_block(block)
+    }
+
+    /// Whether the execution layer stores the L2 block with `hash`, canonical or not. Only the
+    /// block's presence is needed, so it is fetched without its transactions.
+    pub async fn l2_block_is_stored(&self, hash: B256) -> TransportResult<bool> {
+        debug!(target: "engine", %hash, "Looking up the execution layer's block by hash");
+        let is_stored = self.get_l2_block(hash.into()).await.inspect_err(|err| {
+            warn!(target: "engine", ?err, %hash, "Failed to look up the execution layer's block by hash");
+        })?.is_some();
+        debug!(target: "engine", %hash, is_stored, "Looked up the execution layer's block by hash");
+        Ok(is_stored)
     }
 
     /// Fetches an L2 block with full transactions.

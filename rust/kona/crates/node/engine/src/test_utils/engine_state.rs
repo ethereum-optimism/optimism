@@ -76,7 +76,6 @@ impl TestEngineStateBuilder {
     }
 
     /// Sets whether the execution layer applied the last forkchoice update.
-    #[allow(dead_code)]
     pub const fn with_el_applied_last_forkchoice(mut self, applied: bool) -> Self {
         self.el_applied_last_forkchoice = applied;
         self
