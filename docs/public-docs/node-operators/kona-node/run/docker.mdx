@@ -66,7 +66,7 @@ The `docker-compose.yaml` uses published images from GitHub Container Registry:
 The `kona-node` service is configured with the following key settings:
 
 - **Ports**: 
-  - `5060` - RPC endpoint
+  - `5060` - RPC endpoint, published on the host's `127.0.0.1` only because it serves the unauthenticated admin API. Inside the container, the node binds `--rpc.addr 0.0.0.0` so that Docker can publish the port.
   - `9223` - P2P discovery (TCP/UDP)
   - `9002` - Metrics
 - **Environment**: L1 RPC and Beacon API endpoints are required

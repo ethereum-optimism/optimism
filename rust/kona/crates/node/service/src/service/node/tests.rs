@@ -1,34 +1,8 @@
-use super::rollup::merge_admin_module;
-use jsonrpsee::RpcModule;
 use kona_engine::{EngineState, test_utils::test_engine_client};
 use kona_genesis::RollupConfig;
-use kona_rpc::{
-    AdminRpc, HealthzApiServer, HealthzResponse, HealthzRpc, RollupNodeApiServer, RollupRpc,
-};
+use kona_rpc::{HealthzApiServer, HealthzResponse, HealthzRpc, RollupNodeApiServer, RollupRpc};
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
-
-#[test]
-fn admin_module_registered_only_when_enabled() {
-    for enabled in [false, true] {
-        let mut modules = RpcModule::new(());
-        let admin = AdminRpc::new(None, mpsc::channel(1).0, mpsc::channel(1).0);
-        merge_admin_module(&mut modules, enabled, admin).unwrap();
-        let methods: Vec<_> = modules.method_names().collect();
-        if enabled {
-            for method in [
-                "admin_postUnsafePayload",
-                "admin_startSequencer",
-                "admin_stopSequencer",
-                "admin_resetDerivationPipeline",
-            ] {
-                assert!(methods.contains(&method), "missing {method}");
-            }
-        } else {
-            assert!(methods.is_empty(), "admin methods must be disabled by default");
-        }
-    }
-}
 
 #[tokio::test]
 async fn registered_endpoints_report_the_binary_version() {

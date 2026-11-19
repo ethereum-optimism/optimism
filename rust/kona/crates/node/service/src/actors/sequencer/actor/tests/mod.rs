@@ -68,13 +68,17 @@ fn test_actor_with_engine_config<E: SequencerEngineClient>(
         TestAttributesBuilder { attributes: vec![] },
         conductor,
         engine,
-        active,
         recovery_mode,
         MockOriginSelector::new(),
         Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
         MockUnsafePayloadGossipClient::new(),
         Arc::new(TokioClock::new(UNIX_EPOCH + Duration::from_secs(TEST_START))),
     );
+    // Tests that build blocks mark the sequencer active directly instead of sending
+    // `StartSequencer`.
+    if active {
+        actor.update_state(|state| state.active = true);
+    }
     (actor, commands_tx)
 }
 

@@ -7695,6 +7695,7 @@ dependencies = [
  "libp2p",
  "metrics",
  "metrics-exporter-prometheus",
+ "metrics-util",
  "mockall",
  "op-alloy-consensus",
  "op-alloy-network",

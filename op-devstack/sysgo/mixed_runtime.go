@@ -556,9 +556,6 @@ func startMixedKonaNode(
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
-		// kona only registers when admin is enabled. op-node's devstack node enables it too.
-		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
 		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
 		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
@@ -591,7 +588,7 @@ func startMixedKonaNode(
 	} else {
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
-	envVars = append(envVars, konaL2CLEnv(startCfg.L2CLConfig, startCfg.SequencerStopped)...)
+	envVars = append(envVars, konaL2CLEnv(startCfg.L2CLConfig)...)
 
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
@@ -608,7 +605,9 @@ func startMixedKonaNode(
 		execPath: execPath,
 		args:     []string{"node"},
 		env:      envVars,
-		p:        t,
+		// A conductor starts its leader's sequencer itself.
+		startSequencer: startCfg.L2CLConfig.IsSequencer && !startCfg.SequencerStopped && startCfg.L2CLConfig.ConductorRPC == "",
+		p:              t,
 	}
 	t.Logger().Info("Starting kona-node", "name", clKey, "chain", l2Net.ChainID(), "el", elKey)
 	k.Start()

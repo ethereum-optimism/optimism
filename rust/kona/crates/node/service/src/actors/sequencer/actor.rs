@@ -39,6 +39,11 @@ use tokio::{
     time::{Instant, Interval},
 };
 
+/// The labels of the sequencer state gauge.
+fn state_labels(state: &SequencerState) -> [(&'static str, String); 2] {
+    [("active", state.active.to_string()), ("recovery", state.recovery_mode.to_string())]
+}
+
 /// The handle to a block that has been started but not sealed.
 #[derive(Debug)]
 struct UnsealedPayloadHandle {
@@ -161,14 +166,14 @@ where
     SequencerEngineClient_: SequencerEngineClient,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
-    /// Instantiate a new [`SequencerActor`].
+    /// Instantiate a new, stopped [`SequencerActor`]. It builds blocks only after an
+    /// `admin_startSequencer` command.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
         attributes_builder: AttributesBuilder_,
         conductor: Option<Conductor_>,
         engine_client: SequencerEngineClient_,
-        is_active: bool,
         in_recovery_mode: bool,
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
@@ -177,7 +182,7 @@ where
     ) -> Self {
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
         let (state_tx, _) = watch::channel(SequencerState {
-            active: is_active,
+            active: false,
             conductor_enabled: conductor.is_some(),
             recovery_mode: in_recovery_mode,
         });
@@ -208,15 +213,17 @@ where
         *self.state_tx.borrow()
     }
 
-    /// Update and publish sequencer state together with its metrics.
+    /// Update and publish sequencer state together with its metrics. The state gauge is 1 for the
+    /// current label set and 0 for the one it replaces.
     fn update_state(&self, update: impl FnOnce(&mut SequencerState)) {
         self.state_tx.send_modify(|state| {
+            let previous = state_labels(state);
             update(state);
-            let state_flags = [
-                ("active", state.active.to_string()),
-                ("recovery", state.recovery_mode.to_string()),
-            ];
-            metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &state_flags).set(1);
+            let current = state_labels(state);
+            if previous != current {
+                metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &previous).set(0);
+            }
+            metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &current).set(1);
         });
     }
 
