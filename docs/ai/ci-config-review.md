@@ -35,6 +35,27 @@ hide. For each changed file, walk the relevant items and look for the bad patter
 - **Continuation limits**: a setup pipeline continues exactly once, within 6h, no
   setup→setup. A param declared in both `config.yml` and a fragment with
   different defaults fails with "Conflicting pipeline parameters".
+- **Develop pushes skip what the merge queue already tested.** The queue
+  fast-forwards `develop` to the commit it just built. On a develop push,
+  `merge-queue-verified.sh` asks the CircleCI API whether a
+  `gh-readonly-queue/develop/*` pipeline for that commit passed `main`'s `ci-gate`,
+  `rust-ci`'s `required-rust-ci` or `rust-e2e-ci`'s `required-rust-e2e`. The fast
+  paths emit the same gate names from other workflows, so they don't count. For each
+  workflow that passed, routing sets `c-develop_mq_verified_<wf>`, and the workflow's
+  test-only jobs halt green in their first step (`halt-if-merge-queue-verified`).
+  Builds, sccache writers, `go-tests` (its Go test-result cache saves PR and queue
+  runs), `go-lint` and the develop-only workflows run as before. An API error, a
+  missing queue pipeline or an unfinished gate leaves the workflow unverified, so
+  develop runs it in full. `build_daily` runs `main`, `rust_ci` and `rust_e2e_ci` in
+  full for flake sampling, Slack alerts and timings. A halted job's own Go build cache
+  then refreshes on develop only in full runs, and the queue restores it. In a local
+  16-core build, a day-old cache took 10 s longer than one a commit old for the
+  memory-all test packages, and 4 s for the action and e2e ones. Add the halt only to
+  a job that the workflow's gate requires directly (or that only such halted jobs
+  consume), that runs in the queue whatever the change (no `check-changed`), and
+  whose develop run writes no sccache entries, workspace or timings that later runs
+  depend on. On a job type that other workflows also run, gate it with a job
+  parameter that only the halting invocations set, as `op-acceptance-tests` does.
 
 ## Validating a change locally
 

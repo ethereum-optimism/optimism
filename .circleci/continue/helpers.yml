@@ -20,6 +20,36 @@ commands:
               sleep 5
             done
 
+  # The first step of a test-only job, before checkout. On a develop push
+  # whose commit already passed this workflow's gate in the merge queue, the
+  # routing policy sets the workflow's c-develop_mq_verified_* param and the
+  # job stops here, green, so the gate still passes. That param is false on
+  # every other pipeline, including the build_daily full develop run, so only
+  # a job type that a develop push runs in that one workflow may take it.
+  # Use it only on a job that:
+  # - the workflow's gate (ci-gate, required-rust-ci, required-rust-e2e)
+  #   requires directly, so the queue's gate passing means the job passed, or
+  #   that only such jobs consume (memory-all-shard-timings);
+  # - runs in the queue whatever the change (no check-changed path gating);
+  # - writes no sccache entries and persists no workspace;
+  # - feeds no Go/Rust cache or timings that later runs depend on, beyond the
+  #   bounded staleness that build_daily refreshes (see ci-config-review.md).
+  halt-if-merge-queue-verified:
+    parameters:
+      verified:
+        description: The workflow's c-develop_mq_verified_* pipeline parameter.
+        type: boolean
+    steps:
+      - when:
+          condition: << parameters.verified >>
+          steps:
+            - run:
+                name: Skip, the merge queue already passed this commit
+                command: |
+                  echo "The merge queue passed this workflow on ${CIRCLE_SHA1}, so this develop push skips ${CIRCLE_JOB}."
+                  echo "The build_daily scheduled pipeline runs it on develop in full."
+                  circleci-agent step halt
+
   # The Go caches (these, opgeth-ratchet's and go-lint's) are scoped by
   # branch. Each branch saves only under its own name, and restores only its
   # own caches or develop's. Go trusts both caches without re-checking them,

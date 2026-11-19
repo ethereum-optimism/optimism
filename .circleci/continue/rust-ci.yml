@@ -30,6 +30,11 @@ parameters:
   c-run_scheduled_rust_advisories:
     type: boolean
     default: false
+  # True only on a develop push whose commit passed required-rust-ci in the
+  # merge queue; halts rust-ci's test-only jobs (halt-if-merge-queue-verified).
+  c-develop_mq_verified_rust_ci:
+    type: boolean
+    default: false
   # Setup dispatch flag, declared so continuation validation accepts it.
   rust_advisories_dispatch:
     type: boolean
@@ -656,6 +661,9 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
+      # The lint runs in Docker, so it writes no sccache entries and saves nothing.
+      - halt-if-merge-queue-verified:
+          verified: << pipeline.parameters.c-develop_mq_verified_rust_ci >>
       - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
@@ -680,6 +688,10 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
+      # The build runs in Docker and nothing persists the client, so it writes no
+      # sccache entries and saves nothing.
+      - halt-if-merge-queue-verified:
+          verified: << pipeline.parameters.c-develop_mq_verified_rust_ci >>
       - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare:

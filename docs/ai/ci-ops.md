@@ -44,6 +44,27 @@ Notes that matter in practice:
   flakes in `op-acceptance-tests/`/`op-devstack/`,
   [flake-prevention.md](flake-prevention.md) catalogues the recurring causes.
 
+## What a develop push runs
+
+The merge queue fast-forwards `develop` to the commit it just tested, so a develop push
+no longer repeats the queue's tests. The setup job's "Check which workflows the merge queue
+passed on this commit" step logs which of `main`, `rust-ci` and `rust-e2e-ci` passed their
+gate in the queue on that commit. For those workflows, the develop pipeline still runs every
+build, sccache and publishing job, plus `go-tests` and `go-lint`, whose caches PR and queue
+runs need fresh. The test-only jobs end green in their first step,
+"Skip, the merge queue already passed this commit": memory-all, `go-actions-tests`, the
+rust-e2e sysgo jobs, `kona-proof-action-single`, `kona-lint-cannon` and
+`kona-build-fpvm-cannon-client`. Any error in that check runs the workflow in full.
+
+So a green develop job doesn't prove its tests ran on develop, and Insights' develop
+success rate and duration for these jobs count the skipped runs. For the tests a merge ran,
+look at the merge queue pipeline for the same commit. The `build_daily` scheduled pipeline
+runs all three workflows on develop in full once a day. It is now the main source of these
+jobs' Slack alerts (queue runs don't post) and of the develop flake data behind
+`generate-flaky-tests-report`. To run them in full on a develop commit now, trigger a
+pipeline through the API (see `api_dispatch` in `.circleci/routing.yml`). API triggers never
+skip jobs.
+
 ## Diagnosing a CI failure on a feature branch
 
 Before assuming a red check is caused by your change, rule out a failure the branch

@@ -18,6 +18,7 @@
 #   run <wf...>            enable workflows by literal name
 #   run_group <sec> <key>  enable the workflows listed under routing.yml sec.key
 #   skip_group <sec>       disable the workflows listed under routing.yml sec
+#   set_true <x...>        set the (passthrough) boolean param c-x to true
 #   is_true <x>            true if c-x is true in the JSON
 #   param <x>              raw value of c-x from the JSON
 #   finalize               strip intermediate params, keep c-run_* + passthrough
@@ -117,6 +118,13 @@ case "${TRIGGER_SOURCE}" in
     #    push HEAD is the base and the changed-file list is always empty. Every
     #    is_true check would therefore be false, making the gated branch dead
     #    code rather than a conditional.
+    #
+    #    The merge queue fast-forwards develop to the commit it just tested.
+    #    For each of main, rust-ci and rust-e2e-ci whose gate passed in the
+    #    queue on this exact commit (c-mq_verified_*, from
+    #    merge-queue-verified.sh), the develop push still runs the workflow
+    #    but halts its test-only jobs. The jobs that build, fill caches or
+    #    publish still run. build_daily runs all three in full.
     # ---------------------------------------------------------
     elif [[ "${BRANCH}" == "develop" ]]; then
       run main
@@ -129,6 +137,11 @@ case "${TRIGGER_SOURCE}" in
       run rust_e2e_ci
       run kona_publish_prestates
       run circleci_schedule_trigger_check
+      for wf in main rust_ci rust_e2e; do
+        if is_true "mq_verified_${wf}"; then
+          set_true "develop_mq_verified_${wf}"
+        fi
+      done
     fi
     ;;
 
@@ -146,6 +159,9 @@ esac
 
 if [[ "${CIRCLE_PROJECT_USERNAME:-}/${CIRCLE_PROJECT_REPONAME:-}" != "ethereum-optimism/optimism" ]]; then
   skip_group public_repo_only
+  if [[ "${TRIGGER_SOURCE}" == "scheduled_pipeline" ]]; then
+    skip_group public_repo_only_scheduled
+  fi
 fi
 
 finalize
