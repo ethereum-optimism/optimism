@@ -10,9 +10,10 @@ package:
 tasks:
   - key: build
     use: package.use
-    # The build reads the contracts, the Go sources of the FFI helper and the scripts. It reads
-    # none of the excluded trees, so a commit that changes only them keeps the cache key.
-    filter: ['!.git', '!rust', '!docs', '!.rwx', '!.circleci', '!.github', '!ops/ci/tests', '!ops/ci/migration']
+    # What the build reads: the contracts, the Go module and the Go sources of the FFI helper,
+    # and its scripts. A commit that changes none of these keeps the cache key. The list names
+    # what to include: with a list of exclusions only, RWX gives each commit a new key.
+    filter: [mise.toml, go.mod, go.sum, cannon, 'op-*', packages/contracts-bedrock, ops/ci/runtime/ci-report.py, ops/ci/runtime/contract-upgrades.py, .ci/go-cache/pr-checks/modules, .ci/go-cache/contracts-compile/build]
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/contracts-compile/build"

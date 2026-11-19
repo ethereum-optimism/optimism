@@ -175,10 +175,12 @@ organization can start has 16 CPUs.
   `test_rwx_local_packages.py` fails when a workload builds a dependency in
   another way.
 - **Contract compiles.** The shared build of the standard suites and the upgrade
-  variants, and the L2 fork compile, have an input `filter` that excludes `.git`
-  and the trees that a compile cannot read. A commit that changes none of the
-  rest reuses the build. The Go module set is a dependency build of its own,
-  keyed on `go.mod` and `go.sum`.
+  variants, and the L2 fork compile, have an input `filter` that names what a
+  compile reads: the contracts, the Go module and the Go trees of the FFI
+  helper, and its scripts. A commit that changes none of these reuses the build.
+  Name the files to include: with exclusions only, RWX gives the task a new
+  cache key for each commit, even when every remaining file is unchanged. The Go
+  module set is a dependency build of its own, keyed on `go.mod` and `go.sum`.
 - **Rust baselines.** `ops/ci/runtime/rust-target-cache.py base` names the
   commit in the same way for the nextest archive and the cargo-hack partitions.
 - **Runner sizes.** A task on the critical path of a gate gets the size at

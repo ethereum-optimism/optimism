@@ -74,14 +74,33 @@ class LocalPackageTests(unittest.TestCase):
             self.assert_starts_without_a_checkout(seed, prepared)
             self.assertEqual(seed['outputs']['filesystem']['filter']['workspace'], ['.ci/go-cache/full/build'])
 
-    def test_contract_compiles_exclude_the_trees_that_they_cannot_read(self):
-        # With `.git` or an unrelated tree among its inputs, a compile has a new cache key for
-        # each commit. Thirteen verdict tasks share the one build of packages/contracts-compile.yml.
-        excluded = ['!.git', '!rust', '!docs', '!.rwx', '!.circleci', '!.github', '!ops/ci/tests', '!ops/ci/migration']
+    def test_contract_compiles_name_the_files_that_they_read(self):
+        # A compile with `.git` among its inputs has a new cache key for each commit. RWX keys a
+        # task on file contents only for an include list, so each compile names what it reads.
         shared = tasks('packages/contracts-compile.yml')['build']
-        self.assertEqual(shared['filter'], excluded)
+        fork = tasks('contract-l2-fork.yml')['compile']
+        scripts = lambda task: {name for name in task['filter'] if name.startswith('ops/ci/runtime/')}
+        self.assertEqual(scripts(shared), {'ops/ci/runtime/ci-report.py', 'ops/ci/runtime/contract-upgrades.py'})
+        self.assertEqual(scripts(fork), scripts(shared) | {'ops/ci/runtime/contract-l2-fork.py', 'ops/ci/runtime/rpc-pacer.py'})
         self.assertEqual(set(shared['env']), {'CI_BRANCH'})
-        self.assertEqual(tasks('contract-l2-fork.yml')['compile']['filter'], excluded)
+        # The FFI helper is Go. Follow its imports: each package must be under a listed tree.
+        prefix, seen, pending = 'github.com/ethereum-optimism/optimism/', set(), ['packages/contracts-bedrock/scripts/go-ffi']
+        while pending:
+            directory = pending.pop()
+            if directory in seen: continue
+            seen.add(directory)
+            for source in (ROOT / directory).glob('*.go'):
+                if source.name.endswith('_test.go'): continue
+                for found in re.findall('"' + re.escape(prefix) + '([^"]+)"', source.read_text()):
+                    if (ROOT / found).is_dir(): pending.append(found)
+        self.assertGreater(len(seen), 10)
+        for task in (shared, fork):
+            self.assertFalse([name for name in task['filter'] if name.startswith('!')])
+            self.assertTrue({'mise.toml', 'go.mod', 'go.sum', 'packages/contracts-bedrock', '.ci/go-cache/pr-checks/modules'} <= set(task['filter']))
+            for directory in seen:
+                top = directory.split('/')[0]
+                self.assertTrue(top in task['filter'] or (top.startswith('op-') and 'op-*' in task['filter'])
+                                or directory.startswith('packages/contracts-bedrock'), directory)
         verdicts = 0
         for path in ('contracts.yml', 'contract-upgrades.yml'):
             graph = tasks(path)

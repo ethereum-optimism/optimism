@@ -122,8 +122,8 @@ tasks:
 
   - key: compile
     use: [source, go-tools, contract-tools, go-modules]
-    # As in packages/contracts-compile.yml: the build reads none of the excluded trees.
-    filter: ['!.git', '!rust', '!docs', '!.rwx', '!.circleci', '!.github', '!ops/ci/tests', '!ops/ci/migration']
+    # As in packages/contracts-compile.yml: the files that the build reads.
+    filter: [mise.toml, go.mod, go.sum, cannon, 'op-*', packages/contracts-bedrock, ops/ci/runtime/ci-report.py, ops/ci/runtime/contract-upgrades.py, ops/ci/runtime/contract-l2-fork.py, ops/ci/runtime/rpc-pacer.py, .ci/go-cache/pr-checks/modules, .ci/go-cache/l2-fork/compile]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
