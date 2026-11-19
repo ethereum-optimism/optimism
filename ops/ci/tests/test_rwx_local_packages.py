@@ -167,6 +167,16 @@ class LocalPackageTests(unittest.TestCase):
             files = tasks('packages/toolchain-' + name + '.yml')['prepare']['filter']['workspace']
             self.assertIn('mise.toml', files)
             self.assertTrue(all(name == 'mise.toml' or name.startswith('ops/ci/runtime/') for name in files))
+        # The same holds for a tool task that a workload defines itself.
+        inline = {'acceptance.yml': ['acceptance-tools'], 'rust-e2e.yml': ['runtime-tools'],
+                  'rust.yml': ['wasm-tools', 'lint-tools', 'rust-fmt-tools'],
+                  'pr-checks.yml': ['main-tools', 'static-tools', 'go-lint-tools']}
+        for path, keys in inline.items():
+            graph = tasks(path)
+            for key in keys:
+                files = graph[key]['filter']
+                self.assertIn('mise.toml', files, (path, key))
+                self.assertTrue(all(name == 'mise.toml' or name.startswith('ops/ci/runtime/') for name in files), (path, key))
 
 
     def test_tool_preparation_retries_downloads_and_exports_the_policy(self):

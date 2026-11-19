@@ -212,6 +212,7 @@ tasks:
 
   - key: runtime-tools
     use: [go-build-tools, contract-tools]
+    filter: [mise.toml]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     run: |
       mise install go:github.com/ethereum/go-ethereum/cmd/geth

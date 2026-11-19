@@ -99,12 +99,14 @@ tasks:
 
   - key: wasm-tools
     use: rust-tools
+    filter: [mise.toml]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: rustup target add wasm32-unknown-unknown wasm32-wasip1
     timeout: 30m
 
   - key: lint-tools
     use: rust-tools
+    filter: [mise.toml]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: |
       mise install github:ggwpez/zepter github:crate-ci/typos github:EmbarkStudios/cargo-deny
@@ -864,6 +866,7 @@ tasks:
 
   - key: rust-fmt-tools
     use: tools
+    filter: [mise.toml, ops/ci/runtime/rwx-prepare.sh]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rwx-prepare.sh rust
     timeout: 30m

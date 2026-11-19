@@ -185,6 +185,7 @@ tasks:
 
   - key: acceptance-tools
     use: [go-build-tools, contract-tools]
+    filter: [mise.toml, ops/ci/runtime/apt-install.sh]
     run: |
       bash ops/ci/runtime/apt-install.sh --no-install-recommends eatmydata
       mise install go:github.com/ethereum/go-ethereum/cmd/geth

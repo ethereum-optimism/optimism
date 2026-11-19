@@ -88,6 +88,7 @@ tasks:
 
   - key: main-tools
     use: go-tools
+    filter: [mise.toml]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
       mise install ripgrep mockery
@@ -96,6 +97,7 @@ tasks:
 
   - key: static-tools
     use: tools
+    filter: [mise.toml]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
       mise install uv shellcheck shfmt
@@ -379,6 +381,7 @@ tasks:
 
   - key: go-lint-tools
     use: tools
+    filter: [mise.toml, ops/ci/runtime/rwx-prepare.sh]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: bash ops/ci/runtime/rwx-prepare.sh go-lint
     timeout: 30m
