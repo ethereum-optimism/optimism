@@ -1,5 +1,6 @@
 //! RPC integration tests.
 
+use crate::launcher::launch;
 use alloy_consensus::{SignableTransaction, TxEip1559};
 use alloy_genesis::Genesis;
 use alloy_network::{TxSignerSync, eip2718::Encodable2718};
@@ -14,7 +15,7 @@ use jsonrpsee::{
 use reth_chainspec::{EthChainSpec, ForkCondition};
 use reth_e2e_test_utils::wallet::Wallet;
 use reth_network::types::NatResolver;
-use reth_node_builder::{NodeBuilder, NodeHandle};
+use reth_node_builder::NodeHandle;
 use reth_node_core::{
     args::{NetworkArgs, RpcServerArgs, RpcStateCacheArgs},
     node_config::NodeConfig,
@@ -27,6 +28,7 @@ use reth_rpc_server_types::RpcModuleSelection;
 use reth_tasks::Runtime;
 use reth_transaction_pool::TransactionPool;
 use std::sync::Arc;
+use tempfile::TempDir;
 
 // <https://github.com/paradigmxyz/reth/issues/19765>
 #[tokio::test]
@@ -34,6 +36,7 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let exec = Runtime::test();
+    let datadir = TempDir::new()?;
 
     let external_ip = "10.64.128.71".parse().unwrap();
     // Node setup
@@ -48,7 +51,7 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
     let NodeHandle { node, node_exit_future: _ } =
-        NodeBuilder::new(node_config).testing_node(exec).node(OpNode::default()).launch().await?;
+        launch(node_config, exec, &datadir, OpNode::default()).await?;
 
     let api = node.add_ons_handle.admin_api();
 
@@ -93,7 +96,10 @@ async fn test_retain_forwarded_txs() -> eyre::Result<()> {
     let _server_handle = server.start(module);
 
     let exec = Runtime::test();
-    for retain_forwarded_txs in [false, true] {
+    // The first node keeps running on `exec` while the second launches, so both data directories
+    // live until the end of the test.
+    let datadirs = [TempDir::new()?, TempDir::new()?];
+    for (retain_forwarded_txs, datadir) in [false, true].into_iter().zip(&datadirs) {
         let mut network_args = NetworkArgs::default().with_unused_ports();
         network_args.discovery.discv5_port = Some(0);
         network_args.discovery.discv5_port_ipv6 = Some(0);
@@ -108,7 +114,7 @@ async fn test_retain_forwarded_txs() -> eyre::Result<()> {
         });
 
         let NodeHandle { node, node_exit_future: _ } =
-            NodeBuilder::new(node_config).testing_node(exec.clone()).node(op_node).launch().await?;
+            launch(node_config, exec.clone(), datadir, op_node).await?;
 
         let forwarded_hash =
             EthTransactions::send_raw_transaction(node.add_ons_handle.eth_api(), raw_tx.clone())
@@ -126,6 +132,7 @@ async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let exec = Runtime::test();
+    let datadir = TempDir::new()?;
 
     // Node setup
     let network = OP_SEPOLIA.clone();
@@ -138,7 +145,7 @@ async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
     let NodeHandle { node, node_exit_future: _ } =
-        NodeBuilder::new(node_config).testing_node(exec).node(OpNode::default()).launch().await?;
+        launch(node_config, exec, &datadir, OpNode::default()).await?;
 
     let client = node.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
     let config = client.config().await?;
@@ -163,6 +170,7 @@ async fn test_eth_capabilities_starts_at_bedrock() -> eyre::Result<()> {
     );
 
     let exec = Runtime::test();
+    let datadir = TempDir::new()?;
     let mut network_args = NetworkArgs::default().with_unused_ports();
     network_args.discovery.discv5_port = Some(0);
     network_args.discovery.discv5_port_ipv6 = Some(0);
@@ -172,7 +180,7 @@ async fn test_eth_capabilities_starts_at_bedrock() -> eyre::Result<()> {
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
     let NodeHandle { node, node_exit_future: _ } =
-        NodeBuilder::new(node_config).testing_node(exec).node(OpNode::default()).launch().await?;
+        launch(node_config, exec, &datadir, OpNode::default()).await?;
 
     let client = node.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
     let capabilities: serde_json::Value = client.request("eth_capabilities", rpc_params![]).await?;
@@ -211,6 +219,7 @@ async fn test_block_access_list_methods_unserved() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let exec = Runtime::test();
+    let datadir = TempDir::new()?;
     let mut network_args = NetworkArgs::default().with_unused_ports();
     network_args.discovery.discv5_port = Some(0);
     network_args.discovery.discv5_port_ipv6 = Some(0);
@@ -223,7 +232,7 @@ async fn test_block_access_list_methods_unserved() -> eyre::Result<()> {
         );
 
     let NodeHandle { node, node_exit_future: _ } =
-        NodeBuilder::new(node_config).testing_node(exec).node(OpNode::default()).launch().await?;
+        launch(node_config, exec, &datadir, OpNode::default()).await?;
     let handles = node.add_ons_handle.rpc_server_handles();
 
     assert_block_access_list_methods_unserved(&handles.rpc.http_client().unwrap(), "http").await;
@@ -247,6 +256,7 @@ async fn test_computed_bal_cache_options_rejected() -> eyre::Result<()> {
             RpcStateCacheArgs { cache_computed_bals: true, ..Default::default() },
         ),
     ] {
+        let datadir = TempDir::new()?;
         let mut network_args = NetworkArgs::default().with_unused_ports();
         network_args.discovery.discv5_port = Some(0);
         network_args.discovery.discv5_port_ipv6 = Some(0);
@@ -257,11 +267,7 @@ async fn test_computed_bal_cache_options_rejected() -> eyre::Result<()> {
             .with_network(network_args)
             .with_rpc(rpc);
 
-        let launched = NodeBuilder::new(node_config)
-            .testing_node(exec.clone())
-            .node(OpNode::default())
-            .launch()
-            .await;
+        let launched = launch(node_config, exec.clone(), &datadir, OpNode::default()).await;
         let err = launched.err().unwrap_or_else(|| panic!("node launched with {flag}"));
         assert!(err.to_string().contains(flag), "unexpected error for {flag}: {err:#}");
     }

@@ -90,6 +90,7 @@ serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
 reth-optimism-node = { workspace = true, features = ["test-utils"] }
+reth-optimism-node-launcher.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-db-common.workspace = true
 reth-node-builder = { workspace = true, features = ["test-utils"] }
@@ -115,6 +116,7 @@ metrics-util = { workspace = true, features = ["debugging"] }
 # Fatal-signal handler in tests/it/crash_backtrace.rs.
 libc.workspace = true
 op-alloy-network.workspace = true
+tempfile.workspace = true
 
 [features]
 default = ["reth-codec"]

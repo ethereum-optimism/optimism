@@ -18,6 +18,8 @@ mod invalid_post_exec;
 
 mod lagoon;
 
+mod launcher;
+
 mod rpc_replay_settlement;
 
 mod estimate_gas_7825;

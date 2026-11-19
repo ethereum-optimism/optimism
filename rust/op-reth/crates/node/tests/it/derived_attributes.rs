@@ -3,6 +3,7 @@
 //! so the rollup node can replace the block with a deposits-only one, and the engine receives a
 //! valid payload's executed block from `engine_getPayload`.
 
+use crate::launcher::launch;
 use alloy_consensus::{Sealable, SignableTransaction, TxEip1559};
 use alloy_network::eip2718::Encodable2718;
 use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxKind, U256};
@@ -15,9 +16,7 @@ use op_alloy_consensus::{OpTxEnvelope, SDMGasEntry, TxDeposit, build_post_exec_t
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4};
 use reth_chainspec::EthChainSpec;
 use reth_db_common::init::init_genesis;
-use reth_e2e_test_utils::{Adapter, TmpDB};
-use reth_node_api::NodeTypesWithDBAdapter;
-use reth_node_builder::{FullNode, FullNodeTypesAdapter, Node, NodeBuilder, NodeConfig};
+use reth_node_builder::NodeConfig;
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::OpEvmConfig;
 use reth_optimism_forks::OpHardforks;
@@ -31,6 +30,7 @@ use reth_provider::{
 use reth_tasks::Runtime;
 use reth_transaction_pool::noop::NoopTransactionPool;
 use std::{sync::Arc, time::Duration};
+use tempfile::TempDir;
 
 const INVALID_PAYLOAD_ATTRIBUTES: i32 = -38003;
 
@@ -108,25 +108,6 @@ const fn refund(index: u64, gas_refund: u64) -> SDMGasEntry {
     SDMGasEntry { index, gas_refund }
 }
 
-type Provider = BlockchainProvider<NodeTypesWithDBAdapter<OpNode, TmpDB>>;
-type TestNode = FullNode<
-    Adapter<OpNode>,
-    <OpNode as Node<FullNodeTypesAdapter<OpNode, TmpDB, Provider>>>::AddOns,
->;
-
-async fn launch(chain_spec: Arc<OpChainSpec>) -> eyre::Result<TestNode> {
-    let config = NodeConfig::test().map_chain(chain_spec).with_unused_ports();
-    let op_node = OpNode::default();
-    Ok(NodeBuilder::new(config)
-        .testing_node(Runtime::test())
-        .with_types::<OpNode>()
-        .with_components(op_node.components())
-        .with_add_ons(op_node.add_ons())
-        .launch()
-        .await?
-        .node)
-}
-
 /// Launches a node on `chain_spec`, checks that every invalid case is rejected at FCU, then builds
 /// `valid` and a sibling of it, making both canonical in turn, and finally a deposits-only child.
 async fn run(
@@ -137,7 +118,9 @@ async fn run(
 ) -> eyre::Result<()> {
     let jovian = chain_spec.is_jovian_active_at_timestamp(chain_spec.genesis_header().timestamp);
     let genesis = chain_spec.genesis_header().clone();
-    let node = launch(chain_spec.clone()).await?;
+    let datadir = TempDir::new()?;
+    let config = NodeConfig::test().map_chain(chain_spec.clone()).with_unused_ports();
+    let node = launch(config, Runtime::test(), &datadir, OpNode::default()).await?.node;
     let client = node.auth_server_handle().http_client();
     let memory = node.provider.canonical_in_memory_state();
     let genesis_head = ForkchoiceState::same_hash(chain_spec.genesis_hash());

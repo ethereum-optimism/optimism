@@ -5053,6 +5053,7 @@ dependencies = [
  "futures",
  "reth-ethereum",
  "reth-op",
+ "reth-optimism-node-launcher",
  "reth-tracing",
  "tokio",
 ]
@@ -9940,6 +9941,7 @@ dependencies = [
  "reth-optimism-evm",
  "reth-optimism-forks",
  "reth-optimism-node",
+ "reth-optimism-node-launcher",
  "reth-optimism-payload-builder",
  "reth-optimism-primitives",
  "reth-optimism-rpc",
@@ -14082,6 +14084,7 @@ dependencies = [
  "reth-optimism-exex",
  "reth-optimism-forks",
  "reth-optimism-node",
+ "reth-optimism-node-launcher",
  "reth-optimism-payload-builder",
  "reth-optimism-primitives",
  "reth-optimism-rpc",
@@ -14108,8 +14111,21 @@ dependencies = [
  "reth-trie-db",
  "revm",
  "serde_json",
+ "tempfile",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "reth-optimism-node-launcher"
+version = "2.0.0"
+dependencies = [
+ "eyre",
+ "futures-util",
+ "reth-db",
+ "reth-node-builder",
+ "reth-optimism-chainspec",
+ "reth-optimism-node",
 ]
 
 [[package]]

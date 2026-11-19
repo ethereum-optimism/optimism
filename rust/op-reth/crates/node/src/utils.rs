@@ -3,10 +3,10 @@ use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use reth_e2e_test_utils::{
-    E2ETestSetupBuilder, NodeHelperType, TmpDB, transaction::TransactionTestContext, wallet::Wallet,
+    NodeHelperType, TmpDB, transaction::TransactionTestContext, wallet::Wallet,
 };
 use reth_node_api::NodeTypesWithDBAdapter;
-use reth_optimism_chainspec::OpChainSpecBuilder;
+use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_payload_builder::OpPayloadAttrs;
 use reth_provider::providers::BlockchainProvider;
 use std::sync::Arc;
@@ -16,19 +16,15 @@ use tokio::sync::Mutex;
 pub(crate) type OpNode =
     NodeHelperType<OtherOpNode, BlockchainProvider<NodeTypesWithDBAdapter<OtherOpNode, TmpDB>>>;
 
-/// Creates the initial setup with `num_nodes` of the node config, started and connected.
-pub async fn setup(num_nodes: usize) -> eyre::Result<(Vec<OpNode>, Wallet)> {
+/// The chain this package's tests launch nodes on: OP Sepolia with the test genesis and Ecotone
+/// active.
+///
+/// The tests launch the nodes themselves, for example with `E2ETestSetupBuilder`: a launch in this
+/// crate would make the crate compile reth's launch stack.
+pub fn chain_spec() -> Arc<OpChainSpec> {
     let genesis: Genesis =
         serde_json::from_str(include_str!("../tests/assets/genesis.json")).unwrap();
-    E2ETestSetupBuilder::new(
-        num_nodes,
-        Arc::new(
-            OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build(),
-        ),
-    )
-    .with_attributes_generator(optimism_payload_attributes)
-    .build()
-    .await
+    Arc::new(OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build())
 }
 
 /// Advance the chain with sequential payloads returning them in the end.

@@ -1,10 +1,12 @@
 //! Malformed post-exec (0x7d) blocks must be INVALID, not fatal, on both engine paths ([SDM-M1]).
 //!
 //! Cover both a 0x7d before Lagoon and a wrong block-number anchor with Lagoon active.
-//! The shared [`setup`] stays Ecotone-only; [`setup_lagoon`] supplies the later fork attributes.
+//! The shared [`setup`](crate::launcher::setup) stays Ecotone-only; [`setup_lagoon`] supplies the
+//! later fork attributes.
 //!
 //! [SDM-M1]: https://github.com/ethereum-optimism/protocol-team/issues/371
 
+use crate::launcher::setup;
 use alloy_consensus::{Sealable, proofs::calculate_transaction_root};
 use alloy_rpc_types_engine::{PayloadStatus, PayloadStatusEnum, PayloadValidationError};
 use alloy_rpc_types_eth::TransactionRequest;
@@ -13,11 +15,7 @@ use jsonrpsee::core::ClientError;
 use op_alloy_consensus::{PostExecPayloadValidationError, SDMGasEntry, build_post_exec_tx};
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
 use reth_e2e_test_utils::{E2ETestSetupBuilder, NodeHelperType, wallet::Wallet};
-use reth_optimism_node::{
-    OpBuiltPayload, OpNode,
-    payload::OpExecData,
-    utils::{advance_chain, setup},
-};
+use reth_optimism_node::{OpBuiltPayload, OpNode, payload::OpExecData, utils::advance_chain};
 use reth_optimism_primitives::OpTransactionSigned;
 use reth_rpc_api::clients::DebugApiClient;
 use std::{sync::Arc, time::Duration};

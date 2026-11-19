@@ -1,8 +1,11 @@
 //! A sequenced Lagoon block with SDM refunds and the RPC accessors the family tests share.
 
-use crate::lagoon::{
-    self, TRANSFER_GAS, http_client, launch_node, prestate_tracer, sdm_rollup_args,
-    signed_transaction,
+use crate::{
+    lagoon::{
+        self, TRANSFER_GAS, http_client, launch_node, prestate_tracer, sdm_rollup_args,
+        signed_transaction,
+    },
+    launcher::TestContext,
 };
 use alloy_consensus::{BlockHeader, TxReceipt};
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
@@ -16,12 +19,12 @@ use alloy_rpc_types_trace::{
 };
 use jsonrpsee::{http_client::HttpClient, ws_client::WsClient};
 use reth_chainspec::EthChainSpec;
-use reth_e2e_test_utils::{NodeHelperType, wallet::Wallet};
-use reth_optimism_node::OpNode;
+use reth_e2e_test_utils::wallet::Wallet;
 use reth_optimism_payload_builder::OpBuiltPayload;
 use reth_optimism_primitives::OpTransactionSigned;
 use reth_provider::{ReceiptProvider, StateProviderFactory};
 use reth_rpc_api::clients::DebugApiClient;
+use tempfile::TempDir;
 
 /// Index of the post-exec transaction in a [`SettledBlock`]; the regular transactions precede it.
 pub(super) const POST_EXEC_INDEX: usize = 4;
@@ -46,7 +49,9 @@ pub(super) const REVERT_OUTPUT: U256 = U256::from_limbs([42, 0, 0, 0]);
 /// (refunded) and a deployment whose init code reverts with [`REVERT_OUTPUT`].
 pub(super) struct SettledBlock {
     client: HttpClient,
-    pub(super) node: NodeHelperType<OpNode>,
+    pub(super) node: TestContext,
+    /// The node's data directory, removed once the node is dropped.
+    _datadir: TempDir,
     pub(super) payload: OpBuiltPayload,
     pub(super) sender: Address,
 }
@@ -54,7 +59,8 @@ pub(super) struct SettledBlock {
 impl SettledBlock {
     pub(super) async fn sequence() -> eyre::Result<Self> {
         let chain_spec = lagoon::chain_spec()?;
-        let mut node = launch_node(&chain_spec, sdm_rollup_args()).await?;
+        let datadir = TempDir::new()?;
+        let mut node = launch_node(&chain_spec, sdm_rollup_args(), &datadir).await?;
         let client = http_client(&node);
         let wallet = Wallet::default().with_chain_id(chain_spec.chain_id());
         let sender = wallet.inner.address();
@@ -78,7 +84,7 @@ impl SettledBlock {
         }
         let payload = node.advance_block().await?;
 
-        let fixture = Self { client, node, payload, sender };
+        let fixture = Self { client, node, _datadir: datadir, payload, sender };
         let transactions = fixture.transactions();
         assert_eq!(
             transactions.len(),
