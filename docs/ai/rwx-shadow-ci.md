@@ -18,11 +18,15 @@ Like CircleCI, RWX runs on every branch push, so a PR from a branch of this
 repository gets RWX's optional checks next to CircleCI's. A new push to a branch
 cancels the older RWX run on that branch; `develop` runs every commit.
 
-Fork PRs cannot push to this repository, so they never start a run. CircleCI
-runs them only after a maintainer comments `/ci authorize`; RWX has no
-equivalent, so fork PRs get no RWX checks. Never push a commit you have not
-reviewed, such as a fork PR's head, to a branch of this repository: RWX runs it
-with that branch's vault access.
+A fork PR cannot push to this repository, so it starts no run by itself. When a
+maintainer comments `/ci authorize`, bailiff pushes the authorized commit to an
+`external-fork/<hash>` branch of this repository (see
+`ops/book/src/ci/pr-authorization.md`). That is a branch push. It starts an RWX
+run next to CircleCI's, and the run can read the test vault. Before you
+authorize a fork PR, review its changes under `.rwx/` and `ops/ci/` as you
+review `.circleci/`: RWX reads its definitions from the pushed commit, so those
+files decide what runs with that access. Push no other unreviewed commit to a
+branch of this repository.
 
 RWX reads the definitions from the pushed commit. A trigger change therefore
 takes effect for the next push that contains it.
@@ -64,7 +68,10 @@ data and policy (`.circleci/routing.yml`,
 `.circleci/scripts/compute-workflow-conditions.sh`), which it runs read-only.
 RWX adds one rule: a change under `.rwx/` or `ops/ci/`, or an uncommitted change
 uploaded by `rwx run`, selects every workload. On `develop` every workload runs,
-as on CircleCI.
+as on CircleCI. There the route task fails if the policy leaves one of the four
+shadowed workflows out: a flag that CircleCI renamed would otherwise read as
+"not selected" on every branch, and each receipt would pass with its tasks
+skipped.
 
 RWX compares every branch with `develop`. CircleCI compares a PR with its target
 branch. The two providers therefore select the same workloads for a PR into
