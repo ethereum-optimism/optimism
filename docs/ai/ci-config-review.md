@@ -32,6 +32,13 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   `required-rust-e2e`. These are fan-in jobs (no work, just `requires:`). A merge
   is gated *only* by what they transitively require; anything outside their
   `requires:` chain can fail without blocking merge. Gates use `utils/ci-gate`.
+  Release branches (`proposal/**`) run the same workflows but their ruleset
+  requires only `ci-gate-proposals` and `required-contracts-ci`.
+  `ci-gate-proposals` fans in on the `main` jobs that validate op-contracts and
+  op-deployer, and `ci-gate` requires it, so a job added there gates both
+  branches; every other job still runs on a release branch without blocking it.
+  A required check must be produced on every routing path, so `ci-gate-skip`
+  emits both `ci-gate` and `ci-gate-proposals`.
 - **Continuation limits**: a setup pipeline continues exactly once, within 6h, no
   setup→setup. A param declared in both `config.yml` and a fragment with
   different defaults fails with "Conflicting pipeline parameters".
