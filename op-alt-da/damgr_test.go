@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -201,13 +202,13 @@ type mockL1Fetcher struct {
 	mock.Mock
 }
 
-func (m *mockL1Fetcher) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
+func (m *mockL1Fetcher) InfoAndRawTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []hexutil.Bytes, error) {
 	out := m.Mock.Called(hash)
-	return out.Get(0).(eth.BlockInfo), out.Get(1).(types.Transactions), out.Error(2)
+	return out.Get(0).(eth.BlockInfo), out.Get(1).([]hexutil.Bytes), out.Error(2)
 }
 
-func (m *mockL1Fetcher) ExpectInfoAndTxsByHash(hash common.Hash, info eth.BlockInfo, transactions types.Transactions, err error) {
-	m.Mock.On("InfoAndTxsByHash", hash).Once().Return(info, transactions, err)
+func (m *mockL1Fetcher) ExpectInfoAndRawTxsByHash(hash common.Hash, info eth.BlockInfo, transactions []hexutil.Bytes, err error) {
+	m.Mock.On("InfoAndRawTxsByHash", hash).Once().Return(info, transactions, err)
 }
 
 func (m *mockL1Fetcher) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {

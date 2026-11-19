@@ -152,9 +152,9 @@ func TestAltDADataSource(t *testing.T) {
 
 		}
 		logger.Info("included commitments", "count", c)
-		l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
+		l1F.ExpectInfoAndRawTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), encodeTxs(t, txs), nil)
 		// called once per derivation
-		l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
+		l1F.ExpectInfoAndRawTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), encodeTxs(t, txs), nil)
 
 		if ref.Number == 2 {
 			l1F.ExpectL1BlockRefByNumber(ref.Number, ref, nil)
@@ -254,7 +254,7 @@ func TestAltDADataSource(t *testing.T) {
 
 			}
 			logger.Info("included commitments", "count", c)
-			l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
+			l1F.ExpectInfoAndRawTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), encodeTxs(t, txs), nil)
 		}
 
 		// create a new data source for each block
@@ -372,7 +372,7 @@ func TestAltDADataSourceStall(t *testing.T) {
 
 	txs := []*types.Transaction{tx}
 
-	l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
+	l1F.ExpectInfoAndRawTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), encodeTxs(t, txs), nil)
 
 	// delete the input from the DA provider so it returns not found
 	require.NoError(t, storage.DeleteData(comm.Encode()))
@@ -526,7 +526,7 @@ func TestAltDADataSourceInvalidData(t *testing.T) {
 
 	txs := []*types.Transaction{tx1, tx2, tx3}
 
-	l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
+	l1F.ExpectInfoAndRawTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), encodeTxs(t, txs), nil)
 
 	src, err := factory.OpenData(ctx, ref, batcherAddr)
 	require.NoError(t, err)

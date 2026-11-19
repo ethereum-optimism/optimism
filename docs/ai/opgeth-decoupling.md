@@ -346,7 +346,12 @@ shedding. Instead, partition the `apis.EthClient` accessors by tx class:
   accessor when a consumer (e.g. a rebate checker) first needs to read the trailing `0x7D` tx
   off a block.
 
-`InfoAndTxsBy*` stays as-is for **L1**. Internally `RPCBlock` keeps txs as raw per-tx bytes: the
+`InfoAndTxsBy*` stays as-is for **L1** reads that can only meet Ethereum blocks. Derivation is
+not one of them: an L3's L1 is an OP Stack chain, whose every block starts with an L1-info
+deposit. The data sources and the alt-DA manager therefore read L1 blocks with
+`InfoAndRawTxsByHash` (canonical bytes in block order) and decode each transaction by its class:
+a deposit with `op-core/types`, which can be a batcher transaction when it is sent to the batch
+inbox from the batcher address, and a post-exec transaction, which never is. Internally `RPCBlock` keeps txs as raw per-tx bytes: the
 transactions-trie root is recomputed directly from those bytes (a typed tx's trie leaf *is* its
 opaque encoding), synthetic-tx detection is a type-byte check, and each class decodes on demand.
 `sources.L2Client` enforces the split: its `InfoAndTxsBy*` and `HeaderAndTxsByHash` check the raw

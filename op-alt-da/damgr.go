@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
@@ -38,7 +39,10 @@ var ErrInvalidChallenge = errors.New("invalid challenge")
 
 // L1Fetcher is the required interface for syncing the DA challenge contract state.
 type L1Fetcher interface {
-	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	// InfoAndRawTxsByHash returns the block's transactions in their EIP-2718 encoding, in block
+	// order: the L1 can be an OP Stack chain, whose deposit and post-exec transactions
+	// upstream go-ethereum cannot decode.
+	InfoAndRawTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []hexutil.Bytes, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
 }
@@ -357,28 +361,34 @@ func (d *DA) loadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.Bl
 		switch status {
 		case ChallengeResolved:
 			// cached with input resolution call so not expensive
-			_, txs, err := l1.InfoAndTxsByHash(ctx, block.Hash)
+			_, txs, err := l1.InfoAndRawTxsByHash(ctx, block.Hash)
 			if err != nil {
 				d.log.Error("failed to fetch l1 block", "block", block.Number, "err", err)
 				continue
 			}
 			// avoid panic in black swan case of faulty rpc
 			if uint(len(txs)) <= i {
-				d.log.Error("tx/receipt mismatch in InfoAndTxsByHash")
+				d.log.Error("tx/receipt mismatch in InfoAndRawTxsByHash")
 				continue
 			}
 			// select the transaction corresponding to the receipt
 			tx := txs[i]
 			// txs and receipts must be in the same order
-			if tx.Hash() != log.TxHash {
-				d.log.Error("tx hash mismatch", "block", block.Number, "txIdx", i, "log", log.Index, "txHash", tx.Hash(), "receiptTxHash", log.TxHash)
+			txHash := crypto.Keccak256Hash(tx)
+			if txHash != log.TxHash {
+				d.log.Error("tx hash mismatch", "block", block.Number, "txIdx", i, "log", log.Index, "txHash", txHash, "receiptTxHash", log.TxHash)
 				continue
 			}
 
 			var input []byte
 			if d.cfg.CommitmentType == Keccak256CommitmentType {
+				data, err := txCalldata(tx)
+				if err != nil {
+					d.log.Error("failed to decode resolver tx", "block", block.Number, "txIdx", i, "err", err)
+					continue
+				}
 				// Decode the input from resolver tx calldata
-				input, err = DecodeResolvedInput(tx.Data())
+				input, err = DecodeResolvedInput(data)
 				if err != nil {
 					d.log.Error("failed to decode resolved input", "block", block.Number, "txIdx", i, "err", err)
 					continue
@@ -480,6 +490,32 @@ func DecodeChallengeStatusEvent(log *types.Log) (*bindings.DataAvailabilityChall
 		return nil, err
 	}
 	return &event, nil
+}
+
+// txCalldata returns the input data of a transaction given in its EIP-2718 encoding. On an OP
+// Stack L1 the transaction can be a deposit or post-exec transaction, which upstream go-ethereum
+// cannot decode.
+func txCalldata(raw []byte) ([]byte, error) {
+	switch {
+	case optypes.IsDepositTxBytes(raw):
+		dep, err := optypes.UnmarshalDepositTx(raw)
+		if err != nil {
+			return nil, err
+		}
+		return dep.Data, nil
+	case optypes.IsPostExecTxBytes(raw):
+		p, err := optypes.UnmarshalPostExecTx(raw)
+		if err != nil {
+			return nil, err
+		}
+		return p.Data, nil
+	default:
+		var tx types.Transaction
+		if err := tx.UnmarshalBinary(raw); err != nil {
+			return nil, err
+		}
+		return tx.Data(), nil
+	}
 }
 
 // DecodeResolvedInput decodes the preimage bytes from the tx input data.

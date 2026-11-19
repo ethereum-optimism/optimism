@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,7 +21,7 @@ type L1Fetcher interface {
 	L1BlockRefByHash(context.Context, common.Hash) (eth.L1BlockRef, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
-	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	InfoAndRawTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []hexutil.Bytes, error)
 }
 
 type MeteredL1Fetcher struct {
@@ -59,9 +59,9 @@ func (m *MeteredL1Fetcher) InfoByHash(ctx context.Context, hash common.Hash) (et
 	return m.inner.InfoByHash(ctx, hash)
 }
 
-func (m *MeteredL1Fetcher) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	defer m.recordTime("InfoAndTxsByHash")()
-	return m.inner.InfoAndTxsByHash(ctx, hash)
+func (m *MeteredL1Fetcher) InfoAndRawTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []hexutil.Bytes, error) {
+	defer m.recordTime("InfoAndRawTxsByHash")()
+	return m.inner.InfoAndRawTxsByHash(ctx, hash)
 }
 
 func (m *MeteredL1Fetcher) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {

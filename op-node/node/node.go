@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	gosync "sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethevent "github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -46,27 +46,6 @@ import (
 
 var ErrAlreadyClosed = errors.New("node is already closed")
 
-// L1Client is the interface that op-node uses to interact with L1.
-// This allows wrapped or mocked clients to be used
-type L1Client interface {
-	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
-	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
-	L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error)
-	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
-	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
-	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
-	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
-	InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error)
-	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
-	GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error)
-	GetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string) (common.Hash, error)
-	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
-	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
-	ChainID(ctx context.Context) (*big.Int, error)
-	Close()
-}
-
 type closableSafeDB interface {
 	rollup.SafeHeadListener
 	SafeDBReader
@@ -81,7 +60,7 @@ type L1Source interface {
 	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
 	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
-	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	InfoAndRawTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []hexutil.Bytes, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
 	Close()
 }

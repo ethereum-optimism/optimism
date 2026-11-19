@@ -5,7 +5,9 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
@@ -19,7 +21,10 @@ type DataIter interface {
 }
 
 type L1TransactionFetcher interface {
-	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	// InfoAndRawTxsByHash returns the block's transactions in their EIP-2718 encoding, in block
+	// order. The L1 of a chain can itself be an OP Stack chain, whose blocks hold deposit and
+	// post-exec transactions that upstream go-ethereum cannot decode.
+	InfoAndRawTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []hexutil.Bytes, error)
 }
 
 type L1BlobsFetcher interface {
@@ -93,13 +98,56 @@ type DataSourceConfig struct {
 	altDAEnabled      bool
 }
 
+// batcherTx is a valid batcher transaction of an L1 block.
+type batcherTx struct {
+	// tx is the transaction if it is a standard Ethereum transaction, and nil for a deposit.
+	tx *types.Transaction
+	// calldata is the transaction's input data.
+	calldata eth.Data
+}
+
+// batcherTxs decodes the transactions of an L1 block, given in their EIP-2718 encoding, and
+// returns its valid batcher transactions in block order. A standard Ethereum transaction is
+// decoded with go-ethereum and checked by isValidBatchTx. When the L1 is an OP Stack chain, it
+// also holds deposits, which batch submission can use to force-include a batcher transaction, and
+// post-exec transactions, which are never batcher transactions. A transaction that does not decode
+// fails the whole block.
+func batcherTxs(rawTxs []hexutil.Bytes, dsCfg *DataSourceConfig, batcherAddr common.Address, logger log.Logger) ([]batcherTx, error) {
+	var out []batcherTx
+	for i, raw := range rawTxs {
+		switch {
+		case optypes.IsDepositTxBytes(raw):
+			dep, err := optypes.UnmarshalDepositTx(raw)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode deposit tx %d: %w", i, err)
+			}
+			if isValidDepositBatchTx(dep, raw, dsCfg.batchInboxAddress, batcherAddr, logger) {
+				out = append(out, batcherTx{calldata: dep.Data})
+			}
+		case optypes.IsPostExecTxBytes(raw):
+			if _, err := optypes.UnmarshalPostExecTx(raw); err != nil {
+				return nil, fmt.Errorf("failed to decode post-exec tx %d: %w", i, err)
+			}
+		default:
+			tx := new(types.Transaction)
+			if err := tx.UnmarshalBinary(raw); err != nil {
+				return nil, fmt.Errorf("failed to decode tx %d: %w", i, err)
+			}
+			if isValidBatchTx(tx, dsCfg.l1Signer, dsCfg.batchInboxAddress, batcherAddr, logger) {
+				out = append(out, batcherTx{tx: tx, calldata: tx.Data()})
+			}
+		}
+	}
+	return out, nil
+}
+
 // isValidBatchTx returns true if:
-//  1. the transaction type is any of Legacy, ACL, DynamicFee, Blob, or Deposit (for L3s).
+//  1. the transaction type is any of Legacy, ACL, DynamicFee, or Blob,
 //  2. the transaction has a To() address that matches the batch inbox address, and
 //  3. the transaction has a valid signature from the batcher address
 func isValidBatchTx(tx *types.Transaction, l1Signer types.Signer, batchInboxAddr, batcherAddr common.Address, logger log.Logger) bool {
 	// For now, we want to disallow the SetCodeTx type or any future types.
-	if tx.Type() > types.BlobTxType && tx.Type() != optypes.DepositTxType {
+	if tx.Type() > types.BlobTxType {
 		return false
 	}
 
@@ -115,6 +163,20 @@ func isValidBatchTx(tx *types.Transaction, l1Signer types.Signer, batchInboxAddr
 	// some random L1 user might have sent a transaction to our batch inbox, ignore them
 	if seqDataSubmitter != batcherAddr {
 		logger.Warn("tx in inbox with unauthorized submitter", "addr", seqDataSubmitter, "hash", tx.Hash(), "err", err)
+		return false
+	}
+	return true
+}
+
+// isValidDepositBatchTx returns true if the deposit, with EIP-2718 encoding raw, is sent to the
+// batch inbox address from the batcher address. A deposit carries its sender instead of a
+// signature.
+func isValidDepositBatchTx(dep *optypes.DepositTx, raw []byte, batchInboxAddr, batcherAddr common.Address, logger log.Logger) bool {
+	if dep.To == nil || *dep.To != batchInboxAddr {
+		return false
+	}
+	if dep.From != batcherAddr {
+		logger.Warn("tx in inbox with unauthorized submitter", "addr", dep.From, "hash", crypto.Keccak256Hash(raw))
 		return false
 	}
 	return true

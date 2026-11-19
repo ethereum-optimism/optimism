@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -41,6 +42,18 @@ func (tx *testTx) Create(t *testing.T, signer types.Signer, rng *rand.Rand) *typ
 		Data:      testutils.RandomData(rng, tx.dataLen),
 	})
 	require.NoError(t, err)
+	return out
+}
+
+// encodeTxs returns the EIP-2718 encodings of txs.
+func encodeTxs(t *testing.T, txs []*types.Transaction) []hexutil.Bytes {
+	t.Helper()
+	out := make([]hexutil.Bytes, len(txs))
+	for i, tx := range txs {
+		raw, err := tx.MarshalBinary()
+		require.NoError(t, err)
+		out[i] = raw
+	}
 	return out
 }
 
@@ -121,7 +134,8 @@ func TestDataFromEVMTransactions(t *testing.T) {
 			}
 		}
 
-		out := DataFromEVMTransactions(DataSourceConfig{cfg.L1Signer(), cfg.BatchInboxAddress, false}, batcherAddr, txs, testlog.Logger(t, log.LevelCrit))
+		out, err := DataFromEVMTransactions(DataSourceConfig{cfg.L1Signer(), cfg.BatchInboxAddress, false}, batcherAddr, encodeTxs(t, txs), testlog.Logger(t, log.LevelCrit))
+		require.NoError(t, err)
 		require.ElementsMatch(t, expectedData, out)
 	}
 

@@ -27,7 +27,10 @@ blocks:
 1. **L1 block traversal**: for each L1 block, read the deposit transaction logs and the
    `SystemConfig` update logs (from the receipts), and collect the batcher transactions
    addressed to the batch inbox — their payload is either calldata or blobs depending on the
-   chain's data-availability mode.
+   chain's data-availability mode. The L1 can itself be an OP Stack chain (an L3), so op-node
+   reads an L1 block's transactions as EIP-2718 bytes and decodes each by its class: a deposit
+   (`0x7E`) to the batch inbox from the batcher address is a batcher transaction too, and a
+   post-exec transaction (`0x7D`) never is.
 2. **Frame extraction**: parse the batcher transactions into frames.
 3. **Channel assembly**: assemble frames into channels (a channel may span multiple frames and
    multiple L1 blocks).

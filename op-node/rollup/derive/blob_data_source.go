@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -78,7 +79,7 @@ func (ds *BlobDataSource) Next(ctx context.Context) (eth.Data, error) {
 // transactions are found. It returns ResetError if it cannot find the referenced block or a
 // referenced blob, or TemporaryError for any other failure to fetch a block or blob.
 func (ds *BlobDataSource) open(ctx context.Context) ([]blobOrCalldata, error) {
-	_, txs, err := ds.fetcher.InfoAndTxsByHash(ctx, ds.ref.Hash)
+	_, txs, err := ds.fetcher.InfoAndRawTxsByHash(ctx, ds.ref.Hash)
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
 			return nil, NewResetError(fmt.Errorf("failed to open blob data source: %w", err))
@@ -86,7 +87,10 @@ func (ds *BlobDataSource) open(ctx context.Context) ([]blobOrCalldata, error) {
 		return nil, NewTemporaryError(fmt.Errorf("failed to open blob data source: %w", err))
 	}
 
-	data, hashes := dataAndHashesFromTxs(txs, &ds.dsCfg, ds.batcherAddr, ds.log)
+	data, hashes, err := dataAndHashesFromTxs(txs, &ds.dsCfg, ds.batcherAddr, ds.log)
+	if err != nil {
+		return nil, NewTemporaryError(fmt.Errorf("failed to open blob data source: %w", err))
+	}
 
 	if len(hashes) == 0 {
 		// there are no blobs to fetch so we can return immediately
@@ -112,33 +116,34 @@ func (ds *BlobDataSource) open(ctx context.Context) ([]blobOrCalldata, error) {
 	return data, nil
 }
 
-// dataAndHashesFromTxs extracts calldata and datahashes from the input transactions and returns them. It
-// creates a placeholder blobOrCalldata element for each returned blob hash that must be populated
-// by fillBlobPointers after blob bodies are retrieved.
-func dataAndHashesFromTxs(txs types.Transactions, config *DataSourceConfig, batcherAddr common.Address, logger log.Logger) ([]blobOrCalldata, []common.Hash) {
+// dataAndHashesFromTxs extracts calldata and datahashes from the input transactions, given in
+// their EIP-2718 encoding, and returns them. It creates a placeholder blobOrCalldata element for
+// each returned blob hash that must be populated by fillBlobPointers after blob bodies are
+// retrieved. It returns an error if a transaction does not decode.
+func dataAndHashesFromTxs(txs []hexutil.Bytes, config *DataSourceConfig, batcherAddr common.Address, logger log.Logger) ([]blobOrCalldata, []common.Hash, error) {
+	btxs, err := batcherTxs(txs, config, batcherAddr, logger)
+	if err != nil {
+		return nil, nil, err
+	}
 	data := []blobOrCalldata{}
 	var hashes []common.Hash
-	for _, tx := range txs {
-		// skip any non-batcher transactions
-		if !isValidBatchTx(tx, config.l1Signer, config.batchInboxAddress, batcherAddr, logger) {
-			continue
-		}
-		// handle non-blob batcher transactions by extracting their calldata
-		if tx.Type() != types.BlobTxType {
-			calldata := eth.Data(tx.Data())
+	for _, btx := range btxs {
+		// handle non-blob batcher transactions, deposits included, by extracting their calldata
+		if btx.tx == nil || btx.tx.Type() != types.BlobTxType {
+			calldata := btx.calldata
 			data = append(data, blobOrCalldata{nil, &calldata})
 			continue
 		}
 		// handle blob batcher transactions by extracting their blob hashes, ignoring any calldata.
-		if len(tx.Data()) > 0 {
-			log.Warn("blob tx has calldata, which will be ignored", "txhash", tx.Hash())
+		if len(btx.calldata) > 0 {
+			logger.Warn("blob tx has calldata, which will be ignored", "txhash", btx.tx.Hash())
 		}
-		for _, h := range tx.BlobHashes() {
+		for _, h := range btx.tx.BlobHashes() {
 			hashes = append(hashes, h)
 			data = append(data, blobOrCalldata{nil, nil}) // will fill in blob pointers after we download them below
 		}
 	}
-	return data, hashes
+	return data, hashes, nil
 }
 
 // fillBlobPointers goes back through the data array and fills in the pointers to the fetched blob

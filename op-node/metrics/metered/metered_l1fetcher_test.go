@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -70,14 +70,12 @@ func TestDurationRecorded(t *testing.T) {
 			},
 		},
 		{
-			method: "InfoAndTxsByHash",
+			method: "InfoAndRawTxsByHash",
 			call: func(t *testing.T, fetcher *MeteredL1Fetcher, inner *testutils.MockL1Source) {
-				txs := types.Transactions{
-					&types.Transaction{},
-				}
-				inner.ExpectInfoAndTxsByHash(hash, info, txs, expectedErr)
+				txs := []hexutil.Bytes{{0x7e, 0x01}}
+				inner.ExpectInfoAndRawTxsByHash(hash, info, txs, expectedErr)
 
-				actualInfo, actualTxs, err := fetcher.InfoAndTxsByHash(context.Background(), hash)
+				actualInfo, actualTxs, err := fetcher.InfoAndRawTxsByHash(context.Background(), hash)
 				require.Equal(t, info, actualInfo)
 				require.Equal(t, txs, actualTxs)
 				require.Equal(t, expectedErr, err)
