@@ -76,7 +76,7 @@ func newInteropMigrationState(wb *worldBuilder) *interopMigrationState {
 	return state
 }
 
-func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool, localContractArtifactsPath string, anchorGameType *gameTypes.GameType, startL1 func(*L1Network) (*L1Geth, *L1CLNode), deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, coredepset.DependencySet) {
+func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool, localContractArtifactsPath string, anchorGameType *gameTypes.GameType, startL1 func(*L1Network) (*L1Geth, *L1CLNode), deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, *coredepset.StaticConfigDependencySet) {
 	wb := newWorldBuilder(t, keys)
 	wb.genesisAnchorGameType = anchorGameType
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
@@ -102,9 +102,6 @@ func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
 	}
-	var depSet coredepset.DependencySet
-	if wb.output.InteropDepSet != nil {
-		depSet = wb.output.InteropDepSet
-	}
-	return newInteropMigrationState(wb), l1Net, l2Net, depSet
+	t.Require().NotNil(wb.output.InteropDepSet, "op-deployer must generate the interop dependency set")
+	return newInteropMigrationState(wb), l1Net, l2Net, wb.output.InteropDepSet
 }
