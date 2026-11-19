@@ -191,8 +191,9 @@ organization can start has 16 CPUs.
 - **Floors.** More shards do not shorten the main gate: one acceptance test,
   `TestExecuteStep_CannonKona`, runs for six minutes, after each shard has
   listed the tests for one minute. The four longest Go test packages each have
-  a shard to themselves. The contracts gate waits for the L2 fork compile and
-  then for the paced fork tests.
+  a shard to themselves. After a change to a compile input, the contracts gate
+  waits for the L2 fork compile, nine minutes in one solc process, and then for
+  the paced fork tests. After any other change it waits for the tests only.
 
 ## Known differences from CircleCI
 
