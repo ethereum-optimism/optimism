@@ -10,14 +10,13 @@ pub(crate) use precompiles::execute;
 /// Connects to the RPC endpoint at `url` over HTTP, websocket or IPC.
 ///
 /// Uses Reqwest explicitly for HTTP while preserving the configured websocket and IPC transports.
-/// Websocket messages and frames have no size limit, to match HTTP.
+/// Websocket connections use [`ws_config`].
 pub async fn connect<N: Network>(url: &str) -> TransportResult<RootProvider<N>> {
     let connection = url.parse::<BuiltInConnectionString>()?;
     if let BuiltInConnectionString::Http(url) = connection {
         return Ok(RootProvider::new_http(url));
     }
-    let ws_config = WebSocketConfig::default().max_message_size(None).max_frame_size(None);
-    let config = ConnectionConfig::new().with_ws_config(ws_config);
+    let config = ConnectionConfig::new().with_ws_config(ws_config());
     let transport = connection.connect_boxed_with(config).await?;
     Ok(RootProvider::new(ClientBuilder::default().transport(transport, connection.is_local())))
 }
@@ -25,6 +24,11 @@ pub async fn connect<N: Network>(url: &str) -> TransportResult<RootProvider<N>> 
 /// Returns an RPC provider for the given URL, as [`connect`] does. Panics if it can't connect.
 pub async fn rpc_provider<N: Network>(url: &str) -> RootProvider<N> {
     connect(url).await.unwrap()
+}
+
+/// The websocket settings of [`connect`]: messages and frames have no size limit, to match HTTP.
+fn ws_config() -> WebSocketConfig {
+    WebSocketConfig::default().max_message_size(None).max_frame_size(None)
 }
 
 #[cfg(test)]
@@ -42,6 +46,13 @@ mod tests {
     /// How long a call in these tests may take. A local call in them takes well under a second.
     const CALL_DEADLINE: Duration = Duration::from_secs(30);
 
+    /// The size of the response in [`large_responses_arrive_over_http_and_websocket`]: just above
+    /// tungstenite's default message size, the larger of the two limits that [`ws_config`]
+    /// removes.
+    fn response_size() -> usize {
+        WebSocketConfig::default().max_message_size.unwrap() + (1 << 20)
+    }
+
     /// Serves `test_large` over HTTP and websocket on one address, answering with `size / 2` zero
     /// bytes, which hex encodes to `size` bytes. Returns the address, and the handle that keeps
     /// the server running.
@@ -55,15 +66,17 @@ mod tests {
         (addr, server.start(module))
     }
 
+    #[test]
+    fn websocket_messages_and_frames_have_no_size_limit() {
+        let config = ws_config();
+        assert_eq!(config.max_message_size, None);
+        assert_eq!(config.max_frame_size, None);
+    }
+
     #[rstest]
-    // Sizes just above the websocket limits that `connect` lifts: tungstenite's defaults.
-    #[case::above_frame_limit(WebSocketConfig::default().max_frame_size.unwrap() + (1 << 20))]
-    #[case::above_message_limit(WebSocketConfig::default().max_message_size.unwrap() + (8 << 20))]
     #[tokio::test]
-    async fn large_responses_arrive_over_http_and_websocket(
-        #[case] size: usize,
-        #[values("http", "ws")] scheme: &str,
-    ) {
+    async fn large_responses_arrive_over_http_and_websocket(#[values("http", "ws")] scheme: &str) {
+        let size = response_size();
         let (addr, _server) = large_response_server(size).await;
         let provider = rpc_provider::<Ethereum>(&format!("{scheme}://{addr}")).await;
         // Subscriptions stay available over websocket.

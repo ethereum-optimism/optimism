@@ -670,8 +670,10 @@ mod tests {
         assert!(rendered.contains(&timeout), "missing {timeout} in:\n{rendered}");
     }
 
-    /// Size in bytes of the response in [`large_responses_arrive_whole`].
-    const LARGE_RESPONSE: usize = 72 << 20;
+    /// Size in bytes of the response in [`large_responses_arrive_whole`]: just above 64 MiB,
+    /// tungstenite's default websocket message limit, which kona-host's websocket connections
+    /// remove.
+    const LARGE_RESPONSE: usize = 65 << 20;
 
     /// Serves `test_large` over HTTP, answering with `size / 2` zero bytes, which hex encodes to
     /// `size` bytes. Returns the URL, and the handle that keeps the server running.
