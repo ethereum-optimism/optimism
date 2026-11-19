@@ -8029,6 +8029,7 @@ dependencies = [
  "base64 0.22.1",
  "derive_more 2.1.1",
  "http-body-util",
+ "jsonrpsee",
  "jsonrpsee-types",
  "metrics",
  "metrics-exporter-prometheus",
