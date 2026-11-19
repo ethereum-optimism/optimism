@@ -140,6 +140,16 @@ func (txs RawTransactions) Hashes() []common.Hash {
 	return out
 }
 
+// Bytes returns the transactions' canonical encodings, sharing their backing
+// arrays with txs.
+func (txs RawTransactions) Bytes() []hexutil.Bytes {
+	out := make([]hexutil.Bytes, len(txs))
+	for i, tx := range txs {
+		out[i] = hexutil.Bytes(tx)
+	}
+	return out
+}
+
 // Geth decodes all transactions into go-ethereum types.Transactions.
 //
 // Use the class-partitioned accessors instead for L2 blocks: they can contain

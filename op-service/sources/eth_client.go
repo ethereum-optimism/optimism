@@ -375,13 +375,28 @@ func (s *EthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.
 
 // InfoAndTxsByHash returns the block info and decoded go-ethereum
 // transactions. See HeaderAndTxsByHash for the L2 caveat — L2 block bodies
-// should be read via the class-partitioned accessors.
+// should be read via the class-partitioned accessors, and an L1 block that may
+// belong to an OP Stack chain via InfoAndRawTxsByHash.
 func (s *EthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
 	header, txs, err := s.HeaderAndTxsByHash(ctx, hash)
 	if err != nil {
 		return nil, nil, err
 	}
 	return eth.HeaderBlockInfoTrusted(hash, header), txs, nil
+}
+
+// InfoAndRawTxsByHash returns the block info and the block's transactions in
+// their canonical EIP-2718 encoding, in block order. It serves any block, as it
+// decodes no transaction: an L1 block of a chain whose L1 is an OP Stack chain
+// holds deposit (0x7E) and post-exec (0x7D) transactions, which upstream
+// go-ethereum cannot decode. The returned byte slices are shared with the
+// client's cache and must not be modified.
+func (s *EthClient) InfoAndRawTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []hexutil.Bytes, error) {
+	header, rawTxs, err := s.headerAndRawTxsByHash(ctx, hash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return eth.HeaderBlockInfoTrusted(hash, header), rawTxs.Bytes(), nil
 }
 
 // InfoAndTxsByNumber is InfoAndTxsByHash by block number; same L2 caveat.

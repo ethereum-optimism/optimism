@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -57,6 +58,15 @@ func (m *MockEthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) 
 
 func (m *MockEthClient) ExpectInfoAndTxsByHash(hash common.Hash, info eth.BlockInfo, transactions types.Transactions, err error) {
 	m.Mock.On("InfoAndTxsByHash", hash).Once().Return(info, transactions, err)
+}
+
+func (m *MockEthClient) InfoAndRawTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []hexutil.Bytes, error) {
+	out := m.Mock.Called(hash)
+	return out.Get(0).(eth.BlockInfo), out.Get(1).([]hexutil.Bytes), out.Error(2)
+}
+
+func (m *MockEthClient) ExpectInfoAndRawTxsByHash(hash common.Hash, info eth.BlockInfo, transactions []hexutil.Bytes, err error) {
+	m.Mock.On("InfoAndRawTxsByHash", hash).Once().Return(info, transactions, err)
 }
 
 func (m *MockEthClient) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error) {
