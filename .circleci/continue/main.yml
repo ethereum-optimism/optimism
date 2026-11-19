@@ -2676,19 +2676,39 @@ workflows:
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
+      # ci-gate-proposals: GitHub required status check for release branches
+      # (proposal/**), together with required-contracts-ci. Only op-contracts and
+      # op-deployer are released from those branches, so this gate fans in on
+      # the `main` jobs that validate them. ci-gate requires it, so develop is
+      # gated by the same jobs transitively. Every other job in `main` still runs
+      # on a release branch and reports on the PR, but does not block merging.
+      - ci-gate:
+          name: ci-gate-proposals
+          requires:
+            - go-tests: terminal
+            - check-nut-locks: terminal
+            - check-nut-prefork-states: terminal
+            - nut-provenance-verify: terminal
+            - op-deployer-forge-version: terminal
+          context:
+            - circleci-api-token
+          filters:
+            branches:
+              ignore: develop
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
       # To add a new mandatory check: add it to requires here. No GitHub ruleset changes needed.
+      # A check that must also gate release branches goes in ci-gate-proposals instead.
       - ci-gate:
           requires:
+            - ci-gate-proposals: terminal
             - check-kontrol-build: terminal
             - shell-check: terminal
             - shfmt-check: terminal
             - go-lint: terminal
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
-            - go-tests: terminal
             - go-actions-tests: terminal
             - memory-all-opn-op-reth-fusaka: terminal
             - memory-all-kona-op-reth-fusaka: terminal
@@ -2698,13 +2718,9 @@ workflows:
             - check-generated-mocks-op-node: terminal
             - check-generated-mocks-op-service: terminal
             # Misc checks that run on the merge queue.
-            - check-nut-locks: terminal
-            - check-nut-prefork-states: terminal
             - check-op-geth-version: terminal
             - opgeth-ratchet: terminal
-            - op-deployer-forge-version: terminal
             - l2-chains-sync-check: terminal
-            - nut-provenance-verify: terminal
           context:
             - circleci-api-token
           filters:
@@ -3123,14 +3139,20 @@ workflows:
 
   # ============================================================================
   # ci-gate (skip) — runs only on the docs-only fast path.
-  # Produces the ci-gate required status check with always-succeed so docs-only
-  # PRs (which skip the full `main` workflow) aren't blocked by a missing check.
-  # The real ci-gate still runs in `main` for every other path.
+  # Produces the ci-gate and ci-gate-proposals required status checks with
+  # always-succeed so docs-only PRs (which skip the full `main` workflow) aren't
+  # blocked by a missing check. The real gates still run in `main` for every
+  # other path.
   # ============================================================================
   ci-gate-skip:
     when: << pipeline.parameters.c-run_ci_gate_skip >>
     jobs:
       - ci-gate:
+          always-succeed: true
+          context:
+            - circleci-api-token
+      - ci-gate:
+          name: ci-gate-proposals
           always-succeed: true
           context:
             - circleci-api-token
