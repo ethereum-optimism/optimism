@@ -8,9 +8,18 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[3]
-# The files that a build reads. `.rwx` is not one of them: RWX's own cache key covers the
-# task definition, so a changed definition rebuilds from the same commit.
-COMMON = ['mise.toml', '.gitmodules', 'superchain-registry', 'justfile', 'justfiles', 'ops/ci/runtime',
+RUNTIME = 'ops/ci/runtime/'
+# The scripts that a dependency build runs, and the scripts that the Go compiler seeds run
+# as well. test_go_dependency_source.py fails when one of them reaches a script that is not
+# listed. RWX's own cache key covers the rest: the task definition in `.rwx`, and the tool
+# scripts through the tool tasks.
+BUILD_SCRIPTS = [RUNTIME + name for name in (
+    'go-artifacts.py', 'go-dependencies.sh', 'go-dependency-source.py', 'op-reth-report.py', 'op-reth-shadow.sh',
+    'rust-target-cache.py')]
+COMPILER_SCRIPTS = [RUNTIME + name for name in (
+    'go-compiled-tests.py', 'go-full-tests.sh', 'go-package-shards.py', 'go-report.py', 'go-suite.py', 'go-tests-timings.json')]
+# The files that every build reads.
+COMMON = ['mise.toml', '.gitmodules', 'superchain-registry', 'justfile', 'justfiles', *BUILD_SCRIPTS,
           'go.mod', 'go.sum', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc']
 RUST = ['rust', 'op-core/nuts/bundles', 'op-core/superchain']
 SCOPES = {
@@ -22,7 +31,7 @@ SCOPES = {
     'sp1-executor': COMMON + RUST,
     'prestate': COMMON + RUST + ['cannon', 'op-service', 'op-preimage', 'ops/scripts',
                                  'Dockerfile*', '.dockerignore'],
-    'compiler': COMMON + ['packages/contracts-bedrock', 'op-deployer/justfile',
+    'compiler': COMMON + COMPILER_SCRIPTS + ['packages/contracts-bedrock', 'op-deployer/justfile',
                            'op-deployer/pkg/deployer/artifacts', 'op-service/ioutil',
                            ':(glob)**/go.mod', ':(glob)**/go.sum'],
 }

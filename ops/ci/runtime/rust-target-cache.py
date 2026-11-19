@@ -12,6 +12,12 @@ import tempfile
 import time
 
 GENERATED_SOURCES = ('rust/op-reth/crates/chainspec/res/superchain-configs.tar',)
+# The scripts that the compiler baselines and their tool tasks run. test_go_dependency_source.py
+# fails when one of them reaches a script that is not listed.
+BASELINE_SCRIPTS = ('apt-install.sh', 'ci-report.py', 'op-reth-report.py', 'op-reth-shadow.sh',
+                    'rust-compiler-baseline.py', 'rust-dependencies.py', 'rust-target-cache.py',
+                    'rust-workspace-report.py', 'rust-workspace.sh', 'rwx-materialize-linker.py',
+                    'rwx-prepare.sh', 'rwx-rust-prepare.sh')
 
 
 def whole_seconds(mtime_ns):
@@ -62,10 +68,11 @@ def compiler_base(root):
     always overlay HEAD and run Cargo, which checks changed source dependencies.
     No compiler-cache writer permission is needed to reuse a task result.
     `.rwx` is not an input: RWX's own cache key covers the task definition.
+    Of ops/ci/runtime, only BASELINE_SCRIPTS are inputs.
     """
     paths = ['mise.toml', 'rust/Cargo.lock', ':(glob)rust/**/Cargo.toml',
              'rust/.cargo', 'rust/.config', 'rust/rust-toolchain.toml', 'rust/justfile',
-             'ops/ci/runtime',
+             *('ops/ci/runtime/' + name for name in BASELINE_SCRIPTS),
              'rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256']
     anchor = subprocess.check_output(['git', 'log', '-1', '--format=%H', 'HEAD', '--',
                                      *paths], cwd=root, text=True).strip()

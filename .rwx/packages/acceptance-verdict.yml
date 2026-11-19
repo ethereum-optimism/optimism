@@ -46,4 +46,6 @@ tasks:
         - key: logs
           path: op-acceptance-tests/logs
     # Keep the producer's module cache so tests do not refetch modules; exclude compiler state.
-    filter: ['!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies', '!.ci/go-cache/acceptance/run', '!.ci/rust-cache', '!rust/target', '!packages/contracts-bedrock/cache', '!packages/contracts-bedrock/artifacts', '!packages/contracts-bedrock/forge-artifacts', '!op-deployer/pkg/deployer/artifacts/forge-artifacts']
+    # Exclude no tracked file: go-artifacts.py restores a build of an older commit only into
+    # a checkout whose build inputs are unmodified.
+    filter: ['!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies', '!.ci/go-cache/acceptance/run', '!.ci/rust-cache', '!rust/target', '!packages/contracts-bedrock/cache', '!packages/contracts-bedrock/artifacts', '!packages/contracts-bedrock/forge-artifacts']

@@ -46,11 +46,13 @@ class RustTargetCacheTest(unittest.TestCase):
         commit('ordinary source edit')
         self.assertEqual(CACHE.compiler_base(self.root), initial)
         # RWX's own cache key covers a task definition, so a .rwx change keeps the anchor.
-        (self.root / '.rwx').mkdir()
-        (self.root / '.rwx/rust.yml').write_text('changed task definition')
-        commit('.rwx/rust.yml')
-        self.assertEqual(CACHE.compiler_base(self.root), initial)
-        for name in ('rust/Cargo.lock', 'rust/local/Cargo.toml', 'ops/ci/runtime/helper.py',
+        # So does a script that no baseline runs.
+        for name in ('.rwx/rust.yml', 'ops/ci/runtime/pr-gate.py'):
+            path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('not a baseline input')
+            commit(name)
+            self.assertEqual(CACHE.compiler_base(self.root), initial)
+        for name in ('rust/Cargo.lock', 'rust/local/Cargo.toml', 'ops/ci/runtime/rust-workspace.sh',
                      'rust/.cargo/config.toml'):
             path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('changed build input')

@@ -25,7 +25,7 @@ case "$part" in
     names="$(python3 -c 'import json, sys
 for package in json.load(sys.stdin)["packages"]:
     for target in package["targets"]:
-        if "bin" in target["kind"]: print(target["name"])' <<<"$metadata")"
+        if "bin" in target["kind"]: print(target["name"])' <<< "$metadata")"
     for name in $names; do
       case " ${runtime[*]} " in
         *" $name "*) ;;

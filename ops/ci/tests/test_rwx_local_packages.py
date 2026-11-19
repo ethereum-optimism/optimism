@@ -106,6 +106,10 @@ class LocalPackageTests(unittest.TestCase):
                           if '.ci/go-cache/full/modules'.startswith(rule.lstrip('!').rstrip('/'))])
         self.assertIn('!.ci/rust-cache', leaf['filter'])
         self.assertIn('!rust/target', leaf['filter'])
+        # The task does not reset its checkout, so each excluded path must hold no tracked file.
+        # A hidden tracked file is a modified build input to go-artifacts.py.
+        hidden = subprocess.check_output(['git', 'ls-files', '--', *(rule.lstrip('!') for rule in leaf['filter'])], cwd=ROOT, text=True)
+        self.assertEqual(hidden, '')
 
     def test_artifact_mounts_and_credentials_are_not_package_value_arguments(self):
         # Native RWX rejected an artifact expression in with even though lint
