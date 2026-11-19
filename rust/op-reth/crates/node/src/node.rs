@@ -27,11 +27,12 @@ use reth_node_api::{
     PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
-    BuilderContext, DebugNode, Node, NodeAdapter, NodeBuilder, NodeComponentsBuilder,
+    BuilderContext, DebugNode, DebugNodeLauncher, LaunchNode, Node, NodeAdapter, NodeBuilder,
+    NodeBuilderWithComponents, NodeComponentsBuilder, NodeHandle, RethFullAdapter,
     WithLaunchContext,
     components::{
-        ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
-        PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
+        Components, ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
+        PayloadBuilderBuilder, PayloadServiceBuilder, PoolBuilder, PoolBuilderConfigOverrides,
     },
     node::{FullNodeTypes, NodeTypes},
     rpc::{
@@ -200,18 +201,20 @@ pub struct OpNode {
     pub interop_failsafe: InteropFailsafe,
 }
 
-/// The component builder used by the stock node configuration.
+/// The component builder of an [`OpNode`], or of a [`CustomOpNode`] with the pool builder `Pool`
+/// and the payload service `Payload`.
 ///
 /// A caller that replaces the payload service through [`ComponentsBuilder::payload`] must wrap it
 /// in [`DerivedPayloadServiceBuilder`].
-pub type OpNodeComponentBuilder<Node> = ComponentsBuilder<
-    Node,
-    OpPoolBuilder,
-    DerivedPayloadServiceBuilder<OpPayloadServiceBuilder>,
-    OpNetworkBuilder,
-    OpExecutorBuilder,
-    OpConsensusBuilder,
->;
+pub type OpNodeComponentBuilder<Node, Pool = OpPoolBuilder, Payload = OpPayloadServiceBuilder> =
+    ComponentsBuilder<
+        Node,
+        Pool,
+        DerivedPayloadServiceBuilder<Payload>,
+        OpNetworkBuilder,
+        OpExecutorBuilder,
+        OpConsensusBuilder,
+    >;
 
 impl Default for OpNode {
     fn default() -> Self {
@@ -306,12 +309,36 @@ impl OpNode {
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
             .pool(self.standard_pool_builder())
-            .payload(DerivedPayloadServiceBuilder::new(OpPayloadServiceBuilder::new(
-                self.payload_builder(),
-                self.args.testing_sdm_fixed_policy,
-            )))
+            .payload(DerivedPayloadServiceBuilder::new(self.payload_service()))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
+    }
+
+    /// The payload service stock components install, before [`components`] wraps it in
+    /// [`DerivedPayloadServiceBuilder`].
+    ///
+    /// [`components`]: OpNode::components
+    pub fn payload_service(&self) -> OpPayloadServiceBuilder {
+        OpPayloadServiceBuilder::new(self.payload_builder(), self.args.testing_sdm_fixed_policy)
+    }
+
+    /// Replaces the transaction pool builder, the way [`ComponentsBuilder::pool`] does.
+    ///
+    /// Build `pool` from this node, for example with [`OpNode::standard_pool_builder`]: the
+    /// returned [`CustomOpNode`] fixes the node's configuration, so its components and add-ons
+    /// keep sharing the same handles.
+    pub fn with_pool<Pool>(self, pool: Pool) -> CustomOpNode<Pool, OpPayloadServiceBuilder> {
+        CustomOpNode::from(self).with_pool(pool)
+    }
+
+    /// Replaces the payload service, the way [`ComponentsBuilder::payload`] does. The node wraps
+    /// it in [`DerivedPayloadServiceBuilder`].
+    ///
+    /// Build `payload` from this node, for example from [`OpNode::builder_config`]: the returned
+    /// [`CustomOpNode`] fixes the node's configuration, so its components and add-ons keep
+    /// sharing the same handles.
+    pub fn with_payload<Payload>(self, payload: Payload) -> CustomOpNode<OpPoolBuilder, Payload> {
+        CustomOpNode::from(self).with_payload(payload)
     }
 
     /// Returns [`OpAddOnsBuilder`] with configured arguments.
@@ -423,128 +450,196 @@ impl std::fmt::Debug for OpLaunchHooks {
 /// Launches an OP node, optionally installing proof history, then waits for it to exit.
 ///
 /// Fails if the engine config enables state masking, which op-reth does not support.
+///
+/// Not generic on purpose: a generic launch is compiled in its caller's crate and takes about
+/// 10 GB of memory to compile. A [`CustomOpNode`] launches through [`LaunchOpNode`] instead.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
     hooks: OpLaunchHooks,
 ) -> eyre::Result<(), ErrReport> {
-    // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
-    // callers that build a `NodeConfig` without that CLI.
-    eyre::ensure!(
-        builder.config().engine.num_state_masking_blocks() == 0,
-        "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
-    );
+    CustomOpNode::from(node).launch(builder, hooks).await
+}
 
-    let proofs_mdbx = if node.args.proofs_history {
-        // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
-        // [`ProofsHistoryStorageArgs::resolve_storage_path`].
-        let path = node.args.history.resolve_storage_path(builder.config().datadir().as_ref());
+/// Launches a [`CustomOpNode`] the way [`launch_node`] launches an [`OpNode`].
+///
+/// The launch is compiled in the caller's crate, which takes about 10 GB of memory.
+pub trait LaunchOpNode: Sized {
+    /// Launches the node with `hooks`, then waits for it to exit.
+    fn launch(
+        self,
+        builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+        hooks: OpLaunchHooks,
+    ) -> impl Future<Output = eyre::Result<()>>;
+}
 
-        info!(target: "reth::cli", "Using on-disk storage for proofs history");
-        let mdbx = Arc::new(
-            MdbxProofsStorage::new(&path)
-                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+/// The node adapter the CLI launches a [`CustomOpNode`] with.
+type OpFullAdapter<Pool, Payload> = RethFullAdapter<DatabaseEnv, CustomOpNode<Pool, Payload>>;
+
+/// The pool that the pool builder `Pool` of a launched [`CustomOpNode`] builds.
+type OpLaunchPool<Pool, Payload> =
+    <Pool as PoolBuilder<OpFullAdapter<Pool, Payload>, OpEvmConfig>>::Pool;
+
+/// The node components of a launched [`CustomOpNode`].
+type OpLaunchAdapter<Pool, Payload> =
+    OpNodeAdapter<OpFullAdapter<Pool, Payload>, OpLaunchPool<Pool, Payload>>;
+
+impl<Pool, Payload> LaunchOpNode for CustomOpNode<Pool, Payload>
+where
+    Pool: PoolBuilder<
+            OpFullAdapter<Pool, Payload>,
+            OpEvmConfig,
+            Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>>
+                      + Unpin
+                      + 'static,
+        > + Clone
+        + std::fmt::Debug
+        + Sync
+        + Unpin
+        + 'static,
+    Payload: Clone + std::fmt::Debug + Send + Sync + Unpin + 'static,
+    DerivedPayloadServiceBuilder<Payload>:
+        PayloadServiceBuilder<OpFullAdapter<Pool, Payload>, Pool::Pool, OpEvmConfig>,
+    Self: DebugNode<OpLaunchAdapter<Pool, Payload>> + OpNodeTypes,
+    DebugNodeLauncher: LaunchNode<
+            NodeBuilderWithComponents<
+                OpFullAdapter<Pool, Payload>,
+                OpNodeComponentBuilder<OpFullAdapter<Pool, Payload>, Pool, Payload>,
+                OpAddOns<OpLaunchAdapter<Pool, Payload>>,
+            >,
+            Node = NodeHandle<
+                OpLaunchAdapter<Pool, Payload>,
+                OpAddOns<OpLaunchAdapter<Pool, Payload>>,
+            >,
+        >,
+{
+    async fn launch(
+        self,
+        builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+        hooks: OpLaunchHooks,
+    ) -> eyre::Result<()> {
+        let args = &self.node.args;
+        // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
+        // callers that build a `NodeConfig` without that CLI.
+        eyre::ensure!(
+            builder.config().engine.num_state_masking_blocks() == 0,
+            "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
         );
-        if mdbx.holds_only_legacy_v1_data()? {
-            eyre::bail!(
-                "Proofs storage at {} only holds legacy v1 data. Delete the proofs storage \
-                 directory (or use a fresh --proofs-history.storage-path), then run \
-                 'op-reth proofs init --proofs-history.storage-path <PATH>'.",
-                path.display()
+
+        let proofs_mdbx = if args.proofs_history {
+            // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
+            // [`ProofsHistoryStorageArgs::resolve_storage_path`].
+            let path = args.history.resolve_storage_path(builder.config().datadir().as_ref());
+
+            info!(target: "reth::cli", "Using on-disk storage for proofs history");
+            let mdbx = Arc::new(
+                MdbxProofsStorage::new(&path)
+                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
             );
-        }
-        Some(mdbx)
-    } else {
-        None
-    };
-    let window = node.args.proofs_history_window.window;
-    let verification_interval = node.args.proofs_history_verification_interval;
-    let prefetch_threads = node.args.proofs_history_prefetch_threads as usize;
+            if mdbx.holds_only_legacy_v1_data()? {
+                eyre::bail!(
+                    "Proofs storage at {} only holds legacy v1 data. Delete the proofs storage \
+                     directory (or use a fresh --proofs-history.storage-path), then run \
+                     'op-reth proofs init --proofs-history.storage-path <PATH>'.",
+                    path.display()
+                );
+            }
+            Some(mdbx)
+        } else {
+            None
+        };
+        let window = args.proofs_history_window.window;
+        let verification_interval = args.proofs_history_verification_interval;
+        let prefetch_threads = args.proofs_history_prefetch_threads as usize;
 
-    let proofs_storage: Option<OpProofsStorage<Arc<MdbxProofsStorage>>> =
-        proofs_mdbx.clone().map(Into::into);
+        let proofs_storage: Option<OpProofsStorage<Arc<MdbxProofsStorage>>> =
+            proofs_mdbx.clone().map(Into::into);
 
-    let mut builder = builder.node(node);
-    if let (Some(mdbx), Some(storage_exec)) = (proofs_mdbx, proofs_storage.clone()) {
-        builder = builder
-            .on_node_started(move |node| {
-                let metrics_report_interval = node.config.metrics.push_gateway_interval;
-                node.task_executor.spawn_critical_task("op-proofs-storage-metrics", async move {
-                    info!(
-                        target: "reth::cli",
-                        ?metrics_report_interval,
-                        "Starting op-proofs-storage metrics task"
+        let mut builder = builder.node(self);
+        if let (Some(mdbx), Some(storage_exec)) = (proofs_mdbx, proofs_storage.clone()) {
+            builder = builder
+                .on_node_started(move |node| {
+                    let metrics_report_interval = node.config.metrics.push_gateway_interval;
+                    node.task_executor.spawn_critical_task(
+                        "op-proofs-storage-metrics",
+                        async move {
+                            info!(
+                                target: "reth::cli",
+                                ?metrics_report_interval,
+                                "Starting op-proofs-storage metrics task"
+                            );
+
+                            loop {
+                                sleep(metrics_report_interval).await;
+                                mdbx.report_metrics();
+                            }
+                        },
                     );
-
-                    loop {
-                        sleep(metrics_report_interval).await;
-                        mdbx.report_metrics();
-                    }
+                    Ok(())
+                })
+                .install_exex("proofs-history", async move |exex_context| {
+                    Ok(OpProofsExEx::builder(exex_context, storage_exec)
+                        .with_proofs_history_window(window)
+                        .with_verification_interval(verification_interval)
+                        .with_prefetch_threads(prefetch_threads)
+                        .build()
+                        .run()
+                        .boxed())
                 });
-                Ok(())
-            })
-            .install_exex("proofs-history", async move |exex_context| {
-                Ok(OpProofsExEx::builder(exex_context, storage_exec)
-                    .with_proofs_history_window(window)
-                    .with_verification_interval(verification_interval)
-                    .with_prefetch_threads(prefetch_threads)
-                    .build()
-                    .run()
-                    .boxed())
-            });
-    }
+        }
 
-    let OpLaunchHooks { extend_rpc_modules, on_node_started } = hooks;
-    let builder = builder.extend_rpc_modules(move |ctx| {
-        if let Some(storage) = proofs_storage {
-            info!(
-                target: "reth::cli",
-                "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)"
-            );
-            let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-            let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-            let debug_ext = DebugApiExt::new(
-                ctx.node().provider().clone(),
-                ctx.registry.eth_api().clone(),
-                storage,
-                ctx.node().task_executor().clone(),
-                ctx.node().evm_config().clone(),
-            );
-            let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
-            let auth_eth_replaced =
-                ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
-            let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
-            info!(
-                target: "reth::cli",
-                eth_replaced,
-                auth_eth_replaced,
-                debug_replaced,
-                "Proofs-history RPC overrides installed"
-            );
-        }
-        if let Some(hook) = extend_rpc_modules {
-            hook(ctx.modules, ctx.auth_module)?;
-        }
-        Ok(())
-    });
+        let OpLaunchHooks { extend_rpc_modules, on_node_started } = hooks;
+        let builder = builder.extend_rpc_modules(move |ctx| {
+            if let Some(storage) = proofs_storage {
+                info!(
+                    target: "reth::cli",
+                    "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)"
+                );
+                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                let debug_ext = DebugApiExt::new(
+                    ctx.node().provider().clone(),
+                    ctx.registry.eth_api().clone(),
+                    storage,
+                    ctx.node().task_executor().clone(),
+                    ctx.node().evm_config().clone(),
+                );
+                let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
+                let auth_eth_replaced =
+                    ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
+                let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
+                info!(
+                    target: "reth::cli",
+                    eth_replaced,
+                    auth_eth_replaced,
+                    debug_replaced,
+                    "Proofs-history RPC overrides installed"
+                );
+            }
+            if let Some(hook) = extend_rpc_modules {
+                hook(ctx.modules, ctx.auth_module)?;
+            }
+            Ok(())
+        });
 
-    let handle = builder.launch_with_debug_capabilities().await?;
-    match handle.node.provider.database_provider_ro() {
-        Ok(provider) if !provider.cached_storage_settings().is_v2() => {
-            warn!(
-                target: "reth::cli",
-                "Storage V1 is deprecated and will be removed in January 2027. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
-            );
+        let handle = builder.launch_with_debug_capabilities().await?;
+        match handle.node.provider.database_provider_ro() {
+            Ok(provider) if !provider.cached_storage_settings().is_v2() => {
+                warn!(
+                    target: "reth::cli",
+                    "Storage V1 is deprecated and will be removed in January 2027. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
+                );
+            }
+            Ok(_) => {}
+            Err(err) => {
+                warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
+            }
         }
-        Ok(_) => {}
-        Err(err) => {
-            warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
+        if let Some(hook) = on_node_started {
+            hook(&handle.node.task_executor);
         }
+        handle.node_exit_future.await
     }
-    if let Some(hook) = on_node_started {
-        hook(&handle.node.task_executor);
-    }
-    handle.node_exit_future.await
 }
 
 impl<N> Node<N> for OpNode
@@ -583,6 +678,134 @@ where
 }
 
 impl NodeTypes for OpNode {
+    type Primitives = OpPrimitives;
+    type ChainSpec = OpChainSpec;
+    type Storage = OpStorage;
+    type Payload = OpEngineTypes;
+}
+
+/// An [`OpNode`] with a replaced transaction pool builder or payload service.
+///
+/// [`OpNode::with_pool`] and [`OpNode::with_payload`] create it. It keeps the [`OpNode`] private,
+/// so the configuration the components were built from is the one the add-ons use.
+#[derive(Debug, Clone)]
+pub struct CustomOpNode<Pool, Payload> {
+    node: OpNode,
+    pool: Pool,
+    payload: Payload,
+}
+
+impl From<OpNode> for CustomOpNode<OpPoolBuilder, OpPayloadServiceBuilder> {
+    /// Fixes `node` with the pool builder and payload service it would install itself.
+    fn from(node: OpNode) -> Self {
+        let pool = node.standard_pool_builder();
+        let payload = node.payload_service();
+        Self { node, pool, payload }
+    }
+}
+
+impl<Pool, Payload> CustomOpNode<Pool, Payload> {
+    /// The wrapped node.
+    pub const fn node(&self) -> &OpNode {
+        &self.node
+    }
+
+    /// Replaces the transaction pool builder.
+    pub fn with_pool<NewPool>(self, pool: NewPool) -> CustomOpNode<NewPool, Payload> {
+        CustomOpNode { node: self.node, pool, payload: self.payload }
+    }
+
+    /// Replaces the payload service, which the node wraps in [`DerivedPayloadServiceBuilder`].
+    pub fn with_payload<NewPayload>(self, payload: NewPayload) -> CustomOpNode<Pool, NewPayload> {
+        CustomOpNode { node: self.node, pool: self.pool, payload }
+    }
+
+    /// Returns the node's components: [`OpNode::components`] with this node's pool builder and
+    /// payload service.
+    pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node, Pool, Payload>
+    where
+        Node: FullNodeTypes<Types: OpNodeTypes>,
+        Pool: PoolBuilder<Node, OpEvmConfig> + Clone,
+        Payload: Clone,
+        DerivedPayloadServiceBuilder<Payload>: PayloadServiceBuilder<Node, Pool::Pool, OpEvmConfig>,
+    {
+        let RollupArgs { disable_txpool_gossip, discovery_v4, .. } = self.node.args;
+        ComponentsBuilder::default()
+            .node_types::<Node>()
+            .executor(OpExecutorBuilder::default())
+            .pool(self.pool.clone())
+            .payload(DerivedPayloadServiceBuilder::new(self.payload.clone()))
+            .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
+            .consensus(OpConsensusBuilder::default())
+    }
+}
+
+/// The components of a [`CustomOpNode`] whose pool builder builds `Pool`.
+type OpNodeComponents<N, Pool> = Components<
+    N,
+    NetworkHandle<BasicNetworkPrimitives<OpPrimitives, PoolPooledTx<Pool>>>,
+    Pool,
+    OpEvmConfig,
+    Arc<OpBeaconConsensus>,
+>;
+
+/// The node adapter of a [`CustomOpNode`] whose pool builder builds `Pool`.
+type OpNodeAdapter<N, Pool> = NodeAdapter<N, OpNodeComponents<N, Pool>>;
+
+impl<N, Pool, Payload> Node<N> for CustomOpNode<Pool, Payload>
+where
+    N: FullNodeTypes<Types: OpNodeTypes>,
+    Pool: PoolBuilder<
+            N,
+            OpEvmConfig,
+            Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>>
+                      + Unpin
+                      + 'static,
+        > + Clone
+        + std::fmt::Debug
+        + Sync
+        + Unpin
+        + 'static,
+    Payload: Clone + std::fmt::Debug + Send + Sync + Unpin + 'static,
+    DerivedPayloadServiceBuilder<Payload>: PayloadServiceBuilder<N, Pool::Pool, OpEvmConfig>,
+    OpAddOns<OpNodeAdapter<N, Pool::Pool>>: NodeAddOns<OpNodeAdapter<N, Pool::Pool>>,
+{
+    type ComponentsBuilder = OpNodeComponentBuilder<N, Pool, Payload>;
+
+    type AddOns = OpAddOns<OpNodeAdapter<N, Pool::Pool>>;
+
+    fn components_builder(&self) -> Self::ComponentsBuilder {
+        Self::components(self)
+    }
+
+    fn add_ons(&self) -> Self::AddOns {
+        self.node.add_ons_builder().build()
+    }
+}
+
+impl<N, Pool, Payload> DebugNode<N> for CustomOpNode<Pool, Payload>
+where
+    N: FullNodeComponents<Types = Self>,
+    Self: Node<N> + OpNodeTypes,
+{
+    type RpcBlock = alloy_rpc_types_eth::Block<op_alloy_consensus::OpTxEnvelope>;
+
+    fn rpc_to_primitive_block(rpc_block: Self::RpcBlock) -> reth_node_api::BlockTy<Self> {
+        rpc_block.into_consensus()
+    }
+
+    fn local_payload_attributes_builder(
+        chain_spec: &Self::ChainSpec,
+    ) -> impl PayloadAttributesBuilder<<Self::Payload as PayloadTypes>::PayloadAttributes> {
+        OpLocalPayloadAttributesBuilder { chain_spec: Arc::new(chain_spec.clone()) }
+    }
+}
+
+impl<Pool, Payload> NodeTypes for CustomOpNode<Pool, Payload>
+where
+    Pool: Clone + std::fmt::Debug + Send + Sync + Unpin + 'static,
+    Payload: Clone + std::fmt::Debug + Send + Sync + Unpin + 'static,
+{
     type Primitives = OpPrimitives;
     type ChainSpec = OpChainSpec;
     type Storage = OpStorage;
@@ -1748,6 +1971,7 @@ pub type OpNetworkPrimitives = BasicNetworkPrimitives<OpPrimitives, OpPooledTran
 mod tests {
     use super::*;
     use jsonrpsee::{RpcModule, types::ErrorObjectOwned};
+    use reth_node_builder::components::BasicPayloadServiceBuilder;
     use reth_rpc_api::IntoEngineApiRpcModule;
 
     /// Lets a plain [`RpcModule`] stand in for the engine API when building an [`AuthRpcModule`].
@@ -1864,6 +2088,55 @@ mod tests {
             !pool.interop_failsafe.enabled(),
             "pool must observe the gate being cleared, proving a single shared handle"
         );
+    }
+
+    /// A validator wrapper that is not op-reth's, standing in for an embedder's.
+    #[derive(Debug, Clone, Copy)]
+    struct OtherValidatorWrapper;
+
+    impl<Provider, T, Evm> OpValidatorWrapper<Provider, T, Evm> for OtherValidatorWrapper
+    where
+        OpTransactionValidator<Provider, T, Evm>: TransactionValidator,
+    {
+        type Validator = OpTransactionValidator<Provider, T, Evm>;
+
+        fn wrap(
+            self,
+            validator: OpTransactionValidator<Provider, T, Evm>,
+            _provider: Provider,
+        ) -> Self::Validator {
+            validator
+        }
+    }
+
+    /// Only checks the bounds: a node with a replaced pool builder and payload service can be
+    /// launched. Nothing calls the launch, so it is not compiled.
+    #[test]
+    fn custom_nodes_launch() {
+        fn assert_launches<N: LaunchOpNode>(_: &N) {}
+
+        let node = OpNode::new(RollupArgs::default());
+        let pool = node
+            .standard_pool_builder::<crate::txpool::OpPooledTransaction>()
+            .with_validator_wrapper(OtherValidatorWrapper);
+        let payload = BasicPayloadServiceBuilder::new(node.payload_builder());
+        assert_launches(&node.with_pool(pool).with_payload(payload));
+    }
+
+    #[test]
+    fn replaced_components_share_the_node_config() {
+        let node = OpNode::new(RollupArgs { enable_tx_conditional: true, ..Default::default() });
+        let pool = node
+            .standard_pool_builder::<crate::txpool::OpPooledTransaction>()
+            .with_validator_wrapper(OtherValidatorWrapper);
+        let node = node.with_pool(pool);
+
+        assert!(node.pool.enable_tx_conditional);
+        node.node().interop_failsafe.set(true);
+        assert!(node.pool.interop_failsafe.enabled(), "pool shares the node's failsafe gate");
+        let gas_limit_config = node.node().gas_limit_config.clone();
+        gas_limit_config.set_gas_limit(7);
+        assert_eq!(node.pool.gas_limit_config.gas_limit(), Some(7));
     }
 
     #[test]
