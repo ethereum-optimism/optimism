@@ -1,8 +1,8 @@
 //! Command that initializes the node from a genesis file.
 
+use crate::chainspec::OpChainSpecParser;
 use alloy_consensus::Header;
 use clap::Parser;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment};
 use reth_db_api::database::Database;
 use reth_db_common::init::init_from_state_dump;
@@ -21,9 +21,9 @@ use tracing::info;
 
 /// Initializes the database with the genesis block.
 #[derive(Debug, Parser)]
-pub struct InitStateCommandOp<C: ChainSpecParser> {
+pub struct InitStateCommandOp {
     #[command(flatten)]
-    init_state: reth_cli_commands::init_state::InitStateCommand<C>,
+    init_state: reth_cli_commands::init_state::InitStateCommand<OpChainSpecParser>,
 
     /// Specifies whether to initialize the state without relying on OVM or EVM historical data.
     ///
@@ -37,9 +37,9 @@ pub struct InitStateCommandOp<C: ChainSpecParser> {
     without_ovm: bool,
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitStateCommandOp<C> {
+impl InitStateCommandOp {
     /// Execute the `init` command
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec, Primitives = OpPrimitives>>(
         mut self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -60,7 +60,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitStateCommandOp<C> {
 
     /// Execute init-state with hardcoded Bedrock header for OP mainnet.
     fn execute_with_bedrock_header<
-        N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>,
+        N: CliNodeTypes<ChainSpec = OpChainSpec, Primitives = OpPrimitives>,
     >(
         self,
         runtime: reth_tasks::Runtime,
@@ -122,11 +122,9 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitStateCommandOp<C> {
         info!(target: "reth::cli", hash = ?hash, "Genesis block written");
         Ok(())
     }
-}
 
-impl<C: ChainSpecParser> InitStateCommandOp<C> {
     /// Returns the underlying chain being used to run this command
-    pub fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         self.init_state.chain_spec()
     }
 }

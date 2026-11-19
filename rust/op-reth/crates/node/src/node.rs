@@ -23,7 +23,7 @@ use reth_network::{
     types::BasicNetworkPrimitives,
 };
 use reth_node_api::{
-    AddOnsContext, BlockTy, FullNodeComponents, NodeAddOns, PayloadAttributesBuilder, PayloadTypes,
+    AddOnsContext, FullNodeComponents, NodeAddOns, PayloadAttributesBuilder, PayloadTypes,
     PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
@@ -46,11 +46,10 @@ use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpNextBlockEnvAttributes};
 use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_payload_builder::{
-    builder::OpPayloadTransactions,
-    config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig, OperatorSdmOptIn},
+use reth_optimism_payload_builder::config::{
+    OpBuilderConfig, OpDAConfig, OpGasLimitConfig, OperatorSdmOptIn,
 };
-use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+use reth_optimism_primitives::{OpBlock, OpPrimitives, OpTransactionSigned};
 use reth_optimism_rpc::{
     SequencerClient,
     debug::{DebugApiExt, DebugApiOverrideServer},
@@ -82,7 +81,6 @@ use reth_tracing::tracing::{debug, info, warn};
 use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPoolTransaction, PoolPooledTx, PoolTransaction, TransactionOrdering,
     TransactionPool, TransactionValidationTaskExecutor, TransactionValidator,
-    blobstore::DiskFileBlobStore,
 };
 use std::sync::Arc;
 use tokio::time::sleep;
@@ -203,15 +201,12 @@ pub struct OpNode {
 
 /// The component builder used by the stock node configuration.
 ///
-/// A payload service builder that replaces the default must be wrapped in
-/// [`DerivedPayloadServiceBuilder`].
-pub type OpNodeComponentBuilder<
-    Node,
-    PayloadServiceBuilder = DerivedPayloadServiceBuilder<OpPayloadServiceBuilder>,
-> = ComponentsBuilder<
+/// A caller that replaces the payload service through [`ComponentsBuilder::payload`] must wrap it
+/// in [`DerivedPayloadServiceBuilder`].
+pub type OpNodeComponentBuilder<Node> = ComponentsBuilder<
     Node,
     OpPoolBuilder,
-    PayloadServiceBuilder,
+    DerivedPayloadServiceBuilder<OpPayloadServiceBuilder>,
     OpNetworkBuilder,
     OpExecutorBuilder,
     OpConsensusBuilder,
@@ -1282,14 +1277,14 @@ impl<T, O, W> OpPoolBuilder<T, O, W> {
 
 impl<Node, T, O, W, Evm> PoolBuilder<Node, Evm> for OpPoolBuilder<T, O, W>
 where
-    Node: FullNodeTypes<Types: NodeTypes<ChainSpec: OpHardforks>>,
-    T: EthPoolTransaction<Consensus = TxTy<Node::Types>> + OpPooledTx,
-    Evm: ConfigureEvm<Primitives = PrimitivesTy<Node::Types>> + Clone + 'static,
+    Node: FullNodeTypes<Types: OpNodeTypes>,
+    T: EthPoolTransaction<Consensus = OpTransactionSigned> + OpPooledTx,
+    Evm: ConfigureEvm<Primitives = OpPrimitives> + Clone + 'static,
     O: TransactionOrdering<Transaction = T> + 'static,
     W: OpValidatorWrapper<Node::Provider, T, Evm>,
-    W::Validator: TransactionValidator<Transaction = T, Block = BlockTy<Node::Types>> + 'static,
+    W::Validator: TransactionValidator<Transaction = T, Block = OpBlock> + 'static,
 {
-    type Pool = OpCustomTransactionPool<DiskFileBlobStore, W::Validator, O>;
+    type Pool = OpCustomTransactionPool<W::Validator, O>;
 
     async fn build_pool(
         self,
@@ -1450,7 +1445,7 @@ where
 ///
 /// A payload service built from it must be wrapped in [`DerivedPayloadServiceBuilder`].
 #[derive(Debug, Default, Clone)]
-pub struct OpPayloadBuilder<Txs = ()> {
+pub struct OpPayloadBuilder {
     /// By default the pending block equals the latest block
     /// to save resources and not leak txs from the tx-pool,
     /// this flag enables computing of the pending block
@@ -1460,9 +1455,6 @@ pub struct OpPayloadBuilder<Txs = ()> {
     /// will use the payload attributes from the latest block. Note
     /// that this flag is not yet functional.
     pub compute_pending_block: bool,
-    /// The type responsible for yielding the best transactions for the payload if mempool
-    /// transactions are allowed.
-    pub best_transactions: Txs,
     /// The assembled OP builder config. Set wholesale via
     /// [`with_builder_config`](OpPayloadBuilder::with_builder_config) (from
     /// [`OpNode::builder_config`]) or per-field via the `with_*` setters.
@@ -1473,11 +1465,7 @@ impl OpPayloadBuilder {
     /// Create a new instance with the given `compute_pending_block` flag and data availability
     /// config.
     pub fn new(compute_pending_block: bool) -> Self {
-        Self {
-            compute_pending_block,
-            best_transactions: (),
-            builder_config: OpBuilderConfig::default(),
-        }
+        Self { compute_pending_block, builder_config: OpBuilderConfig::default() }
     }
 
     /// Configure the payload builder with an assembled [`OpBuilderConfig`] wholesale.
@@ -1526,26 +1514,16 @@ impl OpPayloadBuilder {
     }
 }
 
-impl<Txs> OpPayloadBuilder<Txs> {
-    /// Configures the type responsible for yielding the transactions that should be included in the
-    /// payload.
-    pub fn with_transactions<T>(self, best_transactions: T) -> OpPayloadBuilder<T> {
-        let Self { compute_pending_block, builder_config, .. } = self;
-        OpPayloadBuilder { compute_pending_block, best_transactions, builder_config }
-    }
-}
-
-impl<Node, Pool, Txs, Evm> PayloadBuilderBuilder<Node, Pool, Evm> for OpPayloadBuilder<Txs>
+impl<Node, Pool, Evm> PayloadBuilderBuilder<Node, Pool, Evm> for OpPayloadBuilder
 where
     Node: FullNodeTypes<Types: OpNodeTypes>,
     Evm: ConfigurePostExecEvm<Primitives = OpPrimitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>
         + 'static,
     Pool:
         TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>> + Unpin + 'static,
-    Txs: OpPayloadTransactions<Pool::Transaction>,
 {
     type PayloadBuilder =
-        reth_optimism_payload_builder::OpPayloadBuilder<Pool, Node::Provider, Evm, Txs>;
+        reth_optimism_payload_builder::OpPayloadBuilder<Pool, Node::Provider, Evm>;
 
     async fn build_payload_builder(
         self,
@@ -1559,7 +1537,6 @@ where
             evm_config,
             self.builder_config.clone(),
         )
-        .with_transactions(self.best_transactions.clone())
         .set_compute_pending_block(self.compute_pending_block);
         Ok(payload_builder)
     }

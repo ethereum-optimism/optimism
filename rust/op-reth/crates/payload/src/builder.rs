@@ -117,7 +117,7 @@ where
 
 /// Optimism's payload builder
 #[derive(Debug, Clone)]
-pub struct OpPayloadBuilder<Pool, Client, Evm, Txs = ()> {
+pub struct OpPayloadBuilder<Pool, Client, Evm> {
     /// The rollup's compute pending block configuration option.
     pub compute_pending_block: bool,
     /// The type responsible for creating the evm.
@@ -128,9 +128,6 @@ pub struct OpPayloadBuilder<Pool, Client, Evm, Txs = ()> {
     pub client: Client,
     /// Settings for the builder, e.g. DA settings.
     pub config: OpBuilderConfig,
-    /// The type responsible for yielding the best transactions for the payload if mempool
-    /// transactions are allowed.
-    pub best_transactions: Txs,
 }
 
 impl<Pool, Client, Evm> OpPayloadBuilder<Pool, Client, Evm> {
@@ -148,39 +145,13 @@ impl<Pool, Client, Evm> OpPayloadBuilder<Pool, Client, Evm> {
         evm_config: Evm,
         config: OpBuilderConfig,
     ) -> Self {
-        Self {
-            pool,
-            client,
-            compute_pending_block: true,
-            evm_config,
-            config,
-            best_transactions: (),
-        }
+        Self { pool, client, compute_pending_block: true, evm_config, config }
     }
-}
 
-impl<Pool, Client, Evm, Txs> OpPayloadBuilder<Pool, Client, Evm, Txs> {
     /// Sets the rollup's compute pending block configuration option.
     pub const fn set_compute_pending_block(mut self, compute_pending_block: bool) -> Self {
         self.compute_pending_block = compute_pending_block;
         self
-    }
-
-    /// Configures the type responsible for yielding the transactions that should be included in the
-    /// payload.
-    pub fn with_transactions<T>(
-        self,
-        best_transactions: T,
-    ) -> OpPayloadBuilder<Pool, Client, Evm, T> {
-        let Self { pool, client, compute_pending_block, evm_config, config, .. } = self;
-        OpPayloadBuilder {
-            pool,
-            client,
-            compute_pending_block,
-            evm_config,
-            best_transactions,
-            config,
-        }
     }
 
     /// Enables the rollup's compute pending block configuration option.
@@ -194,7 +165,7 @@ impl<Pool, Client, Evm, Txs> OpPayloadBuilder<Pool, Client, Evm, Txs> {
     }
 }
 
-impl<Pool, Client, Evm, T> OpPayloadBuilder<Pool, Client, Evm, T>
+impl<Pool, Client, Evm> OpPayloadBuilder<Pool, Client, Evm>
 where
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>>,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec = OpChainSpec>,
@@ -283,13 +254,12 @@ where
 ///
 /// This impl uses [`crate::payload::OpPayloadAttrs`] (the RPC payload attributes wrapper) as the
 /// `Attributes` type, converting to [`OpPayloadBuilderAttributes`] internally for building.
-impl<Pool, Client, Evm, Txs> PayloadBuilder for OpPayloadBuilder<Pool, Client, Evm, Txs>
+impl<Pool, Client, Evm> PayloadBuilder for OpPayloadBuilder<Pool, Client, Evm>
 where
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec = OpChainSpec> + Clone,
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>>,
     Evm:
         ConfigurePostExecEvm<Primitives = OpPrimitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>,
-    Txs: OpPayloadTransactions<Pool::Transaction>,
 {
     type Attributes = crate::payload::OpPayloadAttrs;
     type BuiltPayload = OpBuiltPayload;
@@ -301,7 +271,7 @@ where
         let pool = self.pool.clone();
         let converted_args = convert_build_args(args)?;
         self.build_payload(converted_args, |attrs| {
-            self.best_transactions.best_transactions(pool, attrs)
+            BestPayloadTransactions::new(pool.best_transactions_with_attributes(attrs))
         })
     }
 
@@ -683,27 +653,6 @@ impl<T: PayloadTransactions> PayloadTransactions for RethPayloadTransactions<T> 
 
 impl<T: PayloadTransactions> PayloadTransactionsWithCommitHook for RethPayloadTransactions<T> {
     fn on_commit(&mut self, _gas: CommittedTxGas) {}
-}
-
-/// A type that returns a the [`PayloadTransactions`] that should be included in the pool.
-pub trait OpPayloadTransactions<Transaction>: Clone + Send + Sync + Unpin + 'static {
-    /// Returns an iterator that yields the transaction in the order they should get included in the
-    /// new payload.
-    fn best_transactions<Pool: TransactionPool<Transaction = Transaction>>(
-        &self,
-        pool: Pool,
-        attr: BestTransactionsAttributes,
-    ) -> impl PayloadTransactions<Transaction = Transaction>;
-}
-
-impl<T: PoolTransaction + MaybeInteropTransaction> OpPayloadTransactions<T> for () {
-    fn best_transactions<Pool: TransactionPool<Transaction = T>>(
-        &self,
-        pool: Pool,
-        attr: BestTransactionsAttributes,
-    ) -> impl PayloadTransactions<Transaction = T> {
-        BestPayloadTransactions::new(pool.best_transactions_with_attributes(attr))
-    }
 }
 
 /// This acts as the container for executed transactions and its byproducts (receipts, gas used)

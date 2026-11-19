@@ -8,8 +8,6 @@ mod custom_pool;
 
 mod pool_limits;
 
-mod priority;
-
 mod rpc;
 
 mod custom_genesis;
