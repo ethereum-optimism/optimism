@@ -2,13 +2,8 @@
 
 use std::{fmt::Debug, sync::Arc};
 
-use alloy_consensus::{Block, BlockHeader};
-use alloy_eips::{
-    eip1559::BaseFeeParams,
-    eip2718::{Decodable2718, Encodable2718},
-    eip4895::Withdrawals,
-    eip7685::Requests,
-};
+use alloy_consensus::BlockHeader;
+use alloy_eips::{eip1559::BaseFeeParams, eip4895::Withdrawals, eip7685::Requests};
 use alloy_primitives::{Address, B64, B256, Bytes, U256, keccak256};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_engine::{
@@ -27,13 +22,11 @@ use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_forks::OpHardforks;
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::{BuildNextEnv, BuiltPayload, BuiltPayloadExecutedBlock};
-use reth_primitives_traits::{
-    Block as _, NodePrimitives, SealedBlock, SealedHeader, SignedTransaction, WithEncoded,
-};
+use reth_primitives_traits::{Block as _, SealedBlock, SealedHeader, WithEncoded};
 
 /// Re-export for use in downstream arguments.
 pub use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadAttributes};
-use reth_optimism_primitives::OpPrimitives;
+use reth_optimism_primitives::{OpBlock, OpPrimitives, OpTransactionSigned};
 use reth_payload_primitives::EngineApiMessageVersion;
 
 /// Newtype wrapper around [`OpExecutionData`] to implement
@@ -157,8 +150,8 @@ impl reth_payload_primitives::PayloadAttributes for OpPayloadAttrs {
 }
 
 /// Optimism Payload Builder Attributes
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpPayloadBuilderAttributes<T> {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OpPayloadBuilderAttributes {
     /// Id of the payload
     pub id: PayloadId,
     /// Parent block to build the payload on top
@@ -177,7 +170,7 @@ pub struct OpPayloadBuilderAttributes<T> {
     pub no_tx_pool: bool,
     /// Decoded transactions and the original EIP-2718 encoded bytes as received in the payload
     /// attributes.
-    pub transactions: Vec<WithEncoded<T>>,
+    pub transactions: Vec<WithEncoded<OpTransactionSigned>>,
     /// The gas limit for the generated payload
     pub gas_limit: Option<u64>,
     /// EIP-1559 parameters for the generated payload
@@ -188,10 +181,10 @@ pub struct OpPayloadBuilderAttributes<T> {
 
 // Manual serde implementations required because:
 // - Serialize: the `transactions` field must serialize as encoded bytes (Vec<&Bytes>), not as the
-//   inner `WithEncoded<T>` type, so #[derive(Serialize)] can't be used.
+//   inner `WithEncoded` type, so #[derive(Serialize)] can't be used.
 // - Deserialize: intentionally errors out since this builder type is never deserialized from the
 //   wire (the engine API uses OpPayloadAttributes, not this builder type).
-impl<T> serde::Serialize for OpPayloadBuilderAttributes<T> {
+impl serde::Serialize for OpPayloadBuilderAttributes {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
         let mut s = serializer.serialize_struct("OpPayloadBuilderAttributes", 11)?;
@@ -214,9 +207,7 @@ impl<T> serde::Serialize for OpPayloadBuilderAttributes<T> {
     }
 }
 
-impl<'de, T: Decodable2718 + Encodable2718 + Send + Sync + Debug + Unpin + 'static>
-    serde::Deserialize<'de> for OpPayloadBuilderAttributes<T>
-{
+impl<'de> serde::Deserialize<'de> for OpPayloadBuilderAttributes {
     fn deserialize<D: serde::Deserializer<'de>>(_deserializer: D) -> Result<Self, D::Error> {
         // This type is never deserialized in practice; the PayloadAttributes trait bound
         // requires DeserializeOwned but the engine API uses OpPayloadAttributes for
@@ -228,9 +219,7 @@ impl<'de, T: Decodable2718 + Encodable2718 + Send + Sync + Debug + Unpin + 'stat
     }
 }
 
-impl<T: Decodable2718 + Encodable2718 + Send + Sync + Debug + Clone + Unpin + 'static>
-    reth_payload_primitives::PayloadAttributes for OpPayloadBuilderAttributes<T>
-{
+impl reth_payload_primitives::PayloadAttributes for OpPayloadBuilderAttributes {
     fn payload_id(&self, _parent_hash: &B256) -> PayloadId {
         // The payload ID was already computed during construction via try_new.
         self.id
@@ -253,26 +242,7 @@ impl<T: Decodable2718 + Encodable2718 + Send + Sync + Debug + Clone + Unpin + 's
     }
 }
 
-impl<T> Default for OpPayloadBuilderAttributes<T> {
-    fn default() -> Self {
-        Self {
-            id: PayloadId::default(),
-            parent: B256::default(),
-            timestamp: 0,
-            suggested_fee_recipient: Address::default(),
-            prev_randao: B256::default(),
-            withdrawals: Default::default(),
-            parent_beacon_block_root: None,
-            no_tx_pool: false,
-            transactions: Vec::new(),
-            gas_limit: None,
-            eip_1559_params: None,
-            min_base_fee: None,
-        }
-    }
-}
-
-impl<T> OpPayloadBuilderAttributes<T> {
+impl OpPayloadBuilderAttributes {
     /// Extracts the extra data parameters post-Holocene hardfork.
     /// In Holocene, those parameters are the EIP-1559 base fee parameters.
     pub fn get_holocene_extra_data(
@@ -295,11 +265,7 @@ impl<T> OpPayloadBuilderAttributes<T> {
             .map(|params| encode_jovian_extra_data(params, default_base_fee_params, min_base_fee))
             .ok_or(EIP1559ParamError::NoEIP1559Params)?
     }
-}
 
-impl<T: Decodable2718 + Encodable2718 + Send + Sync + Debug + Unpin + 'static>
-    OpPayloadBuilderAttributes<T>
-{
     /// Creates a new payload builder for the given parent block and the attributes.
     ///
     /// Derives the unique [`PayloadId`] for the given parent and attributes
@@ -384,26 +350,26 @@ impl<T: Decodable2718 + Encodable2718 + Send + Sync + Debug + Unpin + 'static>
 
 /// Contains the built payload.
 #[derive(Debug, Clone)]
-pub struct OpBuiltPayload<N: NodePrimitives = OpPrimitives> {
+pub struct OpBuiltPayload {
     /// Identifier of the payload
     pub(crate) id: PayloadId,
     /// Sealed block
-    pub(crate) block: Arc<SealedBlock<N::Block>>,
+    pub(crate) block: Arc<SealedBlock<OpBlock>>,
     /// Block execution data for the payload, if any.
-    pub(crate) executed_block: Option<BuiltPayloadExecutedBlock<N>>,
+    pub(crate) executed_block: Option<BuiltPayloadExecutedBlock<OpPrimitives>>,
     /// The fees of the block
     pub(crate) fees: U256,
 }
 
 // === impl BuiltPayload ===
 
-impl<N: NodePrimitives> OpBuiltPayload<N> {
+impl OpBuiltPayload {
     /// Initializes the payload with the given initial block.
     pub const fn new(
         id: PayloadId,
-        block: Arc<SealedBlock<N::Block>>,
+        block: Arc<SealedBlock<OpBlock>>,
         fees: U256,
-        executed_block: Option<BuiltPayloadExecutedBlock<N>>,
+        executed_block: Option<BuiltPayloadExecutedBlock<OpPrimitives>>,
     ) -> Self {
         Self { id, block, fees, executed_block }
     }
@@ -414,7 +380,7 @@ impl<N: NodePrimitives> OpBuiltPayload<N> {
     }
 
     /// Returns the built block(sealed)
-    pub fn block(&self) -> &SealedBlock<N::Block> {
+    pub fn block(&self) -> &SealedBlock<OpBlock> {
         &self.block
     }
 
@@ -424,15 +390,15 @@ impl<N: NodePrimitives> OpBuiltPayload<N> {
     }
 
     /// Converts the value into [`SealedBlock`].
-    pub fn into_sealed_block(self) -> SealedBlock<N::Block> {
+    pub fn into_sealed_block(self) -> SealedBlock<OpBlock> {
         Arc::unwrap_or_clone(self.block)
     }
 }
 
-impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
-    type Primitives = N;
+impl BuiltPayload for OpBuiltPayload {
+    type Primitives = OpPrimitives;
 
-    fn block(&self) -> &SealedBlock<N::Block> {
+    fn block(&self) -> &SealedBlock<OpBlock> {
         self.block()
     }
 
@@ -440,7 +406,7 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
         self.fees
     }
 
-    fn executed_block(&self) -> Option<BuiltPayloadExecutedBlock<N>> {
+    fn executed_block(&self) -> Option<BuiltPayloadExecutedBlock<OpPrimitives>> {
         self.executed_block.clone()
     }
 
@@ -456,12 +422,8 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
 /// parallel. Upstream also threads the built payload's requests and block access list into
 /// the sidecar; OP execution data carries neither today, so this path discards them.
 /// Re-check when upstream changes the sidecar or OP execution data gains BAL support.
-impl<T, N> From<OpBuiltPayload<N>> for OpExecData
-where
-    T: SignedTransaction,
-    N: NodePrimitives<Block = Block<T>>,
-{
-    fn from(value: OpBuiltPayload<N>) -> Self {
+impl From<OpBuiltPayload> for OpExecData {
+    fn from(value: OpBuiltPayload) -> Self {
         let block = Arc::unwrap_or_clone(value.block);
         let hash = block.hash();
         Self(OpExecutionData::from(
@@ -475,12 +437,8 @@ where
 }
 
 // V1 engine_getPayloadV1 response
-impl<T, N> From<OpBuiltPayload<N>> for ExecutionPayloadV1
-where
-    T: SignedTransaction,
-    N: NodePrimitives<Block = Block<T>>,
-{
-    fn from(value: OpBuiltPayload<N>) -> Self {
+impl From<OpBuiltPayload> for ExecutionPayloadV1 {
+    fn from(value: OpBuiltPayload) -> Self {
         Self::from_block_unchecked(
             value.block().hash(),
             &Arc::unwrap_or_clone(value.block).into_block(),
@@ -489,12 +447,8 @@ where
 }
 
 // V2 engine_getPayloadV2 response
-impl<T, N> From<OpBuiltPayload<N>> for ExecutionPayloadEnvelopeV2
-where
-    T: SignedTransaction,
-    N: NodePrimitives<Block = Block<T>>,
-{
-    fn from(value: OpBuiltPayload<N>) -> Self {
+impl From<OpBuiltPayload> for ExecutionPayloadEnvelopeV2 {
+    fn from(value: OpBuiltPayload) -> Self {
         let OpBuiltPayload { block, fees, .. } = value;
 
         Self {
@@ -507,12 +461,8 @@ where
     }
 }
 
-impl<T, N> From<OpBuiltPayload<N>> for OpExecutionPayloadEnvelopeV3
-where
-    T: SignedTransaction,
-    N: NodePrimitives<Block = Block<T>>,
-{
-    fn from(value: OpBuiltPayload<N>) -> Self {
+impl From<OpBuiltPayload> for OpExecutionPayloadEnvelopeV3 {
+    fn from(value: OpBuiltPayload) -> Self {
         let OpBuiltPayload { block, fees, .. } = value;
 
         let parent_beacon_block_root = block.parent_beacon_block_root.unwrap_or_default();
@@ -539,12 +489,8 @@ where
     }
 }
 
-impl<T, N> From<OpBuiltPayload<N>> for OpExecutionPayloadEnvelopeV4
-where
-    T: SignedTransaction,
-    N: NodePrimitives<Block = Block<T>>,
-{
-    fn from(value: OpBuiltPayload<N>) -> Self {
+impl From<OpBuiltPayload> for OpExecutionPayloadEnvelopeV4 {
+    fn from(value: OpBuiltPayload) -> Self {
         let OpBuiltPayload { block, fees, .. } = value;
 
         let parent_beacon_block_root = block.parent_beacon_block_root.unwrap_or_default();
@@ -640,15 +586,14 @@ pub fn payload_id_optimism(
     PayloadId::new(out.as_slice()[..8].try_into().expect("sufficient length"))
 }
 
-impl<H, T, ChainSpec> BuildNextEnv<OpPayloadBuilderAttributes<T>, H, ChainSpec>
+impl<H, ChainSpec> BuildNextEnv<OpPayloadBuilderAttributes, H, ChainSpec>
     for OpNextBlockEnvAttributes
 where
     H: BlockHeader,
-    T: SignedTransaction,
     ChainSpec: EthChainSpec + OpHardforks,
 {
     fn build_next_env(
-        attributes: &OpPayloadBuilderAttributes<T>,
+        attributes: &OpPayloadBuilderAttributes,
         parent: &SealedHeader<H>,
         chain_spec: &ChainSpec,
     ) -> Result<Self, PayloadBuilderError> {
@@ -689,7 +634,6 @@ mod tests {
     use alloy_primitives::{FixedBytes, address, b256, bytes};
     use alloy_rpc_types_engine::PayloadAttributes;
     use op_alloy_consensus::PostExecPayloadValidationError;
-    use reth_optimism_primitives::OpTransactionSigned;
     use reth_payload_primitives::EngineApiMessageVersion;
     use std::str::FromStr;
 
@@ -762,18 +706,17 @@ mod tests {
 
     #[test]
     fn test_get_extra_data_post_holocene() {
-        let attributes: OpPayloadBuilderAttributes<OpTransactionSigned> =
-            OpPayloadBuilderAttributes {
-                eip_1559_params: Some(B64::from_str("0x0000000800000008").unwrap()),
-                ..Default::default()
-            };
+        let attributes: OpPayloadBuilderAttributes = OpPayloadBuilderAttributes {
+            eip_1559_params: Some(B64::from_str("0x0000000800000008").unwrap()),
+            ..Default::default()
+        };
         let extra_data = attributes.get_holocene_extra_data(BaseFeeParams::new(80, 60));
         assert_eq!(extra_data.unwrap(), Bytes::copy_from_slice(&[0, 0, 0, 0, 8, 0, 0, 0, 8]));
     }
 
     #[test]
     fn test_get_extra_data_post_holocene_default() {
-        let attributes: OpPayloadBuilderAttributes<OpTransactionSigned> =
+        let attributes: OpPayloadBuilderAttributes =
             OpPayloadBuilderAttributes { eip_1559_params: Some(B64::ZERO), ..Default::default() };
         let extra_data = attributes.get_holocene_extra_data(BaseFeeParams::new(80, 60));
         assert_eq!(extra_data.unwrap(), Bytes::copy_from_slice(&[0, 0, 0, 0, 80, 0, 0, 0, 60]));
@@ -781,12 +724,11 @@ mod tests {
 
     #[test]
     fn test_get_extra_data_post_jovian() {
-        let attributes: OpPayloadBuilderAttributes<OpTransactionSigned> =
-            OpPayloadBuilderAttributes {
-                eip_1559_params: Some(B64::from_str("0x0000000800000008").unwrap()),
-                min_base_fee: Some(10),
-                ..Default::default()
-            };
+        let attributes: OpPayloadBuilderAttributes = OpPayloadBuilderAttributes {
+            eip_1559_params: Some(B64::from_str("0x0000000800000008").unwrap()),
+            min_base_fee: Some(10),
+            ..Default::default()
+        };
         let extra_data = attributes.get_jovian_extra_data(BaseFeeParams::new(80, 60));
         assert_eq!(
             extra_data.unwrap(),
@@ -798,12 +740,11 @@ mod tests {
 
     #[test]
     fn test_get_extra_data_post_jovian_default() {
-        let attributes: OpPayloadBuilderAttributes<OpTransactionSigned> =
-            OpPayloadBuilderAttributes {
-                eip_1559_params: Some(B64::ZERO),
-                min_base_fee: Some(10),
-                ..Default::default()
-            };
+        let attributes: OpPayloadBuilderAttributes = OpPayloadBuilderAttributes {
+            eip_1559_params: Some(B64::ZERO),
+            min_base_fee: Some(10),
+            ..Default::default()
+        };
         let extra_data = attributes.get_jovian_extra_data(BaseFeeParams::new(80, 60));
         assert_eq!(
             extra_data.unwrap(),
@@ -815,12 +756,11 @@ mod tests {
 
     #[test]
     fn test_get_extra_data_post_jovian_no_base_fee() {
-        let attributes: OpPayloadBuilderAttributes<OpTransactionSigned> =
-            OpPayloadBuilderAttributes {
-                eip_1559_params: Some(B64::ZERO),
-                min_base_fee: None,
-                ..Default::default()
-            };
+        let attributes: OpPayloadBuilderAttributes = OpPayloadBuilderAttributes {
+            eip_1559_params: Some(B64::ZERO),
+            min_base_fee: None,
+            ..Default::default()
+        };
         let extra_data = attributes.get_jovian_extra_data(BaseFeeParams::new(80, 60));
         assert_eq!(extra_data.unwrap_err(), EIP1559ParamError::MinBaseFeeNotSet);
     }
@@ -846,14 +786,9 @@ mod tests {
         tagged.extend_from_slice(&legacy);
 
         let attrs = attrs_with_transactions(vec![tagged.into()]);
-        OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(B256::ZERO, attrs.clone(), 3)
+        OpPayloadBuilderAttributes::try_new(B256::ZERO, attrs.clone(), 3).unwrap_err();
+        OpPayloadBuilderAttributes::from_rpc_attrs(B256::ZERO, PayloadId::new([0; 8]), attrs)
             .unwrap_err();
-        OpPayloadBuilderAttributes::<OpTransactionSigned>::from_rpc_attrs(
-            B256::ZERO,
-            PayloadId::new([0; 8]),
-            attrs,
-        )
-        .unwrap_err();
     }
 
     /// Derived-block attributes (`no_tx_pool`) carrying exactly `transactions`.
@@ -892,7 +827,7 @@ mod tests {
     /// the rendered exposition.
     fn convert(
         attrs: OpPayloadAttributes,
-    ) -> (Result<OpPayloadBuilderAttributes<OpTransactionSigned>, alloy_rlp::Error>, String) {
+    ) -> (Result<OpPayloadBuilderAttributes, alloy_rlp::Error>, String) {
         use reth_metrics::metrics::with_local_recorder;
         let (recorder, handle) = recorder();
         let result = with_local_recorder(&recorder, || {

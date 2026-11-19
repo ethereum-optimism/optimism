@@ -19,7 +19,7 @@ use reth_evm::execute::{BasicBlockExecutor, BlockExecutionError, Executor};
 use reth_execution_types::BlockExecutionOutput;
 use reth_optimism_chainspec::{OpChainSpec, OpHardforks};
 use reth_optimism_consensus::{OpBeaconConsensus, OpConsensusError, isthmus};
-use reth_optimism_evm::{OpEvmConfig, OpRethReceiptBuilder};
+use reth_optimism_evm::OpEvmConfig;
 use reth_optimism_payload_builder::OpExecutionPayloadValidator;
 use reth_optimism_primitives::{
     L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned,
@@ -98,8 +98,7 @@ pub(crate) fn import_payload(
         }
     };
 
-    let evm_config: OpEvmConfig =
-        OpEvmConfig::new(chain_spec.clone(), OpRethReceiptBuilder::default());
+    let evm_config = OpEvmConfig::optimism(chain_spec.clone());
     let executor = BasicBlockExecutor::new(
         evm_config,
         StateProviderDatabase::new((&state).into_evm_state_provider()),
