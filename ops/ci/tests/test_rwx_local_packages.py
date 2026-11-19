@@ -162,6 +162,11 @@ class LocalPackageTests(unittest.TestCase):
             self.assertNotIn('.git', files)
         for name in ('common', 'go', 'foundry', 'rust'):
             self.assertNotIn('vaults.', json.dumps(definition('packages/toolchain-' + name + '.yml')))
+            # A tool task without this filter has the checkout in its cache key. It then runs
+            # for each commit, and gives every task that uses it a new cache key.
+            files = tasks('packages/toolchain-' + name + '.yml')['prepare']['filter']['workspace']
+            self.assertIn('mise.toml', files)
+            self.assertTrue(all(name == 'mise.toml' or name.startswith('ops/ci/runtime/') for name in files))
 
 
     def test_tool_preparation_retries_downloads_and_exports_the_policy(self):
