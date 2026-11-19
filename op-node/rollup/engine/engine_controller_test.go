@@ -1035,6 +1035,68 @@ func TestFollowSource_SequencerDivergenceForcesReset(t *testing.T) {
 	mockEngine.AssertExpectations(t)
 }
 
+// TestFollowSource_SequencerDivergenceELSyncingKeepsTarget covers a follower-sequencer
+// whose EL does not have the upstream replacement block yet: the forkchoice update onto it
+// returns SYNCING while the EL fetches the block. The controller must keep the upstream
+// target instead of resetting back onto its own fork, and must re-send the update on the
+// next round.
+func TestFollowSource_SequencerDivergenceELSyncingKeepsTarget(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(4243))
+	l1Origin := testutils.RandomBlockRef(rng)
+	mk := func(num uint64, parent common.Hash) eth.L2BlockRef {
+		return eth.L2BlockRef{
+			Hash: testutils.RandomHash(rng), Number: num,
+			ParentHash: parent, Time: l1Origin.Time + num,
+			L1Origin: l1Origin.ID(), SequenceNumber: num,
+		}
+	}
+	block3 := mk(3, testutils.RandomHash(rng))
+	block4 := mk(4, block3.Hash)
+	extBlock5 := mk(5, block4.Hash)  // upstream replacement, not in the local EL yet
+	forkBlock5 := mk(5, block4.Hash) // the follower-sequencer's own fork
+
+	interopTime := uint64(0)
+	cfg := &rollup.Config{LagoonTime: &interopTime}
+	mockEngine := &testutils.MockEngine{}
+	var resets int
+	emitter := &testutils.MockEmitter{}
+	emitter.Mock.On("Emit", mock.Anything).Run(func(args mock.Arguments) {
+		if _, ok := args.Get(0).(rollup.ResetEvent); ok {
+			resets++
+		}
+	}).Maybe()
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, emitter, nil)
+	ec.SetOriginSelectorResetter(&recordingOriginResetter{})
+
+	ec.unsafeHead = forkBlock5
+	ec.SetLocalSafeHead(block4)
+	ec.SetDeprecatedSafeHead(block4)
+	ec.SetFinalizedHead(block3)
+	ec.lastForkchoice = eth.ForkchoiceState{HeadBlockHash: forkBlock5.Hash, SafeBlockHash: block4.Hash, FinalizedBlockHash: block3.Hash}
+
+	target := &eth.ForkchoiceState{HeadBlockHash: extBlock5.Hash, SafeBlockHash: extBlock5.Hash, FinalizedBlockHash: block4.Hash}
+	syncing := &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}}
+
+	// Round 1: divergence, FCU onto the upstream block, EL still fetching it.
+	mockEngine.ExpectL2BlockRefByNumber(5, forkBlock5, nil)
+	mockEngine.ExpectForkchoiceUpdate(target, nil, syncing, nil)
+	ec.FollowSource(extBlock5, extBlock5, block4)
+
+	require.Zero(t, resets, "SYNCING must not trigger a reset back onto the fork")
+	require.Equal(t, extBlock5, ec.unsafeHead, "the upstream target must be kept while the EL syncs")
+	require.Equal(t, extBlock5, ec.localSafeHead)
+
+	// Round 2: the EL still serves the fork at height 5; the update is re-sent.
+	mockEngine.ExpectL2BlockRefByNumber(5, forkBlock5, nil)
+	mockEngine.ExpectForkchoiceUpdate(target, nil, syncing, nil)
+	ec.FollowSource(extBlock5, extBlock5, block4)
+
+	require.Zero(t, resets)
+	mockEngine.AssertExpectations(t)
+}
+
 // TestFollowSource_VerifierDivergenceStaysSoft verifies a follow-mode VERIFIER (no origin-
 // selector resetter) keeps the soft follow path on divergence WITHOUT resetting origins —
 // there is no competing block production. The #21119 fix must not change this path.
