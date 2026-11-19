@@ -4,6 +4,10 @@ pragma solidity 0.8.15;
 // Testing
 import { ComplianceIntegration_TestInit } from "test/setup/ComplianceIntegrationTestInit.sol";
 
+// Scripts
+import { ConfigureComplianceModule } from "scripts/deploy/compliance/ConfigureComplianceModule.s.sol";
+import { DeployComplianceModule } from "scripts/deploy/compliance/DeployComplianceModule.s.sol";
+
 // Libraries
 import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -12,8 +16,11 @@ import { Types } from "src/libraries/Types.sol";
 import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
 import { IVisionPolicyV1 } from "interfaces/compliance/IVisionPolicyV1.sol";
 import { IPolicy } from "interfaces/compliance/IPolicy.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
+import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
+import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 
 /// @title ComplianceLifecycle_Integration_Test
 /// @notice Tests how the hook is deployed, disabled, removed, set again and upgraded, and what
@@ -91,6 +98,77 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
         _depositETH(alice, bob, AMOUNT);
         (bytes32 id,) = _heldDeposit();
         assertNotEq(id, held.ids[0], "deposit identifier reused");
+    }
+
+    /// @notice Tests that while a hook is set, a withdrawal that calls the hook or the
+    ///         L1StandardBridge can be neither proven nor finalized, even one proven before the
+    ///         hook was set.
+    function test_finalizeWithdrawal_hookOrBridgeTarget_reverts() external {
+        Types.WithdrawalTransaction memory toHook = _holdWithdrawalCall(1, address(module));
+        Types.WithdrawalTransaction memory toBridge = _holdERC20Call(2);
+        Types.OutputRootProof memory noProof;
+
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_BadTarget.selector);
+        optimismPortal2.proveWithdrawalTransaction(toHook, _proposedGameIndex, noProof, new bytes[](0));
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_BadTarget.selector);
+        optimismPortal2.proveWithdrawalTransaction(toBridge, _proposedGameIndex, noProof, new bytes[](0));
+
+        vm.prank(optimismPortal2.proxyAdminOwner());
+        optimismPortal2.removeHook();
+        _prove(toHook);
+        _warpToFinalizable(_prove(toBridge));
+        _upgradeChain(address(module));
+
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_BadTarget.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(toHook);
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_BadTarget.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(toBridge);
+    }
+
+    /// @notice Tests that once the hook is removed, a withdrawal can call the former hook and the
+    ///         L1StandardBridge as the Portal, but neither call records a hold or moves escrowed
+    ///         tokens.
+    function test_finalizeWithdrawal_formerHookTarget_succeeds() external {
+        vm.prank(optimismPortal2.proxyAdminOwner());
+        optimismPortal2.removeHook();
+        _depositERC20(alice, bob, AMOUNT);
+
+        Types.WithdrawalTransaction memory toHook = _holdWithdrawalCall(1, address(module));
+        Types.WithdrawalTransaction memory toBridge = _holdERC20Call(2);
+        bytes32 hookHash = _prove(toHook);
+        bytes32 bridgeHash = _prove(toBridge);
+        _warpToFinalizable(bridgeHash);
+
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalFinalized(hookHash, false);
+        optimismPortal2.finalizeWithdrawalTransaction(toHook);
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalFinalized(bridgeHash, false);
+        optimismPortal2.finalizeWithdrawalTransaction(toBridge);
+
+        assertEq(module.items(_heldByCall()).heldAt, 0, "hold recorded");
+        _assertTokenCustody({ _escrowed: AMOUNT, _held: 0 });
+    }
+
+    /// @notice Tests that once the hook is replaced, a withdrawal that the new hook lets through
+    ///         can call the former hook as the Portal, but the former hook records no hold.
+    function test_finalizeWithdrawal_replacedHookTarget_succeeds() external {
+        DeployComplianceModule.Output memory deployed = new DeployComplianceModule().run();
+        _upgradeChain(address(deployed.module));
+        IVisionPolicyV1 newPolicy = new ConfigureComplianceModule().run(_configureInput(deployed));
+
+        Types.WithdrawalTransaction memory toFormerHook = _holdWithdrawalCall(1, address(module));
+        bytes32 withdrawalHash = _prove(toFormerHook);
+        _warpToFinalizable(withdrawalHash);
+        (bytes32 id,) = _itemOf(toFormerHook);
+        vm.prank(verdictWriter);
+        newPolicy.clear(id, _expiry());
+
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalFinalized(withdrawalHash, false);
+        optimismPortal2.finalizeWithdrawalTransaction(toFormerHook);
+
+        assertEq(module.items(_heldByCall()).heldAt, 0, "hold recorded");
     }
 
     /// @notice Tests that a Portal upgrade through OPCM keeps the hook, the held items, their
@@ -215,6 +293,48 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
     function _moduleImpl() internal returns (address) {
         vm.prank(address(0));
         return IProxy(payable(address(module))).implementation();
+    }
+
+    /// @notice The item a `_holdWithdrawalCall` withdrawal asks the module to hold.
+    function _callItem() internal view returns (bytes32 id_, BridgeHookTypes.Item memory item_) {
+        return _itemOf(_withdrawal(0, alice, bob, 0));
+    }
+
+    /// @notice Returns the identifier of the item a `_holdWithdrawalCall` withdrawal asks the
+    ///         module to hold.
+    function _heldByCall() internal view returns (bytes32 id_) {
+        (id_,) = _callItem();
+    }
+
+    /// @notice Builds a withdrawal from alice that asks `_hook` to record a hold.
+    function _holdWithdrawalCall(
+        uint256 _nonce,
+        address _hook
+    )
+        internal
+        view
+        returns (Types.WithdrawalTransaction memory tx_)
+    {
+        (, BridgeHookTypes.Item memory item) = _callItem();
+        tx_ = _withdrawal(_nonce, alice, _hook, 0);
+        tx_.data = abi.encodeCall(IBridgeHook.holdWithdrawal, (item));
+    }
+
+    /// @notice Builds a withdrawal from alice that asks the L1StandardBridge to move escrowed
+    ///         tokens to the hook.
+    function _holdERC20Call(uint256 _nonce) internal view returns (Types.WithdrawalTransaction memory tx_) {
+        tx_ = _withdrawal(_nonce, alice, address(l1StandardBridge), 0);
+        tx_.data = abi.encodeCall(
+            IL1StandardBridge.holdERC20,
+            (
+                bytes32(0),
+                BridgeHookTypes.Direction.Withdrawal,
+                abi.encodeCall(
+                    IStandardBridge.finalizeBridgeERC20,
+                    (address(L1Token), address(L2Token), alice, alice, AMOUNT, hex"")
+                )
+            )
+        );
     }
 
     /// @notice Holds an ETH deposit, a token deposit and an ETH withdrawal to bob, and records a
