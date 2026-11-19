@@ -169,7 +169,9 @@ where
                 timestamp: new.tip().timestamp(),
             };
             let mut to_remove = Vec::new();
-            for tx in &pool.pooled_transactions() {
+            // Not `pooled_transactions()`: it hides the `Private`-origin txs that
+            // `eth_sendRawTransactionConditional` adds.
+            for tx in pool.all_transactions() {
                 if tx.transaction.has_exceeded_block_attributes(&block_attr) {
                     to_remove.push(*tx.hash());
                 }
