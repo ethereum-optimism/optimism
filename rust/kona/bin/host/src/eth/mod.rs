@@ -1,7 +1,7 @@
 //! Ethereum utilities for the host binary.
 
-use alloy_provider::{Network, RootProvider};
-use alloy_rpc_client::BuiltInConnectionString;
+use alloy_provider::{Network, RootProvider, WebSocketConfig};
+use alloy_rpc_client::{BuiltInConnectionString, ClientBuilder, ConnectionConfig};
 
 mod precompiles;
 pub(crate) use precompiles::execute;
@@ -9,12 +9,15 @@ pub(crate) use precompiles::execute;
 /// Returns an RPC provider for the given URL.
 ///
 /// Uses Reqwest explicitly for HTTP while preserving the configured websocket and IPC transports.
+/// Websocket messages and frames have no size limit, to match HTTP.
 pub async fn rpc_provider<N: Network>(url: &str) -> RootProvider<N> {
     let connection = url.parse::<BuiltInConnectionString>().unwrap();
     if let BuiltInConnectionString::Http(url) = connection {
         RootProvider::new_http(url)
     } else {
-        RootProvider::connect_with(connection).await.unwrap()
+        let ws_config = WebSocketConfig::default().max_message_size(None).max_frame_size(None);
+        let config = ConnectionConfig::new().with_ws_config(ws_config);
+        RootProvider::new(ClientBuilder::default().connect_with_config(url, config).await.unwrap())
     }
 }
 
@@ -65,9 +68,6 @@ mod tests {
         let url = if transport == "http" { http } else { ws };
         let provider = rpc_provider::<Ethereum>(&url).await;
         let call = provider.client().request::<_, Bytes>("eth_call", ());
-        // TODO: fails today over websocket: alloy's websocket transport keeps tungstenite's
-        // default frame and message size limits. The call then never completes, because alloy
-        // reconnects and sends it again.
         let result = tokio::time::timeout(CALL_DEADLINE, call)
             .await
             .expect("the call completes before its deadline")
