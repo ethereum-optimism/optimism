@@ -323,13 +323,19 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.Chai
 	var chainConfig params.ChainConfig
 	dec := json.NewDecoder(file)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&chainConfig); err == nil {
+	directErr := dec.Decode(&chainConfig)
+	if directErr == nil {
 		return &chainConfig, nil
 	}
 
 	// If that fails, try to load the config from the .config property.
 	// This should work if the provided file is a genesis file / chainspec
-	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
+	cfg, err := jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
+	if err != nil {
+		// Either decode can be the one that names the problem, e.g. an unknown key.
+		return nil, fmt.Errorf("failed to decode as a chain config (%w) and as a genesis file (%w)", directErr, err)
+	}
+	return cfg, nil
 }
 
 // NewDependencySetFromCLI returns the dep set from --interop.dependency-set if
