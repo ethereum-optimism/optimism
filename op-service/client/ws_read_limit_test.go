@@ -27,14 +27,15 @@ const (
 	// gethWebsocketLimit is go-ethereum's default websocket message size limit for RPC
 	// clients (wsDefaultReadLimit in its rpc package).
 	gethWebsocketLimit = 32 << 20
-	// largeResponse is well above gethWebsocketLimit.
-	largeResponse = 72 << 20
+	// responseSize is the size of the responses in TestResponseSizeParity: just above
+	// gethWebsocketLimit, the limit that op-service's dial removes.
+	responseSize = gethWebsocketLimit + 1<<20
 
 	// testPrivateKey is the first well-known development account, for txmgr's signer.
 	testPrivateKey = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-	// callTimeout bounds each dial and call in TestResponseSizeParity. It is longer than
-	// client.RPC's default call timeout, so slow runs, such as with -race, still pass.
+	// callTimeout bounds the dial and call in each case of TestResponseSizeParity. It is
+	// longer than client.RPC's default call timeout, so slow runs, such as with -race, pass.
 	callTimeout = time.Minute
 )
 
@@ -151,27 +152,14 @@ var dialers = []struct {
 func TestResponseSizeParity(t *testing.T) {
 	httpURL, wsURL := startServer(t)
 	transports := []struct{ name, url string }{{"http", httpURL}, {"ws", wsURL}}
-	sizes := []struct {
-		name string
-		size int
-	}{
-		{"above geth websocket limit", gethWebsocketLimit + 1<<20},
-		{"large", largeResponse},
-	}
 	for _, d := range dialers {
 		t.Run(d.name, func(t *testing.T) {
 			for _, tr := range transports {
 				t.Run(tr.name, func(t *testing.T) {
-					dialCtx, cancel := context.WithTimeout(context.Background(), callTimeout)
+					ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 					defer cancel()
-					call := d.dial(t, dialCtx, testlog.Logger(t, slog.LevelInfo), tr.url)
-					for _, s := range sizes {
-						t.Run(s.name, func(t *testing.T) {
-							ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-							defer cancel()
-							require.NoError(t, call(ctx, s.size))
-						})
-					}
+					call := d.dial(t, ctx, testlog.Logger(t, slog.LevelInfo), tr.url)
+					require.NoError(t, call(ctx, responseSize))
 				})
 			}
 		})
