@@ -1,6 +1,7 @@
 package proposer
 
 import (
+	"fmt"
 	"testing"
 
 	proposerFlags "github.com/ethereum-optimism/optimism/op-proposer/flags"
@@ -19,17 +20,16 @@ func TestValidConfigIsValid(t *testing.T) {
 	require.NoError(t, cfg.Check())
 }
 
-func TestRejectsGameTypeZero(t *testing.T) {
-	cfg := validConfig()
-	cfg.DisputeGameType = 0
-	require.ErrorIs(t, cfg.Check(), ErrUnsupportedGameType)
-}
-
-// TestAcceptsPermissionedCannonGameType pins type 1 as valid for the CANNON_KONA guardian fallback.
-func TestAcceptsPermissionedCannonGameType(t *testing.T) {
-	cfg := validConfig()
-	cfg.DisputeGameType = 1
-	require.NoError(t, cfg.Check())
+// TestRejectsUnsupportedGameTypes covers the flag's default 0 and the deprecated or unused game types.
+// The ZK game (10) has its own proposer, op-zk-proposer.
+func TestRejectsUnsupportedGameTypes(t *testing.T) {
+	for _, gameType := range []uint32{0, 2, 3, 4, 6, 7, 10, 255, 1337} {
+		t.Run(fmt.Sprintf("GameType%d", gameType), func(t *testing.T) {
+			cfg := validConfig()
+			cfg.DisputeGameType = gameType
+			require.ErrorIs(t, cfg.Check(), ErrUnsupportedGameType)
+		})
+	}
 }
 
 func TestNewConfigReadsSuperRootRpcs(t *testing.T) {
@@ -94,78 +94,50 @@ func TestNewConfigReadsSuperRootRpcs(t *testing.T) {
 }
 
 func TestRollupRpc(t *testing.T) {
-	for _, gameType := range preInteropGameTypes {
-		t.Run("RequiredWithPreInteropGame", func(t *testing.T) {
+	for _, gameType := range outputRootGameTypes {
+		t.Run(fmt.Sprintf("RequiredWithGameType%d", gameType), func(t *testing.T) {
 			cfg := validConfig()
-			cfg.DGFAddress = common.Address{0xaa}.Hex()
-			cfg.ProposalInterval = 20
 			cfg.RollupRpc = ""
 			cfg.SuperRootRpcs = []string{"http://localhost:8882/superroot"}
 			cfg.DisputeGameType = gameType
 			require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
 		})
-	}
 
-	t.Run("NotRequiredForOtherGameTypes", func(t *testing.T) {
-		cfg := validConfig()
-		cfg.DGFAddress = common.Address{0xaa}.Hex()
-		cfg.ProposalInterval = 20
-		cfg.RollupRpc = ""
-		cfg.SuperRootRpcs = []string{"http://localhost:8882/superroot"}
-		cfg.DisputeGameType = 492743
-		require.NoError(t, cfg.Check())
-	})
+		t.Run(fmt.Sprintf("AllowedWithGameType%d", gameType), func(t *testing.T) {
+			cfg := validConfig()
+			cfg.RollupRpc = "http://localhost:8882/rollup"
+			cfg.SuperRootRpcs = nil
+			cfg.DisputeGameType = gameType
+			require.NoError(t, cfg.Check())
+		})
+	}
 }
 
 func TestSuperRootRpc(t *testing.T) {
-	for _, gameType := range postInteropGameTypes {
-		t.Run("RequiredWithPostInteropGame", func(t *testing.T) {
+	for _, gameType := range superRootGameTypes {
+		t.Run(fmt.Sprintf("RequiredWithGameType%d", gameType), func(t *testing.T) {
 			cfg := validConfig()
-			cfg.DGFAddress = common.Address{0xaa}.Hex()
-			cfg.ProposalInterval = 20
 			cfg.RollupRpc = "http://localhost:8882/rollup"
 			cfg.SuperRootRpcs = nil
 			cfg.DisputeGameType = gameType
 			require.ErrorIs(t, cfg.Check(), ErrMissingSuperRootRpc)
 		})
 
-		t.Run("AllowedWithPostInteropGame", func(t *testing.T) {
+		t.Run(fmt.Sprintf("AllowedWithGameType%d", gameType), func(t *testing.T) {
 			cfg := validConfig()
-			cfg.DGFAddress = common.Address{0xaa}.Hex()
-			cfg.ProposalInterval = 20
 			cfg.RollupRpc = ""
 			cfg.SuperRootRpcs = []string{"http://localhost:8882/superroot"}
 			cfg.DisputeGameType = gameType
 			require.NoError(t, cfg.Check())
 		})
 	}
-
-	t.Run("AllowedForOtherGameTypes", func(t *testing.T) {
-		cfg := validConfig()
-		cfg.DGFAddress = common.Address{0xaa}.Hex()
-		cfg.ProposalInterval = 20
-		cfg.RollupRpc = ""
-		cfg.SuperRootRpcs = []string{"http://localhost:8882/superroot"}
-		cfg.DisputeGameType = 492743
-		require.NoError(t, cfg.Check())
-	})
 }
 
 func TestDisallowRollupAndSuperRootRPC(t *testing.T) {
 	cfg := validConfig()
-	cfg.ProposalInterval = 20
 	cfg.RollupRpc = "http://localhost:8882/rollup"
 	cfg.SuperRootRpcs = []string{"http://localhost:8882/superroot"}
-	cfg.DisputeGameType = 492743
 	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
-}
-
-func TestRequireSomeRPCSourceForUnknownGameTypes(t *testing.T) {
-	cfg := validConfig()
-	cfg.RollupRpc = ""
-	cfg.SuperRootRpcs = nil
-	cfg.DisputeGameType = 492743
-	require.ErrorIs(t, cfg.Check(), ErrMissingSource)
 }
 
 func validConfig() *CLIConfig {
