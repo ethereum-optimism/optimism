@@ -375,6 +375,8 @@ tasks:
         - key: report
           path: .ci/rust-workspace/compiler-baseline/features-0
 
+  # 16 GB: on 8 GB, one partition failed once with ENOMEM while sccache opened a file, and
+  # passed on a retry.
   - &features
     key: features-0
     use: [features-build-0, head-source]
@@ -388,7 +390,7 @@ tasks:
     timeout: 120m
     runner:
       cpus: 4
-      memory: 8gb
+      memory: 16gb
     outputs: &features-outputs
       filesystem: false
       artifacts:

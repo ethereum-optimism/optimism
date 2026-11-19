@@ -159,7 +159,9 @@ organization can start has 16 CPUs.
   leaves it only `mise.toml` and its own outputs, and it writes its checkout
   itself: the run's checkout stays out of the build's cache key, and the build's
   checkout stays out of its filtered output. The Go compiler seeds work the same
-  way.
+  way. Each tool package has an input `filter` for the same reason: a tool task
+  with the checkout in its cache key runs again for each commit, and gives each
+  task that uses it a new cache key.
   Before a task restores an output, `go-artifacts.py` checks that the inputs
   equal those of the task's commit, and that the task's checkout has no
   modified input. `SCOPES` in the script lists the inputs; add a file there when
