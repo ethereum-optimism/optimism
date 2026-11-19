@@ -9925,8 +9925,11 @@ dependencies = [
 name = "op-reth"
 version = "2.0.0"
 dependencies = [
+ "clap",
  "eyre",
+ "futures-util",
  "op-version",
+ "reth-cli-commands",
  "reth-cli-util",
  "reth-db",
  "reth-node-builder",
