@@ -43,14 +43,14 @@ mod tests {
     /// uses.
     const TUNGSTENITE_FRAME_LIMIT: usize = 16 << 20;
 
-    /// A response far larger than typical, and above tungstenite's default message size.
+    /// A response above tungstenite's default message size.
     const LARGE_RESPONSE: usize = 72 << 20;
 
     /// How long a call in these tests may take. A local call of [`LARGE_RESPONSE`] takes well
     /// under a second.
     const CALL_DEADLINE: Duration = Duration::from_secs(30);
 
-    /// Serves `eth_call` over HTTP and websocket on one address, answering with `size / 2` zero
+    /// Serves `test_large` over HTTP and websocket on one address, answering with `size / 2` zero
     /// bytes, which hex encodes to `size` bytes. Returns the HTTP and websocket URLs.
     async fn large_response_server(size: usize) -> (String, String, ServerHandle) {
         let config = ServerConfig::builder().max_response_body_size(u32::MAX).build();
@@ -58,7 +58,7 @@ mod tests {
         let addr = server.local_addr().unwrap();
         let result: Arc<str> = format!("0x{}", "00".repeat(size / 2)).into();
         let mut module = RpcModule::new(());
-        module.register_method("eth_call", move |_, _, _| result.to_string()).unwrap();
+        module.register_method("test_large", move |_, _, _| result.to_string()).unwrap();
         (format!("http://{addr}"), format!("ws://{addr}"), server.start(module))
     }
 
@@ -75,7 +75,7 @@ mod tests {
         let provider = rpc_provider::<Ethereum>(&url).await;
         // Subscriptions stay available over websocket.
         assert_eq!(provider.client().pubsub_frontend().is_some(), transport == "ws");
-        let call = provider.client().request::<_, Bytes>("eth_call", ());
+        let call = provider.client().request::<_, Bytes>("test_large", ());
         let result = tokio::time::timeout(CALL_DEADLINE, call)
             .await
             .expect("the call completes before its deadline")

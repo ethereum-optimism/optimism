@@ -666,7 +666,7 @@ mod tests {
         assert!(rendered.contains(&timeout), "missing {timeout} in:\n{rendered}");
     }
 
-    /// Size in bytes of the response in [`large_responses_arrive_whole`], far larger than typical.
+    /// Size in bytes of the response in [`large_responses_arrive_whole`].
     const LARGE_RESPONSE: usize = 72 << 20;
 
     /// Reads one HTTP request from `stream` and returns its JSON body.
@@ -724,7 +724,7 @@ mod tests {
     async fn large_responses_arrive_whole(#[values(CLIENTS[0], CLIENTS[1])] client: (&str, Build)) {
         let (_, build) = client;
         let client = build(large_response_endpoint(LARGE_RESPONSE).await);
-        let result: Bytes = client.request("eth_call", ()).await.unwrap();
+        let result: Bytes = client.request("test_large", ()).await.unwrap();
         assert_eq!(result.len(), LARGE_RESPONSE / 2);
     }
 }
