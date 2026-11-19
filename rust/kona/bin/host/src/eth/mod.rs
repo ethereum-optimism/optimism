@@ -37,7 +37,7 @@ mod tests {
         server::{Server, ServerConfig, ServerHandle},
     };
     use rstest::rstest;
-    use std::{sync::Arc, time::Duration};
+    use std::{net::SocketAddr, sync::Arc, time::Duration};
 
     /// tungstenite's default maximum websocket frame size, which alloy's websocket transport
     /// uses.
@@ -51,15 +51,16 @@ mod tests {
     const CALL_DEADLINE: Duration = Duration::from_secs(30);
 
     /// Serves `test_large` over HTTP and websocket on one address, answering with `size / 2` zero
-    /// bytes, which hex encodes to `size` bytes. Returns the HTTP and websocket URLs.
-    async fn large_response_server(size: usize) -> (String, String, ServerHandle) {
+    /// bytes, which hex encodes to `size` bytes. Returns the address, and the handle that keeps
+    /// the server running.
+    async fn large_response_server(size: usize) -> (SocketAddr, ServerHandle) {
         let config = ServerConfig::builder().max_response_body_size(u32::MAX).build();
         let server = Server::builder().set_config(config).build("127.0.0.1:0").await.unwrap();
         let addr = server.local_addr().unwrap();
         let result: Arc<str> = format!("0x{}", "00".repeat(size / 2)).into();
         let mut module = RpcModule::new(());
         module.register_method("test_large", move |_, _, _| result.to_string()).unwrap();
-        (format!("http://{addr}"), format!("ws://{addr}"), server.start(module))
+        (addr, server.start(module))
     }
 
     #[rstest]
@@ -68,13 +69,12 @@ mod tests {
     #[tokio::test]
     async fn large_responses_arrive_over_http_and_websocket(
         #[case] size: usize,
-        #[values("http", "ws")] transport: &str,
+        #[values("http", "ws")] scheme: &str,
     ) {
-        let (http, ws, _server) = large_response_server(size).await;
-        let url = if transport == "http" { http } else { ws };
-        let provider = rpc_provider::<Ethereum>(&url).await;
+        let (addr, _server) = large_response_server(size).await;
+        let provider = rpc_provider::<Ethereum>(&format!("{scheme}://{addr}")).await;
         // Subscriptions stay available over websocket.
-        assert_eq!(provider.client().pubsub_frontend().is_some(), transport == "ws");
+        assert_eq!(provider.client().pubsub_frontend().is_some(), scheme == "ws");
         let call = provider.client().request::<_, Bytes>("test_large", ());
         let result = tokio::time::timeout(CALL_DEADLINE, call)
             .await
