@@ -275,3 +275,20 @@ A hosted run costs money. An authenticated operator can start one from a pushed
 commit with `rwx run .rwx/pr-gates.yml --wait`; a branch push also starts one.
 Either one cancels a run of `pr-gates.yml` that is still in progress for the
 same branch, even when the new run names only some tasks with `--target`.
+
+To try a change on RWX without a CircleCI pipeline, push the commits under a
+scratch branch whose tip is an empty commit with `[skip ci]` in its message, then
+start the run from the local branch. CircleCI and RWX's push trigger both skip
+that tip, and the run clones the commit below it:
+
+```bash
+tip=$(git commit-tree 'HEAD^{tree}' -p HEAD -m '[skip ci] scratch tip')
+git push --force origin "${tip}:refs/heads/<scratch-branch>"
+rwx run .rwx/pr-gates.yml --wait
+```
+
+Commit first. `rwx run` sends uncommitted and unpushed changes as a patch, and
+the tasks that reset their checkout or check a build's inputs do not accept one.
+A change to `.rwx` alone needs no push, because the CLI uploads that directory.
+A workload definition, such as `.rwx/acceptance.yml`, has no concurrency pool,
+so a run of it alone cancels nothing.
