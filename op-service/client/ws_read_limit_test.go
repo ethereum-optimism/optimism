@@ -32,6 +32,10 @@ const (
 
 	// testPrivateKey is the first well-known development account, for txmgr's signer.
 	testPrivateKey = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
+	// callTimeout bounds each dial and call in TestResponseSizeParity. It is longer than
+	// client.RPC's default call timeout, so slow runs, such as with -race, still pass.
+	callTimeout = time.Minute
 )
 
 // ethService answers eth_call with a result of the size given in the call data, and
@@ -115,13 +119,13 @@ var dialers = []struct {
 	dial func(t *testing.T, ctx context.Context, lgr log.Logger, url string) callFunc
 }{
 	{"NewRPC", func(t *testing.T, ctx context.Context, lgr log.Logger, url string) callFunc {
-		cl, err := client.NewRPC(ctx, lgr, url)
+		cl, err := client.NewRPC(ctx, lgr, url, client.WithCallTimeout(callTimeout))
 		require.NoError(t, err)
 		t.Cleanup(cl.Close)
 		return rpcCaller(cl)
 	}},
 	{"NewRPC lazy", func(t *testing.T, ctx context.Context, lgr log.Logger, url string) callFunc {
-		cl, err := client.NewRPC(ctx, lgr, url, client.WithLazyDial())
+		cl, err := client.NewRPC(ctx, lgr, url, client.WithLazyDial(), client.WithCallTimeout(callTimeout))
 		require.NoError(t, err)
 		t.Cleanup(cl.Close)
 		return rpcCaller(cl)
@@ -158,11 +162,13 @@ func TestResponseSizeParity(t *testing.T) {
 		t.Run(d.name, func(t *testing.T) {
 			for _, tr := range transports {
 				t.Run(tr.name, func(t *testing.T) {
-					ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+					dialCtx, cancel := context.WithTimeout(context.Background(), callTimeout)
 					defer cancel()
-					call := d.dial(t, ctx, testlog.Logger(t, slog.LevelInfo), tr.url)
+					call := d.dial(t, dialCtx, testlog.Logger(t, slog.LevelInfo), tr.url)
 					for _, s := range sizes {
 						t.Run(s.name, func(t *testing.T) {
+							ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+							defer cancel()
 							require.NoError(t, call(ctx, s.size))
 						})
 					}
