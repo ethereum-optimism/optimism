@@ -77,7 +77,7 @@ func startServer(t *testing.T) (httpURL, wsURL string) {
 type callFunc func(ctx context.Context, size int) error
 
 // requestResultSize returns 8 bytes of call data that ask ethService for a response of about
-// size bytes: the result is size/2 bytes, which hex encoding doubles. Only the response is large.
+// size bytes: the result is size/2 bytes, which hex encoding doubles.
 func requestResultSize(size int) []byte {
 	return binary.BigEndian.AppendUint64(nil, uint64(size/2))
 }
