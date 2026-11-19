@@ -79,7 +79,6 @@ tokio.workspace = true
 
 # misc
 clap.workspace = true
-serde.workspace = true
 eyre.workspace = true
 url.workspace = true
 futures-util.workspace = true

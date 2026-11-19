@@ -13,10 +13,12 @@ use alloy_consensus::{BlockHeader, EMPTY_OMMER_ROOT_HASH, TxReceipt};
 use alloy_eips::Encodable2718;
 use alloy_primitives::{B256, Bloom, Bytes};
 use alloy_trie::EMPTY_ROOT_HASH;
+use reth_chainspec::EthereumHardforks;
 use reth_consensus::ConsensusError;
 use reth_ethereum_consensus::compare_receipts_root_and_logs_bloom;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::DepositReceipt;
+use reth_optimism_primitives::OpReceipt;
 use reth_primitives_traits::{BlockBody, GotExpected, receipt::gas_spent_by_transactions};
 
 /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1
@@ -30,7 +32,7 @@ use reth_primitives_traits::{BlockBody, GotExpected, receipt::gas_spent_by_trans
 ///   - transaction root
 ///   - withdrawals root: the body's withdrawals root must only match the header's before isthmus
 pub fn validate_body_against_header_op<B, H>(
-    chain_spec: impl OpHardforks,
+    chain_spec: &OpChainSpec,
     body: &B,
     header: &H,
 ) -> Result<(), ConsensusError>
@@ -97,10 +99,10 @@ where
 ///
 /// If `receipt_root_bloom` is provided, the pre-computed receipt root and logs bloom are used
 /// instead of computing them from the receipts.
-pub fn validate_block_post_execution<R: DepositReceipt>(
+pub fn validate_block_post_execution(
     header: impl BlockHeader,
-    chain_spec: impl OpHardforks,
-    result: &BlockExecutionResult<R>,
+    chain_spec: &OpChainSpec,
+    result: &BlockExecutionResult<OpReceipt>,
     receipt_root_bloom: Option<(B256, Bloom)>,
 ) -> Result<(), ConsensusError> {
     // Validate that the blob gas used is present and correctly computed if Jovian is active.
@@ -168,11 +170,11 @@ pub fn validate_block_post_execution<R: DepositReceipt>(
 ///
 /// Copies the upstream helper, substituting OP receipt-root calculation.
 /// Verify the calculated receipts root against the expected receipts root.
-fn verify_receipts_optimism<R: DepositReceipt>(
+fn verify_receipts_optimism(
     expected_receipts_root: B256,
     expected_logs_bloom: Bloom,
-    receipts: &[R],
-    chain_spec: impl OpHardforks,
+    receipts: &[OpReceipt],
+    chain_spec: &OpChainSpec,
     timestamp: u64,
 ) -> Result<(), ConsensusError> {
     // Calculate receipts root.

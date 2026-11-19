@@ -7,8 +7,8 @@ use alloy_rpc_types_debug::ExecutionWitness;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, async_trait};
 use reth_chainspec::ChainSpecProvider;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::{ConfigurePostExecEvm, OpNextBlockEnvAttributes};
-use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilder};
 use reth_optimism_post_exec_replay::{
     PostExecReplayBlock, PostExecReplayConfig, ReplayPostExecBlockOptions,
@@ -137,7 +137,7 @@ where
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>> + 'static,
     Provider: BlockReaderIdExt<Header = Header>
         + StateProviderFactory
-        + ChainSpecProvider<ChainSpec: OpHardforks>
+        + ChainSpecProvider<ChainSpec = OpChainSpec>
         + Clone
         + 'static,
     EvmConfig: ConfigurePostExecEvm<Primitives = OpPrimitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>
@@ -172,7 +172,7 @@ where
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>> + 'static,
     Provider: BlockReaderIdExt<Block = OpBlock, Header = Header>
         + StateProviderFactory
-        + ChainSpecProvider<ChainSpec: OpHardforks>
+        + ChainSpecProvider<ChainSpec = OpChainSpec>
         + Clone
         + 'static,
     EvmConfig: ConfigurePostExecEvm<Primitives = OpPrimitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>

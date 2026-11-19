@@ -60,7 +60,7 @@ mod tests {
     use reth_consensus::{ConsensusError, FullConsensus};
     use reth_execution_types::BlockExecutionResult;
     use reth_metrics::metrics::with_local_recorder;
-    use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec, OpChainSpecBuilder};
+    use reth_optimism_chainspec::{OP_MAINNET, OpChainSpecBuilder};
     use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{RecoveredBlock, SealedBlock, proofs};
     use rstest::rstest;
@@ -71,7 +71,7 @@ mod tests {
     const REFUND_GAS: &str = "reth_op_sdm_refund_gas_total";
     const NO_REFUNDS: &[u64] = &[];
 
-    fn lagoon_consensus() -> OpBeaconConsensus<OpChainSpec> {
+    fn lagoon_consensus() -> OpBeaconConsensus {
         OpBeaconConsensus::new(Arc::new(
             OpChainSpecBuilder::default()
                 .lagoon_activated()

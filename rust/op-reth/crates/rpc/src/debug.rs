@@ -15,8 +15,8 @@ use jsonrpsee_types::error::ErrorObject;
 use reth_basic_payload_builder::PayloadConfig;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_node_api::PayloadBuilderError;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
-use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpPayloadAttributes, OpPayloadBuilderAttributes,
     builder::{OpBuilder, OpPayloadBuilderCtx},
@@ -172,7 +172,7 @@ where
         > + 'static,
     Provider: BlockReaderIdExt<Header = Header>
         + StateProviderFactory
-        + ChainSpecProvider<ChainSpec: OpHardforks>
+        + ChainSpecProvider<ChainSpec = OpChainSpec>
         + Clone
         + 'static,
 {

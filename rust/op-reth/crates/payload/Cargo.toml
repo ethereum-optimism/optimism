@@ -27,9 +27,11 @@ reth-basic-payload-builder.workspace = true
 reth-tasks.workspace = true
 reth-payload-validator.workspace = true
 reth-metrics.workspace = true
+reth-engine-primitives = { workspace = true, features = ["std"] }
 
 # op-reth
 reth-optimism-evm = { workspace = true, features = ["std"] }
+reth-optimism-chainspec.workspace = true
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
 reth-optimism-txpool.workspace = true
