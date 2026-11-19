@@ -8198,7 +8198,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-provider",
  "alloy-rlp",
- "alloy-rpc-client",
  "anyhow",
  "async-trait",
  "clap",

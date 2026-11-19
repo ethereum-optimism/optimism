@@ -1,24 +1,30 @@
 //! Ethereum utilities for the host binary.
 
-use alloy_provider::{Network, RootProvider, WebSocketConfig};
-use alloy_rpc_client::{BuiltInConnectionString, ClientBuilder, ConnectionConfig};
+use alloy_provider::{ConnectionConfig, Network, RootProvider, WebSocketConfig};
+use alloy_rpc_client::{BuiltInConnectionString, ClientBuilder};
+use alloy_transport::{TransportConnect, TransportResult};
 
 mod precompiles;
 pub(crate) use precompiles::execute;
 
-/// Returns an RPC provider for the given URL.
+/// Connects to the RPC endpoint at `url` over HTTP, websocket or IPC.
 ///
 /// Uses Reqwest explicitly for HTTP while preserving the configured websocket and IPC transports.
 /// Websocket messages and frames have no size limit, to match HTTP.
-pub async fn rpc_provider<N: Network>(url: &str) -> RootProvider<N> {
-    let connection = url.parse::<BuiltInConnectionString>().unwrap();
+pub async fn connect<N: Network>(url: &str) -> TransportResult<RootProvider<N>> {
+    let connection = url.parse::<BuiltInConnectionString>()?;
     if let BuiltInConnectionString::Http(url) = connection {
-        RootProvider::new_http(url)
-    } else {
-        let ws_config = WebSocketConfig::default().max_message_size(None).max_frame_size(None);
-        let config = ConnectionConfig::new().with_ws_config(ws_config);
-        RootProvider::new(ClientBuilder::default().connect_with_config(url, config).await.unwrap())
+        return Ok(RootProvider::new_http(url));
     }
+    let ws_config = WebSocketConfig::default().max_message_size(None).max_frame_size(None);
+    let config = ConnectionConfig::new().with_ws_config(ws_config);
+    let transport = connection.connect_boxed_with(config).await?;
+    Ok(RootProvider::new(ClientBuilder::default().transport(transport, connection.is_local())))
+}
+
+/// Returns an RPC provider for the given URL, as [`connect`] does. Panics if it can't connect.
+pub async fn rpc_provider<N: Network>(url: &str) -> RootProvider<N> {
+    connect(url).await.unwrap()
 }
 
 #[cfg(test)]
@@ -67,6 +73,8 @@ mod tests {
         let (http, ws, _server) = large_response_server(size).await;
         let url = if transport == "http" { http } else { ws };
         let provider = rpc_provider::<Ethereum>(&url).await;
+        // Subscriptions stay available over websocket.
+        assert_eq!(provider.client().pubsub_frontend().is_some(), transport == "ws");
         let call = provider.client().request::<_, Bytes>("eth_call", ());
         let result = tokio::time::timeout(CALL_DEADLINE, call)
             .await
