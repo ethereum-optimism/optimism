@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	txmgrmocks "github.com/ethereum-optimism/optimism/op-service/txmgr/mocks"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/params"
@@ -69,10 +70,14 @@ func setup(t *testing.T, closeAppFn context.CancelCauseFunc) (*BatchSubmitter, *
 		}
 	}
 
+	txm := new(txmgrmocks.TxManager)
+	txm.On("From").Return(common.Address{0x01})
+
 	return NewBatchSubmitter(DriverSetup{
 		closeApp:     closeAppFn,
 		Log:          testlog.Logger(t, log.LevelDebug),
 		Metr:         metrics.NoopMetrics,
+		Txmgr:        txm,
 		RollupConfig: cfg,
 		Config: BatcherConfig{
 			ThrottleParams: config.ThrottleParams{

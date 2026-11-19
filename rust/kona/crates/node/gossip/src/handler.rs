@@ -2,7 +2,7 @@
 
 use crate::{
     HandlerEncodeError, UnsafeBlockSigner,
-    config::snappy_decompressed_len_within_bound,
+    config::{minimal_snappy_preamble, snappy_decompressed_len_within_bound},
     payload::{GossipPayloadVersion, SignedGossipPayload},
 };
 use alloy_primitives::{Address, B256, Signature};
@@ -54,7 +54,8 @@ impl Handler for BlockHandler {
         // Reject frames whose Snappy header declares a decompressed size over MAX_GOSSIP_SIZE
         // before decoding. The decoder would otherwise pre-allocate the declared length (up to
         // roughly 4 GiB) from a tiny frame. This mirrors op-node's gossip topic validator.
-        if snappy_decompressed_len_within_bound(&msg.data).is_none() {
+        let frame = minimal_snappy_preamble(&msg.data);
+        if snappy_decompressed_len_within_bound(&frame).is_none() {
             metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "invalid_snappy_length")
                 .increment(1);
             debug!(target: "gossip", len = msg.data.len(), "Rejecting Snappy frame with invalid declared length before decode");
@@ -69,7 +70,7 @@ impl Handler for BlockHandler {
             return (MessageAcceptance::Reject, None);
         };
 
-        let signed = match SignedGossipPayload::decode_snappy(&msg.data) {
+        let signed = match SignedGossipPayload::decode_snappy(&frame) {
             Ok(signed) => signed,
             Err(err) => {
                 metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error")
@@ -260,6 +261,44 @@ mod tests {
         let (acceptance, payload) = handler.handle(message(topic, encoded));
         assert!(matches!(acceptance, MessageAcceptance::Accept));
         assert!(matches!(payload, Some(OpExecutionPayloadEnvelope::V2(_))));
+    }
+
+    /// Returns `frame` with its snappy length preamble re-encoded in `n` bytes, padded with
+    /// continuation bytes.
+    fn pad_snappy_length_preamble(frame: &[u8], n: usize) -> Vec<u8> {
+        let mut len = snap::raw::decompress_len(frame).unwrap();
+        let preamble_len = frame.iter().position(|&b| b < 0x80).unwrap() + 1;
+        let mut out = Vec::with_capacity(n + frame.len() - preamble_len);
+        for _ in 1..n {
+            out.push(len as u8 | 0x80);
+            len >>= 7;
+        }
+        out.push(len as u8);
+        out.extend_from_slice(&frame[preamble_len..]);
+        out
+    }
+
+    /// A signed block whose snappy length preamble is padded to ten bytes is accepted, and one
+    /// padded to eleven bytes is rejected, as op-node's
+    /// `TestBlockValidatorPaddedSnappyLengthPreamble` (`op-node/p2p/gossip_test.go`) checks.
+    #[test]
+    fn test_padded_snappy_length_preamble() {
+        let mut handler = handler_with_signer(Address::ZERO);
+        let topic = handler.blocks_v2_topic.clone();
+        let envelope = v2_envelope();
+        let (encoded, signer) =
+            encode_with_test_signature(&handler, topic.clone(), envelope.clone());
+        handler.signer_recv = tokio::sync::watch::channel(signer).1;
+
+        let (acceptance, payload) =
+            handler.handle(message(topic.clone(), pad_snappy_length_preamble(&encoded, 11)));
+        assert!(matches!(acceptance, MessageAcceptance::Reject));
+        assert!(payload.is_none());
+
+        let (acceptance, payload) =
+            handler.handle(message(topic, pad_snappy_length_preamble(&encoded, 10)));
+        assert!(matches!(acceptance, MessageAcceptance::Accept));
+        assert_eq!(payload, Some(envelope));
     }
 
     #[test]

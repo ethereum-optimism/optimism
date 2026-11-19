@@ -162,8 +162,8 @@ func (s *L2Client) infoAndTxsByID(ctx context.Context, id rpcBlockID) (eth.Block
 }
 
 // decodeWithoutOpTxs decodes txs into go-ethereum transactions, or returns ErrOpTxInBody if any
-// of them has an OP Stack transaction type. It checks the type bytes before decoding, so the
-// rejection does not depend on which go-ethereum the build resolves.
+// of them has an OP Stack transaction type. It checks the type bytes before decoding, where
+// go-ethereum would fail on such a transaction with its generic ErrTxTypeNotSupported.
 func decodeWithoutOpTxs(txs RawTransactions) (types.Transactions, error) {
 	for i, tx := range txs {
 		switch typ := tx.Type(); typ {

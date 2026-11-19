@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,12 +109,4 @@ func TestOperatorCostJovian(t *testing.T) {
 
 	// Zero scalar and constant yield zero fee regardless of gas.
 	require.Equal(t, 0, OperatorCostJovian(21000, 0, 0).Sign())
-}
-
-// TestTxRollupCostDataDeposit decodes a deposit into a go-ethereum transaction, which only
-// op-geth can do, so it goes with the deposit branch of TxRollupCostData at the cutover.
-func TestTxRollupCostDataDeposit(t *testing.T) {
-	deposit := new(types.Transaction)
-	require.NoError(t, deposit.UnmarshalBinary(l1AttributesDeposit(t, nil)))
-	require.Equal(t, RollupCostData{}, TxRollupCostData(deposit))
 }

@@ -541,7 +541,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 				data := make([]byte, rand.Intn(100))
 				_, err := crand.Read(data[:]) // fill with random bytes
 				require.NoError(t, err)
-				gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
+				gas, err := core.IntrinsicGas(data, nil, nil, common.Address{}, &common.Address{}, nil, params.Rules{IsHomestead: true, IsIstanbul: true})
 				require.NoError(t, err)
 				baseFee := seqEngine.LatestHeader(t).BaseFee
 				nonce, err := cl.PendingNonceAt(t.Ctx(), addrs[userIdx])
@@ -681,7 +681,7 @@ func TestBatchEquivalence(gt *testing.T) {
 			data := make([]byte, rand.Intn(100))
 			_, err := crand.Read(data[:]) // fill with random bytes
 			require.NoError(t, err)
-			gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
+			gas, err := core.IntrinsicGas(data, nil, nil, common.Address{}, &common.Address{}, nil, params.Rules{IsHomestead: true, IsIstanbul: true})
 			require.NoError(t, err)
 			baseFee := seqEngine.LatestHeader(t).BaseFee
 			nonce, err := seqEngCl.PendingNonceAt(t.Ctx(), addrs[userIdx])

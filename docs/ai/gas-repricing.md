@@ -142,7 +142,7 @@ op-node and kona must agree on each item in this section.
 
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
-| Gas limit of batch transactions (`op-batcher/batcher/driver.go`) | L1 | Fixed gas | The batcher sets the gas limit from a floor formula and does not estimate. `amsterdamTxBaseGas` and `amsterdamCalldataFloorGasPerByte` copy draft EIP-2780 and EIP-7976 values. |
+| Gas limit of batch transactions (`op-batcher/batcher/driver.go`) | L1 | Fixed gas | The batcher sets the gas limit from a floor formula and does not estimate. `maxFloorDataGas` takes the larger `core.FloorDataGas` under the pre-Amsterdam and the Amsterdam rules, so the limit follows go-ethereum's draft EIP-2780 and EIP-7976 values. The cost model (`config.go`, `channel_config_provider.go`) copies those values as `amsterdamTxBaseGas` and `amsterdamCalldataFloorGasPerByte`. |
 | `maxL1CalldataSize` (`op-batcher/batcher/config.go`) | L1 | Limit bound | The maximum `MaxL1TxSize` comes from `MaxTxGas` and the Amsterdam constants. |
 | Default size of calldata frames (120000 bytes) (`op-batcher/flags/flags.go`, `op-batcher/batcher/service.go`) | L1 | Limit bound | A higher calldata floor can push one frame above the EIP-7825 cap. |
 | Blob or calldata choice (`op-batcher/batcher/channel_config_provider.go`) | L1 | Copied schedule | The choice uses `TxGas`, the calldata floors, and `BlobTxBlobGasPerBlob`. The batcher finds Amsterdam from the block access list hash, not from the L1 chain config. |

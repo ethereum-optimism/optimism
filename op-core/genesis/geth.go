@@ -10,7 +10,7 @@ import (
 // with g.
 //
 // Compute the genesis block with ToBlock instead: go-ethereum's core.Genesis.ToBlock
-// doesn't apply the Isthmus withdrawals root in upstream go-ethereum.
+// doesn't apply the Isthmus withdrawals root.
 func (g *Genesis) GethGenesis() *core.Genesis {
 	out := &core.Genesis{
 		Nonce:         g.Nonce,

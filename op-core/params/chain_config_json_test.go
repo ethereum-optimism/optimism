@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -52,56 +53,24 @@ func parseJSONObject(t *testing.T, data []byte) map[string]any {
 	return obj
 }
 
-// TestChainConfigJSONFields checks that chainConfigJSON declares every ChainConfig field
-// directly, with the same type and JSON tag. A field missing from the direct list would
-// otherwise be encoded from go-ethereum's config, or dropped.
-func TestChainConfigJSONFields(t *testing.T) {
+// TestChainConfigJSONKeysDisjoint checks that go-ethereum's chain config declares none of
+// the ChainConfig JSON keys but chainId: encoding/json drops a key that both embedded
+// configs of chainConfigJSON declare.
+func TestChainConfigJSONKeysDisjoint(t *testing.T) {
+	gethKeys := map[string]bool{}
+	gethType := reflect.TypeFor[gethparams.ChainConfig]()
+	for i := range gethType.NumField() {
+		name, _, _ := strings.Cut(gethType.Field(i).Tag.Get("json"), ",")
+		gethKeys[name] = true
+	}
 	cfgType := reflect.TypeFor[ChainConfig]()
-	jsonType := reflect.TypeFor[chainConfigJSON]()
 	for i := range cfgType.NumField() {
-		f := cfgType.Field(i)
-		if !f.IsExported() {
+		name, _, _ := strings.Cut(cfgType.Field(i).Tag.Get("json"), ",")
+		if name == "chainId" {
 			continue
 		}
-		jf, ok := jsonType.FieldByName(f.Name)
-		require.True(t, ok, "chainConfigJSON lacks %s", f.Name)
-		require.Len(t, jf.Index, 1, "chainConfigJSON must declare %s directly", f.Name)
-		require.Equal(t, f.Type, jf.Type, f.Name)
-		require.Equal(t, f.Tag.Get("json"), jf.Tag.Get("json"), f.Name)
+		require.Falsef(t, gethKeys[name], "go-ethereum's chain config declares %q", name)
 	}
-	for i := range jsonType.NumField() {
-		jf := jsonType.Field(i)
-		if jf.Anonymous {
-			continue
-		}
-		_, ok := cfgType.FieldByName(jf.Name)
-		require.True(t, ok, "chainConfigJSON field %s is not a ChainConfig field", jf.Name)
-	}
-}
-
-// TestChainConfigJSONDirectFieldsDominate checks that the direct fields of
-// chainConfigJSON hide the same-named fields of the embedded go-ethereum config, even
-// where a direct field is omitted.
-func TestChainConfigJSONDirectFieldsDominate(t *testing.T) {
-	geth := jsonTestConfig(t, forkstest.Staggered()).GethChainConfig()
-	geth.ChainID = big.NewInt(1)
-	geth.CanyonTime = ptr.New[uint64](999)
-	geth.LagoonTime = ptr.New[uint64](999)
-	geth.Optimism = &gethparams.OptimismConfig{EIP1559Elasticity: 1, EIP1559Denominator: 1}
-
-	data, err := json.Marshal(chainConfigJSON{
-		ChainID:     big.NewInt(901),
-		ChainConfig: geth,
-		CanyonTime:  ptr.New[uint64](2000),
-		Optimism:    &OptimismConfig{EIP1559Elasticity: 6, EIP1559Denominator: 50},
-	})
-	require.NoError(t, err)
-	obj := parseJSONObject(t, data)
-	require.Equal(t, float64(901), obj["chainId"])
-	require.Equal(t, float64(2000), obj["canyonTime"])
-	require.NotContains(t, obj, "lagoonTime")
-	require.Equal(t, map[string]any{"eip1559Elasticity": float64(6), "eip1559Denominator": float64(50)}, obj["optimism"])
-	require.Equal(t, float64(0), obj["homesteadBlock"], "go-ethereum-only keys are kept")
 }
 
 func TestChainConfigJSONRoundTrip(t *testing.T) {
@@ -157,6 +126,15 @@ func TestChainConfigJSONUnmarshalEthereumKeys(t *testing.T) {
 	for key, value := range map[string]any{
 		"shanghaiTime":            1,
 		"osakaTime":               9000,
+		"bpo1Time":                0,
+		"bpo2Time":                0,
+		"bpo3Time":                0,
+		"bpo4Time":                0,
+		"bpo5Time":                0,
+		"amsterdamTime":           0,
+		"bogotaTime":              0,
+		"ubtTime":                 0,
+		"enableUBTAtGenesis":      true,
 		"londonBlock":             5,
 		"daoForkBlock":            0,
 		"terminalTotalDifficulty": 1,

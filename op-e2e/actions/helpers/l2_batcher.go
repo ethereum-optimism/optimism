@@ -402,7 +402,8 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 			opt(rawTx)
 		}
 
-		gas, err := core.FloorDataGas(rawTx.Data)
+		// The L1 miner builds no Amsterdam blocks, so the pre-Amsterdam floor applies.
+		gas, err := core.FloorDataGas(params.Rules{}, s.BatcherAddr, rawTx.To, nil, rawTx.Data, nil)
 		require.NoError(t, err, "need to compute floor data gas")
 		rawTx.Gas = gas
 		txData = rawTx

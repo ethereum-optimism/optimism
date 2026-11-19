@@ -9,7 +9,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -81,20 +80,4 @@ func UnmarshalDepositTx(raw []byte) (*DepositTx, error) {
 // deposit type byte. Empty input is not a deposit. It does not check the payload.
 func IsDepositTxBytes(raw []byte) bool {
 	return len(raw) > 0 && raw[0] == DepositTxType
-}
-
-// IsDepositTx below operates on a go-ethereum *types.Transaction. It exists
-// only for the decoupling transition: while the build still resolves
-// go-ethereum to op-geth, a *types.Transaction can hold a deposit, so it lets
-// call sites drop their dependency on op-geth's Transaction methods before the
-// underlying transaction representation is migrated. Once the build moves to
-// upstream go-ethereum a *types.Transaction can never hold a deposit (the
-// 0x7E type is rejected on decode), making it dead — it is removed at the
-// cutover. The durable shape decodes raw bytes into a [DepositTx] (via
-// [UnmarshalDepositTx]) and reads its fields directly; see op-service/sources
-// accessors (#20264).
-
-// IsDepositTx reports whether tx is an OP Stack deposit transaction.
-func IsDepositTx(tx *types.Transaction) bool {
-	return tx.Type() == DepositTxType
 }

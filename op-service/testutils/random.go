@@ -145,8 +145,8 @@ func RandomTo(rng *rand.Rand) *common.Address {
 
 // signerSupportsSetCode reports whether the signer accepts EIP-7702 set-code
 // transactions. It probes via SignatureValues instead of comparing against a
-// concrete signer, so it recognizes both op-geth's Isthmus signer (a Prague
-// signer without blob-tx support) and upstream go-ethereum's modern signers.
+// concrete signer, so it recognizes every signer from Prague on, including
+// the one types.LatestSignerForChainID returns.
 func signerSupportsSetCode(signer types.Signer) bool {
 	var sig [crypto.SignatureLength]byte
 	_, _, _, err := signer.SignatureValues(types.NewTx(&types.SetCodeTx{}), sig[:])

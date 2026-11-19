@@ -20,7 +20,7 @@ commands:
               sleep 5
             done
 
-  # The Go caches (these, opgeth-ratchet's and go-lint's) are scoped by
+  # The Go caches (these and go-lint's) are scoped by
   # branch. Each branch saves only under its own name, and restores only its
   # own caches or develop's. Go trusts both caches without re-checking them,
   # so this keeps what a branch (or code it runs) writes into them out of

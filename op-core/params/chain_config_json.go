@@ -9,31 +9,18 @@ import (
 	gethparams "github.com/ethereum/go-ethereum/params"
 )
 
+// chainConfigFields is ChainConfig without its JSON methods, so that chainConfigJSON can
+// embed it without recursing into them.
+type chainConfigFields ChainConfig
+
 // chainConfigJSON is the JSON form of ChainConfig: the go-ethereum chain config that
-// GethChainConfig derives, with the ChainConfig fields declared directly alongside it.
-//
-// encoding/json lets a field declared directly dominate a same-named field promoted from
-// an embedded struct, so the direct fields take precedence over any OP fields
-// go-ethereum's config declares as well. ChainID is declared before the embedded config
-// so that it leads the encoding, as in go-ethereum's.
+// GethChainConfig derives, followed by the ChainConfig fields. Both embedded configs
+// declare chainId, which encoding/json would drop as ambiguous, so it is declared
+// directly; it leads the encoding, as in go-ethereum's.
 type chainConfigJSON struct {
 	ChainID *big.Int `json:"chainId"`
-
 	*gethparams.ChainConfig
-
-	BedrockBlock *big.Int `json:"bedrockBlock,omitempty"`
-	RegolithTime *uint64  `json:"regolithTime,omitempty"`
-	CanyonTime   *uint64  `json:"canyonTime,omitempty"`
-	EcotoneTime  *uint64  `json:"ecotoneTime,omitempty"`
-	FjordTime    *uint64  `json:"fjordTime,omitempty"`
-	GraniteTime  *uint64  `json:"graniteTime,omitempty"`
-	HoloceneTime *uint64  `json:"holoceneTime,omitempty"`
-	IsthmusTime  *uint64  `json:"isthmusTime,omitempty"`
-	JovianTime   *uint64  `json:"jovianTime,omitempty"`
-	KarstTime    *uint64  `json:"karstTime,omitempty"`
-	LagoonTime   *uint64  `json:"lagoonTime,omitempty"`
-
-	Optimism *OptimismConfig `json:"optimism,omitempty"`
+	chainConfigFields
 }
 
 // MarshalJSON encodes c as a go-ethereum chain config: the Ethereum fork schedule that
@@ -41,20 +28,9 @@ type chainConfigJSON struct {
 // in go-ethereum's declaration order.
 func (c ChainConfig) MarshalJSON() ([]byte, error) {
 	return json.Marshal(chainConfigJSON{
-		ChainID:      c.ChainID,
-		ChainConfig:  c.GethChainConfig(),
-		BedrockBlock: c.BedrockBlock,
-		RegolithTime: c.RegolithTime,
-		CanyonTime:   c.CanyonTime,
-		EcotoneTime:  c.EcotoneTime,
-		FjordTime:    c.FjordTime,
-		GraniteTime:  c.GraniteTime,
-		HoloceneTime: c.HoloceneTime,
-		IsthmusTime:  c.IsthmusTime,
-		JovianTime:   c.JovianTime,
-		KarstTime:    c.KarstTime,
-		LagoonTime:   c.LagoonTime,
-		Optimism:     c.Optimism,
+		ChainID:           c.ChainID,
+		ChainConfig:       c.GethChainConfig(),
+		chainConfigFields: chainConfigFields(c),
 	})
 }
 
@@ -68,21 +44,8 @@ func (c *ChainConfig) UnmarshalJSON(input []byte) error {
 	if err := json.Unmarshal(input, &dec); err != nil {
 		return err
 	}
-	out := ChainConfig{
-		ChainID:      dec.ChainID,
-		Optimism:     dec.Optimism,
-		BedrockBlock: dec.BedrockBlock,
-		RegolithTime: dec.RegolithTime,
-		CanyonTime:   dec.CanyonTime,
-		EcotoneTime:  dec.EcotoneTime,
-		FjordTime:    dec.FjordTime,
-		GraniteTime:  dec.GraniteTime,
-		HoloceneTime: dec.HoloceneTime,
-		IsthmusTime:  dec.IsthmusTime,
-		JovianTime:   dec.JovianTime,
-		KarstTime:    dec.KarstTime,
-		LagoonTime:   dec.LagoonTime,
-	}
+	out := ChainConfig(dec.chainConfigFields)
+	out.ChainID = dec.ChainID
 	if err := checkEthereumSchedule(dec.ChainConfig, out.GethChainConfig()); err != nil {
 		return err
 	}
@@ -126,6 +89,14 @@ func checkEthereumSchedule(dec, derived *gethparams.ChainConfig) error {
 		{"cancunTime", dec.CancunTime, derived.CancunTime},
 		{"pragueTime", dec.PragueTime, derived.PragueTime},
 		{"osakaTime", dec.OsakaTime, derived.OsakaTime},
+		{"bpo1Time", dec.BPO1Time, derived.BPO1Time},
+		{"bpo2Time", dec.BPO2Time, derived.BPO2Time},
+		{"bpo3Time", dec.BPO3Time, derived.BPO3Time},
+		{"bpo4Time", dec.BPO4Time, derived.BPO4Time},
+		{"bpo5Time", dec.BPO5Time, derived.BPO5Time},
+		{"amsterdamTime", dec.AmsterdamTime, derived.AmsterdamTime},
+		{"bogotaTime", dec.BogotaTime, derived.BogotaTime},
+		{"ubtTime", dec.UBTTime, derived.UBTTime},
 	} {
 		if f.got != nil && (f.want == nil || *f.got != *f.want) {
 			return contradiction(f.key, strconv.FormatUint(*f.got, 10), formatTime(f.want))
@@ -133,6 +104,9 @@ func checkEthereumSchedule(dec, derived *gethparams.ChainConfig) error {
 	}
 	if dec.DAOForkSupport != derived.DAOForkSupport {
 		return contradiction("daoForkSupport", strconv.FormatBool(dec.DAOForkSupport), strconv.FormatBool(derived.DAOForkSupport))
+	}
+	if dec.EnableUBTAtGenesis != derived.EnableUBTAtGenesis {
+		return contradiction("enableUBTAtGenesis", strconv.FormatBool(dec.EnableUBTAtGenesis), strconv.FormatBool(derived.EnableUBTAtGenesis))
 	}
 	if dec.DepositContractAddress != derived.DepositContractAddress {
 		return contradiction("depositContractAddress", dec.DepositContractAddress.Hex(), derived.DepositContractAddress.Hex())

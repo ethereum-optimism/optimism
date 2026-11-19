@@ -96,20 +96,6 @@ lint-go: build-customlint build-superchain-go
 lint-go-fix: build-customlint build-superchain-go
   ./linter/bin/op-golangci-lint run ./... --fix
 
-# Checks that op-geth version in go.mod is valid.
-check-op-geth-version:
-  go run ./ops/scripts/check-op-geth-version
-
-# Type-checks the tree against the upstream go-ethereum release the cutover moves to (cutoverVersion
-# in ops/scripts/opgeth-ratchet/upstream.go) and fails on op-geth-only API uses that are
-# not in ops/scripts/opgeth-ratchet/allowlist.txt, or on allowlist entries no longer used.
-opgeth-ratchet: build-superchain-go
-  go run ./ops/scripts/opgeth-ratchet
-
-# Removes allowlist entries that opgeth-ratchet reports as no longer used.
-opgeth-ratchet-update: build-superchain-go
-  go run ./ops/scripts/opgeth-ratchet -update
-
 # Builds Docker images for Go components using buildx.
 [script('bash')]
 golang-docker: update-superchain-registry-submodule
@@ -454,10 +440,6 @@ go-tests-fraud-proofs-ci:
 # Runs comprehensive Go tests (alias for go-tests).
 test: go-tests
 
-# Updates the Geth version used in the project.
-update-op-geth:
-  ./ops/scripts/update-op-geth.py
-
 # Build all Rust binaries (release) for sysgo tests.
 build-rust-release:
   cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth
@@ -535,22 +517,6 @@ toc:
 
 latest-versions:
   ./ops/scripts/latest-versions.sh
-
-# Usage:
-#   just update-op-geth-ref 2f0528b
-#   just update-op-geth-ref v1.101602.4
-#   just update-op-geth-ref optimism
-[script('bash')]
-update-op-geth-ref ref:
-    set -euo pipefail
-    ref="{{ref}}"
-    if [ -z "$ref" ]; then echo "error: provide a hash/tag/branch"; exit 1; fi
-    tmpl=$(printf "\173\173.Version\175\175")
-    ver=$(go list -m -f "$tmpl" github.com/ethereum-optimism/op-geth@"$ref")
-    if [ -z "$ver" ]; then echo "error: couldn't resolve $ref"; exit 1; fi
-    go mod edit -replace=github.com/ethereum/go-ethereum=github.com/ethereum-optimism/op-geth@"$ver"
-    go mod tidy
-    echo "Updated op-geth to $ver"
 
 # Prints the latest stable semver tag for a component (excludes pre-releases).
 latest-tag component:

@@ -241,12 +241,9 @@ func withGlamsterdamAutoDABlobFee(_ devtest.T, _ devkeys.Keys, builder intentbui
 		WithL1BlobSchedule(&params.BlobScheduleConfig{
 			Cancun: params.DefaultCancunBlobConfig,
 			Prague: params.DefaultPragueBlobConfig,
-			Osaka:  params.DefaultOsakaBlobConfig,
 			BPO1:   params.DefaultBPO1BlobConfig,
 			// BPO3-5 are unscheduled, so BPO2 sets the blob fee both before and after Amsterdam.
 			BPO2: stableBlobConfig,
-			// Geth requires an entry for every scheduled fork, but does not price blobs with it.
-			Amsterdam: stableBlobConfig,
 		}).
 		WithExcessBlobGas(genesisExcessBlobGas)
 }

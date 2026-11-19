@@ -134,22 +134,17 @@ func TestEveryMethodContract(t *testing.T) {
 
 func logViaGethWrite(g log.Logger) {
 	g.Write(oplog.LevelInfo, "write")
-	// WriteCtx is only part of op-geth's log.Logger.
-	g.(interface {
-		WriteCtx(ctx context.Context, level slog.Level, msg string, args ...any)
-	}).WriteCtx(withValue("explicit"), oplog.LevelInfo, "write-ctx")
 }
 
-// TestToGethWriteSourceAttribution checks that Write and WriteCtx on the
-// go-ethereum view attribute their record to the caller of the function that
-// calls them, which is what go-ethereum's package-level functions rely on.
+// TestToGethWriteSourceAttribution checks that Write on the go-ethereum view
+// attributes its record to the caller of the function that calls it, which is
+// what go-ethereum's package-level functions rely on.
 func TestToGethWriteSourceAttribution(t *testing.T) {
 	h := newRecordingHandler()
 	logViaGethWrite(oplog.ToGeth(oplog.NewLogger(h).With("k", "v").WithContext(withValue("default"))))
-	require.Len(t, h.all(), 2)
+	require.Len(t, h.all(), 1)
 	requireAttributedTo(t, h.all(), thisFunction())
 	require.Equal(t, "default", ctxValue(h.contexts()[0]))
-	require.Equal(t, "explicit", ctxValue(h.contexts()[1]))
 }
 
 // TestToGethWithContext checks that the go-ethereum view of a logger with a

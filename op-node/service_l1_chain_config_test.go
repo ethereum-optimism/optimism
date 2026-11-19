@@ -114,6 +114,24 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		require.Equal(t, custom.ChainID, cfg.ChainID)
 	})
 
+	// A key that go-ethereum's chain config does not have fails the decode, and the error names
+	// it for either file shape.
+	t.Run("unknown-key-direct", func(t *testing.T) {
+		path := filepath.Join(dir, "chainconfig_unknown_key.json")
+		require.NoError(t, os.WriteFile(path,
+			[]byte(`{"chainId": 424242, "blobSchedule": {"osaka": {"target": 6, "max": 9, "baseFeeUpdateFraction": 5007716}}}`), 0o644))
+		_, err := runWithPath(path)
+		require.ErrorContains(t, err, `unknown field "osaka"`)
+	})
+
+	t.Run("unknown-key-embedded", func(t *testing.T) {
+		path := filepath.Join(dir, "genesis_unknown_key.json")
+		require.NoError(t, os.WriteFile(path,
+			[]byte(`{"config": {"chainId": 424242, "blobSchedule": {"osaka": {"target": 6, "max": 9, "baseFeeUpdateFraction": 5007716}}}}`), 0o644))
+		_, err := runWithPath(path)
+		require.ErrorContains(t, err, `unknown field "osaka"`)
+	})
+
 	t.Run("nil-chainid-panics", func(t *testing.T) {
 		app := cli.NewApp()
 		ctx := cli.NewContext(app, nil, nil)
