@@ -665,4 +665,66 @@ mod tests {
         );
         assert!(rendered.contains(&timeout), "missing {timeout} in:\n{rendered}");
     }
+
+    /// Size in bytes of the response in [`large_responses_arrive_whole`], far larger than typical.
+    const LARGE_RESPONSE: usize = 72 << 20;
+
+    /// Reads one HTTP request from `stream` and returns its JSON body.
+    async fn read_request(stream: &mut tokio::net::TcpStream) -> serde_json::Value {
+        let mut request = Vec::new();
+        let mut chunk = [0; 4096];
+        loop {
+            let read = stream.read(&mut chunk).await.unwrap();
+            assert!(read > 0, "connection closed before the request was complete");
+            request.extend_from_slice(&chunk[..read]);
+            let text = String::from_utf8_lossy(&request);
+            let Some((head, body)) = text.split_once("\r\n\r\n") else { continue };
+            let length = head
+                .lines()
+                .find_map(|line| {
+                    line.to_ascii_lowercase()
+                        .strip_prefix("content-length:")
+                        .map(|v| v.trim().to_string())
+                })
+                .expect("request has a content-length")
+                .parse::<usize>()
+                .unwrap();
+            if body.len() >= length {
+                return serde_json::from_str(&body[..length]).unwrap();
+            }
+        }
+    }
+
+    /// Answers every request with a JSON-RPC result of `size / 2` zero bytes, which hex encodes to
+    /// `size` bytes, under the request's id.
+    async fn large_response_endpoint(size: usize) -> Url {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap()).parse().unwrap();
+        let result: Arc<str> = format!("0x{}", "00".repeat(size / 2)).into();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let result = result.clone();
+                tokio::spawn(async move {
+                    let id = read_request(&mut stream).await["id"].clone();
+                    let body = format!(r#"{{"jsonrpc":"2.0","id":{id},"result":"{result}"}}"#);
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n",
+                        body.len()
+                    );
+                    stream.write_all(head.as_bytes()).await.unwrap();
+                    stream.write_all(body.as_bytes()).await.unwrap();
+                });
+            }
+        });
+        url
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn large_responses_arrive_whole(#[values(CLIENTS[0], CLIENTS[1])] client: (&str, Build)) {
+        let (_, build) = client;
+        let client = build(large_response_endpoint(LARGE_RESPONSE).await);
+        let result: Bytes = client.request("eth_call", ()).await.unwrap();
+        assert_eq!(result.len(), LARGE_RESPONSE / 2);
+    }
 }
