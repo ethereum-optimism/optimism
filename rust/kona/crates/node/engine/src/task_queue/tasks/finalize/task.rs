@@ -1,8 +1,8 @@
 //! A task for finalizing an L2 block.
 
 use crate::{
-    EngineClient, EngineState, ExecutableEngineTask, FinalizeBlockId, FinalizeTaskError,
-    state::EngineSyncStateUpdate, task_queue::synchronize,
+    EngineClient, EngineState, EngineSyncState, ExecutableEngineTask, FinalizeBlockId,
+    FinalizeTaskError, state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
@@ -42,19 +42,14 @@ impl FinalizeTask {
 
     /// Whether `target` is the finalized head itself; a different block at its height is an error.
     fn is_already_finalized(
-        finalized_head: &L2BlockInfo,
+        sync_state: &EngineSyncState,
         target: BlockNumHash,
     ) -> Result<bool, FinalizeTaskError> {
-        let finalized = finalized_head.block_info.id();
-        if target == finalized {
+        if target == sync_state.finalized_head().block_info.id() {
             debug!(target: "engine", ?target, "Target is already finalized");
             return Ok(true);
         }
-        // The default head means finality has not been established yet, so any target, including
-        // the configured genesis, may initialize it.
-        if *finalized_head != L2BlockInfo::default() && target.number == finalized.number {
-            return Err(FinalizeTaskError::ConflictsWithFinalizedHead { finalized, target });
-        }
+        sync_state.ensure_no_conflict_with_finality(target)?;
         Ok(false)
     }
 
@@ -101,19 +96,13 @@ impl ExecutableEngineTask for FinalizeTask {
     type Error = FinalizeTaskError;
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), FinalizeTaskError> {
-        let finalized_head = state.sync_state.finalized_head();
         let target_number = self.block_id.number();
 
         // A lagging source can report an older finalized block, or one from another chain. A
         // pinned hash is enough to detect either without asking the execution layer.
-        if target_number < finalized_head.block_info.number {
-            return Err(FinalizeTaskError::BehindFinalizedHead {
-                finalized: finalized_head.block_info.number,
-                target: target_number,
-            });
-        }
+        state.sync_state.ensure_not_behind_finality(target_number)?;
         if let FinalizeBlockId::ByHash(target) = self.block_id &&
-            Self::is_already_finalized(&finalized_head, target)?
+            Self::is_already_finalized(&state.sync_state, target)?
         {
             return Ok(());
         }
@@ -132,7 +121,7 @@ impl ExecutableEngineTask for FinalizeTask {
 
         // A by-number target only learns its hash from the lookup.
         if matches!(self.block_id, FinalizeBlockId::ByNumber(_)) &&
-            Self::is_already_finalized(&finalized_head, block_info.block_info.id())?
+            Self::is_already_finalized(&state.sync_state, block_info.block_info.id())?
         {
             return Ok(());
         }
