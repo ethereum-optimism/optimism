@@ -39,15 +39,7 @@ mod tests {
     use rstest::rstest;
     use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-    /// tungstenite's default maximum websocket frame size, which alloy's websocket transport
-    /// uses.
-    const TUNGSTENITE_FRAME_LIMIT: usize = 16 << 20;
-
-    /// A response above tungstenite's default message size.
-    const LARGE_RESPONSE: usize = 72 << 20;
-
-    /// How long a call in these tests may take. A local call of [`LARGE_RESPONSE`] takes well
-    /// under a second.
+    /// How long a call in these tests may take. A local call in them takes well under a second.
     const CALL_DEADLINE: Duration = Duration::from_secs(30);
 
     /// Serves `test_large` over HTTP and websocket on one address, answering with `size / 2` zero
@@ -64,8 +56,9 @@ mod tests {
     }
 
     #[rstest]
-    #[case::above_tungstenite_frame_limit(TUNGSTENITE_FRAME_LIMIT + (1 << 20))]
-    #[case::large(LARGE_RESPONSE)]
+    // Sizes just above the websocket limits that `connect` lifts: tungstenite's defaults.
+    #[case::above_frame_limit(WebSocketConfig::default().max_frame_size.unwrap() + (1 << 20))]
+    #[case::above_message_limit(WebSocketConfig::default().max_message_size.unwrap() + (8 << 20))]
     #[tokio::test]
     async fn large_responses_arrive_over_http_and_websocket(
         #[case] size: usize,
