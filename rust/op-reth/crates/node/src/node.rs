@@ -77,6 +77,7 @@ use reth_rpc_api::{
 };
 use reth_rpc_builder::{TransportRpcModules, auth::AuthRpcModule};
 use reth_rpc_server_types::RethRpcModule;
+use reth_tasks::Runtime;
 use reth_tracing::tracing::{debug, info, warn};
 use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPoolTransaction, PoolPooledTx, PoolTransaction, TransactionOrdering,
@@ -370,12 +371,62 @@ impl OpNode {
     }
 }
 
+/// Hook that [`OpLaunchHooks::extend_rpc_modules`] installs.
+type ExtendRpcModulesHook =
+    Box<dyn FnOnce(&mut TransportRpcModules, &mut AuthRpcModule) -> eyre::Result<()> + Send>;
+
+/// Hook that [`OpLaunchHooks::on_node_started`] installs.
+type OnNodeStartedHook = Box<dyn FnOnce(&Runtime) + Send>;
+
+/// Hooks a binary that embeds op-reth adds to [`launch_node`].
+///
+/// They take concrete types, so that [`launch_node`] stays non-generic.
+#[derive(Default)]
+pub struct OpLaunchHooks {
+    extend_rpc_modules: Option<ExtendRpcModulesHook>,
+    on_node_started: Option<OnNodeStartedHook>,
+}
+
+impl OpLaunchHooks {
+    /// Runs `hook` on the RPC modules after op-reth installed its own methods, including the
+    /// proofs-history overrides.
+    pub fn extend_rpc_modules<F>(mut self, hook: F) -> Self
+    where
+        F: FnOnce(&mut TransportRpcModules, &mut AuthRpcModule) -> eyre::Result<()>
+            + Send
+            + 'static,
+    {
+        self.extend_rpc_modules = Some(Box::new(hook));
+        self
+    }
+
+    /// Runs `hook` with the node's task executor once the node has launched, before waiting for
+    /// it to exit.
+    pub fn on_node_started<F>(mut self, hook: F) -> Self
+    where
+        F: FnOnce(&Runtime) + Send + 'static,
+    {
+        self.on_node_started = Some(Box::new(hook));
+        self
+    }
+}
+
+impl std::fmt::Debug for OpLaunchHooks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpLaunchHooks")
+            .field("extend_rpc_modules", &self.extend_rpc_modules.is_some())
+            .field("on_node_started", &self.on_node_started.is_some())
+            .finish()
+    }
+}
+
 /// Launches an OP node, optionally installing proof history, then waits for it to exit.
 ///
 /// Fails if the engine config enables state masking, which op-reth does not support.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
+    hooks: OpLaunchHooks,
 ) -> eyre::Result<(), ErrReport> {
     // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
     // callers that build a `NodeConfig` without that CLI.
@@ -384,13 +435,10 @@ pub async fn launch_node(
         "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
     );
 
-    let builder = if node.args.proofs_history {
+    let proofs_mdbx = if node.args.proofs_history {
         // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
         // [`ProofsHistoryStorageArgs::resolve_storage_path`].
         let path = node.args.history.resolve_storage_path(builder.config().datadir().as_ref());
-        let window = node.args.proofs_history_window.window;
-        let verification_interval = node.args.proofs_history_verification_interval;
-        let prefetch_threads = node.args.proofs_history_prefetch_threads as usize;
 
         info!(target: "reth::cli", "Using on-disk storage for proofs history");
         let mdbx = Arc::new(
@@ -405,28 +453,34 @@ pub async fn launch_node(
                 path.display()
             );
         }
-        let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = mdbx.clone().into();
-        let storage_exec = storage.clone();
+        Some(mdbx)
+    } else {
+        None
+    };
+    let window = node.args.proofs_history_window.window;
+    let verification_interval = node.args.proofs_history_verification_interval;
+    let prefetch_threads = node.args.proofs_history_prefetch_threads as usize;
 
-        builder
-            .node(node)
+    let proofs_storage: Option<OpProofsStorage<Arc<MdbxProofsStorage>>> =
+        proofs_mdbx.clone().map(Into::into);
+
+    let mut builder = builder.node(node);
+    if let (Some(mdbx), Some(storage_exec)) = (proofs_mdbx, proofs_storage.clone()) {
+        builder = builder
             .on_node_started(move |node| {
                 let metrics_report_interval = node.config.metrics.push_gateway_interval;
-                node.task_executor.spawn_critical_task(
-                    "op-proofs-storage-metrics",
-                    async move {
-                        info!(
-                            target: "reth::cli",
-                            ?metrics_report_interval,
-                            "Starting op-proofs-storage metrics task"
-                        );
+                node.task_executor.spawn_critical_task("op-proofs-storage-metrics", async move {
+                    info!(
+                        target: "reth::cli",
+                        ?metrics_report_interval,
+                        "Starting op-proofs-storage metrics task"
+                    );
 
-                        loop {
-                            sleep(metrics_report_interval).await;
-                            mdbx.report_metrics();
-                        }
-                    },
-                );
+                    loop {
+                        sleep(metrics_report_interval).await;
+                        mdbx.report_metrics();
+                    }
+                });
                 Ok(())
             })
             .install_exex("proofs-history", async move |exex_context| {
@@ -437,28 +491,42 @@ pub async fn launch_node(
                     .build()
                     .run()
                     .boxed())
-            })
-            .extend_rpc_modules(move |ctx| {
-                info!(target: "reth::cli", "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)");
-                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-                let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-                let debug_ext = DebugApiExt::new(
-                    ctx.node().provider().clone(),
-                    ctx.registry.eth_api().clone(),
-                    storage,
-                    ctx.node().task_executor().clone(),
-                    ctx.node().evm_config().clone(),
-                );
-                let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
-                let auth_eth_replaced =
-                    ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
-                let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
-                info!(target: "reth::cli", eth_replaced, auth_eth_replaced, debug_replaced, "Proofs-history RPC overrides installed");
-                Ok(())
-            })
-    } else {
-        builder.node(node)
-    };
+            });
+    }
+
+    let OpLaunchHooks { extend_rpc_modules, on_node_started } = hooks;
+    let builder = builder.extend_rpc_modules(move |ctx| {
+        if let Some(storage) = proofs_storage {
+            info!(
+                target: "reth::cli",
+                "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)"
+            );
+            let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+            let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+            let debug_ext = DebugApiExt::new(
+                ctx.node().provider().clone(),
+                ctx.registry.eth_api().clone(),
+                storage,
+                ctx.node().task_executor().clone(),
+                ctx.node().evm_config().clone(),
+            );
+            let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
+            let auth_eth_replaced =
+                ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
+            let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
+            info!(
+                target: "reth::cli",
+                eth_replaced,
+                auth_eth_replaced,
+                debug_replaced,
+                "Proofs-history RPC overrides installed"
+            );
+        }
+        if let Some(hook) = extend_rpc_modules {
+            hook(ctx.modules, ctx.auth_module)?;
+        }
+        Ok(())
+    });
 
     let handle = builder.launch_with_debug_capabilities().await?;
     match handle.node.provider.database_provider_ro() {
@@ -472,6 +540,9 @@ pub async fn launch_node(
         Err(err) => {
             warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
         }
+    }
+    if let Some(hook) = on_node_started {
+        hook(&handle.node.task_executor);
     }
     handle.node_exit_future.await
 }

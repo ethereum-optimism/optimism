@@ -10,6 +10,7 @@ exclude.workspace = true
 
 [dependencies]
 reth-cli-util.workspace = true
+reth-cli-commands.workspace = true
 reth-optimism-cli.workspace = true
 reth-optimism-rpc.workspace = true
 reth-optimism-node.workspace = true
@@ -27,6 +28,8 @@ op-version.workspace = true
 
 tracing.workspace = true
 eyre.workspace = true
+clap.workspace = true
+futures-util.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
