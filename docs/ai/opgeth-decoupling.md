@@ -239,9 +239,8 @@ EIP-1559 values belongs in op-reth or `op-core`.
 
 The `*params.ChainConfig` uses that remain in op-node are **L1** chain configs
 (`NewL1ChainConfig`, `FetchingAttributesBuilder`, `L1InfoDeposit`) — legitimately upstream
-go-ethereum types, not OP-hardfork reads, and they stay. An L3's L1 is an OP chain, which has no
-blobs: `NewL1ChainConfigFromCLI` replaces its config with one that prices every block's blobs at
-the minimum, as op-geth's OP-chain shortcut did. Regressions fail the ratchet (§19).
+go-ethereum types, not OP-hardfork reads, and they stay. An OP Stack chain is not supported as
+L1: `NewL1ChainConfigFromCLI` rejects its chain config. Regressions fail the ratchet (§19).
 
 op-devstack splits the same way: `stack.L1Network.ChainConfig()` returns the go-ethereum config
 and `stack.L2Network.ChainConfig()` returns `*opparams.ChainConfig`, so reading an OP value off an
