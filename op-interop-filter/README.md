@@ -1,6 +1,6 @@
 # op-interop-filter
 
-A lightweight service that validates interop executing messages for op-geth or op-reth transaction filtering.
+A lightweight service that validates interop executing messages for transaction filtering in op-reth and proxyd.
 
 Any reorg will trigger the failsafe which disables all interop transactions. If `--reorg-recovery-enabled` is set, reorg-triggered failsafe is automatically resolved by rewinding logs DB state to finalized.
 

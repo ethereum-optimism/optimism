@@ -6,13 +6,13 @@
 ---
 
 Cannon *(cannon cannon cannon)* is an onchain MIPS instruction emulator.
-Cannon supports EVM-equivalent fault proofs by enabling Geth to run onchain,
+Cannon supports EVM-equivalent fault proofs by enabling the fault proof program to run onchain,
 one instruction at a time, as part of an interactive dispute game.
 
 * It's Go code
 * ...that runs an EVM
 * ...emulating a MIPS machine
-* ...running compiled Go code
+* ...running compiled Rust code
 * ...that runs an EVM
 
 For more information, see [Docs](./docs/README.md).

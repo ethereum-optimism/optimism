@@ -7,7 +7,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 `op-wheel` is a CLI tool to direct the engine one way or the other with Engine API routines.
 
 It was named the "wheel" because of two reasons:
-- Figuratively, it allows to steer the stack, an interface for a *driver* (like the op-node sub-component) to control the execution *engine* (e.g. op-geth).
+- Figuratively, it allows to steer the stack, an interface for a *driver* (like the op-node sub-component) to control the execution *engine* (e.g. op-reth).
 - Idiomatically, like the Unix wheel-bit and its slang origins: empower a user to execute restricted commands, or more generally just someone with great power or influence.
 
 ## Quickstart
@@ -66,7 +66,7 @@ Defaults should aim to reduce errors, and leave the stack in a safe state to rec
 ## Failure modes
 
 This tool is not used in the happy-path, but can be critical during expert-recovery of advanced failure modes.
-E.g. database recovery after Geth database corruption, or manual forkchoice overrides.
+E.g. manual forkchoice overrides.
 Most importantly, each CLI command used for recovery aims to be verbose,
 and avoids leaving an inconsistent state after failed or interrupted recovery.
 

@@ -245,7 +245,7 @@ pin monorepo commits (pseudo-versions), not releases, so a fix is available as s
   it are the `bundleAllowed` list in `op-core/superchain/bundle/deps_test.go`; downstream modules
   import `op-core/superchain` for the registry types and loader.
 - The rules above apply downstream too. Known cases: `infra/op-txproxy` used op-geth's
-  `rpc.JsonError` (now `op-service/jsonrpc.Error`) and `params.TransactionConditional*ErrCode`,
+  `rpc.JsonError` (the monorepo's counterpart is `op-service/jsonrpc.Error`) and `params.TransactionConditional*ErrCode`,
   which need a home; `infra/proxyd` imported `core/types/interoptypes`, whose access-list encoding
   `op-core/interop/messages` carries; `monitorism/op-monitorism` reads L2 blocks with
   `ethclient.BlockByNumber`, which fails on every L2 block and must move to `op-service/sources`.

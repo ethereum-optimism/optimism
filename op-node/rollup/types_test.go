@@ -120,8 +120,8 @@ func TestAltDAConfigMaxInputSize(t *testing.T) {
 }
 
 // TestConfigChainOpConfigJSONWireFormat pins the on-the-wire serialization of the
-// ChainOpConfig field. Its type moved from op-geth's params.OptimismConfig to
-// op-core/params.OptimismConfig; the JSON must remain byte-for-byte identical.
+// ChainOpConfig field. Rollup-config readers in other implementations parse these field
+// names, so the JSON must not change.
 func TestConfigChainOpConfigJSONWireFormat(t *testing.T) {
 	config := randConfig()
 	config.ChainOpConfig = &opparams.OptimismConfig{

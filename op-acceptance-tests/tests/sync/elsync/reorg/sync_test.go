@@ -181,7 +181,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	// Need to poll until the L2CL detects L1 Reorg and trigger L2 Reorg
 	// What happens:
 	//  L2CL detects L1 Reorg and reset the pipeline. op-node example logs: "reset: detected L1 reorg"
-	//  L2EL detects L2 Reorg and reorgs. op-geth example logs: "Chain reorg detected"
+	//  L2EL detects L2 Reorg and reorgs.
 	sys.L2EL.ReorgTriggered(l2BlockBeforeReorg, 30)
 	l2BlockAfterReorg := sys.L2EL.BlockRefByNumber(l2BlockBeforeReorg.Number)
 	require.NotEqual(l2BlockAfterReorg.Hash, l2BlockBeforeReorg.Hash)
@@ -317,7 +317,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	// Need to poll until the L2CL detects L1 Reorg and trigger L2 Reorg
 	// What happens:
 	//  L2CL detects L1 Reorg and reset the pipeline. op-node example logs: "reset: detected L1 reorg"
-	//  L2EL detects L2 Reorg and reorgs. op-geth example logs: "Chain reorg detected"
+	//  L2EL detects L2 Reorg and reorgs.
 	sys.L2EL.ReorgTriggered(l2BlockBeforeReorg, 30)
 	l2BlockAfterReorg := sys.L2EL.BlockRefByNumber(l2BlockBeforeReorg.Number)
 	require.NotEqual(l2BlockAfterReorg.Hash, l2BlockBeforeReorg.Hash)

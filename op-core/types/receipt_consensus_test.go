@@ -106,7 +106,7 @@ func TestReceiptBinaryRoundTrip(t *testing.T) {
 	}
 }
 
-// TestReceiptRLPRoundTrip pins, op-geth-independently, that rlp round-trips
+// TestReceiptRLPRoundTrip pins that rlp round-trips
 // through the wrapper's own codec — including a deposit receipt whose
 // authoritative fields live only on the wrapper.
 func TestReceiptRLPRoundTrip(t *testing.T) {

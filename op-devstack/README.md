@@ -103,9 +103,10 @@ and returns a typed output that the test then may use.
 - `DEVNET_EXPECT_PRECONDITIONS_MET`: This can be set of force test failures when their pre-conditions are not met, which would otherwise result in them being skipped. This is helpful in particular for runs that do intend to run specific tests (as opposed to whatever is available). `op-acceptor` does set that variable, for example.
 - `DEVSTACK_L1_FORK=fusaka` selects the L1 fork active at genesis. Ethereum upgrade
   names (`pectra`, `fusaka`, `glamsterdam`) and geth execution-fork names
-  (`prague`, `osaka`, `amsterdam`) are accepted. BPO selectors are not accepted until the
-  bundled op-geth supports `engine_newPayloadV4` at those forks. Amsterdam inherits BPO4
-  blob parameters until upstream defaults are available. If unset, devstack activates
+  (`prague`, `osaka`, `amsterdam`) are accepted. BPO selectors are not offered. BPO3 and later
+  would not work: go-ethereum's Engine API serves them only through its Amsterdam methods,
+  which the fake-PoS drivers call only once Amsterdam is active. Amsterdam inherits BPO4 blob
+  parameters, as upstream has no Amsterdam blob-schedule entry. If unset, devstack activates
   `defaultL1Fork` (`sysgo/deployer.go`), which a test keeps at least at the newest execution
   fork scheduled on mainnet. A batcher posting blobs needs Osaka: test batchers send cell
   proofs, which an L1 before Osaka does not include.
