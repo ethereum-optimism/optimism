@@ -583,6 +583,13 @@ func TestVerifyReceipts(t *testing.T) {
 		err := validateReceipts(block, receiptHash, txHashes, receipts)
 		require.ErrorContains(t, err, "must never be removed due to reorg")
 	})
+
+	t.Run("NilLog", func(t *testing.T) {
+		block, receiptHash, txHashes, receipts := validData()
+		receipts[2].Logs[0] = nil
+		err := validateReceipts(block, receiptHash, txHashes, receipts)
+		require.ErrorContains(t, err, "log 0 of tx 2 is nil")
+	})
 }
 
 func requireEqualReceipt(t *testing.T, exp, act *types.Receipt, msgAndArgs ...any) {

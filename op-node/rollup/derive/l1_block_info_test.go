@@ -87,6 +87,14 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 			assert.Equal(t, res.L1FeeScalar, l1Cfg.Scalar)
 		})
 	}
+	t.Run("no basefee", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {
+			l.InfoBaseFee = nil
+		})(rng)
+		_, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
+		require.ErrorContains(t, err, "has no base fee")
+	})
 	t.Run("no data", func(t *testing.T) {
 		_, err := L1BlockInfoFromBytes(&rollupCfg, 0, nil)
 		assert.Error(t, err)

@@ -125,6 +125,26 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 		require.NotErrorIs(t, err, ethereum.NotFound) // should not convert to not found even though it contains not found
 		require.NotNil(t, err)
 	})
+
+	t.Run("MissingOptimisticOutput", func(t *testing.T) {
+		ctx := context.Background()
+		rpc := new(mockRPC)
+		defer rpc.AssertExpectations(t)
+		client := NewSuperNodeClient(rpc)
+
+		chainA := eth.ChainIDFromUInt64(1)
+		rpc.On("CallContext", ctx, new(eth.SuperRootAtTimestampResponse),
+			"superroot_atTimestamp", []any{hexutil.Uint64(245)}).Run(func(args mock.Arguments) {
+			*args[1].(*eth.SuperRootAtTimestampResponse) = eth.SuperRootAtTimestampResponse{
+				ChainIDs: []eth.ChainID{chainA},
+				OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
+					chainA: {OutputRoot: eth.Bytes32{0xaa}},
+				},
+			}
+		}).Return([]error{nil})
+		_, err := client.SuperRootAtTimestamp(ctx, 245)
+		require.ErrorContains(t, err, "missing optimistic output for chain 1")
+	})
 }
 
 func TestSuperNodeClient_SyncStatus(t *testing.T) {

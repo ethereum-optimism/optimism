@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/holiman/uint256"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum"
@@ -25,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -1955,4 +1957,62 @@ func TestTxMgr_BlobTipCapDynamic(t *testing.T) {
 		// When BlobTipCapDynamic is true, blob tx should use blobTipCap from oracle
 		require.Equal(t, oracleBlobTipCap, tx.GasTipCap(), "blob tx should use blobTipCap from oracle when BlobTipCapDynamic=true")
 	})
+}
+
+// malformedReceiptBackend serves a fixed receipt and tip header, which may lack fields an
+// honest RPC always sets.
+type malformedReceiptBackend struct {
+	failingBackend
+	receipt *types.Receipt
+	tip     *types.Header
+}
+
+func (b *malformedReceiptBackend) TransactionReceipt(context.Context, common.Hash) (*types.Receipt, error) {
+	return b.receipt, nil
+}
+
+func (b *malformedReceiptBackend) HeaderByNumber(context.Context, *big.Int) (*types.Header, error) {
+	return b.tip, nil
+}
+
+func (b *malformedReceiptBackend) BlobBaseFee(context.Context) (*big.Int, error) {
+	return big.NewInt(1), nil
+}
+
+func TestQueryReceiptMalformed(t *testing.T) {
+	t.Parallel()
+	tooBig := new(big.Int).Lsh(big.NewInt(1), 64)
+	validReceipt := func() *types.Receipt { return &types.Receipt{BlockNumber: big.NewInt(1)} }
+	validTip := func() *types.Header { return &types.Header{Number: big.NewInt(1), BaseFee: big.NewInt(1)} }
+	tests := []struct {
+		name      string
+		receipt   *types.Receipt
+		tip       *types.Header
+		confirmed bool
+	}{
+		{"valid", validReceipt(), validTip(), true},
+		{"receipt without block number", &types.Receipt{}, validTip(), false},
+		{"receipt block number overflows", &types.Receipt{BlockNumber: tooBig}, validTip(), false},
+		{"tip number overflows", validReceipt(), &types.Header{Number: tooBig, BaseFee: big.NewInt(1)}, false},
+		{"tip without base fee", validReceipt(), &types.Header{Number: big.NewInt(1)}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Config{NumConfirmations: 1, NetworkTimeout: time.Second}
+			metr := metrics.MakeTxMetrics("test", opmetrics.With(prometheus.NewRegistry()))
+			mgr := &SimpleTxManager{
+				cfg:     &cfg,
+				name:    "TEST",
+				backend: &malformedReceiptBackend{receipt: tc.receipt, tip: tc.tip},
+				l:       testlog.Logger(t, log.LevelCrit),
+				metr:    &metr,
+			}
+			receipt := mgr.queryReceipt(t.Context(), common.Hash{1}, testSendState())
+			if tc.confirmed {
+				require.NotNil(t, receipt)
+			} else {
+				require.Nil(t, receipt)
+			}
+		})
+	}
 }
