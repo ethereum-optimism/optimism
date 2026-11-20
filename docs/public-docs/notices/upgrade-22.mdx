@@ -110,7 +110,7 @@ See the [`op-contracts/v10.0.0-rc.1` release notes](https://github.com/ethereum-
 
 After Lagoon activates, OP Mainnet and Unichain are planned to move to the [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game) (`ZK_DISPUTE_GAME`, game type `10`) as their respected game type.
 This is a separate L1 upgrade from the hardfork and the migration.
-Its dates will be added to this notice before it happens.
+It is planned for **Friday, December 11, 2026** on OP Sepolia and Unichain Sepolia, and **Thursday, January 14, 2027** on OP Mainnet and Unichain. See [Upgrade timing](#upgrade-timing).
 See the [ZK proofs explainer](/op-stack/zk-proofs/explainer) for how optimistic ZK proofs secure withdrawals.
 
 Withdrawals do not need to be proven again for the switch.
@@ -119,7 +119,7 @@ Games created before it keep their original implementation and resolve as before
 Third-party `op-challenger` operators on OP Mainnet and Unichain add the `zk` game type when the switch executes and keep `super-cannon-kona` in `--game-types` until every earlier game has resolved.
 See [Configure op-challenger for ZK dispute games](/chain-operators/guides/configuration/zk-challenger) and [Migrate to ZK proofs](/chain-operators/tutorials/migrate-to-zk-proofs#verify-after-the-migration).
 
-{/* TODO: add the ZK switch dates and the op-challenger version that ships the zk game type. */}
+{/* TODO: add the op-challenger version that ships the zk game type. */}
 
 ## Required actions
 
@@ -236,9 +236,10 @@ The hardfork does not change the respected game type. `OP_PROPOSER_GAME_TYPE` st
 | Governance veto period ends | Not applicable | **Wednesday, December 9, 2026** |
 | L1 contract upgrade and migration (OP and Unichain) | **Tuesday, December 8, 2026** | **Monday, December 14, 2026** |
 | Lagoon activation | **Thursday, December 10, 2026, 16:00:01 UTC** (`1796918401`) | **Monday, January 11, 2027, 16:00:01 UTC** (`1799683201`) |
+| [ZK dispute game](#zk-proofs-on-op-mainnet-and-unichain) becomes the respected game type (OP and Unichain) | **Friday, December 11, 2026** | **Thursday, January 14, 2027** |
 
 The activation timestamps are set per chain in the superchain-registry, for example [`sepolia/op.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/sepolia/op.toml) and [`mainnet/op.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/op.toml).
-The mainnet contract upgrade and migration depend on Optimism Governance approval, so these dates can move.
+The mainnet contract upgrade, migration, and ZK switch depend on Optimism Governance approval, so these dates can move.
 The Governance proposal will be linked here when it is published.
 
 OP Enterprise Fully Managed chains follow this timeline.
