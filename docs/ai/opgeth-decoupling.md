@@ -154,7 +154,7 @@ effect decodes them from the block's extraData (`eip1559.DecodeOptimismExtraData
 **Genesis.** `op-core/genesis.Genesis` is the one L2 genesis JSON encoding: the `core.Genesis`
 envelope (header fields, alloc) with a `config` in `opparams.ChainConfig`'s encoding; the
 `stateHash` key is rejected. `Genesis.ToBlock()` is go-ethereum's genesis block for the same
-header fields and alloc plus the one OP rule: from Isthmus the header's `WithdrawalsHash` is the
+header fields, alloc and Ethereum fork schedule plus the one OP rule: from Isthmus the header's `WithdrawalsHash` is the
 storage root of the `L2ToL1MessagePasser` predeploy instead of the empty withdrawals root.
 `op-chain-ops/genesis.NewL2Genesis` builds it; op-deployer computes the L2 genesis state with
 forge (`L2Genesis.s.sol`).

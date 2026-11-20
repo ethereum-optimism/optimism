@@ -15,7 +15,7 @@ import (
 )
 
 // ToBlock returns the genesis block. It is go-ethereum's genesis block for the same
-// header fields and alloc, except that from Isthmus the header's withdrawals root is the
+// header fields, alloc and Ethereum fork schedule, except that from Isthmus the header's withdrawals root is the
 // storage root of the L2ToL1MessagePasser predeploy instead of the empty withdrawals root.
 func (g *Genesis) ToBlock() *types.Block {
 	block := g.gethGenesis().ToBlock()
