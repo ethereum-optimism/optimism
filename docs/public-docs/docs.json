@@ -3505,6 +3505,7 @@
                       "op-stack/zk-proofs/zk-dispute-game",
                       "op-stack/zk-proofs/proof-system",
                       "op-stack/zk-proofs/components",
+                      "op-stack/zk-proofs/interop-sets",
                       "op-stack/zk-proofs/security",
                       "op-stack/zk-proofs/reference"
                     ]

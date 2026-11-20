@@ -44,7 +44,7 @@ Proofs are produced by programs that run inside the [SP1 zkVM](https://github.co
 
 The final aggregation proof is wrapped as a PLONK proof, which is small and cheap to verify on L1.
 
-A chain that is not part of an interop set has a set of one chain, and runs the same programs. Consolidation then has no cross-chain messages to check.
+A chain that is not part of an interop set has a set of one chain, and runs the same programs. Consolidation then has no cross-chain messages to check. See [ZK proofs for interop sets](/op-stack/zk-proofs/interop-sets#one-proof-for-every-chain) for how the cost of a proof grows with the set.
 
 ## How a proof is built
 
