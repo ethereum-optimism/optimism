@@ -108,10 +108,32 @@ mod tests {
         primitives::{Bytes, TxKind, U256, bytes},
     };
     use rstest::rstest;
-    use std::vec::Vec;
+    use std::{vec, vec::Vec};
 
+    /// Returns the bytes 1, 2, ..., n, among which no 3-byte sequence repeats.
+    fn ascending(n: u8) -> Vec<u8> {
+        (1..=n).collect()
+    }
+
+    // The vectors that reach each branch of the compressor are shared with op-core's
+    // TestFlzCompressLen. Their lengths are those of the C FastLZ library and Solady's LibZip.
     #[rstest]
     #[case::empty(&[], 0)]
+    // Inputs shorter than 13 bytes are all literals, even when they repeat.
+    #[case::one_byte(&[0x01], 2)]
+    #[case::twelve_zeros(&[0; 12], 13)]
+    // Literal runs are split into runs of 32 bytes, here without and with a remainder.
+    #[case::incompressible_64(&ascending(64), 66)]
+    #[case::incompressible_100(&ascending(100), 104)]
+    // A run of zeros is one long match, which is split every 262 bytes. These two lengths put the
+    // remainder on each side of the boundary between its 2-byte and 3-byte encodings.
+    #[case::zeros_277(&[0; 277], 14)]
+    #[case::zeros_278(&[0; 278], 15)]
+    // A repeat counts as a match at a distance of up to 8191 bytes.
+    #[case::repeat_8191_apart(&[ascending(32), vec![0; 8191 - 32], ascending(32)].concat(), 140)]
+    #[case::repeat_8192_apart(&[ascending(32), vec![0; 8192 - 32], ascending(32)].concat(), 164)]
+    // 01 02 03 and bf 02 00 share a hash table slot, but their bytes differ, so they don't match.
+    #[case::hash_collision(&[&[0xaa, 0xbb, 0x01, 0x02, 0x03, 0xbf, 0x02, 0x00], &ascending(13)[..]].concat(), 22)]
     #[case::thousand_zeros(&[0; 1000], 21)]
     #[case::thousand_forty_twos(&[42; 1000], 21)]
     #[case::short_hex(&bytes!("FACADE"), 4)]
