@@ -683,8 +683,10 @@ where
             .map_err(BlockExecutionError::other)?
             .into();
 
-        // Use the cached enveloped tx bytes if available, otherwise encode the transaction.
-        Ok(tx_env.encoded_bytes().map_or_else(
+        // Use the cached enveloped tx bytes if available, otherwise encode the transaction. An
+        // empty envelope is treated as absent: `eth_simulateV1` passes one so that no L1 cost is
+        // charged, but the DA footprint must still reflect the transaction.
+        Ok(tx_env.encoded_bytes().filter(|encoded| !encoded.is_empty()).map_or_else(
             || tx_da_footprint(tx.tx(), da_footprint_gas_scalar),
             |encoded| encoded_tx_da_footprint(encoded, da_footprint_gas_scalar),
         ))
