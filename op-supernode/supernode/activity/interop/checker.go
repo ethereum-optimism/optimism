@@ -27,7 +27,8 @@ type l1ByNumberSource interface {
 }
 
 // l1FinalizedSource is optionally implemented by an l1ByNumberSource. When it
-// is, the checker caches the canonical hash of finalized L1 blocks.
+// is and caching is requested, the checker caches the canonical hash of
+// finalized L1 blocks.
 type l1FinalizedSource interface {
 	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
 }
@@ -42,8 +43,9 @@ type l1ConsistencyChecker interface {
 // head against the canonical L1 chain fetched from an l1ByNumberSource.
 //
 // A finalized L1 block cannot be reorged, so its number -> hash mapping never
-// changes. When the source can report finality, lookups at or below the last
-// known finalized number are answered from a cache. During catch-up, every
+// changes. When caching is enabled (interop.l1-finalized-cache) and the source
+// can report finality, lookups at or below the last known finalized number are
+// answered from a cache. During catch-up, every
 // head is finalized and repeats for many rounds, so this removes most of the
 // per-round L1 RPCs. Heads above finality are always fetched, which keeps
 // reorg detection at the tip unchanged.
@@ -58,11 +60,16 @@ type l1ByNumberChecker struct {
 	now             func() time.Time
 }
 
-func newL1ConsistencyChecker(l1 l1ByNumberSource) l1ConsistencyChecker {
+// newL1ConsistencyChecker returns a checker backed by l1. With cacheFinalized,
+// it caches canonical hashes of finalized L1 blocks when l1 can report finality.
+func newL1ConsistencyChecker(l1 l1ByNumberSource, cacheFinalized bool) l1ConsistencyChecker {
 	if l1 == nil {
 		return nil
 	}
 	c := &l1ByNumberChecker{l1: l1, now: time.Now}
+	if !cacheFinalized {
+		return c
+	}
 	if f, ok := l1.(l1FinalizedSource); ok {
 		cache, err := lru.New[uint64, common.Hash](finalizedCanonicalCacheSize)
 		if err == nil {

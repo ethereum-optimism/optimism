@@ -63,7 +63,7 @@ func TestL1ConsistencyChecker_SameL1Chain(t *testing.T) {
 			200: {Hash: hashB, Number: 200},
 		},
 	}
-	checker := newL1ConsistencyChecker(source)
+	checker := newL1ConsistencyChecker(source, false)
 
 	t.Run("all match canonical", func(t *testing.T) {
 		same, err := checker.SameL1Chain(context.Background(), []eth.BlockID{
@@ -100,12 +100,12 @@ func TestL1ConsistencyChecker_SameL1Chain(t *testing.T) {
 	})
 
 	t.Run("nil checker returns nil", func(t *testing.T) {
-		nilChecker := newL1ConsistencyChecker(nil)
+		nilChecker := newL1ConsistencyChecker(nil, false)
 		require.Nil(t, nilChecker)
 	})
 
 	t.Run("source without finality is uncached", func(t *testing.T) {
-		c := newL1ConsistencyChecker(source).(*l1ByNumberChecker)
+		c := newL1ConsistencyChecker(source, true).(*l1ByNumberChecker)
 		require.Nil(t, c.canonical)
 	})
 }
@@ -143,7 +143,7 @@ func TestL1ConsistencyChecker_FinalizedCache(t *testing.T) {
 		return &countingFinalizedL1Source{mockL1Source: mockL1Source{blocks: blocks}, finalized: finalized}
 	}
 	newChecker := func(src *countingFinalizedL1Source, now *time.Time) *l1ByNumberChecker {
-		c := newL1ConsistencyChecker(src).(*l1ByNumberChecker)
+		c := newL1ConsistencyChecker(src, true).(*l1ByNumberChecker)
 		require.NotNil(t, c.canonical)
 		c.now = func() time.Time { return *now }
 		return c
@@ -216,6 +216,19 @@ func TestL1ConsistencyChecker_FinalizedCache(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 2, src.byNumberCalls)
 		require.Equal(t, 2, src.finalizedCalls)
+	})
+
+	t.Run("caching is off unless requested", func(t *testing.T) {
+		src := newSource(100)
+		c := newL1ConsistencyChecker(src, false).(*l1ByNumberChecker)
+		require.Nil(t, c.canonical)
+		for i := 0; i < 3; i++ {
+			same, err := c.SameL1Chain(ctx, []eth.BlockID{{Hash: hash(95), Number: 95}})
+			require.NoError(t, err)
+			require.True(t, same)
+		}
+		require.Equal(t, 3, src.byNumberCalls)
+		require.Equal(t, 0, src.finalizedCalls)
 	})
 
 	t.Run("lookup errors are not cached", func(t *testing.T) {
