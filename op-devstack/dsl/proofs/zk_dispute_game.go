@@ -473,10 +473,14 @@ type DelayedWETH struct {
 // DelayedWETH binds the DelayedWETH contract at addr (e.g. the ZK game
 // implementation's weth arg) using the factory's L1 client.
 func (f *DisputeGameFactory) DelayedWETH(addr common.Address) *DelayedWETH {
+	return newDelayedWETH(f.t, f.ethClient, addr)
+}
+
+func newDelayedWETH(t devtest.T, client apis.EthClient, addr common.Address) *DelayedWETH {
 	weth := bindings.NewBindings[delayedWETHBinding](
-		bindings.WithClient(f.ethClient),
+		bindings.WithClient(client),
 		bindings.WithTo(addr),
-		bindings.WithTest(f.t),
+		bindings.WithTest(t),
 	)
 	return &DelayedWETH{contract: &weth}
 }
