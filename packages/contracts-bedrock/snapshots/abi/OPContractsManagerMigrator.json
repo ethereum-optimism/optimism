@@ -172,7 +172,7 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerMigrator_NoChains",
+    "name": "OPContractsManagerMigrator_NotEnoughChains",
     "type": "error"
   },
   {
