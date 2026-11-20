@@ -79,8 +79,8 @@ func TestFjordL1CostSolidityParity(t *testing.T) {
 
 // TestL1CostFjordFromTxBytes prices transaction bytes from compression to fee, below and above the
 // minimum-size floor of the DA-size estimate. The expected fees are what the GasPriceOracle
-// predeploy's getL1Fee returns for the same bytes. It prices them as unsigned transaction data, so
-// it adds 68 bytes for the signature to their FastLZ size.
+// predeploy's getL1Fee returns for the same bytes. getL1Fee takes unsigned transaction data and
+// adds 68 bytes for the signature to its FastLZ size, so the test does the same.
 func TestL1CostFjordFromTxBytes(t *testing.T) {
 	testCases := []struct {
 		name       string

@@ -5,14 +5,13 @@ package cfastlz
 // #include "fastlz.h"
 import "C"
 
-import (
-	"runtime"
-	"unsafe"
-)
+import "unsafe"
 
 // Compress compresses input with FastLZ level 1, the level the ports implement. The library is
 // vendored from https://github.com/ariya/FastLZ/commit/344eb4025f9ae866ebf7a2ec48850f7113a97a42,
 // the commit Solady's LibZip follows; the compression ratio varies between FastLZ versions.
+// Inputs under the 16-byte minimum that fastlz.h documents come out of level 1 as literal runs,
+// which the ports reproduce.
 func Compress(input []byte) []byte {
 	if len(input) == 0 {
 		return nil
@@ -21,6 +20,5 @@ func Compress(input []byte) []byte {
 	// 66 bytes.
 	out := make([]byte, max(66, 2*len(input)))
 	n := C.fastlz_compress_level(1, unsafe.Pointer(&input[0]), C.int(len(input)), unsafe.Pointer(&out[0]))
-	runtime.KeepAlive(input)
 	return out[:n]
 }

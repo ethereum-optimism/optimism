@@ -41,9 +41,9 @@ func ascending(n int) []byte {
 }
 
 // TestFlzCompressLen pins FlzCompressLen on inputs that reach each branch of the compressor. The
-// expected lengths are those of the C FastLZ library and of Solady's LibZip, and op-revm's
-// test_flz_compress_len pins the same lengths. The test also checks each length against the C
-// library, the original implementation that the Go, Solidity and Rust code port.
+// expected lengths are those of the C FastLZ library and of Solady's LibZip. The test checks each
+// length against the C library, the original implementation that the Go, Solidity and Rust code
+// port. op-revm's tests pin the same branch vectors and check them against LibZip.
 func TestFlzCompressLen(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -51,10 +51,15 @@ func TestFlzCompressLen(t *testing.T) {
 		expectedLen uint32
 	}{
 		{"empty", []byte{}, 0},
-		// Inputs shorter than 13 bytes are all literals, even when they repeat.
+		// The match search starts at byte 2 and stops 13 bytes before the end, so inputs shorter
+		// than 13 bytes skip it, and inputs up to 16 bytes are all literals even when they repeat.
+		// With 16 zeros, the search finds a match on its last probe and discards it; 17 zeros is
+		// the shortest input that keeps a match.
 		{"one byte", []byte{0x01}, 2},
 		{"three bytes", []byte{0xfa, 0xca, 0xde}, 4},
 		{"twelve zeros", make([]byte, 12), 13},
+		{"16 zeros", make([]byte, 16), 17},
+		{"17 zeros", make([]byte, 17), 12},
 		// Literal runs are split into runs of 32 bytes, here without and with a remainder.
 		{"64 incompressible bytes", ascending(64), 66},
 		{"100 incompressible bytes", ascending(100), 104},
@@ -75,7 +80,7 @@ func TestFlzCompressLen(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.expectedLen, FlzCompressLen(tc.input))
-			require.Len(t, cfastlz.Compress(tc.input), int(tc.expectedLen), "C FastLZ")
+			require.Equal(t, int(tc.expectedLen), len(cfastlz.Compress(tc.input)), "C FastLZ")
 		})
 	}
 }
