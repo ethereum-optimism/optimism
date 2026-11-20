@@ -67,8 +67,17 @@ var InteropLogBackfillDepthFlag = &cli.DurationFlag{
 	Value:   DefaultLogBackfillDepth,
 }
 
+// InteropL1FinalizedCacheFlag enables caching of finalized L1 block hashes in
+// the interop L1 consistency checker.
+var InteropL1FinalizedCacheFlag = &cli.BoolFlag{
+	Name:    "interop.l1-finalized-cache",
+	Usage:   "Cache canonical hashes of finalized L1 blocks in the interop L1 consistency check. Cuts L1 RPCs per verification round during catch-up; checks above L1 finality are unchanged.",
+	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_L1_FINALIZED_CACHE"),
+	Value:   false,
+}
+
 func init() {
-	flags.RegisterActivityFlags(InteropActivationTimestampFlag, InteropLogBackfillDepthFlag)
+	flags.RegisterActivityFlags(InteropActivationTimestampFlag, InteropLogBackfillDepthFlag, InteropL1FinalizedCacheFlag)
 }
 
 // chainsReadyResult holds the parallel query results from checkChainsReady.
@@ -221,6 +230,8 @@ type Interop struct {
 	// l1Checker must be non-nil whenever observeRound runs. Production sets it
 	// via New; tests inject noopL1Checker.
 	l1Checker l1ConsistencyChecker
+	// l1Source backs l1Checker; kept so EnableL1FinalizedCache can rebuild it.
+	l1Source l1ByNumberSource
 
 	logBackfillDepth time.Duration
 	metrics          *resources.SupernodeMetrics
@@ -319,8 +330,15 @@ func New(
 	// (can be overridden by tests)
 	i.verifyFn = i.verifyInteropMessages
 	i.cycleVerifyFn = i.verifyCycleMessages
-	i.l1Checker = newL1ConsistencyChecker(l1Source)
+	i.l1Source = l1Source
+	i.l1Checker = newL1ConsistencyChecker(l1Source, false)
 	return i, nil
+}
+
+// EnableL1FinalizedCache makes the L1 consistency checker cache canonical
+// hashes of finalized L1 blocks. Call before Start.
+func (i *Interop) EnableL1FinalizedCache() {
+	i.l1Checker = newL1ConsistencyChecker(i.l1Source, true)
 }
 
 // Start begins the Interop activity background loop and blocks until ctx is canceled.
