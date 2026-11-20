@@ -32,6 +32,8 @@ pub use cursor::{
 #[cfg(test)]
 mod snapshot_tests;
 #[cfg(test)]
+mod sweep_tests;
+#[cfg(test)]
 mod tests;
 
 use super::{Tables, V2ProofWindow};
@@ -71,6 +73,8 @@ const LEGACY_V1_TABLES: &[&str] = &[
 #[derive(Debug)]
 pub struct MdbxProofsStorage {
     env: DatabaseEnv,
+    /// Whether a prune sweeps the history bitmaps: see [`Self::with_history_sweep`].
+    sweep_history: bool,
 }
 
 impl MdbxProofsStorage {
@@ -84,7 +88,22 @@ impl MdbxProofsStorage {
                 warn!(target: "trie::db", %error, "Failed to check proofs storage for legacy v1 data")
             }
         }
-        Ok(Self { env })
+        Ok(Self { env, sweep_history: false })
+    }
+
+    /// Sets how a prune removes the pruned blocks from the history bitmaps.
+    ///
+    /// By default a prune edits the bitmap of every key the pruned blocks changed, which is one
+    /// lookup per key. With `sweep` set it leaves those block numbers in the bitmaps, where
+    /// readers skip them, and instead cleans a share of each history table in key order. It gets
+    /// through a whole table about once while the proof window moves on by its own length.
+    ///
+    /// A database pruned this way can no longer be backfilled, also after the sweep is turned
+    /// off again: see [`OpProofsStorageError::BackfillOverSweptHistory`]. Turning it off stops
+    /// the cleaning too, so the block numbers left at that point stay in the bitmaps.
+    pub const fn with_history_sweep(mut self, sweep: bool) -> Self {
+        self.sweep_history = sweep;
+        self
     }
 
     /// Returns whether the database holds legacy v1 data but no v2 data.
@@ -179,7 +198,7 @@ impl OpProofsStore for MdbxProofsStorage {
     }
 
     fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
-        Ok(MdbxProofsProvider::new(self.env.tx_mut()?))
+        Ok(MdbxProofsProvider { tx: self.env.tx_mut()?, sweep_history: self.sweep_history })
     }
 
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
@@ -231,11 +250,14 @@ impl OpProofsBackfillStore for MdbxProofsStorage {
 #[derive(Debug)]
 pub struct MdbxProofsProvider<TX> {
     pub(super) tx: TX,
+    /// Whether a prune sweeps the history bitmaps: see
+    /// [`MdbxProofsStorage::with_history_sweep`].
+    sweep_history: bool,
 }
 
 impl<TX> MdbxProofsProvider<TX> {
     /// Creates a new [`MdbxProofsProvider`].
     pub const fn new(tx: TX) -> Self {
-        Self { tx }
+        Self { tx, sweep_history: false }
     }
 }

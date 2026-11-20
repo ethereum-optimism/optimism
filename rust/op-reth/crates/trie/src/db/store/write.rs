@@ -12,7 +12,7 @@ use crate::{
             TrieChangeSetsEntry, V2AccountTrieChangeSets, V2AccountsTrie, V2AccountsTrieHistory,
             V2HashedAccountChangeSets, V2HashedAccounts, V2HashedAccountsHistory,
             V2HashedStorageChangeSets, V2HashedStorages, V2HashedStoragesHistory,
-            V2StorageTrieChangeSets, V2StoragesTrie, V2StoragesTrieHistory,
+            V2HistorySweepProgress, V2StorageTrieChangeSets, V2StoragesTrie, V2StoragesTrieHistory,
         },
     },
 };
@@ -21,7 +21,7 @@ use reth_db::{
     BlockNumberList, DatabaseError,
     cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO, DbDupCursorRW},
     models::sharded_key::ShardedKey,
-    table::Table,
+    table::{Decode, Encode, Table},
     transaction::{DbTx, DbTxMut},
 };
 use reth_primitives_traits::{Account, StorageEntry};
@@ -30,7 +30,7 @@ use reth_trie::{
     updates::TrieUpdatesSorted,
 };
 use std::collections::{BTreeMap, BTreeSet};
-use tracing::debug;
+use tracing::{debug, warn};
 
 use super::{
     NUM_OF_INDICES_IN_SHARD,
@@ -330,10 +330,14 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
     }
 
     /// Prune-specific history removal: for a given logical key, seek its first
-    /// history shard and walk forward, removing all block numbers that fall
-    /// within `range`.  Requires only **one seek per unique key** (instead
+    /// history shard and walk forward, removing all block numbers up to the
+    /// end of `range`.  Requires only **one seek per unique key** (instead
     /// of one seek per block) and uses a simple range check instead of a
     /// set-membership lookup.
+    ///
+    /// A history that was only ever pruned this way holds no block number below `range`. One
+    /// that a sweep has worked on can (see [`Self::sweep_history_rows`]), and they are removed
+    /// here too: left in place, every later prune of the key would walk over them again.
     pub(super) fn prune_history_range_for_key<T>(
         cursor: &mut (impl DbCursorRO<T> + DbCursorRW<T>),
         range: &std::ops::RangeInclusive<u64>,
@@ -349,28 +353,122 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
             same_logical_key(&key) &&
             list.iter().next().is_some_and(|first| first <= *range.end())
         {
-            let original_len: usize = list
-                .len()
-                .try_into()
-                .map_err(|e| DatabaseError::Other(format!("shard length overflow: {e}")))?;
-            let filtered: Vec<u64> = list.iter().filter(|&bn| !range.contains(&bn)).collect();
+            // The shard's first block number is at or below the end of `range`, so at least that
+            // one goes.
+            let filtered: Vec<u64> = list.iter().filter(|&bn| bn > *range.end()).collect();
 
             if filtered.is_empty() {
                 // Entire shard pruned — delete and advance.
                 cursor.delete_current()?;
                 entry = cursor.current()?;
-            } else if filtered.len() < original_len {
+            } else {
                 // Partial prune — update shard and advance.
                 let new_list = BlockNumberList::new_pre_sorted(filtered);
                 cursor.upsert(key, &new_list)?;
-                entry = cursor.next()?;
-            } else {
-                // No blocks in this shard were in range; advance to the next shard.
                 entry = cursor.next()?;
             }
         }
 
         Ok(())
+    }
+
+    /// Removes the block numbers up to `earliest` from the next `rows` rows of history table
+    /// `T`, and returns how many rows it visited.
+    ///
+    /// This is how a prune cleans the history bitmaps when it sweeps them: see
+    /// [`MdbxProofsStorage::with_history_sweep`](super::MdbxProofsStorage::with_history_sweep).
+    /// Such a prune leaves the pruned blocks' numbers in the bitmaps. Readers do not see them: a
+    /// lookup takes the first block number above the block it reads at, and no block below the
+    /// proof window is read. That holds as long as the window only moves forward, so a swept
+    /// database cannot be backfilled.
+    ///
+    /// Each call goes on in key order from the row where the last one stopped, which
+    /// [`V2HistorySweepProgress`] records. After the last row of the table it goes on from the
+    /// first.
+    pub(super) fn sweep_history_rows<T>(
+        &self,
+        earliest: BlockNumber,
+        rows: usize,
+    ) -> OpProofsStorageResult<usize>
+    where
+        T: Table<Value = BlockNumberList>,
+    {
+        let table = T::NAME.to_string();
+        let mut cursor = self.tx.cursor_write::<T>()?;
+        let mut entry = match self.tx.get::<V2HistorySweepProgress>(table.clone())? {
+            Some(saved) if !saved.is_empty() => match T::Key::decode(&saved) {
+                // The saved row can be gone: an unwind or a per-key prune deleted it. The seek
+                // then finds the row that follows.
+                Ok(key) => cursor.seek(key)?,
+                // The saved key only says where to go on. Returning the error would fail this
+                // prune and every one after it, so start again at the first row.
+                Err(error) => {
+                    warn!(
+                        target: "trie::db",
+                        table,
+                        %error,
+                        "Cannot read the history sweep position, sweeping from the first row"
+                    );
+                    None
+                }
+            },
+            _ => None,
+        };
+
+        let mut swept = 0;
+        while swept < rows {
+            let Some((key, mut list)) = entry else {
+                // Past the last row: go on from the first, unless the table is empty.
+                entry = cursor.first()?;
+                if entry.is_none() {
+                    break;
+                }
+                continue;
+            };
+            swept += 1;
+            // A row's key holds the highest block number of its shard, and removing the lowest
+            // numbers does not change that one. So a row keeps its key until it is empty.
+            let removed = list.remove_range(..=earliest);
+            if list.is_empty() {
+                cursor.delete_current()?;
+                // Find the row that follows by key: after deleting the last row of the table,
+                // the cursor's current row is the one before it.
+                entry = cursor.seek(key)?;
+                continue;
+            }
+            // Only rewrite a row that changed, so that the commit has no page to write for the
+            // others.
+            if removed > 0 {
+                cursor.upsert(key, &list)?;
+            }
+            entry = cursor.next()?;
+        }
+
+        // An empty key stands for the first row. The entry stays even then: it marks the history
+        // as swept, which backfill checks.
+        let next = entry.map(|(key, _)| key.encode().as_ref().to_vec()).unwrap_or_default();
+        self.tx.put::<V2HistorySweepProgress>(table, next)?;
+        Ok(swept)
+    }
+
+    /// Sweeps the share of history table `T` that a prune of `pruned` blocks pays for, when
+    /// `window` blocks stay in the proof window: the whole table once while `window` blocks are
+    /// pruned. A block number the proof window no longer covers is then gone after about one
+    /// more window. Returns the rows swept.
+    pub(super) fn sweep_history_share<T>(
+        &self,
+        earliest: BlockNumber,
+        pruned: u64,
+        window: u64,
+    ) -> OpProofsStorageResult<usize>
+    where
+        T: Table<Value = BlockNumberList>,
+    {
+        let entries = self.tx.entries::<T>()? as u64;
+        // At most one pass over the table, however many blocks the prune covers. No block stays
+        // in the window when a prune reaches the latest block: it sweeps every row.
+        let rows = entries.min(entries.saturating_mul(pruned).div_ceil(window.max(1)));
+        self.sweep_history_rows::<T>(earliest, rows as usize)
     }
 
     /// Remove block numbers from all 4 history bitmap tables by reading the
@@ -923,23 +1021,55 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
             step(BTreeSet::len, || self.prune_hashed_storage_changesets(range, &mut counts))?;
         changesets.hashed_storages = stats;
 
-        // Phase B: remove `range` from each affected key's history bitmap, one seek per key.
-        let n = acct_trie_keys.len();
-        history.account_trie =
-            step(|_| n, || self.prune_account_trie_history(range, &acct_trie_keys))?.1;
-        let n = stor_trie_keys.len();
-        history.storage_trie =
-            step(|_| n, || self.prune_storage_trie_history(range, &stor_trie_keys))?.1;
-        let n = acct_keys.len();
-        history.hashed_accounts =
-            step(|_| n, || self.prune_hashed_account_history(range, &acct_keys))?.1;
-        let n = stor_keys.len();
-        history.hashed_storages =
-            step(|_| n, || self.prune_hashed_storage_history(range, &stor_keys))?.1;
+        if self.sweep_history {
+            // Phase B, by sweep: `range` stays in the history bitmaps. Clean a share of each
+            // history table instead, whichever keys it holds.
+            //
+            // `range` ends at the new earliest block, and `window` is the number of blocks that
+            // stay in the proof window after this prune.
+            let earliest = *range.end();
+            let pruned = earliest - range.start() + 1;
+            let window = self.get_proof_window_inner()?.latest.number.saturating_sub(earliest);
+            history.account_trie = step(
+                |&rows| rows,
+                || self.sweep_history_share::<V2AccountsTrieHistory>(earliest, pruned, window),
+            )?
+            .1;
+            history.storage_trie = step(
+                |&rows| rows,
+                || self.sweep_history_share::<V2StoragesTrieHistory>(earliest, pruned, window),
+            )?
+            .1;
+            history.hashed_accounts = step(
+                |&rows| rows,
+                || self.sweep_history_share::<V2HashedAccountsHistory>(earliest, pruned, window),
+            )?
+            .1;
+            history.hashed_storages = step(
+                |&rows| rows,
+                || self.sweep_history_share::<V2HashedStoragesHistory>(earliest, pruned, window),
+            )?
+            .1;
+        } else {
+            // Phase B: remove `range` from each affected key's history bitmap, one seek per key.
+            let n = acct_trie_keys.len();
+            history.account_trie =
+                step(|_| n, || self.prune_account_trie_history(range, &acct_trie_keys))?.1;
+            let n = stor_trie_keys.len();
+            history.storage_trie =
+                step(|_| n, || self.prune_storage_trie_history(range, &stor_trie_keys))?.1;
+            let n = acct_keys.len();
+            history.hashed_accounts =
+                step(|_| n, || self.prune_hashed_account_history(range, &acct_keys))?.1;
+            let n = stor_keys.len();
+            history.hashed_storages =
+                step(|_| n, || self.prune_hashed_storage_history(range, &stor_keys))?.1;
+        }
 
         changesets.record_cost("prune", "changesets");
         history.record_cost("prune", "history");
-        history.record_unique_keys("prune");
+        // A sweep counts the rows it visited, not the keys the pruned blocks changed.
+        history.record_unique_keys(if self.sweep_history { "sweep" } else { "prune" });
         debug!(
             target: "trie::db",
             start_block = range.start(),

@@ -43,6 +43,18 @@ tables! {
         type Value = BlockNumberHash;
     }
 
+    /// Where the sweep of each history table goes on.
+    ///
+    /// Maps the name of a history table to the encoded key of the next row to sweep, or to an
+    /// empty key for the first row. Every prune that sweeps the history writes it, whether or not
+    /// it removed a block number, and nothing else does: see
+    /// [`MdbxProofsStorage::with_history_sweep`](crate::db::MdbxProofsStorage::with_history_sweep).
+    /// An entry therefore also marks the history as swept, which backfill refuses.
+    table V2HistorySweepProgress {
+        type Key = String;
+        type Value = Vec<u8>;
+    }
+
     // -------------------- Hashed Accounts --------------------
 
     /// Sharded history index for hashed accounts.

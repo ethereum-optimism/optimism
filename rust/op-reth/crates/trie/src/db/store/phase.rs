@@ -84,13 +84,15 @@ impl PhaseStats {
         }
     }
 
-    /// Records how many unique keys `op` touched in each table's history bitmaps.
+    /// Records how many unique keys `op` touched in each table's history bitmaps, or how many
+    /// rows it visited if `op` is a sweep.
     pub(super) fn record_unique_keys(&self, op: &'static str) {
         for (table, stats) in self.tables() {
             let labels = [("operation", op), ("table", table)];
             record(
                 "optimism_trie.storage.history_unique_keys",
-                "Unique keys whose history bitmaps a batch write or prune touched in one table",
+                "Unique keys whose history bitmaps a batch write or prune touched in one table, \
+                 or the history rows a sweep prune visited",
                 &labels,
                 stats.keys as f64,
             );

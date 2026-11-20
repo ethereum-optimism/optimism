@@ -336,6 +336,15 @@ pub struct RollupArgs {
         value_parser = clap::value_parser!(u64).range(0..=64),
     )]
     pub proofs_history_prefetch_threads: u64,
+
+    /// Prune the proofs storage's history index with a rolling sweep instead of one lookup per
+    /// pruned key. A prune then leaves the pruned block numbers in the index, where reads ignore
+    /// them, and removes them from a share of the index in key order. The share is in proportion
+    /// to the blocks it prunes, so a full pass takes about one proof window of blocks. This cuts
+    /// a prune's disk reads and page writes. The index grows, because a block number stays in it
+    /// for up to one more proof window, and the proofs storage can no longer be backfilled.
+    #[arg(long = "proofs-history.sweep-prune", default_value_t = false)]
+    pub proofs_history_sweep_prune: bool,
 }
 
 impl Default for RollupArgs {
@@ -364,6 +373,7 @@ impl Default for RollupArgs {
             proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
             proofs_history_prefetch_threads: 0,
+            proofs_history_sweep_prune: false,
         }
     }
 }
@@ -425,6 +435,13 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[test]
+    fn test_proofs_history_sweep_prune() {
+        let args =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--proofs-history.sweep-prune"]).args;
+        assert_eq!(args, RollupArgs { proofs_history_sweep_prune: true, ..Default::default() });
     }
 
     #[test]
