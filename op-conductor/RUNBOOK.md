@@ -74,5 +74,6 @@ Whenever there are a disaster situation that you see no route to have 2 healthy 
 2. choose a sequencer that can be used to resume sequencing
 3. call `conductor_overrideLeader` json rpc method on the conductor to force it to treat itself as the leader
 4. If no conductor is functioning, call `admin_overrideLeader` json rpc method on the op-node to force it to treat itself as the leader
+   - op-node then stops committing unsafe payloads to raft until it is restarted, and `op_node_conductor_override` is 1. Restart op-node before it rejoins the cluster, and confirm `op_conductor_unsafe_head_number{source="raft"}` tracks `{source="node"}`.
 5. manually start sequencing on the chosen sequencer
 6. Go back to bootstrap step to re-bootstrap the cluster.
