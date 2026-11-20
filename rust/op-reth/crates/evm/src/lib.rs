@@ -214,7 +214,7 @@ pub fn validate_post_exec_attributes(
     })
 }
 
-/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
 impl<EvmF> ConfigureEvm for OpEvmConfig<EvmF>
@@ -302,7 +302,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
 /// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through
