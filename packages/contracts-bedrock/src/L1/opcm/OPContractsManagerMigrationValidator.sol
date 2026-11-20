@@ -470,10 +470,8 @@ contract OPContractsManagerMigrationValidator {
             return internalRequire(false, "MIG-CHAIN-EMPTY", _errors);
         }
 
-        // An interop set needs at least two chains.
-        if (_chainSystemConfigs.length == 1) {
-            return internalRequire(false, "MIG-CHAIN-SINGLE", _errors);
-        }
+        // An interop set needs at least two chains. Report it and keep checking the one chain.
+        _errors = internalRequire(_chainSystemConfigs.length != 1, "MIG-CHAIN-SINGLE", _errors);
 
         if (_chainSystemConfigs.length != _input.legacyChainContracts.length) {
             return internalRequire(false, "MIG-CHAIN-LEGACY-MISMATCH", _errors);
