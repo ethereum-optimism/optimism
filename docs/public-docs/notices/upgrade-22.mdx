@@ -1,6 +1,6 @@
 ---
 title: Upgrade 22
-description: Prepare for Upgrade 22, which activates the Lagoon hardfork and interop between OP Mainnet and Unichain, and requires withdrawals proven before the migration to be proven again.
+description: Prepare for Upgrade 22, which activates the Lagoon hardfork and interop between OP Mainnet and Unichain and requires withdrawals proven before the migration to be proven again. It also introduces Sequencer Defined Metering and a zero-knowledge (ZK) dispute game type to the OP Stack.
 lang: en-US
 diataxis: reference
 content_type: notice
@@ -20,9 +20,11 @@ categories:
 is_imported_content: 'false'
 ---
 
-Upgrade 22 activates the [Lagoon hardfork](/op-stack/protocol/hardforks/lagoon) and ships [`op-contracts/v10.0.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0-rc.1).
+Upgrade 22 ships `op-contracts/v10.0.0` and activates the [Lagoon hardfork](/op-stack/protocol/hardforks/lagoon).
 Lagoon turns on [interop](/op-stack/interop/explainer) between **OP Mainnet** and **Unichain**, with **OP Sepolia** and **Unichain Sepolia** as the testnet pair.
 **Ink** and **Soneium** (and Ink Sepolia and Soneium Minato) activate Lagoon at the same timestamps, without interop.
+Lagoon also enables [Sequencer Defined Metering](/op-stack/features/sdm), and Unichain will introduce a refund policy that makes swaps cheaper for users.
+Upgrade 22 also adds a ZK dispute game type, which OP Mainnet and Unichain plan to adopt as their respected game type shortly after activation.
 
 OP Mainnet and Unichain (and their Sepolia counterparts) are upgraded in two steps:
 
@@ -61,7 +63,6 @@ The [Interop activation prep](/notices/interop-prep) notice is the checklist for
 Before Lagoon activates, `OPContractsManagerV2.migrate` merges OP Mainnet and Unichain into one interop set in a single L1 transaction.
 It deploys a shared `ETHLockbox`, `DisputeGameFactory`, and `AnchorStateRegistry`, moves each chain's ETH into the shared lockbox, and points each `OptimismPortal` at the shared contracts.
 New proposals are super-root claims on the shared `DisputeGameFactory`.
-The migration is one-way.
 The [shared dispute game runbook](/chain-operators/tutorials/merge-shared-dispute-game) describes the full flow.
 
 After the migration, `OptimismPortal2` only accepts dispute games registered in the shared factory.
@@ -75,17 +76,17 @@ See [Message expiration](/app-developers/guides/interoperability/message-expirat
 
 ### L2 pause for the interop ETH bridge
 
-The L1 pause now applies to `ETHLiquidity`.
+The [pause functionality](/op-stack/security/pause#pause-functionality) now applies to `ETHLiquidity`.
 Anyone can call `L1CrossDomainMessenger.syncETHLiquidityPause()` to copy the L1 pause state to L2, and while paused, `ETHLiquidity` blocks `burn` and `mint`.
 
-### Post-execution transactions and sequencer defined metering
+### Post-execution transactions and Sequencer Defined Metering
 
 Lagoon adds the [post-execution transaction](https://specs.optimism.io/protocol/lagoon/post-exec.html), an EIP-2718 transaction type `0x7D` that a sequencer appends as the last transaction in a block.
 Its first use is [sequencer defined metering](/op-stack/features/sdm) (SDM), which lets a sequencer rebate gas to transactions in the block.
 From activation, a block may end in a `0x7D` transaction, and receipts gain an `opGasRefund` JSON-RPC field.
 A sequencer only issues rebates after its operator opts in.
 
-{/* TODO: per-chain SDM rollout is not yet decided; do not publish it until it is. The opt-in default is verified: op-reth `--rollup.operator-sdm-opt-in` defaults to false. */}
+Unichain will be the first chain to adopt SDM, with a [refund policy](/chain-operators/guides/features/sequencer-defined-metering#refund-policies-and-op-enterprise) that makes swaps on the Uniswap protocol cheaper.
 
 ### BLS12-381 precompile input limits
 
@@ -136,8 +137,6 @@ Update an integration if it does any of the following:
 ### Node operators
 
 Upgrade every node on a chain that activates Lagoon to a Lagoon release before the activation timestamp.
-A node that does not carry the Lagoon timestamp diverges from the chain at activation.
-op-geth does not support Lagoon; see [End of support for op-geth and op-program](/notices/archive/op-geth-deprecation).
 
 On **OP Mainnet**, **Unichain**, **OP Sepolia**, and **Unichain Sepolia**, also complete the [Interop activation prep](/notices/interop-prep) checklist: run op-supernode for both chains and run every op-node as a Light CL that follows it.
 
