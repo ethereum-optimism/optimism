@@ -290,6 +290,39 @@ fn test_jovian_da_footprint_estimation() {
     assert_eq!(executor.da_footprint_used, expected_da_footprint);
 }
 
+/// `eth_simulateV1` executes each call with an empty encoded envelope so that no L1 cost is
+/// charged. The DA footprint must still be estimated from the transaction, not from the empty
+/// envelope, which would yield the minimum footprint whatever the calldata size.
+#[test]
+fn test_jovian_da_footprint_estimation_empty_envelope() {
+    const GAS_LIMIT: u64 = 1_000_000;
+
+    let mut fixture =
+        JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, GAS_LIMIT, JOVIAN_TIMESTAMP);
+    let mut executor = fixture.executor();
+
+    // Incompressible calldata, so the footprint is well above the minimum.
+    let input: Vec<u8> = (0u8..64).flat_map(|i| keccak256([i])).collect();
+    let tx = recovered_legacy(TxLegacy {
+        gas_limit: GAS_LIMIT,
+        to: TxKind::Call(Address::with_last_byte(1)),
+        input: input.into(),
+        ..Default::default()
+    });
+    let simulated = WithEncoded::new(Bytes::new(), tx.clone());
+
+    let tx_footprint = executor.jovian_da_footprint_estimation(&tx.to_tx_env(), &tx).unwrap();
+    let min_footprint = encoded_tx_da_footprint(&[], DEFAULT_DA_FOOTPRINT_GAS_SCALAR.into());
+    assert!(tx_footprint > min_footprint);
+
+    let simulated_footprint =
+        executor.jovian_da_footprint_estimation(&simulated.to_tx_env(), &simulated).unwrap();
+    assert_eq!(simulated_footprint, tx_footprint);
+
+    executor.execute_transaction(&simulated).expect("simulated tx executes");
+    assert_eq!(executor.da_footprint_used, tx_footprint);
+}
+
 #[test]
 fn test_jovian_da_footprint_estimation_out_of_gas() {
     const GAS_LIMIT: u64 = 100;
