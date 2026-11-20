@@ -1,0 +1,245 @@
+---
+title: Upgrade 22
+description: Prepare for Upgrade 22, which activates the Lagoon hardfork and interop between OP Mainnet and Unichain, and requires withdrawals proven before the migration to be proven again.
+lang: en-US
+diataxis: reference
+content_type: notice
+date: 2026-11-20
+topic: upgrade-22
+personas:
+  - chain-operator
+  - node-operator
+  - app-developer
+  - partner
+  - user
+categories:
+  - protocol-upgrades
+  - l1-contracts
+  - interop
+  - fault-proofs
+is_imported_content: 'false'
+---
+
+Upgrade 22 activates the [Lagoon hardfork](/op-stack/protocol/hardforks/lagoon) and ships [`op-contracts/v10.0.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0-rc.1).
+Lagoon turns on [interop](/op-stack/interop/explainer) between **OP Mainnet** and **Unichain**, with **OP Sepolia** and **Unichain Sepolia** as the testnet pair.
+**Ink** and **Soneium** (and Ink Sepolia and Soneium Minato) activate Lagoon at the same timestamps, without interop.
+
+Each network is upgraded in two steps:
+
+1. An L1 contract upgrade, which on OP Mainnet and Unichain includes `OPContractsManagerV2.migrate`. The migration moves both chains onto shared dispute contracts.
+2. The Lagoon hardfork, which activates at a timestamp. Every node on a chain that activates Lagoon must run a Lagoon release before that timestamp.
+
+<Info>
+  This notice is provisional.
+  Mainnet dates depend on Optimism Governance approval.
+  Component versions and prestate hashes will be added when the releases are published.
+</Info>
+
+{/* TODO(solutions#1980): add final node versions once the single node release (staging + Sepolia + Mainnet timestamps) is cut, targeted Nov 23-24. */}
+
+<Warning>
+  **Withdrawals proven before the migration must be proven again.**
+  On OP Mainnet and Unichain, the migration on **Monday, December 14, 2026** invalidates every withdrawal proof that has not been finalized.
+  On OP Sepolia and Unichain Sepolia, the migration is on **Tuesday, December 8, 2026**.
+  See [Users](#users) for what to do.
+</Warning>
+
+## What's included
+
+### Interop between OP Mainnet and Unichain
+
+At the Lagoon activation timestamp, OP Mainnet and Unichain form a two-chain [dependency set](/op-stack/interop/explainer), as do OP Sepolia and Unichain Sepolia.
+Each chain can then execute messages initiated on the other.
+The dependency sets are recorded in the superchain-registry chain configs for [OP Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/op.toml) and [Unichain](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/unichain.toml).
+Ink and Soneium have no interop dependencies, so Lagoon does not turn on cross-chain messaging for them.
+
+Node operators on OP Mainnet, Unichain, OP Sepolia, and Unichain Sepolia must move to the supernode topology before activation.
+The [Interop activation prep](/notices/interop-prep) notice is the checklist for that change; this notice does not repeat it.
+
+### Shared dispute contracts
+
+Before Lagoon activates, `OPContractsManagerV2.migrate` merges OP Mainnet and Unichain into one interop set in a single L1 transaction.
+It deploys a shared `ETHLockbox`, `DisputeGameFactory`, and `AnchorStateRegistry`, moves each chain's ETH into the shared lockbox, and points each `OptimismPortal` at the shared contracts.
+New proposals are super-root claims on the shared `DisputeGameFactory`.
+The migration is one-way.
+The [shared dispute game runbook](/chain-operators/tutorials/merge-shared-dispute-game) describes the full flow.
+
+After the migration, `OptimismPortal2` only accepts dispute games registered in the shared factory.
+A withdrawal proven against a game from a chain's old factory can no longer be finalized and must be proven again.
+
+### Message expiry
+
+`L2ToL2CrossDomainMessenger` can mark an interop message as expired when it stays undelivered for 8 days.
+The new `UndeliveredMessageExporter` predeploy (`0x4200000000000000000000000000000000000030`) and `L1CrossDomainMessenger.relayUndeliveredMessage` carry the expiry back to the source chain, and `SuperchainETHBridge.refundETH` returns the ETH of an expired send to its sender.
+See [Message expiration](/app-developers/guides/interoperability/message-expiration) for how it works and its [known limitations](/app-developers/guides/interoperability/message-expiration#known-limitations).
+
+### L2 pause for the interop ETH bridge
+
+The L1 pause now applies to `ETHLiquidity`.
+Anyone can call `L1CrossDomainMessenger.syncETHLiquidityPause()` to copy the L1 pause state to L2, and while paused, `ETHLiquidity` blocks `burn` and `mint`.
+
+### Post-execution transactions and sequencer defined metering
+
+Lagoon adds the [post-execution transaction](https://specs.optimism.io/protocol/lagoon/post-exec.html), an EIP-2718 transaction type `0x7D` that a sequencer appends as the last transaction in a block.
+Its first use is [sequencer defined metering](/op-stack/features/sdm) (SDM), which lets a sequencer rebate gas to transactions in the block.
+From activation, a block may end in a `0x7D` transaction, and receipts gain an `opGasRefund` JSON-RPC field.
+A sequencer only issues rebates after its operator opts in.
+
+{/* TODO(solutions#1970): SDM rollout (which chains enable the block-level warming policy, and in which order) is unresolved: Product says Unichain-only; the SDM PRR says OP rolls out first. Do not publish per-chain rollout until resolved. Verify the "opt-in defaults off" claim against the SDM operator guide. */}
+
+### BLS12-381 precompile input limits
+
+The [maximum input sizes](https://specs.optimism.io/protocol/lagoon/exec-engine.html) of the BLS12-381 precompiles are reduced:
+
+| Precompile | Before Lagoon | From Lagoon |
+| --- | --- | --- |
+| `BLS12-381 G1 MSM` | 288,960 bytes (1,806 pairs) | 130,720 bytes (817 pairs) |
+| `BLS12-381 G2 MSM` | 278,784 bytes (968 pairs) | 130,752 bytes (454 pairs) |
+| `BLS12-381 Pairing` | 156,672 bytes (408 pairs) | 130,560 bytes (340 pairs) |
+
+### Other contract changes
+
+* `OptimismPortal2` rejects a withdrawal that targets the chain's `L1StandardBridge`, at prove and at finalize. Standard bridge withdrawals target `L1CrossDomainMessenger` and are not affected.
+* `L2ERC721Bridge` accepts all past `OptimismMintableERC721` interface IDs. Deposits into older L2 NFT tokens that failed before can now be replayed.
+
+See the [`op-contracts/v10.0.0-rc.1` release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0-rc.1) for the full list and contract versions.
+
+### ZK proofs on OP Mainnet and Unichain
+
+After Lagoon activates, OP Mainnet and Unichain are planned to move to the ZK dispute game (`ZK_DISPUTE_GAME`, game type `10`) as their respected game type.
+This is a separate step from the hardfork and the migration.
+Its dates and any required actions will be added to this notice before it happens.
+
+{/* TODO(solutions#1962, #1983): confirm the ZK switch dates (planned Sepolia Dec 10-11, Mainnet Jan 11-12), whether the Mainnet OPCM re-run is in the Dec 2 governance post, the challenger config change for third-party challengers, and whether withdrawals proven against SUPER_CANNON_KONA games before the switch must be re-proved. */}
+
+## Required actions
+
+### Users
+
+If you have a withdrawal from **OP Mainnet** or **Unichain** (or OP Sepolia or Unichain Sepolia) that is proven but not finalized when the migration executes, prove it again after the migration and wait the proof maturity delay again before finalizing.
+The delay counts from the new proof, not the original one.
+
+A withdrawal that is ready to finalize before the migration can be finalized as usual.
+Withdrawals started after the migration are not affected.
+Ink and Soneium withdrawals are not affected.
+
+### App developers and infrastructure integrators
+
+Update an integration if it does any of the following:
+
+* **Proves or finalizes withdrawals from OP Mainnet or Unichain.** After the migration, read the dispute game factory from `OptimismPortal2.disputeGameFactory()` rather than a stored address, and prove against super-root games on the shared factory, using `rootClaimByChainId(uint256)` to get the chain's output root. Prompt users with unfinalized proofs from before the migration to prove again.
+* **Parses blocks, transactions, or receipts.** Handle transaction type `0x7D` as the last transaction of a block, and the `opGasRefund` receipt field. See [What changes at Lagoon](/op-stack/features/sdm#what-changes-at-lagoon) for the transaction's shape.
+* **Calls the BLS12-381 precompiles** with inputs above the new limits.
+* **Sends interop messages or ETH between OP Mainnet and Unichain.** Handle expiry with `expiredMessages(messageHash)` or the `MessageExpired` event, and refund expired ETH sends with `SuperchainETHBridge.refundETH`.
+* **Submits withdrawals that target the `L1StandardBridge` directly** instead of the `L1CrossDomainMessenger`.
+
+### Node operators
+
+Upgrade every node on a chain that activates Lagoon to a Lagoon release before the activation timestamp.
+A node that does not carry the Lagoon timestamp diverges from the chain at activation.
+op-geth does not support Lagoon; see [End of support for op-geth and op-program](/notices/archive/op-geth-deprecation).
+
+On **OP Mainnet**, **Unichain**, **OP Sepolia**, and **Unichain Sepolia**, also complete the [Interop activation prep](/notices/interop-prep) checklist: run op-supernode for both chains and run every op-node as a Light CL that follows it.
+
+{/* TODO(solutions#1669): the release-level inventory of affected components is not recorded on #1669 yet. Fill versions from that inventory; confirm the op-batcher, op-dispute-mon, and kona-node rows. */}
+
+| Component | Version | Who needs it | Action |
+| --- | --- | --- | --- |
+| `op-node` | To be published | Every chain that activates Lagoon | Upgrade before activation. On OP Mainnet and Unichain, run as a Light CL that follows op-supernode. |
+| `kona-node` | To be published | Every chain that activates Lagoon, if you run kona-node | Upgrade before activation. |
+| `op-reth` | To be published | Every chain that activates Lagoon | Upgrade before activation. |
+| `op-supernode` | To be published | OP Mainnet, Unichain, OP Sepolia, Unichain Sepolia | Run before activation, deriving both chains of the pair. See [Interop activation prep](/notices/interop-prep). |
+| `op-batcher` | To be published | Chain operators of chains that activate Lagoon | Upgrade before activation so it can encode `0x7D` transactions in batches. |
+
+### Chain operators
+
+* Upgrade your sequencer, batcher, and other nodes to Lagoon releases before activation, as listed in [Node operators](#node-operators).
+* To issue SDM rebates after activation, follow the [SDM operator guide](/chain-operators/guides/features/sequencer-defined-metering).
+* Lagoon is scheduled per chain in the superchain-registry and is not a superchain-wide default. Chains other than those named in this notice are not scheduled to activate Lagoon with Upgrade 22.
+
+#### For permissionless fault proof chains
+
+Lagoon changes the fault proof program, so every permissionless chain that activates Lagoon needs a new absolute prestate built from a Lagoon `kona-client` release.
+The hardfork does not change the respected game type. `OP_PROPOSER_GAME_TYPE` stays `9` (`SUPER_CANNON_KONA`) on a permissionless chain.
+
+* **OP Mainnet and Unichain** move to the shared `DisputeGameFactory` at the migration. Optimism sets the interop prestate onchain as part of the governed upgrade. Point third-party `op-challenger` and `op-dispute-mon` instances at the shared factory (`--game-factory-address`) and at a super-root source that derives both chains after the migration, as described in the [shared dispute game runbook](/chain-operators/tutorials/merge-shared-dispute-game).
+* **Other permissionless chains in the superchain registry** use the standard prestate for the Lagoon `kona-client` release. Update `op-challenger` and confirm it can fetch the new prestate.
+* **Permissionless chains outside the superchain registry** that adopt Lagoon need a custom prestate. Build it, host it for `op-challenger`, and set it onchain in your OPCM upgrade by following the steps below.
+
+{/* TODO(solutions#1672, #1673): fill in the Lagoon kona-client/kona-host release tag, the reviewed prestate hashes (standard and interop), and the op-challenger version once the prestate review is Compatible and the final kona tags are cut. Confirm whether Ink and Soneium receive the standard prestate through a governed OPCM upgrade in U22. */}
+
+<Steps>
+  <Step title="Build or verify the absolute prestate">
+    <Tabs>
+      <Tab title="Standard chain configuration">
+        The standard prestate hash for the Lagoon `kona-client` release will be listed here and in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml) when the release is published.
+
+        Check out the Lagoon `kona-client` tag in the monorepo, reproduce the prestate, and confirm the hash matches the published value:
+
+        ```bash
+        just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        ```
+      </Tab>
+
+      <Tab title="Custom chain configuration">
+        Stage your chain data as described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate), including `depsets.json`, and set `lagoon_time` in your chain config.
+        Check out the Lagoon `kona-client` tag and, from the root of the monorepo, build the prestate with your configuration:
+
+        ```bash
+        KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs \
+          just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        ```
+
+        Confirm your chain is embedded in the build. A build that silently drops your chain produces the standard hash instead.
+        See [Building kona prestates](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/docker#building-kona-prestates) for the build options.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Upload the new preimage file">
+    Upload the preimage file, named after the prestate hash (for example `0x<hash>.bin.gz`), to the location `--cannon-kona-prestates-url` points at.
+    Keep the Upgrade 21 prestate file in place so `op-challenger` can finish games created before the upgrade.
+  </Step>
+
+  <Step title="Update op-challenger">
+    Update `op-challenger` to the Lagoon release before the activation timestamp.
+    If you do not use the standard OP Labs `op-challenger` Docker image, set `--cannon-kona-server` (`OP_CHALLENGER_CANNON_KONA_SERVER`) to a `kona-host` binary built from the same release as the prestate.
+  </Step>
+
+  <Step title="Set the new prestate onchain">
+    Pass your new hash as the `absolutePrestate` in the dispute game configuration of your OPCM upgrade input.
+    Simulate and validate the expected output before executing the transaction.
+  </Step>
+</Steps>
+
+## Upgrade timing
+
+| Milestone | Sepolia | Mainnet |
+| --- | --- | --- |
+| Governance proposal published | — | **Wednesday, December 2, 2026** |
+| Governance veto period ends | — | **Wednesday, December 9, 2026** |
+| L1 contract upgrade and migration (OP and Unichain) | **Tuesday, December 8, 2026** | **Monday, December 14, 2026** |
+| Lagoon activation | **Thursday, December 10, 2026, 16:00:01 UTC** (`1796918401`) | **Monday, January 11, 2027, 16:00:01 UTC** (`1799683201`) |
+
+The activation timestamps are set per chain in the superchain-registry, for example [`sepolia/op.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/sepolia/op.toml) and [`mainnet/op.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/op.toml).
+The mainnet contract upgrade and migration depend on Optimism Governance approval, so these dates can move.
+The Governance proposal will be linked here when it is published.
+
+OP Enterprise Fully Managed chains follow this timeline.
+OP Enterprise Self Managed chains can reach out to their Optimism point of contact if they need any support.
+
+## Verify readiness
+
+Before your network's activation timestamp:
+
+* Confirm every node runs a Lagoon release. On op-node, the `Rollup Config` line logged at startup shows `lagoon_time` set to your network's activation timestamp.
+* On OP Mainnet and Unichain, run the checks in [Verify your setup before activation](/notices/interop-prep#verify-your-setup-before-activation).
+* Run integration tests that parse a block ending in a `0x7D` transaction, if your tooling decodes blocks.
+
+After the migration on your network:
+
+* Confirm your withdrawal tooling proves against games on the shared `DisputeGameFactory`.
+
+If you have questions or need support, contact your Optimism point of contact.
