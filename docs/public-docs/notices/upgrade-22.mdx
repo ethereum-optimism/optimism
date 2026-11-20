@@ -85,7 +85,7 @@ Its first use is [sequencer defined metering](/op-stack/features/sdm) (SDM), whi
 From activation, a block may end in a `0x7D` transaction, and receipts gain an `opGasRefund` JSON-RPC field.
 A sequencer only issues rebates after its operator opts in.
 
-{/* TODO(solutions#1970): SDM rollout (which chains enable the block-level warming policy, and in which order) is unresolved: Product says Unichain-only; the SDM PRR says OP rolls out first. Do not publish per-chain rollout until resolved. Verify the "opt-in defaults off" claim against the SDM operator guide. */}
+{/* TODO(solutions#1970): SDM rollout (which chains enable the block-level warming policy, and in which order) is unresolved. Do not publish per-chain rollout until resolved. The opt-in default is verified: op-reth `--rollup.operator-sdm-opt-in` defaults to false. */}
 
 ### BLS12-381 precompile input limits
 
@@ -104,6 +104,8 @@ The [maximum input sizes](https://specs.optimism.io/protocol/lagoon/exec-engine.
 
 See the [`op-contracts/v10.0.0-rc.1` release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0-rc.1) for the full list and contract versions.
 
+{/* TODO: the L1StandardBridge bullet above matches op-contracts/v10.0.0-rc.1 (OptimismPortal2 7.5.0, _isUnsafeTarget rejects the bridge unconditionally). On develop, optimism#24011 (merged 2026-11-17) rejects it only while a bridge hook is set, and OPCM migrate refuses portals with a bridge hook. Re-check this bullet and the matching "Submits withdrawals that target the L1StandardBridge" integrator bullet against the final v10.0.0 tag, and swap the rc.1 links for the final release. */}
+
 ### ZK proofs on OP Mainnet and Unichain
 
 After Lagoon activates, OP Mainnet and Unichain are planned to move to the ZK dispute game (`ZK_DISPUTE_GAME`, game type `10`) as their respected game type.
@@ -119,7 +121,7 @@ Its dates and any required actions will be added to this notice before it happen
 If you have a withdrawal from **OP Mainnet** or **Unichain** (or OP Sepolia or Unichain Sepolia) that is proven but not finalized when the migration executes, prove it again after the migration and wait the proof maturity delay again before finalizing.
 The delay counts from the new proof, not the original one.
 
-A withdrawal that is ready to finalize before the migration can be finalized as usual.
+A withdrawal finalized before the migration is not affected.
 Withdrawals started after the migration are not affected.
 Ink and Soneium withdrawals are not affected.
 
@@ -218,8 +220,8 @@ The hardfork does not change the respected game type. `OP_PROPOSER_GAME_TYPE` st
 
 | Milestone | Sepolia | Mainnet |
 | --- | --- | --- |
-| Governance proposal published | — | **Wednesday, December 2, 2026** |
-| Governance veto period ends | — | **Wednesday, December 9, 2026** |
+| Governance proposal published | Not applicable | **Wednesday, December 2, 2026** |
+| Governance veto period ends | Not applicable | **Wednesday, December 9, 2026** |
 | L1 contract upgrade and migration (OP and Unichain) | **Tuesday, December 8, 2026** | **Monday, December 14, 2026** |
 | Lagoon activation | **Thursday, December 10, 2026, 16:00:01 UTC** (`1796918401`) | **Monday, January 11, 2027, 16:00:01 UTC** (`1799683201`) |
 
