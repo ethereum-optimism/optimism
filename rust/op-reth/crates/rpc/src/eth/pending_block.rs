@@ -60,7 +60,7 @@ impl OpPendingEnvBuilder {
 
     /// Returns the chain's alloy-chains block time hint in whole seconds.
     ///
-    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1 `reth_rpc_eth_types::simulate::sanitize_chain`
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2 `reth_rpc_eth_types::simulate::sanitize_chain`
     ///
     /// Rounds up as upstream's `eth_simulateV1` derives its timestamp increment.
     fn hint_block_time(chain: Chain) -> Option<u64> {
@@ -179,7 +179,7 @@ where
         self.inner.eth_api.pending_block_kind()
     }
 
-    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-1
+    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-2
     /// `reth_rpc_eth_api::helpers::pending_block::LoadPendingBlock::local_pending_state`
     ///
     /// Serves the flashblock pending state instead of the pool-built one. Keep upstream's blocking

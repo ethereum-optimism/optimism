@@ -251,6 +251,8 @@ mod test {
     use crate::{Cli, chainspec::OpChainSpecParser, commands::Commands};
     use clap::Parser;
     use reth_cli_commands::{NodeCommand, node::NoArgs};
+    use reth_node_builder::components::PoolBuilderConfigOverrides;
+    use reth_node_core::cli::config::RethTransactionPoolConfig;
     use reth_optimism_chainspec::{OP_DEV, OP_MAINNET};
     use reth_optimism_node::args::RollupArgs;
 
@@ -380,6 +382,27 @@ mod test {
             }
             _ => panic!("unexpected command"),
         }
+    }
+
+    /// `--txpool.enforce-tracked-nonce` survives op-reth's CLI parsing and the composition
+    /// `OpPoolBuilder::build_pool` uses, `pool_config_overrides.apply(ctx.pool_config())`.
+    #[test]
+    fn enforce_tracked_nonce_reaches_the_pool_config() {
+        let final_pool_config = |args: &[&str]| {
+            let cli = Cli::<RollupArgs>::try_parse_with_denied_args_from(
+                ["op-reth", "node"].iter().chain(args),
+            )
+            .unwrap();
+            let Commands::Node(command) = cli.command else { panic!("unexpected command") };
+            let overrides =
+                PoolBuilderConfigOverrides { max_account_slots: Some(1), ..Default::default() };
+            overrides.apply(command.txpool.pool_config())
+        };
+
+        assert!(!final_pool_config(&[]).enforce_tracked_nonce);
+        let config = final_pool_config(&["--txpool.enforce-tracked-nonce"]);
+        assert!(config.enforce_tracked_nonce);
+        assert_eq!(config.max_account_slots, 1);
     }
 
     #[test]

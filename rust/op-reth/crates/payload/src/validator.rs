@@ -35,7 +35,7 @@ impl OpExecutionPayloadValidator {
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2
 /// `reth_ethereum_payload_builder::validator::ensure_well_formed_payload`
 ///
 /// Copies upstream's ordered payload checks with OP payload fields and fork activation.

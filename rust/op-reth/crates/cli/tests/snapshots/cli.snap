@@ -193,6 +193,7 @@ arg: --txpool.lifetime <DURATION> [action: Set] [num-args: 1] [default: 10800] h
 arg: --txpool.transactions-backup <PATH> [action: Set] [num-args: 1] [aliases: txpool.journal] help: Path to store the local transaction backup at, to survive node restarts
 arg: --txpool.disable-transactions-backup [action: SetTrue] [num-args: 0] [aliases: txpool.disable-journal] [default: false] [conflicts: --txpool.transactions-backup] help: Disables transaction backup to disk on node shutdown
 arg: --txpool.max-batch-size <MAX_BATCH_SIZE> [action: Set] [num-args: 1] [default: 1] help: Max batch size for transaction pool insertions
+arg: --txpool.enforce-tracked-nonce [action: SetTrue] [num-args: 0] [default: false] help: Reject transactions whose nonce is below the sender nonce tracked from canonical updates
 arg: --builder.extradata <EXTRA_DATA> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Block extra data set by the payload builder
 arg: --builder.gaslimit <GAS_LIMIT> [action: Set] [num-args: 1] [aliases: miner.gaslimit] help: Target gas limit for built blocks
 arg: --builder.interval <DURATION> [action: Set] [num-args: 1] [default: 1] help: The interval at which the job should build a new payload after the last
