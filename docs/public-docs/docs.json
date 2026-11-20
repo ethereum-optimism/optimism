@@ -1051,6 +1051,18 @@
       "destination": "/notices/archive/stake-based-priority-ordering"
     },
     {
+      "source": "/notices/upgrade-21",
+      "destination": "/notices/archive/upgrade-21"
+    },
+    {
+      "source": "/notices/subblocks",
+      "destination": "/notices/archive/subblocks"
+    },
+    {
+      "source": "/notices/preconfirmation-architecture-transition",
+      "destination": "/notices/archive/preconfirmation-architecture-transition"
+    },
+    {
       "source": "/operators/chain-operators",
       "destination": "/"
     },
@@ -3670,15 +3682,12 @@
                     "group": "Network Upgrades",
                     "pages": [
                       "notices/upgrade-22",
-                      "notices/upgrade-21",
                       "notices/interop-prep"
                     ]
                   },
                   {
                     "group": "Operations",
                     "pages": [
-                      "notices/preconfirmation-architecture-transition",
-                      "notices/subblocks",
                       "notices/specialized-node-topology",
                       "notices/op-reth-storage-v1-deprecation"
                     ]
