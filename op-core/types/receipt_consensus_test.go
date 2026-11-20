@@ -168,13 +168,20 @@ func TestFromGethReceipt(t *testing.T) {
 		require.Equal(t, *src, r.Receipt)
 	}
 
-	_, err := optypes.FromGethReceipt(&gethtypes.Receipt{Type: optypes.DepositTxType})
-	require.Error(t, err)
+	rs, err := optypes.FromGethReceipts(gethtypes.Receipts{
+		{Type: gethtypes.LegacyTxType},
+		{Type: optypes.PostExecTxType},
+	})
+	require.NoError(t, err)
+	require.Len(t, rs, 2)
+
+	_, err = optypes.FromGethReceipt(&gethtypes.Receipt{Type: optypes.DepositTxType})
+	require.ErrorContains(t, err, "deposit receipt")
 	_, err = optypes.FromGethReceipts(gethtypes.Receipts{
 		{Type: gethtypes.LegacyTxType},
 		{Type: optypes.DepositTxType},
 	})
-	require.Error(t, err)
+	require.ErrorContains(t, err, "deposit receipt")
 }
 
 func TestReceiptsUserReceipts(t *testing.T) {

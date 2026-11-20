@@ -27,8 +27,8 @@ var _ types.DerivableList = (Receipts)(nil)
 // alias the source).
 //
 // It rejects a deposit (0x7E) receipt: a go-ethereum receipt cannot carry the
-// deposit nonce and receipt version, so the wrapped receipt would have a wrong
-// consensus encoding.
+// deposit nonce and receipt version, which the consensus encoding of a deposit
+// receipt needs from Regolith on.
 func FromGethReceipt(r *types.Receipt) (*Receipt, error) {
 	if r.Type == DepositTxType {
 		return nil, fmt.Errorf("cannot wrap deposit receipt of tx %s: a go-ethereum receipt lacks the deposit nonce and receipt version", r.TxHash)
