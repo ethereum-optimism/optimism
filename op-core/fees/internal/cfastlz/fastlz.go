@@ -17,8 +17,9 @@ func Compress(input []byte) []byte {
 	if len(input) == 0 {
 		return nil
 	}
-	// Level 1 output is at most len(input) + ceil(len(input)/32) bytes.
-	out := make([]byte, 2*len(input))
+	// fastlz.h asks for an output buffer at least 5% larger than the input and no smaller than
+	// 66 bytes.
+	out := make([]byte, max(66, 2*len(input)))
 	n := C.fastlz_compress_level(1, unsafe.Pointer(&input[0]), C.int(len(input)), unsafe.Pointer(&out[0]))
 	runtime.KeepAlive(input)
 	return out[:n]
