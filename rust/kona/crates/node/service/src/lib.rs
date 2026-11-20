@@ -19,7 +19,7 @@ pub use actors::{
     DerivationActorRequest, DerivationClientError, DerivationClientResult, DerivationEngineClient,
     DerivationError, DerivationState, DerivationStateMachine, DerivationStateTransitionError,
     DerivationStateUpdate, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, IpVotes, L1OriginSelector,
+    EngineConfig, EngineDerivationClient, EngineError, IpVotes, L1LookupError, L1OriginSelector,
     L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor, L1WatcherActorError,
     L1WatcherChain, L1WatcherDerivationClient, NetworkActor, NetworkActorError, NetworkBuilder,
     NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient,

@@ -24,6 +24,8 @@ pub struct TestChainProvider {
     pub receipts: Vec<(B256, Vec<Receipt>)>,
     /// Maps block hashes to transactions using a tuple list.
     pub transactions: Vec<(B256, Vec<TxEnvelope>)>,
+    /// Block numbers whose lookup by number fails with an error other than not-found.
+    pub failing_block_numbers: Vec<u64>,
 }
 
 impl TestChainProvider {
@@ -85,6 +87,9 @@ pub enum TestProviderError {
     /// The header was not found.
     #[error("Header not found")]
     HeaderNotFound,
+    /// The lookup of the block with this number failed, as a lost connection would.
+    #[error("Lookup of block {0} failed")]
+    BlockLookupFailed(u64),
     /// The receipts were not found.
     #[error("Receipts not found")]
     ReceiptsNotFound,
@@ -123,6 +128,9 @@ impl ChainProvider for TestChainProvider {
     }
 
     async fn block_info_by_number(&mut self, _number: u64) -> Result<BlockInfo, Self::Error> {
+        if self.failing_block_numbers.contains(&_number) {
+            return Err(TestProviderError::BlockLookupFailed(_number));
+        }
         if let Some((_, block)) = self.blocks.iter().find(|(n, _)| *n == _number) {
             Ok(*block)
         } else {

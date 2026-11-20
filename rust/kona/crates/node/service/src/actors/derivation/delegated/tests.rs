@@ -1,9 +1,12 @@
-use super::{DelegateDerivationActor, SyncStatusSource, actor::DERIVATION_DELEGATE_POLL_INTERVAL};
+use super::{
+    DelegateDerivationActor, L1LookupError, SyncStatusSource,
+    actor::DERIVATION_DELEGATE_POLL_INTERVAL,
+};
 use crate::{DerivationActorRequest, EngineActorRequest, NodeActor, QueuedDerivationEngineClient};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use async_trait::async_trait;
-use kona_derive::test_utils::TestChainProvider;
+use kona_derive::test_utils::{TestChainProvider, TestProviderError};
 use kona_engine::{
     ConsolidateInput, EngineState, EngineSyncState, EngineSyncStateUpdate, FinalizeBlockId,
 };
@@ -18,6 +21,14 @@ use tokio::{
 const SAFE_ORIGIN: u64 = 1;
 const FINALIZED_ORIGIN: u64 = 2;
 const CURRENT_L1: u64 = 3;
+/// An L1 block number our L1 provider has no block at.
+const NOT_ON_OUR_L1: u64 = 4;
+
+impl L1LookupError for TestProviderError {
+    fn is_block_not_found(&self) -> bool {
+        matches!(self, Self::BlockNotFound)
+    }
+}
 
 type SyncStatusReply = Result<SyncStatus, &'static str>;
 
@@ -47,7 +58,19 @@ struct Harness {
 
 impl Harness {
     fn new(replies: impl IntoIterator<Item = SyncStatusReply>) -> Self {
-        let mut l1 = TestChainProvider::default();
+        Self::with_failing_l1_lookups(replies, [])
+    }
+
+    /// Like [`Self::new`], but looking up any of the L1 blocks numbered in `failing` fails for a
+    /// reason other than a missing block.
+    fn with_failing_l1_lookups(
+        replies: impl IntoIterator<Item = SyncStatusReply>,
+        failing: impl IntoIterator<Item = u64>,
+    ) -> Self {
+        let mut l1 = TestChainProvider {
+            failing_block_numbers: failing.into_iter().collect(),
+            ..Default::default()
+        };
         for number in [SAFE_ORIGIN, FINALIZED_ORIGIN, CURRENT_L1] {
             l1.insert_block(number, canonical_l1_block(number));
         }
@@ -270,7 +293,9 @@ enum DelegateReply {
     CurrentL1NotCanonical,
     FetchFailed,
     FinalizedOriginNotCanonical,
+    FinalizedOriginNotFound,
     SafeOriginNotCanonical,
+    SafeOriginNotFound,
     Valid,
 }
 
@@ -287,8 +312,14 @@ impl DelegateReply {
             Self::FinalizedOriginNotCanonical => {
                 status.finalized_l2.l1_origin = non_canonical(status.finalized_l2.l1_origin)
             }
+            Self::FinalizedOriginNotFound => {
+                status.finalized_l2.l1_origin = canonical_l1_block(NOT_ON_OUR_L1).id()
+            }
             Self::SafeOriginNotCanonical => {
                 status.safe_l2.l1_origin = non_canonical(status.safe_l2.l1_origin)
+            }
+            Self::SafeOriginNotFound => {
+                status.safe_l2.l1_origin = canonical_l1_block(NOT_ON_OUR_L1).id()
             }
             Self::Valid => {}
         }
@@ -310,13 +341,16 @@ async fn polls_wait_for_engine_sync_completion() {
 }
 
 /// A valid status forwards the safe head and then the hash-pinned finalized block, and publishes
-/// the delegate's `current_l1`. A failed fetch, or any L1 reference that is not canonical, skips
-/// the poll without forwarding or publishing anything and without stopping the actor.
+/// the delegate's `current_l1`. A failed fetch, any L1 reference that is not canonical, or a head's
+/// L1 origin that our L1 provider does not have, skips the poll without forwarding or publishing
+/// anything and without stopping the actor.
 #[rstest]
 #[case::valid(DelegateReply::Valid, true)]
 #[case::fetch_failed(DelegateReply::FetchFailed, false)]
 #[case::safe_origin_not_canonical(DelegateReply::SafeOriginNotCanonical, false)]
+#[case::safe_origin_not_found(DelegateReply::SafeOriginNotFound, false)]
 #[case::finalized_origin_not_canonical(DelegateReply::FinalizedOriginNotCanonical, false)]
+#[case::finalized_origin_not_found(DelegateReply::FinalizedOriginNotFound, false)]
 #[case::current_l1_not_canonical(DelegateReply::CurrentL1NotCanonical, false)]
 #[tokio::test(start_paused = true)]
 async fn poll_forwards_only_canonical_status(#[case] reply: DelegateReply, #[case] accepted: bool) {
@@ -327,6 +361,72 @@ async fn poll_forwards_only_canonical_status(#[case] reply: DelegateReply, #[cas
 
     assert_eq!(harness.forwarded(), forwarded_if(accepted, &delegate_status()));
     assert_eq!(*harness.current_l1.borrow(), accepted.then(|| delegate_status().current_l1));
+}
+
+/// What our L1 provider has at the height of the delegate's `current_l1`.
+#[derive(Clone, Copy, Debug)]
+enum OurCurrentL1 {
+    Canonical,
+    LookupFails,
+    NotFound,
+    OtherBlock,
+}
+
+/// Only a `current_l1` that our L1 provider does not have yet leaves the status's heads to be
+/// forwarded: their L1 origins are canonical. The published `current_l1` then stays where the last
+/// accepted status put it. A `current_l1` on another L1 chain, or a failed lookup, rejects the
+/// status whole.
+#[rstest]
+#[case::canonical(OurCurrentL1::Canonical, true, true)]
+#[case::not_found(OurCurrentL1::NotFound, true, false)]
+#[case::other_block(OurCurrentL1::OtherBlock, false, false)]
+#[case::lookup_fails(OurCurrentL1::LookupFails, false, false)]
+#[tokio::test(start_paused = true)]
+async fn current_l1_check_only_soft_fails_when_not_found(
+    #[case] ours: OurCurrentL1,
+    #[case] heads_forwarded: bool,
+    #[case] current_l1_published: bool,
+) {
+    // A first status whose `current_l1` is its safe head's L1 origin: one lookup verifies both.
+    let first_status =
+        SyncStatus { current_l1: canonical_l1_block(SAFE_ORIGIN), ..delegate_status() };
+    let current_l1 = match ours {
+        OurCurrentL1::Canonical | OurCurrentL1::LookupFails => canonical_l1_block(CURRENT_L1),
+        OurCurrentL1::NotFound => canonical_l1_block(NOT_ON_OUR_L1),
+        OurCurrentL1::OtherBlock => BlockInfo {
+            hash: non_canonical(canonical_l1_block(CURRENT_L1).id()).hash,
+            ..canonical_l1_block(CURRENT_L1)
+        },
+    };
+    let status = SyncStatus { current_l1, ..delegate_status() };
+    let failing = matches!(ours, OurCurrentL1::LookupFails).then_some(CURRENT_L1);
+    let mut harness =
+        Harness::with_failing_l1_lookups([Ok(first_status.clone()), Ok(status.clone())], failing);
+    harness.complete_engine_sync().await;
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_for(&first_status));
+    assert_eq!(*harness.current_l1.borrow(), Some(first_status.current_l1));
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_if(heads_forwarded, &status));
+    let expected_current_l1 =
+        if current_l1_published { status.current_l1 } else { first_status.current_l1 };
+    assert_eq!(*harness.current_l1.borrow(), Some(expected_current_l1));
+}
+
+/// A `current_l1` that our L1 provider does not have yet does not publish anything on the first
+/// poll either, while the status's heads are forwarded.
+#[tokio::test(start_paused = true)]
+async fn first_poll_with_current_l1_not_found_publishes_no_current_l1() {
+    let status = SyncStatus { current_l1: canonical_l1_block(NOT_ON_OUR_L1), ..delegate_status() };
+    let mut harness = Harness::new([Ok(status.clone())]);
+    harness.complete_engine_sync().await;
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_for(&status));
+    assert_eq!(*harness.current_l1.borrow(), None);
 }
 
 /// An unchanged status is forwarded again on every poll, one poll interval apart, so a target

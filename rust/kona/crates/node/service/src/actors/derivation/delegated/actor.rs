@@ -1,5 +1,6 @@
 use crate::{
-    DerivationActorRequest, DerivationEngineClient, NodeActor, actors::derivation::DerivationError,
+    DerivationActorRequest, DerivationEngineClient, Metrics, NodeActor,
+    actors::derivation::DerivationError,
 };
 use alloy_eips::BlockNumHash;
 use alloy_primitives::BlockHash;
@@ -8,6 +9,7 @@ use jsonrpsee::core::ClientError;
 use kona_derive::{ChainProvider, Signal};
 use kona_engine::{EngineState, FinalityViolation, FinalizeBlockId};
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
+use kona_providers_alloy::AlloyChainProviderError;
 use kona_rpc::RollupNodeApiClient;
 use thiserror::Error;
 use tokio::{
@@ -39,6 +41,23 @@ impl<C: RollupNodeApiClient + Send + Sync> SyncStatusSource for C {
     }
 }
 
+/// The error of an L1 provider that the delegate's L1 blocks are checked against.
+///
+/// It tells a block the provider does not have apart from a failed lookup: a delegate's
+/// `current_l1` may be ahead of our L1 provider, and that alone does not reject its heads.
+pub trait L1LookupError {
+    /// Whether the provider has no block at the requested height.
+    fn is_block_not_found(&self) -> bool;
+}
+
+/// A confirmation-depth miss is also reported as [`AlloyChainProviderError::BlockNotFound`], so
+/// the delegate actor's provider must not have a confirmation depth.
+impl L1LookupError for AlloyChainProviderError {
+    fn is_block_not_found(&self) -> bool {
+        matches!(self, Self::BlockNotFound(_))
+    }
+}
+
 /// The [`NodeActor`] for the delegate derivation sub-routine.
 ///
 /// This actor is responsible for receiving messages from [`NodeActor`]s and polls
@@ -54,6 +73,7 @@ where
     DerivationEngineClient_: DerivationEngineClient,
     Delegate: SyncStatusSource,
     L1Provider: ChainProvider,
+    L1Provider::Error: L1LookupError,
 {
     /// The channel on which all inbound requests are received by the [`DelegateDerivationActor`].
     inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
@@ -63,6 +83,9 @@ where
     /// Source of the sync status of the node that derivation is delegated to.
     delegate: Delegate,
     /// L1 provider for validating L1 info for derivation delegation.
+    ///
+    /// A block it does not have must be reported as not found, not as a failed lookup: the
+    /// `current_l1` check tolerates not-found.
     l1_provider: L1Provider,
     /// Publishes the delegate's `current_l1`: the L1 block that its derivation has reached.
     derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
@@ -94,6 +117,7 @@ where
     DerivationEngineClient_: DerivationEngineClient + 'static,
     Delegate: SyncStatusSource + 'static,
     L1Provider: ChainProvider + 'static,
+    L1Provider::Error: L1LookupError,
 {
     /// Creates a new instance of the [`DelegateDerivationActor`].
     pub fn new(
@@ -129,6 +153,7 @@ where
     DerivationEngineClient_: DerivationEngineClient + 'static,
     Delegate: SyncStatusSource + 'static,
     L1Provider: ChainProvider + Send + 'static,
+    L1Provider::Error: L1LookupError,
 {
     type Error = DerivationError;
 
@@ -160,6 +185,7 @@ where
     DerivationEngineClient_: DerivationEngineClient + 'static,
     Delegate: SyncStatusSource + 'static,
     L1Provider: ChainProvider + 'static,
+    L1Provider::Error: L1LookupError,
 {
     /// Validates a single L1 block height and hash against the canonical L1 chain.
     async fn validate_l1_block(
@@ -168,14 +194,19 @@ where
         l1_block_number: u64,
         expected_hash: BlockHash,
     ) -> Result<(), DerivationDelegationError> {
-        let block = self
-            .l1_provider
-            .block_info_by_number(l1_block_number)
-            .await
-            .map_err(|e| DerivationDelegationError::L1Provider(e.to_string()))?;
+        let block = self.l1_provider.block_info_by_number(l1_block_number).await.map_err(|e| {
+            if e.is_block_not_found() {
+                DerivationDelegationError::BlockNotFound {
+                    context: context.to_string(),
+                    number: l1_block_number,
+                }
+            } else {
+                DerivationDelegationError::Provider(e.to_string())
+            }
+        })?;
 
         if block.hash != expected_hash {
-            return Err(DerivationDelegationError::L1ValidationFailed {
+            return Err(DerivationDelegationError::HashMismatch {
                 context: context.to_string(),
                 number: l1_block_number,
                 expected: expected_hash,
@@ -215,16 +246,20 @@ where
     /// Only a fork at the engine's finalized height is caught here. A chain that forked below it
     /// and reports a higher finalized block passes, and the execution layer rejects the forkchoice
     /// update that would move onto it.
+    ///
+    /// Returns an error if the sync status must not be applied. If only `current_l1` is not on
+    /// our L1 chain yet, the heads can still be applied.
     async fn validate_sync_status(
         &mut self,
         v: &SyncStatus,
-    ) -> Result<(), DerivationDelegationError> {
+    ) -> Result<CurrentL1Check, DerivationDelegationError> {
         Self::validate_label_order(v)?;
         self.engine_state_rx
             .borrow()
             .sync_state
             .ensure_respects_finality(v.finalized_l2.block_info.id())?;
 
+        const CURRENT_L1: &str = "Current L1";
         let checks = [
             ("L1 Origin of Safe L2", v.safe_l2.l1_origin.number, v.safe_l2.l1_origin.hash),
             (
@@ -232,7 +267,7 @@ where
                 v.finalized_l2.l1_origin.number,
                 v.finalized_l2.l1_origin.hash,
             ),
-            ("Current L1", v.current_l1.number, v.current_l1.hash),
+            (CURRENT_L1, v.current_l1.number, v.current_l1.hash),
         ];
         let mut validated_l1_blocks = Vec::with_capacity(checks.len());
         for (context, number, hash) in checks {
@@ -240,10 +275,31 @@ where
             if validated_l1_blocks.contains(&(number, hash)) {
                 continue;
             }
-            self.validate_l1_block(context, number, hash).await?;
-            validated_l1_blocks.push((number, hash));
+            match self.validate_l1_block(context, number, hash).await {
+                Ok(()) => validated_l1_blocks.push((number, hash)),
+                // Our L1 provider is behind the delegate's: it does not have this block yet, for
+                // example while a load-balanced L1 endpoint serves from a lagging backend. The L1
+                // origins of the heads are verified, so the heads can be applied. The L1 blocks
+                // between the safe head's origin and `current_l1` stay unverified until a later
+                // poll finds a `current_l1` on our chain. If the delegate is on an L1 fork, that
+                // poll rejects the status with a hash mismatch, but heads already applied are not
+                // reverted.
+                Err(err @ DerivationDelegationError::BlockNotFound { .. })
+                    if context == CURRENT_L1 =>
+                {
+                    info!(
+                        target: "derivation",
+                        error = %err,
+                        "Delegate current L1 not found on our L1 chain yet, not updating derivation origin"
+                    );
+                    metrics::counter!(Metrics::DERIVATION_DELEGATE_CURRENT_L1_NOT_FOUND)
+                        .increment(1);
+                    return Ok(CurrentL1Check::NotFound);
+                }
+                Err(err) => return Err(err),
+            }
         }
-        Ok(())
+        Ok(CurrentL1Check::Verified)
     }
 
     /// Logs a rejected delegate status at `warn!` when the reason changed, and at `debug!` while
@@ -296,15 +352,20 @@ where
             }
         };
 
-        if let Err(err) = self.validate_sync_status(&sync_status).await {
-            // Validation failures here are expected to be transient, so we skip processing
-            // this sync status and continue delegating derivation instead of treating it as
-            // fatal.
-            self.log_rejected_status(&err);
-            return Ok(());
+        match self.validate_sync_status(&sync_status).await {
+            Ok(CurrentL1Check::Verified) => {
+                self.derivation_origin_tx.send_replace(Some(sync_status.current_l1));
+            }
+            Ok(CurrentL1Check::NotFound) => {}
+            Err(err) => {
+                // Validation failures here are expected to be transient, so we skip processing
+                // this sync status and continue delegating derivation instead of treating it as
+                // fatal.
+                self.log_rejected_status(&err);
+                return Ok(());
+            }
         }
         self.last_rejection = None;
-        self.derivation_origin_tx.send_replace(Some(sync_status.current_l1));
 
         if self.is_lagging_safe_head_forwarded(&sync_status.safe_l2) {
             debug!(
@@ -370,8 +431,23 @@ where
     }
 }
 
+/// Whether a delegate's `current_l1` is on our L1 chain, for a sync status whose heads' L1 origins
+/// are.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CurrentL1Check {
+    /// `current_l1` is on our L1 chain.
+    Verified,
+    /// Our L1 provider does not have `current_l1` yet. The heads can be applied, but the
+    /// derivation origin must not move.
+    NotFound,
+}
+
 #[derive(Error, Debug)]
 enum DerivationDelegationError {
+    /// The L1 provider does not have a block at this height.
+    #[error("L1 block not found in {context} at block {number}")]
+    BlockNotFound { context: String, number: u64 },
+
     /// The delegate's finalized L2 block is ahead of its own safe head.
     #[error("Finalized L2 {finalized} is ahead of safe L2 {safe}")]
     FinalizedAheadOfSafe { finalized: u64, safe: u64 },
@@ -381,13 +457,13 @@ enum DerivationDelegationError {
     #[error("Finalized L2 moves the engine's finality back: {0}")]
     FinalizedL2BreaksFinality(#[from] FinalityViolation),
 
-    /// The L1 provider returned an error (network, RPC, etc.)
-    #[error("L1 provider error: {0}")]
-    L1Provider(String),
-
     /// The hash provided by the derivation delegation does not match the canonical chain.
     #[error("L1 inconsistency in {context} at block {number}: expected {expected}, got {actual}")]
-    L1ValidationFailed { context: String, number: u64, expected: BlockHash, actual: BlockHash },
+    HashMismatch { context: String, number: u64, expected: BlockHash, actual: BlockHash },
+
+    /// The L1 provider returned an error (network, RPC, etc.)
+    #[error("L1 provider error: {0}")]
+    Provider(String),
 
     /// The delegate's safe head is ahead of its own local safe head.
     #[error("Safe L2 {safe} is ahead of local safe L2 {local_safe}")]
