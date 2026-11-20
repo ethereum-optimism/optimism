@@ -14,7 +14,7 @@ import (
 
 var NodeRPCNamespace = "optimism"
 
-// NodeProxyBackend implements a node rpc proxy with a leadership check before each call.
+// NodeProxyBackend implements a node rpc proxy that only returns results while this conductor is the leader.
 type NodeProxyBackend struct {
 	log    log.Logger
 	con    conductor
@@ -33,9 +33,6 @@ func NewNodeProxyBackend(log log.Logger, con conductor, client *sources.RollupCl
 
 func (api *NodeProxyBackend) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	status, err := api.client.SyncStatus(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if !api.con.Leader(ctx) {
 		return nil, ErrNotLeader
 	}
@@ -48,22 +45,16 @@ func (api *NodeProxyBackend) OutputAtBlock(ctx context.Context, blockNumString s
 		return nil, fmt.Errorf("failed to decode block number: %w", err)
 	}
 	output, err := api.client.OutputAtBlock(ctx, blockNum)
-	if err != nil {
-		return nil, err
-	}
 	if !api.con.Leader(ctx) {
 		return nil, ErrNotLeader
 	}
-	return output, nil
+	return output, err
 }
 
 func (api *NodeProxyBackend) RollupConfig(ctx context.Context) (*rollup.Config, error) {
 	config, err := api.client.RollupConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if !api.con.Leader(ctx) {
 		return nil, ErrNotLeader
 	}
-	return config, nil
+	return config, err
 }

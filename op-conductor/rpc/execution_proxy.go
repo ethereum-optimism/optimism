@@ -11,7 +11,7 @@ import (
 
 var ExecutionRPCNamespace = "eth"
 
-// ExecutionProxyBackend implements an execution rpc proxy with a leadership check before each call.
+// ExecutionProxyBackend implements an execution rpc proxy that only returns results while this conductor is the leader.
 type ExecutionProxyBackend struct {
 	log    log.Logger
 	con    conductor
@@ -31,11 +31,8 @@ func NewExecutionProxyBackend(log log.Logger, con conductor, client *ethclient.C
 func (api *ExecutionProxyBackend) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (map[string]interface{}, error) {
 	var result map[string]interface{}
 	err := api.client.Client().Call(&result, "eth_getBlockByNumber", number, fullTx)
-	if err != nil {
-		return nil, err
-	}
 	if !api.con.Leader(ctx) {
 		return nil, ErrNotLeader
 	}
-	return result, nil
+	return result, err
 }
