@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -20,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type SetupFn func(t devtest.T) *presets.Minimal
@@ -77,7 +77,7 @@ func (env *daFootprintEnv) getSystemConfigOwner(t devtest.T) *dsl.EOA {
 	return dsl.NewKey(t, priv).User(env.l1Client)
 }
 
-func (env *daFootprintEnv) setDAFootprintGasScalarViaSystemConfig(t devtest.T, scalar uint16) *types.Receipt {
+func (env *daFootprintEnv) setDAFootprintGasScalarViaSystemConfig(t devtest.T, scalar uint16) *optypes.Receipt {
 	owner := env.getSystemConfigOwner(t)
 	rec, err := contractio.Write(env.systemConfig.SetDAFootprintGasScalar(scalar), t.Ctx(), owner.Plan())
 	t.Require().NoError(err, "SetDAFootprintGasScalar transaction failed")

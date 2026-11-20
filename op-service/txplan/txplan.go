@@ -35,7 +35,7 @@ type PlannedTx struct {
 	Unsigned      plan.Lazy[types.TxData]
 	Signed        plan.Lazy[*types.Transaction]
 	Submitted     plan.Lazy[struct{}]
-	Included      plan.Lazy[*types.Receipt]
+	Included      plan.Lazy[*optypes.Receipt] // OP Stack fields are nil through FromGethReceipts
 	IncludedBlock plan.Lazy[eth.BlockRef]
 	Success       plan.Lazy[struct{}]
 
@@ -348,12 +348,8 @@ func (g gethReceiptGetter) TransactionReceipt(ctx context.Context, txHash common
 func WithAssumedInclusion(cl ReceiptGetter) Option {
 	return func(tx *PlannedTx) {
 		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
-		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
-			receipt, err := cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
-			if err != nil {
-				return nil, err
-			}
-			return &receipt.Receipt, nil
+		tx.Included.Fn(func(ctx context.Context) (*optypes.Receipt, error) {
+			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
 		})
 	}
 }
@@ -361,16 +357,12 @@ func WithAssumedInclusion(cl ReceiptGetter) Option {
 func WithRetryInclusion(cl ReceiptGetter, maxAttempts int, strategy retry.Strategy) Option {
 	return func(tx *PlannedTx) {
 		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
-		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
-			receipt, err := cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
-			if err != nil {
-				return nil, err
-			}
-			return &receipt.Receipt, nil
+		tx.Included.Fn(func(ctx context.Context) (*optypes.Receipt, error) {
+			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
 		})
-		tx.Included.Wrap(func(fn plan.Fn[*types.Receipt]) plan.Fn[*types.Receipt] {
-			return func(ctx context.Context) (*types.Receipt, error) {
-				return retry.Do(ctx, maxAttempts, strategy, func() (*types.Receipt, error) {
+		tx.Included.Wrap(func(fn plan.Fn[*optypes.Receipt]) plan.Fn[*optypes.Receipt] {
+			return func(ctx context.Context) (*optypes.Receipt, error) {
+				return retry.Do(ctx, maxAttempts, strategy, func() (*optypes.Receipt, error) {
 					return fn(ctx)
 				})
 			}
