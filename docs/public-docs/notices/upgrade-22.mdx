@@ -24,7 +24,7 @@ Upgrade 22 activates the [Lagoon hardfork](/op-stack/protocol/hardforks/lagoon) 
 Lagoon turns on [interop](/op-stack/interop/explainer) between **OP Mainnet** and **Unichain**, with **OP Sepolia** and **Unichain Sepolia** as the testnet pair.
 **Ink** and **Soneium** (and Ink Sepolia and Soneium Minato) activate Lagoon at the same timestamps, without interop.
 
-Each network is upgraded in two steps:
+OP Mainnet and Unichain (and their Sepolia counterparts) are upgraded in two steps:
 
 1. An L1 contract upgrade, which on OP Mainnet and Unichain includes `OPContractsManagerV2.migrate`. The migration moves both chains onto shared dispute contracts.
 2. The Lagoon hardfork, which activates at a timestamp. Every node on a chain that activates Lagoon must run a Lagoon release before that timestamp.
@@ -35,7 +35,7 @@ Each network is upgraded in two steps:
   Component versions and prestate hashes will be added when the releases are published.
 </Info>
 
-{/* TODO(solutions#1980): add final node versions once the single node release (staging + Sepolia + Mainnet timestamps) is cut, targeted Nov 23-24. */}
+{/* TODO: add final node versions once the Lagoon node release carrying the Sepolia and Mainnet timestamps is published. Confirm whether Ink and Soneium also receive an L1 contract upgrade in Upgrade 22. */}
 
 <Warning>
   **Withdrawals proven before the migration must be proven again.**
@@ -85,7 +85,7 @@ Its first use is [sequencer defined metering](/op-stack/features/sdm) (SDM), whi
 From activation, a block may end in a `0x7D` transaction, and receipts gain an `opGasRefund` JSON-RPC field.
 A sequencer only issues rebates after its operator opts in.
 
-{/* TODO(solutions#1970): SDM rollout (which chains enable the block-level warming policy, and in which order) is unresolved. Do not publish per-chain rollout until resolved. The opt-in default is verified: op-reth `--rollup.operator-sdm-opt-in` defaults to false. */}
+{/* TODO: per-chain SDM rollout is not yet decided; do not publish it until it is. The opt-in default is verified: op-reth `--rollup.operator-sdm-opt-in` defaults to false. */}
 
 ### BLS12-381 precompile input limits
 
@@ -99,12 +99,11 @@ The [maximum input sizes](https://specs.optimism.io/protocol/lagoon/exec-engine.
 
 ### Other contract changes
 
-* `OptimismPortal2` rejects a withdrawal that targets the chain's `L1StandardBridge`, at prove and at finalize. Standard bridge withdrawals target `L1CrossDomainMessenger` and are not affected.
 * `L2ERC721Bridge` accepts all past `OptimismMintableERC721` interface IDs. Deposits into older L2 NFT tokens that failed before can now be replayed.
 
 See the [`op-contracts/v10.0.0-rc.1` release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0-rc.1) for the full list and contract versions.
 
-{/* TODO: the L1StandardBridge bullet above matches op-contracts/v10.0.0-rc.1 (OptimismPortal2 7.5.0, _isUnsafeTarget rejects the bridge unconditionally). On develop, optimism#24011 (merged 2026-11-17) rejects it only while a bridge hook is set, and OPCM migrate refuses portals with a bridge hook. Re-check this bullet and the matching "Submits withdrawals that target the L1StandardBridge" integrator bullet against the final v10.0.0 tag, and swap the rc.1 links for the final release. */}
+{/* TODO: op-contracts/v10.0.0-rc.1 rejects withdrawals that target the L1StandardBridge unconditionally; optimism#24011 on develop narrows that to chains with a bridge hook set. Decide whether to document it once the final v10.0.0 tag is cut, and swap the rc.1 links for the final release. */}
 
 ### ZK proofs on OP Mainnet and Unichain
 
@@ -112,7 +111,7 @@ After Lagoon activates, OP Mainnet and Unichain are planned to move to the ZK di
 This is a separate step from the hardfork and the migration.
 Its dates and any required actions will be added to this notice before it happens.
 
-{/* TODO(solutions#1962, #1983): confirm the ZK switch dates (planned Sepolia Dec 10-11, Mainnet Jan 11-12), whether the Mainnet OPCM re-run is in the Dec 2 governance post, the challenger config change for third-party challengers, and whether withdrawals proven against SUPER_CANNON_KONA games before the switch must be re-proved. */}
+{/* TODO: add the ZK switch dates, the challenger configuration change for third-party challengers, and whether withdrawals proven against SUPER_CANNON_KONA games before the switch must be proven again. */}
 
 ## Required actions
 
@@ -133,7 +132,6 @@ Update an integration if it does any of the following:
 * **Parses blocks, transactions, or receipts.** Handle transaction type `0x7D` as the last transaction of a block, and the `opGasRefund` receipt field. See [What changes at Lagoon](/op-stack/features/sdm#what-changes-at-lagoon) for the transaction's shape.
 * **Calls the BLS12-381 precompiles** with inputs above the new limits.
 * **Sends interop messages or ETH between OP Mainnet and Unichain.** Handle expiry with `expiredMessages(messageHash)` or the `MessageExpired` event, and refund expired ETH sends with `SuperchainETHBridge.refundETH`.
-* **Submits withdrawals that target the `L1StandardBridge` directly** instead of the `L1CrossDomainMessenger`.
 
 ### Node operators
 
@@ -143,7 +141,7 @@ op-geth does not support Lagoon; see [End of support for op-geth and op-program]
 
 On **OP Mainnet**, **Unichain**, **OP Sepolia**, and **Unichain Sepolia**, also complete the [Interop activation prep](/notices/interop-prep) checklist: run op-supernode for both chains and run every op-node as a Light CL that follows it.
 
-{/* TODO(solutions#1669): the release-level inventory of affected components is not recorded on #1669 yet. Fill versions from that inventory; confirm the op-batcher, op-dispute-mon, and kona-node rows. */}
+{/* TODO: fill versions from the release-level affected-components inventory; confirm the op-batcher, op-dispute-mon, and kona-node rows. */}
 
 | Component | Version | Who needs it | Action |
 | --- | --- | --- | --- |
@@ -164,11 +162,11 @@ On **OP Mainnet**, **Unichain**, **OP Sepolia**, and **Unichain Sepolia**, also 
 Lagoon changes the fault proof program, so every permissionless chain that activates Lagoon needs a new absolute prestate built from a Lagoon `kona-client` release.
 The hardfork does not change the respected game type. `OP_PROPOSER_GAME_TYPE` stays `9` (`SUPER_CANNON_KONA`) on a permissionless chain.
 
-* **OP Mainnet and Unichain** move to the shared `DisputeGameFactory` at the migration. Optimism sets the interop prestate onchain as part of the governed upgrade. Point third-party `op-challenger` and `op-dispute-mon` instances at the shared factory (`--game-factory-address`) and at a super-root source that derives both chains after the migration, as described in the [shared dispute game runbook](/chain-operators/tutorials/merge-shared-dispute-game).
+* **OP Mainnet and Unichain** move to the shared `DisputeGameFactory` at the migration. Optimism sets the interop prestate onchain as part of the governed upgrade. Point third-party `op-challenger` and `op-dispute-mon` instances at the shared factory (`--game-factory-address`) and at a super-root source that derives both chains after the migration. Read the shared factory address from `OptimismPortal2.disputeGameFactory()` once the migration has executed.
 * **Other permissionless chains in the superchain registry** use the standard prestate for the Lagoon `kona-client` release. Update `op-challenger` and confirm it can fetch the new prestate.
 * **Permissionless chains outside the superchain registry** that adopt Lagoon need a custom prestate. Build it, host it for `op-challenger`, and set it onchain in your OPCM upgrade by following the steps below.
 
-{/* TODO(solutions#1672, #1673): fill in the Lagoon kona-client/kona-host release tag, the reviewed prestate hashes (standard and interop), and the op-challenger version once the prestate review is Compatible and the final kona tags are cut. Confirm whether Ink and Soneium receive the standard prestate through a governed OPCM upgrade in U22. */}
+{/* TODO: fill in the Lagoon kona-client/kona-host release tag, the reviewed prestate hashes (standard and interop), and the op-challenger version once the prestate review is Compatible and the final kona tags are cut. Confirm how Ink and Soneium receive the standard prestate. */}
 
 <Steps>
   <Step title="Build or verify the absolute prestate">
