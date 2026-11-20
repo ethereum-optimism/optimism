@@ -1,0 +1,101 @@
+---
+title: Verifying a ZK absolute prestate
+description: Find the ZK absolute prestate for a kona-sp1-program release, rebuild it from source to verify it, build one for a custom chain, and publish the program files the proposer needs.
+diataxis: how-to
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+A ZK dispute game accepts proofs only from the program its `absolutePrestate` identifies: the verification key of the `super-aggregation` program, which in turn pins the `super-range` and `log-commitment` programs. See [Absolute prestate](/op-stack/zk-proofs/proof-system#absolute-prestate) for why.
+
+This guide shows how to find the prestate for a release, confirm it by rebuilding the programs yourself, build a prestate for a chain that is not in the superchain-registry, and serve the program files that [`op-zk-proposer`](/chain-operators/guides/configuration/zk-proposer) needs.
+
+## Find the standard prestate
+
+The ZK proof programs are released under the `kona-sp1-program/vX.Y.Z` tags in the Optimism monorepo. Each standard release's prestate is recorded in the superchain-registry's [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml), as an entry of type `kona-sp1` under the release's version.
+
+A standard prestate covers every chain whose configuration is in the superchain-registry at that release. Use it if your chain is in the registry.
+
+## Rebuild the prestate from source
+
+The programs build reproducibly in Docker, so you can confirm a prestate without trusting the published value. You need a Linux amd64 machine with Docker and [mise](https://mise.jdx.dev/).
+
+1.  Check out the release tag:
+
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout kona-sp1-program/v<version>
+    mise trust && mise install
+    ```
+
+2.  Build the programs:
+
+    ```bash
+    cd rust/kona/sp1
+    just build-elfs
+    ```
+
+    This builds `log-commitment`, then `super-range` with the `log-commitment` key embedded, then `super-aggregation` with the `super-range` key embedded. It writes the binaries to `elf/` and their verification keys to `elf/vkeys.toml`.
+
+3.  Read the keys:
+
+    ```bash
+    cat elf/vkeys.toml
+    ```
+
+    ```toml
+    sp1_toolchain_tag = "<SP1 toolchain version>"
+    git_sha = "<commit>"
+
+    log-commitment = "0x..."
+    super-range = "0x..."
+    super-aggregation = "0x..."
+    ```
+
+The `super-aggregation` value is the prestate. Confirm that it matches the registry entry, and that `git_sha` is the tagged commit with no `-dirty` or `-custom` suffix.
+
+Every build embeds the commit it was built from, so you must build from the exact tagged commit. A build of the same code from any other commit produces a different prestate.
+
+## Build a prestate for a custom chain
+
+The programs only accept chains whose configuration is compiled into them. If your chain is not in the superchain-registry, build the programs with your chain's configuration:
+
+```bash
+cd rust/kona/sp1
+KONA_CUSTOM_CONFIGS_DIR=/path/to/configs just build-elfs
+```
+
+The directory must contain `chainList.json`, `configs.json`, and `depsets.json` in the superchain-registry's format. The L1 must be Ethereum mainnet, Sepolia, or Holesky.
+
+The resulting prestate is specific to your configuration and the commit you built from, and the manifest's `git_sha` ends in `-custom`. Anyone who wants to verify your chain's prestate needs your configuration files and the commit, so publish both.
+
+## Publish the program files
+
+`op-zk-proposer` loads each prestate's programs from `OP_ZK_PROPOSER_PRESTATES_URL`, by verification key. The directory at that URL must serve, for every prestate in use:
+
+| File | Contents |
+| --- | --- |
+| `<vkey>.agg.bin.gz` | gzip-compressed `super-aggregation` binary |
+| `<vkey>.range.bin.gz` | gzip-compressed `super-range` binary |
+| `<vkey>.log.bin.gz` | gzip-compressed `log-commitment` binary |
+
+`<vkey>` is the lowercase, `0x`-prefixed `super-aggregation` key.
+
+For standard releases, these files are published for every tag under `https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/`, which you can use as the URL directly. For a custom build, compress the files from `elf/` and serve them yourself:
+
+```bash
+VKEY=$(grep '^super-aggregation' elf/vkeys.toml | grep -oE '0x[0-9a-fA-F]{64}' | tr 'A-F' 'a-f')
+gzip -c elf/super-aggregation-elf > "$VKEY.agg.bin.gz"
+gzip -c elf/super-range-elf > "$VKEY.range.bin.gz"
+gzip -c elf/log-commitment-elf > "$VKEY.log.bin.gz"
+```
+
+Keep every prestate's files published for as long as games created under it can be live. The proposer cannot defend, resolve, or claim bonds for a game whose program files it cannot load.
+
+## Next steps
+
+*   Set the prestate on your chain: [Migrating to ZK proofs](/chain-operators/tutorials/migrate-to-zk-proofs).
+*   Point the proposer at the files: [Configure op-zk-proposer](/chain-operators/guides/configuration/zk-proposer).
