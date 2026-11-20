@@ -383,11 +383,13 @@ func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash
 	// Find the block info for this hash
 	for _, block := range m.blocksByNumber {
 		if block.Hash() == blockHash {
-			return block, optypes.FromGethReceipts(receipts), nil
+			opReceipts, err := optypes.FromGethReceipts(receipts)
+			return block, opReceipts, err
 		}
 	}
 
-	return nil, optypes.FromGethReceipts(receipts), nil
+	opReceipts, err := optypes.FromGethReceipts(receipts)
+	return nil, opReceipts, err
 }
 
 // Close implements EthClient.

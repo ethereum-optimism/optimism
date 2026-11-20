@@ -143,7 +143,7 @@ func TestNilConfig(t *testing.T) {
 	var got Genesis
 	require.NoError(t, json.Unmarshal(data, &got))
 	require.Nil(t, got.Config)
-	require.Nil(t, got.GethGenesis().Config)
+	require.Nil(t, got.gethGenesis().Config)
 }
 
 func TestUnmarshalMinimal(t *testing.T) {

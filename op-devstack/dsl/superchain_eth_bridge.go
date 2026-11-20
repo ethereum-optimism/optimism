@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
@@ -18,7 +19,7 @@ type ETHSend struct {
 	// Message is the message that relays the ETH on the destination.
 	Message SentMessage
 	// Receipt is the receipt of the sendETH transaction.
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 	// BlockTime is the timestamp of the block the send is in.
 	BlockTime uint64
 
@@ -67,7 +68,7 @@ func (s *ETHSend) RefundCall() bindings.TypedCall[any] {
 
 // Refund claims this send's refund as `user` on the chain it was sent from, requires the refund
 // to succeed, and returns its receipt.
-func (s *ETHSend) Refund(user *EOA) *types.Receipt {
+func (s *ETHSend) Refund(user *EOA) *optypes.Receipt {
 	s.require.Equal(s.Message.Source, user.ChainID(), "the refund must be claimed on the send's source chain")
 	s.log.Info("Refunding the ETH send", "messageHash", s.Message.Hash, "user", user.Address())
 	rcpt, err := contractio.Write(s.RefundCall(), s.ctx, user.Plan())
@@ -85,7 +86,7 @@ func (s *ETHSend) Refunded() bool {
 
 // Relay waits for `validator` to validate the send's block, relays its message on the
 // destination as `relayer`, requires the relay to succeed, and returns its receipt.
-func (s *ETHSend) Relay(relayer *EOA, validator SuperRootSource) *types.Receipt {
+func (s *ETHSend) Relay(relayer *EOA, validator SuperRootSource) *optypes.Receipt {
 	s.log.Info("Waiting for the ETH send to be validated", "timestamp", s.BlockTime)
 	validator.AwaitValidatedTimestamp(s.BlockTime)
 

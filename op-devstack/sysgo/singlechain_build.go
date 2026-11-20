@@ -91,7 +91,10 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 	l1Config.WithPrefundedAccount(addrFor(devkeys.SystemConfigOwner), *millionEth)
 }
 
-// startL2CLForKey starts an L2 CL node of the given kind for the given key.
+// startL2CLForKey starts an L2 CL node of the given kind for the given key. The supernode and
+// interop runtimes don't use it, so their presets skip under kona-node (presets'
+// skipOpNodeOnlyPresetOnKonaNode); a runtime that passes it the kind DEVSTACK_L2CL_KIND selects
+// must not keep that skip in its presets, or the kona-node job skips its tests.
 func startL2CLForKey(
 	t devtest.T,
 	keys devkeys.Keys,

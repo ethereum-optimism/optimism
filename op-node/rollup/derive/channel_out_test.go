@@ -81,16 +81,9 @@ func TestChannelOutAddBlock(t *testing.T) {
 	for _, tcase := range channelTypes {
 		t.Run(tcase.Name, func(t *testing.T) {
 			cout := tcase.ChannelOut(t, &rollupCfg)
-			header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100), BaseFee: big.NewInt(7)}
-			block := types.NewBlockWithHeader(header).WithBody(
-				types.Body{
-					Transactions: []*types.Transaction{
-						types.NewTx(&types.DynamicFeeTx{}),
-					},
-				},
-			)
-			payload, err := eth.BlockAsPayload(block, &rollupCfg)
+			tx, err := types.NewTx(&types.DynamicFeeTx{}).MarshalBinary()
 			require.NoError(t, err)
+			payload := &eth.ExecutionPayload{BlockNumber: 1, Transactions: []eth.Data{tx}}
 			_, err = cout.AddBlock(&rollupCfg, payload)
 			require.Error(t, err)
 			require.ErrorIs(t, err, ErrNotDepositTx)

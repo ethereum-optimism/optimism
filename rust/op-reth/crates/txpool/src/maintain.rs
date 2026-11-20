@@ -20,7 +20,7 @@ use futures_util::{FutureExt, Stream, StreamExt, future::BoxFuture};
 use metrics::{Gauge, Histogram};
 use reth_chain_state::CanonStateNotification;
 use reth_metrics::{Metrics, metrics::Counter};
-use reth_primitives_traits::NodePrimitives;
+use reth_optimism_primitives::OpPrimitives;
 use reth_transaction_pool::{PoolTransaction, TransactionPool};
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
@@ -132,15 +132,14 @@ impl InteropFilter for InteropFilterClient {
 
 /// Returns a spawnable future for maintaining the state of the conditional txs in the transaction
 /// pool.
-pub fn maintain_transaction_pool_conditional_future<N, Pool, St>(
+pub fn maintain_transaction_pool_conditional_future<Pool, St>(
     pool: Pool,
     events: St,
 ) -> BoxFuture<'static, ()>
 where
-    N: NodePrimitives,
     Pool: TransactionPool + 'static,
     Pool::Transaction: MaybeConditionalTransaction,
-    St: Stream<Item = CanonStateNotification<N>> + Send + Unpin + 'static,
+    St: Stream<Item = CanonStateNotification<OpPrimitives>> + Send + Unpin + 'static,
 {
     async move {
         maintain_transaction_pool_conditional(pool, events).await;
@@ -153,12 +152,11 @@ where
 ///
 /// This listens for any new blocks and reorgs and updates the conditional txs in the
 /// transaction pool's state accordingly
-pub async fn maintain_transaction_pool_conditional<N, Pool, St>(pool: Pool, mut events: St)
+pub async fn maintain_transaction_pool_conditional<Pool, St>(pool: Pool, mut events: St)
 where
-    N: NodePrimitives,
     Pool: TransactionPool,
     Pool::Transaction: MaybeConditionalTransaction,
-    St: Stream<Item = CanonStateNotification<N>> + Send + Unpin + 'static,
+    St: Stream<Item = CanonStateNotification<OpPrimitives>> + Send + Unpin + 'static,
 {
     let metrics = MaintainPoolConditionalMetrics::default();
     loop {
@@ -183,16 +181,15 @@ where
 }
 
 /// Returns a spawnable future for maintaining the state of the interop tx in the transaction pool.
-pub fn maintain_transaction_pool_interop_future<N, Pool, St>(
+pub fn maintain_transaction_pool_interop_future<Pool, St>(
     pool: Pool,
     events: St,
     interop_client: InteropFilterClient,
 ) -> BoxFuture<'static, ()>
 where
-    N: NodePrimitives,
     Pool: TransactionPool + 'static,
     Pool::Transaction: MaybeInteropTransaction + Transaction + Clone,
-    St: Stream<Item = CanonStateNotification<N>> + Send + Unpin + 'static,
+    St: Stream<Item = CanonStateNotification<OpPrimitives>> + Send + Unpin + 'static,
 {
     async move {
         maintain_transaction_pool_interop(pool, events, interop_client).await;
@@ -204,15 +201,14 @@ where
 ///
 /// This listens for any new blocks and reorgs and updates the interop tx in the transaction pool's
 /// state accordingly
-pub async fn maintain_transaction_pool_interop<N, Pool, St, Filter>(
+pub async fn maintain_transaction_pool_interop<Pool, St, Filter>(
     pool: Pool,
     mut events: St,
     interop_client: Filter,
 ) where
-    N: NodePrimitives,
     Pool: TransactionPool,
     Pool::Transaction: MaybeInteropTransaction + Transaction + Clone,
-    St: Stream<Item = CanonStateNotification<N>> + Send + Unpin + 'static,
+    St: Stream<Item = CanonStateNotification<OpPrimitives>> + Send + Unpin + 'static,
     Filter: InteropFilter,
 {
     let metrics = MaintainPoolInteropMetrics::default();

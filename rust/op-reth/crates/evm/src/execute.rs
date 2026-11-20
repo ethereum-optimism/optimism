@@ -5,7 +5,7 @@ pub type OpExecutorProvider = crate::OpEvmConfig;
 
 #[cfg(test)]
 mod tests {
-    use crate::{OpEvmConfig, OpRethReceiptBuilder};
+    use crate::OpEvmConfig;
     use alloc::sync::Arc;
     use alloy_consensus::{Block, BlockBody, Eip658Value, Header, SignableTransaction, TxEip1559};
     use alloy_primitives::{Address, Signature, StorageKey, StorageValue, U256, address, b256};
@@ -48,7 +48,7 @@ mod tests {
     }
 
     fn evm_config(chain_spec: Arc<OpChainSpec>) -> OpEvmConfig {
-        OpEvmConfig::new(chain_spec, OpRethReceiptBuilder::default())
+        OpEvmConfig::optimism(chain_spec)
     }
 
     /// Build a single-block executor for `chain_spec`, preload the L1 block contract, and execute

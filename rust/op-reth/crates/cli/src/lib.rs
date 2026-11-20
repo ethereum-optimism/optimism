@@ -18,15 +18,13 @@ pub mod commands;
 pub mod metrics;
 pub use app::CliApp;
 use reth_optimism_chainspec::OpChainSpec;
-use reth_rpc_server_types::{DefaultRpcModuleValidator, RpcModuleValidator};
 
-use std::{ffi::OsString, fmt, marker::PhantomData};
+use std::{ffi::OsString, fmt};
 
 use chainspec::OpChainSpecParser;
 use clap::Parser;
 use commands::Commands;
 use futures_util::Future;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::launcher::FnLauncher;
 use reth_cli_runner::CliRunner;
 use reth_db::DatabaseEnv;
@@ -47,24 +45,20 @@ use reth_node_metrics as _;
 ///
 /// # Parsing
 ///
-/// Production callers must use [`Cli::parse_args`] / [`Cli::try_parse_args_from`] when using the
-/// default type parameters, or [`Cli::parse_with_denied_args`] /
-/// [`Cli::try_parse_with_denied_args_from`] for a customized CLI. These methods hide and reject
-/// unsupported upstream arguments from `DENIED_ARGS`.
+/// Production callers must use [`Cli::parse_args`] / [`Cli::try_parse_args_from`] with the default
+/// extension args ([`RollupArgs`]), or [`Cli::parse_with_denied_args`] /
+/// [`Cli::try_parse_with_denied_args_from`] for a CLI with custom extension args. These methods
+/// hide and reject unsupported upstream arguments from `DENIED_ARGS`.
 ///
 /// Do not use the plain parsing methods from [`clap::Parser`] in production. They build the
 /// upstream clap command directly and therefore neither hide nor reject denied arguments. Plain
 /// parsing remains useful in tests that construct controlled inputs without denied arguments.
 #[derive(Debug, Parser)]
 #[command(author, name = version_metadata().name_client.as_ref(), version = version_metadata().short_version.as_ref(), long_version = version_metadata().long_version.as_ref(), about = "Reth", long_about = None)]
-pub struct Cli<
-    Spec: ChainSpecParser = OpChainSpecParser,
-    Ext: clap::Args + fmt::Debug = RollupArgs,
-    Rpc: RpcModuleValidator = DefaultRpcModuleValidator,
-> {
+pub struct Cli<Ext: clap::Args + fmt::Debug = RollupArgs> {
     /// The command to run
     #[command(subcommand)]
-    pub command: Commands<Spec, Ext>,
+    pub command: Commands<Ext>,
 
     /// The logging configuration for the CLI.
     #[command(flatten)]
@@ -73,10 +67,6 @@ pub struct Cli<
     /// The metrics configuration for the CLI.
     #[command(flatten)]
     pub traces: TraceArgs,
-
-    /// Type marker for the RPC module validator
-    #[arg(skip)]
-    _phantom: PhantomData<Rpc>,
 }
 
 /// Upstream reth CLI arguments that op-reth does not support, as
@@ -175,12 +165,7 @@ impl Cli {
     }
 }
 
-impl<C, Ext, Rpc> Cli<C, Ext, Rpc>
-where
-    C: ChainSpecParser,
-    Ext: clap::Args + fmt::Debug,
-    Rpc: RpcModuleValidator,
-{
+impl<Ext: clap::Args + fmt::Debug> Cli<Ext> {
     /// Returns the clap command with all `DENIED_ARGS` and the state masking flag hidden from help
     /// output.
     pub fn command_with_denied_args_hidden() -> clap::Command {
@@ -226,19 +211,12 @@ where
         }
         <Self as clap::FromArgMatches>::from_arg_matches_mut(&mut matches)
     }
-}
 
-impl<C, Ext, Rpc> Cli<C, Ext, Rpc>
-where
-    C: ChainSpecParser<ChainSpec = OpChainSpec>,
-    Ext: clap::Args + fmt::Debug,
-    Rpc: RpcModuleValidator,
-{
     /// Configures the CLI and returns a [`CliApp`] instance.
     ///
     /// This method is used to prepare the CLI for execution by wrapping it in a
     /// [`CliApp`] that can be further configured before running.
-    pub fn configure(self) -> CliApp<C, Ext, Rpc> {
+    pub fn configure(self) -> CliApp<Ext> {
         CliApp::new(self)
     }
 
@@ -248,7 +226,7 @@ where
     /// [`NodeCommand`](reth_cli_commands::node::NodeCommand).
     pub fn run<L, Fut>(self, launcher: L) -> eyre::Result<()>
     where
-        L: FnOnce(WithLaunchContext<NodeBuilder<DatabaseEnv, C::ChainSpec>>, Ext) -> Fut,
+        L: FnOnce(WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>, Ext) -> Fut,
         Fut: Future<Output = eyre::Result<()>>,
     {
         self.with_runner(CliRunner::try_default_runtime()?, launcher)
@@ -257,12 +235,12 @@ where
     /// Execute the configured cli command with the provided [`CliRunner`].
     pub fn with_runner<L, Fut>(self, runner: CliRunner, launcher: L) -> eyre::Result<()>
     where
-        L: FnOnce(WithLaunchContext<NodeBuilder<DatabaseEnv, C::ChainSpec>>, Ext) -> Fut,
+        L: FnOnce(WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>, Ext) -> Fut,
         Fut: Future<Output = eyre::Result<()>>,
     {
         let mut this = self.configure();
         this.set_runner(runner);
-        this.run(FnLauncher::new::<C, Ext>(async move |builder, chain_spec| {
+        this.run(FnLauncher::new::<OpChainSpecParser, Ext>(async move |builder, chain_spec| {
             launcher(builder, chain_spec).await
         }))
     }
@@ -278,12 +256,9 @@ mod test {
 
     #[test]
     fn deny_minimal_on_parse() {
-        let err = Cli::<OpChainSpecParser, RollupArgs>::try_parse_with_denied_args_from([
-            "op-reth",
-            "node",
-            "--minimal",
-        ])
-        .unwrap_err();
+        let err =
+            Cli::<RollupArgs>::try_parse_with_denied_args_from(["op-reth", "node", "--minimal"])
+                .unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
         let msg = err.to_string();
         assert!(msg.contains("--minimal is not supported by op-reth"), "{msg}");
@@ -293,7 +268,7 @@ mod test {
 
     #[test]
     fn deny_minimal_hidden_from_help() {
-        let mut cmd = Cli::<OpChainSpecParser, RollupArgs>::command_with_denied_args_hidden();
+        let mut cmd = Cli::<RollupArgs>::command_with_denied_args_hidden();
         let help = cmd
             .find_subcommand_mut("node")
             .expect("node subcommand")
@@ -314,8 +289,7 @@ mod test {
             &["op-reth", "db", "--db.balstore-cache-size", "10", "stats"],
             &["op-reth", "stage", "drop", "--db.balstore-cache-size", "10", "headers"],
         ] {
-            let err = Cli::<OpChainSpecParser, RollupArgs>::try_parse_with_denied_args_from(args)
-                .unwrap_err();
+            let err = Cli::<RollupArgs>::try_parse_with_denied_args_from(args).unwrap_err();
             assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation, "{args:?}");
             let msg = err.to_string();
             assert!(msg.contains("Block access list options are not supported"), "{args:?}: {msg}");
@@ -324,7 +298,7 @@ mod test {
 
     #[test]
     fn deny_bal_args_hidden_from_nested_help() {
-        let mut cmd = Cli::<OpChainSpecParser, RollupArgs>::command_with_denied_args_hidden();
+        let mut cmd = Cli::<RollupArgs>::command_with_denied_args_hidden();
         for path in [&["prune"][..], &["db"], &["stage", "drop"], &["proofs", "snapshot", "init"]] {
             let mut sub = &mut cmd;
             for name in path {
@@ -341,10 +315,7 @@ mod test {
 
     #[test]
     fn state_masking_defaults_to_off() {
-        let cli = Cli::<OpChainSpecParser, RollupArgs>::try_parse_with_denied_args_from([
-            "op-reth", "node",
-        ])
-        .unwrap();
+        let cli = Cli::<RollupArgs>::try_parse_with_denied_args_from(["op-reth", "node"]).unwrap();
         match cli.command {
             Commands::Node(command) => assert_eq!(command.engine.num_state_masking_blocks(), 0),
             _ => panic!("unexpected command"),
@@ -353,7 +324,7 @@ mod test {
 
     #[test]
     fn state_masking_accepts_explicit_zero() {
-        let cli = Cli::<OpChainSpecParser, RollupArgs>::try_parse_with_denied_args_from([
+        let cli = Cli::<RollupArgs>::try_parse_with_denied_args_from([
             "op-reth",
             "node",
             "--engine.num-state-masking-blocks",
@@ -368,7 +339,7 @@ mod test {
 
     #[test]
     fn state_masking_rejects_nonzero() {
-        let err = Cli::<OpChainSpecParser, RollupArgs>::try_parse_with_denied_args_from([
+        let err = Cli::<RollupArgs>::try_parse_with_denied_args_from([
             "op-reth",
             "node",
             "--engine.num-state-masking-blocks",
@@ -382,7 +353,7 @@ mod test {
 
     #[test]
     fn state_masking_hidden_from_help() {
-        let mut cmd = Cli::<OpChainSpecParser, RollupArgs>::command_with_denied_args_hidden();
+        let mut cmd = Cli::<RollupArgs>::command_with_denied_args_hidden();
         let help = cmd
             .find_subcommand_mut("node")
             .expect("node subcommand")
@@ -400,10 +371,8 @@ mod test {
 
     #[test]
     fn deny_list_does_not_affect_other_args() {
-        let cli = Cli::<OpChainSpecParser, RollupArgs>::try_parse_with_denied_args_from([
-            "op-reth", "node", "--full",
-        ])
-        .unwrap();
+        let cli = Cli::<RollupArgs>::try_parse_with_denied_args_from(["op-reth", "node", "--full"])
+            .unwrap();
         match cli.command {
             Commands::Node(command) => {
                 assert!(command.pruning.full);
@@ -433,7 +402,7 @@ mod test {
 
     #[test]
     fn parse_node() {
-        let cmd = Cli::<OpChainSpecParser, RollupArgs>::parse_from([
+        let cmd = Cli::<RollupArgs>::parse_from([
             "op-reth",
             "node",
             "--chain",

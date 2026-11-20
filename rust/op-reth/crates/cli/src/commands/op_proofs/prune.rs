@@ -1,10 +1,10 @@
 //! Command that prunes the OP proofs storage.
 
+use crate::chainspec::OpChainSpecParser;
 use clap::Parser;
-use reth_chainspec::EthChainSpec;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsHistoryWindowArg};
 use reth_optimism_trie::{
     OpProofStoragePruner, OpProofsProviderRO, OpProofsStore, db::MdbxProofsStorage,
@@ -14,9 +14,9 @@ use tracing::info;
 
 /// Prunes the proofs storage by removing old proof history and state updates.
 #[derive(Debug, Parser)]
-pub struct PruneCommand<C: ChainSpecParser> {
+pub struct PruneCommand {
     #[command(flatten)]
-    env: EnvironmentArgs<C>,
+    env: EnvironmentArgs<OpChainSpecParser>,
 
     /// Shared proofs-history storage flags (storage path + version).
     #[command(flatten)]
@@ -35,9 +35,9 @@ pub struct PruneCommand<C: ChainSpecParser> {
     pub proofs_history_prune_batch_size: u64,
 }
 
-impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> PruneCommand<C> {
+impl PruneCommand {
     /// Execute [`PruneCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -84,11 +84,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> PruneCommand<C> {
         pruner.run();
         Ok(())
     }
-}
 
-impl<C: ChainSpecParser> PruneCommand<C> {
     /// Returns the underlying chain being used to run this command
-    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         Some(&self.env.chain)
     }
 }

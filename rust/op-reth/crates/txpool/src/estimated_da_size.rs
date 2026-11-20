@@ -87,7 +87,7 @@ mod tests {
             .into();
             let executor_footprint = op_revm::tx_da_footprint(&tx, u64::from(scalar));
             let encoded_len = tx.encode_2718_len();
-            let pooled = OpPooledTransaction::<OpTransactionSigned, OpTransactionSigned>::new(
+            let pooled = OpPooledTransaction::new(
                 Recovered::new_unchecked(tx, Address::with_last_byte(1)),
                 encoded_len,
             );

@@ -29,7 +29,7 @@ use reth_evm::execute::{BlockBuilder, BlockExecutionError, BlockValidationError}
 use reth_metrics::metrics::with_local_recorder;
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed, RevertToCheckpointError};
-use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+use reth_optimism_primitives::OpTransactionSigned;
 use reth_optimism_txpool::{
     OpPooledTransaction, OpPooledTx,
     conditional::MaybeConditionalTransaction,
@@ -78,11 +78,7 @@ fn interop_ctx(
     no_tx_pool: bool,
     opt_in: bool,
     embedded_post_exec: Option<Vec<SDMGasEntry>>,
-) -> OpPayloadBuilderCtx<
-    OpEvmConfig<OpChainSpec, OpPrimitives>,
-    OpChainSpec,
-    OpPayloadBuilderAttributes<OpTransactionSigned>,
-> {
+) -> OpPayloadBuilderCtx<OpEvmConfig> {
     let gas_limit = 1_000_000;
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build());
     let parent = SealedHeader::seal_slow(Header {
@@ -137,11 +133,7 @@ fn unwrap_post_exec(tx: Recovered<OpTransactionSigned>) -> (u8, u64, Vec<SDMGasE
 fn payload_builder_ctx(
     chain_spec: Arc<OpChainSpec>,
     gas_limit: u64,
-) -> OpPayloadBuilderCtx<
-    OpEvmConfig<OpChainSpec, OpPrimitives>,
-    OpChainSpec,
-    OpPayloadBuilderAttributes<OpTransactionSigned>,
-> {
+) -> OpPayloadBuilderCtx<OpEvmConfig> {
     let parent = SealedHeader::seal_slow(Header {
         gas_limit,
         number: 0,
@@ -243,11 +235,7 @@ where
 }
 
 fn run_execute_best_transactions_with_ctx<T>(
-    ctx: OpPayloadBuilderCtx<
-        OpEvmConfig<OpChainSpec, OpPrimitives>,
-        OpChainSpec,
-        OpPayloadBuilderAttributes<OpTransactionSigned>,
-    >,
+    ctx: OpPayloadBuilderCtx<OpEvmConfig>,
     signer: Address,
     txs: Vec<T>,
     gas_limit_cap: Option<u64>,
@@ -1001,14 +989,7 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
 /// Builds a ctx rebuilding a derived block whose embedded `0x7D` tx anchors to
 /// `post_exec_anchor`. The parent is block 0, so block 1 is the only valid anchor, and Lagoon is
 /// either active from genesis or not at all.
-fn derived_ctx(
-    lagoon_active: bool,
-    post_exec_anchor: u64,
-) -> OpPayloadBuilderCtx<
-    OpEvmConfig<OpChainSpec, OpPrimitives>,
-    OpChainSpec,
-    OpPayloadBuilderAttributes<OpTransactionSigned>,
-> {
+fn derived_ctx(lagoon_active: bool, post_exec_anchor: u64) -> OpPayloadBuilderCtx<OpEvmConfig> {
     let spec = OpChainSpecBuilder::optimism_mainnet();
     let spec = if lagoon_active { spec.lagoon_activated() } else { spec };
     let chain_spec = Arc::new(spec.build());

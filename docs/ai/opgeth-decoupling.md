@@ -116,8 +116,9 @@ anything that reads them — the e2e and acceptance suites — fetches receipts 
 or passes the raw JSON through (op-sync-tester).
 
 `optypes.FromGethReceipt` wraps a go-ethereum receipt (L1, or L2 code that needs only standard
-fields) with the OP fields unset. `optypes.Receipts.Geth()` is a view for code that reads only
-standard fields (logs).
+fields) with the OP fields unset. It rejects a deposit receipt, whose consensus encoding needs
+the deposit nonce and receipt version. `optypes.Receipts.Geth()` is a view for code that reads
+only standard fields (logs).
 
 ---
 
@@ -142,11 +143,9 @@ key both embedded structs declare. Decoding keeps only the OP fields; an Ethereu
 contradicts the derived schedule is rejected, absent and unknown keys are accepted.
 
 `rollup.Config` carries the full OP hardfork schedule itself (`ChainOpConfig` is an
-`*opparams.OptimismConfig`). `op-service/eth.BlockAsPayload` takes the `HardforkConfig` interface
-(`IsCanyon`/`IsIsthmus`) that `rollup.Config` and `opparams.ChainConfig` satisfy. The
-`*params.ChainConfig` values in op-node are **L1** chain configs and are legitimately
-go-ethereum's. An OP Stack chain is not supported as L1: `NewL1ChainConfigFromCLI` rejects its
-chain config.
+`*opparams.OptimismConfig`). The `*params.ChainConfig` values in op-node are **L1** chain configs
+and are legitimately go-ethereum's. An OP Stack chain is not supported as L1:
+`NewL1ChainConfigFromCLI` rejects its chain config.
 
 op-devstack splits the same way: `stack.L1Network.ChainConfig()` returns the go-ethereum config,
 `stack.L2Network.ChainConfig()` an `*opparams.ChainConfig`. Its `Optimism` EIP-1559 values are the
@@ -155,9 +154,9 @@ effect decodes them from the block's extraData (`eip1559.DecodeOptimismExtraData
 
 **Genesis.** `op-core/genesis.Genesis` is the one L2 genesis JSON encoding: the `core.Genesis`
 envelope (header fields, alloc) with a `config` in `opparams.ChainConfig`'s encoding; the
-`stateHash` key is rejected. `Genesis.ToBlock()` is go-ethereum's genesis block for
-`GethGenesis()` plus the one OP rule: from Isthmus the header's `WithdrawalsHash` is the storage
-root of the `L2ToL1MessagePasser` predeploy instead of the empty withdrawals root.
+`stateHash` key is rejected. `Genesis.ToBlock()` is go-ethereum's genesis block for the same
+header fields, alloc and Ethereum fork schedule plus the one OP rule: from Isthmus the header's `WithdrawalsHash` is the
+storage root of the `L2ToL1MessagePasser` predeploy instead of the empty withdrawals root.
 `op-chain-ops/genesis.NewL2Genesis` builds it; op-deployer computes the L2 genesis state with
 forge (`L2Genesis.s.sol`).
 

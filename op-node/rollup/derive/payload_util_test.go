@@ -164,7 +164,9 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 				Data: logData,
 			}},
 		}}
-		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, optypes.FromGethReceipts(receipts), nil)
+		opReceipts, err := optypes.FromGethReceipts(receipts)
+		require.NoError(t, err)
+		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, opReceipts, nil)
 
 		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, nil, l1Fetcher, l1CfgFetcher)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)

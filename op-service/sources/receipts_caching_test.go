@@ -32,8 +32,10 @@ func TestCachingReceiptsProvider_Caching(t *testing.T) {
 	ctx, done := context.WithTimeout(context.Background(), 10*time.Second)
 	defer done()
 
+	opReceipts, err := optypes.FromGethReceipts(receipts)
+	require.NoError(t, err)
 	mrp.On("FetchReceipts", ctx, blockid, txHashes).
-		Return(optypes.FromGethReceipts(receipts), error(nil)).
+		Return(opReceipts, error(nil)).
 		Once() // receipts should be cached after first fetch
 
 	bInfo, _, _ := block.Info(true, true)
@@ -54,8 +56,10 @@ func TestCachingReceiptsProvider_Concurrency(t *testing.T) {
 	mrp := new(mockReceiptsProvider)
 	rp := NewCachingReceiptsProvider(mrp, nil, 1)
 
+	opReceipts, err := optypes.FromGethReceipts(receipts)
+	require.NoError(t, err)
 	mrp.On("FetchReceipts", mock.Anything, blockid, txHashes).
-		Return(optypes.FromGethReceipts(receipts), error(nil)).
+		Return(opReceipts, error(nil)).
 		Once() // receipts should be cached after first fetch
 
 	runConcurrentFetchingTest(t, rp, 32, receipts, block)

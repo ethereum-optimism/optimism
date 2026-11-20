@@ -7,12 +7,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 const postGenesisInteropActivationDelay = uint64(20)
@@ -124,7 +124,7 @@ func bridgeETH(
 	recipient *dsl.EOA,
 	relayer *dsl.EOA,
 	amount eth.ETH,
-) (*types.Receipt, *types.Receipt) {
+) (*optypes.Receipt, *optypes.Receipt) {
 	require := t.Require()
 	send := dsl.SendETH(sender, recipient.Address(), recipient.ChainID(), amount)
 	sendReceipt := send.Receipt

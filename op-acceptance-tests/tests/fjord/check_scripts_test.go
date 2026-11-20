@@ -10,6 +10,7 @@ import (
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -114,7 +115,7 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 
 	for _, tc := range testCases {
 		walletAddr := wallet.Address()
-		var receipt *types.Receipt
+		var receipt *optypes.Receipt
 		var signedTx *types.Transaction
 
 		if len(tc.data) == 0 {
@@ -172,10 +173,8 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		require.NoError(err)
 		expectedFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, opfees.NewRollupCostData(txSigned), receipt.BlockHash)
 		require.NoError(err)
-		opReceipt, err := l2Client.TransactionReceipt(ctx, receipt.TxHash)
-		require.NoError(err)
-		require.NotNil(opReceipt.L1Fee)
-		dsl.ValidateL1FeeMatches(t, expectedFee, opReceipt.L1Fee)
+		require.NotNil(receipt.L1Fee)
+		dsl.ValidateL1FeeMatches(t, expectedFee, receipt.L1Fee)
 
 		upperBound, err := dsl.ReadGasPriceOracleL1FeeUpperBoundAt(ctx, l2Client, gasPriceOracle, len(txUnsigned), receipt.BlockHash)
 		require.NoError(err)
