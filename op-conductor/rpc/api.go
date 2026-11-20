@@ -12,6 +12,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// ErrNotLeader is returned by the leader-gated proxy backends when this conductor is not the leader.
+// They check leadership after the forwarded call returns, whether or not that call failed: a
+// conductor that loses leadership during the call refuses, and so does a follower whose sequencer
+// cannot answer.
 var ErrNotLeader = errors.New("refusing to proxy request to non-leader sequencer")
 
 // API defines the interface for the op-conductor API.
