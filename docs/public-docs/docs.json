@@ -1304,7 +1304,7 @@
     },
     {
       "source": "/operators/node-operators/releases",
-      "destination": "/releases"
+      "destination": "/op-stack/components"
     },
     {
       "source": "/operators/node-operators/rollup-node",
@@ -2717,6 +2717,118 @@
     {
       "source": "/op-stack/protocol/overview",
       "destination": "/op-stack/architecture"
+    },
+    {
+      "source": "/releases",
+      "destination": "/op-stack/components"
+    },
+    {
+      "source": "/releases/op-node",
+      "destination": "/op-stack/components/op-node"
+    },
+    {
+      "source": "/releases/kona-node",
+      "destination": "/op-stack/components/kona-node"
+    },
+    {
+      "source": "/releases/op-reth",
+      "destination": "/op-stack/components/op-reth"
+    },
+    {
+      "source": "/releases/op-batcher",
+      "destination": "/op-stack/components/op-batcher"
+    },
+    {
+      "source": "/releases/op-proposer",
+      "destination": "/op-stack/components/op-proposer"
+    },
+    {
+      "source": "/releases/op-challenger",
+      "destination": "/op-stack/components/op-challenger"
+    },
+    {
+      "source": "/releases/op-contracts",
+      "destination": "/op-stack/components/op-contracts"
+    },
+    {
+      "source": "/releases/kona-client",
+      "destination": "/op-stack/components/kona-client"
+    },
+    {
+      "source": "/releases/kona-host",
+      "destination": "/op-stack/components/kona-host"
+    },
+    {
+      "source": "/releases/op-deployer",
+      "destination": "/op-stack/components/op-deployer"
+    },
+    {
+      "source": "/releases/op-conductor",
+      "destination": "/op-stack/components/op-conductor"
+    },
+    {
+      "source": "/releases/proxyd",
+      "destination": "/op-stack/components/proxyd"
+    },
+    {
+      "source": "/releases/op-acceptor",
+      "destination": "https://github.com/ethereum-optimism/infra/releases?q=op-acceptor%2Fv&expanded=false"
+    },
+    {
+      "source": "/ko/releases",
+      "destination": "/ko/op-stack/components"
+    },
+    {
+      "source": "/ko/releases/op-node",
+      "destination": "/ko/op-stack/components/op-node"
+    },
+    {
+      "source": "/ko/releases/kona-node",
+      "destination": "/ko/op-stack/components/kona-node"
+    },
+    {
+      "source": "/ko/releases/op-reth",
+      "destination": "/ko/op-stack/components/op-reth"
+    },
+    {
+      "source": "/ko/releases/op-batcher",
+      "destination": "/ko/op-stack/components/op-batcher"
+    },
+    {
+      "source": "/ko/releases/op-proposer",
+      "destination": "/ko/op-stack/components/op-proposer"
+    },
+    {
+      "source": "/ko/releases/op-challenger",
+      "destination": "/ko/op-stack/components/op-challenger"
+    },
+    {
+      "source": "/ko/releases/op-contracts",
+      "destination": "/ko/op-stack/components/op-contracts"
+    },
+    {
+      "source": "/ko/releases/kona-client",
+      "destination": "/ko/op-stack/components/kona-client"
+    },
+    {
+      "source": "/ko/releases/kona-host",
+      "destination": "/ko/op-stack/components/kona-host"
+    },
+    {
+      "source": "/ko/releases/op-deployer",
+      "destination": "/ko/op-stack/components/op-deployer"
+    },
+    {
+      "source": "/ko/releases/op-conductor",
+      "destination": "/ko/op-stack/components/op-conductor"
+    },
+    {
+      "source": "/ko/releases/proxyd",
+      "destination": "/ko/op-stack/components/proxyd"
+    },
+    {
+      "source": "/ko/releases/op-acceptor",
+      "destination": "https://github.com/ethereum-optimism/infra/releases?q=op-acceptor%2Fv&expanded=false"
     }
   ],
   "interaction": {
@@ -3667,40 +3779,6 @@
                   },
                   "notices/archive/index"
                 ]
-              },
-              {
-                "group": "Releases",
-                "pages": [
-                  "releases/index",
-                  {
-                    "group": "Protocol",
-                    "pages": [
-                      "releases/op-node",
-                      "releases/kona-node",
-                      "releases/op-reth",
-                      "releases/op-batcher",
-                      "releases/op-proposer",
-                      "releases/op-challenger",
-                      "releases/op-contracts"
-                    ]
-                  },
-                  {
-                    "group": "Fault Proofs",
-                    "pages": [
-                      "releases/kona-client",
-                      "releases/kona-host"
-                    ]
-                  },
-                  {
-                    "group": "Tooling",
-                    "pages": [
-                      "releases/op-deployer",
-                      "releases/op-conductor",
-                      "releases/proxyd",
-                      "releases/op-acceptor"
-                    ]
-                  }
-                ]
               }
             ]
           }
@@ -4648,40 +4726,6 @@
                     ]
                   },
                   "ko/notices/archive/index"
-                ]
-              },
-              {
-                "group": "릴리스",
-                "pages": [
-                  "ko/releases/index",
-                  {
-                    "group": "프로토콜",
-                    "pages": [
-                      "ko/releases/op-node",
-                      "ko/releases/kona-node",
-                      "ko/releases/op-reth",
-                      "ko/releases/op-batcher",
-                      "ko/releases/op-proposer",
-                      "ko/releases/op-challenger",
-                      "ko/releases/op-contracts"
-                    ]
-                  },
-                  {
-                    "group": "결함 증명",
-                    "pages": [
-                      "ko/releases/kona-client",
-                      "ko/releases/kona-host"
-                    ]
-                  },
-                  {
-                    "group": "도구",
-                    "pages": [
-                      "ko/releases/op-deployer",
-                      "ko/releases/op-conductor",
-                      "ko/releases/proxyd",
-                      "ko/releases/op-acceptor"
-                    ]
-                  }
                 ]
               }
             ]

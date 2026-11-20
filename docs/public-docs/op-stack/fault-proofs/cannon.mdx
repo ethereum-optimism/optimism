@@ -21,7 +21,7 @@ However, Cannon is Optimism's default Fault Proof Virtual Machine (FPVM). Cannon
 *   Onchain [`MIPS64.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol): EVM implementation to verify execution of a single MIPS instruction.
 *   Offchain `mipsevm`: Go implementation to produce a proof for any MIPS instruction to verify onchain.
 
-The program that runs inside Cannon is the fault proof program, [kona-client](/releases/kona-client), compiled to a big-endian 64-bit MIPS (MIPS64) ELF binary.
+The program that runs inside Cannon is the fault proof program, [kona-client](/op-stack/components/kona-client), compiled to a big-endian 64-bit MIPS (MIPS64) ELF binary.
 
 <Info>
   Earlier generations of Cannon ran the Go fault proof program `op-program`: first compiled to 32-bit MIPS32 instructions and verified onchain
@@ -66,7 +66,7 @@ Within Cannon is the `mipsevm` that is built to handle the big-endian 64-bit MIP
 `mips64` compiler target. The ELF file contains MIPS instructions, where the code that has been compiled into MIPS instructions is kona-client.
 
 kona-client is Rust code that is compiled to the `mips64-unknown-none` target and run within the Cannon FPVM. kona-client, whether run natively
-or in Cannon, derives the state of the L2 from the data its companion [kona-host](/releases/kona-host) fetches for it. It is built such that the
+or in Cannon, derives the state of the L2 from the data its companion [kona-host](/op-stack/components/kona-host) fetches for it. It is built such that the
 same inputs will produce not only the same outputs, but the same execution trace. This allows all participants in a fault dispute game to run
 kona-client such that, given the same L2 output root state transition, they can generate the same execution traces. This in turn generates the same
 witness proof for the exact same MIPS instruction that will be run onchain.
@@ -230,7 +230,7 @@ As mentioned previously, Cannon is responsible for setting up all state that may
 Cannon is also responsible for interacting with the Pre-image server, and directing op-challenger to provide Pre-images to
 the onchain `PreimageOracle.sol` if necessary for the instruction that will be run in `MIPS64.sol`.
 
-The Pre-image server is [kona-host](/releases/kona-host): `run.go` launches it as a sub-process (the host command is passed to
+The Pre-image server is [kona-host](/op-stack/components/kona-host): `run.go` launches it as a sub-process (the host command is passed to
 `cannon run` after a `--` separator) and it serves the chain data that kona-client requests during execution.
 `mips.go` communicates with the Pre-image server when reading Pre-images as part of MIPS syscall instructions,
 as well as hinting to the Pre-image server.

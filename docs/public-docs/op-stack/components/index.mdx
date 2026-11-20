@@ -17,7 +17,7 @@ themselves are defined in
 [OP Stack components](/op-stack/protocol/components), which is the canonical
 taxonomy; for how the components interact at runtime, see
 [OP Stack architecture](/op-stack/architecture). For release history across
-all components, see [Releases](/releases).
+all components, see [GitHub Releases](https://github.com/ethereum-optimism/optimism/releases).
 
 | This group | Implements the layer |
 | --- | --- |
@@ -36,8 +36,8 @@ Producing L2 blocks and making their data available. Implements the
 
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
-| op-batcher | Posts L2 transaction batches to the data availability layer | [Hub](/op-stack/components/op-batcher) | [Releases](/releases/op-batcher) |
-| op-conductor | High-availability sequencer coordination service | [Hub](/op-stack/components/op-conductor) | [Releases](/releases/op-conductor) |
+| op-batcher | Posts L2 transaction batches to the data availability layer | [Hub](/op-stack/components/op-batcher) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=op-batcher%2Fv&expanded=false) |
+| op-conductor | High-availability sequencer coordination service | [Hub](/op-stack/components/op-conductor) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=op-conductor%2Fv&expanded=false) |
 
 ## Derivation & execution
 
@@ -46,9 +46,9 @@ executing its blocks. Implements the **Derivation** and **Execution** layers.
 
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
-| op-node | OP Stack consensus-layer (rollup node) client, in Go | [Hub](/op-stack/components/op-node) | [Releases](/releases/op-node) |
-| kona-node | Rust implementation of the OP Stack rollup node | [Hub](/op-stack/components/kona-node) | [Releases](/releases/kona-node) |
-| op-reth | OP Stack execution-layer client built on reth | [Hub](/op-stack/components/op-reth) | [Releases](/releases/op-reth) |
+| op-node | OP Stack consensus-layer (rollup node) client, in Go | [Hub](/op-stack/components/op-node) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=op-node%2Fv&expanded=false) |
+| kona-node | Rust implementation of the OP Stack rollup node | [Hub](/op-stack/components/kona-node) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=kona-node%2Fv&expanded=false) |
+| op-reth | OP Stack execution-layer client built on reth | [Hub](/op-stack/components/op-reth) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=op-reth%2Fv&expanded=false) |
 
 ## Settlement & proofs
 
@@ -57,12 +57,12 @@ Proposing L2 state to L1 and proving its validity. Implements the
 
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
-| op-proposer | Proposes L2 output roots to L1 | [Hub](/op-stack/components/op-proposer) | [Releases](/releases/op-proposer) |
-| op-challenger | Dispute game challenge agent | [Hub](/op-stack/components/op-challenger) | [Releases](/releases/op-challenger) |
+| op-proposer | Proposes L2 output roots to L1 | [Hub](/op-stack/components/op-proposer) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=op-proposer%2Fv&expanded=false) |
+| op-challenger | Dispute game challenge agent | [Hub](/op-stack/components/op-challenger) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=op-challenger%2Fv&expanded=false) |
 | cannon | Onchain MIPS instruction emulator — the fault proof VM | [Hub](/op-stack/components/cannon) | [Release tags](https://github.com/ethereum-optimism/optimism/releases?q=cannon%2Fv&expanded=false) |
-| kona-client | Fault proof program (client) that executes the OP Stack state transition | [Hub](/op-stack/components/kona-client) | [Releases](/releases/kona-client) |
-| kona-host | Fault proof host that serves preimage data to kona-client | [Hub](/op-stack/components/kona-host) | [Releases](/releases/kona-host) |
-| op-contracts | OP Stack L1 and L2 smart contracts | [Hub](/op-stack/components/op-contracts) | [Releases](/releases/op-contracts) |
+| kona-client | Fault proof program (client) that executes the OP Stack state transition | [Hub](/op-stack/components/kona-client) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=kona-client%2Fv&expanded=false) |
+| kona-host | Fault proof host that serves preimage data to kona-client | [Hub](/op-stack/components/kona-host) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=kona-host%2Fv&expanded=false) |
+| op-contracts | OP Stack L1 and L2 smart contracts | [Hub](/op-stack/components/op-contracts) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=op-contracts%2Fv&expanded=false) |
 
 ## Deployment & infrastructure
 
@@ -70,5 +70,5 @@ Deploying chains and operating the infrastructure around them.
 
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
-| op-deployer | OP Stack chain deployment tool | [Hub](/op-stack/components/op-deployer) | [Releases](/releases/op-deployer) |
-| proxyd | RPC request router and proxy | [Hub](/op-stack/components/proxyd) | [Releases](/releases/proxyd) |
+| op-deployer | OP Stack chain deployment tool | [Hub](/op-stack/components/op-deployer) | [Releases](https://github.com/ethereum-optimism/optimism/releases?q=op-deployer%2Fv&expanded=false) |
+| proxyd | RPC request router and proxy | [Hub](/op-stack/components/proxyd) | [Releases](https://github.com/ethereum-optimism/infra/releases?q=proxyd%2Fv&expanded=false) |

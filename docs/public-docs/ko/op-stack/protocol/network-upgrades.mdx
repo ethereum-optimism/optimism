@@ -65,19 +65,19 @@ genesis부터 활성화되는 업그레이드들은 타임스탬프를 공유하
 
 거버넌스에서 승인된 모든 업그레이드가 하드포크인 것은 아닙니다. 하드포크는 모든
 체인에서 L2 블록 타임스탬프를 기준으로 활성화되는 반면, 컨트랙트 업그레이드는
-[op-contracts 릴리스](/ko/releases/op-contracts)로 제공되며 거버넌스 승인 후 각 체인의
+[op-contracts 릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-contracts%2Fv&expanded=false)로 제공되며 거버넌스 승인 후 각 체인의
 L1 컨트랙트에서 실행됩니다. 컨트랙트만 변경하는 업그레이드에는 활성화 타임스탬프가
 없으므로 하드포크 레지스트리 페이지가 생성되지 않습니다. 이러한 업그레이드의 영구
 기록은 op-contracts 릴리스 이력과 운영자 공지입니다.
 
 | 업그레이드 | 제공된 내용 | 운영자 공지 | op-contracts 릴리스 |
 | --- | --- | --- | --- |
-| Upgrade 20 | Super Root 분쟁 게임(dispute game)(`SUPER_PERMISSIONED`, `SUPER_CANNON_KONA`) 및 `SystemConfig` 인터페이스 정리 | [공지](/ko/notices/archive/upgrade-20) | [`v8.0.0`](/ko/releases/op-contracts) |
-| Upgrade 18 | Cannon + Kona game type, Custom Gas Token v2, creator 패턴 분쟁 게임 리팩터링 | [공지](/ko/notices/archive/upgrade-18) | [`v6.0.0`](/ko/releases/op-contracts) |
-| Upgrade 16a | Upgrade 16을 대체하는 유지 보수 릴리스(사용되지 않는 interop 출금 증명 코드 제거, 기능 토글 추가) | [공지](/ko/notices/archive/upgrade-16a) | [`v4.1.0`](/ko/releases/op-contracts) |
-| Upgrade 16 | Interop 대응 `OptimismPortal`, Stage 1 업데이트, Cannon의 Go 1.23 지원 | [공지](/ko/notices/archive/upgrade-16) | [`v4.0.0`](/ko/releases/op-contracts) |
-| Upgrade 14 | 멀티스레드 64비트 Cannon(MT-Cannon) 및 Isthmus L1 컨트랙트 | [공지](/ko/notices/archive/upgrade-14) | [`v3.0.0`](/ko/releases/op-contracts) |
-| Upgrade 13 | OP Contracts Manager(OPCM) 및 사고 대응 개선 | [공지](/ko/notices/archive/upgrade-13) | [`v2.0.0`](/ko/releases/op-contracts) |
+| Upgrade 20 | Super Root 분쟁 게임(dispute game)(`SUPER_PERMISSIONED`, `SUPER_CANNON_KONA`) 및 `SystemConfig` 인터페이스 정리 | [공지](/ko/notices/archive/upgrade-20) | [`v8.0.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v8.0.0) |
+| Upgrade 18 | Cannon + Kona game type, Custom Gas Token v2, creator 패턴 분쟁 게임 리팩터링 | [공지](/ko/notices/archive/upgrade-18) | [`v6.0.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v6.0.0) |
+| Upgrade 16a | Upgrade 16을 대체하는 유지 보수 릴리스(사용되지 않는 interop 출금 증명 코드 제거, 기능 토글 추가) | [공지](/ko/notices/archive/upgrade-16a) | [`v4.1.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v4.1.0) |
+| Upgrade 16 | Interop 대응 `OptimismPortal`, Stage 1 업데이트, Cannon의 Go 1.23 지원 | [공지](/ko/notices/archive/upgrade-16) | [`v4.0.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v4.0.0) |
+| Upgrade 14 | 멀티스레드 64비트 Cannon(MT-Cannon) 및 Isthmus L1 컨트랙트 | [공지](/ko/notices/archive/upgrade-14) | [`v3.0.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v3.0.0) |
+| Upgrade 13 | OP Contracts Manager(OPCM) 및 사고 대응 개선 | [공지](/ko/notices/archive/upgrade-13) | [`v2.0.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v2.0.0) |
 
 하드포크를 수반하는 업그레이드(예: Upgrade 15 / Isthmus, Upgrade 17 / Jovian,
 Upgrade 19 / Karst)는 위의 [활성화 표](#activations)에 나열되어 있으며, 각

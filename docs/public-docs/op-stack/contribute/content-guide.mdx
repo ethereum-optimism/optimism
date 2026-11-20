@@ -29,7 +29,7 @@ true (adapted from the Kubernetes content guide's third-party content rules):
 1.  **It documents first-party OP Stack software** — software whose source of
     truth lives in [Optimism](https://github.com/ethereum-optimism)
     repositories, such as the components listed on the
-    [Releases](/releases) page.
+    [OP Stack components](/op-stack/components) page.
 2.  **It documents third-party software that the OP Stack needs to function**
     — for example, an L1 execution client or key-management tooling that an
     OP Stack chain cannot run without. Such content must be marked with the
@@ -185,8 +185,8 @@ pages render one table (name, type, labels, description).
     it was generated from. The generator's manifest records the tag,
     artifact, and content hash per component per version.
 *   Release notes are linked, never copied. The provenance link is the
-    pointer to what changed in that release; the generated
-    [release history](/releases) pages remain the home of the notes.
+    pointer to what changed in that release;
+    [GitHub Releases](https://github.com/ethereum-optimism/optimism/releases) remain the home of the notes.
 *   **Nothing under the top-level `reference/` directory is hand-written.**
     Orientation ("how the CLI is organized"), advice on choosing values, and
     notes on selected flags live in guides in the persona tabs and link into
@@ -222,11 +222,10 @@ verifiable by the generator's own `--check`.
     indexed.
 *   **On every docs pull request**, CI runs the docs lints: navigation,
     redirects, reference, and link policy.
-*   **Weekly**, CI regenerates the [release history](/releases) pages from
-    GitHub Releases into one rolling pull request, and runs the reference
-    lint in strict mode, which fails on an `<Unreleased>` callout whose
-    release has since been tagged and lists the callouts that name no
-    version, so a maintainer can confirm what has shipped.
+*   **Weekly**, CI runs the reference lint in strict mode, which fails on an
+    `<Unreleased>` callout whose release has since been tagged and lists the
+    callouts that name no version, so a maintainer can confirm what has
+    shipped.
 
 Each job lands together with the generator it serves; until a job exists,
 its step is done by hand and the convention still applies.
