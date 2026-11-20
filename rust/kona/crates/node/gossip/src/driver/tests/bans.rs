@@ -100,3 +100,29 @@ async fn test_ban_peer() {
     assert!(!driver_1.peer_connection_start.contains_key(&peer_2));
     assert!(driver_1.peerstore.contains_key(&peer_2));
 }
+
+/// Each ban counts once in the ban counter, which has no labels, so that it doesn't grow a series
+/// per banned peer.
+#[tokio::test(start_paused = true)]
+async fn test_bans_are_counted_without_labels() {
+    let mut driver = banning_driver().start().await.expect("listen");
+    let recorder = metrics_util::debugging::DebuggingRecorder::new();
+    let snapshotter = recorder.snapshotter();
+
+    metrics::with_local_recorder(&recorder, || {
+        driver.ban_peer(PeerId::random());
+        driver.ban_peer(PeerId::random());
+    });
+
+    let bans: Vec<_> = snapshotter
+        .snapshot()
+        .into_vec()
+        .into_iter()
+        .filter(|(key, ..)| key.key().name() == crate::Metrics::BANNED_PEERS)
+        .map(|(key, _, _, value)| (key.key().labels().count(), value))
+        .collect();
+    assert!(
+        matches!(bans.as_slice(), [(0, metrics_util::debugging::DebugValue::Counter(2))]),
+        "{bans:?}"
+    );
+}
