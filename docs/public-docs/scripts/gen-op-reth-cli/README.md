@@ -24,7 +24,7 @@ Build the binary at a finalized op-reth release tag, then run from anywhere
 # in a checkout of the release tag
 cargo build --bin op-reth --manifest-path rust/op-reth/bin/Cargo.toml
 
-node docs/public-docs/scripts/gen-op-reth-cli/main.mjs \
+bun docs/public-docs/scripts/gen-op-reth-cli/main.mjs \
   --bin rust/target/debug/op-reth \
   --tag op-reth/vX.Y.Z
 ```
@@ -33,7 +33,7 @@ To verify the committed tree against a binary without rewriting anything
 (exits nonzero on any mismatch):
 
 ```bash
-node docs/public-docs/scripts/gen-op-reth-cli/main.mjs --bin <op-reth> --check
+bun docs/public-docs/scripts/gen-op-reth-cli/main.mjs --bin <op-reth> --check
 ```
 
 ## How it works
@@ -81,8 +81,8 @@ When a new finalized (non-rc) `op-reth/vX.Y.Z` tag is published:
    against the docs tree you are committing from).
 3. If the run deleted pages, add one redirect per deleted URL to `docs.json`
    in the same change, pointing at the nearest surviving command page.
-4. Run the docs lints (`pnpm lint:nav`, `pnpm lint:redirects`, `pnpm lint:reference`,
-   `node scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json`)
+4. Run the docs lints (`bun run lint:nav`, `bun run lint:redirects`, `bun run lint:reference`,
+   `bun scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json`)
    and commit pages, nav fragment, redirects, and `manifest.json` together.
 
 Running the generator twice in a row against the same binary is a no-op.

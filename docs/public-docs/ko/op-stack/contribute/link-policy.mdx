@@ -82,14 +82,14 @@ URL 표준에 따라 UTM 파라미터(또는 모든 쿼리 문자열)는 `#fragm
 
 ```bash
 # from docs/public-docs/
-node scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json
+bun scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json
 
 # with specs anchor resolution
 git clone --depth 1 https://github.com/ethereum-optimism/specs.git /tmp/specs
-node scripts/lint-link-policy.mjs --specs-src /tmp/specs --baseline scripts/lint-link-policy.baseline.json
+bun scripts/lint-link-policy.mjs --specs-src /tmp/specs --baseline scripts/lint-link-policy.baseline.json
 
 # verify the linter itself against its embedded self-test fixtures
-node scripts/lint-link-policy.mjs --self-test
+bun scripts/lint-link-policy.mjs --self-test
 ```
 
 린터 도입 이전부터 있던 위반 사항은

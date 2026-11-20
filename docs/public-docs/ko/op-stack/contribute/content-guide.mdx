@@ -179,7 +179,7 @@ pre-release에서는 절대 생성하지 않습니다. 또한 [버전](#versions
 *   **최상위 `reference/` 디렉터리 아래의 어떤 것도 수동으로 작성하지 않습니다.**
     방향 안내("CLI가 어떻게 구성되어 있는가"), 값 선택에 대한 조언, 그리고
     선택된 플래그에 대한 참고 사항은 페르소나 탭의 가이드에 두고
-    레퍼런스로 링크합니다. `pnpm lint:reference`는 생성된 헤더가 없는
+    레퍼런스로 링크합니다. `bun run lint:reference`는 생성된 헤더가 없는
     `reference/` 아래의 모든 페이지를 실패 처리합니다.
 *   생성된 페이지를 수동으로 편집하면 다음 실행 시 생성기의 drift 검사에서
     실패합니다. 대신 다시 생성하세요.
@@ -243,7 +243,7 @@ docs.optimism.io는 `develop`에서 배포되고, 컴포넌트는 릴리스 태�
     <Unreleased component="op-reth" />
 
     이 콜아웃은 임시입니다. 콜아웃에 버전이 명시되어 있으면, 해당 태그가 생긴 후
-    `pnpm lint:reference`가 실행될 때마다 경고를 표시하고, 린트를 strict 모드로
+    `bun run lint:reference`가 실행될 때마다 경고를 표시하고, 린트를 strict 모드로
     실행하는 주간 CI 점검은 콜아웃이 제거될 때까지 실패합니다. 이 검사를
     pull request CI가 아닌 주간 작업에 둔 이유는 릴리스 태그가 생겼다고 해서
     관련 없는 pull request가 실패하는 일이 없도록 하기 위해서입니다. 콜아웃에

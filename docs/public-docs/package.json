@@ -2,54 +2,27 @@
   "name": "optimism-docs",
   "version": "1.0.0",
   "description": "Optimism Documentation",
-  "main": "index.js",
   "scripts": {
-    "prebuild": "tsx scripts/generate-actions-components.ts && tsx scripts/generate-releases.ts",
-    "prebuild:local": "tsx scripts/generate-actions-components.ts --local && tsx scripts/generate-releases.ts",
-    "dev": "mint dev",
-    "lint:nav": "tsx scripts/lint/validate-nav.ts",
-    "lint:redirects": "tsx scripts/lint/validate-redirects.ts",
-    "lint:reference": "tsx scripts/lint/validate-reference.ts",
-    "gen:hardforks": "tsx scripts/generate-hardforks.ts",
-    "gen:hardforks:check": "tsx scripts/generate-hardforks.ts --check"
-  },
-  "dependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "dev": "bun --bun mint dev",
+    "prebuild": "bun scripts/generate-actions-components.ts && bun scripts/generate-releases.ts",
+    "prebuild:local": "bun scripts/generate-actions-components.ts --local && bun scripts/generate-releases.ts",
+    "lint:nav": "bun scripts/lint/validate-nav.ts",
+    "lint:redirects": "bun scripts/lint/validate-redirects.ts",
+    "lint:reference": "bun scripts/lint/validate-reference.ts",
+    "gen:hardforks": "bun scripts/generate-hardforks.ts",
+    "gen:hardforks:check": "bun scripts/generate-hardforks.ts --check"
   },
   "devDependencies": {
     "@eth-optimism/actions-sdk": "^0.8.1",
     "@types/node": "^25.9.1",
-    "@types/react": "^18.0.0",
-    "@types/react-dom": "^18.0.0",
+    "@types/react": "^19.0.0",
+    "mint": "4.2.1203",
     "ts-morph": "^21.0.0",
-    "tsx": "^4.7.0",
     "typescript": "^5.0.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@reown/appkit",
-      "bufferutil",
-      "esbuild",
-      "sharp",
-      "utf-8-validate"
-    ],
-    "overrides": {
-      "@metamask/sdk": ">=0.33.1",
-      "@metamask/sdk-communication-layer": ">=0.33.1",
-      "axios": ">=1.16.0",
-      "defu": ">=6.1.5",
-      "follow-redirects": ">=1.16.0",
-      "form-data": ">=4.0.6",
-      "h3": ">=1.15.9",
-      "js-cookie": ">=3.0.7",
-      "minimatch": ">=9.0.7",
-      "postcss": ">=8.5.10",
-      "preact": ">=10.28.2",
-      "sharp@0.33.5": "0.35.0",
-      "socket.io-parser@>=4.0.4 <4.2.7": "4.2.7",
-      "uuid": ">=11.1.1",
-      "ws": ">=8.21.0"
-    }
+  "overrides": {
+    "minimatch": ">=9.0.7",
+    "ws": ">=8.21.0",
+    "sharp": "0.35.5"
   }
 }

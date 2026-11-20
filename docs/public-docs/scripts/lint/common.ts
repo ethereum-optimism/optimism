@@ -1,9 +1,7 @@
 // Shared helpers for the docs lint scripts (validate-nav.ts, validate-redirects.ts,
 // validate-reference.ts).
 //
-// Both scripts are deterministic, dependency-free (Node builtins only), and
-// runnable with either `tsx` (pnpm devDependency, like the generator scripts)
-// or `bun` (pinned in the monorepo's mise.toml, used by CI).
+// These scripts are deterministic and dependency-free (Node builtins only).
 
 import * as fs from "fs";
 import * as path from "path";

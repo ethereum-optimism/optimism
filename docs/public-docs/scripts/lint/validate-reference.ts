@@ -31,7 +31,7 @@
 // Usage:
 //   bun docs/public-docs/scripts/lint/validate-reference.ts            (from monorepo root, CI)
 //   bun docs/public-docs/scripts/lint/validate-reference.ts --strict   (weekly sweep)
-//   pnpm lint:reference                                                 (from docs/public-docs)
+//   bun run lint:reference                                             (from docs/public-docs)
 //
 // Exit codes: 0 = clean, 1 = violations, 2 = setup error.
 
