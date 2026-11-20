@@ -30,7 +30,8 @@ library UpgradeUtils {
     }
 
     /// @notice Returns the gas limits for all upgrade transaction types.
-    /// @dev Calibration: see `_buildImplementationDeploymentConfigs` in GenerateNUTBundle.s.sol.
+    /// @dev Calibration: each limit must be at least `computeRecommendedGasLimit` of the measured
+    ///      gas. `test_l2ForkUpgrade_isolatedGas_succeeds` in L2ForkUpgrade.t.sol enforces this.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
         return GasLimits({ l2cmDeployment: 8_900_000, upgradeExecution: 4_000_000 });
