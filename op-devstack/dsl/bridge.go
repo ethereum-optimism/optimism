@@ -619,7 +619,9 @@ func (w *Withdrawal) ProveAndFinalize(user *EOA, maxGameClock time.Duration) {
 
 // l1GasCost returns the fee paid for an L1 transaction, whose receipt carries no OP fee fields.
 func (b *StandardBridge) l1GasCost(rcpt *types.Receipt) eth.ETH {
-	return gasCost(optypes.FromGethReceipt(rcpt), b.rollupCfg, nil)
+	opRcpt, err := optypes.FromGethReceipt(rcpt)
+	b.require.NoError(err)
+	return gasCost(opRcpt, b.rollupCfg, nil)
 }
 
 // l2GasCost re-fetches rcpt from L2, as only an OP receipt carries the L1 and operator fees.

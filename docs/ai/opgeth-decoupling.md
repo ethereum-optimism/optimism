@@ -116,8 +116,9 @@ anything that reads them — the e2e and acceptance suites — fetches receipts 
 or passes the raw JSON through (op-sync-tester).
 
 `optypes.FromGethReceipt` wraps a go-ethereum receipt (L1, or L2 code that needs only standard
-fields) with the OP fields unset. `optypes.Receipts.Geth()` is a view for code that reads only
-standard fields (logs).
+fields) with the OP fields unset. It rejects a deposit receipt, whose consensus encoding needs
+the deposit nonce and receipt version. `optypes.Receipts.Geth()` is a view for code that reads
+only standard fields (logs).
 
 ---
 
