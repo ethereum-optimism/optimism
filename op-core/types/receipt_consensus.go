@@ -25,17 +25,27 @@ var _ types.DerivableList = (Receipts)(nil)
 // FromGethReceipt wraps a go-ethereum receipt, leaving the OP Stack fields
 // unset. The receipt struct is shallow-copied (reference fields like Logs still
 // alias the source).
-func FromGethReceipt(r *types.Receipt) *Receipt {
-	return &Receipt{Receipt: *r}
+//
+// It rejects a deposit (0x7E) receipt: a go-ethereum receipt cannot carry the
+// deposit nonce and receipt version, so the wrapped receipt would have a wrong
+// consensus encoding.
+func FromGethReceipt(r *types.Receipt) (*Receipt, error) {
+	if r.Type == DepositTxType {
+		return nil, fmt.Errorf("cannot wrap deposit receipt of tx %s: a go-ethereum receipt lacks the deposit nonce and receipt version", r.TxHash)
+	}
+	return &Receipt{Receipt: *r}, nil
 }
 
 // FromGethReceipts wraps go-ethereum receipts into Receipts, per FromGethReceipt.
-func FromGethReceipts(rs types.Receipts) Receipts {
+func FromGethReceipts(rs types.Receipts) (Receipts, error) {
 	out := make(Receipts, len(rs))
 	for i, r := range rs {
-		out[i] = FromGethReceipt(r)
+		var err error
+		if out[i], err = FromGethReceipt(r); err != nil {
+			return nil, err
+		}
 	}
-	return out
+	return out, nil
 }
 
 // Geth returns a view of the embedded go-ethereum receipts, for boundaries

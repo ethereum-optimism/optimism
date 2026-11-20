@@ -338,7 +338,7 @@ func (g gethReceiptGetter) TransactionReceipt(ctx context.Context, txHash common
 	if err != nil || receipt == nil {
 		return nil, err
 	}
-	return optypes.FromGethReceipt(receipt), nil
+	return optypes.FromGethReceipt(receipt)
 }
 
 // WithAssumedInclusion assumes inclusion at the time of evaluation,
