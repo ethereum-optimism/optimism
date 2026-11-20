@@ -240,6 +240,29 @@ contract ComplianceDeposits_Integration_Test is ComplianceIntegration_TestInit {
         _assertReleased(id);
     }
 
+    /// @notice Tests that the deny list applies to the recipient of a bridge transfer, not to the
+    ///         messenger that calls the Portal. A token deposit from an allowlisted sender to a
+    ///         denied recipient is held, a clear verdict does not complete it, and it completes
+    ///         once the entry is removed.
+    function test_completeDeposit_afterBridgeRecipientUndenied_succeeds() external {
+        _allowlist(alice);
+        _deny(bob);
+        _depositERC20(alice, bob, AMOUNT);
+        (bytes32 id, BridgeHookTypes.Item memory item) = _heldDeposit();
+        _clear(id);
+
+        vm.expectRevert(IComplianceModule.ComplianceModule_PolicyRefused.selector);
+        module.completeDeposit(item);
+
+        _assertHeldDeposit(id);
+        _assertTokenCustody({ _escrowed: 0, _held: AMOUNT });
+
+        _undeny(bob);
+        _completeDeposit(item);
+        _assertReleased(id);
+        _assertTokenCustody({ _escrowed: AMOUNT, _held: 0 });
+    }
+
     /// @notice Tests that a held deposit does not complete on a revoked or an expired verdict,
     ///         and completes on a new one.
     function test_completeDeposit_afterVerdictRenewed_succeeds() external {

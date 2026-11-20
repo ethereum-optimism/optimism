@@ -268,6 +268,36 @@ contract ComplianceWithdrawals_Integration_Test is ComplianceIntegration_TestIni
         _assertReleased(id);
     }
 
+    /// @notice Tests that the deny list applies to the recipient of a bridge transfer, not to the
+    ///         bridge that the Portal calls. A token withdrawal from an allowlisted sender to a
+    ///         denied recipient is held at the first attempt, a clear verdict does not complete it,
+    ///         and it completes once the entry is removed.
+    function test_completeWithdrawal_afterBridgeRecipientUndenied_succeeds() external {
+        _escrow(AMOUNT);
+        _allowlist(alice);
+        _deny(bob);
+        Types.WithdrawalTransaction memory withdrawal = _erc20Withdrawal(0, alice, bob, AMOUNT);
+        _warpToFinalizable(_prove(withdrawal));
+
+        (bytes32 id, BridgeHookTypes.Item memory item) = _holdWithdrawal(withdrawal);
+        _assertHeldWithdrawal(id);
+        _assertTokenCustody({ _escrowed: 0, _held: AMOUNT });
+
+        _clear(id);
+        vm.expectRevert(IComplianceModule.ComplianceModule_PolicyRefused.selector);
+        module.completeWithdrawal(item);
+
+        _assertHeldWithdrawal(id);
+        _assertTokenCustody({ _escrowed: 0, _held: AMOUNT });
+
+        _undeny(bob);
+        module.completeWithdrawal(item);
+
+        assertEq(L1Token.balanceOf(bob), AMOUNT);
+        _assertTokenCustody({ _escrowed: 0, _held: 0 });
+        _assertReleased(id);
+    }
+
     /// @notice Tests that a withdrawal whose verdict expired is screened as one without a verdict:
     ///         it is rejected until the hold delay has passed and held after it. Completion is
     ///         refused while the verdict is expired and succeeds on a new verdict.
