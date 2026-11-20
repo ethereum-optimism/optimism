@@ -147,19 +147,27 @@ Upgrade every node on a chain that activates Lagoon to a Lagoon release before t
 
 On **OP Mainnet**, **Unichain**, **OP Sepolia**, and **Unichain Sepolia**, also complete the [Interop activation prep](/notices/interop-prep) checklist: run op-supernode for both chains and run every op-node as a Light CL that follows it.
 
-{/* TODO: fill versions from the release-level affected-components inventory; confirm the op-batcher, op-dispute-mon, and kona-node rows. */}
+{/* TODO: fill versions from the release-level affected-components inventory. */}
 
 | Component | Version | Who needs it | Action |
 | --- | --- | --- | --- |
 | `op-node` | To be published | Every chain that activates Lagoon | Upgrade before activation. On OP Mainnet and Unichain, run as a Light CL that follows op-supernode. |
-| `kona-node` | To be published | Every chain that activates Lagoon, if you run kona-node | Upgrade before activation. |
 | `op-reth` | To be published | Every chain that activates Lagoon | Upgrade before activation. |
 | `op-supernode` | To be published | OP Mainnet, Unichain, OP Sepolia, Unichain Sepolia | Run before activation, deriving both chains of the pair. See [Interop activation prep](/notices/interop-prep). |
-| `op-batcher` | To be published | Chain operators of chains that activate Lagoon | Upgrade before activation so it can encode `0x7D` transactions in batches. |
 
 ### Chain operators
 
-* Upgrade your sequencer, batcher, and other nodes to Lagoon releases before activation, as listed in [Node operators](#node-operators).
+Upgrade your sequencer and other nodes to the Lagoon releases listed in [Node operators](#node-operators), and these chain-operator components:
+
+{/* TODO: fill versions once the Lagoon releases are cut. op-challenger v1.12.0 and op-dispute-mon v1.6.6 already contain ZK game support; confirm with the feature team whether new releases are still required for the ZK switch. */}
+
+| Component | Version | Who needs it | Action |
+| --- | --- | --- | --- |
+| `op-batcher` | To be published | Every chain that activates Lagoon | Upgrade before activation so it can encode `0x7D` transactions in batches. |
+| `op-challenger` | To be published | Permissionless chains that activate Lagoon, and challengers on OP Mainnet and Unichain | Upgrade before activation for the Lagoon prestate. On OP Mainnet and Unichain, add the `zk` game type at the [ZK switch](#zk-proofs-on-op-mainnet-and-unichain). |
+| `op-dispute-mon` | To be published | Anyone monitoring dispute games on OP Mainnet and Unichain | Upgrade before the ZK switch. No configuration change is needed: it finds ZK games on the same `DisputeGameFactory`. |
+| `op-zk-proposer` | To be published | Chain operators of OP Mainnet and Unichain | Runs the ZK proposer from the ZK switch. See [Configure op-zk-proposer](/chain-operators/guides/configuration/zk-proposer). |
+
 * To issue SDM rebates after activation, follow the [SDM operator guide](/chain-operators/guides/features/sequencer-defined-metering).
 * Lagoon is scheduled per chain in the superchain-registry and is not a superchain-wide default. Chains other than those named in this notice are not scheduled to activate Lagoon with Upgrade 22.
 
