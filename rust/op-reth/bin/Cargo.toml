@@ -24,6 +24,11 @@ reth-node-core.workspace = true
 reth-db.workspace = true
 
 op-version.workspace = true
+kona-node.workspace = true
+
+alloy-chains.workspace = true
+
+clap = { workspace = true, features = ["derive", "env", "string"] }
 
 tracing.workspace = true
 eyre.workspace = true
@@ -61,6 +66,7 @@ tracy = [
 ]
 
 asm-keccak = [
+    "kona-node/asm-keccak",
     "reth-optimism-cli/asm-keccak",
     "reth-optimism-node/asm-keccak",
     "reth-node-core/asm-keccak",

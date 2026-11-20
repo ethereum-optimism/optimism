@@ -12,6 +12,8 @@ import (
 )
 
 type konaNodeStartConfig struct {
+	// InOpReth runs kona inside the L2 EL, which must be op-reth, instead of as a kona-node process.
+	InOpReth         bool
 	DependencySet    coredepset.DependencySet
 	L2CLConfig       *L2CLConfig
 	SequencerStopped bool
