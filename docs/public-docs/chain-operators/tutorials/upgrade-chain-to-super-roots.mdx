@@ -108,7 +108,7 @@ Update the running `op-challenger` for the chain. Keep `--rollup-rpc` and the ex
 | Add | `--superroot-rpc` (`OP_CHALLENGER_SUPERROOT_RPC`) | `$SUPER_ROOT_RPC` |
 | Append to | `--game-types` (`OP_CHALLENGER_GAME_TYPES`) | `super-cannon-kona`. Do not add `super-permissioned`; the simplified `SUPER_PERMISSIONED` game does not require claims to be posted. |
 | Confirm set | `--cannon-kona-prestates-url` (`OP_CHALLENGER_CANNON_KONA_PRESTATES_URL`) | The prestate-server URL you validated in the preconditions |
-| Confirm set | `--cannon-kona-network` (`OP_CHALLENGER_CANNON_KONA_NETWORK`) or `--cannon-kona-depset-config` (`OP_CHALLENGER_CANNON_KONA_DEPSET_CONFIG`) | One must be set so kona can resolve the dependency set for `SUPER_CANNON_KONA`. |
+| Confirm set | `--network` (`OP_CHALLENGER_NETWORK`), or all of `--cannon-kona-rollup-config` (`OP_CHALLENGER_CANNON_KONA_ROLLUP_CONFIG`), `--cannon-kona-l2-genesis` (`OP_CHALLENGER_CANNON_KONA_L2_GENESIS`) and `--cannon-kona-depset-config` (`OP_CHALLENGER_CANNON_KONA_DEPSET_CONFIG`) | op-challenger refuses to start `super-cannon-kona` unless kona can resolve the chain configuration and dependency set from one of these. |
 
 On a permissionless chain, confirm the startup log lists `super-cannon-kona` as registered and shows no connection errors against the single-chain super-root RPC endpoint. On a permissioned chain, confirm the existing trace types remain registered; do not configure a `SUPER_PERMISSIONED` trace type. `op-challenger` is still required on permissioned chains to update the `AnchorStateRegistry` as `SUPER_PERMISSIONED` games finalize.
 
