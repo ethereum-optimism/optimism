@@ -232,7 +232,7 @@ func TestLastStepCacheAccuracy(t *testing.T) {
 	require.NoError(t, err)
 	logger := testlog.Logger(t, log.LevelInfo)
 	vmCfg := vm.Config{
-		VmType:          gameTypes.CannonGameType,
+		VmType:          gameTypes.SuperCannonKonaGameType,
 		VmBin:           filepath.Join(monorepoRoot, "cannon/bin/cannon"),
 		InfoFreq:        10_000,
 		SnapshotFreq:    config.DefaultCannonSnapshotFreq,
@@ -241,8 +241,7 @@ func TestLastStepCacheAccuracy(t *testing.T) {
 	}
 	localInputs := utils.LocalGameInputs{
 		L1Head:           common.Hash{0x01},
-		L2Head:           common.Hash{0x02},
-		L2OutputRoot:     common.Hash{0x03},
+		AgreedPreState:   []byte{0x02}, // The kona super executor requires one. It isn't read because the server is /usr/bin/true.
 		L2Claim:          common.Hash{0x04},
 		L2SequenceNumber: big.NewInt(5),
 	}
@@ -260,7 +259,7 @@ func TestLastStepCacheAccuracy(t *testing.T) {
 			logger,
 			metrics.NoopMetrics.ToTypedVmMetrics("cannon"),
 			vmCfg,
-			vm.NewOpProgramServerExecutor(logger),
+			vm.NewKonaSuperExecutor(),
 			nil,
 			prestate,
 			localInputs,
