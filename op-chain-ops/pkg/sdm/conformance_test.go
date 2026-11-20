@@ -3,6 +3,7 @@ package sdm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -22,6 +23,19 @@ type conformanceRPC struct {
 	rawTx    hexutil.Bytes
 	receipts map[common.Hash]*RPCReceipt
 	replay   *ReplaySDMBlock
+	// Traces report receipt gasUsed unless overridden here, as on a node with settled replay.
+	blockTraceGas  map[common.Hash]uint64
+	blockTraceErr  map[common.Hash]string
+	txTraceGas     map[common.Hash]uint64
+	dropBlockTrace bool
+	traceRPCErr    map[string]error
+}
+
+func (f *conformanceRPC) tracedGas(hash common.Hash, overrides map[common.Hash]uint64) callFrameGas {
+	if gas, ok := overrides[hash]; ok {
+		return callFrameGas{GasUsed: hexutil.Uint64(gas)}
+	}
+	return callFrameGas{GasUsed: f.receipts[hash].GasUsed}
 }
 
 func (f *conformanceRPC) CallContext(_ context.Context, result any, method string, args ...any) error {
@@ -41,6 +55,30 @@ func (f *conformanceRPC) CallContext(_ context.Context, result any, method strin
 		value = f.receipts[hash]
 	case "debug_replaySDMBlock":
 		value = f.replay
+	case "debug_traceBlockByHash":
+		if err := f.traceRPCErr[method]; err != nil {
+			return err
+		}
+		if hash, ok := args[0].(common.Hash); !ok || hash != f.block.Hash {
+			return fmt.Errorf("traced block %v, want %s", args[0], f.block.Hash)
+		}
+		traces := make([]blockTraceResult, 0, len(f.block.Transactions))
+		for _, tx := range f.block.Transactions {
+			traces = append(traces, blockTraceResult{Result: f.tracedGas(tx.Hash, f.blockTraceGas), Error: f.blockTraceErr[tx.Hash]})
+		}
+		if f.dropBlockTrace {
+			traces = traces[:len(traces)-1]
+		}
+		value = traces
+	case "debug_traceTransaction":
+		if err := f.traceRPCErr[method]; err != nil {
+			return err
+		}
+		hash, ok := args[0].(common.Hash)
+		if !ok {
+			return fmt.Errorf("trace argument is %T", args[0])
+		}
+		value = f.tracedGas(hash, f.txTraceGas)
 	default:
 		return fmt.Errorf("unexpected method %s", method)
 	}
@@ -230,6 +268,19 @@ func TestValidatePostExecConformanceFailures(t *testing.T) {
 		{name: "replay canonical gas", mutate: func(f *conformanceRPC) { f.replay.Txs[1].CanonicalGasUsed = 94 }, want: "canonical gas 94, want receipt gasUsed 93 (" + replayCaveat + ")"},
 		{name: "replay deposit refund", mutate: func(f *conformanceRPC) { f.replay.Txs[0].RawGasUsed = 101 }, want: "deposit replay row 0"},
 		{name: "replay row raw gas", mutate: func(f *conformanceRPC) { f.replay.Txs[1].RawGasUsed = 101 }, want: "replay transaction 1 raw gas 101"},
+		{name: "block trace pre-refund gas", mutate: func(f *conformanceRPC) { f.blockTraceGas = map[common.Hash]uint64{f.block.Transactions[1].Hash: 100} }, want: "debug_traceBlockByHash transaction 1 gasUsed 100, want receipt gasUsed 93 (" + tracedGasCaveat + ")"},
+		{name: "block trace error", mutate: func(f *conformanceRPC) {
+			f.blockTraceErr = map[common.Hash]string{f.block.Transactions[1].Hash: "insufficient funds for gas * price + value"}
+		}, want: "debug_traceBlockByHash transaction 1: insufficient funds"},
+		{name: "block trace count", mutate: func(f *conformanceRPC) { f.dropBlockTrace = true }, want: "returned 2 traces, want 3"},
+		{name: "transaction trace pre-refund gas", mutate: func(f *conformanceRPC) { f.txTraceGas = map[common.Hash]uint64{f.block.Transactions[1].Hash: 100} }, want: "gasUsed 100, want receipt gasUsed 93 (" + tracedGasCaveat + ")"},
+		{name: "post-exec block trace gas", mutate: func(f *conformanceRPC) { f.blockTraceGas = map[common.Hash]uint64{f.block.Transactions[2].Hash: 1} }, want: "debug_traceBlockByHash transaction 2 gasUsed 1, want receipt gasUsed 0"},
+		{name: "block trace rpc error", mutate: func(f *conformanceRPC) {
+			f.traceRPCErr = map[string]error{"debug_traceBlockByHash": errors.New("method not found")}
+		}, want: "debug_traceBlockByHash(" + common.HexToHash("0xbeef").Hex() + "): method not found"},
+		{name: "transaction trace rpc error", mutate: func(f *conformanceRPC) {
+			f.traceRPCErr = map[string]error{"debug_traceTransaction": errors.New("method not found")}
+		}, want: "debug_traceTransaction(" + common.HexToHash("0x02").Hex() + "): method not found"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -249,6 +300,11 @@ func TestValidatePostExecConformanceAcceptsUntargetedTransaction(t *testing.T) {
 	fixture.replay.Summary.TxCountTotal = 3
 	_, err := ValidatePostExecConformance(context.Background(), fixture, 42)
 	require.NoError(t, err)
+
+	// A later transaction replayed without the earlier refund settled traces at different gas.
+	fixture.blockTraceGas = map[common.Hash]uint64{fixture.block.Transactions[2].Hash: 94}
+	_, err = ValidatePostExecConformance(context.Background(), fixture, 42)
+	require.ErrorContains(t, err, "debug_traceBlockByHash transaction 2 gasUsed 94, want receipt gasUsed 93")
 }
 
 func TestValidatePayloadEntries(t *testing.T) {
@@ -284,4 +340,9 @@ func TestValidateVerifierAgreement(t *testing.T) {
 	verifier.receipts[userHash].OPGasRefund = uint64Ptr(8)
 	err = ValidateVerifierAgreement(context.Background(), producer, verifier)
 	require.ErrorContains(t, err, "opGasRefund 8, want 7")
+
+	verifier = conformanceFixture(t)
+	verifier.txTraceGas = map[common.Hash]uint64{userHash: 100}
+	err = ValidateVerifierAgreement(context.Background(), producer, verifier)
+	require.ErrorContains(t, err, "verifier: debug_traceTransaction")
 }
