@@ -24,7 +24,7 @@ Upgrade 22 ships `op-contracts/v10.0.0` and activates the [Lagoon hardfork](/op-
 Lagoon turns on [interop](/op-stack/interop/explainer) between **OP Mainnet** and **Unichain**, with **OP Sepolia** and **Unichain Sepolia** as the testnet pair.
 **Ink** and **Soneium** (and Ink Sepolia and Soneium Minato) activate Lagoon at the same timestamps, without interop.
 Lagoon also enables [Sequencer Defined Metering](/op-stack/features/sdm), and Unichain will introduce a refund policy that makes swaps cheaper for users.
-Upgrade 22 also adds a ZK dispute game type, which OP Mainnet and Unichain plan to adopt as their respected game type shortly after activation.
+Upgrade 22 also adds the [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game), which OP Mainnet and Unichain plan to adopt as their respected game type shortly after activation.
 
 OP Mainnet and Unichain (and their Sepolia counterparts) are upgraded in two steps:
 
@@ -108,11 +108,18 @@ See the [`op-contracts/v10.0.0-rc.1` release notes](https://github.com/ethereum-
 
 ### ZK proofs on OP Mainnet and Unichain
 
-After Lagoon activates, OP Mainnet and Unichain are planned to move to the ZK dispute game (`ZK_DISPUTE_GAME`, game type `10`) as their respected game type.
-This is a separate step from the hardfork and the migration.
-Its dates and any required actions will be added to this notice before it happens.
+After Lagoon activates, OP Mainnet and Unichain are planned to move to the [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game) (`ZK_DISPUTE_GAME`, game type `10`) as their respected game type.
+This is a separate L1 upgrade from the hardfork and the migration.
+Its dates will be added to this notice before it happens.
+See the [ZK proofs explainer](/op-stack/zk-proofs/explainer) for how optimistic ZK proofs secure withdrawals.
 
-{/* TODO: add the ZK switch dates, the challenger configuration change for third-party challengers, and whether withdrawals proven against SUPER_CANNON_KONA games before the switch must be proven again. */}
+Withdrawals do not need to be proven again for the switch.
+Games created before it keep their original implementation and resolve as before, and withdrawals proven against them stay valid.
+
+Third-party `op-challenger` operators on OP Mainnet and Unichain add the `zk` game type when the switch executes and keep `super-cannon-kona` in `--game-types` until every earlier game has resolved.
+See [Configure op-challenger for ZK dispute games](/chain-operators/guides/configuration/zk-challenger) and [Migrate to ZK proofs](/chain-operators/tutorials/migrate-to-zk-proofs#verify-after-the-migration).
+
+{/* TODO: add the ZK switch dates and the op-challenger version that ships the zk game type. */}
 
 ## Required actions
 
