@@ -482,6 +482,9 @@ func L1BlockInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []b
 // L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
 func L1InfoDeposit(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, sysCfg eth.SystemConfig, seqNumber uint64, block eth.BlockInfo, l2Timestamp uint64) (*optypes.DepositTx, error) {
+	if block.BaseFee() == nil {
+		return nil, fmt.Errorf("L1 block %s has no base fee", eth.ToBlockID(block))
+	}
 	l1BlockInfo := L1BlockInfo{
 		Number:         block.NumberU64(),
 		Time:           block.Time(),
