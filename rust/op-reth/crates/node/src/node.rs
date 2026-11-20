@@ -5,7 +5,7 @@ use crate::{
     args::RollupArgs,
     derived_payload_service::DerivedPayloadServiceBuilder,
     engine::OpEngineValidator,
-    payload_service::OpPayloadServiceBuilder,
+    payload_service::{OpPayloadServiceBuilder, WithPayloadEvm},
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_consensus::BlockHeader;
@@ -338,6 +338,18 @@ impl OpNode {
     /// sharing the same handles.
     pub fn with_payload<Payload>(self, payload: Payload) -> CustomOpNode<OpPoolBuilder, Payload> {
         CustomOpNode::from(self).with_payload(payload)
+    }
+
+    /// Builds payloads with the EVM factory `evm_factory` instead of the node's EVM, which keeps
+    /// importing blocks; see [`WithPayloadEvm`].
+    ///
+    /// To also replace the payload service, call [`CustomOpNode::with_payload`] first: it discards
+    /// this override.
+    pub fn with_payload_evm<F>(
+        self,
+        evm_factory: F,
+    ) -> CustomOpNode<OpPoolBuilder, WithPayloadEvm<OpPayloadServiceBuilder, F>> {
+        CustomOpNode::from(self).with_payload_evm(evm_factory)
     }
 
     /// Returns [`OpAddOnsBuilder`] with configured arguments.
@@ -675,10 +687,12 @@ impl NodeTypes for OpNode {
     type Payload = OpEngineTypes;
 }
 
-/// An [`OpNode`] with a replaced transaction pool builder or payload service.
+/// An [`OpNode`] with a replaced transaction pool builder, payload service or payload-building
+/// EVM.
 ///
-/// [`OpNode::with_pool`] and [`OpNode::with_payload`] create it. It keeps the [`OpNode`] private,
-/// so the configuration the components were built from is the one the add-ons use.
+/// [`OpNode::with_pool`], [`OpNode::with_payload`] and [`OpNode::with_payload_evm`] create it. It
+/// keeps the [`OpNode`] private, so the configuration the components were built from is the one the
+/// add-ons use.
 #[derive(Debug, Clone)]
 pub struct CustomOpNode<Pool, Payload> {
     node: OpNode,
@@ -707,7 +721,23 @@ impl<Pool, Payload> CustomOpNode<Pool, Payload> {
     }
 
     /// Replaces the payload service, which the node wraps in [`DerivedPayloadServiceBuilder`].
+    ///
+    /// This also discards an earlier [`with_payload_evm`](Self::with_payload_evm).
     pub fn with_payload<NewPayload>(self, payload: NewPayload) -> CustomOpNode<Pool, NewPayload> {
+        CustomOpNode { node: self.node, pool: self.pool, payload }
+    }
+
+    /// Builds payloads with the EVM factory `evm_factory` instead of the node's EVM, which keeps
+    /// importing blocks: wraps the payload service in [`WithPayloadEvm`].
+    ///
+    /// Call it after [`with_payload`](Self::with_payload), which replaces the wrapped service, and
+    /// once: a second call does not compile, because [`WithPayloadEvm`] takes only the node's EVM
+    /// configuration.
+    pub fn with_payload_evm<F>(
+        self,
+        evm_factory: F,
+    ) -> CustomOpNode<Pool, WithPayloadEvm<Payload, F>> {
+        let payload = WithPayloadEvm::new(self.payload, evm_factory);
         CustomOpNode { node: self.node, pool: self.pool, payload }
     }
 
@@ -2100,8 +2130,8 @@ mod tests {
         }
     }
 
-    /// Only checks the bounds: a node with a replaced pool builder and payload service can be
-    /// launched. Nothing calls the launch, so it is not compiled.
+    /// Only checks the bounds: a node with a replaced pool builder, payload service or
+    /// payload-building EVM can be launched. Nothing calls the launch, so it is not compiled.
     #[test]
     fn custom_nodes_launch() {
         fn assert_launches<N: LaunchOpNode>(_: &N) {}
@@ -2111,7 +2141,11 @@ mod tests {
             .standard_pool_builder::<crate::txpool::OpPooledTransaction>()
             .with_validator_wrapper(OtherValidatorWrapper);
         let payload = BasicPayloadServiceBuilder::new(node.payload_builder());
-        assert_launches(&node.with_pool(pool).with_payload(payload));
+        assert_launches(&node.clone().with_pool(pool).with_payload(payload));
+
+        assert_launches(
+            &node.with_payload_evm(crate::payload_service::fixed_policy_evm_factory(None)),
+        );
     }
 
     #[test]

@@ -84,8 +84,9 @@ impl<Ext, Node> OpRethOverrides<Ext, Node> {
     /// launches, replacing any earlier `customize`.
     ///
     /// `customize` gets the node's config, the parsed `NewExt` and the [`OpNode`] op-reth built
-    /// from its own arguments. It returns the node to launch, which [`OpNode::with_pool`] and
-    /// [`OpNode::with_payload`] can derive, and the [`OpLaunchHooks`] to launch it with.
+    /// from its own arguments. It returns the node to launch, which [`OpNode::with_pool`],
+    /// [`OpNode::with_payload`] and [`OpNode::with_payload_evm`] can derive, and the
+    /// [`OpLaunchHooks`] to launch it with.
     ///
     /// The node launches through [`LaunchOpNode`], so the launch is compiled in the crate that
     /// calls this.
