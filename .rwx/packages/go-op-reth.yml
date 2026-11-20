@@ -1,0 +1,40 @@
+package:
+  parameters:
+    commit-sha:
+    cache-epoch:
+    build-probe:
+    target-cache-mode:
+tasks:
+  # The tool tasks in package.use carry the caller's checkout. The filter keeps it out of
+  # this task: the cache key then holds only the tools, the command and the commit, and
+  # the task checks that commit out itself. The checkout stays out of the filtered output,
+  # so a task that uses this build gets the build outputs and no other checkout.
+  - key: build
+    use: package.use
+    filter: [mise.toml, rust/target, .ci/rust-cache, .ci/go-tests/dependencies/op-reth]
+    run: |
+      git init -q .
+      git remote add origin https://github.com/ethereum-optimism/optimism.git
+      git fetch -q origin "$CI_COMMIT_SHA"
+      git checkout -qf FETCH_HEAD
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+      mise exec -- bash ops/ci/runtime/go-dependencies.sh op-reth
+    env:
+      CI_GO_REUSABLE_DEPENDENCY: "1"
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      BUILD_PROBE: ${{ params.build-probe }}
+      TARGET_CACHE_MODE: ${{ params.target-cache-mode }}
+    tool-cache: op-reth-release-${{ params.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/go-tests/dependencies/op-reth]
+          system: []
+      artifacts:
+        - key: dependency
+          path: .ci/go-tests/dependencies/op-reth

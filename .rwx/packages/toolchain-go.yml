@@ -1,0 +1,16 @@
+# Pinned Go tool layers; language installation remains separate from source and verdicts.
+package:
+  parameters:
+    mode:
+      required: true
+tasks:
+  - key: prepare
+    use: package.use
+    run: bash ops/ci/runtime/rwx-prepare.sh "$GO_TOOL_MODE"
+    env:
+      GO_TOOL_MODE: ${{ params.mode }}
+    # Without a filter the task has the whole checkout in its cache key and runs again for each
+    # commit. Each task that uses it, a dependency build included, then gets a new cache key too.
+    filter:
+      workspace: [mise.toml, ops/ci/runtime/rwx-prepare.sh]
+    timeout: 30m

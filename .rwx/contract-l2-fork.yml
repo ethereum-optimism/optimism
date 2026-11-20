@@ -1,0 +1,192 @@
+# OP Mainnet L2 fork tests and the NUT bundle check in an optional shadow; CircleCI keeps its gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: compile
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      cache-warm: "true"
+      cache-epoch: v1
+      fork-block: latest
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      cache-warm: "false"
+      cache-epoch: v1
+      fork-block: latest
+
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: go-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
+
+  - key: contract-tools
+    use: [bootstrap-inputs, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: compiler
+
+  # A dependency build checks out the commit that last changed its build inputs, so it
+  # is a cache hit for later commits and for the other workloads of the run.
+  - key: dependency-plan
+    use: code
+    run: python3 ops/ci/runtime/go-dependency-source.py plan
+    outputs:
+      filesystem: false
+
+  - key: go-modules
+    use: go-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/go-modules.yml
+    with:
+      commit-sha: ${{ tasks.dependency-plan.values.go-modules }}
+      branch: ${{ init.branch }}
+      cache-epoch: ${{ init.cache-epoch }}
+
+  - key: source
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+    timeout: 20m
+
+  - key: helper-tests
+    use: [code, tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
+    run: python3 -m unittest discover -s ops/ci/tests -p 'test_contract_l2_fork.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: compile
+    use: [source, go-tools, contract-tools, go-modules]
+    # As in packages/contracts-compile.yml: the files that the build reads.
+    filter: [mise.toml, go.mod, go.sum, cannon, 'op-*', packages/contracts-bedrock, ops/ci/runtime/ci-report.py, ops/ci/runtime/contract-upgrades.py, ops/ci/runtime/contract-l2-fork.py, ops/ci/runtime/rpc-pacer.py, .ci/go-cache/pr-checks/modules, .ci/go-cache/l2-fork/compile]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/l2-fork/compile"
+      python3 ops/ci/runtime/contract-l2-fork.py prepare
+    tool-cache: l2-fork-compiled-ci-${{ init.cache-epoch }}
+    timeout: 40m
+    runner:
+      cpus: 4
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/l2-fork/compile]
+          system: [/root/.svm, /home/*/.svm]
+      artifacts:
+        - key: reports
+          path: .ci/contract-l2-fork/prepare
+
+  - key: verdict
+    use: [source, go-tools, contract-tools, go-modules, compile]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/l2-fork/runtime"
+      python3 ops/ci/runtime/contract-l2-fork.py run --fork-block "$CI_L2_FORK_BLOCK"
+    env:
+      CI_L2_FORK_BLOCK: ${{ init.fork-block }}
+    cache: false
+    tool-cache: l2-fork-runtime-state-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/l2-fork/runtime]
+          system: [/root/.foundry/cache/rpc, /home/*/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-l2-fork/run/results.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-l2-fork/run
+
+  # Bind every complete Contracts prerequisite to fresh engine terminal states.
+  - key: contracts-gate-receipt
+    use: [code, tools]
+    after: ${{ (verdict.succeeded || verdict.failed || verdict.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt contracts-l2-fork
+    env:
+      GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
+      TASK_VERDICT_SUCCEEDED: ${{ tasks.verdict.succeeded }}
+      TASK_VERDICT_FAILED: ${{ tasks.verdict.failed }}
+      TASK_VERDICT_SKIPPED: ${{ tasks.verdict.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/contracts-l2-fork

@@ -1,0 +1,46 @@
+package:
+  parameters:
+    branch:
+      required: true
+    cache-key:
+      required: true
+    suite:
+      required: true
+    feature:
+      required: true
+tasks:
+  - key: run
+    use: package.use
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
+      python3 ops/ci/runtime/contract-suites.py run --suite "$CI_CONTRACT_SUITE" --feature "$CI_CONTRACT_FEATURE"
+    env:
+      CI_BRANCH: ${{ params.branch }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_CONTRACT_SUITE: ${{ params.suite }}
+      CI_CONTRACT_FEATURE: ${{ params.feature }}
+    cache: false
+    tool-cache: ${{ params.cache-key }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-suites-runtime/build]
+          system: []
+      test-results:
+        # `just test` writes one JUnit report per EVM pass: results-amsterdam.xml and results-l2.xml.
+        # RWX does not expand an expression in this path. This task has one suite's directory.
+        - path: .ci/contract-suites/*/run/results-*.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-suites/${{ params.suite }}-${{ params.feature }}/run

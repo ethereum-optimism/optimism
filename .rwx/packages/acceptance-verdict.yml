@@ -1,0 +1,51 @@
+# One node of CircleCI's op-acceptance-tests job. The memory-all jobs run it on
+# four nodes of 16 vCPU and 32 GiB (2xlarge.gen2).
+package:
+  parameters:
+    commit-sha:
+      required: true
+    branch:
+      required: true
+    shard-index:
+      required: true
+    cl-kind:
+      required: true
+    cache-key:
+      required: true
+tasks:
+  - key: run
+    use: package.use
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        python3 ops/ci/runtime/go-artifacts.py restore "$dependency" ".ci/go-tests/dependencies/$dependency"
+      done
+      mise exec -- bash ops/ci/runtime/acceptance-tests.sh
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CIRCLE_BRANCH: ${{ params.branch }}
+      CI_SHARD_INDEX: ${{ params.shard-index }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: ${{ params.cl-kind }}
+    cache: false
+    tool-cache: ${{ params.cache-key }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      # The recipe's own reports, which CircleCI stores with store_test_results
+      # and store_artifacts: one JUnit file for each test, and the run's logs.
+      test-results:
+        - path: op-acceptance-tests/results/results-*.xml
+      artifacts:
+        - key: logs
+          path: op-acceptance-tests/logs
+    # Keep the producer's module cache so tests do not refetch modules; exclude compiler state.
+    # Exclude no tracked file: go-artifacts.py restores a build of an older commit only into
+    # a checkout whose build inputs are unmodified.
+    filter: ['!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies', '!.ci/go-cache/acceptance/run', '!.ci/rust-cache', '!rust/target', '!packages/contracts-bedrock/cache', '!packages/contracts-bedrock/artifacts', '!packages/contracts-bedrock/forge-artifacts']

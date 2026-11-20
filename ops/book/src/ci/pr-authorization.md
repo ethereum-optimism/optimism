@@ -27,6 +27,13 @@ Note: Bailiff does not push to the source branch on the fork. It pushes to its o
 branch. It'll look like `external-fork/<sha256 hash>`. For this reason, **re-running CI jobs on the source branch
 will not work.** Instead, re-run the commit on the `external-fork` branch or push a new commit and re-authorize.
 
+An authorized commit runs with CI secrets. Bailiff's push starts CircleCI, and it also starts the optional RWX shadow
+(see `docs/ai/rwx-shadow-ci.md`), whose runs on an `external-fork` branch can read a test-only vault of archive RPC URLs.
+Before you authorize, read the PR's changes to the files that decide what CI runs:
+
+- `.circleci/`, and the scripts and recipes that its jobs run.
+- `.rwx/` and `ops/ci/`. RWX reads its definitions from the pushed commit.
+
 Bailiff will post a PR status if it succeeded. That status looks like this:
 
 <img src="assets/bailiff.png">

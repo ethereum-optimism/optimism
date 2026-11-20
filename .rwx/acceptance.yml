@@ -1,0 +1,322 @@
+# CircleCI's memory-all acceptance jobs: op-node and kona-node, on four shards
+# each. CircleCI retains all required gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [go, contracts, kona, op-reth, prestate, sp1-executor, acceptance-tools]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      cache-warm: "true"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+
+# Shared cache baseline: only develop may write; PRs restore it read-only.
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  # The filtered bootstrap layer keeps the checkout's Git history out of
+  # reusable tools. Language toolchains are added only by their own workload.
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: go-build-tools
+    use: tools
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: contract-tools
+    use: [bootstrap-inputs, tools]
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: anvil
+
+  - key: rust-tools
+    use: [bootstrap-inputs, tools]
+    call: ${{ run.dir }}/packages/toolchain-rust.yml
+    with:
+      mode: release
+
+  - key: helper-tests
+    use: [code, go-build-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      mise exec -- python3 -m unittest discover -s ops/ci/tests -p 'test_acceptance*.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: source
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
+  # A dependency build checks out the commit that last changed its build inputs, so it
+  # is a cache hit for later commits and for the other workloads of the run.
+  - key: dependency-plan
+    use: code
+    run: python3 ops/ci/runtime/go-dependency-source.py plan
+    outputs:
+      filesystem: false
+
+  - key: go
+    use: go-build-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-go.yml
+    with:
+      commit-sha: ${{ tasks.dependency-plan.values.go }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: contracts
+    use: [go-build-tools, contract-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-contracts.yml
+    with:
+      commit-sha: ${{ tasks.dependency-plan.values.contracts }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: kona
+    use: rust-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-kona.yml
+    with:
+      commit-sha: ${{ tasks.dependency-plan.values.kona }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: op-reth
+    use: rust-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-op-reth.yml
+    with:
+      commit-sha: ${{ tasks.dependency-plan.values.op-reth }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: prestate
+    use: go-build-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-prestate.yml
+    with:
+      commit-sha: ${{ tasks.dependency-plan.values.prestate }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: sp1-executor
+    use: rust-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-sp1-executor.yml
+    with:
+      commit-sha: ${{ tasks.dependency-plan.values.sp1-executor }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: acceptance-tools
+    use: [go-build-tools, contract-tools]
+    filter: [mise.toml, ops/ci/runtime/apt-install.sh]
+    run: |
+      bash ops/ci/runtime/apt-install.sh --no-install-recommends eatmydata
+      mise install go:github.com/ethereum/go-ethereum/cmd/geth
+      printf '%s\n' "$(mise bin-paths | paste -sd: -):$PATH" >"$RWX_ENV/PATH"
+    timeout: 30m
+
+  # Each verdict task is one node of CircleCI's memory-all-opn-op-reth-fusaka
+  # or memory-all-kona-op-reth-fusaka job. Shard indexes 0 to 3 cover every test.
+  - key: verdict-opn-0
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/acceptance-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      shard-index: '0'
+      cl-kind: op-node
+      cache-key: acceptance-runtime-opn-0-${{ init.cache-epoch }}
+
+  - key: verdict-opn-1
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/acceptance-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      shard-index: '1'
+      cl-kind: op-node
+      cache-key: acceptance-runtime-opn-1-${{ init.cache-epoch }}
+
+  - key: verdict-opn-2
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/acceptance-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      shard-index: '2'
+      cl-kind: op-node
+      cache-key: acceptance-runtime-opn-2-${{ init.cache-epoch }}
+
+  - key: verdict-opn-3
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/acceptance-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      shard-index: '3'
+      cl-kind: op-node
+      cache-key: acceptance-runtime-opn-3-${{ init.cache-epoch }}
+
+  - key: verdict-kona-0
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/acceptance-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      shard-index: '0'
+      cl-kind: kona-node
+      cache-key: acceptance-runtime-kona-0-${{ init.cache-epoch }}
+
+  - key: verdict-kona-1
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/acceptance-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      shard-index: '1'
+      cl-kind: kona-node
+      cache-key: acceptance-runtime-kona-1-${{ init.cache-epoch }}
+
+  - key: verdict-kona-2
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/acceptance-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      shard-index: '2'
+      cl-kind: kona-node
+      cache-key: acceptance-runtime-kona-2-${{ init.cache-epoch }}
+
+  - key: verdict-kona-3
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/acceptance-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      shard-index: '3'
+      cl-kind: kona-node
+      cache-key: acceptance-runtime-kona-3-${{ init.cache-epoch }}
+
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (verdict-kona-0.succeeded || verdict-kona-0.failed || verdict-kona-0.skipped) && (verdict-kona-1.succeeded || verdict-kona-1.failed || verdict-kona-1.skipped) && (verdict-kona-2.succeeded || verdict-kona-2.failed || verdict-kona-2.skipped) && (verdict-kona-3.succeeded || verdict-kona-3.failed || verdict-kona-3.skipped) && (verdict-opn-0.succeeded || verdict-opn-0.failed || verdict-opn-0.skipped) && (verdict-opn-1.succeeded || verdict-opn-1.failed || verdict-opn-1.skipped) && (verdict-opn-2.succeeded || verdict-opn-2.failed || verdict-opn-2.skipped) && (verdict-opn-3.succeeded || verdict-opn-3.failed || verdict-opn-3.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-acceptance
+    env:
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      TASK_VERDICT_KONA_0_SUCCEEDED: ${{ tasks.verdict-kona-0.succeeded }}
+      TASK_VERDICT_KONA_0_FAILED: ${{ tasks.verdict-kona-0.failed }}
+      TASK_VERDICT_KONA_0_SKIPPED: ${{ tasks.verdict-kona-0.skipped }}
+      TASK_VERDICT_KONA_1_SUCCEEDED: ${{ tasks.verdict-kona-1.succeeded }}
+      TASK_VERDICT_KONA_1_FAILED: ${{ tasks.verdict-kona-1.failed }}
+      TASK_VERDICT_KONA_1_SKIPPED: ${{ tasks.verdict-kona-1.skipped }}
+      TASK_VERDICT_KONA_2_SUCCEEDED: ${{ tasks.verdict-kona-2.succeeded }}
+      TASK_VERDICT_KONA_2_FAILED: ${{ tasks.verdict-kona-2.failed }}
+      TASK_VERDICT_KONA_2_SKIPPED: ${{ tasks.verdict-kona-2.skipped }}
+      TASK_VERDICT_KONA_3_SUCCEEDED: ${{ tasks.verdict-kona-3.succeeded }}
+      TASK_VERDICT_KONA_3_FAILED: ${{ tasks.verdict-kona-3.failed }}
+      TASK_VERDICT_KONA_3_SKIPPED: ${{ tasks.verdict-kona-3.skipped }}
+      TASK_VERDICT_OPN_0_SUCCEEDED: ${{ tasks.verdict-opn-0.succeeded }}
+      TASK_VERDICT_OPN_0_FAILED: ${{ tasks.verdict-opn-0.failed }}
+      TASK_VERDICT_OPN_0_SKIPPED: ${{ tasks.verdict-opn-0.skipped }}
+      TASK_VERDICT_OPN_1_SUCCEEDED: ${{ tasks.verdict-opn-1.succeeded }}
+      TASK_VERDICT_OPN_1_FAILED: ${{ tasks.verdict-opn-1.failed }}
+      TASK_VERDICT_OPN_1_SKIPPED: ${{ tasks.verdict-opn-1.skipped }}
+      TASK_VERDICT_OPN_2_SUCCEEDED: ${{ tasks.verdict-opn-2.succeeded }}
+      TASK_VERDICT_OPN_2_FAILED: ${{ tasks.verdict-opn-2.failed }}
+      TASK_VERDICT_OPN_2_SKIPPED: ${{ tasks.verdict-opn-2.skipped }}
+      TASK_VERDICT_OPN_3_SUCCEEDED: ${{ tasks.verdict-opn-3.succeeded }}
+      TASK_VERDICT_OPN_3_FAILED: ${{ tasks.verdict-opn-3.failed }}
+      TASK_VERDICT_OPN_3_SKIPPED: ${{ tasks.verdict-opn-3.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-acceptance

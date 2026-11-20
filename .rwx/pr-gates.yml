@@ -1,0 +1,367 @@
+# Optional shadow gates; CircleCI owns every required gate. Like CircleCI, every
+# branch push to this repository starts this run. Fork PRs cannot push here.
+on:
+  github:
+    push:
+      if: ${{ event.git.branch != '' }}
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+      status-checks:
+        default:
+          name: optimism-rwx-pr-coordinator
+        custom:
+          - name: optimism-rust-shadow
+            tasks: native-workspace
+          - name: optimism-op-reth-shadow
+            tasks: native-op-reth
+          - name: optimism-rust-gate-shadow
+            tasks: gate-status
+          - name: optimism-rust-e2e-shadow
+            tasks: native-rust-e2e
+          - name: optimism-rust-e2e-gate-shadow
+            tasks: rust-e2e-gate-status
+          - name: optimism-pr-checks-shadow
+            tasks: native-pr-checks
+          - name: optimism-go-tests-shadow
+            tasks: native-go
+          - name: optimism-acceptance-shadow
+            tasks: native-acceptance
+          - name: optimism-cannon-go-shadow
+            tasks: native-cannon
+          - name: optimism-nut-prefork-shadow
+            tasks: native-nut-prefork
+          - name: optimism-nut-provenance-shadow
+            tasks: native-nut-provenance
+          - name: optimism-sp1-guest-shadow
+            tasks: native-sp1
+          - name: optimism-kontrol-build-shadow
+            tasks: native-kontrol
+          - name: optimism-main-gate-shadow
+            tasks: main-gate-status
+          - name: optimism-contracts-shadow
+            tasks: native-contracts
+          - name: optimism-contract-upgrades-shadow
+            tasks: native-contract-upgrades
+          - name: optimism-contract-l2-fork-shadow
+            tasks: native-contract-l2-fork
+          - name: optimism-contracts-gate-shadow
+            tasks: contracts-gate-status
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+# A new push to a branch cancels the older run on that branch. develop runs every commit.
+concurrency-pools:
+  - id: ethereum-optimism/optimism:pr-gates:${{ init.branch }}
+    if: ${{ init.branch != 'develop' }}
+    capacity: 1
+    on-overflow: cancel-running
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_BRANCH: ${{ init.branch }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  # Unit tests for the shared ops/ci helpers. Each workload's helper-tests task
+  # runs that workload's tests with its toolchains. A change under .rwx/ or
+  # ops/ci/ selects every workload, so every ops/ci test runs on such a change;
+  # test_ci_layout.py fails when no RWX task runs a test file.
+  - key: ci-unit-tests
+    use: [code, tools]
+    run: |
+      python3 -m unittest discover -s ops/ci/tests -p 'test_pr_gate.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_local_packages.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_ci_report.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_ci_layout.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_metadata.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_circle_alignment.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_ci.py' -v
+      python3 ops/ci/migration/circle-alignment.py
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: native-workspace
+    call: ${{ run.dir }}/rust.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: v1
+
+  - key: native-op-reth
+    call: ${{ run.dir }}/op-reth.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+      codec-base-sha: ""
+
+  # RWX fails a custom status check when one of its tasks is skipped. This task
+  # has no `if:`; it reads the state of each receipt of the gate.
+  - key: gate-status
+    use: [code, tools]
+    after: ${{ (native-op-reth.succeeded || native-op-reth.failed || native-op-reth.skipped) && (native-workspace.succeeded || native-workspace.failed || native-workspace.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py status required-rust-ci
+    env:
+      GATE_SELECTED: ${{ tasks.route.values.run-rust-ci }}
+      GROUP_OP_RETH_RUST_SUCCEEDED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.succeeded }}
+      GROUP_OP_RETH_RUST_FAILED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.failed }}
+      GROUP_OP_RETH_RUST_SKIPPED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.skipped }}
+      GROUP_RUST_WORKSPACE_SUCCEEDED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.succeeded }}
+      GROUP_RUST_WORKSPACE_FAILED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.failed }}
+      GROUP_RUST_WORKSPACE_SKIPPED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/required-rust-ci
+
+  - key: native-rust-e2e
+    call: ${{ run.dir }}/rust-e2e.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+
+  # RWX fails a custom status check when one of its tasks is skipped. This task
+  # has no `if:`; it reads the state of each receipt of the gate.
+  - key: rust-e2e-gate-status
+    use: [code, tools]
+    after: ${{ (native-rust-e2e.succeeded || native-rust-e2e.failed || native-rust-e2e.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py status required-rust-e2e
+    env:
+      GATE_SELECTED: ${{ tasks.route.values.run-rust-e2e-ci }}
+      GROUP_RUST_E2E_SUCCEEDED: ${{ tasks.native-rust-e2e.tasks.rust-e2e-gate-receipt.succeeded }}
+      GROUP_RUST_E2E_FAILED: ${{ tasks.native-rust-e2e.tasks.rust-e2e-gate-receipt.failed }}
+      GROUP_RUST_E2E_SKIPPED: ${{ tasks.native-rust-e2e.tasks.rust-e2e-gate-receipt.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/required-rust-e2e
+
+  - key: native-pr-checks
+    call: ${{ run.dir }}/pr-checks.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-go
+    call: ${{ run.dir }}/go-tests.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      build-probe: ""
+      target-cache-mode: "keep"
+
+  - key: native-acceptance
+    call: ${{ run.dir }}/acceptance.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      build-probe: ""
+      target-cache-mode: "keep"
+
+  - key: native-cannon
+    call: ${{ run.dir }}/cannon-go.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-nut-prefork
+    call: ${{ run.dir }}/nut-prefork.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-nut-provenance
+    call: ${{ run.dir }}/nut-provenance.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-sp1
+    call: ${{ run.dir }}/sp1-guest.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      target-cache-mode: "keep"
+
+  - key: native-kontrol
+    call: ${{ run.dir }}/kontrol-build.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  # RWX fails a custom status check when one of its tasks is skipped. This task
+  # has no `if:`; it reads the state of each receipt of the gate.
+  - key: main-gate-status
+    use: [code, tools]
+    after: ${{ (native-acceptance.succeeded || native-acceptance.failed || native-acceptance.skipped) && (native-cannon.succeeded || native-cannon.failed || native-cannon.skipped) && (native-go.succeeded || native-go.failed || native-go.skipped) && (native-kontrol.succeeded || native-kontrol.failed || native-kontrol.skipped) && (native-nut-prefork.succeeded || native-nut-prefork.failed || native-nut-prefork.skipped) && (native-nut-provenance.succeeded || native-nut-provenance.failed || native-nut-provenance.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-sp1.succeeded || native-sp1.failed || native-sp1.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py status ci-gate
+    env:
+      GATE_SELECTED: ${{ tasks.route.values.run-main }}
+      GROUP_MAIN_ACCEPTANCE_SUCCEEDED: ${{ tasks.native-acceptance.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_ACCEPTANCE_FAILED: ${{ tasks.native-acceptance.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_ACCEPTANCE_SKIPPED: ${{ tasks.native-acceptance.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_CANNON_SUCCEEDED: ${{ tasks.native-cannon.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_CANNON_FAILED: ${{ tasks.native-cannon.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_CANNON_SKIPPED: ${{ tasks.native-cannon.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_GO_SUCCEEDED: ${{ tasks.native-go.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_GO_FAILED: ${{ tasks.native-go.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_GO_SKIPPED: ${{ tasks.native-go.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_KONTROL_SUCCEEDED: ${{ tasks.native-kontrol.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_KONTROL_FAILED: ${{ tasks.native-kontrol.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_KONTROL_SKIPPED: ${{ tasks.native-kontrol.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_NUT_PREFORK_SUCCEEDED: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_NUT_PREFORK_FAILED: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_NUT_PREFORK_SKIPPED: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_NUT_PROVENANCE_SUCCEEDED: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_NUT_PROVENANCE_FAILED: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_NUT_PROVENANCE_SKIPPED: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_SP1_SUCCEEDED: ${{ tasks.native-sp1.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_SP1_FAILED: ${{ tasks.native-sp1.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_SP1_SKIPPED: ${{ tasks.native-sp1.tasks.main-gate-receipt.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/ci-gate
+
+  # Contracts shares the existing fast-check child and executes all matrices once.
+  - key: native-contracts
+    call: ${{ run.dir }}/contracts.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-contract-upgrades
+    call: ${{ run.dir }}/contract-upgrades.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-contract-l2-fork
+    call: ${{ run.dir }}/contract-l2-fork.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      fork-block: "latest"
+
+  # RWX fails a custom status check when one of its tasks is skipped. This task
+  # has no `if:`; it reads the state of each receipt of the gate.
+  - key: contracts-gate-status
+    use: [code, tools]
+    after: ${{ (native-contract-l2-fork.succeeded || native-contract-l2-fork.failed || native-contract-l2-fork.skipped) && (native-contract-upgrades.succeeded || native-contract-upgrades.failed || native-contract-upgrades.skipped) && (native-contracts.succeeded || native-contracts.failed || native-contracts.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py status required-contracts-ci
+    env:
+      GATE_SELECTED: ${{ tasks.route.values.run-contracts }}
+      GROUP_CONTRACTS_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_L2_FORK_SUCCEEDED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_L2_FORK_FAILED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_L2_FORK_SKIPPED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_SUITES_SUCCEEDED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_SUITES_FAILED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_SUITES_SKIPPED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_UPGRADES_SUCCEEDED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_UPGRADES_FAILED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_UPGRADES_SKIPPED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/required-contracts-ci

@@ -1,0 +1,43 @@
+package:
+  parameters:
+    branch:
+      required: true
+    cache-key:
+      required: true
+    variant:
+      required: true
+tasks:
+  - key: run
+    use: package.use
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contracts-compile/build"
+      python3 ops/ci/runtime/contract-upgrades.py run --variant "$CI_CONTRACT_VARIANT"
+    env:
+      CI_BRANCH: ${{ params.branch }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      CI_CONTRACT_VARIANT: ${{ params.variant }}
+      # Fresh verdicts retain read-only access to protected fork-state caches.
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    tool-cache: ${{ params.cache-key }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: []
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        # RWX does not expand an expression in this path. This task has one variant's directory.
+        - path: .ci/contract-upgrades/*/run/results.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-upgrades/${{ params.variant }}/run
