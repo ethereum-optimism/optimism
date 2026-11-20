@@ -147,11 +147,12 @@ impl<F: ChainProvider + Send> Stage for PollingTraversal<F> {
         l1_origin: BlockNumHash,
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
-        let block_info = self
-            .data_source
-            .block_info_by_number_for_reset(l1_origin.number)
-            .await
-            .map_err(Into::into)?;
+        // Resolve the reset base by hash, as op-node does. A hash lookup is never delayed for
+        // confirmations. A base that was reorged out can still be served by hash, but the next
+        // origin's parent hash will not match it, which resets again.
+        let header = self.data_source.header_by_hash(l1_origin.hash).await.map_err(Into::into)?;
+        let block_info =
+            BlockInfo::new(l1_origin.hash, header.number, header.parent_hash, header.timestamp);
         self.update_origin(block_info);
         self.system_config = system_config;
         Ok(())
@@ -175,7 +176,7 @@ pub(crate) mod tests {
     };
     use alloc::vec;
     use alloy_consensus::Receipt;
-    use alloy_primitives::{Bytes, Log, LogData, address, b256};
+    use alloy_primitives::{B256, Bytes, Log, LogData, address, b256};
     use kona_genesis::CONFIG_UPDATE_TOPIC;
 
     #[test]
@@ -215,12 +216,31 @@ pub(crate) mod tests {
         let receipts = TraversalTestHelper::new_receipts();
         let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
         assert!(traversal.advance_origin().await.is_ok());
+        let header = alloy_consensus::Header {
+            number: 7,
+            parent_hash: B256::repeat_byte(1),
+            timestamp: 84,
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        traversal.data_source.insert_header(hash, header);
         let cfg = SystemConfig::default();
         traversal.done = true;
-        assert!(traversal.reset(BlockNumHash::default(), cfg).await.is_ok());
-        assert_eq!(traversal.origin(), Some(BlockInfo::default()));
+        assert!(traversal.reset(BlockNumHash { number: 7, hash }, cfg).await.is_ok());
+        assert_eq!(traversal.origin(), Some(BlockInfo::new(hash, 7, B256::repeat_byte(1), 84)));
         assert_eq!(traversal.system_config, cfg);
         assert!(!traversal.done);
+    }
+
+    #[tokio::test]
+    async fn test_l1_traversal_reset_to_unknown_hash_fails() {
+        // A reset base that was reorged out is resolved by hash, so it is not found.
+        let mut traversal = TraversalTestHelper::new_from_blocks(
+            vec![BlockInfo::default()],
+            TraversalTestHelper::new_receipts(),
+        );
+        let base = BlockNumHash { number: 0, hash: B256::repeat_byte(9) };
+        assert!(traversal.reset(base, SystemConfig::default()).await.is_err());
     }
 
     #[tokio::test]
