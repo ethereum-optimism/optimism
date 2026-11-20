@@ -1,20 +1,22 @@
 //! Metrics for the Gossip stack.
 
+use libp2p::gossipsub::TopicHash;
+
 /// Container for metrics.
 #[derive(Debug, Clone)]
 pub struct Metrics;
 
 impl Metrics {
-    /// Identifier for the gauge that tracks gossip events.
+    /// Identifier for the counter that tracks libp2p gossipsub events, by `type`.
+    ///
+    /// `message`, `subscribed` and `unsubscribed` also carry the `topic` the event is for. op-node
+    /// counts them in `op_node_default_p2p_gossip_events_total`.
     pub const GOSSIP_EVENT: &str = "kona_node_gossip_events";
-
-    /// Identifier for the gauge that tracks libp2p gossipsub events.
-    pub const GOSSIPSUB_EVENT: &str = "kona_node_gossipsub_events";
 
     /// Identifier for the counter that tracks libp2p gossipsub connections.
     pub const GOSSIPSUB_CONNECTION: &str = "kona_node_gossipsub_connection";
 
-    /// Identifier for the gauge that tracks unsafe blocks published.
+    /// Identifier for the counter that tracks unsafe blocks published.
     pub const UNSAFE_BLOCK_PUBLISHED: &str = "kona_node_unsafe_block_published";
 
     /// Identifier for the gauge that tracks the number of connected peers.
@@ -26,7 +28,9 @@ impl Metrics {
     /// Identifier for the counter that tracks the number of errors when dialing peers.
     pub const DIAL_PEER_ERROR: &str = "kona_node_dial_peer_error";
 
-    /// Identifier for a gauge that tracks the number of banned peers.
+    /// Identifier for the counter that tracks how many times a peer was banned for its score.
+    ///
+    /// Unlabelled: the banned peer and its score are in the ban's log line.
     pub const BANNED_PEERS: &str = "kona_node_banned_peers";
 
     /// Identifier for a histogram that tracks peer scores.
@@ -89,13 +93,13 @@ impl Metrics {
 
     /// Describes metrics used in [`kona_gossip`][crate].
     pub fn describe() {
-        metrics::describe_gauge!(
-            Self::GOSSIPSUB_EVENT,
-            "Events received by the libp2p gossipsub Swarm"
+        metrics::describe_counter!(
+            Self::GOSSIP_EVENT,
+            "Events received by the libp2p gossipsub Swarm, by type"
         );
         metrics::describe_counter!(Self::DIAL_PEER, "Number of peers dialed by the libp2p Swarm");
         metrics::describe_counter!(Self::DIAL_PEER_ERROR, "Number of errors when dialing peers");
-        metrics::describe_gauge!(
+        metrics::describe_counter!(
             Self::UNSAFE_BLOCK_PUBLISHED,
             "Number of execution payload envelopes gossiped out through the libp2p swarm"
         );
@@ -107,9 +111,9 @@ impl Metrics {
             Self::GOSSIPSUB_CONNECTION,
             "Connections made to the libp2p Swarm"
         );
-        metrics::describe_gauge!(
+        metrics::describe_counter!(
             Self::BANNED_PEERS,
-            "Number of peers banned by kona's gossip stack"
+            "Number of times kona's gossip stack banned a peer for its score"
         );
         metrics::describe_histogram!(
             Self::PEER_SCORES,
@@ -153,19 +157,35 @@ impl Metrics {
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
     pub fn zero() {
-        // Gossip Events
-        metrics::gauge!(Self::GOSSIP_EVENT, "type" => "message").set(0);
-        metrics::gauge!(Self::GOSSIP_EVENT, "type" => "subscribed").set(0);
-        metrics::gauge!(Self::GOSSIP_EVENT, "type" => "unsubscribed").set(0);
-        metrics::gauge!(Self::GOSSIP_EVENT, "type" => "slow_peer").set(0);
-        metrics::gauge!(Self::GOSSIP_EVENT, "type" => "not_supported").set(0);
+        // Gossip events without a topic. Those with one are zeroed by `zero_topics`, once the
+        // topics are known.
+        metrics::counter!(Self::GOSSIP_EVENT, "type" => "slow_peer").absolute(0);
+        metrics::counter!(Self::GOSSIP_EVENT, "type" => "not_supported").absolute(0);
 
         // Peer dials
         metrics::counter!(Self::DIAL_PEER).absolute(0);
-        metrics::counter!(Self::DIAL_PEER_ERROR).absolute(0);
+
+        // Dial errors, by the `type` they are recorded with
+        for kind in [
+            // Recorded by the driver
+            "invalid_enr",
+            "invalid_multiaddr",
+            "already_connected",
+            "connection_error",
+            // Recorded by the connection gater, see `DialError::reason`
+            "already_dialing",
+            "threshold_reached",
+            "blocked_peer",
+            "banned_peer",
+            "invalid_ip_address",
+            "blocked_address",
+            "blocked_subnet",
+        ] {
+            metrics::counter!(Self::DIAL_PEER_ERROR, "type" => kind).absolute(0);
+        }
 
         // Unsafe Blocks
-        metrics::gauge!(Self::UNSAFE_BLOCK_PUBLISHED).set(0);
+        metrics::counter!(Self::UNSAFE_BLOCK_PUBLISHED).absolute(0);
 
         // Peer Counts
         metrics::gauge!(Self::GOSSIP_PEER_COUNT).set(0);
@@ -176,15 +196,8 @@ impl Metrics {
         metrics::counter!(Self::GOSSIPSUB_CONNECTION, "type" => "incoming_error").absolute(0);
         metrics::counter!(Self::GOSSIPSUB_CONNECTION, "type" => "closed").absolute(0);
 
-        // Gossipsub Events
-        metrics::gauge!(Self::GOSSIPSUB_EVENT, "type" => "subscribed").set(0);
-        metrics::gauge!(Self::GOSSIPSUB_EVENT, "type" => "unsubscribed").set(0);
-        metrics::gauge!(Self::GOSSIPSUB_EVENT, "type" => "gossipsub_not_supported").set(0);
-        metrics::gauge!(Self::GOSSIPSUB_EVENT, "type" => "slow_peer").set(0);
-        metrics::gauge!(Self::GOSSIPSUB_EVENT, "type" => "message_received").set(0);
-
-        // Banned Peers
-        metrics::gauge!(Self::BANNED_PEERS).set(0);
+        // Peer bans
+        metrics::counter!(Self::BANNED_PEERS).absolute(0);
 
         // Block validation metrics
         metrics::counter!(Self::BLOCK_VALIDATION_TOTAL).absolute(0);
@@ -226,5 +239,76 @@ impl Metrics {
 
         // Malformed frames caught in the message-id function (per receipt, before dedup)
         metrics::counter!(Self::MESSAGE_ID_INVALID_SNAPPY).absolute(0);
+    }
+
+    /// Initializes the gossip events recorded with a `topic` label to `0`, for each of `topics`.
+    ///
+    /// The subscription filter only lets through the topics the node subscribes to, so these are
+    /// all the label sets that get recorded.
+    pub fn zero_topics(topics: &[TopicHash]) {
+        for topic in topics {
+            for kind in ["message", "subscribed", "unsubscribed"] {
+                metrics::counter!(Self::GOSSIP_EVENT, "type" => kind, "topic" => topic.to_string())
+                    .absolute(0);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
+
+    /// Runs `zero` and `zero_topics` for `topic`, and returns the series of `name` they create,
+    /// each as its sorted `key=value` labels, after checking it is a counter at 0.
+    fn zeroed_series(name: &str, topic: &TopicHash) -> Vec<String> {
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            Metrics::zero();
+            Metrics::zero_topics(std::slice::from_ref(topic));
+        });
+        let mut series: Vec<_> = snapshotter
+            .snapshot()
+            .into_vec()
+            .into_iter()
+            .filter(|(key, ..)| key.key().name() == name)
+            .map(|(key, _, _, value)| {
+                assert!(matches!(value, DebugValue::Counter(0)), "{key:?}: {value:?}");
+                let mut labels: Vec<_> =
+                    key.key().labels().map(|l| format!("{}={}", l.key(), l.value())).collect();
+                labels.sort();
+                labels.join(",")
+            })
+            .collect();
+        series.sort();
+        series
+    }
+
+    /// The gossip events are zeroed with the labels the driver records them with: a topic for
+    /// messages and (un)subscriptions, none for the others.
+    #[test]
+    fn test_gossip_events_zeroed_with_recorded_labels() {
+        let topic = TopicHash::from_raw("/optimism/10/0/blocks");
+        assert_eq!(
+            zeroed_series(Metrics::GOSSIP_EVENT, &topic),
+            [
+                "topic=/optimism/10/0/blocks,type=message",
+                "topic=/optimism/10/0/blocks,type=subscribed",
+                "topic=/optimism/10/0/blocks,type=unsubscribed",
+                "type=not_supported",
+                "type=slow_peer",
+            ]
+        );
+    }
+
+    /// Dial errors are only zeroed with a `type`, as they are always recorded with one.
+    #[test]
+    fn test_dial_errors_zeroed_with_a_type() {
+        let topic = TopicHash::from_raw("/optimism/10/0/blocks");
+        let series = zeroed_series(Metrics::DIAL_PEER_ERROR, &topic);
+        assert!(!series.is_empty());
+        assert!(series.iter().all(|labels| labels.starts_with("type=")), "{series:?}");
     }
 }

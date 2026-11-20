@@ -202,7 +202,7 @@ where
         let topic_hash = topic.hash();
         let data = self.handler.encode(topic, payload, signature)?;
         let id = self.swarm.behaviour_mut().gossipsub.publish(topic_hash, data)?;
-        metrics::gauge!(crate::Metrics::UNSAFE_BLOCK_PUBLISHED).increment(1);
+        metrics::counter!(crate::Metrics::UNSAFE_BLOCK_PUBLISHED).increment(1);
         Ok(id)
     }
 
@@ -400,12 +400,8 @@ where
     pub fn ban_peer(&mut self, peer_id: PeerId) {
         // The score that got the peer banned, read before the peer is disconnected.
         let score = self.peer_score(&peer_id);
-        metrics::gauge!(
-            crate::Metrics::BANNED_PEERS,
-            "peer_id" => peer_id.to_string(),
-            "score" => score.to_string()
-        )
-        .increment(1);
+        info!(target: "gossip", %peer_id, score, "Banning peer for its score");
+        metrics::counter!(crate::Metrics::BANNED_PEERS).increment(1);
         if let Some(monitoring) = &self.config.peer_monitoring {
             // A duration too long for the clock bans the peer for as long as the node runs.
             let now = Instant::now();
@@ -822,7 +818,7 @@ where
                 message,
             } => {
                 trace!(target: "gossip", "Received message with topic: {}", message.topic);
-                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "message", "topic" => message.topic.to_string()).increment(1);
+                metrics::counter!(crate::Metrics::GOSSIP_EVENT, "type" => "message", "topic" => message.topic.to_string()).increment(1);
                 if self.handler.topics().contains(&message.topic) {
                     let (status, payload) = self.handler.handle(message);
                     _ = self
@@ -835,19 +831,19 @@ where
             }
             libp2p::gossipsub::Event::Subscribed { peer_id, topic } => {
                 trace!(target: "gossip", "Peer: {:?} subscribed to topic: {:?}", peer_id, topic);
-                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "subscribed", "topic" => topic.to_string()).increment(1);
+                metrics::counter!(crate::Metrics::GOSSIP_EVENT, "type" => "subscribed", "topic" => topic.to_string()).increment(1);
             }
             libp2p::gossipsub::Event::Unsubscribed { peer_id, topic } => {
                 trace!(target: "gossip", "Peer: {:?} unsubscribed from topic: {:?}", peer_id, topic);
-                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "unsubscribed", "topic" => topic.to_string()).increment(1);
+                metrics::counter!(crate::Metrics::GOSSIP_EVENT, "type" => "unsubscribed", "topic" => topic.to_string()).increment(1);
             }
             libp2p::gossipsub::Event::SlowPeer { peer_id, .. } => {
                 trace!(target: "gossip", "Slow peer: {:?}", peer_id);
-                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "slow_peer").increment(1);
+                metrics::counter!(crate::Metrics::GOSSIP_EVENT, "type" => "slow_peer").increment(1);
             }
             libp2p::gossipsub::Event::GossipsubNotSupported { peer_id } => {
                 trace!(target: "gossip", "Peer: {:?} does not support gossipsub", peer_id);
-                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "not_supported")
+                metrics::counter!(crate::Metrics::GOSSIP_EVENT, "type" => "not_supported")
                     .increment(1);
             }
         }
