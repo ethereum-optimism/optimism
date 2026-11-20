@@ -3858,12 +3858,15 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     ///         rejected.
     function test_migrate_oneChainAlreadyMigrated_reverts() public {
         _enableEthLockboxes();
+        IOPContractsManagerV2.ChainContracts memory chainContracts3 = _deployChainForMigration(1000003);
+        _enableEthLockbox(chainContracts3);
 
-        // Migrate chain 2 on its own.
+        // Migrate chain 2 together with chain 3, leaving chain 1 fresh.
         IOPContractsManagerMigrator.MigrateInput memory firstInput = _getDefaultMigrateInput();
-        ISystemConfig[] memory onlyChain2 = new ISystemConfig[](1);
-        onlyChain2[0] = chainContracts2.systemConfig;
-        firstInput.chainSystemConfigs = onlyChain2;
+        ISystemConfig[] memory chains2And3 = new ISystemConfig[](2);
+        chains2And3[0] = chainContracts2.systemConfig;
+        chains2And3[1] = chainContracts3.systemConfig;
+        firstInput.chainSystemConfigs = chains2And3;
         _doMigration(firstInput);
 
         vm.warp(block.timestamp + 1);
@@ -3875,11 +3878,13 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    /// @notice A set member cannot clear INTEROP, so it cannot be re-migrated alone into a new set,
-    ///         which would drain the shared ETHLockbox and clear the shared DisputeGameFactory.
+    /// @notice A set member cannot clear INTEROP, so it cannot be re-migrated into a new set, which
+    ///         would drain the shared ETHLockbox and clear the shared DisputeGameFactory.
     function test_migrate_interopDisableAfterMigration_reverts() public {
         _enableEthLockboxes();
         _doMigration(_getDefaultMigrateInput());
+        IOPContractsManagerV2.ChainContracts memory chainContracts3 = _deployChainForMigration(1000003);
+        _enableEthLockbox(chainContracts3);
 
         address proxyAdminOwner = chainContracts1.proxyAdmin.owner();
         vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
@@ -3888,10 +3893,12 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         vm.warp(block.timestamp + 12);
 
+        // Try to migrate chain 2 into a new set with a fresh chain 3.
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-        ISystemConfig[] memory onlyChain2 = new ISystemConfig[](1);
-        onlyChain2[0] = chainContracts2.systemConfig;
-        input.chainSystemConfigs = onlyChain2;
+        ISystemConfig[] memory chains2And3 = new ISystemConfig[](2);
+        chains2And3[0] = chainContracts2.systemConfig;
+        chains2And3[1] = chainContracts3.systemConfig;
+        input.chainSystemConfigs = chains2And3;
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainAlreadyMigrated.selector);
     }
 
@@ -3995,25 +4002,22 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainIdsNotAscending.selector);
     }
 
-    /// @notice Tests that a single-chain migration still rejects a zero l2ChainId. The
-    ///         strictly-ascending duplicate check is a no-op for N==1, but the non-zero check
-    ///         must still fire.
-    function test_migrate_singleChainZeroL2ChainId_reverts() public {
+    /// @notice Tests that the migration function reverts when only one chain is provided. An
+    ///         interop set needs at least two chains.
+    function test_migrate_singleChain_reverts() public {
+        _enableEthLockboxes();
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         ISystemConfig[] memory single = new ISystemConfig[](1);
         single[0] = input.chainSystemConfigs[0];
         input.chainSystemConfigs = single;
-
-        vm.mockCall(address(single[0]), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(uint256(0)));
-
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ZeroL2ChainId.selector);
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_NotEnoughChains.selector);
     }
 
     /// @notice Tests that the migration function reverts when no chains are provided.
     function test_migrate_noChains_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         input.chainSystemConfigs = new ISystemConfig[](0);
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_NoChains.selector);
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_NotEnoughChains.selector);
     }
 
     /// @notice Tests that the migration function reverts when a chain uses a custom gas token.
