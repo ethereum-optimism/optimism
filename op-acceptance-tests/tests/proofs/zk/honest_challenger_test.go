@@ -121,7 +121,7 @@ func TestZK_HonestChallenger_ValidProposal_DefenderWins(gt *testing.T) {
 // invalid super-root proposal, challenges it, and — with no prover submitting a proof — resolves it
 // CHALLENGER_WINS. The challenger never proves; proving is the proposer's responsibility. The two
 // super-root sources share the decision body; the supernode subtest additionally proves the
-// challenger claims its credit and the invalid proposal never advances the anchor state.
+// challenger is paid out its credit and the invalid proposal never advances the anchor state.
 func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 	gt.Parallel()
 	gt.Run("op-node", func(gt *testing.T) {
@@ -137,9 +137,14 @@ func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 		anchorRoot, anchorSequence := registry.AnchorRoot()
 
 		game := honestChallengerBeatsInvalidProposal(t, sys)
-		// The challenger closes the invalid game and claims its credit once finality elapses.
+		// The challenger closes the invalid game and unlocks its credit once finality elapses,
+		// then withdraws it once the DelayedWETH delay elapses.
 		advanceL1To(sys, game.ResolvedAt()+uint64(presets.DefaultZKFinalityDelay/time.Second)+1)
-		game.WaitForClaimedCredit(zkChallengerAddress(t, sys.L2ChainA.ChainID()))
+		challenger := zkChallengerAddress(t, sys.L2ChainA.ChainID())
+		withdrawal := game.WaitForCreditUnlocked(challenger)
+		weth := sys.DisputeGameFactory().DelayedWETH(game.WETHAddress())
+		advanceL1To(sys, withdrawal.MaturesAt(weth.Delay()))
+		game.WaitForClaimedCredit(challenger)
 
 		// The invalid proposal must not advance the anchor state.
 		actualRoot, actualSequence := registry.AnchorRoot()
