@@ -3,9 +3,10 @@ use crate::{
     InvalidCrossTx, OpPooledTransaction,
     interop_filter::{CROSS_L2_INBOX_ADDRESS, InteropTxValidatorError},
 };
-use alloy_consensus::{SignableTransaction, TxEip1559, transaction::Recovered};
+use alloy_consensus::{Header, SignableTransaction, TxEip1559, transaction::Recovered};
 use alloy_eips::eip2930::{AccessList, AccessListItem};
 use alloy_primitives::{Address, B256, Signature, TxKind, U256};
+use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use op_alloy_rpc_types::SuperchainDAError;
 use reth_execution_types::{Chain, ExecutionOutcome};
 use reth_optimism_primitives::{OpBlock, OpPrimitives};
@@ -93,6 +94,20 @@ fn reorg_event() -> CanonStateNotification<OpPrimitives> {
 fn commit_event() -> CanonStateNotification<OpPrimitives> {
     let block: RecoveredBlock<OpBlock> = Default::default();
     let chain = Arc::new(Chain::new([block], ExecutionOutcome::default(), BTreeMap::new()));
+    CanonStateNotification::Commit { new: chain }
+}
+
+/// A commit notification whose new tip has the given number and timestamp.
+fn commit_at(number: u64, timestamp: u64) -> CanonStateNotification<OpPrimitives> {
+    let block = OpBlock {
+        header: Header { number, timestamp, ..Default::default() },
+        body: Default::default(),
+    };
+    let chain = Arc::new(Chain::new(
+        [RecoveredBlock::new_unhashed(block, vec![])],
+        ExecutionOutcome::default(),
+        BTreeMap::new(),
+    ));
     CanonStateNotification::Commit { new: chain }
 }
 
@@ -279,4 +294,42 @@ async fn sweep_retains_tx_on_transient_failure() {
         stale_interop_tx_survives_sweep(&filter, TransactionOrigin::External).await,
         "a transient/non-decisive verdict must NOT evict the tx"
     );
+}
+
+/// A block commit evicts a conditional tx whose bounds the new tip (block 5 at timestamp 100) has
+/// passed, and keeps one whose condition still holds. `eth_sendRawTransactionConditional` adds
+/// conditional txs with `Private` origin, which `pooled_transactions()` hides, so the sweep must
+/// reach those too.
+#[rstest]
+#[case::block_number_passed(
+    TransactionConditional { block_number_max: Some(4), ..Default::default() },
+    false
+)]
+#[case::timestamp_passed(
+    TransactionConditional { timestamp_max: Some(99), ..Default::default() },
+    false
+)]
+#[case::holds(
+    TransactionConditional {
+        block_number_max: Some(6),
+        timestamp_max: Some(101),
+        ..Default::default()
+    },
+    true
+)]
+#[tokio::test(flavor = "multi_thread")]
+async fn commit_sweeps_conditional_tx(
+    #[case] conditional: TransactionConditional,
+    #[case] survives: bool,
+    #[values(TransactionOrigin::External, TransactionOrigin::Private)] origin: TransactionOrigin,
+) {
+    let pool = build_pool();
+    let tx = non_interop_pooled_tx().with_conditional(conditional);
+    let hash = *tx.hash();
+    pool.add_transaction(origin, tx).await.unwrap();
+
+    let events = futures_util::stream::iter(vec![commit_at(5, 100)]);
+    maintain_transaction_pool_conditional(pool.clone(), events).await;
+
+    assert_eq!(pool.get(&hash).is_some(), survives, "is the tx still pooled after the sweep");
 }
