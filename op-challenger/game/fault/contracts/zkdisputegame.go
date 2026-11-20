@@ -100,23 +100,35 @@ func (g *ZKDisputeGameContractLatest) IsClosed(ctx context.Context) (bool, error
 	return mode != types.UndecidedDistributionMode, nil
 }
 
+// GetCredit returns the recipient's credit or, once claimCredit has unlocked it, the amount still
+// pending withdrawal from DelayedWETH. ZKDisputeGame zeroes credit on unlock, so reporting only the
+// credit would hide the second claimCredit call that pays the withdrawal out.
 func (g *ZKDisputeGameContractLatest) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error) {
 	defer g.metrics.StartContractRequest("GetCredit")()
 	results, err := g.multiCaller.Call(ctx, rpcblock.Latest,
 		g.contract.Call(methodCredit, recipient),
-		g.contract.Call(methodStatus))
+		g.contract.Call(methodStatus),
+		g.contract.Call(methodWETH))
 	if err != nil {
 		return nil, gameTypes.GameStatusInProgress, err
 	}
-	if len(results) != 2 {
-		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("expected 2 results but got %v", len(results))
+	if len(results) != 3 {
+		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("expected 3 results but got %v", len(results))
 	}
 	credit := results[0].GetBigInt(0)
 	status, err := gameTypes.GameStatusFromUint8(results[1].GetUint8(0))
 	if err != nil {
 		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("invalid game status %v: %w", status, err)
 	}
-	return credit, status, nil
+	if credit.Sign() > 0 || status == gameTypes.GameStatusInProgress {
+		return credit, status, nil
+	}
+	delayedWETH := NewDelayedWETHContract(g.metrics, results[2].GetAddress(0), g.multiCaller)
+	withdrawals, err := delayedWETH.GetWithdrawals(ctx, rpcblock.Latest, g.contract.Addr(), recipient)
+	if err != nil {
+		return nil, gameTypes.GameStatusInProgress, fmt.Errorf("failed to load pending withdrawal: %w", err)
+	}
+	return withdrawals[0].Amount, status, nil
 }
 
 func (g *ZKDisputeGameContractLatest) ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error) {
