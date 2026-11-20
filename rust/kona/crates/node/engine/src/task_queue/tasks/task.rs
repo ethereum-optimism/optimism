@@ -221,6 +221,17 @@ impl Ord for EngineTask {
     }
 }
 
+/// Records a failed engine task under the same `type` label used to zero the counter, with the
+/// error severity as a separate `severity` label.
+fn record_task_failure(task: &'static str, severity: EngineTaskErrorSeverity) {
+    metrics::counter!(
+        crate::Metrics::ENGINE_TASK_FAILURE,
+        "type" => task,
+        "severity" => severity.to_string()
+    )
+    .increment(1);
+}
+
 #[async_trait]
 impl ExecutableEngineTask for EngineTask {
     type Output = ();
@@ -231,7 +242,7 @@ impl ExecutableEngineTask for EngineTask {
         // The queue retains failed work. Its owner schedules the next attempt so a dependency
         // outage cannot monopolize the actor or turn into a tight retry loop.
         if let Err(e) = self.execute_inner(state).await {
-            metrics::counter!(crate::Metrics::ENGINE_TASK_FAILURE, self.task_metrics_label() => e.severity().to_string()).increment(1);
+            record_task_failure(self.task_metrics_label(), e.severity());
             return Err(e);
         }
 
@@ -281,6 +292,24 @@ mod tests {
         for error in errors {
             assert_eq!(EngineTaskErrors::Consolidate(error).severity(), expected);
         }
+    }
+
+    #[test]
+    fn task_failure_is_recorded_under_type_and_severity_labels() {
+        let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
+        metrics::with_local_recorder(&recorder, || {
+            record_task_failure(crate::Metrics::FINALIZE_TASK_LABEL, EngineTaskErrorSeverity::Skip);
+        });
+
+        let rendered = handle.render();
+        let line = rendered
+            .lines()
+            .find(|l| l.starts_with(crate::Metrics::ENGINE_TASK_FAILURE))
+            .unwrap_or_else(|| panic!("failure counter not recorded:\n{rendered}"));
+        assert!(line.contains(r#"type="finalize""#), "missing type label: {line}");
+        assert!(line.contains(r#"severity="skip""#), "missing severity label: {line}");
+        assert!(line.ends_with(" 1"), "unexpected value: {line}");
     }
 
     /// Records the blocks the engine hands over after a successful import.
