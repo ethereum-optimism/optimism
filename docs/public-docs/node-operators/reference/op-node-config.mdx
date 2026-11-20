@@ -92,9 +92,9 @@ setup instructions.
 ### interop.*
 
 The `interop.*` flags configure OP Stack interop networks. Interop is a highly
-experimental feature; the flags apply only to interop-enabled networks. Do not
-enable the interop RPC (`--interop.rpc.addr`) if you do not run a supervisor
-service.
+experimental feature; the flags apply only to interop-enabled networks. The only
+flag in this group is `--interop.dependency-set` (`OP_NODE_INTEROP_DEPENDENCY_SET`),
+which points `op-node` at a JSON file with the interop dependency set.
 
 ### version
 
