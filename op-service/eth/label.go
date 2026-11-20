@@ -1,5 +1,7 @@
 package eth
 
+import "fmt"
+
 type BlockLabel string
 
 const (
@@ -22,4 +24,15 @@ func (label BlockLabel) Arg() any { return string(label) }
 
 func (BlockLabel) CheckID(id BlockID) error {
 	return nil
+}
+
+// CheckConfirmationLabel returns an error unless label is one that a confirmation depth can be counted from:
+// latest, safe or finalized. An empty label means latest.
+func CheckConfirmationLabel(label BlockLabel) error {
+	switch label {
+	case "", Unsafe, Safe, Finalized:
+		return nil
+	default:
+		return fmt.Errorf("block label %q is not one of %q, %q or %q", label, Unsafe, Safe, Finalized)
+	}
 }

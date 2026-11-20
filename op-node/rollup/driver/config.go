@@ -1,14 +1,20 @@
 package driver
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type Config struct {
 	// VerifierConfDepth is the distance to keep from the L1 head when reading L1 data for L2 derivation.
 	VerifierConfDepth uint64 `json:"verifier_conf_depth"`
+
+	// VerifierL1BlockTag is the L1 block (latest, safe or finalized) that VerifierConfDepth is counted from.
+	// An empty value means latest.
+	VerifierL1BlockTag eth.BlockLabel `json:"verifier_l1_block_tag,omitempty"`
 
 	// SequencerConfDepth is the distance to keep from the L1 head as origin when sequencing new L2 blocks.
 	// If this distance is too large, the sequencer may:
@@ -16,6 +22,11 @@ type Config struct {
 	// - not adopt a L1 origin that can be included on L1 within the allowed range (rollup.Config.SeqWindowSize)
 	// and thus fail to produce a block with anything more than deposits.
 	SequencerConfDepth uint64 `json:"sequencer_conf_depth"`
+
+	// SequencerL1BlockTag is the L1 block (latest or safe) that SequencerConfDepth is counted from.
+	// An empty value means latest. Finalized is not supported: on Ethereum it can trail the head by more than
+	// rollup.Config.MaxSequencerDrift, and the sequencer stops producing blocks while its next origin is hidden.
+	SequencerL1BlockTag eth.BlockLabel `json:"sequencer_l1_block_tag,omitempty"`
 
 	// SequencerEnabled is true when the driver should sequence new blocks.
 	SequencerEnabled bool `json:"sequencer_enabled"`
@@ -34,4 +45,35 @@ type Config struct {
 
 	// Finalizer contains runtime configuration for finality behavior.
 	Finalizer *finality.Config `json:"finalizer,omitempty"`
+}
+
+// VerifierL1Label is the L1 block label that VerifierConfDepth is counted from.
+func (c *Config) VerifierL1Label() eth.BlockLabel {
+	return labelOrLatest(c.VerifierL1BlockTag)
+}
+
+// SequencerL1Label is the L1 block label that SequencerConfDepth is counted from.
+func (c *Config) SequencerL1Label() eth.BlockLabel {
+	return labelOrLatest(c.SequencerL1BlockTag)
+}
+
+func labelOrLatest(label eth.BlockLabel) eth.BlockLabel {
+	if label == "" {
+		return eth.Unsafe
+	}
+	return label
+}
+
+// Check verifies that the L1 block tags are supported.
+func (c *Config) Check() error {
+	if err := eth.CheckConfirmationLabel(c.VerifierL1BlockTag); err != nil {
+		return fmt.Errorf("invalid verifier L1 block tag: %w", err)
+	}
+	if err := eth.CheckConfirmationLabel(c.SequencerL1BlockTag); err != nil {
+		return fmt.Errorf("invalid sequencer L1 block tag: %w", err)
+	}
+	if c.SequencerL1BlockTag == eth.Finalized {
+		return fmt.Errorf("invalid sequencer L1 block tag: %q would exceed the max sequencer drift", eth.Finalized)
+	}
+	return nil
 }
