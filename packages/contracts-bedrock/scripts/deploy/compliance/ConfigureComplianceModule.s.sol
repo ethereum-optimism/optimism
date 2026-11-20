@@ -19,14 +19,14 @@ import { IVisionPolicyV1 } from "interfaces/compliance/IVisionPolicyV1.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
 /// @title ConfigureComplianceModule
-/// @notice Run by the temporary admin from DeployComplianceModule once the chain uses the module
-///         as its bridge hook. Deploys the policy, initializes the module with its final owner,
-///         the policy and the chain's addresses, then hands the proxy to its final admin. Until it
-///         runs, the Portal's deposits and withdrawal finalizations revert, so on an existing chain
-///         run it right after the upgrade that sets the hook.
+/// @notice Run by the temporary admin from DeployComplianceModule once the chain's Portal exists.
+///         Deploys the policy, initializes the module with its final owner, the policy and the
+///         chain's addresses, then hands the proxy to its final admin. While the Portal uses an
+///         unconfigured module as its hook, its deposits and withdrawal finalizations revert, so
+///         on an existing chain run it before the upgrade that sets the hook.
 contract ConfigureComplianceModule is Script {
     /// @notice Input for the configuration.
-    /// @custom:field module             The ComplianceModule proxy, the chain's bridge hook.
+    /// @custom:field module             The ComplianceModule proxy, to use as the chain's bridge hook.
     /// @custom:field moduleImpl         The ComplianceModule implementation.
     /// @custom:field portal             The chain's OptimismPortal. The bridge and messenger are
     ///                                  read from its SystemConfig.
@@ -108,8 +108,8 @@ contract ConfigureComplianceModule is Script {
         console.log("VisionPolicyV1:", address(policy_));
     }
 
-    /// @notice Asserts that the broadcaster controls the unconfigured module, that the chain uses
-    ///         it as its hook, and that custody stays separate from the chain's upgrade authority.
+    /// @notice Asserts that the broadcaster controls the unconfigured module and that custody stays
+    ///         separate from the chain's upgrade authority.
     /// @param _input The input parameters.
     function assertValidInput(Input memory _input) public {
         require(address(_input.module) != address(0), "ConfigureComplianceModule: module not set");
@@ -124,10 +124,6 @@ contract ConfigureComplianceModule is Script {
         require(
             IProxy(payable(address(_input.module))).admin() == msg.sender,
             "ConfigureComplianceModule: broadcaster is not the module admin"
-        );
-        require(
-            address(_input.portal.bridgeHook()) == address(_input.module),
-            "ConfigureComplianceModule: portal does not use the module as its bridge hook"
         );
 
         // The custody admin can take all held value, so it must be neither the chain's upgrade
