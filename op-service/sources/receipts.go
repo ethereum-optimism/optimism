@@ -56,6 +56,9 @@ func validateReceipts(block eth.BlockID, receiptHash common.Hash, txHashes []com
 			return fmt.Errorf("receipt %d has invalid gas used metadata: %d, expected %d", i, r.GasUsed, expected)
 		}
 		for j, log := range r.Logs {
+			if log == nil {
+				return fmt.Errorf("log %d of tx %d is nil", j, i)
+			}
 			if log.Index != logIndex {
 				return fmt.Errorf("log %d (%d of tx %d) has unexpected log index %d", logIndex, j, i, log.Index)
 			}

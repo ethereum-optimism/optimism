@@ -1,6 +1,7 @@
 package sources
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -583,6 +584,22 @@ func TestVerifyReceipts(t *testing.T) {
 		err := validateReceipts(block, receiptHash, txHashes, receipts)
 		require.ErrorContains(t, err, "must never be removed due to reorg")
 	})
+
+	t.Run("NilLog", func(t *testing.T) {
+		block, receiptHash, txHashes, receipts := validData()
+		receipts[2].Logs[0] = nil
+		err := validateReceipts(block, receiptHash, txHashes, receipts)
+		require.ErrorContains(t, err, "log 0 of tx 2 is nil")
+	})
+}
+
+func TestDecodeNullLogInReceipt(t *testing.T) {
+	data, err := json.Marshal(optypes.FromGethReceipts([]*types.Receipt{{Logs: []*types.Log{}}}))
+	require.NoError(t, err)
+	data = bytes.Replace(data, []byte(`"logs":[]`), []byte(`"logs":[null]`), 1)
+	var receipts optypes.Receipts
+	require.NoError(t, json.Unmarshal(data, &receipts), "a null log decodes without error")
+	require.Nil(t, receipts[0].Logs[0], "so validateReceipts must reject it")
 }
 
 func requireEqualReceipt(t *testing.T, exp, act *types.Receipt, msgAndArgs ...any) {

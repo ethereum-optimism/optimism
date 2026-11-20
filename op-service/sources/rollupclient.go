@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -27,14 +28,11 @@ func NewRollupClient(rpc client.RPC) *RollupClient {
 }
 
 func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
-	var output *eth.OutputResponse
-	err := r.rpc.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.Uint64(blockNum))
-	return output, err
+	return callNonNull[eth.OutputResponse](ctx, r.rpc, "optimism_outputAtBlock", hexutil.Uint64(blockNum))
 }
 
 func (r *RollupClient) SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (*eth.SafeHeadResponse, error) {
-	var output *eth.SafeHeadResponse
-	err := r.rpc.CallContext(ctx, &output, "optimism_safeHeadAtL1Block", hexutil.Uint64(blockNum))
+	output, err := callNonNull[eth.SafeHeadResponse](ctx, r.rpc, "optimism_safeHeadAtL1Block", hexutil.Uint64(blockNum))
 	if err != nil && strings.Contains(err.Error(), "not found") {
 		return nil, safedb.ErrNotFound
 	}
@@ -42,21 +40,19 @@ func (r *RollupClient) SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (
 }
 
 func (r *RollupClient) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	var output *eth.SyncStatus
-	err := r.rpc.CallContext(ctx, &output, "optimism_syncStatus")
-	return output, err
+	return callNonNull[eth.SyncStatus](ctx, r.rpc, "optimism_syncStatus")
 }
 
 func (r *RollupClient) RollupConfig(ctx context.Context) (*rollup.Config, error) {
-	var output *rollup.Config
-	err := r.rpc.CallContext(ctx, &output, "optimism_rollupConfig")
-	return output, err
+	return callNonNull[rollup.Config](ctx, r.rpc, "optimism_rollupConfig")
 }
 
 func (r *RollupClient) DependencySet(ctx context.Context) (depset.DependencySet, error) {
-	var output *depset.StaticConfigDependencySet
-	err := r.rpc.CallContext(ctx, &output, "optimism_dependencySet")
-	return output, err
+	output, err := callNonNull[depset.StaticConfigDependencySet](ctx, r.rpc, "optimism_dependencySet")
+	if err != nil {
+		return nil, err
+	}
+	return output, nil
 }
 
 func (r *RollupClient) Version(ctx context.Context) (string, error) {
@@ -105,4 +101,17 @@ func (r *RollupClient) SetRecoverMode(ctx context.Context, mode bool) error {
 
 func (r *RollupClient) Close() {
 	r.rpc.Close()
+}
+
+// callNonNull calls method and decodes its result, returning an error if the result is JSON
+// null. The methods using it never answer null on success: absence is reported as an error.
+func callNonNull[T any](ctx context.Context, rpc client.RPC, method string, args ...any) (*T, error) {
+	var out *T
+	if err := rpc.CallContext(ctx, &out, method, args...); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		return nil, fmt.Errorf("%s returned null", method)
+	}
+	return out, nil
 }
