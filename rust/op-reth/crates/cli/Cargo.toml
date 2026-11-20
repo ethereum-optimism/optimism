@@ -19,6 +19,7 @@ reth-db = { workspace = true, features = ["mdbx"] }
 reth-db-api.workspace = true
 reth-db-common.workspace = true
 reth-provider.workspace = true
+reth-prune-types.workspace = true
 reth-stages.workspace = true
 reth-node-core.workspace = true
 reth-optimism-node.workspace = true
@@ -44,6 +45,7 @@ reth-tracing.workspace = true
 alloy-consensus.workspace = true
 alloy-genesis.workspace = true
 alloy-primitives.workspace = true
+alloy-rlp.workspace = true
 
 # misc
 futures-util.workspace = true
@@ -53,12 +55,18 @@ clap = { workspace = true, features = ["derive", "env"] }
 
 tracing.workspace = true
 eyre.workspace = true
+zstd.workspace = true
+socket2.workspace = true
 
 # reth test-vectors
 proptest = { workspace = true, optional = true }
 op-alloy-consensus = { workspace = true, optional = true }
 
 [dev-dependencies]
+reth-db = { workspace = true, features = ["test-utils"] }
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-trie.workspace = true
+reth-trie-db.workspace = true
 dirs-next.workspace = true
 tempfile.workspace = true
 metrics-exporter-prometheus.workspace = true
@@ -110,4 +118,5 @@ serde = [
     "reth-optimism-primitives/serde",
     "reth-primitives-traits/serde",
     "reth-optimism-chainspec/serde",
+    "reth-prune-types/serde",
 ]

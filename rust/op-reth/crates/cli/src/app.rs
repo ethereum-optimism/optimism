@@ -96,6 +96,14 @@ where
                 let runtime = runner.runtime();
                 runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
             }
+            Commands::StateServer(command) => {
+                let runtime = runner.runtime();
+                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
+            }
+            Commands::SyncState(command) => {
+                let runtime = runner.runtime();
+                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
+            }
             Commands::DumpGenesis(command) => runner.run_blocking_until_ctrl_c(command.execute()),
             Commands::Db(command) => {
                 runner.run_blocking_command_until_exit(|ctx| command.execute::<OpNode>(ctx))

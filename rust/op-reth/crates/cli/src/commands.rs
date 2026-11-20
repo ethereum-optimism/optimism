@@ -12,6 +12,7 @@ use std::{fmt, sync::Arc};
 pub mod init_state;
 pub mod op_proofs;
 mod slot_preimages_seed;
+pub mod state_sync;
 
 #[cfg(feature = "dev")]
 pub mod test_vectors;
@@ -29,6 +30,12 @@ pub enum Commands<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + f
     /// Initialize the database from a state dump file.
     #[command(name = "init-state")]
     InitState(init_state::InitStateCommandOp<Spec>),
+    /// Serve the latest persisted state of this data directory to `sync-state`.
+    #[command(name = "state-server")]
+    StateServer(state_sync::server::StateServerCommand<Spec>),
+    /// Initialize an empty data directory with the latest persisted state of a `state-server`.
+    #[command(name = "sync-state")]
+    SyncState(state_sync::client::SyncStateCommand<Spec>),
     /// Dumps genesis block JSON configuration to stdout.
     DumpGenesis(dump_genesis::DumpGenesisCommand<Spec>),
     /// Database debugging utilities
@@ -69,6 +76,8 @@ impl<
             Self::Node(cmd) => cmd.chain_spec(),
             Self::Init(cmd) => cmd.chain_spec(),
             Self::InitState(cmd) => cmd.chain_spec(),
+            Self::StateServer(cmd) => cmd.chain_spec(),
+            Self::SyncState(cmd) => cmd.chain_spec(),
             Self::DumpGenesis(cmd) => cmd.chain_spec(),
             Self::Db(cmd) => cmd.chain_spec(),
             Self::Stage(cmd) => cmd.chain_spec(),

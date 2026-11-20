@@ -13844,6 +13844,7 @@ dependencies = [
  "alloy-consensus 2.5.0",
  "alloy-genesis",
  "alloy-primitives",
+ "alloy-rlp",
  "clap",
  "dirs-next",
  "eyre",
@@ -13870,14 +13871,19 @@ dependencies = [
  "reth-optimism-trie",
  "reth-primitives-traits",
  "reth-provider",
+ "reth-prune-types",
  "reth-rpc-server-types",
  "reth-stages",
  "reth-tasks",
  "reth-tracing",
+ "reth-trie",
+ "reth-trie-db",
  "serde",
  "serde_json",
+ "socket2",
  "tempfile",
  "tracing",
+ "zstd 0.14.3",
 ]
 
 [[package]]
