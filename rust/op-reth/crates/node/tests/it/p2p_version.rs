@@ -5,8 +5,8 @@
 //! version's behavior before we ship it, rather than silently inheriting a protocol
 //! change on the next reth bump.
 
+use crate::launcher::setup;
 use alloy_rpc_types_admin::EthPeerInfo;
-use reth_optimism_node::utils::setup;
 use reth_rpc_api::servers::AdminApiServer;
 use std::time::Duration;
 use tokio::time::{sleep, timeout};

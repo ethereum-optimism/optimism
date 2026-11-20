@@ -1,5 +1,6 @@
 //! Lagoon-at-genesis fixtures and SDM node helpers shared by the integration tests.
 
+use crate::launcher::{TestContext, launch};
 use alloy_genesis::Genesis;
 use alloy_network::eip2718::Encodable2718;
 use alloy_primitives::{B64, Bytes, TxKind};
@@ -15,9 +16,10 @@ use jsonrpsee::http_client::HttpClient;
 use op_alloy_consensus::encode_jovian_extra_data;
 use reth_chainspec::BaseFeeParams;
 use reth_e2e_test_utils::{
-    NodeHelperType, node::NodeTestContext, transaction::TransactionTestContext, wallet::Wallet,
+    node::NodeTestContext, transaction::TransactionTestContext, wallet::Wallet,
 };
-use reth_node_builder::{NodeBuilder, NodeHandle};
+use reth_node_api::FullNodeComponents;
+use reth_node_builder::{NodeHandle, rpc::RethRpcAddOns};
 use reth_node_core::{args::RpcServerArgs, node_config::NodeConfig};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_node::{OpNode, args::RollupArgs, utils::optimism_payload_attributes};
@@ -25,6 +27,7 @@ use reth_optimism_payload_builder::OpPayloadAttrs;
 use reth_rpc_server_types::RpcModuleSelection;
 use reth_tasks::Runtime;
 use std::sync::Arc;
+use tempfile::TempDir;
 
 /// Gas used by a plain transfer before the SDM refund.
 pub(crate) const TRANSFER_GAS: u64 = 21_000;
@@ -73,25 +76,25 @@ pub(crate) fn rpc_node_config(chain_spec: &Arc<OpChainSpec>) -> NodeConfig<OpCha
     )
 }
 
-/// Launches a node on `chain_spec` with [`rpc_node_config`].
+/// Launches a node on `chain_spec` with [`rpc_node_config`], storing its data in `datadir`.
 pub(crate) async fn launch_node(
     chain_spec: &Arc<OpChainSpec>,
     rollup_args: RollupArgs,
-) -> eyre::Result<NodeHelperType<OpNode>> {
-    launch_node_with_attributes(chain_spec, rollup_args, payload_attributes).await
+    datadir: &TempDir,
+) -> eyre::Result<TestContext> {
+    launch_node_with_attributes(chain_spec, rollup_args, datadir, payload_attributes).await
 }
 
 /// Like [`launch_node`], with the payload attributes supplied per block timestamp.
 pub(crate) async fn launch_node_with_attributes(
     chain_spec: &Arc<OpChainSpec>,
     rollup_args: RollupArgs,
+    datadir: &TempDir,
     attributes: impl Fn(u64) -> OpPayloadAttrs + Send + Sync + 'static,
-) -> eyre::Result<NodeHelperType<OpNode>> {
-    let NodeHandle { node, node_exit_future: _ } = NodeBuilder::new(rpc_node_config(chain_spec))
-        .testing_node(Runtime::test())
-        .node(OpNode::new(rollup_args))
-        .launch()
-        .await?;
+) -> eyre::Result<TestContext> {
+    let NodeHandle { node, node_exit_future: _ } =
+        launch(rpc_node_config(chain_spec), Runtime::test(), datadir, OpNode::new(rollup_args))
+            .await?;
     NodeTestContext::new(node, attributes).await
 }
 
@@ -105,7 +108,11 @@ pub(crate) fn sdm_rollup_args() -> RollupArgs {
 }
 
 /// The HTTP client of a node launched with [`rpc_node_config`].
-pub(crate) fn http_client(node: &NodeHelperType<OpNode>) -> HttpClient {
+pub(crate) fn http_client<Node, AddOns>(node: &NodeTestContext<Node, AddOns>) -> HttpClient
+where
+    Node: FullNodeComponents,
+    AddOns: RethRpcAddOns<Node>,
+{
     node.inner.add_ons_handle.rpc_server_handles().rpc.http_client().expect("HTTP RPC on")
 }
 

@@ -23,6 +23,7 @@ use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_node::args::RollupArgs;
 use reth_rpc_api::clients::DebugApiClient;
 use std::sync::Arc;
+use tempfile::TempDir;
 
 /// `debug_traceBlock` over a raw block that ends in a post-exec (0x7d) transaction returns one
 /// trace per transaction, including the post-exec one, with the payload's refund settled.
@@ -34,7 +35,8 @@ async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_sepolia().lagoon_activated().build());
-    let node = launch_node(&chain_spec, RollupArgs::default()).await?;
+    let datadir = TempDir::new()?;
+    let node = launch_node(&chain_spec, RollupArgs::default(), &datadir).await?;
     let client = http_client(&node);
     let block = raw_sdm_block(&chain_spec, 30_000_000)?;
 
@@ -64,7 +66,8 @@ async fn test_debug_trace_block_rejects_exhausted_budget() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_sepolia().lagoon_activated().build());
-    let node = launch_node(&chain_spec, RollupArgs::default()).await?;
+    let datadir = TempDir::new()?;
+    let node = launch_node(&chain_spec, RollupArgs::default(), &datadir).await?;
     let client = http_client(&node);
     let block = raw_sdm_block(&chain_spec, TRANSFER_GAS)?;
 

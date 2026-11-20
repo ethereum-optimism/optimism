@@ -1,22 +1,21 @@
 //! Tests that the pool a node builds knows the limits its payload builder works with.
 
+use crate::launcher::launch;
 use alloy_consensus::{SignableTransaction, TxEip1559, transaction::Recovered};
 use alloy_genesis::Genesis;
 use alloy_network::eip2718::Encodable2718;
 use alloy_primitives::{Address, Signature, TxKind};
-use reth_db::test_utils::create_test_rw_db_with_path;
-use reth_node_builder::{EngineNodeLauncher, Node, NodeBuilder, NodeConfig};
-use reth_node_core::args::DatadirArgs;
+use reth_node_builder::NodeConfig;
 use reth_optimism_chainspec::OpChainSpecBuilder;
 use reth_optimism_node::OpNode;
 use reth_optimism_primitives::OpTransactionSigned;
 use reth_optimism_txpool::OpPooledTransaction;
-use reth_provider::providers::BlockchainProvider;
 use reth_transaction_pool::{
     TransactionOrigin, TransactionPool,
     error::{InvalidPoolTransactionError, PoolErrorKind},
 };
 use std::sync::Arc;
+use tempfile::TempDir;
 
 /// The gas limit in the test chain's genesis, unlike reth's 30M default.
 const GENESIS_GAS_LIMIT: u64 = 20_000_000;
@@ -32,35 +31,12 @@ async fn pool_knows_the_node_limits() {
     let chain_spec = Arc::new(
         OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build(),
     );
-    let mut config =
-        NodeConfig::new(chain_spec).with_unused_ports().with_datadir_args(DatadirArgs {
-            datadir: reth_db::test_utils::tempdir_path().into(),
-            ..Default::default()
-        });
+    let mut config = NodeConfig::new(chain_spec).with_unused_ports();
     config.network.discovery.discv5_port = Some(0);
     config.network.discovery.discv5_port_ipv6 = Some(0);
-    let db = create_test_rw_db_with_path(
-        config
-            .datadir
-            .datadir
-            .unwrap_or_chain_default(config.chain.chain(), config.datadir.clone())
-            .db(),
-    );
     let op_node = OpNode::default();
-    let runtime = reth_tasks::Runtime::test();
-    let node_handle = NodeBuilder::new(config.clone())
-        .with_database(db)
-        .with_types_and_provider::<OpNode, BlockchainProvider<_>>()
-        .with_components(op_node.components())
-        .with_add_ons(op_node.add_ons())
-        .launch_with_fn(|builder| {
-            let launcher = EngineNodeLauncher::new(
-                runtime.clone(),
-                builder.config.datadir(),
-                Default::default(),
-            );
-            builder.launch_with(launcher)
-        })
+    let datadir = TempDir::new().unwrap();
+    let node_handle = launch(config, reth_tasks::Runtime::test(), &datadir, op_node.clone())
         .await
         .expect("Failed to launch node");
     let pool = &node_handle.node.pool;

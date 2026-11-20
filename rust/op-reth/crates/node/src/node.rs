@@ -9,7 +9,6 @@ use crate::{
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_consensus::BlockHeader;
-use eyre::ErrReport;
 use futures_util::FutureExt;
 use op_alloy_consensus::{OpPooledTransaction, interop::SafetyLevel};
 use reth_chainspec::{
@@ -405,9 +404,10 @@ type ExtendRpcModulesHook =
 /// Hook that [`OpLaunchHooks::on_node_started`] installs.
 type OnNodeStartedHook = Box<dyn FnOnce(&Runtime) + Send>;
 
-/// Hooks a binary that embeds op-reth adds to [`launch_node`].
+/// Hooks a binary that embeds op-reth adds to the launch of its node; see [`LaunchOpNode`].
 ///
-/// They take concrete types, so that [`launch_node`] stays non-generic.
+/// They take concrete types, so that `reth_optimism_node_launcher::launch_node` can stay
+/// non-generic.
 #[derive(Default)]
 pub struct OpLaunchHooks {
     extend_rpc_modules: Option<ExtendRpcModulesHook>,
@@ -451,19 +451,10 @@ impl std::fmt::Debug for OpLaunchHooks {
 ///
 /// Fails if the engine config enables state masking, which op-reth does not support.
 ///
-/// Not generic on purpose: a generic launch is compiled in its caller's crate and takes about
-/// 10 GB of memory to compile. A [`CustomOpNode`] launches through [`LaunchOpNode`] instead.
-pub async fn launch_node(
-    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
-    node: OpNode,
-    hooks: OpLaunchHooks,
-) -> eyre::Result<(), ErrReport> {
-    CustomOpNode::from(node).launch(builder, hooks).await
-}
-
-/// Launches a [`CustomOpNode`] the way [`launch_node`] launches an [`OpNode`].
-///
-/// The launch is compiled in the caller's crate, which takes about 10 GB of memory.
+/// The launch is generic, so it is compiled in the crate that launches a concrete node: rustc
+/// needs 12-16 GB of memory for it in a debug build. `reth_optimism_node_launcher` compiles it once
+/// for op-reth's own node, an [`OpNode`] converted with [`CustomOpNode::from`]. A binary that
+/// replaces components compiles it for its own [`CustomOpNode`].
 pub trait LaunchOpNode: Sized {
     /// Launches the node with `hooks`, then waits for it to exit.
     fn launch(

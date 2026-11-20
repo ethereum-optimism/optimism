@@ -8,12 +8,13 @@
 //! [configuration footguns]: https://github.com/ethereum-optimism/optimism/pull/21337
 //! [upstream issues]: https://github.com/paradigmxyz/reth/pull/25612
 
+use crate::launcher::launch;
 use alloy_primitives::{Address, Bytes, TxKind, U256};
 use alloy_rpc_types_eth::{
     Block, Header, Receipt, Transaction, TransactionInput, TransactionRequest,
 };
 use op_alloy_consensus::OpTxEnvelope;
-use reth_node_builder::{NodeBuilder, NodeHandle};
+use reth_node_builder::NodeHandle;
 use reth_node_core::{
     args::{NetworkArgs, RpcServerArgs},
     node_config::NodeConfig,
@@ -23,6 +24,7 @@ use reth_optimism_node::OpNode;
 use reth_rpc_api::clients::EthApiClient;
 use reth_tasks::Runtime;
 use revm::primitives::eip7825::TX_GAS_LIMIT_CAP;
+use tempfile::TempDir;
 
 /// Call `eth_estimateGas` over the given RPC client. Generic over the client so the (unnameable)
 /// jsonrpsee `HttpClient` type does not have to be spelled out; only the request type matters for
@@ -50,8 +52,9 @@ async fn test_estimate_gas_under_karst() -> eyre::Result<()> {
         .with_network(network_args)
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
+    let datadir = TempDir::new()?;
     let NodeHandle { node, node_exit_future: _ } =
-        NodeBuilder::new(node_config).testing_node(exec).node(OpNode::default()).launch().await?;
+        launch(node_config, exec, &datadir, OpNode::default()).await?;
     let client = node.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
 
     // The regression: a call with non-empty calldata (-> not a basic transfer) and no `gas` field.

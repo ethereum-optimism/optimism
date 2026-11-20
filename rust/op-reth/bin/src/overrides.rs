@@ -6,7 +6,7 @@ use reth_db::DatabaseEnv;
 use reth_node_builder::{NodeBuilder, WithLaunchContext};
 use reth_node_core::{node_config::NodeConfig, version::RethCliVersionConsts};
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_node::{LaunchOpNode, OpLaunchHooks, OpNode, args::RollupArgs, launch_node};
+use reth_optimism_node::{LaunchOpNode, OpLaunchHooks, OpNode, args::RollupArgs};
 use std::fmt;
 
 /// The arguments of the `node` command: op-reth's own, then those of the binary that embeds it.
@@ -64,8 +64,10 @@ impl OpRethOverrides {
                 async move { Ok((node, OpLaunchHooks::default())) }.boxed_local()
             }),
             // `launch_node` is not generic, so op-reth's own launch is compiled in
-            // `reth-optimism-node` rather than here.
-            launch: |builder, node, hooks| launch_node(builder, node, hooks).boxed_local(),
+            // `reth-optimism-node-launcher` rather than here.
+            launch: |builder, node, hooks| {
+                reth_optimism_node_launcher::launch_node(builder, node, hooks)
+            },
         }
     }
 }

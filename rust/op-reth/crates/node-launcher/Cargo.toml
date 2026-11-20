@@ -1,0 +1,21 @@
+[package]
+name = "reth-optimism-node-launcher"
+version = "2.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Non-generic launch of op-reth's own node"
+
+[lints]
+workspace = true
+
+[dependencies]
+reth-db.workspace = true
+reth-node-builder.workspace = true
+reth-optimism-chainspec.workspace = true
+reth-optimism-node.workspace = true
+
+eyre.workspace = true
+futures-util.workspace = true

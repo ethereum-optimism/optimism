@@ -14,6 +14,7 @@ reth-cli-commands.workspace = true
 reth-optimism-cli.workspace = true
 reth-optimism-rpc.workspace = true
 reth-optimism-node.workspace = true
+reth-optimism-node-launcher.workspace = true
 reth-optimism-chainspec.workspace = true
 reth-optimism-consensus.workspace = true
 reth-optimism-evm.workspace = true

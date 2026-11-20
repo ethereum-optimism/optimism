@@ -18,6 +18,7 @@ use reth_ethereum::{
     },
     rpc::api::eth::helpers::FullEthApi,
 };
+use reth_optimism_node_launcher::OpRethNode;
 use reth_tracing::tracing::info;
 use tokio::sync::oneshot;
 
@@ -103,14 +104,15 @@ fn main() -> eyre::Result<()> {
         reth_op::cli::Cli::parse_args().run(|builder, _| {
             let (rpc_handle_tx, rpc_handle_rx) = oneshot::channel();
             Box::pin(async move {
-                let handle = builder
-                    .node(reth_op::node::OpNode::default())
+                // op-reth's own node launches through its launcher crate, which compiles the
+                // launch once, so this example does not compile it again.
+                let builder = builder
+                    .node(OpRethNode::from(reth_op::node::OpNode::default()))
                     .install_exex("my-exex", async move |ctx| Ok(my_exex(ctx)))
                     .install_exex("ethapi-exex", async move |ctx| {
                         Ok(ethapi_exex(ctx, rpc_handle_rx))
-                    })
-                    .launch()
-                    .await?;
+                    });
+                let handle = reth_optimism_node_launcher::launch(builder).await?;
 
                 // Retrieve the rpc handle from the node and send it to the exex
                 rpc_handle_tx

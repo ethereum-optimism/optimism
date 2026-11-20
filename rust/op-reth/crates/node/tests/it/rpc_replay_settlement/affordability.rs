@@ -11,6 +11,7 @@ use alloy_rpc_types_trace::geth::GethTrace;
 use reth_chainspec::EthChainSpec;
 use reth_e2e_test_utils::wallet::Wallet;
 use reth_rpc_api::clients::DebugApiClient;
+use tempfile::TempDir;
 
 /// The sender starts with exactly the settled cost of the first deployment plus the second
 /// transaction's upfront `gas_limit * max_fee`, so the second transaction replays only if the
@@ -44,15 +45,17 @@ async fn later_transaction_affordability_depends_on_prior_refund() -> eyre::Resu
         .await;
         forced_transactions.push(signed);
     }
-    let mut node = launch_node_with_attributes(&chain_spec, sdm_rollup_args(), move |timestamp| {
-        let mut attributes = lagoon::payload_attributes(timestamp);
-        // The transactions are forced through attributes because the pool's balance check does
-        // not know about refunds and would reject the second one. Local sequencing (the default
-        // mode) produces the refunds; derived mode would only verify embedded ones.
-        attributes.0.transactions = Some(forced_transactions.clone());
-        attributes
-    })
-    .await?;
+    let datadir = TempDir::new()?;
+    let mut node =
+        launch_node_with_attributes(&chain_spec, sdm_rollup_args(), &datadir, move |timestamp| {
+            let mut attributes = lagoon::payload_attributes(timestamp);
+            // The transactions are forced through attributes because the pool's balance check does
+            // not know about refunds and would reject the second one. Local sequencing (the default
+            // mode) produces the refunds; derived mode would only verify embedded ones.
+            attributes.0.transactions = Some(forced_transactions.clone());
+            attributes
+        })
+        .await?;
     let payload = node.advance_block().await?;
     let block = payload.block();
     assert_eq!(block.body().transactions.len(), 3, "two deployments and the post-exec tx");

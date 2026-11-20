@@ -1,20 +1,20 @@
 //! Tests for custom genesis block number support.
 
+use crate::launcher::launch;
 use alloy_consensus::{BlockHeader, Sealable};
 use alloy_genesis::Genesis;
 use alloy_primitives::B256;
 use reth_chainspec::EthChainSpec;
-use reth_db::test_utils::create_test_rw_db_with_path;
 use reth_e2e_test_utils::{
     node::NodeTestContext, transaction::TransactionTestContext, wallet::Wallet,
 };
-use reth_node_builder::{EngineNodeLauncher, Node, NodeBuilder, NodeConfig};
-use reth_node_core::args::DatadirArgs;
+use reth_node_builder::NodeConfig;
 use reth_optimism_chainspec::OpChainSpecBuilder;
 use reth_optimism_node::{OpNode, utils::optimism_payload_attributes};
-use reth_provider::{HeaderProvider, StageCheckpointReader, providers::BlockchainProvider};
+use reth_provider::{HeaderProvider, StageCheckpointReader};
 use reth_stages_types::StageId;
 use std::sync::Arc;
+use tempfile::TempDir;
 use tokio::sync::Mutex;
 
 /// Tests that an OP node can initialize with a custom genesis block number.
@@ -37,31 +37,9 @@ async fn test_op_node_custom_genesis_number() {
     let wallet = Arc::new(Mutex::new(Wallet::default().with_chain_id(chain_spec.chain().into())));
 
     // Configure and launch the node
-    let config = NodeConfig::new(chain_spec.clone()).with_datadir_args(DatadirArgs {
-        datadir: reth_db::test_utils::tempdir_path().into(),
-        ..Default::default()
-    });
-    let db = create_test_rw_db_with_path(
-        config
-            .datadir
-            .datadir
-            .unwrap_or_chain_default(config.chain.chain(), config.datadir.clone())
-            .db(),
-    );
-    let runtime = reth_tasks::Runtime::test();
-    let node_handle = NodeBuilder::new(config.clone())
-        .with_database(db)
-        .with_types_and_provider::<OpNode, BlockchainProvider<_>>()
-        .with_components(OpNode::default().components())
-        .with_add_ons(OpNode::new(Default::default()).add_ons())
-        .launch_with_fn(|builder| {
-            let launcher = EngineNodeLauncher::new(
-                runtime.clone(),
-                builder.config.datadir(),
-                Default::default(),
-            );
-            builder.launch_with(launcher)
-        })
+    let config = NodeConfig::new(chain_spec.clone());
+    let datadir = TempDir::new().unwrap();
+    let node_handle = launch(config, reth_tasks::Runtime::test(), &datadir, OpNode::default())
         .await
         .expect("Failed to launch node");
 

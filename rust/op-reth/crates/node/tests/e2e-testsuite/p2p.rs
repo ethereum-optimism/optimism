@@ -1,5 +1,9 @@
 use futures::StreamExt;
-use reth_optimism_node::utils::{advance_chain, setup};
+use reth_e2e_test_utils::E2ETestSetupBuilder;
+use reth_optimism_node::{
+    OpNode,
+    utils::{advance_chain, chain_spec, optimism_payload_attributes},
+};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -10,7 +14,10 @@ use tokio::sync::Mutex;
 async fn can_sync() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
-    let (mut nodes, wallet) = setup(3).await?;
+    let (mut nodes, wallet) = E2ETestSetupBuilder::<OpNode>::new(3, chain_spec())
+        .with_attributes_generator(optimism_payload_attributes)
+        .build()
+        .await?;
     let wallet = Arc::new(Mutex::new(wallet));
 
     let third_node = nodes.pop().unwrap();
