@@ -1,10 +1,9 @@
 //! OP Proofs management commands
 
 use clap::{Parser, Subcommand};
-use reth_chainspec::EthChainSpec;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::CliNodeTypes;
 use reth_node_metrics::recorder::install_prometheus_recorder;
+use reth_optimism_chainspec::OpChainSpec;
 use std::sync::Arc;
 
 pub mod backfill;
@@ -15,14 +14,14 @@ pub mod unwind;
 
 /// `op-reth op-proofs` command
 #[derive(Debug, Parser)]
-pub struct Command<C: ChainSpecParser> {
+pub struct Command {
     #[command(subcommand)]
-    command: Subcommands<C>,
+    command: Subcommands,
 }
 
-impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> Command<C> {
+impl Command {
     /// Execute `op-proofs` command
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -42,11 +41,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> Command<C> {
             Subcommands::Unwind(cmd) => cmd.execute::<N>(runtime).await,
         }
     }
-}
 
-impl<C: ChainSpecParser> Command<C> {
     /// Returns the underlying chain being used to run this command
-    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         match &self.command {
             Subcommands::Init(cmd) => cmd.chain_spec(),
             Subcommands::Backfill(cmd) => cmd.chain_spec(),
@@ -59,20 +56,20 @@ impl<C: ChainSpecParser> Command<C> {
 
 /// `op-reth op-proofs` subcommands
 #[derive(Debug, Subcommand)]
-pub enum Subcommands<C: ChainSpecParser> {
+pub enum Subcommands {
     /// Initialize the proofs storage with the current state of the chain
     #[command(name = "init")]
-    Init(init::InitCommand<C>),
+    Init(init::InitCommand),
     /// Backfill proofs history to an older earliest block
     #[command(name = "backfill")]
-    Backfill(backfill::BackfillCommand<C>),
+    Backfill(backfill::BackfillCommand),
     /// Prune old proof history to reclaim space
     #[command(name = "prune")]
-    Prune(prune::PruneCommand<C>),
+    Prune(prune::PruneCommand),
     /// Build or drop the trie-state snapshot
     #[command(name = "snapshot")]
-    Snapshot(snapshot::SnapshotCommand<C>),
+    Snapshot(snapshot::SnapshotCommand),
     /// Unwind the proofs storage to a specific block
     #[command(name = "unwind")]
-    Unwind(unwind::UnwindCommand<C>),
+    Unwind(unwind::UnwindCommand),
 }

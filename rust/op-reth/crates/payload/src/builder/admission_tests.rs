@@ -445,13 +445,7 @@ impl Env {
     }
 
     /// The payload builder's context, with the L1-info deposit in its attributes.
-    fn payload_ctx(
-        &self,
-    ) -> OpPayloadBuilderCtx<
-        OpEvmConfig<OpChainSpec, OpPrimitives>,
-        OpChainSpec,
-        OpPayloadBuilderAttributes<OpTransactionSigned>,
-    > {
+    fn payload_ctx(&self) -> OpPayloadBuilderCtx<OpEvmConfig> {
         let attributes = OpPayloadBuilderAttributes {
             timestamp: 2,
             gas_limit: Some(self.block_gas_limit),

@@ -3,7 +3,7 @@ use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadEnvelope};
 use reth_engine_primitives::ConsensusEngineHandle;
-use reth_optimism_payload_builder::OpPayloadTypes;
+use reth_optimism_payload_builder::OpEngineTypes;
 use reth_payload_primitives::{ExecutionPayload, PayloadTypes};
 use tracing::*;
 
@@ -15,7 +15,7 @@ use tracing::*;
 ///
 /// [`FlashBlockService`]: crate::FlashBlockService
 #[derive(Debug)]
-pub struct FlashBlockConsensusClient<P = OpPayloadTypes>
+pub struct FlashBlockConsensusClient<P = OpEngineTypes>
 where
     P: PayloadTypes,
 {
@@ -349,7 +349,7 @@ mod tests {
         #[test]
         fn test_new_creates_client() {
             let (engine_tx, _) = tokio::sync::mpsc::unbounded_channel();
-            let engine_handle = ConsensusEngineHandle::<OpPayloadTypes>::new(engine_tx);
+            let engine_handle = ConsensusEngineHandle::<OpEngineTypes>::new(engine_tx);
 
             let (_, sequence_rx) = broadcast::channel(1);
 

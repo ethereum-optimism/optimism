@@ -1,10 +1,10 @@
 //! Command that builds the OP proofs trie-state snapshot at a target block.
 
+use crate::chainspec::OpChainSpecParser;
 use clap::Parser;
-use reth_chainspec::EthChainSpec;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsHistoryStorageArgs;
 use reth_optimism_trie::{
     OpProofsProviderRO, OpProofsStore, SnapshotInitJob, db::MdbxProofsStorage,
@@ -15,9 +15,9 @@ use tracing::info;
 
 /// Builds the snapshot at `--target-block` (defaults to `earliest`) and marks it `Ready`.
 #[derive(Debug, Parser)]
-pub struct SnapshotInitCommand<C: ChainSpecParser> {
+pub struct SnapshotInitCommand {
     #[command(flatten)]
-    env: EnvironmentArgs<C>,
+    env: EnvironmentArgs<OpChainSpecParser>,
 
     /// Shared proofs-history storage flags (storage path + version).
     #[command(flatten)]
@@ -30,9 +30,9 @@ pub struct SnapshotInitCommand<C: ChainSpecParser> {
     pub target_block: Option<u64>,
 }
 
-impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotInitCommand<C> {
+impl SnapshotInitCommand {
     /// Execute [`SnapshotInitCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -78,11 +78,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotInitCommand<C> {
         );
         Ok(())
     }
-}
 
-impl<C: ChainSpecParser> SnapshotInitCommand<C> {
     /// Returns the underlying chain being used to run this command.
-    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         Some(&self.env.chain)
     }
 }
