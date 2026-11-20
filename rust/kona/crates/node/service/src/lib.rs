@@ -25,8 +25,8 @@ pub use actors::{
     NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient,
     NetworkHandler, NodeActor, OriginSelector, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
-    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor,
-    RpcActorError, RunningDiscovery, SealRequest, SequencerActor, SequencerActorError,
+    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetKind, ResetRequest,
+    RpcActor, RpcActorError, RunningDiscovery, SealRequest, SequencerActor, SequencerActorError,
     SequencerConfig, SequencerEngineClient, SignedPayload, SignerActor, SignerActorError,
     SyncStatusSource, SystemClock, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };

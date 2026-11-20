@@ -33,6 +33,22 @@ pub enum SyncStartError {
     /// Finalized block mismatch
     #[error("Finalized block mismatch. Expected {0}, Got {1}")]
     MismatchedFinalizedBlock(B256, B256),
+    /// The unsafe chain does not lead back to a block it must descend from.
+    #[error("Unsafe chain does not lead back to {expected}; found {found}")]
+    UnsafeChainMismatch {
+        /// The block the unsafe chain must descend from.
+        expected: B256,
+        /// The block the unsafe chain has at that height.
+        found: B256,
+    },
+    /// The unsafe head is below a block it must descend from.
+    #[error("Unsafe head {unsafe_head} is below block {floor}, which it must descend from")]
+    UnsafeHeadBelowFloor {
+        /// The unsafe head's number.
+        unsafe_head: u64,
+        /// The number of the block it must descend from.
+        floor: u64,
+    },
     /// The L1 RPC reported a head at or above a height, then served no block there.
     #[error("L1 block {number} is missing below the L1 head {l1_head}")]
     L1BlockMissing {

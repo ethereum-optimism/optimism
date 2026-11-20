@@ -193,7 +193,7 @@ async fn delegated_poll_during_el_sync_moves_safe_labels_and_skips_finalization(
     assert!(matches!(actor.step().await, Err(EngineError::ChannelClosed)));
 
     assert!(actor.engine.is_empty());
-    assert!(!actor.reset_pending);
+    assert!(actor.pending_reset.is_none());
     assert_eq!(state_rx.borrow().sync_state, expected_sync_state);
     l1.assert_finished();
     l2.assert_finished();
@@ -220,7 +220,10 @@ fn expect_reset_to_genesis(
 
 fn reset_request() -> (EngineActorRequest, mpsc::Receiver<kona_engine::EngineRequestResult<()>>) {
     let (result_tx, result_rx) = mpsc::channel(1);
-    (EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })), result_rx)
+    (
+        EngineActorRequest::Reset(Box::new(ResetRequest { result_tx, kind: ResetKind::Full })),
+        result_rx,
+    )
 }
 
 /// How the finalization target is identified: delegated derivation pins the hash, and
@@ -304,7 +307,7 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
         .unwrap();
     actor.step().await.unwrap();
     assert_eq!(actor.engine.len(), 1, "only the unsafe import may remain queued");
-    assert!(!actor.reset_pending);
+    assert!(actor.pending_reset.is_none());
     l2.expect("engine_newPayloadV2", PayloadStatus::from_status(PayloadStatusEnum::Valid));
     l2.expect_forkchoice_updated(
         forkchoice(unsafe_head, genesis, genesis),
@@ -323,7 +326,7 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
     requests.send(EngineActorRequest::ProcessSafeL2Signal(restored_safe.into())).await.unwrap();
     actor.step().await.unwrap();
     assert_eq!(actor.engine.len(), 1, "only the safe head update may remain queued");
-    assert!(!actor.reset_pending);
+    assert!(actor.pending_reset.is_none());
     assert_eq!(state_rx.borrow().sync_state.finalized_head(), genesis);
 
     // Once the safe head reaches the target, the repeated request finalizes it.
@@ -385,7 +388,7 @@ async fn skipped_finalization_keeps_the_actor_running_until_a_reset_forgets_it()
     time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
     assert_eq!(actor.last_skipped_task_error, first_skip);
 
-    actor.begin_reset();
+    actor.begin_reset(ResetKind::Full);
     assert_eq!(actor.last_skipped_task_error, None);
     l1.assert_finished();
     l2.assert_finished();

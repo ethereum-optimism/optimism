@@ -15,7 +15,7 @@ mod engine;
 pub use engine::{
     BuildRequest, CanonicalizeRequest, EngineActor, EngineActorRequest, EngineClientError,
     EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
-    QueuedEngineDerivationClient, ResetRequest, SealRequest,
+    QueuedEngineDerivationClient, ResetKind, ResetRequest, SealRequest,
 };
 
 mod rpc;
