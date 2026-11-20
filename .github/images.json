@@ -24,7 +24,11 @@
       "cache_key_files": [
         "rust/Cargo.lock"
       ],
-      "runner_profile": "large"
+      "runner_profile": "large",
+      "cargo_profile": {
+        "trusted": "maxperf",
+        "untrusted": "fast-build"
+      }
     },
     "kona-zkvm-canary": {
       "config": "melange/kona-zkvm-canary.yaml",
@@ -33,7 +37,11 @@
       "cache_key_files": [
         "rust/Cargo.lock"
       ],
-      "runner_profile": "large"
+      "runner_profile": "large",
+      "cargo_profile": {
+        "trusted": "maxperf",
+        "untrusted": "fast-build"
+      }
     },
     "op-zk-proposer-cuda": {
       "config": "melange/op-zk-proposer-cuda.yaml",
