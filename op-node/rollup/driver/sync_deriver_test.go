@@ -7,10 +7,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -110,4 +113,53 @@ func TestEngineConfirmedResetTruncatesAboveLocalSafe(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, l1(40), gotL1)
 	require.Equal(t, l2(80).ID(), gotSafe, "the entry for block 100 is removed")
+}
+
+// TestSyncStepRetriesFailedForkchoiceUpdate covers a derived block that was inserted
+// but whose forkchoice update timed out, e.g. while the EL executes a deep reorg onto
+// it. Derivation then stalls reading that block back from the EL, so no event triggers
+// another forkchoice update; the sync step must re-send it, and only while it is failing.
+func TestSyncStepRetriesFailedForkchoiceUpdate(t *testing.T) {
+	ctx := context.Background()
+	logger := testlog.Logger(t, log.LevelInfo)
+	cfg := &rollup.Config{Genesis: rollup.Genesis{L2Time: 1000}, BlockTime: 2}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	emitter.ExpectMaybeRun(func(ev event.Event) {})
+	ec := engine.NewEngineController(ctx, mockEngine, logger, metrics.NoopMetrics, cfg,
+		&sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter, nil)
+
+	finalized := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}
+	safe := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 80}
+	derived := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 81, ParentHash: safe.Hash}
+	ec.SetFinalizedHead(finalized)
+	ec.SetLocalSafeHead(safe)
+	ec.SetUnsafeHead(derived)
+
+	fc := &eth.ForkchoiceState{HeadBlockHash: derived.Hash, SafeBlockHash: safe.Hash, FinalizedBlockHash: finalized.Hash}
+	valid := &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}
+
+	// The update that makes the derived block canonical times out.
+	mockEngine.ExpectForkchoiceUpdate(fc, nil, nil, context.DeadlineExceeded)
+	ec.TryUpdateEngine(ctx)
+	mockEngine.AssertExpectations(t)
+
+	s := &SyncDeriver{
+		Engine:  ec,
+		SyncCfg: &sync.Config{SyncMode: sync.CLSync},
+		Config:  cfg,
+		Emitter: emitter,
+		Log:     logger,
+		Ctx:     ctx,
+	}
+
+	// The next sync step re-sends it.
+	mockEngine.ExpectForkchoiceUpdate(fc, nil, valid, nil)
+	s.SyncStep()
+	mockEngine.AssertExpectations(t)
+
+	// Once applied, sync steps send nothing more.
+	s.SyncStep()
+	mockEngine.AssertExpectations(t)
 }
