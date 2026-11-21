@@ -195,6 +195,12 @@ type simpleChainContainer struct {
 	verifierMu sync.RWMutex
 	verifier   activity.VerificationActivity
 	onReset    ResetCallback // Called when chain resets to notify activities
+
+	// finalizedL1 is the highest finalized L1 block any of this chain's virtual
+	// nodes has reported. It outlives the virtual node, which is replaced on every
+	// rewind and reports a zero finalized L1 until its first L1 finality poll.
+	finalizedL1Mu sync.Mutex
+	finalizedL1   eth.L1BlockRef
 }
 
 // Interface conformance assertions
