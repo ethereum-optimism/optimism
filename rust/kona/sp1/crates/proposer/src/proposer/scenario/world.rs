@@ -418,6 +418,11 @@ impl ScenarioGame {
         }
     }
 
+    pub(super) fn owned(mut self) -> Self {
+        self.creator = ScenarioWorld::proposer_address();
+        self
+    }
+
     pub(super) fn challenged(mut self) -> Self {
         self.proposal_status = ProposalStatus::Challenged;
         self
@@ -2451,6 +2456,8 @@ pub(super) fn scenario_config() -> ProposerConfig {
         factory_address: Address::ZERO,
         prestates_url: "file:///replaced-by-scenario-world".parse().unwrap(),
         proposal_interval_seconds: 1,
+        // One interval per game keeps planned timestamps on the fixed grid.
+        max_proposal_span_intervals: NonZeroU64::MIN,
         proposal_safety: ProposalSafety::Finalized,
         fetch_interval: 86_400,
         metrics_listen: MetricsListen::Disabled,
@@ -2491,6 +2498,7 @@ pub(super) fn scenario_config() -> ProposerConfig {
         local_cuda: Default::default(),
         log_path: crate::config::LogPath::Table,
         data_dir: None,
+        owned_creators: None,
     }
 }
 

@@ -143,9 +143,14 @@ pub struct ProposerConfig {
     /// setup.
     pub prestates_url: Url,
 
-    /// Minimum spacing, in seconds of super-root timestamps, between the
-    /// canonical head and a new proposal.
+    /// Spacing, in seconds of super-root timestamps, between the canonical head and a new
+    /// proposal; positive. A game built on the head spans one interval while the proposer keeps
+    /// up, plus any seconds a UUID-collision walk adds.
     pub proposal_interval_seconds: u64,
+
+    /// Longest span, in proposal intervals, of a game built on the head while the proposer
+    /// catches up from two or more intervals behind.
+    pub max_proposal_span_intervals: NonZeroU64,
 
     /// Safety level bounding the newest proposable timestamp.
     pub proposal_safety: ProposalSafety,
@@ -224,7 +229,7 @@ pub struct ProposerConfig {
     /// rejected at parse time: it would silently disable defense.
     pub max_concurrent_defense_tasks: NonZeroU64,
 
-    /// Prove every owned game while it is still unchallenged (fast finality).
+    /// Prove the signer's owned games while they are still unchallenged (fast finality).
     /// A proven game resolves as soon as its parent does, without waiting out
     /// `maxChallengeDuration`. Trades proof spend for finality latency.
     pub fast_finality_mode: bool,
@@ -246,6 +251,11 @@ pub struct ProposerConfig {
     /// Absent = they stay in memory. At startup the proposer creates it and removes the
     /// `collection-*` entries that a previous process left there.
     pub data_dir: Option<PathBuf>,
+
+    /// Addresses besides the signer whose games this proposer owns
+    /// (`OP_ZK_PROPOSER_OWNED_CREATORS`), such as a rotated-out signer whose games
+    /// still need defense. The signer is always owned and need not be listed.
+    pub owned_creators: Option<Vec<Address>>,
 }
 
 fn required_env(suffix: &str) -> Result<String> {
@@ -370,6 +380,12 @@ impl ProposerConfig {
             "{} must be positive (0 would time out every transaction immediately)",
             env_var("TX_CONFIRMATION_TIMEOUT")
         );
+        let proposal_interval_seconds = parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?;
+        anyhow::ensure!(
+            proposal_interval_seconds > 0,
+            "{} must be positive",
+            env_var("PROPOSAL_INTERVAL_SECONDS")
+        );
 
         let proof_provider_name = env_var("PROOF_PROVIDER");
         let proof_provider = env::var(&proof_provider_name)
@@ -398,7 +414,11 @@ impl ProposerConfig {
             superroot_rpcs,
             factory_address,
             prestates_url: parsed_required_env("PRESTATES_URL")?,
-            proposal_interval_seconds: parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?,
+            proposal_interval_seconds,
+            max_proposal_span_intervals: parsed_env_or(
+                "MAX_PROPOSAL_SPAN_INTERVALS",
+                NonZeroU64::new(4).expect("4 is non-zero"),
+            )?,
             proposal_safety: parsed_env_or("PROPOSAL_SAFETY", ProposalSafety::Finalized)?,
             fetch_interval: parsed_env_or("FETCH_INTERVAL", 30u64)?,
             metrics_listen: parsed_env_or("METRICS_PORT", MetricsListen::default())?,
@@ -434,8 +454,26 @@ impl ProposerConfig {
             local_cuda: LocalCudaConfig::from_env()?,
             log_path: parsed_env_or("LOG_PATH", LogPath::Table)?,
             data_dir: optional_env("DATA_DIR").map(PathBuf::from),
+            owned_creators: optional_env("OWNED_CREATORS")
+                .map(|list| {
+                    parse_address_list(&list)
+                        .with_context(|| format!("invalid {}", env_var("OWNED_CREATORS")))
+                })
+                .transpose()?,
         })
     }
+}
+
+fn parse_address_list(value: &str) -> Result<Vec<Address>> {
+    let mut addresses = Vec::new();
+    for entry in value.split(',').map(str::trim).filter(|entry| !entry.is_empty()) {
+        let address =
+            entry.parse::<Address>().map_err(|err| anyhow!("invalid address {entry}: {err}"))?;
+        anyhow::ensure!(!addresses.contains(&address), "duplicate address {address}");
+        addresses.push(address);
+    }
+    anyhow::ensure!(!addresses.is_empty(), "expected at least one address");
+    Ok(addresses)
 }
 
 fn parse_url_list(value: &str) -> Result<Vec<Url>> {
@@ -1220,6 +1258,29 @@ mod tests {
 
         #[test]
         #[serial]
+        fn owned_creators_parses_comma_list_and_rejects_bad_entries() {
+            clear_proposer_env();
+            set_required_mock_env();
+            assert_eq!(ProposerConfig::from_env(None).unwrap().owned_creators, None);
+
+            let first = Address::repeat_byte(0x11);
+            let second = Address::repeat_byte(0x22);
+            set_proposer_env("OWNED_CREATORS", &format!(" {first}, ,{second} "));
+            assert_eq!(
+                ProposerConfig::from_env(None).unwrap().owned_creators,
+                Some(vec![first, second])
+            );
+
+            for invalid in [format!("{first},{first}"), "0x1234".to_string(), " , ".to_string()] {
+                set_proposer_env("OWNED_CREATORS", &invalid);
+                let err = format!("{:#}", ProposerConfig::from_env(None).unwrap_err());
+                assert!(err.contains("invalid OP_ZK_PROPOSER_OWNED_CREATORS"), "{invalid}: {err}");
+            }
+            remove_proposer_env("OWNED_CREATORS");
+        }
+
+        #[test]
+        #[serial]
         fn from_env_requires_defend_path_vars() {
             clear_proposer_env();
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
@@ -1336,6 +1397,20 @@ mod tests {
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
             assert!(
                 err.contains("OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
+                "unexpected error: {err}"
+            );
+        }
+
+        /// A zero interval would plan every game at its parent's timestamp.
+        #[test]
+        #[serial]
+        fn zero_proposal_interval_is_rejected() {
+            clear_proposer_env();
+            set_required_mock_env();
+            set_proposer_env("PROPOSAL_INTERVAL_SECONDS", "0");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(
+                err.contains("OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS"),
                 "unexpected error: {err}"
             );
         }

@@ -3,7 +3,7 @@
 //!
 //! Ported from op-succinct's `fault-proof/src/proposer.rs` (@ 13716c2c),
 //! adapted for the super-root `ZKDisputeGame`: supernode-sourced claims,
-//! `parentIndex || superRootProof` extraData, prestate-based ownership, and
+//! `parentIndex || superRootProof` extraData, creator-plus-prestate ownership, and
 //! two-phase `DelayedWETH` bond claiming. The proving scheduler defends
 //! challenged games and, in fast finality mode, proves owned games while
 //! they are still unchallenged, via [`crate::proving`].
@@ -334,8 +334,9 @@ pub struct Game {
     /// Informational for the create path; the defend path selects the
     /// proving program by it.
     pub absolute_prestate: B256,
-    /// The game's creator address (`gameCreator()`), used to limit fast-finality
-    /// spend to games created by this proposer's signer.
+    /// The game's creator address (`gameCreator()`). Ownership starts here: only games whose
+    /// creator is the signer or listed in `OP_ZK_PROPOSER_OWNED_CREATORS` are extended,
+    /// validated, and defended (see `owns`).
     pub creator: Address,
     /// The game's own `DelayedWETH` address, from its immutable args. Bond
     /// reads and claims bind this address, not the currently registered one:
@@ -350,20 +351,21 @@ pub struct Game {
     pub disallowed: bool,
 }
 
-impl Game {
-    /// Returns true when the proposer owns this game's defense, resolution, and
-    /// claim lifecycle: its `absolutePrestate()` is in the known-prestates set
-    /// (artifacts loadable from `OP_ZK_PROPOSER_PRESTATES_URL`, proving keys not poisoned).
-    ///
-    /// Lifecycle ownership is prestate-based, not creator-based. Claims stay
-    /// credit-driven, so iterating foreign games costs nothing where the proposer
-    /// holds no credit. The fast-finality scan applies a separate creator filter
-    /// before spending on an unchallenged game. Games created before a prestate
-    /// rotation stay owned because sync loads the prestate of every cached game,
-    /// not just the registered one.
-    pub fn is_owned(&self, known_prestates: &HashSet<B256>) -> bool {
-        known_prestates.contains(&self.absolute_prestate)
-    }
+/// Whether the proposer owns a game's defense and resolution: its creator is in the
+/// owned-creator set (the signer plus `OP_ZK_PROPOSER_OWNED_CREATORS`) and its
+/// `absolutePrestate()` is in the known-prestates set (artifacts loadable from
+/// `OP_ZK_PROPOSER_PRESTATES_URL`, proving keys not poisoned).
+///
+/// Claims are not gated by ownership: they stay credit-driven for the signer on every cached
+/// game. Head lineage, validation, and record retention use the creator alone, so an owned
+/// creator's game with an unloaded prestate still counts as ours there.
+fn owns(
+    creator: Address,
+    prestate: B256,
+    owned_creators: &HashSet<Address>,
+    known_prestates: &HashSet<B256>,
+) -> bool {
+    owned_creators.contains(&creator) && known_prestates.contains(&prestate)
 }
 
 impl From<&Game> for CompactGameSummary {
@@ -522,27 +524,34 @@ impl ProposerState {
         Some(chain)
     }
 
-    /// Whether a tracked record still needs `index` as ancestry: a cached child
-    /// below the registered anchor, a pending child, or a game ahead of the
-    /// anchor that may still gain a child.
+    /// Whether a tracked record still needs `index` as ancestry. This keeps every game ahead
+    /// of the registered anchor cached, so a game a third party later closes into the anchor
+    /// is already cached and does not force a factory rescan, and it keeps our lost game at
+    /// `head + interval` cached so creation can walk past its UUID instead of re-adopting it.
+    /// Below the anchor, only a cached or pending child keeps a record.
     fn has_ancestry_dependent(&self, index: U256, pending_parents: &HashSet<U256>) -> bool {
         let Some(game) = self.games.get(&index) else {
             return false;
         };
-        let anchor_index = self.anchor_game.as_ref().map(|anchor| anchor.index);
-        pending_parents.contains(&index) ||
-            self.games.values().any(|child| {
-                Some(child.index) != anchor_index && U256::from(child.parent_index) == index
-            }) ||
+        self.has_child(index, pending_parents) ||
             self.anchor_game
                 .as_ref()
                 .is_none_or(|anchor| game.l2_sequence_number > anchor.l2_sequence_number)
     }
 
+    /// Whether a cached game other than the anchor, or a pending game, names `index` as parent.
+    fn has_child(&self, index: U256, pending_parents: &HashSet<U256>) -> bool {
+        let anchor_index = self.anchor_game.as_ref().map(|anchor| anchor.index);
+        pending_parents.contains(&index) ||
+            self.games.values().any(|child| {
+                Some(child.index) != anchor_index && U256::from(child.parent_index) == index
+            })
+    }
+
     /// Challenged, in-progress games as defense candidates, sorted by prove
     /// deadline ascending (closest to expiring first). Ownership and
     /// per-game dedup are applied by the defense scan.
-    fn challenged_candidates(&self) -> Vec<(U256, Address, u64, B256, Address)> {
+    fn challenged_candidates(&self) -> Vec<(U256, Address, u64, B256, Address, Address)> {
         let mut candidates = self
             .games
             .values()
@@ -555,11 +564,12 @@ impl ProposerState {
                     game.address,
                     game.deadline,
                     game.absolute_prestate,
+                    game.creator,
                     game.anchor_state_registry,
                 )
             })
             .collect::<Vec<_>>();
-        candidates.sort_unstable_by_key(|(_, _, deadline, _, _)| *deadline);
+        candidates.sort_unstable_by_key(|(_, _, deadline, _, _, _)| *deadline);
         candidates
     }
 
@@ -601,71 +611,54 @@ impl ProposerState {
         removed_addresses
     }
 
-    /// Selects the canonical head: the highest-L2-timestamp game on the best valid chain.
-    ///
-    /// With no anchor, the head is simply the highest game in the cache. With an anchor, the head
-    /// is the highest descendant of the anchor, unless a higher chain branches off earlier
-    /// (genesis-rooted, or a lower parent index than the anchor head); that alternative chain is
-    /// then followed to its own tip.
-    fn select_canonical_head(&self) -> Option<Game> {
-        let Some(anchor_game) = self.anchor_game.as_ref() else {
-            return self
-                .games
-                .values()
-                .filter(|game| self.ancestry_eligible(game))
-                .max_by_key(|game| game.l2_sequence_number)
-                .cloned();
-        };
-
-        let reachable = self.descendants_of(anchor_game.index);
-
-        // Best among the anchor's descendants.
-        let anchor_head = self
-            .games
-            .values()
-            .filter(|g| reachable.contains(&g.index))
-            .filter(|game| self.ancestry_eligible(game))
-            .max_by_key(|g| g.l2_sequence_number)
-            .cloned();
-
-        // Override with a higher non-descendant chain that branches off earlier than the anchor
-        // head (genesis-rooted, or a lower parent index). Such a chain's root sits outside the
-        // anchor's subtree, so we follow each qualifying root to its own highest-block tip rather
-        // than stopping at the root; otherwise the head would pin to the root of a genesis-rooted
-        // catch-up chain and stall instead of tracking its tip.
-        let override_head = anchor_head.as_ref().and_then(|anchor| {
-            let roots: Vec<U256> = self
-                .games
-                .values()
-                .filter(|game| self.ancestry_eligible(game))
-                .filter(|g| {
-                    !reachable.contains(&g.index) &&
-                        g.l2_sequence_number > anchor.l2_sequence_number &&
-                        (g.parent_index == u32::MAX || g.parent_index < anchor.parent_index)
-                })
-                .map(|g| g.index)
-                .collect();
-
-            roots
-                .into_iter()
-                .flat_map(|root| self.descendants_of(root))
-                .filter_map(|idx| self.games.get(&idx))
-                .filter(|game| self.ancestry_eligible(game))
-                .max_by_key(|g| g.l2_sequence_number)
-                .cloned()
-        });
-
-        // Log when the head comes from a catch-up chain so operators can tell the proposer is
-        // recovering along a chain outside the anchor subtree.
-        if let Some(head) = override_head.as_ref() {
-            tracing::debug!(
-                head_index = %head.index,
-                head_l2_block = %head.l2_sequence_number,
-                "Canonical head selected from a catch-up chain outside the anchor subtree"
-            );
+    /// Whether every link from `game` down to the registered anchor, a `u32::MAX` root, or an
+    /// owned game that resolved `DefenderWins` has an owned creator. The anchor itself may be
+    /// foreign. A game resolves `DefenderWins` only after its parent did, so nothing below a won
+    /// link can still lose; the walk stops there, which keeps our chain when a third party moves
+    /// the anchor to its own game and our root has left the cache. A parent missing from the
+    /// cache above every won link fails closed, since it could be a foreign ancestor.
+    fn owned_lineage(&self, game: &Game, owned_creators: &HashSet<Address>) -> bool {
+        let anchor_index = self.anchor_game.as_ref().map(|anchor| anchor.index);
+        let mut link = game;
+        loop {
+            if Some(link.index) == anchor_index {
+                return true;
+            }
+            if !owned_creators.contains(&link.creator) {
+                return false;
+            }
+            if link.parent_index == u32::MAX || link.status == GameStatus::DefenderWins {
+                return true;
+            }
+            let parent_index = U256::from(link.parent_index);
+            // Factory indices are append-only, so ancestry must strictly decrease.
+            if parent_index >= link.index {
+                return false;
+            }
+            let Some(parent) = self.games.get(&parent_index) else {
+                return false;
+            };
+            link = parent;
         }
+    }
 
-        override_head.or(anchor_head)
+    /// Selects the canonical head: the highest-sequence head candidate, or the anchor when there
+    /// is none.
+    ///
+    /// A candidate is ancestry-eligible, has an [owned lineage](Self::owned_lineage), and with
+    /// an anchor cached sits above the anchor's sequence number (the contract requires
+    /// `parent.seq > anchor.seq`). With no anchor cached, the lineage walk cannot stop at an
+    /// anchor, so only owned root chains count.
+    fn select_canonical_head(&self, owned_creators: &HashSet<Address>) -> Option<Game> {
+        let anchor_sequence_number = self.anchor_game.as_ref().map(|a| a.l2_sequence_number);
+        self.games
+            .values()
+            .filter(|game| anchor_sequence_number.is_none_or(|seq| game.l2_sequence_number > seq))
+            .filter(|game| self.ancestry_eligible(game))
+            .filter(|game| self.owned_lineage(game, owned_creators))
+            .max_by_key(|game| game.l2_sequence_number)
+            .or(self.anchor_game.as_ref())
+            .cloned()
     }
 }
 
@@ -744,7 +737,6 @@ struct GameSyncTarget {
     anchor_state_registry: Address,
     absolute_prestate: B256,
     status: GameStatus,
-    ancestry_blocked: bool,
     creator: Address,
 }
 
@@ -755,6 +747,7 @@ enum GameSyncFacts {
         index: U256,
         lifecycle: GameLifecycle,
         parent_status: GameStatus,
+        /// [`owns`].
         owned: bool,
         proposer_created: bool,
     },
@@ -766,6 +759,7 @@ enum GameSyncFacts {
         lifecycle: GameLifecycle,
         bond: BondState,
         canonical_head_index: Option<U256>,
+        owned_creator: bool,
     },
 }
 
@@ -787,6 +781,9 @@ enum GameSyncAction {
     Remove {
         index: U256,
         lifecycle: GameLifecycle,
+        /// Whether a game ahead of the anchor stays cached as future ancestry (see
+        /// [`ProposerState::has_ancestry_dependent`]). False keeps it only for a cached child.
+        keep_ahead_of_anchor: bool,
     },
 }
 
@@ -817,10 +814,12 @@ fn classify_game_sync(
             };
             // Resolve only when it unlocks a bond we track:
             // - Owned winner: the parent won and this game won (unchallenged past its deadline, or
-            //   proven) under a prestate we defend, so its creator can claim.
-            // - Own game under an owned prestate: any resolvable outcome, so a lost game can be
-            //   closed (and refunded if disallowed before it closes).
-            // - Own disallowed game: under any prestate, to recover its refund-mode credit.
+            //   proven), and the game is ours ([`owns`]), so its creator can claim.
+            // - Signer-created owned game: any resolvable outcome, so a lost game can be closed
+            //   (and refunded if disallowed before it closes).
+            // - Signer-created disallowed game: under any prestate, to recover its refund-mode
+            //   credit.
+            // A foreign game is never resolved by us, even a winner.
             Ok(GameSyncAction::Update {
                 index,
                 lifecycle,
@@ -832,7 +831,28 @@ fn classify_game_sync(
                 retention: None,
             })
         }
-        GameSyncFacts::Resolved { index, game_address, lifecycle, bond, canonical_head_index } => {
+        GameSyncFacts::Resolved {
+            index,
+            game_address,
+            lifecycle,
+            bond,
+            canonical_head_index,
+            owned_creator,
+        } => {
+            // A foreign record other than the anchor leaves once the signer holds no credit in
+            // it: it is never closed by us. One that lost can never become the anchor, so only
+            // a cached child keeps it, even ahead of the anchor.
+            if !owned_creator &&
+                anchor_address != game_address &&
+                bond.claimable_credit(disallowed) == U256::ZERO &&
+                bond.withdrawal_amount == U256::ZERO
+            {
+                return Ok(GameSyncAction::Remove {
+                    index,
+                    lifecycle,
+                    keep_ahead_of_anchor: lifecycle.status != GameStatus::ChallengerWins,
+                });
+            }
             let withdrawal_ts = bond.withdrawal_timestamp.try_into().unwrap_or(u64::MAX);
             let weth_delay = bond.delay.try_into().context("DelayedWETH delay exceeds u64")?;
             let bond_action = bond_claim_action(
@@ -856,7 +876,11 @@ fn classify_game_sync(
                     (false, Some(GameSyncRetention::Anchor))
                 }
                 BondClaimAction::Done => {
-                    return Ok(GameSyncAction::Remove { index, lifecycle });
+                    return Ok(GameSyncAction::Remove {
+                        index,
+                        lifecycle,
+                        keep_ahead_of_anchor: true,
+                    });
                 }
             };
             Ok(GameSyncAction::Update {
@@ -902,8 +926,11 @@ pub struct Proposer {
     next_task_id: Arc<AtomicU64>,
     proof_retry_requested: Arc<AtomicBool>,
     state: Arc<RwLock<ProposerState>>,
-    /// Proposer identity for foreign-game filtering and hardfork safety.
+    /// Proposer identity for hardfork safety.
     pub identity: ProposerIdentity,
+    /// Creators whose games this proposer owns: the signer plus
+    /// `OP_ZK_PROPOSER_OWNED_CREATORS`.
+    owned_creators: Arc<HashSet<Address>>,
     /// Pinned L1 block and ancestry policy from the last successful full sync.
     last_successful_sync: Arc<RwLock<Option<LastSuccessfulSync>>>,
     /// Sequence number of the most recently created game. Used to prevent duplicate
@@ -1022,6 +1049,8 @@ impl Proposer {
     ) -> Result<Self> {
         let identity = ProposerIdentity::new();
         identity.log_startup_info(&config.prestates_url);
+        let mut owned_creators = HashSet::from([proposer_address]);
+        owned_creators.extend(config.owned_creators.iter().flatten().copied());
 
         Ok(Self {
             config,
@@ -1037,6 +1066,7 @@ impl Proposer {
             proof_retry_requested: Arc::new(AtomicBool::new(false)),
             state: Arc::new(RwLock::new(ProposerState::default())),
             identity,
+            owned_creators: Arc::new(owned_creators),
             last_successful_sync: Arc::new(RwLock::new(None)),
             last_created_game_l2_sequence_number: Arc::new(AtomicU64::new(0)),
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
@@ -1046,6 +1076,11 @@ impl Proposer {
             undefendable: Arc::new(Mutex::new(HashSet::new())),
             missed_deadlines: Arc::new(Mutex::new(HashSet::new())),
         })
+    }
+
+    /// Creators whose games this proposer owns: the signer plus `OP_ZK_PROPOSER_OWNED_CREATORS`.
+    pub fn owned_creators(&self) -> &HashSet<Address> {
+        &self.owned_creators
     }
 
     /// Registers process-wide SIGUSR1 recovery. Call before advertising readiness.
@@ -1395,26 +1430,29 @@ impl Proposer {
     ///
     /// 1. Discover new games: walk the factory backwards from the latest game to the cursor,
     ///    classifying each as valid / unsupported / invalid / pending, and stopping early once past
-    ///    the anchor's deadline-lag cutoff. A fetch failure aborts the sync cycle (the cursor is
-    ///    not advanced, so the range is re-walked next cycle). If the registered anchor is still
-    ///    missing after pending-game revalidation, read its type directly. An unsupported anchor
-    ///    permits only root creation and per-game proving; a supported missing anchor triggers one
-    ///    cache reset and rescan, failing the sync if it remains absent.
+    ///    the anchor's deadline-lag cutoff. Games from creators this proposer does not own (other
+    ///    than the registered anchor) are cached as trust-free records without validation. A fetch
+    ///    failure aborts the sync cycle (the cursor is not advanced, so the range is re-walked next
+    ///    cycle). If the registered anchor is still missing after pending-game revalidation, read
+    ///    its type directly. An unsupported anchor permits only root creation and per-game proving;
+    ///    a supported missing anchor triggers one cache reset and rescan, failing the sync if it
+    ///    remains absent.
     /// 2. Tombstone invalid games and their cached subtrees; cached records stay for lifecycle work
     ///    but cannot be extended or proven. Invalid games created by this proposer are kept.
-    /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
-    ///    super-root data, or an untrusted root mismatch or past-l1Head requirement); entries still
-    ///    pending past the anchor's deadline-lag cutoff are tombstoned unless their prestate is
-    ///    locally available. Cached descendants remain available for lifecycle work but cannot be
-    ///    extended or proven. A read failure while revalidating the registered anchor aborts the
-    ///    cycle without clearing the pending entry or cache.
-    /// 4. Synchronize cached game lifecycle and non-anchor own-registry standing. Blocked, locally
-    ///    unprovable foreign in-progress games use lifecycle-only polls. Apply actions: mark owned
-    ///    winners and resolvable proposer-created games (owned or disallowed) for resolution,
-    ///    tombstone the cached subtree below a newly lost game, mark finalized games for
-    ///    `claimCredit` to close them and claim normal or refund-mode credit, and remove closed,
-    ///    fully claimed games (keeping the anchor and canonical head). Per-game read failures skip
-    ///    only that game for the cycle.
+    /// 3. Re-validate pending games of owned creators (timestamps not yet safe from this node's
+    ///    view, unavailable super-root data, or an untrusted root mismatch or past-l1Head
+    ///    requirement); entries still pending past the anchor's deadline-lag cutoff are tombstoned
+    ///    unless owned ([`owns`]). Cached descendants remain available for lifecycle work but
+    ///    cannot be extended or proven. A read failure while revalidating the registered anchor
+    ///    aborts the cycle without clearing the pending entry or cache.
+    /// 4. Synchronize cached game lifecycle and non-anchor own-registry standing. Foreign records
+    ///    get lifecycle-only polls (no standing, parent, or prestate read). Apply actions: mark
+    ///    owned winners and resolvable proposer-created games (owned or disallowed) for resolution,
+    ///    tombstone the cached subtree below a newly lost game, claim normal or refund-mode credit
+    ///    on any game, mark finalized open games of owned creators and the anchor for `claimCredit`
+    ///    to close them, and remove closed, fully claimed games (keeping the anchor and canonical
+    ///    head) and foreign records the signer holds no credit in. Per-game read failures skip only
+    ///    that game for the cycle.
     async fn sync_games(
         &self,
         pinned_block: BlockId,
@@ -1501,7 +1539,7 @@ impl Proposer {
 
         let (targets, known_prestates) = self.game_sync_targets().await;
         if targets.is_empty() {
-            self.record_deadline_metrics(pinned_timestamp, &known_prestates, &[], true).await;
+            self.record_deadline_metrics(pinned_timestamp, &[], true).await;
             return Ok(ancestry_decision);
         }
         let anchor_index = self.state.read().await.anchor_game.as_ref().map(|game| game.index);
@@ -1511,12 +1549,11 @@ impl Proposer {
         let mut observed_indices = Vec::with_capacity(targets.len());
         let mut complete = true;
         for target in targets {
-            let lifecycle_only = target.status == GameStatus::InProgress &&
-                target.creator != self.proposer_address &&
-                target.ancestry_blocked &&
-                !known_prestates.contains(&target.absolute_prestate);
+            let lifecycle_only = Some(target.index) != anchor_index &&
+                !self.owned_creators.contains(&target.creator);
             let index = target.index;
-            let lifecycle = self.observe_game_sync(target, &known_prestates, pinned_block);
+            let lifecycle =
+                self.observe_game_sync(target, &known_prestates, lifecycle_only, pinned_block);
             let standing = async {
                 if Some(index) == anchor_index {
                     Ok(Some(false))
@@ -1566,13 +1603,7 @@ impl Proposer {
             }
         }
         self.apply_game_sync_actions(standings, actions).await;
-        self.record_deadline_metrics(
-            pinned_timestamp,
-            &known_prestates,
-            &observed_indices,
-            complete,
-        )
-        .await;
+        self.record_deadline_metrics(pinned_timestamp, &observed_indices, complete).await;
 
         Ok(ancestry_decision)
     }
@@ -1880,6 +1911,7 @@ impl Proposer {
                     sequence_number,
                     deadline,
                     prestate,
+                    creator,
                 }) => {
                     self.state.write().await.pending_games.insert(
                         index,
@@ -1891,7 +1923,12 @@ impl Proposer {
                         },
                     );
                     let _ = self.prestates.ensure_loaded(prestate).await;
-                    let owned = self.prestates.known_prestates().await.contains(&prestate);
+                    let owned = owns(
+                        creator,
+                        prestate,
+                        &self.owned_creators,
+                        &self.prestates.known_prestates().await,
+                    );
                     if owned {
                         tracing::debug!(
                             game_index = %index,
@@ -1975,7 +2012,6 @@ impl Proposer {
                     anchor_state_registry: game.anchor_state_registry,
                     absolute_prestate: game.absolute_prestate,
                     status: game.status,
-                    ancestry_blocked: !game.disallowed && !state.ancestry_eligible(game),
                     creator: game.creator,
                 })
                 .collect::<Vec<_>>()
@@ -1984,8 +2020,11 @@ impl Proposer {
             return (targets, HashSet::new());
         }
 
-        let mut prestates =
-            targets.iter().map(|target| target.absolute_prestate).collect::<Vec<_>>();
+        let mut prestates = targets
+            .iter()
+            .filter(|target| self.owned_creators.contains(&target.creator))
+            .map(|target| target.absolute_prestate)
+            .collect::<Vec<_>>();
         prestates.sort_unstable();
         prestates.dedup();
         for prestate in prestates {
@@ -1994,23 +2033,30 @@ impl Proposer {
         (targets, self.prestates.known_prestates().await)
     }
 
-    /// Reads only the status-specific facts needed to classify one game.
+    /// Reads only the status-specific facts needed to classify one game. A `lifecycle_only`
+    /// foreign record is never resolved by us, so its parent is not read.
     async fn observe_game_sync(
         &self,
         target: GameSyncTarget,
         known_prestates: &HashSet<B256>,
+        lifecycle_only: bool,
         pinned_block: BlockId,
     ) -> Result<GameSyncFacts> {
         let lifecycle = self
             .l1_view
             .game_lifecycle(target.address, target.anchor_state_registry, pinned_block)
             .await?;
+        let owned_creator = self.owned_creators.contains(&target.creator);
         match lifecycle.status {
             GameStatus::InProgress => {
-                let owned = known_prestates.contains(&target.absolute_prestate);
+                let owned = owns(
+                    target.creator,
+                    target.absolute_prestate,
+                    &self.owned_creators,
+                    known_prestates,
+                );
                 let proposer_created = target.creator == self.proposer_address;
-                // Lifecycle-only foreign games are never resolved, so skip the parent read.
-                let parent_status = if target.ancestry_blocked && !owned && !proposer_created {
+                let parent_status = if lifecycle_only {
                     GameStatus::InProgress
                 } else if lifecycle.parent_index == u32::MAX {
                     GameStatus::DefenderWins
@@ -2042,6 +2088,7 @@ impl Proposer {
                     lifecycle,
                     bond,
                     canonical_head_index,
+                    owned_creator,
                 })
             }
         }
@@ -2076,7 +2123,7 @@ impl Proposer {
         let mut progress_addresses_to_clear = Vec::new();
         for action in actions {
             let (GameSyncAction::Update { index, lifecycle, .. } |
-            GameSyncAction::Remove { index, lifecycle }) = action;
+            GameSyncAction::Remove { index, lifecycle, .. }) = action;
             // A loss invalidates the cached subtree once; its records stay for lifecycle work.
             if lifecycle.status == GameStatus::ChallengerWins &&
                 !state.invalid_games.contains(&index)
@@ -2119,10 +2166,14 @@ impl Proposer {
                         }
                     }
                 }
-                GameSyncAction::Remove { index, lifecycle } => {
+                GameSyncAction::Remove { index, lifecycle, keep_ahead_of_anchor } => {
                     // Preserve ancestry links while another game still references them; otherwise
                     // a later standing change above an evicted intermediary becomes invisible.
-                    let retain = state.has_ancestry_dependent(index, &pending_parent_indices);
+                    let retain = if keep_ahead_of_anchor {
+                        state.has_ancestry_dependent(index, &pending_parent_indices)
+                    } else {
+                        state.has_child(index, &pending_parent_indices)
+                    };
                     if retain {
                         if let Some(game) = state.games.get_mut(&index) {
                             game.status = lifecycle.status;
@@ -2188,7 +2239,7 @@ impl Proposer {
     async fn compute_canonical_head(&self) {
         let mut state = self.state.write().await;
 
-        let canonical_head = state.select_canonical_head();
+        let canonical_head = state.select_canonical_head(&self.owned_creators);
 
         let previous_canonical_index = state.canonical_head_index;
 
@@ -2216,7 +2267,7 @@ impl Proposer {
                 tracing::info!(
                     previous_canonical_index = ?previous_canonical_index,
                     total_games = state.games.len(),
-                    "Canonical head cleared: no valid games in cache"
+                    "Canonical head cleared: no owned head candidate and no anchor cached"
                 );
             }
         }
@@ -2310,7 +2361,8 @@ impl Proposer {
     }
 
     async fn resolve_games(&self) -> Result<()> {
-        // Classification only sets this flag for games we own or created.
+        // Classification only sets this flag for owned games (`owns`) and for
+        // signer-created games we may resolve to recover a bond.
         let candidates = {
             let state = self.state.read().await;
             state
@@ -2523,14 +2575,18 @@ impl Proposer {
 
     /// Fetch game from the factory.
     ///
-    /// Terminal drops: unsupported game type, disrespected game type at
-    /// creation, an `l2SequenceNumber` exceeding `u64`, a non-refundable
-    /// `ChallengerWins` result, a claim contradicting a trusted canonical
-    /// super root, or a canonical claim a trusted response shows needs L1 data
-    /// past the game's l1Head. A timestamp not yet safe from this node's view,
-    /// or a mismatch or past-l1Head requirement reported by an untrusted
-    /// response, yields `Pending` instead: excluded from the DAG but
-    /// re-validated on later syncs.
+    /// The registered anchor is cached before any validation; the registry is its trust
+    /// source. A game from a creator this proposer does not own is cached as a trust-free
+    /// record after the identity and `u64` sequence checks: it is never validated against the
+    /// supernode, never pending, and never a head, parent, proof, or resolution target.
+    ///
+    /// For owned creators, terminal drops: unsupported game type, disrespected game type at
+    /// creation, an `l2SequenceNumber` exceeding `u64`, a non-refundable `ChallengerWins`
+    /// result, a claim contradicting a trusted canonical super root, or a canonical claim a
+    /// trusted response shows needs L1 data past the game's l1Head. A timestamp not yet safe
+    /// from this node's view, or a mismatch or past-l1Head requirement reported by an
+    /// untrusted response, yields `Pending` instead: excluded from the DAG but re-validated on
+    /// later syncs.
     pub async fn fetch_game(
         &self,
         index: U256,
@@ -2626,6 +2682,17 @@ impl Proposer {
             return Ok(GameFetchResult::ValidGame { game_address, deadline });
         }
 
+        if !self.owned_creators.contains(&creator) {
+            tracing::debug!(
+                game_index = %index,
+                ?game_address,
+                %creator,
+                "Caching game from a creator we do not own as a trust-free record"
+            );
+            self.state.write().await.games.insert(index, game);
+            return Ok(GameFetchResult::ValidGame { game_address, deadline });
+        }
+
         if status == GameStatus::ChallengerWins {
             tracing::info!(
                 game_index = %index,
@@ -2652,7 +2719,7 @@ impl Proposer {
         // super-root query has a permanent failure class (the supernode maps
         // timestamps predating its recorded safe history to an error), so
         // propagating it would stall the cursor forever behind a single
-        // un-fetchable game - a state one bonded spam game at anchor+1 could
+        // un-fetchable game - a state one bonded game from an owned creator at anchor+1 could
         // force. Hold the game as pending instead: it stays outside the DAG
         // (never parent-eligible) and is re-checked each sync, bounded to one
         // query per cycle.
@@ -2680,6 +2747,7 @@ impl Proposer {
                         sequence_number,
                         deadline,
                         prestate: absolute_prestate,
+                        creator,
                     });
                 }
             };
@@ -2718,6 +2786,7 @@ impl Proposer {
                     sequence_number,
                     deadline,
                     prestate: absolute_prestate,
+                    creator,
                 });
             }
             Some(super_root) if super_root.super_root != claim => {
@@ -2741,6 +2810,7 @@ impl Proposer {
                         sequence_number,
                         deadline,
                         prestate: absolute_prestate,
+                        creator,
                     });
                 }
                 tracing::warn!(
@@ -2786,6 +2856,7 @@ impl Proposer {
                             sequence_number,
                             deadline,
                             prestate: absolute_prestate,
+                            creator,
                         });
                     }
                     tracing::warn!(
@@ -2811,14 +2882,6 @@ impl Proposer {
             deadline = %deadline,
             "Valid game: adding to cache"
         );
-
-        if game.creator != self.proposer_address {
-            tracing::info!(
-                game_index = %index,
-                creator = %game.creator,
-                "Discovered game created by another proposer; defense, resolution, and claims follow the prestate-based ownership set"
-            );
-        }
 
         let mut state = self.state.write().await;
         state.games.insert(index, game);
@@ -2962,10 +3025,20 @@ impl Proposer {
             // collision). If WE created it - a previous create tx landed
             // after its confirmation timed out, leaving the guard unarmed -
             // adopt it instead of advancing the timestamp, which would bond
-            // a second game on the same parent. Only a third-party
-            // collision advances.
+            // a second game on the same parent. An own game the cache already
+            // holds as lost or disallowed cannot be a parent: adopting it would
+            // arm the guard on a dead game, so it advances like a third-party
+            // collision.
             let existing_creator = self.l1_view.game_creator(existing_game).await?;
-            if existing_creator == self.proposer_address {
+            let adoptable = existing_creator == self.proposer_address && {
+                let state = self.state.read().await;
+                state
+                    .games
+                    .values()
+                    .find(|game| game.address == existing_game)
+                    .is_none_or(|game| state.ancestry_eligible(game))
+            };
+            if adoptable {
                 tracing::info!(
                     sequence_number,
                     parent_game_index,
@@ -2975,29 +3048,10 @@ impl Proposer {
                 self.arm_creation_guard(sequence_number, parent_game_index, existing_game).await;
                 return Ok(());
             }
-            if parent_game_index == u32::MAX && self.config.proposal_interval_seconds != 0 {
-                let latest_head = self
-                    .l1_view
-                    .latest_head()
-                    .await?
-                    .context("failed to fetch latest L1 head after root collision")?;
-                let latest_block = BlockId::hash(latest_head.hash);
-                let latest_anchor = self.l1_view.registered_anchor_game(latest_block).await?;
-                if latest_anchor != Address::ZERO &&
-                    self.l1_view.game_type(latest_anchor, latest_block).await? != ZK_GAME_TYPE
-                {
-                    tracing::info!(
-                        sequence_number,
-                        game_address = ?existing_game,
-                        "Deferring root after third-party collision with unsupported anchor"
-                    );
-                    return Ok(());
-                }
-            }
-            // Third-party collision: advance the timestamp - bounded by the
-            // safety limit - and refetch a fresh super root (the proof
-            // embeds the timestamp). On reaching the bound, defer: the next
-            // sync adopts the existing game as canonical head.
+            // Third-party collision, or a dead own game: advance the timestamp
+            // - bounded by the safety limit - and refetch a fresh super root
+            // (the proof embeds the timestamp). On reaching the bound, defer
+            // to the next sync.
             match advance_collision_timestamp(sequence_number, max_proposable) {
                 Some(next) => {
                     tracing::debug!(
@@ -3195,13 +3249,7 @@ impl Proposer {
     }
 
     /// Counts fresh observations even when the full snapshot is incomplete.
-    async fn record_deadline_metrics(
-        &self,
-        now: u64,
-        known_prestates: &HashSet<B256>,
-        observed_indices: &[U256],
-        complete: bool,
-    ) {
+    async fn record_deadline_metrics(&self, now: u64, observed_indices: &[U256], complete: bool) {
         let state = self.state.read().await;
         let addresses = state.games.values().map(|game| game.address).collect::<HashSet<_>>();
         self.missed_deadlines
@@ -3211,7 +3259,7 @@ impl Proposer {
         let mut remaining = f64::INFINITY;
         for game in
             observed_indices.iter().filter_map(|index| state.games.get(index)).filter(|game| {
-                (game.is_owned(known_prestates) || game.creator == self.proposer_address) &&
+                self.owned_creators.contains(&game.creator) &&
                     state.ancestry_eligible(game) &&
                     game.status == GameStatus::InProgress
             })
@@ -3723,9 +3771,9 @@ impl Proposer {
                     if deduplicated.contains(&TaskDeduplicationKey::Proving(game_address)) {
                         continue;
                     }
-                    if !known_prestates.contains(&prestate) {
-                        // Not ours to prove (prestate-based ownership, #22111);
-                        // an unchallenged foreign game is unremarkable.
+                    if !owns(creator, prestate, &self.owned_creators, &known_prestates) {
+                        // A signer-created game we cannot prove (unknown or poisoned
+                        // prestate); defense of a challenged one alarms separately.
                         tracing::debug!(
                             game_address = ?game_address,
                             "Skipping fast finality: unknown prestate"
@@ -3836,22 +3884,24 @@ impl Proposer {
         };
 
         let max_proposable = self.max_proposable_timestamp().await?;
-        let max_proposable = if ancestry_decision == AncestryDecision::UnsupportedAnchor &&
-            self.config.proposal_interval_seconds != 0 &&
-            max_proposable >= baseline_sequence_number
-        {
-            // A stable interval grid lets a restart find and adopt an unconfirmed own root.
-            let interval = self.config.proposal_interval_seconds;
-            let elapsed = max_proposable - baseline_sequence_number;
-            baseline_sequence_number + elapsed / interval * interval
-        } else {
+        let interval = self.config.proposal_interval_seconds;
+        let next_sequence_number = if ancestry_decision == AncestryDecision::UnsupportedAnchor {
+            // Every game here is a root from the anchor, so no cap bounds its span. The latest
+            // point on a stable interval grid lets a restart find and adopt an unconfirmed own
+            // root.
             max_proposable
+                .checked_sub(baseline_sequence_number)
+                .map(|elapsed| baseline_sequence_number + elapsed / interval * interval)
+                .filter(|&next| next > baseline_sequence_number)
+        } else {
+            next_proposal_timestamp(
+                baseline_sequence_number,
+                interval,
+                self.config.max_proposal_span_intervals.get(),
+                max_proposable,
+            )
         };
-        let Some(next_sequence_number) = next_proposal_timestamp(
-            baseline_sequence_number,
-            self.config.proposal_interval_seconds,
-            max_proposable,
-        ) else {
+        let Some(next_sequence_number) = next_sequence_number else {
             tracing::debug!(
                 head = baseline_sequence_number,
                 max_proposable,
@@ -3972,7 +4022,7 @@ impl Proposer {
         let max_concurrent = self.config.max_concurrent_defense_tasks.get();
         let mut tasks_planned = false;
 
-        for (index, game_address, deadline, prestate, registry_address) in candidates {
+        for (index, game_address, deadline, prestate, creator, registry_address) in candidates {
             if active_defense_tasks >= max_concurrent {
                 tracing::debug!(
                     "The max concurrent defense tasks count ({}) has been reached",
@@ -3981,11 +4031,13 @@ impl Proposer {
                 break;
             }
 
-            if deduplicated.contains(&TaskDeduplicationKey::Proving(game_address)) {
+            if !self.owned_creators.contains(&creator) ||
+                deduplicated.contains(&TaskDeduplicationKey::Proving(game_address))
+            {
                 continue;
             }
 
-            if !known_prestates.contains(&prestate) {
+            if !owns(creator, prestate, &self.owned_creators, &known_prestates) {
                 // A challenged game this proposer cannot prove is a state
                 // operators must notice: the bond is lost when the prove
                 // deadline expires. Re-fetch attempts for the prestate are
@@ -4402,7 +4454,8 @@ pub enum GameFetchResult {
     },
     /// The game's timestamp is not yet safe from this node's view, so it
     /// cannot be validated. It remains outside the DAG and is re-validated
-    /// each sync until data appears or the horizon expires.
+    /// each sync until data appears or the horizon expires. Only games from
+    /// owned creators are pending.
     Pending {
         /// Factory index of the pending game.
         index: U256,
@@ -4415,9 +4468,11 @@ pub enum GameFetchResult {
         /// Claim deadline of the game (L1 timestamp, seconds), used by the
         /// pending eviction cutoff.
         deadline: u64,
-        /// The game's `absolutePrestate()`: owned (usable-prestate) games
+        /// The game's `absolutePrestate()`: owned (`owns`) games
         /// are exempt from pending eviction.
         prestate: B256,
+        /// The game's creator.
+        creator: Address,
     },
     /// Game was already present in the cache
     AlreadyExists,
@@ -4472,20 +4527,23 @@ impl From<U256> for Cursor {
     }
 }
 
-/// Picks the sequence number for the next proposal, or `None` when the
-/// proposal interval has not elapsed under the safety bound.
+/// Picks the sequence number for the next proposal, or `None` when the proposal interval has
+/// not elapsed under the safety bound.
 ///
-/// Normally `head + interval` (fixed grid); when the head lags the bound by
-/// two or more intervals, jumps to `max_proposable` directly (catch-up), so a
-/// restart after downtime - or a devstack time-travel warp - yields one game
-/// per tick instead of a crawl across the gap.
-pub fn next_proposal_timestamp(head: u64, interval: u64, max_proposable: u64) -> Option<u64> {
-    let next = head.checked_add(interval)?;
-    if next > max_proposable {
-        return None;
-    }
-    if max_proposable.saturating_sub(head) >= interval.saturating_mul(2) {
-        Some(max_proposable)
+/// Normally `head + interval` (fixed grid). When the head lags the bound by two or more
+/// intervals, the game reaches toward `max_proposable` but spans at most `max_span_intervals`
+/// intervals, so the proposer catches up when one game takes longer than an interval to create
+/// or prove, and no game it creates exceeds what the bond and prove duration are sized for.
+pub fn next_proposal_timestamp(
+    head: u64,
+    interval: u64,
+    max_span_intervals: u64,
+    max_proposable: u64,
+) -> Option<u64> {
+    let next = head.checked_add(interval).filter(|&next| next <= max_proposable)?;
+    if max_proposable - head >= interval.saturating_mul(2) {
+        let max_span = interval.saturating_mul(max_span_intervals);
+        Some(max_proposable.min(head.saturating_add(max_span)))
     } else {
         Some(next)
     }
@@ -4816,8 +4874,8 @@ impl PrestateCache {
     }
 
     /// Snapshot of the prestates the proposer can currently prove: loaded
-    /// artifacts whose proving keys are not poisoned. This set defines
-    /// game ownership (prove = resolve = claim set).
+    /// artifacts whose proving keys are not poisoned. Defense and resolution
+    /// need one (`owns`); claims do not.
     pub async fn known_prestates(&self) -> HashSet<B256> {
         self.programs
             .read()
@@ -4908,7 +4966,7 @@ mod tests {
     };
 
     use alloy_eips::BlockId;
-    use alloy_primitives::{Address, B256, U256};
+    use alloy_primitives::{Address, B256, U256, address, b256};
     use alloy_provider::{ProviderBuilder, mock::Asserter};
     use alloy_rpc_types_eth::Block;
     use alloy_signer_local::PrivateKeySigner;
@@ -5198,7 +5256,7 @@ mod tests {
                 game_identity: GameIdentity {
                     anchor_state_registry: Address::ZERO,
                     weth: Address::ZERO,
-                    creator: Address::ZERO,
+                    creator: TEST_SIGNER,
                     sequence_number: U256::ZERO,
                 },
                 game_validity: GameValidity {
@@ -5585,6 +5643,18 @@ mod tests {
         }
     }
 
+    /// The unit-test proposer signs with this fixed key, so test games default to an owned
+    /// creator.
+    const TEST_SIGNER_KEY: B256 =
+        b256!("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const TEST_SIGNER: Address = address!("f39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+
+    fn test_signer() -> SignerLock {
+        SignerLock::new(Signer::LocalSigner(
+            PrivateKeySigner::from_bytes(&TEST_SIGNER_KEY).unwrap(),
+        ))
+    }
+
     fn game_with(index: u64, parent_index: u32, l2_sequence_number: u64) -> Game {
         Game {
             index: U256::from(index),
@@ -5597,7 +5667,7 @@ mod tests {
             should_attempt_to_resolve: false,
             should_attempt_to_claim_bond: false,
             absolute_prestate: B256::ZERO,
-            creator: Address::ZERO,
+            creator: TEST_SIGNER,
             weth: Address::ZERO,
             anchor_state_registry: Address::ZERO,
             disallowed: false,
@@ -5625,6 +5695,7 @@ mod tests {
             factory_address: Address::ZERO,
             prestates_url: "file:///nonexistent".parse().unwrap(),
             proposal_interval_seconds: 3600,
+            max_proposal_span_intervals: std::num::NonZeroU64::MIN,
             proposal_safety: ProposalSafety::Finalized,
             fetch_interval: 30,
             metrics_listen: MetricsListen::Disabled,
@@ -5665,6 +5736,7 @@ mod tests {
             local_cuda: Default::default(),
             log_path: crate::config::LogPath::Table,
             data_dir: None,
+            owned_creators: None,
         }
     }
 
@@ -5690,7 +5762,7 @@ mod tests {
         config: ProposerConfig,
         provider: crate::L1Provider,
     ) -> Proposer {
-        let signer = SignerLock::new(Signer::LocalSigner(PrivateKeySigner::random()));
+        let signer = test_signer();
         let factory = DisputeGameFactory::new(Address::ZERO, provider.clone());
         let l1_view =
             ProductionL1View::new(provider.clone(), factory.clone(), config.l1_rpc.clone());
@@ -6664,7 +6736,15 @@ mod tests {
                 lifecycle,
                 bond,
                 canonical_head_index,
+                owned_creator: true,
             }
+        }
+
+        fn foreign(mut facts: GameSyncFacts) -> GameSyncFacts {
+            if let GameSyncFacts::Resolved { owned_creator, .. } = &mut facts {
+                *owned_creator = false;
+            }
+            facts
         }
 
         #[test]
@@ -6705,10 +6785,18 @@ mod tests {
                 classify_game_sync(lost, 101, Address::ZERO, false).unwrap(),
                 GameSyncAction::Update { should_attempt_to_resolve: true, .. }
             ));
-            let foreign_lost =
+            // A listed non-signer creator's lost game is not resolved by us.
+            let listed_lost =
                 in_progress(ProposalStatus::Challenged, GameStatus::DefenderWins, true, false);
             assert!(matches!(
-                classify_game_sync(foreign_lost, 101, Address::ZERO, false).unwrap(),
+                classify_game_sync(listed_lost, 101, Address::ZERO, false).unwrap(),
+                GameSyncAction::Update { should_attempt_to_resolve: false, .. }
+            ));
+            // A foreign winner is not resolved by us.
+            let foreign_winner =
+                in_progress(ProposalStatus::Unchallenged, GameStatus::DefenderWins, false, false);
+            assert!(matches!(
+                classify_game_sync(foreign_winner, 101, Address::ZERO, false).unwrap(),
                 GameSyncAction::Update { should_attempt_to_resolve: false, .. }
             ));
             let unowned_allowed =
@@ -6736,10 +6824,16 @@ mod tests {
                 classify_game_sync(resolved(finalized, done, None), 100, address, false,).unwrap(),
                 GameSyncAction::Update { retention: Some(GameSyncRetention::Anchor), .. }
             ));
+            // A foreign registered anchor is kept as the trust boundary.
+            assert!(matches!(
+                classify_game_sync(foreign(resolved(finalized, done, None)), 100, address, false)
+                    .unwrap(),
+                GameSyncAction::Update { retention: Some(GameSyncRetention::Anchor), .. }
+            ));
             assert_eq!(
                 classify_game_sync(resolved(finalized, done, None), 100, Address::ZERO, false,)
                     .unwrap(),
-                GameSyncAction::Remove { index, lifecycle: finalized }
+                GameSyncAction::Remove { index, lifecycle: finalized, keep_ahead_of_anchor: true }
             );
 
             let unlock = bond(U256::ONE);
@@ -6760,13 +6854,40 @@ mod tests {
                 GameSyncAction::Update { should_attempt_to_claim_bond: true, .. }
             ));
 
-            // An open game owing this proposer nothing is still closed, then evicted.
+            // An open game owing this proposer nothing is closed when its creator is owned or
+            // it is the anchor, then evicted; a foreign record is removed without a close.
             let open =
                 BondState { bond_distribution_mode: BondDistributionMode::Undecided, ..done };
             assert!(matches!(
                 classify_game_sync(resolved(finalized, open, None), 100, Address::ZERO, false)
                     .unwrap(),
                 GameSyncAction::Update { should_attempt_to_claim_bond: true, retention: None, .. }
+            ));
+            assert!(matches!(
+                classify_game_sync(foreign(resolved(finalized, open, None)), 100, address, false)
+                    .unwrap(),
+                GameSyncAction::Update { should_attempt_to_claim_bond: true, retention: None, .. }
+            ));
+            assert_eq!(
+                classify_game_sync(
+                    foreign(resolved(finalized, open, None)),
+                    100,
+                    Address::ZERO,
+                    false
+                )
+                .unwrap(),
+                GameSyncAction::Remove { index, lifecycle: finalized, keep_ahead_of_anchor: true }
+            );
+            // Credit owed to the signer on a foreign game is still claimed.
+            assert!(matches!(
+                classify_game_sync(
+                    foreign(resolved(finalized, unlock, None)),
+                    100,
+                    Address::ZERO,
+                    false
+                )
+                .unwrap(),
+                GameSyncAction::Update { should_attempt_to_claim_bond: true, .. }
             ));
             let unfinalized = lifecycle(GameStatus::DefenderWins);
             assert!(matches!(
@@ -6843,7 +6964,18 @@ mod tests {
                     false,
                 )
                 .unwrap(),
-                GameSyncAction::Remove { index, lifecycle }
+                GameSyncAction::Remove { index, lifecycle, keep_ahead_of_anchor: true }
+            );
+            // A foreign loser can never become the anchor: only a cached child keeps it.
+            assert_eq!(
+                classify_game_sync(
+                    foreign(resolved(lifecycle, open, None)),
+                    100,
+                    Address::ZERO,
+                    false
+                )
+                .unwrap(),
+                GameSyncAction::Remove { index, lifecycle, keep_ahead_of_anchor: false }
             );
         }
     }
@@ -6864,6 +6996,7 @@ mod tests {
                 },
                 game_identity: GameIdentity {
                     sequence_number: U256::from(100),
+                    creator: TEST_SIGNER,
                     ..Default::default()
                 },
                 game_validity: GameValidity {
@@ -7102,9 +7235,13 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn foreign_descendant_after_tombstone_is_closed_before_eviction() {
+        async fn foreign_descendant_after_tombstone_is_removed_without_closing() {
             let foreign_prestate = B256::left_padding_from(&[0x64]);
-            let foreign = Game { absolute_prestate: foreign_prestate, ..game_with(1, 0, 200) };
+            let foreign = Game {
+                absolute_prestate: foreign_prestate,
+                creator: Address::repeat_byte(0xbb),
+                ..game_with(1, 0, 200)
+            };
             let view = Arc::new(RecordingL1View {
                 latest_game_index: Some(foreign.index),
                 lifecycle: GameLifecycle {
@@ -7136,9 +7273,7 @@ mod tests {
             proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
 
             let state = proposer.state.read().await;
-            let cached = state.games.get(&foreign.index).unwrap();
-            assert_eq!(cached.status, GameStatus::ChallengerWins);
-            assert!(cached.should_attempt_to_claim_bond);
+            assert!(!state.games.contains_key(&foreign.index));
             assert!(state.invalid_games.contains(&foreign.index));
             assert_eq!(
                 *view.lifecycle_targets.lock().unwrap(),
@@ -7291,7 +7426,11 @@ mod tests {
                 address: Address::left_padding_from(&[0x44]),
                 game_type: ZK_GAME_TYPE,
             },
-            game_identity: GameIdentity { sequence_number: U256::from(100), ..Default::default() },
+            game_identity: GameIdentity {
+                sequence_number: U256::from(100),
+                creator: Address::repeat_byte(0x5a),
+                ..Default::default()
+            },
             game_validity: GameValidity {
                 root_claim: B256::ZERO,
                 was_respected: true,
@@ -7300,7 +7439,11 @@ mod tests {
             },
             ..Default::default()
         });
-        let mut proposer = test_proposer().await;
+        let config = ProposerConfig {
+            owned_creators: Some(vec![Address::repeat_byte(0x5a)]),
+            ..test_config()
+        };
+        let mut proposer = test_proposer_with(config).await;
         proposer.l1_view = view.clone();
         proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
 
@@ -7400,14 +7543,20 @@ mod tests {
             ),
         ];
 
+        let listed = Address::repeat_byte(0x5a);
+        let foreign = Address::repeat_byte(0xbb);
         for (sequence_number, super_root_at, claim, own_game, expected) in cases {
             let game_address = Address::repeat_byte(0x44);
-            let mut proposer = test_proposer().await;
+            let config = ProposerConfig { owned_creators: Some(vec![listed]), ..test_config() };
+            let mut proposer = test_proposer_with(config).await;
+            // Rows that are not the signer's own game use a listed creator: validated, but not
+            // retained through the signer-only lifecycle paths.
+            let creator = if own_game { proposer.proposer_address } else { listed };
             let view = Arc::new(RecordingL1View {
                 factory_game: FactoryGame { address: game_address, game_type: ZK_GAME_TYPE },
                 game_identity: GameIdentity {
                     sequence_number: U256::from(sequence_number),
-                    creator: if own_game { proposer.proposer_address } else { Address::ZERO },
+                    creator,
                     ..Default::default()
                 },
                 game_validity: GameValidity {
@@ -7442,6 +7591,36 @@ mod tests {
                 ),
             });
         }
+
+        // A foreign creator's game is cached as a record without consulting the supernode.
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            factory_game: FactoryGame {
+                address: Address::repeat_byte(0x44),
+                game_type: ZK_GAME_TYPE,
+            },
+            game_identity: GameIdentity {
+                sequence_number: U256::from(super::MAX_FUTURE_GAME_TIMESTAMP_LAG + 101),
+                creator: foreign,
+                ..Default::default()
+            },
+            game_validity: GameValidity {
+                root_claim: B256::repeat_byte(0x22),
+                was_respected: false,
+                status: GameStatus::ChallengerWins,
+                absolute_prestate: B256::ZERO,
+            },
+            ..Default::default()
+        });
+        proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
+        assert!(matches!(
+            proposer.fetch_game(U256::ZERO, Address::ZERO, BlockId::number(1)).await.unwrap(),
+            GameFetchResult::ValidGame { game_address, deadline: 2_000 }
+                if game_address == Address::repeat_byte(0x44)
+        ));
+        let state = proposer.state.read().await;
+        assert!(state.games.contains_key(&U256::ZERO));
+        assert!(state.pending_games.is_empty());
     }
 
     #[tokio::test]
@@ -8346,27 +8525,15 @@ mod tests {
 
         use super::*;
 
-        #[test]
-        fn rotation_keeps_old_prestate_games_owned() {
-            // Defense, resolution, and claim ownership persists while the
-            // old prestate artifacts remain published, regardless of creator.
-            let old_prestate = B256::left_padding_from(&[0xde, 0xad]);
-            let mut game = game_with(1, u32::MAX, 100);
-            game.creator = Address::left_padding_from(&[0xbb]);
-            game.absolute_prestate = old_prestate;
-            let known = HashSet::from([old_prestate, B256::left_padding_from(&[0x01])]);
-            assert!(game.is_owned(&known));
-        }
-
-        #[test]
-        fn unknown_prestate_is_not_owned_even_for_own_creations() {
-            // A signer-created game without loadable prestate artifacts is not
-            // owned for defense, resolution, or claims.
-            let us = Address::left_padding_from(&[0xaa]);
-            let mut game = game_with(1, u32::MAX, 100);
-            game.creator = us;
-            game.absolute_prestate = B256::left_padding_from(&[0xde, 0xad]);
-            assert!(!game.is_owned(&HashSet::new()));
+        #[tokio::test]
+        async fn owned_creators_always_include_the_signer() {
+            let listed = Address::left_padding_from(&[0xbb]);
+            assert_eq!(*test_proposer().await.owned_creators(), HashSet::from([TEST_SIGNER]));
+            let config = ProposerConfig { owned_creators: Some(vec![listed]), ..test_config() };
+            assert_eq!(
+                *test_proposer_with(config).await.owned_creators(),
+                HashSet::from([TEST_SIGNER, listed])
+            );
         }
     }
 
@@ -8759,8 +8926,8 @@ mod tests {
             // Rotated-in prestate with unpublished artifacts: creation
             // pauses...
             assert!(!proposer.prestate_usable_for_creation(new).await);
-            // ...while the old prestate stays in the owned set, so existing
-            // games keep being defended, resolved, and claimed.
+            // ...while the old prestate stays known, so existing games on it
+            // keep being defended and resolved.
             assert!(proposer.prestates.known_prestates().await.contains(&old));
 
             // Operator publishes the new artifacts: creation resumes.
@@ -9540,10 +9707,20 @@ mod tests {
     mod canonical_head {
         use super::*;
 
+        const FOREIGN: Address = Address::repeat_byte(0xbb);
+
+        fn head(s: &ProposerState) -> Option<U256> {
+            s.select_canonical_head(&HashSet::from([TEST_SIGNER])).map(|game| game.index)
+        }
+
+        fn foreign(game: Game) -> Game {
+            Game { creator: FOREIGN, ..game }
+        }
+
         #[test]
         fn no_anchor_selects_highest_sequence_game() {
             let s = state(vec![game_with(0, u32::MAX, 100), game_with(1, 0, 200)], None);
-            assert_eq!(s.select_canonical_head().unwrap().index, U256::from(1));
+            assert_eq!(head(&s), Some(U256::from(1)));
         }
 
         #[test]
@@ -9553,7 +9730,7 @@ mod tests {
                 vec![anchor.clone(), game_with(6, 5, 200), game_with(7, 6, 300)],
                 Some(anchor),
             );
-            assert_eq!(s.select_canonical_head().unwrap().index, U256::from(7));
+            assert_eq!(head(&s), Some(U256::from(7)));
         }
 
         #[test]
@@ -9566,7 +9743,7 @@ mod tests {
                 vec![anchor.clone(), game_with(6, u32::MAX, 200), game_with(7, 6, 300)],
                 Some(anchor),
             );
-            assert_eq!(s.select_canonical_head().unwrap().index, U256::from(7));
+            assert_eq!(head(&s), Some(U256::from(7)));
         }
 
         #[test]
@@ -9581,19 +9758,7 @@ mod tests {
                 ],
                 Some(anchor),
             );
-            assert_eq!(s.select_canonical_head().unwrap().index, U256::from(8));
-        }
-
-        #[test]
-        fn earlier_lineage_override_follows_to_tip() {
-            // A chain branching off an earlier lineage than the anchor (parent 2 < anchor parent 4)
-            // must also be followed to its tip.
-            let anchor = game_with(5, 4, 100);
-            let s = state(
-                vec![anchor.clone(), game_with(6, 2, 200), game_with(7, 6, 300)],
-                Some(anchor),
-            );
-            assert_eq!(s.select_canonical_head().unwrap().index, U256::from(7));
+            assert_eq!(head(&s), Some(U256::from(8)));
         }
 
         #[test]
@@ -9612,42 +9777,78 @@ mod tests {
                 ],
                 Some(anchor),
             );
-            assert_eq!(s.select_canonical_head().unwrap().index, U256::from(9));
+            assert_eq!(head(&s), Some(U256::from(9)));
+        }
+
+        #[test]
+        fn foreign_tip_is_ignored() {
+            let anchor = game_with(5, 4, 100);
+            let s = state(
+                vec![anchor.clone(), game_with(6, 5, 200), foreign(game_with(7, 6, 300))],
+                Some(anchor),
+            );
+            assert_eq!(head(&s), Some(U256::from(6)));
+        }
+
+        #[test]
+        fn owned_child_of_a_foreign_non_anchor_parent_is_ignored() {
+            let anchor = game_with(5, 4, 100);
+            let s = state(
+                vec![anchor.clone(), foreign(game_with(6, 5, 200)), game_with(7, 6, 300)],
+                Some(anchor.clone()),
+            );
+            assert_eq!(head(&s), Some(anchor.index));
+        }
+
+        #[test]
+        fn foreign_anchor_with_owned_children_is_selected() {
+            let anchor = foreign(game_with(5, 4, 100));
+            let s = state(vec![anchor.clone(), game_with(6, 5, 200)], Some(anchor.clone()));
+            assert_eq!(head(&s), Some(U256::from(6)));
+            let s = state(vec![anchor.clone()], Some(anchor.clone()));
+            assert_eq!(head(&s), Some(anchor.index));
+        }
+
+        #[test]
+        fn missing_cached_parent_fails_closed() {
+            let anchor = game_with(5, 4, 100);
+            let s = state(vec![anchor.clone(), game_with(7, 6, 300)], Some(anchor.clone()));
+            assert_eq!(head(&s), Some(anchor.index));
+            let s = state(vec![game_with(7, 6, 300)], None);
+            assert_eq!(head(&s), None);
         }
     }
 
     mod proposal_timing {
         use super::next_proposal_timestamp;
 
-        /// `FlowGaps` #3 regression: a head lagging by many intervals yields one
-        /// proposal at `max_proposable`, not a crawl across the gap.
         #[test]
-        fn catch_up_proposes_at_max() {
-            assert_eq!(next_proposal_timestamp(100, 6, 700_000), Some(700_000));
+        fn lagging_head_catches_up_by_at_most_the_max_span() {
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 700_000), Some(124));
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 118), Some(118));
+        }
+
+        #[test]
+        fn max_span_of_one_interval_never_jumps() {
+            assert_eq!(next_proposal_timestamp(100, 6, 1, 700_000), Some(106));
         }
 
         #[test]
         fn steady_state_proposes_at_fixed_step() {
             // Gap below two intervals: keep the fixed grid.
-            assert_eq!(next_proposal_timestamp(100, 6, 107), Some(106));
-            assert_eq!(next_proposal_timestamp(100, 6, 111), Some(106));
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 107), Some(106));
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 111), Some(106));
         }
 
         #[test]
         fn interval_not_elapsed_skips() {
-            assert_eq!(next_proposal_timestamp(100, 6, 105), None);
-            assert_eq!(next_proposal_timestamp(100, 6, 100), None);
-        }
-
-        #[test]
-        fn catch_up_boundary_is_two_intervals() {
-            // Exactly two intervals of lag jumps to the tip.
-            assert_eq!(next_proposal_timestamp(100, 6, 112), Some(112));
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 105), None);
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 100), None);
         }
 
         #[test]
         fn overflow_is_none() {
-            assert_eq!(next_proposal_timestamp(u64::MAX, 1, u64::MAX), None);
+            assert_eq!(next_proposal_timestamp(u64::MAX, 1, 4, u64::MAX), None);
         }
     }
 

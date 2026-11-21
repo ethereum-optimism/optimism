@@ -46,10 +46,11 @@ pub enum ProposerGauge {
         message = "Spendable prover-network balance in PROVE; NaN when unavailable"
     )]
     ProveBalance,
-    /// Minimum defense deadline minus L1 time; positive infinity with no outstanding defense.
+    /// Minimum defense deadline minus L1 time across challenged games with an owned creator;
+    /// positive infinity with no outstanding defense.
     #[strum(
         serialize = "op_zk_proposer_defense_deadline_remaining_seconds",
-        message = "Minimum outstanding defense time in seconds; +Inf with no defense, NaN when unavailable"
+        message = "Minimum outstanding defense time in seconds for games with an owned creator; +Inf with no defense, NaN when unavailable"
     )]
     DefenseDeadlineRemainingSeconds,
     // Proposer metrics
@@ -240,11 +241,11 @@ pub enum ProposerGauge {
         message = "Total number of SP1 network API call timeouts"
     )]
     NetworkCallTimeout,
-    /// Total number of challenged games skipped because their prestate is
-    /// unknown (artifacts not loadable) or poisoned.
+    /// Total number of challenged games with an owned creator skipped because
+    /// their prestate is unknown (artifacts not loadable) or poisoned.
     #[strum(
         serialize = "op_zk_proposer_unknown_prestate_challenged",
-        message = "Total number of challenged games with an unknown or poisoned prestate"
+        message = "Total number of challenged games with an owned creator and an unknown or poisoned prestate"
     )]
     UnknownPrestateChallenged,
     /// Total number of prestates that failed vkey verification (prestate
