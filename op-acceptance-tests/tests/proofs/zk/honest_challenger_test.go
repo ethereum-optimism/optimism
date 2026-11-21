@@ -119,9 +119,9 @@ func TestZK_HonestChallenger_ValidProposal_DefenderWins(gt *testing.T) {
 
 // TestZK_HonestChallenger_InvalidProposal_ChallengerWins checks that the honest challenger detects an
 // invalid super-root proposal, challenges it, and — with no prover submitting a proof — resolves it
-// CHALLENGER_WINS. The challenger never proves; proving is the proposer's responsibility. The two
-// super-root sources share the decision body; the supernode subtest additionally proves the
-// challenger is paid out its credit and the invalid proposal never advances the anchor state.
+// CHALLENGER_WINS. The challenger never proves; proving is the proposer's responsibility. The op-node
+// and supernode subtests run the same challenge flow. The supernode subtest also checks that the
+// challenger receives its credit as ETH and that the invalid proposal never advances the anchor state.
 func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 	gt.Parallel()
 	gt.Run("op-node", func(gt *testing.T) {
