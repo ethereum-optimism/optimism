@@ -102,11 +102,7 @@ func TestProposerDefendsForeignValidGame(gt *testing.T) {
 	// The proposer's claim task unlocks its prover credit - the challenger's
 	// bond - into DelayedWETH. Asserting the unlocked amount is race-free:
 	// the payout cannot run until L1 time advances past the WETH delay.
-	var withdrawal proofs.ZKWithdrawal
-	t.Require().Eventuallyf(func() bool {
-		withdrawal = weth.Withdrawal(game.Address, proposerAddr)
-		return withdrawal.Amount.Sign() > 0
-	}, 2*time.Minute, time.Second, "proposer did not unlock its prover credit")
+	withdrawal := game.WaitForCreditUnlocked(proposerAddr)
 	t.Require().Equal(challengerBond, eth.WeiBig(withdrawal.Amount),
 		"prover credit must equal the challenger bond")
 
