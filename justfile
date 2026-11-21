@@ -442,6 +442,18 @@ build-rust-release:
 check-nut-locks:
   go run ./ops/scripts/check-nut-locks
 
+# Builds contracts-bedrock without tests for the NUT pre-fork state recipes; op-deployer fails when
+# forge compiles, as it does on a build with tests. build-no-tests keeps the tests of an earlier
+# build in the compile cache, so such a build is cleaned first.
+[script('bash')]
+_nut-build-contracts:
+  set -euo pipefail
+  cd packages/contracts-bedrock
+  if grep -q '\.t\.sol"' cache/solidity-files-cache.json 2>/dev/null; then
+    just clean
+  fi
+  just build-no-tests
+
 # Checks that committed NUT pre-fork states regenerate without drift. Assumes required build artifacts,
 # including the op-reth-test-engine binary the generator runs the L2 chain on, are present.
 [script('bash')]
@@ -459,7 +471,7 @@ _check-nut-prefork-states:
   git diff --exit-code -- op-core/nuts/state/*_state.json
 
 # Checks that committed NUT pre-fork states regenerate without drift.
-check-nut-prefork-states: build-contracts build-superchain-go
+check-nut-prefork-states: _nut-build-contracts build-superchain-go
   just rust/build-op-reth-test-engine
   just _check-nut-prefork-states
 
@@ -478,7 +490,7 @@ _nut-prefork-state-for fork:
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle), and
 # <fork>_multichain_state.json from Lagoon onward.
-nut-prefork-state-for fork: build-contracts build-superchain-go
+nut-prefork-state-for fork: _nut-build-contracts build-superchain-go
   just rust/build-op-reth-test-engine
   just _nut-prefork-state-for {{fork}}
 
