@@ -545,7 +545,7 @@ Nothing on-chain retires the old contracts. Each chain's old `ETHLockbox` still 
 
 ### Upgrade Both Chains Together
 
-Both chains run on the same shared contracts, so they upgrade as a pair. Once the shared contracts are on a newer release, running an older OPCM on either chain fails with `OPContractsManagerUtils_DowngradeNotAllowed`.
+Both chains run on the same shared contracts, so they upgrade as a pair. Running an older OPCM on either chain fails with `OPContractsManagerUtils_DowngradeNotAllowed` for any proxy a newer OPCM upgraded, but the dispute game implementations are not version-checked, so always upgrade both chains with the same OPCM.
 
 Upgrading one chain also reconfigures the other. `upgrade` registers every game type on the shared `DisputeGameFactory` again from that upgrade's `disputeGameConfigs`. So a task scoped to one chain sets the implementations, prestates, bonds, and respected game type for the whole set. Follow three rules when authoring an upgrade task:
 

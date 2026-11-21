@@ -460,6 +460,14 @@ path, and runs tests in `test/{L1,dispute,cannon}/`. It verifies that upgrades w
 real deployed state — the actual upgrade path, not just a clean deployment. Requires
 `ETH_RPC_URL`. Run it when modifying upgradeable contracts or the upgrade flow itself.
 
+The chain it reads from the superchain registry is set by `FORK_BASE_CHAIN` (default `mainnet`)
+and `FORK_OP_CHAIN` (default `op`), not by the RPC. To fork Sepolia, set both the RPC and the
+selector, or the fixture reads mainnet addresses that have no code on Sepolia:
+
+```bash
+ETH_RPC_URL=<sepolia-rpc> FORK_BASE_CHAIN=sepolia mise x -- just test-upgrade
+```
+
 ## CI Checks
 
 All of these must pass:
