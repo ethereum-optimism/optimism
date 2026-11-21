@@ -597,6 +597,14 @@ func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloa
 		// Allow SYNCING if engine P2P sync is enabled
 		return status == eth.ExecutionValid || status == eth.ExecutionSyncing
 	}
+	// A follow-source node takes its chain from the upstream. When it reorgs onto an
+	// upstream block its EL does not have yet (e.g. a deposits-only replacement that was
+	// never gossiped), the EL answers SYNCING while it fetches the block. Resetting here
+	// would re-read the EL's old head and, on a sequencer, rebuild on the abandoned fork,
+	// cancelling the fetch on every attempt.
+	if e.syncCfg.FollowSourceEnabled() {
+		return status == eth.ExecutionValid || status == eth.ExecutionSyncing
+	}
 	return status == eth.ExecutionValid
 }
 
@@ -709,6 +717,12 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 	// recording lastForkchoice so a rejected FCU doesn't short-circuit the next retry.
 	if !e.checkForkchoiceUpdatedStatus(fcRes.PayloadStatus.Status) {
 		return derive.NewResetError(fmt.Errorf("forkchoice update returned unexpected status %s, need reset to re-sync with engine", fcRes.PayloadStatus.Status))
+	}
+	if fcRes.PayloadStatus.Status == eth.ExecutionSyncing && e.syncCfg.SyncMode != sync.ELSync {
+		// Follow-source reorg onto a block the EL is still fetching: keep the target, and
+		// leave lastForkchoice unset so the next update re-sends it until the EL is VALID.
+		e.log.Info("Engine is syncing to the upstream forkchoice target", "head", fc.HeadBlockHash, "safe", fc.SafeBlockHash)
+		return nil
 	}
 	e.lastForkchoice = fc
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
