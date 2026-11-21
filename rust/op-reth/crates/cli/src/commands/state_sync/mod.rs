@@ -30,7 +30,10 @@
 //! storage history up to it as pruned, so that a read at a later block finds a key that has not
 //! changed since in the state, rather than taking it to be absent. Below the block, the client
 //! writes a dummy header per block, as `init-state --without-evm` does, which takes minutes at OP
-//! Mainnet's height; the server waits for it.
+//! Mainnet's height; the server waits for it. Dummy headers have no real hash, so the server also
+//! sends the real headers of the 255 blocks before, whose hashes the EVM's `BLOCKHASH` reads while
+//! the node executes the blocks after. The client checks that they link up to the block's header,
+//! and writes them, like the block itself, without their transactions.
 //!
 //! # The source node
 //!
@@ -50,9 +53,10 @@
 //!
 //! 1. The client opens with `MAGIC`, the hash of its chain's genesis block (32 bytes) and its
 //!    token.
-//! 2. The server answers with `MAGIC` and a `Status` byte. After `Status::Ok` it sends the RLP
-//!    header of the block whose state follows as a byte string, then its finalized block number
-//!    (`u64`, 0 if it has none).
+//! 2. The server answers with `MAGIC` and a `Status` byte. After `Status::Ok` it sends the number
+//!    of headers that follow (`u32`), the RLP headers of the blocks from 255 before the one whose
+//!    state follows up to that one, each a byte string, then its finalized block number (`u64`, 0
+//!    if it has none).
 //! 3. The client builds its chain up to that block and sends `READY`.
 //! 4. The rest of the stream is one checksummed zstd frame holding, for each of the
 //!    `HashedAccounts`, `HashedStorages` and `Bytecodes` tables, which with storage v2 hold the
@@ -78,6 +82,19 @@ const READY: u8 = 1;
 
 /// Longest token accepted, so a stray connection cannot make the server allocate much.
 const MAX_TOKEN_LEN: usize = 1024;
+
+/// How many blocks back the EVM's `BLOCKHASH` reaches.
+#[cfg(not(test))]
+const BLOCKHASH_WINDOW: u64 = 256;
+/// Smaller in tests, where writing each real block costs several file syncs.
+#[cfg(test)]
+const BLOCKHASH_WINDOW: u64 = 8;
+
+/// The first of the blocks whose real headers a node starting after block `number` needs: those
+/// `BLOCKHASH` reaches from block `number + 1`, which end with block `number`.
+fn first_recent_block(number: u64) -> u64 {
+    (number + 1).saturating_sub(BLOCKHASH_WINDOW).max(1)
+}
 
 /// Longest header accepted, far above any real header.
 const MAX_HEADER_LEN: usize = 64 * 1024;

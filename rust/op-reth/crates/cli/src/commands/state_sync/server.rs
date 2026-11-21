@@ -1,8 +1,8 @@
 //! `op-reth state-server`: serves the state of a data directory to `op-reth sync-state`.
 
 use super::{
-    MAGIC, MAX_TOKEN_LEN, READY, STALL_TIMEOUT, Status, ZSTD_LEVEL, read_array, read_bytes,
-    read_magic, read_token, write_bytes, write_u32, write_u64,
+    MAGIC, MAX_TOKEN_LEN, READY, STALL_TIMEOUT, Status, ZSTD_LEVEL, first_recent_block, read_array,
+    read_bytes, read_magic, read_token, write_bytes, write_u32, write_u64,
 };
 use alloy_primitives::{B256, keccak256};
 use alloy_rlp::Encodable;
@@ -179,7 +179,7 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
             stream.write_all(&[Status::Busy as u8])?;
             bail!("already running {} transfers", self.max_transfers);
         };
-        let (tx, header, finalized) = match self.snapshot() {
+        let (tx, headers, finalized) = match self.snapshot() {
             Ok(snapshot) => snapshot,
             Err(err) => {
                 stream.write_all(&[Status::Unavailable as u8])?;
@@ -187,10 +187,14 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
             }
         };
         stream.write_all(&[Status::Ok as u8])?;
-        let mut rlp = Vec::new();
-        header.header().encode(&mut rlp);
-        write_bytes(&mut stream, &rlp)?;
+        write_u32(&mut stream, u32::try_from(headers.len())?)?;
+        for header in &headers {
+            let mut rlp = Vec::new();
+            header.header().encode(&mut rlp);
+            write_bytes(&mut stream, &rlp)?;
+        }
         write_u64(&mut stream, finalized)?;
+        let header = headers.last().ok_or_else(|| eyre!("no headers to send"))?;
 
         // The client writes a dummy header for every earlier block before it reads the state.
         stream.set_read_timeout(Some(PREPARE_TIMEOUT))?;
@@ -218,20 +222,24 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
     }
 
     /// Opens the read transaction a transfer reads all its tables in, so they hold the same block's
-    /// state, and returns it with that block's header and the finalized block number.
-    fn snapshot(&self) -> eyre::Result<(<N::DB as Database>::TX, SealedHeader, u64)> {
+    /// state, and returns it with the headers of that block and of the blocks `BLOCKHASH` reaches
+    /// from the next one, and the finalized block number.
+    fn snapshot(&self) -> eyre::Result<(<N::DB as Database>::TX, Vec<SealedHeader>, u64)> {
         let provider = self.provider_factory.database_provider_ro()?;
         let number = state_block(&provider)?;
         let finalized = provider.last_finalized_block_number()?.unwrap_or_default();
         // A read-only static file provider sees the files as they were when it was last indexed.
         self.provider_factory.static_file_provider().initialize_index()?;
-        let header = provider
-            .sealed_header(number)?
-            .ok_or_else(|| eyre!("no header for persisted block {number}"))?;
+        let first = first_recent_block(number);
+        let headers = provider.sealed_headers_range(first..=number)?;
+        ensure!(
+            headers.len() as u64 == number - first + 1,
+            "missing headers between blocks {first} and {number}"
+        );
         let mut tx = provider.into_tx();
         // A transfer can outlast the timeout meant for read transactions held open by mistake.
         tx.disable_long_read_transaction_safety();
-        Ok((tx, header, finalized))
+        Ok((tx, headers, finalized))
     }
 
     /// Takes one of the transfer slots, which the returned guard gives back when dropped, or

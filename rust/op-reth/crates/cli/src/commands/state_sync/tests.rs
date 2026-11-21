@@ -1,15 +1,14 @@
 use super::{
     MAGIC, MAX_VALUE_LEN, READY, Status,
-    client::{self, dummy_header, state_stages},
-    read_u32,
+    client::{self, state_stages},
+    first_recent_block, read_u32,
     server::Server,
-    write_bytes, write_u64,
+    write_bytes, write_u32, write_u64,
 };
 use alloy_consensus::Header;
 use alloy_primitives::{Address, B256, U256, keccak256};
 use alloy_rlp::Encodable;
 use reth_chainspec::EthChainSpec;
-use reth_cli_commands::init_state::without_evm::setup_without_evm;
 use reth_db::{
     DatabaseEnv,
     test_utils::{TempDatabase, create_test_rw_db_with_datadir, tempdir_path},
@@ -27,9 +26,10 @@ use reth_optimism_chainspec::{OP_MAINNET, OP_SEPOLIA, OpChainSpec};
 use reth_optimism_node::OpNode;
 use reth_primitives_traits::{Account, Bytecode, SealedHeader, StorageEntry};
 use reth_provider::{
-    AccountReader, BlockNumReader, ChainSpecProvider, DBProvider, DatabaseProviderFactory,
-    MetadataProvider, ProviderError, ProviderFactory, StageCheckpointReader, StageCheckpointWriter,
-    StateProviderFactory, StaticFileProviderFactory, StaticFileSegment,
+    AccountReader, BlockHashReader, BlockNumReader, ChainSpecProvider, DBProvider,
+    DatabaseProviderFactory, MetadataProvider, ProviderError, ProviderFactory,
+    StageCheckpointReader, StageCheckpointWriter, StateProviderFactory, StaticFileProviderFactory,
+    StaticFileSegment,
     providers::{
         BlockchainProvider, ProviderNodeTypes, RocksDBBuilder, StaticFileProviderBuilder,
         StaticFileWriter,
@@ -48,7 +48,8 @@ use std::{
 };
 
 const TOKEN: &[u8] = b"test-token";
-const PIVOT: u64 = 10;
+/// Past the EVM's `BLOCKHASH` window, so the chain below it is partly dummy and partly real.
+const PIVOT: u64 = 300;
 /// Well past Cancun on OP Mainnet and OP Sepolia.
 const CANCUN_TIMESTAMP: u64 = 1_800_000_000;
 /// Commits each table once.
@@ -67,7 +68,7 @@ fn empty_v2_of(chain: &Arc<OpChainSpec>) -> Factory {
         chain.clone(),
         // Small files put block `PIVOT` past the first one, as any real block is.
         StaticFileProviderBuilder::read_write(static_files)
-            .with_blocks_per_file(4)
+            .with_blocks_per_file(64)
             .build()
             .unwrap(),
         RocksDBBuilder::new(datadir.join("rocksdb")).with_default_tables().build().unwrap(),
@@ -105,14 +106,33 @@ fn slot_value(slot: u64) -> U256 {
     U256::from(slot + 1)
 }
 
+/// Linked headers of the blocks whose hashes the EVM can read when it executes the block after
+/// [`PIVOT`], ending with [`PIVOT`]'s, which has `timestamp` and commits to `state_root`.
+fn linked_headers(timestamp: u64, state_root: B256) -> Vec<SealedHeader> {
+    let mut parent_hash = B256::repeat_byte(0x11);
+    (first_recent_block(PIVOT)..=PIVOT)
+        .map(|number| {
+            let header = SealedHeader::seal_slow(Header {
+                number,
+                parent_hash,
+                timestamp: timestamp - 2 * (PIVOT - number),
+                state_root: if number == PIVOT { state_root } else { B256::ZERO },
+                ..Default::default()
+            });
+            parent_hash = header.hash();
+            header
+        })
+        .collect()
+}
+
 /// A data directory of `chain` at block [`PIVOT`] holding its genesis state plus a few accounts,
-/// storage slots and bytecodes, whose header has `timestamp` and commits to `state_root`, or to
-/// their real root if `None`.
+/// storage slots and bytecodes, and the headers of [`linked_headers`] with `timestamp`, committing
+/// to `state_root`, or to their real root if `None`.
 fn source_of(
     chain: &Arc<OpChainSpec>,
     timestamp: u64,
     state_root: Option<B256>,
-) -> (Factory, SealedHeader) {
+) -> (Factory, Vec<SealedHeader>) {
     let factory = empty_v2_of(chain);
     let provider = factory.database_provider_rw().unwrap();
     let tx = provider.tx_ref();
@@ -141,19 +161,14 @@ fn source_of(
     .unwrap();
     provider.commit().unwrap();
 
-    let header = SealedHeader::seal_slow(Header {
-        number: PIVOT,
-        timestamp,
-        state_root: state_root.unwrap_or(root),
-        ..Default::default()
-    });
+    let headers = linked_headers(timestamp, state_root.unwrap_or(root));
     let provider = factory.database_provider_rw().unwrap();
-    setup_without_evm(&provider, header.clone(), dummy_header).unwrap();
+    client::write_chain(&provider, &headers).unwrap();
     provider.commit().unwrap();
-    (factory, header)
+    (factory, headers)
 }
 
-fn source(state_root: Option<B256>) -> (Factory, SealedHeader) {
+fn source(state_root: Option<B256>) -> (Factory, Vec<SealedHeader>) {
     source_of(&OP_MAINNET, CANCUN_TIMESTAMP, state_root)
 }
 
@@ -248,7 +263,8 @@ fn persist_empty_child(factory: &Factory, parent: &SealedHeader) {
 /// it holds the source's state, passes the checks a node runs when it starts, and reads the state
 /// as history once the node moves past it.
 fn assert_copies_the_state(chain: &Arc<OpChainSpec>, commit_bytes: usize) {
-    let (source, header) = source_of(chain, CANCUN_TIMESTAMP, None);
+    let (source, headers) = source_of(chain, CANCUN_TIMESTAMP, None);
+    let header = headers.last().unwrap().clone();
     let expected = (
         entries::<tables::HashedAccounts, _>(&source),
         entries::<tables::HashedStorages, _>(&source),
@@ -269,6 +285,15 @@ fn assert_copies_the_state(chain: &Arc<OpChainSpec>, commit_bytes: usize) {
         assert_eq!(provider.get_stage_checkpoint(stage).unwrap().unwrap().block_number, PIVOT);
     }
     assert!(provider.snap_attempt().unwrap().unwrap().is_verified());
+    // The EVM reads these hashes when it executes the blocks after the synced one.
+    for header in &headers {
+        assert_eq!(
+            provider.block_hash(header.number).unwrap(),
+            Some(header.hash()),
+            "{}",
+            header.number
+        );
+    }
     assert!(provider.tx_ref().entries::<tables::PackedAccountsTrie>().unwrap() > 0);
     drop(provider);
     // The node runs this check on startup and unwinds or panics if it fails.
@@ -422,21 +447,25 @@ fn frame(tables: &[u8]) -> Vec<u8> {
 }
 
 /// Answers one client like a state server whose tables arrive as `frame`.
-fn fake_server(frame: Vec<u8>) -> (SocketAddr, thread::JoinHandle<()>) {
+fn fake_server(headers: Vec<SealedHeader>, frame: Vec<u8>) -> (SocketAddr, thread::JoinHandle<()>) {
     serve_one(move |mut stream| {
         // The client's opening: magic, genesis hash and token.
         let mut opening = vec![0; MAGIC.len() + 32 + 4 + TOKEN.len()];
         stream.read_exact(&mut opening).unwrap();
-        stream.write_all(MAGIC).unwrap();
-        stream.write_all(&[Status::Ok as u8]).unwrap();
-        let mut rlp = Vec::new();
-        Header { number: PIVOT, timestamp: CANCUN_TIMESTAMP, ..Default::default() }
-            .encode(&mut rlp);
-        write_bytes(&mut stream, &rlp).unwrap();
-        write_u64(&mut stream, PIVOT).unwrap();
-        stream.read_exact(&mut [0]).unwrap();
-        // The client may stop reading as soon as it finds what is wrong.
-        let _ = stream.write_all(&frame);
+        // The client may stop reading as soon as it finds what is wrong, failing later writes.
+        let _ = (|| -> std::io::Result<()> {
+            stream.write_all(MAGIC)?;
+            stream.write_all(&[Status::Ok as u8])?;
+            write_u32(&mut stream, headers.len() as u32)?;
+            for header in &headers {
+                let mut rlp = Vec::new();
+                header.header().encode(&mut rlp);
+                write_bytes(&mut stream, &rlp).map_err(std::io::Error::other)?;
+            }
+            write_u64(&mut stream, PIVOT)?;
+            stream.read_exact(&mut [0])?;
+            stream.write_all(&frame)
+        })();
     })
 }
 
@@ -455,15 +484,26 @@ fn rejects_malformed_streams() {
     let mut bad_checksum = frame(&empty_tables);
     *bad_checksum.last_mut().unwrap() ^= 1;
 
+    let headers = linked_headers(CANCUN_TIMESTAMP, B256::ZERO);
+    let mut unlinked = headers.clone();
+    unlinked[3] = SealedHeader::seal_slow(Header {
+        parent_hash: B256::repeat_byte(0x22),
+        ..unlinked[3].header().clone()
+    });
+    let mut short = headers.clone();
+    short.remove(0);
+
     let cases = [
-        (frame(&long_key), "33-byte key"),
-        (frame(&long_value), "at most"),
-        (frame(&wrong_count), "sent 5 HashedAccounts entries but 0 arrived"),
-        (frame(&trailing), "more than the state"),
-        (bad_checksum, "checksum"),
+        (unlinked, Vec::new(), "does not follow block"),
+        (short, Vec::new(), "start at block"),
+        (headers.clone(), frame(&long_key), "33-byte key"),
+        (headers.clone(), frame(&long_value), "at most"),
+        (headers.clone(), frame(&wrong_count), "sent 5 HashedAccounts entries but 0 arrived"),
+        (headers.clone(), frame(&trailing), "more than the state"),
+        (headers, bad_checksum, "checksum"),
     ];
-    for (frame, reason) in cases {
-        let (addr, served) = fake_server(frame);
+    for (headers, frame, reason) in cases {
+        let (addr, served) = fake_server(headers, frame);
         let err = chain(sync(&empty_v2(), TOKEN, COMMIT_BYTES, addr).unwrap_err());
         assert!(err.contains(reason), "{reason}: {err}");
         served.join().unwrap();
@@ -482,9 +522,12 @@ fn streams_the_state_in_a_checksummed_frame() {
     let mut answer = [0; MAGIC.len() + 1];
     stream.read_exact(&mut answer).unwrap();
     assert_eq!(answer[MAGIC.len()], Status::Ok as u8);
-    let header_len = read_u32(&mut stream).unwrap() as usize;
-    // The header, then the finalized block number.
-    stream.read_exact(&mut vec![0; header_len + 8]).unwrap();
+    // The headers, then the finalized block number.
+    for _ in 0..read_u32(&mut stream).unwrap() {
+        let header_len = read_u32(&mut stream).unwrap() as usize;
+        stream.read_exact(&mut vec![0; header_len]).unwrap();
+    }
+    stream.read_exact(&mut [0; 8]).unwrap();
     stream.write_all(&[READY]).unwrap();
     let mut frame = Vec::new();
     stream.read_to_end(&mut frame).unwrap();
