@@ -65,6 +65,6 @@ func (a *SimpleTxmgrAPI) GetBlobTipCapDynamic(_ context.Context) bool {
 	return a.mgr.GetBlobTipCapDynamic()
 }
 
-func (a *SimpleTxmgrAPI) SetBlobTipCapDynamic(_ context.Context, val bool) {
-	a.mgr.SetBlobTipCapDynamic(val)
+func (a *SimpleTxmgrAPI) SetBlobTipCapDynamic(_ context.Context, val bool) error {
+	return a.mgr.SetBlobTipCapDynamic(val)
 }
