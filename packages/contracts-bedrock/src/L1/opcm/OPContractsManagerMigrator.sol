@@ -233,10 +233,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         );
 
         // Reuse the existing DelayedWETH from chainSystemConfigs[0] rather than deploying a
-        // new one. The migrated chains share a SystemConfig, and by extension share its
-        // DelayedWETH. Deploying a new one would create a divergence — SystemConfig would
-        // still point to the old one, and future upgrades (which load DelayedWETH from
-        // SystemConfig) would reference a different DelayedWETH than the shared DGF games.
+        // new one. Each chain keeps its own SystemConfig, and migrate points every one of them
+        // at this DelayedWETH.
         IDelayedWETH delayedWETH = IDelayedWETH(payable(_input.chainSystemConfigs[0].delayedWETH()));
 
         // Separate context to avoid stack too deep (isolate the implementations variable).

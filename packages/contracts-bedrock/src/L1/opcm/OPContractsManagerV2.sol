@@ -101,7 +101,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         bool useCustomGasToken;
         // Withdrawal timing configuration. Stored per chain on the portal, the
         // AnchorStateRegistry and the DelayedWETH, and bounded by the implementations' min/max
-        // immutables.
+        // immutables. After migrate, the AnchorStateRegistry and DelayedWETH are shared, so their
+        // delays apply to the whole set.
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 withdrawalDelaySeconds;
