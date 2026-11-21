@@ -43,8 +43,8 @@ require (
 	github.com/multiformats/go-base32 v0.1.0
 	github.com/multiformats/go-multiaddr v0.16.0
 	github.com/multiformats/go-multiaddr-dns v0.4.1
-	github.com/prometheus/client_golang v1.22.0
-	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_model v0.6.3
 	github.com/protolambda/ctxlock v0.1.0
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v2 v2.27.6
@@ -80,6 +80,7 @@ require (
 	github.com/minio/minlz v1.0.1-0.20250507153514-87eb42fe8882 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/onsi/gomega v1.34.1 // indirect
+	github.com/pandatix/go-abnf v0.5.5 // indirect
 	github.com/pion/dtls/v2 v2.2.12 // indirect
 	github.com/pion/dtls/v3 v3.1.5 // indirect
 	github.com/pion/ice/v4 v4.0.10 // indirect
@@ -206,8 +207,8 @@ require (
 	github.com/pion/sdp/v3 v3.0.13 // indirect
 	github.com/pion/transport/v2 v2.2.10 // indirect
 	github.com/pion/transport/v3 v3.0.7 // indirect
-	github.com/prometheus/common v0.64.0
-	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/prometheus/common v0.74.0
+	github.com/prometheus/procfs v0.21.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.60.0 // indirect
 	github.com/quic-go/webtransport-go v0.11.1 // indirect
