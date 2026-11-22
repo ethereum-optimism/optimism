@@ -27,6 +27,7 @@ use reth_db_api::{
     tables::{self, RawDupSort, RawKey, RawTable, RawValue},
     transaction::{DbTx, DbTxMut},
 };
+use reth_node_metrics::recorder::install_prometheus_recorder;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::validation::validate_body_against_header_op;
 use reth_optimism_primitives::{OpBlock, OpBlockBody, OpPrimitives};
@@ -96,6 +97,9 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> SyncStateCommand<C> {
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         let token = read_token(&self.token_file)?;
+        // Every static file operation records a metric sample. The recorder the CLI installs keeps
+        // them in memory until its upkeep drains them, some gigabytes over a sync otherwise.
+        install_prometheus_recorder().spawn_upkeep();
         let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RW, runtime)?;
         let stream = TcpStream::connect(&self.from)?;
         let header = sync(&provider_factory, &token, COMMIT_BYTES, stream)?;

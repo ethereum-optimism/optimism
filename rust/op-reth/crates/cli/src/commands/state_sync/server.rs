@@ -20,6 +20,7 @@ use reth_db_api::{
     tables::{self, RawTable},
     transaction::DbTx,
 };
+use reth_node_metrics::recorder::install_prometheus_recorder;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
 use reth_primitives_traits::{Bytecode, SealedHeader};
@@ -94,6 +95,9 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> StateServerCommand<C> {
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         let token = read_token(&self.token_file)?;
+        // Every static file operation records a metric sample. The recorder the CLI installs keeps
+        // them in memory until its upkeep drains them, some gigabytes over a sync otherwise.
+        install_prometheus_recorder().spawn_upkeep();
         // The node that owns the data directory keeps writing to it, so its static files and
         // database can be momentarily out of step; each transfer reads one consistent view.
         let Environment { provider_factory, .. } =
