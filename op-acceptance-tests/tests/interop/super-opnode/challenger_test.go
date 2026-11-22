@@ -13,11 +13,11 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
-// TestChallengerPlaysGameFromOpNode verifies op-challenger plays a super-cannon-kona game
-// when its super roots are sourced from a single op-node (superroot_atTimestamp) rather than
-// op-supernode. An attacker posts a bad super root; the challenger, backed by op-node, must
+// TestChallengerPlaysGameFromL2CL verifies op-challenger plays a super-cannon-kona game
+// when its super roots are sourced from a single CL (superroot_atTimestamp) rather than
+// op-supernode. An attacker posts a bad super root; the challenger, backed by the CL, must
 // counter it down to the split depth.
-func TestChallengerPlaysGameFromOpNode(gt *testing.T) {
+func TestChallengerPlaysGameFromL2CL(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainInteropNoSupernode(t)
 	dsl.CheckAll(t, sys.L2CLA.AdvancedFn(safety.CrossSafe, 1, 30))

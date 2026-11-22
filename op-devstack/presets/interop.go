@@ -176,11 +176,10 @@ func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChain
 }
 
 // NewSingleChainInteropNoSupernode creates a fresh SingleChainInterop target whose
-// super roots are served by the single op-node's superroot_atTimestamp endpoint (no
-// op-supernode). The op-challenger plays super-cannon-kona games against this op-node
-// source. This exercises the "op-node as super root RPC" path end-to-end.
+// super roots are served by the single CL's superroot_atTimestamp endpoint (no
+// op-supernode). The op-challenger plays super-cannon-kona games against this CL
+// source. This exercises the "CL as super root RPC" path end-to-end.
 func NewSingleChainInteropNoSupernode(t devtest.T, opts ...Option) *SingleChainInterop {
-	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, singleChainInteropNoSupernodePresetSupportedOptionKinds)
 	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t, presetCfg))
 }
