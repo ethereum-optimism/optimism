@@ -23,7 +23,7 @@ use libp2p::{PeerId, multiaddr::Protocol};
 use std::{net::IpAddr, str::FromStr, sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 
-use crate::OpP2PApiServer;
+use crate::{OpP2PApiServer, plain_error::plain_error};
 
 /// Server implementation of [`crate::OpP2PApiServer`].
 #[derive(Debug, Clone)]
@@ -58,11 +58,6 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// How long `opp2p_disconnectPeer` waits for the peer's connections to close.
 const DISCONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// An error with the code op-node's server assigns to a plain Go error, and its message.
-fn plain_error(message: String) -> ErrorObject<'static> {
-    ErrorObject::owned(-32000, message, None::<()>)
-}
 
 /// The error op-node's `opp2p_discoveryTable` returns when discovery is disabled.
 fn discovery_disabled() -> ErrorObject<'static> {

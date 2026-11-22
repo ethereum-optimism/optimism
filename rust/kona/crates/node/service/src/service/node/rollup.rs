@@ -479,6 +479,7 @@ impl RollupNode {
                 RollupRpc::new(
                     self.version.clone(),
                     self.config.clone(),
+                    self.dependency_set.clone(),
                     engine_state_rx.clone(),
                     l2_query_client.clone(),
                     l1_watcher_queries_tx.clone(),

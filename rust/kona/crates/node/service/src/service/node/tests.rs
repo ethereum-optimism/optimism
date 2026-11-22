@@ -40,6 +40,7 @@ async fn registered_endpoints_report_the_binary_version() {
         let mut rpc = RollupRpc::new(
             version.to_owned(),
             config,
+            None,
             state_rx,
             engine.query_client(),
             l1_tx,
