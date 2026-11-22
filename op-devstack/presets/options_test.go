@@ -122,6 +122,18 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want:      0,
 		},
 		{
+			name:      "two verifiers allow follow-source CL kind",
+			supported: singleChainTwoVerifiersPresetSupportedOptionKinds,
+			opts:      WithFollowSourceCLKind(sysgo.MixedL2CLKona),
+			want:      0,
+		},
+		{
+			name:      "minimal rejects follow-source CL kind",
+			supported: minimalPresetSupportedOptionKinds,
+			opts:      WithFollowSourceCLKind(sysgo.MixedL2CLKona),
+			want:      optionKindFollowSourceCLKind,
+		},
+		{
 			name:      "conductors allow op-reth options",
 			supported: minimalWithConductorsPresetSupportedOptionKinds,
 			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-superset")),

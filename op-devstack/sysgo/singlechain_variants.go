@@ -57,12 +57,18 @@ func NewSingleChainTwoVerifiersRuntime(t devtest.T) *SingleChainRuntime {
 // NewSingleChainTwoVerifiersRuntimeWithConfig adds two verifiers to a minimal runtime without
 // fault proofs: "b" derives from L1, and "c" follows "b" as its follow source.
 func NewSingleChainTwoVerifiersRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
-	clKind := ResolveMixedL2CLKind(t)
-	t.Logger().Info("Starting two-verifier runtime", "sequencer", clKind, "b", clKind, "c", clKind)
-	runtime := addSingleChainVerifier(t, newMinimalNoFaultProofsRuntime(t, cfg, clKind), clKind, true, cfg)
+	followerKind := ResolveMixedL2CLKind(t)
+	sourceKind := followerKind
+	if cfg.FollowSourceCLKind != "" {
+		t.Require().Contains([]MixedL2CLKind{MixedL2CLOpNode, MixedL2CLKona}, cfg.FollowSourceCLKind,
+			"unsupported follow-source CL kind")
+		sourceKind = cfg.FollowSourceCLKind
+	}
+	t.Logger().Info("Starting two-verifier runtime", "sequencer", sourceKind, "b", sourceKind, "c", followerKind)
+	runtime := addSingleChainVerifier(t, newMinimalNoFaultProofsRuntime(t, cfg, sourceKind), sourceKind, true, cfg)
 	nodeB := runtime.Nodes["b"]
 	t.Require().NotNil(nodeB, "missing single-chain node b")
-	nodeC := addSingleChainNode(t, runtime, "c", clKind, false, nodeB.CL.UserRPC(), cfg.GlobalL2CLOptions...)
+	nodeC := addSingleChainNode(t, runtime, "c", followerKind, false, nodeB.CL.UserRPC(), cfg.GlobalL2CLOptions...)
 
 	connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeC)
 	connectSingleChainNodes(t, nodeB.EL, nodeB.CL, nodeC)
