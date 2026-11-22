@@ -34,35 +34,38 @@ func (c *Ensemble) Load(ctx context.Context) (work.Starter, error) {
 var _ work.Starter = (*Ensemble)(nil)
 
 // Start sets up the configured group of builders.
-func (c *Ensemble) Start(ctx context.Context, opts *work.StartOpts) (ensemble *work.Ensemble, errResult error) {
-	ensemble = new(work.Ensemble)
-	defer func() {
-		if errResult == nil {
-			return
-		}
-		// If there is any error, close the builders we may have opened already
-		errResult = errors.Join(errResult, ensemble.Close())
-	}()
+// If any service fails to start, the services that did start are closed again.
+func (c *Ensemble) Start(ctx context.Context, opts *work.StartOpts) (*work.Ensemble, error) {
+	ensemble := new(work.Ensemble)
+	if err := c.startInto(ctx, opts, ensemble); err != nil {
+		return nil, errors.Join(err, ensemble.Close())
+	}
+	return ensemble, nil
+}
+
+// startInto starts the configured services and adds each one to the ensemble as soon as it has started,
+// so that the caller can close them if a later service fails to start.
+func (c *Ensemble) startInto(ctx context.Context, opts *work.StartOpts, ensemble *work.Ensemble) error {
 	serviceOpts := &work.ServiceOpts{
 		StartOpts: opts,
 		Services:  ensemble,
 	}
 	if err := startAndAdd(ctx, c.Builders, serviceOpts, ensemble.AddBuilder); err != nil {
-		return nil, fmt.Errorf("failed to start builders: %w", err)
+		return fmt.Errorf("failed to start builders: %w", err)
 	}
 	if err := startAndAdd(ctx, c.Signers, serviceOpts, ensemble.AddSigner); err != nil {
-		return nil, fmt.Errorf("failed to start signers: %w", err)
+		return fmt.Errorf("failed to start signers: %w", err)
 	}
 	if err := startAndAdd(ctx, c.Committers, serviceOpts, ensemble.AddCommitter); err != nil {
-		return nil, fmt.Errorf("failed to start committers: %w", err)
+		return fmt.Errorf("failed to start committers: %w", err)
 	}
 	if err := startAndAdd(ctx, c.Publishers, serviceOpts, ensemble.AddPublisher); err != nil {
-		return nil, fmt.Errorf("failed to start publishers: %w", err)
+		return fmt.Errorf("failed to start publishers: %w", err)
 	}
 	if err := startAndAdd(ctx, c.Sequencers, serviceOpts, ensemble.AddSequencer); err != nil {
-		return nil, fmt.Errorf("failed to start sequencers: %w", err)
+		return fmt.Errorf("failed to start sequencers: %w", err)
 	}
-	return ensemble, nil
+	return nil
 }
 
 type valueIface[K comparable, R any] interface {

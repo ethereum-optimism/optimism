@@ -19,6 +19,12 @@ import (
 )
 
 func TestEnsemble_Start(t *testing.T) {
+	startOpts := func(t *testing.T) *work.StartOpts {
+		return &work.StartOpts{
+			Log:     testlog.Logger(t, log.LevelError),
+			Metrics: &metrics.NoopMetrics{},
+		}
+	}
 	t.Run("empty", func(t *testing.T) {
 		v := new(Ensemble)
 		out, err := v.Start(context.Background(), nil)
@@ -58,16 +64,39 @@ func TestEnsemble_Start(t *testing.T) {
 				},
 			},
 		}
-		logger := testlog.Logger(t, log.LevelError)
-		out, err := v.Start(context.Background(), &work.StartOpts{
-			Log:     logger,
-			Metrics: &metrics.NoopMetrics{},
-		})
+		out, err := v.Start(context.Background(), startOpts(t))
 		require.NoError(t, err)
 		require.Len(t, out.Builders(), 1)
 		require.Len(t, out.Signers(), 1)
 		require.Len(t, out.Committers(), 1)
 		require.Len(t, out.Publishers(), 1)
 		require.Len(t, out.Sequencers(), 1)
+	})
+	t.Run("builder fails", func(t *testing.T) {
+		v := &Ensemble{
+			Builders: map[seqtypes.BuilderID]*BuilderEntry{
+				"bad-builder": {}, // no kind configured
+			},
+		}
+		out, err := v.Start(context.Background(), startOpts(t))
+		require.ErrorIs(t, err, seqtypes.ErrUnknownKind)
+		require.ErrorContains(t, err, "failed to start builders")
+		require.Nil(t, out)
+	})
+	t.Run("later service fails", func(t *testing.T) {
+		v := &Ensemble{
+			Builders: map[seqtypes.BuilderID]*BuilderEntry{
+				"noop-builder": {
+					Noop: &noopbuilder.Config{},
+				},
+			},
+			Signers: map[seqtypes.SignerID]*SignerEntry{
+				"bad-signer": {}, // no kind configured
+			},
+		}
+		out, err := v.Start(context.Background(), startOpts(t))
+		require.ErrorIs(t, err, seqtypes.ErrUnknownKind)
+		require.ErrorContains(t, err, "failed to start signers")
+		require.Nil(t, out)
 	})
 }
