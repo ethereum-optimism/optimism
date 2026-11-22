@@ -40,10 +40,10 @@ extern crate tracing;
 mod task_queue;
 pub use task_queue::{
     BuildTask, BuildTaskError, CanonicalizeTask, CanonicalizeTaskError, ConsolidateInput,
-    ConsolidateTask, ConsolidateTaskError, DelegatedRejection, DelegatedSafeHeads, Engine,
-    EngineBuildError, EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
-    EngineTaskErrors, ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
-    InconsistentSafeHeadsError, InsertTask, InsertTaskError, SafeLabel, SealTask, SealTaskError,
+    ConsolidateTask, ConsolidateTaskError, DelegatedSafeHeads, Engine, EngineBuildError,
+    EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors,
+    ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
+    InconsistentSafeHeadsError, InsertTask, InsertTaskError, SealTask, SealTaskError,
     SynchronizeTaskError,
 };
 

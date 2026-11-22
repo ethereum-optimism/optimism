@@ -4,9 +4,9 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, CanonicalizeTask, ConsolidateTask, ConsolidateTaskError, Engine, EngineActorRequest,
-    EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors,
-    FinalizeTask, ImportedBlockSink, InsertTask, SealTask,
+    BuildTask, CanonicalizeTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, FinalizeTask,
+    ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -234,10 +234,7 @@ where
                         self.defer_retry();
                         return Ok(());
                     }
-                    EngineTaskErrorSeverity::Skip => {
-                        self.log_skipped_task(&err);
-                        self.forward_permanently_rejected_delegated_safe_heads(&err).await?;
-                    }
+                    EngineTaskErrorSeverity::Skip => self.log_skipped_task(&err),
                 }
             }
         }
@@ -253,30 +250,6 @@ where
         }
 
         Ok(())
-    }
-
-    /// Tells derivation about delegated safe heads whose forkchoice update the execution layer
-    /// permanently rejected, so the delegate does not send them again before a reset.
-    async fn forward_permanently_rejected_delegated_safe_heads(
-        &self,
-        err: &EngineTaskErrors,
-    ) -> Result<(), EngineError> {
-        let EngineTaskErrors::Consolidate(ConsolidateTaskError::DelegatedForkchoiceRejected {
-            heads,
-            rejection,
-        }) = err
-        else {
-            return Ok(());
-        };
-        if !rejection.is_permanent() {
-            return Ok(());
-        }
-        self.derivation_client.send_rejected_delegated_safe_heads(*heads, *rejection).await.map_err(
-            |err| {
-                error!(target: "engine", ?err, "Failed to send rejected delegated safe heads");
-                EngineError::ChannelClosed
-            },
-        )
     }
 
     async fn mark_el_sync_complete_and_notify_derivation_actor(

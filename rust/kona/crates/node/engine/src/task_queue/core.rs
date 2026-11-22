@@ -2,14 +2,15 @@
 
 use super::ExecutableEngineTask;
 use crate::{
-    EngineClient, EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
+    EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, L2ForkchoiceState, Metrics, SyncStartError, SynchronizeTaskError,
     find_starting_forkchoice,
-    sync::l2_block_info_at,
     task_queue::{
         EngineTaskErrors, ForkchoiceReply, restore_forkchoice, synchronize_unconditionally,
     },
 };
+use alloy_primitives::B256;
+use alloy_rpc_types_engine::ForkchoiceState;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use std::{cmp::Ordering, collections::BinaryHeap, sync::Arc};
@@ -139,41 +140,25 @@ impl Engine {
         Ok(start.safe)
     }
 
-    /// Finds the sync start. A walk that misses the finalized block follows a forkchoice update
-    /// that the execution layer made canonical before rejecting it. The finalized block anchors
-    /// the restore: the engine's established one, or after a restart, the execution layer's own
-    /// finalized label. While the execution layer still holds the anchor, the engine restores a
-    /// forkchoice on its chain and walks once more; otherwise restoring cannot help, and the
-    /// mismatch stands.
+    /// Finds the sync start. A walk that misses the execution layer's finalized block follows a
+    /// forkchoice update that the execution layer made canonical before rejecting it, which
+    /// leaves its finalized label where it was. The engine restores a forkchoice on that block's
+    /// chain and walks once more.
     async fn find_starting_forkchoice_restoring_finality(
         &self,
-        client: &Arc<EngineClient>,
-        config: &Arc<RollupConfig>,
+        client: &EngineClient,
+        config: &RollupConfig,
     ) -> Result<L2ForkchoiceState, EngineResetError> {
-        let (mismatch, el_finalized) = match find_starting_forkchoice(config, client.as_ref()).await
-        {
+        let (mismatch, el_finalized) = match find_starting_forkchoice(config, client).await {
             Err(mismatch @ SyncStartError::MismatchedFinalizedBlock { finalized, .. }) => {
                 (mismatch, finalized)
             }
             result => return Ok(result?),
         };
-        let established_finalized = self.state.sync_state.established_finalized_head().is_some();
-        let anchor = if established_finalized {
-            self.state.sync_state.finalized_head()
-        } else {
-            l2_block_info_at(el_finalized)
-        };
-        if !client.l2_block_is_stored(anchor.block_info.hash).await.map_err(SyncStartError::from)? {
-            return Err(mismatch.into());
-        }
 
-        warn!(target: "engine", %mismatch, ?anchor, "Restoring a forkchoice on the finalized chain before walking again");
-        if established_finalized {
-            self.restore_engine_forkchoice(client, anchor).await?;
-        } else {
-            restore_forkchoice(client.as_ref(), &finalized_only(anchor)).await?;
-        }
-        match find_starting_forkchoice(config, client.as_ref()).await {
+        warn!(target: "engine", %mismatch, "Restoring a forkchoice on the finalized chain before walking again");
+        self.restore_finalized_chain(client, el_finalized.hash).await?;
+        match find_starting_forkchoice(config, client).await {
             Err(mismatch @ SyncStartError::MismatchedFinalizedBlock { .. }) => {
                 Err(EngineResetError::FinalityNotRestored(mismatch))
             }
@@ -181,22 +166,31 @@ impl Engine {
         }
     }
 
-    /// Sends the engine's own forkchoice again. Its labels may include a delegated safe head that
-    /// the execution layer never accepted, or an unsafe head it does not have; when it rejects
-    /// them or answers `SYNCING`, a forkchoice of the `finalized` block alone, which it holds,
-    /// restores its chain instead.
-    async fn restore_engine_forkchoice(
+    /// Puts the execution layer back on the chain of its finalized block, `el_finalized`. An
+    /// engine that has established finality sends its own forkchoice again, which keeps its
+    /// unsafe head. Its labels may include a delegated safe head that the execution layer never
+    /// accepted, or an unsafe head it does not have; when it rejects them or answers `SYNCING`,
+    /// and after a restart, a forkchoice of the finalized block alone restores its chain instead.
+    async fn restore_finalized_chain(
         &self,
-        client: &Arc<EngineClient>,
-        finalized: L2BlockInfo,
+        client: &EngineClient,
+        el_finalized: B256,
     ) -> Result<(), SynchronizeTaskError> {
-        match restore_forkchoice(client.as_ref(), &self.state.sync_state).await {
-            Ok(ForkchoiceReply::Valid) => Ok(()),
-            Ok(ForkchoiceReply::Syncing) | Err(SynchronizeTaskError::InvalidForkchoiceState) => {
-                restore_forkchoice(client.as_ref(), &finalized_only(finalized)).await.map(|_| ())
+        if self.state.sync_state.established_finalized_head().is_some() {
+            let engine_forkchoice = self.state.sync_state.create_forkchoice_state();
+            match restore_forkchoice(client, engine_forkchoice).await {
+                Ok(ForkchoiceReply::Valid) => return Ok(()),
+                Ok(ForkchoiceReply::Syncing) |
+                Err(SynchronizeTaskError::InvalidForkchoiceState) => {}
+                Err(err) => return Err(err),
             }
-            Err(err) => Err(err),
         }
+        let finalized_only = ForkchoiceState {
+            head_block_hash: el_finalized,
+            safe_block_hash: el_finalized,
+            finalized_block_hash: el_finalized,
+        };
+        restore_forkchoice(client, finalized_only).await.map(|_| ())
     }
 
     /// Clears the task queue.
@@ -236,16 +230,6 @@ impl Engine {
 
         Ok(())
     }
-}
-
-/// A sync state whose every label is `finalized`.
-fn finalized_only(finalized: L2BlockInfo) -> EngineSyncState {
-    EngineSyncState::default().with_update(EngineSyncStateUpdate {
-        finalized_head: Some(finalized),
-        local_safe_head: Some(finalized),
-        safe_head: Some(finalized),
-        unsafe_head: Some(finalized),
-    })
 }
 
 /// An error occurred while attempting to reset the [`Engine`].
@@ -366,14 +350,6 @@ mod recovery_tests {
                 safe_block_hash: finalized,
             }
         }
-
-        /// The execution layer's answer to the lookup of the engine's finalized block by hash.
-        fn expect_finalized_lookup(&self, l2: &RpcMock, el_holds_it: bool) {
-            l2.expect_block_header_by_hash(
-                self.finalized().block_info.hash,
-                el_holds_it.then(|| crate::test_utils::test_rpc_block(&self.canonical[1])),
-            );
-        }
     }
 
     async fn reset_from(
@@ -395,7 +371,6 @@ mod recovery_tests {
         let forkchoice = initial.sync_state.create_forkchoice_state();
         let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
         el.expect_walk_on_fork(&l1, &l2);
-        el.expect_finalized_lookup(&l2, true);
         l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
         el.expect_walk_on_canonical_chain(&l1, &l2);
         l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
@@ -416,7 +391,6 @@ mod recovery_tests {
         let finalized_only = el.finalized_only_forkchoice();
         let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
         el.expect_walk_on_fork(&l1, &l2);
-        el.expect_finalized_lookup(&l2, true);
         l2.expect_error_code(
             "engine_forkchoiceUpdatedV3",
             i64::from(alloy_rpc_types_engine::INVALID_FORK_CHOICE_STATE_ERROR),
@@ -444,7 +418,6 @@ mod recovery_tests {
         let initial = el.engine_state();
         let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
         el.expect_walk_on_fork(&l1, &l2);
-        el.expect_finalized_lookup(&l2, true);
         l2.expect_forkchoice_updated(
             initial.sync_state.create_forkchoice_state(),
             PayloadStatusEnum::Syncing,
@@ -460,35 +433,6 @@ mod recovery_tests {
         l2.assert_finished();
     }
 
-    /// A walk that misses the finalized block stops the node, like op-node's `ReorgFinalizedErr`,
-    /// when the execution layer no longer holds the restore's anchor: the engine's established
-    /// finalized block, or after a restart, the execution layer's own finalized label.
-    #[rstest::rstest]
-    #[case::engine_finality_lost(ForkedExecutionLayer::new().engine_state())]
-    #[case::el_finalized_label_lost_after_a_restart(EngineState::default())]
-    #[tokio::test]
-    async fn walk_that_misses_finality_stops_the_node_when_the_anchor_is_lost(
-        #[case] initial: EngineState,
-    ) {
-        let el = ForkedExecutionLayer::new();
-        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
-        el.expect_walk_on_fork(&l1, &l2);
-        el.expect_finalized_lookup(&l2, false);
-
-        let error = reset_from(initial, client).await.unwrap_err();
-
-        assert!(
-            matches!(
-                error,
-                EngineResetError::SyncStart(SyncStartError::MismatchedFinalizedBlock { .. })
-            ),
-            "got {error:?}"
-        );
-        assert!(!error.is_temporary());
-        l1.assert_finished();
-        l2.assert_finished();
-    }
-
     /// After a restart the engine has no finality of its own, so a rejected forkchoice update
     /// that left the execution layer on a fork from below its finalized block is undone with the
     /// execution layer's own finalized label: a forkchoice of that block alone, from which the
@@ -498,7 +442,6 @@ mod recovery_tests {
         let el = ForkedExecutionLayer::new();
         let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
         el.expect_walk_on_fork(&l1, &l2);
-        el.expect_finalized_lookup(&l2, true);
         l2.expect_forkchoice_updated(el.finalized_only_forkchoice(), PayloadStatusEnum::Valid);
         expect_sync_start_walk(&l1, &l2, &el.canonical[1], &el.canonical[1], true, &[]);
         l2.expect_forkchoice_updated(el.finalized_only_forkchoice(), PayloadStatusEnum::Valid);
@@ -519,7 +462,6 @@ mod recovery_tests {
         let initial = el.engine_state();
         let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
         el.expect_walk_on_fork(&l1, &l2);
-        el.expect_finalized_lookup(&l2, true);
         l2.expect_forkchoice_updated(
             initial.sync_state.create_forkchoice_state(),
             PayloadStatusEnum::Syncing,
@@ -538,6 +480,35 @@ mod recovery_tests {
         l2.assert_finished();
     }
 
+    /// The fallback restores the execution layer's own finalized label, which it just served, and
+    /// not the engine's finalized head, which is ahead of that label when the execution layer
+    /// answered `SYNCING` to the forkchoice update that carried it.
+    #[tokio::test]
+    async fn fallback_restores_the_el_finalized_label_below_the_engine_finalized_head() {
+        let el = ForkedExecutionLayer::new();
+        let engine_finalized = ForkedExecutionLayer::info(&el.canonical[2]);
+        let initial = TestEngineStateBuilder::new()
+            .with_unsafe_head(ForkedExecutionLayer::info(&el.canonical[3]))
+            .with_safe_head(engine_finalized)
+            .with_finalized_head(engine_finalized)
+            .build();
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        el.expect_walk_on_fork(&l1, &l2);
+        l2.expect_forkchoice_updated(
+            initial.sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Syncing,
+        );
+        l2.expect_forkchoice_updated(el.finalized_only_forkchoice(), PayloadStatusEnum::Valid);
+        expect_sync_start_walk(&l1, &l2, &el.canonical[1], &el.canonical[1], true, &[]);
+        l2.expect_forkchoice_updated(el.finalized_only_forkchoice(), PayloadStatusEnum::Valid);
+
+        let safe = reset_from(initial, client).await.unwrap();
+
+        assert_eq!(safe, el.finalized());
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
     /// A permanent sync-start failure on the walk after a restore stays fatal instead of being
     /// retried as a finality that is not restored yet.
     #[tokio::test]
@@ -546,7 +517,6 @@ mod recovery_tests {
         let initial = el.engine_state();
         let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
         el.expect_walk_on_fork(&l1, &l2);
-        el.expect_finalized_lookup(&l2, true);
         l2.expect_forkchoice_updated(
             initial.sync_state.create_forkchoice_state(),
             PayloadStatusEnum::Valid,

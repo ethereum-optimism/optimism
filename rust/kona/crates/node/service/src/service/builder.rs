@@ -45,7 +45,8 @@ pub struct RollupNodeBuilder {
     pub rpc_config: Option<RpcBuilder>,
     /// The [`SequencerConfig`].
     pub sequencer_config: Option<SequencerConfig>,
-    /// The L2 CL RPC to delegate derivation to. It must expose `optimism_syncStatus`.
+    /// The L2 CL RPC to delegate derivation to. It must expose `optimism_syncStatus` and
+    /// `optimism_outputAtBlock`.
     /// When present, the node does not run derivation, instead trusting the delegate.
     pub derivation_delegate_url: Option<Url>,
     /// The interop dependency set for this chain.

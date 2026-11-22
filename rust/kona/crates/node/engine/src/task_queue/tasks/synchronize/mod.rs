@@ -6,7 +6,7 @@ pub(in crate::task_queue) use helper::{
 };
 
 mod error;
-pub use error::{SafeLabel, SynchronizeTaskError};
+pub use error::SynchronizeTaskError;
 
 #[cfg(test)]
 mod tests;

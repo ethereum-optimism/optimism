@@ -98,12 +98,6 @@ impl RpcMock {
         );
     }
 
-    /// Expects a header-only `eth_getBlockByHash` call for `hash` and answers it with `block`, or
-    /// with null for `None`.
-    pub fn expect_block_header_by_hash(&self, hash: B256, block: Option<TestRpcBlock>) {
-        self.expect_params("eth_getBlockByHash", serde_json::json!([hash, false]), block);
-    }
-
     /// Expects an `engine_forkchoiceUpdatedV3` call for `forkchoice` without payload attributes and
     /// answers it with `status`.
     pub fn expect_forkchoice_updated(

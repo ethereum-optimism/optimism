@@ -20,19 +20,6 @@ use crate::EngineClient;
 /// kona does not derive.
 const MAX_REORG_SEQ_WINDOWS: u64 = 5;
 
-/// A block known only by its number and hash, which is all a forkchoice update or a finality
-/// comparison needs of it.
-pub(crate) fn l2_block_info_at(id: BlockNumHash) -> L2BlockInfo {
-    L2BlockInfo {
-        block_info: kona_protocol::BlockInfo {
-            hash: id.hash,
-            number: id.number,
-            ..Default::default()
-        },
-        ..Default::default()
-    }
-}
-
 /// Searches for the latest [`L2ForkchoiceState`] that we can use to start the sync process with.
 ///
 ///   - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a *plausible*
@@ -206,7 +193,10 @@ fn check_finalized(finalized: &L2BlockInfo, block: &L2BlockInfo) -> Result<(), S
     if block.block_info.number <= finalized.block_info.number &&
         block.block_info.hash != finalized.block_info.hash
     {
-        return Err(finalized_block_not_on_walked_chain(finalized, block));
+        return Err(finalized_block_not_on_walked_chain(
+            finalized.block_info.id(),
+            block.block_info.id(),
+        ));
     }
     Ok(())
 }
@@ -218,7 +208,7 @@ async fn ensure_finalized_block_on_walked_chain(
     engine_client: &EngineClient,
     current_fc: &L2ForkchoiceState,
 ) -> Result<(), SyncStartError> {
-    let finalized = current_fc.finalized.block_info;
+    let finalized = current_fc.finalized.block_info.id();
     if current_fc.safe.block_info.number <= finalized.number {
         return Ok(());
     }
@@ -231,8 +221,8 @@ async fn ensure_finalized_block_on_walked_chain(
     if walked.hash == finalized.hash {
         return Ok(());
     }
-    let walked = l2_block_info_at(BlockNumHash { hash: walked.hash, number: walked.number });
-    Err(finalized_block_not_on_walked_chain(&current_fc.finalized, &walked))
+    let walked = BlockNumHash { hash: walked.hash, number: walked.number };
+    Err(finalized_block_not_on_walked_chain(finalized, walked))
 }
 
 /// The error for a walk from the execution layer's unsafe head that reached the height of its
@@ -240,21 +230,18 @@ async fn ensure_finalized_block_on_walked_chain(
 /// finalize a block that is not an ancestor of its head or move finality back, so the sync start
 /// refuses it, like op-node's `ReorgFinalizedErr`.
 fn finalized_block_not_on_walked_chain(
-    finalized: &L2BlockInfo,
-    walked: &L2BlockInfo,
+    finalized: BlockNumHash,
+    walked: BlockNumHash,
 ) -> SyncStartError {
     error!(
         target: "sync_start",
-        finalized = %finalized.block_info.number,
-        finalized_hash = %finalized.block_info.hash,
-        walked = %walked.block_info.number,
-        walked_hash = %walked.block_info.hash,
+        finalized = %finalized.number,
+        finalized_hash = %finalized.hash,
+        walked = %walked.number,
+        walked_hash = %walked.hash,
         "The chain walked from the execution layer's unsafe head does not contain its finalized block"
     );
-    SyncStartError::MismatchedFinalizedBlock {
-        finalized: finalized.block_info.id(),
-        walked: walked.block_info.id(),
-    }
+    SyncStartError::MismatchedFinalizedBlock { finalized, walked }
 }
 
 #[cfg(test)]

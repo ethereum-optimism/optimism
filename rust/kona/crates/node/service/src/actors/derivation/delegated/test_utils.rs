@@ -1,10 +1,12 @@
 //! A scripted derivation delegate and sync status builder shared by the delegated actor's tests.
 
 use super::SyncStatusSource;
+use alloy_eips::BlockNumHash;
+use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     sync::{Arc, Mutex},
 };
 use tokio::sync::watch;
@@ -21,10 +23,13 @@ enum UnscriptedPoll {
 }
 
 /// Answers each poll with the next scripted reply. It counts every poll, and separately the polls
-/// it answered with a sync status.
+/// it answered with a sync status. It serves the hashes of the blocks it was given, counts those
+/// lookups, and fails a lookup at any other height like a delegate that cannot serve the block.
 #[derive(Clone, Debug)]
 pub(super) struct ScriptedDelegate {
     answered_polls: watch::Sender<u32>,
+    block_lookups: Arc<Mutex<u32>>,
+    blocks: Arc<Mutex<HashMap<u64, B256>>>,
     polls: watch::Sender<u32>,
     replies: Arc<Mutex<VecDeque<SyncStatusReply>>>,
     unscripted_poll: UnscriptedPoll,
@@ -47,6 +52,8 @@ impl ScriptedDelegate {
     ) -> Self {
         Self {
             answered_polls: watch::Sender::new(0),
+            block_lookups: Arc::default(),
+            blocks: Arc::default(),
             polls: watch::Sender::new(0),
             replies: Arc::new(Mutex::new(replies.into_iter().collect())),
             unscripted_poll,
@@ -56,6 +63,16 @@ impl ScriptedDelegate {
     /// Scripts `status` as the reply to the next unanswered poll.
     pub(super) fn reports(&self, status: SyncStatus) {
         self.replies.lock().unwrap().push_back(Ok(status));
+    }
+
+    /// Makes `block` the delegate's block at its height.
+    pub(super) fn has_block(&self, block: BlockNumHash) {
+        self.blocks.lock().unwrap().insert(block.number, block.hash);
+    }
+
+    /// The number of block hash lookups so far.
+    pub(super) fn block_lookups(&self) -> u32 {
+        *self.block_lookups.lock().unwrap()
     }
 
     /// Counts the polls answered with a sync status.
@@ -90,6 +107,11 @@ impl SyncStatusSource for ScriptedDelegate {
             self.answered_polls.send_modify(|polls| *polls += 1);
         }
         reply
+    }
+
+    async fn block_hash_at(&self, number: u64) -> Result<B256, Self::Error> {
+        *self.block_lookups.lock().unwrap() += 1;
+        self.blocks.lock().unwrap().get(&number).copied().ok_or("no block at this height")
     }
 }
 

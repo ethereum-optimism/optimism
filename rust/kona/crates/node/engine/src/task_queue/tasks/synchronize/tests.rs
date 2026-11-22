@@ -2,7 +2,7 @@ use super::{synchronize, synchronize_unconditionally};
 use crate::{
     EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTaskError,
     EngineTaskErrorSeverity::{self, Reset, Temporary},
-    SafeLabel, SynchronizeTaskError,
+    FinalityViolation, SynchronizeTaskError,
     test_utils::{RpcMock, TestEngineStateBuilder, test_block_info, test_engine_client},
 };
 use alloy_rpc_types_engine::{ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
@@ -157,13 +157,10 @@ async fn synchronize_applies_labels_only_when_accepted(
 /// execution layer is asked, leaves the labels unchanged, and resets the engine rather than
 /// stopping it.
 #[rstest]
-#[case::safe_head(EngineSyncStateUpdate { safe_head: Some(test_block_info(4)), ..Default::default() }, SafeLabel::Safe)]
-#[case::local_safe_head(EngineSyncStateUpdate { local_safe_head: Some(test_block_info(4)), ..Default::default() }, SafeLabel::LocalSafe)]
+#[case::safe_head(EngineSyncStateUpdate { safe_head: Some(test_block_info(4)), ..Default::default() })]
+#[case::local_safe_head(EngineSyncStateUpdate { local_safe_head: Some(test_block_info(4)), ..Default::default() })]
 #[tokio::test]
-async fn synchronize_refuses_a_safe_label_below_finality(
-    #[case] update: EngineSyncStateUpdate,
-    #[case] expected_label: SafeLabel,
-) {
+async fn synchronize_refuses_a_safe_label_below_finality(#[case] update: EngineSyncStateUpdate) {
     let mut state = engine_state();
     let state_before = state;
     let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
@@ -173,8 +170,10 @@ async fn synchronize_refuses_a_safe_label_below_finality(
     assert!(
         matches!(
             error,
-            SynchronizeTaskError::FinalizedAheadOfSafe { finalized_number: 5, label, label_number: 4 }
-                if label == expected_label
+            SynchronizeTaskError::FinalizedAheadOfSafe(FinalityViolation::BehindFinalizedHead {
+                finalized,
+                target: 4,
+            }) if finalized.number == 5
         ),
         "{error:?}"
     );
