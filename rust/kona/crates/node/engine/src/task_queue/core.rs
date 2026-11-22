@@ -63,7 +63,8 @@ pub struct Engine {
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
     /// performed part of an Engine API operation.
     active: Option<EngineTask>,
-    /// How far behind the synced tip [`Engine::reset_after_el_sync`] places safe and finalized.
+    /// How far behind the unsafe head safe and finalized are placed after EL sync, or when a reset
+    /// finds the execution layer's labels lost or its chain rewound below them.
     el_sync_safe_offset: Duration,
 }
 
@@ -80,8 +81,9 @@ impl Engine {
         }
     }
 
-    /// Sets how far behind the synced tip [`Engine::reset_after_el_sync`] places safe and
-    /// finalized. Defaults to [`DEFAULT_EL_SYNC_SAFE_OFFSET`].
+    /// Sets how far behind the unsafe head safe and finalized are placed after EL sync, or when a
+    /// reset finds the execution layer's labels lost or its chain rewound below them. Defaults to
+    /// [`DEFAULT_EL_SYNC_SAFE_OFFSET`].
     pub const fn with_el_sync_safe_offset(mut self, el_sync_safe_offset: Duration) -> Self {
         self.el_sync_safe_offset = el_sync_safe_offset;
         self
@@ -123,7 +125,8 @@ impl Engine {
         client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
     ) -> Result<L2BlockInfo, EngineResetError> {
-        let start = find_starting_forkchoice(&config, client.as_ref()).await?;
+        let start =
+            find_starting_forkchoice(&config, client.as_ref(), self.el_sync_safe_offset).await?;
         self.adopt_forkchoice(&client, start).await
     }
 

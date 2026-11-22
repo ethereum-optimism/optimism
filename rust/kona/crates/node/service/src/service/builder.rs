@@ -55,7 +55,8 @@ pub struct RollupNodeBuilder {
     pub safe_db: Option<Arc<dyn SafeDb>>,
     /// Number of L1 confirmations required before deriving L2 blocks.
     pub verifier_l1_confs: u64,
-    /// How far behind the synced tip safe and finalized are placed when EL sync completes.
+    /// How far behind the unsafe head safe and finalized are placed when EL sync completes, or
+    /// when a reset finds the execution layer's labels lost or its chain rewound below them.
     pub el_sync_safe_offset: Duration,
 }
 
@@ -104,7 +105,8 @@ impl RollupNodeBuilder {
         Self { verifier_l1_confs, ..self }
     }
 
-    /// Sets how far behind the synced tip safe and finalized are placed when EL sync completes.
+    /// Sets how far behind the unsafe head safe and finalized are placed when EL sync completes,
+    /// or when a reset finds the execution layer's labels lost or its chain rewound below them.
     pub fn with_el_sync_safe_offset(self, el_sync_safe_offset: Duration) -> Self {
         Self { el_sync_safe_offset, ..self }
     }
