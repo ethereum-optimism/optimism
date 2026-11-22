@@ -227,19 +227,18 @@ func connectSingleChainCLPeer(t devtest.T, sourceCL, targetCL L2CLNode) {
 }
 
 func replaceSingleChainTestSequencer(t devtest.T, runtime *SingleChainRuntime, name string, node *SingleChainNodeRuntime) {
-	l2CL, ok := node.CL.(*OpNode)
-	t.Require().True(ok, "single-chain test sequencer requires an op-node CL node")
-	testSequencer := startTestSequencer(
+	testSequencer := startTestSequencerForRPCs(
 		t,
 		runtime.Keys,
+		"test-sequencer",
 		runtime.L2EL.JWTPath(),
 		readJWTSecretFromPath(t, runtime.L2EL.JWTPath()),
 		runtime.L1Network,
 		runtime.L1EL,
 		runtime.L1CL,
-		node.EL,
-		runtime.L2Network,
-		l2CL,
+		runtime.L2Network.ChainID(),
+		node.EL.UserRPC(),
+		node.CL.UserRPC(),
 	)
 	runtime.TestSequencer = newTestSequencerRuntime(testSequencer, name)
 }
