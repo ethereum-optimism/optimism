@@ -690,3 +690,183 @@ async fn invalid_sequenced_payload_stops_without_rebuilding(#[case] deposits_onl
         )))
     ));
 }
+
+/// The error the engine client returns when an engine reset drops a queued request and closes its
+/// reply channel.
+fn reset_dropped_request() -> EngineClientError {
+    EngineClientError::ResponseError("response channel closed.".into())
+}
+
+/// An engine reset drops a queued seal. The build is dropped, and a new one starts a second later.
+#[tokio::test(start_paused = true)]
+async fn seal_dropped_by_an_engine_reset_rebuilds_on_a_later_tick() {
+    let mut actor = test_actor();
+    actor.started = true;
+    actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    actor.engine_client.expect_canonicalize_block().times(0);
+    let mut sequence = Sequence::new();
+    actor
+        .engine_client
+        .expect_seal_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Err(reset_dropped_request()));
+    actor
+        .engine_client
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|| Ok(L2BlockInfo::default()));
+    actor
+        .origin_selector
+        .expect_next_l1_origin()
+        .times(1)
+        .return_once(|_, _| Ok(BlockInfo::default()));
+    actor.attributes_builder = TestAttributesBuilder { attributes: vec![Ok(Default::default())] };
+    actor
+        .engine_client
+        .expect_start_build_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(PayloadId::new([2; 8])));
+
+    tick(&mut actor).await;
+    assert!(actor.in_flight.is_none());
+
+    let start = Instant::now();
+    actor.step().await.unwrap();
+    assert_eq!(start.elapsed(), Duration::from_secs(1));
+    assert!(matches!(&actor.in_flight, Some(InFlightBlock::Building(handle))
+        if handle.payload_id == PayloadId::new([2; 8])));
+}
+
+/// An engine reset drops a queued canonicalization of a conductor-committed block. The next tick
+/// canonicalizes the same envelope again, without committing it to the conductor again.
+#[tokio::test(start_paused = true)]
+async fn committed_canonicalization_dropped_by_an_engine_reset_retries_the_same_envelope() {
+    let mut actor = actor_with_pending_handle();
+    let payload = sealed_payload(2);
+    let mut sequence = Sequence::new();
+    let sealed = payload.clone();
+    actor
+        .engine_client
+        .expect_seal_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move |_, _| Ok(sealed));
+    let mut conductor = MockConductor::new();
+    conductor
+        .expect_commit_unsafe_payload()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(()));
+    actor.conductor = Some(conductor);
+    for result in [Err(reset_dropped_request()), Ok(())] {
+        let expected = payload.clone();
+        actor
+            .engine_client
+            .expect_canonicalize_block()
+            .withf(move |p, parent| p == &expected && *parent == L2BlockInfo::default())
+            .times(1)
+            .in_sequence(&mut sequence)
+            .return_once(|_, _| result);
+    }
+    actor
+        .unsafe_payload_gossip_client
+        .expect_schedule_execution_payload_gossip()
+        .withf(move |p| p == &payload)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(()));
+
+    tick(&mut actor).await;
+    assert!(
+        matches!(&actor.in_flight, Some(InFlightBlock::Committed(block)) if block.envelope == sealed_payload(2))
+    );
+    tick(&mut actor).await;
+    assert!(actor.in_flight.is_none());
+}
+
+/// An engine reset drops a queued canonicalization of a block no conductor committed. The block is
+/// dropped, and the next tick builds a new one instead.
+#[tokio::test(start_paused = true)]
+async fn uncommitted_canonicalization_dropped_by_an_engine_reset_rebuilds() {
+    let mut actor = test_actor();
+    actor.started = true;
+    actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    let mut sequence = Sequence::new();
+    actor
+        .engine_client
+        .expect_seal_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Ok(sealed_payload(2)));
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Err(reset_dropped_request()));
+    actor
+        .engine_client
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|| Ok(L2BlockInfo::default()));
+    actor
+        .origin_selector
+        .expect_next_l1_origin()
+        .times(1)
+        .return_once(|_, _| Ok(BlockInfo::default()));
+    actor.attributes_builder = TestAttributesBuilder { attributes: vec![Ok(Default::default())] };
+    actor
+        .engine_client
+        .expect_start_build_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(PayloadId::new([2; 8])));
+
+    tick(&mut actor).await;
+    assert!(actor.in_flight.is_none());
+    tick(&mut actor).await;
+    assert!(matches!(&actor.in_flight, Some(InFlightBlock::Building(handle))
+        if handle.payload_id == PayloadId::new([2; 8])));
+}
+
+/// A closed engine inbox stops the sequencer, whether it is sealing or canonicalizing.
+#[rstest]
+#[case::seal(true)]
+#[case::canonicalize(false)]
+#[tokio::test]
+async fn closed_engine_inbox_stops_sealing_and_canonicalizing(#[case] sealing: bool) {
+    let mut actor = test_actor();
+    actor.started = true;
+    actor.in_flight = Some(if sealing {
+        InFlightBlock::Building(pending_handle())
+    } else {
+        InFlightBlock::Committed(pending_sealed_block())
+    });
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    let closed = || EngineClientError::RequestError("request channel closed.".into());
+    actor
+        .engine_client
+        .expect_seal_block()
+        .times(usize::from(sealing))
+        .returning(move |_, _| Err(closed()));
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .times(usize::from(!sealing))
+        .returning(move |_, _| Err(closed()));
+    actor.engine_client.expect_start_build_block().times(0);
+
+    assert!(matches!(
+        actor.step().await,
+        Err(SequencerActorError::EngineError(EngineClientError::RequestError(_)))
+    ));
+}
