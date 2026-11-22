@@ -217,32 +217,28 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 	// Rule 1 does not depend on how far the filter has ingested, so it runs before the
 	// availability gates below. A message whose initiating timestamp is at or after the
 	// executing timestamp is invalid no matter what, and must stay a definitive ErrConflict
-	// instead of being reported as not-yet-available data.
+	// instead of the ErrOutOfScope those gates return.
 	if err := validateInitBeforeInclusion(access.Timestamp, execDescriptor.Timestamp); err != nil {
 		return err
 	}
 
-	// Check that we have ingested data for the requested timestamp. This check and the
-	// cross-unsafe checks below wrap ErrFuture, the FUTURE_DATA error of the supervisor spec:
-	// "data is not yet available". It is a retriable non-verdict, not a statement about the
-	// message, so consumers (op-reth, for example) treat it as a non-response rather than
-	// as a rejection.
+	// Check that we have ingested data for the requested timestamp
 	minIngestedTs, ok := v.getMinIngestedTimestamp()
 	if !ok || access.Timestamp > minIngestedTs {
 		return fmt.Errorf("timestamp %d not yet ingested (min ingested: %d): %w",
-			access.Timestamp, minIngestedTs, interop.ErrFuture)
+			access.Timestamp, minIngestedTs, interop.ErrOutOfScope)
 	}
 
 	// Check cross-unsafe timestamp
 	if minSafety == safety.CrossUnsafe {
 		crossValidatedTs, ok := v.CrossValidatedTimestamp()
 		if !ok {
-			return fmt.Errorf("cross-validated timestamp not available: %w", interop.ErrFuture)
+			return fmt.Errorf("cross-validated timestamp not available: %w", interop.ErrOutOfScope)
 		}
 		if access.Timestamp > crossValidatedTs {
 			return fmt.Errorf("message at timestamp %d not yet cross-unsafe validated "+
 				"(current cross-validated timestamp: %d): %w",
-				access.Timestamp, crossValidatedTs, interop.ErrFuture)
+				access.Timestamp, crossValidatedTs, interop.ErrOutOfScope)
 		}
 	}
 
