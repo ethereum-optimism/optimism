@@ -4,6 +4,9 @@ use url::Url;
 
 const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
 const DEFAULT_L1_TRUST_RPC: bool = false;
+/// One L1 epoch (32 slots of 12 seconds), op-node's default. Mainnet finality advances once per
+/// epoch, so polling more often barely shortens the L2 finality lag.
+const DEFAULT_L1_EPOCH_POLL_INTERVAL: u64 = 384;
 
 /// L1 client arguments.
 #[derive(Clone, Debug, clap::Args)]
@@ -38,6 +41,19 @@ pub struct L1ClientArgs {
         env = "KONA_NODE_L1_SLOT_DURATION_OVERRIDE"
     )]
     pub l1_slot_duration_override: Option<u64>,
+    /// Interval in seconds between polls of the L1 finalized block.
+    ///
+    /// A new finalized L1 block is what finalizes L2 blocks, so the L2 finalized head can trail
+    /// L1 finality by up to this interval. op-node's flag of the same name has the same default
+    /// and also polls the L1 safe block.
+    #[arg(
+        long,
+        visible_alias = "l1.epoch-poll-interval",
+        env = "KONA_NODE_L1_EPOCH_POLL_INTERVAL",
+        default_value_t = DEFAULT_L1_EPOCH_POLL_INTERVAL,
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
+    pub l1_epoch_poll_interval: u64,
 }
 
 impl Default for L1ClientArgs {
@@ -47,6 +63,7 @@ impl Default for L1ClientArgs {
             l1_trust_rpc: DEFAULT_L1_TRUST_RPC,
             l1_beacon: Url::parse("http://localhost:5052").unwrap(),
             l1_slot_duration_override: None,
+            l1_epoch_poll_interval: DEFAULT_L1_EPOCH_POLL_INTERVAL,
         }
     }
 }
@@ -176,6 +193,38 @@ mod tests {
                 assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"), "{output:?}");
             }
         }
+    }
+
+    #[rstest]
+    #[case::default(&[], DEFAULT_L1_EPOCH_POLL_INTERVAL)]
+    #[case::flag(&["--l1-epoch-poll-interval=2"], 2)]
+    #[case::alias(&["--l1.epoch-poll-interval", "2"], 2)]
+    fn test_parse_l1_epoch_poll_interval(#[case] flags: &[&str], #[case] seconds: u64) {
+        let command =
+            ClientArgs::command().mut_arg("l1_epoch_poll_interval", |arg| arg.env(None::<&str>));
+        let matches = command.try_get_matches_from([CLIENT_ARGS, flags].concat()).unwrap();
+        let parsed = ClientArgs::from_arg_matches(&matches).unwrap();
+        assert_eq!(parsed.l1.l1_epoch_poll_interval, seconds);
+    }
+
+    /// A zero interval would poll L1 in a busy loop.
+    #[test]
+    fn test_reject_zero_l1_epoch_poll_interval() {
+        let command =
+            ClientArgs::command().mut_arg("l1_epoch_poll_interval", |arg| arg.env(None::<&str>));
+        let err = command
+            .try_get_matches_from(CLIENT_ARGS.iter().copied().chain(["--l1.epoch-poll-interval=0"]))
+            .unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+    }
+
+    /// op-devstack sets the interval through this environment variable.
+    #[test]
+    fn test_l1_epoch_poll_interval_environment_name() {
+        let command = ClientArgs::command();
+        let arg =
+            command.get_arguments().find(|arg| arg.get_id() == "l1_epoch_poll_interval").unwrap();
+        assert_eq!(arg.get_env(), Some(std::ffi::OsStr::new("KONA_NODE_L1_EPOCH_POLL_INTERVAL")));
     }
 
     #[test]
