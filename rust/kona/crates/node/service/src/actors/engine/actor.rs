@@ -222,8 +222,8 @@ where
                             }
                         }
                     }
-                    EngineTaskErrorSeverity::Temporary => {
-                        trace!(target: "engine", ?err, "Temporary error draining engine tasks");
+                    EngineTaskErrorSeverity::Temporary | EngineTaskErrorSeverity::Wait => {
+                        trace!(target: "engine", ?err, "Engine task will be retried");
                         self.defer_retry();
                         return Ok(());
                     }

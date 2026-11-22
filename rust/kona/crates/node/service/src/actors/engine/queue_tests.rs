@@ -8,8 +8,8 @@ use kona_engine::{
     ConsolidateInput, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
     ResetRequest,
     test_utils::{
-        RpcMock, TestEngineStateBuilder, TestRpcBlock, expect_sync_start, test_block_info,
-        test_engine_client, test_l2_block, test_rpc_block,
+        RpcMock, TestAttributesBuilder, TestEngineStateBuilder, TestRpcBlock, expect_sync_start,
+        test_block_info, test_engine_client, test_l2_block, test_rpc_block,
     },
 };
 use op_alloy_consensus::{OpBlock, OpTxEnvelope};
@@ -130,6 +130,59 @@ async fn delegated_safe_head_is_sent_on_every_poll() {
 
     assert!(actor.engine.is_empty());
     assert_eq!(state_rx.borrow().sync_state.safe_head(), delegated_safe_head);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A derived block that the execution layer lacks while it syncs toward the unsafe head does not
+/// reset the engine: the actor retries the consolidation on its timer, and the labels stay. A reset
+/// would look the execution layer's labels up, which the mock does not expect.
+#[tokio::test(start_paused = true)]
+async fn derived_block_missing_from_syncing_el_is_retried_without_a_reset() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let safe_head = test_block_info(9);
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(20))
+        .with_safe_head(safe_head)
+        .build();
+    const ATTEMPTS: usize = 3;
+    for _ in 0..ATTEMPTS {
+        l2.expect_block_by_number(10, None);
+        l2.expect_forkchoice_updated(
+            state.sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Syncing,
+        );
+    }
+    let (state_tx, _state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    let attributes = TestAttributesBuilder::new().with_parent(safe_head).build();
+    requests
+        .send(EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::Attributes(Box::new(
+            attributes,
+        ))))
+        .await
+        .unwrap();
+
+    // The first step accepts the request. Each later step attempts the consolidation and then
+    // sleeps until its retry is due.
+    for _ in 0..=ATTEMPTS {
+        time::timeout(Duration::from_secs(60), actor.step()).await.unwrap().unwrap();
+    }
+
+    assert!(!actor.reset_pending);
+    assert_eq!(actor.engine.len(), 1);
+    assert_eq!(actor.engine.state().sync_state, state.sync_state);
     l1.assert_finished();
     l2.assert_finished();
 }

@@ -19,6 +19,9 @@ pub enum ConsolidateTaskError {
     /// The unsafe L2 block is missing.
     #[error("Unsafe L2 block is missing {0}")]
     MissingUnsafeL2Block(u64),
+    /// The unsafe L2 block is missing while the execution layer syncs toward the unsafe head.
+    #[error("Unsafe L2 block {0} is missing while the execution layer syncs")]
+    MissingUnsafeL2BlockDuringElSync(u64),
     /// Failed to fetch the unsafe L2 block.
     #[error("Failed to fetch the unsafe L2 block")]
     FailedToFetchUnsafeL2Block,
@@ -47,6 +50,7 @@ impl EngineTaskError for ConsolidateTaskError {
         match self {
             Self::BreaksFinality(_) => EngineTaskErrorSeverity::Skip,
             Self::MissingUnsafeL2Block(_) => EngineTaskErrorSeverity::Reset,
+            Self::MissingUnsafeL2BlockDuringElSync(_) => EngineTaskErrorSeverity::Wait,
             Self::FailedToFetchDelegatedSafeBlock(_) | Self::FailedToFetchUnsafeL2Block => {
                 EngineTaskErrorSeverity::Temporary
             }
