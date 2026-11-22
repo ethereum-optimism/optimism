@@ -63,6 +63,7 @@ proptest = { workspace = true, optional = true }
 op-alloy-consensus = { workspace = true, optional = true }
 
 [dev-dependencies]
+op-alloy-consensus.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-trie.workspace = true

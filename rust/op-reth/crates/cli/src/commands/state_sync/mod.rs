@@ -26,14 +26,21 @@
 //!
 //! # The synced node
 //!
-//! The node has no history before the block it starts from. The client marks the account and
+//! The node has no state history before the block it starts from. The client marks the account and
 //! storage history up to it as pruned, so that a read at a later block finds a key that has not
-//! changed since in the state, rather than taking it to be absent. Below the block, the client
-//! writes a dummy header per block, as `init-state --without-evm` does, which takes minutes at OP
-//! Mainnet's height; the server waits for it. Dummy headers have no real hash, so the server also
-//! sends the real headers of the 255 blocks before, whose hashes the EVM's `BLOCKHASH` reads while
-//! the node executes the blocks after. The client checks that they link up to the block's header,
-//! and writes them, like the block itself, without their transactions.
+//! changed since in the state, rather than taking it to be absent.
+//!
+//! The server also sends the blocks of the `HISTORY` before that block, with their transactions
+//! but without receipts. op-node needs them: once a node has synced, it re-derives the blocks of
+//! that span (its default `--syncmode.offset-el-safe`; a larger offset needs a longer history
+//! than this client gets) from L1. They also give the EVM's
+//! `BLOCKHASH` the real hashes of the blocks it reads while the node executes the blocks after.
+//! The client checks that their headers link up to the block's header and their bodies match
+//! their headers. Below them, it writes a dummy header per block, as `init-state --without-evm`
+//! does, which takes minutes at OP Mainnet's height; the server waits for it. The node has the
+//! blocks of that span but not their state, so state queries there, such as `eth_getProof` or
+//! `optimism_outputAtBlock` for the heads op-node starts from, fail until its safe head passes the
+//! block whose state it got.
 //!
 //! # The source node
 //!
@@ -42,6 +49,9 @@
 //! engine persist blocks without their hashed state (state masking, which reth allows). The server
 //! refuses while the node is syncing with the pipeline, whose stages do not finish at the same
 //! block, and if the data directory shows state masking.
+//!
+//! The server refuses to serve until the node holds the blocks of the `HISTORY` before the block,
+//! which a node synced with `sync-state` does once it has followed the chain that long.
 //!
 //! Each transfer reads the whole state in one database transaction, which is also open while the
 //! client builds its dummy chain. While it is open, the source's database cannot reuse the pages
@@ -54,15 +64,16 @@
 //! 1. The client opens with `MAGIC`, the hash of its chain's genesis block (32 bytes) and its
 //!    token.
 //! 2. The server answers with `MAGIC` and a `Status` byte. After `Status::Ok` it sends the number
-//!    of headers that follow (`u32`), the RLP headers of the blocks from 255 before the one whose
-//!    state follows up to that one, each a byte string, then its finalized block number (`u64`, 0
-//!    if it has none).
-//! 3. The client builds its chain up to that block and sends `READY`.
-//! 4. The rest of the stream is one checksummed zstd frame holding, for each of the
-//!    `HashedAccounts`, `HashedStorages` and `Bytecodes` tables, which with storage v2 hold the
-//!    whole state, its entries in key order: a key and a value, each a byte string. Keys and the
-//!    values of the first two tables are raw database bytes; a bytecode's value is its code. A zero
-//!    key length ends the table and is followed by its entry count (`u64`).
+//!    of headers that follow (`u32`), the RLP headers, each a byte string, of the blocks from the
+//!    one before the `HISTORY` up to the one whose state follows, then its finalized block number
+//!    (`u64`, 0 if it has none).
+//! 3. The client builds its dummy chain up to the first of those blocks and sends `READY`.
+//! 4. The rest of the stream is one checksummed zstd frame holding the RLP bodies of the blocks
+//!    after the first header, each a byte string, then, for each of the `HashedAccounts`,
+//!    `HashedStorages` and `Bytecodes` tables, which with storage v2 hold the whole state, its
+//!    entries in key order: a key and a value, each a byte string. Keys and the values of the first
+//!    two tables are raw database bytes; a bytecode's value is its code. A zero key length ends the
+//!    table and is followed by its entry count (`u64`).
 
 pub mod client;
 pub mod server;
@@ -75,7 +86,7 @@ use std::{
 };
 
 /// Opens both directions of the stream: protocol name and version.
-const MAGIC: &[u8; 8] = b"OPSTATE1";
+const MAGIC: &[u8; 8] = b"OPSTATE2";
 
 /// Sent by the client once its chain reaches the block whose state follows.
 const READY: u8 = 1;
@@ -96,8 +107,23 @@ fn first_recent_block(number: u64) -> u64 {
     (number + 1).saturating_sub(BLOCKHASH_WINDOW).max(1)
 }
 
-/// Longest header accepted, far above any real header.
-const MAX_HEADER_LEN: usize = 64 * 1024;
+/// How far back before the block whose state is sent the client gets whole blocks: op-node's
+/// default `--syncmode.offset-el-safe`, the span it re-derives from L1 once a node has synced.
+#[cfg(not(test))]
+const HISTORY: Duration = Duration::from_secs(12 * 60 * 60);
+/// Shorter in tests, where writing each block costs several file syncs.
+#[cfg(test)]
+const HISTORY: Duration = Duration::from_secs(20);
+
+/// Most headers accepted: [`HISTORY`] of blocks at a quarter of a second each, and more.
+const MAX_HEADERS: u64 = 1 << 18;
+
+/// Longest header accepted, several times an OP header's size, which bounds the [`MAX_HEADERS`]
+/// headers a client holds before checking them.
+const MAX_HEADER_LEN: usize = 4096;
+
+/// Longest block body accepted, far above what a block's gas limit allows.
+const MAX_BODY_LEN: usize = 64 * 1024 * 1024;
 
 /// Length of every key streamed: each table is keyed by a hash.
 const KEY_LEN: u32 = 32;

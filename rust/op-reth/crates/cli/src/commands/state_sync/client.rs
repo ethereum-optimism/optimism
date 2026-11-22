@@ -2,9 +2,9 @@
 //! `op-reth state-server`.
 
 use super::{
-    BLOCKHASH_WINDOW, KEY_LEN, MAGIC, MAX_HEADER_LEN, MAX_VALUE_LEN, READY, STALL_TIMEOUT, Status,
-    first_recent_block, read_array, read_bytes, read_magic, read_token, read_u32, read_u64,
-    read_vec, write_bytes,
+    HISTORY, KEY_LEN, MAGIC, MAX_BODY_LEN, MAX_HEADER_LEN, MAX_HEADERS, MAX_VALUE_LEN, READY,
+    STALL_TIMEOUT, Status, first_recent_block, read_array, read_bytes, read_magic, read_token,
+    read_u32, read_u64, read_vec, write_bytes,
 };
 use alloy_consensus::{BlockHeader, Header};
 use alloy_primitives::B256;
@@ -26,13 +26,14 @@ use reth_db_api::{
     transaction::DbTxMut,
 };
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_primitives::{OpBlock, OpPrimitives};
+use reth_optimism_consensus::validation::validate_body_against_header_op;
+use reth_optimism_primitives::{OpBlock, OpBlockBody, OpPrimitives};
 use reth_primitives_traits::{Bytecode, SealedBlock, SealedHeader, header::HeaderMut};
 use reth_provider::{
-    BlockNumReader, BlockWriter, ChainSpecProvider, DBProvider, DatabaseProvider,
-    DatabaseProviderFactory, MetadataProvider, MetadataWriter, ProviderFactory, ProviderResult,
-    PruneCheckpointWriter, StageCheckpointWriter, StaticFileProviderFactory, StaticFileSegment,
-    StorageSettingsCache,
+    BlockBodyIndicesProvider, BlockNumReader, BlockWriter, ChainSpecProvider, DBProvider,
+    DatabaseProvider, DatabaseProviderFactory, MetadataProvider, MetadataWriter, ProviderFactory,
+    ProviderResult, PruneCheckpointWriter, StageCheckpointWriter, StaticFileProviderFactory,
+    StaticFileSegment, StorageSettingsCache,
     providers::{
         ProviderNodeTypes, StaticFileProvider, StaticFileProviderRWRefMut, StaticFileWriter,
     },
@@ -144,16 +145,17 @@ fn handshake(stream: &mut TcpStream, genesis_hash: B256, token: &[u8]) -> eyre::
     Err(eyre!(refusal))
 }
 
-/// Reads the headers up to the block whose state follows, checks that they link up to it and
-/// reach as far back as `BLOCKHASH` does, and that this node can start from that block.
+/// Reads the headers of the blocks up to the one whose state follows, and checks that they link up
+/// to it, cover the `HISTORY` and `BLOCKHASH` reach before it, and that this node can start from
+/// that block. The first header is the boundary below the blocks whose bodies follow.
 fn read_headers(
     input: &mut impl Read,
     chain_spec: &OpChainSpec,
 ) -> eyre::Result<Vec<SealedHeader>> {
     let count = u64::from(read_u32(input)?);
     ensure!(
-        (1..=BLOCKHASH_WINDOW).contains(&count),
-        "the server sent {count} headers, not 1 to {BLOCKHASH_WINDOW}"
+        (2..=MAX_HEADERS).contains(&count),
+        "the server sent {count} headers, not 2 to {MAX_HEADERS}"
     );
     let mut headers: Vec<SealedHeader> = Vec::new();
     for _ in 0..count {
@@ -172,15 +174,21 @@ fn read_headers(
     let finalized = read_u64(input)?;
     let header = pivot(&headers)?;
     let number = header.number();
-    let first = first_recent_block(number);
+    let (boundary, first) = (&headers[0], &headers[1]);
+    ensure!(boundary.number() > 0, "the server's headers start at genesis");
     ensure!(
-        headers[0].number() == first,
-        "the server's headers start at block {}, not at block {first}",
-        headers[0].number()
+        first.timestamp() <= header.timestamp().saturating_sub(HISTORY.as_secs()),
+        "the server's blocks start at block {}, less than {HISTORY:?} before block {number}",
+        first.number()
     );
-    // On a chain younger than the window, the headers start right after genesis.
     ensure!(
-        first > 1 || headers[0].parent_hash() == chain_spec.genesis_hash(),
+        first.number() <= first_recent_block(number),
+        "the server's blocks start at block {}, after block {}, the first BLOCKHASH reaches",
+        first.number(),
+        first_recent_block(number)
+    );
+    ensure!(
+        boundary.number() > 1 || boundary.parent_hash() == chain_spec.genesis_hash(),
         "the server's header of block 1 does not follow this chain's genesis"
     );
     // Before Cancun, SELFDESTRUCT can wipe storage that came with the state, which needs the
@@ -198,20 +206,31 @@ fn read_headers(
              this node cannot unwind below it: delete the data directory and sync again"
         );
     }
-    info!(target: "reth::cli", number, hash = %header.hash(), "Syncing state");
+    info!(target: "reth::cli", number, hash = %header.hash(), blocks = count - 1, "Syncing state");
     Ok(headers)
 }
 
-/// Writes the chain up to the last of `headers`, then receives its state and verifies it.
-fn load<N: ProviderNodeTypes<Primitives = OpPrimitives>>(
+/// Writes the chain of `headers`, receiving the bodies of all but the first, then receives the
+/// state of the last and verifies it.
+fn load<N: ProviderNodeTypes<Primitives = OpPrimitives, ChainSpec = OpChainSpec>>(
     provider_factory: &ProviderFactory<N>,
     headers: &[SealedHeader],
     commit_bytes: usize,
     mut stream: TcpStream,
 ) -> eyre::Result<()> {
-    prepare(provider_factory, headers)?;
+    let (boundary, blocks) = headers.split_first().ok_or_else(|| eyre!("no headers to write"))?;
+    // Writing each block also marks every stage done at it. One transaction, up to the guard that
+    // `prepare` records, keeps a sync that stops partway from leaving blocks that claim state. It
+    // holds the transaction hash index of every block in memory until it commits, some hundreds
+    // of megabytes for OP Mainnet's `HISTORY`.
+    let provider_rw = provider_factory.database_provider_rw()?;
+    setup_without_evm(&provider_rw, boundary.clone(), dummy_header)?;
     stream.write_all(&[READY])?;
     let mut input = BufReader::with_capacity(READ_BUFFER, zstd::Decoder::new(stream)?);
+    receive_blocks(&mut input, &provider_rw, &provider_factory.chain_spec(), blocks)?;
+    prepare(&provider_rw, pivot(headers)?)?;
+    // Commits the static files first, so the merkle stage sees the header it checks the root of.
+    provider_rw.commit()?;
 
     let start = Instant::now();
     receive(
@@ -268,68 +287,71 @@ pub(super) fn dummy_header(number: u64) -> Header {
     header
 }
 
-/// Writes `headers`, consecutive blocks ending with the first one whose state the node has, on top
-/// of a dummy chain for every earlier block, and marks every stage done at the last one. The blocks
-/// are written without bodies, as `init-state --without-evm` writes its first block.
-///
-/// The dummy chain stores every hash as zero, so the EVM's `BLOCKHASH` needs real headers for the
-/// blocks it can reach from the blocks the node executes next.
-pub(super) fn write_chain<N: ProviderNodeTypes<Primitives = OpPrimitives>>(
+/// Writes `block` after the chain's last block, without receipts or state changes, as
+/// `init-state --without-evm` writes its first block.
+pub(super) fn append_block<N: ProviderNodeTypes<Primitives = OpPrimitives>>(
     provider_rw: &DatabaseProvider<<N::DB as Database>::TXMut, N>,
-    headers: &[SealedHeader],
+    block: SealedBlock<OpBlock>,
 ) -> eyre::Result<()> {
-    let (first, rest) = headers.split_first().ok_or_else(|| eyre!("no headers to write"))?;
-    setup_without_evm(provider_rw, first.clone(), dummy_header)?;
-    for header in rest {
-        let block = SealedBlock::<OpBlock>::from_sealed_parts(header.clone(), Default::default())
-            .try_recover()
-            .expect("a block without transactions has no senders to recover");
-        provider_rw.insert_block(&block)?;
-        provider_rw
-            .static_file_provider()
-            .latest_writer(StaticFileSegment::Receipts)?
-            .increment_block(header.number())?;
-    }
-    let last = headers.last().map_or(0, |header| header.number());
-    for stage in StageId::ALL {
-        provider_rw.save_stage_checkpoint(stage, StageCheckpoint::new(last))?;
-    }
+    let number = block.number();
+    let block = block
+        .try_recover()
+        .map_err(|_| eyre!("a transaction of block {number} has no recoverable sender"))?;
+    provider_rw.insert_block(&block)?;
+    provider_rw
+        .static_file_provider()
+        .latest_writer(StaticFileSegment::Receipts)?
+        .increment_block(number)?;
     Ok(())
 }
 
-/// Writes `headers` on top of a dummy chain, with the stages that need the state of the last one
-/// not started, and clears the genesis state.
-fn prepare<N: ProviderNodeTypes<Primitives = OpPrimitives>>(
-    provider_factory: &ProviderFactory<N>,
+/// Reads the body of each of `headers`' blocks, checks it against its header, and writes the block.
+fn receive_blocks<N: ProviderNodeTypes<Primitives = OpPrimitives>>(
+    input: &mut impl Read,
+    provider_rw: &DatabaseProvider<<N::DB as Database>::TXMut, N>,
+    chain_spec: &OpChainSpec,
     headers: &[SealedHeader],
 ) -> eyre::Result<()> {
-    let header = pivot(headers)?;
-    let provider_rw = provider_factory.database_provider_rw()?;
-    write_chain(&provider_rw, headers)?;
-    // `write_chain` marks every stage done at the pivot. Until the root is verified, the
-    // stages that need the state are marked not started, and an unverified snap attempt stops a
-    // node from advancing its Finish checkpoint. A node started on what a failed sync leaves still
-    // runs until it tries to.
-    for stage in state_stages() {
-        provider_rw.save_stage_checkpoint(stage, StageCheckpoint::new(0))?;
+    let start = Instant::now();
+    for (received, header) in headers.iter().enumerate() {
+        if received > 0 && received.is_multiple_of(1000) {
+            info!(target: "reth::cli", received, blocks = headers.len(), "Receiving blocks");
+        }
+        let body: OpBlockBody = alloy_rlp::decode_exact(read_bytes(input, MAX_BODY_LEN)?)?;
+        validate_body_against_header_op(chain_spec, &body, header.header()).map_err(|err| {
+            eyre!("the server's body of block {} does not match its header: {err}", header.number())
+        })?;
+        append_block(provider_rw, SealedBlock::from_sealed_parts(header.clone(), body))?;
+    }
+    info!(target: "reth::cli", blocks = headers.len(), elapsed = ?start.elapsed(), "Received blocks");
+    Ok(())
+}
+
+/// Marks the stages that need the state of `pivot` not started and every other stage done at it,
+/// pads the changesets up to it, and clears the genesis state.
+fn prepare<N: ProviderNodeTypes<Primitives = OpPrimitives>>(
+    provider_rw: &DatabaseProvider<<N::DB as Database>::TXMut, N>,
+    pivot: &SealedHeader,
+) -> eyre::Result<()> {
+    // Until the root is verified, the stages that need the state are marked not started, and an
+    // unverified snap attempt stops a node from advancing its Finish checkpoint. A node started on
+    // what a failed sync leaves still runs until it tries to.
+    let needs_state: Vec<StageId> = state_stages().collect();
+    for stage in StageId::ALL {
+        let done = if needs_state.contains(&stage) { 0 } else { pivot.number() };
+        provider_rw.save_stage_checkpoint(stage, StageCheckpoint::new(done))?;
     }
     let attempt =
-        SnapAttempt::start(provider_rw.snap_attempt()?, header.num_hash(), header.state_root());
+        SnapAttempt::start(provider_rw.snap_attempt()?, pivot.num_hash(), pivot.state_root());
     provider_rw.write_snap_attempt(&attempt)?;
 
-    let static_files = provider_factory.static_file_provider();
-    pad_changesets(
-        &static_files,
-        StaticFileSegment::AccountChangeSets,
-        header.number(),
-        |w, b| w.append_account_changeset(Vec::new(), b),
-    )?;
-    pad_changesets(
-        &static_files,
-        StaticFileSegment::StorageChangeSets,
-        header.number(),
-        |w, b| w.append_storage_changeset(Vec::new(), b),
-    )?;
+    let static_files = provider_rw.static_file_provider();
+    pad_changesets(&static_files, StaticFileSegment::AccountChangeSets, pivot.number(), |w, b| {
+        w.append_account_changeset(Vec::new(), b)
+    })?;
+    pad_changesets(&static_files, StaticFileSegment::StorageChangeSets, pivot.number(), |w, b| {
+        w.append_storage_changeset(Vec::new(), b)
+    })?;
 
     // Initializing the data directory wrote the genesis state; only the pivot's belongs here.
     let tx = provider_rw.tx_ref();
@@ -338,8 +360,6 @@ fn prepare<N: ProviderNodeTypes<Primitives = OpPrimitives>>(
     tx.clear::<tables::Bytecodes>()?;
     tx.clear::<tables::PlainAccountState>()?;
     tx.clear::<tables::PlainStorageState>()?;
-    // Commits the static files first, so the merkle stage sees the header it checks the root of.
-    provider_rw.commit()?;
     Ok(())
 }
 
@@ -473,6 +493,15 @@ fn finish<N: ProviderNodeTypes>(
         };
         provider_rw.save_prune_checkpoint(segment, checkpoint)?;
     }
+    // Nor has it the receipts of the blocks it got whole, which would otherwise read as missing
+    // rather than pruned.
+    let last_tx = provider_rw.block_body_indices(number)?.map(|indices| indices.last_tx_num());
+    let checkpoint = PruneCheckpoint {
+        block_number: Some(number),
+        tx_number: last_tx,
+        prune_mode: PruneMode::Before(number + 1),
+    };
+    provider_rw.save_prune_checkpoint(PruneSegment::Receipts, checkpoint)?;
     provider_rw.commit()?;
     Ok(())
 }

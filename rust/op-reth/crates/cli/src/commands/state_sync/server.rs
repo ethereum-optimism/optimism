@@ -1,9 +1,10 @@
 //! `op-reth state-server`: serves the state of a data directory to `op-reth sync-state`.
 
 use super::{
-    MAGIC, MAX_TOKEN_LEN, READY, STALL_TIMEOUT, Status, ZSTD_LEVEL, first_recent_block, read_array,
-    read_bytes, read_magic, read_token, write_bytes, write_u32, write_u64,
+    HISTORY, MAGIC, MAX_TOKEN_LEN, READY, STALL_TIMEOUT, Status, ZSTD_LEVEL, first_recent_block,
+    read_array, read_bytes, read_magic, read_token, write_bytes, write_u32, write_u64,
 };
+use alloy_consensus::{EMPTY_ROOT_HASH, Header};
 use alloy_primitives::{B256, keccak256};
 use alloy_rlp::Encodable;
 use clap::Parser;
@@ -22,8 +23,9 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
 use reth_primitives_traits::{Bytecode, SealedHeader};
 use reth_provider::{
-    ChainSpecProvider, ChainStateBlockReader, DatabaseProviderFactory, HeaderProvider,
-    ProviderFactory, StageCheckpointReader, StaticFileProviderFactory, StorageSettingsCache,
+    BlockBodyIndicesProvider, BlockReader, ChainSpecProvider, ChainStateBlockReader, DBProvider,
+    DatabaseProvider, DatabaseProviderFactory, HeaderProvider, ProviderFactory,
+    StageCheckpointReader, StaticFileProviderFactory, StorageSettingsCache,
     providers::ProviderNodeTypes,
 };
 use reth_stages::StageId;
@@ -45,6 +47,9 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// How long a client has to build its chain up to the block whose state it receives.
 const PREPARE_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+
+/// Blocks read from the database at a time while sending bodies.
+const BLOCKS_PER_READ: usize = 1024;
 
 /// How long a connection is idle before the server probes whether the client is still there.
 const KEEPALIVE_IDLE: Duration = Duration::from_secs(60);
@@ -179,7 +184,7 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
             stream.write_all(&[Status::Busy as u8])?;
             bail!("already running {} transfers", self.max_transfers);
         };
-        let (tx, headers, finalized) = match self.snapshot() {
+        let Snapshot { provider, headers, finalized } = match self.snapshot() {
             Ok(snapshot) => snapshot,
             Err(err) => {
                 stream.write_all(&[Status::Unavailable as u8])?;
@@ -196,7 +201,7 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
         write_u64(&mut stream, finalized)?;
         let header = headers.last().ok_or_else(|| eyre!("no headers to send"))?;
 
-        // The client writes a dummy header for every earlier block before it reads the state.
+        // The client writes a dummy header for every earlier block before it reads the rest.
         stream.set_read_timeout(Some(PREPARE_TIMEOUT))?;
         ensure!(read_array::<1>(&mut stream)? == [READY], "client sent an unknown message");
 
@@ -206,14 +211,17 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
         let mut encoder = zstd::Encoder::new(stream, ZSTD_LEVEL)?;
         encoder.include_checksum(true)?;
         let mut out = BufWriter::new(encoder);
-        send_table::<tables::HashedAccounts, _>(&tx, &mut out, |out, value| {
+        // The first header is the boundary below the blocks the client gets whole.
+        send_bodies(&provider, &headers[1..], &mut out)?;
+        let tx = provider.tx_ref();
+        send_table::<tables::HashedAccounts, _>(tx, &mut out, |out, value| {
             write_bytes(out, value)
         })?;
-        send_table::<tables::HashedStorages, _>(&tx, &mut out, |out, value| {
+        send_table::<tables::HashedStorages, _>(tx, &mut out, |out, value| {
             write_bytes(out, value)
         })?;
         // The client analyzes the code itself rather than trusting the analysis stored here.
-        send_table::<tables::Bytecodes, _>(&tx, &mut out, |out, value| {
+        send_table::<tables::Bytecodes, _>(tx, &mut out, |out, value| {
             write_bytes(out, Bytecode::decompress(value)?.original_byte_slice())
         })?;
         out.into_inner().map_err(|err| err.into_error())?.finish()?;
@@ -221,25 +229,51 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
         Ok(())
     }
 
-    /// Opens the read transaction a transfer reads all its tables in, so they hold the same block's
-    /// state, and returns it with the headers of that block and of the blocks `BLOCKHASH` reaches
-    /// from the next one, and the finalized block number.
-    fn snapshot(&self) -> eyre::Result<(<N::DB as Database>::TX, Vec<SealedHeader>, u64)> {
-        let provider = self.provider_factory.database_provider_ro()?;
+    /// Opens the read transaction a transfer reads everything in, so all of it belongs to the same
+    /// block, and returns it with the headers the client gets (see [`history_start`]) and the
+    /// finalized block number.
+    fn snapshot(&self) -> eyre::Result<Snapshot<N>> {
+        // A transfer can outlast the timeout meant for read transactions held open by mistake.
+        let provider =
+            self.provider_factory.database_provider_ro()?.disable_long_read_transaction_safety();
         let number = state_block(&provider)?;
         let finalized = provider.last_finalized_block_number()?.unwrap_or_default();
         // A read-only static file provider sees the files as they were when it was last indexed.
         self.provider_factory.static_file_provider().initialize_index()?;
-        let first = first_recent_block(number);
-        let headers = provider.sealed_headers_range(first..=number)?;
+        let pivot = provider
+            .sealed_header(number)?
+            .ok_or_else(|| eyre!("no header for persisted block {number}"))?;
+        let first = history_start(&provider, &pivot)?;
+        let boundary = first - 1;
+        let headers = provider.sealed_headers_range(boundary..=number)?;
         ensure!(
-            headers.len() as u64 == number - first + 1,
-            "missing headers between blocks {first} and {number}"
+            headers.len() as u64 == number - boundary + 1,
+            "missing headers between blocks {boundary} and {number}"
         );
-        let mut tx = provider.into_tx();
-        // A transfer can outlast the timeout meant for read transactions held open by mistake.
-        tx.disable_long_read_transaction_safety();
-        Ok((tx, headers, finalized))
+        // Refused here rather than partway through the stream, after the client has built its
+        // dummy chain.
+        let lacking = |reason: &str| {
+            eyre!(
+                "the node does not hold the blocks since block {first}, {HISTORY:?} before block \
+                 {number}: {reason}; serve once it has followed the chain that long"
+            )
+        };
+        let earliest = self.provider_factory.static_file_provider().earliest_history_height();
+        if first < earliest {
+            return Err(lacking(&format!("bodies before block {earliest} are pruned")));
+        }
+        // A block without body indices is a dummy, and one with no transactions whose header
+        // commits to some was written without its body, as `sync-state` writes its first blocks.
+        let indices = provider.block_body_indices_range(first..=number)?;
+        if indices.len() != headers.len() - 1 {
+            return Err(lacking("some are dummies"));
+        }
+        for (header, indices) in headers[1..].iter().zip(&indices) {
+            if indices.tx_count == 0 && header.transactions_root != EMPTY_ROOT_HASH {
+                return Err(lacking(&format!("block {} has no body", header.number)));
+            }
+        }
+        Ok(Snapshot { provider, headers, finalized })
     }
 
     /// Takes one of the transfer slots, which the returned guard gives back when dropped, or
@@ -252,6 +286,16 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
             .ok()
             .map(|_| TransferSlot(&self.transfers))
     }
+}
+
+/// What one transfer sends, read in one transaction.
+struct Snapshot<N: ProviderNodeTypes> {
+    /// The read transaction.
+    provider: DatabaseProvider<<N::DB as Database>::TX, N>,
+    /// The headers the client gets, ending with the one of the block whose state is sent.
+    headers: Vec<SealedHeader>,
+    /// The node's finalized block number, 0 if it has none.
+    finalized: u64,
 }
 
 /// A running transfer, counted against `--max-transfers` until dropped.
@@ -295,6 +339,54 @@ fn state_block(provider: &impl StageCheckpointReader) -> eyre::Result<u64> {
         );
     }
     Ok(number)
+}
+
+/// The first block the client gets whole: the newest block at least [`HISTORY`] older than `pivot`,
+/// and no later than the first block `BLOCKHASH` reaches from the block after it.
+fn history_start(
+    provider: &impl HeaderProvider<Header = Header>,
+    pivot: &SealedHeader,
+) -> eyre::Result<u64> {
+    let cutoff = pivot.timestamp.saturating_sub(HISTORY.as_secs());
+    // Timestamps grow along the chain: find the first block past the cutoff.
+    let (mut low, mut high) = (1, pivot.number);
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let header =
+            provider.header_by_number(mid)?.ok_or_else(|| eyre!("no header for block {mid}"))?;
+        if header.timestamp <= cutoff {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
+    }
+    // The newest block old enough, with one below it to serve as the boundary. On a younger chain,
+    // op-node would re-derive from genesis, whose state a synced node does not have.
+    let old_enough = low - 1;
+    ensure!(old_enough >= 2, "the chain is younger than {HISTORY:?}");
+    Ok(old_enough.min(first_recent_block(pivot.number)))
+}
+
+/// Writes the RLP body of each of `headers`' blocks, reading a range of blocks at a time.
+fn send_bodies<N: ProviderNodeTypes<Primitives = OpPrimitives>>(
+    provider: &DatabaseProvider<<N::DB as Database>::TX, N>,
+    headers: &[SealedHeader],
+    out: &mut impl Write,
+) -> eyre::Result<()> {
+    let (Some(first), Some(last)) = (headers.first(), headers.last()) else { return Ok(()) };
+    for start in (first.number..=last.number).step_by(BLOCKS_PER_READ) {
+        let end = (start + BLOCKS_PER_READ as u64 - 1).min(last.number);
+        let blocks = provider.block_range(start..=end)?;
+        ensure!(
+            blocks.len() as u64 == end - start + 1,
+            "missing bodies between blocks {start} and {end}"
+        );
+        for block in blocks {
+            write_bytes(out, &alloy_rlp::encode(&block.body))?;
+        }
+    }
+    info!(target: "reth::cli", blocks = headers.len(), "Sent blocks");
+    Ok(())
 }
 
 /// Writes every entry of `T` in key order, the key as raw database bytes and the value through
