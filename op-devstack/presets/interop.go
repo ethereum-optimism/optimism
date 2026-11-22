@@ -247,7 +247,6 @@ type MinimalInteropNoSupernode struct {
 // NewMinimalInteropNoSupernode creates a fresh MinimalInteropNoSupernode target for the
 // current test.
 func NewMinimalInteropNoSupernode(t devtest.T, opts ...Option) *MinimalInteropNoSupernode {
-	skipOpNodeOnlyPresetOnKonaNode(t)
 	_, _ = collectSupportedPresetConfig(t, "NewMinimalInteropNoSupernode", opts, 0)
 	return &MinimalInteropNoSupernode{
 		Minimal: *minimalFromRuntime(t, sysgo.NewMinimalInteropNoSupernodeRuntime(t)),
