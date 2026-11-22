@@ -79,10 +79,17 @@ pub mod client;
 pub mod server;
 
 use eyre::{ensure, eyre};
+use reth_db_api::{
+    cursor::DbCursorRO,
+    database::Database,
+    table::Table,
+    tables::{RawKey, RawTable},
+    transaction::DbTx,
+};
 use std::{
     io::{Read, Write},
     path::Path,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicU32, Ordering},
     time::Duration,
 };
 
@@ -149,6 +156,56 @@ impl Drop for SetOnDrop<'_> {
 /// The chunk `key` falls in.
 fn key_chunk(key: &[u8]) -> u32 {
     key.get(..2).map_or(0, |prefix| u32::from(u16::from_be_bytes([prefix[0], prefix[1]])))
+}
+
+/// How many chunks ahead of the cursor being served the prefetching threads read: enough to keep
+/// them busy, and few enough, some hundreds of megabytes on OP Mainnet, that the pages they read
+/// are still cached when the cursor gets there.
+const PREFETCH_WINDOW: u32 = 256;
+
+/// How far a cursor walking a table in key order and the threads prefetching it ahead of it have
+/// got, in chunks (see [`key_chunk`]).
+#[derive(Debug, Default)]
+struct PrefetchProgress {
+    /// The chunk the cursor being served is in.
+    position: AtomicU32,
+    /// The next chunk to prefetch.
+    next: AtomicU32,
+    /// Whether the cursor has finished.
+    done: AtomicBool,
+}
+
+/// Reads the chunks of `T` ahead of the cursor `progress` follows, one at a time, until it is done,
+/// so that the pages it reads next are cached: a single cursor walking a table larger than the page
+/// cache waits on one disk read per page.
+fn prefetch<T: Table>(db: &impl Database, progress: &PrefetchProgress) -> eyre::Result<()> {
+    let mut tx = db.tx()?;
+    tx.disable_long_read_transaction_safety();
+    let mut cursor = tx.cursor_read::<RawTable<T>>()?;
+    loop {
+        let chunk = progress.next.fetch_add(1, Ordering::Relaxed);
+        if chunk >= KEY_CHUNKS {
+            return Ok(());
+        }
+        while chunk >= progress.position.load(Ordering::Relaxed) + PREFETCH_WINDOW {
+            if progress.done.load(Ordering::Acquire) {
+                return Ok(());
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        // A chunk the cursor has passed needs no reading.
+        if chunk < progress.position.load(Ordering::Relaxed) {
+            continue;
+        }
+        let start = u16::try_from(chunk)?.to_be_bytes().to_vec();
+        let mut entry = cursor.seek(RawKey::from_vec(start))?;
+        while let Some((key, _)) = entry {
+            if key_chunk(key.raw_key()) != chunk || progress.done.load(Ordering::Relaxed) {
+                break;
+            }
+            entry = cursor.next()?;
+        }
+    }
 }
 
 /// zstd level for the state stream. Hashed keys are random and do not compress, so a fast level

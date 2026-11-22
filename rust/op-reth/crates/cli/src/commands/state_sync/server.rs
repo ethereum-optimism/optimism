@@ -1,9 +1,9 @@
 //! `op-reth state-server`: serves the state of a data directory to `op-reth sync-state`.
 
 use super::{
-    HISTORY, KEY_CHUNKS, MAGIC, MAX_TOKEN_LEN, READY, STALL_TIMEOUT, SetOnDrop, Status, ZSTD_LEVEL,
-    first_recent_block, key_chunk, read_array, read_bytes, read_magic, read_token, write_bytes,
-    write_u32, write_u64,
+    HISTORY, MAGIC, MAX_TOKEN_LEN, PrefetchProgress, READY, STALL_TIMEOUT, SetOnDrop, Status,
+    ZSTD_LEVEL, first_recent_block, key_chunk, prefetch, read_array, read_bytes, read_magic,
+    read_token, write_bytes, write_u32, write_u64,
 };
 use alloy_consensus::{EMPTY_ROOT_HASH, Header};
 use alloy_primitives::{B256, keccak256};
@@ -17,7 +17,7 @@ use reth_db_api::{
     cursor::DbCursorRO,
     database::Database,
     table::{Decompress, Table},
-    tables::{self, RawKey, RawTable},
+    tables::{self, RawTable},
     transaction::DbTx,
 };
 use reth_optimism_chainspec::OpChainSpec;
@@ -37,7 +37,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -468,7 +468,7 @@ fn send_entries<T: Table, W: Write>(
     let mut entry = cursor.first()?;
     while let Some((key, value)) = entry {
         if count.is_multiple_of(1024) {
-            progress.sending.store(key_chunk(key.raw_key()), Ordering::Relaxed);
+            progress.position.store(key_chunk(key.raw_key()), Ordering::Relaxed);
         }
         write_bytes(out, key.raw_key())?;
         write_value(out, value.raw_value())?;
@@ -484,51 +484,3 @@ fn send_entries<T: Table, W: Write>(
 /// Threads reading a table ahead of the cursor that sends it, unless `--prefetch-threads` says
 /// otherwise.
 const PREFETCH_THREADS: usize = 16;
-
-/// How many chunks ahead of the sending cursor the prefetching threads read: enough to keep them
-/// busy, and few enough, some hundreds of megabytes on OP Mainnet, that the pages they read are
-/// still cached when the cursor gets there.
-const PREFETCH_WINDOW: u32 = 256;
-
-/// How far the sending cursor and the prefetching threads have got through a table, in chunks (see
-/// [`key_chunk`]).
-#[derive(Debug, Default)]
-struct PrefetchProgress {
-    /// The chunk the sending cursor is in.
-    sending: AtomicU32,
-    /// The next chunk to prefetch.
-    next: AtomicU32,
-    /// Whether the table has been sent.
-    done: AtomicBool,
-}
-
-/// Reads the chunks of `T` ahead of the sending cursor, one at a time, until it is done.
-fn prefetch<T: Table>(db: &impl Database, progress: &PrefetchProgress) -> eyre::Result<()> {
-    let mut tx = db.tx()?;
-    tx.disable_long_read_transaction_safety();
-    let mut cursor = tx.cursor_read::<RawTable<T>>()?;
-    loop {
-        let chunk = progress.next.fetch_add(1, Ordering::Relaxed);
-        if chunk >= KEY_CHUNKS {
-            return Ok(());
-        }
-        while chunk >= progress.sending.load(Ordering::Relaxed) + PREFETCH_WINDOW {
-            if progress.done.load(Ordering::Acquire) {
-                return Ok(());
-            }
-            std::thread::sleep(Duration::from_millis(1));
-        }
-        // A chunk already sent needs no reading.
-        if chunk < progress.sending.load(Ordering::Relaxed) {
-            continue;
-        }
-        let start = u16::try_from(chunk)?.to_be_bytes().to_vec();
-        let mut entry = cursor.seek(RawKey::from_vec(start))?;
-        while let Some((key, _)) = entry {
-            if key_chunk(key.raw_key()) != chunk || progress.done.load(Ordering::Relaxed) {
-                break;
-            }
-            entry = cursor.next()?;
-        }
-    }
-}

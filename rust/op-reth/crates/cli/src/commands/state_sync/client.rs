@@ -3,11 +3,13 @@
 
 use super::{
     HISTORY, KEY_CHUNKS, KEY_LEN, MAGIC, MAX_BODY_LEN, MAX_HEADER_LEN, MAX_HEADERS, MAX_VALUE_LEN,
-    READY, STALL_TIMEOUT, SetOnDrop, Status, first_recent_block, key_chunk, read_array, read_bytes,
-    read_magic, read_token, read_u32, read_u64, read_vec, write_bytes,
+    PrefetchProgress, READY, STALL_TIMEOUT, SetOnDrop, Status, first_recent_block, key_chunk,
+    prefetch, read_array, read_bytes, read_magic, read_token, read_u32, read_u64, read_vec,
+    write_bytes,
 };
 use alloy_consensus::{BlockHeader, Header};
 use alloy_primitives::{B256, map::B256Map};
+use alloy_rlp::Encodable;
 use clap::Parser;
 use eyre::{WrapErr, bail, ensure, eyre};
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
@@ -41,12 +43,12 @@ use reth_provider::{
 use reth_prune_types::{PruneCheckpoint, PruneMode, PruneSegment};
 use reth_stages::{StageCheckpoint, StageId};
 use reth_trie::{
-    StateRoot, StateRootProgress, StorageRoot, StorageRootProgress,
+    EMPTY_ROOT_HASH, HashBuilder, Nibbles, StorageRoot, StorageRootProgress,
+    TRIE_ACCOUNT_RLP_MAX_SIZE,
     updates::{StorageTrieUpdates, TrieUpdates},
 };
 use reth_trie_db::{
-    DatabaseHashedCursorFactory, DatabaseStateRoot, DatabaseStorageRoot, DatabaseTrieCursorFactory,
-    PackedKeyAdapter,
+    DatabaseHashedCursorFactory, DatabaseStorageRoot, DatabaseTrieCursorFactory, PackedKeyAdapter,
 };
 use std::{
     collections::BTreeMap,
@@ -61,7 +63,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 /// Bytes of entries written per database transaction while loading a table.
 const COMMIT_BYTES: usize = 256 * 1024 * 1024;
@@ -462,8 +464,10 @@ fn read_entry(input: &mut impl Read) -> eyre::Result<Option<(Vec<u8>, Vec<u8>)>>
 /// `pivot`.
 ///
 /// Storage holds most of the state, and each account's storage trie is independent of the others,
-/// so [`build_storage_tries`] builds them on every core first. The account trie is then built on
-/// top of them, taking each account's storage root from its stored trie.
+/// so a worker per core builds them, each taking the next chunk (see [`key_chunk`]) of the hashed
+/// address space. One writer takes the chunks in key order, writes their storage tries and hashes
+/// the chunk's accounts, with those storage roots, into the account trie, which it writes as it
+/// goes. The writer builds the few storage tries too large for a worker to hold itself.
 fn rebuild_trie<N: ProviderNodeTypes>(
     provider_factory: &ProviderFactory<N>,
     pivot: &SealedHeader,
@@ -474,47 +478,22 @@ fn rebuild_trie<N: ProviderNodeTypes>(
     provider_rw.tx_ref().clear::<tables::PackedAccountsTrie>()?;
     provider_rw.tx_ref().clear::<tables::PackedStoragesTrie>()?;
     provider_rw.commit()?;
-    build_storage_tries(provider_factory)?;
-    info!(target: "reth::cli", elapsed = ?start.elapsed(), "Built the storage tries");
-    build_account_trie(provider_factory, pivot)?;
-    info!(target: "reth::cli", elapsed = ?start.elapsed(), "Built the account trie");
-    Ok(())
-}
 
-/// Most storage trie nodes a worker holds for one account. A larger trie, of the few contracts with
-/// the most storage, is left to the account pass, which writes it a part at a time.
-#[cfg(not(test))]
-const STORAGE_TRIE_THRESHOLD: u64 = 500_000;
-/// Small in tests, so the account pass builds some of the tries.
-#[cfg(test)]
-const STORAGE_TRIE_THRESHOLD: u64 = 2;
-
-/// Storage trie nodes written per database transaction.
-const COMMIT_TRIE_NODES: usize = 1_000_000;
-
-/// How many chunks ahead of the writer the workers building storage tries may get, which bounds
-/// the built tries waiting to be written.
-const TRIE_WINDOW: u32 = 256;
-
-/// The storage tries of the accounts in one chunk of the hashed address space.
-type ChunkTries = Vec<(B256, StorageTrieUpdates)>;
-
-/// Builds the storage trie of every account, with a worker per core, each taking the next chunk
-/// (see [`key_chunk`]) of the hashed address space, and writes them in key order.
-fn build_storage_tries<N: ProviderNodeTypes>(
-    provider_factory: &ProviderFactory<N>,
-) -> eyre::Result<()> {
     let db = provider_factory.db_ref();
     let workers = std::thread::available_parallelism().map_or(4, |n| n.get());
     let next = AtomicU32::new(0);
-    let written = AtomicU32::new(0);
+    let accounts = PrefetchProgress::default();
     let stopped = AtomicBool::new(false);
     let (results, received) =
         std::sync::mpsc::sync_channel::<(u32, eyre::Result<ChunkTries>)>(workers);
-    std::thread::scope(|scope| {
+    let root = std::thread::scope(|scope| {
+        // Workers and prefetchers waiting on the writer stop once it has, even if it panics, or
+        // spawning a thread does.
+        let _stop = SetOnDrop(&stopped);
+        let _done = SetOnDrop(&accounts.done);
         for _ in 0..workers {
             let results = results.clone();
-            let (next, written, stopped) = (&next, &written, &stopped);
+            let (next, written, stopped) = (&next, &accounts.position, &stopped);
             scope.spawn(move || {
                 let mut chunk = 0;
                 // A panic, say on a malformed entry, must reach the writer as an error: otherwise
@@ -546,16 +525,66 @@ fn build_storage_tries<N: ProviderNodeTypes>(
                 }
             });
         }
+        // The writer walks the accounts table in key order; these read it just ahead.
+        for _ in 0..ACCOUNT_PREFETCH_THREADS {
+            // A failed prefetch only slows the build down.
+            scope.spawn(|| {
+                let _ = catch_unwind(AssertUnwindSafe(|| {
+                    prefetch::<tables::HashedAccounts>(db, &accounts)
+                }));
+            });
+        }
         drop(results);
-        // Workers waiting for the writer stop once it has, even if it panics.
-        let _stop = SetOnDrop(&stopped);
-        write_storage_tries(provider_factory, received, &written)
-    })
+        write_tries(provider_factory, received, &accounts.position)
+    })?;
+    ensure!(
+        root == pivot.state_root(),
+        "state root mismatch: the state's root is {root}, but block {} commits to {}",
+        pivot.number(),
+        pivot.state_root()
+    );
+    info!(target: "reth::cli", elapsed = ?start.elapsed(), "Built the trie");
+    Ok(())
 }
 
-/// Builds the storage tries of the accounts in `chunk`, with reth's storage root calculation. An
-/// account whose trie has more than [`STORAGE_TRIE_THRESHOLD`] nodes is left out: the account pass
-/// builds it a part at a time.
+/// Most storage trie nodes held for one account. A worker leaves a larger trie, of the few
+/// contracts with the most storage, to the writer, which builds one at a time, a part of this size
+/// at a time.
+#[cfg(not(test))]
+const STORAGE_TRIE_THRESHOLD: u64 = 500_000;
+/// Small in tests, so the writer builds the largest tries.
+#[cfg(test)]
+const STORAGE_TRIE_THRESHOLD: u64 = 1000;
+
+/// Account trie nodes the writer holds before it writes them.
+#[cfg(not(test))]
+const ACCOUNT_TRIE_FLUSH: usize = 100_000;
+/// Small in tests, so the writer writes the account trie in parts.
+#[cfg(test)]
+const ACCOUNT_TRIE_FLUSH: usize = 3;
+
+/// Trie nodes written per database transaction.
+const COMMIT_TRIE_NODES: usize = 1_000_000;
+
+/// How many chunks ahead of the writer the workers building storage tries may get, which bounds
+/// the built tries waiting to be written.
+const TRIE_WINDOW: u32 = 256;
+
+/// Threads reading the accounts table ahead of the writer.
+const ACCOUNT_PREFETCH_THREADS: usize = 8;
+
+/// An account's storage trie, as a worker built it.
+enum StorageTrie {
+    /// The trie's root and nodes.
+    Built(B256, StorageTrieUpdates),
+    /// Too large for a worker to hold: the writer builds it.
+    TooLarge,
+}
+
+/// The storage tries of the accounts in one chunk of the hashed address space, in key order.
+type ChunkTries = Vec<(B256, StorageTrie)>;
+
+/// Builds the storage tries of the accounts in `chunk`, with reth's storage root calculation.
 fn chunk_storage_tries<TX: DbTx>(tx: &TX, chunk: u32) -> eyre::Result<ChunkTries> {
     let mut start = B256::ZERO;
     start[..2].copy_from_slice(&u16::try_from(chunk)?.to_be_bytes());
@@ -571,24 +600,60 @@ fn chunk_storage_tries<TX: DbTx>(tx: &TX, chunk: u32) -> eyre::Result<ChunkTries
             DatabaseHashedCursorFactory<&TX>,
         >::from_tx_hashed(tx, hashed_address)
         .with_threshold(STORAGE_TRIE_THRESHOLD);
-        match storage_root.root_with_progress()? {
-            StorageRootProgress::Complete(_, _, updates) => tries.push((hashed_address, updates)),
-            StorageRootProgress::Progress(..) => {
-                debug!(target: "reth::cli", %hashed_address, "Leaving a large storage trie to the account pass");
-            }
-        }
+        let trie = match storage_root.root_with_progress()? {
+            StorageRootProgress::Complete(root, _, updates) => StorageTrie::Built(root, updates),
+            StorageRootProgress::Progress(..) => StorageTrie::TooLarge,
+        };
+        tries.push((hashed_address, trie));
         entry = cursor.next_no_dup()?;
     }
     Ok(tries)
 }
 
-/// Writes the chunks of storage tries that arrive on `received` in chunk order, recording in
-/// `written` how many it has written.
-fn write_storage_tries<N: ProviderNodeTypes>(
+/// Builds the storage trie of `hashed_address` a part at a time, writing all but the last part
+/// through `provider_rw`, and returns its root and last part.
+///
+/// `read_tx` sees no stored node of the trie, so each part continues the same fresh build: resuming
+/// over nodes already stored is what reth's state root calculation gets wrong.
+fn build_large_storage_trie<TX: DbTx, N: ProviderNodeTypes>(
+    read_tx: &TX,
+    provider_rw: &DatabaseProvider<<N::DB as Database>::TXMut, N>,
+    hashed_address: B256,
+) -> eyre::Result<(B256, StorageTrieUpdates)> {
+    let mut state = None;
+    loop {
+        let storage_root = StorageRoot::<
+            DatabaseTrieCursorFactory<&TX, PackedKeyAdapter>,
+            DatabaseHashedCursorFactory<&TX>,
+        >::from_tx_hashed(read_tx, hashed_address)
+        .with_threshold(STORAGE_TRIE_THRESHOLD)
+        .with_intermediate_state(state.take());
+        match storage_root.root_with_progress()? {
+            StorageRootProgress::Complete(root, _, updates) => return Ok((root, updates)),
+            StorageRootProgress::Progress(next, _, updates) => {
+                let storage_tries = std::iter::once((hashed_address, updates)).collect();
+                provider_rw
+                    .write_trie_updates(TrieUpdates { storage_tries, ..Default::default() })?;
+                state = Some(*next);
+            }
+        }
+    }
+}
+
+/// Takes the chunks of storage tries arriving on `received` in key order, writes them, and hashes
+/// each chunk's accounts into the account trie, which it writes as it goes, recording in `written`
+/// how many chunks it has finished. Returns the account trie's root.
+fn write_tries<N: ProviderNodeTypes>(
     provider_factory: &ProviderFactory<N>,
     received: Receiver<(u32, eyre::Result<ChunkTries>)>,
     written: &AtomicU32,
-) -> eyre::Result<()> {
+) -> eyre::Result<B256> {
+    let mut read_tx = provider_factory.db_ref().tx()?;
+    read_tx.disable_long_read_transaction_safety();
+    let mut accounts = read_tx.cursor_read::<tables::HashedAccounts>()?;
+    let mut account = accounts.first()?;
+    let mut hash_builder = HashBuilder::default().with_updates(true);
+    let mut account_rlp = Vec::with_capacity(TRIE_ACCOUNT_RLP_MAX_SIZE);
     let mut pending = BTreeMap::new();
     let mut next = 0;
     let mut provider_rw = provider_factory.database_provider_rw()?;
@@ -596,9 +661,43 @@ fn write_storage_tries<N: ProviderNodeTypes>(
     for (chunk, tries) in received {
         pending.insert(chunk, tries?);
         while let Some(tries) = pending.remove(&next) {
-            let storage_tries: B256Map<StorageTrieUpdates> = tries.into_iter().collect();
-            nodes += provider_rw
-                .write_trie_updates(TrieUpdates { storage_tries, ..Default::default() })?;
+            let mut tries = tries.into_iter().peekable();
+            let mut storage_tries = B256Map::default();
+            while let Some((hashed_address, value)) =
+                account.filter(|(key, _)| key_chunk(key.as_slice()) == next)
+            {
+                // Storage of an address without an account belongs to no trie.
+                while tries.next_if(|(address, _)| *address < hashed_address).is_some() {}
+                let storage_root = match tries.next_if(|(address, _)| *address == hashed_address) {
+                    Some((_, StorageTrie::Built(root, updates))) => {
+                        if !updates.is_empty() {
+                            storage_tries.insert(hashed_address, updates);
+                        }
+                        root
+                    }
+                    Some((_, StorageTrie::TooLarge)) => {
+                        let (root, updates) =
+                            build_large_storage_trie(&read_tx, &provider_rw, hashed_address)?;
+                        storage_tries.insert(hashed_address, updates);
+                        root
+                    }
+                    None => EMPTY_ROOT_HASH,
+                };
+                account_rlp.clear();
+                value.into_trie_account(storage_root).encode(&mut account_rlp);
+                hash_builder.add_leaf(Nibbles::unpack(hashed_address), &account_rlp);
+                account = accounts.next()?;
+            }
+            let mut updates = TrieUpdates { storage_tries, ..Default::default() };
+            if hash_builder.updates_len() >= ACCOUNT_TRIE_FLUSH {
+                let (rest, account_nodes) = hash_builder.split();
+                // Splitting also stops recording updates.
+                hash_builder = rest.with_updates(true);
+                // The root node only appears at the end, and is not stored.
+                updates.account_nodes =
+                    account_nodes.into_iter().filter(|(path, _)| !path.is_empty()).collect();
+            }
+            nodes += provider_rw.write_trie_updates(updates)?;
             next += 1;
             written.store(next, Ordering::Release);
             if nodes >= COMMIT_TRIE_NODES {
@@ -608,44 +707,15 @@ fn write_storage_tries<N: ProviderNodeTypes>(
             }
         }
     }
+    ensure!(next == KEY_CHUNKS, "built the tries of {next} of {KEY_CHUNKS} chunks");
+    ensure!(account.is_none(), "an account is outside every chunk");
+    let root = hash_builder.root();
+    // The root node itself is not stored.
+    let (_, account_nodes) = hash_builder.split();
+    let account_nodes = account_nodes.into_iter().filter(|(path, _)| !path.is_empty()).collect();
+    provider_rw.write_trie_updates(TrieUpdates { account_nodes, ..Default::default() })?;
     provider_rw.commit()?;
-    ensure!(next == KEY_CHUNKS, "built the storage tries of {next} of {KEY_CHUNKS} chunks");
-    Ok(())
-}
-
-/// Builds the account trie on top of the stored storage tries, committing it a part at a time as
-/// the merkle stage does, and checks its root against the state root of `pivot`.
-fn build_account_trie<N: ProviderNodeTypes>(
-    provider_factory: &ProviderFactory<N>,
-    pivot: &SealedHeader,
-) -> eyre::Result<()> {
-    let mut progress = None;
-    loop {
-        let provider_rw = provider_factory.database_provider_rw()?;
-        let state_root = StateRoot::<
-            DatabaseTrieCursorFactory<_, PackedKeyAdapter>,
-            DatabaseHashedCursorFactory<_>,
-        >::from_tx(provider_rw.tx_ref())
-        .with_intermediate_state(progress.take());
-        match state_root.root_with_progress()? {
-            StateRootProgress::Progress(state, _, updates) => {
-                provider_rw.write_trie_updates(updates)?;
-                provider_rw.commit()?;
-                progress = Some(*state);
-            }
-            StateRootProgress::Complete(root, _, updates) => {
-                ensure!(
-                    root == pivot.state_root(),
-                    "state root mismatch: the state's root is {root}, but block {} commits to {}",
-                    pivot.number(),
-                    pivot.state_root()
-                );
-                provider_rw.write_trie_updates(updates)?;
-                provider_rw.commit()?;
-                return Ok(());
-            }
-        }
-    }
+    Ok(root)
 }
 
 /// Marks the verified state as the state of block `number`.

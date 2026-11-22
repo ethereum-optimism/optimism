@@ -216,6 +216,21 @@ fn source_state(chain: &Arc<OpChainSpec>) -> (Factory, B256) {
             }
         }
     }
+    // Accounts with deep storage tries: the workers build the first, and leave the second, too
+    // large for them, to the account pass.
+    for (i, slots) in [(0xe1u8, 3_000u64), (0xe2, 30_000)] {
+        let hashed_address = B256::repeat_byte(i);
+        tx.put::<tables::HashedAccounts>(
+            hashed_address,
+            Account { nonce: 1, ..Default::default() },
+        )
+        .unwrap();
+        for slot in 0..slots {
+            let key = keccak256(B256::from(U256::from(slot)));
+            let entry = StorageEntry { key, value: slot_value(slot) };
+            tx.put::<tables::HashedStorages>(hashed_address, entry).unwrap();
+        }
+    }
     // Accounts in one chunk of the hashed address space, whose storage tries one worker builds in
     // turn.
     for i in 1..=3u8 {
