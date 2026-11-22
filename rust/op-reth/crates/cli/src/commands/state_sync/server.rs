@@ -1,8 +1,9 @@
 //! `op-reth state-server`: serves the state of a data directory to `op-reth sync-state`.
 
 use super::{
-    HISTORY, MAGIC, MAX_TOKEN_LEN, READY, STALL_TIMEOUT, Status, ZSTD_LEVEL, first_recent_block,
-    read_array, read_bytes, read_magic, read_token, write_bytes, write_u32, write_u64,
+    HISTORY, KEY_CHUNKS, MAGIC, MAX_TOKEN_LEN, READY, STALL_TIMEOUT, SetOnDrop, Status, ZSTD_LEVEL,
+    first_recent_block, key_chunk, read_array, read_bytes, read_magic, read_token, write_bytes,
+    write_u32, write_u64,
 };
 use alloy_consensus::{EMPTY_ROOT_HASH, Header};
 use alloy_primitives::{B256, keccak256};
@@ -16,7 +17,7 @@ use reth_db_api::{
     cursor::DbCursorRO,
     database::Database,
     table::{Decompress, Table},
-    tables::{self, RawTable},
+    tables::{self, RawKey, RawTable},
     transaction::DbTx,
 };
 use reth_optimism_chainspec::OpChainSpec;
@@ -36,7 +37,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -78,6 +79,12 @@ pub struct StateServerCommand<C: ChainSpecParser> {
     /// Most transfers to run at once. Each holds a read transaction open for its whole duration.
     #[arg(long, value_name = "N", default_value_t = 2)]
     max_transfers: usize,
+
+    /// Threads per transfer reading the state ahead of the one that sends it, so the disk serves
+    /// many reads at once. More make a transfer faster but slow the node's own reads on the same
+    /// disk; 0 turns it off.
+    #[arg(long, value_name = "N", default_value_t = PREFETCH_THREADS)]
+    prefetch_threads: usize,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> StateServerCommand<C> {
@@ -91,7 +98,10 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> StateServerCommand<C> {
         // database can be momentarily out of step; each transfer reads one consistent view.
         let Environment { provider_factory, .. } =
             self.env.init::<N>(AccessRights::RoInconsistent, runtime)?;
-        let server = Arc::new(Server::new(provider_factory, token, self.max_transfers)?);
+        let server = Arc::new(
+            Server::new(provider_factory, token, self.max_transfers)?
+                .with_prefetch_threads(self.prefetch_threads),
+        );
 
         let listener = TcpListener::bind(self.addr)?;
         info!(target: "reth::cli", addr = %self.addr, "Serving state");
@@ -136,6 +146,7 @@ pub(super) struct Server<N: ProviderNodeTypes> {
     genesis_hash: B256,
     max_transfers: usize,
     transfers: AtomicUsize,
+    prefetch_threads: usize,
 }
 
 impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
@@ -158,7 +169,14 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
             genesis_hash,
             max_transfers,
             transfers: AtomicUsize::new(0),
+            prefetch_threads: PREFETCH_THREADS,
         })
+    }
+
+    /// Sets how many threads per transfer read the state ahead of the one that sends it.
+    pub(super) const fn with_prefetch_threads(mut self, prefetch_threads: usize) -> Self {
+        self.prefetch_threads = prefetch_threads;
+        self
     }
 
     /// Answers one client and, if it is accepted, streams the state to it.
@@ -214,16 +232,29 @@ impl<N: ProviderNodeTypes<Primitives = OpPrimitives>> Server<N> {
         // The first header is the boundary below the blocks the client gets whole.
         send_bodies(&provider, &headers[1..], &mut out)?;
         let tx = provider.tx_ref();
-        send_table::<tables::HashedAccounts, _>(tx, &mut out, |out, value| {
-            write_bytes(out, value)
-        })?;
-        send_table::<tables::HashedStorages, _>(tx, &mut out, |out, value| {
-            write_bytes(out, value)
-        })?;
+        let db = self.provider_factory.db_ref();
+        send_table::<tables::HashedAccounts, _>(
+            db,
+            self.prefetch_threads,
+            tx,
+            &mut out,
+            write_bytes,
+        )?;
+        send_table::<tables::HashedStorages, _>(
+            db,
+            self.prefetch_threads,
+            tx,
+            &mut out,
+            write_bytes,
+        )?;
         // The client analyzes the code itself rather than trusting the analysis stored here.
-        send_table::<tables::Bytecodes, _>(tx, &mut out, |out, value| {
-            write_bytes(out, Bytecode::decompress(value)?.original_byte_slice())
-        })?;
+        send_table::<tables::Bytecodes, _>(
+            db,
+            self.prefetch_threads,
+            tx,
+            &mut out,
+            |out, value| write_bytes(out, Bytecode::decompress(value)?.original_byte_slice()),
+        )?;
         out.into_inner().map_err(|err| err.into_error())?.finish()?;
         info!(target: "reth::cli", number, elapsed = ?start.elapsed(), "State sent");
         Ok(())
@@ -391,15 +422,54 @@ fn send_bodies<N: ProviderNodeTypes<Primitives = OpPrimitives>>(
 
 /// Writes every entry of `T` in key order, the key as raw database bytes and the value through
 /// `write_value`, then the end marker.
+///
+/// A cursor walking a table larger than the page cache waits on one disk read per page, which
+/// leaves the disk idle most of the time. So `prefetch_threads` threads read the entries just ahead
+/// of it with their own cursors in `db`, and the pages it reads next are already cached.
 fn send_table<T: Table, W: Write>(
+    db: &impl Database,
+    prefetch_threads: usize,
     tx: &impl DbTx,
     out: &mut W,
     write_value: impl Fn(&mut W, &[u8]) -> eyre::Result<()>,
+) -> eyre::Result<()> {
+    let progress = PrefetchProgress::default();
+    std::thread::scope(|scope| {
+        let prefetchers: Vec<_> =
+            (0..prefetch_threads).map(|_| scope.spawn(|| prefetch::<T>(db, &progress))).collect();
+        let sent = {
+            // Prefetchers stop once the table is sent, even if sending panics.
+            let _done = SetOnDrop(&progress.done);
+            send_entries::<T, W>(tx, out, &write_value, &progress)
+        };
+        for prefetcher in prefetchers {
+            // A failed prefetch only slows the transfer down.
+            match prefetcher.join() {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
+                    warn!(target: "reth::cli", table = T::NAME, err = %format_args!("{err:#}"), "Prefetch failed")
+                }
+                Err(_) => warn!(target: "reth::cli", table = T::NAME, "Prefetch panicked"),
+            }
+        }
+        sent
+    })
+}
+
+/// Writes the entries of `T` and the end marker, recording which chunk it has reached.
+fn send_entries<T: Table, W: Write>(
+    tx: &impl DbTx,
+    out: &mut W,
+    write_value: &impl Fn(&mut W, &[u8]) -> eyre::Result<()>,
+    progress: &PrefetchProgress,
 ) -> eyre::Result<()> {
     let mut cursor = tx.cursor_read::<RawTable<T>>()?;
     let mut count = 0u64;
     let mut entry = cursor.first()?;
     while let Some((key, value)) = entry {
+        if count.is_multiple_of(1024) {
+            progress.sending.store(key_chunk(key.raw_key()), Ordering::Relaxed);
+        }
         write_bytes(out, key.raw_key())?;
         write_value(out, value.raw_value())?;
         count += 1;
@@ -409,4 +479,56 @@ fn send_table<T: Table, W: Write>(
     write_u64(out, count)?;
     info!(target: "reth::cli", table = T::NAME, entries = count, "Sent table");
     Ok(())
+}
+
+/// Threads reading a table ahead of the cursor that sends it, unless `--prefetch-threads` says
+/// otherwise.
+const PREFETCH_THREADS: usize = 16;
+
+/// How many chunks ahead of the sending cursor the prefetching threads read: enough to keep them
+/// busy, and few enough, some hundreds of megabytes on OP Mainnet, that the pages they read are
+/// still cached when the cursor gets there.
+const PREFETCH_WINDOW: u32 = 256;
+
+/// How far the sending cursor and the prefetching threads have got through a table, in chunks (see
+/// [`key_chunk`]).
+#[derive(Debug, Default)]
+struct PrefetchProgress {
+    /// The chunk the sending cursor is in.
+    sending: AtomicU32,
+    /// The next chunk to prefetch.
+    next: AtomicU32,
+    /// Whether the table has been sent.
+    done: AtomicBool,
+}
+
+/// Reads the chunks of `T` ahead of the sending cursor, one at a time, until it is done.
+fn prefetch<T: Table>(db: &impl Database, progress: &PrefetchProgress) -> eyre::Result<()> {
+    let mut tx = db.tx()?;
+    tx.disable_long_read_transaction_safety();
+    let mut cursor = tx.cursor_read::<RawTable<T>>()?;
+    loop {
+        let chunk = progress.next.fetch_add(1, Ordering::Relaxed);
+        if chunk >= KEY_CHUNKS {
+            return Ok(());
+        }
+        while chunk >= progress.sending.load(Ordering::Relaxed) + PREFETCH_WINDOW {
+            if progress.done.load(Ordering::Acquire) {
+                return Ok(());
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        // A chunk already sent needs no reading.
+        if chunk < progress.sending.load(Ordering::Relaxed) {
+            continue;
+        }
+        let start = u16::try_from(chunk)?.to_be_bytes().to_vec();
+        let mut entry = cursor.seek(RawKey::from_vec(start))?;
+        while let Some((key, _)) = entry {
+            if key_chunk(key.raw_key()) != chunk || progress.done.load(Ordering::Relaxed) {
+                break;
+            }
+            entry = cursor.next()?;
+        }
+    }
 }

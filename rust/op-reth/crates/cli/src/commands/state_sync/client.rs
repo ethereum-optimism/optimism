@@ -2,12 +2,12 @@
 //! `op-reth state-server`.
 
 use super::{
-    HISTORY, KEY_LEN, MAGIC, MAX_BODY_LEN, MAX_HEADER_LEN, MAX_HEADERS, MAX_VALUE_LEN, READY,
-    STALL_TIMEOUT, Status, first_recent_block, read_array, read_bytes, read_magic, read_token,
-    read_u32, read_u64, read_vec, write_bytes,
+    HISTORY, KEY_CHUNKS, KEY_LEN, MAGIC, MAX_BODY_LEN, MAX_HEADER_LEN, MAX_HEADERS, MAX_VALUE_LEN,
+    READY, STALL_TIMEOUT, SetOnDrop, Status, first_recent_block, key_chunk, read_array, read_bytes,
+    read_magic, read_token, read_u32, read_u64, read_vec, write_bytes,
 };
 use alloy_consensus::{BlockHeader, Header};
-use alloy_primitives::B256;
+use alloy_primitives::{B256, map::B256Map};
 use clap::Parser;
 use eyre::{WrapErr, bail, ensure, eyre};
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
@@ -18,12 +18,12 @@ use reth_cli_commands::{
 };
 use reth_db_api::{
     DatabaseError,
-    cursor::{DbCursorRW, DbDupCursorRW},
+    cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO, DbDupCursorRW},
     database::Database,
     models::SnapAttempt,
     table::Table,
     tables::{self, RawDupSort, RawKey, RawTable, RawValue},
-    transaction::DbTxMut,
+    transaction::{DbTx, DbTxMut},
 };
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::validation::validate_body_against_header_op;
@@ -33,21 +33,35 @@ use reth_provider::{
     BlockBodyIndicesProvider, BlockNumReader, BlockWriter, ChainSpecProvider, DBProvider,
     DatabaseProvider, DatabaseProviderFactory, MetadataProvider, MetadataWriter, ProviderFactory,
     ProviderResult, PruneCheckpointWriter, StageCheckpointWriter, StaticFileProviderFactory,
-    StaticFileSegment, StorageSettingsCache,
+    StaticFileSegment, StorageSettingsCache, TrieWriter,
     providers::{
         ProviderNodeTypes, StaticFileProvider, StaticFileProviderRWRefMut, StaticFileWriter,
     },
 };
 use reth_prune_types::{PruneCheckpoint, PruneMode, PruneSegment};
-use reth_stages::{ExecInput, Stage, StageCheckpoint, StageId, stages::MerkleStage};
+use reth_stages::{StageCheckpoint, StageId};
+use reth_trie::{
+    StateRoot, StateRootProgress, StorageRoot, StorageRootProgress,
+    updates::{StorageTrieUpdates, TrieUpdates},
+};
+use reth_trie_db::{
+    DatabaseHashedCursorFactory, DatabaseStateRoot, DatabaseStorageRoot, DatabaseTrieCursorFactory,
+    PackedKeyAdapter,
+};
 use std::{
+    collections::BTreeMap,
     io::{BufReader, Read, Write},
     net::TcpStream,
+    panic::{AssertUnwindSafe, catch_unwind},
     path::PathBuf,
-    sync::Arc,
-    time::Instant,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        mpsc::Receiver,
+    },
+    time::{Duration, Instant},
 };
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// Bytes of entries written per database transaction while loading a table.
 const COMMIT_BYTES: usize = 256 * 1024 * 1024;
@@ -271,7 +285,7 @@ fn load<N: ProviderNodeTypes<Primitives = OpPrimitives, ChainSpec = OpChainSpec>
     info!(target: "reth::cli", elapsed = ?start.elapsed(), "State received, rebuilding the trie");
 
     let number = pivot(headers)?.number();
-    rebuild_trie(provider_factory, number)?;
+    rebuild_trie(provider_factory, pivot(headers)?)?;
     finish(provider_factory, number)
 }
 
@@ -444,27 +458,193 @@ fn read_entry(input: &mut impl Read) -> eyre::Result<Option<(Vec<u8>, Vec<u8>)>>
     Ok(Some((key, read_bytes(input, MAX_VALUE_LEN)?)))
 }
 
-/// Builds the trie from the loaded hashed state with the merkle stage, which fails unless its
-/// root matches the state root of block `number`.
+/// Builds the trie of the loaded hashed state and checks its root against the state root of
+/// `pivot`.
+///
+/// Storage holds most of the state, and each account's storage trie is independent of the others,
+/// so [`build_storage_tries`] builds them on every core first. The account trie is then built on
+/// top of them, taking each account's storage root from its stored trie.
 fn rebuild_trie<N: ProviderNodeTypes>(
     provider_factory: &ProviderFactory<N>,
-    number: u64,
+    pivot: &SealedHeader,
 ) -> eyre::Result<()> {
-    let mut stage = MerkleStage::default_execution();
-    // From block 0 the stage rebuilds the whole trie instead of applying changesets.
-    let mut checkpoint = StageCheckpoint::new(0);
+    let start = Instant::now();
+    // Initializing the data directory wrote the genesis trie.
+    let provider_rw = provider_factory.database_provider_rw()?;
+    provider_rw.tx_ref().clear::<tables::PackedAccountsTrie>()?;
+    provider_rw.tx_ref().clear::<tables::PackedStoragesTrie>()?;
+    provider_rw.commit()?;
+    build_storage_tries(provider_factory)?;
+    info!(target: "reth::cli", elapsed = ?start.elapsed(), "Built the storage tries");
+    build_account_trie(provider_factory, pivot)?;
+    info!(target: "reth::cli", elapsed = ?start.elapsed(), "Built the account trie");
+    Ok(())
+}
+
+/// Most storage trie nodes a worker holds for one account. A larger trie, of the few contracts with
+/// the most storage, is left to the account pass, which writes it a part at a time.
+#[cfg(not(test))]
+const STORAGE_TRIE_THRESHOLD: u64 = 500_000;
+/// Small in tests, so the account pass builds some of the tries.
+#[cfg(test)]
+const STORAGE_TRIE_THRESHOLD: u64 = 2;
+
+/// Storage trie nodes written per database transaction.
+const COMMIT_TRIE_NODES: usize = 1_000_000;
+
+/// How many chunks ahead of the writer the workers building storage tries may get, which bounds
+/// the built tries waiting to be written.
+const TRIE_WINDOW: u32 = 256;
+
+/// The storage tries of the accounts in one chunk of the hashed address space.
+type ChunkTries = Vec<(B256, StorageTrieUpdates)>;
+
+/// Builds the storage trie of every account, with a worker per core, each taking the next chunk
+/// (see [`key_chunk`]) of the hashed address space, and writes them in key order.
+fn build_storage_tries<N: ProviderNodeTypes>(
+    provider_factory: &ProviderFactory<N>,
+) -> eyre::Result<()> {
+    let db = provider_factory.db_ref();
+    let workers = std::thread::available_parallelism().map_or(4, |n| n.get());
+    let next = AtomicU32::new(0);
+    let written = AtomicU32::new(0);
+    let stopped = AtomicBool::new(false);
+    let (results, received) =
+        std::sync::mpsc::sync_channel::<(u32, eyre::Result<ChunkTries>)>(workers);
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            let results = results.clone();
+            let (next, written, stopped) = (&next, &written, &stopped);
+            scope.spawn(move || {
+                let mut chunk = 0;
+                // A panic, say on a malformed entry, must reach the writer as an error: otherwise
+                // it waits forever for the chunk.
+                let built = catch_unwind(AssertUnwindSafe(|| -> eyre::Result<()> {
+                    let mut tx = db.tx()?;
+                    tx.disable_long_read_transaction_safety();
+                    loop {
+                        chunk = next.fetch_add(1, Ordering::Relaxed);
+                        if chunk >= KEY_CHUNKS {
+                            return Ok(());
+                        }
+                        while chunk >= written.load(Ordering::Acquire) + TRIE_WINDOW {
+                            if stopped.load(Ordering::Acquire) {
+                                return Ok(());
+                            }
+                            std::thread::sleep(Duration::from_millis(1));
+                        }
+                        if results.send((chunk, chunk_storage_tries(&tx, chunk))).is_err() {
+                            return Ok(());
+                        }
+                    }
+                }))
+                .unwrap_or_else(|_| {
+                    Err(eyre!("building the storage tries of chunk {chunk} panicked"))
+                });
+                if let Err(err) = built {
+                    let _ = results.send((chunk, Err(err)));
+                }
+            });
+        }
+        drop(results);
+        // Workers waiting for the writer stop once it has, even if it panics.
+        let _stop = SetOnDrop(&stopped);
+        write_storage_tries(provider_factory, received, &written)
+    })
+}
+
+/// Builds the storage tries of the accounts in `chunk`, with reth's storage root calculation. An
+/// account whose trie has more than [`STORAGE_TRIE_THRESHOLD`] nodes is left out: the account pass
+/// builds it a part at a time.
+fn chunk_storage_tries<TX: DbTx>(tx: &TX, chunk: u32) -> eyre::Result<ChunkTries> {
+    let mut start = B256::ZERO;
+    start[..2].copy_from_slice(&u16::try_from(chunk)?.to_be_bytes());
+    let mut cursor = tx.cursor_dup_read::<tables::HashedStorages>()?;
+    let mut tries = Vec::new();
+    let mut entry = cursor.seek(start)?;
+    while let Some((hashed_address, _)) = entry {
+        if key_chunk(hashed_address.as_slice()) != chunk {
+            break;
+        }
+        let storage_root = StorageRoot::<
+            DatabaseTrieCursorFactory<&TX, PackedKeyAdapter>,
+            DatabaseHashedCursorFactory<&TX>,
+        >::from_tx_hashed(tx, hashed_address)
+        .with_threshold(STORAGE_TRIE_THRESHOLD);
+        match storage_root.root_with_progress()? {
+            StorageRootProgress::Complete(_, _, updates) => tries.push((hashed_address, updates)),
+            StorageRootProgress::Progress(..) => {
+                debug!(target: "reth::cli", %hashed_address, "Leaving a large storage trie to the account pass");
+            }
+        }
+        entry = cursor.next_no_dup()?;
+    }
+    Ok(tries)
+}
+
+/// Writes the chunks of storage tries that arrive on `received` in chunk order, recording in
+/// `written` how many it has written.
+fn write_storage_tries<N: ProviderNodeTypes>(
+    provider_factory: &ProviderFactory<N>,
+    received: Receiver<(u32, eyre::Result<ChunkTries>)>,
+    written: &AtomicU32,
+) -> eyre::Result<()> {
+    let mut pending = BTreeMap::new();
+    let mut next = 0;
+    let mut provider_rw = provider_factory.database_provider_rw()?;
+    let mut nodes = 0;
+    for (chunk, tries) in received {
+        pending.insert(chunk, tries?);
+        while let Some(tries) = pending.remove(&next) {
+            let storage_tries: B256Map<StorageTrieUpdates> = tries.into_iter().collect();
+            nodes += provider_rw
+                .write_trie_updates(TrieUpdates { storage_tries, ..Default::default() })?;
+            next += 1;
+            written.store(next, Ordering::Release);
+            if nodes >= COMMIT_TRIE_NODES {
+                provider_rw.commit()?;
+                provider_rw = provider_factory.database_provider_rw()?;
+                nodes = 0;
+            }
+        }
+    }
+    provider_rw.commit()?;
+    ensure!(next == KEY_CHUNKS, "built the storage tries of {next} of {KEY_CHUNKS} chunks");
+    Ok(())
+}
+
+/// Builds the account trie on top of the stored storage tries, committing it a part at a time as
+/// the merkle stage does, and checks its root against the state root of `pivot`.
+fn build_account_trie<N: ProviderNodeTypes>(
+    provider_factory: &ProviderFactory<N>,
+    pivot: &SealedHeader,
+) -> eyre::Result<()> {
+    let mut progress = None;
     loop {
         let provider_rw = provider_factory.database_provider_rw()?;
-        let output = stage.execute(
-            &provider_rw,
-            ExecInput { target: Some(number), checkpoint: Some(checkpoint) },
-        )?;
-        provider_rw.save_stage_checkpoint(StageId::MerkleExecute, output.checkpoint)?;
-        provider_rw.commit()?;
-        if output.done {
-            return Ok(());
+        let state_root = StateRoot::<
+            DatabaseTrieCursorFactory<_, PackedKeyAdapter>,
+            DatabaseHashedCursorFactory<_>,
+        >::from_tx(provider_rw.tx_ref())
+        .with_intermediate_state(progress.take());
+        match state_root.root_with_progress()? {
+            StateRootProgress::Progress(state, _, updates) => {
+                provider_rw.write_trie_updates(updates)?;
+                provider_rw.commit()?;
+                progress = Some(*state);
+            }
+            StateRootProgress::Complete(root, _, updates) => {
+                ensure!(
+                    root == pivot.state_root(),
+                    "state root mismatch: the state's root is {root}, but block {} commits to {}",
+                    pivot.number(),
+                    pivot.state_root()
+                );
+                provider_rw.write_trie_updates(updates)?;
+                provider_rw.commit()?;
+                return Ok(());
+            }
         }
-        checkpoint = output.checkpoint;
     }
 }
 

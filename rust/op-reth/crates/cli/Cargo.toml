@@ -20,6 +20,8 @@ reth-db-api.workspace = true
 reth-db-common.workspace = true
 reth-provider.workspace = true
 reth-prune-types.workspace = true
+reth-trie.workspace = true
+reth-trie-db.workspace = true
 reth-stages.workspace = true
 reth-node-core.workspace = true
 reth-optimism-node.workspace = true
@@ -66,8 +68,6 @@ op-alloy-consensus = { workspace = true, optional = true }
 op-alloy-consensus.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
-reth-trie.workspace = true
-reth-trie-db.workspace = true
 dirs-next.workspace = true
 tempfile.workspace = true
 metrics-exporter-prometheus.workspace = true
@@ -120,4 +120,6 @@ serde = [
     "reth-primitives-traits/serde",
     "reth-optimism-chainspec/serde",
     "reth-prune-types/serde",
+    "reth-trie-db/serde",
+    "reth-trie/serde",
 ]

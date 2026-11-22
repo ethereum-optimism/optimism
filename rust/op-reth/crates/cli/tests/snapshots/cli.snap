@@ -427,6 +427,7 @@ arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [defa
 arg: --addr <ADDR> [action: Set] [num-args: 1] [default: 127.0.0.1:9555] help: Address to accept `sync-state` connections on. Only this host can connect unless it is changed, to `0.0.0.0:9555` for example
 arg: --token-file <FILE> [action: Set] [num-args: 1] [required] help: File holding the token clients must present
 arg: --max-transfers <N> [action: Set] [num-args: 1] [default: 2] help: Most transfers to run at once. Each holds a read transaction open for its whole duration
+arg: --prefetch-threads <N> [action: Set] [num-args: 1] [default: 16] help: Threads per transfer reading the state ahead of the one that sends it, so the disk serves many reads at once. More make a transfer faster but slow the node's own reads on the same disk; 0 turns it off
 
 == op-reth sync-state
 about: Initialize an empty data directory with the latest persisted state of a `state-server`

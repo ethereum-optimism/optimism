@@ -82,6 +82,7 @@ use eyre::{ensure, eyre};
 use std::{
     io::{Read, Write},
     path::Path,
+    sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
 
@@ -130,6 +131,25 @@ const KEY_LEN: u32 = 32;
 
 /// Longest value accepted, far above the largest bytecode.
 const MAX_VALUE_LEN: usize = 1024 * 1024;
+
+/// Chunks the key space of a hashed table is split into, by the first two bytes of its keys, which
+/// hashes spread evenly over.
+const KEY_CHUNKS: u32 = 1 << 16;
+
+/// Sets its flag when dropped, including while a panic unwinds, so threads waiting on the flag
+/// stop rather than wait forever.
+struct SetOnDrop<'a>(&'a AtomicBool);
+
+impl Drop for SetOnDrop<'_> {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Release);
+    }
+}
+
+/// The chunk `key` falls in.
+fn key_chunk(key: &[u8]) -> u32 {
+    key.get(..2).map_or(0, |prefix| u32::from(u16::from_be_bytes([prefix[0], prefix[1]])))
+}
 
 /// zstd level for the state stream. Hashed keys are random and do not compress, so a fast level
 /// gives up little.

@@ -40,7 +40,10 @@ use reth_provider::{
 };
 use reth_prune_types::PruneSegment;
 use reth_stages::{FinishCheckpoint, StageCheckpoint, StageId};
-use reth_trie::StateRoot;
+use reth_trie::{
+    StateRoot,
+    verify::{Output, Verifier},
+};
 use reth_trie_db::{
     DatabaseHashedCursorFactory, DatabaseStateRoot, DatabaseTrieCursorFactory, PackedKeyAdapter,
 };
@@ -213,6 +216,22 @@ fn source_state(chain: &Arc<OpChainSpec>) -> (Factory, B256) {
             }
         }
     }
+    // Accounts in one chunk of the hashed address space, whose storage tries one worker builds in
+    // turn.
+    for i in 1..=3u8 {
+        let mut hashed_address = B256::repeat_byte(i);
+        hashed_address[..2].copy_from_slice(&[0xab, 0xcd]);
+        tx.put::<tables::HashedAccounts>(
+            hashed_address,
+            Account { nonce: 1, ..Default::default() },
+        )
+        .unwrap();
+        for slot in 0..20u64 {
+            let key = keccak256(B256::from(U256::from(slot)));
+            let entry = StorageEntry { key, value: slot_value(slot) };
+            tx.put::<tables::HashedStorages>(hashed_address, entry).unwrap();
+        }
+    }
     // Without changes to walk, a root computation reuses whatever trie is stored, here genesis's.
     tx.clear::<tables::PackedAccountsTrie>().unwrap();
     tx.clear::<tables::PackedStoragesTrie>().unwrap();
@@ -365,6 +384,14 @@ fn assert_copies_the_state(chain: &Arc<OpChainSpec>, commit_bytes: usize) {
     );
     drop(source_provider);
     assert!(provider.tx_ref().entries::<tables::PackedAccountsTrie>().unwrap() > 0);
+    // Every stored trie node is the one a full rebuild writes, so the node can update the trie
+    // block by block.
+    let tx = provider.tx_ref();
+    let trie = DatabaseTrieCursorFactory::<_, PackedKeyAdapter>::new(tx);
+    for output in Verifier::new(&trie, DatabaseHashedCursorFactory::new(tx)).unwrap() {
+        let output = output.unwrap();
+        assert!(matches!(output, Output::Progress(_)), "{output:?}");
+    }
     drop(provider);
     // The node runs this check on startup and unwinds or panics if it fails.
     assert_eq!(target.check_consistency().unwrap(), (None, None));
