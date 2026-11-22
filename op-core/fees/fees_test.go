@@ -4,9 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,27 +30,9 @@ func TestNewRollupCostData(t *testing.T) {
 	require.Equal(t, RollupCostData{}, empty)
 }
 
-// TestL1CostBedrockParity checks L1CostBedrock against op-geth's exported types.L1Cost.
-func TestL1CostBedrockParity(t *testing.T) {
-	cases := []struct {
-		rollupDataGas               uint64
-		l1BaseFee, overhead, scalar *big.Int
-	}{
-		{1618, big.NewInt(1000 * 1e6), big.NewInt(50), big.NewInt(7 * 1e6)},
-		{0, big.NewInt(1), big.NewInt(0), big.NewInt(1_000_000)},
-		{530, big.NewInt(2300000), big.NewInt(1000), big.NewInt(684000)},
-	}
-	for _, tc := range cases {
-		want := types.L1Cost(tc.rollupDataGas, tc.l1BaseFee, tc.overhead, tc.scalar)
-		got := L1CostBedrock(tc.rollupDataGas, tc.l1BaseFee, tc.overhead, tc.scalar)
-		require.Zero(t, want.Cmp(got), "want %s, got %s", want, got)
-	}
-}
-
 // TestEcotoneL1CostFunc pins L1CostEcotone to op-geth's TestEcotoneL1CostFunc reference
 // (rollup_cost_test.go): baseFee=1000*1e6, blobBaseFee=10*1e6, scalars 2 and 3, and a calldata
-// gas of 480 (op-geth's ecotoneGas; here 30 non-zero bytes) yield ecotoneFee == 960900. A live
-// differential (as for Fjord below) isn't possible: op-geth's Ecotone constructor is unexported.
+// gas of 480 (op-geth's ecotoneGas; here 30 non-zero bytes) yield ecotoneFee == 960900.
 func TestEcotoneL1CostFunc(t *testing.T) {
 	c := L1CostEcotone(RollupCostData{Ones: 30}, L1FeeParams{
 		L1BaseFee:     big.NewInt(1000 * 1e6),
@@ -98,23 +77,29 @@ func TestFjordL1CostSolidityParity(t *testing.T) {
 	require.Equal(t, big.NewInt(105484), c)
 }
 
-// TestFjordL1CostParity is a live differential check that L1CostFjord matches op-geth's
-// exported NewL1CostFuncFjord across a range of fee parameters and tx sizes. It runs while the
-// build still resolves go-ethereum to op-geth; remove it when the op-geth dependency is dropped.
-func TestFjordL1CostParity(t *testing.T) {
-	paramSets := []L1FeeParams{
-		{L1BaseFee: fjordBaseFee, L1BlobBaseFee: fjordBlobBaseFee, BaseFeeScalar: fjordBaseFeeScalar, BlobFeeScalar: fjordBlobBaseFeeScalar},
-		{L1BaseFee: big.NewInt(2 * 1e6), L1BlobBaseFee: big.NewInt(3 * 1e6), BaseFeeScalar: big.NewInt(20), BlobFeeScalar: big.NewInt(15)},
-		{L1BaseFee: big.NewInt(1), L1BlobBaseFee: big.NewInt(1), BaseFeeScalar: big.NewInt(1), BlobFeeScalar: big.NewInt(1)},
-		{L1BaseFee: big.NewInt(7 * 1e9), L1BlobBaseFee: big.NewInt(5 * 1e8), BaseFeeScalar: big.NewInt(684000), BlobFeeScalar: big.NewInt(810949)},
+// TestL1CostFjordFromTxBytes prices transaction bytes from compression to fee, below and above the
+// minimum-size floor of the DA-size estimate. The expected fees were taken from the GasPriceOracle
+// predeploy: its getL1Fee, executed in an EVM with Fjord active and the L1 fee parameters of
+// gweiL1FeeParams, returns them for the same bytes. getL1Fee adds 68 bytes for a signature to the
+// FastLZ size of the bytes it is given, so the test does the same. contractCallTx is already
+// signed; here it only serves as realistic bytes above the floor.
+func TestL1CostFjordFromTxBytes(t *testing.T) {
+	testCases := []struct {
+		name       string
+		tx         []byte
+		wantDASize int64
+		wantFee    string
+	}{
+		{"empty tx below the floor", emptyTx, 100, "7701347450000"},
+		{"contract call tx above the floor", contractCallTx, 183, "14114213263530"},
 	}
-	for _, fastLzSize := range []uint64{0, 50, 100, 170, 171, 500, 12345} {
-		for _, p := range paramSets {
-			gethFee, _ := types.NewL1CostFuncFjord(p.L1BaseFee, p.L1BlobBaseFee, p.BaseFeeScalar, p.BlobFeeScalar)(
-				types.RollupCostData{FastLzSize: fastLzSize})
-			got := L1CostFjord(RollupCostData{FastLzSize: fastLzSize}, p)
-			require.Zero(t, gethFee.Cmp(got), "fastLzSize=%d params=%+v: op-geth %s, op-core %s", fastLzSize, p, gethFee, got)
-		}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rcd := NewRollupCostData(tc.tx)
+			rcd.FastLzSize += 68
+			require.Equal(t, big.NewInt(tc.wantDASize), rcd.EstimatedDASize())
+			require.Equal(t, tc.wantFee, L1CostFjord(rcd, gweiL1FeeParams).String())
+		})
 	}
 }
 
@@ -150,46 +135,4 @@ func TestOperatorCostJovian(t *testing.T) {
 
 	// Zero scalar and constant yield zero fee regardless of gas.
 	require.Equal(t, 0, OperatorCostJovian(21000, 0, 0).Sign())
-}
-
-// TestTxRollupCostDataParity is the decisive check that TxRollupCostData faithfully replaces
-// op-geth's (*types.Transaction).RollupCostData(): cost data is derived from the full
-// binary-encoded transaction (MarshalBinary), not from tx.Data(), and deposits are empty.
-func TestTxRollupCostDataParity(t *testing.T) {
-	to := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
-	mixedData := []byte{0x00, 0x01, 0x00, 0xff, 0x00, 0x42, 0x00, 0x00, 0xab}
-
-	txs := []struct {
-		name string
-		tx   *types.Transaction
-	}{
-		{"legacy no data", types.NewTx(&types.LegacyTx{Nonce: 0, To: &to, Value: big.NewInt(1), Gas: 21000, GasPrice: big.NewInt(1)})},
-		{"legacy with data", types.NewTx(&types.LegacyTx{Nonce: 7, To: &to, Value: big.NewInt(0), Gas: 50000, GasPrice: big.NewInt(3), Data: mixedData})},
-		{"dynamic fee", types.NewTx(&types.DynamicFeeTx{ChainID: big.NewInt(10), Nonce: 3, GasTipCap: big.NewInt(2), GasFeeCap: big.NewInt(5), Gas: 60000, To: &to, Value: big.NewInt(7), Data: mixedData})},
-		{"blob", types.NewTx(&types.BlobTx{ChainID: uint256.NewInt(10), Nonce: 1, GasTipCap: uint256.NewInt(2), GasFeeCap: uint256.NewInt(5), Gas: 21000, To: to, Value: uint256.NewInt(0), Data: mixedData, BlobFeeCap: uint256.NewInt(3), BlobHashes: []common.Hash{{0x01}}})},
-		{"deposit", types.NewTx(&types.DepositTx{SourceHash: common.Hash{0x01}, From: to, To: &to, Value: big.NewInt(0), Gas: 21000, Data: mixedData})},
-	}
-
-	for _, tc := range txs {
-		t.Run(tc.name, func(t *testing.T) {
-			want := tc.tx.RollupCostData() // op-geth's method, the behaviour we must preserve
-			got := TxRollupCostData(tc.tx)
-			require.Equal(t, want.Zeroes, got.Zeroes, "Zeroes")
-			require.Equal(t, want.Ones, got.Ones, "Ones")
-			require.Equal(t, want.FastLzSize, got.FastLzSize, "FastLzSize")
-		})
-	}
-}
-
-func TestTxRollupCostDataDepositIsEmpty(t *testing.T) {
-	to := common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
-	deposit := types.NewTx(&types.DepositTx{
-		SourceHash: common.Hash{0x01},
-		From:       to,
-		To:         &to,
-		Value:      big.NewInt(0),
-		Gas:        21000,
-		Data:       []byte{0x01, 0x02, 0x03},
-	})
-	require.Equal(t, RollupCostData{}, TxRollupCostData(deposit))
 }

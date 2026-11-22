@@ -16,7 +16,7 @@ use reth_trie::{
 use reth_trie_common::{
     BranchNodeCompact, HashedPostStateSorted, Nibbles, StoredNibbles, updates::TrieUpdatesSorted,
 };
-use std::{fmt::Debug, time::Duration};
+use std::{fmt::Debug, ops::RangeInclusive, time::Duration};
 
 /// Duration metrics for block processing.
 #[derive(Debug, Default, Clone)]
@@ -342,6 +342,29 @@ pub trait OpProofsStore: Send + Sync + Debug {
 
     /// Create an initialization provider for interacting with the proofs storage.
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>>;
+
+    /// Reads the pages that persisting `diff` will touch, from up to `threads` parallel
+    /// read-only transactions, so the write finds them cached. Best effort: the default does
+    /// nothing. Returns the number of keys read.
+    fn warm_for_write(
+        &self,
+        _diff: &BlockStateDiff,
+        _threads: usize,
+    ) -> OpProofsStorageResult<usize> {
+        Ok(0)
+    }
+
+    /// Reads the pages that pruning `blocks` will touch, from up to `threads` parallel
+    /// read-only transactions, so the prune finds them cached. Best effort: the default does
+    /// nothing. Returns the number of keys read, counting a key once for each block that changed
+    /// it.
+    fn warm_for_prune(
+        &self,
+        _blocks: RangeInclusive<u64>,
+        _threads: usize,
+    ) -> OpProofsStorageResult<usize> {
+        Ok(0)
+    }
 }
 
 /// Factory extension for stores that support backfill — extending the `earliest` block of
@@ -400,13 +423,13 @@ pub struct InitialStateAnchor {
     pub block: Option<BlockNumHash>,
     /// Whether initialization is still running or completed.
     pub status: InitialStateStatus,
-    /// The latest key stored for `AccountTrieHistory`.
+    /// The latest account trie key stored during initialization.
     pub latest_account_trie_key: Option<StoredNibbles>,
-    /// The latest key stored for `StorageTrieHistory`.
+    /// The latest storage trie key stored during initialization.
     pub latest_storage_trie_key: Option<StorageTrieKey>,
-    /// The latest key stored for `HashedAccountHistory`.
+    /// The latest hashed account key stored during initialization.
     pub latest_hashed_account_key: Option<B256>,
-    /// The latest key stored for `HashedStorageHistory`.
+    /// The latest hashed storage key stored during initialization.
     pub latest_hashed_storage_key: Option<HashedStorageKey>,
 }
 

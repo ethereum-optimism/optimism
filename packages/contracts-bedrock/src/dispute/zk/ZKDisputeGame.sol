@@ -111,8 +111,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.1
-    string public constant version = "2.0.1";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
@@ -342,6 +342,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // Store the factory reference for parent game lookups.
         disputeGameFactory = IDisputeGameFactory(msg.sender);
 
+        // Set whether the game type was respected when the game was created.
+        wasRespectedGameTypeWhenCreated =
+            GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(gameType());
+
         // The first game is initialized with a parent index of uint32.max
         if (parentIndex() != type(uint32).max) {
             // For subsequent games, get the parent game's information
@@ -352,6 +356,11 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
             // Verify parent game is not blacklisted or retired.
             if (anchorStateRegistry().isGameBlacklisted(parent) || anchorStateRegistry().isGameRetired(parent)) {
+                revert InvalidParentGame();
+            }
+
+            // INVARIANT: A respected game must build on a respected parent.
+            if (wasRespectedGameTypeWhenCreated && !parent.wasRespectedGameTypeWhenCreated()) {
                 revert InvalidParentGame();
             }
 
@@ -398,10 +407,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
-
-        // Set whether the game type was respected when the game was created.
-        wasRespectedGameTypeWhenCreated =
-            GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(gameType());
     }
 
     /// @notice Validates the expected length of msg.data for the initialize() call.

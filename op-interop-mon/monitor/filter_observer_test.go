@@ -55,20 +55,24 @@ func TestFilterObserverDivergence(t *testing.T) {
 }
 
 func TestFilterObserverNoVerdictNotRecorded(t *testing.T) {
-	// The filter is in failsafe and rejects every call. That is not a validity
-	// verdict, so no divergence is recorded and the job is left unmarked for retry.
-	job := &Job{
-		initiating:     &messages.Identifier{ChainID: eth.ChainIDFromUInt64(1), BlockNumber: 10},
-		executingChain: eth.ChainIDFromUInt64(2),
-	}
-	job.UpdateStatus(jobStatusValid)
+	// A filter in failsafe, or one whose database failed, rejects the call. That is not a
+	// validity verdict, so no divergence is recorded and the job is left unmarked for retry.
+	for _, filterErr := range []error{interop.ErrFailsafeEnabled, interop.ErrDatabaseFailure} {
+		t.Run(filterErr.Error(), func(t *testing.T) {
+			job := &Job{
+				initiating:     &messages.Identifier{ChainID: eth.ChainIDFromUInt64(1), BlockNumber: 10},
+				executingChain: eth.ChainIDFromUInt64(2),
+			}
+			job.UpdateStatus(jobStatusValid)
 
-	failsafe := rpcVerdictErr{msg: "failsafe is enabled", code: interop.GetErrorCode(interop.ErrFailsafeEnabled)}
-	mm := &mockMetrics{}
-	obs := NewFilterObserver(&mockFilterChecker{checkErr: failsafe}, mm, log.New())
-	obs.Observe(context.Background(), map[JobID]*Job{job.ID(): job})
-	require.Empty(t, mm.actualFilterDivergences)
-	require.False(t, job.FilterCheckedFor(jobStatusValid)) // not latched; retried next cycle
+			rpcErr := rpcVerdictErr{msg: filterErr.Error(), code: interop.GetErrorCode(filterErr)}
+			mm := &mockMetrics{}
+			obs := NewFilterObserver(&mockFilterChecker{checkErr: rpcErr}, mm, log.New())
+			obs.Observe(context.Background(), map[JobID]*Job{job.ID(): job})
+			require.Empty(t, mm.actualFilterDivergences)
+			require.False(t, job.FilterCheckedFor(jobStatusValid)) // not latched; retried next cycle
+		})
+	}
 }
 
 func TestFilterObserverRechecksOnStatusChange(t *testing.T) {

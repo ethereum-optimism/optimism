@@ -1,0 +1,31 @@
+# Caller for ethereum-optimism/factory build-images.yaml.
+# Copy to .github/workflows/build-images.yaml in the repository that owns the images.
+# The repository needs .github/images.json (see docs/images-catalog.md) and a
+# GitHub environment named "release" for publishing. Require the "result" job of
+# this workflow as the status check.
+name: Build images
+
+on:
+  push:
+    branches:
+      - develop
+    tags:
+      - '*/v*'
+      - 'v*'
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-images:
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    uses: ethereum-optimism/factory/.github/workflows/build-images.yaml@c7a77b3b64a3f4798979060c830247a6b49f60ee

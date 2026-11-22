@@ -3,15 +3,19 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { GasBurner } from "test/mocks/GasBurner.sol";
 import { stdError } from "forge-std/StdError.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+
+// Contracts
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Features } from "src/libraries/Features.sol";
+import "src/libraries/GasConstants.sol" as GasConstants;
 
 // Target contract dependencies
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
@@ -19,6 +23,10 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 
 /// @title L1CrossDomainMessenger_Encoding_Harness
 /// @notice A harness contract for testing internal functions of the Encoding library.
@@ -62,8 +70,6 @@ abstract contract L1CrossDomainMessenger_TestInit is CommonTest {
 /// @notice Tests for the `constructor` of the L1CrossDomainMessenger.
 contract L1CrossDomainMessenger_Constructor_Test is L1CrossDomainMessenger_TestInit {
     /// @notice Tests that the implementation is initialized correctly.
-    /// @notice Marked virtual to be overridden in
-    ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         IL1CrossDomainMessenger impl = IL1CrossDomainMessenger(addressManager.getAddress("OVM_L1CrossDomainMessenger"));
         assertEq(address(impl.systemConfig()), address(0));
@@ -393,8 +399,6 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
 
     /// @notice Tests that the `relayMessage` function reverts when the message version is not 0 or
     ///         1.
-    /// @notice Marked virtual to be overridden in
-    ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_relayMessage_v2_reverts() external virtual {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -585,153 +589,6 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
     }
 
-    /// @notice Tests that the `relayMessage` function on L2 will always succeed for any potential
-    ///         message, regardless of the size of the message, the minimum gas limit, or the
-    ///         amount of gas used by the target contract.
-    function testFuzz_relayMessage_baseGasSufficient_succeeds(
-        uint24 _messageLength,
-        uint32 _minGasLimit,
-        uint32 _gasToUse
-    )
-        external
-    {
-        // TODO(#14609): Update this test to use default.isolate = true once a new stable Foundry
-        // release is available that includes #9904. That will allow us to use this test to check
-        // for changes to the EVM itself that might cause our gas formula to be incorrect.
-
-        // Skip if this is a fork test, won't work.
-        skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
-
-        // Keep the fuzz input bounded so the test remains fast. Near-max payloads are covered by a
-        // deterministic regression test below.
-        _messageLength = uint24(bound(_messageLength, 0, 34_000));
-
-        // Need more than 500 since GasBurner requires it.
-        // It's ok to try to use more than minGasLimit since the L2CrossDomainMessenger should
-        // catch the revert and store the message hash in the failedMessages mapping.
-        _gasToUse = uint32(bound(_gasToUse, 500, type(uint32).max));
-
-        // Generate random bytes, more useful than having a _message parameter.
-        bytes memory _message = vm.randomBytes(_messageLength);
-
-        // Compute the base gas.
-        // Base gas should really be computed on the fully encoded message but that would break the
-        // expected API, so we instead just add the encoding overhead to the message length inside
-        // of the baseGas function.
-        uint64 baseGas = l1CrossDomainMessenger.baseGas(_message, _minGasLimit);
-
-        // Deploy a gas burner.
-        address target = address(new GasBurner(_gasToUse));
-
-        // Encode the message.
-        bytes memory encoded = Encoding.encodeCrossDomainMessage(
-            Encoding.encodeVersionedNonce(0, 1), // nonce
-            alice, // Sender doesn't matter
-            target,
-            0, // Value doesn't matter
-            _minGasLimit,
-            _message
-        );
-
-        // Count the number of non-zero bytes in the message.
-        uint256 zeroBytesInCalldata = 0;
-        uint256 nonzeroBytesInCalldata = 0;
-        for (uint256 i = 0; i < encoded.length; i++) {
-            if (encoded[i] != bytes1(0)) {
-                nonzeroBytesInCalldata++;
-            } else {
-                zeroBytesInCalldata++;
-            }
-        }
-
-        // Base gas must always be sufficient to cover the floor cost from EIP-7623.
-        assertGt(baseGas, 21000 + ((zeroBytesInCalldata + nonzeroBytesInCalldata * 4) * 10));
-
-        // Actual gas on L2 will be the base gas minus the intrinsic gas cost. Note that even after
-        // EIP-7623, we still deduct 21k + 16 gas per calldata token from the gas limit before
-        // execution happens. After execution, if the message didn't spend enough in execution gas,
-        // the EVM will floor the cost of the transaction to 21k + 40 gas per calldata token.
-        uint256 gasSupplied = baseGas - (21000 + ((zeroBytesInCalldata + nonzeroBytesInCalldata * 4) * 4));
-
-        // We'll trigger the L2CrossDomainMessenger as if we're the L1CrossDomainMessenger
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
-        vm.prank(caller);
-
-        // Trigger the L2CrossDomainMessenger.
-        // Should NOT fail.
-        (bool success,) = address(l2CrossDomainMessenger).call{ gas: gasSupplied }(encoded);
-        assertTrue(success, "L2CrossDomainMessenger call should not fail");
-
-        // Message should either be in the failed or successful messages mapping.
-        bool inFailedMessages = l2CrossDomainMessenger.failedMessages(keccak256(encoded));
-        bool inSuccessfulMessages = l2CrossDomainMessenger.successfulMessages(keccak256(encoded));
-        assertTrue(
-            inFailedMessages || inSuccessfulMessages, "message should be in either failed or successful messages"
-        );
-    }
-
-    /// @notice Tests that `relayMessage` has enough base gas to finish when relaying a near-max
-    ///         L1 => L2 payload to a target that consumes all forwarded gas.
-    function test_relayMessage_nearMaxPayloadAllGasTarget_succeeds() external {
-        skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
-
-        // Use the PoC's _minGasLimit value referenced from client-pod#609:
-        // https://github.com/ethereum-optimism/client-pod/issues/609
-        uint32 minGasLimit = 50_000;
-
-        // Largest 32-byte-aligned user message that fits under the portal's 120k calldata cap once
-        // encoded as relayMessage(uint256,address,address,uint256,uint256,bytes). The fixed
-        // encoding overhead is 4 bytes for the selector, 6 ABI words for the nonce, sender,
-        // target, value, minGasLimit, and message offset, and 1 ABI word for the dynamic bytes
-        // length. The message length is rounded down to a 32-byte multiple because dynamic bytes
-        // data is ABI word-padded.
-        uint256 portalCalldataLimit = 120_000;
-        uint256 relayMessageEncodingOverhead = 4 + 6 * 32 + 32;
-        uint256 messageLength = ((portalCalldataLimit - relayMessageEncodingOverhead) / 32) * 32;
-        bytes memory message = new bytes(messageLength);
-        for (uint256 i = 0; i < message.length; i++) {
-            message[i] = 0x01;
-        }
-
-        uint64 baseGas = l1CrossDomainMessenger.baseGas(message, minGasLimit);
-        address target = address(new GasBurner(type(uint32).max));
-        bytes memory encoded = Encoding.encodeCrossDomainMessage(
-            Encoding.encodeVersionedNonce(0, 1), alice, target, 0, minGasLimit, message
-        );
-
-        assertEq(encoded.length, relayMessageEncodingOverhead + message.length);
-        assertLe(encoded.length, portalCalldataLimit);
-        assertGt(encoded.length + 32, portalCalldataLimit);
-
-        uint256 zeroBytesInCalldata = 0;
-        uint256 nonzeroBytesInCalldata = 0;
-        for (uint256 i = 0; i < encoded.length; i++) {
-            if (encoded[i] != bytes1(0)) {
-                nonzeroBytesInCalldata++;
-            } else {
-                zeroBytesInCalldata++;
-            }
-        }
-        // The message body is non-zero, but the ABI-encoded selector and fixed-size arguments
-        // still include zero bytes.
-        assertGt(zeroBytesInCalldata, 0);
-
-        // Actual gas on L2 is the deposited gas limit minus L2 intrinsic gas.
-        uint256 gasSupplied = baseGas - (21_000 + ((zeroBytesInCalldata + nonzeroBytesInCalldata * 4) * 4));
-
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
-        vm.prank(caller);
-
-        (bool success,) = address(l2CrossDomainMessenger).call{ gas: gasSupplied }(encoded);
-        assertTrue(success, "L2CrossDomainMessenger call should not fail");
-
-        bool inFailedMessages = l2CrossDomainMessenger.failedMessages(keccak256(encoded));
-        bool inSuccessfulMessages = l2CrossDomainMessenger.successfulMessages(keccak256(encoded));
-        assertTrue(
-            inFailedMessages || inSuccessfulMessages, "message should be in either failed or successful messages"
-        );
-    }
-
     /// @notice Tests that the `relayMessage` function reverts if ETH is sent from a contract other
     ///         than the standard bridge.
     function test_replayMessage_withValue_reverts() external {
@@ -832,6 +689,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         uint256 value = 100;
+        // The messenger of a forked chain can already hold ETH.
+        uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         vm.expectCall(target, hex"1111");
 
@@ -852,7 +711,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
             hex"1111"
         );
 
-        assertEq(address(l1CrossDomainMessenger).balance, value);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger + value);
         assertEq(address(target).balance, 0);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), false);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -873,7 +732,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
             hex"1111"
         );
 
-        assertEq(address(l1CrossDomainMessenger).balance, 0);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
         assertEq(address(target).balance, value);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -971,6 +830,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         uint256 value = 100;
+        // The messenger of a forked chain can already hold ETH.
+        uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
@@ -1008,7 +869,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message failed.
-        assertEq(address(l1CrossDomainMessenger).balance, value);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger + value);
         assertEq(address(target).balance, 0);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), false);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -1035,7 +896,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message was successfully relayed.
-        assertEq(address(l1CrossDomainMessenger).balance, 0);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
         assertEq(address(target).balance, value);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -1046,6 +907,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         uint256 value = 100;
+        // The messenger of a forked chain can already hold ETH.
+        uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
@@ -1081,7 +944,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message was successfully relayed.
-        assertEq(address(l1CrossDomainMessenger).balance, 0);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
         assertEq(address(target).balance, value);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
@@ -1106,6 +969,8 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         uint256 value = 100;
+        // The messenger of a forked chain can already hold ETH.
+        uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
@@ -1140,7 +1005,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message failed.
-        assertEq(address(l1CrossDomainMessenger).balance, value);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger + value);
         assertEq(address(target).balance, 0);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), false);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -1167,7 +1032,7 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         );
 
         // Message was successfully relayed.
-        assertEq(address(l1CrossDomainMessenger).balance, 0);
+        assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
         assertEq(address(target).balance, value);
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
@@ -1237,5 +1102,518 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         assertEq(address(this).balance, balanceBeforeThis);
         // The balance of the messenger contract is unchanged.
         assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
+    }
+
+    /// @notice Tests that `L1_RELAY_GAS_CHECK_BUFFER` covers the gas spent between the `hasMinGas`
+    ///         check and the CALL in `relayMessage`.
+    function test_relayMessage_gasCheckBufferCoversWindow_succeeds() external {
+        vm.store(
+            address(optimismPortal2),
+            bytes32(senderSlotIndex),
+            bytes32(abi.encode(Predeploys.L2_CROSS_DOMAIN_MESSENGER))
+        );
+        // Records the gas it receives, less the 2 that GAS costs: GAS PUSH1 0 SSTORE STOP.
+        address target = address(0xbeefbeef);
+        vm.etch(target, hex"5a60005500");
+        uint32 minGasLimit = 100_000;
+
+        // Find the least gas that passes `hasMinGas`, so that the check sees exactly its threshold.
+        uint256 lo = minGasLimit;
+        uint256 hi = 1_000_000;
+        uint256 received = _relayWithGas(hi, target, minGasLimit);
+        assertGt(received, 0);
+        while (lo < hi) {
+            uint256 mid = (lo + hi) / 2;
+            uint256 got = _relayWithGas(mid, target, minGasLimit);
+            if (got > 0) (hi, received) = (mid, got);
+            else lo = mid + 1;
+        }
+
+        uint256 gasAtCheck =
+            (uint256(minGasLimit)
+                    * 64
+                    + 63
+                    * (GasConstants.RELAY_CALL_OVERHEAD
+                        + GasConstants.L1_RELAY_RESERVED_GAS
+                        + GasConstants.L1_RELAY_GAS_CHECK_BUFFER)
+                    + 62) / 63;
+        uint256 gasAtCall = received + 2 + GasConstants.L1_RELAY_RESERVED_GAS;
+        assertLe(gasAtCheck - gasAtCall, GasConstants.L1_RELAY_GAS_CHECK_BUFFER);
+    }
+
+    /// @notice Relays a fresh message with `_gas` and returns the gas `_target` recorded, or zero
+    ///         if it was not called.
+    function _relayWithGas(uint256 _gas, address _target, uint32 _minGasLimit) internal returns (uint256) {
+        vm.store(_target, 0, 0);
+        vm.cool(address(l1CrossDomainMessenger));
+        vm.prank(address(optimismPortal2));
+        (bool success,) = address(l1CrossDomainMessenger).call{ gas: _gas }(
+            abi.encodeCall(
+                ICrossDomainMessenger.relayMessage,
+                (
+                    Encoding.encodeVersionedNonce(uint240(_gas), 1),
+                    Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                    _target,
+                    0,
+                    _minGasLimit,
+                    hex""
+                )
+            )
+        );
+        return success ? uint256(vm.load(_target, 0)) : 0;
+    }
+}
+
+/// @title L1CrossDomainMessenger_RelayUndeliveredMessage_Test
+/// @notice Tests the `relayUndeliveredMessage` function of the `L1CrossDomainMessenger` contract.
+contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMessenger_TestInit {
+    bytes32 internal constant MESSAGE_HASH = keccak256("message");
+    uint256 internal constant UNDELIVERED_AT = 1_000_000;
+
+    /// @notice This chain's lockbox.
+    address internal lockbox;
+
+    /// @notice Another chain in this chain's cluster: its messenger, portal and SystemConfig.
+    address internal otherMessenger;
+    address internal otherPortal;
+    address internal otherConfig;
+
+    function setUp() public override {
+        super.setUp();
+        lockbox = _mockContract("lockbox");
+        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(lockbox));
+        // The mocked lockbox stands behind this chain's pause check.
+        vm.mockCall(lockbox, abi.encodeCall(IETHLockbox.paused, ()), abi.encode(false));
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(true)
+        );
+        (otherMessenger, otherPortal, otherConfig) = _mockChain("other");
+    }
+
+    /// @notice Tests that word from a cluster chain's UndeliveredMessageExporter is deposited into
+    ///         this chain's L2ToL2CrossDomainMessenger, sent as this messenger.
+    function test_relayUndeliveredMessage_succeeds() external {
+        bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (MESSAGE_HASH, UNDELIVERED_AT));
+        uint256 nonce = l1CrossDomainMessenger.messageNonce();
+        vm.expectCall(
+            address(optimismPortal2),
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                    0,
+                    l1CrossDomainMessenger.baseGas(expire, 100_000),
+                    false,
+                    Encoding.encodeCrossDomainMessage(
+                        nonce,
+                        address(l1CrossDomainMessenger),
+                        Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+                        0,
+                        100_000,
+                        expire
+                    )
+                )
+            )
+        );
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit SentMessage(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(l1CrossDomainMessenger), expire, nonce, 100_000
+        );
+
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that a contract naming a cluster chain's portal as its own is rejected: the
+    ///         portal's SystemConfig names only the real messenger.
+    function test_relayUndeliveredMessage_borrowedPortal_reverts() external {
+        address fake = _mockContract("fake");
+        vm.mockCall(fake, abi.encodeCall(IL1CrossDomainMessenger.portal, ()), abi.encode(otherPortal));
+        vm.mockCall(
+            fake,
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(fake);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that a contract naming a cluster chain's portal is rejected even when it also
+    ///         names a SystemConfig of its own that names it as the messenger: only the portal's
+    ///         SystemConfig counts.
+    function test_relayUndeliveredMessage_fakeMessengerOwnSystemConfig_reverts() external {
+        address fake = _mockContract("fake");
+        address fakeConfig = _mockContract("fakeConfig");
+        vm.mockCall(fake, abi.encodeCall(IL1CrossDomainMessenger.portal, ()), abi.encode(otherPortal));
+        vm.mockCall(fake, abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()), abi.encode(fakeConfig));
+        vm.mockCall(fakeConfig, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(fake));
+        vm.mockCall(
+            fake,
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(fake);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that a chain outside this chain's cluster is rejected even when its own
+    ///         lockbox authorizes this chain's portal: only this chain's lockbox counts.
+    function test_relayUndeliveredMessage_callerLockboxAuthorizesThisChain_reverts() external {
+        address otherLockbox = _mockContract("otherLockbox");
+        vm.mockCall(
+            lockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(otherPortal)))),
+            abi.encode(false)
+        );
+        vm.mockCall(otherPortal, abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(otherLockbox));
+        vm.mockCall(
+            otherLockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(address(optimismPortal2))))),
+            abi.encode(true)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that the messenger of a chain outside this chain's cluster is rejected.
+    function test_relayUndeliveredMessage_otherCluster_reverts() external {
+        vm.mockCall(
+            lockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(otherPortal)))),
+            abi.encode(false)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that word relayed from any L2 sender but the UndeliveredMessageExporter is
+    ///         rejected.
+    function testFuzz_relayUndeliveredMessage_wrongL2Sender_reverts(address _l2Sender) external {
+        vm.assume(_l2Sender != Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
+        vm.mockCall(
+            otherMessenger, abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()), abi.encode(_l2Sender)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that a chain that does not run interop accepts no word, even from a cluster
+    ///         chain's messenger.
+    function test_relayUndeliveredMessage_interopDisabled_reverts() external {
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(false)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_InteropNotEnabled.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that word from the L2ToL2CrossDomainMessenger is rejected: before it refused to
+    ///         relay to the L2CrossDomainMessenger, any relayed message could send a withdrawal as it.
+    function test_relayUndeliveredMessage_l2ToL2CrossDomainMessengerSender_reverts() external {
+        vm.mockCall(
+            otherMessenger,
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that an account that is not a messenger cannot call it: asking it for its
+    ///         portal reverts, since it has no code.
+    function test_relayUndeliveredMessage_notMessenger_reverts() external {
+        vm.expectRevert(bytes(""));
+        vm.prank(alice);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that a chain without a lockbox accepts no word: asking the zero address
+    ///         whether it authorizes the caller's portal reverts.
+    function test_relayUndeliveredMessage_noLockbox_reverts() external {
+        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(address(0)));
+
+        vm.expectRevert(bytes(""));
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that word an exporter sends to its own chain's L1CrossDomainMessenger never
+    ///         reaches `relayUndeliveredMessage`: the messenger refuses to relay to itself.
+    function test_relayUndeliveredMessage_ownChain_reverts() external {
+        vm.store(
+            address(optimismPortal2),
+            bytes32(senderSlotIndex),
+            bytes32(abi.encode(Predeploys.L2_CROSS_DOMAIN_MESSENGER))
+        );
+
+        vm.prank(address(optimismPortal2));
+        vm.expectRevert("CrossDomainMessenger: cannot send message to blocked system address");
+        l1CrossDomainMessenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            Predeploys.UNDELIVERED_MESSAGE_EXPORTER,
+            address(l1CrossDomainMessenger),
+            0,
+            0,
+            abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (MESSAGE_HASH, UNDELIVERED_AT))
+        );
+    }
+
+    /// @notice Tests that word whose relay runs out of gas on L1 lands in the destination
+    ///         messenger's failed messages, and that anyone's replay of it keeps the
+    ///         UndeliveredMessageExporter as the sender, so this messenger accepts it and deposits
+    ///         the expiry.
+    function test_relayUndeliveredMessage_outOfGasReplay_succeeds() external {
+        IL1CrossDomainMessenger destination = _destinationMessenger();
+        bytes memory word =
+            abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (MESSAGE_HASH, UNDELIVERED_AT));
+        uint256 nonce = Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 });
+        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
+            nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
+        );
+
+        // The withdrawal's relay reaches this messenger and its deposit, but leaves the call too
+        // little gas to finish the deposit.
+        // An L1 base fee at the 1 gwei floor makes the deposit's gas burn exceed what the call has.
+        vm.fee(1 gwei);
+        uint256 depositNonce = l1CrossDomainMessenger.messageNonce();
+        vm.expectCall(address(l1CrossDomainMessenger), word);
+        vm.expectCall(address(optimismPortal2), bytes.concat(IOptimismPortal2.depositTransaction.selector));
+        vm.prank(address(destination.portal()));
+        destination.relayMessage{ gas: 200_000 }(
+            nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
+        );
+        assertTrue(destination.failedMessages(versionedHash));
+        assertEq(l1CrossDomainMessenger.messageNonce(), depositNonce);
+
+        bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (MESSAGE_HASH, UNDELIVERED_AT));
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit SentMessage(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(l1CrossDomainMessenger), expire, depositNonce, 100_000
+        );
+        vm.prank(bob);
+        destination.relayMessage(
+            nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
+        );
+        assertTrue(destination.successfulMessages(versionedHash));
+        assertEq(l1CrossDomainMessenger.messageNonce(), depositNonce + 1);
+    }
+
+    /// @notice Tests that a paused chain accepts no word.
+    function test_relayUndeliveredMessage_paused_reverts() external {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()), abi.encode(true));
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_Paused.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that word relayed while this chain is paused lands in the destination
+    ///         messenger's failed messages, and that a replay after the unpause deposits the
+    ///         expiry.
+    function test_relayUndeliveredMessage_pausedReplay_succeeds() external {
+        IL1CrossDomainMessenger destination = _destinationMessenger();
+        bytes memory word =
+            abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (MESSAGE_HASH, UNDELIVERED_AT));
+        uint256 nonce = Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 });
+        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
+            nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
+        );
+        uint256 depositNonce = l1CrossDomainMessenger.messageNonce();
+
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()), abi.encode(true));
+        vm.prank(address(destination.portal()));
+        destination.relayMessage(
+            nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
+        );
+        assertTrue(destination.failedMessages(versionedHash));
+        assertEq(l1CrossDomainMessenger.messageNonce(), depositNonce);
+
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()), abi.encode(false));
+        bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (MESSAGE_HASH, UNDELIVERED_AT));
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit SentMessage(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(l1CrossDomainMessenger), expire, depositNonce, 100_000
+        );
+        vm.prank(bob);
+        destination.relayMessage(
+            nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
+        );
+        assertTrue(destination.successfulMessages(versionedHash));
+        assertEq(l1CrossDomainMessenger.messageNonce(), depositNonce + 1);
+    }
+
+    /// @notice Deploys a real L1CrossDomainMessenger for another chain in this chain's cluster.
+    ///         Its portal and SystemConfig are stand-ins that bind to it, and this chain's lockbox
+    ///         authorizes the portal.
+    function _destinationMessenger() internal returns (IL1CrossDomainMessenger messenger_) {
+        address portal = _mockContract("destinationPortal");
+        address config = _mockContract("destinationConfig");
+
+        Proxy proxy = new Proxy(address(proxyAdmin));
+        address implementation = vm.deployCode("L1CrossDomainMessenger.sol:L1CrossDomainMessenger");
+        vm.prank(address(proxyAdmin));
+        proxy.upgradeToAndCall(
+            implementation,
+            abi.encodeCall(
+                IL1CrossDomainMessenger.initialize, (ISystemConfig(config), IOptimismPortal2(payable(portal)))
+            )
+        );
+        messenger_ = IL1CrossDomainMessenger(address(proxy));
+
+        vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(config));
+        vm.mockCall(
+            portal, abi.encodeCall(IOptimismPortal2.l2Sender, ()), abi.encode(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
+        );
+        vm.mockCall(config, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(address(proxy)));
+        vm.mockCall(config, abi.encodeCall(ISystemConfig.superchainConfig, ()), abi.encode(superchainConfig));
+        vm.mockCall(config, abi.encodeCall(ISystemConfig.paused, ()), abi.encode(false));
+        vm.mockCall(
+            lockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(portal)))),
+            abi.encode(true)
+        );
+    }
+
+    /// @notice Creates a labelled address with code, so calls to it can be mocked.
+    function _mockContract(string memory _name) internal returns (address addr_) {
+        addr_ = makeAddr(_name);
+        vm.etch(addr_, hex"01");
+    }
+
+    /// @notice Mocks a chain in this chain's cluster whose messenger is relaying a withdrawal from
+    ///         its UndeliveredMessageExporter.
+    function _mockChain(string memory _name)
+        internal
+        returns (address messenger_, address portal_, address systemConfig_)
+    {
+        messenger_ = _mockContract(string.concat(_name, "Messenger"));
+        portal_ = _mockContract(string.concat(_name, "Portal"));
+        systemConfig_ = _mockContract(string.concat(_name, "Config"));
+        vm.mockCall(messenger_, abi.encodeCall(IL1CrossDomainMessenger.portal, ()), abi.encode(portal_));
+        vm.mockCall(
+            messenger_,
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER)
+        );
+        vm.mockCall(portal_, abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(systemConfig_));
+        vm.mockCall(systemConfig_, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(messenger_));
+        vm.mockCall(
+            lockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(portal_)))),
+            abi.encode(true)
+        );
+    }
+}
+
+/// @title L1CrossDomainMessenger_SyncETHLiquidityPause_Test
+/// @notice Tests the `syncETHLiquidityPause` function of the `L1CrossDomainMessenger` contract.
+contract L1CrossDomainMessenger_SyncETHLiquidityPause_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Test setup.
+    function setUp() public override {
+        super.setUp();
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(true)
+        );
+    }
+
+    /// @notice Tests that anyone can send the unpaused state of an unpaused chain.
+    /// @param _caller Address of the caller.
+    function testFuzz_syncETHLiquidityPause_unpaused_succeeds(address _caller) external {
+        assertFalse(l1CrossDomainMessenger.paused());
+        _expectSync(false);
+
+        vm.prank(_caller);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Tests that the sync works while the chain is globally paused, and sends the paused
+    ///         state, then the unpaused state once the chain is unpaused.
+    function test_syncETHLiquidityPause_globalPause_succeeds() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+        assertTrue(l1CrossDomainMessenger.paused());
+
+        _expectSync(true);
+        vm.prank(alice);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.unpause(address(0));
+
+        _expectSync(false);
+        vm.prank(bob);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Tests that the sync sends the paused state while only this chain is paused.
+    function test_syncETHLiquidityPause_localPause_succeeds() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(ethLockbox));
+        assertTrue(l1CrossDomainMessenger.paused());
+
+        _expectSync(true);
+        vm.prank(alice);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Tests that the sync sends the unpaused state once the pause has expired.
+    function test_syncETHLiquidityPause_pauseExpired_succeeds() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+        vm.warp(superchainConfig.expiration(address(0)) + 1);
+        assertFalse(l1CrossDomainMessenger.paused());
+
+        _expectSync(false);
+        vm.prank(alice);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Tests that the sync is off on a chain that does not run interop.
+    function test_syncETHLiquidityPause_interopNotEnabled_reverts() external {
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(false)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_InteropNotEnabled.selector);
+        vm.prank(alice);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Expects the deposit and event that send `setPaused(_paused, nonce)` to ETHLiquidity
+    ///         as this messenger, where `nonce` is the nonce of that very message.
+    function _expectSync(bool _paused) internal {
+        uint256 nonce = l1CrossDomainMessenger.messageNonce();
+        bytes memory setPaused = abi.encodeCall(IETHLiquidity.setPaused, (_paused, nonce));
+        vm.expectCall(
+            address(optimismPortal2),
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                    0,
+                    l1CrossDomainMessenger.baseGas(setPaused, 200_000),
+                    false,
+                    Encoding.encodeCrossDomainMessage(
+                        nonce, address(l1CrossDomainMessenger), Predeploys.ETH_LIQUIDITY, 0, 200_000, setPaused
+                    )
+                )
+            )
+        );
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit SentMessage(Predeploys.ETH_LIQUIDITY, address(l1CrossDomainMessenger), setPaused, nonce, 200_000);
     }
 }

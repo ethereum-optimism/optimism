@@ -44,7 +44,7 @@ func runSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.Sequencer.ActL2PipelineFull(t)
 
 	l1Head := env.Miner.L1Chain().CurrentBlock()
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 
 	// Ensure there is only 1 block on L1.
 	require.Equal(t, uint64(1), bigs.Uint64Strict(l1Head.Number))

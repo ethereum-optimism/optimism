@@ -145,7 +145,6 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
             - "--rollup.config=/workspace/rollup.json"
             - "--sequencer.enabled=true"
             - "--sequencer.stopped=false"
-            - "--sequencer.max-safe-lag=3600"
             - "--verifier.l1-confs=4"
             - "--p2p.listen.ip=0.0.0.0"
             - "--p2p.listen.tcp=9222"
@@ -170,6 +169,10 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
         *   `--builder.deadline=2` and `--builder.interval=100ms` tune op-reth's block builder for the 2-second L2 block time (the defaults target Ethereum's 12-second slots).
         *   op-reth runs as an archive node by default, so there is no `--gcmode=archive` equivalent to set.
       </Info>
+
+      <Warning>
+        This tutorial enables op-node's admin API (`--rpc.enable-admin`) on `0.0.0.0:8547`. The op-node RPC is unauthenticated (the JWT secret protects only the Engine API), so anyone who can reach that port can call admin methods such as `admin_stopSequencer`. Take care not to expose the admin API to the public internet: publish the port on localhost only (`"127.0.0.1:8547:8547"`) instead of `"8547:8547"`. Docker-published ports bypass host firewalls such as `ufw` by default.
+      </Warning>
       </Step>
 
       <Step title="Start the services">
@@ -435,7 +438,6 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
       --rollup.config=./rollup.json \
       --sequencer.enabled=$SEQUENCER_ENABLED \
       --sequencer.stopped=$SEQUENCER_STOPPED \
-      --sequencer.max-safe-lag=3600 \
       --verifier.l1-confs=4 \
       --p2p.listen.ip=0.0.0.0 \
       --p2p.listen.tcp=$P2P_LISTEN_PORT \
@@ -450,6 +452,10 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
       --log.level=info \
       --log.format=json
     ```
+
+    <Warning>
+      This tutorial enables op-node's admin API (`--rpc.enable-admin`) on `0.0.0.0:8547`. The op-node RPC is unauthenticated (the JWT secret protects only the Engine API), so anyone who can reach that port can call admin methods such as `admin_stopSequencer`.  Take care not to expose the admin API to the public internet: publish the port on localhost only (`"127.0.0.1:8547:8547"`) instead of `"8547:8547"`. Docker-published ports bypass host firewalls such as `ufw` by default.
+    </Warning>
 
     ## Starting the sequencer
 

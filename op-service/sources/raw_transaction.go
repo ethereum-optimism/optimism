@@ -144,8 +144,7 @@ func (txs RawTransactions) Hashes() []common.Hash {
 //
 // Use the class-partitioned accessors instead for L2 blocks: they can contain
 // OP Stack synthetic transactions (0x7E deposits, 0x7D post-exec), which
-// upstream go-ethereum's transaction decoding rejects. This decode works on
-// such blocks only while the build resolves go-ethereum to op-geth.
+// go-ethereum's transaction decoding rejects.
 func (txs RawTransactions) Geth() (types.Transactions, error) {
 	out := make(types.Transactions, len(txs))
 	for i, raw := range txs {

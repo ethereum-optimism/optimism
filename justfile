@@ -11,9 +11,10 @@ TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 #   op-acceptance-tests             dedicated acceptance-test job (needs a running devnet)
 #   cannon                          dedicated cannon job (slow MIPS emulation tests)
 #   rust                            rust-e2e pipeline (needs prebuilt Rust binaries)
-#   op-deployer/pkg/deployer/forge  fails when forge is on PATH (ethereum-optimism/optimism#21200)
+#   op-e2e/actions                  dedicated go-actions-tests job (its own resource class
+#                                   and timeout; running them here too would run them twice)
 # See the list-test-packages recipe, which expands `go list ./...` minus these.
-EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-deployer/pkg/deployer/forge"
+EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-e2e/actions"
 
 # Fault-proof packages run in the default go-tests job and again in a dedicated
 # job with Cannon enabled, so they keep a separate list.
@@ -47,14 +48,14 @@ update-superchain-registry-submodule ref="":
     git add superchain-registry
   fi
 
-# Builds op-core/superchain/superchain-configs.zip (gitignored) from the
+# Builds op-core/superchain/bundle/superchain-configs.zip (gitignored) from the
 # superchain-registry submodule. Lightweight; this is the recipe the Go build/test
 # targets depend on. Verify mode: skips work if the existing zip already matches the
 # committed .sha256, otherwise regenerates and asserts it still matches (failing on drift).
 build-superchain-go: update-superchain-registry-submodule
-  bash op-core/superchain/sync-superchain.sh
+  bash op-core/superchain/bundle/sync-superchain.sh
 
-# Regenerates op-core/superchain/superchain-configs.zip AND rewrites its committed
+# Regenerates op-core/superchain/bundle/superchain-configs.zip AND rewrites its committed
 # .sha256 from the submodule — build-superchain-go in refresh mode. Sibling of
 # sync-superchain-rust; both are run by sync-superchain when bumping the registry.
 sync-superchain-go:
@@ -94,10 +95,6 @@ lint-go: build-customlint build-superchain-go
 # Lints Go code with specific linters and fixes reported issues.
 lint-go-fix: build-customlint build-superchain-go
   ./linter/bin/op-golangci-lint run ./... --fix
-
-# Checks that op-geth version in go.mod is valid.
-check-op-geth-version:
-  go run ./ops/scripts/check-op-geth-version
 
 # Builds Docker images for Go components using buildx.
 [script('bash')]
@@ -341,8 +338,6 @@ _go-tests-ci-internal go_test_flags="": build-superchain-go
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
   export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
   source ./ops/scripts/source-ci-archive-rpcs.sh
-  export NAT_INTEROP_LOADTEST_TARGET=10
-  export NAT_INTEROP_LOADTEST_TIMEOUT=30s
   ALL_PACKAGES="$(just list-test-packages | tr '\n' ' ')"
   if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
       NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
@@ -393,6 +388,27 @@ go-tests-short-ci:
 go-tests-ci:
   just _go-tests-ci-internal ""
 
+# Runs the op-e2e action tests against the out-of-process op-reth-test-engine
+# execution layer. Needs a prebuilt engine binary at
+# RUST_BINARY_PATH_OP_RETH_TEST_ENGINE; REQUIRE_RUST_ENGINE=1 makes an unset
+# path a hard error, so the job never builds the engine or uses a local build.
+[script('bash')]
+go-actions-tests-ci: build-superchain-go
+  set -euo pipefail
+  echo "Setting up test directories..."
+  mkdir -p ./tmp/test-results ./tmp/testlogs
+  echo "Running op-e2e action tests on op-reth-test-engine with gotestsum..."
+  export REQUIRE_RUST_ENGINE=1
+  export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
+  ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
+      --junitfile=./tmp/test-results/results.xml \
+      --jsonfile=./tmp/testlogs/log.json \
+      --rerun-fails=3 \
+      --rerun-fails-max-failures=50 \
+      --packages="./op-e2e/actions/..." \
+      -- -p=4 -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} -tags="ci"
+
 # Runs fraud proofs Go tests with gotestsum for CI.
 [script('bash')]
 go-tests-fraud-proofs-ci:
@@ -404,25 +420,19 @@ go-tests-fraud-proofs-ci:
   export OP_E2E_CANNON_ENABLED="true"
   export OP_E2E_USE_HTTP=true
   export ENABLE_ANVIL=true
-  export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  export PARALLEL=${FAULT_PROOF_TEST_PARALLEL:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
   export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
   source ./ops/scripts/source-ci-archive-rpcs.sh
-  export NAT_INTEROP_LOADTEST_TARGET=10
-  export NAT_INTEROP_LOADTEST_TIMEOUT=30s
   ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
       --junitfile=./tmp/test-results/results.xml \
       --jsonfile=./tmp/testlogs/log.json \
       --rerun-fails=3 \
       --rerun-fails-max-failures=50 \
       --packages="{{FRAUD_PROOF_TEST_PKGS}}" \
-      -- -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}}
+      -- -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} ${FAULT_PROOF_TEST_ARGS:-}
 
 # Runs comprehensive Go tests (alias for go-tests).
 test: go-tests
-
-# Updates the Geth version used in the project.
-update-op-geth:
-  ./ops/scripts/update-op-geth.py
 
 # Build all Rust binaries (release) for sysgo tests.
 build-rust-release:
@@ -432,14 +442,16 @@ build-rust-release:
 check-nut-locks:
   go run ./ops/scripts/check-nut-locks
 
-# Checks that committed NUT pre-fork states regenerate without drift. Assumes required build artifacts are present.
+# Checks that committed NUT pre-fork states regenerate without drift. Assumes required build artifacts,
+# including the op-reth-test-engine binary the generator runs the L2 chain on, are present.
 [script('bash')]
 _check-nut-prefork-states:
   set -euo pipefail
   shopt -s nullglob
   for state in op-core/nuts/state/*_state.json; do
     fork="$(basename "$state" _state.json)"
-    if [ "$fork" = "jovian" ]; then
+    # The jovian seed is not regenerated. _nut-prefork-state-for also writes the multi-chain state.
+    if [ "$fork" = "jovian" ] || [[ "$fork" == *_multichain ]]; then
       continue
     fi
     just _nut-prefork-state-for "$fork"
@@ -448,6 +460,7 @@ _check-nut-prefork-states:
 
 # Checks that committed NUT pre-fork states regenerate without drift.
 check-nut-prefork-states: build-contracts build-superchain-go
+  just rust/build-op-reth-test-engine
   just _check-nut-prefork-states
 
 # Snapshots current-upgrade-bundle.json as a fork's NUT bundle and updates the lock file.
@@ -458,12 +471,15 @@ nut-snapshot-for fork:
 nut-provenance-verify fork:
   go run ./ops/scripts/nut-provenance-verify {{fork}}
 
-# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle), and
+# <fork>_multichain_state.json from Lagoon onward.
 _nut-prefork-state-for fork:
   OP_E2E_GEN_PREFORK_STATE={{fork}} go test -count=1 -run TestGenerateForkState ./rust/kona/tests/proofs/
 
-# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle), and
+# <fork>_multichain_state.json from Lagoon onward.
 nut-prefork-state-for fork: build-contracts build-superchain-go
+  just rust/build-op-reth-test-engine
   just _nut-prefork-state-for {{fork}}
 
 # Checks that TODO comments have corresponding issues.
@@ -474,14 +490,20 @@ todo-checker:
 semgrep-test:
   semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
 
-# Runs shellcheck.
-shellcheck:
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -exec sh -c 'echo "Checking $1"; shellcheck "$1"' _ {} \;
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -exec shfmt --diff {} \;
+# Lists the shell scripts that the lint recipes check.
+SHELL_SCRIPTS := "find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*'"
+
+# Runs shellcheck and checks shell script formatting.
+shellcheck: shfmt-check
+  {{SHELL_SCRIPTS}} -print0 | xargs -0 shellcheck
+
+# Fails if any shell script is not formatted with shfmt.
+shfmt-check:
+  {{SHELL_SCRIPTS}} -print0 | xargs -0 shfmt --diff
 
 # Format shell scripts with shfmt.
 shfmt-fix:
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -exec shfmt --write {} \;
+  {{SHELL_SCRIPTS}} -exec shfmt --write {} \;
 
 # Generates a table of contents for the README.md file.
 toc:
@@ -489,22 +511,6 @@ toc:
 
 latest-versions:
   ./ops/scripts/latest-versions.sh
-
-# Usage:
-#   just update-op-geth-ref 2f0528b
-#   just update-op-geth-ref v1.101602.4
-#   just update-op-geth-ref optimism
-[script('bash')]
-update-op-geth-ref ref:
-    set -euo pipefail
-    ref="{{ref}}"
-    if [ -z "$ref" ]; then echo "error: provide a hash/tag/branch"; exit 1; fi
-    tmpl=$(printf "\173\173.Version\175\175")
-    ver=$(go list -m -f "$tmpl" github.com/ethereum-optimism/op-geth@"$ref")
-    if [ -z "$ver" ]; then echo "error: couldn't resolve $ref"; exit 1; fi
-    go mod edit -replace=github.com/ethereum/go-ethereum=github.com/ethereum-optimism/op-geth@"$ver"
-    go mod tidy
-    echo "Updated op-geth to $ver"
 
 # Prints the latest stable semver tag for a component (excludes pre-releases).
 latest-tag component:
@@ -521,7 +527,9 @@ latest-rc-tag component:
 #
 # Output is one `<label><TAB><path>` pair per line. Consecutive lines sharing a
 # label form a group: a set of paths that ship as one unit — a bundled binary's
-# dependency closure, or the shared infrastructure every Go component links.
+# dependency closure, the shared infrastructure every Go component links
+# (`shared`), or another component's code this one links and whose changes reach
+# its operators (`linked`). `shared` and `linked` are not artifacts.
 # Consumers that section their output group by label, keeping a closure from
 # swamping the component's own changes; consumers that only need the path set
 # read the second column. Emitting both in one stream means a component's paths
@@ -546,8 +554,17 @@ release-paths component:
     kona_host="kona-host=rust/Cargo.toml,rust/kona/bin/host/,rust/kona/crates/proof/,rust/kona/crates/protocol/,rust/kona/crates/providers/,rust/kona/crates/utilities/,rust/alloy-op-evm/,rust/alloy-op-hardforks/,rust/op-alloy/,rust/op-revm/"
     specs=()
     case "{{ component }}" in
-        op-node|op-batcher|op-proposer|op-supernode|op-dispute-mon)
+        op-node|op-proposer|op-dispute-mon)
             specs=("{{ component }}/" "$go_shared")
+            ;;
+        op-batcher)
+            # op-batcher builds channels with op-node's derivation code, against
+            # op-node's rollup config.
+            specs=("op-batcher/" "linked=op-node/rollup/derive/,op-node/params/,op-node/rollup/types.go,op-node/rollup/chain_spec.go,op-node/rollup/toggles.go" "$go_shared")
+            ;;
+        op-supernode)
+            # op-supernode runs op-node in-process.
+            specs=("op-supernode/" "linked=op-node/" "$go_shared")
             ;;
         op-challenger)
             # The op-challenger image ships three binaries, so all three are
@@ -565,7 +582,12 @@ release-paths component:
             specs=("rust/kona/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/" "rust/op-revm/")
             ;;
         op-deployer)
-            specs=("op-deployer/")
+            # op-deployer embeds the contract artifacts and runs the scripts in
+            # them, so a script change alters what op-deployer does. The scripts
+            # import a few test mocks. Contract source changes belong to the
+            # op-contracts release that the op-deployer note links to.
+            cb=packages/contracts-bedrock
+            specs=("op-deployer/" "op-chain-ops/" "contract-scripts=$cb/scripts/,$cb/test/mocks/" "$go_shared")
             ;;
         op-contracts)
             specs=("packages/contracts-bedrock/")
@@ -596,7 +618,8 @@ release-paths component:
 # <from> and <to> can be explicit tags (e.g. v1.16.5), or:
 #   'latest'    - resolves to the latest stable tag (vX.Y.Z)
 #   'latest-rc' - resolves to the latest RC tag (vX.Y.Z-rc.N)
-#   'develop'   - (only for <to>) uses the develop branch tip with --unreleased
+#   any other git ref - (only for <to>) e.g. develop, origin/develop or a commit:
+#               the range ends there, with --unreleased
 #
 # Set <mode> to 'offline' to skip GitHub API calls (faster, but no PR metadata).
 #
@@ -604,6 +627,7 @@ release-paths component:
 #   just release-notes op-node                          # latest stable -> latest RC (default)
 #   just release-notes op-node latest develop           # all unreleased changes since the latest stable release
 #   just release-notes op-node latest develop offline   # same, but without GitHub API calls
+#   just release-notes op-node latest origin/develop    # same, up to the fetched remote branch
 #   just release-notes op-node v1.16.5 v1.16.6          # explicit tags
 #
 # Requires GITHUB_TOKEN for git-cliff's GitHub integration (unless mode=offline):
@@ -639,15 +663,22 @@ release-notes component from='latest' to='latest-rc' mode='':
         include_path_args+=(--include-path "$include_path")
     done <<< "$component_paths"
     tag_args=()
-    if [ "{{ to }}" = "develop" ]; then
-        tag_args=(--unreleased)
-        range_end="develop"
-    else
-        to_tag=$(resolve_tag "{{ to }}")
-        if [ -z "$to_tag" ]; then echo "error: could not resolve to tag '{{ to }}' for {{ component }}"; exit 1; fi
-        tag_args=(--tag "$to_tag")
-        range_end="$to_tag"
-    fi
+    case "{{ to }}" in
+        latest|latest-rc|v[0-9]*)
+            to_tag=$(resolve_tag "{{ to }}")
+            if [ -z "$to_tag" ]; then echo "error: could not resolve to tag '{{ to }}' for {{ component }}"; exit 1; fi
+            tag_args=(--tag "$to_tag")
+            range_end="$to_tag"
+            ;;
+        *)
+            if ! git rev-parse --verify --quiet "{{ to }}^{commit}" >/dev/null; then
+                echo "error: '{{ to }}' is neither 'latest', 'latest-rc', a version nor a git ref"
+                exit 1
+            fi
+            tag_args=(--unreleased)
+            range_end="{{ to }}"
+            ;;
+    esac
     echo "Generating release notes for ${from_tag}..${range_end}"
     offline_args=()
     if [ "{{ mode }}" = "offline" ]; then

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/superchain"
 )
@@ -28,7 +29,7 @@ func mustLoadRollupConfig(name string) *rollup.Config {
 // TestAllEmbeddedConfigsDecodeStrictly) — so no chain config is parsed.
 var L2ChainIDToNetworkDisplayName = func() map[string]string {
 	out := make(map[string]string)
-	for chainID, netCfg := range registry.Chains {
+	for chainID, netCfg := range bundle.Chains {
 		out[fmt.Sprintf("%d", chainID)] = netCfg.Name
 	}
 	return out
@@ -37,7 +38,7 @@ var L2ChainIDToNetworkDisplayName = func() map[string]string {
 // AvailableNetworks returns the selection of network configurations that is available by default.
 func AvailableNetworks() []string {
 	var networks []string
-	for _, cfg := range registry.Chains {
+	for _, cfg := range bundle.Chains {
 		networks = append(networks, cfg.Name+"-"+cfg.Network)
 	}
 	sort.Strings(networks)
@@ -60,7 +61,7 @@ func handleLegacyName(name string) string {
 func ChainByName(name string) *registry.ChainConfig {
 	// Handle legacy name aliases
 	name = handleLegacyName(name)
-	for _, chainCfg := range registry.Chains {
+	for _, chainCfg := range bundle.Chains {
 		if !strings.EqualFold(chainCfg.Name+"-"+chainCfg.Network, name) {
 			continue
 		}

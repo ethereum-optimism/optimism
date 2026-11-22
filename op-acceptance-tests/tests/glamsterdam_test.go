@@ -13,7 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/loadtest"
+	sfp "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/superfaultproofs"
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherflags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -35,7 +36,8 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 	sys := presets.NewMinimal(t,
 		glamsterdamL1Geth(t),
 		presets.WithDeployerOptions(
-			sysgo.WithForkAtL1Genesis(forks.BPO5),
+			// Released geth's Engine API treats BPO3+ as post-Amsterdam forks.
+			sysgo.WithForkAtL1Genesis(forks.BPO2),
 			// Leave enough time for the devstack to start, fund the load generators, and
 			// produce a loaded block before activating Glamsterdam.
 			sysgo.WithForkAtL1Offset(forks.Amsterdam, 120),
@@ -66,14 +68,45 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 	sys.L2EL.WaitForGasUsed(eth.Safe, threshold, 2*time.Minute)
 }
 
+func TestSuperFaultProofsAfterGlamsterdam(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	// OP Sepolia uses super-root proofs with a singleton dependency set, while Lagoon is inactive.
+	sys := presets.NewSingleChainInteropIsthmusSuper(t,
+		glamsterdamL1Geth(t),
+		presets.WithDeployerOptions(
+			sysgo.WithForkAtL1Genesis(forks.Amsterdam),
+			sysgo.WithKarstAtGenesis,
+		),
+	)
+	t.Require().Nil(sys.L2ChainA.Escape().RollupConfig().LagoonTime,
+		"super-root proofs must run without activating Lagoon, as on OP Sepolia")
+
+	l1Config := sys.L1Network.Escape().ChainConfig()
+	t.Require().NotNil(l1Config.AmsterdamTime)
+	postForkL1 := sys.L1EL.WaitForTime(sys.L1EL.BlockRefByNumber(0).Time + 1)
+	t.Require().GreaterOrEqual(postForkL1.Time, *l1Config.AmsterdamTime)
+	postForkHeader, err := sys.L1EL.EthClient().HeaderByHash(t.Ctx(), postForkL1.Hash)
+	t.Require().NoError(err)
+	t.Require().NotNil(postForkHeader.SlotNumber, "post-Glamsterdam L1 block must include a slot number")
+	t.Require().NotNil(postForkHeader.BlockAccessListHash,
+		"post-Glamsterdam L1 block must include a block access list hash")
+
+	// Anchor the proof scenario beyond a post-fork L1 origin, not just a post-fork wall clock.
+	sys.L2ELA.WaitL1OriginReached(eth.Safe, postForkL1.Number, 120)
+	sfp.RunSingleChainSuperFaultProofSmokeTest(t, sys)
+}
+
 func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	prepareGlamsterdamOpReth(t)
 	sys := presets.NewMinimal(t,
 		glamsterdamL1Geth(t),
+		// The blob fee reasoning in withGlamsterdamAutoDABlobFee needs Amsterdam within 20 L1
+		// blocks, and 20 faster blocks leave too little time to start up and submit a batch.
+		presets.WithL1BlockTime(6),
 		presets.WithDeployerOptions(
 			// Activate the stable test blob schedule before setting the large excess blob gas.
-			sysgo.WithForkAtL1Genesis(forks.BPO5),
+			sysgo.WithForkAtL1Genesis(forks.BPO2),
 			// Leave enough time to submit a pre-Amsterdam batch before exercising the fork.
 			sysgo.WithForkAtL1Offset(forks.Amsterdam, 120),
 			withGlamsterdamAutoDABlobFee,
@@ -157,7 +190,7 @@ func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
 		sys.L2EL.ReachedFn(eth.Safe, target, 120),
 		sys.L2ELB.ReachedFn(eth.Safe, target, 120),
 	)
-	t.Require().NoError(sys.L2CLB.MatchedFn(sys.L2CL, safety.CrossSafe, 30)(),
+	t.Require().NoError(sys.L2CLB.InSyncFn(sys.L2CL, safety.CrossSafe, 30)(),
 		"sequencer and verifier must match after the P2P block becomes safe")
 	t.Require().Equal(sequencerBlock.ID(), sys.L2EL.BlockRefByNumber(target).ID())
 	t.Require().Equal(sequencerBlock.ID(), sys.L2ELB.BlockRefByNumber(target).ID())
@@ -206,15 +239,11 @@ func withGlamsterdamAutoDABlobFee(_ devtest.T, _ devkeys.Keys, builder intentbui
 	}
 	builder.L1().
 		WithL1BlobSchedule(&params.BlobScheduleConfig{
-			Cancun:    params.DefaultCancunBlobConfig,
-			Prague:    params.DefaultPragueBlobConfig,
-			Osaka:     params.DefaultOsakaBlobConfig,
-			BPO1:      params.DefaultBPO1BlobConfig,
-			BPO2:      params.DefaultBPO2BlobConfig,
-			BPO3:      params.DefaultBPO3BlobConfig,
-			BPO4:      params.DefaultBPO4BlobConfig,
-			BPO5:      stableBlobConfig,
-			Amsterdam: stableBlobConfig,
+			Cancun: params.DefaultCancunBlobConfig,
+			Prague: params.DefaultPragueBlobConfig,
+			BPO1:   params.DefaultBPO1BlobConfig,
+			// BPO3-5 are unscheduled, so BPO2 sets the blob fee both before and after Amsterdam.
+			BPO2: stableBlobConfig,
 		}).
 		WithExcessBlobGas(genesisExcessBlobGas)
 }

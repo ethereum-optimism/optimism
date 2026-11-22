@@ -17,6 +17,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
@@ -86,7 +87,6 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Deploy two chains via OPCMv2 for migration testing.
         chainContracts1 = _deployChainForMigration(1000001);
@@ -189,7 +189,11 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
                 maximumBaseFee: type(uint128).max
             }),
             disputeGameConfigs: dgConfigs,
-            useCustomGasToken: false
+            useCustomGasToken: false,
+            proofMaturityDelaySeconds: 604800,
+            disputeGameFinalityDelaySeconds: 302400,
+            withdrawalDelaySeconds: 302400,
+            bridgeHook: IBridgeHook(address(0))
         });
 
         cts_ = opcmV2.deploy(deployConfig);
@@ -261,9 +265,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     /// @notice Builds SharedConfig from the StandardValidator's state.
     function _buildCfg() internal view returns (IOPContractsManagerMigrationValidator.SharedConfig memory) {
         return IOPContractsManagerMigrationValidator.SharedConfig({
-            l1PAOMultisig: standardValidator.l1PAOMultisig(),
-            withdrawalDelaySeconds: standardValidator.withdrawalDelaySeconds(),
-            superchainConfig: standardValidator.superchainConfig()
+            l1PAOMultisig: standardValidator.l1PAOMultisig(), superchainConfig: standardValidator.superchainConfig()
         });
     }
 
@@ -613,7 +615,7 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
             abi.encode(standardValidator.delayedWETHImpl())
         );
         vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
+            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(IDelayedWETH(payable(sharedWETH)).delay())
         );
         vm.mockCall(
             badWeth,
@@ -924,9 +926,9 @@ contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is OPContra
         assertEq("MIG-SCKDG-DWETH-10", _validateMigration(true));
     }
 
-    /// @notice MIG-SCKDG-DWETH-40: DelayedWETH delay doesn't match expected withdrawalDelaySeconds.
+    /// @notice MIG-SCKDG-DWETH-40: DelayedWETH delay is outside the standard range.
     function test_validate_sharedDweth40WrongDelay_succeeds() public {
-        vm.mockCall(sharedWETH, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(uint256(999)));
+        vm.mockCall(sharedWETH, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(uint256(1)));
         assertEq("MIG-SCKDG-DWETH-40", _validateMigration(true));
     }
 

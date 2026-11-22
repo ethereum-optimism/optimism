@@ -42,11 +42,11 @@ gotestsum --format testname --junitfile ./results/results.xml -- \
   -count=1 -p 4 -parallel 4 -timeout 30m ./tests/...
 ```
 
-The `just` wrapper computes defaults from available CPUs:
+The `just` wrapper runs each top-level test in its own `go test`, with these defaults:
 
-- package jobs: CPU count
-- in-package `t.Parallel`: half the CPU count
-- timeout: `30m`
+- tests at once: `8`
+- `t.Parallel` within a test's `go test`: `1`
+- per-test timeout: `30m`
 
 Override them with `ACCEPTANCE_TEST_JOBS`, `ACCEPTANCE_TEST_PARALLEL`, and `ACCEPTANCE_TEST_TIMEOUT`.
 
@@ -62,7 +62,8 @@ RUST_JIT_BUILD=1 go test -count=1 -timeout=60m \
   ./tests/interop/proofs/serial \
   ./tests/interop/proofs-singlechain
 
-# Scheduled full-ELF coverage, after building the ELFs and executor.
+# Scheduled full-ELF coverage with the synthetic-chain test guest.
+(cd ../rust/kona/sp1 && just build-elfs-native test-config-fallback && just build-super-range-executor)
 KONA_SP1_ELF_DIR="$PWD/../rust/kona/sp1/elf" \
 KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$PWD/../rust/target/release/kona-sp1-super-range-executor" \
 RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \

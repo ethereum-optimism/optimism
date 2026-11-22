@@ -44,9 +44,9 @@ func L1(globalState *state.State, chainID common.Hash) (*addresses.L1Contracts, 
 	}
 
 	l1Contracts := addresses.L1Contracts{
-		SuperchainContracts:      *globalState.SuperchainDeployment,
-		ImplementationsContracts: *globalState.ImplementationsDeployment,
-		OpChainContracts:         chainState.OpChainContracts,
+		SuperchainContracts: *globalState.SuperchainDeployment,
+		Implementations:     *globalState.ImplementationsDeployment,
+		OpChainContracts:    chainState.OpChainContracts,
 	}
 
 	return &l1Contracts, nil

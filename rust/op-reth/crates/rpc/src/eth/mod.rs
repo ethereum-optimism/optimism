@@ -1,5 +1,6 @@
 //! OP-Reth `eth_` endpoint implementation.
 
+pub mod capabilities;
 pub mod ext;
 pub mod proofs;
 pub mod receipt;
@@ -7,28 +8,31 @@ pub mod transaction;
 
 mod block;
 mod call;
+mod memory_overlay;
 mod pending_block;
+pub use pending_block::OpPendingEnvBuilder;
 
 use crate::{
     OpEthApiError, SequencerClient,
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
 };
 use alloy_consensus::Header;
-use alloy_primitives::U256;
+use alloy_primitives::{Bloom, U256};
 use alloy_rpc_types_eth::Filter;
 use eyre::WrapErr;
 use futures::StreamExt;
 use op_alloy_consensus::OpReceipt;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
+use pending_block::unsuperseded_pending_flashblock;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
-use reth_chainspec::{EthereumHardforks, Hardforks};
-use reth_evm::ConfigureEvm;
+use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks, Hardforks};
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_optimism_flashblocks::{
-    FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
+    FlashBlock, FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
     FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
     FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
 };
@@ -36,23 +40,23 @@ use reth_primitives_traits::{NodePrimitives, SealedHeader};
 use reth_rpc::eth::core::EthApiInner;
 use reth_rpc_eth_api::{
     EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcLog, RpcNodeCore,
-    RpcNodeCoreExt, RpcTypes,
+    RpcNodeCoreExt,
     helpers::{
         EthApiSpec, EthFees, EthState, EthSubscriptions, LoadFee, LoadPendingBlock, LoadState,
         SpawnBlocking, Trace, bal::GetBlockAccessList, pending_block::BuildPendingEnv,
     },
 };
 use reth_rpc_eth_types::{
-    EthStateCache, FeeHistoryCache, GasPriceOracle, logs_utils::matching_block_logs_with_tx_hashes,
+    EthApiSettings, EthStateCache, FeeHistoryCache, GasPriceOracle,
+    logs_utils::matching_block_logs_with_tx_hashes,
 };
-use reth_storage_api::ProviderHeader;
+use reth_storage_api::{BlockNumReader, ProviderHeader};
 use reth_tasks::{
     Runtime,
     pool::{BlockingTaskGuard, BlockingTaskPool},
 };
 use std::{
     fmt::{self, Formatter},
-    marker::PhantomData,
     sync::Arc,
     time::Duration,
 };
@@ -62,6 +66,45 @@ use tracing::{info, warn};
 
 /// Maximum duration to wait for a fresh flashblock when one is being built.
 const MAX_FLASHBLOCK_WAIT_DURATION: Duration = Duration::from_millis(50);
+
+/// Returns the logs in `fb`'s receipts that match `filter`, attributed to block `block_number`.
+fn flashblock_logs<C>(
+    converter: &C,
+    filter: &Filter,
+    block_number: u64,
+    timestamp: u64,
+    fb: &FlashBlock,
+) -> Vec<RpcLog<C::Network>>
+where
+    C: RpcConvert<Primitives: NodePrimitives<BlockHeader = Header, Receipt = OpReceipt>>,
+{
+    let receipts = fb.metadata.receipts.iter().map(|(tx, receipt)| (*tx, receipt));
+
+    // A flashblock is a payload, not a sealed block: only the number, hash and timestamp the log
+    // fields need are known here, so the header handed to the converter carries exactly those.
+    // `matching_block_logs_with_tx_hashes` skips blocks whose logs bloom does not match the
+    // filter, so the bloom is set to all ones: the receipts are scanned right after, so a real
+    // bloom would save nothing and only cost hashing every log. Everything else is zeroed and
+    // must not be read.
+    let header = SealedHeader::new(
+        Header {
+            number: block_number,
+            timestamp,
+            logs_bloom: Bloom::repeat_byte(0xff),
+            ..Default::default()
+        },
+        fb.diff.block_hash,
+    );
+
+    match matching_block_logs_with_tx_hashes(converter, filter, &header, receipts, false) {
+        Ok(logs) => logs,
+        // Unreachable with the current OP converter: `convert_log` always returns `Ok`.
+        Err(err) => {
+            warn!(target: "rpc::eth", %err, "failed to convert flashblock logs");
+            Vec::new()
+        }
+    }
+}
 
 /// Adapter for [`EthApiInner`], which holds all the data required to serve core `eth_` API.
 pub type EthApiNodeBackend<N, Rpc> = EthApiInner<N, Rpc>;
@@ -107,7 +150,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     }
 
     /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
-    pub const fn builder() -> OpEthApiBuilder<Rpc> {
+    pub const fn builder() -> OpEthApiBuilder {
         OpEthApiBuilder::new()
     }
 
@@ -168,34 +211,13 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
                             return futures::future::ready(Some(Vec::new()));
                         };
 
-                        let receipts =
-                            fb.metadata.receipts.iter().map(|(tx, receipt)| (*tx, receipt));
-
-                        // A flashblock is a payload, not a sealed block: only the number,
-                        // hash and timestamp the log fields need are known here, so the header
-                        // handed to the converter carries exactly those. Everything else is
-                        // zeroed and must not be read.
-                        let header = SealedHeader::new(
-                            Header { number: block_number, timestamp, ..Default::default() },
-                            fb.diff.block_hash,
-                        );
-
-                        let all_logs = match matching_block_logs_with_tx_hashes(
+                        futures::future::ready(Some(flashblock_logs(
                             &converter,
                             &filter,
-                            &header,
-                            receipts,
-                            false,
-                        ) {
-                            Ok(logs) => logs,
-                            // Unreachable with the current OP converter: `convert_log` always returns `Ok`.
-                            Err(err) => {
-                                warn!(target: "rpc::eth", %err, "failed to convert flashblock logs");
-                                Vec::new()
-                            }
-                        };
-
-                        futures::future::ready(Some(all_logs))
+                            block_number,
+                            timestamp,
+                            &fb,
+                        )))
                     },
                 )
                 .flat_map(futures::stream::iter)
@@ -207,15 +229,8 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         self.inner.flashblocks.as_ref().and_then(|f| *f.in_progress_rx.borrow())
     }
 
-    /// Extracts the latest pending flashblock from flashblocks state, if available.
-    fn extract_pending_flashblock(
-        &self,
-        block: Option<&PendingFlashBlock<N::Primitives>>,
-    ) -> Option<PendingFlashBlock<N::Primitives>> {
-        block.cloned()
-    }
-
-    /// Awaits a fresh flashblock if one is being built, otherwise returns current.
+    /// Awaits a fresh flashblock if one is being built, otherwise returns current, or `None` once
+    /// the canonical chain has reached its height.
     async fn flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>> {
         let Some(rx) = self.inner.flashblocks.as_ref().map(|f| &f.pending_block_rx) else {
             return Ok(None);
@@ -236,15 +251,18 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             }
         }
 
-        // Fall back to current block
-        Ok(self.extract_pending_flashblock(rx.borrow().as_ref()))
+        // Fall back to the current block, unless the canonical chain has already reached it.
+        let latest_block_number = self.inner.eth_api().provider().best_block_number()?;
+
+        Ok(unsuperseded_pending_flashblock(rx.borrow().as_ref(), latest_block_number))
     }
 
     /// Returns a [`PendingFlashBlock`] that is built out of flashblocks.
     ///
     /// If flashblocks receiver is not set, then it always returns `None`.
     ///
-    /// It may wait up to 50ms for a fresh flashblock if one is currently being built.
+    /// It may wait up to 50ms for a fresh flashblock if one is currently being built. Returns
+    /// `None` once the canonical chain has reached the flashblock's height.
     pub async fn pending_flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>>
     where
         OpEthApiError: FromEvmError<N::Evm>,
@@ -262,6 +280,10 @@ where
     type Error = OpEthApiError;
     type NetworkTypes = Rpc::Network;
     type RpcConvert = Rpc;
+
+    fn eth_api_settings(&self) -> &EthApiSettings {
+        self.inner.eth_api.eth_api_settings()
+    }
 
     fn converter(&self) -> &Self::RpcConvert {
         self.inner.eth_api.converter()
@@ -417,6 +439,8 @@ where
 {
 }
 
+// Upstream's `FullEthApi` requires this helper trait even when its RPC methods are not served.
+// op-reth explicitly removes the untested BAL endpoints in `op-reth/crates/node/src/node.rs`.
 impl<N, Rpc> GetBlockAccessList for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
@@ -475,8 +499,8 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApiInner<N, Rpc> {
 }
 
 /// Converter for OP RPC types.
-pub type OpRpcConvert<N, NetworkT> = RpcConverter<
-    NetworkT,
+pub type OpRpcConvert<N> = RpcConverter<
+    Optimism,
     <N as FullNodeComponents>::Evm,
     OpReceiptConverter<<N as FullNodeTypes>::Provider>,
     (),
@@ -488,7 +512,7 @@ pub type OpRpcConvert<N, NetworkT> = RpcConverter<
 
 /// Builds [`OpEthApi`] for Optimism.
 #[derive(Debug)]
-pub struct OpEthApiBuilder<NetworkT = Optimism> {
+pub struct OpEthApiBuilder {
     /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
     /// network.
     sequencer_url: Option<String>,
@@ -509,25 +533,18 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// Whether to retain forwarded transactions in the local pool after
     /// forwarding to the configured sequencer if it exists.
     retain_forwarded_txs: bool,
-    /// Marker for network types.
-    _nt: PhantomData<NetworkT>,
+    /// Seconds between two blocks, which dates the pending block. Without one, the pending block
+    /// builder uses the chain's alloy-chains hint.
+    block_time: Option<u64>,
 }
 
-impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
+impl Default for OpEthApiBuilder {
     fn default() -> Self {
-        Self {
-            sequencer_url: None,
-            sequencer_headers: Vec::new(),
-            min_suggested_priority_fee: 1_000_000,
-            flashblocks_url: None,
-            flashblock_consensus: false,
-            retain_forwarded_txs: false,
-            _nt: PhantomData,
-        }
+        Self::new()
     }
 }
 
-impl<NetworkT> OpEthApiBuilder<NetworkT> {
+impl OpEthApiBuilder {
     /// Creates a [`OpEthApiBuilder`] instance from core components.
     pub const fn new() -> Self {
         Self {
@@ -537,7 +554,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
             flashblocks_url: None,
             flashblock_consensus: false,
             retain_forwarded_txs: false,
-            _nt: PhantomData,
+            block_time: None,
         }
     }
 
@@ -577,12 +594,18 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
         self.retain_forwarded_txs = retain_forwarded_txs;
         self
     }
+
+    /// With the chain's block time in seconds, which dates the pending block.
+    pub const fn with_block_time(mut self, block_time: Option<u64>) -> Self {
+        self.block_time = block_time;
+        self
+    }
 }
 
-impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
+impl<N> EthApiBuilder<N> for OpEthApiBuilder
 where
     N: FullNodeComponents<
-            Evm: ConfigureEvm<
+            Evm: ConfigurePostExecEvm<
                 NextBlockEnvCtx: BuildPendingEnv<HeaderTy<N::Types>>
                                      + From<OpFlashblockPayloadBase>
                                      + Unpin,
@@ -597,13 +620,11 @@ where
                 >,
             >,
         >,
-    NetworkT: RpcTypes,
-    OpRpcConvert<N, NetworkT>: RpcConvert<Network = NetworkT>,
+    OpRpcConvert<N>: RpcConvert<Network = Optimism>,
     <<N::Types as NodeTypes>::Primitives as NodePrimitives>::Receipt: FlashblockCachedReceipt,
-    OpEthApi<N, OpRpcConvert<N, NetworkT>>:
-        FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
+    OpEthApi<N, OpRpcConvert<N>>: FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
 {
-    type EthApi = OpEthApi<N, OpRpcConvert<N, NetworkT>>;
+    type EthApi = OpEthApi<N, OpRpcConvert<N>>;
 
     async fn build_eth_api(self, ctx: EthApiCtx<'_, N>) -> eyre::Result<Self::EthApi> {
         let Self {
@@ -613,6 +634,7 @@ where
             flashblocks_url,
             flashblock_consensus,
             retain_forwarded_txs,
+            block_time,
             ..
         } = self;
         let rpc_converter =
@@ -668,7 +690,13 @@ where
             None
         };
 
-        let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
+        let pending_env_builder =
+            OpPendingEnvBuilder::new(block_time, ctx.components.provider().chain_spec().chain());
+        let eth_api = ctx
+            .eth_api_builder()
+            .with_rpc_converter(rpc_converter)
+            .with_pending_env_builder(pending_env_builder)
+            .build_inner();
 
         Ok(OpEthApi::new(
             eth_api,
@@ -677,5 +705,56 @@ where
             flashblocks,
             retain_forwarded_txs,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_consensus::Receipt;
+    use alloy_primitives::{Address, B256, Log, LogData};
+    use reth_optimism_chainspec::OP_MAINNET;
+    use reth_optimism_evm::{OpEvmConfig, tx::OpTxEnvConverter};
+    use reth_optimism_primitives::OpPrimitives;
+    use reth_storage_api::noop::NoopProvider;
+
+    const ADDRESS: Address = Address::repeat_byte(0xaa);
+    const TOPIC: B256 = B256::repeat_byte(0xbb);
+
+    fn flashblock() -> FlashBlock {
+        let receipt = OpReceipt::Eip1559(Receipt {
+            status: true.into(),
+            cumulative_gas_used: 21_000,
+            logs: vec![Log {
+                address: ADDRESS,
+                data: LogData::new_unchecked(vec![TOPIC], Default::default()),
+            }],
+        });
+        let mut fb = FlashBlock::default();
+        fb.diff.block_hash = B256::repeat_byte(0x01);
+        fb.metadata.receipts.insert(B256::repeat_byte(0x02), receipt);
+        fb
+    }
+
+    #[test]
+    fn flashblock_logs_match_address_and_topic_filters() {
+        let provider = NoopProvider::<_, OpPrimitives>::new(OP_MAINNET.clone());
+        let converter = RpcConverter::<Optimism, OpEvmConfig, _>::new(OpReceiptConverter::new(
+            provider.clone(),
+        ))
+        .with_mapper(OpTxInfoMapper::new(provider))
+        .with_tx_env_converter(OpTxEnvConverter);
+        let fb = flashblock();
+
+        for filter in
+            [Filter::new(), Filter::new().address(ADDRESS), Filter::new().event_signature(TOPIC)]
+        {
+            let logs = flashblock_logs(&converter, &filter, 1, 2, &fb);
+            assert_eq!(logs.len(), 1, "filter {filter:?}");
+            assert_eq!(logs[0].address(), ADDRESS);
+        }
+
+        let unrelated = Filter::new().address(Address::repeat_byte(0xcc));
+        assert!(flashblock_logs(&converter, &unrelated, 1, 2, &fb).is_empty());
     }
 }

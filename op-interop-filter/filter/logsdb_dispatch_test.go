@@ -12,6 +12,7 @@ import (
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -60,6 +61,7 @@ func newIngesterWithFakeDB(t *testing.T, db *fakeLogsDB) *LogsDBChainIngester {
 	t.Cleanup(cancel)
 	return &LogsDBChainIngester{
 		log:              testlog.Logger(t, log.LevelError),
+		clock:            clock.SystemClock,
 		metrics:          metrics.NoopMetrics,
 		chainID:          eth.ChainIDFromUInt64(901),
 		logsDB:           db,

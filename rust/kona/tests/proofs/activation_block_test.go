@@ -13,7 +13,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type activationBlockTestCfg struct {
@@ -66,21 +65,23 @@ func testActivationBlockTxOmission(gt *testing.T, testCfg *helpers.TestCfg[activ
 	engine.ActL2IncludeTx(env.Alice.Address())
 	sequencer.ActL2EndBlock(t)
 
-	actHeader := engine.L2Chain().CurrentHeader()
+	actHeader := engine.LatestHeader(t)
 	require.Equal(t, tcfg.fork,
 		rollupCfg.IsActivationBlock(actHeader.Time-blockTime, actHeader.Time),
 		"this block should be the activation block")
-	actBlock := engine.L2Chain().GetBlockByHash(actHeader.Hash())
-	require.Len(t, actBlock.Transactions(), tcfg.numUpgradeTxs+1, "activation block contains unexpected txs")
+	deposits, userTxs := engine.BlockTxs(t, actHeader.Hash())
+	require.Len(t, deposits, tcfg.numUpgradeTxs+1, "activation block contains unexpected deposits")
+	require.Empty(t, userTxs, "activation block contains unexpected user txs")
 
 	batcher := env.Batcher
 	for i := 0; i < int(offset)-1; i++ {
 		batcher.ActL2BatchBuffer(t)
 	}
 	batcher.ActL2BatchBuffer(t,
-		actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
+		actionsHelpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
 			// inject user tx into activation batch
-			return block.WithBody(types.Body{Transactions: append(block.Transactions(), tx)})
+			payload.Transactions = append(payload.Transactions, actionsHelpers.EncodeTx(t, tx))
+			return payload
 		}))
 
 	batcher.ActL2ChannelClose(t)
@@ -95,8 +96,8 @@ func testActivationBlockTxOmission(gt *testing.T, testCfg *helpers.TestCfg[activ
 	recs := env.Logs.FindLogs(testlog.NewMessageFilter("dropping batch with user transactions in fork activation block"))
 	require.Len(t, recs, 1)
 
-	l2SafeHead := engine.L2Chain().CurrentSafeBlock()
-	preActHeader := engine.L2Chain().GetHeaderByHash(actHeader.ParentHash)
+	l2SafeHead := engine.SafeHeader(t)
+	preActHeader := engine.HeaderByHash(t, actHeader.ParentHash)
 	require.Equal(t, eth.HeaderBlockID(preActHeader), eth.HeaderBlockID(l2SafeHead), "derivation only reaches pre-upgrade block")
 
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)

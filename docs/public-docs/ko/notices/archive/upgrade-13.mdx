@@ -1,0 +1,127 @@
+---
+title: Upgrade 13 OPCM 및 사고 대응 개선
+description: OP Contracts Manager와 결함 증명(fault proof) 사고 대응 개선을 도입하는 Upgrade 13 변경 사항에 대비하는 방법을 알아봅니다.
+diataxis: reference
+content_type: notice
+date: 2025-04-02
+---
+
+<Info>
+  업그레이드 실행 일정은 이 [릴리스 관리 프로젝트 보드](https://github.com/orgs/ethereum-optimism/projects/117/views/12)에서 공개적으로 추적되고 있습니다. 
+  
+  *   OP Sepolia, Ink Sepolia, Minato Sepolia는 **3월 21일**에 업그레이드를 실행합니다.
+  *   OP Mainnet, Ink Mainnet, Soneium Mainnet은 **4월 2일**에 Upgrade 13을 실행할 예정입니다. 
+  *   Unichain Sepolia는 **4월 1일**에 업그레이드를 실행합니다.
+  *   Unichain Mainnet은 **4월 8일**에 업그레이드를 실행합니다.
+  *   Optimism이 거버넌스를 담당하는 기타 체인의 업그레이드는 릴리스 관리 프로젝트 보드에서 추적됩니다.
+</Info>
+
+이 페이지에서는 OP Stack 체인의 체인 운영자, 노드 운영자, 사용자를 위해 Upgrade 13 네트워크 업그레이드와 관련된 변경 사항을 설명합니다. 업그레이드 제안은 [여기](https://gov.optimism.io/t/upgrade-proposal-13-opcm-and-incident-response-improvements/9739)에서, 거버넌스 투표는 [여기](https://vote.optimism.io/proposals/84511922734478887667300419900648701566511387783615524992018614345859900443455)에서 확인할 수 있습니다.
+
+이 과정의 어느 단계에서든 어려움이 있으면 개발자 지원팀에 문의하시기 바랍니다.
+
+## Upgrade 13에 포함된 내용
+
+Upgrade 13은 세 가지 주요 구성 요소로 이루어져 있습니다.
+
+*   **OP Contracts Manager**: Superchain 전반의 L1 컨트랙트를 업그레이드하기 위한 새로운 시스템으로, 컨트랙트 업그레이드의 확장성을 높이고 오류 가능성을 줄이며 테스트를 더 쉽게 만듭니다.
+*   **결함 증명(fault proof) 사고 대응 개선**: 여러 핵심 컨트랙트에 대한 기술적 개선으로, OP Stack 결함 증명 시스템에서 발생할 수 있는 사고에 더 유연하고 덜 파괴적인 방식으로 대응할 수 있게 합니다.
+*   **`DeputyPauseModule`(Superchain 일시 중지 개선)**: Optimism Foundation Safe에 설치될 새로운 Safe Module로, Superchain 전체 일시 중지 메커니즘을 통해 보안 사고에 신속하게 대응하는 절차를 간소화합니다.
+
+Upgrade 13 구현 세부 사항에 대한 자세한 내용은 아래 기술 세부 사항 섹션에 링크된 사양을 참고하시기 바랍니다.
+
+## 기술 세부 사항
+
+### OP Contracts Manager
+
+OP Contracts Manager([OPCM](/ko/chain-operators/reference/opcm))는 Superchain 전반의 L1 컨트랙트를 업그레이드하기 위한 새로운 시스템입니다. 각 릴리스에는 새 프록시를 배포하고 기존 OP Chain을 업그레이드할 수 있는 자체 OPCM이 있습니다.
+
+주요 변경 사항:
+
+*   OPCM은 프로토콜의 일부로 간주되지 않으며 특별한 역할이 없습니다.
+*   프로토콜 내 컨트랙트 수정 사항은 다음과 같습니다.
+    *   코드 커버리지 측정을 가능하게 하기 위한 Stack too deep 수정
+    *   외부 상호작용 시 구현체 대신 인터페이스를 호출하도록 컨트랙트 업데이트
+    *   CustomGasToken 로직 제거
+    *   L1 Pectra 업그레이드의 EIP-7702 도입과의 호환성을 보장하기 위한 입금(디파짓) 트랜잭션 별칭(aliasing) 변경
+
+### 결함 증명 사고 대응 개선
+
+사고 대응 역량을 향상하기 위해 여러 구성 요소가 업데이트되었습니다.
+
+**DelayedWETH**
+
+*   `DelayedWETH.hold(...)`는 이제 대상 계정에서 소유자 계정으로의 승인(approval) 및 전송을 실행합니다.
+*   소유자가 대상의 잔액을 지정할 필요가 없는 `DelayedWETH.hold(...)` 버전이 추가되었습니다.
+
+**OptimismPortal**
+
+*   `OptimismPortal.setRespectedGameType(...)`은 더 이상 respected game type과 retirement timestamp를 동시에 설정하지 않습니다.
+*   특별히 예약된 입력 값을 사용하여 retirement timestamp를 설정할 수 있습니다.
+*   `OptimismPortal.checkWithdrawal(...)`은 이제 FaultDisputeGame이 생성 시점에 respected game type이었는지를 검증합니다.
+
+**AnchorStateRegistry**
+
+*   `AnchorStateRegistry.tryUpdateAnchorState(...)`가 제거되었습니다.
+*   `AnchorStateRegistry.setAnchorState(...)`는 FaultDisputeGame 컨트랙트가 anchor state를 업데이트하는 주요 방법으로 용도가 변경되었습니다.
+*   내부 anchor state가 이제 모든 게임 유형에 걸쳐 통합되었습니다.
+*   이번 업데이트로 모든 OP Stack 체인이 공통 AnchorStateRegistry 구현체를 공유할 수 있습니다.
+
+**FaultDisputeGame**
+
+*   게임이 무효화될 경우 본드를 원래 예치자에게 자동으로 돌려주는 "본드 환불(bond refunding)" 지원이 추가되었습니다.
+
+<Info>
+  이 제안이 채택되어 배포되면 L1에서 생성된 모든 대기 중인 출금 증명이 일회성으로 무효화됩니다. 사용자는 업그레이드가 실행되기 전에 대기 중인 출금을 완료해야 하며, 제때 실행 가능해지지 않을 새 출금 증명을 생성하지 않아야 합니다.
+</Info>
+
+### DeputyPauseModule(Superchain 일시 중지 개선)
+
+`DeputyPauseModule`은 Optimism Foundation Safe에 설치될 새로운 Safe Module로, 다음을 가능하게 합니다.
+
+*   Optimism Foundation이 "Pause Deputy" 개인 키를 지정할 수 있습니다.
+*   Pause Deputy가 Superchain 전체 일시 중지 사용을 승인하는 서명을 생성할 수 있습니다.
+*   Pause Deputy 개인 키를 통해 Optimism Foundation Safe가 오직 일시 중지 기능을 실행할 목적으로만 `DeputyGuardianModule` 계정에 대한 호출을 실행하도록 할 수 있습니다.
+
+Optimism Foundation Safe는 약 3개월마다 Pause Deputy 개인 키를 교체할 예정입니다.
+
+## 체인 운영자를 위한 안내
+
+이 제안이 수락되면 업그레이드 트랜잭션을 실행하기 위한 멀티시그 세레모니가 조율됩니다. 다음 트랜잭션은 각 체인에서 실행됩니다: `OP Mainnet`, `Soneium Mainnet`, `Ink Mainnet`, `Base Mainnet`, `Unichain Mainnet`. Optimism이 거버넌스를 담당하는 체인이 이 목록에 없다면 OP Labs Solutions Engineering에 연락하여 업그레이드를 조율하시기 바랍니다. 체인이 Optimism 거버넌스 대상이 아니라면, 체인 업그레이드를 위한 문서를 제공하기 위해 작업 중입니다.
+
+이번 업그레이드는 L1 컨트랙트만 대상으로 하므로 노드 바이너리를 업그레이드하기 위한 조치는 필요하지 않습니다. 다만 새로운 컨트랙트 변경 사항과의 호환성을 유지하려면 [`op-dispute-mon/v1.4.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.4.0)으로 반드시 업그레이드해야 합니다.
+
+## bridge 및 사용자를 위한 안내
+
+<Info>
+  결함 증명 업그레이드가 실행되기 전에 최종 확정되지 않은 모든 출금은 업그레이드 완료 후 다시 증명해야 합니다. 이 7일 기간 동안에는 업그레이드가 완료될 때까지 기다렸다가 출금을 시작하는 것을 고려할 수 있습니다.
+</Info>
+
+사용자는 다음과 같은 영향을 알고 있어야 합니다.
+
+### 출금 흐름 변경
+
+1.  L1에서 생성된 모든 대기 중인 출금 증명이 일회성으로 무효화됩니다.
+
+2.  업그레이드가 실행되기 전에 대기 중인 출금을 완료하십시오.
+
+3.  제때 실행 가능해지지 않을 새 출금 증명을 생성하지 마십시오.
+
+4.  출금이 무효화된 경우 L1에서 두 번째 출금 증명 트랜잭션을 제출하십시오.
+
+이 무효화로 인해 ETH나 ERC-20 토큰이 위험에 처하지는 않습니다.
+
+## 감사 보고서
+
+Upgrade 13의 코드는 여러 차례 감사를 받았습니다.
+
+*   **Offbeat Labs**: 감사를 완료했으며 낮은 심각도(Low Severity) 이슈 1건을 발견했고, 이는 해결되었습니다.
+*   **Spearbit**: 감사를 완료했으며 중간 심각도(Medium Severity) 이슈 1건과 낮은 심각도 이슈 2건을 발견했습니다. 중간 심각도 이슈는 2025년 1월에 발표된 L2Beat Stage 1 요구 사항 업데이트와 충돌하는 설계 결정이었습니다. 이러한 요구 사항을 충족하도록 설계가 수정되었습니다.
+*   **Radiant Labs**: DeputyPauseModule에 대한 감사를 완료했으며 낮은 심각도/정보성 발견 사항만 있었고, 모두 해결되었습니다.
+*   **MiloTruck(독립 감사자)**: DeputyPauseModule에 대한 감사를 완료했으며 낮은 심각도/정보성 발견 사항만 있었고, 모두 해결되었습니다.
+
+## 긴급 취소
+
+업그레이드 전에 심각한 보안 문제가 발견되면 OP Labs는 커뮤니티와 협력하여 업그레이드가 더 이상 진행되지 않는다는 사실을 광범위하게 알릴 것입니다. Optimism Foundation과 Security Council은 긴급 취소를 조율하기 위해 협력합니다.
+
+자세한 내용은 전체 업그레이드 제안을 참고하거나 개발자 지원팀에 문의하시기 바랍니다.

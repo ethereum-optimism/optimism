@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +21,7 @@ func TestGenesisCLI_WritesFileAfterPrepareOnly(t *testing.T) {
 	data, err := os.ReadFile(outfile)
 	require.NoError(t, err)
 
-	var got core.Genesis
+	var got opgenesis.Genesis
 	require.NoError(t, json.Unmarshal(data, &got))
 	require.NotZero(t, got.Timestamp, "rendered genesis must carry the pinned genesis time")
 }

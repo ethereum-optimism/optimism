@@ -1,0 +1,116 @@
+---
+title: 트랜잭션 흐름
+description: rollup 트랜잭션의 트랜잭션 흐름 과정에 대해 알아봅니다.
+diataxis: explanation
+---
+
+import OpGethEol from "/ko/snippets/op-geth-eol.mdx"
+
+<Info>
+  **OP Stack 알아보기 — 14단계 중 7단계.**
+  지금까지 체인을 배포하고 구성 요소를 시작했습니다. 이 페이지에서는
+  방금 실행한 내용을 하나의 트랜잭션이 제출되어 Ethereum에서 최종 확정되기까지의
+  일생으로 다시 살펴봅니다. 다 읽은 후에는
+  [OP Mainnet의 트랜잭션 수수료](/ko/op-stack/transactions/fees)로 계속 진행하십시오.
+</Info>
+
+이 가이드에서는 rollup 트랜잭션의 트랜잭션 흐름 과정을 설명합니다. rollup 트랜잭션 처리 과정에는 두 가지 요구 사항이 있습니다.
+
+*   트랜잭션이 L1(Ethereum)에 기록되어야 합니다.
+    이는 일반적으로 `op-batcher`가 수행하지만, 모든 사용자는 L1 트랜잭션을 보내 L2 트랜잭션을 제출할 수 있으며, 이 경우 `op-batcher`를 우회합니다.
+
+*   트랜잭션이 실행되어 상태를 변경해야 합니다(실행 클라이언트가 수행하며, 기본값은 `op-reth`입니다).
+    그 후 `op-proposer`가 트랜잭션 이후 상태에 대한 [커밋먼트(commitment)](https://en.wikipedia.org/wiki/Commitment_scheme)를 L1에 기록합니다.
+    `op-proposer`는 트랜잭션마다 L1에 커밋먼트를 기록할 필요는 없으며, 트랜잭션 블록 단위로 상태에 커밋해도 괜찮습니다.
+
+![전체 과정.](/public/img/op-stack/protocol/transaction-flow-dark-mode.svg)
+
+## 트랜잭션을 L1에 기록하기
+
+[`op-batcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-batcher)는 두 가지 주요 역할을 합니다.
+
+*   트랜잭션을 배치로 압축합니다.
+*   가용성과 무결성을 보장하기 위해 해당 배치를 L1에 게시합니다.
+
+### 압축
+
+batcher는 [sequencer 배치](https://specs.optimism.io/glossary.html?utm_source=op-docs&utm_medium=docs#sequencer-batch)를 [채널](https://specs.optimism.io/glossary.html?utm_source=op-docs&utm_medium=docs#channel)로 집계합니다.
+이를 통해 압축 프레임당 더 많은 데이터를 담을 수 있으므로 압축률이 향상됩니다.
+이 과정에 대한 자세한 내용은 [사양](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#batch-submission)에서 확인할 수 있습니다.
+
+채널이 가득 차거나 시간이 초과되면 압축되어 기록됩니다.
+
+채널이 열려 있을 수 있는 최대 시간(첫 번째 트랜잭션부터 마지막 트랜잭션까지)은 L1 블록 시간 단위로 지정합니다(따라서 값이 5이면 5\*12=60초입니다).
+이 값은 환경 변수(`OP_BATCHER_MAX_CHANNEL_DURATION`) 또는 명령줄 매개변수(`--max-channel-duration`)로 지정할 수 있습니다.
+또는 더 작고 비용 효율이 낮은 트랜잭션의 게시를 피하기 위해 0(기본값)으로 설정할 수도 있습니다.
+
+예상 압축 크기가 목표 L1 트랜잭션 크기에 도달하면 채널이 가득 찬 것입니다.
+이는 두 가지 매개변수로 제어됩니다.
+
+1.  목표 L1 트랜잭션 크기: 명령줄(`--target-l1-tx-size-bytes`) 또는 환경 변수(`OP_BATCHER_TARGET_L1_TX_SIZE_BYTES`)로 바이트 단위로 지정할 수 있습니다
+
+2.  예상 압축률: 소수 값으로 지정할 수 있으며, 마찬가지로 명령줄(`--approx-compr-ratio`) 또는 환경 변수(`OP_BATCHER_APPROX_COMPR_RATIO`)로 지정합니다.
+
+이 과정을 구현한 코드는 [`channel_manager.go`](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/batcher/channel_manager.go)와 [`channel_builder.go`](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/batcher/channel_builder.go)에서 확인할 수 있습니다.
+
+### L1에 게시하기
+
+채널이 가득 차면 (데이터 크기에 따라) 단일 트랜잭션 또는 여러 트랜잭션으로 L1에 게시됩니다.
+
+L1에 기록하는 과정을 통해 처리된 L2 트랜잭션은 프로토콜의 최종성 상태를 거치게 됩니다. 각 상태는 **unsafe**(처리되었지만 아직 L1에 기록되지 않음), **safe**(L1에 기록됨), **finalized**(트랜잭션을 포함한 L1 블록이 Ethereum에 의해 최종 확정됨)입니다.
+이러한 상태의 의미와 트랜잭션을 되돌릴 수 없다고 신뢰할 수 있는 시점은 [트랜잭션 최종성](/ko/op-stack/transactions/transaction-finality)을 참조하십시오.
+
+L1에 기록할 채널을 구성하는 코드는 [`channel_out.go`](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/derive/channel_out.go)와 [`channel_builder.go`](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/batcher/channel_builder.go)에서 확인할 수 있습니다.
+트랜잭션 자체는 [`op-batcher`의 메인 루프](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/batcher/driver.go#L489-L520)에서 전송되며, 이 루프는 [`publishStateToL1`](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/batcher/driver.go#L784)을 호출합니다
+
+#### 트랜잭션 상태 확인하기
+
+다음은 트랜잭션의 상태를 확인하는 절차입니다.
+여기서는 [Foundry](https://book.getfoundry.sh/)를 기준으로 설명하지만, 어떤 방법을 사용하든 개념은 동일합니다.
+
+1.  트랜잭션이 기록된 L2 블록의 번호를 가져옵니다.
+
+    ```sh
+    export ETH_RPC_URL=<URL to Optimism network>
+    cast tx <transaction hash> blockNumber
+    ```
+
+2.  최신 finalized 블록의 번호를 가져옵니다.
+    결과가 트랜잭션의 블록 번호보다 크거나 같으면 트랜잭션은 finalized 상태입니다.
+
+    ```sh
+    cast block finalized --field number
+    ```
+
+3.  최신 safe 블록의 번호를 가져옵니다.
+    결과가 트랜잭션의 블록 번호보다 크거나 같으면 트랜잭션은 safe 상태입니다.
+
+    ```sh
+    cast block safe --field number
+    ```
+
+4.  트랜잭션이 finalized 또는 safe 상태가 아니면 unsafe 상태입니다.
+
+## 상태 처리
+
+상태 처리는 두 단계로 나눌 수 있습니다.
+
+1.  이전 상태에 트랜잭션을 적용하여 새 상태를 생성합니다. 이 작업은 실행 클라이언트(기본값은 `op-reth`)가 수행합니다.
+
+2.  상태의 새로운 [Merkle root](https://en.wikipedia.org/wiki/Merkle_tree)를 제안합니다.
+    실제 상태는 너무 길어서 L1에 기록하는 데 비용이 너무 많이 들기 때문에 Merkle root를 사용합니다.
+    이 단계는 `op-proposer`가 수행합니다.
+
+### 상태 변경
+
+상태는 실행 클라이언트가 저장하고 변경합니다. 기본값은 [`op-reth`](https://github.com/paradigmxyz/reth)입니다.
+
+<OpGethEol />
+
+### 상태 루트 제안
+
+상태 루트 제안은 [`op-proposer`](https://github.com/ethereum-optimism/optimism/tree/develop/op-proposer)가 L1의 [`DisputeGameFactory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol)에 게시하며, 이 컨트랙트는 해당 제안을 담은 분쟁 게임(dispute game)을 생성합니다.
+결함 증명(fault proof) 도입 이전의 체인에서는 제안이 대신 권한형(permissioned) `L2OutputOracle`로 전송되었습니다. 그 내역은 [OP Stack 스마트 컨트랙트](/ko/op-stack/protocol/smart-contracts)를 참조하십시오.
+
+출력 제안(output proposal)은 즉시 유효하지 *않습니다*.
+결함 챌린지 기간이 지난 후에만 권위 있는 것으로 간주될 수 있습니다. 출력 루트가 출금을 증명하고 최종 확정하는 데 어떻게 사용되는지는 [출금 흐름](/ko/op-stack/bridging/withdrawal-flow)을 참조하십시오.

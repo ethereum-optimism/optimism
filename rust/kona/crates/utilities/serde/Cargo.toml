@@ -20,7 +20,7 @@ serde.workspace = true
 serde_json = { workspace = true, features = ["alloc"] }
 
 [dev-dependencies]
-toml = { workspace = true, features = ["parse"] }
+toml = { workspace = true, features = ["parse", "serde"] }
 
 [package.metadata.cargo-udeps.ignore]
 development = ["toml"]

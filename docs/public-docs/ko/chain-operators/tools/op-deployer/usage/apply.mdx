@@ -1,0 +1,50 @@
+---
+title: Apply 명령
+description: intent 파일을 기반으로 OP Chain을 배포하는 방법을 알아봅니다.
+diataxis: reference
+---
+
+intent 및 state 파일을 [초기화](/ko/chain-operators/tools/op-deployer/usage/init)한 후에는 `apply` 명령을 사용하여
+배포를 수행할 수 있습니다.
+
+## 사용법 {#usage}
+
+`apply` 명령은 다음과 같이 호출할 수 있습니다.
+
+```shell
+op-deployer apply \
+  --workdir <directory containing the intent and state files> \
+  <... additional arguments ...>
+```
+
+수행하려는 작업에 따라 추가 인수를 지정해야 합니다. 지원되는 각 CLI 인수에 대한 레퍼런스는 아래를
+참고하십시오.
+
+## CLI 인수 {#cli-arguments}
+
+### `--deployment-target` {#—deployment-target}
+
+**기본값:** `live`
+
+`--deployment-target`은 각 체인을 배포할 대상을 지정합니다. 다음 값 중 하나일 수 있습니다.
+
+*   `live`: 실제 L1에 배포합니다. 구체적으로, OP Deployer가 `vm.broadcast` 호출로 식별된 트랜잭션을 L1에
+    전송합니다. 이 대상을 사용할 때는 `--l1-rpc-url`과 `--private-key`를 지정해야 합니다.
+*   `genesis`: L1 제네시스 파일에 배포합니다. 테스트나 로컬 개발 목적으로 유용합니다. 생성된 제네시스에는
+    SP1 verifier가 포함되어 있지 않으므로 `--deploy-mock-sp1-verifier`를 전달하십시오.
+
+### `--deploy-mock-sp1-verifier` {#—deploy-mock-sp1-verifier}
+
+ZK 분쟁 게임(dispute game)이 사용할 mock SP1 verifier를 배포합니다. 제네시스에는 SP1 verifier가 없으며, 로컬 devnet처럼
+릴리스 verifier가 없는 live L1에도 없습니다. mock은 모든 증명을 수락하므로 개발 용도로만 사용하십시오.
+Sepolia처럼 릴리스 verifier가 있는 L1 chain ID에서는 op-deployer가 제네시스 배포에서도 이 플래그를 거부합니다.
+
+### `--l1-rpc-url` {#—l1-rpc-url}
+
+배포할 L1 체인의 RPC URL을 정의합니다.
+
+### `--private-key` {#—private-key}
+
+트랜잭션 서명에 사용할 개인 키를 정의합니다. 실제 트랜잭션 전송이 수반되는 배포 대상에서만 필요합니다.
+배포가 완료되면 각 L2의 소유권은 intent에 지정된 proxy admin owner에게 이전되므로, 이 용도로 hot key를
+사용해도 괜찮습니다.

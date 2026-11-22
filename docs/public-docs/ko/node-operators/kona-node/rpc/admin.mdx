@@ -1,0 +1,137 @@
+---
+title: "Admin RPC 메서드"
+diataxis: reference
+---
+
+`admin` API는 Kona 합의 노드의 동작을 제어하고 모니터링하는 메서드를 제공합니다.
+
+## `admin_postUnsafePayload`
+
+unsafe payload를 네트워크에 게시합니다.
+
+| 클라이언트 | 메서드 호출                                           |
+| ------ | ----------------------------------------------------------- |
+| RPC    | `{"method": "admin_postUnsafePayload", "params": [payload]}` |
+
+### 매개변수
+
+- `payload` (`OpExecutionPayloadEnvelope`): 게시할 execution payload envelope
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_postUnsafePayload","params":[{...payload...}]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+## `admin_sequencerActive`
+
+sequencer가 현재 활성 상태인지 여부를 반환합니다.
+
+| 클라이언트 | 메서드 호출                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_sequencerActive"}`               |
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_sequencerActive","params":[]}
+{"jsonrpc":"2.0","id":1,"result":true}
+```
+
+**참고**: 노드가 validator 모드로 실행 중인 경우(sequencer가 활성화되지 않은 경우) 이 메서드는 "Method not found" 오류를 반환합니다.
+
+## `admin_startSequencer`
+
+예상되는 로컬 unsafe head에서 sequencer를 시작합니다. conductor가 구성된 경우 conductor가 리더십을 보고해야 합니다. sequencer가 이미 활성 상태이거나, unsafe head를 사용할 수 없거나, 제공된 해시가 일치하지 않으면 요청이 실패합니다.
+
+| 클라이언트 | 메서드 호출                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_startSequencer", "params": [head]}`                |
+
+### 매개변수
+
+- `head` (`bytes32`): 예상되는 unsafe 블록 해시입니다. `admin_stopSequencer` 또는 현재 로컬 unsafe head에서 얻습니다.
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":["0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+**참고**: 노드가 validator 모드로 실행 중인 경우(sequencer가 활성화되지 않은 경우) 이 메서드는 "Method not found" 오류를 반환합니다.
+
+## `admin_stopSequencer`
+
+sequencer를 중지하고 마지막으로 처리된 블록의 해시를 반환합니다.
+
+| 클라이언트 | 메서드 호출                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_stopSequencer"}`                 |
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_stopSequencer","params":[]}
+{"jsonrpc":"2.0","id":1,"result":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"}
+```
+
+**참고**: 노드가 validator 모드로 실행 중인 경우(sequencer가 활성화되지 않은 경우) 이 메서드는 "Method not found" 오류를 반환합니다.
+
+## `admin_conductorEnabled`
+
+conductor가 활성화되어 있는지 여부를 반환합니다.
+
+| 클라이언트 | 메서드 호출                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_conductorEnabled"}`              |
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_conductorEnabled","params":[]}
+{"jsonrpc":"2.0","id":1,"result":false}
+```
+
+**참고**: 노드가 validator 모드로 실행 중인 경우(sequencer가 활성화되지 않은 경우) 이 메서드는 "Method not found" 오류를 반환합니다.
+
+## `admin_setRecoverMode`
+
+sequencer의 복구 모드를 설정합니다.
+
+| 클라이언트 | 메서드 호출                                         |
+| ------ | --------------------------------------------------------- |
+| RPC    | `{"method": "admin_setRecoverMode", "params": [mode]}`    |
+
+### 매개변수
+
+- `mode` (`bool`): 복구 모드를 활성화할지(true) 비활성화할지(false) 여부
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_setRecoverMode","params":[true]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+**참고**: 노드가 validator 모드로 실행 중인 경우(sequencer가 활성화되지 않은 경우) 이 메서드는 "Method not found" 오류를 반환합니다.
+
+## `admin_overrideLeader`
+
+재해 복구를 위해 conductor 리더십 확인과 conductor로의 unsafe payload 커밋을 로컬에서 우회합니다. 이 재정의는 노드가 재시작될 때까지 유지됩니다.
+
+이는 conductor 자체의 리더십 상태를 재정의하지 않습니다. conductor의 리더 전용(leader-gated) RPC 프록시를 통해 다운스트림 트래픽을 처리하려면 conductor의 `conductor_overrideLeader` RPC도 `true`로 설정하십시오.
+
+| 클라이언트 | 메서드 호출                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_overrideLeader"}`                |
+
+### 예시
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_overrideLeader","params":[]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+**참고**: 노드가 validator 모드로 실행 중인 경우(sequencer가 활성화되지 않은 경우) 이 메서드는 "Method not found" 오류를 반환합니다.

@@ -5,7 +5,6 @@ use alloy_primitives::B256;
 use reth_db::DatabaseError;
 use reth_execution_errors::BlockExecutionError;
 use reth_provider::ProviderError;
-use reth_trie_common::Nibbles;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -53,30 +52,6 @@ pub enum OpProofsStorageError {
         current_state_hash: B256,
         /// Expected state root
         expected_state_hash: B256,
-    },
-    /// No change set for block
-    #[error("No change set found for block {0}")]
-    NoChangeSetForBlock(u64),
-    /// Missing account trie history for a specific path at a specific block number
-    #[error("Missing account trie history for path {0:?} at block {1}")]
-    MissingAccountTrieHistory(Nibbles, u64),
-    /// Missing storage trie history for a specific address and path at a specific block number
-    #[error("Missing storage trie history for address {0:?}, path {1:?} at block {2}")]
-    MissingStorageTrieHistory(B256, Nibbles, u64),
-    /// Missing hashed account history for a specific key at a specific block number
-    #[error("Missing hashed account history for key {0:?} at block {1}")]
-    MissingHashedAccountHistory(B256, u64),
-    /// Missing hashed storage history for a specific address and key at a specific block number
-    #[error(
-        "Missing hashed storage history for address {hashed_address:?}, key {hashed_storage_key:?} at block {block_number}"
-    )]
-    MissingHashedStorageHistory {
-        /// The hashed address
-        hashed_address: B256,
-        /// The hashed storage key
-        hashed_storage_key: B256,
-        /// The block number
-        block_number: u64,
     },
     /// Attempted to unwind to a block beyond the earliest stored block
     #[error(
@@ -143,6 +118,41 @@ pub enum OpProofsStorageError {
          Please clear proofs data and retry initialization."
     )]
     InitializeStorageInconsistentState,
+    /// The source database's hashed-state and trie tables lag its block tip, so they describe no
+    /// single block and cannot seed the proofs storage.
+    #[error(
+        "reth database state is not durable at its tip #{db_tip}: hashed state and trie tables \
+         are only persisted through #{partial_state_trie}. This happens while a node is running \
+         on this datadir, after an unclean shutdown, or when the datadir was copied from a \
+         running node. Stop any node running on this datadir, start `op-reth node` on it so it \
+         repairs its state, stop it cleanly, then re-run initialization."
+    )]
+    InitializeSourceStateTrieLagging {
+        /// Block number of reth's Finish checkpoint.
+        db_tip: u64,
+        /// Highest block whose hashed state and trie are durable in reth's database.
+        partial_state_trie: u64,
+    },
+    /// reth's database tip moved past the initialization anchor before the copy, so the copied
+    /// tables would not describe the anchored block.
+    #[error(
+        "reth database tip moved from #{anchor} to #{db_tip} during initialization. Stop any \
+         node running on this datadir, then re-run initialization."
+    )]
+    InitializeSourceTipMoved {
+        /// Block number read as the chain tip when initialization started.
+        anchor: u64,
+        /// Block number of reth's Finish checkpoint in the copy transaction.
+        db_tip: u64,
+    },
+    /// reth's repair unwind of a lagging hashed-state/trie frontier was interrupted, so those
+    /// tables are half-unwound.
+    #[error(
+        "reth database is in the middle of repairing its state (an interrupted partial state \
+         trie unwind). Start `op-reth node` on this datadir so it completes the repair, stop it \
+         cleanly, then re-run initialization."
+    )]
+    InitializeSourceStateTrieUnwindPending,
     /// The snapshot has never been initialized — no init job has run yet.
     #[error("Snapshot is not initialized")]
     SnapshotNotInitialized,

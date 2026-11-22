@@ -96,8 +96,7 @@ used in production and are intended to provide convenient manual testing.
   <SIGNER_ARGS>
 ```
 
-Starts a new fault dispute game that disputes the latest output proposal
-in the L2 output oracle.
+Creates a dispute game via the dispute game factory.
 
 * `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
@@ -105,7 +104,24 @@ in the L2 output oracle.
 * `L2_BLOCK_NUM` the L2 block number the proposed output root is from.
 * `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`)
 
-Optionally, you may override the game types to support using the `--game-types` flag.
+`--game-type` selects the game type to create, as a decimal number or a name (`cannon`, `super-cannon-kona`, `zk`, ...).
+It defaults to `cannon`. Only game types op-challenger supports are accepted; other names and numbers are rejected.
+
+For super and ZK games, `L2_BLOCK_NUM` is the super root timestamp, and `OUTPUT_ROOT` is encoded with `--l2-chain-id`
+(required, non-zero) into a single-chain super root proof. ZK games also take `--parent-index`, the factory index of
+the parent ZK game, which is rejected for other game types. It defaults to uint32 max, which builds on the anchor state:
+
+```shell
+./bin/op-challenger create-game \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --game-factory-address <GAME_FACTORY_ADDRESS> \
+  --game-type zk \
+  --output-root <OUTPUT_ROOT> \
+  --l2-block-num <SUPER_ROOT_TIMESTAMP> \
+  --l2-chain-id <L2_CHAIN_ID> \
+  --parent-index <PARENT_INDEX> \
+  <SIGNER_ARGS>
+```
 
 For known networks, the `--game-factory-address` option can be replaced by `--network`. See the `--help` output for a
 list of predefined networks.
@@ -232,9 +248,11 @@ the fault proofs virtual machine used by the trace provider.
 
 The same CLI options as `op-challenger` itself are supported to configure the trace providers. The additional `--run`
 option allows specifying which prestates to use. The format is `gameType/name/prestateHash` where gameType is the
-game type to use with the prestate (e.g cannon or cannon-kona), name is an arbitrary name for the prestate to use
-when reporting metrics and prestateHash is the hex encoded absolute prestate commitment to use. If name is omitted the
-game type name is used. If the prestateHash is omitted, the absolute prestate hash used for new games on-chain is used.
+game type to use with the prestate (one of `cannon`, `cannon-kona` or `super-cannon-kona`; other game types are
+rejected), name is an arbitrary name for the prestate to use when reporting metrics and prestateHash is the hex encoded
+absolute prestate commitment to use. If name is omitted the game type name is used. If the prestateHash is omitted,
+the absolute prestate hash used for new games on-chain is used. Without `--run`, every configured game type that
+run-trace can execute is traced with its on-chain prestate, and other game types are skipped with a warning.
 
 For example to run both the production cannon prestate and a custom
 prestate, use `--run cannon,cannon/next-prestate/0x03c1f0d45248190f80430a4c31e24f8108f05f80ff8b16ecb82d20df6b1b43f3`.

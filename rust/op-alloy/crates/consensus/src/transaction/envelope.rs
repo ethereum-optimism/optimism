@@ -825,7 +825,7 @@ mod tests {
             source_hash: B256::with_last_byte(2),
             from: Address::repeat_byte(0x42),
             to: TxKind::Call(Address::repeat_byte(0x43)),
-            mint: u128::MAX,
+            mint: U256::from(u128::MAX),
             value: U256::from(1_000_000_000_000_000_000u128),
             gas_limit: 50_000,
             is_system_transaction: false,
@@ -921,7 +921,7 @@ mod tests {
         let tx = TxDeposit {
             source_hash: B256::left_padding_from(&[0xde, 0xad]),
             from: Address::left_padding_from(&[0xbe, 0xef]),
-            mint: 1,
+            mint: U256::from(1),
             gas_limit: 2,
             to: TxKind::Call(Address::left_padding_from(&[3])),
             value: U256::from(4_u64),
@@ -945,7 +945,7 @@ mod tests {
             input: Bytes::new(),
             source_hash: U256::MAX.into(),
             from: Address::random(),
-            mint: u128::MAX,
+            mint: U256::from(u128::MAX),
             is_system_transaction: false,
         };
         let tx_envelope = OpTxEnvelope::Deposit(tx.seal_slow());

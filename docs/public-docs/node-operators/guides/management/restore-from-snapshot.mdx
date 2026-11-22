@@ -9,7 +9,7 @@ import OpGethEol from "/snippets/op-geth-eol.mdx"
 
 This guide walks you through bootstrapping an OP Stack execution client from a pre-synced snapshot: download it, verify the checksum, extract it into your data directory, and start the node from the snapshot's tip instead of replaying the chain from genesis.
 
-For **what** snapshots are available for OP Mainnet and their download links, see the [Snapshots reference page](/op-mainnet/network-information/snapshots).
+For **what** snapshots are available for OP Mainnet and OP Sepolia, see the [Snapshots reference page](/op-mainnet/network-information/snapshots).
 
 ## When to use a snapshot
 
@@ -22,7 +22,7 @@ You don't always need one. With [execution-layer sync](/node-operators/reference
 Use a snapshot when:
 
 *   You are running an **archive node**, or otherwise need to trace the entire chain.
-*   You simply want to skip the initial sync entirely: a mature chain's data directory can run to hundreds of gigabytes (OP Mainnet is roughly 700 GB for a full node), and even execution-layer sync takes days from scratch.
+*   You simply want to skip the initial sync entirely: a mature chain's data directory can run to terabytes, and even execution-layer sync takes days from scratch. For scale, the current zstd-compressed snapshot downloads are about 1.3 TB (full) and 1.7 TB (archive) for OP Mainnet, and about 265 GB (full) and 262 GB (archive) for OP Sepolia; the extracted data directory is larger.
 
 <Note>
   On **OP Mainnet**, syncing `op-reth` on a fresh data directory is another reason to use a snapshot: it satisfies the [pre-Bedrock state import requirement](/node-operators/op-reth/run/faq/sync-op-mainnet) in one step, even when execution-layer sync is enabled.
@@ -38,17 +38,23 @@ Use a snapshot when:
 
 <Steps>
   <Step title="Pick a snapshot">
-    Pick a recent snapshot matching your network and client from your chain's snapshot provider. For OP Mainnet, browse the OP Labs managed [Data Directories website](https://datadirs.optimism.io/); the [Snapshots reference page](/op-mainnet/network-information/snapshots) lists the available sources, including third-party providers.
+    Pick a recent snapshot matching your network and client from your chain's snapshot provider. For OP Mainnet, OP Sepolia, and the other OP Enterprise Fully Managed networks Optimism publishes snapshots for, select your network and sync type (full or archive, where offered) on [snapshots.optimism.io](https://snapshots.optimism.io/). The site shows each snapshot's `op-reth` version, date, size, and SHA256 checksum. The [Snapshots reference page](/op-mainnet/network-information/snapshots) describes what is available and lists other sources, including third-party providers.
+
+    Prefer a storage v2 snapshot. `op-reth` storage v1 is [deprecated](/notices/op-reth-storage-v1-deprecation), and a data directory restored from a v1 snapshot must be migrated before storage v1 reaches end of support.
   </Step>
 
   <Step title="Download and verify it">
-    Download the archive and check its SHA256 against the value published on the index page:
+    Copy the download command (or the snapshot URL) from the snapshot site and run it. On snapshots.optimism.io, it has this form:
 
     ```bash
-    curl -fLO <snapshot-url>/<snapshot-file>.tar.zst
+    curl -fL -o '<snapshot-file>.tar.zst' '<snapshot-url>'
+    ```
 
-    sha256sum <snapshot-file>.tar.zst       # Linux
-    shasum -a 256 <snapshot-file>.tar.zst   # macOS
+    Also download the matching `<snapshot-file>.tar.zst.sha256sum` file (**Download checksum** on snapshots.optimism.io) into the same directory, then verify the archive against it:
+
+    ```bash
+    sha256sum -c '<snapshot-file>.tar.zst.sha256sum'          # Linux
+    shasum -a 256 -c '<snapshot-file>.tar.zst.sha256sum'      # macOS
     ```
 
     Don't skip verification — a truncated multi-hundred-gigabyte download is easy to miss and produces a corrupt database.
@@ -62,10 +68,10 @@ Use a snapshot when:
     Inspect the archive layout first, then extract it into your client's data directory:
 
     ```bash
-    tar -tf <snapshot-file>.tar.zst | head -3
+    zstd -dc '<snapshot-file>.tar.zst' | tar -tf - | head -3
 
     mkdir -p <datadir>
-    tar -I zstd -xvf <snapshot-file>.tar.zst -C <datadir> --strip-components=1
+    zstd -dc '<snapshot-file>.tar.zst' | tar -xvf - -C <datadir> --strip-components=1
     ```
 
     `--strip-components=1` removes the top-level wrapping directory inside the tarball. If the inspection shows files already at the archive root, omit it. Use the same path your client is configured with (the `--datadir` flag for `op-reth`).
@@ -87,5 +93,5 @@ Use a snapshot when:
 ## Next steps
 
 *   Running with Docker? The [node-from-docker tutorial](/node-operators/tutorials/node-from-docker#bootstrap-from-a-snapshot) shows this flow with a bind-mounted `op-reth` data directory.
-*   See the [Snapshots reference page](/op-mainnet/network-information/snapshots) for all OP Mainnet download links, including the legacy (pre-Bedrock) data directory for archive nodes.
+*   See the [Snapshots reference page](/op-mainnet/network-information/snapshots) for the available snapshots, including the [legacy (pre-Bedrock) data directory](/op-mainnet/network-information/snapshots#legacy-geth-data-directory) for OP Mainnet archive nodes.
 *   If you run into problems, check the [node troubleshooting guide](/node-operators/guides/troubleshooting) or reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions).

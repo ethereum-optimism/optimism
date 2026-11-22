@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE_REF=$(grep -A2 '^  rust_base_image:' .circleci/config.yml \
-            | grep -oE 'us-docker\.pkg\.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:[0-9a-f]{64}' \
+            | grep -oE 'us-docker\.pkg\.dev/oplabs-tools-artifacts/images/circleci-runner-wolfi@sha256:[0-9a-f]{64}' \
             | head -n1)
           if [[ -z "${IMAGE_REF}" ]]; then
             echo "Could not extract circleci-runner-wolfi image reference from .circleci/config.yml" >&2

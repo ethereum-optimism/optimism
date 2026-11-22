@@ -2,6 +2,7 @@ package batcher_test
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -55,6 +56,41 @@ func validBatcherConfig() batcher.CLIConfig {
 func TestValidBatcherConfig(t *testing.T) {
 	cfg := validBatcherConfig()
 	require.NoError(t, cfg.Check(), "valid config should pass the check function")
+}
+
+func TestBatcherConfigMaxL1TxSize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		size    uint64
+		daType  flags.DataAvailabilityType
+		altDA   bool
+		wantErr bool
+	}{
+		{name: "default calldata size", size: 120_000, daType: flags.CalldataType},
+		{name: "below calldata limit", size: 261_908, daType: flags.CalldataType},
+		{name: "at calldata limit", size: 261_909, daType: flags.CalldataType},
+		{name: "above calldata limit", size: 261_910, daType: flags.CalldataType, wantErr: true},
+		{name: "maximum uint64 calldata size", size: math.MaxUint64, daType: flags.CalldataType, wantErr: true},
+		{name: "blobs ignore calldata limit", size: 261_910, daType: flags.BlobsType},
+		{name: "auto uses fixed calldata fallback size", size: 261_910, daType: flags.AutoType},
+		{name: "alt DA posts a commitment", size: 261_910, daType: flags.CalldataType, altDA: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := validBatcherConfig()
+			cfg.MaxL1TxSize = tc.size
+			cfg.DataAvailabilityType = tc.daType
+			cfg.AltDA.Enabled = tc.altDA
+			if tc.wantErr {
+				require.ErrorContains(t, cfg.Check(), "exceeds maximum calldata size 261909")
+			} else {
+				require.NoError(t, cfg.Check())
+			}
+		})
+	}
 }
 
 // Set current

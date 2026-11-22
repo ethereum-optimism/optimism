@@ -1,0 +1,133 @@
+---
+title: 결함 증명 레퍼런스
+description: OP Stack 분쟁 게임 유형, 핵심 결함 증명 컨트랙트, 표준 게임 파라미터에 대한
+  레퍼런스입니다.
+diataxis: reference
+---
+
+이 페이지는 OP Stack 결함 증명(fault proof) 시스템의 분쟁 게임(dispute game) 유형, 핵심 컨트랙트, 파라미터를 정리합니다.
+시스템의 동작 방식은 [결함 증명 설명](/ko/op-stack/fault-proofs/explainer)과 [FP 시스템 구성 요소](/ko/op-stack/fault-proofs/fp-components)를 참고하십시오.
+
+<Info>
+  컨트랙트 주소와 일부 파라미터 값은 체인별로 설정됩니다.
+  특정 체인의 값은 [Superchain Registry](/ko/op-stack/protocol/superchain-registry)에서 확인하거나 배포된 컨트랙트를 직접 조회하십시오.
+  이 페이지의 표준 값은 [`op-deployer/pkg/deployer/standard/standard.go`](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/pkg/deployer/standard/standard.go)에 정의된 대로 `op-deployer`가 새로운 표준 체인에 적용하는 기본값입니다.
+</Info>
+
+## 분쟁 게임 유형
+
+모든 분쟁 게임은 `GameType`과 함께 `DisputeGameFactory`를 통해 생성됩니다. `GameType`은 factory가 복제할 등록된 게임 구현을 선택하는 `uint32` 값입니다.
+공식 목록은 [`GameTypes` 라이브러리](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/lib/Types.sol)에 있습니다.
+
+| 값 | 이름                 | 설명                                                                       |
+| ----- | -------------------- | --------------------------------------------------------------------------------- |
+| 0     | `CANNON`             | Cannon VM을 사용하는 결함 분쟁 게임                                            |
+| 1     | `PERMISSIONED_CANNON` | Cannon VM을 사용하는 권한형(permissioned) 분쟁 게임. 지정된 `PROPOSER` 및 `CHALLENGER` 역할만 참여할 수 있음 |
+| 2     | `ASTERISC`           | Asterisc VM을 사용하는 분쟁 게임                                                |
+| 3     | `ASTERISC_KONA`      | Kona와 함께 Asterisc VM을 사용하는 분쟁 게임                                      |
+| 4     | `SUPER_CANNON`       | Super Root에 대해 Cannon VM을 사용하는 분쟁 게임(interop)                       |
+| 5     | `SUPER_PERMISSIONED` | Super Root용 권한형 분쟁 게임                                         |
+| 6     | `OP_SUCCINCT`        | OP Succinct를 사용하는 분쟁 게임                                                    |
+| 7     | `SUPER_ASTERISC_KONA` | Super Root에 대해 Kona와 함께 Asterisc VM을 사용하는 분쟁 게임                     |
+| 8     | `CANNON_KONA`        | Kona와 함께 Cannon VM을 사용하는 분쟁 게임                                        |
+| 9     | `SUPER_CANNON_KONA`  | Super Root에 대해 Kona와 함께 Cannon VM을 사용하는 분쟁 게임                       |
+| 10    | `ZK_DISPUTE_GAME`    | 분쟁 해결에 optimistic + ZK 증명을 사용하는 분쟁 게임(Super Root)    |
+| 254   | `FAST`               | 출금 테스트용 단기 게임. 프로덕션 용도가 아님      |
+| 255   | `ALPHABET`           | alphabet VM을 사용하는 테스트 게임. 프로덕션 용도가 아님                   |
+| 1337  | `KAILUA`             | RISC Zero의 Kailua를 사용하는 분쟁 게임                                             |
+
+참고:
+
+*   게임 유형은 `DisputeGameFactory` 소유자가 해당 유형의 구현을 등록(`setImplementation`)한 후에만 체인에서 진행할 수 있습니다. 소유자는 해당 유형의 게임을 생성하는 데 필요한 bond도 설정합니다(`setInitBond`).
+*   **respected game type**(시스템이 출금 및 anchor state 업데이트에 그 결과를 인정하는 게임 유형)은 `AnchorStateRegistry`에 저장되며, Guardian이 `setRespectedGameType`을 통해 변경할 수 있습니다.
+*   `op-deployer`는 권한형 게임(유형 `1`)을 초기 게임 유형으로 하여 새로운 표준 체인을 배포합니다.
+
+## 핵심 컨트랙트
+
+모든 결함 증명 컨트랙트는 모노레포의 [`packages/contracts-bedrock/src`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src) 아래에 있습니다.
+체인별 배포 주소는 [Superchain Registry](/ko/op-stack/protocol/superchain-registry)에 나열되어 있습니다.
+
+| 컨트랙트                                                                                                                                               | 용도                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`DisputeGameFactory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol)         | 등록된 구현의 clone으로 분쟁 게임을 생성하고, 이를 조회용 mapping과 추가 전용(append-only) 목록에 저장                          |
+| [`FaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol)             | 이분 탐색 분쟁 게임: claim, move, chess clock, bond, 온체인 단일 명령어 step                                              |
+| [`PermissionedDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol) | `PROPOSER` 역할만 게임을 생성할 수 있고, `PROPOSER`와 `CHALLENGER` 역할만 move를 할 수 있는 `FaultDisputeGame` 변형                                        |
+| [`SuperFaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol)   | interop용 결함 분쟁 게임 구현(Super Root를 분쟁 대상으로 함)                                                                              |
+| [`SuperPermissionedDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol) | 단순화된 권한형 super-root 게임. 유효하지 않은 제안은 최종 확정 전에 `AnchorStateRegistry` blacklist를 통해 무효화됨 |
+| [`AnchorStateRegistry`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol)       | anchor state(새 게임의 시작점), respected game type, 게임 blacklist, retirement timestamp를 저장             |
+| [`DelayedWETH`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DelayedWETH.sol)                       | 게임 bond를 보관하고 출금 전에 unlock 후 지연 기간을 강제하는 WETH9 확장. 소유자가 오류로부터 복구할 시간을 확보함     |
+| [`MIPS64`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol)                                  | 단일 MIPS 명령어를 에뮬레이션하는 온체인 결함 증명 VM([Cannon](/ko/op-stack/fault-proofs/cannon)의 온체인 부분)                       |
+| [`PreimageOracle`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/PreimageOracle.sol)                  | 온체인 실행 중 결함 증명 VM이 읽는 preimage를 저장. large-preimage proposal 경로 포함                                |
+| [`OptimismPortal2`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol)                    | 입금(디파짓)과 출금의 진입점. 출금은 분쟁 게임 결과를 기준으로 증명되고, maturity delay 이후 최종 확정됨               |
+
+### 자주 사용하는 조회 함수
+
+| 함수                                              | 컨트랙트              | 반환값                                                                     |
+| ----------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------- |
+| `gameCount()`                                         | `DisputeGameFactory`  | factory가 생성한 게임의 총 개수                                 |
+| `gameAtIndex(uint256)`                                | `DisputeGameFactory`  | 특정 인덱스의 게임 유형, 생성 timestamp, proxy 주소                 |
+| `games(GameType, Claim, bytes)`                       | `DisputeGameFactory`  | 게임 유형, root claim, extra data와 일치하는 게임 proxy(존재하는 경우)     |
+| `findLatestGames(GameType, uint256, uint256)`         | `DisputeGameFactory`  | 특정 인덱스부터 시작하여 해당 유형의 가장 최근 게임 `n`개                  |
+| `gameImpls(GameType)`                                 | `DisputeGameFactory`  | 게임 유형에 등록된 구현                                |
+| `initBonds(GameType)`                                 | `DisputeGameFactory`  | 해당 유형의 게임을 생성하는 데 필요한 bond(wei 단위)                     |
+| `respectedGameType()`                                 | `AnchorStateRegistry` | 현재 시스템이 인정하는 게임 유형                               |
+| `getAnchorRoot()`                                     | `AnchorStateRegistry` | 현재 anchor root와 해당 L2 sequence number                           |
+| `isGameBlacklisted(IDisputeGame)`                     | `AnchorStateRegistry` | Guardian이 특정 게임을 blacklist에 올렸는지 여부                          |
+| `status()`                                            | dispute game          | 게임의 현재 `GameStatus`                                              |
+| `getRequiredBond(Position)`                           | `FaultDisputeGame`    | 특정 position에서 move를 하는 데 필요한 ETH bond(wei 단위)                      |
+
+## 표준 파라미터
+
+아래 값은 `op-deployer`의 표준 체인 기본값입니다.
+개별 체인은 이와 다를 수 있으므로, 항상 해당 체인의 배포된 구성을 확인하십시오.
+
+### 이분 탐색 게임
+
+| 파라미터          | 표준 값           | 설명                                                                                             |
+| ------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `maxGameDepth`     | 73                       | claim 트리의 최대 깊이. 이 깊이에서 claim은 온체인 VM `step`으로 해결됨               |
+| `splitDepth`       | 30                       | 게임이 output root 이분 탐색에서 단일 블록 실행 트레이스 이분 탐색으로 전환되는 깊이 |
+| `maxClockDuration` | 302,400초(3.5일) | 각 측의 chess clock이 누적할 수 있는 최대 총 시간                                                |
+| `clockExtension`   | 10,800초(3시간)  | clock이 거의 소진되었을 때 claim에 응답할 수 있도록 보장되는 최소 시간                          |
+
+### 타이밍과 최종성
+
+| 파라미터                         | 표준 값             | 범위                              | 컨트랙트              | 설명                                                             |
+| --------------------------------- | -------------------------- | ----------------------------------- | --------------------- | ------------------------------------------------------------------------ |
+| `proofMaturityDelaySeconds`       | 604,800초(7일)   | 1일~7일                     | `OptimismPortal2`     | 출금을 증명한 후 최종 확정할 수 있을 때까지의 지연 시간          |
+| `disputeGameFinalityDelaySeconds` | 302,400초(3.5일) | 12시간~3.5일                | `AnchorStateRegistry` | 게임이 해결된 후 그 결과가 최종 확정된 것으로 간주되기까지의 지연 시간     |
+| `withdrawalDelaySeconds`          | 302,400초(3.5일) | 12시간~7일                  | `DelayedWETH`         | bond 출금을 unlock한 후 실행할 수 있을 때까지의 지연 시간    |
+| `challengePeriodSeconds`          | 86,400초(24시간)  | 고정                               | `PreimageOracle`      | large-preimage proposal에 대한 challenge 기간                             |
+| `minProposalSizeBytes`            | 126,000바이트              | 고정                               | `PreimageOracle`      | large-preimage proposal 경로를 통해 제출할 수 있는 preimage의 최소 크기 |
+
+## Clock
+
+결함 분쟁 게임의 각 측은 chess clock을 기준으로 게임을 진행합니다.
+
+*   claim은 조부모 claim으로부터 clock을 상속합니다(깊이가 번갈아 바뀔 때마다 claim이 속한 팀도 번갈아 바뀝니다).
+*   claim의 clock이 `maxClockDuration`초만큼 누적되면 더 이상 해당 claim에 대해 move를 할 수 없습니다.
+*   move로 인해 응답자에게 남은 시간이 clock extension보다 적어지는 경우, 응답자가 최소한 extension 시간을 확보할 수 있도록 clock이 보충됩니다. extension은 일반적인 경우 `clockExtension`이며, 실행 트레이스 이분 탐색을 시작하는 move(깊이 `splitDepth - 1`, 명령어 트레이스를 생성할 시간을 확보하기 위함)에는 `clockExtension * 2`, VM step 직전의 move(깊이 `maxGameDepth - 1`, large-preimage proposal을 허용하기 위함)에는 `clockExtension + challengePeriodSeconds`입니다.
+
+## Bond
+
+*   **게임을 생성**하려면 해당 게임 유형의 초기화 bond가 필요합니다. 이 값은 `DisputeGameFactory.initBonds(gameType)`이며, factory 소유자가 체인별로 설정합니다.
+*   **모든 move**(attack 또는 defend)에는 정확히 `getRequiredBond(position)`만큼의 bond가 필요합니다. bond는 깊이에 따라 기하급수적으로 증가합니다. `FaultDisputeGame.getRequiredBond`의 공식은 깊이 0에서 400,000 gas, `maxGameDepth`에서 300,000,000 gas로 증가하는 gas 양에 200 gwei의 가정된 base fee를 적용하므로, 각 깊이는 바로 위 깊이보다 약 9.5% 더 많은 비용이 듭니다. 단일 move 비용은 깊이 0에서 0.08 ETH, 깊이 73에서 60 ETH입니다.
+*   **게임을 최대 깊이까지 진행**하는 비용은 가장 깊은 단일 bond보다 훨씬 큽니다. 경로상의 모든 move마다 bond를 예치해야 하기 때문입니다. 깊이 1부터 73까지 `getRequiredBond`를 합산하면 총 bond는 약 691 ETH(홀수 깊이에서 move하는 측이 약 361 ETH, 짝수 깊이에서 move하는 측이 약 330 ETH)이며, 이 총액의 대부분은 가장 깊은 move가 차지합니다. 깊이 70부터 73까지만 해도 약 210 ETH에 달합니다. 정확한 값은 `FaultDisputeGame.getRequiredBond`를 기준으로 합니다.
+*   bond는 게임의 `DelayedWETH` 컨트랙트에 보관되며, 게임이 해결되고 최종 확정된 후, 그리고 `DelayedWETH` unlock 지연 시간이 지난 후에만 지급됩니다.
+*   **분배 모드:** 게임이 종료될 때 `BondDistributionMode`가 선택됩니다. 정상적인 게임(`DisputeGameFactory`가 생성했고, blacklist에 오르지 않았으며, retire되지 않은 게임)은 bond를 정상적으로 분배합니다. 성공적으로 반박된 모든 claim의 bond는 반박한 측에 지급되고, 반박되지 않은 claim은 환불됩니다. 정상적이지 않은 게임은 환불 모드로 전환되어 모든 bond를 원래 예치자에게 반환합니다.
+
+## 게임 상태
+
+[`Types.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/lib/Types.sol)의 `GameStatus` enum:
+
+| 상태            | 의미                                                             |
+| ----------------- | -------------------------------------------------------------------- |
+| `IN_PROGRESS`     | 게임이 아직 해결되지 않음                                        |
+| `CHALLENGER_WINS` | 게임이 종료되었으며 root claim이 성공적으로 반박됨     |
+| `DEFENDER_WINS`   | 게임이 종료되었으며 root claim이 반박되지 않음          |
+
+## 다음 단계
+
+*   이 값들의 기반이 되는 개념은 [결함 증명 설명](/ko/op-stack/fault-proofs/explainer)과 [FP 시스템 구성 요소](/ko/op-stack/fault-proofs/fp-components)를 읽어 보십시오.
+*   이러한 게임을 진행하는 정직한 행위자에 대해서는 [OP-Challenger](/ko/op-stack/fault-proofs/challenger)를 참고하십시오.
+*   규범적 정의는 [결함 분쟁 게임 명세](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs)와 [bond 인센티브 명세](https://specs.optimism.io/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs)를 참고하십시오.

@@ -6,9 +6,7 @@ test args='./...': build-contracts copy-contract-artifacts
     go test -v {{args}}
 
 build-contracts:
-  just ../packages/contracts-bedrock/build-no-tests
-  # In-process devstack genesis tests explicitly opt into this mock verifier.
-  just ../packages/contracts-bedrock/forge-build test/dispute/zk/MockSP1Verifier.sol
+  ./scripts/build-embedded-contracts.sh
 
 copy-contract-artifacts:
     #!/bin/bash
@@ -61,6 +59,24 @@ check-forge-version:
 
   echo -e "\n✓ forge versions match: $mise_version"
 
+  echo -e "\nVerifying the pinned forge release archives and checksums..."
+  log=$(mktemp)
+  trap 'rm -f "$log"' EXIT
+  # The archives come from the GitHub CDN, so retry a transient download failure.
+  n=0
+  until OP_DEPLOYER_TEST_FORGE_RELEASES=1 go test -count=1 -timeout=15m -v -run '^TestStandardBinary_ForgeBins$' ./pkg/deployer/forge/ | tee "$log"; do
+    n=$((n+1))
+    if [ "$n" -ge 3 ]; then
+      echo "ERROR: forge release archive verification failed after $n attempts" >&2
+      exit 1
+    fi
+    backoff=$((10 * 2 ** (n - 1)))
+    echo "forge release archive verification failed (attempt $n); retrying in ${backoff}s..." >&2
+    sleep "$backoff"
+  done
+  # go test also exits 0 when -run matches nothing or the test skips.
+  grep -q '^--- PASS: TestStandardBinary_ForgeBins ' "$log" || { echo "ERROR: TestStandardBinary_ForgeBins did not run" >&2; exit 1; }
+
 # ======================================
 # Deployment and Verification Utilities
 #
@@ -92,8 +108,10 @@ pre-deploy: build build-contracts
 
 # Run with:
 # PRIVATE_KEY=0x1234.... NETWORK=sepolia just deploy-opcm
-# Set DEV_FEATURE_BITMAP when deploying a ZK-enabled OPCM release. Set SP1_VERIFIER_ADDRESS only to
-# override the network default or when deploying to a network without one.
+# Leave DEV_FEATURE_BITMAP unset for a tagged release: the OPCM container rejects dev features on
+# Mainnet, and a release is the same bundle on every network (see
+# packages/contracts-bedrock/book/src/policies/release-process.md). Set it only for test
+# deployments of dev features. Set SP1_VERIFIER_ADDRESS only to override the network default.
 deploy-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"

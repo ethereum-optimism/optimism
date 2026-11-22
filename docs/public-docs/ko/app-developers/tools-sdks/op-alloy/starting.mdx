@@ -1,0 +1,82 @@
+---
+title: "프로젝트에 op-alloy 추가하기"
+description: "Cargo를 사용하여 Rust 프로젝트에 op-alloy crate를 추가하고 필요한 feature flag를 선택합니다."
+diataxis: how-to
+---
+
+[op-alloy](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-alloy)는 모든 OP Stack 체인과 상호작용하는 데
+필수적인 다양한 기능을 제공하는 여러 crate로 구성되어 있습니다.
+
+`op-alloy`를 사용하는 가장 간단한 방법은 Cargo를 사용하여 명령줄에서 `full` feature flag와 함께
+[`op-alloy`](https://crates.io/crates/op-alloy) crate를 추가하는 것입니다.
+
+```txt
+cargo add op-alloy --features full
+```
+
+또는 `Cargo.toml` 파일에 다음을 추가할 수 있습니다.
+
+```txt
+op-alloy = { version = "2.0", features = ["full"] }
+```
+
+포함할 기능을 더 세밀하게 제어하려면 개별 crate를 `Cargo.toml` 파일에
+추가하거나, 필요한 feature와 함께 `op-alloy` crate를 사용할 수 있습니다.
+
+`op-alloy`를 의존성으로 추가하면 `op-alloy`가 다시 내보내는(re-export) crate를 사용할 수 있습니다.
+
+```rust
+use op_alloy::{
+   consensus::OpBlock,
+   network::Optimism,
+   rpc_types::OpTransactionReceipt,
+   rpc_types_engine::OpPayloadAttributes,
+};
+```
+
+## Feature
+
+[`op-alloy`](https://crates.io/crates/op-alloy)는 다음을 포함한 많은 [feature flag](https://docs.rs/crate/op-alloy/latest/features)를 정의합니다.
+
+Default
+- `std`
+- `k256`
+- `serde`
+
+Full은 가장 일반적으로 사용되는 crate인 `consensus`, `network`, `rpc-types`,
+`rpc-types-engine`, `rpc-jsonrpsee`를 활성화합니다. `provider` crate는 `full`에 포함되지 않으며
+별도의 `provider` feature로 활성화합니다.
+- `full`
+
+`k256` feature flag는 `op-alloy-consensus` crate의 `k256` feature를 활성화합니다.
+- `k256`
+
+Arbitrary는 crate에서 arbitrary feature를 활성화하여 타입에 `Arbitrary` 트레이트를 derive합니다.
+- `arbitrary`
+
+Serde는 타입에 serde의 Serialize 및 Deserialize 트레이트를 derive합니다.
+- `serde`
+
+또한 개별 crate를 축약 이름으로 활성화할 수 있습니다.
+예를 들어 `consensus` feature flag는 `op-alloy-consensus` re-export를 제공하므로,
+`op_alloy::consensus::InsertTypeHere`를 통해 `op-alloy`에서 `op-alloy-consensus` 타입을 사용할 수 있습니다.
+
+## Crate
+
+- [`op-alloy-network`](https://crates.io/crates/op-alloy-network)
+- [`op-alloy-provider`](https://crates.io/crates/op-alloy-provider)
+- [`op-alloy-consensus`](https://crates.io/crates/op-alloy-consensus) (`no_std` 지원)
+- [`op-alloy-rpc-jsonrpsee`](https://crates.io/crates/op-alloy-rpc-jsonrpsee)
+- [`op-alloy-rpc-types`](https://crates.io/crates/op-alloy-rpc-types) (`no_std` 지원)
+- [`op-alloy-rpc-types-engine`](https://crates.io/crates/op-alloy-rpc-types-engine) (`no_std` 지원)
+
+## `no_std`
+
+위에서 언급한 것처럼 다음 crate는 `no_std`와 호환됩니다.
+
+- [`op-alloy-consensus`](https://crates.io/crates/op-alloy-consensus)
+- [`op-alloy-rpc-types-engine`](https://crates.io/crates/op-alloy-rpc-types-engine)
+- [`op-alloy-rpc-types`](https://crates.io/crates/op-alloy-rpc-types)
+
+crate에 `no_std` 지원을 추가하려면, 해당 crate가 `no_std`와 호환되게 되었을 때
+[check_no_std](https://github.com/ethereum-optimism/optimism/blob/develop/rust/op-alloy/scripts/check_no_std.sh) 스크립트가 이 crate를 포함하도록 업데이트되었는지 확인하십시오.

@@ -1,12 +1,9 @@
 use alloy_rpc_types_engine::JwtSecret;
-use kona_node_service::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
 
 const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
-
-const DEFAULT_L2_TRUST_RPC: bool = true;
-const DEFAULT_L1_TRUST_RPC: bool = true;
+const DEFAULT_L1_TRUST_RPC: bool = false;
 
 /// L1 client arguments.
 #[derive(Clone, Debug, clap::Args)]
@@ -15,11 +12,15 @@ pub struct L1ClientArgs {
     #[arg(long, visible_alias = "l1", env = "KONA_NODE_L1_ETH_RPC")]
     pub l1_eth_rpc: Url,
     /// Whether to trust the L1 RPC.
-    /// If false, block hash verification is performed for all retrieved blocks.
+    /// If false, headers are checked against their block hashes, transactions and receipts
+    /// against their header's roots, and storage reads with `eth_getProof` proofs.
     #[arg(
         long,
         visible_alias = "l1.trust-rpc",
         env = "KONA_NODE_L1_TRUST_RPC",
+        action = clap::ArgAction::Set,
+        num_args = 0..=1,
+        default_missing_value = "true",
         default_value_t = DEFAULT_L1_TRUST_RPC
     )]
     pub l1_trust_rpc: bool,
@@ -72,14 +73,6 @@ pub struct L2ClientArgs {
         default_value_t = DEFAULT_L2_ENGINE_TIMEOUT
     )]
     pub l2_engine_timeout: u64,
-    /// If false, block hash verification is performed for all retrieved blocks.
-    #[arg(
-        long,
-        visible_alias = "l2.trust-rpc",
-        env = "KONA_NODE_L2_TRUST_RPC",
-        default_value_t = DEFAULT_L2_TRUST_RPC
-    )]
-    pub l2_trust_rpc: bool,
 }
 
 impl Default for L2ClientArgs {
@@ -89,7 +82,6 @@ impl Default for L2ClientArgs {
             l2_engine_jwt_secret: None,
             l2_engine_jwt_encoded: None,
             l2_engine_timeout: DEFAULT_L2_ENGINE_TIMEOUT,
-            l2_trust_rpc: DEFAULT_L2_TRUST_RPC,
         }
     }
 }
@@ -102,9 +94,102 @@ pub struct DerivationDelegateArgs {
     pub l2_follow_source: Option<Url>,
 }
 
-impl DerivationDelegateArgs {
-    /// Builds the derivation delegate configuration if an L2 CL URL was provided.
-    pub fn config(self) -> Option<DerivationDelegateConfig> {
-        self.l2_follow_source.map(|url| DerivationDelegateConfig { l2_cl_url: url })
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{CommandFactory, FromArgMatches, Parser};
+    use rstest::rstest;
+
+    const CLIENT_ARGS: &[&str] = &[
+        "kona-node",
+        "--l1=http://localhost:8545",
+        "--l1.beacon=http://localhost:5052",
+        "--l2=http://localhost:8551",
+    ];
+
+    #[derive(Debug, Parser)]
+    struct ClientArgs {
+        #[command(flatten)]
+        l1: L1ClientArgs,
+        #[command(flatten)]
+        l2: L2ClientArgs,
+    }
+
+    #[rstest]
+    #[case::defaults(&[], false)]
+    #[case::l1_false(&["--l1-trust-rpc=false"], false)]
+    #[case::l1_false_space(&["--l1-trust-rpc", "false"], false)]
+    #[case::l1_true(&["--l1-trust-rpc=true"], true)]
+    #[case::l1_true_space(&["--l1-trust-rpc", "true"], true)]
+    #[case::l1_bare(&["--l1-trust-rpc"], true)]
+    #[case::l1_alias_false(&["--l1.trust-rpc=false"], false)]
+    #[case::l1_alias_false_space(&["--l1.trust-rpc", "false"], false)]
+    #[case::l1_alias_true(&["--l1.trust-rpc=true"], true)]
+    #[case::l1_alias_true_space(&["--l1.trust-rpc", "true"], true)]
+    #[case::l1_alias_bare(&["--l1.trust-rpc"], true)]
+    fn test_parse_l1_trust_rpc_args(#[case] flags: &[&str], #[case] l1: bool) {
+        // Keep these CLI/default tests independent of the operator's environment.
+        let command = ClientArgs::command().mut_arg("l1_trust_rpc", |arg| arg.env(None::<&str>));
+        let args = [CLIENT_ARGS, flags].concat();
+        let matches = command.try_get_matches_from(args).unwrap();
+        let parsed = ClientArgs::from_arg_matches(&matches).unwrap();
+        assert_eq!(parsed.l1.l1_trust_rpc, l1);
+    }
+
+    #[test]
+    fn test_default_l1_trust_rpc() {
+        assert!(!L1ClientArgs::default().l1_trust_rpc);
+    }
+
+    #[test]
+    fn test_l1_trust_rpc_environment() {
+        // Re-run this test in subprocesses so environment changes cannot race other tests.
+        if let Ok(expected) = std::env::var("KONA_TEST_TRUST_RPC_EXPECTED") {
+            let flags = std::env::var("KONA_TEST_TRUST_RPC_FLAGS").unwrap();
+            let parsed =
+                ClientArgs::parse_from(CLIENT_ARGS.iter().copied().chain(flags.split_whitespace()));
+            let expected = expected.parse::<bool>().unwrap();
+            assert_eq!(parsed.l1.l1_trust_rpc, expected);
+            return;
+        }
+
+        for env_value in ["true", "false"] {
+            for cli_value in ["env", "true", "false", "bare"] {
+                let flags = match cli_value {
+                    "env" => String::new(),
+                    "bare" => "--l1.trust-rpc".to_string(),
+                    value => format!("--l1.trust-rpc={value}"),
+                };
+                let expected = match cli_value {
+                    "env" => env_value,
+                    "bare" => "true",
+                    value => value,
+                };
+                let output = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", std::thread::current().name().unwrap(), "--nocapture"])
+                    .env("KONA_NODE_L1_TRUST_RPC", env_value)
+                    .env("KONA_TEST_TRUST_RPC_EXPECTED", expected)
+                    .env("KONA_TEST_TRUST_RPC_FLAGS", flags)
+                    .output()
+                    .unwrap();
+                assert!(output.status.success(), "{output:?}");
+                assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"), "{output:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_reject_invalid_l1_trust_rpc() {
+        let err = ClientArgs::try_parse_from(["kona-node", "--l1.trust-rpc=invalid"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[rstest]
+    #[case::flag("--l2-trust-rpc=false")]
+    #[case::alias("--l2.trust-rpc=false")]
+    fn test_reject_removed_l2_trust_rpc(#[case] flag: &str) {
+        let err =
+            ClientArgs::try_parse_from(CLIENT_ARGS.iter().copied().chain([flag])).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
     }
 }

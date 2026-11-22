@@ -2,94 +2,245 @@
 
 use std::{str::FromStr, time::Duration};
 
-use alloy_primitives::Address;
+use alloy_primitives::B256;
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
-use kona_gossip::{P2pRpcRequest, PeerDump, PeerInfo};
+use enr::NodeId;
+use kona_gossip::{GossipCommand, GossipCommandSender, PeerAddr, PeerDump, PeerInfo};
 use kona_node_service::NetworkActorError;
-use kona_rpc::NetworkAdminQuery;
+use kona_rpc::{OpP2PApiServer, P2pRpc};
+use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use tokio::{
-    sync::{mpsc, oneshot},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc, task::JoinHandle};
 
 pub(crate) mod builder;
 
+/// One node's network stack: a [`NetworkActor`](kona_node_service::NetworkActor) and a
+/// [`SignerActor`](kona_node_service::SignerActor) running on their own tasks, plus the channels a
+/// test uses to drive and observe them.
+///
+/// It is one peer in the test's p2p network, not the network itself.
 pub(crate) struct TestNetwork {
+    /// The node's p2p RPC, the one behind the `opp2p_*` methods.
+    pub(super) p2p_rpc: P2pRpc,
+    /// Sends gossip commands, such as dialing a peer, to the network actor.
+    pub(super) gossip_command_tx: GossipCommandSender,
+    /// Sends unsafe payloads to the network actor to gossip, as the admin API does.
     #[allow(dead_code)]
-    pub(super) signer_tx: mpsc::Sender<Address>,
-    pub(super) p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
-    #[allow(dead_code)]
-    pub(super) admin_rpc_tx: mpsc::Sender<NetworkAdminQuery>,
+    pub(super) admin_rpc_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+    /// Payloads sent here are signed with this node's key and gossiped.
     pub(super) gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+    /// Receives the unsafe blocks this node accepts from gossip.
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+    /// The network actor's task.
     #[allow(dead_code)]
     handle: JoinHandle<Result<(), NetworkActorError>>,
 }
 
+/// An error from querying a [`TestNetwork`] through its p2p RPC channel.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum TestNetworkError {
-    #[error("P2p receiver closed")]
-    P2pReceiverClosed,
-    #[error("P2p receiver closed before sending response: {0}")]
-    OneshotError(#[from] oneshot::error::RecvError),
+    #[error("P2p RPC failed: {0}")]
+    Rpc(#[from] jsonrpsee::types::ErrorObjectOwned),
     #[error("Peer info missing ENR")]
     PeerInfoMissingEnr,
     #[error("Invalid ENR: {0}")]
     InvalidEnr(String),
+    #[error("Invalid node ID: {0}")]
+    InvalidNodeId(String),
+    #[error("Peer info missing listen address")]
+    PeerInfoMissingAddress,
+    #[error("Invalid multiaddr: {0}")]
+    InvalidMultiaddr(String),
+    /// The network actor stopped before applying a gossip command.
+    #[error("Gossip command not applied")]
+    CommandNotApplied,
+    /// The other node is not among this node's connected peers yet.
     #[error("Peer not connected")]
     PeerNotConnected,
+    /// The other node is connected, but not subscribed to the block topics yet.
+    #[error("Peer not gossiping blocks")]
+    PeerNotGossipingBlocks,
+    /// This node's ENR has no IP yet.
+    #[error("No IP advertised")]
+    NoAdvertisedIp,
+    /// The node is not in this node's discovery table yet.
+    #[error("Node {0} not in the discovery table")]
+    NotInDiscoveryTable(NodeId),
+    /// Discovery has sessions with another number of peers than expected.
+    #[error("Discovery connected to {0:?} peers")]
+    DiscoveryPeerCount(Option<usize>),
+}
+
+/// Polls every 10ms at first, so in-memory nodes are ready without waiting, then backs off to once
+/// a second for nodes that find each other through discovery, for up to 30 seconds in all.
+fn retry_backoff() -> ExponentialBuilder {
+    ExponentialBuilder::default()
+        .with_min_delay(Duration::from_millis(10))
+        .with_max_delay(Duration::from_secs(1))
+        .without_max_times()
+        .with_total_delay(Some(Duration::from_secs(30)))
 }
 
 impl TestNetwork {
+    /// Returns this node's own peer info, as `opp2p_self` does.
     pub(super) async fn peer_info(&self) -> Result<PeerInfo, TestNetworkError> {
-        // Try to get the peer info. Send a peer info request to the network actor.
-        let (peer_info_tx, peer_info_rx) = oneshot::channel();
-        let peer_info_request = P2pRpcRequest::PeerInfo(peer_info_tx);
-        self.p2p_rpc_tx
-            .send(peer_info_request)
-            .await
-            .map_err(|_| TestNetworkError::P2pReceiverClosed)?;
-
-        let info = peer_info_rx.await?;
-
-        Ok(info)
+        Ok(self.p2p_rpc.opp2p_self().await?)
     }
 
+    /// Returns this node's connected peers, as `opp2p_peers` does.
     pub(super) async fn peers(&self) -> Result<PeerDump, TestNetworkError> {
-        let (peers_tx, peers_rx) = oneshot::channel();
-        let peers_request = P2pRpcRequest::Peers { out: peers_tx, connected: true };
-        self.p2p_rpc_tx
-            .send(peers_request)
-            .await
-            .map_err(|_| TestNetworkError::P2pReceiverClosed)?;
-        let peers = peers_rx.await?;
-        Ok(peers)
+        Ok(self.p2p_rpc.opp2p_peers(true).await?)
     }
 
-    pub(super) async fn is_connected_to(&self, other: &Self) -> Result<(), TestNetworkError> {
+    /// Returns whether `other` is among this node's connected peers.
+    pub(super) async fn is_connected_to(&self, other: &Self) -> Result<bool, TestNetworkError> {
         let other_peer_id = other.peer_id().await?;
-        let peers = self.peers().await?;
-        if !peers.peers.contains_key(&other_peer_id) {
+        Ok(self.peers().await?.peers.contains_key(&other_peer_id))
+    }
+
+    /// Returns [`TestNetworkError::PeerNotConnected`] unless `other` is among this node's connected
+    /// peers. An error, rather than a `bool`, so that [`Self::check_connected_to_with_retries`]
+    /// can retry on it.
+    pub(super) async fn check_connected_to(&self, other: &Self) -> Result<(), TestNetworkError> {
+        if !self.is_connected_to(other).await? {
             return Err(TestNetworkError::PeerNotConnected);
         }
         Ok(())
     }
 
-    /// Like `is_connected_to`, but retries a couple of times until the connection is established.
-    pub(super) async fn is_connected_to_with_retries(
+    /// Like `check_connected_to`, but retries until the connection is established, see
+    /// [`retry_backoff`].
+    pub(super) async fn check_connected_to_with_retries(
         &self,
         other: &Self,
     ) -> Result<(), TestNetworkError> {
-        (async || self.is_connected_to(other).await)
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(360))))
+        (async || self.check_connected_to(other).await)
+            .retry(retry_backoff())
             // When to retry
             .when(|e| matches!(e, TestNetworkError::PeerNotConnected))
             .notify(|e, duration| tracing::info!(target: "network", "Retrying connection. Error: {e:?}, duration: {duration:?}"))
             .await
     }
 
+    /// Checks whether `other` is a connected peer subscribed to the block topics, so that blocks
+    /// this node publishes or relays reach it.
+    pub(super) async fn gossips_blocks_with(&self, other: &Self) -> Result<(), TestNetworkError> {
+        let other_peer_id = other.peer_id().await?;
+        match self.peers().await?.peers.get(&other_peer_id) {
+            None => Err(TestNetworkError::PeerNotConnected),
+            Some(info) if !info.gossip_blocks => Err(TestNetworkError::PeerNotGossipingBlocks),
+            Some(_) => Ok(()),
+        }
+    }
+
+    /// Like `gossips_blocks_with`, but retries until it holds, see [`retry_backoff`].
+    pub(super) async fn gossips_blocks_with_retries(
+        &self,
+        other: &Self,
+    ) -> Result<(), TestNetworkError> {
+        (async || self.gossips_blocks_with(other).await)
+            .retry(retry_backoff())
+            .when(|e| {
+                matches!(
+                    e,
+                    TestNetworkError::PeerNotConnected | TestNetworkError::PeerNotGossipingBlocks
+                )
+            })
+            .await
+    }
+
+    /// Returns the first address this node listens on, ending in its `/p2p/<peer id>`.
+    pub(super) async fn listen_addr(&self) -> Result<Multiaddr, TestNetworkError> {
+        let info = self.peer_info().await?;
+        let addr = info.addresses.first().ok_or(TestNetworkError::PeerInfoMissingAddress)?;
+        addr.parse().map_err(|e: libp2p::multiaddr::Error| {
+            TestNetworkError::InvalidMultiaddr(e.to_string())
+        })
+    }
+
+    /// Asks this node to dial `other` at its listen address, the command `opp2p_connectPeer`
+    /// sends. Use [`Self::check_connected_to_with_retries`] to wait for the connection: unlike
+    /// `opp2p_connectPeer`, this does not wait for it.
+    pub(super) async fn connect_to(&self, other: &Self) -> Result<(), TestNetworkError> {
+        let peer = PeerAddr::try_from(other.listen_addr().await?)
+            .map_err(|e| TestNetworkError::InvalidMultiaddr(e.to_string()))?;
+        let (applied_tx, applied_rx) = tokio::sync::oneshot::channel();
+        // Nobody waits for the reply: the caller watches for the connection itself.
+        let reply = tokio::sync::oneshot::channel().0;
+        self.gossip_command_tx
+            .send((GossipCommand::ConnectPeer { peer, reply }, applied_tx))
+            .await
+            .map_err(|_| TestNetworkError::CommandNotApplied)?;
+        applied_rx.await.map_err(|_| TestNetworkError::CommandNotApplied)
+    }
+
+    /// Returns the ENRs in this node's discovery table, as `opp2p_discoveryTable` does.
+    pub(super) async fn discovery_table(&self) -> Result<Vec<Enr>, TestNetworkError> {
+        self.p2p_rpc
+            .opp2p_discovery_table()
+            .await?
+            .iter()
+            .map(|enr| Enr::from_str(enr).map_err(TestNetworkError::InvalidEnr))
+            .collect()
+    }
+
+    /// Returns this node's ENR once it advertises an IP, retrying until then.
+    pub(super) async fn advertised_enr_with_retries(&self) -> Result<Enr, TestNetworkError> {
+        (async || {
+            let enr = self.peer_enr().await?;
+            if enr.ip4().is_none() {
+                return Err(TestNetworkError::NoAdvertisedIp);
+            }
+            Ok(enr)
+        })
+        .retry(retry_backoff())
+        .when(|e| matches!(e, TestNetworkError::NoAdvertisedIp))
+        .await
+    }
+
+    /// Checks that the node with `node_id` is in this node's discovery table, retrying until it
+    /// is.
+    pub(super) async fn check_in_discovery_table_with_retries(
+        &self,
+        node_id: NodeId,
+    ) -> Result<(), TestNetworkError> {
+        (async || {
+            if !self.discovery_table().await?.iter().any(|enr| enr.node_id() == node_id) {
+                return Err(TestNetworkError::NotInDiscoveryTable(node_id));
+            }
+            Ok(())
+        })
+        .retry(retry_backoff())
+        .when(|e| matches!(e, TestNetworkError::NotInDiscoveryTable(_)))
+        .await
+    }
+
+    /// Checks that discovery has sessions with `count` peers, as `opp2p_peerCount` reports them,
+    /// retrying until it has.
+    pub(super) async fn check_discovery_peer_count_with_retries(
+        &self,
+        count: usize,
+    ) -> Result<(), TestNetworkError> {
+        (async || match self.p2p_rpc.opp2p_peer_count().await?.connected_discovery {
+            Some(connected) if connected == count => Ok(()),
+            connected => Err(TestNetworkError::DiscoveryPeerCount(connected)),
+        })
+        .retry(retry_backoff())
+        .when(|e| matches!(e, TestNetworkError::DiscoveryPeerCount(_)))
+        .await
+    }
+
+    /// Returns whether this node runs without discovery, which `opp2p_discoveryTable` reports with
+    /// op-node's error.
+    pub(super) async fn has_discovery_disabled(&self) -> bool {
+        matches!(
+            self.p2p_rpc.opp2p_discovery_table().await,
+            Err(err) if err.message() == "discovery disabled"
+        )
+    }
+
+    /// Returns this node's own ENR.
     pub(super) async fn peer_enr(&self) -> Result<Enr, TestNetworkError> {
         let enr = self.peer_info().await?.enr.ok_or(TestNetworkError::PeerInfoMissingEnr)?;
         // Parse the ENR
@@ -97,7 +248,17 @@ impl TestNetwork {
         Ok(enr)
     }
 
+    /// Returns this node's own peer ID.
     pub(super) async fn peer_id(&self) -> Result<String, TestNetworkError> {
         Ok(self.peer_info().await?.peer_id)
+    }
+
+    /// Returns this node's own discovery node ID, as `opp2p_self` reports it, which it does
+    /// without discovery too.
+    pub(super) async fn node_id(&self) -> Result<NodeId, TestNetworkError> {
+        let node_id = self.peer_info().await?.node_id;
+        let bytes =
+            B256::from_str(&node_id).map_err(|_| TestNetworkError::InvalidNodeId(node_id))?;
+        Ok(NodeId::new(&bytes.0))
     }
 }

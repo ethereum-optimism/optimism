@@ -2,6 +2,10 @@
   "$comment": "Allowlist for validate-nav.ts. Every entry needs a reason string. Entries fall into two categories. (1) Pages deliberately kept out of the sidebar — hidden feature pages, and completed notices under notices/archive/ that keep a permanent URL and are browsed from notices/archive/index.mdx; this category grows and shrinks as pages are deliberately unnavigated or renavigated. (2) Pre-existing violations grandfathered when the guardrail was introduced (tracked in ethereum-optimism/solutions#955); that set only shrinks — new accidental orphans always fail CI.",
   "orphans": [
     {
+      "path": "notices/archive/upgrade-20",
+      "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
+    },
+    {
       "path": "notices/archive/upgrade-19",
       "reason": "Deliberately out of the sidebar: completed notice kept at a permanent URL because live pages link into it. Browsable from the notice archive index (notices/archive/index.mdx), which is the Archive entry in the Notices tab. Remove from this list only if the page is renavigated; delete the page only when nothing links to it and the hardfork registry carries the same facts."
     },

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -40,7 +41,7 @@ type EOA struct {
 // InitMessage represents an initiating message that has been sent and included on chain.
 type InitMessage struct {
 	Tx      *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 // BlockNumber returns the block number from the receipt.
@@ -75,7 +76,7 @@ func (m *InitMessage) String() string {
 type ExecMessage struct {
 	Init    *InitMessage
 	Tx      *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 // BlockNumber returns the block number from the receipt.
@@ -399,7 +400,7 @@ func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {
 }
 
 // SendPackedRandomInitMessages batches random messages and initiates them via a single multicall
-func (u *EOA) SendPackedRandomInitMessages(rng *rand.Rand, eventLoggerAddress common.Address) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
+func (u *EOA) SendPackedRandomInitMessages(rng *rand.Rand, eventLoggerAddress common.Address) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *optypes.Receipt, error) {
 	// Intent to initiate messages
 	eventCnt := 1 + rng.Intn(9)
 	initCalls := make([]txintent.Call, eventCnt)
@@ -416,7 +417,7 @@ func (u *EOA) SendPackedRandomInitMessages(rng *rand.Rand, eventLoggerAddress co
 }
 
 // SendPackedExecMessages batches every message and validates them via a single multicall
-func (u *EOA) SendPackedExecMessages(dependOn *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput]) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
+func (u *EOA) SendPackedExecMessages(dependOn *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput]) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *optypes.Receipt, error) {
 	// Intent to validate message
 	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](u.Plan())
 	tx.Content.DependOn(&dependOn.Result)

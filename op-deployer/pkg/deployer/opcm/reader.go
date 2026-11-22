@@ -86,7 +86,6 @@ func ReadSuperRootEnabled(
 }
 
 // ReadImplementations resolves the full implementation address set from a deployed OPCM.
-// It is the eth_call equivalent of ReadImplementationAddresses.s.sol.
 func ReadImplementations(
 	ctx context.Context,
 	backend CallContractBackend,

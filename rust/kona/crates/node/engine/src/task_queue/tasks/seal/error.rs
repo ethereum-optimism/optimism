@@ -1,4 +1,4 @@
-//! Contains error types for the [`crate::SynchronizeTask`].
+//! Contains error types for the [`crate::SealTask`].
 
 use crate::{EngineTaskError, InsertTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
 use alloy_transport::{RpcError, TransportErrorKind};

@@ -14,7 +14,9 @@ pragma solidity ^0.8.0;
 ///      Update every item below.
 ///
 ///        1. Add the new feature bit in this file. Do not reuse a retired value unless the reuse is
-///           intentional and reviewed.
+///           intentional and reviewed. Retired values: 0x1 (OPTIMISM_PORTAL_INTEROP), 0x10
+///           (CANNON_KONA), 0x1000 (CUSTOM_GAS_TOKEN), 0x10000 (OPCM_V2), 0x100000 (L2CM) and
+///           0x1000000 (ZK_DISPUTE_GAME).
 ///        2. Add the matching Go flag in `op-core/devfeatures/devfeatures.go`. The Go value MUST
 ///           match the Solidity value byte-for-byte.
 ///        3. Add the env var reader in `packages/contracts-bedrock/scripts/libraries/Config.sol`.
@@ -23,28 +25,27 @@ pragma solidity ^0.8.0;
 ///        5. Add CI coverage in `.circleci/continue/main.yml` under the `&features_matrix` anchor.
 ///           Add combination rows when this feature interacts with another feature. Document
 ///           intentionally unsupported combinations near the matrix. Do not register dev features in
-///           `setup-features.system_features.default`.
+///           `setup-features.system_features.default`. List each new matrix job by name in the
+///           `requires` of `required-contracts-ci`, or the job runs without gating the merge.
 ///
 ///      For the parallel SYSTEM feature checklist, see
 ///      packages/contracts-bedrock/src/libraries/Features.sol.
 library DevFeatures {
-    /// @notice The feature that enables the Interop migration functions on the OptimismPortal2 contract.
-    bytes32 public constant OPTIMISM_PORTAL_INTEROP =
-        bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
-
     /// @notice The feature that enables deployment of V2 dispute game contracts.
     /// @custom:legacy
     /// This feature is no longer used, but is kept here for legacy reasons.
     bytes32 public constant DEPLOY_V2_DISPUTE_GAMES =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
 
-    /// @notice The feature that enables the ZK dispute game system (ZKDisputeGame).
-    bytes32 public constant ZK_DISPUTE_GAME =
-        bytes32(0x0000000000000000000000000000000000000000000000000000000001000000);
-
     /// @notice The feature that enables the super root games migration path in OPCM upgrade.
     bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =
         bytes32(0x0000000000000000000000000000000000000000000000000000000010000000);
+
+    /// @notice The feature that enables bridge hook configuration on OptimismPortal2.
+    bytes32 public constant BRIDGE_HOOK = bytes32(0x0000000000000000000000000000000000000000000000000000000100000000);
+
+    /// @notice The feature that enables OP Private.
+    bytes32 public constant OP_PRIVATE = bytes32(0x0000000000000000000000000000000000000000000000000000001000000000);
 
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation

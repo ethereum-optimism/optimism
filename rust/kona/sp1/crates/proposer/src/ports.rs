@@ -2,11 +2,13 @@
 
 use std::sync::Arc;
 
+use alloy_consensus::{Header, Sealed};
 use alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, U256};
 use anyhow::Result;
 use async_trait::async_trait;
-use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
+use kona_sp1_super_range_executor::{OptimisticBlockReceipts, SuperRootAtTimestampResponse};
+use op_alloy_consensus::OpReceiptEnvelope;
 
 use crate::{
     contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
@@ -202,6 +204,8 @@ pub(crate) trait L1View: Send + Sync {
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim>;
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity>;
     async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity>;
+    /// Block number of the game's immutable `l1Head()`.
+    async fn game_l1_head_number(&self, game: Address, block: BlockId) -> Result<u64>;
     async fn game_lifecycle(
         &self,
         game: Address,
@@ -249,6 +253,37 @@ pub(crate) trait L1View: Send + Sync {
 pub(crate) trait SuperRootSource: Send + Sync {
     async fn proposal_horizon(&self, timestamp: u64) -> Result<ProposalHorizon>;
     async fn super_root_at_timestamp(&self, timestamp: u64) -> Result<SuperRootAtTimestamp>;
+}
+
+/// L2 block reads by chain. A read by hash, and receipts, are checked against their hashes.
+#[async_trait]
+pub(crate) trait L2BlockSource: Send + Sync {
+    async fn header_by_hash(&self, chain_id: u64, hash: B256) -> Result<Header>;
+    /// The canonical header at `number`.
+    async fn header_by_number(&self, chain_id: u64, number: u64) -> Result<Sealed<Header>>;
+    /// The receipts of block `hash`, which must hash to `receipts_root`.
+    async fn receipts(
+        &self,
+        chain_id: u64,
+        hash: B256,
+        receipts_root: B256,
+    ) -> Result<Vec<OpReceiptEnvelope>>;
+}
+
+/// Optimistic blocks that the claimed super root replaced. The supernode's rewind leaves such a
+/// block non-canonical, so an L2 node may have pruned it, or never held it if it synced later.
+#[async_trait]
+pub(crate) trait ReplacedBlockSource: Send + Sync {
+    /// The header and receipts of `hash`, the optimistic block of `chain_id` whose parent is the
+    /// canonical block `parent`. kona-host retries a block it cannot serve until it can, so with
+    /// kona-host this waits instead of failing, as the consolidation's witness collection does for
+    /// the same block.
+    async fn replaced_block(
+        &self,
+        chain_id: u64,
+        parent: B256,
+        hash: B256,
+    ) -> Result<OptimisticBlockReceipts>;
 }
 
 /// Expensive witness collection and SP1 proof execution.

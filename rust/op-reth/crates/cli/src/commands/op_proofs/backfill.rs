@@ -1,16 +1,15 @@
 //! Command that backfills OP proofs storage to an older earliest block.
 
+use crate::chainspec::OpChainSpecParser;
 use clap::Parser;
-use reth_chainspec::EthChainSpec;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{
     ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
-    ProofsStorageVersion,
 };
 use reth_optimism_trie::{
-    BackfillJob, OpProofsBackfillStore, OpProofsProviderRO, db::MdbxProofsStorageV2,
+    BackfillJob, OpProofsBackfillStore, OpProofsProviderRO, db::MdbxProofsStorage,
 };
 use reth_provider::{
     BlockHashReader, BlockNumReader, ChangeSetReader, DBProvider, DatabaseProviderFactory,
@@ -21,9 +20,9 @@ use tracing::info;
 
 /// Backfills the proofs storage to an older earliest block.
 #[derive(Debug, Parser)]
-pub struct BackfillCommand<C: ChainSpecParser> {
+pub struct BackfillCommand {
     #[command(flatten)]
-    env: EnvironmentArgs<C>,
+    env: EnvironmentArgs<OpChainSpecParser>,
 
     /// Shared proofs-history storage flags (storage path + version).
     #[command(flatten)]
@@ -39,9 +38,9 @@ pub struct BackfillCommand<C: ChainSpecParser> {
     pub backfill_args: ProofsHistoryBackfillArgs,
 }
 
-impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> BackfillCommand<C> {
+impl BackfillCommand {
     /// Execute [`BackfillCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -52,27 +51,17 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> BackfillCommand<C> {
         let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
         info!(target: "reth::cli", "Backfilling OP proofs storage at: {:?}", storage_path);
 
-        match self.history.storage_version {
-            ProofsStorageVersion::V1 => {
-                return Err(eyre::eyre!(
-                    "Backfill is not supported for V1 proofs storage. \
-                     Re-run with --proofs-history.storage-version v2."
-                ));
-            }
-            ProofsStorageVersion::V2 => {
-                let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-                    MdbxProofsStorageV2::new(&storage_path)
-                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
-                );
-                Self::run_backfill(
-                    &provider_factory,
-                    storage,
-                    self.proofs_history_window.window,
-                    self.backfill_args.use_snapshot,
-                    self.backfill_args.backfill_batch_size,
-                )?;
-            }
-        }
+        let storage: Arc<MdbxProofsStorage> = Arc::new(
+            MdbxProofsStorage::new(&storage_path)
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+        );
+        Self::run_backfill(
+            &provider_factory,
+            storage,
+            self.proofs_history_window.window,
+            self.backfill_args.use_snapshot,
+            self.backfill_args.backfill_batch_size,
+        )?;
 
         Ok(())
     }
@@ -126,11 +115,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> BackfillCommand<C> {
         }
         Ok(())
     }
-}
 
-impl<C: ChainSpecParser> BackfillCommand<C> {
     /// Returns the underlying chain being used to run this command
-    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         Some(&self.env.chain)
     }
 }

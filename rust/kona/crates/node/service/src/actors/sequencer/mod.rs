@@ -3,6 +3,11 @@
 mod config;
 pub use config::SequencerConfig;
 
+mod origin_prefetch;
+pub(crate) use origin_prefetch::{
+    OriginPrefetcher, OriginPreparation, PreparedAttributesProvider, PreparedOriginProvider,
+};
+
 mod origin_selector;
 pub use origin_selector::{
     DelayedL1OriginSelectorProvider, L1OriginSelector, L1OriginSelectorError,
@@ -11,9 +16,6 @@ pub use origin_selector::{
 
 mod actor;
 pub use actor::SequencerActor;
-
-mod admin_api_impl;
-pub use admin_api_impl::SequencerAdminQuery;
 
 mod metrics;
 
@@ -35,6 +37,3 @@ pub use engine_client::MockSequencerEngineClient;
 
 #[cfg(test)]
 pub use origin_selector::MockOriginSelector;
-
-#[cfg(test)]
-mod tests;

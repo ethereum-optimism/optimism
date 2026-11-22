@@ -172,9 +172,6 @@ pub enum EIP1559ParamError {
     /// Minimum base fee cannot be None after Jovian.
     #[error("Minimum base fee cannot be None after Jovian")]
     MinBaseFeeNotSet,
-    /// Invalid post-exec payload or post-exec transaction placement.
-    #[error("Invalid post-exec payload")]
-    InvalidPostExecPayload,
 }
 
 #[cfg(test)]

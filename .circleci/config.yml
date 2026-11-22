@@ -15,7 +15,7 @@ parameters:
   # Provenance is verified by .github/workflows/security.yml.
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/circleci-runner-wolfi@sha256:5998ffd3bc688988140e697da55cf929abf1a05f5540db1069e4744e5e313ba0
   base_image:
     type: string
     default: default
@@ -53,9 +53,6 @@ parameters:
   stale_check_dispatch:
     type: boolean
     default: false
-  contracts_coverage_dispatch:
-    type: boolean
-    default: false
   heavy_fuzz_dispatch:
     type: boolean
     default: false
@@ -68,18 +65,12 @@ parameters:
   rust_nightly_bump_dispatch:
     type: boolean
     default: false
+  rust_advisories_dispatch:
+    type: boolean
+    default: false
   l2_fork_test_dispatch:
     type: boolean
     default: false
-  github-event-type:
-    type: string
-    default: "__not_set__"
-  github-event-action:
-    type: string
-    default: "__not_set__"
-  github-event-base64:
-    type: string
-    default: "__not_set__"
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   go-cache-version:
     type: string
@@ -87,7 +78,71 @@ parameters:
 
 orbs:
   continuation: circleci/continuation@2.0.1
-  utils: ethereum-optimism/circleci-utils@1.0.32
+  utils: ethereum-optimism/circleci-utils@1.0.34
+
+commands:
+  github-checkout:
+    description: "Check out the optimism repo over HTTPS, anonymously."
+    parameters:
+      method:
+        description: "Clone method: full or blobless (blob:none filter)."
+        type: enum
+        enum: ["full", "blobless"]
+        default: "full"
+    steps:
+      - run:
+          name: Check out code
+          environment:
+            CHECKOUT_METHOD: << parameters.method >>
+          command: |
+            set -euo pipefail
+
+            : "${CIRCLE_SHA1:?CIRCLE_SHA1 is not set}"
+
+            repo_url="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+
+            fetch_repo() {
+              if [ "$CHECKOUT_METHOD" = "blobless" ]; then
+                git fetch --filter=blob:none "$@"
+              else
+                git fetch "$@"
+              fi
+            }
+
+            if [ ! -e .git ]; then
+              git init -q
+            fi
+
+            if git remote get-url origin >/dev/null 2>&1; then
+              git remote set-url origin "$repo_url"
+            else
+              git remote add origin "$repo_url"
+            fi
+
+            echo "Checking out anonymously"
+
+            fetch_repo --quiet --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
+            fetch_repo origin "$CIRCLE_SHA1"
+            git branch --force develop refs/remotes/origin/develop
+
+            if [ -n "${CIRCLE_BRANCH:-}" ]; then
+              git checkout -q --force -B "$CIRCLE_BRANCH" "$CIRCLE_SHA1"
+            else
+              git checkout -q --force "$CIRCLE_SHA1"
+            fi
+
+            if [ "$(git rev-parse HEAD)" != "$CIRCLE_SHA1" ]; then
+              echo "HEAD $(git rev-parse HEAD) does not match CIRCLE_SHA1 ${CIRCLE_SHA1}" >&2
+              exit 1
+            fi
+
+            if [ -n "${CIRCLE_TAG:-}" ]; then
+              if ! git rev-parse -q --verify "refs/tags/${CIRCLE_TAG}" >/dev/null; then
+                echo "Tag ${CIRCLE_TAG} not found" >&2
+                exit 1
+              fi
+            fi
+
 
 jobs:
   # --------------------------------------------------------------------------
@@ -110,10 +165,12 @@ jobs:
   prepare-continuation-config:
     docker:
       - image: << pipeline.parameters.default_docker_image >>
+    resource_class: large.gen2
     environment:
       BASE_REVISION: develop
     steps:
-      - checkout
+      - github-checkout:
+          method: blobless
       # Front-loads the mise toolset for the whole pipeline: this job always
       # completes before the continuation pipeline exists, so on a cold cache
       # (mise.toml change or eviction) it is the only job that cold-installs —
@@ -127,6 +184,7 @@ jobs:
       # (e.g. to just yq) would freeze an incomplete toolset for every
       # continuation job and silently force them all to cold-install forever.
       - utils/install-mise:
+          trusted_branch: develop
           enable_mise_cache: true
       # mise shims re-resolve the tool on every invocation, which the yq/jq
       # loops in the routing scripts below pay hundreds of times (~9s of
@@ -141,10 +199,15 @@ jobs:
       - run:
           name: Test decision tree
           command: .circleci/scripts/test-decision-tree.sh
+      # Fails if the shared Go module cache helper stops making Go read the
+      # directory it restores (machine images use a different default GOPATH).
+      - run:
+          name: Test Go module cache setup
+          command: python3 .circleci/scripts/test-go-mod-cache.py
       # Forward string pipeline parameters to /tmp/pipeline-parameters.json.
       # collect-params.sh picks up all env vars starting with "c-" and writes them as JSON strings.
       # Add a line here when a new string value needs to reach continuation config jobs
-      # (e.g., a new docker image, event payload, or cache version).
+      # (e.g., a new docker image or cache version).
       - run:
           name: Store string pipeline parameters in JSON file
           command: .circleci/scripts/collect-params.sh str
@@ -152,9 +215,6 @@ jobs:
             c-default_docker_image: << pipeline.parameters.default_docker_image >>
             c-rust_base_image: << pipeline.parameters.rust_base_image >>
             c-base_image: << pipeline.parameters.base_image >>
-            c-github-event-type: << pipeline.parameters.github-event-type >>
-            c-github-event-action: << pipeline.parameters.github-event-action >>
-            c-github-event-base64: << pipeline.parameters.github-event-base64 >>
             c-go-cache-version: << pipeline.parameters.go-cache-version >>
             c-publish_contract_artifacts_ref: << pipeline.parameters.publish_contract_artifacts_ref >>
       # Same as above but for booleans. Separate step because CircleCI renders
@@ -174,16 +234,23 @@ jobs:
             c-sdk_dispatch: << pipeline.parameters.sdk_dispatch >>
             c-publish_contract_artifacts_dispatch: << pipeline.parameters.publish_contract_artifacts_dispatch >>
             c-stale_check_dispatch: << pipeline.parameters.stale_check_dispatch >>
-            c-contracts_coverage_dispatch: << pipeline.parameters.contracts_coverage_dispatch >>
             c-heavy_fuzz_dispatch: << pipeline.parameters.heavy_fuzz_dispatch >>
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-rust_nightly_bump_dispatch: << pipeline.parameters.rust_nightly_bump_dispatch >>
+            c-rust_advisories_dispatch: << pipeline.parameters.rust_advisories_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
+      # Diff against the PR's target branch, as the get-target-branch command does.
+      - run:
+          name: Determine change detection base
+          command: |
+            GH_TOKEN="${REPO_GITHUB_TOKEN:-${MISE_GITHUB_TOKEN:-}}" source scripts/ops/get-target-branch.sh
+            printf 'export BASE_REVISION=%q\n' "$TARGET_BRANCH" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
       # Change-detection patterns live in routing.yml (change_patterns.any and
       # change_patterns.all). Each is a POSIX ERE matched line-by-line against
-      # `git diff --name-only origin/develop...HEAD`; collect-params.sh writes
-      # the resulting c-<name> boolean into the JSON.
+      # `git diff --name-only origin/${BASE_REVISION}...HEAD`; collect-params.sh
+      # writes the resulting c-<name> boolean into the JSON.
       #
       # Test a pattern locally:
       #   git diff --name-only origin/develop...HEAD | grep -E "^your/pattern/"

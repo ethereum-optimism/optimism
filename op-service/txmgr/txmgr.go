@@ -166,7 +166,8 @@ type SimpleTxManager struct {
 
 	pending atomic.Int64
 
-	closed atomic.Bool
+	closed    chan struct{}
+	closeOnce sync.Once
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
@@ -191,6 +192,7 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 		backend: conf.Backend,
 		l:       l.New("service", name),
 		metr:    m,
+		closed:  make(chan struct{}),
 	}
 
 	// Initialize the BlobTipOracle if BTOConfig is provided
@@ -252,15 +254,17 @@ func (m *SimpleTxManager) API() rpc.API {
 	}
 }
 
-// Close closes the underlying connection, and sets the closed flag.
-// once closed, the tx manager will refuse to send any new transactions, and may abandon pending ones.
+// Close closes the underlying connection and marks the tx manager closed.
+// A closed tx manager refuses new transactions and abandons pending ones with ErrClosed,
+// because it can no longer query L1 to confirm them.
 func (m *SimpleTxManager) Close() {
-	// Close the blob tip oracle if it's running
-	if m.blobTipOracle != nil {
-		m.blobTipOracle.Close()
-	}
-	m.backend.Close()
-	m.closed.Store(true)
+	m.closeOnce.Do(func() {
+		close(m.closed)
+		if m.blobTipOracle != nil {
+			m.blobTipOracle.Close()
+		}
+		m.backend.Close()
+	})
 }
 
 func (m *SimpleTxManager) txLogger(tx *types.Transaction, logGas bool) log.Logger {
@@ -302,7 +306,7 @@ type TxCandidate struct {
 // NOTE: Send can be called concurrently, the nonce will be managed internally.
 func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
 	// refuse new requests if the tx manager is closed
-	if m.closed.Load() {
+	if m.IsClosed() {
 		return nil, ErrClosed
 	}
 
@@ -336,7 +340,7 @@ func (m *SimpleTxManager) SendAsync(ctx context.Context, candidate TxCandidate, 
 	}
 
 	// refuse new requests if the tx manager is closed
-	if m.closed.Load() {
+	if m.IsClosed() {
 		ch <- SendResponse{
 			Receipt: nil,
 			Err:     ErrClosed,
@@ -381,8 +385,18 @@ func (m *SimpleTxManager) SendAsync(ctx context.Context, candidate TxCandidate, 
 
 // prepare prepares the transaction for sending.
 func (m *SimpleTxManager) prepare(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
+	// Cancel the retries when the tx manager closes, because each later attempt fails.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-m.closed:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
-		if m.closed.Load() {
+		if m.IsClosed() {
 			return nil, ErrClosed
 		}
 		tx, err := m.craftTx(ctx, candidate)
@@ -392,6 +406,9 @@ func (m *SimpleTxManager) prepare(ctx context.Context, candidate TxCandidate) (*
 		return tx, err
 	})
 	if err != nil {
+		if m.IsClosed() {
+			return nil, ErrClosed
+		}
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
 	}
 	return tx, nil
@@ -422,13 +439,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 			return nil, errors.New("blob txs cannot deploy contracts")
 		}
 
-		// Use configuration to determine whether to enable cell proofs.
-		// We add a 12s buffer, because cell proofs are likely _not_
-		// supported before the Fusaka fork and legacy blob proofs
-		// may well be accepted after the Fusaka fork.
-		useCellProofs := m.cfg.CellProofTime < uint64(time.Now().Add(-12*time.Second).Unix())
-		m.l.Debug("crafting Blob transaction", "useCellProofs", useCellProofs)
-		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, useCellProofs); err != nil {
+		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs); err != nil {
 			return nil, fmt.Errorf("failed to make sidecar: %w", err)
 		}
 	}
@@ -577,20 +588,12 @@ func (m *SimpleTxManager) SetBlobTipCapDynamic(val bool) {
 	m.l.Info("txmgr config val changed: SetBlobTipCapDynamic", "newVal", val)
 }
 
-// MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
-// data with configurable cell proof support.
-func MakeSidecar(blobs []*eth.Blob, enableCellProofs bool) (*types.BlobTxSidecar, []common.Hash, error) {
-	var sidecar *types.BlobTxSidecar
-	if enableCellProofs {
-		sidecar = &types.BlobTxSidecar{
-			Proofs:  make([]kzg4844.Proof, 0, len(blobs)*kzg4844.CellProofsPerBlob),
-			Version: types.BlobSidecarVersion1, // Use Version1 for cell proofs (Fusaka compatibility)
-		}
-	} else {
-		sidecar = &types.BlobTxSidecar{
-			Proofs:  make([]kzg4844.Proof, 0, len(blobs)),
-			Version: types.BlobSidecarVersion0, // Use Version0 for legacy blob proofs
-		}
+// MakeSidecar builds & returns the BlobTxSidecar, with cell proofs (EIP-7594), and the
+// corresponding blob hashes from the raw blob data.
+func MakeSidecar(blobs []*eth.Blob) (*types.BlobTxSidecar, []common.Hash, error) {
+	sidecar := &types.BlobTxSidecar{
+		Proofs:  make([]kzg4844.Proof, 0, len(blobs)*kzg4844.CellProofsPerBlob),
+		Version: types.BlobSidecarVersion1,
 	}
 
 	blobHashes := make([]common.Hash, 0, len(blobs))
@@ -604,21 +607,11 @@ func MakeSidecar(blobs []*eth.Blob, enableCellProofs bool) (*types.BlobTxSidecar
 		}
 		sidecar.Commitments = append(sidecar.Commitments, commitment)
 		blobHashes = append(blobHashes, eth.KZGToVersionedHash(commitment))
-		if enableCellProofs {
-			// Version1: Use cell proofs for Fusaka compatibility
-			cellProofs, err := kzg4844.ComputeCellProofs(rawBlob)
-			if err != nil {
-				return nil, nil, fmt.Errorf("cannot compute KZG cell proofs for blob %d in tx candidate: %w", i, err)
-			}
-			sidecar.Proofs = append(sidecar.Proofs, cellProofs...)
-		} else {
-			// Version0: Use legacy blob proofs
-			proof, err := kzg4844.ComputeBlobProof(rawBlob, sidecar.Commitments[i])
-			if err != nil {
-				return nil, nil, fmt.Errorf("cannot compute KZG proof for fast commitment verification of blob %d in tx candidate: %w", i, err)
-			}
-			sidecar.Proofs = append(sidecar.Proofs, proof)
+		cellProofs, err := kzg4844.ComputeCellProofs(rawBlob)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot compute KZG cell proofs for blob %d in tx candidate: %w", i, err)
 		}
+		sidecar.Proofs = append(sidecar.Proofs, cellProofs...)
 	}
 
 	return sidecar, blobHashes, nil
@@ -693,21 +686,21 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 
 	for {
 		retryTicker := &time.Ticker{}
+		if m.IsClosed() {
+			m.txLogger(tx, false).Warn("TxManager closed, aborting transaction submission")
+			return nil, ErrClosed
+		}
 		if !sendState.IsWaitingForConfirmation() {
-			if m.closed.Load() {
-				// the tx manager closed and no txs are waiting to be confirmed, give up
-				m.txLogger(tx, false).Warn("TxManager closed, aborting transaction submission")
-				return nil, ErrClosed
-			}
 			var published bool
 			var err error
 			if tx, published, err = m.publishTx(ctx, tx, sendState); published {
 				retryCount = 0
 				wg.Add(1)
-				go func() {
+				// Pass tx so that each published version keeps its own waiter after a later fee bump.
+				go func(tx *types.Transaction) {
 					defer wg.Done()
 					m.waitForTx(ctx, tx, sendState, receiptChan)
-				}()
+				}(tx)
 				rebroadcastInterval := m.GetRebroadcastInterval()
 				if rebroadcastInterval > 0 {
 					retryTicker = time.NewTicker(rebroadcastInterval)
@@ -740,6 +733,10 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 
 		case <-ctx.Done():
 			return nil, ctx.Err()
+
+		case <-m.closed:
+			m.txLogger(tx, false).Warn("TxManager closed, aborting transaction submission")
+			return nil, ErrClosed
 
 		case receipt := <-receiptChan:
 			m.metr.RecordGasBumpCount(sendState.bumpCount)
@@ -1177,7 +1174,12 @@ func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int
 
 // IsClosed returns true if the tx manager is closed.
 func (m *SimpleTxManager) IsClosed() bool {
-	return m.closed.Load()
+	select {
+	case <-m.closed:
+		return true
+	default:
+		return false
+	}
 }
 
 // calcThresholdValue returns ceil(x * priceBumpPercent / 100) for non-blob txs, or

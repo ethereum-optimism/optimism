@@ -7,7 +7,7 @@ mod builder;
 pub use builder::NetworkBuilder;
 
 mod config;
-pub use config::NetworkConfig;
+pub use config::{IpVotes, NetworkConfig};
 
 mod driver;
 pub use driver::{NetworkDriver, NetworkDriverError};
@@ -24,7 +24,7 @@ pub use gossip::{
 };
 
 mod handler;
-pub use handler::NetworkHandler;
+pub use handler::{NetworkHandler, RunningDiscovery};
 
 #[cfg(test)]
 pub use gossip::MockUnsafePayloadGossipClient;

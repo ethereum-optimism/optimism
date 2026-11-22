@@ -24,24 +24,18 @@ where
     O: CommsClient + FlushableCache + Send + Sync + Debug,
     B: BlobProvider + Send + Sync + Debug + Clone,
 {
-    dependency_set: Option<Arc<DependencySet>>,
+    dependency_set: Arc<DependencySet>,
     _marker: std::marker::PhantomData<(O, B)>,
 }
 
-#[allow(clippy::new_without_default)]
 impl<O, B> ETHDAWitnessExecutor<O, B>
 where
     O: CommsClient + FlushableCache + Send + Sync + Debug,
     B: BlobProvider + Send + Sync + Debug + Clone,
 {
-    /// Creates a new [`ETHDAWitnessExecutor`].
-    pub const fn new() -> Self {
-        Self { dependency_set: None, _marker: std::marker::PhantomData }
-    }
-
     /// Creates a new [`ETHDAWitnessExecutor`] with an interop dependency set.
-    pub const fn new_with_dependency_set(dependency_set: Arc<DependencySet>) -> Self {
-        Self { dependency_set: Some(dependency_set), _marker: std::marker::PhantomData }
+    pub const fn new(dependency_set: Arc<DependencySet>) -> Self {
+        Self { dependency_set, _marker: std::marker::PhantomData }
     }
 }
 
@@ -77,7 +71,7 @@ where
             da_provider,
             l1_provider,
             l2_provider,
-            self.dependency_set.clone(),
+            Some(self.dependency_set.clone()),
         )
         .await?)
     }

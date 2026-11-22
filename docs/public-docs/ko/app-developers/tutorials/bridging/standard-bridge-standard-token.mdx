@@ -1,0 +1,401 @@
+---
+title: Standard Bridge용 L2 토큰 생성하기
+description: OP Stack 체인의 Standard Bridge와 함께 동작하는 L1 ERC-20 토큰의 표준 또는 커스텀 L2 표현 토큰을 생성하는 방법을 알아봅니다.
+diataxis: tutorial
+---
+
+import TutorialSetupWalletAndFunds, { TutorialFaucets } from '/ko/snippets/tutorial-setup-wallet-and-funds.mdx';
+import StandardBridgeTokenWarning from '/ko/snippets/standard-bridge-token-warning.mdx';
+
+이 튜토리얼에서는 OP Stack 체인의 Standard Bridge 시스템과 함께 동작하는, L1 ERC-20 토큰의 L2 표현 토큰을 생성합니다.
+이 튜토리얼은 이미 Ethereum에 ERC-20 토큰을 보유하고 있으며 layer 2에서 해당 토큰의 브리징된 표현 토큰을 만들려는 개발자를 위한 것입니다.
+튜토리얼을 마치면 Standard Bridge가 발행(mint)하고 소각(burn)할 수 있는 L2 토큰 컨트랙트가 OP Sepolia에 배포됩니다.
+이 튜토리얼에서는 브리징 자체는 다루지 않습니다. L2 토큰을 만든 후 L1과 L2 간에 토큰을 이동하려면 [viem으로 ERC-20 토큰 브리징하기](./cross-dom-bridge-erc20)를 따르십시오.
+
+Standard Bridge는 두 종류의 L2 토큰을 지원하며, 이 튜토리얼에서는 두 가지 모두를 다룹니다.
+
+*   [`OptimismMintableERC20Factory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol)를 통해 배포되는 **표준 토큰(standard token)**.
+    이 팩토리 컨트랙트로 생성된 토큰은 Standard Bridge 시스템과 호환되며 입금(디파짓), 전송, 출금을 위한 기본 로직을 포함합니다.
+    L2 토큰에 특수한 로직이 필요하지 않다면 이 방법을 선택하십시오.
+*   [`IOptimismMintableERC20`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/universal/IOptimismMintableERC20.sol) 인터페이스를 직접 구현하는 **커스텀 토큰(custom token)**.
+    커스텀 토큰을 사용하면 토큰이 입금될 때마다 추가 로직을 트리거하는 등의 작업을 할 수 있습니다.
+    이와 같은 특수한 동작이 필요하다면 이 방법을 선택하십시오.
+
+두 방법은 동일한 설정 과정을 공유하며, [L2 ERC-20 토큰 생성](#create-an-l2-erc-20-token) 섹션에서 나뉘어 각각 별도의 탭으로 안내됩니다.
+
+<StandardBridgeTokenWarning />
+
+## OptimismMintableERC20 소개
+
+Standard Bridge 시스템에서는 L1 토큰의 L2 표현 토큰이 [`IOptimismMintableERC20`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/universal/IOptimismMintableERC20.sol) 인터페이스를 구현해야 합니다.
+이 인터페이스는 표준 ERC-20 인터페이스의 상위 집합으로, bridge가 입금/출금을 올바르게 검증하고 필요에 따라 토큰을 발행/소각할 수 있도록 하는 함수를 포함합니다.
+Standard Bridge 시스템을 사용하여 브리징하려면 L2 토큰 컨트랙트가 이 인터페이스를 구현해야 합니다.
+이 튜토리얼에서는 [`OptimismMintableERC20Factory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol)를 통해 기본 표준 ERC-20 토큰을 배포하는 방법과, 인터페이스를 직접 구현하는 커스텀 토큰을 작성하는 방법을 보여 줍니다.
+
+## 의존성
+
+*   [cast](https://book.getfoundry.sh/getting-started/installation): 표준 토큰 방법에서 팩토리를 통해 배포할 때 사용합니다
+*   지갑 확장 프로그램이 설치된 웹 브라우저: 커스텀 토큰 방법에서 [Remix](https://remix.ethereum.org)로 배포할 때 사용합니다
+
+## Sepolia 및 OP Sepolia에서 ETH 받기
+
+이 튜토리얼에서는 OP Sepolia에서 브리징된 ERC-20 토큰을 생성하는 방법을 설명합니다.
+두 testnet 모두에서 약간의 ETH가 필요합니다.
+
+<TutorialFaucets />
+
+## L1 ERC-20 토큰 주소 준비
+
+이 튜토리얼에는 L1 ERC-20 토큰이 필요합니다.
+이미 Sepolia에 배포된 L1 ERC-20 토큰이 있다면 이 단계를 건너뛸 수 있습니다.
+그렇지 않으면 [`0x5589BB8228C07c4e15558875fAf2B859f678d129`](https://sepolia.etherscan.io/address/0x5589BB8228C07c4e15558875fAf2B859f678d129)에 있는 테스트 토큰을 사용할 수 있습니다. 이 토큰에는 토큰을 발행하는 데 사용할 수 있는 `faucet()` 함수가 포함되어 있습니다.
+
+## L2 ERC-20 토큰 생성
+
+L1 ERC-20 토큰이 준비되면 OP Sepolia에서 대응하는 L2 ERC-20 토큰을 생성할 수 있습니다.
+생성하려는 토큰 종류에 맞는 탭을 선택하십시오.
+
+<Tabs>
+  <Tab title="표준 토큰">
+
+  [`OptimismMintableERC20Factory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol)를 사용하여 L2 ERC-20 토큰을 배포할 수 있습니다.
+  팩토리로 생성된 모든 토큰은 `IOptimismMintableERC20` 인터페이스를 구현하며 Standard Bridge 시스템과 호환됩니다.
+
+  <Steps>
+    <Step title="환경에 개인 키 추가">
+
+    <TutorialSetupWalletAndFunds networks="OP Sepolia" />
+
+    </Step>
+    <Step title="환경에 OP Sepolia RPC URL 추가">
+
+    OP Sepolia에 연결하려면 RPC URL이 필요합니다.
+    `export` 명령으로 RPC URL을 환경 변수로 설정합니다.
+
+    ```bash
+export TUTORIAL_RPC_URL=https://sepolia.optimism.io
+```
+
+    </Step>
+    <Step title="환경에 L1 ERC-20 토큰 주소 추가">
+
+    OP Sepolia에서 L1 ERC-20 토큰의 브리징된 표현 토큰을 생성하려면 해당 L1 토큰의 주소를 알아야 합니다.
+    `export` 명령으로 L1 ERC-20 토큰 주소를 환경 변수로 설정합니다.
+
+    ```bash
+# Replace this with your L1 ERC-20 token if not using the testing token!
+export TUTORIAL_L1_ERC20_ADDRESS=0x5589BB8228C07c4e15558875fAf2B859f678d129
+```
+
+    </Step>
+    <Step title="L2 ERC-20 토큰 배포">
+
+    이제 [`OptimismMintableERC20Factory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol)를 사용하여 L2 ERC-20 토큰을 배포할 수 있습니다.
+    `cast` 명령을 사용하여 팩토리 컨트랙트의 배포 함수를 호출합니다.
+    이 예제 명령은 이름이 "My Standard Demo Token"이고 심볼이 "L2TKN"인 토큰을 생성합니다.
+    생성된 L2 ERC-20 토큰 주소가 콘솔에 출력됩니다.
+
+    ```bash
+cast send 0x4200000000000000000000000000000000000012 "createOptimismMintableERC20(address,string,string)" $TUTORIAL_L1_ERC20_ADDRESS "My Standard Demo Token" "L2TKN" --private-key $TUTORIAL_PRIVATE_KEY --rpc-url $TUTORIAL_RPC_URL --json | jq -r '.logs[0].topics[2]' | cast parse-bytes32-address
+```
+
+    </Step>
+  </Steps>
+
+  </Tab>
+  <Tab title="커스텀 토큰">
+
+  이 방법에서는 [Remix](https://remix.ethereum.org)를 사용하므로 [Hardhat](https://hardhat.org)이나 [Foundry](https://getfoundry.sh) 같은 프레임워크 없이도 토큰을 쉽게 배포할 수 있습니다.
+  원한다면 선호하는 프레임워크에서 동일한 일반 과정을 따를 수도 있습니다.
+
+  이 섹션에서는 입금은 가능하지만 출금은 불가능한 ERC-20 토큰을 생성합니다.
+  이는 L2 토큰을 커스터마이즈할 수 있는 무수히 많은 방법 중 하나의 예일 뿐입니다.
+
+  <Steps>
+    <Step title="지갑에 OP Sepolia 추가">
+
+    이 방법을 따르려면 지갑에 OP Sepolia 네트워크를 추가해야 합니다.
+    [이 웹사이트](https://chainid.link?network=op-sepolia)를 사용하여 지갑을 OP Sepolia에 연결할 수 있습니다.
+
+    </Step>
+    <Step title="Remix 열기">
+
+    브라우저에서 [Remix](https://remix.ethereum.org)로 이동합니다.
+
+    </Step>
+    <Step title="새 파일 생성">
+
+    📄 ("Create new file") 버튼을 클릭하여 비어 있는 새 Solidity 파일을 생성합니다.
+    파일 이름은 원하는 대로 지정할 수 있습니다(예: `MyCustomL2Token.sol`).
+
+    </Step>
+    <Step title="예제 컨트랙트 복사">
+
+    다음 예제 컨트랙트를 새 파일에 복사합니다.
+
+    ```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.20;
+
+// Import the standard ERC20 implementation from OpenZeppelin
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+/**
+ * @title ILegacyMintableERC20
+ * @notice Legacy interface for the StandardL2ERC20 contract.
+ */
+interface ILegacyMintableERC20 {
+    function mint(address _to, uint256 _amount) external;
+    function burn(address _from, uint256 _amount) external;
+
+    function l1Token() external view returns (address);
+    function l2Bridge() external view returns (address);
+}
+
+/**
+ * @title IOptimismMintableERC20
+ * @notice Interface for the OptimismMintableERC20 contract.
+ */
+interface IOptimismMintableERC20 {
+    function remoteToken() external view returns (address);
+    function bridge() external view returns (address);
+    function mint(address _to, uint256 _amount) external;
+    function burn(address _from, uint256 _amount) external;
+}
+
+/**
+ * @title Simplified Semver for tutorial
+ * @notice Simple contract to track semantic versioning
+ */
+contract Semver {
+    string public version;
+
+    // Simple function to convert uint to string for version numbers
+    function toString(uint256 value) internal pure returns (string memory) {
+        // This function handles numbers from 0 to 999 which is sufficient for versioning
+        if (value == 0) {
+            return "0";
+        }
+        
+        uint256 temp = value;
+        uint256 digits;
+        
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+
+    constructor(uint256 major, uint256 minor, uint256 patch) {
+        version = string(abi.encodePacked(
+            toString(major),
+            ".",
+            toString(minor),
+            ".",
+            toString(patch)
+        ));
+    }
+}
+
+/**
+ * @title MyCustomL2Token
+ * @notice A custom L2 token based on OptimismMintableERC20 that can be deposited 
+ *         from L1 to L2, but cannot be withdrawn from L2 to L1.
+ */
+contract MyCustomL2Token is IOptimismMintableERC20, ILegacyMintableERC20, ERC20, Semver {
+    /// @notice Address of the corresponding token on the remote chain.
+    address public immutable REMOTE_TOKEN;
+
+    /// @notice Address of the StandardBridge on this network.
+    address public immutable BRIDGE;
+
+    /// @notice Emitted whenever tokens are minted for an account.
+    /// @param account Address of the account tokens are being minted for.
+    /// @param amount  Amount of tokens minted.
+    event Mint(address indexed account, uint256 amount);
+
+    /// @notice Emitted whenever tokens are burned from an account.
+    /// @param account Address of the account tokens are being burned from.
+    /// @param amount  Amount of tokens burned.
+    event Burn(address indexed account, uint256 amount);
+
+    /// @notice A modifier that only allows the bridge to call
+    modifier onlyBridge() {
+        require(msg.sender == BRIDGE, "MyCustomL2Token: only bridge can mint and burn");
+        _;
+    }
+
+    /// @param _bridge      Address of the L2 standard bridge.
+    /// @param _remoteToken Address of the corresponding L1 token.
+    /// @param _name        ERC20 name.
+    /// @param _symbol      ERC20 symbol.
+    constructor(
+        address _bridge,
+        address _remoteToken,
+        string memory _name,
+        string memory _symbol
+    )
+        ERC20(_name, _symbol)
+        Semver(1, 0, 0)
+    {
+        REMOTE_TOKEN = _remoteToken;
+        BRIDGE = _bridge;
+    }
+
+    /// @notice Allows the StandardBridge on this network to mint tokens.
+    /// @param _to     Address to mint tokens to.
+    /// @param _amount Amount of tokens to mint.
+    function mint(
+        address _to,
+        uint256 _amount
+    )
+        external
+        virtual
+        override(IOptimismMintableERC20, ILegacyMintableERC20)
+        onlyBridge
+    {
+        _mint(_to, _amount);
+        emit Mint(_to, _amount);
+    }
+
+    /// @notice Burns tokens from an account.
+    /// @dev This function always reverts to prevent withdrawals to L1.
+    /// @param _from   Address to burn tokens from.
+    /// @param _amount Amount of tokens to burn.
+    function burn(
+        address _from,
+        uint256 _amount
+    )
+        external
+        virtual
+        override(IOptimismMintableERC20, ILegacyMintableERC20)
+        onlyBridge
+    {
+        // Instead of calling _burn(_from, _amount), we revert
+        // This makes it impossible to withdraw tokens back to L1
+        revert("MyCustomL2Token: withdrawals are not allowed");
+        
+        // Note: The following line would normally execute but is unreachable
+        // _burn(_from, _amount);
+        // emit Burn(_from, _amount);
+    }
+
+    /// @notice ERC165 interface check function.
+    /// @param _interfaceId Interface ID to check.
+    /// @return Whether or not the interface is supported by this contract.
+    function supportsInterface(bytes4 _interfaceId) external pure virtual returns (bool) {
+        bytes4 iface1 = type(IERC165).interfaceId;
+        // Interface corresponding to the legacy L2StandardERC20
+        bytes4 iface2 = type(ILegacyMintableERC20).interfaceId;
+        // Interface corresponding to the updated OptimismMintableERC20
+        bytes4 iface3 = type(IOptimismMintableERC20).interfaceId;
+        return _interfaceId == iface1 || _interfaceId == iface2 || _interfaceId == iface3;
+    }
+
+    /// @notice Legacy getter for the remote token. Use REMOTE_TOKEN going forward.
+    function l1Token() public view override returns (address) {
+        return REMOTE_TOKEN;
+    }
+
+    /// @notice Legacy getter for the bridge. Use BRIDGE going forward.
+    function l2Bridge() public view override returns (address) {
+        return BRIDGE;
+    }
+
+    /// @notice Getter for REMOTE_TOKEN.
+    function remoteToken() public view override returns (address) {
+        return REMOTE_TOKEN;
+    }
+
+    /// @notice Getter for BRIDGE.
+    function bridge() public view override returns (address) {
+        return BRIDGE;
+    }
+}
+```
+
+    </Step>
+    <Step title="예제 컨트랙트 검토">
+
+    잠시 시간을 내어 예제 컨트랙트를 검토하십시오. 이 컨트랙트는 공식 [`OptimismMintableERC20`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol) 컨트랙트를 거의 그대로 따르되, 한 가지 핵심 수정 사항이 있습니다.
+
+    `burn` 함수가 항상 revert하도록 수정되어, 토큰을 L1으로 다시 출금하는 것이 불가능합니다.
+
+    사용자가 토큰을 L1으로 출금하려면 bridge가 토큰을 소각해야 하므로, 사용자는 이 컨트랙트에서 토큰을 출금할 수 없습니다. 다음은 출금을 막는 컨트랙트의 핵심 부분입니다.
+
+    ```solidity
+    /// @notice Burns tokens from an account.
+    /// @dev This function always reverts to prevent withdrawals to L1.
+    /// @param _from   Address to burn tokens from.
+    /// @param _amount Amount of tokens to burn.
+    function burn(
+        address _from,
+        uint256 _amount
+    )
+        external
+        virtual
+        override(IOptimismMintableERC20, ILegacyMintableERC20)
+        onlyBridge
+    {
+        // Instead of calling _burn(_from, _amount), we revert
+        // This makes it impossible to withdraw tokens back to L1
+        revert("MyCustomL2Token: withdrawals are not allowed");
+        
+        // Note: The following line would normally execute but is unreachable
+        // _burn(_from, _amount);
+        // emit Burn(_from, _amount);
+    }
+```
+
+    </Step>
+    <Step title="컨트랙트 컴파일">
+
+    파일을 저장하면 컨트랙트가 자동으로 컴파일됩니다.
+    자동 컴파일을 비활성화한 경우 "Solidity Compiler" 탭(문자 "S"처럼 보이는 아이콘)을 클릭하고 파란색 "Compile" 버튼을 눌러 컨트랙트를 수동으로 컴파일해야 합니다.
+
+    Solidity 컴파일러 버전 0.8.20을 사용하고 있는지 확인하십시오. 이는 예제 컨트랙트의 `pragma solidity 0.8.20;`이 요구하는 정확한 버전입니다.
+
+    </Step>
+    <Step title="컨트랙트 배포">
+
+    배포 탭(왼쪽을 가리키는 화살표가 있는 Ethereum 로고처럼 보이는 아이콘)을 엽니다.
+    환경이 "Injected Provider"로 설정되어 있고, 지갑이 OP Sepolia에 연결되어 있으며, Remix가 지갑에 접근할 수 있는지 확인하십시오.
+    그런 다음 배포 드롭다운에서 `MyCustomL2Token` 컨트랙트를 선택하고 다음 매개변수로 배포합니다.
+
+    ```text
+    _bridge:      "0x4200000000000000000000000000000000000010" // L2 Standard Bridge address
+    _remoteToken: "<L1 ERC-20 address>"                        // Your L1 token address
+    _name:        "My Custom L2 Token"                         // Your token name
+    _symbol:      "MCL2T"                                      // Your token symbol
+    ```
+
+    참고: L2 Standard Bridge 주소는 모든 OP Stack 체인에서 미리 정의된 주소이므로 OP Sepolia와 OP Mainnet에서 동일합니다.
+
+    </Step>
+  </Steps>
+
+  </Tab>
+</Tabs>
+
+## 토큰 브리징하기
+
+이제 L2 ERC-20 토큰이 있으므로 L1에서 L2로 토큰을 브리징할 수 있습니다.
+viem을 사용하여 L1 ERC-20을 L2로 브리징하는 방법은 [viem으로 ERC-20 토큰 브리징하기](./cross-dom-bridge-erc20) 튜토리얼을 확인하십시오.
+이 튜토리얼의 커스텀 예제 토큰을 배포했다면 출금 단계가 동작하지 *않는다는* 점을 기억하십시오. 예제 컨트랙트의 `burn` 함수는 항상 revert하며, 이것이 바로 해당 예제가 보여 주려는 내용입니다.
+
+## Superchain Token List에 추가하기
+
+[Superchain Token List](https://github.com/ethereum-optimism/ethereum-optimism.github.io#readme)는 Optimism Superchain 내 체인에 배포된 토큰의 공통 목록입니다.
+이 목록은 [Superchain Bridges UI](https://app.optimism.io/bridge?utm_source=op-docs\&utm_medium=docs) 같은 서비스에서 사용됩니다.
+OP Mainnet 토큰을 이 목록에 포함하려면 [검토 절차 및 병합 기준](https://github.com/ethereum-optimism/ethereum-optimism.github.io#review-process-and-merge-criteria)을 확인하십시오.

@@ -9,15 +9,22 @@ use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
 use std::path::PathBuf;
 use url::Url;
 
-/// Storage schema version for the proofs-history database.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+/// Storage format of the proofs-history database. v2 is the only supported format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofsStorageVersion {
-    /// V1 storage schema (original single-table-per-domain layout). Default.
-    #[default]
-    V1,
-    /// V2 storage schema with changeset and history-bitmap tables, enabling
-    /// history-aware reads at any block number within the proof window.
+    /// Storage format with changeset and history-bitmap tables.
     V2,
+}
+
+/// Parses `--proofs-history.storage-version`, rejecting every format but v2.
+fn parse_proofs_storage_version(value: &str) -> Result<ProofsStorageVersion, String> {
+    match value {
+        "v2" => Ok(ProofsStorageVersion::V2),
+        _ => Err("only `v2` is supported and existing v1 proofs data is ignored; drop this flag \
+                  or pass `v2`, delete any v1 proofs database (or use a fresh \
+                  `--proofs-history.storage-path`), then run `op-reth proofs init`"
+            .to_string()),
+    }
 }
 
 /// Default proofs history window in blocks: 30 days × 24h × 60min × 60s / 2s
@@ -40,13 +47,17 @@ pub struct ProofsHistoryStorageArgs {
     #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
     pub storage_path: Option<PathBuf>,
 
-    /// Storage schema version. Must match the version used when starting the node.
+    /// Deprecated: v2 is the only storage format, so `v2` is a no-op and any other value is
+    /// rejected.
+    ///
+    /// Kept so that deployments which still pass `--proofs-history.storage-version=v2` keep
+    /// working.
     #[arg(
         long = "proofs-history.storage-version",
         value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
+        value_parser = parse_proofs_storage_version
     )]
-    pub storage_version: ProofsStorageVersion,
+    pub storage_version: Option<ProofsStorageVersion>,
 }
 
 impl ProofsHistoryStorageArgs {
@@ -112,7 +123,7 @@ pub struct ProofsHistoryBackfillArgs {
 
     /// Use the trie-state snapshot to accelerate per-block reads during
     /// backfill. If no snapshot exists, one is bootstrapped at the current
-    /// `earliest` before the backfill loop begins. Requires v2 storage.
+    /// `earliest` before the backfill loop begins.
     ///
     /// Defaults to `true`. Pass `--proofs-history.use-snapshot false` to
     /// force the non-snapshot path (per-block reads via the reth DB).
@@ -155,6 +166,18 @@ pub struct RollupArgs {
     /// that this flag is not yet functional.
     #[arg(long = "rollup.compute-pending-block")]
     pub compute_pending_block: bool,
+
+    /// Seconds between two L2 blocks, which dates the RPC's pending block
+    ///
+    /// The op-reth binary defaults it to the superchain registry's block time for a registry
+    /// chain. Without either, the RPC uses the chain's alloy-chains hint, else 2 s.
+    #[arg(
+        id = "rollup_block_time",
+        long = "rollup.block-time",
+        value_name = "SECONDS",
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
+    pub block_time: Option<u64>,
 
     /// enables discovery v4 if provided
     #[arg(long = "rollup.discovery.v4", default_value = "false")]
@@ -301,6 +324,18 @@ pub struct RollupArgs {
         default_value_t = 0
     )]
     pub proofs_history_verification_interval: u64,
+
+    /// Parallel readers that warm the proofs storage's page cache ahead of persistence (0 to
+    /// 64). `0` (default) disables warming. Warming reads the pages each buffered block and the
+    /// next prunes will touch, so the single-threaded persistence transaction waits on fewer disk
+    /// reads.
+    #[arg(
+        long = "proofs-history.prefetch-threads",
+        value_name = "THREADS",
+        default_value_t = 0,
+        value_parser = clap::value_parser!(u64).range(0..=64),
+    )]
+    pub proofs_history_prefetch_threads: u64,
 }
 
 impl Default for RollupArgs {
@@ -309,6 +344,7 @@ impl Default for RollupArgs {
             sequencer: None,
             disable_txpool_gossip: false,
             compute_pending_block: false,
+            block_time: None,
             discovery_v4: false,
             enable_tx_conditional: false,
             retain_forwarded_txs: false,
@@ -324,12 +360,10 @@ impl Default for RollupArgs {
             flashblocks_url: None,
             flashblock_consensus: false,
             proofs_history: false,
-            history: ProofsHistoryStorageArgs {
-                storage_path: None,
-                storage_version: ProofsStorageVersion::V1,
-            },
+            history: ProofsHistoryStorageArgs { storage_path: None, storage_version: None },
             proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
+            proofs_history_prefetch_threads: 0,
         }
     }
 }
@@ -351,6 +385,59 @@ mod tests {
         let default_args = RollupArgs::default();
         let args = CommandParser::<RollupArgs>::parse_from(["reth"]).args;
         assert_eq!(args, default_args);
+    }
+
+    #[test]
+    fn test_proofs_storage_version_accepts_only_v2() {
+        for args in [
+            &["reth", "--proofs-history.storage-version=v2"][..],
+            &["reth", "--proofs-history.storage-version", "v2"],
+        ] {
+            let args = CommandParser::<RollupArgs>::parse_from(args).args;
+            assert_eq!(args.history.storage_version, Some(ProofsStorageVersion::V2));
+        }
+
+        for version in ["v1", "V2", "v3"] {
+            let err = CommandParser::<RollupArgs>::try_parse_from([
+                "reth".to_string(),
+                format!("--proofs-history.storage-version={version}"),
+            ])
+            .err()
+            .unwrap_or_else(|| panic!("storage version {version} should be rejected"));
+            assert!(err.to_string().contains("only `v2` is supported"), "unexpected error: {err}");
+        }
+    }
+
+    #[test]
+    fn test_proofs_history_prefetch_threads() {
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--proofs-history.prefetch-threads",
+            "8",
+        ])
+        .args;
+        assert_eq!(args.proofs_history_prefetch_threads, 8);
+        assert!(
+            CommandParser::<RollupArgs>::try_parse_from([
+                "reth",
+                "--proofs-history.prefetch-threads",
+                "65",
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn test_parse_optimism_block_time_args() {
+        let expected_args = RollupArgs { block_time: Some(5), ..Default::default() };
+        let args =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.block-time", "5"]).args;
+        assert_eq!(args, expected_args);
+
+        assert!(
+            CommandParser::<RollupArgs>::try_parse_from(["reth", "--rollup.block-time", "0"])
+                .is_err()
+        );
     }
 
     #[test]

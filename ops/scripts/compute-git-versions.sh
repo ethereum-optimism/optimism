@@ -75,4 +75,3 @@ for IMAGE_NAME in "${IMAGES[@]}"; do
 done
 
 echo "$JSON"
-

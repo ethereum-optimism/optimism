@@ -4,10 +4,7 @@ use alloy_consensus::{
     transaction::TransactionMeta,
 };
 use alloy_genesis::Genesis;
-use alloy_op_hardforks::{
-    ForkCondition, OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
-    OP_MAINNET_KARST_TIMESTAMP, OpChainHardforks, OpHardfork,
-};
+use alloy_op_hardforks::{ForkCondition, OpChainHardforks, OpHardfork, OpHardforks};
 use alloy_primitives::{Address, Bytes, Signature, U256, hex};
 use op_alloy_consensus::{OpTypedTransaction, SDMGasEntry, build_post_exec_tx};
 use op_alloy_network::eip2718::Decodable2718;
@@ -324,10 +321,8 @@ fn da_footprint_gas_scalar_included_in_receipt_post_jovian() {
         ..Default::default()
     };
 
-    let op_hardforks = OpChainHardforks::op_mainnet();
-
-    let receipt = OpReceiptFieldsBuilder::new(OP_MAINNET_JOVIAN_TIMESTAMP, u64::MAX)
-        .l1_block_info(&op_hardforks, &tx, &mut l1_block_info)
+    let receipt = OpReceiptFieldsBuilder::new(op_mainnet_activation(OpHardfork::Jovian), u64::MAX)
+        .l1_block_info(&*OP_MAINNET, &tx, &mut l1_block_info)
         .expect("should parse revm l1 info")
         .build();
 
@@ -359,10 +354,8 @@ fn blob_gas_used_included_in_receipt_post_jovian() {
         ..Default::default()
     };
 
-    let op_hardforks = OpChainHardforks::op_mainnet();
-
     let op_receipt = OpReceiptBuilder::new(
-        &op_hardforks,
+        &*OP_MAINNET,
         ConvertReceiptInput::<OpPrimitives> {
             tx: Recovered::new_unchecked(&tx, Address::default()),
             receipt: OpReceipt::Eip7702(Receipt {
@@ -372,7 +365,10 @@ fn blob_gas_used_included_in_receipt_post_jovian() {
             }),
             gas_used: 100,
             next_log_index: 0,
-            meta: TransactionMeta { timestamp: OP_MAINNET_JOVIAN_TIMESTAMP, ..Default::default() },
+            meta: TransactionMeta {
+                timestamp: op_mainnet_activation(OpHardfork::Jovian),
+                ..Default::default()
+            },
         },
         &mut l1_block_info,
         None,
@@ -384,16 +380,89 @@ fn blob_gas_used_included_in_receipt_post_jovian() {
     assert_eq!(op_receipt.core_receipt.blob_gas_used, Some(expected_blob_gas_used));
 }
 
-/// Test-only Lagoon activation, one block after Karst.
-const LAGOON_TIMESTAMP: u64 = OP_MAINNET_KARST_TIMESTAMP + 2;
+/// A deposit (`0x7E`) receipt reports zero DA footprint, while a user transaction in the same
+/// Jovian block reports its non-zero footprint.
+#[test]
+fn blob_gas_used_zero_in_deposit_receipt_post_jovian() {
+    use op_alloy_consensus::{OpDepositReceipt, TxDeposit};
 
-/// Adds Lagoon to OP Mainnet's hardfork schedule.
+    const DA_FOOTPRINT_GAS_SCALAR: u16 = 100;
+    let inner =
+        Receipt { status: Eip658Value::Eip658(true), cumulative_gas_used: 100, logs: vec![] };
+    let blob_gas_used = |tx: &OpTransactionSigned, receipt: OpReceipt| {
+        let mut l1_block_info = op_revm::L1BlockInfo {
+            da_footprint_gas_scalar: Some(DA_FOOTPRINT_GAS_SCALAR),
+            ..Default::default()
+        };
+        OpReceiptBuilder::new(
+            &*OP_MAINNET,
+            ConvertReceiptInput::<OpPrimitives> {
+                tx: Recovered::new_unchecked(tx, Address::default()),
+                receipt,
+                gas_used: 100,
+                next_log_index: 0,
+                meta: TransactionMeta {
+                    timestamp: op_mainnet_activation(OpHardfork::Jovian),
+                    ..Default::default()
+                },
+            },
+            &mut l1_block_info,
+            None,
+        )
+        .unwrap()
+        .core_receipt
+        .blob_gas_used
+    };
+
+    let deposit = OpTransactionSigned::new_unhashed(
+        OpTypedTransaction::Deposit(TxDeposit {
+            from: Address::with_last_byte(0x42),
+            to: alloy_primitives::TxKind::Call(Address::with_last_byte(0x99)),
+            gas_limit: 1_000_000,
+            input: Bytes::from(vec![0; 1_000]),
+            ..Default::default()
+        }),
+        Signature::new(U256::ZERO, U256::ZERO, false),
+    );
+    let deposit_receipt = OpReceipt::Deposit(OpDepositReceipt {
+        inner: inner.clone(),
+        deposit_nonce: Some(1),
+        deposit_receipt_version: Some(1),
+    });
+    assert_eq!(blob_gas_used(&deposit, deposit_receipt), Some(0));
+
+    let user_tx: OpTransactionSigned = OpTypedTransaction::Eip7702(TxEip7702 {
+        chain_id: 1u64,
+        input: Bytes::from(vec![0; 1_000]),
+        ..Default::default()
+    })
+    .into_signed(Signature::new(U256::default(), U256::default(), true))
+    .into();
+    let user_footprint = tx_da_footprint(&user_tx, DA_FOOTPRINT_GAS_SCALAR.into());
+    assert!(user_footprint > 0);
+    assert_eq!(blob_gas_used(&user_tx, OpReceipt::Eip7702(inner)), Some(user_footprint));
+}
+
+/// OP Mainnet's activation timestamp for `fork`, from its superchain-registry chain spec.
+fn op_mainnet_activation(fork: OpHardfork) -> u64 {
+    OP_MAINNET.op_fork_activation(fork).as_timestamp().expect("fork activates by timestamp")
+}
+
+/// Test-only Lagoon activation, one block after Karst.
+fn lagoon_timestamp() -> u64 {
+    op_mainnet_activation(OpHardfork::Karst) + 2
+}
+
+/// OP Mainnet's hardfork schedule with Lagoon at [`lagoon_timestamp`].
 fn lagoon_hardforks() -> OpChainHardforks {
-    OpChainHardforks::new(
-        OpHardfork::op_mainnet()
-            .into_iter()
-            .chain([(OpHardfork::Lagoon, ForkCondition::Timestamp(LAGOON_TIMESTAMP))]),
-    )
+    OpChainHardforks::new(OpHardfork::VARIANTS.iter().map(|&fork| {
+        let condition = if fork == OpHardfork::Lagoon {
+            ForkCondition::Timestamp(lagoon_timestamp())
+        } else {
+            OP_MAINNET.op_fork_activation(fork)
+        };
+        (fork, condition)
+    }))
 }
 
 /// A post-exec (`0x7D`) receipt reports zero DA footprint.
@@ -411,15 +480,6 @@ fn blob_gas_used_zero_in_post_exec_receipt_post_lagoon() {
     };
 
     let op_hardforks = lagoon_hardforks();
-    // Verify appending Lagoon did not shift Karst's activation.
-    assert_eq!(
-        op_hardforks.op_fork_activation(OpHardfork::Lagoon),
-        ForkCondition::Timestamp(LAGOON_TIMESTAMP)
-    );
-    assert_eq!(
-        op_hardforks.op_fork_activation(OpHardfork::Karst),
-        ForkCondition::Timestamp(OP_MAINNET_KARST_TIMESTAMP)
-    );
 
     let op_receipt = OpReceiptBuilder::new(
         &op_hardforks,
@@ -432,7 +492,7 @@ fn blob_gas_used_zero_in_post_exec_receipt_post_lagoon() {
             }),
             gas_used: 0,
             next_log_index: 0,
-            meta: TransactionMeta { timestamp: LAGOON_TIMESTAMP, ..Default::default() },
+            meta: TransactionMeta { timestamp: lagoon_timestamp(), ..Default::default() },
         },
         &mut l1_block_info,
         None,
@@ -467,10 +527,8 @@ fn blob_gas_used_not_included_in_receipt_post_isthmus() {
         ..Default::default()
     };
 
-    let op_hardforks = OpChainHardforks::op_mainnet();
-
     let op_receipt = OpReceiptBuilder::new(
-        &op_hardforks,
+        &*OP_MAINNET,
         ConvertReceiptInput::<OpPrimitives> {
             tx: Recovered::new_unchecked(&tx, Address::default()),
             receipt: OpReceipt::Eip7702(Receipt {
@@ -480,7 +538,10 @@ fn blob_gas_used_not_included_in_receipt_post_isthmus() {
             }),
             gas_used: 100,
             next_log_index: 0,
-            meta: TransactionMeta { timestamp: OP_MAINNET_ISTHMUS_TIMESTAMP, ..Default::default() },
+            meta: TransactionMeta {
+                timestamp: op_mainnet_activation(OpHardfork::Isthmus),
+                ..Default::default()
+            },
         },
         &mut l1_block_info,
         None,
@@ -508,7 +569,7 @@ fn deposit_receipt_contract_address(
         source_hash: Default::default(),
         from,
         to,
-        mint: 0,
+        mint: U256::ZERO,
         value: U256::ZERO,
         gas_limit: 1_000_000,
         is_system_transaction: false,
@@ -520,10 +581,8 @@ fn deposit_receipt_contract_address(
         OpTransactionSigned::new_unhashed(OpTypedTransaction::Deposit(tx), signature);
 
     let mut l1_block_info = op_revm::L1BlockInfo::default();
-    let op_hardforks = OpChainHardforks::op_mainnet();
-
     let op_receipt = OpReceiptBuilder::new(
-        &op_hardforks,
+        &*OP_MAINNET,
         ConvertReceiptInput::<OpPrimitives> {
             tx: Recovered::new_unchecked(&tx, from),
             receipt: OpReceipt::Deposit(OpDepositReceipt {
@@ -537,7 +596,10 @@ fn deposit_receipt_contract_address(
             }),
             gas_used: 100,
             next_log_index: 0,
-            meta: TransactionMeta { timestamp: OP_MAINNET_ISTHMUS_TIMESTAMP, ..Default::default() },
+            meta: TransactionMeta {
+                timestamp: op_mainnet_activation(OpHardfork::Isthmus),
+                ..Default::default()
+            },
         },
         &mut l1_block_info,
         None,
@@ -639,7 +701,7 @@ fn post_exec_receipt_zeroes_tx_scoped_l1_fee_fields() {
 
     let regular =
         OpTransactionSigned::decode_2718(&mut TX_1_OP_MAINNET_BLOCK_124665056.as_slice()).unwrap();
-    let regular_fields = OpReceiptFieldsBuilder::new(LAGOON_TIMESTAMP, 1)
+    let regular_fields = OpReceiptFieldsBuilder::new(lagoon_timestamp(), 1)
         .l1_block_info(&op_hardforks, &regular, &mut l1_block_info)
         .expect("should parse revm l1 info")
         .build();
@@ -660,7 +722,7 @@ fn post_exec_receipt_zeroes_tx_scoped_l1_fee_fields() {
     let post_exec = OpTransactionSigned::PostExec(
         build_post_exec_tx(1, vec![SDMGasEntry { index: 1, gas_refund: 77 }]).seal_slow(),
     );
-    let post_exec_fields = OpReceiptFieldsBuilder::new(LAGOON_TIMESTAMP, 1)
+    let post_exec_fields = OpReceiptFieldsBuilder::new(lagoon_timestamp(), 1)
         .l1_block_info(&op_hardforks, &post_exec, &mut l1_block_info)
         .expect("should parse revm l1 info")
         .build();

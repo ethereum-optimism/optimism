@@ -6,7 +6,7 @@
 /// Metrics container with constants for Prometheus metric collection.
 ///
 /// Contains identifiers for gauges, counters, and histograms used to monitor
-/// engine operations when the `metrics` feature is enabled. Metrics track:
+/// engine operations. Metrics instrumentation is always enabled and tracks:
 ///
 /// - Block progression through safety levels (unsafe → finalized)
 /// - Task execution success/failure rates by type
@@ -23,9 +23,6 @@
 ///
 /// // Record block height at safety level
 /// gauge!(Metrics::BLOCK_LABELS, block_num as f64, "level" => Metrics::SAFE_BLOCK_LABEL);
-///
-/// // Time Engine API calls
-/// histogram!(Metrics::ENGINE_METHOD_REQUEST_DURATION, duration.as_secs_f64());
 /// ```
 #[derive(Debug, Clone)]
 pub struct Metrics;
@@ -60,15 +57,6 @@ impl Metrics {
     /// Finalize task label.
     pub const FINALIZE_TASK_LABEL: &str = "finalize";
 
-    /// Identifier for the histogram that tracks engine method call time.
-    pub const ENGINE_METHOD_REQUEST_DURATION: &str = "kona_node_engine_method_request_duration";
-    /// `engine_forkchoiceUpdatedV<N>` label
-    pub const FORKCHOICE_UPDATE_METHOD: &str = "engine_forkchoiceUpdated";
-    /// `engine_newPayloadV<N>` label.
-    pub const NEW_PAYLOAD_METHOD: &str = "engine_newPayload";
-    /// `engine_getPayloadV<N>` label.
-    pub const GET_PAYLOAD_METHOD: &str = "engine_getPayload";
-
     /// Identifier for the counter that tracks the number of times the engine has been reset.
     pub const ENGINE_RESET_COUNT: &str = "kona_node_engine_reset_count";
 
@@ -77,14 +65,12 @@ impl Metrics {
     /// This does two things:
     /// * Describes various metrics.
     /// * Initializes metrics to 0 so they can be queried immediately.
-    #[cfg(feature = "metrics")]
     pub fn init() {
         Self::describe();
         Self::zero();
     }
 
     /// Describes metrics used in [`kona_engine`][crate].
-    #[cfg(feature = "metrics")]
     pub fn describe() {
         // Block labels
         metrics::describe_gauge!(Self::BLOCK_LABELS, "Blockchain head labels");
@@ -92,13 +78,6 @@ impl Metrics {
         // Engine task counts
         metrics::describe_counter!(Self::ENGINE_TASK_SUCCESS, "Engine tasks successfully executed");
         metrics::describe_counter!(Self::ENGINE_TASK_FAILURE, "Engine tasks failed");
-
-        // Engine method request duration histogram
-        metrics::describe_histogram!(
-            Self::ENGINE_METHOD_REQUEST_DURATION,
-            metrics::Unit::Seconds,
-            "Engine method request duration"
-        );
 
         // Engine reset counter
         metrics::describe_counter!(
@@ -110,20 +89,23 @@ impl Metrics {
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
-    #[cfg(feature = "metrics")]
     pub fn zero() {
         // Engine task counts
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::INSERT_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::CONSOLIDATE_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::BUILD_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::FINALIZE_TASK_LABEL, 0);
+        metrics::counter!(Self::ENGINE_TASK_SUCCESS, "type" => Self::INSERT_TASK_LABEL).absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_SUCCESS, "type" => Self::CONSOLIDATE_TASK_LABEL)
+            .absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_SUCCESS, "type" => Self::BUILD_TASK_LABEL).absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_SUCCESS, "type" => Self::FINALIZE_TASK_LABEL)
+            .absolute(0);
 
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::INSERT_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::CONSOLIDATE_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::BUILD_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::FINALIZE_TASK_LABEL, 0);
+        metrics::counter!(Self::ENGINE_TASK_FAILURE, "type" => Self::INSERT_TASK_LABEL).absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_FAILURE, "type" => Self::CONSOLIDATE_TASK_LABEL)
+            .absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_FAILURE, "type" => Self::BUILD_TASK_LABEL).absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_FAILURE, "type" => Self::FINALIZE_TASK_LABEL)
+            .absolute(0);
 
         // Engine reset count
-        kona_macros::set!(counter, Self::ENGINE_RESET_COUNT, 0);
+        metrics::counter!(Self::ENGINE_RESET_COUNT).absolute(0);
     }
 }

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"io"
 	"math/big"
+	"slices"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -21,21 +22,19 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	derive_params "github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 type SyncStatusAPI interface {
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
-}
-
-type BlocksAPI interface {
-	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
 }
 
 type L1TxAPI interface {
@@ -64,8 +63,6 @@ type BatcherCfg struct {
 
 	DataAvailabilityType batcherFlags.DataAvailabilityType
 	AltDA                AltDAInputSetter
-
-	EnableCellProofs bool
 }
 
 func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
@@ -74,7 +71,6 @@ func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
-		EnableCellProofs:     false, // TODO change to true when Osaka activates on L1
 	}
 }
 
@@ -89,8 +85,9 @@ func AltDABatcherCfg(dp *e2eutils.DeployParams, altDA AltDAInputSetter) *Batcher
 	}
 }
 
-type L2BlockRefs interface {
-	L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error)
+// L2Payloads reads the L2 blocks the batcher batches, as execution payloads.
+type L2Payloads interface {
+	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 // L2Batcher buffers and submits L2 batches to L1.
@@ -104,9 +101,8 @@ type L2Batcher struct {
 	rollupCfg *rollup.Config
 
 	syncStatusAPI SyncStatusAPI
-	l2            BlocksAPI
 	l1            L1TxAPI
-	engCl         L2BlockRefs
+	engCl         L2Payloads
 
 	l1Signer types.Signer
 
@@ -120,13 +116,12 @@ type L2Batcher struct {
 	LastSubmitted *types.Transaction
 }
 
-func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherCfg, api SyncStatusAPI, l1 L1TxAPI, l2 BlocksAPI, engCl L2BlockRefs) *L2Batcher {
+func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherCfg, api SyncStatusAPI, l1 L1TxAPI, engCl L2Payloads) *L2Batcher {
 	return &L2Batcher{
 		log:           log,
 		rollupCfg:     rollupCfg,
 		syncStatusAPI: api,
 		l1:            l1,
-		l2:            l2,
 		engCl:         engCl,
 		l2BatcherCfg:  batcherCfg,
 		l1Signer:      types.LatestSignerForChainID(rollupCfg.L1ChainID),
@@ -192,7 +187,11 @@ type bufferOptions struct {
 	channelModifiers []derive.SpanChannelOutOption
 }
 
-type BlockModifier = func(block *types.Block) *types.Block
+// BlockModifier changes an L2 block before the batcher adds it to its channel. It gets a shallow
+// copy of the block's payload: it may reassign the payload's fields and replace or remove entries
+// of Transactions, but must not write through ExtraData, Withdrawals, the pointer fields or a
+// transaction's bytes, which are shared with the client's cached payload.
+type BlockModifier = func(payload *eth.ExecutionPayload) *eth.ExecutionPayload
 
 type BufferOption = func(*bufferOptions)
 
@@ -209,11 +208,47 @@ func WithChannelModifier(modifier derive.SpanChannelOutOption) BufferOption {
 }
 
 func BlockLogger(t e2eutils.TestingBase) BlockModifier {
-	f := func(block *types.Block) *types.Block {
-		t.Log("added block", "num", block.Number(), "txs", block.Transactions(), "time", block.Time())
-		return block
+	f := func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
+		t.Log("added block", "num", payload.BlockNumber, "txs", len(payload.Transactions), "time", payload.Timestamp)
+		return payload
 	}
 	return f
+}
+
+// PayloadUserTxIndexes returns the indexes of the user transactions of payload: all of its
+// transactions except the deposits (0x7E) and the post-exec transaction (0x7D).
+func PayloadUserTxIndexes(payload *eth.ExecutionPayload) []int {
+	var indexes []int
+	for i, tx := range payload.Transactions {
+		switch sources.RawTransaction(tx).Type() {
+		case optypes.DepositTxType, optypes.PostExecTxType:
+			continue
+		}
+		indexes = append(indexes, i)
+	}
+	return indexes
+}
+
+// DecodePayloadTx decodes the user transaction at index i of payload.
+func DecodePayloadTx(t Testing, payload *eth.ExecutionPayload, i int) *types.Transaction {
+	tx := new(types.Transaction)
+	require.NoError(t, tx.UnmarshalBinary(payload.Transactions[i]), "decode payload tx %d", i)
+	return tx
+}
+
+// EncodeTx returns the binary encoding of tx.
+func EncodeTx(t Testing, tx *types.Transaction) eth.Data {
+	raw, err := tx.MarshalBinary()
+	require.NoError(t, err, "encode tx %s", tx.Hash())
+	return raw
+}
+
+// copyPayload returns a copy of payload that a BlockModifier can change without changing
+// payload, which the client that fetched it may have cached.
+func copyPayload(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
+	cp := *payload
+	cp.Transactions = slices.Clone(payload.Transactions)
+	return &cp
 }
 
 func (s *L2Batcher) Buffer(t Testing, bufferOpts ...BufferOption) error {
@@ -254,33 +289,30 @@ func (s *L2Batcher) Buffer(t Testing, bufferOpts ...BufferOption) error {
 		}
 	}
 
-	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.L2BufferedBlock.Number+1)))
-	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
-	if block.ParentHash() != s.L2BufferedBlock.Hash {
+	envelope, err := s.engCl.PayloadByNumber(t.Ctx(), s.L2BufferedBlock.Number+1)
+	require.NoError(t, err, "need l2 block %d from sync status", s.L2BufferedBlock.Number+1)
+	ref, err := derive.PayloadToBlockRef(s.rollupCfg, envelope.ExecutionPayload)
+	require.NoError(t, err, "failed to get L2BlockRef")
+	if ref.ParentHash != s.L2BufferedBlock.Hash {
 		s.log.Error("detected a reorg in L2 chain vs previous submitted information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
 		s.l2SubmittedBlock = syncStatus.SafeL2
 		s.L2BufferedBlock = syncStatus.SafeL2
 		s.L2ChannelOut = nil
 	}
 
-	// Apply modifications to the block
+	// Apply modifications to a copy of the block
+	payload := copyPayload(envelope.ExecutionPayload)
 	for _, f := range options.blockModifiers {
 		if f != nil {
-			block = f(block)
+			payload = f(payload)
 		}
 	}
 
-	s.ActCreateChannel(t, s.rollupCfg.IsDelta(block.Time()) && !s.l2BatcherCfg.ForceSubmitSingularBatch, options.channelModifiers...)
+	s.ActCreateChannel(t, s.rollupCfg.IsDelta(uint64(payload.Timestamp)) && !s.l2BatcherCfg.ForceSubmitSingularBatch, options.channelModifiers...)
 
-	payload, err := eth.BlockAsPayload(block, s.rollupCfg)
-	if err != nil {
-		return err
-	}
 	if _, err := s.L2ChannelOut.AddBlock(s.rollupCfg, payload); err != nil {
 		return err
 	}
-	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())
-	require.NoError(t, err, "failed to get L2BlockRef")
 	s.L2BufferedBlock = ref
 	return nil
 }
@@ -288,26 +320,21 @@ func (s *L2Batcher) Buffer(t Testing, bufferOpts ...BufferOption) error {
 // ActAddBlockByNumber causes the batcher to pull the block with the provided
 // number, and add it to its ChannelOut.
 func (s *L2Batcher) ActAddBlockByNumber(t Testing, blockNumber int64, opts ...BlockModifier) {
-	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(blockNumber))
+	envelope, err := s.engCl.PayloadByNumber(t.Ctx(), uint64(blockNumber))
 	require.NoError(t, err)
-	require.NotNil(t, block)
+	ref, err := derive.PayloadToBlockRef(s.rollupCfg, envelope.ExecutionPayload)
+	require.NoError(t, err, "failed to get L2BlockRef")
 
-	// cache block hash before we modify the block
-	blockHash := block.Hash()
-
-	// Apply modifications to the block
+	// Apply modifications to a copy of the block
+	payload := copyPayload(envelope.ExecutionPayload)
 	for _, f := range opts {
 		if f != nil {
-			block = f(block)
+			payload = f(payload)
 		}
 	}
 
-	payload, err := eth.BlockAsPayload(block, s.rollupCfg)
-	require.NoError(t, err)
 	_, err = s.L2ChannelOut.AddBlock(s.rollupCfg, payload)
 	require.NoError(t, err)
-	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), blockHash)
-	require.NoError(t, err, "failed to get L2BlockRef")
 	s.L2BufferedBlock = ref
 }
 
@@ -375,14 +402,15 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 			opt(rawTx)
 		}
 
-		gas, err := core.FloorDataGas(rawTx.Data)
+		// The L1 miner builds no Amsterdam blocks, so the pre-Amsterdam floor applies.
+		gas, err := core.FloorDataGas(params.Rules{}, s.BatcherAddr, rawTx.To, nil, rawTx.Data, nil)
 		require.NoError(t, err, "need to compute floor data gas")
 		rawTx.Gas = gas
 		txData = rawTx
 	} else if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.BlobsType {
 		var b eth.Blob
 		require.NoError(t, b.FromData(payload), "must turn data into blob")
-		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b}, s.l2BatcherCfg.EnableCellProofs)
+		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b})
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
 		blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
@@ -417,7 +445,7 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 }
 
 func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
-	// Update to Prague if L1 changes to Prague and we need more blobs in multi-blob tests.
+	// Osaka caps a transaction at 6 blobs (EIP-7594), the Cancun maximum per block.
 	maxBlobsPerBlock := params.DefaultCancunBlobConfig.Max
 	if s.l2BatcherCfg.DataAvailabilityType != batcherFlags.BlobsType {
 		t.InvalidAction("ActL2BatchSubmitMultiBlob only available for Blobs DA type")
@@ -467,7 +495,7 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 	require.NoError(t, err, "need l1 pending header for gas price estimation")
 	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
 
-	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs, s.l2BatcherCfg.EnableCellProofs)
+	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs)
 	require.NoError(t, err)
 	blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
 	require.NoError(t, err, "need blob base fee")

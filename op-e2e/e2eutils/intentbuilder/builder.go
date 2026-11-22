@@ -34,6 +34,10 @@ type L1Configurator interface {
 	WithL1ForkAtOffset(forks.Fork, *uint64) L1Configurator
 	WithL1BlobSchedule(schedule *params.BlobScheduleConfig) L1Configurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L1Configurator
+	// WithBlockTime sets the L1 block time in seconds. It is not part of the intent: it is
+	// read back with BlockTime by whatever runs the L1 chain.
+	WithBlockTime(seconds uint64) L1Configurator
+	BlockTime() uint64
 }
 
 type SuperchainConfigurator interface {
@@ -52,6 +56,7 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
+	WithAltDA(cfg genesis.AltDADeployConfig)
 	WithCustomGasToken(name string, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address)
 	ContractsConfigurator
 	L2VaultsConfigurator
@@ -95,8 +100,8 @@ type L2FeesConfigurator interface {
 
 type L2HardforkConfigurator interface {
 	WithForkAtGenesis(fork opforks.Name)
-	// WithForkAtOffset configures fork to activate at offset. A nil offset
-	// deactivates fork and every subsequent fork, so calls are order-sensitive.
+	// WithForkAtOffset activates fork at offset and deactivates every later fork; a nil
+	// offset deactivates fork too. Calls are order-sensitive.
 	WithForkAtOffset(fork opforks.Name, offset *uint64)
 	WithKeepKarstUpgradeGas()
 }
@@ -171,6 +176,7 @@ func RoleToAddrProvider(t require.TestingT, dk devkeys.Keys, chainID eth.ChainID
 
 type intentBuilder struct {
 	l1StartBlockHash *common.Hash
+	l1BlockTime      uint64
 	intent           *state.Intent
 }
 
@@ -356,6 +362,15 @@ func (c *l1Configurator) WithPrefundedAccount(addr common.Address, amount uint25
 	return c
 }
 
+func (c *l1Configurator) WithBlockTime(seconds uint64) L1Configurator {
+	c.builder.l1BlockTime = seconds
+	return c
+}
+
+func (c *l1Configurator) BlockTime() uint64 {
+	return c.builder.l1BlockTime
+}
+
 func (c *l1Configurator) WithL1ForkAtGenesis(fork forks.Fork) L1Configurator {
 	c.initL1DevGenesisParams()
 	require.True(c.t, fork >= forks.Cancun && fork <= forks.Amsterdam, "unsupported L1 fork %s", fork)
@@ -521,23 +536,18 @@ func (c *l2Configurator) WithKeepKarstUpgradeGas() {
 
 func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 	require.True(c.t, opforks.IsValid(fork))
-	key, ok := genesis.ForkOffsetKey(fork)
-	require.True(c.t, ok, "fork %q has no deploy-config time offset", fork)
-
-	// The typing is important, or op-deployer merge-JSON tricks will fail.
-	//
-	// A nil offset writes an explicit null override rather than removing the key.
-	// Op-deployer merges user overrides over its defaults, so an omitted key
-	// inherits the default schedule.
-	c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
-
-	// If we are deactivating a fork, then we need to also deactivate all subsequent forks.
-	if offset == nil {
-		for _, opFork := range opforks.From(fork) {
-			key, ok := genesis.ForkOffsetKey(opFork)
-			require.True(c.t, ok, "fork %q has no deploy-config time offset", opFork)
-			c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(nil)
+	overrides := c.builder.intent.Chains[c.chainIndex].DeployOverrides
+	for i, f := range opforks.From(fork) {
+		key, ok := genesis.ForkOffsetKey(f)
+		require.True(c.t, ok, "fork %q has no deploy-config time offset", f)
+		var v *uint64
+		if i == 0 {
+			v = offset
 		}
+		// A typed nil, not an omitted key: op-deployer merges overrides over its default
+		// schedule, so an omitted later fork could activate before this one. The typing is
+		// important, or op-deployer merge-JSON tricks will fail.
+		overrides[key] = (*hexutil.Uint64)(v)
 	}
 }
 
@@ -568,4 +578,8 @@ func (c *l2Configurator) WithAdditionalDisputeGames(games []state.AdditionalDisp
 
 func (c *l2Configurator) WithFinalizationPeriodSeconds(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].DeployOverrides["l2FinalizationPeriodSeconds"] = value
+}
+
+func (c *l2Configurator) WithAltDA(cfg genesis.AltDADeployConfig) {
+	c.builder.intent.Chains[c.chainIndex].DangerousAltDAConfig = cfg
 }

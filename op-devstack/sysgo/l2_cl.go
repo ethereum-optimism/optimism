@@ -14,18 +14,24 @@ type L2CLNode interface {
 }
 
 type L2CLConfig struct {
-	// SyncMode to run, if this is a sequencer
+	// SyncMode for op-node, if this is a sequencer. Kona accepts the recognized
+	// modes as compatibility inputs and uses its native adaptive EL sync behavior.
 	SequencerSyncMode nodeSync.Mode
-	// SyncMode to run, if this is a verifier
+	// SyncMode for op-node, if this is a verifier. As above, this does not select
+	// a native sync mode in Kona.
 	VerifierSyncMode nodeSync.Mode
+	// VerifierL1Confs delays L1 input to derivation, independently of sequencing.
+	VerifierL1Confs uint64
 
 	// SafeDBPath is the path to the safe DB to use. Disabled if empty.
 	SafeDBPath string
 
 	IsSequencer bool
 
-	// EnableReqRespSync enables/disables the req-resp sync server (serving payloads to peers).
-	EnableReqRespSync bool
+	// ConductorRPC configures this node to use the conductor at the given RPC
+	// endpoint. Empty disables conductor integration.
+	ConductorRPC        string
+	ConductorRPCTimeout time.Duration
 
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
@@ -35,9 +41,8 @@ type L2CLConfig struct {
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
 
-	// SequencerMaxSafeLag caps the gap between unsafe and safe L2 heads;
-	// the sequencer stalls block production when the gap is exceeded. 0 disables.
-	SequencerMaxSafeLag uint64
+	// AltDAServerURL is the DA server the node reads alt-DA inputs from. Empty disables alt-DA.
+	AltDAServerURL string
 }
 
 func L2CLSequencer() L2CLOption {
@@ -52,21 +57,12 @@ func L2CLFollowSource(source string) L2CLOption {
 	})
 }
 
-// L2CLSequencerMaxSafeLag sets the sequencer max-safe-lag. The sequencer stalls
-// block production when the unsafe/safe gap exceeds this value. 0 disables.
-func L2CLSequencerMaxSafeLag(maxSafeLag uint64) L2CLOption {
-	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
-		cfg.SequencerMaxSafeLag = maxSafeLag
-	})
-}
-
 func DefaultL2CLConfig() *L2CLConfig {
 	return &L2CLConfig{
 		SequencerSyncMode: nodeSync.CLSync,
 		VerifierSyncMode:  nodeSync.CLSync,
 		SafeDBPath:        "",
 		IsSequencer:       false,
-		EnableReqRespSync: true,
 		NoDiscovery:       false,
 		FollowSource:      "",
 	}

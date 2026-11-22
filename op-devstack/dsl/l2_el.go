@@ -2,7 +2,6 @@ package dsl
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -22,7 +21,7 @@ import (
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 var emptyHash = common.Hash{}
@@ -264,10 +263,14 @@ func (el *L2ELNode) ReachedWithProgressFn(label, progressLabel eth.BlockLabel, t
 	}
 }
 
-func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
+func (el *L2ELNode) blockRefByNumber(num uint64) (eth.L2BlockRef, error) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
-	block, err := el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
+	return el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
+}
+
+func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
+	block, err := el.blockRefByNumber(num)
 	el.require.NoError(err, "block not found using block number %d", num)
 	return block
 }
@@ -374,12 +377,16 @@ func (el *L2ELNode) L1OriginReachedFn(label eth.BlockLabel, l1OriginTarget uint6
 		logger.Info("Expecting L2EL to reach L1 origin")
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 1 * time.Second},
 			func() error {
-				head := el.BlockRefByLabel(label)
+				head, err := el.blockRefByLabel(label)
+				if err != nil {
+					logger.Warn("Failed to fetch L2EL head, retrying", "err", err)
+					return fmt.Errorf("fetch %s head: %w", label, err)
+				}
 				if head.L1Origin.Number >= l1OriginTarget {
 					logger.Info("L2EL advanced L1 origin", "l1OriginTarget", l1OriginTarget)
 					return nil
 				}
-				logger.Debug("L2EL sync status", "head", head.ID())
+				logger.Debug("L2EL sync status", "head", head.ID(), "l1Origin", head.L1Origin.Number)
 				return fmt.Errorf("L1 origin of %s not advanced yet", label)
 			})
 	}
@@ -398,7 +405,12 @@ func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 	logger.Info("Expecting L2EL L1 origin to match")
 	el.require.NoError(retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
-			head := el.BlockRefByLabel(label)
+			// A reorg can temporarily make the label or a historical block unavailable.
+			// Return lookup errors to the retry loop instead of failing the test here.
+			head, err := el.blockRefByLabel(label)
+			if err != nil {
+				return fmt.Errorf("fetch %s head: %w", label, err)
+			}
 			if head.L1Origin.Number < target.Number {
 				logger.Debug("L2EL L1 origin not yet reached", "head", head.ID(), "l1Origin", head.L1Origin)
 				return fmt.Errorf("L1 origin of %s head has not reached target yet", label)
@@ -407,7 +419,11 @@ func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 			// the L2 block whose L1 origin number matches the target.
 			block := head
 			for block.L1Origin.Number > target.Number && block.Number > 0 {
-				block = el.BlockRefByNumber(block.Number - 1)
+				number := block.Number - 1
+				block, err = el.blockRefByNumber(number)
+				if err != nil {
+					return fmt.Errorf("fetch L2 block %d: %w", number, err)
+				}
 			}
 			if block.L1Origin.Hash == target.Hash {
 				logger.Info("L2EL L1 origin matched", "l2Block", block.ID(), "l1Origin", block.L1Origin)
@@ -514,6 +530,15 @@ func (el *L2ELNode) Start() {
 	lifecycle.Start()
 }
 
+// Wipe discards the stopped node's chain data so the next Start begins from genesis.
+// Stop alone does not guarantee this: op-reth keeps its datadir across restarts.
+func (el *L2ELNode) Wipe() {
+	el.log.Info("Wiping", "name", el.inner.Name())
+	wipeable, ok := el.inner.(stack.Wipeable)
+	el.require.Truef(ok, "L2EL node %s is not wipeable", el.inner.Name())
+	wipeable.Wipe()
+}
+
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }
@@ -582,24 +607,6 @@ func (el *L2ELNode) ForkchoiceUpdateRaw(unsafe, safe, finalized common.Hash, att
 	return result
 }
 
-func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized uint64) {
-	el.log.Info("Trigger EL Sync", "unsafe", unsafe, "safe", safe, "finalized", finalized)
-	trial := 1
-	el.require.NoError(retry.Do0(el.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second}, func() error {
-		el.log.Info("FCU to trigger EL Sync", "trial", trial)
-		res := el.ForkchoiceUpdate(refNode, unsafe, safe, finalized, nil)
-		// If EL Sync triggered, Example logs from L2EL(geth)
-		//  New skeleton head announced
-		//  Backfilling with the network
-		if res.Result.PayloadStatus.Status == eth.ExecutionValid {
-			el.log.Info("Finished EL Sync")
-			return nil
-		}
-		trial += 1
-		return errors.New("EL Sync not finished")
-	}))
-}
-
 func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
 	el.require.Equal(chainID, el.inner.ChainID(), "chain ID mismatch")
 	var blockRef eth.L2BlockRef
@@ -626,7 +633,7 @@ func (el *L2ELNode) ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockI
 }
 
 // WaitForReceipt waits for a transaction receipt to be available, retrying until found or timeout.
-func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
+func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *optypes.Receipt {
 	var receipt *optypes.Receipt
 	err := retry.Do0(el.ctx, 30, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() error {
 		var err error
@@ -637,7 +644,25 @@ func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 		return nil
 	})
 	el.require.NoError(err, "failed to get receipt for tx %s", txHash.Hex())
-	return &receipt.Receipt
+	return receipt
+}
+
+// AccountProofAt returns addr's account and its state-trie proof at blockNum. op-reth serves
+// proofs from a store that can lag the blocks it has inserted, so this retries until the proof
+// is available.
+func (el *L2ELNode) AccountProofAt(addr common.Address, blockNum uint64) *eth.AccountResult {
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "account", addr, "block", blockNum)
+	proof, err := retry.Do(el.ctx, 30, &retry.FixedStrategy{Dur: time.Second}, func() (*eth.AccountResult, error) {
+		ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+		defer cancel()
+		proof, err := el.inner.EthClient().GetProof(ctx, addr, []common.Hash{}, hexutil.EncodeUint64(blockNum))
+		if err != nil {
+			logger.Info("Waiting for account proof", "err", err)
+		}
+		return proof, err
+	})
+	el.require.NoError(err, "account proof of %s at block %d", addr, blockNum)
+	return proof
 }
 
 func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
@@ -701,29 +726,31 @@ func (el *L2ELNode) FinalizedHead() *BlockRefResult {
 }
 
 func (el *L2ELNode) AssertExecMessageNotInBlock(execMessage *ExecMessage) {
-	el.AssertTxNotInBlock(bigs.Uint64Strict(execMessage.BlockNumber()), execMessage.TxHash())
+	el.AssertUserTxNotInBlock(bigs.Uint64Strict(execMessage.BlockNumber()), execMessage.TxHash())
 }
 
-// AssertTxNotInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
-func (el *L2ELNode) AssertTxNotInBlock(blockNumber uint64, txHash common.Hash) {
+// AssertUserTxNotInBlock asserts that no user transaction with the given hash exists in the block
+// at the given number. Deposits and post-exec transactions are not checked.
+func (el *L2ELNode) AssertUserTxNotInBlock(blockNumber uint64, txHash common.Hash) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
 
-	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
+	_, txs, err := el.inner.L2EthClient().InfoAndUserTxsByNumber(ctx, blockNumber)
 	el.require.NoError(err, "failed to fetch block %d", blockNumber)
 
 	for _, tx := range txs {
-		el.require.NotEqualf(tx.Hash(), txHash, "transaction should not exist in block", "Found tx %v in block %v", tx.Hash(), blockNumber)
+		el.require.NotEqualf(tx.Hash(), txHash, "found tx %v in block %d", txHash, blockNumber)
 	}
 	el.log.Info("confirmed transaction not in block", "blockNumber", blockNumber, "txHash", txHash)
 }
 
-// AssertTxInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
-func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
+// AssertUserTxInBlock asserts that a user transaction with the given hash exists in the block at
+// the given number.
+func (el *L2ELNode) AssertUserTxInBlock(blockNumber uint64, txHash common.Hash) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
 
-	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
+	_, txs, err := el.inner.L2EthClient().InfoAndUserTxsByNumber(ctx, blockNumber)
 	el.require.NoError(err, "failed to fetch block %d", blockNumber)
 
 	for _, tx := range txs {
@@ -732,7 +759,7 @@ func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
 			return
 		}
 	}
-	el.require.Fail("transaction should exist in block", "blockNumber", blockNumber, "txHash", txHash)
+	el.require.Failf("transaction should exist in block", "tx %v not found in block %d", txHash, blockNumber)
 }
 
 // ResendUntilSafe broadcasts a transaction from makeTx and waits for it to derive onto this

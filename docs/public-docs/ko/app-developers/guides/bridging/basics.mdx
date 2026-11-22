@@ -1,0 +1,30 @@
+---
+title: 브리징 기본 사항
+description: Ethereum과 OP Mainnet 간에 데이터와 토큰을 전송하는 기본 원리를 알아봅니다.
+diataxis: explanation
+---
+OP Mainnet은 "Layer 2" 시스템이며 근본적으로 Ethereum과 연결되어 있습니다.
+하지만 OP Mainnet은 자체 블록과 트랜잭션을 가진 별개의 블록체인이기도 합니다.
+앱 개발자는 OP Mainnet과 Ethereum 간에 데이터와 토큰을 이동해야 하는 경우가 많습니다.
+두 네트워크 간에 데이터와 토큰을 이동하는 이 과정을 "브리징(bridging)"이라고 합니다.
+
+## 토큰 전송
+
+브리징의 가장 일반적인 사용 사례 중 하나는 OP Mainnet과 Ethereum 간에 ETH 또는 ERC-20 토큰을 전송하는 것입니다.
+OP Mainnet에는 양방향으로 토큰을 쉽게 이동할 수 있게 해 주는 [Standard Bridge](./standard-bridge)라는 시스템이 있습니다.
+주로 토큰을 브리지해야 한다면 [Standard Bridge](./standard-bridge) 가이드를 꼭 확인하십시오.
+
+## 데이터 전송
+
+내부적으로 Standard Bridge는 OP Mainnet의 [Ethereum과 OP Mainnet 간 임의의 데이터를 전송하는 메시지 전달 시스템](./messaging)을 사용하는 애플리케이션일 뿐입니다.
+애플리케이션은 이 시스템을 사용하여 Ethereum의 컨트랙트가 OP Mainnet의 컨트랙트와 상호작용하도록 할 수 있으며, 그 반대도 가능합니다.
+이 모든 기능은 간단하고 깔끔한 API를 통해 쉽게 사용할 수 있습니다.
+
+## 다음 단계
+
+브리징을 시작할 준비가 되셨습니까?
+다음 튜토리얼을 통해 빠르게 익혀 보십시오.
+
+*   [viem으로 ERC-20 토큰을 브리지하는 방법 알아보기](/ko/app-developers/tutorials/bridging/cross-dom-bridge-erc20)
+*   [표준 또는 커스텀 브리지 토큰을 생성하는 방법 알아보기](/ko/app-developers/tutorials/bridging/standard-bridge-standard-token)
+*   [L1에서 트랜잭션을 제출하는 방법 알아보기](/ko/app-developers/tutorials/bridging/cross-dom-bridge-eth)

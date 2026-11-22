@@ -1,0 +1,243 @@
+---
+title: AI와 함께 문서 사용하기
+description: llms.txt와 페이지별 markdown으로 에이전트처럼 Optimism 문서를 읽고, 호스팅된 MCP 서버를 연결하며, 엄선된 프롬프트로 시작하는 방법을 안내합니다.
+diataxis: how-to
+last-reviewed: 2026-07-18
+---
+
+이 문서는 브라우저뿐만 아니라 AI 어시스턴트와 에이전트도 읽을 수 있도록 구축되었습니다.
+모든 페이지는 일반 markdown으로 제공되며, 사이트 전체에 대한 기계 판독 가능한 인덱스가 게시되고, 호스팅된 MCP 서버가 콘텐츠 검색 기능을 제공합니다.
+이 페이지에서는 이를 활용하는 세 가지 방법인 [에이전트로 문서 읽기](#read-the-docs-as-an-agent), [호스팅된 MCP 서버 연결하기](#connect-the-hosted-mcp-server), [엄선된 프롬프트로 시작하기](#prompt-starters)를 다룹니다.
+
+## 에이전트로 문서 읽기
+
+### 문서 인덱스: llms.txt
+
+이 사이트는 다음 주소에 [llms.txt](https://llmstxt.org/) 인덱스를 게시합니다.
+
+```text
+https://docs.optimism.io/llms.txt
+```
+
+이 인덱스는 사이트의 페이지와 해당 URL을 나열한 일반 markdown 목록입니다.
+개별 페이지를 가져오기 전에 어시스턴트가 이 인덱스를 참조하도록 하여 어떤 페이지가 있는지 파악하게 하십시오.
+이 문서를 다루는 모든 에이전트에게 권장되는 진입점입니다.
+
+### 페이지별 Markdown
+
+모든 페이지는 URL 끝에 `.md`를 붙인 주소에서 원시 markdown으로 제공됩니다.
+예를 들어 [노드 운영자 개요](/ko/node-operators/overview) 페이지는 다음 주소에서 확인할 수 있습니다.
+
+```text
+https://docs.optimism.io/node-operators/overview.md
+```
+
+`.md` 형식으로 가져오면 HTML 셸, 내비게이션, 스크립트를 건너뛰므로 어시스턴트는 훨씬 적은 토큰으로 페이지 콘텐츠만 정확히 받을 수 있습니다.
+도구가 프로그래밍 방식으로 페이지를 가져오는 경우에는 항상 HTML URL보다 이 형식을 사용하십시오.
+
+### 컨텍스트 메뉴
+
+이 문서의 모든 페이지에는 어시스턴트용 작업을 제공하는 컨텍스트 메뉴(페이지 제목 옆)가 있습니다.
+
+*   **Copy page**: 페이지를 markdown으로 복사하여 어떤 채팅에도 바로 붙여넣을 수 있습니다.
+*   **Open in ChatGPT**: 페이지가 미리 로드된 ChatGPT 대화를 엽니다.
+*   **Open in Claude**: 페이지가 미리 로드된 Claude 대화를 엽니다.
+*   **Copy MCP server URL**: 클라이언트 설정에 사용할 [호스팅된 MCP 서버](#connect-the-hosted-mcp-server) 주소를 복사합니다.
+
+페이지를 읽다가 URL을 직접 만들지 않고 어시스턴트에게 전달하고 싶을 때 사용하십시오.
+
+### 이 문서를 읽는 에이전트를 위한 팁
+
+*   `llms.txt`에서 시작하여 사이트 구조를 파악한 다음, 필요한 `.md` 페이지만 가져오십시오.
+*   이 문서는 OP Stack을 *사용*하는 방법을 설명합니다. 규범적인 프로토콜 정의는 [OP Stack 명세](https://specs.optimism.io)에 있습니다. 문서 페이지와 명세의 내용이 다를 경우 명세가 우선합니다.
+*   설정 플래그와 버전은 릴리스마다 변경됩니다. 중요한 값은 실제로 적용하기 전에 링크된 소스나 릴리스 노트와 대조하여 확인하십시오.
+
+## 호스팅된 MCP 서버 연결하기
+
+[Model Context Protocol(MCP)](https://modelcontextprotocol.io)은 AI 어시스턴트를 외부 도구 및 데이터 소스에 연결하기 위한 개방형 표준입니다.
+이 문서는 Mintlify에서 호스팅되며, Mintlify는 사이트용 [MCP 서버를 자동으로 생성하고 호스팅](https://www.mintlify.com/docs/ai/model-context-protocol)합니다.
+이 서버는 문서에 대한 검색 도구를 제공하므로, 연결된 어시스턴트(Claude Code, Claude Desktop, Cursor 등)는 오래된 학습 데이터에 의존하지 않고 최신 OP Stack 콘텐츠를 조회할 수 있습니다.
+
+### 옵션 1: 호스팅된 MCP 서버(권장)
+
+문서 MCP 서버는 다음 주소에서 HTTP로 제공됩니다.
+
+```text
+https://docs.optimism.io/mcp
+```
+
+<Steps>
+  <Step title="클라이언트에 서버 추가하기">
+    Claude Code의 경우 다음을 실행합니다.
+
+    ```bash
+    claude mcp add --transport http optimism-docs https://docs.optimism.io/mcp
+    ```
+
+    Cursor, Claude Desktop 및 JSON 설정을 사용하는 기타 클라이언트의 경우 서버 URL을 추가합니다.
+
+    ```json
+    {
+      "mcpServers": {
+        "optimism-docs": {
+          "url": "https://docs.optimism.io/mcp"
+        }
+      }
+    }
+    ```
+
+    이 문서의 어느 페이지에서든 연결할 수도 있습니다. 컨텍스트 메뉴(페이지 제목 옆)에는 클라이언트용 MCP 서버 정보를 복사하는 옵션이 포함되어 있습니다.
+  </Step>
+
+  <Step title="작동 확인하기">
+    어시스턴트에게 다음과 같이 질문합니다.
+
+    ```text
+    Using the optimism-docs MCP server, find the page about running a node
+    from source and summarize its hardware requirements.
+    ```
+
+    올바르게 연결된 어시스턴트는 서버의 검색 도구를 호출하여 [소스에서 OP Stack 노드 빌드 및 실행하기](/ko/node-operators/tutorials/run-node-from-source) 페이지를 찾고, 실제 페이지 내용을 바탕으로 답변합니다.
+  </Step>
+</Steps>
+
+### 옵션 2: 직접 가져오기(MCP 서버 불필요)
+
+어시스턴트가 웹 페이지를 가져올 수 있지만 MCP를 지원하지 않는 경우에도 별도의 설정이 필요하지 않습니다.
+사이트의 [기계 판독 가능한 인터페이스](#read-the-docs-as-an-agent)인 `llms.txt` 인덱스와 페이지별 markdown은 URL을 가져올 수 있는 모든 어시스턴트에서 작동합니다.
+어시스턴트에게 인덱스와 URL 규칙을 알려 주십시오.
+
+```text
+The Optimism docs publish a machine-readable index at
+https://docs.optimism.io/llms.txt. Any page is available as raw
+markdown by appending .md to its URL. Use the index to find relevant
+pages, then fetch their .md versions.
+```
+
+이 내용을 어시스턴트의 프로젝트 지침(예: `CLAUDE.md`, `.cursorrules` 또는 시스템 프롬프트)에 추가하면, 어시스턴트가 최신 문서를 기반으로 OP Stack 관련 질문에 답변합니다.
+
+도구가 MCP를 통해서만 네트워크에 접근할 수 있고 호스팅된 서버를 사용할 수 없는 경우, 레퍼런스 [fetch 서버](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch)(`uvx mcp-server-fetch`)와 위의 지침 블록을 함께 사용하면 동일한 결과를 얻을 수 있습니다.
+
+호스팅된 MCP 엔드포인트가 응답하지 않으면 조사할 수 있도록 [issue를 등록](https://github.com/ethereum-optimism/optimism/issues)해 주십시오.
+
+## 프롬프트 스타터
+
+URL을 가져올 수 있는 모든 AI 어시스턴트에서 바로 사용할 수 있는, 일반적인 OP Stack 작업용 복사-붙여넣기 프롬프트입니다.
+각 프롬프트는 대상 페르소나를 명시하고, 특정 문서 페이지([페이지별 markdown](#per-page-markdown)으로 가져옴)를 근거로 삼도록 하며, 어시스턴트가 무엇을 만들어야 하는지 지시합니다.
+보내기 전에 대괄호 안의 자리 표시자를 자신의 정보로 바꾸십시오.
+
+어시스턴트가 URL을 가져올 수 없다면, 링크된 페이지를 열고 컨텍스트 메뉴의 **Copy page** 작업을 사용하여 내용을 붙여넣으십시오.
+
+### 비용 관점에서 batcher 설정 감사하기
+
+**페르소나:** 체인 운영자
+
+데이터 가용성(data availability)은 일반적으로 체인의 가장 큰 온체인 운영 비용이며, batcher 설정이 이를 좌우합니다.
+근거 페이지: [Batcher 설정하기](/ko/chain-operators/guides/configuration/batcher) 및 [트랜잭션 수수료 101](/ko/chain-operators/guides/management/transaction-fees-101).
+
+```text
+Read https://docs.optimism.io/chain-operators/guides/configuration/batcher.md
+and https://docs.optimism.io/chain-operators/guides/management/transaction-fees-101.md
+
+Here is my current op-batcher configuration: [paste your flags or env vars].
+My chain posts roughly [N] transactions per day and targets [blobs / calldata].
+
+Audit the configuration for data-availability cost: identify settings that
+increase posting cost, explain the trade-off each one controls (cost vs.
+latency vs. safety), and propose a revised configuration with reasoning.
+Flag any flag you are not sure still exists so I can check it against
+op-batcher --help for my release.
+```
+
+### 입금(디파짓) 흐름 단계별로 설명받기
+
+**페르소나:** 앱 개발자
+
+입금 기능을 기반으로 개발하기 전에, L1 입금 호출부터 트랜잭션이 L2에 나타나기까지 실제로 어떤 일이 일어나는지 이해하십시오.
+근거 페이지: [입금 흐름](/ko/op-stack/bridging/deposit-flow) 및 [입금 트랜잭션](/ko/app-developers/tutorials/bridging/deposit-transactions).
+
+```text
+Read https://docs.optimism.io/op-stack/bridging/deposit-flow.md and
+https://docs.optimism.io/app-developers/tutorials/bridging/deposit-transactions.md
+
+Walk me through the full lifecycle of a deposit from L1 to L2: which
+contract I call, what events are emitted, how the L2 transaction is
+derived, and what latency and failure modes to expect. Then show me the
+minimal code to trigger a deposit from my app. I am building
+[describe your app].
+```
+
+### 결함 증명(fault proof) challenger 배포 계획하기
+
+**페르소나:** 체인 운영자
+
+모든 무허가형(permissionless) 결함 증명 체인에는 분쟁 게임(dispute game)을 감시하는 정직한 challenger가 필요합니다.
+근거 페이지: [OP-Challenger 설명](/ko/op-stack/fault-proofs/challenger) 및 [체인용 Challenger 설정 방법](/ko/chain-operators/guides/configuration/op-challenger-config-guide).
+
+```text
+Read https://docs.optimism.io/op-stack/fault-proofs/challenger.md and
+https://docs.optimism.io/chain-operators/guides/configuration/op-challenger-config-guide.md
+
+I operate an OP Stack chain with fault proofs enabled on [network].
+Produce a deployment plan for op-challenger: the role it plays, the
+resources and keys it needs, the bond funding it requires, the
+configuration I must set, and the monitoring I should attach. List open
+questions I need to answer about my own chain before deploying.
+```
+
+### 앱에서 L1의 ETH 브리지하기
+
+**페르소나:** 앱 개발자
+
+Ethereum과 OP Stack 체인 간에 프로그래밍 방식으로 ETH를 이동합니다.
+근거 페이지: [L1에서 트랜잭션 제출하기](/ko/app-developers/tutorials/bridging/cross-dom-bridge-eth).
+
+```text
+Read https://docs.optimism.io/app-developers/tutorials/bridging/cross-dom-bridge-eth.md
+
+Using the approach in this tutorial, write the code for my app to bridge
+ETH from [L1 network] to [L2 network] and report deposit status to the
+user. My stack is [TypeScript framework / environment]. Point out where
+testnet and mainnet configuration differ, and what the user experience
+should show while the deposit is in flight.
+```
+
+### 트랜잭션 수수료 구성 설명받기
+
+**페르소나:** 앱 개발자
+
+OP Stack 트랜잭션은 실행 수수료와 데이터 가용성 수수료를 지불합니다. 둘 중 하나만 추정하면 버그가 발생합니다.
+근거 페이지: [OP Mainnet의 트랜잭션 수수료](/ko/op-stack/transactions/fees).
+
+```text
+Read https://docs.optimism.io/op-stack/transactions/fees.md
+
+Explain every component of the fee my transaction pays on an OP Stack
+chain, how each is calculated, and which ones fluctuate with L1 gas
+prices. Then show me how to estimate the total fee for a transaction
+correctly in my app, and the common estimation mistakes to avoid.
+Here is my current estimation code: [paste code, optional].
+```
+
+### 멈춘 출금 디버깅하기
+
+**페르소나:** 앱 개발자
+
+출금은 설계상 여러 단계로 이루어지며 시간 지연이 있습니다. "멈춘" 것처럼 보이는 출금 대부분은 실제로 진행 중인 상태입니다.
+근거 페이지: [출금 흐름](/ko/op-stack/bridging/withdrawal-flow) 및 [트랜잭션 최종성](/ko/op-stack/transactions/transaction-finality).
+
+```text
+Read https://docs.optimism.io/op-stack/bridging/withdrawal-flow.md and
+https://docs.optimism.io/op-stack/transactions/transaction-finality.md
+
+A withdrawal from [L2 network] appears stuck: [describe what you did,
+when, and the transaction hash or current status]. Using the withdrawal
+lifecycle in these docs, determine which stage the withdrawal is in,
+whether the delay is expected protocol behavior or an actual problem,
+and exactly what action (if any) unblocks the next step.
+```
+
+## 기여하기
+
+위의 프롬프트는 엄선된 것입니다. 각 프롬프트는 독자가 실제로 가지고 오는 작업에 대응하며, 관리되는 문서 페이지를 근거로 어시스턴트를 안내합니다.
+새 프롬프트를 제안하거나 오래된 프롬프트를 수정하려면 [issue를 등록](https://github.com/ethereum-optimism/optimism/issues)하거나 이 페이지를 직접 수정하십시오.

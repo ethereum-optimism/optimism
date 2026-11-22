@@ -23,10 +23,10 @@ import (
 )
 
 // preInteropExecError returns true if err matches a known pre-interop
-// executing message failure from op-geth or op-reth.
+// executing message failure.
 func preInteropExecError(err error) bool {
 	msg := err.Error()
-	// op-geth: gas estimation hits the uninitialized proxy and returns the revert reason
+	// gas estimation hits the uninitialized proxy and returns the Proxy's revert reason
 	if strings.Contains(msg, "implementation not initialized") {
 		return true
 	}
@@ -53,7 +53,7 @@ func TestPreNoInbox(gt *testing.T) {
 
 	// Phase 1: Verify CrossL2Inbox is NOT deployed before interop activation
 	devtest.RunParallel(t, []*dsl.L2Network{sys.L2A, sys.L2B}, func(t devtest.T, net *dsl.L2Network) {
-		interopTime := net.Escape().ChainConfig().LagoonTime
+		interopTime := net.Escape().RollupConfig().LagoonTime
 		t.Require().NotNil(interopTime)
 		pre := net.LatestBlockBeforeTimestamp(t, *interopTime)
 		el := net.PrimaryEL()
@@ -87,8 +87,8 @@ func TestPreNoInbox(gt *testing.T) {
 		alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 		bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
-		interopTimeA := sys.L2A.Escape().ChainConfig().LagoonTime
-		interopTimeB := sys.L2B.Escape().ChainConfig().LagoonTime
+		interopTimeA := sys.L2A.Escape().RollupConfig().LagoonTime
+		interopTimeB := sys.L2B.Escape().RollupConfig().LagoonTime
 
 		eventLoggerAddress := alice.DeployEventLogger()
 

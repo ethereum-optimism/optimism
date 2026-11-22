@@ -1,0 +1,91 @@
+---
+title: Init 명령
+description: OP Stack 배포를 위한 intent 및 state 파일을 초기화하는 방법을 알아봅니다.
+diataxis: reference
+---
+
+`init` 명령은 지정된 디렉터리에 새로운 intent 및 state 파일을 생성하는 데 사용됩니다. 이 명령은 모든 새 배포의
+시작점입니다.
+
+## 사용법 {#usage}
+
+`init` 명령은 다음과 같이 사용합니다.
+
+```shell
+op-deployer init \
+  --l1-chain-id <chain ID of your L1> \
+  --l2-chain-ids <comma separated list of chain IDs for your L2s> \
+  --outdir <directory to write the intent and state files> \
+  --intent-type <standard/custom/standard-overrides>
+```
+
+그러면 출력 디렉터리에 다음 파일이 생성됩니다.
+
+```
+outdir
+├── intent.toml
+└── state.json
+```
+
+`intent.toml` 파일에는 배포 구성을 지정합니다. `state.json` 파일에는 OP Deployer가 배포의 각 단계가 끝날 때마다
+배포의 현재 상태를 출력합니다.
+
+## Intent 파일 {#intent-file}
+
+intent는 다음과 같은 형태입니다.
+
+```toml
+configType = "standard"
+l1ChainID = 11155420
+fundDevAccounts = false
+useInterop = false
+l1ContractsLocator = "embedded"
+l2ContractsLocator = "embedded"
+
+[superchainRoles]
+  proxyAdminOwner = "0xeAAA3fd0358F476c86C26AE77B7b89a069730570"
+  guardian = "0xeAAA3fd0358F476c86C26AE77B7b89a069730570"
+
+[[chains]]
+  id = "0x0000000000000000000000000000000000000000000000000000000000002390"
+  baseFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
+  l1FeeVaultRecipient = "0x0000000000000000000000000000000000000000"
+  sequencerFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
+  operatorFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
+  eip1559DenominatorCanyon = 250
+  eip1559Denominator = 50
+  eip1559Elasticity = 6
+
+  [chains.roles]
+    l1ProxyAdminOwner = "0x0000000000000000000000000000000000000000"
+    l2ProxyAdminOwner = "0x0000000000000000000000000000000000000000"
+    systemConfigOwner = "0x0000000000000000000000000000000000000000"
+    unsafeBlockSigner = "0x0000000000000000000000000000000000000000"
+    batcher = "0x0000000000000000000000000000000000000000"
+    proposer = "0x0000000000000000000000000000000000000000"
+    challenger = "0x0000000000000000000000000000000000000000"
+```
+
+<Warning>
+intent 파일을 배포에 사용하기 전에 모든 0 값을 체인에 적합한 값으로 업데이트해야 합니다. 개발 환경에서는
+모두 EOA/hot wallet을 사용해도 괜찮습니다.
+</Warning>
+
+## 프로덕션 설정 {#production-setup}
+
+프로덕션 환경에서는 다음 항목에 cold wallet 멀티시그(예: Gnosis Safe)를 사용하는 보다 안전한 설정을 사용해야 합니다.
+
+*   `baseFeeVaultRecipient`
+*   `l1FeeVaultRecipient`
+*   `sequencerFeeVaultRecipient`
+*   `operatorFeeVaultRecipient`
+*   `l1ProxyAdminOwner`
+*   `l2ProxyAdminOwner`
+*   `systemConfigOwner`
+
+다음 hot wallet에는 HSM(하드웨어 보안 모듈)을 사용하는 것을 권장합니다.
+
+*   `unsafeBlockSigner`
+*   `batcher`
+*   `proposer`
+*   `challenger`

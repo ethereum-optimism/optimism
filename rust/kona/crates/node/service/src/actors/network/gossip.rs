@@ -17,6 +17,11 @@ pub trait UnsafePayloadGossipClient: Send + Sync + Debug {
         &self,
         payload: OpExecutionPayloadEnvelope,
     ) -> Result<(), UnsafePayloadGossipClientError>;
+
+    /// Whether a payload can be scheduled now without waiting for queue space. For the queue's
+    /// only sender, a `true` result means the next
+    /// [`Self::schedule_execution_payload_gossip`] call does not wait.
+    fn has_capacity(&self) -> bool;
 }
 
 /// Errors that can occur when using the [`UnsafePayloadGossipClient`].
@@ -46,5 +51,9 @@ impl UnsafePayloadGossipClient for QueuedUnsafePayloadGossipClient {
             .await
             .map_err(|_| UnsafePayloadGossipClientError::RequestError("request channel closed".to_string()))
             .inspect_err(|err| error!(target: "gossip_client", ?payload, ?err, "failed to request to gossip payload."))
+    }
+
+    fn has_capacity(&self) -> bool {
+        self.request_tx.capacity() > 0
     }
 }

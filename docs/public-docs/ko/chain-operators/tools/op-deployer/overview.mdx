@@ -1,0 +1,43 @@
+---
+title: OP Deployer
+description: OP Stack 체인의 스마트 컨트랙트를 배포하고 업그레이드하기 위한 CLI 도구입니다.
+diataxis: explanation
+---
+
+OP Deployer는 OP Stack 체인의 스마트 컨트랙트 배포 및 업그레이드를 간소화하는 CLI 도구입니다. 또한
+개발자가 애플리케이션에서 스마트 컨트랙트를 쉽게 관리할 수 있도록 라이브러리 모음도 제공합니다.
+
+## 목표
+
+### 선언형
+
+OP Deployer를 사용하면 개발자는 선언형 구성 파일에 체인의 원하는 구성을 정의합니다. 그러면 도구가
+배포를 구성과 일치시키는 데 필요한 최소한의 스마트 컨트랙트 호출만 수행합니다. 이를 통해 배포의 구현
+세부 사항이 추상화되며, 기반 배포 프로세스를 신경 쓰지 않고도 복잡한 구성을 깔끔하게 표현할 수
+있습니다.
+
+### 이식성
+
+OP Deployer는 작고 이식성이 높으며 쉽게 설치할 수 있도록 설계되었습니다. 따라서 추가 의존성이 없는
+독립 실행형 바이너리로 배포됩니다. 덕분에 CLI 도구, CI 파이프라인, [Kurtosis](https://github.com/ethpandaops/optimism-package)와
+같은 로컬 개발 환경의 일부 등 다양한 맥락에서 사용할 수 있습니다.
+
+### 표준적이면서도 확장 가능
+
+OP Deployer는 올바른 작업은 쉽게, 위험한 작업은 어렵게 만드는 것을 목표로 합니다. 따라서 구성과
+API는 Standard OP Chain을 배포하고 업그레이드하는 데 최적화되어 있습니다. 그러나 필요한 경우 사용자가
+더 복잡한 구성을 배포할 수 있도록 저수준 프리미티브와 구성 지시자 집합도 제공합니다.
+
+## 개발 상태
+
+<Warning>
+OP Deployer는 활발히 개발 중이며 여러 mainnet 배포에 사용되었습니다. 프로덕션 환경에서 사용할 준비가
+된 것으로 간주됩니다. 그러나 **OP Deployer는 감사를 받지 않았다는 점**을 유의하십시오. OP Deployer로
+배포한 모든 체인은 출시 전에 정확성을 철저히 검증해야 합니다.
+</Warning>
+
+## 다음 단계
+
+- [op-deployer 설치](/ko/chain-operators/tools/op-deployer/installation) - 사전 빌드된 바이너리 또는 소스에서 설치합니다
+- [Bootstrap](/ko/chain-operators/tools/op-deployer/usage/bootstrap) - 전역 싱글톤과 구현 컨트랙트를 배포합니다
+- [아키텍처](/ko/chain-operators/tools/op-deployer/reference/architecture/overview) - OP Deployer의 아키텍처를 이해합니다

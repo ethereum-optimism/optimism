@@ -332,11 +332,10 @@ func (s *EthClient) headerAndRawTxsByHash(ctx context.Context, hash common.Hash)
 // HeaderAndTxsByHash returns the *types.Header and transactions for the given
 // block hash.
 //
-// The transactions are decoded into go-ethereum types: for L2 blocks — which
-// contain OP Stack synthetic transactions — use the class-partitioned
+// The transactions are decoded into go-ethereum types, which fails on the OP
+// Stack synthetic transactions of L2 blocks: for those use the class-partitioned
 // accessors (InfoAndUserTxsBy*, InfoAndDepositsBy*, InfoAndFirstDepositBy*)
-// instead, as this decode only handles them while the build resolves
-// go-ethereum to op-geth.
+// instead.
 func (s *EthClient) HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error) {
 	header, rawTxs, err := s.headerAndRawTxsByHash(ctx, hash)
 	if err != nil {

@@ -46,7 +46,7 @@ The challenger needs the absolute prestate to participate in dispute games. The 
 
 2.  **Stage your chain configuration**:
 
-    Because your chain is not in the public Superchain Registry, the prestate build must embed your chain's configuration. Create the two staging files (`chainList.json` and `configs.json`) from your `rollup.json`, L2 genesis, and `op-deployer` state by following [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate), then point the build at them:
+    Because your chain is not in the public Superchain Registry, the prestate build must embed your chain's configuration. Create the three staging files (`chainList.json`, `configs.json` and `depsets.json`) from your `rollup.json`, L2 genesis, and `op-deployer` state by following [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate), then point the build at them:
 
     ```bash
     # Assuming you're in rollup/challenger/optimism directory
@@ -147,7 +147,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     <Step title="Set up Docker Compose">
 
     Define the challenger service in a `docker-compose.yml`. It mounts several important files:
-    *   `prestate-proof.json` and `${PRESTATE_HASH}.bin.gz`: Prestate files required for dispute games (the PRESTATE_HASH comes from running `just reproducible-prestate-kona`), replace `PRESTATE_HASH` with the actual hash
+    *   `${PRESTATE_HASH}.bin.gz`: The absolute prestate required for dispute games, replace `PRESTATE_HASH` with the actual hash (the `.pre` field of `prestate-proof.json`, written by `just reproducible-prestate-kona`)
 
     ```yaml
     
@@ -159,7 +159,6 @@ For challenger deployment, we recommend using Docker as it provides a consistent
           - ./challenger-data:/data
           - ./rollup.json:/workspace/rollup.json:ro
           - ./genesis-l2.json:/workspace/genesis-l2.json:ro
-          - ./prestate-proof.json:/workspace/prestate-proof.json:ro
           - ./${PRESTATE_HASH}.bin.gz:/workspace/${PRESTATE_HASH}.bin.gz:ro
         command: >
           op-challenger run-trace

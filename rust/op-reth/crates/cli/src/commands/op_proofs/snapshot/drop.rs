@@ -1,31 +1,29 @@
 //! Command that drops the OP proofs trie-state snapshot.
 
+use crate::chainspec::OpChainSpecParser;
 use clap::Parser;
-use reth_chainspec::EthChainSpec;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
-use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsStorageVersion};
-use reth_optimism_trie::{
-    OpProofsBackfillProvider, OpProofsBackfillStore, db::MdbxProofsStorageV2,
-};
+use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_node::args::ProofsHistoryStorageArgs;
+use reth_optimism_trie::{OpProofsBackfillProvider, OpProofsBackfillStore, db::MdbxProofsStorage};
 use std::sync::Arc;
 use tracing::info;
 
 /// Wipes the snapshot tables and meta row, returning status to `NotStarted`.
 #[derive(Debug, Parser)]
-pub struct SnapshotDropCommand<C: ChainSpecParser> {
+pub struct SnapshotDropCommand {
     #[command(flatten)]
-    env: EnvironmentArgs<C>,
+    env: EnvironmentArgs<OpChainSpecParser>,
 
     /// Shared proofs-history storage flags (storage path + version).
     #[command(flatten)]
     pub history: ProofsHistoryStorageArgs,
 }
 
-impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotDropCommand<C> {
+impl SnapshotDropCommand {
     /// Execute [`SnapshotDropCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -37,29 +35,19 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotDropCommand<C> {
         let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
         info!(target: "reth::cli", "Dropping OP proofs snapshot at: {:?}", storage_path);
 
-        match self.history.storage_version {
-            ProofsStorageVersion::V1 => Err(eyre::eyre!(
-                "Snapshot is not supported for V1 proofs storage. \
-                 Re-run with --proofs-history.storage-version v2."
-            )),
-            ProofsStorageVersion::V2 => {
-                let storage = MdbxProofsStorageV2::new(&storage_path)
-                    .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorageV2: {e}"))?;
+        let storage = MdbxProofsStorage::new(&storage_path)
+            .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorage: {e}"))?;
 
-                let sp = storage.backfill_provider()?;
-                sp.clear_snapshot()?;
-                OpProofsBackfillProvider::commit(sp)?;
+        let sp = storage.backfill_provider()?;
+        sp.clear_snapshot()?;
+        OpProofsBackfillProvider::commit(sp)?;
 
-                info!(target: "reth::cli", "Snapshot dropped");
-                Ok(())
-            }
-        }
+        info!(target: "reth::cli", "Snapshot dropped");
+        Ok(())
     }
-}
 
-impl<C: ChainSpecParser> SnapshotDropCommand<C> {
     /// Returns the underlying chain being used to run this command.
-    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         Some(&self.env.chain)
     }
 }

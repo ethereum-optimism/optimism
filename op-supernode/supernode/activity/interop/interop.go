@@ -31,6 +31,13 @@ var (
 	errorBackoffPeriod                               = 2 * time.Second // backoff on errors
 )
 
+// ErrRewindPastBackfill halts the activity when a rewind would remove the
+// first verified timestamp of a node that cold-started after activation. That
+// rewind clears every logsDB, which deletes the cold-start backfill below the
+// first verified timestamp. Backfill runs only at cold start, so the node would
+// keep verifying without it and invalidate valid blocks.
+var ErrRewindPastBackfill = errors.New("rewind would delete cold-start log backfill")
+
 // DefaultLogBackfillDepth matches the interop message expiry window so backfill
 // covers every initiating message that could still be referenced by an
 // executing message.
@@ -254,11 +261,10 @@ func New(
 	l1Source l1ByNumberSource,
 	logBackfillDepth time.Duration,
 	metrics *resources.SupernodeMetrics,
-) *Interop {
+) (*Interop, error) {
 	verifiedDB, err := OpenVerifiedDB(dataDir)
 	if err != nil {
-		log.Error("failed to open verified DB", "err", err)
-		return nil
+		return nil, fmt.Errorf("open verified DB: %w", err)
 	}
 
 	// Initialize logsDBs for each chain
@@ -266,13 +272,12 @@ func New(
 	for chainID := range chains {
 		logsDB, err := openLogsDB(log, chainID, dataDir)
 		if err != nil {
-			log.Error("failed to open logs DB for chain", "chainID", chainID, "err", err)
 			// Clean up already created logsDBs
 			for _, db := range logsDBs {
 				_ = db.Close()
 			}
 			_ = verifiedDB.Close()
-			return nil
+			return nil, fmt.Errorf("open logs DB for chain %s: %w", chainID, err)
 		}
 		logsDBs[chainID] = logsDB
 	}
@@ -315,7 +320,7 @@ func New(
 	i.verifyFn = i.verifyInteropMessages
 	i.cycleVerifyFn = i.verifyCycleMessages
 	i.l1Checker = newL1ConsistencyChecker(l1Source)
-	return i
+	return i, nil
 }
 
 // Start begins the Interop activity background loop and blocks until ctx is canceled.
@@ -428,6 +433,13 @@ func (i *Interop) progress() (time.Duration, error) {
 			i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
 				"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
 			return 0, fmt.Errorf("interop halted due to unavailable history: %w", err)
+		}
+		if errors.Is(err, ErrRewindPastBackfill) {
+			i.metrics.ActivityErrors.WithLabelValues("interop", "rewind_past_backfill").Inc()
+			i.metrics.InteropActivityState.Set(InteropStateHalted)
+			i.log.Error("interop activity halted: L1 reorg reached the first verified timestamp", "err", err,
+				"remediation", "delete VerifiedAtTimestamp.db and the chain-<id> logs DB directories from the data dir, then restart; cold start re-runs log backfill")
+			return 0, fmt.Errorf("interop halted to preserve log backfill: %w", err)
 		}
 		i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
 		i.log.Error("failed to progress and record interop", "err", err)
@@ -958,6 +970,11 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		return RewindPlan{}, err
 	}
 	if lastTS <= first {
+		// Backfill is clamped to activation, so a node that started verifying
+		// at activation holds no backfill to lose.
+		if i.logBackfillDepth > 0 && first > i.activationTimestamp {
+			return RewindPlan{}, fmt.Errorf("%w: first verified timestamp %d", ErrRewindPastBackfill, first)
+		}
 		if plan.ResetAllChainsTo != nil {
 			payloads, err := i.captureRewindPayloadsAtTimestamp(*plan.ResetAllChainsTo)
 			if err != nil {

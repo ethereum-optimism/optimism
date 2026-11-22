@@ -1,0 +1,386 @@
+---
+title: ETH 전송하기
+description: OP Stack 상호운용성 클러스터 간에 ETH를 전송하는 방법을 알아봅니다
+diataxis: tutorial
+---
+
+
+
+<Info>OP Stack 상호운용성(interop)은 Lagoon 하드포크와 함께 활성화됩니다.</Info>
+<Info>
+  이 튜토리얼은 OP Stack 상호운용성 클러스터의 한 체인에서 다른 체인으로 ETH를 보내는 방법을 단계별로 안내합니다.
+  개념적인 개요는
+  [상호운용 가능한 ETH 설명](/ko/op-stack/interop/superchain-eth-bridge)을 참조하십시오.
+</Info>
+
+## 개요
+
+OP Stack 체인 간의 크로스체인 ETH 전송은 [SuperchainETHBridge](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol) 컨트랙트를 통해 이루어집니다.
+이 튜토리얼에서는 한 체인에서 다른 체인으로 ETH를 보내는 방법을 살펴봅니다.
+이 작업은 [Supersim](/ko/app-developers/tools-sdks/supersim)에서 수행할 수 있으며, 프로덕션이 출시되면 프로덕션에서도 수행할 수 있습니다.
+
+### 만들게 될 것
+
+*   체인 간에 ETH를 전송하는 TypeScript 애플리케이션
+
+### 배우게 될 것
+
+*   블록체인 상에서, 그리고 블록체인 간에 ETH를 보내는 방법
+*   체인 간에 메시지를 릴레이하는 방법
+
+## 사전 요구 사항
+
+이 튜토리얼을 시작하기 전에 개발 환경이 다음 요구 사항을 충족하는지 확인하십시오.
+
+### 기술 지식
+
+*   중급 수준의 TypeScript 지식
+*   스마트 컨트랙트 개발에 대한 이해
+*   블록체인 개념에 대한 친숙함
+
+### 개발 환경
+
+*   Unix 계열 운영 체제(Linux, macOS 또는 Windows용 WSL)
+*   Node.js 버전 16 이상
+*   버전 관리를 위한 Git
+
+### 필수 도구
+
+이 튜토리얼에서는 다음과 같은 주요 도구를 사용합니다.
+
+*   Foundry: 스마트 컨트랙트 개발용
+*   Supersim: 로컬 블록체인 시뮬레이션용
+*   TypeScript: 구현용
+*   Viem: 블록체인 상호작용용
+
+<Steps>
+  <Step title="사전 요구 소프트웨어 설치">
+  1.  [Foundry](https://book.getfoundry.sh/getting-started/installation)를 설치합니다.
+    1.  [Node](https://nodejs.org/en)를 설치합니다.
+    1.  [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)을 설치합니다.
+        설치 방법은 운영 체제에 따라 다르며, 대부분의 운영 체제에는 기본으로 설치되어 있습니다.
+  </Step>
+
+  <Step title="네트워크 구성">
+  이 튜토리얼은 로컬에서 실행하는 [Supersim](/ko/app-developers/tools-sdks/supersim) 또는 [Interop devnet](/ko/app-developers/guides/building-apps)을 사용하여 실행할 수 있습니다.
+    해당하는 탭을 선택하고 안내를 따르십시오.
+
+
+    <Tabs>
+      <Tab title="Supersim">
+        1.  [Supersim 설치](/ko/app-developers/tutorials/development/supersim/installation)를 따라 Interop이 적용된 블록체인을 실행할 수 있도록 Supersim을 설정합니다.
+
+        1.  Supersim을 시작합니다.
+
+            ```sh
+            ./supersim --interop.autorelay
+            ```
+
+        1.  Supersim은 Foundry의 `anvil` 블록체인을 사용하며, 이 블록체인은 사전에 자금이 충전된 10개의 계정으로 시작합니다.
+            L2 블록체인에서 이 계정 중 하나에 접근할 수 있도록 다음 환경 변수를 설정합니다.
+
+            ```sh
+            export PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+            ```
+
+        1.  체인의 URL을 지정합니다.
+
+            ```sh
+            SRC_URL=http://localhost:9545
+            DST_URL=http://localhost:9546
+            ```
+
+        <Accordion title="정상 동작 확인">
+
+          소스 체인과 대상 체인 모두에서 주소의 ETH 잔액을 조회합니다.
+
+          ```sh
+          cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $SRC_URL
+          cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $DST_URL
+          ```
+
+        </Accordion>
+
+
+      </Tab>
+
+      <Tab title="Interop Devnets">
+        1.  `PRIVATE_KEY`를 [Sepolia ETH](https://cloud.google.com/application/web3/faucet/ethereum/sepolia)를 보유한 주소의 개인 키로 설정합니다.
+
+            ```sh
+            export PRIVATE_KEY=0x <PRIVATE_KEY>
+            ```
+
+        1.  Sepolia에 있는 OptimismPortal 컨트랙트를 통해 두 L2 블록체인으로 ETH를 보냅니다.
+
+            ```sh
+            cast send --rpc-url https://endpoints.omniatech.io/v1/eth/sepolia/public --private-key $PRIVATE_KEY --value 0.02ether 0x7385d89d38ab79984e7c84fab9ce5e6f4815468a
+            cast send --rpc-url https://endpoints.omniatech.io/v1/eth/sepolia/public --private-key $PRIVATE_KEY --value 0.02ether 0x55f5c4653dbcde7d1254f9c690a5d761b315500c
+            ```
+
+        1.  [블록 탐색기](https://sid.testnet.routescan.io/)에서 주소의 ETH를 확인할 수 있을 때까지 몇 분 정도 기다립니다.
+
+        1.  체인의 URL을 지정합니다.
+
+            ```sh
+            SRC_URL=https://interop-alpha-0.optimism.io
+            DST_URL=https://interop-alpha-1.optimism.io
+            ```
+
+        <Accordion title="정상 동작 확인">
+
+          소스 체인과 대상 체인 모두에서 주소의 ETH 잔액을 조회합니다.
+
+          ```sh
+          cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $SRC_URL
+          cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $DST_URL
+          ```
+        </Accordion>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Foundry를 사용하여 ETH 전송">
+  다음 명령을 실행합니다.
+
+    ```sh
+    DST_CHAINID=`cast chain-id --rpc-url $DST_URL`
+    MY_ADDRESS=`cast wallet address $PRIVATE_KEY`
+    SUPERCHAIN_ETH_BRIDGE=0x4200000000000000000000000000000000000024
+    BEFORE=`cast balance $MY_ADDRESS --rpc-url $DST_URL | cast from-wei`
+    cast send --rpc-url $SRC_URL --private-key $PRIVATE_KEY $SUPERCHAIN_ETH_BRIDGE "sendETH(address,uint256)" $MY_ADDRESS $DST_CHAINID --value 0.001ether
+    sleep 10
+    AFTER=`cast balance $MY_ADDRESS --rpc-url $DST_URL | cast from-wei`
+    echo -e Balance before transfer\\t$BEFORE
+    echo -e Balance after transfer\\t$AFTER
+    ```
+  </Step>
+
+  <Step title="TypeScript 프로젝트 생성">
+  <Note>Interop devnet에서는 메시지가 자동으로 릴레이됩니다.</Note>
+  <Steps>
+    <Step title="새 TypeScript 프로젝트 생성">
+
+        ```sh
+        mkdir transfer-eth
+        cd transfer-eth
+        npm init -y
+        npm install --save-dev -y viem tsx @types/node @eth-optimism/viem typescript
+        mkdir src
+        ```
+    </Step>
+
+    <Step title="SuperchainETHBridge ABI 다운로드">
+
+        ```sh
+        curl https://raw.githubusercontent.com/ethereum-optimism/optimism/refs/heads/develop/packages/contracts-bedrock/snapshots/abi/SuperchainETHBridge.json > src/SuperchainETHBridge.abi.json
+        ```
+    </Step>
+
+    <Step title="src/transfer-eth.mts 생성">
+
+        ```typescript
+            import {
+                createWalletClient,
+                http,
+                publicActions,
+                getContract,
+                Address,
+                formatEther,
+                parseEther,
+            } from 'viem'
+
+            import { privateKeyToAccount } from 'viem/accounts'
+
+            import {
+                supersimL2A,
+                supersimL2B,
+                interopAlpha0,
+                interopAlpha1
+            } from '@eth-optimism/viem/chains'
+
+            import {
+                walletActionsL2,
+                publicActionsL2,
+                contracts as optimismContracts
+            } from '@eth-optimism/viem'
+
+            import superchainEthBridgeAbi from './SuperchainETHBridge.abi.json'
+
+            const supersimAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
+            const sourceChain = account.address === supersimAddress ? supersimL2A : interopAlpha0
+            const destinationChain = account.address === supersimAddress ? supersimL2B : interopAlpha1
+
+            const sourceWallet = createWalletClient({
+                chain: sourceChain,
+                transport: http(),
+                account,
+            }).extend(publicActions)
+                .extend(publicActionsL2())
+                .extend(walletActionsL2())
+
+            const destinationWallet = createWalletClient({
+                chain: destinationChain,
+                transport: http(),
+                account,
+            }).extend(publicActions)
+                .extend(publicActionsL2())
+                .extend(walletActionsL2())
+
+            const ethBridgeOnSource = await getContract({
+                address: optimismContracts.superchainETHBridge.address,
+                abi: superchainEthBridgeAbi,
+                client: sourceWallet,
+            })
+
+            const reportBalance = async (address: string): Promise<void> => {
+                const sourceBalance = await sourceWallet.getBalance({ address })
+                const destinationBalance = await destinationWallet.getBalance({ address })
+
+                console.log(`
+                    Address: ${address}
+                    Balance on source chain: ${formatEther(sourceBalance)}
+                    Balance on destination chain: ${formatEther(destinationBalance)}
+                `)
+            }
+
+            console.log('Before transfer')
+            await reportBalance(account.address)
+
+            const sourceHash = await ethBridgeOnSource.write.sendETH({
+                value: parseEther('0.001'),
+                args: [account.address, destinationChain.id],
+            })
+            const sourceReceipt = await sourceWallet.waitForTransactionReceipt({
+                hash: sourceHash,
+            })
+
+            console.log('After transfer on source chain')
+            await reportBalance(account.address)
+
+            const sentMessages = await sourceWallet.interop.getCrossDomainMessages({
+                logs: sourceReceipt.logs,
+            })
+            const sentMessage = sentMessages[0]
+            const relayMessageParams = await sourceWallet.interop.buildExecutingMessage({
+                log: sentMessage.log,
+            })
+
+            const relayMsgTxnHash = await destinationWallet.interop.relayCrossDomainMessage(relayMessageParams)
+            await destinationWallet.waitForTransactionReceipt({ hash: relayMsgTxnHash })
+
+            console.log('After relaying message to destination chain')
+            await reportBalance(account.address)
+        ```
+    </Step>
+  </Steps>
+
+        <Accordion title="`transfer-eth.mts` 설명">
+
+        ```typescript
+            import {
+                supersimL2A,
+                supersimL2B,
+                interopAlpha0,
+                interopAlpha1
+            } from '@eth-optimism/viem/chains'
+        ```
+
+          `@eth-optimism/viem`에서 모든 체인 정의를 가져옵니다.
+
+        ```typescript
+            const supersimAddress="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+            const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
+            const sourceChain = account.address == supersimAddress ? supersimL2A : interopAlpha0
+            const destinationChain = account.address == supersimAddress ? supersimL2B : interopAlpha1
+        ```
+
+          사용하는 주소가 `anvil`에서 사전에 자금이 충전된 주소 중 하나인 `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`이면 Supersim을 사용하는 것으로 간주합니다.
+          그렇지 않으면 Interop devnet을 사용합니다.
+
+        ```typescript
+            const sourceHash = await ethBridgeOnSource.write.sendETH({
+                value: parseEther('0.001'),
+                args: [account.address, destinationChain.id]
+            })
+            const sourceReceipt = await sourceWallet.waitForTransactionReceipt({
+                hash: sourceHash
+            })
+        ```
+
+          메시지를 릴레이하려면 영수증(receipt)에 있는 정보가 필요합니다.
+          또한 릴레이된 메시지가 포함된 트랜잭션이 실제로 블록에 포함될 때까지 기다려야 합니다.
+
+        ```typescript
+            const sentMessages = await sourceWallet.interop.getCrossDomainMessages({
+                logs: sourceReceipt.logs,
+            })
+            const sentMessage = sentMessages[0]
+        ```
+
+          하나의 트랜잭션으로 여러 메시지를 보낼 수 있습니다.
+          하지만 여기서는 메시지를 하나만 보냈다는 것을 알고 있으므로 목록의 첫 번째 항목을 찾습니다.
+
+        ```typescript
+            const relayMessageParams = await sourceWallet.interop.buildExecutingMessage({
+                log: sentMessage.log,
+            })
+
+            const relayMsgTxnHash = await destinationWallet.interop.relayCrossDomainMessage(relayMessageParams)
+        ```
+
+  이것이 `@eth-optimism/viem`을 사용하여 실행 메시지(executing message)를 생성하는 방법입니다.
+  </Accordion>
+  </Step>
+
+  <Step title="예제 실행">
+  1.  예제를 실행합니다.
+
+        ```sh
+        npx tsx src/transfer-eth.mts
+        ```
+
+    2.  결과를 확인합니다.
+
+        ```
+        Before transfer
+
+                Address: 0x7ED53BfaA58B79Dd655B2f229258C093b6C09A8C
+                Balance on source chain: 0.020999799151902245
+                Balance on destination chain: 0.026999459226731331
+        ```
+
+        초기 상태입니다. 주소는 개인 키에 따라 달라지므로 여기에 표시된 주소와 다를 것입니다.
+
+        ```
+        After transfer on source chain
+
+                Address: 0x7ED53BfaA58B79Dd655B2f229258C093b6C09A8C
+                Balance on source chain: 0.019999732176717961
+                Balance on destination chain: 0.026999459226731331
+        ```
+
+        시작 메시지(initiating message) 이후 소스 체인의 잔액이 즉시 감소합니다.
+        0.001 ETH를 보내지만 소스 체인의 잔액은 그보다 조금 더(여기서는 약 67 gwei) 감소한다는 점에 유의하십시오.
+        이는 소스 체인에서 시작 트랜잭션에 드는 비용입니다.
+        물론 대상 체인에서는 아직 트랜잭션이 발생하지 않았으므로 해당 잔액은 변하지 않습니다.
+
+        ```
+        After relaying message to destination chain
+
+                Address: 0x7ED53BfaA58B79Dd655B2f229258C093b6C09A8C
+                Balance on source chain: 0.019999732176717961
+                Balance on destination chain: 0.027999278943880868
+        ```
+
+        이제 대상 체인의 잔액이 0.001 ETH보다 약간 적게 증가합니다.
+        실행 메시지에도 트랜잭션 비용(이 경우 약 180gwei)이 발생합니다.
+  </Step>
+</Steps>
+
+## 다음 단계
+
+*   자세한 내용은 [SuperchainETHBridge 가이드](/ko/op-stack/interop/superchain-eth-bridge)를 확인하십시오.
+*   상호운용성에 관한 일반적인 질문에 대한 답변은 [OP Stack 상호운용성 설명](/ko/op-stack/interop/explainer)을 검토하십시오.
+

@@ -1,0 +1,112 @@
+---
+title: OP Stack 배우기
+description: 기존 페이지들을 권장 순서대로 따라가며 입문자에서 OP Stack에 익숙한 수준까지 안내하는 선형 학습 트랙입니다.
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: 2026-07-21
+---
+
+이 트랙은 OP Stack을 처음부터 배우고자 하는 독자를 위해 OP Stack 문서를
+안내하는 가이드 경로입니다. 기존 페이지들을 14개의 순서화된 단계로
+구성했습니다. 개념 페이지 묶음 사이사이에 세 개의 실습 프로젝트가 배치되어
+있어, 다음으로 넘어가기 전에 각 개념을 직접 사용해 보며 확실히 익힐 수 있습니다.
+
+**범위: 이 트랙은 입문자를 OP Stack에 익숙한 수준까지 안내합니다.** 트랙을
+마치면 테스트 체인을 배포하고, 트랜잭션이 제출되어 Ethereum에 도달하기까지의
+과정을 따라가 보고, 계층 간에 자산을 양방향으로 이동하고, node를 실행해 보게
+됩니다. 또한 더 깊은 수준의 자료가 각각 어디에 있는지 알게 됩니다. 깊이 있는
+내용은 의도적으로 트랙에서 제외했습니다. 상세한 내용은 레퍼런스 섹션과
+[OP Stack 명세](https://specs.optimism.io/)에 있으며, 트랙은 이를 반복하는
+대신 해당 자료로 안내합니다.
+
+## 트랙 진행 방식
+
+*   모든 단계는 기존 페이지입니다. 각 단계 상단의 안내 메모에서 트랙 내 현재
+    위치를 알려 주고 다음 단계로 연결하므로, 이 페이지로 돌아오지 않고도
+    전체 경로를 따라갈 수 있습니다.
+*   단계를 순서대로 진행하십시오. 뒤의 단계는 앞 단계의 용어와 작업 환경을
+    전제로 합니다.
+*   세 개의 프로젝트는 쉬어 가는 구간이 아니라 핵심입니다. 각 프로젝트는
+    그 앞의 개념을 여러분의 컴퓨터에서 실제로 실행되는 무언가로 바꿔 줍니다.
+
+트랙의 설계 근거, 담당자, 변경 이력은
+[트랙 강의 계획서](/ko/op-stack/contribute/learn-track-syllabus)에 있습니다.
+
+## 1부: 기초
+
+*   **1단계.** [OP Stack](/ko/op-stack/introduction/op-stack): OP Stack이
+    무엇이며 이를 사용해 무엇을 구축할 수 있는지 설명합니다.
+*   **2단계.** [OP Stack 아키텍처](/ko/op-stack/architecture): 구성 요소,
+    각 구성 요소의 운영 주체, 트랜잭션이 이들을 거쳐 이동하는 방식을 다루는
+    시스템 관점입니다.
+*   **3단계.** [설계 철학 및 원칙](/ko/op-stack/protocol/design-principles):
+    OP Stack이 현재와 같이 구축된 이유를 설명하는 네 가지 기둥입니다.
+*   **4단계.** [Ethereum과의 차이점](/ko/op-stack/protocol/differences):
+    "EVM 동등성"이 실제로 무엇을 의미하는지, 그리고 서로 다르게 동작하는 소수의
+    동작을 설명합니다.
+*   **5단계.** [OP Stack 구성 요소](/ko/op-stack/protocol/components): 스택의
+    개념적 계층과 이를 채우는 소프트웨어 모듈을 설명합니다.
+
+## 프로젝트 1: 자체 체인 배포하기
+
+*   **6단계.** [자체 L2 rollup testnet 만들기](/ko/chain-operators/tutorials/create-l2-rollup):
+    op-deployer로 rollup testnet을 배포하고 각 구성 요소를 직접 시작합니다.
+    여러 부분으로 구성된 시리즈이므로, 다음으로 넘어가기 전에 모든 부분을
+    완료하십시오.
+
+## 2부: 트랜잭션과 bridge
+
+*   **7단계.** [트랜잭션 흐름](/ko/op-stack/transactions/transaction-flow):
+    방금 실행한 구성 요소들을 거쳐 트랜잭션이 제출부터 Ethereum에서의
+    최종성까지 어떻게 이동하는지 설명합니다.
+*   **8단계.** [OP Mainnet의 트랜잭션 수수료](/ko/op-stack/transactions/fees):
+    OP Stack 트랜잭션의 수수료 구성 요소와 각 요소를 결정하는 요인을
+    설명합니다.
+*   **9단계.** [입금 흐름](/ko/op-stack/bridging/deposit-flow): L1에서
+    트리거된 트랜잭션이 어떻게 L2 트랜잭션이 되는지 설명합니다.
+*   **10단계.** [출금 흐름](/ko/op-stack/bridging/withdrawal-flow):
+    트랜잭션을 L2에서 다시 L1으로 옮기는 시작(initiate), 증명(prove),
+    최종 확정(finalize) 단계를 설명합니다.
+
+## 프로젝트 2: 양방향 bridge
+
+*   **11단계.** [L1에서 트랜잭션 제출하기](/ko/app-developers/tutorials/bridging/cross-dom-bridge-eth):
+    Viem을 사용하여 코드에서 입금(디파짓)과 출금을 처음부터 끝까지 진행해 봅니다.
+
+## 3부: 보안과 Superchain
+
+*   **12단계.** [결함 증명(fault proof) 설명](/ko/op-stack/fault-proofs/explainer):
+    출금이 의존하는 상태 제안을 누구나 무허가로 제안하고 이의를 제기할 수
+    있는 방식을 설명합니다.
+*   **13단계.** [OP Stack 상호운용성 설명](/ko/op-stack/interop/explainer):
+    여러 체인으로 구성된 네트워크가 하나의 블록체인처럼 느껴지도록 OP Stack이
+    어떻게 발전하고 있는지 설명합니다.
+
+## 최종 과제: Node 실행하기
+
+*   **14단계.** [Docker로 node 실행하기](/ko/node-operators/tutorials/node-from-docker):
+    공식 Docker 이미지로 OP Stack node를 실행하고 실제 네트워크와 동기화되는
+    과정을 지켜봅니다.
+
+## 트랙 이후
+
+트랙은 심화 자료가 시작되는 지점에서 끝납니다. 다음에 하고자 하는 작업에
+따라 아래를 참고하십시오.
+
+*   **체인 운영 또는 튜닝:** [사용 사례 가이드](/ko/use-cases/index)는
+    계층을 넘나드는 운영자 여정을 순서대로 안내하며, Chain Operators 탭에는
+    전체 가이드와 레퍼런스가 있습니다.
+*   **애플리케이션 구축:** App Developers 탭에서 bridge, 상호운용성,
+    트랜잭션을 실무 수준으로 다룹니다.
+*   **프로토콜의 정확한 이해:**
+    [derivation pipeline](/ko/op-stack/protocol/derivation-pipeline) 페이지에서
+    한 단계 더 깊이 다루며,
+    [OP Stack 명세](https://specs.optimism.io/)는 프로토콜 동작의 규범적
+    정의입니다.
+
+## 다음 단계
+
+*   [1단계: OP Stack](/ko/op-stack/introduction/op-stack)에서 트랙을 시작하십시오.
+*   관리자: 이 트랙은 [트랙 강의 계획서](/ko/op-stack/contribute/learn-track-syllabus)에
+    따라 관리되며, [큐레이션 검토 정책](/ko/op-stack/contribute/curation-policy)에
+    정해진 주기로 점검됩니다.

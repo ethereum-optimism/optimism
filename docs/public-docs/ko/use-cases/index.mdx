@@ -1,0 +1,46 @@
+---
+title: 솔루션 가이드
+sidebarTitle: 개요
+description: 실제 운영자 또는 개발자의 목표마다 OP Stack 문서를 하나의 정돈된 경로로 구성한 솔루션 가이드입니다.
+content-type: router-landing
+last-reviewed: 2026-07-24
+---
+
+import { OpEnterpriseCalloutBody } from '/ko/snippets/op-enterprise-callout.mdx';
+
+이 섹션의 각 페이지는 **솔루션 가이드**입니다. 실무에서 여러 구성 요소에 걸쳐 있는
+하나의 목표를 사이트 내의 단일 경로로 순서대로 정리한 것입니다. 솔루션 가이드는
+각 단계를 해당 정식 페이지에 연결하고 그 페이지에서 무엇을 얻어야 하는지 설명하며,
+어떤 단일 구성 요소 페이지도 담을 수 없는 의사 결정 로직을 추가합니다. 또한
+엄선되고 실제로 작동하는 외부 링크를 통해서만 사이트를 벗어납니다. 여러분의 목표가
+여기에 나열되어 있다면, 경로를 직접 구성하는 대신 여기서 시작하십시오.
+
+<CardGroup cols={2}>
+  <Card title="batcher 비용 조정" href="/ko/use-cases/tune-batcher-costs">
+    체인이 L1에 데이터를 게시하는 데 드는 비용을 줄이고, 지출한 비용은
+    수수료 파라미터를 통해 회수합니다.
+  </Card>
+  <Card title="결함 증명 challenger 운영" href="/ko/use-cases/run-a-fault-proof-challenger">
+    본드 예산 책정부터 구성 및 모니터링까지, 체인을 방어하는
+    op-challenger를 구축합니다.
+  </Card>
+  <Card title="사용자 지정 입금 흐름 구현" href="/ko/use-cases/implement-a-custom-deposit-flow">
+    올바른 컨트랙트 진입점을 선택하고 gas, aliasing, 실패를 처리하여
+    L1에서 L2로의 입금(디파짓) 경로를 구축합니다.
+  </Card>
+  <Card title="결함 증명과 HA sequencing을 갖춘 체인 출시" href="/ko/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing">
+    결함 증명으로 보호되는 출금과 node 장애에도 유지되는 sequencer
+    클러스터를 갖추어 체인을 프로덕션에 출시합니다.
+  </Card>
+  <Card title="node 스택 선택" href="/ko/use-cases/choose-your-node-stack">
+    node가 수행하는 역할에 따라 검토 날짜가 명시된 지원 정보를 바탕으로
+    consensus 클라이언트와 execution 클라이언트를 선택합니다.
+  </Card>
+  <Card title="다른 내용을 찾고 계신가요?" href="/ko">
+    앱 개발자, 체인 운영자, 노드 운영자, 프로토콜 독자 등 역할별로 문서를
+    둘러보십시오.
+  </Card>
+  <Card title="직접 운영하는 부분을 줄이고 싶으신가요?" href="https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise">
+    <OpEnterpriseCalloutBody linked={false} />
+  </Card>
+</CardGroup>

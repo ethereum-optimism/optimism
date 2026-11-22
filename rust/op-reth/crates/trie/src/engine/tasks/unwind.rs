@@ -1,12 +1,13 @@
 use super::super::state::EngineState;
-use crate::{OpProofsStore, engine::EngineError};
+use crate::{
+    OpProofsStore,
+    engine::{CanonicalInMemoryStateProvider, EngineError},
+};
 use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::Sender;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{
-    BlockHashReader, BlockReader, DatabaseProviderFactory, StateProviderFactory, StateReader,
-};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StageCheckpointReader};
 use tracing::{debug, info};
 
 pub(crate) struct UnwindTask {
@@ -19,9 +20,9 @@ impl UnwindTask {
     where
         Evm: ConfigureEvm,
         Provider: BlockHashReader
-            + StateReader
+            + CanonicalInMemoryStateProvider
+            + StageCheckpointReader
             + DatabaseProviderFactory
-            + StateProviderFactory
             + BlockReader<Block = BlockTy<Evm::Primitives>>
             + Clone
             + 'static,
@@ -38,9 +39,9 @@ fn run<Evm, Provider, Store>(
 where
     Evm: ConfigureEvm,
     Provider: BlockHashReader
-        + StateReader
+        + CanonicalInMemoryStateProvider
+        + StageCheckpointReader
         + DatabaseProviderFactory
-        + StateProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone
         + 'static,

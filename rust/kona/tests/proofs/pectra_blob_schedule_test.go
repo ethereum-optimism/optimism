@@ -3,6 +3,7 @@ package proofs_test
 import (
 	"testing"
 
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
@@ -47,12 +48,19 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	testSetup := func(dc *genesis.DeployConfig) {
 		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
+		// The blob fee schedule under test is Prague's. The action batcher sends cell proofs, which
+		// an L1 before Osaka rejects, so the batcher posts calldata.
+		dc.L1OsakaTimeOffset = nil
 		dc.L2GenesisPectraBlobScheduleTimeOffset = (*hexutil.Uint64)(tcfg.offset)
 		// set genesis excess blob gas so there are >0 blob base fees for some blocks
 		dc.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8))
 	}
 
-	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
+	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(
+		func(c *actionsHelpers.BatcherCfg) {
+			c.DataAvailabilityType = batcherFlags.CalldataType
+		},
+	), testSetup)
 
 	// sanity check
 	if tcfg.offset != nil {
@@ -120,13 +128,13 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	require.NoError(t, err)
 	t.Logf("BlobBaseFee2: %v", bbf2)
 	require.Equal(t, pragueBBF2, bbf2)
-	l2UnsafeHead := env.Engine.L2Chain().CurrentHeader()
+	l2UnsafeHead := env.Engine.LatestHeader(t)
 
 	env.BatchAndMine(t)
 	env.Sequencer.ActL1HeadSignal(t)
 	env.Sequencer.ActL2PipelineFull(t)
 
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation leads to the same block")
 
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)

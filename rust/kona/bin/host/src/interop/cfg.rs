@@ -20,6 +20,7 @@ use kona_preimage::{
 };
 use kona_proof_interop::HintType;
 use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
+use kona_registry::DEPENDENCY_SETS;
 use kona_std_fpvm::{FileChannel, FileDescriptor};
 use op_alloy_network::Optimism;
 use serde::Serialize;
@@ -151,6 +152,22 @@ pub enum InteropHostError {
         /// The `lagoon_time` from that rollup config.
         lagoon_time: Option<u64>,
     },
+    /// The dependency-set file cannot be read.
+    #[error("Failed reading dependency set {path:?}: {source}")]
+    UnreadableDependencySet {
+        /// The dependency-set file.
+        path: PathBuf,
+        /// The IO error.
+        source: std::io::Error,
+    },
+    /// The dependency-set file does not parse.
+    #[error("Failed deserializing dependency set {path:?}: {source}")]
+    InvalidDependencySet {
+        /// The dependency-set file.
+        path: PathBuf,
+        /// The parse error.
+        source: serde_json::Error,
+    },
     /// Any other error.
     #[error("Error: {0}")]
     Other(&'static str),
@@ -181,6 +198,13 @@ impl InteropHost {
         require_dependency_set_for_configs(&configs, &self.dependency_set_path)
     }
 
+    /// Refuses to start with a configured dependency set that cannot be read or parsed, rather
+    /// than serving the client no dependency set later.
+    fn require_readable_dependency_set(&self) -> Result<(), InteropHostError> {
+        self.read_dependency_set().transpose()?;
+        Ok(())
+    }
+
     /// Starts the preimage server, communicating with the client over the provided channels.
     pub async fn start_server<C>(
         &self,
@@ -191,6 +215,7 @@ impl InteropHost {
         C: Channel + Send + Sync + 'static,
     {
         self.require_dependency_set_if_interop_scheduled()?;
+        self.require_readable_dependency_set()?;
 
         let kv_store = self.create_key_value_store()?;
 
@@ -212,9 +237,7 @@ impl InteropHost {
                 kv_store.clone(),
                 providers,
                 InteropHintHandler,
-            )
-            .with_high_level_hint(HintType::L2BlockData)
-            .with_high_level_hint(HintType::L2PayloadWitness);
+            );
 
             task::spawn(async {
                 PreimageServer::new(
@@ -294,11 +317,31 @@ impl InteropHost {
     pub fn read_dependency_set(&self) -> Option<Result<DependencySet, InteropHostError>> {
         let path = self.dependency_set_path.as_ref()?;
 
-        Some((|| {
-            let ser_config = std::fs::read_to_string(path)?;
-            let dep_set: DependencySet = serde_json::from_str(&ser_config)?;
-            Ok(dep_set)
-        })())
+        Some(
+            std::fs::read_to_string(path)
+                .map_err(|source| InteropHostError::UnreadableDependencySet {
+                    path: path.clone(),
+                    source,
+                })
+                .and_then(|s| {
+                    serde_json::from_str(&s).map_err(|source| {
+                        InteropHostError::InvalidDependencySet { path: path.clone(), source }
+                    })
+                }),
+        )
+    }
+
+    /// Returns the [`DependencySet`] the client derives for a proof of `chain_id`. The client
+    /// takes the superchain-registry's set for the chain when there is one, and otherwise the set
+    /// the host serves from `--depset-cfg`.
+    pub fn dependency_set_for(
+        &self,
+        chain_id: u64,
+    ) -> Result<Option<DependencySet>, InteropHostError> {
+        if let Some(dependency_set) = DEPENDENCY_SETS.get(&chain_id) {
+            return Ok(Some(dependency_set.clone()));
+        }
+        self.read_dependency_set().transpose()
     }
 
     /// Creates the key-value store for the host backend.
@@ -307,7 +350,7 @@ impl InteropHost {
     /// ensure compatibility with existing data. Otherwise, `--data-format` is used as the default.
     fn create_key_value_store(&self) -> Result<SharedKeyValueStore, InteropHostError> {
         let local_kv_store = InteropLocalInputs::new(self.clone());
-        Ok(create_key_value_store(local_kv_store, self.data_dir.as_deref(), self.data_format))
+        Ok(create_key_value_store(local_kv_store, self.data_dir.as_deref(), self.data_format)?)
     }
 
     /// Creates the providers required for the preimage server backend.
@@ -343,6 +386,11 @@ impl InteropHost {
 impl OnlineHostBackendCfg for InteropHost {
     type HintType = HintType;
     type Providers = InteropProviders;
+
+    /// `L2PayloadWitness` bulk-populates the store via `debug_executePayload`.
+    /// `L2BlockData` re-executes a replaced optimistic block and bulk-populates its preimages.
+    const HIGH_LEVEL_HINTS: &'static [HintType] =
+        &[HintType::L2PayloadWitness, HintType::L2BlockData];
 }
 
 /// The providers required for the single chain host.
@@ -388,6 +436,7 @@ mod tests {
     use super::*;
     use alloy_primitives::b256;
     use kona_genesis::HardForkConfig;
+    use kona_interop::MESSAGE_EXPIRY_WINDOW;
 
     fn rollup_config_with_lagoon_time(lagoon_time: Option<u64>) -> RollupConfig {
         RollupConfig {
@@ -455,6 +504,67 @@ mod tests {
             }
             other => panic!("expected InteropWithoutDependencySet, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_registry_chain_uses_the_registry_dependency_set() {
+        const OP_SEPOLIA: u64 = 11155420;
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("depset.json");
+        std::fs::write(&file, r#"{"dependencies":{"901":{}}}"#).unwrap();
+
+        // The client takes the embedded set before the one the host serves, so the host must too.
+        for dependency_set_path in [None, Some(file)] {
+            let host = InteropHost { dependency_set_path, ..Default::default() };
+            assert_eq!(
+                host.dependency_set_for(OP_SEPOLIA).unwrap(),
+                Some(DEPENDENCY_SETS[&OP_SEPOLIA].clone())
+            );
+        }
+    }
+
+    #[test]
+    fn a_chain_outside_the_registry_uses_the_configured_dependency_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("depset.json");
+        std::fs::write(&file, r#"{"dependencies":{"901":{}}}"#).unwrap();
+
+        let host = InteropHost { dependency_set_path: Some(file), ..Default::default() };
+        let dependency_set = host.dependency_set_for(901).unwrap().unwrap();
+        assert_eq!(dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [901]);
+
+        assert_eq!(InteropHost::default().dependency_set_for(901).unwrap(), None);
+    }
+
+    #[test]
+    fn test_require_readable_dependency_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let host = |dependency_set_path| InteropHost { dependency_set_path, ..Default::default() };
+
+        assert!(host(None).require_readable_dependency_set().is_ok());
+
+        let missing = dir.path().join("missing.json");
+        assert!(matches!(
+            host(Some(missing)).require_readable_dependency_set(),
+            Err(InteropHostError::UnreadableDependencySet { .. })
+        ));
+
+        let too_long = dir.path().join("depset.json");
+        std::fs::write(&too_long, r#"{"dependencies":{},"overrideMessageExpiryWindow":604801}"#)
+            .unwrap();
+        let err = host(Some(too_long)).require_readable_dependency_set().unwrap_err();
+        assert!(matches!(err, InteropHostError::InvalidDependencySet { .. }));
+        assert!(err.to_string().contains("overrideMessageExpiryWindow 604801s exceeds"));
+
+        let at_limit = dir.path().join("depset-at-limit.json");
+        std::fs::write(
+            &at_limit,
+            format!(
+                r#"{{"dependencies":{{}},"overrideMessageExpiryWindow":{MESSAGE_EXPIRY_WINDOW}}}"#
+            ),
+        )
+        .unwrap();
+        assert!(host(Some(at_limit)).require_readable_dependency_set().is_ok());
     }
 
     #[test]

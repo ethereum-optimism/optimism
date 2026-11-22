@@ -61,7 +61,7 @@ func TestHoloceneFrames(gt *testing.T) {
 
 		blocks := []uint{1, 2, 3}
 		targetHeadNumber := 3
-		for bigs.Uint64Strict(env.Engine.L2Chain().CurrentBlock().Number) < uint64(targetHeadNumber) {
+		for bigs.Uint64Strict(env.Engine.LatestHeader(t).Number) < uint64(targetHeadNumber) {
 			env.Sequencer.ActL2StartBlock(t)
 			// Send an L2 tx
 			env.Alice.L2.ActResetTxOpts(t)

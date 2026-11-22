@@ -1,0 +1,195 @@
+---
+title: Ethereum에서 OP Stack 트랜잭션 트리거하기
+description: Viem을 사용하여 OP Stack Sequencer 없이 트랜잭션 포함을 강제하는 방법을 알아봅니다.
+diataxis: tutorial
+---
+
+import TutorialSetupNodeProject from '/ko/snippets/tutorial-setup-node-project.mdx';
+import TutorialSetupWalletAndFunds, { TutorialFaucets } from '/ko/snippets/tutorial-setup-wallet-and-funds.mdx';
+import TutorialSetupRepl from '/ko/snippets/tutorial-setup-repl.mdx';
+
+OP Stack은 현재 단일 Sequencer 블록 생성 모델을 사용합니다.
+즉, 네트워크에서 활성화된 Sequencer는 항상 하나뿐입니다. 단일 Sequencer 모델은 고도로 탈중앙화된 모델보다 단순하지만, 잠재적인 다운타임에 더 취약합니다.
+
+Sequencer 다운타임으로 인해 사용자가 네트워크에서 트랜잭션을 수행하지 못하는 일이 있어서는 안 됩니다. 이에 따라 OP Stack에는 트랜잭션이 블록체인에 포함되도록 "강제"하는 메커니즘이 있습니다. 이 메커니즘은 Ethereum에서 트랜잭션을 전송하여 OP Stack에서 트랜잭션을 트리거하는 방식입니다.
+이 튜토리얼에서는 Viem을 사용하여 Ethereum에서 OP Stack 트랜잭션을 트리거하는 방법을 알아봅니다. OP Sepolia testnet을 사용하지만, 동일한 로직이 OP Stack에도 적용됩니다.
+
+## 의존성
+
+*   [node](https://nodejs.org/en/)
+*   [pnpm](https://pnpm.io/installation)
+
+## 데모 프로젝트 생성하기
+
+<TutorialSetupNodeProject lib="viem" folder="trigger-transaction" packages="viem" />
+
+## Sepolia 및 OP Sepolia에서 ETH 받기
+
+이 튜토리얼에서는 Sepolia에서 OP Sepolia로 토큰을 브리징하는 방법을 설명합니다. 두 testnet 모두에서 약간의 ETH가 필요합니다.
+
+<TutorialFaucets />
+
+## 환경에 개인 키 추가하기
+
+<TutorialSetupWalletAndFunds networks="Sepolia와 OP Sepolia 모두" />
+
+## Node REPL 시작하기
+
+<TutorialSetupRepl lib="viem" />
+
+## 의존성 가져오기
+
+Node REPL 세션에 몇 가지 의존성을 가져와야 합니다.
+
+<Steps>
+  <Step title="Viem 가져오기">
+
+  ```js
+  const { createPublicClient, createWalletClient, http, parseEther, formatEther } = require('viem');
+  const { optimismSepolia, sepolia } = require('viem/chains');
+  const { privateKeyToAccount } = require('viem/accounts');
+  const { publicActionsL2, publicActionsL1, walletActionsL2, walletActionsL1, getL2TransactionHashes } = require ('viem/op-stack')
+```
+  </Step>
+</Steps>
+
+## 세션 변수 설정하기
+
+이 튜토리얼 전반에서 몇 가지 변수가 필요합니다. 지금 설정해 보겠습니다.
+
+<Steps>
+  <Step title="개인 키 불러오기">
+
+  ```js
+  const privateKey = process.env.TUTORIAL_PRIVATE_KEY;
+  const account = privateKeyToAccount(privateKey);
+```
+
+  </Step>
+  <Step title="RPC provider 및 지갑 생성하기">
+
+  ```js
+  const l1PublicClient = createPublicClient({ chain: sepolia, transport: http("https://rpc.ankr.com/eth_sepolia") }).extend(publicActionsL1())
+  const l2PublicClient = createPublicClient({ chain: optimismSepolia, transport: http("https://sepolia.optimism.io") }).extend(publicActionsL2());
+  const l1WalletClient = createWalletClient({ chain: sepolia, transport: http("https://rpc.ankr.com/eth_sepolia") }).extend(walletActionsL1());
+```
+  </Step>
+</Steps>
+
+## 초기 잔액 확인하기
+
+이 튜토리얼에서는 소량의 ETH를 보내게 됩니다. 튜토리얼을 시작할 때 얼마가 있었는지 알 수 있도록 OP Sepolia의 잔액을 빠르게 확인하십시오.
+
+```js
+  const initialBalance = await l2PublicClient.getBalance({ address });
+  console.log(`Initial balance: ${formatEther(initialBalance)} ETH`);
+```
+
+## 트랜잭션 트리거하기
+
+이제 `OptimismPortal` 컨트랙트를 사용하여 Sepolia에서 트랜잭션을 전송함으로써 OP Sepolia에서 트랜잭션을 트리거합니다.
+
+<Steps>
+  <Step title="OptimismPortal 객체 생성하기">
+
+  ```js
+  const optimismPortalAbi = [
+      {
+      inputs: [
+          { internalType: 'uint256', name: '_gasLimit', type: 'uint256' },
+          { internalType: 'bytes', name: '_data', type: 'bytes' },
+      ],
+      name: 'depositTransaction',
+      outputs: [],
+      stateMutability: 'payable',
+      type: 'function',
+      },
+  ];
+```
+
+  </Step>
+  <Step title="필요한 gas 추정하기">
+
+  `OptimismPortal` 컨트랙트를 통해 트랜잭션을 전송할 때는 항상 gas 여유분을 포함하는 것이 중요합니다. `OptimismPortal`은 L1을 통해 트리거되는 L2 트랜잭션의 현재 수요에 따라 가변적인 양의 gas를 부과하기 때문입니다. gas 여유분을 포함하지 않으면 트랜잭션이 실패할 수 있습니다.
+
+  ```js
+  const optimismPortalAddress = '0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383';
+  const gasLimit = 100000n;
+  const data = '0x';
+  const value = parseEther('0.000069420');
+  
+  const gasEstimate = await l1PublicClient.estimateContractGas({
+      address: optimismPortalAddress,
+      abi: optimismPortalAbi,
+      functionName: 'depositTransaction',
+      args: [gasLimit, data],
+      value,
+      account: account.address,
+  });
+```
+
+  </Step>
+  <Step title="트랜잭션 전송하기">
+
+  이제 트랜잭션을 전송합니다. gas 추정치에 20%의 여유분을 추가한다는 점에 유의하십시오.
+
+  ```js
+  const { request } = await l1PublicClient.simulateContract({
+      account,
+      address: optimismPortalAddress,
+      abi: optimismPortalAbi,
+      functionName: 'depositTransaction',
+      args: [gasLimit, data],
+      value,
+      gas: gasEstimate * 120n / 100n, // 20% buffer
+    })
+
+  const l1TxHash = await l1WalletClient.writeContract(request)
+  console.log(`L1 transaction hash: ${l1TxHash}`)
+```
+
+  </Step>
+  <Step title="L1 트랜잭션 대기하기">
+
+  먼저 L1 트랜잭션이 채굴될 때까지 기다려야 합니다.
+
+  ```js
+  const l1TxHash = await l1WalletClient.writeContract(request)
+```
+
+  </Step>
+  <Step title="L2 트랜잭션 대기하기">
+
+  이제 해당하는 L2 트랜잭션이 블록에 포함될 때까지 기다려야 합니다. 이 트랜잭션은 L1 트랜잭션의 결과로 자동 생성됩니다. 여기서는 L2 트랜잭션의 해시를 확인한 다음, 해당 트랜잭션이 L2 블록체인에 포함될 때까지 기다립니다.
+
+  ```js
+  const [l2Hash] = getL2TransactionHashes(l1TxHash) 
+  console.log(`Corresponding L2 transaction hash: ${l2Hash}`);
+
+  const l2Receipt = await l2PublicClient.waitForTransactionReceipt({
+      hash: l2Hash,
+  }); 
+  console.log('L2 transaction confirmed:', l2Receipt);
+```
+  </Step>
+</Steps>
+
+## 업데이트된 잔액 확인하기
+
+이제 OP Sepolia의 ETH가 약간 줄어들었을 것입니다. 잔액을 확인하여 이를 확인하십시오.
+
+```js
+  const finalBalance = await l2Wallet.getBalance()
+  console.log(`Final balance: ${formatEther(finalBalance)} ETH`);
+```
+
+차액이 보내려고 했던 금액과 같은지 확인하십시오.
+
+```js
+  const difference = initialBalance - finalBalance
+  console.log(`Difference in balance: ${formatEther(difference)} ETH`);
+```
+
+## 다음 단계
+
+Viem을 사용하여 Sepolia에서 트랜잭션을 전송함으로써 OP Sepolia에서 트랜잭션을 성공적으로 트리거했습니다. 이 튜토리얼에서는 OptimismPortal 컨트랙트를 통해 L2 주소에서 기본 ETH 전송을 보내는 간단한 예제를 보여 드렸지만, 동일한 기법을 사용하여 원하는 모든 트랜잭션을 트리거할 수 있습니다. 스마트 컨트랙트를 트리거하거나, ERC-20 토큰을 보내는 등 다양한 작업을 할 수 있습니다.

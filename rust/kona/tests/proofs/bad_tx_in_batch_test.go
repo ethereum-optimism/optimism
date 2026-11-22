@@ -5,6 +5,7 @@ import (
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -31,29 +32,30 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 	env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 	// Instruct the batcher to submit a faulty channel, with an invalid tx.
-	env.Batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
+	env.Batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
 		// Replace the tx with one that has a bad signature.
-		txs := block.Transactions()
+		i := actionsHelpers.PayloadUserTxIndexes(payload)[0]
+		tx := actionsHelpers.DecodePayloadTx(t, payload, i)
 
 		var newTx *types.Transaction
 		if testCfg.Custom == BadSignature {
-			txCopy, err := txs[1].WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
+			txCopy, err := tx.WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
 			require.NoError(t, err)
 
 			newTx = txCopy
 		} else if testCfg.Custom == NotEnoughBalance {
 			pkey, err := crypto.GenerateKey()
 			require.NoError(t, err)
-			signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+			signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 
-			txCopy, err := types.SignTx(txs[1], signer, pkey)
+			txCopy, err := types.SignTx(tx, signer, pkey)
 			require.NoError(t, err)
 
 			newTx = txCopy
 		}
 
-		txs[1] = newTx
-		return block
+		payload.Transactions[i] = actionsHelpers.EncodeTx(t, newTx)
+		return payload
 	}))
 	env.Batcher.ActL2ChannelClose(t)
 	env.Batcher.ActL2BatchSubmit(t)
@@ -70,7 +72,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 
 	// Ensure the safe head has not advanced if pre-Holocene - the batch is invalid.
 	// If post-holocene, the block should be reduced to deposits only.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	if !env.Sd.RollupCfg.IsHolocene(l2SafeHead.Time) {
 		require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
@@ -91,7 +93,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 	}
 
 	// Ensure the safe head has advanced.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(1), bigs.Uint64Strict(l2SafeHead.Number))
 
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
@@ -116,28 +118,29 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 	// Instruct the batcher to submit a faulty channel, with an invalid tx in the second block
 	// within the span batch.
 	env.Batcher.ActL2BatchBuffer(t)
-	err := env.Batcher.Buffer(t, actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
-		txs := block.Transactions()
+	err := env.Batcher.Buffer(t, actionsHelpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
+		i := actionsHelpers.PayloadUserTxIndexes(payload)[0]
+		tx := actionsHelpers.DecodePayloadTx(t, payload, i)
 
 		var newTx *types.Transaction
 		if testCfg.Custom == BadSignature {
-			txCopy, err := txs[1].WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
+			txCopy, err := tx.WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
 			require.NoError(t, err)
 
 			newTx = txCopy
 		} else if testCfg.Custom == NotEnoughBalance {
 			pkey, err := crypto.GenerateKey()
 			require.NoError(t, err)
-			signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+			signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 
-			txCopy, err := types.SignTx(txs[1], signer, pkey)
+			txCopy, err := types.SignTx(tx, signer, pkey)
 			require.NoError(t, err)
 
 			newTx = txCopy
 		}
 
-		txs[1] = newTx
-		return block
+		payload.Transactions[i] = actionsHelpers.EncodeTx(t, newTx)
+		return payload
 	}))
 	require.NoError(t, err)
 	env.Batcher.ActL2ChannelClose(t)
@@ -155,7 +158,7 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 
 	// Ensure the safe head has not advanced if pre-Holocene - the batch is invalid.
 	// If post-holocene, the block should be reduced to deposits only.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	if !env.Sd.RollupCfg.IsHolocene(l2SafeHead.Time) {
 		require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
@@ -176,7 +179,7 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 	}
 
 	// Ensure the safe head has advanced.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(2), bigs.Uint64Strict(l2SafeHead.Number))
 
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)

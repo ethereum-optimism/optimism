@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math/big"
@@ -259,6 +261,104 @@ func TestBlockValidator(t *testing.T) {
 			require.Equal(t, res, test.result)
 		})
 	}
+}
+
+// TestGossipSnappyLengthPreamble pins which snappy frames the message-ID function accepts as valid
+// snappy, in particular frames whose length preamble is padded with continuation bytes up to the
+// ten bytes encoding/binary.Uvarint reads. An accepted frame gets the message ID of the minimal
+// frame for its payload. kona-gossip's snappy_length_preamble_matches_op_node
+// (rust/kona/crates/node/gossip/src/config.rs) pins the same vectors, so both nodes give every
+// frame the same verdict and message ID.
+func TestGossipSnappyLengthPreamble(t *testing.T) {
+	const topic = "test"
+	msgIDFn := BuildMsgIdFn(&rollup.Config{})
+	msgID := func(frame []byte) string {
+		return msgIDFn(&pubsub_pb.Message{Data: frame, Topic: ptr.New(topic)})
+	}
+	expectedMsgID := func(domain [4]byte, data []byte) string {
+		h := sha256.New()
+		h.Write(domain[:])
+		var topicLen [8]byte
+		binary.LittleEndian.PutUint64(topicLen[:], uint64(len(topic)))
+		h.Write(topicLen[:])
+		h.Write([]byte(topic))
+		h.Write(data)
+		return string(h.Sum(nil)[:20])
+	}
+
+	vectors := []struct {
+		name  string
+		frame string
+		// decoded is the payload of an accepted frame, empty for a rejected one.
+		decoded string
+	}{
+		{"Minimal", "051068656c6c6f", "68656c6c6f"},
+		{"Preamble5Bytes", "85808080001068656c6c6f", "68656c6c6f"},
+		{"Preamble6Bytes", "8580808080001068656c6c6f", "68656c6c6f"},
+		{"Preamble10Bytes", "858080808080808080001068656c6c6f", "68656c6c6f"},
+		{"Preamble11Bytes", "85808080808080808080001068656c6c6f", ""},
+		{"Preamble10BytesOverflow", "858080808080808080021068656c6c6f", ""},
+		{"Preamble10BytesAboveUint32", "858080808080808080011068656c6c6f", ""},
+		{"Preamble5BytesAboveUint32", "80808080101068656c6c6f", ""},
+		{"Preamble6BytesAboveUint32", "8080808090001068656c6c6f", ""},
+		{"Empty", "", ""},
+		{"LiteralLength1Byte", "01f00041", "41"},
+		{"LiteralLength2Bytes", "01f4000041", "41"},
+	}
+	for _, v := range vectors {
+		t.Run(v.name, func(t *testing.T) {
+			frame := common.FromHex(v.frame)
+			original := bytes.Clone(frame)
+			id := msgID(frame)
+			require.Equal(t, original, frame, "the message-ID function must not modify the frame")
+			if v.decoded == "" {
+				require.Equal(t, expectedMsgID(MessageDomainInvalidSnappy, frame), id)
+				return
+			}
+			decoded := common.FromHex(v.decoded)
+			require.Equal(t, expectedMsgID(MessageDomainValidSnappy, decoded), id)
+			require.Equal(t, msgID(snappy.Encode(nil, decoded)), id)
+		})
+	}
+}
+
+// padSnappyLengthPreamble returns frame with its snappy length preamble re-encoded in n bytes,
+// padded with continuation bytes.
+func padSnappyLengthPreamble(frame []byte, n int) []byte {
+	v, m := binary.Uvarint(frame)
+	out := make([]byte, 0, n+len(frame)-m)
+	for range n - 1 {
+		out = append(out, byte(v)|0x80)
+		v >>= 7
+	}
+	return append(append(out, byte(v)), frame[m:]...)
+}
+
+// TestBlockValidatorPaddedSnappyLengthPreamble checks that the block validator accepts a signed
+// block whose snappy length preamble is padded to ten bytes and rejects one padded to eleven,
+// without modifying the message.
+func TestBlockValidatorPaddedSnappyLengthPreamble(t *testing.T) {
+	cfg := &rollup.Config{L2ChainID: big.NewInt(100)}
+	secrets, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
+	signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+	gossipConf := &mockGossipSetupConfigurablesWithThreshold{threshold: 60 * time.Second}
+	validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, gossipConf, clock.SystemClock)
+
+	payload := createExecutionPayload(types.Withdrawals{}, nil, nil, nil)
+	payload.BlockHash, _ = (&eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}).CheckBlockHash()
+	data, err := createSignedP2Payload(payload, signer, cfg.L2ChainID)
+	require.NoError(t, err)
+
+	validate := func(frame []byte) pubsub.ValidationResult {
+		original := bytes.Clone(frame)
+		res := validator(context.Background(), peer.ID("foo"), &pubsub.Message{Message: &pubsub_pb.Message{Data: frame}})
+		require.Equal(t, original, frame, "the validator must not modify the frame")
+		return res
+	}
+	require.Equal(t, pubsub.ValidationReject, validate(padSnappyLengthPreamble(data, 11)))
+	require.Equal(t, pubsub.ValidationAccept, validate(padSnappyLengthPreamble(data, 10)))
 }
 
 // TestGossipTimestampThreshold tests that the configurable timestamp threshold works correctly

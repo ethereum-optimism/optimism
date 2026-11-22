@@ -129,7 +129,7 @@ circumstances, the safe head can fall significantly behind the unsafe head, and 
 and larger. Because DA costs can rise quickly during such an event, the batcher can end up paying far more to post the
 transaction to the DA layer than what can be recovered from the transaction's data fee.
 
-To prevent a significant DA backlog, the batcher can instruct the block builder (via op-geth's miner RPC API) to impose
+To prevent a significant DA backlog, the batcher can instruct the block builder (via the execution engine's `miner_setMaxDASize` RPC) to impose
 thresholds on the total DA requirements of a single block, and/or the maximum DA requirement of any single
 transaction. In the happy case, the batcher instructs the block builder to impose a block-level DA limit of
 OP_BATCHER_THROTTLE_ALWAYS_BLOCK_SIZE, and imposes no additional limit on the DA requirements of a single

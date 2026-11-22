@@ -1,0 +1,108 @@
+---
+title: 합의 클라이언트 구성
+description: OP Stack node를 위한 합의 클라이언트(op-node, kona-node)를 구성하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+합의 클라이언트(consensus client, rollup node라고도 함)는 정식(canonical) 블록 체인을 빌드하고, 전달하고, 검증합니다.
+이 가이드는 가장 많이 사용되는 합의 클라이언트 구현체의 구성을 다룹니다.
+
+<Info>
+합의 클라이언트와 실행 클라이언트는 항상 1:1 구성으로 실행하십시오.
+하나의 합의 클라이언트 뒤에 여러 실행 클라이언트 인스턴스를 실행하거나, 그 반대로 실행하지 마십시오.
+</Info>
+
+## 합의 클라이언트
+
+요구 사항에 가장 적합한 합의 클라이언트를 선택하십시오.
+
+<Tabs>
+  <Tab title="op-node">
+    ## op-node 구성
+
+    [op-node](https://github.com/ethereum-optimism/optimism/tree/develop/op-node)는 Go로 작성된 OP Stack 합의 클라이언트의 레퍼런스 구현체입니다.
+
+    ### 최소 구성
+
+    op-node를 실행하는 데 필요한 최소 플래그는 다음과 같습니다.
+
+    ```bash
+    op-node \
+      --l1=https://ethereum-rpc-endpoint.example.com \
+      --l1.beacon=https://ethereum-beacon-endpoint.example.com \
+      --l2=http://localhost:8551 \
+      --l2.jwt-secret=/path/to/jwt-secret.txt \
+      --network=op-mainnet \
+      --rpc.addr=0.0.0.0 \
+      --rpc.port=9545
+    ```
+
+    ### Sequencer 구성
+
+    sequencer node를 실행하는 경우 다음 추가 플래그를 사용하십시오.
+
+    ```bash
+    --rpc.enable-admin \
+    --sequencer.enabled \
+    --sequencer.l1-confs=4 \
+    --p2p.sequencer.key=<your-sequencer-private-key>
+    ```
+
+    <Warning>
+    sequencer 개인 키를 안전하게 보관하고 절대 버전 관리 시스템에 커밋하지 마십시오.
+    프로덕션 환경에서는 환경 변수나 안전한 키 관리 시스템을 사용하십시오.
+    </Warning>
+
+    ### l2.enginekind
+
+    연결된 실행 클라이언트에 맞게 op-node의 engine-API 동작을 제어합니다. 지원되는 값은 다음과 같습니다.
+
+    * `reth` — 기본값이며, op-reth용입니다.
+    * `geth` — op-geth용입니다(*지원 중단(deprecated)*, [op-geth 지원 중단 공지](/ko/notices/archive/op-geth-deprecation) 참조).
+
+    기본값이 `reth`이므로 op-reth 운영자는 이 플래그를 설정할 필요가 없습니다. op-geth를 실행하는 경우에만 `--l2.enginekind=geth`를 설정하십시오.
+
+    ### 전체 레퍼런스
+
+    사용 가능한 모든 구성 옵션은 [op-node 구성 레퍼런스](/ko/node-operators/reference/op-node-config)를 참조하십시오.
+  </Tab>
+
+  <Tab title="kona-node">
+    ## kona-node 구성
+
+    [kona-node](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/node)는 Rust 기반의 실험적인 OP Stack 합의 클라이언트 구현체입니다.
+
+    <Warning>
+    kona-node는 실험적이며 프로덕션 환경에 적합하지 않을 수 있습니다. 주의하여 사용하십시오.
+    </Warning>
+
+    ### 기본 구성
+
+    kona-node는 op-node와 유사한 구성 패턴을 따릅니다.
+
+    ```bash
+    kona-node \
+      --l1-rpc-url=https://ethereum-rpc-endpoint.example.com \
+      --l2-rpc-url=http://localhost:8551 \
+      --jwt-secret=/path/to/jwt-secret.txt \
+      --network=op-mainnet
+    ```
+
+    ### 추가 리소스
+
+    kona-node 구성에 대한 자세한 내용은 다음을 참조하십시오.
+    - [kona-node 컴포넌트 허브](/ko/op-stack/components/kona-node)
+    - [kona-node CLI 레퍼런스](/ko/node-operators/kona-node/configuration)
+    - [kona-node로 node 실행하기](/ko/node-operators/kona-node/run/overview)
+  </Tab>
+</Tabs>
+
+## JWT secret
+
+실행 클라이언트와 통신하고 Engine API를 활성화하려면 JWT secret 파일을 생성하고 합의 클라이언트의 인증된 RPC 엔드포인트를 활성화해야 합니다.
+JWT secret 파일을 생성하려면 다음을 실행하십시오.
+
+```bash
+openssl rand -hex 32 > jwt-secret.txt
+```
+

@@ -9,7 +9,9 @@ mod constants;
 pub use constants::MESSAGE_EXPIRY_WINDOW;
 
 mod depset;
-pub use depset::{ChainDependency, DependencySet};
+pub use depset::{
+    ChainDependency, DependencySet, MessageExpiryOverride, MessageExpiryOverrideTooLong,
+};
 
 mod config;
 pub use config::InteropConfig;
@@ -109,7 +111,7 @@ where
 ///
 /// A chain that declares no interop dependencies is its own single-member cluster; without
 /// an embedded depset, the fault proof program falls back to host-supplied data. Mirrors
-/// Go's `op-core/superchain.GetDepset`, except that Go defaults only on an absent
+/// Go's `op-core/superchain.ChainConfig.Dependencies`, except that Go defaults only on an absent
 /// `[interop]` section, not an empty one.
 #[allow(clippy::zero_sized_map_values)]
 pub fn with_single_chain_defaults<I>(

@@ -1,0 +1,116 @@
+---
+title: Superchain testnet의 blob 수수료 버그
+description: Superchain의 OP Stack testnet에 영향을 미치는 blob 수수료 버그와 해결 방법을 알아봅니다.
+diataxis: reference
+content_type: notice
+date: 2025-03-20
+---
+
+이 글을 작성하는 시점에 모든 OP Stack testnet은 "잘못된" 체인을 시퀀싱하고 있습니다. L1 Block의 blob 기본 수수료(blob base fee)가 Prague 이전의 blob 스케줄 파라미터로 계산되고 있기 때문입니다. 이는 어떤 OP Sepolia(또는 Holesky) 체인에서도 치명적인 보안 문제는 아닙니다. 그러나 L1 testnet의 L1 blob 기본 수수료가 100 Mwei 이상으로 상승하면 L1 수수료를 과다 청구하게 되므로 일시적인 활성(liveness) 위험이 발생합니다.
+
+이 문제는 `develop` 브랜치에서 이 [PR](https://github.com/ethereum-optimism/optimism/pull/14500)로 수정되었으며, mainnet 체인에는 아무런 영향이 없습니다. Mainnet 체인은 Ethereum에서 Pectra가 활성화되기 전에 바이너리를 최신 릴리스로 업데이트하기만 하면 Pectra 활성화 시 버그가 발생하지 않습니다.
+
+다음 섹션에서는 이 버그의 영향과 testnet에서 이를 해결하는 방법을 설명합니다.
+
+## 영향
+
+### Testnet L1 비용 과다 청구
+
+현재 모든 OP Stack testnet 체인은 의도하지 않은 체인을 시퀀싱하고 있습니다. L1 Block의 blob 기본 수수료가 Prague 이전의 blob 스케줄 파라미터로 계산되고 있습니다. L1 Block의 blob 기본 수수료가 Prague 이전의 스케줄 파라미터로 계산되고 있습니다. Sepolia의 blob 기본 수수료가 낮은 동안에는 영향이 거의 없지만, 수수료가 상승하면 기하급수적으로 과다 청구하게 됩니다. 구체적으로, blob 기본 수수료 계산이 1.5 지수만큼 어긋나 있습니다.
+
+```
+BBF_Cancun = BBF_Prague^1.5
+```
+
+수수료가 증가할수록 영향은 매우 커집니다.
+
+<Image src="/public/img/notices/blob-fee-plot.png" alt="Blob 수수료 버그 그래프" width={600} height={600} />
+
+| BBF Prague (실제) | BBF Cancun (청구 금액) |
+| ------------------- | ---------------------- |
+| 1 Mwei              | 1 Gwei                 |
+| 10 Mwei             | 31.6 Gwei              |
+| 100 Mwei            | 1 Twei                 |
+| 1 Gwei              | 31.6 Twei (31.6e12)    |
+| 10 Gwei             | 1e15 Wei = 1 PetaWei   |
+| 100 Gwei            | 31.6e15 PetaWei        |
+| 1 Twei              | 1e18 Wei = 1 ExaWei    |
+
+## 체인 운영자 및 노드 운영자 대상
+
+모든 체인 운영자는 올바른 blob 기본 수수료 계산을 적용하기 위해 노드 운영자와 협력하여 하드포크 활성화 시간을 정해야 합니다. Superchain [하드포크 활성화 상속 동작(hardfork activation inheritance behavior)](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md)에 참여한 체인은 `OP Sepolia`, `Soneium Minato`, `Zora Sepolia`, `Unichain Sepolia`, `Base Sepolia`, `Mode Sepolia`, `Metal Sepolia`, `Creator Chain Sepolia`, `Ink Sepolia`, `Ethernity Sepolia`입니다.
+
+이 체인의 노드 운영자는 네트워크 플래그(`--network` 및 `op-geth`의 경우 `--op-network`)를 사용하여 `Thu Mar 20 16:00:00 UTC 2025` (`1742486400`) 하드포크 활성화 시간을 상속해야 합니다.
+
+다음 체인은 Superchain Registry에 등록되어 있지만 하드포크 활성화 상속 동작에 참여하지 않았습니다: `Arena-Z Sepolia`, `Cyber Sepolia`, `Funki Sepolia`, `Lisk Sepolia`, `Pivotal Sepolia`, `Race Sepolia`, `Shape Sepolia`, `TBN Sepolia`, `Worldchain Sepolia`. 이 체인들과 위 목록에 포함되지 않은 기타 OP Stack testnet은 네트워크의 하드포크 활성화 시간을 수동으로 설정해야 합니다. 모든 노드 운영자는 다음 단계를 수행해야 합니다.
+
+<Steps>
+  <Step title="최신 릴리스로 업데이트">
+  <Info>
+      node 바이너리를 업그레이드하는 동시에 op-node가 2단계에 설명된 활성화 타임스탬프를 사용하도록 구성해야 합니다. 이는 네트워크 전체에서 하드포크가 균일하게 활성화되도록 하기 위함입니다. Pectra Blob Schedule 플래그가 설정되지 않으면 node가 시작되지 않거나, 시작 시 하드포크가 자동으로 적용되어 node가 나머지 네트워크로부터 포크됩니다.
+    </Info>
+  
+    다음 `op-node/v1.12.2`는 Sepolia 또는 Holesky 체인에 대해 Pectra Blob Schedule Fix 시간이 설정되지 않은 경우 시작 시 오류를 출력하는 kill-switch를 op-node에 추가합니다. 이 검사는 체인의 제네시스가 Holesky/Sepolia Pectra 활성화 시간보다 이전인 경우에만 수행됩니다. 이 검사는 숨겨진 플래그로 비활성화할 수 있습니다.
+  
+    kill-switch의 목적은 노드 운영자가 수정 사항을 예약하지 않고 실수로 node를 업그레이드하는 일을 방지하는 것입니다. 대부분의 Holesky 및 Sepolia 체인이 Pectra Blob Schedule 버그의 영향을 받은 sequencer를 운영하고 있었기 때문입니다. 따라서 이러한 경우 실수로 체인을 포크하는 것보다 op-node를 아예 시작하지 않는 편이 낫습니다.
+  
+    `op-node/v1.12.1` 및 `op-node/v1.12.0` 바이너리에는 이 kill-switch가 없으며, Pectra Blob Schedule Fix 시간이 설정되지 않은 경우 시작 시 하드포크를 자동으로 적용합니다.
+  
+    *   `op-node` [`v1.12.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.12.2)
+    *   `op-geth` [`v1.101503.1`](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101503.1)
+  </Step>
+
+  <Step title="하드포크 활성화 시간 업데이트">
+  <Info>
+      [하드포크 활성화 상속 동작](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md)에 참여한 OP Chain의 node를 운영하는 경우, Pectra Blob Schedule Fix 활성화 날짜는 op-node 릴리스에 포함되어 있습니다. 따라서 네트워크 플래그를 사용하고 있다면 최신 릴리스로 업그레이드한 후 sequencer에 대해 별도의 조치가 필요하지 않습니다.
+  
+      해당 체인: `OP Sepolia`, `Soneium Minato`, `Zora Sepolia`, `Unichain Sepolia`, `Base Sepolia`, `Mode Sepolia`, `Metal Sepolia`, `Creator Chain Sepolia`, `Ink Sepolia`, `Ethernity Sepolia`.
+    </Info>
+  
+    하드포크 활성화 상속 동작에 참여하지 않은 체인은 하드포크 활성화 시간을 수동으로 설정해야 합니다. 다음 두 가지 방법 중 하나를 사용할 수 있습니다.
+  
+    *   **옵션 1:** `op-node`의 `rollup.json`에 활성화 시간을 설정합니다. `op-geth`에서는 별도의 구성을 설정할 필요가 없습니다.
+  
+    *   **옵션 2:** `op-node`에서 오버라이드(CLI)를 통해 활성화 시간을 설정합니다. sequencer와 다른 모든 node의 `op-node`에 이를 설정해야 합니다. 오버라이드 플래그는 다음과 같습니다: `--override.pectrablobschedule=1742486400`.
+  </Step>
+
+  <Step title="Superchain Registry 업데이트">
+  Pectra Blob Schedule fix 활성화 시간이 Superchain Registry에 없는 경우, 하드포크 활성화 시간을 결정하고 해당 활성화 시간으로 Superchain Registry를 업데이트하는 PR을 여십시오. 예시로 이 [PR](https://github.com/ethereum-optimism/superchain-registry/pull/941)을 참조하십시오.
+  </Step>
+</Steps>
+
+## 분기된 node 복구 
+
+node 바이너리를 `op-node/v1.12.1` 또는 `op-node/v1.12.0`으로 업그레이드하고 Pectra Blob Schedule Fix 활성화 시간을 설정하지 않았다면, node는 나머지 네트워크로부터 포크되었을 것입니다. 이는 잘못된 활성화 시간을 설정한 경우(예: `rollup.json`에 잘못된 타임스탬프 설정, `op-node` CLI에 잘못된 타임스탬프 설정) 또는 타임스탬프를 아예 설정하지 않은 경우에 발생할 수 있습니다.
+
+이를 해결하려면 스냅샷에서 node를 복원하고 Pectra Blob Schedule Fix 활성화 시간을 구성하거나, [`op-wheel`](https://github.com/ethereum-optimism/optimism/tree/develop/op-wheel)을 사용하여 네트워크에서 분기되기 이전의 블록으로 node를 롤백할 수 있습니다.
+
+<Steps>
+  <Step title="node 중지">
+  *   op-node 중지: 이 구성 요소는 상태를 저장하지 않으므로 프로세스를 그냥 종료하면 됩니다.
+    op-geth 중지: 데이터베이스 손상을 방지하려면 반드시 `Ctrl+C`를 사용하여 op-geth를 정상적으로 종료해야 합니다. 비정상적으로 종료하면 재시작 시 다양한 문제가 발생할 수 있습니다.
+  </Step>
+
+  <Step title="`op-geth`에서 reorg할 블록 조회">
+  ```
+    cast block --rpc-url=http://localhost:8545 6185373
+    #hash: 0x8b39f479198a5e658bbb28b1ce80790ca863ac39206c36152ba5c38db68989b2
+    #timestamp: 1735565082
+    # 6185373 in hex is 0x5E619D
+    ```
+  </Step>
+
+  <Step title="체인 reorg">
+  ```
+    cast rpc --rpc-url=http://localhost:8545 debug_setHead 0x5E619D
+    ```
+  </Step>
+
+  <Step title="새 헤드로 forkchoice 명시적 설정">
+  예시: 
+  
+    ```
+    go run ./op-wheel/cmd engine set-forkchoice --engine=http://localhost:8551 --engine.jwt-secret=.jwt_secret.txt --finalized=6185373 --safe=6185373 --unsafe=6185373
+    ```
+  </Step>
+</Steps>

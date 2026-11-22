@@ -4,16 +4,28 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Library-first, ephemeral, OP-flavored execution layer for op-e2e/actions parity tests."
+description = "Library-first, ephemeral, OP-flavored execution layer for the op-e2e action tests."
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "op-reth-test-engine"
+path = "src/bin/op-reth-test-engine.rs"
 
 [dependencies]
 # op-reth
 reth-optimism-chainspec.workspace = true
 reth-optimism-node.workspace = true
 reth-optimism-primitives.workspace = true
+reth-optimism-evm.workspace = true
+reth-optimism-payload-builder.workspace = true
+reth-optimism-consensus.workspace = true
+reth-optimism-rpc.workspace = true
+reth-optimism-txpool.workspace = true
+
+# reth payload
+reth-payload-primitives.workspace = true
 
 # reth
 reth-provider = { workspace = true, features = ["test-utils"] }
@@ -21,12 +33,59 @@ reth-db = { workspace = true, features = ["test-utils"] }
 reth-db-common.workspace = true
 reth-node-api.workspace = true
 reth-storage-api.workspace = true
+reth-consensus.workspace = true
+reth-evm.workspace = true
+reth-revm.workspace = true
+reth-chain-state.workspace = true
+reth-engine-tree.workspace = true
+reth-execution-types.workspace = true
+reth-trie.workspace = true
+reth-storage-overlay.workspace = true
+reth-primitives-traits.workspace = true
+reth-rpc.workspace = true
+reth-rpc-api.workspace = true
+reth-rpc-eth-api.workspace = true
+reth-rpc-engine-api.workspace = true
+reth-transaction-pool.workspace = true
+reth-network-api.workspace = true
+reth-tasks.workspace = true
 
-# ethereum / alloy
+# ethereum / alloy / op-alloy
 alloy-genesis.workspace = true
-alloy-primitives.workspace = true
-alloy-consensus.workspace = true
-alloy-eips.workspace = true
+alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-consensus = { workspace = true, features = ["serde"] }
+alloy-eips = { workspace = true, features = ["serde"] }
+alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+op-alloy-consensus = { workspace = true, features = ["serde"] }
+op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+op-alloy-network.workspace = true
+op-revm.workspace = true
+
+# rpc / transport / cli (used by the library RPC module and the binary)
+jsonrpsee.workspace = true
+futures.workspace = true
+reth-ipc.workspace = true
+tokio = { workspace = true, features = [
+  "rt-multi-thread",
+  "macros",
+  "signal",
+  "sync",
+  "net",
+  "time",
+] }
+serde.workspace = true
+serde_json.workspace = true
+clap = { workspace = true, features = ["derive"] }
+tracing = { workspace = true, features = ["std"] }
+tracing-subscriber = { workspace = true, features = ["std", "fmt", "env-filter"] }
 
 # errors
 thiserror.workspace = true
+
+[dev-dependencies]
+# The `optimism_mainnet` chain-spec constructor the tests build from lives behind this feature.
+reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+reth-chainspec.workspace = true
+alloy-network.workspace = true
+alloy-signer-local.workspace = true
+alloy-rlp.workspace = true

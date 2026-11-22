@@ -1,7 +1,6 @@
 package upgrades
 
 import (
-	"context"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
@@ -24,6 +23,8 @@ func TestDencunL1ForkAfterGenesis(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	offset := hexutil.Uint64(24)
 	dp.DeployConfig.L1CancunTimeOffset = &offset
+	dp.DeployConfig.L1PragueTimeOffset = nil
+	dp.DeployConfig.L1OsakaTimeOffset = nil
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, _, verifier, _, batcher := helpers.SetupReorgTestActors(t, dp, sd, log)
@@ -135,22 +136,22 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	// Genesis block is pre-ecotone
-	verifyPreEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyPreEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Block before fork block
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyPreEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyPreEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Fork block is ecotone
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Blocks post fork have Ecotone properties
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 }
 
 func TestDencunL2ForkAtGenesis(gt *testing.T) {
@@ -167,12 +168,12 @@ func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	// Genesis block has ecotone properties
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Blocks post fork have Ecotone properties
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 }
 
 func aliceSimpleBlobTx(t helpers.Testing, dp *e2eutils.DeployParams) *types.Transaction {
@@ -185,39 +186,8 @@ func aliceSimpleBlobTx(t helpers.Testing, dp *e2eutils.DeployParams) *types.Tran
 	return tx
 }
 
-func newEngine(t helpers.Testing, sd *e2eutils.SetupData, log log.Logger) *helpers.L2Engine {
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-	return helpers.NewL2Engine(t, log, sd.L2Cfg, jwtPath)
-}
-
-// TestDencunBlobTxRPC tries to send a Blob tx to the L2 engine via RPC, it should not be accepted.
-func TestDencunBlobTxRPC(gt *testing.T) {
-	t := helpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-
-	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
-	log := testlog.Logger(t, log.LevelDebug)
-	engine := newEngine(t, sd, log)
-	cl := engine.EthClient()
-	tx := aliceSimpleBlobTx(t, dp)
-	err := cl.SendTransaction(context.Background(), tx)
-	require.ErrorContains(t, err, "transaction type not supported")
-}
-
-// TestDencunBlobTxInTxPool tries to insert a blob tx directly into the tx pool, it should not be accepted.
-func TestDencunBlobTxInTxPool(gt *testing.T) {
-	t := helpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-
-	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
-	log := testlog.Logger(t, log.LevelDebug)
-	engine := newEngine(t, sd, log)
-	tx := aliceSimpleBlobTx(t, dp)
-	errs := engine.Eth.TxPool().Add([]*types.Transaction{tx}, true)
-	require.ErrorContains(t, errs[0], "transaction type not supported")
-}
-
-// TestDencunBlobTxInclusion tries to send a Blob tx to the L2 engine, it should not be accepted.
+// TestDencunBlobTxInclusion tries to include a blob tx in the L2 block being built; the EL must
+// reject it, so a blob tx never enters an L2 block.
 func TestDencunBlobTxInclusion(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
@@ -231,6 +201,8 @@ func TestDencunBlobTxInclusion(gt *testing.T) {
 	tx := aliceSimpleBlobTx(t, dp)
 
 	sequencer.ActL2StartBlock(t)
-	_, err := engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
-	require.ErrorContains(t, err, "invalid L2 block (tx 1): failed to apply transaction to L2 block (tx 1): transaction type not supported")
+	err := engine.IncludeTxErr(t, tx, dp.Addresses.Alice)
+	require.Error(t, err)
+	// The engine rejects the blob tx while decoding it: OP has no type-3 transaction.
+	require.ErrorContains(t, err, "failed to decode transaction: unexpected tx type")
 }

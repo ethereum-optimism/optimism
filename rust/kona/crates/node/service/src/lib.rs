@@ -10,30 +10,25 @@
 extern crate tracing;
 
 mod service;
-pub use service::{
-    DerivationDelegateConfig, L1Config, L1ConfigBuilder, NodeMode, RollupNode, RollupNodeBuilder,
-};
+pub use service::{L1Config, L1ConfigBuilder, NodeMode, RollupNode, RollupNodeBuilder};
 
 mod actors;
 pub use actors::{
-    BlockStream, BuildRequest, Conductor, ConductorClient, ConductorError,
-    DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
-    DerivationActorRequest, DerivationClientError, DerivationClientResult,
-    DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
-    DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
-    DerivationStateTransitionError, DerivationStateUpdate, EngineActor, EngineActorRequest,
-    EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
-    EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher, L1OriginSelector,
+    BlockStream, BuildRequest, CanonicalizeRequest, Clock, Conductor, ConductorClient,
+    ConductorError, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
+    DerivationActorRequest, DerivationClientError, DerivationClientResult, DerivationEngineClient,
+    DerivationError, DerivationState, DerivationStateMachine, DerivationStateTransitionError,
+    DerivationStateUpdate, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
+    EngineConfig, EngineDerivationClient, EngineError, IpVotes, L1OriginSelector,
     L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor, L1WatcherActorError,
     L1WatcherChain, L1WatcherDerivationClient, NetworkActor, NetworkActorError, NetworkBuilder,
     NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient,
     NetworkHandler, NodeActor, OriginSelector, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor, RpcActorError, RpcServerHandle,
-    RpcServerLauncher, SealRequest, SequencerActor, SequencerActorError, SequencerAdminQuery,
-    SequencerConfig, SequencerEngineClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
+    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor,
+    RpcActorError, RunningDiscovery, SealRequest, SequencerActor, SequencerActorError,
+    SequencerConfig, SequencerEngineClient, SignedPayload, SignerActor, SignerActorError,
+    SyncStatusSource, SystemClock, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod metrics;

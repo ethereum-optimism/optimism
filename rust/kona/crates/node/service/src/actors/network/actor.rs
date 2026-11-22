@@ -1,38 +1,47 @@
-use alloy_primitives::Address;
 use async_trait::async_trait;
-use kona_gossip::P2pRpcRequest;
-use kona_rpc::NetworkAdminQuery;
-use kona_sources::BlockSignerError;
-use libp2p::TransportError;
+use discv5::Enr;
+use kona_gossip::{GossipCommandReceiver, GossipQueryHandle, GossipState};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::{
     self, select,
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    sync::{
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        watch,
+    },
 };
 
 use crate::{
-    NetworkEngineClient, NodeActor,
+    NetworkEngineClient, NodeActor, SignedPayload,
     actors::network::{
-        driver::NetworkDriverError, error::NetworkBuilderError, handler::NetworkHandler,
+        driver::NetworkDriverError,
+        error::NetworkBuilderError,
+        handler::{NetworkHandler, RunningDiscovery},
     },
 };
 
 /// The network actor handles two core networking components of the rollup node:
-/// - *discovery*: Peer discovery over UDP using discv5.
+/// - *discovery*: Peer discovery over UDP using discv5, unless disabled.
 /// - *gossip*: Block gossip over TCP using libp2p.
 #[derive(Debug)]
 pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     /// The live libp2p [`NetworkHandler`].
     handler: NetworkHandler,
-    /// A channel to receive the unsafe block signer address.
-    unsafe_block_signer_rx: mpsc::Receiver<Address>,
-    /// A channel to receive p2p RPC requests.
-    p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
-    /// A channel to receive admin RPC queries.
-    admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
-    /// A channel to receive unsafe blocks and send them through the gossip layer.
-    publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+    /// Gossip state published for readers outside the actor, after each command and when a
+    /// reader asks for fresher state.
+    gossip_state_tx: watch::Sender<Arc<GossipState>>,
+    /// Handed to readers, to ask for fresher gossip state. Its capacity is one, so readers that
+    /// ask at the same time share one snapshot.
+    gossip_refresh_tx: mpsc::Sender<()>,
+    /// Receives the readers' requests for fresher gossip state.
+    gossip_refresh_rx: mpsc::Receiver<()>,
+    /// A channel to receive gossip commands.
+    gossip_command_rx: GossipCommandReceiver,
+    /// A channel to receive unsafe payloads submitted through admin RPC.
+    admin_payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+    /// A channel to receive signed unsafe blocks and publish them through the gossip layer.
+    publish_rx: mpsc::Receiver<SignedPayload>,
     /// A client to use to interact with the engine actor.
     engine_client: NetworkEngineClient_,
     // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
@@ -52,22 +61,46 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     pub fn new(
         engine_client: NetworkEngineClient_,
         handler: NetworkHandler,
-        unsafe_block_signer_rx: mpsc::Receiver<Address>,
-        p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
-        admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
-        publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+        gossip_command_rx: GossipCommandReceiver,
+        admin_payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+        publish_rx: mpsc::Receiver<SignedPayload>,
     ) -> Self {
+        let (gossip_state_tx, _) = watch::channel(Arc::new(handler.gossip.snapshot()));
+        let (gossip_refresh_tx, gossip_refresh_rx) = mpsc::channel(1);
         let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
         Self {
             handler,
-            unsafe_block_signer_rx,
-            p2p_rpc_rx,
-            admin_query_rx,
+            gossip_state_tx,
+            gossip_refresh_tx,
+            gossip_refresh_rx,
+            gossip_command_rx,
+            admin_payload_rx,
             publish_rx,
             engine_client,
             unsafe_block_tx,
             unsafe_block_rx,
         }
+    }
+
+    /// Returns a read-only handle to the actor's published gossip state.
+    pub fn gossip_query_handle(&self) -> GossipQueryHandle {
+        GossipQueryHandle::new(self.gossip_state_tx.subscribe(), self.gossip_refresh_tx.clone())
+    }
+
+    /// Publishes a new snapshot of the gossip state, unless nobody reads it.
+    fn publish_gossip_state(&self) {
+        if self.gossip_state_tx.receiver_count() > 0 {
+            self.gossip_state_tx.send_replace(Arc::new(self.handler.gossip.snapshot()));
+        }
+    }
+}
+
+/// Receives the next ENR from `discovery`. Never completes if discovery is disabled, and returns
+/// `None` once it stopped.
+async fn next_enr(discovery: Option<&mut RunningDiscovery>) -> Option<Enr> {
+    match discovery {
+        Some(discovery) => discovery.enr_receiver.recv().await,
+        None => std::future::pending().await,
     }
 }
 
@@ -80,21 +113,12 @@ pub enum NetworkActorError {
     /// Network driver error.
     #[error(transparent)]
     NetworkDriver(#[from] NetworkDriverError),
-    /// Driver startup failed.
-    #[error(transparent)]
-    DriverStartup(#[from] TransportError<std::io::Error>),
     /// The network driver was missing its unsafe block receiver.
     #[error("Missing unsafe block receiver in network driver")]
     MissingUnsafeBlockReceiver,
-    /// The network driver was missing its unsafe block signer sender.
-    #[error("Missing unsafe block signer in network driver")]
-    MissingUnsafeBlockSigner,
     /// Channel closed unexpectedly.
     #[error("Channel closed unexpectedly")]
     ChannelClosed,
-    /// Failed to sign the payload.
-    #[error("Failed to sign the payload: {0}")]
-    FailedToSignPayload(#[from] BlockSignerError),
 }
 
 #[async_trait]
@@ -117,40 +141,12 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            unsafe_block_signer = self.unsafe_block_signer_rx.recv() => {
-                let Some(unsafe_block_signer) = unsafe_block_signer else {
-                    warn!(
-                        target: "network",
-                        "Found no unsafe block signer on receive"
-                    );
-                    return Err(NetworkActorError::ChannelClosed);
-                };
-                if self.handler.unsafe_block_signer_sender.send(unsafe_block_signer).is_err() {
-                    warn!(
-                        target: "network",
-                        "Failed to send unsafe block signer to network handler",
-                    );
-                }
-                Ok(())
-            }
-            Some(block) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
-                let timestamp = block.timestamp();
-                let selector = |handler: &kona_gossip::BlockHandler| {
-                    handler.topic(timestamp)
-                };
-                let Some(signer) = self.handler.signer.as_ref() else {
-                    warn!(target: "net", "No local signer available to sign the payload");
-                    return Ok(());
-                };
-
-                let chain_id = self.handler.discovery.chain_id;
-
-                let sender_address = *self.handler.unsafe_block_signer_sender.borrow();
-
-                let payload_hash = block.payload_hash();
-                let signature = signer.sign_block(payload_hash, chain_id, sender_address).await?;
-
-                match self.handler.gossip.publish(selector, block, signature) {
+            Some(signed) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
+                // Published even if the signer rotated since signing: peers then reject the block,
+                // which is harmless.
+                let timestamp = signed.payload.timestamp();
+                let selector = |handler: &kona_gossip::BlockHandler| handler.topic(timestamp);
+                match self.handler.gossip.publish(selector, signed.payload, signed.signature) {
                     Ok(id) => info!("Published unsafe payload | {:?}", id),
                     Err(e) => warn!("Failed to publish unsafe payload: {:?}", e),
                 }
@@ -161,6 +157,18 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                     error!(target: "node::p2p", "The gossip swarm stream has ended");
                     return Err(NetworkActorError::ChannelClosed);
                 };
+                // Published on the actor's next turn, after events already waiting. A full
+                // channel already holds a request, which covers this change too.
+                if GossipState::changed_by(&event) {
+                    let _ = self.gossip_refresh_tx.try_send(());
+                }
+                // Before `handle_event`, which takes the event. Discovery records it in the bootstore.
+                if let Some((peer_id, addr)) = self.handler.gossip.reached_peer(&event) &&
+                    let Some(discovery) = &self.handler.discovery &&
+                    let Some(node_id) = kona_peers::peer_id_to_node_id(&peer_id)
+                {
+                    discovery.handler.tcp_verified(node_id, addr);
+                }
 
                 if let Some(payload) = self.handler.gossip.handle_event(event) &&
                     self.unsafe_block_tx.send(payload).is_err()
@@ -169,84 +177,44 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            enr = self.handler.enr_receiver.recv() => {
+            enr = next_enr(self.handler.discovery.as_mut()) => {
                 let Some(enr) = enr else {
                     error!(target: "node::p2p", "The enr receiver channel has closed");
                     return Err(NetworkActorError::ChannelClosed);
                 };
-                self.handler.gossip.dial(enr);
-                Ok(())
-            }
-            _ = self.handler.peer_score_inspector.tick(), if self.handler.gossip.peer_monitoring.as_ref().is_some() => {
-                self.handler.handle_peer_monitoring().await;
-                Ok(())
-            }
-            Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_query_rx.recv(), if !self.admin_query_rx.is_closed() => {
-                debug!(target: "node::p2p", "Broadcasting unsafe payload from admin api");
-                if self.unsafe_block_tx.send(payload).is_err() {
-                    warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
+                // Discovery hands over the ENRs of connected peers again and again.
+                let gossip = &mut self.handler.gossip;
+                if let Some(peer) = gossip.enr_to_peer_addr(&enr) &&
+                    !gossip.is_connected(&peer.peer_id())
+                {
+                    // A refusal is logged in `dial_peer`, and discovery hands the ENR over again.
+                    let _ = gossip.dial_peer(peer.peer_id(), [peer.addr().clone()]);
                 }
                 Ok(())
             }
-            Some(req) = self.p2p_rpc_rx.recv(), if !self.p2p_rpc_rx.is_closed() => {
-                req.handle(&mut self.handler.gossip, &self.handler.discovery);
+            _ = self.handler.peer_score_inspector.tick(), if self.handler.gossip.config().peer_monitoring.is_some() => {
+                self.handler.handle_peer_monitoring().await;
+                Ok(())
+            }
+            Some(payload) = self.admin_payload_rx.recv(), if !self.admin_payload_rx.is_closed() => {
+                self.engine_client.send_unsafe_block(payload).await.map_err(|_| {
+                    warn!(target: "network", "Failed to forward unsafe block to engine");
+                    NetworkActorError::ChannelClosed
+                })
+            }
+            Some((req, applied_tx)) = self.gossip_command_rx.recv(), if !self.gossip_command_rx.is_closed() => {
+                req.handle(&mut self.handler.gossip);
+                // Before the acknowledgement, so that a read after it sees what the command
+                // changed. What it sets off, such as a dial, shows once the swarm reports it.
+                self.publish_gossip_state();
+                let _ = applied_tx.send(());
+                Ok(())
+            }
+            // The actor holds a sender, so the channel never closes.
+            Some(()) = self.gossip_refresh_rx.recv() => {
+                self.publish_gossip_state();
                 Ok(())
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloy_primitives::B256;
-    use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV3};
-    use alloy_signer::SignerSync;
-    use alloy_signer_local::PrivateKeySigner;
-    use arbitrary::Arbitrary;
-    use rand::Rng;
-
-    #[test]
-    fn test_payload_signature_v1() {
-        let mut bytes = [0u8; 4096];
-        rand::rng().fill(bytes.as_mut_slice());
-
-        let pubkey = PrivateKeySigner::random();
-        let expected_address = pubkey.address();
-        const CHAIN_ID: u64 = 1337;
-
-        let block = OpExecutionPayloadEnvelope::V1(
-            ExecutionPayloadV1::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap(),
-        );
-
-        let payload_hash = block.payload_hash();
-        let message = payload_hash.signature_message(CHAIN_ID);
-        let signature = pubkey.sign_hash_sync(&message).unwrap();
-        let msg_signer = signature.recover_address_from_prehash(&message).unwrap();
-
-        assert_eq!(expected_address, msg_signer);
-    }
-
-    #[test]
-    fn test_payload_signature_v3() {
-        let mut bytes = [0u8; 4096];
-        rand::rng().fill(bytes.as_mut_slice());
-
-        let pubkey = PrivateKeySigner::random();
-        let expected_address = pubkey.address();
-        const CHAIN_ID: u64 = 1337;
-
-        let block = OpExecutionPayloadEnvelope::V3 {
-            payload: ExecutionPayloadV3::arbitrary(&mut arbitrary::Unstructured::new(&bytes))
-                .unwrap(),
-            parent_beacon_block_root: B256::random(),
-        };
-
-        let payload_hash = block.payload_hash();
-        let message = payload_hash.signature_message(CHAIN_ID);
-        let signature = pubkey.sign_hash_sync(&message).unwrap();
-        let msg_signer = signature.recover_address_from_prehash(&message).unwrap();
-
-        assert_eq!(expected_address, msg_signer);
     }
 }

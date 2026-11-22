@@ -1,0 +1,44 @@
+---
+title: Ecotone
+description: 데이터 가용성을 위해 EIP-4844 blob을 채택한 Ecotone 네트워크 업그레이드의 하드포크 레지스트리 항목입니다.
+diataxis: reference
+hardfork_name: ecotone
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/ecotone/overview.html
+hardfork_activation_mainnet: 1710374401
+hardfork_activation_sepolia: 1708534800
+hardfork_governance: https://gov.optimism.io/t/upgrade-proposal-5-ecotone-network-upgrade/7669
+---
+
+import EcotoneFacts from "/ko/snippets/generated/hardforks/ecotone.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="이 업그레이드"
+  title="Ecotone 명세"
+  href="https://specs.optimism.io/protocol/ecotone/overview.html"
+  note="이 페이지는 활성화 데이터와 운영 관련 참고 정보를 기록하며, 명세의 내용을 다시 서술하지 않습니다."
+/>
+
+Ecotone은 Ethereum의 Dencun 업그레이드를 OP Stack에 도입하고, 데이터 가용성을 위해
+[EIP-4844](https://eips.ethereum.org/EIPS/eip-4844) blob을 채택하여 L1 데이터
+비용을 크게 줄였습니다.
+
+<EcotoneFacts />
+
+## 변경 사항
+
+[명세 개요](https://specs.optimism.io/protocol/ecotone/overview.html)에 따른 변경 사항은 다음과 같습니다.
+
+*   L2에 Cancun EIP 적용: [EIP-1153](https://eips.ethereum.org/EIPS/eip-1153)
+    (transient storage), [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844)
+    (L2에서는 blob 트랜잭션 비활성화),
+    [EIP-4788](https://eips.ethereum.org/EIPS/eip-4788)(L1 beacon block root를
+    L2에 포함), [EIP-5656](https://eips.ethereum.org/EIPS/eip-5656)
+    (`MCOPY`), [EIP-6780](https://eips.ethereum.org/EIPS/eip-6780)
+    (`SELFDESTRUCT`는 동일 트랜잭션 내에서만 동작),
+    [EIP-7516](https://eips.ethereum.org/EIPS/eip-7516)(`BLOBBASEFEE`, L2에서는
+    항상 1을 push).
+*   합의 계층: L1 데이터 조회 단계와 L1 데이터 수수료 계산에서 blob 데이터
+    가용성 지원.
+*   `L1Block`(L1 attributes) predeploy의 자동 업그레이드 및 확장.

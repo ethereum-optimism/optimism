@@ -13,12 +13,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,6 +110,8 @@ func TestL1InfoContract(t *testing.T) {
 	l1Client := sys.NodeClient("l1")
 	l2Seq := sys.NodeClient("sequencer")
 	l2Verif := sys.NodeClient("verifier")
+	l2SeqSrc := sys.NodeSourceClient("sequencer")
+	l2VerifSrc := sys.NodeSourceClient("verifier")
 
 	endVerifBlockNumber := big.NewInt(4)
 	endSeqBlockNumber := big.NewInt(6)
@@ -127,16 +129,17 @@ func TestL1InfoContract(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	fillInfoLists := func(start *types.Block, contract *bindings.L1Block, client *ethclient.Client) ([]*derive.L1BlockInfo, []*derive.L1BlockInfo) {
+	fillInfoLists := func(start common.Hash, contract *bindings.L1Block, client *sources.EthClient) ([]*derive.L1BlockInfo, []*derive.L1BlockInfo) {
 		var txList, stateList []*derive.L1BlockInfo
-		for b := start; ; {
-			var infoFromTx *derive.L1BlockInfo
-			infoFromTx, err := derive.L1BlockInfoFromBytes(sys.RollupConfig, b.Time(), b.Transactions()[0].Data())
+		for h := start; ; {
+			b, l1InfoDeposit, err := client.InfoAndFirstDepositByHash(ctx, h)
+			require.NoError(t, err)
+			infoFromTx, err := derive.L1BlockInfoFromBytes(sys.RollupConfig, b.Time(), l1InfoDeposit.Data)
 			require.NoError(t, err)
 			txList = append(txList, infoFromTx)
 
 			ecotone := sys.RollupConfig.IsEcotone(b.Time()) && !sys.RollupConfig.IsEcotoneActivationBlock(b.Time())
-			infoFromState, err := L1InfoFromState(ctx, contract, b.Number(), ecotone)
+			infoFromState, err := L1InfoFromState(ctx, contract, new(big.Int).SetUint64(b.NumberU64()), ecotone)
 			require.Nil(t, err)
 			stateList = append(stateList, infoFromState)
 
@@ -144,35 +147,34 @@ func TestL1InfoContract(t *testing.T) {
 			if b.NumberU64() == 1 {
 				return txList, stateList
 			}
-			b, err = client.BlockByHash(ctx, b.ParentHash())
-			require.Nil(t, err)
+			h = b.ParentHash()
 		}
 	}
 
-	l1InfosFromSequencerTransactions, l1InfosFromSequencerState := fillInfoLists(endSeqBlock, seqL1Info, l2Seq)
-	l1InfosFromVerifierTransactions, l1InfosFromVerifierState := fillInfoLists(endVerifBlock, verifL1Info, l2Verif)
+	l1InfosFromSequencerTransactions, l1InfosFromSequencerState := fillInfoLists(endSeqBlock.Hash(), seqL1Info, l2SeqSrc)
+	l1InfosFromVerifierTransactions, l1InfosFromVerifierState := fillInfoLists(endVerifBlock.Hash(), verifL1Info, l2VerifSrc)
 
 	l1blocks := make(map[common.Hash]*derive.L1BlockInfo)
 	maxL1Hash := l1InfosFromSequencerTransactions[0].BlockHash
 	for h := maxL1Hash; ; {
-		b, err := l1Client.BlockByHash(ctx, h)
+		b, err := l1Client.HeaderByHash(ctx, h)
 		require.Nil(t, err)
 
 		l1blocks[h] = &derive.L1BlockInfo{
-			Number:         b.NumberU64(),
-			Time:           b.Time(),
-			BaseFee:        b.BaseFee(),
+			Number:         bigs.Uint64Strict(b.Number),
+			Time:           b.Time,
+			BaseFee:        b.BaseFee,
 			BlockHash:      h,
 			SequenceNumber: 0, // ignored, will be overwritten
 			BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
 		}
-		if sys.RollupConfig.IsEcotone(b.Time()) && !sys.RollupConfig.IsEcotoneActivationBlock(b.Time()) {
+		if sys.RollupConfig.IsEcotone(b.Time) && !sys.RollupConfig.IsEcotoneActivationBlock(b.Time) {
 			scalars, err := sys.RollupConfig.Genesis.SystemConfig.EcotoneScalars()
 			require.NoError(t, err)
 			l1blocks[h].BlobBaseFeeScalar = scalars.BlobBaseFeeScalar
 			l1blocks[h].BaseFeeScalar = scalars.BaseFeeScalar
-			if excess := b.ExcessBlobGas(); excess != nil {
-				l1blocks[h].BlobBaseFee = eip4844.CalcBlobFee(sys.L1Genesis().Config, b.Header())
+			if excess := b.ExcessBlobGas; excess != nil {
+				l1blocks[h].BlobBaseFee = eip4844.CalcBlobFee(sys.L1Genesis().Config, b)
 			} else {
 				l1blocks[h].BlobBaseFee = big.NewInt(1)
 			}
@@ -181,8 +183,8 @@ func TestL1InfoContract(t *testing.T) {
 			l1blocks[h].L1FeeScalar = sys.RollupConfig.Genesis.SystemConfig.Scalar
 		}
 
-		h = b.ParentHash()
-		if b.NumberU64() == 0 {
+		h = b.ParentHash
+		if bigs.Uint64Strict(b.Number) == 0 {
 			break
 		}
 	}

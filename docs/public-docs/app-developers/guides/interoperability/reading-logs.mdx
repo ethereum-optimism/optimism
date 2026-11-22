@@ -4,7 +4,7 @@ description: Understand how contracts use CrossL2Inbox to validate logs from oth
 diataxis: explanation
 ---
 
-<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+<Info>OP Stack interop goes live with the Lagoon hardfork.</Info>
 OP Stack interop enables developers to leverage current and historical logs from other blockchains within the [OP Stack interop cluster](/interop/explainer#superchain-interop-cluster) directly on their local chain.
 This allows smart contracts to consume local and cross-chain logs with low latency in a trust-minimized way.
 
@@ -58,7 +58,7 @@ sequenceDiagram
     participant App as Application
     participant EAS as EAS Contract
     participant Log as Event Log
-    
+
     User->>App: Request attestation
     App->>EAS: createAttestation()
     EAS->>Log: Emit AttestationCreated event
@@ -118,17 +118,17 @@ flowchart TD
     A[1. Identify log to consume] --> B[2. Create Identifier struct]
     B --> C[3. Call validateMessage]
     C --> D[4. Process validated log data]
-    
+
     subgraph "Conceptual Approach"
     E["Define an Identifier struct with:
        - chainId: The source chain ID
        - origin: The source contract address
        - Other required identifier parameters"]
-    
+
     F["Call validateMessage on CrossL2Inbox
        Pass the identifier and hash of log data"]
     end
-    
+
     B --> E
     C --> F
 ```
@@ -172,7 +172,7 @@ flowchart LR
         D -->|relayMessage| E[Destination L2ToL2CrossDomainMessenger]
         E -->|execute| F[Destination Contract]
     end
-    
+
     subgraph "CrossL2Inbox (Pull Model)"
         G[Source Contract] -->|emit event| H[Event Log]
         J[Destination Contract] -->|validateMessage| K[CrossL2Inbox]

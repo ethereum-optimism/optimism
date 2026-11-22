@@ -2,7 +2,8 @@
 
 use crate::{NodeRecord, PeerId};
 use derive_more::From;
-use discv5::{Enr, enr::EnrPublicKey};
+use discv5::Enr;
+use enr::EnrPublicKey;
 use libp2p::swarm::dial_opts::DialOpts;
 
 use super::utils::peer_id_to_secp256k1_pubkey;
@@ -26,7 +27,7 @@ pub enum DialOptsError {
     InvalidPeerId(secp256k1::Error),
     /// The secp256k1 public key cannot be converted to a libp2p peer id.
     #[error("Invalid public key. Error: {0}")]
-    InvalidPublicKey(#[from] discv5::libp2p_identity::DecodingError),
+    InvalidPublicKey(#[from] libp2p_identity::DecodingError),
 }
 
 impl AnyNode {
@@ -48,8 +49,8 @@ impl AnyNode {
         // codecov:ignore-start
         // We ignore the code coverage because in theory, the serialization of the public key
         // should never fail, but we don't want to panic in case of a bug.
-        let pub_key: discv5::libp2p_identity::PublicKey =
-            discv5::libp2p_identity::secp256k1::PublicKey::try_from_bytes(pub_key)?.into();
+        let pub_key: libp2p_identity::PublicKey =
+            libp2p_identity::secp256k1::PublicKey::try_from_bytes(pub_key)?.into();
         // codecov:ignore-end
 
         let libp2p_id = libp2p::PeerId::from_public_key(&pub_key);

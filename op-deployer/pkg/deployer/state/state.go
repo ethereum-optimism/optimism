@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
@@ -69,14 +68,8 @@ type State struct {
 	L1StateDump *GzipData[foundry.ForgeAllocs] `json:"l1StateDump"`
 
 	// L1DevGenesis contains the dev L1 genesis, and may be nil if this is not a genesis-strategy deployment.
-	// Warning: the Allocs part of the genesis is not included. Instead, the stateHash attribute is set.
-	// The allocs are included in L1StateDump.
-	// The stateHash can be used for consistency checks and faster block-hash computation.
+	// Its Alloc is the L1StateDump accounts map, shared rather than copied.
 	L1DevGenesis *core.Genesis `json:"-"`
-
-	// DeploymentCalldata contains the calldata of each transaction in the deployment. This is only
-	// populated if apply is called with --deployment-target=calldata.
-	DeploymentCalldata []broadcaster.CalldataDump
 }
 
 func (s *State) WriteToFile(path string) error {

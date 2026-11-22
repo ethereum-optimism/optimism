@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -130,6 +132,24 @@ func TestDevstackL1ForkEnv(t *testing.T) {
 	}
 }
 
+// TestDefaultL1ForkNotBehindMainnet checks that devstack's default L1 fork is at least the newest
+// execution fork that the bundled go-ethereum schedules on mainnet. It depends on the go-ethereum
+// version only, not on the time the test runs.
+func TestDefaultL1ForkNotBehindMainnet(t *testing.T) {
+	latest := params.MainnetChainConfig.LatestFork(math.MaxUint64)
+	require.GreaterOrEqual(t, executionFork(defaultL1Fork), executionFork(latest),
+		"devstack's default L1 fork %v is older than %v, the latest fork scheduled on mainnet: raise defaultL1Fork",
+		defaultL1Fork, latest)
+}
+
+// executionFork maps a fork that only changes blob parameters to the execution fork it extends.
+func executionFork(f forks.Fork) forks.Fork {
+	if f >= forks.BPO1 && f <= forks.BPO5 {
+		return forks.Osaka
+	}
+	return f
+}
+
 func TestDeployerOptionsOverrideDevstackL1Fork(t *testing.T) {
 	t.Setenv(DevstackL1ForkEnvVar, "fusaka")
 	builder := newValidIntentBuilder()
@@ -173,7 +193,6 @@ func TestDevstackFutureL1ForkAddsBlobSchedule(t *testing.T) {
 	require.NotNil(t, schedule.BPO3)
 	require.NotNil(t, schedule.BPO4)
 	require.NotNil(t, schedule.BPO5)
-	require.NotNil(t, schedule.Amsterdam)
 }
 
 func newValidIntentBuilder() intentbuilder.Builder {

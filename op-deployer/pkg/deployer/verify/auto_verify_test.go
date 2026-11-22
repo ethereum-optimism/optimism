@@ -31,13 +31,7 @@ func TestLogAutoVerifyFailure(t *testing.T) {
 }
 
 func TestAutoVerifyContinuesWhenEtherscanIsUnavailable(t *testing.T) {
-	projectDir := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(projectDir, "forge-artifacts"), 0o755))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(projectDir, "foundry.toml"),
-		[]byte("[profile.default]\nsrc = 'src'\nout = 'forge-artifacts'\n"),
-		0o644,
-	))
+	projectDir := writeTestForgeProject(t)
 	stateFile := filepath.Join(projectDir, "state.json")
 	require.NoError(t, os.WriteFile(stateFile, []byte("{}"), 0o644))
 

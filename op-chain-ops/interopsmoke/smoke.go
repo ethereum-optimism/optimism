@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopbridge"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -96,7 +97,7 @@ type remoteChain struct {
 	name      string
 	url       string
 	rpc       opclient.RPC
-	ethClient apis.EthClient
+	ethClient apis.EthExtendedClient
 	chainID   eth.ChainID
 }
 
@@ -108,19 +109,19 @@ type remoteUser struct {
 
 type initMessage struct {
 	Tx      *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 type execMessage struct {
 	Init    *initMessage
 	Tx      *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 // sentMessage is a message sent through the L2ToL2CrossDomainMessenger.
 type sentMessage struct {
 	Tx      *txintent.IntentTx[*txintent.SendTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 // relayedMessage is a relayMessage call on the L2ToL2CrossDomainMessenger. Its
@@ -128,7 +129,7 @@ type sentMessage struct {
 // themselves initiating messages.
 type relayedMessage struct {
 	Tx      *txintent.IntentTx[*txintent.RelayTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 type smokeEnv struct {
@@ -352,7 +353,7 @@ func (u *remoteUser) sendInvalidRelayMessage(ctx context.Context, msg *sentMessa
 }
 
 // execEntry sends an executing message for an already-known initiating message.
-func (u *remoteUser) execEntry(ctx context.Context, entry messages.Message) (*types.Receipt, error) {
+func (u *remoteUser) execEntry(ctx context.Context, entry messages.Message) (*optypes.Receipt, error) {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.plan())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
@@ -1397,12 +1398,12 @@ func waitForHeadProgress(ctx context.Context, stderr io.Writer, chain *remoteCha
 }
 
 func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {
-	_, txs, err := chain.ethClient.InfoAndTxsByNumber(ctx, blockNum)
+	envelope, err := chain.ethClient.PayloadByNumber(ctx, blockNum)
 	if err != nil {
 		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
 	}
-	for _, tx := range txs {
-		if tx.Hash() == txHash {
+	for _, tx := range envelope.ExecutionPayload.Transactions {
+		if sources.RawTransaction(tx).Hash() == txHash {
 			return nil
 		}
 	}
@@ -1410,12 +1411,12 @@ func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, t
 }
 
 func assertTxNotInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {
-	_, txs, err := chain.ethClient.InfoAndTxsByNumber(ctx, blockNum)
+	envelope, err := chain.ethClient.PayloadByNumber(ctx, blockNum)
 	if err != nil {
 		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
 	}
-	for _, tx := range txs {
-		if tx.Hash() == txHash {
+	for _, tx := range envelope.ExecutionPayload.Transactions {
+		if sources.RawTransaction(tx).Hash() == txHash {
 			return fmt.Errorf("tx %s still present in block %d on %s", txHash, blockNum, chain.name)
 		}
 	}

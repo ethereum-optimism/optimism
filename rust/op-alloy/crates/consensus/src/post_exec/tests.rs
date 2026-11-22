@@ -181,7 +181,10 @@ fn encoded_entry_count_preflight_uses_block_transaction_count() {
         .expect_err("two entries cannot target one other block transaction");
     assert_eq!(
         err,
-        alloy_rlp::Error::Custom("post-exec gas refund entries exceed block transaction count")
+        PostExecPayloadValidationError::TooManyGasRefundEntries {
+            entry_count: 2,
+            preceding_transaction_count: 1,
+        }
     );
 }
 
@@ -192,7 +195,47 @@ fn encoded_entry_count_preflight_rejects_non_final_post_exec_before_decoding() {
 
     let err = validate_post_exec_entry_count(&[malformed_post_exec, filler])
         .expect_err("post-exec transaction must be final");
-    assert_eq!(err, alloy_rlp::Error::Custom("post-exec transaction must be final"));
+    assert_eq!(
+        err,
+        PostExecPayloadValidationError::PostExecTxNotLast { tx_index: 0, last_index: 1 }
+    );
+}
+
+#[test]
+fn encoded_entry_count_preflight_rejects_malformed_payload() {
+    // A bare type byte decodes no payload header; trailing junk after a valid payload is the
+    // same class. Both count under one reason, so the alert sees a malformed producer either way.
+    let bare = Bytes::from_static(&[POST_EXEC_TX_TYPE_ID]);
+    let err = validate_post_exec_entry_count(&[bare]).expect_err("no payload to decode");
+    assert_eq!(err, PostExecPayloadValidationError::MalformedPostExecPayload { tx_index: 0 });
+
+    let mut trailing = build_post_exec_tx(1, vec![]).encoded_2718();
+    trailing.push(0x00);
+    let filler = Bytes::from_static(&[0x01]);
+    let err = validate_post_exec_entry_count(&[filler, trailing.into()])
+        .expect_err("trailing bytes after the payload");
+    assert_eq!(err, PostExecPayloadValidationError::MalformedPostExecPayload { tx_index: 1 });
+}
+
+#[test]
+fn encoded_entry_count_preflight_rejects_unsupported_version() {
+    let payload = PostExecPayload {
+        version: POST_EXEC_PAYLOAD_VERSION + 1,
+        block_number: 42,
+        gas_refund_entries: vec![],
+    };
+    let mut tx = vec![POST_EXEC_TX_TYPE_ID];
+    tx.extend_from_slice(payload.to_rlp_bytes().as_ref());
+    let filler = Bytes::from_static(&[0x01]);
+
+    let err = validate_post_exec_entry_count(&[filler, tx.into()])
+        .expect_err("future version must fail preflight");
+    assert_eq!(
+        err,
+        PostExecPayloadValidationError::UnsupportedPostExecPayloadVersion {
+            version: POST_EXEC_PAYLOAD_VERSION + 1
+        }
+    );
 }
 
 #[test]
@@ -201,7 +244,10 @@ fn encoded_entry_count_preflight_rejects_multiple_post_exec_txs_before_decoding(
 
     let err = validate_post_exec_entry_count(&[malformed_post_exec.clone(), malformed_post_exec])
         .expect_err("multiple post-exec transactions must fail preflight");
-    assert_eq!(err, alloy_rlp::Error::Custom("multiple post-exec transactions"));
+    assert_eq!(
+        err,
+        PostExecPayloadValidationError::MultiplePostExecTxs { first_index: 0, duplicate_index: 1 }
+    );
 }
 
 #[test]
@@ -426,6 +472,8 @@ const TOO_MANY: PostExecPayloadValidationError =
 #[case::not_last(NOT_LAST, "post_exec_tx_not_last")]
 #[case::mismatch(MISMATCH, "block_number_mismatch")]
 #[case::too_many(TOO_MANY, "too_many_gas_refund_entries")]
+#[case::malformed(PostExecPayloadValidationError::MalformedPostExecPayload { tx_index: 0 }, "malformed_post_exec_payload")]
+#[case::unsupported_version(PostExecPayloadValidationError::UnsupportedPostExecPayloadVersion { version: 0 }, "unsupported_post_exec_payload_version")]
 fn as_reason_names_the_failed_rule(
     #[case] error: PostExecPayloadValidationError,
     #[case] expected: &str,
@@ -436,8 +484,7 @@ fn as_reason_names_the_failed_rule(
 /// Two rules sharing a label would merge two failure modes into one metric series.
 #[test]
 fn as_reason_is_distinct_per_rule() {
-    let reasons = [UNEXPECTED, MULTIPLE, NOT_LAST, MISMATCH, TOO_MANY]
-        .map(PostExecPayloadValidationError::as_reason);
+    let reasons = PostExecPayloadValidationError::ALL_REASONS;
     let distinct: BTreeSet<&str> = reasons.iter().copied().collect();
     assert_eq!(distinct.len(), reasons.len(), "{reasons:?}");
 }

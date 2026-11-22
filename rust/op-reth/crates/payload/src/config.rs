@@ -1,6 +1,7 @@
 //! Additional configuration for the OP builder
 
 use crate::sdm_metrics;
+pub use reth_optimism_txpool::OpGasLimitConfig;
 use reth_optimism_txpool::interop::InteropFailsafe;
 use std::sync::{
     Arc,
@@ -157,36 +158,6 @@ struct OpDAConfigInner {
     ///
     /// 0 means no limit.
     max_da_block_size: AtomicU64,
-}
-
-/// Contains the Gas Limit configuration for the OP builder.
-///
-/// This type is shareable and can be used to update the Gas Limit configuration for the OP payload
-/// builder.
-#[derive(Debug, Clone, Default)]
-pub struct OpGasLimitConfig {
-    /// Gas limit for a transaction
-    ///
-    /// 0 means use the default gas limit.
-    gas_limit: Arc<AtomicU64>,
-}
-
-impl OpGasLimitConfig {
-    /// Creates a new Gas Limit configuration with the given maximum gas limit.
-    pub fn new(max_gas_limit: u64) -> Self {
-        let this = Self::default();
-        this.set_gas_limit(max_gas_limit);
-        this
-    }
-    /// Returns the gas limit for a transaction, if any.
-    pub fn gas_limit(&self) -> Option<u64> {
-        let val = self.gas_limit.load(std::sync::atomic::Ordering::Relaxed);
-        if val == 0 { None } else { Some(val) }
-    }
-    /// Sets the gas limit for a transaction. 0 means use the default gas limit.
-    pub fn set_gas_limit(&self, gas_limit: u64) {
-        self.gas_limit.store(gas_limit, std::sync::atomic::Ordering::Relaxed);
-    }
 }
 
 #[cfg(test)]

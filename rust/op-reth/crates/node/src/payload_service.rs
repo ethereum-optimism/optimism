@@ -1,8 +1,6 @@
 //! OP payload-service configuration.
 //!
-//! Normal launches delegate to
-//! [`BasicPayloadServiceBuilder`](reth_node_builder::components::BasicPayloadServiceBuilder) with
-//! the stock EVM configuration.
+//! Normal launches delegate to [`BasicPayloadServiceBuilder`] with the stock EVM configuration.
 //! The hidden, default-off SDM testing control replaces that configuration once, when the payload
 //! service is constructed, so policy selection never occurs during transaction execution.
 
@@ -11,33 +9,28 @@ use crate::{
     sdm_test_policy::FixedRefundPolicyFactory,
 };
 use alloy_primitives::Address;
-use op_alloy_consensus::OpTxEnvelope;
-use reth_node_api::{BuildNextEnv, NodeTypes, node::FullNodeTypes};
+use reth_node_api::{NodeTypes, node::FullNodeTypes};
 use reth_node_builder::{
     BuilderContext,
     components::{BasicPayloadServiceBuilder, PayloadBuilderBuilder, PayloadServiceBuilder},
 };
-use reth_optimism_evm::{
-    ConfigurePostExecEvm, OpEvmConfig, OpEvmFactory, OpRethReceiptBuilder, OpTx,
-    PostExecEvmFactoryAdapter,
-};
-use reth_optimism_payload_builder::OpPayloadBuilderAttributes;
-use reth_optimism_primitives::OpPrimitives;
+use reth_optimism_evm::{OpEvmConfig, OpEvmFactory, OpTx, PostExecEvmFactoryAdapter};
 use reth_payload_builder::PayloadBuilderHandle;
 use reth_transaction_pool::TransactionPool;
 /// EVM configuration used only by the fixed SDM test policy.
-type FixedPolicyOpEvmConfig<ChainSpec, N> = OpEvmConfig<
-    ChainSpec,
-    N,
-    OpRethReceiptBuilder,
-    PostExecEvmFactoryAdapter<OpEvmFactory<OpTx, FixedRefundPolicyFactory>>,
->;
+type FixedPolicyOpEvmConfig =
+    OpEvmConfig<PostExecEvmFactoryAdapter<OpEvmFactory<OpTx, FixedRefundPolicyFactory>>>;
 
 /// Builds the payload service for an OP node.
 ///
 /// By default this delegates to the stock [`BasicPayloadServiceBuilder`] and EVM configuration. A
 /// hidden test-only configuration may instead select the deterministic fixed-refund SDM policy.
 /// The choice is made once while constructing the service.
+///
+/// The service must be wrapped in [`DerivedPayloadServiceBuilder`], as [`OpNode`] does.
+///
+/// [`DerivedPayloadServiceBuilder`]: crate::DerivedPayloadServiceBuilder
+/// [`OpNode`]: crate::OpNode
 #[derive(Debug, Clone)]
 pub struct OpPayloadServiceBuilder {
     payload_builder: OpPayloadBuilder,
@@ -61,25 +54,8 @@ where
     Node: FullNodeTypes<Types: OpNodeTypes>,
     Pool: TransactionPool + Clone + Send + Sync + Unpin + 'static,
     EvmConfig: Send,
-    FixedPolicyOpEvmConfig<<Node::Types as NodeTypes>::ChainSpec, OpPrimitives>:
-        ConfigurePostExecEvm<
-                Primitives = OpPrimitives,
-                NextBlockEnvCtx: BuildNextEnv<
-                    OpPayloadBuilderAttributes<OpTxEnvelope>,
-                    alloy_consensus::Header,
-                    <Node::Types as NodeTypes>::ChainSpec,
-                >,
-            > + Clone
-            + Send
-            + Sync
-            + Unpin
-            + 'static,
     OpPayloadBuilder: PayloadBuilderBuilder<Node, Pool, EvmConfig>
-        + PayloadBuilderBuilder<
-            Node,
-            Pool,
-            FixedPolicyOpEvmConfig<<Node::Types as NodeTypes>::ChainSpec, OpPrimitives>,
-        >,
+        + PayloadBuilderBuilder<Node, Pool, FixedPolicyOpEvmConfig>,
 {
     async fn spawn_payload_builder_service(
         self,
@@ -94,12 +70,8 @@ where
                 .await;
         };
 
-        let evm_config: FixedPolicyOpEvmConfig<
-            <Node::Types as NodeTypes>::ChainSpec,
-            OpPrimitives,
-        > = OpEvmConfig::new_with_evm_factory(
+        let evm_config: FixedPolicyOpEvmConfig = OpEvmConfig::new_with_evm_factory(
             ctx.chain_spec(),
-            OpRethReceiptBuilder::default(),
             PostExecEvmFactoryAdapter::new(OpEvmFactory::new(FixedRefundPolicyFactory::new(
                 excessive_refund_target,
             ))),

@@ -154,6 +154,26 @@ func TestGameSequenceAndOutputRoot(t *testing.T) {
 		require.Equal(t, uint64(5678), bigs.Uint64Strict(sequence))
 		require.Equal(t, common.Hash{}, root)
 	})
+
+	t.Run("zk game skips parent index and uses super root", func(t *testing.T) {
+		parentIndex := []byte{0, 0, 0, 7}
+		game := bindings.IDisputeGameFactoryGameSearchResult{
+			ExtraData: append(parentIndex, superRootExtraData(5678, l2ChainID, expectedRoot)...),
+		}
+		sequence, root, ok, err := gameSequenceAndOutputRoot(game, gameTypes.ZKDisputeGameType, l2ChainID)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, uint64(5678), bigs.Uint64Strict(sequence))
+		require.Equal(t, expectedRoot, root)
+	})
+
+	t.Run("zk game without parent index is rejected", func(t *testing.T) {
+		game := bindings.IDisputeGameFactoryGameSearchResult{
+			ExtraData: []byte{0, 0, 7},
+		}
+		_, _, _, err := gameSequenceAndOutputRoot(game, gameTypes.ZKDisputeGameType, l2ChainID)
+		require.ErrorContains(t, err, "4-byte parent index")
+	})
 }
 
 func superRootExtraData(timestamp uint64, chainID *big.Int, outputRoot common.Hash) []byte {

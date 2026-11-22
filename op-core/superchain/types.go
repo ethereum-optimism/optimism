@@ -1,6 +1,8 @@
 package superchain
 
 import (
+	"strconv"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -37,6 +39,15 @@ type Dependency struct{}
 
 type Interop struct {
 	Dependencies map[string]Dependency `json:"dependencies" toml:"dependencies"`
+}
+
+// Dependencies returns the chain's interop dependency set, keyed by decimal chain ID. A chain
+// without an interop config depends only on itself.
+func (c *ChainConfig) Dependencies() map[string]Dependency {
+	if c.Interop == nil {
+		return map[string]Dependency{strconv.FormatUint(c.ChainID, 10): {}}
+	}
+	return c.Interop.Dependencies
 }
 
 type HardforkConfig struct {
@@ -90,6 +101,12 @@ type SystemConfig struct {
 	GasLimit          uint64         `json:"gasLimit" toml:"gasLimit"`
 	BaseFeeScalar     *uint64        `json:"baseFeeScalar,omitempty" toml:"baseFeeScalar,omitempty"`
 	BlobBaseFeeScalar *uint64        `json:"blobBaseFeeScalar,omitempty" toml:"blobBaseFeeScalar,omitempty"`
+	// Operator fee (Isthmus), min base fee and DA footprint gas scalar (Jovian). The registry
+	// records these only when non-zero, so an absent key means the chain started from zero.
+	OperatorFeeScalar    *uint32 `json:"operatorFeeScalar,omitempty" toml:"operatorFeeScalar,omitempty"`
+	OperatorFeeConstant  *uint64 `json:"operatorFeeConstant,omitempty" toml:"operatorFeeConstant,omitempty"`
+	MinBaseFee           *uint64 `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
+	DAFootprintGasScalar *uint16 `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 }
 
 type RolesConfig struct {

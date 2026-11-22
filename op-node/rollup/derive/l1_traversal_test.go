@@ -126,7 +126,9 @@ func TestL1TraversalAdvance(t *testing.T) {
 				// TODO: don't need full L1 info in receipts fetching API maybe?
 			}
 			if test.l1Receipts != nil {
-				src.ExpectFetchReceipts(test.nextBlock.Hash, info, optypes.FromGethReceipts(test.l1Receipts), nil)
+				opReceipts, err := optypes.FromGethReceipts(test.l1Receipts)
+				require.NoError(t, err)
+				src.ExpectFetchReceipts(test.nextBlock.Hash, info, opReceipts, nil)
 			}
 
 			cfg := &rollup.Config{

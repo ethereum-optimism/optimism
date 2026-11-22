@@ -12,13 +12,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -34,20 +35,24 @@ var (
 	l2DevFeatureFlagsAddr   = common.HexToAddress("0x420000000000000000000000000000000000002D")
 
 	l2DevFeatureBitmapSlot = common.HexToHash("0xc8bc8f9195cfb2d040744aac63412d02ffc186ea9bd519039edc4666ee9032bc")
-	ozV5InitializableSlot  = common.HexToHash("0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00")
+	// bytes32(uint256(keccak256("chainconfig.settlementchainid")) - 1)
+	settlementChainIDSlot = common.HexToHash("0x519bd363f00ade2be7cab3da84f88ba43e7e22819543246b4a737af4e3553f4f")
+	ozV5InitializableSlot = common.HexToHash("0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00")
 )
 
 type allocMode struct {
-	name             string
-	customGasToken   bool
-	devFeatureBitmap common.Hash
-	configure        func(t *testing.T, intent *state.Intent)
+	name              string
+	customGasToken    bool
+	devFeatureBitmap  common.Hash
+	settlementChainID uint64
+	configure         func(t *testing.T, intent *state.Intent)
 }
 
 type generatedL2Genesis struct {
 	mode        allocMode
 	allocs      types.GenesisAlloc
 	cfg         genesis.DeployConfig
+	rollupCfg   *rollup.Config
 	chainIntent *state.ChainIntent
 }
 
@@ -67,28 +72,52 @@ func allocModes(t *testing.T) []allocMode {
 			},
 		},
 		{
-			name:             "interop",
-			devFeatureBitmap: devfeatures.OptimismPortalInteropFlag,
+			name: "interop",
 			configure: func(t *testing.T, intent *state.Intent) {
 				intent.UseInterop = true
-				intent.GlobalDeployOverrides = map[string]any{
-					"devFeatureBitmap": devfeatures.OptimismPortalInteropFlag,
-				}
 			},
 		},
 		{
-			name:             "cgt+interop",
-			customGasToken:   true,
-			devFeatureBitmap: devfeatures.OptimismPortalInteropFlag,
+			name:           "cgt+interop",
+			customGasToken: true,
 			configure: func(t *testing.T, intent *state.Intent) {
 				enableCustomGasToken(t, intent)
 				intent.UseInterop = true
+			},
+		},
+		{
+			name:              "op-private",
+			devFeatureBitmap:  devfeatures.OPPrivateFlag,
+			settlementChainID: 2,
+			configure:         enableOPPrivate,
+		},
+		{
+			name:             "op-private+public",
+			devFeatureBitmap: devfeatures.OPPrivateFlag,
+			configure: func(t *testing.T, intent *state.Intent) {
 				intent.GlobalDeployOverrides = map[string]any{
-					"devFeatureBitmap": devfeatures.OptimismPortalInteropFlag,
+					"devFeatureBitmap": devfeatures.OPPrivateFlag,
 				}
 			},
 		},
 	}
+}
+
+func opPrivateEnabled(mode allocMode) bool {
+	return devfeatures.IsDevFeatureEnabled(mode.devFeatureBitmap, devfeatures.OPPrivateFlag)
+}
+
+// enableOPPrivate makes chain 0 a private chain whose settlement chain is a new chain 2.
+func enableOPPrivate(t *testing.T, intent *state.Intent) {
+	t.Helper()
+
+	intent.GlobalDeployOverrides = map[string]any{"devFeatureBitmap": devfeatures.OPPrivateFlag}
+	intent.Chains[0].DeployOverrides = map[string]any{"settlementChainId": 2}
+	// A private chain's settlement chain must come before it in the same intent.
+	_, _, dk := shared.DefaultPrivkey(t)
+	settlement := shared.NewChainIntent(t, dk, intent.L1ChainIDBig(), uint256.NewInt(2), testCustomGasLimit)
+	settlement.DeployOverrides = map[string]any{"settlementChainId": 2}
+	intent.Chains = append([]*state.ChainIntent{settlement}, intent.Chains...)
 }
 
 func enableCustomGasToken(t *testing.T, intent *state.Intent) {
@@ -122,27 +151,34 @@ func generateL2Genesis(t *testing.T, mode allocMode) generatedL2Genesis {
 	mode.configure(t, intent)
 
 	require.NoError(t, deployer.ApplyPipeline(context.Background(), deployer.ApplyPipelineOpts{
-		DeploymentTarget:   deployer.DeploymentTargetGenesis,
-		L1RPCUrl:           "",
-		DeployerPrivateKey: pk,
-		Intent:             intent,
-		State:              st,
-		Logger:             lgr,
-		StateWriter:        pipeline.NoopStateWriter(),
-		CacheDir:           testutils.IsolatedTestDirWithAutoCleanup(t),
+		DeploymentTarget:      deployer.DeploymentTargetGenesis,
+		L1RPCUrl:              "",
+		DeployerPrivateKey:    pk,
+		Intent:                intent,
+		State:                 st,
+		Logger:                lgr,
+		StateWriter:           pipeline.NoopStateWriter(),
+		CacheDir:              testutil.SharedCacheDir(t),
+		DeployMockSP1Verifier: true,
 	}))
 
-	require.NotEmpty(t, st.Chains)
-	require.NotNil(t, st.Chains[0].Allocs)
+	chainIntent, err := intent.Chain(l2ChainID.Bytes32())
+	require.NoError(t, err)
+	chainState, err := st.Chain(l2ChainID.Bytes32())
+	require.NoError(t, err)
+	require.NotNil(t, chainState.Allocs)
 
-	cfg, err := state.CombineDeployConfig(intent, intent.Chains[0], st, st.Chains[0])
+	cfg, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
+	require.NoError(t, err)
+	_, rollupCfg, err := inspect.GenesisAndRollup(st, chainIntent.ID)
 	require.NoError(t, err)
 
 	return generatedL2Genesis{
 		mode:        mode,
-		allocs:      st.Chains[0].Allocs.Data.Accounts,
+		allocs:      chainState.Allocs.Data.Accounts,
 		cfg:         cfg,
-		chainIntent: intent.Chains[0],
+		rollupCfg:   rollupCfg,
+		chainIntent: chainIntent,
 	}
 }
 
@@ -183,6 +219,10 @@ func assertInactivePredeploys(t *testing.T, gen generatedL2Genesis) {
 	assertInactiveProxy(t, gen, predeploys.L2toL2CrossDomainMessengerAddr)
 	assertInactiveProxy(t, gen, predeploys.SuperchainETHBridgeAddr)
 	assertInactiveProxy(t, gen, predeploys.ETHLiquidityAddr)
+	assertInactiveProxy(t, gen, predeploys.UndeliveredMessageExporterAddr)
+	if !opPrivateEnabled(gen.mode) {
+		assertInactiveProxy(t, gen, predeploys.ChainConfigAddr)
+	}
 }
 
 func activePredeploys(mode allocMode) []common.Address {
@@ -210,6 +250,9 @@ func activePredeploys(mode allocMode) []common.Address {
 	}
 	if mode.customGasToken {
 		proxies = append(proxies, predeploys.LiquidityControllerAddr, predeploys.NativeAssetLiquidityAddr)
+	}
+	if opPrivateEnabled(mode) {
+		proxies = append(proxies, predeploys.ChainConfigAddr)
 	}
 	return proxies
 }
@@ -304,6 +347,12 @@ func assertProxyConfig(t *testing.T, gen generatedL2Genesis) {
 	)
 
 	checkStorageSlot(t, gen.allocs, l2DevFeatureFlagsAddr, l2DevFeatureBitmapSlot, gen.mode.devFeatureBitmap)
+
+	if opPrivateEnabled(gen.mode) {
+		assertUintSlot(t, gen, predeploys.ChainConfigAddr, settlementChainIDSlot,
+			new(big.Int).SetUint64(gen.mode.settlementChainID))
+	}
+	require.Equal(t, gen.mode.settlementChainID, gen.rollupCfg.SettlementChainID, "rollup config settlement chain ID")
 
 	if gen.mode.customGasToken {
 		assertAddressSlot(t, gen, predeploys.LiquidityControllerAddr, slot(51), gasToken.LiquidityControllerOwner)

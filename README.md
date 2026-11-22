@@ -94,7 +94,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 └── <a href="./rust">rust</a>: Rust components — a unified Cargo workspace
     ├── <a href="./rust/kona">kona</a>: OP Stack state-transition (fault proof) program and rollup node in Rust
     ├── <a href="./rust/op-reth">op-reth</a>: OP Stack execution client built on reth
-    ├── <a href="./rust/op-reth-test-engine">op-reth-test-engine</a>: Minimal execution-layer engine, e.g. an op-geth replacement in Go action tests (WIP)
+    ├── <a href="./rust/op-reth-test-engine">op-reth-test-engine</a>: Minimal execution-layer engine the Go action tests run against
     ├── <a href="./rust/op-revm">op-revm</a>: OP Stack EVM implementation (revm fork)
     ├── <a href="./rust/op-alloy">op-alloy</a>: OP Stack types and providers for the alloy ecosystem
     ├── <a href="./rust/alloy-op-evm">alloy-op-evm</a>: OP Stack EVM support for the alloy ecosystem
@@ -120,12 +120,6 @@ For contract releases, refer to the GitHub release notes for a given release whi
 Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code only, and **DO NOT** include smart contracts.
 This naming scheme is required by Golang.
 In the above list, this means these `v<semver>` releases contain all `op-*` components and exclude all `contracts-*` components.
-
-`op-geth` embeds upstream geth’s version inside its own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
-Basically, geth’s version is our minor version.
-For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
-Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
-Since we cannot left-pad with zeroes, the geth major version is not padded.
 
 See the [GitHub releases](https://github.com/ethereum-optimism/optimism/releases) page for more information about releases for the latest node components.
 

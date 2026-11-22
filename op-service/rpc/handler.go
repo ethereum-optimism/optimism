@@ -223,7 +223,7 @@ func (b *Handler) newHealthMiddleware(next http.Handler) http.Handler {
 func (b *Handler) newHttpRPCMiddleware(server *rpc.Server, next http.Handler, jwtSecret []byte) http.Handler {
 	// Only allow RPC handlers behind the appropriate CORS / vhost / JWT setup.
 	// Note that websockets have their own handler-stack, also configured with CORS and JWT, separately.
-	httpHandler := node.NewHTTPHandlerStack(server, b.corsHosts, b.vHosts, jwtSecret)
+	httpHandler := node.NewHTTPHandlerStack(server, b.corsHosts, b.vHosts, jwtSecret, false)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// URL is already stripped with http.StripPrefix
 		if r.URL.Path == "" {

@@ -91,3 +91,28 @@ func TestResubmitterFatalErrors(t *testing.T) {
 		require.Equal(t, want, resubmitter.SendTransaction(context.Background(), types.NewTx(&types.DynamicFeeTx{})))
 	}
 }
+
+func TestResubmitterInteropRejections(t *testing.T) {
+	for _, test := range []struct {
+		err   error
+		fatal bool
+	}{
+		{err: errors.New("interop filter rejected access list: conflicting data exists in the database"), fatal: true},
+		{err: errors.New("interop quorum not reached: 0 definitive responses, 1 required")},
+	} {
+		ctx, cancel := context.WithCancel(context.Background())
+		inner := &mockSender{errs: []error{test.err}, onSend: func(call uint64) {
+			if call == 2 {
+				cancel()
+			}
+		}}
+		err := txinclude.NewResubmitter(inner, time.Millisecond).SendTransaction(ctx, types.NewTx(&types.DynamicFeeTx{}))
+		if test.fatal {
+			require.ErrorIs(t, err, txinclude.ErrInteropAccessListRejected)
+			require.Equal(t, uint64(1), inner.calls)
+		} else {
+			require.ErrorIs(t, err, context.Canceled)
+		}
+		cancel()
+	}
+}

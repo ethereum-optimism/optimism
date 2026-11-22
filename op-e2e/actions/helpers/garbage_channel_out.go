@@ -58,6 +58,10 @@ func (gk GarbageKind) String() string {
 type GarbageChannelCfg struct {
 	UseInvalidCompression bool
 	MalformRLP            bool
+	// TxModifier rewrites the transactions of each batch after the deposits have been filtered
+	// out and before the batch is encoded, so it can inject what the block-based batcher path
+	// cannot carry, like deposit-typed or non-canonical transaction bytes.
+	TxModifier func([]eth.Data) []eth.Data
 }
 
 // Writer is the interface shared between `zlib.Writer` and `gzip.Writer`
@@ -160,10 +164,14 @@ func (co *GarbageChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.Exe
 	if co.closed {
 		return nil, errors.New("already closed")
 	}
-	batch, l1Info, err := blockToBatch(rollupCfg, payload)
+	singularBatch, l1Info, err := derive.PayloadToSingularBatch(rollupCfg, payload)
 	if err != nil {
 		return nil, err
 	}
+	if co.cfg.TxModifier != nil {
+		singularBatch.Transactions = co.cfg.TxModifier(singularBatch.Transactions)
+	}
+	batch := derive.NewBatchData(singularBatch)
 	// We encode to a temporary buffer to determine the encoded length to
 	// ensure that the total size of all RLP elements is less than or equal to MAX_RLP_BYTES_PER_CHANNEL
 	var buf bytes.Buffer
@@ -252,13 +260,4 @@ func (co *GarbageChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint1
 	} else {
 		return fn, nil
 	}
-}
-
-// blockToBatch transforms a block into a batch object that can easily be RLP encoded.
-func blockToBatch(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (*derive.BatchData, *derive.L1BlockInfo, error) {
-	singularBatch, l1Info, err := derive.PayloadToSingularBatch(rollupCfg, payload)
-	if err != nil {
-		return nil, nil, err
-	}
-	return derive.NewBatchData(singularBatch), l1Info, nil
 }

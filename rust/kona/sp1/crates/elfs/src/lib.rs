@@ -17,7 +17,8 @@ fn elf_dir() -> io::Result<PathBuf> {
             io::ErrorKind::NotFound,
             format!(
                 "{ELF_DIR_ENV} unset; build ELFs (cd rust/kona/sp1 && just build-elfs) and set \
-                 it to rust/kona/sp1/elf"
+                 it to rust/kona/sp1/elf; for synthetic-chain tests, see \
+                 rust/kona/sp1/README.md#chain-configuration"
             ),
         )
     })

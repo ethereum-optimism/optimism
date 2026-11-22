@@ -11,10 +11,10 @@ function cleanup() {
   local docker_target="${WORKTREE_DIR}/rust/kona/sp1/programs/target/elf-compilation/docker"
   if [[ -d "$docker_target" ]]; then
     local worktree_real docker_parent
-    if worktree_real=$(cd -P "$WORKTREE_DIR" && pwd) &&
-      docker_parent=$(cd -P "$(dirname "$docker_target")" && pwd) &&
-      [[ "$docker_parent" == "$worktree_real"/* ]]; then
-      if ! rm -rf "$docker_target" 2>/dev/null && ! sudo -n rm -rf "$docker_target"; then
+    if worktree_real=$(cd -P "$WORKTREE_DIR" && pwd) \
+      && docker_parent=$(cd -P "$(dirname "$docker_target")" && pwd) \
+      && [[ "$docker_parent" == "$worktree_real"/* ]]; then
+      if ! rm -rf "$docker_target" 2> /dev/null && ! sudo -n rm -rf "$docker_target"; then
         echo "warning: could not remove ${docker_target}" >&2
       fi
     else
@@ -88,12 +88,27 @@ function fail_kona_sp1() {
   return 1
 }
 
+# Prints the lowercase bytes32 vkey that cargo prove derives from the ELF at $3, named $2.
+function derive_kona_sp1_vkey() {
+  local version=$1 name=$2 elf=$3 output derived
+  output=$(SP1_PROVER=cpu mise exec -- cargo prove vkey --elf "$elf" 2>&1) || {
+    fail_kona_sp1 "$version" "could not derive vkey from ${name} ELF: ${output}"
+    return 1
+  }
+  derived=$(printf '%s\n' "$output" | grep -oE '0x[[:alnum:]]+' || true)
+  if [[ ! "$derived" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+    fail_kona_sp1 "$version" "${name} ELF produced no unique bytes32 vkey"
+    return 1
+  fi
+  printf '%s' "$derived" | tr 'A-F' 'a-f'
+}
+
 function build_kona_sp1() {
   local version=$1
   local log_file=$2
   local ref="refs/tags/kona-sp1-program/v${version}"
   local commit
-  commit=$(git rev-parse --verify "${ref}^{commit}" 2>/dev/null) || {
+  commit=$(git rev-parse --verify "${ref}^{commit}" 2> /dev/null) || {
     fail_kona_sp1 "$version" "missing tag ${ref}"
     return 1
   }
@@ -115,6 +130,24 @@ function build_kona_sp1() {
     fail_kona_sp1 "$version" "failed to install tag-pinned tools"
     return 1
   fi
+  local metadata unsafe_config_fallback
+  metadata=$(mise exec -- cargo metadata --manifest-path rust/kona/sp1/programs/Cargo.toml --locked --format-version 1 2>> "$log_file") || {
+    fail_kona_sp1 "$version" "failed to resolve guest features"
+    return 1
+  }
+  unsafe_config_fallback=$(printf '%s\n' "$metadata" | jq -r '
+    [.packages[] | select(.name == "kona-sp1-super-range") | .id] as $guests |
+    any(.resolve.nodes[];
+      (.id as $id | $guests | index($id)) != null and
+      (.features | index("test-config-fallback")) != null)
+  ') || {
+    fail_kona_sp1 "$version" "failed to inspect guest features"
+    return 1
+  }
+  if [[ "$unsafe_config_fallback" != "false" ]]; then
+    fail_kona_sp1 "$version" "test-config-fallback must be disabled for production prestates"
+    return 1
+  fi
   if ! (cd rust/kona/sp1 && mise exec -- just build-elfs) 2>&1 | tee -a "$log_file"; then
     fail_kona_sp1 "$version" "tagged Docker build failed"
     return 1
@@ -122,11 +155,26 @@ function build_kona_sp1() {
 
   local manifest="rust/kona/sp1/elf/vkeys.toml"
   local elf="rust/kona/sp1/elf/super-aggregation-elf"
-  local line hash derived output
-  [[ -f "$manifest" && -s "$elf" ]] || {
-    fail_kona_sp1 "$version" "missing aggregation manifest or ELF"
+  local range_elf="rust/kona/sp1/elf/super-range-elf"
+  local log_elf="rust/kona/sp1/elf/log-commitment-elf"
+  local line hash derived log_hash
+  [[ -f "$manifest" && -s "$elf" && -s "$range_elf" ]] || {
+    fail_kona_sp1 "$version" "missing guest manifest or ELF"
     return 1
   }
+  local marker_status=0
+  grep -aqF 'KONA_SP1_UNSAFE_TEST_CONFIG_FALLBACK{fd6d88e711058eef5eff1512237c8ad3}' "$range_elf" || marker_status=$?
+  if [[ "$marker_status" -eq 0 ]]; then
+    fail_kona_sp1 "$version" "test-config-fallback must be disabled for production prestates (unsafe ELF marker)"
+    return 1
+  elif [[ "$marker_status" -ne 1 ]]; then
+    fail_kona_sp1 "$version" "could not scan super-range ELF for test-config-fallback"
+    return 1
+  fi
+  if grep -Eq '^[[:space:]]*git_sha[[:space:]]*=[[:space:]]*"[^"]*-test"[[:space:]]*$' "$manifest"; then
+    fail_kona_sp1 "$version" "test-config-fallback must be disabled for production prestates (test build marker)"
+    return 1
+  fi
   line=$(grep -E '^[[:space:]]*super-aggregation[[:space:]]*=' "$manifest" || true)
   if [[ ! "$line" =~ ^[[:space:]]*super-aggregation[[:space:]]*=[[:space:]]*\"(0x[0-9a-f]{64})\"[[:space:]]*$ ]]; then
     fail_kona_sp1 "$version" "missing, duplicate, or malformed super-aggregation vkey"
@@ -137,18 +185,32 @@ function build_kona_sp1() {
     fail_kona_sp1 "$version" "zero super-aggregation vkey"
     return 1
   fi
-  output=$(SP1_PROVER=cpu mise exec -- cargo prove vkey --elf "$elf" 2>&1) || {
-    fail_kona_sp1 "$version" "could not derive vkey from aggregation ELF: ${output}"
-    return 1
-  }
-  derived=$(printf '%s\n' "$output" | grep -oE '0x[[:alnum:]]+' || true)
-  if [[ ! "$derived" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
-    fail_kona_sp1 "$version" "ELF produced no unique bytes32 vkey"
-    return 1
-  fi
-  if [[ "$(printf '%s' "$hash" | tr 'A-F' 'a-f')" != "$(printf '%s' "$derived" | tr 'A-F' 'a-f')" ]]; then
+  derived=$(derive_kona_sp1_vkey "$version" aggregation "$elf") || return 1
+  if [[ "$hash" != "$derived" ]]; then
     fail_kona_sp1 "$version" "manifest vkey ${hash} differs from ELF vkey ${derived}"
     return 1
+  fi
+  # Tags from before the log-commitment program have neither the key nor the ELF.
+  line=$(grep -E '^[[:space:]]*log-commitment[[:space:]]*=' "$manifest" || true)
+  if [[ -z "$line" && -s "$log_elf" ]]; then
+    fail_kona_sp1 "$version" "log-commitment ELF has no log-commitment vkey in the manifest"
+    return 1
+  fi
+  if [[ -n "$line" ]]; then
+    if [[ ! "$line" =~ ^[[:space:]]*log-commitment[[:space:]]*=[[:space:]]*\"(0x[0-9a-f]{64})\"[[:space:]]*$ ]]; then
+      fail_kona_sp1 "$version" "duplicate or malformed log-commitment vkey"
+      return 1
+    fi
+    log_hash="${BASH_REMATCH[1]}"
+    [[ -s "$log_elf" ]] || {
+      fail_kona_sp1 "$version" "manifest has a log-commitment vkey but no log-commitment ELF"
+      return 1
+    }
+    derived=$(derive_kona_sp1_vkey "$version" log-commitment "$log_elf") || return 1
+    if [[ "$log_hash" != "$derived" ]]; then
+      fail_kona_sp1 "$version" "manifest log-commitment vkey ${log_hash} differs from ELF vkey ${derived}"
+      return 1
+    fi
   fi
   VERSIONS_JSON=$(printf '%s\n' "$VERSIONS_JSON" | jq --arg version "$version" --arg hash "$hash" '. + [{version: $version, hash: $hash, type: "kona-sp1"}]')
   echo "Kona SP1 version ${version}: rebuilt super-aggregation vkey ${hash}"

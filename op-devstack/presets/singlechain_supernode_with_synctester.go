@@ -23,6 +23,7 @@ type SingleSupernodeWithSyncTester struct {
 }
 
 func NewSingleSupernodeWithSyncTester(t devtest.T, opts ...Option) *SingleSupernodeWithSyncTester {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, presetOpts := collectSupportedPresetConfig(
 		t,
 		"NewSingleSupernodeWithSyncTester",

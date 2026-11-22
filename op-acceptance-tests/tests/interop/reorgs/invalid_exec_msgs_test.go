@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -26,6 +27,7 @@ import (
 // TestReorgInvalidExecMsgs tests that the supernode reorgs the chain when an invalid exec msg is included
 // Each subtest runs a test with  a different invalid message, by modifying the message in the txModifierFn
 func TestReorgInvalidExecMsgs(gt *testing.T) {
+	gt.Parallel()
 	gt.Run("invalid log index", func(gt *testing.T) {
 		testReorgInvalidExecMsg(gt, func(msg *messages.Message) {
 			msg.Identifier.LogIndex = 1024
@@ -46,7 +48,7 @@ func TestReorgInvalidExecMsgs(gt *testing.T) {
 }
 
 func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *messages.Message)) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
@@ -96,7 +98,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *messages.Mess
 	sys.L2B.CatchUpTo(sys.L2A)
 
 	var initTx *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
-	var initReceipt *types.Receipt
+	var initReceipt *optypes.Receipt
 	// prepare and include initiating message on chain B
 	{
 		initTx = txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](bob.Plan())

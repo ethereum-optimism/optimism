@@ -15,6 +15,8 @@ type SystemConfig struct {
 	BlobbasefeeScalar   func() TypedCall[uint32]         `sol:"blobBaseFeeScalar"`
 	Owner               func() TypedCall[common.Address] `sol:"owner"`
 
+	L1CrossDomainMessenger func() TypedCall[common.Address] `sol:"l1CrossDomainMessenger"`
+
 	// Write functions
 	SetOperatorFeeScalars func(operatorFeeScalar uint32, operatorFeeConstant uint64) TypedCall[any] `sol:"setOperatorFeeScalars"`
 	SetGasConfigEcotone   func(basefeeScalar uint32, blobbasefeeScalar uint32) TypedCall[any]       `sol:"setGasConfigEcotone"`

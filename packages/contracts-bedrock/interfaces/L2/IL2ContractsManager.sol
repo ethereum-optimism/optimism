@@ -23,9 +23,6 @@ interface IL2ContractsManager is ISemver {
     /// @notice Thrown when a contract is in the process of being initialized during an upgrade.
     error L2ContractsManager_InitializingDuringUpgrade();
 
-    /// @notice Thrown when a feature flag mismatch is detected.
-    error L2ContractsManager_FeatureFlagMismatch();
-
     /// @notice Thrown when an implementation name is not found in the constructor input.
     /// @param name The name that was not found.
     error L2ContractsManager_ImplNotFound(string name);

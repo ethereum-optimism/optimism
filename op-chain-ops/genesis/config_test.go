@@ -270,6 +270,18 @@ func TestUpgradeScheduleDeployConfig_ForkGettersAndSetters(t *testing.T) {
 	}
 }
 
+func TestUpgradeScheduleDeployConfig_IsForkActive(t *testing.T) {
+	var d UpgradeScheduleDeployConfig
+	genesis := uint64(1000)
+	d.ActivateForkAtOffset(forks.Isthmus, 50)
+
+	require.True(t, d.IsForkActive(forks.Holocene, genesis, genesis), "fork at genesis")
+	require.False(t, d.IsForkActive(forks.Isthmus, genesis, genesis), "before offset")
+	require.False(t, d.IsForkActive(forks.Isthmus, genesis, genesis+49), "just before offset")
+	require.True(t, d.IsForkActive(forks.Isthmus, genesis, genesis+50), "at offset")
+	require.False(t, d.IsForkActive(forks.Jovian, genesis, genesis+1_000_000), "unscheduled")
+}
+
 func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 	var d UpgradeScheduleDeployConfig
 	ts := uint64(42)

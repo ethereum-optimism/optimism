@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm/runtime"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -244,7 +245,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 	})
 	require.NoError(f, err)
 
-	_, err = state.Commit(0, false, false)
+	_, err = state.Commit(params.Rules{}, 0)
 	require.NoError(f, err)
 
 	portalContract, err := bindings.NewOptimismPortal(addr, nil)

@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 
@@ -28,6 +29,14 @@ import (
 
 // progressLogInterval is how often to log ingestion progress.
 const progressLogInterval = 10 * time.Second
+
+// startAttempts and startRetryInterval bound the start-up retries against an L2 EL
+// RPC: the dial, the chain ID query and the ingestion init. If all attempts fail,
+// start-up returns an error so the process exits and the failure is visible.
+const (
+	startAttempts      = 5
+	startRetryInterval = 10 * time.Second
+)
 
 // EthClient defines the interface for fetching block and receipt data.
 // This allows for dependency injection in tests.
@@ -49,6 +58,7 @@ type blockFetch struct {
 // It uses an RPC client to fetch blocks and a logsdb database for storage.
 type LogsDBChainIngester struct {
 	log     log.Logger
+	clock   clock.Clock
 	metrics metrics.Metricer
 	chainID eth.ChainID
 
@@ -61,6 +71,7 @@ type LogsDBChainIngester struct {
 	pollInterval     time.Duration
 	rollupCfg        *rollup.Config // Rollup config for block number calculation
 	fetchConcurrency int
+	startRetry       retry.Strategy
 
 	stopped atomic.Bool
 
@@ -85,12 +96,14 @@ type LogsDBChainIngester struct {
 // NewLogsDBChainIngester creates a new LogsDBChainIngester for the given chain.
 // startTimestamp is when we report Ready() = true (now minus assume-valid-before).
 // backfillDuration is how far back from startTimestamp to begin ingestion.
+// The ingester takes ownership of rpcClient and closes it on Stop.
 func NewLogsDBChainIngester(
 	parentCtx context.Context,
 	logger log.Logger,
+	clk clock.Clock,
 	m metrics.Metricer,
 	chainID eth.ChainID,
-	rpcURL string,
+	rpcClient client.RPC,
 	dataDir string,
 	startTimestamp uint64,
 	backfillDuration time.Duration,
@@ -102,12 +115,6 @@ func NewLogsDBChainIngester(
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	logger = logger.New("chain", chainID)
-
-	rpcClient, err := client.NewRPC(ctx, logger, rpcURL)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to create RPC client for chain %s: %w", chainID, err)
-	}
 
 	ethClient, err := sources.NewEthClient(
 		rpcClient,
@@ -133,6 +140,7 @@ func NewLogsDBChainIngester(
 
 	return &LogsDBChainIngester{
 		log:              logger,
+		clock:            clk,
 		metrics:          m,
 		chainID:          chainID,
 		rpcClient:        rpcClient,
@@ -143,6 +151,7 @@ func NewLogsDBChainIngester(
 		pollInterval:     pollInterval,
 		rollupCfg:        rollupCfg,
 		fetchConcurrency: fetchConcurrency,
+		startRetry:       retry.Fixed(startRetryInterval),
 		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
@@ -156,8 +165,19 @@ func (c *LogsDBChainIngester) Start() error {
 		return fmt.Errorf("failed to init logs DB: %w", err)
 	}
 
+	nextBlock, err := retry.Do(c.ctx, startAttempts, c.startRetry, func() (uint64, error) {
+		nextBlock, err := c.initIngestion()
+		if err != nil {
+			c.log.Warn("Failed to initialize ingestion", "err", err)
+		}
+		return nextBlock, err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize ingestion: %w", err)
+	}
+
 	c.wg.Add(1)
-	go c.runIngestion()
+	go c.runIngestion(nextBlock)
 
 	return nil
 }
@@ -426,26 +446,14 @@ func (c *LogsDBChainIngester) initLogsDB() error {
 	return nil
 }
 
-func (c *LogsDBChainIngester) runIngestion() {
+func (c *LogsDBChainIngester) runIngestion(nextBlock uint64) {
 	defer c.wg.Done()
 
-	// One-time setup: determine starting block and next block to ingest
-	nextBlock, err := c.initIngestion()
-	if err != nil {
-		// Application context was canceled (e.g., during shutdown).
-		if errors.Is(err, context.Canceled) {
-			c.log.Info("Ingestion init canceled")
-			return
-		}
-		c.log.Error("Failed to initialize ingestion", "err", err)
-		return
-	}
-
 	// Track progress for logging
-	lastLogTime := clock.SystemClock.Now()
+	lastLogTime := c.clock.Now()
 
 	// Use ticker for polling interval
-	ticker := time.NewTicker(c.pollInterval)
+	ticker := c.clock.NewTicker(c.pollInterval)
 	defer ticker.Stop()
 
 	// Unified ingestion loop - no concept of "backfill" vs "live"
@@ -453,10 +461,17 @@ func (c *LogsDBChainIngester) runIngestion() {
 		select {
 		case <-c.ctx.Done():
 			return
-		case <-ticker.C:
+		case <-ticker.Ch():
 		}
 
 		nextBlock = c.applyPendingRewind(nextBlock)
+
+		// Recorded before the error-state skip and the head fetch so that the lag
+		// grows while ingestion is halted or the EL is unavailable.
+		chainIDUint64, _ := c.chainID.Uint64()
+		if ts, ok := c.LatestTimestamp(); ok {
+			c.metrics.RecordIngestionLagSeconds(chainIDUint64, c.clock.Since(time.Unix(int64(ts), 0)).Seconds())
+		}
 
 		// Skip if in error state
 		if c.Error() != nil {
@@ -473,8 +488,6 @@ func (c *LogsDBChainIngester) runIngestion() {
 			continue
 		}
 
-		// Record chain tip and lag metrics
-		chainIDUint64, _ := c.chainID.Uint64()
 		c.metrics.RecordChainTip(chainIDUint64, head.NumberU64())
 		if nextBlock > 0 {
 			ingestedHead := nextBlock - 1
@@ -482,9 +495,6 @@ func (c *LogsDBChainIngester) runIngestion() {
 				c.metrics.RecordTipLagBlocks(chainIDUint64, head.NumberU64()-ingestedHead)
 			} else {
 				c.metrics.RecordTipLagBlocks(chainIDUint64, 0)
-			}
-			if ts, ok := c.LatestTimestamp(); ok {
-				c.metrics.RecordIngestionLagSeconds(chainIDUint64, clock.SystemClock.Since(time.Unix(int64(ts), 0)).Seconds())
 			}
 		}
 
@@ -649,7 +659,7 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 }
 
 func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
-	_, _, err := c.ingestBlockRange(blockNum, blockNum, clock.SystemClock.Now())
+	_, _, err := c.ingestBlockRange(blockNum, blockNum, c.clock.Now())
 	return err
 }
 
@@ -730,9 +740,9 @@ func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, last
 		if c.Error() != nil {
 			return blockNum + 1, lastLogTime, nil
 		}
-		if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
+		if c.clock.Since(lastLogTime) > progressLogInterval {
 			c.recordIngestionProgress(blockNum, endBlock)
-			lastLogTime = clock.SystemClock.Now()
+			lastLogTime = c.clock.Now()
 		}
 	}
 
@@ -795,7 +805,7 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 		"block", blockNum,
 		"hash", blockID.Hash,
 		"timestamp", blockInfo.Time(),
-		"ingested_at", time.Now().UTC(),
+		"ingested_at", c.clock.Now().UTC(),
 		"logs", logCount)
 
 	// Set earliest block on first successful ingestion (fresh start case).

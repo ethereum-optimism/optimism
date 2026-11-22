@@ -1,0 +1,167 @@
+---
+title: 결함 증명 challenger 운영하기
+description: 본드 예산 수립과 prestate 선택부터 인프라, 구성, 모니터링까지, OP Stack 체인을 방어하는 op-challenger를 구축합니다.
+diataxis: how-to
+content-type: solution-guide
+last-reviewed: 2026-07-24
+---
+
+이 가이드는 OP Stack 체인을 방어하는 정직한 challenger를 운영하려는 운영자를 대상으로 전체 과정을 한 번에 안내합니다.
+challenger가 수행하는 작업과 지출하는 비용, 게임에서 승리할 수 있는지를 결정하는 버전 및 prestate 선택,
+challenger가 의존하는 네 가지 인프라, 그리고 challenger가 실제로 체인을 방어하고 있는지 확인하는 방법을 다룹니다.
+이 과정에는 `op-challenger`, kona-client prestate를 사용하는 Cannon VM, SafeDB가 활성화된 `op-node`,
+`op-reth` 아카이브 node, 그리고 L1에 있는 체인의 분쟁 게임(dispute game) 컨트랙트가 관련됩니다.
+
+## 이 가이드가 필요한 경우
+
+다음에 해당한다면 이 가이드를 사용하십시오.
+
+*   체인이 결함 증명(fault proof) 시스템을 실행하고 있습니다. 즉, `DisputeGameFactory`가 배포되어 있고
+    제안(proposal)이 분쟁 게임으로 정산됩니다.
+*   체인 방어를 책임지는 체인 운영자이거나, 체인 보안에 기여하기 위해 자금을 걸 의향이 있는
+    독립 참여자입니다.
+
+새 체인을 생성하면서 그 과정의 한 단계로 challenger를 설정하는 경우에는 해당 시리즈의
+[L2 rollup 생성 튜토리얼의 challenger 단계](/ko/chain-operators/tutorials/create-l2-rollup/op-challenger-setup)를
+따르십시오. 운영을 시작하기 전에 분쟁 게임의 작동 방식을 이해하고 싶다면
+[결함 증명 설명서](/ko/op-stack/fault-proofs/explainer)부터 읽으십시오. 상시 서비스를 운영하는 것이 아니라
+특정 게임 하나를 조사하는 경우에는 [모니터링 도구](/ko/chain-operators/tools/chain-monitoring#dispute-mon)를 사용하십시오.
+
+이 역할을 직접 운영하지 않고 맡기고 싶거나, OP Labs 엔지니어링 팀의 지원을 받고 싶다면
+[OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise)를 참고하십시오.
+어느 경우든 이 가이드는 체인 방어에 무엇이 필요한지에 대한 참고 자료입니다.
+
+## 시작하기 전에
+
+다음이 준비되어 있어야 합니다.
+
+*   체인의 컨트랙트 주소, 특히 `DisputeGameFactory` 프록시 주소(체인이 superchain-registry에
+    등록되어 있다면 3단계에서 자동으로 처리됩니다).
+*   본드를 게시할 수 있을 만큼 충분한 ETH를 입금할 수 있는 L1 계정(규모는 2단계에서 산정합니다),
+    그리고 영구 스토리지를 갖춘 여러 서비스를 실행할 수 있는 인프라.
+*   체인이 superchain-registry에 없는 경우, 체인의 `rollup.json`과 L2 genesis 파일.
+
+## 1단계: 맡게 될 역할 이해하기
+
+challenger는 분쟁 시스템에서 정직한 행위자입니다. 모든 게임을 모니터링하고, 유효한 제안을 방어하며,
+유효하지 않은 제안에 이의를 제기하고, 본드가 지급되도록 게임을 해결(resolve)하는 자율 에이전트입니다.
+[op-challenger 설명서](/ko/op-stack/fault-proofs/challenger)를 읽고 다음 내용을 파악하십시오.
+
+*   다섯 가지 책임(모니터링, 방어, 이의 제기, 해결, 본드 청구)과 함께, challenger는 신뢰하는 `op-node`가
+    보고하는 내용에 따라 행동한다는 점입니다. 따라서 rollup node의 무결성이 곧 challenger의 무결성입니다.
+*   존중되는(respected) 게임 유형은 `cannon-kona`(kona-host로 실행)이며, 레거시 `cannon` / op-program
+    게임 유형은 [지원 종료](/ko/notices/archive/op-geth-deprecation)되었다는 점입니다. op-program은
+    현재 활성화된 Karst 하드포크를 지원하지 않으므로, kona 변형만이 유지 관리되는 유일한 옵션입니다.
+
+그다음 [결함 증명 보안 모델](/ko/op-stack/fault-proofs/fp-security)을 읽고, 그럼에도 게임이 잘못되는 경우
+어떤 일이 일어나는지 파악하십시오. Guardian은 잘못된 게임을 블랙리스트에 올리거나 존중되는 게임 유형을
+변경할 수 있으며, 본드는 지연 기간과 함께 `DelayedWETH`에 보관되므로 잘못된 지급을 회수할 수 있습니다.
+challenger는 유일한 방어선이 아니라 첫 번째 방어선입니다.
+
+## 2단계: 본드와 수수료 예산 수립하기
+
+challenger가 게시하는 모든 클레임(claim)에는 트랜잭션 value로 전송되는 본드가 수반됩니다.
+올바른 클레임은 환불되고, 잘못된 클레임의 본드는 반박 클레임을 제기한 쪽에 지급됩니다.
+[설명서의 본드 FAQ](/ko/op-stack/fault-proofs/challenger#faqs)를 읽고 다음 내용을 파악하십시오.
+
+*   규모 산정 논리: 정직한 행위자들이 합쳐서 공격자보다 더 많이 지출할 수 있어야 하므로, 고정된 안전 금액은
+    없습니다. 하나의 게임 체인을 최대 깊이까지 진행하면 한쪽당 약 315.6 ETH가 소요되며, 자금이 충분한
+    운영자는 모든 금액을 미리 입금해 두기보다는 단기간에 동원할 수 있는 상당한 자금을 확보해 둡니다.
+*   현금 흐름 구조: 승리한 게임의 본드는 7일 지연 후에만 지급되므로, 게임이 해결되는 동안 자본이
+    묶이는 것을 예산에 반영하십시오.
+*   안전장치: 정직한 행위자보다 더 많이 지출하려는 공격자는 Guardian의 개입으로 본드를 잃게 됩니다.
+    이러한 억제 효과 덕분에 현실적인 지출은 최악의 경우보다 훨씬 낮게 유지됩니다.
+
+지금 challenger 계정에 보유할 ETH 규모와 활발한 분쟁이 진행되는 동안 얼마나 빨리 잔액을 보충할 수
+있는지 결정하십시오. 이러한 운영상의 답이 정확한 초기 잔액보다 더 중요합니다.
+
+## 3단계: 버전과 prestate 고정하기
+
+challenger는 자신이 보유하지 않은 absolute prestate를 사용하는 게임과는 상호작용하지 않으며, 잘못된
+prestate로 게임을 진행하면 패배합니다. 따라서 버전 선택은 단순한 관리 작업이 아니라 정확성에 관한
+결정입니다. [op-challenger 릴리스 기록](/ko/releases/op-challenger)에서 최신 릴리스를 확인한 다음,
+[구성 가이드의 버전 안내](/ko/chain-operators/guides/configuration/op-challenger-config-guide#finding-the-current-stable-releases)를
+읽고 체인 배포와 호환되는 op-challenger, op-reth, kona-client 버전을 파악하십시오.
+
+그다음 구성 방식을 선택하십시오.
+
+| 다음과 같은 경우 ...                                   | 선택 ...                                                                    | 이유 ...                                                                                                                                         |
+| ----------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 체인이 superchain-registry에 등록되어 있음             | `--network` 플래그                                                           | 게임 팩토리 주소, rollup 구성, L2 genesis가 레지스트리에서 자동으로 로드되므로 잘못 구성할 수 있는 세 가지 지점이 사라집니다.                  |
+| 체인이 커스텀 체인임(레지스트리에 없음)                 | 명시적인 `--game-factory-address`, rollup 구성, L2 genesis, prestate         | 자동으로 조회할 수 있는 것이 없습니다. prestate는 컨트랙트 배포 시 사용한 것과 같아야 하며, `just reproducible-prestate-kona`로 빌드합니다.    |
+| 체인이 시간이 지나면서 prestate를 업그레이드함          | 단일 prestate 파일 대신 `--cannon-kona-prestates-url`                        | challenger가 각 게임에 맞는 prestate를 가져올 수 있으므로, 네트워크 업그레이드 이후에도 새 게임을 무시하지 않고 계속 참여합니다.               |
+
+prestate 생성 및 검증은 [absolute prestate 튜토리얼](/ko/chain-operators/tutorials/absolute-prestate)을
+따르십시오. 커스텀 체인의 경우 [kona-client 커스텀 prestate 튜토리얼](/ko/chain-operators/tutorials/kona-custom-prestate)에서
+체인 구성을 포함하는 방법을 다룹니다.
+
+## 4단계: 네 가지 엔드포인트 준비하기
+
+challenger는 네 가지 서비스를 사용하며, 각 서비스에는 "접근 가능한 RPC" 이상의 요구 사항이 있습니다.
+구성 가이드의 [주요 구성 플래그](/ko/chain-operators/guides/configuration/op-challenger-config-guide#configuration-setup)를
+읽고 엔드포인트별로 다음 내용을 파악하십시오.
+
+*   **L1 RPC** (`--l1-eth-rpc`): 대량의 요청을 감당할 수 있는 신뢰할 수 있는 node입니다. challenger는
+    이 node가 알려주는 정보를 바탕으로 실제 수수료가 드는 트랜잭션에 서명하므로, "신뢰할 수 있음"이라는
+    조건이 핵심입니다.
+*   **L1 beacon** (`--l1-beacon`): 배치가 게시된 blob을 제공합니다. blob 아카이버 사용 여부를 지금
+    결정하십시오. 체인이 유효한 output을 정기적으로 제안한다면 약 18일인 blob 보존 기간으로 충분합니다.
+    제안이 그보다 오래 중단될 수 있다면 blob 아카이버가 필요하며, 그렇지 않으면 challenger가 이길 수
+    없는 상황에 놓일 수 있습니다.
+*   **L2 아카이브 node** (`--l2-eth-rpc`): debug API와 historical-proofs 저장소가 활성화되어 있고 최초
+    시작 전에 시딩된 op-reth 아카이브 node로, 분쟁 기간(28일 이상)을 커버할 수 있는 규모여야 합니다.
+*   **Rollup node** (`--rollup-rpc`): SafeDB가 활성화된(`--safedb.path`) op-node입니다. SafeDB를
+    스냅샷에서 절대 복원하지 말라는 경고에 유의하십시오. L1과 일치하지 않는 SafeDB는 challenger가
+    유효한 output을 공격하게 만들며, challenger는 이 상태를 감지할 수 없습니다.
+
+## 5단계: challenger 구성 및 시작하기
+
+버전, prestate, 엔드포인트가 준비되었다면 구성 가이드가 기준이 되는 문서입니다. 배포 형태를 선택하십시오.
+
+| 다음과 같은 경우 ...                                             | 선택 ...              | 이유 ...                                                                                                                    |
+| ----------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 프로덕션 운영을 위해 바이너리를 완전히 제어하고 싶음              | 소스에서 빌드          | 정확한 릴리스 태그를 제어하고 이를 기준으로 디버깅할 수 있습니다. 바이너리에는 kona-host를 가리키는 `--cannon-kona-server`가 필요합니다. |
+| 패키지된 방식을 원함                                              | Docker 이미지          | 이미지에 kona 서버와 Cannon 실행 파일이 포함되어 있으므로 서버 플래그와 바이너리가 미리 연결된 상태로 제공됩니다.               |
+
+[challenger 구성 가이드](/ko/chain-operators/guides/configuration/op-challenger-config-guide)에서 해당하는 탭을
+처음부터 끝까지 따르십시오. 이 가이드는 환경 파일, 시작 스크립트 또는 compose 파일, 그리고 플래그별 설명을
+다룹니다. 1단계의 `cannon-kona` 게임 유형이 포함된 가이드의 `--trace-type` 값을 그대로 유지하고,
+다른 서비스에서 사용하는 것과 동일한 트랜잭션 서명 방식(개인 키, 니모닉 또는 op-signer)을 사용하십시오.
+
+## 6단계: 모니터링 연결하기
+
+조용히 멈춘 challenger는 없는 것보다 더 나쁩니다. 방어되고 있다고 믿게 되기 때문입니다.
+[체인 모니터링의 dispute-mon 섹션](/ko/chain-operators/tools/chain-monitoring#dispute-mon)을 읽고,
+`op-dispute-mon`이 지난 28일 동안의 모든 게임 상태를 추적하며 프로덕션 challenger 배포에 필수적인 것으로
+간주된다는 점을 파악하십시오. 최소한 두 가지 조건에 대해 알림을 설정하십시오. 모니터가 체인에 불리하게
+해결되고 있다고 표시하는 게임, 그리고 challenger 계정 잔액이 2단계에서 정한 보충 기준 아래로 떨어지는 경우입니다.
+
+## 7단계: challenger가 방어하고 있는지 확인하기
+
+challenger가 실제 게임을 대상으로 몇 분간 실행되도록 한 다음, 각 계층을 확인하십시오.
+
+*   **시작 상태**: 로그에서 네 가지 엔드포인트 모두에 성공적으로 연결되고 prestate가 경고 없이 로드되는지
+    확인합니다. challenger는 prestate가 없는 게임에는 참여하지 않으며, 그 사실을 로그에 기록합니다.
+*   **게임 가시성**: `op-challenger list-games`(L1 RPC와 게임 팩토리 대상)가 체인의 게임을 반환하고,
+    `list-claims`가 진행 중인 게임의 클레임을 보여줍니다. 이 읽기 전용 하위 명령은 실행 중인 서비스와
+    동일한 구성을 사용하므로 구성 점검 용도로도 활용할 수 있습니다.
+*   **참여**: challenger가 시작된 이후에 생성된 게임에 대해, challenger는 유효한 제안은 그대로 두고
+    유효하지 않은 제안에는 반박 클레임을 게시합니다. testnet에서는 `create-game` 하위 명령과 의도적으로
+    잘못된 root claim을 사용해 이를 직접 시험해 볼 수 있습니다.
+*   **경제적 순환**: challenger가 승리한 게임이 해결되고 7일 지연이 지나면, `list-credits`에서
+    challenger 주소에 지급될 본드가 청구되는 것을 확인할 수 있습니다.
+
+## 다음 단계
+
+*   [op-challenger readme](https://github.com/ethereum-optimism/optimism/blob/develop/op-challenger/README.md):
+    하위 명령 참조(create-game, move, resolve, run-trace)와 구성 이상의 devnet 안내를 제공합니다.
+    `develop` 브랜치의 저장소 내 문서이며, 2026-07-18 기준입니다.
+*   [Challenger 구성 참조](/ko/chain-operators/reference/challenger-configuration):
+    페이지에 명시된 릴리스 태그의 op-challenger 플래그 정의에서 생성된 플래그 목록이며, 새로운 최종 릴리스가
+    게시될 때 다시 생성됩니다.
+*   [정직한 challenger 명세](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html?utm_source=op-docs&utm_medium=docs):
+    challenger가 구현하는 규범적 알고리즘으로, 올바른 대응이 무엇인지 추론해야 할 때 참고합니다.
+*   [본드 인센티브 명세](https://specs.optimism.io/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs):
+    2단계 예산의 근거가 되는 필수 본드 공식입니다.
+*   [op-dispute-mon](https://github.com/ethereum-optimism/optimism/tree/develop/op-dispute-mon):
+    6단계의 모니터링 서비스입니다. `develop` 브랜치의 저장소 내 문서이며, 2026-07-18 기준입니다.

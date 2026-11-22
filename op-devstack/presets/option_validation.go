@@ -38,6 +38,8 @@ const (
 	optionKindZKDisputeGame
 	optionKindZKProposer
 	optionKindConductorFastHealthChecks
+	optionKindL2ToL2MessageExpiryPeriod
+	optionKindAltDA
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -66,7 +68,9 @@ const allOptionKinds = optionKindDeployer |
 	optionKindSupernodeVNSequencerForBootstrap |
 	optionKindZKDisputeGame |
 	optionKindZKProposer |
-	optionKindConductorFastHealthChecks
+	optionKindConductorFastHealthChecks |
+	optionKindL2ToL2MessageExpiryPeriod |
+	optionKindAltDA
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -99,6 +103,8 @@ var optionKindLabels = []struct {
 	{kind: optionKindZKDisputeGame, label: "ZK dispute game"},
 	{kind: optionKindZKProposer, label: "ZK proposer options"},
 	{kind: optionKindConductorFastHealthChecks, label: "conductor fast health checks"},
+	{kind: optionKindL2ToL2MessageExpiryPeriod, label: "L2ToL2 message expiry period"},
+	{kind: optionKindAltDA, label: "alt-DA"},
 }
 
 func (k optionKinds) String() string {
@@ -158,6 +164,19 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindProofValidation |
 	optionKindSkipHonestProposer
 
+// The two-verifiers preset starts no proposer or challenger, so it takes no fault-proof options.
+const singleChainTwoVerifiersPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindBatcher |
+	optionKindOpReth |
+	optionKindGlobalL2CL |
+	optionKindL1EL |
+	optionKindTimeTravel |
+	optionKindAfterBuild
+
+// minimalNoFaultProofsPresetSupportedOptionKinds adds alt-DA, which only this preset supports (see WithAltDA).
+const minimalNoFaultProofsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
+	optionKindAltDA
+
 const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindConductorFastHealthChecks
 
@@ -195,7 +214,8 @@ const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupp
 	optionKindPreGenesisSuperGame |
 	optionKindZKDisputeGame |
 	optionKindZKProposer |
-	optionKindSkipHonestChallenger
+	optionKindSkipHonestChallenger |
+	optionKindL2ToL2MessageExpiryPeriod
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL

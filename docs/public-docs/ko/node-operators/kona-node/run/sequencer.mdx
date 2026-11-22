@@ -1,0 +1,109 @@
+---
+title: "Sequencer Node 실행하기"
+description: "필수 인수, sequencer 전용 플래그, 예시 설정을 포함하여 명령줄에서 sequencer 모드로 kona-node를 실행합니다."
+diataxis: how-to
+---
+
+이 가이드는 명령줄에서 `kona-node`를 **sequencer 모드**로 실행하는 방법을 보여 줍니다. sequencer 모드의 내부 동작 방식과 Node SDK를 통해 프로그래밍 방식으로 설정하는 방법은 [sequencer 모드 설계](/ko/node-operators/kona-node/design/sequencer) 페이지를 참조하십시오.
+
+<Info>
+sequencer 모드는 주로 rollup 운영자가 사용하는 고급 설정입니다. 대부분의 사용자는 기본 validator 모드로 node를 실행합니다.
+</Info>
+
+## 기본 Sequencer 설정 {#basic-sequencer-setup}
+
+Kona node를 sequencer 모드로 실행하려면 다음과 같이 합니다.
+
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --l1-eth-rpc=http://l1-node:8545 \
+  --l1-beacon=http://l1-beacon:5052 \
+  --l2-engine-rpc=http://l2-execution:8551 \
+  --l2.jwt-secret=./jwt.hex \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --chain=123456
+```
+
+superchain registry에 없는 체인에는 기본 제공 bootnode가 없으므로, 네트워크가 너무 작아 다른 node가 sequencer에 그 주소를 알려주지 못할 수 있습니다. 다른 node가 sequencer에 접근하는 주소로 `--p2p.advertise.ip`를 설정하십시오. 자세한 내용은 [알리는 주소(advertised address)](/ko/node-operators/kona-node/configuration#advertised-address)를 참고하십시오.
+
+## 필수 인수 {#required-arguments}
+
+<Warning>
+**필수 설정**
+
+sequencer 모드에는 모든 표준 node 인수와 함께 `--mode=Sequencer` 플래그 및 블록 서명자(block signer)가 필요합니다. 필수 인수가 하나라도 누락되면 node가 시작되지 않습니다.
+</Warning>
+
+| 인수 | 플래그 | 환경 변수 | 설명 |
+|----------|------|---------------------|-------------|
+| **Mode** | `--mode` | `KONA_NODE_MODE` | 반드시 `Sequencer`로 설정해야 합니다 |
+| **L1 RPC** | `--l1-eth-rpc` | `KONA_NODE_L1_ETH_RPC` | L1 실행 클라이언트 RPC URL |
+| **L1 Beacon** | `--l1-beacon` | `KONA_NODE_L1_BEACON` | L1 beacon API URL |
+| **L2 Engine** | `--l2-engine-rpc` | `KONA_NODE_L2_ENGINE_RPC` | L2 engine API 엔드포인트 |
+| **JWT Secret** | `--l2.jwt-secret` | `KONA_NODE_L2_ENGINE_AUTH` | JWT secret 파일 경로 |
+| **Chain ID** | `--chain` | `KONA_NODE_L2_CHAIN_ID` | L2 체인 식별자 |
+| **Block Signer** | `--p2p.sequencer.key.path`, `--p2p.sequencer.key` 또는 `--p2p.signer.address`와 함께 `--p2p.signer.endpoint` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH`, `KONA_NODE_P2P_SEQUENCER_KEY`, `KONA_NODE_P2P_SIGNER_ENDPOINT`, `KONA_NODE_P2P_SIGNER_ADDRESS` | sequencer가 gossip하는 블록에 서명합니다. 로컬 키 또는 원격 op-signer를 사용합니다 |
+
+## Sequencer 전용 플래그 {#sequencer-specific-flags}
+
+| 플래그 | 환경 변수 | 기본값 | 설명 |
+|------|---------------------|---------|-------------|
+| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | `false` | sequencer를 중지된 상태로 시작합니다 |
+| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | origin 선택을 위한 L1 확인(confirmation) 수 |
+| `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | `false` | 복구 모드 동작을 강제합니다 |
+| `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor 서비스 RPC 엔드포인트 |
+| `--conductor.rpc.timeout` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | `1` | Conductor RPC 타임아웃(초) |
+
+validator 모드와 공유하는 표준 node 인수를 포함한 전체 플래그 목록은 [Kona node CLI 레퍼런스](/ko/node-operators/kona-node/configuration)에 있습니다.
+
+## 예시 설정 {#example-configurations}
+
+### 기본 Sequencer {#basic-sequencer}
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --l1-eth-rpc=http://localhost:8545 \
+  --l1-beacon=http://localhost:5052 \
+  --l2-engine-rpc=http://localhost:8551 \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --chain=42161
+```
+
+### Conductor를 사용하는 Sequencer {#sequencer-with-conductor}
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --conductor.rpc=http://conductor:8080 \
+  --conductor.rpc.timeout=5 \
+  --sequencer.l1-confs=6 \
+  --l1-eth-rpc=http://l1-node:8545 \
+  --l1-beacon=http://l1-beacon:5052 \
+  --l2-engine-rpc=http://l2-execution:8551 \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --chain=123456
+```
+
+### 복구 모드 Sequencer {#recovery-mode-sequencer}
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --sequencer.recover=true \
+  --l1-eth-rpc=http://localhost:8545 \
+  --l1-beacon=http://localhost:5052 \
+  --l2-engine-rpc=http://localhost:8551 \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --chain=42161
+```
+
+## 주요 고려 사항 {#key-considerations}
+
+<Tip>
+**Sequencer 운영**
+
+- **L1 확인 수**: `--sequencer.l1-confs` 설정은 sequencer가 L1 블록을 origin으로 사용하기 전에 몇 개의 L1 블록을 기다릴지 결정합니다. 값이 클수록 안전성은 높아지지만 지연 시간이 늘어납니다.
+- **복구 모드**: sequencer가 오프라인 상태였다가 따라잡아야 할 때 `--sequencer.recover=true`를 사용하십시오.
+- **Conductor 통합**: 다중 sequencer 배포에서는 올바른 리더 선출을 위해 conductor 서비스를 설정하십시오.
+</Tip>
+
+프로덕션 환경에서 sequencer를 운영하려면 인프라, 모니터링, 장애 조치(failover) 절차를 신중하게 고려해야 합니다. JWT secret을 적절히 관리하고 네트워크를 안전하게 설정하십시오.

@@ -1,13 +1,15 @@
 package proofs
 
 import (
+	"slices"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,14 +41,11 @@ import (
 func TestSpanBatchOverlapContent(gt *testing.T) {
 	// dropUserTxs strips all non-deposit transactions from the block, yielding an alternative
 	// valid block at the same height: same parent and timestamp, different content.
-	dropUserTxs := func(block *types.Block) *types.Block {
-		var deposits []*types.Transaction
-		for _, tx := range block.Transactions() {
-			if tx.Type() == types.DepositTxType {
-				deposits = append(deposits, tx)
-			}
-		}
-		return block.WithBody(types.Body{Transactions: deposits})
+	dropUserTxs := func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
+		payload.Transactions = slices.DeleteFunc(payload.Transactions, func(tx eth.Data) bool {
+			return !optypes.IsDepositTxBytes(tx)
+		})
+		return payload
 	}
 
 	runTest := func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
@@ -54,7 +53,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
 
 		// Build L2 blocks 1-3, each with one transaction from Alice.
-		for bigs.Uint64Strict(env.Engine.L2Chain().CurrentBlock().Number) < 3 {
+		for bigs.Uint64Strict(env.Engine.LatestHeader(t).Number) < 3 {
 			env.Sequencer.ActL2StartBlock(t)
 			env.Alice.L2.ActResetTxOpts(t)
 			env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
@@ -64,7 +63,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 		}
 		// The canonical block 3, captured before derivation can reorg the engine: the safe head
 		// must end up here, not on the equivocating lineage's 3*.
-		canonicalHash3 := env.Engine.L2Chain().GetHeaderByNumber(3).Hash()
+		canonicalHash3 := env.Engine.HeaderByNumber(t, 3).Hash()
 
 		craftSpanChannel := func(blocks []int64, modifier actionsHelpers.BlockModifier) []byte {
 			env.Batcher.ActCreateChannel(t, true)

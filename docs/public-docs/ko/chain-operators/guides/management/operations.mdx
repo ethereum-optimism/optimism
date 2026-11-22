@@ -1,0 +1,211 @@
+---
+title: Rollup 운영
+description: rollup을 시작 및 중지하는 방법, rollup 구성을 가져오는 방법, node를 추가하는 방법 등 rollup 운영의 기본 사항을 알아봅니다.
+diataxis: how-to
+---
+
+이 가이드는 rollup을 시작하고 중지하는 방법, rollup 구성을 가져오는 방법, node를 추가하는 방법 등 rollup 운영의 기본 사항을 살펴봅니다.
+
+## Rollup 중지
+
+정상적인 종료는 구성 요소를 시작한 순서의 역순으로 수행합니다.
+<Steps>
+  <Step title="batcher를 중지하려면 다음 명령을 사용합니다:">
+  ```sh
+      curl -d '{"id":0,"jsonrpc":"2.0","method":"admin_stopBatcher","params":[]}' \
+          -H "Content-Type: application/json" http://localhost:8548 | jq
+      ```
+  
+      이렇게 하면 batcher는 캐시된 데이터를 L1에 저장해야 함을 알게 됩니다.
+      프로세스를 중지하기 전에 batcher 출력에 `Batch Submitter stopped`가 표시될 때까지 기다리세요.
+  </Step>
+
+  <Step title="`op-proposer` 중지">
+  proposer를 중지하려면 프로세스를 직접 종료합니다. 다음과 같은 방법이 있습니다.
+  
+  *   프로세스를 실행 중인 터미널에서 **Ctrl+C** 누르기
+  *   `kill -TERM <pid>`와 같은 시스템 명령을 사용하여 프로세스를 정상적으로 중지하기
+  
+  다른 구성 요소를 중지하기 전에 proposer 프로세스가 완전히 종료되었는지 확인하세요.
+  </Step>
+
+  <Step title="`op-node` 중지">
+  이 구성 요소는 상태를 저장하지 않으므로 프로세스를 그냥 중지하면 됩니다.
+  </Step>
+
+  <Step title="`op-reth` 중지">
+  실행 클라이언트가 정상적으로 종료되고 데이터베이스를 플러시하도록 **CTRL-C**(SIGINT)를 사용하세요. 프로세스를 갑자기 강제 종료하면 데이터베이스가 일관되지 않은 상태로 남아 다음 시작 시 문제가 발생할 수 있습니다.
+  </Step>
+</Steps>
+
+## Rollup 시작
+
+블록체인을 다시 시작하려면 초기화할 때와 동일한 구성 요소 순서를 따릅니다.
+<Steps>
+  <Step title="`op-reth` 시작">
+  
+  </Step>
+
+  <Step title="`op-node` 시작">
+  
+  </Step>
+
+  <Step title="`op-batcher` 시작">
+  `op-batcher`가 아직 실행 중이고 RPC를 사용하여 중지만 한 경우, 다음 명령으로 시작할 수 있습니다.
+  
+      ```sh
+      curl -d '{"id":0,"jsonrpc":"2.0","method":"admin_startBatcher","params":[]}' \
+          -H "Content-Type: application/json" http://localhost:8548 | jq   
+      ```
+  </Step>
+
+  <Step title="`op-proposer` 시작">
+  적절한 명령을 사용하여 proposer를 시작합니다. 예시는 다음과 같습니다.
+  
+    ```sh
+    ./bin/op-proposer \
+      --poll-interval=12s \
+      --rpc.port=8560 \
+      --rollup-rpc=http://localhost:8547 \
+      --l2oo-address=0xYourL2OutputOracleAddress \
+      --private-key=$PROPOSER_PRIVATE_KEY \
+      --l1-eth-rpc=$L1_RPC_URL
+    ```
+    | 파라미터      | 설명                                                           |
+    | ------------- | -------------------------------------------------------------- |
+    | poll-interval | 새 output proposal을 확인하는 주기 (권장: 12s)                 |
+    | rpc.port      | proposer 서비스의 로컬 RPC 포트                                |
+    | l2oo-address  | L2 Output Oracle 컨트랙트 주소 (0x 접두사가 붙은 hex)          |
+    | private-key   | proposal 서명용 개인 키                                        |
+    | l1-eth-rpc    | L1 네트워크 RPC 엔드포인트 URL                                 |
+  </Step>
+</Steps>
+<Info>
+동기화에는 시간이 걸립니다
+
+`op-batcher`에 다음과 유사한 경고 메시지가 표시될 수 있습니다.
+
+```
+WARN [03-21|14:13:55.248] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
+WARN [03-21|14:13:57.328] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
+```
+
+이는 `op-node`가 아직 현재 시점까지 동기화되지 않았음을 의미합니다.
+동기화될 때까지 기다리면 됩니다.
+
+</Info>
+
+## Rollup 구성 가져오기
+
+이 도구를 사용하여 `op-node`에서 rollup 구성을 가져올 수 있습니다. 이는 체인이 **이미** [superchain-registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json)에 등록되어 있고 `op-node`가 registry에서 해당 변경 사항을 가져오도록 업데이트된 경우에만 작동합니다.
+
+<Info>
+이 스크립트는 registry에 제출하기 위해 이 데이터를 생성하려는 체인 운영자에게는 작동하지 않습니다.
+</Info>
+
+<Steps>
+  <Step title="`op-node`에서 rollup 구성 가져오기">
+  다음 도구를 실행해야 합니다.
+  
+  ```
+  ./bin/op-node networks dump-rollup-config --network=op-sepolia   
+  {
+    "genesis": {
+      "l1": {
+        "hash": "0x48f520cf4ddaf34c8336e6e490632ea3cf1e5e93b0b2bc6e917557e31845371b",
+        "number": 4071408
+      },
+      "l2": {
+        "hash": "0x102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d",
+        "number": 0
+      },
+      "l2_time": 1691802540,
+      "system_config": {
+        "batcherAddr": "0x8f23bb38f531600e5d8fddaaec41f13fab46e98c",
+        "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+        "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0",
+        "gasLimit": 30000000
+      }
+    },
+    "block_time": 2,
+    "max_sequencer_drift": 600,
+    "seq_window_size": 3600,
+    "channel_timeout": 300,
+    "l1_chain_id": 11155111,
+    "l2_chain_id": 11155420,
+    "regolith_time": 0,
+    "canyon_time": 1699981200,
+    "delta_time": 1703203200,
+    "ecotone_time": 1708534800,
+    "batch_inbox_address": "0xff00000000000000000000000000000011155420",
+    "deposit_contract_address": "0x16fc5058f25648194471939df75cf27a2fdc48bc",
+    "l1_system_config_address": "0x034edd2a225f7f429a63e0f1d2084b9e0a93b538",
+    "da_challenge_address": "0x0000000000000000000000000000000000000000",
+    "da_challenge_window": 0,
+    "da_resolve_window": 0,
+    "use_plasma": false
+  }
+  ```
+  </Step>
+
+  <Step title="플래그 확인">
+  적절한 플래그를 사용하고 있는지 확인하세요. 
+  `--network=op-sepolia` 플래그를 사용하면 도구가 registry에서 적절한 데이터를 가져오며, 내부적으로 OPChains 매핑을 사용합니다.
+  </Step>
+</Steps>
+
+## Node 추가
+
+rollup에 node를 추가하려면 첫 번째 node에서 했던 것과 마찬가지로 `op-node`와 `op-reth`를 초기화해야 합니다.
+`op-batcher`는 하나만 있어야 하므로 추가해서는 *안 됩니다*.
+<Steps>
+  <Step title="첫 번째 node와 동일하게 OS 및 사전 요구 사항 구성">
+  
+  </Step>
+
+  <Step title="첫 번째 node와 동일하게 `op-reth` 및 `op-node` 설치">
+  
+  </Step>
+
+  <Step title="첫 번째 node에서 다음 파일 복사:">
+  ```bash
+      ~/op-reth/genesis.json
+      ~/optimism/op-node/rollup.json
+      ```
+  </Step>
+
+  <Step title="공유 비밀로 사용할 새 `jwt.txt` 파일 생성:">
+  ```bash
+      cd ~/op-reth
+      openssl rand -hex 32 > jwt.txt
+      cp jwt.txt ~/optimism/op-node
+      ```
+  </Step>
+
+  <Step title="새 op-reth 초기화:">
+  ```bash
+      cd ~/op-reth
+      op-reth init --chain=./genesis.json --datadir=./datadir
+      ```
+  </Step>
+
+  <Step title="L2 node가 직접 동기화할 수 있도록 P2P 동기화 활성화">
+  이렇게 하면 트랜잭션이 L1에 기록될 때까지 기다릴 필요가 없습니다.
+      이미 P2P 동기화를 사용하고 있다면 새 node가 동기화할 수 있도록 `--p2p.static` 목록에 추가하세요.
+  </Step>
+
+  <Step title="`op-reth` 시작 (첫 번째 node에서 사용한 것과 동일한 명령줄 사용)">
+  <Info>
+  **중요:** `--rollup.sequencer` 플래그(별칭 `--rollup.sequencer-http`)가 sequencer node를 가리키도록 구성해야 합니다. `op-reth`가 `eth_sendRawTransaction` 호출을 이 URL로 라우팅하므로 이 엔드포인트는 매우 중요합니다. OP Stack에는 현재 공개 mempool이 없으므로, node가 트랜잭션 제출을 지원하도록 하려면 이 구성이 필요합니다.
+  </Info>
+  </Step>
+
+  <Step title="`op-node` 시작 (첫 번째 node에서 사용한 것과 동일한 명령줄 사용)">
+  
+  </Step>
+</Steps>
+
+## 다음 단계
+
+*   추가 설명이나 사용자 정의는 [합의 클라이언트 구성](/ko/node-operators/guides/configuration/consensus-clients) 및 [실행 클라이언트 구성](/ko/node-operators/guides/configuration/execution-clients) 가이드를 참조하세요.
+*   이 과정의 어느 단계에서든 어려움이 있다면 [개발자 지원](https://github.com/ethereum-optimism/developers/discussions)에 문의하세요.

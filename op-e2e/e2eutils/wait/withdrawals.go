@@ -51,16 +51,22 @@ func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPor
 			gameSequenceNumber = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
 		case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 			gameSequenceNumber = new(big.Int).SetBytes(latestGame.ExtraData[1:9])
+		case gameTypes.ZKDisputeGameType:
+			// ZK games prefix the super root with a 4-byte parent game index.
+			gameSequenceNumber = new(big.Int).SetBytes(latestGame.ExtraData[5:13])
 		default:
 			return nil, fmt.Errorf("unsupported game type: %v", respectedGameType)
 		}
 		return gameSequenceNumber, nil
 	}
 	outputBlockNum, err := AndGet(ctx, time.Second, getL2BlockFromLatestGame, func(latestSeqnum *big.Int) bool {
+		if latestSeqnum.Sign() < 0 {
+			return false // No game of the respected type exists yet.
+		}
 		switch gameTypes.GameType(respectedGameType) {
 		case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.FastGameType:
 			return latestSeqnum.Cmp(l2BlockNumber) >= 0
-		case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+		case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType, gameTypes.ZKDisputeGameType:
 			return bigs.Uint64Strict(latestSeqnum) >= l2SequenceNumber
 		default:
 			panic("unreachable") // given above predicate asserting unsupported games return errors

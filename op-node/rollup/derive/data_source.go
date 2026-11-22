@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -94,12 +93,12 @@ type DataSourceConfig struct {
 }
 
 // isValidBatchTx returns true if:
-//  1. the transaction type is any of Legacy, ACL, DynamicFee, Blob, or Deposit (for L3s).
+//  1. the transaction type is any of Legacy, ACL, DynamicFee, or Blob,
 //  2. the transaction has a To() address that matches the batch inbox address, and
 //  3. the transaction has a valid signature from the batcher address
 func isValidBatchTx(tx *types.Transaction, l1Signer types.Signer, batchInboxAddr, batcherAddr common.Address, logger log.Logger) bool {
 	// For now, we want to disallow the SetCodeTx type or any future types.
-	if tx.Type() > types.BlobTxType && tx.Type() != optypes.DepositTxType {
+	if tx.Type() > types.BlobTxType {
 		return false
 	}
 

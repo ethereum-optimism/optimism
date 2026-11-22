@@ -54,6 +54,7 @@ impl ClientTls {
                 client_cert: Some(ClientCert { cert: self.cert.clone(), key: self.key.clone() }),
             },
             HeaderMap::new(),
+            None,
         )
         .context("failed to build mTLS RPC client")
     }

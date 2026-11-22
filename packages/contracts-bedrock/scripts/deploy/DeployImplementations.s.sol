@@ -39,17 +39,21 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
 contract DeployImplementations is Script {
     struct Input {
-        uint256 withdrawalDelaySeconds;
+        uint256 minWithdrawalDelaySeconds;
+        uint256 maxWithdrawalDelaySeconds;
         uint256 minProposalSizeBytes;
         uint256 challengePeriodSeconds;
-        uint256 proofMaturityDelaySeconds;
-        uint256 disputeGameFinalityDelaySeconds;
+        uint256 minProofMaturityDelaySeconds;
+        uint256 maxProofMaturityDelaySeconds;
+        uint256 minDisputeGameFinalityDelaySeconds;
+        uint256 maxDisputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
         bytes32 devFeatureBitmap;
         // Super and V2 Dispute Game parameters
@@ -98,8 +102,10 @@ contract DeployImplementations is Script {
     // -------- Core Deployment Methods --------
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
         Input memory input = abi.decode(_input, (Input));
         Output memory output = run(input);
+        DeployState.dump(msg.sender);
         return abi.encode(output);
     }
 
@@ -122,17 +128,12 @@ contract DeployImplementations is Script {
         deployAnchorStateRegistryImpl(_input, output_);
         deployFaultDisputeGameImpl(_input, output_);
         deployPermissionedDisputeGameImpl(_input, output_);
-        if (
-            DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
             deploySuperFaultDisputeGameImpl(_input, output_);
             deploySuperPermissionedDisputeGameImpl(output_);
         }
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            deployZKDisputeGameImpl(output_);
-            deploySP1PlonkAdapter(_input, output_);
-        }
+        deployZKDisputeGameImpl(output_);
+        deploySP1PlonkAdapter(_input, output_);
         deployStorageSetterImpl(output_);
 
         // Deploy the OP Contracts Manager with the new implementations set.
@@ -201,15 +202,15 @@ contract DeployImplementations is Script {
         IOPContractsManagerContainer.Blueprints memory blueprints;
         vm.startBroadcast(msg.sender);
         address checkAddress;
-        (blueprints.addressManager, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("AddressManager"), _salt);
+        (blueprints.addressManager, checkAddress) = DeployUtils.createDeterministicBlueprint("AddressManager", DeployUtils.getCode("AddressManager"), _salt);
         require(checkAddress == address(0), "OPCM-10");
-        (blueprints.proxy, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("Proxy"), _salt);
+        (blueprints.proxy, checkAddress) = DeployUtils.createDeterministicBlueprint("Proxy", DeployUtils.getCode("Proxy"), _salt);
         require(checkAddress == address(0), "OPCM-20");
-        (blueprints.proxyAdmin, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("ProxyAdmin"), _salt);
+        (blueprints.proxyAdmin, checkAddress) = DeployUtils.createDeterministicBlueprint("ProxyAdmin", DeployUtils.getCode("ProxyAdmin"), _salt);
         require(checkAddress == address(0), "OPCM-30");
-        (blueprints.l1ChugSplashProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("L1ChugSplashProxy"), _salt);
+        (blueprints.l1ChugSplashProxy, checkAddress) = DeployUtils.createDeterministicBlueprint("L1ChugSplashProxy", DeployUtils.getCode("L1ChugSplashProxy"), _salt);
         require(checkAddress == address(0), "OPCM-40");
-        (blueprints.resolvedDelegateProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("ResolvedDelegateProxy"), _salt);
+        (blueprints.resolvedDelegateProxy, checkAddress) = DeployUtils.createDeterministicBlueprint("ResolvedDelegateProxy", DeployUtils.getCode("ResolvedDelegateProxy"), _salt);
         require(checkAddress == address(0), "OPCM-50");
         // forgefmt: disable-end
         vm.stopBroadcast();
@@ -341,12 +342,14 @@ contract DeployImplementations is Script {
     // - PermissionedDisputeGame (not proxied)
 
     function deployOptimismPortalImpl(Input memory _input, Output memory _output) private {
-        uint256 proofMaturityDelaySeconds = _input.proofMaturityDelaySeconds;
         IOptimismPortal impl = IOptimismPortal(
             DeployUtils.createDeterministic({
                 _name: "OptimismPortal2",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOptimismPortal.__constructor__, (proofMaturityDelaySeconds))
+                    abi.encodeCall(
+                        IOptimismPortal.__constructor__,
+                        (_input.minProofMaturityDelaySeconds, _input.maxProofMaturityDelaySeconds)
+                    )
                 ),
                 _salt: _salt
             })
@@ -356,12 +359,14 @@ contract DeployImplementations is Script {
     }
 
     function deployDelayedWETHImpl(Input memory _input, Output memory _output) private {
-        uint256 withdrawalDelaySeconds = _input.withdrawalDelaySeconds;
         IDelayedWETH impl = IDelayedWETH(
             DeployUtils.createDeterministic({
                 _name: "DelayedWETH",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IDelayedWETH.__constructor__, (withdrawalDelaySeconds))
+                    abi.encodeCall(
+                        IDelayedWETH.__constructor__,
+                        (_input.minWithdrawalDelaySeconds, _input.maxWithdrawalDelaySeconds)
+                    )
                 ),
                 _salt: _salt
             })
@@ -423,12 +428,14 @@ contract DeployImplementations is Script {
     }
 
     function deployAnchorStateRegistryImpl(Input memory _input, Output memory _output) private {
-        uint256 disputeGameFinalityDelaySeconds = _input.disputeGameFinalityDelaySeconds;
         IAnchorStateRegistry impl = IAnchorStateRegistry(
             DeployUtils.createDeterministic({
                 _name: "AnchorStateRegistry",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IAnchorStateRegistry.__constructor__, (disputeGameFinalityDelaySeconds))
+                    abi.encodeCall(
+                        IAnchorStateRegistry.__constructor__,
+                        (_input.minDisputeGameFinalityDelaySeconds, _input.maxDisputeGameFinalityDelaySeconds)
+                    )
                 ),
                 _salt: _salt
             })
@@ -637,7 +644,6 @@ contract DeployImplementations is Script {
                 _input.superchainConfigProxy,
                 _input.l1ProxyAdminOwner,
                 _input.challenger,
-                _input.withdrawalDelaySeconds,
                 _input.devFeatureBitmap
             )
         );
@@ -706,16 +712,28 @@ contract DeployImplementations is Script {
             "DeployImplementations: maxClockDuration must be >= clockExtension"
         );
         require(_input.faultGameV2ClockExtension > 0, "DeployImplementations: faultGameV2ClockExtension must be > 0");
-        require(_input.withdrawalDelaySeconds != 0, "DeployImplementations: withdrawalDelaySeconds not set");
+        require(_input.minWithdrawalDelaySeconds != 0, "DeployImplementations: minWithdrawalDelaySeconds not set");
+        require(
+            _input.minWithdrawalDelaySeconds <= _input.maxWithdrawalDelaySeconds,
+            "DeployImplementations: withdrawalDelaySeconds bounds inverted"
+        );
         require(_input.minProposalSizeBytes != 0, "DeployImplementations: minProposalSizeBytes not set");
         require(_input.challengePeriodSeconds != 0, "DeployImplementations: challengePeriodSeconds not set");
         require(
             _input.challengePeriodSeconds <= type(uint64).max, "DeployImplementations: challengePeriodSeconds too large"
         );
-        require(_input.proofMaturityDelaySeconds != 0, "DeployImplementations: proofMaturityDelaySeconds not set");
+        require(_input.minProofMaturityDelaySeconds != 0, "DeployImplementations: minProofMaturityDelaySeconds not set");
         require(
-            _input.disputeGameFinalityDelaySeconds != 0,
-            "DeployImplementations: disputeGameFinalityDelaySeconds not set"
+            _input.minProofMaturityDelaySeconds <= _input.maxProofMaturityDelaySeconds,
+            "DeployImplementations: proofMaturityDelaySeconds bounds inverted"
+        );
+        require(
+            _input.minDisputeGameFinalityDelaySeconds != 0,
+            "DeployImplementations: minDisputeGameFinalityDelaySeconds not set"
+        );
+        require(
+            _input.minDisputeGameFinalityDelaySeconds <= _input.maxDisputeGameFinalityDelaySeconds,
+            "DeployImplementations: disputeGameFinalityDelaySeconds bounds inverted"
         );
         require(_input.mipsVersion != 0, "DeployImplementations: mipsVersion not set");
         require(
@@ -726,20 +744,10 @@ contract DeployImplementations is Script {
         );
         require(address(_input.l1ProxyAdminOwner) != address(0), "DeployImplementations: L1ProxyAdminOwner not set");
         require(address(_input.challenger) != address(0), "DeployImplementations: challenger not set");
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            require(
-                address(_input.sp1Verifier).code.length > 0,
-                "DeployImplementations: sp1Verifier must be a contract when ZK_DISPUTE_GAME is enabled"
-            );
-            (bool success, bytes memory returnData) =
-                address(_input.sp1Verifier).staticcall(abi.encodeCall(ISP1Verifier.VERSION, ()));
-            require(success && returnData.length >= 64, "DeployImplementations: sp1Verifier must expose VERSION()");
-        } else {
-            require(
-                address(_input.sp1Verifier) == address(0),
-                "DeployImplementations: sp1Verifier must be zero when ZK_DISPUTE_GAME is disabled"
-            );
-        }
+        require(address(_input.sp1Verifier).code.length > 0, "DeployImplementations: sp1Verifier must be a contract");
+        (bool success, bytes memory returnData) =
+            address(_input.sp1Verifier).staticcall(abi.encodeCall(ISP1Verifier.VERSION, ()));
+        require(success && returnData.length >= 64, "DeployImplementations: sp1Verifier must expose VERSION()");
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) private {
@@ -768,31 +776,22 @@ contract DeployImplementations is Script {
             address(_output.permissionedDisputeGameImpl)
         );
 
-        if (
-            DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
             address[] memory superGameAddrs = Solarray.addresses(
                 address(_output.superFaultDisputeGameImpl), address(_output.superPermissionedDisputeGameImpl)
             );
             addrs2 = Solarray.extend(addrs2, superGameAddrs);
         }
 
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            addrs2 = Solarray.extend(
-                addrs2,
-                Solarray.addresses(address(_output.zkDisputeGameImpl), address(_output.sp1PlonkAdapterSingleton))
-            );
-        }
+        addrs2 = Solarray.extend(
+            addrs2, Solarray.addresses(address(_output.zkDisputeGameImpl), address(_output.sp1PlonkAdapterSingleton))
+        );
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         require(address(_output.opcmV2) != address(0), "DeployImplementations: OPCM V2 not deployed");
 
-        if (
-            !DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                && !DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
+        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
             require(
                 address(_output.superFaultDisputeGameImpl) == address(0),
                 "DeployImplementations: super game flag disabled but SuperFaultDisputeGame was deployed"
@@ -803,33 +802,16 @@ contract DeployImplementations is Script {
             );
         }
 
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            require(
-                address(_output.zkDisputeGameImpl) != address(0),
-                "DeployImplementations: ZK_DISPUTE_GAME flag enabled but ZKDisputeGame was not deployed"
-            );
-            require(
-                address(_output.sp1PlonkAdapterSingleton) != address(0),
-                "DeployImplementations: ZK_DISPUTE_GAME flag enabled but SP1PlonkAdapter was not deployed"
-            );
-            require(
-                address(_output.sp1PlonkAdapterSingleton.sp1Verifier()) == address(_input.sp1Verifier),
-                "DeployImplementations: SP1PlonkAdapter has unexpected verifier"
-            );
-        } else {
-            require(
-                address(_output.zkDisputeGameImpl) == address(0),
-                "DeployImplementations: ZK_DISPUTE_GAME flag disabled but ZKDisputeGame was deployed"
-            );
-            require(
-                address(_output.sp1PlonkAdapterSingleton) == address(0),
-                "DeployImplementations: ZK_DISPUTE_GAME flag disabled but SP1PlonkAdapter was deployed"
-            );
-        }
+        require(
+            address(_output.sp1PlonkAdapterSingleton.sp1Verifier()) == address(_input.sp1Verifier),
+            "DeployImplementations: SP1PlonkAdapter has unexpected verifier"
+        );
 
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
-        ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
+        ChainAssertions.checkDelayedWETHImpl(
+            _output.delayedWETHImpl, _input.minWithdrawalDelaySeconds, _input.maxWithdrawalDelaySeconds
+        );
         GameType permGameType = DevFeatures.isDevFeatureEnabled(
             _input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION
         )
@@ -846,16 +828,17 @@ contract DeployImplementations is Script {
         ChainAssertions.checkL1StandardBridgeImpl(_output.l1StandardBridgeImpl);
         ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
 
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            ChainAssertions.checkZKDisputeGameImpl(_output.zkDisputeGameImpl);
-        }
+        ChainAssertions.checkZKDisputeGameImpl(_output.zkDisputeGameImpl);
 
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);
         ChainAssertions.checkOptimismPortal2({
             _contracts: impls,
             _superchainConfig: ISuperchainConfig(address(_input.superchainConfigProxy)),
             _opChainProxyAdminOwner: address(0),
-            _isProxy: false
+            _isProxy: false,
+            _minProofMaturityDelaySeconds: _input.minProofMaturityDelaySeconds,
+            _maxProofMaturityDelaySeconds: _input.maxProofMaturityDelaySeconds,
+            _bridgeHook: address(0)
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         ChainAssertions.checkSystemConfigImpls(impls);
@@ -863,7 +846,9 @@ contract DeployImplementations is Script {
             IAnchorStateRegistry(impls.AnchorStateRegistry),
             false,
             GameType.wrap(0),
-            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+            _input.minDisputeGameFinalityDelaySeconds,
+            _input.maxDisputeGameFinalityDelaySeconds
         );
     }
 }

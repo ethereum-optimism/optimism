@@ -18,7 +18,7 @@
 #![warn(unused_crate_dependencies)]
 
 use clap::Parser;
-use discv5::enr::CombinedKey;
+use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::{Discv5Builder, LocalNode};
 use std::net::{IpAddr, Ipv4Addr};
@@ -69,6 +69,8 @@ impl DiscCommand {
                 ip: Ipv4Addr::UNSPECIFIED,
                 port: self.disc_port,
             })
+            // As kona-node without `--p2p.discovery.private`.
+            .table_filter(kona_disc::public_only)
             .build(),
         );
         let mut discovery = discovery_builder.build()?;
@@ -91,13 +93,14 @@ impl DiscCommand {
                     }
                 }
                 _ = interval.tick() => {
-                    let metrics = handler.metrics();
-                    let peer_count = handler.peer_count();
+                    let handler = handler.clone();
                     tokio::spawn(async move {
-                        if let Ok(metrics) = metrics.await {
+                        let metrics = handler.metrics().await;
+                        let peer_count = handler.peer_count().await;
+                        if let Ok(metrics) = metrics {
                             tracing::debug!(target: "discovery", "Discovery metrics: {:?}", metrics);
                         }
-                        if let Ok(pc) = peer_count.await {
+                        if let Ok(pc) = peer_count {
                             tracing::debug!(target: "discovery", "Discovery peer count: {:?}", pc);
                         }
                     });

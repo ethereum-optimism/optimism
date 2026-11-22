@@ -1,0 +1,324 @@
+---
+title: Upgrade 20
+description: Upgrade 20의 Super Root Dispute Game 전환에 대비하여 결함 증명(Fault Proof) 서비스와 컨트랙트 통합을 준비합니다.
+diataxis: reference
+lang: en-US
+content_type: notice
+date: 2026-09-24
+topic: upgrade-20
+personas:
+  - chain-operator
+  - node-operator
+  - app-developer
+  - partner
+  - user
+categories:
+  - fault-proofs
+  - dispute-game
+  - contract-upgrades
+  - l1-contracts
+  - withdrawals
+is_imported_content: 'false'
+---
+
+Upgrade 20은 OP Stack 체인을 위한 L1 스마트 컨트랙트 업그레이드입니다.
+이 업그레이드는 결함 증명(Fault Proof)을 Output Root Dispute Game에서 Super Root Dispute Game으로 전환하며, `SystemConfig` 및 OP Contracts Manager(OPCM) 유지 관리 변경 사항을 포함합니다.
+
+## Upgrade 20이 필요한 이유
+
+Output Root Dispute Game은 특정 L2 블록 번호에서 하나의 체인 상태에 대해 커밋합니다.
+상호운용성(interoperability)을 위해서는 동일한 타임스탬프에서 여러 체인의 상태에 커밋할 수 있는 분쟁 게임(dispute game) 형식이 필요합니다.
+Super Root Dispute Game이 이러한 형식을 제공합니다.
+
+Upgrade 20은 공유 크로스체인 분쟁 인프라가 활성화되기 전에 각 체인을 Super Root Dispute Game으로 전환합니다.
+이 업그레이드 이후 생성되는 각 게임은 여전히 하나의 체인의 Output Root만 포함합니다.
+이 업그레이드는 Interop을 활성화하지 않으며, `OPCM.migrate()`를 호출하지 않고, 체인을 공유 Dispute Game 구성으로 이전하지도 않습니다.
+
+Super Root Dispute Game은 타임스탬프를 `l2SequenceNumber`로 사용하며, 잘못된 제안 타임스탬프를 결함 증명 상태 전이를 통해 검증합니다.
+이로써 Output Root Dispute Game에서 사용하던 별도의 L2 블록 번호 챌린지가 제거됩니다.
+`OptimismPortal`은 두 형식을 모두 계속 지원하므로, 업그레이드 이전에 생성된 게임과 출금 증명은 계속 유효합니다.
+
+## 포함 내용
+
+### Super Root Dispute Game
+
+Upgrade 20은 다음 Super Root Dispute Game 유형을 추가합니다.
+
+* `SUPER_PERMISSIONED`(game type `5`): permissioned 결함 증명을 사용하는 체인용입니다.
+* `SUPER_CANNON_KONA`(game type `9`): permissionless 결함 증명을 사용하는 체인용입니다.
+
+permissioned 체인은 계속 permissioned 상태로 유지됩니다.
+permissionless 체인은 두 Super Root Dispute Game 유형을 모두 실행하며, `SUPER_CANNON_KONA`를 respected game type으로 사용합니다.
+기존 Dispute Game은 원래의 game type을 통해 계속 해결(resolve)됩니다.
+
+이 업그레이드는 각 체인의 기존 `AnchorStateRegistry`와 `DisputeGameFactory`를 그대로 유지합니다.
+체인을 공유 Dispute Game 구성으로 이전하는 대신 `OPCM.upgrade()` 트랜잭션을 사용합니다.
+
+### SystemConfig 인터페이스 정리
+
+Upgrade 19는 OPCM 이전에 배포된 체인에 대해 온체인 `SystemConfig` batch inbox 주소를 다시 계산했습니다.
+OP Stack 클라이언트는 체인의 롤업 구성에서 batch inbox 주소를 읽기 때문에 이 변경은 파생(derivation)에 영향을 주지 않았지만, 중복된 온체인 값이 동기화되지 않은 상태로 남게 되었습니다.
+
+Upgrade 20은 `batchInbox()`를 제거하고 해당 레거시 스토리지 슬롯을 비웁니다.
+또한 더 이상 사용되지 않는(deprecated) `setGasConfig(uint256,uint256)` 함수를 제거합니다. 이 함수는 업그레이드 중 OPCM이 보존하는 fee scalar 값과 `scalar()`가 일치하지 않게 만들 수 있었습니다.
+업데이트된 `SystemConfig`의 컨트랙트 버전은 `4.0.0`입니다.
+
+더 이상 사용되지 않는 `overhead()` getter는 기존 통합과의 호환성을 위해 계속 제공되지만, 업그레이드 시 저장된 값이 0으로 설정됩니다.
+`setGasConfig(uint256,uint256)`가 이 값을 쓰는 유일한 함수였으므로, 업그레이드 이후 이 값은 계속 0으로 유지됩니다.
+하드포크 없이 2-word `FEE_SCALARS` 이벤트 페이로드를 유지하기 위해, `setGasConfigEcotone(uint32,uint32)` 호출 시 첫 번째 word에는 0이 인코딩됩니다.
+
+## 호환성을 깨는 변경 사항
+
+### 체인 운영자
+
+체인 운영자는 L1 컨트랙트 전환(cutover)을 결함 증명의 제안, 챌린지, 모니터링을 담당하는 서비스와 조율해야 합니다.
+
+* 컨트랙트 전환 시점에 `op-proposer`를 새로운 Super Root RPC와 game type으로 전환합니다.
+* `op_proposer_default_refs_number{layer="l2"}`를 사용하는 `op-proposer` 대시보드와 알림을 `op_proposer_default_proposed_sequence_number`로 업데이트합니다.
+* 이미 진행 중인 게임을 완료하는 데 필요한 구성은 유지하면서, `op-challenger`와 `op-dispute-mon`이 Super Root Dispute Game을 지원하도록 구성합니다.
+* permissionless 결함 증명의 경우, 전환 전에 검토된 `kona-client` Interop variant prestate를 준비해 둡니다.
+* 제거된 `SystemConfig` 함수를 호출하는 운영 도구를 업데이트합니다.
+
+[OP Stack 구성 요소 변경 사항](#prepare-op-stack-components), [`SystemConfig` 통합 변경 사항](#update-systemconfig-integrations), [prestate 워크플로](#locate-or-build-the-absolute-prestate)는 아래에서 설명합니다.
+
+### 노드 운영자
+
+Upgrade 20에는 L2 하드포크가 없으며, 체인을 따라가기 위해 `op-node` 또는 `op-reth` 구성을 변경할 필요가 없습니다.
+노드가 결함 증명 서비스에 Super Root RPC도 제공하는 경우, 전환 중과 전환 후에 해당 엔드포인트에 계속 접근할 수 있도록 유지하고, `--safedb.path`를 활성화하여 파생을 통해 채워진 상태로 `op-node`를 실행해야 합니다.
+자세한 내용은 [`op-node` 행](#prepare-op-stack-components)을 참조하세요.
+
+### 앱 개발자 및 인프라 통합 업체
+
+일반적인 L2 컨트랙트와 트랜잭션은 영향을 받지 않습니다.
+통합이 다음 중 하나에 해당하는 경우 업데이트해야 합니다.
+
+* `SystemConfig.batchInbox()` 또는 `SystemConfig.setGasConfig(uint256,uint256)`를 호출하는 경우
+* `FEE_SCALARS` `ConfigUpdate` 이벤트의 첫 번째 word를 현재 `overhead()` 값으로 디코딩하는 경우
+* `SystemConfig.overhead()`를 읽고 레거시 값이 변경되지 않을 것으로 기대하는 경우
+* Dispute Game root claim을 직접 읽고 해당 claim이 Output Root라고 가정하는 경우
+* OP Stack SDK를 사용하여 L2에서 L1으로의 출금을 확인, 증명 또는 최종 확정하는 경우
+
+Super Root Dispute Game의 경우, Dispute Game과 직접 통합하는 코드는 game type `5`와 `9`를 인식해야 하며, 체인의 Output Root를 얻으려면 `rootClaimByChainId(uint256)`를 사용해야 합니다.
+`overhead()` getter는 호환성을 위해 계속 제공되지만 deprecated 상태이며, Upgrade 20 이후에는 0을 반환합니다.
+출금 증명에 `viem/op-stack`을 사용하는 애플리케이션은 `viem` `2.51.0` 이상으로 업그레이드하고 [출금 도구 변경 사항](#update-withdrawal-tooling)을 따라야 합니다.
+Dispute Game 컨트랙트를 직접 읽는 bridge 운영자와 출금 도구 개발자도 동일한 지침을 따라야 합니다.
+출금 흐름을 SDK에 위임하는 도구는 Super Root Dispute Game을 지원하는 버전을 사용해야 합니다.
+
+### 사용자
+
+별도의 조치는 필요하지 않습니다.
+Upgrade 20 이전에 제출된 출금 증명은 계속 유효합니다.
+사용자가 다시 증명할 필요는 없습니다.
+기존 Output Root Dispute Game은 계속 해결되며, `OptimismPortal`은 Output Root Dispute Game과 Super Root Dispute Game 모두의 출금 증명을 지원합니다.
+
+## OP Stack 구성 요소 준비
+
+Upgrade 20 릴리스를 준비할 때 다음 구성 요소를 업데이트하고 구성 변경 사항을 적용합니다.
+아래의 각 버전은 해당 구성 요소의 최신 릴리스이며, Upgrade 20에서 변경이 필요한지 여부와 관계없이 모든 구성 요소의 최신 릴리스를 실행하는 것을 권장합니다.
+absolute prestate 해시가 정확한 릴리스 태그에 종속되는 `kona-client`를 제외하고, 나열된 버전을 모든 구성 요소의 최소 버전으로 간주합니다.
+
+| 구성 요소 | 버전 | 필요한 변경 사항 |
+| --- | --- | --- |
+| `op-challenger` | [v1.9.5](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.5) | `--superroot-rpc`(`OP_CHALLENGER_SUPERROOT_RPC`)를 추가하고, challenger가 이미 진행 중인 게임을 완료할 수 있도록 기존 game type을 유지합니다. permissionless 체인에서는 `--game-types`(`OP_CHALLENGER_GAME_TYPES`)에 `super-cannon-kona`를 추가하고, [absolute prestate 찾기 또는 빌드](#locate-or-build-the-absolute-prestate)에 설명된 대로 검토된 Kona Interop prestate를 구성합니다. permissioned 체인에서는 `super-permissioned`를 추가하지 마세요. 단순화된 게임에는 trace type이 필요하지 않으며, `op-challenger`가 수명 주기를 자동으로 처리합니다. |
+| `op-dispute-mon` | [v1.6.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.6.0) | `--superroot-rpc`(`OP_DISPUTE_MON_SUPERROOT_RPC`)를 추가합니다. Output Root Dispute Game이 진행 중인 동안에는 `--rollup-rpc`를 유지합니다. |
+| `op-proposer` | [v1.16.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-proposer%2Fv1.16.4) | [업데이트 순서](#update-order)에 설명된 대로 컨트랙트 업그레이드 전환 시점에 전환합니다. `--rollup-rpc`를 `--superroot-rpcs`(`OP_PROPOSER_SUPERROOT_RPCS`)로 교체하고, permissioned 체인은 `OP_PROPOSER_GAME_TYPE=5`, permissionless 체인은 `OP_PROPOSER_GAME_TYPE=9`로 설정합니다. |
+| `kona-client` | 정확히 [v1.7.0](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.7.0) | permissionless 체인 전용입니다. 이 릴리스는 `SUPER_CANNON_KONA` absolute prestate를 생성합니다. [absolute prestate 찾기 또는 빌드](#locate-or-build-the-absolute-prestate)에 설명된 대로 이 정확한 태그에서 Interop variant prestate를 빌드하거나 찾아서 `op-challenger`용으로 호스팅합니다. 이후 태그는 검토된 Upgrade 20 값과 일치하지 않는 다른 해시를 생성합니다. |
+| `op-node` | [v1.19.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.6) | 하드포크 활성화가 없으므로, 체인만 서비스하는 `op-node`는 구성 변경이 필요하지 않습니다. 결함 증명 서비스에 Super Root RPC를 제공하는 `op-node`는 `--safedb.path`를 활성화하고 파생을 통해 채워진 상태로 실행해야 합니다. SafeDB가 없으면 `superroot_atTimestamp`는 genesis가 아닌 타임스탬프를 처리할 수 없습니다. |
+| `op-reth` | [2.4.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.4.4) | Upgrade 20 관련 구성 변경은 필요하지 않으며, 하드포크 활성화도 없습니다. |
+| `op-batcher` | [v1.16.13](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.16.13) | Upgrade 20 관련 구성 변경은 필요하지 않습니다. |
+
+`op_proposer_default_proposed_sequence_number`는 최신 제안 sequence number를 나타내는 메트릭으로 `op_proposer_default_refs_number`를 대체합니다.
+대체 메트릭은 Upgrade 20 이전부터 이미 제공되므로, 운영자는 컨트랙트 전환 전에 대시보드를 업데이트할 수 있습니다.
+대체 메트릭에는 `layer` 및 `type` 레이블이 정의되어 있지 않으므로, 쿼리를 업데이트할 때 해당 레이블 필터를 제거합니다.
+이 메트릭은 Output Root 제안에 대해서는 L2 블록 번호를, Super Root 제안에 대해서는 Unix 타임스탬프를 보고합니다.
+
+Super Root RPC는 Dispute Game이 다루는 체인 또는 dependency set에 대한 root를 반환해야 합니다.
+단일 체인 업그레이드의 경우, 체인의 `op-node` RPC 엔드포인트 또는 `op-supernode`가 노출하는 체인별 엔드포인트를 사용합니다.
+
+### 업데이트 순서
+
+L1 컨트랙트 전환을 기준으로 서비스 업데이트 순서를 정합니다.
+
+* `op-challenger`와 `op-dispute-mon`은 L1 컨트랙트 전환 **이전에** 업데이트합니다. 첫 번째 Super Root Dispute Game이 생성될 때 두 서비스 모두 Super Root 구성이 적용되어 있어야 합니다.
+* `op-proposer`는 **전환 시점에** 또는 전환 직후에 전환합니다. proposer는 컨트랙트가 업그레이드되기 전까지 새 game type에 대해 제안할 수 없으며, 전환 시점부터 proposer가 전환될 때까지 제안 오류를 기록하므로 의도적으로 공백을 두지 마세요.
+
+## `SystemConfig` 통합 업데이트
+
+<Warning>
+  Upgrade 20 이후 `SystemConfig.batchInbox()` 및 `SystemConfig.setGasConfig(uint256,uint256)` 호출은 revert됩니다.
+</Warning>
+
+도구가 `SystemConfig`를 직접 읽거나 쓰는 경우:
+
+* batch inbox 주소는 체인의 롤업 구성 또는 [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry)의 해당 항목에서 읽습니다.
+* base fee 및 blob base fee scalar의 경우 `setGasConfig(uint256,uint256)` 호출을 [`setGasConfigEcotone(uint32,uint32)`](/ko/chain-operators/reference/fee-parameters)로 교체합니다.
+* `FEE_SCALARS` `ConfigUpdate` 이벤트를 디코딩하는 경우, 첫 번째 word를 `overhead()`가 반환하는 현재 값이 아니라 0으로 처리합니다.
+* `overhead()`를 읽는 경우 0을 예상해야 합니다. 업그레이드 시 모든 레거시 값이 지워집니다.
+
+## 출금 도구 업데이트
+
+Super Root Dispute Game은 L2 블록 번호 대신 L2 타임스탬프를 기준으로 출금을 고정(anchor)하며, root claim에는 체인의 Output Root 대신 Super Root가 포함됩니다.
+Dispute Game을 탐색하거나 출금 증명을 생성하는 애플리케이션 도구는 이 두 가지 변경 사항을 모두 지원해야 합니다.
+
+| 도구 | 필요한 변경 사항 |
+| --- | --- |
+| [`viem/op-stack`](https://viem.sh/op-stack) | `viem` `2.51.0` 이상을 사용합니다. 증명 준비 상태 확인 호출에는 출금을 시작한 블록의 타임스탬프를 `l2Timestamp`로 전달합니다. `waitToProve`가 반환한 `game`을 `buildProveWithdrawal`에 전달하고, 레거시 `output` 값은 전달하지 마세요. |
+| `ethers`, wagmi 및 기타 범용 EVM 라이브러리 | 일반적인 컨트랙트 읽기, 쓰기 또는 L2 트랜잭션에는 라이브러리 업데이트가 필요하지 않습니다. 위에서 설명한 Output Root 가정을 하는 사용자 정의 출금 또는 Dispute Game 코드만 업데이트합니다. |
+
+Upgrade 20 전환 이후 `viem` 출금 증명 흐름은 출금을 시작한 트랜잭션이 포함된 L2 블록의 타임스탬프를 읽어야 합니다.
+
+```js
+const receipt = await publicClientL2.getTransactionReceipt({
+  hash: withdrawalHash
+});
+const withdrawalBlock = await publicClientL2.getBlock({
+  blockNumber: receipt.blockNumber
+});
+
+const { game, withdrawal } = await publicClientL1.waitToProve({
+  receipt,
+  l2Timestamp: withdrawalBlock.timestamp,
+  targetChain: publicClientL2.chain
+});
+
+const proveArgs = await publicClientL2.buildProveWithdrawal({
+  game,
+  withdrawal
+});
+```
+
+Super Root 출금에 대해 `getTimeToProve` 또는 `getWithdrawalStatus`를 호출할 때도 동일한 `l2Timestamp`를 전달합니다.
+`waitToFinalize`와 최종 확정 트랜잭션에는 타임스탬프가 필요하지 않습니다.
+업스트림 호환성 변경 사항은 [`viem` Super Root 출금 지원 릴리스](https://github.com/wevm/viem/releases/tag/viem%402.51.0)를 참조하세요.
+
+## absolute prestate 찾기 또는 빌드
+
+permissionless 체인에는 `SUPER_CANNON_KONA`용 Upgrade 20 `kona-client` Interop variant absolute prestate가 필요합니다. 체인에 Interop이 예정되어 있지 않더라도 `kona-client-int` 아티팩트를 사용합니다.
+
+<Info>
+  검토된 Upgrade 20 prestate는 **OP, Ink, Unichain, Soneium의 Sepolia와 Mainnet 모두**를 포함합니다.
+  이 8개 체인은 표준 빌드에 포함되어 있으므로, 해당 운영자는 게시된 해시를 그대로 사용할 수 있습니다.
+
+  Optimism은 Optimism Security Council이 관리하는 체인에 대해 온체인 업그레이드를 완료하지만, 오프체인 구성 요소는 각 운영자가 직접 구성해야 합니다.
+  이 집합에 속하지 않는 permissionless 체인은 검토된 prestate의 적용 대상이 아니므로, 자체 prestate를 빌드하고 검증한 다음 아래의 모든 단계를 진행해야 합니다.
+</Info>
+
+<Steps>
+  <Step title="absolute prestate 검증">
+    <Tabs>
+      <Tab title="표준 체인 구성">
+        [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에 `1.7.0`용으로 게시된 `cannon64-kona-interop` 해시를 사용합니다.
+
+        ```
+        0x031ac6f15c19010da258f5cb633ef6ca9318c2d0f244bea6b2045ce6b790e1df
+        ```
+
+        `kona-client/v1.7.0`을 체크아웃하고, 두 Kona prestate를 재현한 다음 interop 해시를 읽습니다.
+
+        ```bash
+        just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        ```
+
+        출력이 게시된 해시와 일치하는지 확인합니다.
+      </Tab>
+
+      <Tab title="사용자 정의 체인 구성">
+        먼저 [사용자 정의 kona-client absolute prestate 생성](/ko/chain-operators/tutorials/kona-custom-prestate)에 설명된 체인 데이터를 준비합니다.
+        `kona-client/v1.7.0`을 체크아웃하고 동일한 사용자 정의 구성으로 interop variant를 빌드합니다.
+
+        ```bash
+        cd rust
+        KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs \
+          just build-kona-reproducible-prestate-variant \
+          kona-client-int prestate-artifacts-cannon-interop
+        jq -r .pre kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        ```
+
+        동일한 입력으로 깨끗한 체크아웃에서 다시 빌드하여 해시가 동일한지 확인합니다.
+        사용자 정의 prestate 해시는 포함된 체인 구성에 종속되며 `standard-prestates.toml`에는 나타나지 않습니다.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="새 preimage 파일 업로드">
+    새 preimage 파일을 다른 absolute preimage 파일을 저장하는 위치에 업로드합니다. 이 위치는 `--prestates-url`이 가리키는 곳입니다. `op-challenger`는 게임을 진행해야 할 때 해당 위치에서 파일을 가져옵니다.
+
+    absolute prestate 해시가 파일 이름이 되도록 파일 이름을 변경합니다. 예: `0x031ac6f15c19010da258f5cb633ef6ca9318c2d0f244bea6b2045ce6b790e1df.bin.gz`
+
+    자체 호스팅 대신 OP Labs prestate 버킷을 사용하는 운영자는 아무것도 업로드할 필요가 없습니다. Upgrade 20 prestate가 이미 해당 위치에 게시되어 있습니다.
+
+    ```
+    https://storage.googleapis.com/oplabs-network-data/proofs/kona/cannon/0x031ac6f15c19010da258f5cb633ef6ca9318c2d0f244bea6b2045ce6b790e1df.bin.gz
+    ```
+
+    사용자 정의 prestate는 해당 체인에 참여하는 모든 challenger가 접근할 수 있는 URL에 호스팅해야 합니다.
+  </Step>
+
+  <Step title="super-cannon-kona를 위한 op-challenger 구성">
+    challenger가 이미 진행 중인 게임을 완료할 수 있도록 기존 항목을 유지하면서 game type에 `super-cannon-kona`를 추가합니다.
+
+    ```bash
+    OP_CHALLENGER_GAME_TYPES="cannon-kona,permissioned,super-cannon-kona"
+    # or
+    --game-types=cannon-kona,permissioned,super-cannon-kona
+    ```
+
+    challenger가 prestate를 가리키도록 설정합니다. 모든 prestate를 한 위치에서 제공하는 경우:
+
+    ```bash
+    --prestates-url=<PRESTATES_URL>
+    ```
+
+    Kona prestate를 별도로 저장하는 경우:
+
+    ```bash
+    --cannon-kona-prestates-url=<CANNON_KONA_PRESTATES_URL>
+    ```
+
+    `super-cannon-kona`에는 Super Root RPC와 dependency set도 필요합니다. 레지스트리에 있는 체인의 경우 `--network`가 dependency set을 제공하며, 레지스트리 외부의 체인은 이를 명시적으로 전달해야 합니다.
+
+    ```bash
+    --superroot-rpc=<SUPER_ROOT_RPC>
+    --cannon-kona-depset-config=/path/to/depset.json   # only if --network is not set
+    ```
+
+    표준 OP Labs `op-challenger` Docker 이미지를 사용하지 않는 경우, 구성된 prestate와 동일한 릴리스에서 빌드한 `kona-host` 바이너리 경로를 설정합니다.
+
+    ```bash
+    OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+    # or
+    --cannon-kona-server=/path/to/kona-host
+    ```
+
+    [업데이트 순서](#update-order)에 설명된 대로 L1 컨트랙트 전환 전에 이 작업을 완료합니다.
+  </Step>
+</Steps>
+
+## 업그레이드 일정
+
+Upgrade 20은 L1 컨트랙트 업그레이드로 적용됩니다. 각 네트워크는 온체인 작업을 실행하여 업그레이드되므로, 구성해야 할 L2 하드포크 활성화 타임스탬프는 없습니다.
+
+| 마일스톤 | 목표 날짜 |
+| --- | --- |
+| 거버넌스 투표 마감 | **2026년 9월 16일 수요일** |
+| Sepolia 실행 | **2026년 9월 17일 목요일** |
+| Mainnet 실행 | **2026년 9월 24일 목요일** |
+
+거버넌스가 관리하는 Sepolia OP Stack 체인이 먼저 업그레이드되며, 이후 mainnet 실행 전까지 7일간의 안정화(soak) 기간을 거칩니다.
+Mainnet 실행은 Optimism Governance 승인과 Sepolia 안정화 기간의 정상 진행 여부에 따라 달라지므로, 이 날짜는 변경될 수 있습니다.
+
+Upgrade 20은 [Upgrade 20 - Super Root Dispute Games & OPCM v8.0.0](https://gov.optimism.io/t/upgrade-20-super-root-dispute-games-opcm-v8-0-0/10856) 거버넌스 제안에 설명되어 있습니다.
+[온체인 투표](https://vote.optimism.io/proposals/4301234447578476958698627660572767846172082315795452528680486495303632100182)에서 승인 상태를 확인할 수 있습니다.
+
+[Output Root에서 Super Root로의 업그레이드 런북](/ko/chain-operators/tutorials/upgrade-chain-to-super-roots)에서 온체인 업그레이드와 전환 점검 사항을 설명합니다.
+
+## 준비 상태 확인
+
+전환 전에 다음을 수행합니다.
+
+* `op-proposer`, `op-challenger`, `op-dispute-mon`이 준비된 Super Root 구성으로 시작되고, 구성된 Super Root RPC에 접근할 수 있는지 확인합니다.
+* permissionless 체인에서는 `kona-client` Interop variant prestate를 재현하고, 해당 해시가 검토된 Upgrade 20 값과 일치하는지 확인합니다.
+* 이 공지에 나열된 모든 직접 `SystemConfig` 호출과 모든 출금 또는 Dispute Game 코드 경로를 다루는 통합 테스트를 실행합니다.
+
+질문이 있거나 지원이 필요한 경우 Optimism 담당자에게 문의하세요.

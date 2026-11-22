@@ -1,171 +1,567 @@
 {
+  "version": 2,
+  "registry": "us-docker.pkg.dev/oplabs-tools-artifacts/images",
   "shared_paths": [
-    "docker-bake.hcl",
-    ".github/workflows/build-images.yaml",
     ".github/images.json",
-    ".github/actions/docker-build-prep/**",
-    "ops/scripts/compute-git-versions.sh"
+    ".github/workflows/build-images.yaml",
+    "melange/pipelines/**",
+    "melange/op-stack-go.yaml",
+    "melange/op-stack-rust.yaml",
+    "melange/multicannon.yaml"
   ],
-  "shared_go_paths": [
-    "go.mod",
-    "go.sum",
-    "ops/docker/op-stack-go/**",
-    "op-service/**",
-    "op-core/**",
-    "op-chain-ops/**"
-  ],
-  "images": {
-    "op-node": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-node",
-      "paths": ["op-node/**"]
+  "release": {
+    "publish_tag": "${version}",
+    "source_ref": "${ref_name}"
+  },
+  "packages": {
+    "op-stack-go": {
+      "config": "melange/op-stack-go.yaml"
     },
-    "op-batcher": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-batcher",
-      "paths": ["op-batcher/**"]
+    "op-stack-rust": {
+      "config": "melange/op-stack-rust.yaml",
+      "submodules": "recursive",
+      "use_gha_cache": true,
+      "cache_key_files": [
+        "rust/Cargo.lock"
+      ],
+      "runner_profile": "large",
+      "cargo_profile": {
+        "trusted": "maxperf",
+        "untrusted": "fast-build"
+      }
     },
-    "op-faucet": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-faucet",
-      "paths": ["op-faucet/**"]
+    "kona-zkvm-canary": {
+      "config": "melange/kona-zkvm-canary.yaml",
+      "submodules": "recursive",
+      "use_gha_cache": true,
+      "cache_key_files": [
+        "rust/Cargo.lock"
+      ],
+      "runner_profile": "large",
+      "cargo_profile": {
+        "trusted": "maxperf",
+        "untrusted": "fast-build"
+      }
     },
-    "op-proposer": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-proposer",
-      "paths": ["op-proposer/**"]
+    "op-zk-proposer-cuda": {
+      "config": "melange/op-zk-proposer-cuda.yaml",
+      "runner_profile": "large"
     },
-    "op-challenger": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-challenger",
-      "paths": ["op-challenger/**", "cannon/**", "op-preimage/**", "rust/kona/**"]
-    },
-    "op-dispute-mon": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-dispute-mon",
-      "paths": ["op-dispute-mon/**"]
-    },
-    "op-conductor": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-conductor",
-      "paths": ["op-conductor/**", "op-node/**"]
-    },
-    "da-server": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "da-server",
-      "paths": ["op-alt-da/**"]
-    },
-    "op-supernode": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-supernode",
-      "paths": ["op-supernode/**", "op-node/**"]
-    },
-    "op-test-sequencer": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-test-sequencer",
-      "paths": ["op-test-sequencer/**"]
+    "multicannon": {
+      "config": "melange/multicannon.yaml"
     },
     "op-deployer": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-deployer",
-      "paths": ["op-deployer/**", "packages/contracts-bedrock/**"]
-    },
-    "op-dripper": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-dripper",
-      "paths": ["op-dripper/**"]
-    },
-    "op-interop-mon": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-interop-mon",
-      "paths": ["op-interop-mon/**"]
-    },
-    "op-interop-filter": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-interop-filter",
-      "paths": ["op-interop-filter/**"]
-    },
-    "kona-node": {
-      "type": "rust",
-      "check": "rust",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "kona-node",
-      "paths": ["rust/**"]
+      "config": "melange/op-deployer.yaml",
+      "submodules": "recursive"
+    }
+  },
+  "images": {
+    "da-server": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-alt-da/**",
+        "apko/da-server.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "da-server --version"
+        ],
+        "verify_version": true
+      }
     },
     "kona-client": {
-      "type": "rust",
-      "check": "none",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "kona-client",
-      "paths": ["rust/**"]
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-rust"
+          ]
+        }
+      },
+      "paths": [
+        "rust/**",
+        "apko/kona-client.yaml"
+      ],
+      "smoke": {
+        "commands": [
+          "kona-client --help"
+        ]
+      }
     },
     "kona-host": {
-      "type": "rust",
-      "check": "rust",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "kona-host",
-      "paths": ["rust/**"]
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-rust"
+          ]
+        }
+      },
+      "paths": [
+        "rust/**",
+        "apko/kona-host.yaml"
+      ],
+      "smoke": {
+        "commands": [
+          "kona-host --help"
+        ]
+      }
     },
-    "op-zk-proposer": {
-      "type": "rust",
-      "check": "rust",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-zk-proposer",
-      "paths": ["rust/**"]
+    "kona-node": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-rust"
+          ]
+        }
+      },
+      "paths": [
+        "rust/**",
+        "apko/kona-node.yaml"
+      ],
+      "smoke": {
+        "commands": [
+          "kona-node --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "kona-zkvm-canary": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "kona-zkvm-canary"
+          ]
+        }
+      },
+      "paths": [
+        "rust/**",
+        "apko/kona-zkvm-canary.yaml",
+        "melange/kona-zkvm-canary.yaml"
+      ],
+      "smoke": {
+        "commands": [
+          "kona-zkvm-canary --version"
+        ]
+      }
+    },
+    "lokahi": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-rust"
+          ]
+        }
+      },
+      "paths": [
+        "rust/**",
+        "apko/lokahi.yaml"
+      ],
+      "smoke": {
+        "commands": [
+          "lokahi --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-batcher": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-batcher/**",
+        "apko/op-batcher.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-batcher --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-challenger": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go",
+            "multicannon",
+            "op-stack-rust"
+          ]
+        }
+      },
+      "paths": [
+        "op-challenger/**",
+        "cannon/**",
+        "op-preimage/**",
+        "rust/kona/**",
+        "apko/op-challenger.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-challenger --version",
+          "cannon --help",
+          "cannon load-elf --type multithreaded64-5 --help",
+          "kona-host --help"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-conductor": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-conductor/**",
+        "op-node/**",
+        "apko/op-conductor.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-conductor --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-deployer": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-deployer"
+          ]
+        }
+      },
+      "paths": [
+        "op-deployer/**",
+        "packages/contracts-bedrock/**",
+        "apko/op-deployer.yaml",
+        "melange/op-deployer.yaml",
+        "melange/pipelines/op-deployer/embed-artifacts.yaml",
+        "melange/pipelines/op-deployer/install-forge.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-deployer --version",
+          "forge --version",
+          "anvil --version"
+        ],
+        "verify_version": true,
+        "script": "op-deployer/scripts/genesis-smoke-test-image.sh"
+      }
+    },
+    "op-dispute-mon": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-dispute-mon/**",
+        "apko/op-dispute-mon.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-dispute-mon --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-dripper": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-dripper/**",
+        "apko/op-dripper.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-dripper --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-faucet": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-faucet/**",
+        "apko/op-faucet.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-faucet --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-interop-filter": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-interop-filter/**",
+        "apko/op-interop-filter.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-interop-filter --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-interop-mon": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-interop-mon/**",
+        "apko/op-interop-mon.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-interop-mon --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-node": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-node/**",
+        "apko/op-node.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-node --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-proposer": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-proposer/**",
+        "apko/op-proposer.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-proposer --version"
+        ],
+        "verify_version": true
+      }
     },
     "op-reth": {
-      "type": "rust",
-      "check": "rust",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-reth",
-      "paths": ["rust/**"]
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-rust"
+          ]
+        }
+      },
+      "paths": [
+        "rust/**",
+        "apko/op-reth.yaml"
+      ],
+      "smoke": {
+        "commands": [
+          "op-reth --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-supernode": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-supernode/**",
+        "op-node/**",
+        "apko/op-supernode.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-supernode --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-test-sequencer": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-go"
+          ]
+        }
+      },
+      "paths": [
+        "op-test-sequencer/**",
+        "apko/op-test-sequencer.yaml",
+        "go.mod",
+        "go.sum",
+        "op-service/**",
+        "op-core/**",
+        "op-chain-ops/**"
+      ],
+      "smoke": {
+        "commands": [
+          "op-test-sequencer --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-zk-proposer": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-rust"
+          ]
+        }
+      },
+      "paths": [
+        "rust/**",
+        "apko/op-zk-proposer.yaml"
+      ],
+      "smoke": {
+        "commands": [
+          "op-zk-proposer --version"
+        ],
+        "verify_version": true
+      }
+    },
+    "op-zk-proposer-cuda": {
+      "builders": {
+        "apko": {
+          "needs_packages": [
+            "op-stack-rust",
+            "op-zk-proposer-cuda"
+          ]
+        }
+      },
+      "archs": [
+        "amd64"
+      ],
+      "paths": [
+        "melange/op-zk-proposer-cuda.yaml",
+        "apko/op-zk-proposer-cuda.yaml"
+      ],
+      "smoke": {
+        "commands": [
+          "op-zk-proposer --version",
+          "sp1-gpu-server --version"
+        ]
+      }
     }
   }
 }

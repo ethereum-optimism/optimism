@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"os"
-
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -10,11 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
-// MixedOpProofPreset sets up a two-node L2 devnet (sequencer + validator)
-// with configurable EL clients via environment variables:
-//
-//   - OP_DEVSTACK_PROOF_SEQUENCER_EL: "op-geth", "op-reth" (default), or "op-reth-proof-v1"
-//   - OP_DEVSTACK_PROOF_VALIDATOR_EL: "op-reth-proof-v1" (default), "op-reth", or "op-geth"
+// MixedOpProofPreset sets up a two-node L2 devnet (sequencer + validator) on op-reth.
 type MixedOpProofPreset struct {
 	Log log.Logger
 	T   devtest.T
@@ -53,38 +47,19 @@ func (m *MixedOpProofPreset) RethWithProofL2ELNode() *dsl.L2ELNode {
 	return m.L2ELValidator
 }
 
-func resolveELSpec(envVar string, defaultKind sysgo.MixedL2ELKind) sysgo.MixedL2ELKind {
-	switch os.Getenv(envVar) {
-	case "op-reth-proof-v2":
-		return sysgo.MixedL2ELOpRethV2
-	case "op-reth-proof-v1", "op-reth":
-		return sysgo.MixedL2ELOpReth
-	case "op-geth":
-		return sysgo.MixedL2ELOpGeth
-	default:
-		return defaultKind
-	}
-}
-
-// NewMixedOpProofPreset creates the preset using MixedSingleChainRuntime for
-// full control over EL client types.
+// NewMixedOpProofPreset creates the preset using MixedSingleChainRuntime.
 func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
-	seqKind := resolveELSpec("OP_DEVSTACK_PROOF_SEQUENCER_EL", sysgo.MixedL2ELOpReth)
-	valKind := resolveELSpec("OP_DEVSTACK_PROOF_VALIDATOR_EL", sysgo.MixedL2ELOpReth)
-
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
 			{
 				ELKey:       "sequencer",
 				CLKey:       "sequencer",
-				ELKind:      seqKind,
 				CLKind:      sysgo.MixedL2CLOpNode,
 				IsSequencer: true,
 			},
 			{
 				ELKey:       "validator",
 				CLKey:       "validator",
-				ELKind:      valKind,
 				CLKind:      sysgo.MixedL2CLOpNode,
 				IsSequencer: false,
 			},

@@ -52,6 +52,9 @@ std = [
 ]
 serde = ["dep:serde", "revm/serde", "alloy-eips/serde", "alloy-primitives/serde", "op-alloy-consensus/serde"]
 portable = ["revm/portable"]
+# Compile against revm's feature-gated async database fields; mainly a CI feature-unification check.
+# Host targets only: revm's fiber stack does not build for wasm or MIPS.
+asyncdb = ["std", "revm/asyncdb"]
 
 dev = [
 	"revm/dev",

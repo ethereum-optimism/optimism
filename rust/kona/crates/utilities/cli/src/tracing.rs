@@ -3,6 +3,7 @@
 use tracing_subscriber::{
     Layer,
     fmt::{
+        FormattedFields,
         format::{FormatEvent, FormatFields, Writer},
         time::{FormatTime, SystemTime},
     },
@@ -64,6 +65,19 @@ where
 
         // Write target
         write!(writer, "target={} ", meta.target())?;
+
+        // Preserve task context on events emitted by shared RPC middleware.
+        if let Some(scope) = ctx.event_scope() {
+            for span in scope.from_root() {
+                write!(writer, "span={:?} ", span.name())?;
+                let extensions = span.extensions();
+                if let Some(fields) = extensions.get::<FormattedFields<N>>() &&
+                    !fields.is_empty()
+                {
+                    write!(writer, "{fields} ")?;
+                }
+            }
+        }
 
         // Write the message and fields
         ctx.field_format().format_fields(writer.by_ref(), event)?;
@@ -149,4 +163,76 @@ impl LogConfig {
 ///   and optional environment filter.
 pub fn init_test_tracing() {
     let _ = LogConfig::default().init_tracing_subscriber(None::<EnvFilter>);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        io,
+        sync::{Arc, Mutex},
+    };
+
+    #[derive(Clone, Default)]
+    struct LogWriter(Arc<Mutex<Vec<u8>>>);
+
+    impl io::Write for LogWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn logfmt_preserves_nested_task_context_and_rpc_event_fields() {
+        let logs = LogWriter::default();
+        let writer = logs.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .event_format(LogfmtFormatter)
+            .with_writer(move || writer.clone())
+            .finish();
+
+        tracing::subscriber::with_default(subscriber, || {
+            let task = tracing::info_span!("engine_task", task = "seal", l2_number = 10);
+            task.in_scope(|| {
+                let empty = tracing::info_span!("empty");
+                empty.in_scope(|| {
+                    let rpc =
+                        tracing::info_span!("get_payload", payload_id = tracing::field::Empty);
+                    rpc.record("payload_id", "0x1234");
+                    rpc.in_scope(|| {
+                        tracing::info!(
+                            target: "engine_rpc",
+                            method = "engine_getPayloadV3",
+                            duration = "2ms",
+                            result = "success",
+                            "Engine RPC request completed"
+                        );
+                    });
+                });
+            });
+            tracing::info!(target: "engine_rpc", "Unscoped event");
+        });
+
+        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let lines: Vec<_> = output.lines().collect();
+        assert_eq!(lines.len(), 2, "{output}");
+        assert!(
+            lines[0].contains(concat!(
+                "level=INFO target=engine_rpc ",
+                "span=\"engine_task\" task=\"seal\" l2_number=10 ",
+                "span=\"empty\" span=\"get_payload\" payload_id=\"0x1234\" ",
+                "Engine RPC request completed method=\"engine_getPayloadV3\" ",
+                "duration=\"2ms\" result=\"success\"",
+            )),
+            "{output}"
+        );
+        assert!(lines[1].contains("level=INFO target=engine_rpc Unscoped event"), "{output}");
+        assert!(!lines[1].contains("span="), "{output}");
+    }
 }

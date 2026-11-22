@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/params"
 
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -60,18 +61,13 @@ func (c *presetCommon) require() *testreq.Assertions {
 
 type presetNetworkBase struct {
 	presetCommon
-	chainCfg *params.ChainConfig
-	chainID  eth.ChainID
+	chainID eth.ChainID
 
 	syncTesters []*syncTesterFrontend
 }
 
 func (n *presetNetworkBase) ChainID() eth.ChainID {
 	return n.chainID
-}
-
-func (n *presetNetworkBase) ChainConfig() *params.ChainConfig {
-	return n.chainCfg
 }
 
 func (n *presetNetworkBase) SyncTesters() []stack.SyncTester {
@@ -87,6 +83,7 @@ func (n *presetNetworkBase) AddSyncTester(v *syncTesterFrontend) {
 
 type presetL1Network struct {
 	presetNetworkBase
+	chainCfg *params.ChainConfig
 
 	l1ELNodes []*l1ELFrontend
 	l1CLNodes []*l1CLFrontend
@@ -101,10 +98,14 @@ func newPresetL1Network(t devtest.T, name string, chainCfg *params.ChainConfig) 
 	return &presetL1Network{
 		presetNetworkBase: presetNetworkBase{
 			presetCommon: newPresetCommon(t, name),
-			chainCfg:     chainCfg,
 			chainID:      chainID,
 		},
+		chainCfg: chainCfg,
 	}
+}
+
+func (n *presetL1Network) ChainConfig() *params.ChainConfig {
+	return n.chainCfg
 }
 
 func (n *presetL1Network) AddL1ELNode(v *l1ELFrontend) {
@@ -131,6 +132,7 @@ func (n *presetL1Network) L1CLNodes() []stack.L1CLNode {
 
 type presetL2Network struct {
 	presetNetworkBase
+	chainCfg *opparams.ChainConfig
 
 	rollupCfg  *rollup.Config
 	deployment stack.L2Deployment
@@ -151,7 +153,7 @@ var _ stack.L2Network = (*presetL2Network)(nil)
 func newPresetL2Network(
 	t devtest.T,
 	name string,
-	chainCfg *params.ChainConfig,
+	chainCfg *opparams.ChainConfig,
 	rollupCfg *rollup.Config,
 	deployment stack.L2Deployment,
 	keys *keyringImpl,
@@ -165,14 +167,18 @@ func newPresetL2Network(
 	return &presetL2Network{
 		presetNetworkBase: presetNetworkBase{
 			presetCommon: newPresetCommon(t, name),
-			chainCfg:     chainCfg,
 			chainID:      chainID,
 		},
+		chainCfg:   chainCfg,
 		rollupCfg:  rollupCfg,
 		deployment: deployment,
 		keys:       keys,
 		l1:         l1,
 	}
+}
+
+func (n *presetL2Network) ChainConfig() *opparams.ChainConfig {
+	return n.chainCfg
 }
 
 func (n *presetL2Network) RollupConfig() *rollup.Config {

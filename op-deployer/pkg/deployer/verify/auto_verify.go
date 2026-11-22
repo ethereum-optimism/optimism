@@ -24,7 +24,7 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 		return fmt.Errorf("failed to download artifacts: %w", err)
 	}
 
-	bundle, err := GetBundleFromFile(stateFile)
+	bundle, err := GetBundleFromFile(logger, stateFile)
 	if err != nil {
 		return fmt.Errorf("failed to get contract bundle: %w", err)
 	}

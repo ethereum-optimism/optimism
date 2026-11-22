@@ -3,7 +3,6 @@ package isthmus
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -46,7 +45,7 @@ func TestSetCodeInTxPool(t *testing.T) {
 
 			receipt, err := helpers.SendL2SetCodeTx(
 				cfg,
-				sys.NodeClient(e2esys.RoleSeq),
+				sys.NodeSourceClient(e2esys.RoleSeq),
 				sys.Cfg.Secrets.Alice,
 				func(opts *helpers.TxOpts) {
 					opts.ToAddr = &common.Address{0xaa}
@@ -60,9 +59,7 @@ func TestSetCodeInTxPool(t *testing.T) {
 			} else {
 				require.Error(t, err, "SetCode tx should fail")
 				errMsg := err.Error()
-				require.Truef(t,
-					strings.Contains(errMsg, "not yet in Prague") || // op-geth
-						strings.Contains(errMsg, "transaction type not supported"), // op-reth
+				require.Containsf(t, errMsg, "transaction type not supported",
 					"expected SetCode tx rejection before Isthmus, got %q", errMsg)
 				require.Nil(t, receipt)
 			}

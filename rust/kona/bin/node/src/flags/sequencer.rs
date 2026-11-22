@@ -21,15 +21,6 @@ pub struct SequencerArgs {
     )]
     pub stopped: bool,
 
-    /// Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe.
-    /// Disabled if 0.
-    #[arg(
-        long = "sequencer.max-safe-lag",
-        default_value = "0",
-        env = "KONA_NODE_SEQUENCER_MAX_SAFE_LAG"
-    )]
-    pub max_safe_lag: u64,
-
     /// Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1
     /// origin.
     #[arg(long = "sequencer.l1-confs", default_value = "4", env = "KONA_NODE_SEQUENCER_L1_CONFS")]
@@ -72,7 +63,23 @@ impl SequencerArgs {
             sequencer_stopped: self.stopped,
             sequencer_recovery_mode: self.recover,
             conductor_rpc_url: self.conductor_rpc.clone(),
+            conductor_rpc_timeout: self.conductor_rpc_timeout,
             l1_conf_delay: self.l1_confs,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn configured_conductor_timeout_reaches_sequencer_config() {
+        let args = SequencerArgs::parse_from(["kona-node", "--conductor.rpc.timeout", "7"]);
+        assert_eq!(args.config().conductor_rpc_timeout, Duration::from_secs(7));
+        assert_eq!(
+            SequencerArgs::default().config().conductor_rpc_timeout,
+            SequencerConfig::default().conductor_rpc_timeout
+        );
     }
 }

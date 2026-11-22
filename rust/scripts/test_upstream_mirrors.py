@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import re
 import shutil
 import sys
 import subprocess
@@ -46,10 +47,28 @@ class SemVerTests(unittest.TestCase):
         self.assertLess(mirrors.parse_semver("41.0.0-alpha.2"), mirrors.parse_semver("41.0.0"))
 
     def test_validates_reth_tokens(self) -> None:
-        for value in ("rev:aef8d3e", "v2.4.0", "pre-24284"):
+        for value in (
+            "rev:aef8d3e",
+            "v2.4.0",
+            "pre-24284",
+            "op-v2.6.0-0",
+            "op-v2.7.0-rc.1-12",
+            "op-1a2b3c4d5e6f-3",
+        ):
             with self.subTest(value=value):
                 mirrors.parse_reth_token(value)
-        for value in ("rev:aef8d", "v2.4", "pre-main", "pre-1٢", "garbage"):
+        for value in (
+            "rev:aef8d",
+            "v2.4",
+            "pre-main",
+            "pre-1٢",
+            "garbage",
+            "op-v2.6.0",
+            "op-v2.6.0-x",
+            "op-v2.6-0",
+            "op-1a2b3c-0",
+            "op-main-0",
+        ):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 mirrors.parse_reth_token(value)
 
@@ -108,10 +127,23 @@ class WorkspaceParsingTests(unittest.TestCase):
             with self.assertRaises(mirrors.ConfigError):
                 mirrors.reth_pin(manifest)
 
-    def test_reth_manifest_tag_requires_release_semver(self) -> None:
+    def test_reth_manifest_tag_accepts_release_and_fork_tags(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             manifest = Path(temp) / "Cargo.toml"
-            for value in ("pre-123", "main"):
+            for value in ("v2.5.0", "op-v2.6.0-0", "op-1a2b3c4d5e6f-2"):
+                with self.subTest(value=value):
+                    manifest.write_text(textwrap.dedent(f"""
+                        [workspace.dependencies]
+                        reth = {{ git = "https://github.com/ethereum-optimism/reth", tag = "{value}" }}
+                    """))
+                    self.assertEqual(
+                        mirrors.reth_pin(manifest), (value, "ethereum-optimism/reth")
+                    )
+
+    def test_reth_manifest_tag_requires_release_or_fork_tag(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            manifest = Path(temp) / "Cargo.toml"
+            for value in ("pre-123", "main", "op-v2.6.0"):
                 with self.subTest(value=value):
                     manifest.write_text(textwrap.dedent(f"""
                         [workspace.dependencies]
@@ -119,6 +151,185 @@ class WorkspaceParsingTests(unittest.TestCase):
                     """))
                     with self.assertRaises(mirrors.ConfigError):
                         mirrors.reth_pin(manifest)
+
+    @staticmethod
+    def write_pin(root: Path, ref: str, value: str, lock_sources: list[str]) -> None:
+        (root / "Cargo.toml").write_text(textwrap.dedent(f"""
+            [workspace.dependencies]
+            reth = {{ git = "https://github.com/ethereum-optimism/reth", {ref} = "{value}" }}
+        """))
+        (root / "Cargo.lock").write_text("".join(
+            textwrap.dedent(f"""
+                [[package]]
+                name = "reth-{index}"
+                version = "2.7.0"
+                source = "{source}#{'0' * 40}"
+            """)
+            for index, source in enumerate(lock_sources)
+        ))
+
+    def test_tag_pin_rejects_rev(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for ref, value in (("tag", "v2.7.0"), ("tag", "op-v2.7.0-0"), ("rev", "0447ceb")):
+                with self.subTest(ref=ref, value=value):
+                    lock_source = f"git+https://github.com/ethereum-optimism/reth?{ref}={value}"
+                    self.write_pin(root, ref, value, [lock_source])
+                    lock = [root / "Cargo.lock"]
+                    if ref == "tag":
+                        with mock.patch.object(mirrors, "compare_status", return_value="ahead"):
+                            self.assertEqual(mirrors.tag_pin(root / "Cargo.toml", lock), value)
+                    else:
+                        with self.assertRaisesRegex(mirrors.ConfigError, "pinned by rev"):
+                            mirrors.tag_pin(root / "Cargo.toml", lock)
+
+    def test_tag_pin_requires_every_locked_reth_source_to_match_the_pin(self) -> None:
+        pinned = "git+https://github.com/ethereum-optimism/reth?tag=op-v2.7.0-0"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for source in (
+                "git+https://github.com/ethereum-optimism/reth?rev=0447ceb",
+                "git+https://github.com/paradigmxyz/reth?branch=main",
+                "git+https://github.com/paradigmxyz/reth",
+                "git+https://github.com/ethereum-optimism/reth?tag=main",
+                "git+https://github.com/ethereum-optimism/reth?tag=op-v2.6.0-2",
+                "git+https://github.com/paradigmxyz/reth?tag=v2.7.0",
+                "git+ssh://git@github.com/ethereum-optimism/reth?rev=0447ceb",
+                "git+https://gitlab.com/ethereum-optimism/reth.git?tag=op-v2.7.0-0",
+            ):
+                with self.subTest(source=source):
+                    self.write_pin(root, "tag", "op-v2.7.0-0", [pinned, source, source])
+                    with self.assertRaisesRegex(
+                        mirrors.ConfigError, rf"{re.escape(source)} \(2 crates\)"
+                    ):
+                        mirrors.tag_pin(root / "Cargo.toml", [root / "Cargo.lock"])
+
+    def test_tag_pin_reports_every_bad_lockfile(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.write_pin(
+                root, "tag", "op-v2.7.0-0",
+                ["git+https://github.com/ethereum-optimism/reth?rev=0447ceb"],
+            )
+            nested = root / "nested"
+            nested.mkdir()
+            (nested / "Cargo.lock").write_text((root / "Cargo.lock").read_text())
+            with self.assertRaises(mirrors.ConfigError) as raised:
+                mirrors.tag_pin(root / "Cargo.toml", [root / "Cargo.lock", nested / "Cargo.lock"])
+            self.assertIn(str(root / "Cargo.lock"), str(raised.exception))
+            self.assertIn(str(nested / "Cargo.lock"), str(raised.exception))
+
+    def test_tag_pin_requires_a_locked_reth_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.write_pin(root, "tag", "op-v2.7.0-0", [])
+            (root / "Cargo.lock").write_text(textwrap.dedent("""
+                [[package]]
+                name = "serde"
+                version = "1.0.0"
+                source = "registry+https://github.com/rust-lang/crates.io-index"
+            """))
+            with self.assertRaisesRegex(mirrors.ConfigError, "no reth git source"):
+                mirrors.tag_pin(root / "Cargo.toml", [root / "Cargo.lock"])
+
+    def test_tag_pin_requires_a_fork_tag_on_its_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.write_pin(
+                root, "tag", "op-v2.7.0-0",
+                ["git+https://github.com/ethereum-optimism/reth?tag=op-v2.7.0-0"],
+            )
+            args = (root / "Cargo.toml", [root / "Cargo.lock"])
+            for status, ok in (
+                ("ahead", True), ("identical", True), ("behind", False), ("diverged", False),
+            ):
+                with self.subTest(status=status):
+                    with mock.patch.object(mirrors, "compare_status", return_value=status) as cmp:
+                        if ok:
+                            self.assertEqual(mirrors.tag_pin(*args), "op-v2.7.0-0")
+                        else:
+                            with self.assertRaisesRegex(mirrors.ConfigError, "not on branch op-v2.7.0"):
+                                mirrors.tag_pin(*args)
+                    cmp.assert_called_once_with("ethereum-optimism/reth", "op-v2.7.0-0", "op-v2.7.0")
+
+            with mock.patch.object(
+                mirrors, "compare_status", side_effect=mirrors.ConfigError("unreachable")
+            ):
+                with self.assertRaisesRegex(mirrors.ConfigError, "unreachable"):
+                    mirrors.tag_pin(*args)
+
+    def test_tag_pin_skips_the_branch_check_for_release_tags(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.write_pin(
+                root, "tag", "v2.7.0", ["git+https://github.com/ethereum-optimism/reth?tag=v2.7.0"]
+            )
+            with mock.patch.object(mirrors, "compare_status") as cmp:
+                self.assertEqual(
+                    mirrors.tag_pin(root / "Cargo.toml", [root / "Cargo.lock"]), "v2.7.0"
+                )
+            cmp.assert_not_called()
+
+    def test_fork_tag_branch(self) -> None:
+        for tag, branch in (
+            ("op-v2.7.0-0", "op-v2.7.0"),
+            ("op-v2.8.0-rc.1-3", "op-v2.8.0-rc.1"),
+            ("op-1a2b3c4-0", "op-1a2b3c4"),
+        ):
+            with self.subTest(tag=tag):
+                self.assertEqual(mirrors.fork_tag_branch(tag), branch)
+
+    def test_compare_status_retries_then_fails_closed(self) -> None:
+        with (
+            mock.patch.object(
+                mirrors.urllib.request, "urlopen", side_effect=OSError("network down")
+            ) as urlopen,
+            mock.patch.object(mirrors.time, "sleep"),
+        ):
+            with self.assertRaisesRegex(mirrors.ConfigError, "network down"):
+                mirrors.compare_status("ethereum-optimism/reth", "op-v2.7.0-0", "op-v2.7.0")
+        self.assertEqual(urlopen.call_count, 3)
+
+    @unittest.skipUnless(shutil.which("git"), "git is not installed")
+    def test_tracked_lockfiles_finds_nested_locks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "a" / "b").mkdir(parents=True)
+            for rel in ("Cargo.lock", "a/b/Cargo.lock", "untracked.lock"):
+                (root / rel).write_text("")
+            (root / "a" / "Cargo.lock").write_text("")
+            subprocess.run(
+                ["git", "-C", str(root), "add", "Cargo.lock", "a/b/Cargo.lock"], check=True
+            )
+            self.assertEqual(
+                sorted(mirrors.tracked_lockfiles(root)),
+                [root / "Cargo.lock", root / "a/b/Cargo.lock"],
+            )
+
+    @unittest.skipUnless(shutil.which("git"), "git is not installed")
+    def test_check_tag_pin_cli_reads_the_tracked_lockfiles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            cases = (
+                ("rev", "0447ceb", "git+https://github.com/ethereum-optimism/reth?rev=0447ceb", 1),
+                ("tag", "op-v2.7.0-0",
+                 "git+https://github.com/ethereum-optimism/reth?rev=0447ceb", 1),
+                ("tag", "op-v2.7.0-0",
+                 "git+https://github.com/ethereum-optimism/reth?tag=op-v2.7.0-0", 0),
+            )
+            for ref, value, lock_source, code in cases:
+                with self.subTest(ref=ref, lock_source=lock_source):
+                    self.write_pin(root, ref, value, [lock_source])
+                    subprocess.run(["git", "-C", str(root), "add", "Cargo.lock"], check=True)
+                    with (
+                        mock.patch.object(mirrors, "RUST_ROOT", root),
+                        mock.patch.object(mirrors, "compare_status", return_value="identical"),
+                        redirect_stdout(io.StringIO()),
+                        redirect_stderr(io.StringIO()),
+                    ):
+                        self.assertEqual(mirrors.main(["--check-tag-pin"]), code)
 
     def test_reth_pin_compares_complete_revisions(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -310,6 +521,26 @@ class ClassificationTests(unittest.TestCase):
             reth_info=("v2.4.0+op.2", "op-rs/reth"),
         )
         self.assertEqual(mirror.status, "stale")
+
+    def test_reth_fork_tag_statuses(self) -> None:
+        for pin, verified, expected in (
+            ("op-v2.6.0-1", "op-v2.6.0-1", "current"),
+            ("op-v2.6.0-1", "op-v2.6.0-0", "stale"),
+            ("op-v2.6.0-1", "op-v2.6.0-2", "ahead"),
+            ("op-v2.6.0-1", "op-v2.5.2-4", "stale"),
+            ("op-v2.6.0-1", "op-v2.7.0-0", "ahead"),
+            ("op-v2.6.0-1", "v2.6.0", "stale"),
+            ("op-v2.6.0-1", "rev:aef8d3e", "stale"),
+            ("op-1a2b3c4d5e6f-1", "op-1a2b3c4d5e6f-0", "stale"),
+            ("op-1a2b3c4d5e6f-1", "op-1a2b3c4d5e6f-2", "ahead"),
+            ("op-1a2b3c4d5e6f-1", "op-9f8e7d6c5b4a-5", "stale"),
+            ("op-1a2b3c4d5e6f-1", "op-v2.6.0-0", "stale"),
+            ("op-v2.6.0-1", "op-1a2b3c4d5e6f-0", "stale"),
+        ):
+            with self.subTest(pin=pin, verified=verified):
+                mirror = self.mirror(verified, crate="reth")
+                mirrors.classify([mirror], locked={}, reth_info=(pin, "ethereum-optimism/reth"))
+                self.assertEqual(mirror.status, expected)
 
     def test_port_statuses_for_cratesio_and_reth(self) -> None:
         crates_current = self.mirror("41.0.0", kind="port")

@@ -106,8 +106,7 @@ impl BootInfo {
         // `key == keccak256(preimage)`, not the timestamp inside; without this guard a
         // malicious proposer could register a future-timestamped prestate and use it as
         // both starting and disputed claim at trace-extended bisection positions, where
-        // `claim == prestate ⇒ Ok(())` would resolve as `vmStatus = VALID`. Op-program
-        // panics on this condition (see `op-program/client/interop/interop.go:87-97`).
+        // `claim == prestate ⇒ Ok(())` would resolve as `vmStatus = VALID`.
         assert!(
             agreed_pre_state.timestamp() <= l2_claim_block,
             "agreed prestate timestamp {} is after the game timestamp {}",

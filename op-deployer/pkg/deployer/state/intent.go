@@ -34,17 +34,20 @@ var (
 )
 
 type SuperchainProofParams struct {
-	WithdrawalDelaySeconds          uint64      `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
-	MinProposalSizeBytes            uint64      `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
-	ChallengePeriodSeconds          uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
-	ProofMaturityDelaySeconds       uint64      `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
-	DisputeGameFinalityDelaySeconds uint64      `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
-	DisputeMaxGameDepth             uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
-	DisputeSplitDepth               uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
-	DisputeClockExtension           uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
-	DisputeMaxClockDuration         uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
-	MIPSVersion                     uint64      `json:"mipsVersion" toml:"mipsVersion"`
-	DevFeatureBitmap                common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
+	MinProposalSizeBytes               uint64      `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
+	ChallengePeriodSeconds             uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
+	MinProofMaturityDelaySeconds       uint64      `json:"minProofMaturityDelaySeconds" toml:"minProofMaturityDelaySeconds"`
+	MaxProofMaturityDelaySeconds       uint64      `json:"maxProofMaturityDelaySeconds" toml:"maxProofMaturityDelaySeconds"`
+	MinDisputeGameFinalityDelaySeconds uint64      `json:"minDisputeGameFinalityDelaySeconds" toml:"minDisputeGameFinalityDelaySeconds"`
+	MaxDisputeGameFinalityDelaySeconds uint64      `json:"maxDisputeGameFinalityDelaySeconds" toml:"maxDisputeGameFinalityDelaySeconds"`
+	MinWithdrawalDelaySeconds          uint64      `json:"minWithdrawalDelaySeconds" toml:"minWithdrawalDelaySeconds"`
+	MaxWithdrawalDelaySeconds          uint64      `json:"maxWithdrawalDelaySeconds" toml:"maxWithdrawalDelaySeconds"`
+	DisputeMaxGameDepth                uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
+	DisputeSplitDepth                  uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
+	DisputeClockExtension              uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
+	DisputeMaxClockDuration            uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
+	MIPSVersion                        uint64      `json:"mipsVersion" toml:"mipsVersion"`
+	DevFeatureBitmap                   common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
 }
 
 type L1DevGenesisBlockParams struct {
@@ -158,6 +161,10 @@ func (c *Intent) validateCustomConfig() error {
 		if err := chain.Check(); err != nil {
 			return err
 		}
+		// The OPCM migrator rejects hooked chains.
+		if c.UseInterop && chain.GetBridgeHook() != emptyAddress {
+			return fmt.Errorf("%w: bridgeHook is not supported with useInterop, chainId=%s", ErrIncompatibleValue, chain.ID)
+		}
 	}
 
 	return nil
@@ -207,6 +214,9 @@ func (c *Intent) validateStandardValues() error {
 		}
 		if chain.IsCustomGasTokenEnabled() {
 			return fmt.Errorf("%w: chainId=%s custom gas token must be disabled for standard chains", ErrNonStandardValue, chain.ID)
+		}
+		if chain.GetBridgeHook() != emptyAddress {
+			return fmt.Errorf("%w: chainId=%s bridgeHook must be unset for standard chains", ErrNonStandardValue, chain.ID)
 		}
 	}
 

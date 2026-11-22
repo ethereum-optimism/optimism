@@ -20,7 +20,9 @@ EXCLUDED_CONTRACTS=(
 )
 
 github_token() {
-  if [ -n "${GH_TOKEN:-}" ]; then
+  if [ -n "${REPO_GITHUB_TOKEN:-}" ]; then
+    printf '%s' "$REPO_GITHUB_TOKEN"
+  elif [ -n "${GH_TOKEN:-}" ]; then
     printf '%s' "$GH_TOKEN"
   elif [ -n "${GITHUB_TOKEN:-}" ]; then
     printf '%s' "$GITHUB_TOKEN"

@@ -69,8 +69,10 @@ func TestBatcherConcurrentAltDARequests(t *testing.T) {
 	// exceed the number of blocks.
 	checkBlocks := 10
 	for i := 0; i < checkBlocks; i++ {
-		block, err := geth.WaitForBlock(big.NewInt(int64(startingL1BlockNum)+int64(i)), l1Client)
+		header, err := geth.WaitForBlock(big.NewInt(int64(startingL1BlockNum)+int64(i)), l1Client)
 		require.NoError(t, err, "Waiting for l1 blocks")
+		block, err := l1Client.BlockByHash(context.Background(), header.Hash()) //nolint:forbidigo // L1: counts the batcher's transactions
+		require.NoError(t, err)
 		// there are possibly other services (proposer/challenger) in the background sending txs
 		// so we only count the batcher txs
 		batcherTxCount, err := transactions.TransactionsBySender(block, cfg.DeployConfig.BatchSenderAddress)

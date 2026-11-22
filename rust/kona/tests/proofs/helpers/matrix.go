@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -17,6 +18,11 @@ type TestCfg[cfg any] struct {
 	InputParams []FixtureInputParam
 	Custom      cfg
 	Allocs      *e2eutils.AllocParams
+
+	// DependencySetPeers lists other chains that NewL2FaultProofEnv adds to this chain's
+	// dependency set. The chains do not need to exist. A dependency set with more than one chain
+	// makes the Lagoon activation block activate the interop contracts.
+	DependencySetPeers []eth.ChainID
 }
 
 type TestCase[cfg any] struct {

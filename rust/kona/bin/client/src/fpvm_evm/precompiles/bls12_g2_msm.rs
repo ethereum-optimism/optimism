@@ -23,6 +23,9 @@ const BLS12_MAX_G2_MSM_SIZE_ISTHMUS: usize = 488448;
 /// The maximum input size for the BLS12-381 g2 msm operation after the Jovian Hardfork.
 const BLS12_MAX_G2_MSM_SIZE_JOVIAN: usize = 278_784;
 
+/// The maximum input size for the BLS12-381 g2 msm operation after the Lagoon Hardfork.
+const BLS12_MAX_G2_MSM_SIZE_LAGOON: usize = 130_752;
+
 /// Performs an FPVM-accelerated BLS12-381 G2 msm check after the Isthmus Hardfork.
 pub(crate) fn fpvm_bls12_g2_msm<H, O>(
     input: &[u8],
@@ -84,6 +87,27 @@ where
     if input.len() > BLS12_MAX_G2_MSM_SIZE_JOVIAN {
         return Err(PrecompileHalt::Other(
             alloc::format!("G2MSM input length must be at most {BLS12_MAX_G2_MSM_SIZE_JOVIAN}")
+                .into(),
+        ));
+    }
+
+    fpvm_bls12_g2_msm(input, gas_limit, hint_writer, oracle_reader)
+}
+
+/// Performs an FPVM-accelerated BLS12-381 G2 msm check after the Lagoon Hardfork.
+pub(crate) fn fpvm_bls12_g2_msm_lagoon<H, O>(
+    input: &[u8],
+    gas_limit: u64,
+    hint_writer: &H,
+    oracle_reader: &O,
+) -> EthPrecompileResult
+where
+    H: HintWriterClient + Send + Sync,
+    O: PreimageOracleClient + Send + Sync,
+{
+    if input.len() > BLS12_MAX_G2_MSM_SIZE_LAGOON {
+        return Err(PrecompileHalt::Other(
+            alloc::format!("G2MSM input length must be at most {BLS12_MAX_G2_MSM_SIZE_LAGOON}")
                 .into(),
         ));
     }

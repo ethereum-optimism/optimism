@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub(crate) struct ChainMetadata {
     pub chain_id: ChainId,
+    /// Seconds between two L2 blocks.
+    pub block_time: u64,
     pub hardforks: HardforkConfig,
     pub optimism: Option<OptimismConfig>,
 }
@@ -30,12 +32,13 @@ pub(crate) struct HardforkConfig {
     pub isthmus_time: Option<u64>,
     pub jovian_time: Option<u64>,
     pub karst_time: Option<u64>,
+    pub lagoon_time: Option<u64>,
 }
 
 impl HardforkConfig {
     /// Returns the activation time of the given OP hardfork, if scheduled. Forks that have no
-    /// timestamp field in the superchain metadata (Bedrock and Regolith, which predate it, and
-    /// Lagoon) return `None`.
+    /// timestamp field in the superchain metadata (Bedrock and Regolith, which predate it)
+    /// return `None`.
     const fn op_fork_time(&self, fork: OpHardfork) -> Option<u64> {
         match fork {
             OpHardfork::Canyon => self.canyon_time,
@@ -46,6 +49,7 @@ impl HardforkConfig {
             OpHardfork::Isthmus => self.isthmus_time,
             OpHardfork::Jovian => self.jovian_time,
             OpHardfork::Karst => self.karst_time,
+            OpHardfork::Lagoon => self.lagoon_time,
             _ => None,
         }
     }
@@ -90,6 +94,8 @@ pub(crate) struct ChainConfigExtraFields {
     pub jovian_time: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub karst_time: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lagoon_time: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optimism: Option<ChainConfigExtraFieldsOptimism>,
 }
@@ -172,6 +178,7 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
         isthmus_time: chain_config.hardforks.isthmus_time,
         jovian_time: chain_config.hardforks.jovian_time,
         karst_time: chain_config.hardforks.karst_time,
+        lagoon_time: chain_config.hardforks.lagoon_time,
         optimism: chain_config.optimism.as_ref().map(|o| o.into()),
     };
     res.extra_fields =
@@ -183,12 +190,14 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reth_optimism_forks::OpHardforks;
 
     // A non-OP-Mainnet chain (so the OP-Mainnet special-casing in `to_genesis_chain_config` is
     // not exercised); uses Unichain's chain id.
     const GENERIC_CHAIN_METADATA: &str = r#"
     {
       "chain_id": 130,
+      "block_time": 1,
       "hardforks": {
         "canyon_time": 1704992401,
         "delta_time": 1708560000,
@@ -238,6 +247,7 @@ mod tests {
             isthmus_time: Some(1746806401),
             jovian_time: Some(1764691201),
             karst_time: None,
+            lagoon_time: None,
             optimism: Option::from(ChainConfigExtraFieldsOptimism {
                 eip1559_elasticity: 6,
                 eip1559_denominator: 50,
@@ -256,6 +266,7 @@ mod tests {
         assert_eq!(value.get("isthmusTime").unwrap(), 1746806401);
         assert_eq!(value.get("jovianTime").unwrap(), 1764691201);
         assert_eq!(value.get("karstTime"), None);
+        assert_eq!(value.get("lagoonTime"), None);
         let optimism = value.get("optimism").unwrap();
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
         assert_eq!(optimism.get("eip1559Denominator").unwrap(), 50);
@@ -312,6 +323,7 @@ mod tests {
         const OP_CHAIN_METADATA: &str = r#"
         {
           "chain_id": 10,
+          "block_time": 2,
           "hardforks": {
             "canyon_time": 1704992401,
             "delta_time": 1708560000,
@@ -355,5 +367,45 @@ mod tests {
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
         assert_eq!(optimism.get("eip1559Denominator").unwrap(), 50);
         assert_eq!(optimism.get("eip1559DenominatorCanyon").unwrap(), 250);
+    }
+
+    #[test]
+    fn test_lagoon_time_schedules_lagoon() {
+        const LAGOON_CHAIN_METADATA: &str = r#"
+        {
+          "chain_id": 130,
+          "block_time": 1,
+          "hardforks": {
+            "canyon_time": 0,
+            "delta_time": 0,
+            "ecotone_time": 0,
+            "fjord_time": 0,
+            "granite_time": 0,
+            "holocene_time": 0,
+            "isthmus_time": 0,
+            "jovian_time": 0,
+            "karst_time": 0,
+            "lagoon_time": 1800000000
+          },
+          "optimism": {
+            "eip1559_elasticity": 6,
+            "eip1559_denominator": 50,
+            "eip1559_denominator_canyon": 250
+          }
+        }
+        "#;
+        let config: ChainMetadata = serde_json::from_str(LAGOON_CHAIN_METADATA).unwrap();
+        assert_eq!(config.hardforks.lagoon_time, Some(1800000000));
+        let chain_config = to_genesis_chain_config(&config);
+        assert_eq!(chain_config.extra_fields.get("lagoonTime").unwrap(), 1800000000);
+
+        let chain_spec = crate::OpChainSpec::from(alloy_genesis::Genesis {
+            config: chain_config,
+            ..Default::default()
+        });
+        assert_eq!(
+            chain_spec.op_fork_activation(OpHardfork::Lagoon),
+            reth_ethereum_forks::ForkCondition::Timestamp(1800000000)
+        );
     }
 }

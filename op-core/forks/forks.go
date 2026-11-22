@@ -1,6 +1,9 @@
 package forks
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // Name identifies a hardfork by name.
 type Name string
@@ -42,6 +45,10 @@ var All = []Name{
 	Lagoon,
 	// ADD NEW MAINLINE FORKS HERE!
 }
+
+// AllEL lists the mainline forks of [All] that have an execution-layer representation,
+// in chronological order: all but the consensus-layer-only Delta.
+var AllEL = slices.DeleteFunc(slices.Clone(All), func(f Name) bool { return f == Delta })
 
 // AllOpt lists all optional forks in chronological order.
 var AllOpt = []Name{

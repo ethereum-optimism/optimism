@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -54,7 +55,10 @@ type PresetConfig struct {
 	MaxSequencingWindow        *uint64
 	RequireInteropNotAtGen     bool
 	MessageExpiryWindow        *uint64
-	UseInteropFilter           bool
+	// L2ToL2MessageExpiryPeriod, if non-zero, sets the L2ToL2CrossDomainMessenger's expiry period
+	// in every L2 genesis, in seconds. It must exceed MessageExpiryWindow.
+	L2ToL2MessageExpiryPeriod uint64
+	UseInteropFilter          bool
 	// InteropLogBackfillDepth, if non-zero, configures the supernode to backfill
 	// initiating-message logs backward from the tip by this duration at startup.
 	InteropLogBackfillDepth time.Duration
@@ -86,6 +90,10 @@ type PresetConfig struct {
 	// an hour so chain-progression hiccups under CI load cannot flip a healthy
 	// sequencer to unhealthy.
 	ConductorFastHealthChecks bool
+	// AltDAStore, if set, runs the L2 chain on alt-DA with keccak commitments, served by a DA server
+	// that keeps the inputs in this store. Only single-chain runtimes honor it, and they wire only the
+	// batcher and the sequencer node to the DA server.
+	AltDAStore altda.KVStore
 }
 
 func NewPresetConfig() PresetConfig {

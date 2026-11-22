@@ -66,6 +66,9 @@ impl BlockSigner {
 
 impl BlockSignerHandler {
     /// Signs a payload with the signer.
+    ///
+    /// A remote signer retries its transient failures until it succeeds, so any error returned
+    /// here is one that retrying cannot fix. A local signer has no transient failures.
     pub async fn sign_block(
         &self,
         payload_hash: PayloadHash,

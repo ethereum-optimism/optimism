@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -104,7 +105,7 @@ type DisputeSystem interface {
 	RollupCfgs() []*rollup.Config
 	DependencySet() *depset.StaticConfigDependencySet
 	L1Genesis() *core.Genesis
-	L2Geneses() []*core.Genesis
+	L2Geneses() []*opgenesis.Genesis
 
 	AdvanceTime(time.Duration)
 }
@@ -253,7 +254,7 @@ func (h *FactoryHelper) StartSuperCannonGameWithCorrectRoot(ctx context.Context,
 	cfg := NewGameCfg(opts...)
 	b, err := wait.ForNextSafeBlock(ctx, h.Client)
 	require.NoError(h.T, err)
-	l2Timestamp := b.Time()
+	l2Timestamp := b.Time
 	h.WaitForSuperTimestamp(l2Timestamp, cfg)
 	return h.startSuperCannonGameOfType(ctx, l2Timestamp, superCannonKonaGameType, opts...)
 }
@@ -267,9 +268,9 @@ func (h *FactoryHelper) StartSuperCannonGameWithCorrectRootAtTimestamp(ctx conte
 func (h *FactoryHelper) StartSuperCannonGame(ctx context.Context, opts ...GameOpt) *SuperCannonGameHelper {
 	// Can't create a game at L1 genesis!
 	require.NoError(h.T, wait.ForBlock(ctx, h.Client, 1))
-	b, err := h.Client.BlockByNumber(ctx, nil)
+	b, err := h.Client.HeaderByNumber(ctx, nil)
 	require.NoError(h.T, err)
-	return h.startSuperCannonGameOfType(ctx, b.Time(), superCannonKonaGameType, opts...)
+	return h.startSuperCannonGameOfType(ctx, b.Time, superCannonKonaGameType, opts...)
 }
 
 func (h *FactoryHelper) StartSuperCannonGameAtTimestamp(ctx context.Context, timestamp uint64, opts ...GameOpt) *SuperCannonGameHelper {

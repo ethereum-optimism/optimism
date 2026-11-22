@@ -11,16 +11,14 @@
 
 extern crate alloc;
 
-use alloc::sync::Arc;
+use alloc::{string::ToString, sync::Arc};
 use alloy_consensus::{BlockHeader, Header};
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
-use alloy_op_evm::{
-    block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
-    evm_env_for_op_block, evm_env_for_op_next_block,
-};
+use alloy_op_evm::{block::OpTxEnv, evm_env_for_op_block, evm_env_for_op_next_block};
+use alloy_primitives::B256;
 use core::fmt::Debug;
 use op_alloy_consensus::{
-    EIP1559ParamError, OpTransaction as OpConsensusTransaction,
+    EIP1559ParamError, OpTransaction as OpConsensusTransaction, PostExecPayloadValidationError,
     parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
 };
 use op_revm::OpSpecId;
@@ -28,8 +26,8 @@ use reth_chainspec::EthChainSpec;
 use reth_evm::{ConfigureEvm, EvmEnv, eth::NextEvmEnvAttributes, precompiles::PrecompilesMap};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
-use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
+use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
+use reth_primitives_traits::{SealedBlock, SealedHeader};
 use revm::context::BlockEnv;
 
 #[allow(unused_imports)]
@@ -38,7 +36,7 @@ use {
     alloy_primitives::Bytes,
     op_alloy_rpc_types_engine::OpExecutionData,
     reth_evm::{EvmEnvFor, ExecutionCtxFor},
-    reth_primitives_traits::{TxTy, WithEncoded},
+    reth_primitives_traits::{SignedTransaction, TxTy, WithEncoded},
     reth_storage_errors::any::AnyError,
 };
 
@@ -71,7 +69,7 @@ pub use alloy_op_evm::{
     post_exec::{
         NullRefundPolicy, PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecExecutorExt,
         PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind,
-        PostExecRefundPolicyFactory, PostExecTxContext, PostExecTxKind,
+        PostExecRefundPolicyFactory, PostExecTxContext, PostExecTxKind, RevertToCheckpointError,
     },
 };
 
@@ -79,67 +77,84 @@ mod post_exec_ext;
 pub use post_exec_ext::*;
 
 mod sdm_metrics;
+pub use sdm_metrics::report_post_exec_validation_failure;
 
 /// Optimism-related EVM configuration.
-#[derive(Debug)]
-pub struct OpEvmConfig<
-    ChainSpec = OpChainSpec,
-    N: NodePrimitives = OpPrimitives,
-    R = OpRethReceiptBuilder,
-    EvmFactory = OpEvmFactory<OpTx>,
-> {
+#[derive(Debug, Clone)]
+pub struct OpEvmConfig<EvmFactory = OpEvmFactory<OpTx>> {
     /// Inner [`OpBlockExecutorFactory`].
-    pub executor_factory: OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmFactory>,
+    pub executor_factory:
+        OpBlockExecutorFactory<OpRethReceiptBuilder, Arc<OpChainSpec>, EvmFactory>,
     /// Optimism block assembler.
-    pub block_assembler: OpBlockAssembler<ChainSpec>,
-    #[doc(hidden)]
-    pub _pd: core::marker::PhantomData<N>,
+    pub block_assembler: OpBlockAssembler,
 }
 
-impl<ChainSpec, N: NodePrimitives, R: Clone, EvmFactory: Clone> Clone
-    for OpEvmConfig<ChainSpec, N, R, EvmFactory>
-{
-    fn clone(&self) -> Self {
-        Self {
-            executor_factory: self.executor_factory.clone(),
-            block_assembler: self.block_assembler.clone(),
-            _pd: self._pd,
-        }
-    }
-}
-
-impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks> OpEvmConfig<ChainSpec> {
+impl OpEvmConfig {
     /// Creates a new [`OpEvmConfig`] with the given chain spec for OP chains.
-    pub fn optimism(chain_spec: Arc<ChainSpec>) -> Self {
-        Self::new(chain_spec, OpRethReceiptBuilder::default())
+    pub fn optimism(chain_spec: Arc<OpChainSpec>) -> Self {
+        Self::new_with_evm_factory(chain_spec, OpEvmFactory::<OpTx, NullRefundPolicy>::default())
     }
 }
 
-impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory> {
+impl<EvmFactory> OpEvmConfig<EvmFactory> {
     /// Creates a new [`OpEvmConfig`] with an explicit EVM factory.
-    pub fn new_with_evm_factory(
-        chain_spec: Arc<ChainSpec>,
-        receipt_builder: R,
-        evm_factory: EvmFactory,
-    ) -> Self {
+    pub fn new_with_evm_factory(chain_spec: Arc<OpChainSpec>, evm_factory: EvmFactory) -> Self {
+        sdm_metrics::register_sdm_metrics_at_zero();
         Self {
             block_assembler: OpBlockAssembler::new(chain_spec.clone()),
-            executor_factory: OpBlockExecutorFactory::new(receipt_builder, chain_spec, evm_factory),
-            _pd: core::marker::PhantomData,
+            executor_factory: OpBlockExecutorFactory::new(
+                OpRethReceiptBuilder,
+                chain_spec,
+                evm_factory,
+            ),
         }
     }
-}
 
-impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, R>
-    OpEvmConfig<ChainSpec, N, R>
-{
-    /// Creates a new [`OpEvmConfig`] with the given chain spec.
-    pub fn new(chain_spec: Arc<ChainSpec>, receipt_builder: R) -> Self {
-        Self::new_with_evm_factory(
-            chain_spec,
-            receipt_builder,
-            OpEvmFactory::<OpTx, NullRefundPolicy>::default(),
-        )
+    /// Returns the chain spec associated with this configuration.
+    pub const fn chain_spec(&self) -> &Arc<OpChainSpec> {
+        self.executor_factory.spec()
+    }
+
+    /// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
+    ///
+    /// See the free [`is_sdm_active_at_timestamp`] function, which this delegates to.
+    pub fn is_sdm_active_at_timestamp(&self, timestamp: u64) -> bool {
+        crate::is_sdm_active_at_timestamp(self.chain_spec(), timestamp)
+    }
+
+    /// Builds a block execution context with an optional post-exec mode override.
+    pub fn context_for_block_with_post_exec_mode(
+        &self,
+        block: &SealedBlock<OpBlock>,
+        post_exec_mode: Option<PostExecMode>,
+    ) -> OpBlockExecutionCtx {
+        OpBlockExecutionCtx {
+            parent_hash: block.header().parent_hash(),
+            // No parent header on this path to detect fork-activation blocks, so the executor's
+            // check is skipped; the derivation layer enforces the rule instead.
+            no_user_tx_activation_block: false,
+            parent_beacon_block_root: block.header().parent_beacon_block_root(),
+            extra_data: block.header().extra_data().clone(),
+            post_exec_mode: post_exec_mode.unwrap_or_default(),
+        }
+    }
+
+    /// Builds a next-block execution context with the provided post-exec mode.
+    pub fn context_for_next_block_with_post_exec_mode(
+        &self,
+        parent: &SealedHeader,
+        attributes: OpNextBlockEnvAttributes,
+        post_exec_mode: PostExecMode,
+    ) -> OpBlockExecutionCtx {
+        OpBlockExecutionCtx {
+            parent_hash: parent.hash(),
+            no_user_tx_activation_block: self
+                .chain_spec()
+                .is_no_user_tx_activation_block(parent.timestamp(), attributes.timestamp),
+            parent_beacon_block_root: attributes.parent_beacon_block_root,
+            extra_data: attributes.extra_data,
+            post_exec_mode,
+        }
     }
 }
 
@@ -158,113 +173,76 @@ fn post_exec_mode_from_transactions<'a, I, T>(
     transactions: I,
     block_number: u64,
     sdm_active: bool,
-) -> Result<PostExecMode, EIP1559ParamError>
+) -> PostExecMode
 where
     I: IntoIterator<Item = &'a T>,
     T: OpConsensusTransaction + 'a,
 {
-    parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
-        .inspect_err(|error| sdm_metrics::report_post_exec_validation_failure(block_number, *error))
-        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
-        .map(|parsed| {
-            parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
-        })
-}
-
-impl<ChainSpec, N, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory>
-where
-    ChainSpec: OpHardforks,
-    N: NodePrimitives,
-{
-    /// Returns the chain spec associated with this configuration.
-    pub const fn chain_spec(&self) -> &Arc<ChainSpec> {
-        self.executor_factory.spec()
-    }
-
-    /// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
-    ///
-    /// See the free [`is_sdm_active_at_timestamp`] function, which this delegates to.
-    pub fn is_sdm_active_at_timestamp(&self, timestamp: u64) -> bool {
-        crate::is_sdm_active_at_timestamp(self.chain_spec(), timestamp)
-    }
-
-    /// Builds a block execution context with an optional post-exec mode override.
-    pub fn context_for_block_with_post_exec_mode(
-        &self,
-        block: &SealedBlock<N::Block>,
-        post_exec_mode: Option<PostExecMode>,
-    ) -> OpBlockExecutionCtx {
-        OpBlockExecutionCtx {
-            parent_hash: block.header().parent_hash(),
-            // No parent header on this path to detect fork-activation blocks, so the executor's
-            // check is skipped; the derivation layer enforces the rule instead.
-            no_user_tx_activation_block: false,
-            parent_beacon_block_root: block.header().parent_beacon_block_root(),
-            extra_data: block.header().extra_data().clone(),
-            post_exec_mode: post_exec_mode.unwrap_or_default(),
-        }
-    }
-
-    /// Builds a next-block execution context with the provided post-exec mode.
-    pub fn context_for_next_block_with_post_exec_mode(
-        &self,
-        parent: &SealedHeader<N::BlockHeader>,
-        attributes: OpNextBlockEnvAttributes,
-        post_exec_mode: PostExecMode,
-    ) -> OpBlockExecutionCtx {
-        OpBlockExecutionCtx {
-            parent_hash: parent.hash(),
-            no_user_tx_activation_block: self
-                .chain_spec()
-                .is_no_user_tx_activation_block(parent.timestamp(), attributes.timestamp),
-            parent_beacon_block_root: attributes.parent_beacon_block_root,
-            extra_data: attributes.extra_data,
-            post_exec_mode,
+    match parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active) {
+        Ok(parsed) => parsed
+            .inspect(|_| sdm_metrics::report_post_exec_validation_ok())
+            .map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload)),
+        Err(error) => {
+            sdm_metrics::report_post_exec_validation_failure(block_number, error);
+            PostExecMode::Invalid(error.to_string())
         }
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
+/// Runs the encoded-transaction preflight for an Engine API payload; a rejection is counted
+/// under its failed rule before the parse ever runs, so the preflight's reasons reach the same
+/// counters as the parse path's.
+#[cfg(feature = "std")]
+pub(crate) fn preflight_post_exec_payload(
+    transactions: &[Bytes],
+    block_number: u64,
+) -> Result<(), PostExecPayloadValidationError> {
+    validate_post_exec_entry_count(transactions).inspect_err(|error| {
+        sdm_metrics::report_post_exec_validation_failure(block_number, *error);
+    })
+}
+
+/// Runs the encoded-transaction preflight for payload-builder attributes
+/// (`forkchoiceUpdated` with transactions); a rejection is logged against the parent block hash
+/// and counted under the failed rule and as a failed validation.
+pub fn validate_post_exec_attributes(
+    transactions: &[Bytes],
+    parent_hash: B256,
+) -> Result<(), PostExecPayloadValidationError> {
+    validate_post_exec_entry_count(transactions).inspect_err(|error| {
+        sdm_metrics::report_post_exec_attributes_rejection(parent_hash, *error);
+    })
+}
+
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
-impl<ChainSpec, N, R, EvmF> ConfigureEvm for OpEvmConfig<ChainSpec, N, R, EvmF>
+impl<EvmF> ConfigureEvm for OpEvmConfig<EvmF>
 where
-    ChainSpec: EthChainSpec<Header = Header> + OpHardforks,
-    N: NodePrimitives<
-            Receipt = R::Receipt,
-            SignedTx = R::Transaction,
-            BlockHeader = Header,
-            BlockBody = alloy_consensus::BlockBody<R::Transaction>,
-            Block = alloy_consensus::Block<R::Transaction>,
-        >,
-    OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
-    N::SignedTx: OpConsensusTransaction,
-    R: OpReceiptBuilder<
-            Receipt: DepositReceipt,
-            Transaction: SignedTransaction + OpConsensusTransaction,
-        >,
     EvmF: EvmFactory<
-            Tx: FromRecoveredTx<R::Transaction>
-                    + FromTxWithEncoded<R::Transaction>
+            Tx: FromRecoveredTx<OpTransactionSigned>
+                    + FromTxWithEncoded<OpTransactionSigned>
                     + alloy_evm::TransactionEnvMut
                     + OpTxEnv,
             Precompiles = PrecompilesMap,
             Spec = OpSpecId,
             BlockEnv = BlockEnv,
         > + Debug,
-    OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmF>: for<'a> BlockExecutorFactory<
-            EvmFactory = EvmF,
-            ExecutionCtx<'a> = OpBlockExecutionCtx,
-            Transaction = R::Transaction,
-            Receipt = R::Receipt,
-        >,
+    OpBlockExecutorFactory<OpRethReceiptBuilder, Arc<OpChainSpec>, EvmF>:
+        for<'a> BlockExecutorFactory<
+                EvmFactory = EvmF,
+                ExecutionCtx<'a> = OpBlockExecutionCtx,
+                Transaction = OpTransactionSigned,
+                Receipt = OpReceipt,
+            >,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
-    type Primitives = N;
+    type Primitives = OpPrimitives;
     type Error = EIP1559ParamError;
     type NextBlockEnvCtx = OpNextBlockEnvAttributes;
-    type BlockExecutorFactory = OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmF>;
-    type BlockAssembler = OpBlockAssembler<ChainSpec>;
+    type BlockExecutorFactory =
+        OpBlockExecutorFactory<OpRethReceiptBuilder, Arc<OpChainSpec>, EvmF>;
+    type BlockAssembler = OpBlockAssembler;
 
     fn block_executor_factory(&self) -> &Self::BlockExecutorFactory {
         &self.executor_factory
@@ -300,20 +278,20 @@ where
 
     fn context_for_block(
         &self,
-        block: &'_ SealedBlock<N::Block>,
+        block: &'_ SealedBlock<OpBlock>,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
         let post_exec_mode = post_exec_mode_from_transactions(
             block.body().transactions(),
             block.header().number(),
             self.is_sdm_active_at_timestamp(block.header().timestamp()),
-        )?;
+        );
 
         Ok(self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode)))
     }
 
     fn context_for_next_block(
         &self,
-        parent: &SealedHeader<N::BlockHeader>,
+        parent: &SealedHeader,
         attributes: Self::NextBlockEnvCtx,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
         Ok(self.context_for_next_block_with_post_exec_mode(
@@ -324,31 +302,14 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
 /// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through
 /// an optional `SenderRecoveryCache`, which only memoizes `try_recover` and so returns the same
 /// signer.
 #[cfg(feature = "std")]
-impl<ChainSpec, N, R> ConfigureEngineEvm<OpExecutionData> for OpEvmConfig<ChainSpec, N, R>
-where
-    ChainSpec: EthChainSpec<Header = Header> + OpHardforks,
-    N: NodePrimitives<
-            Receipt = R::Receipt,
-            SignedTx = R::Transaction,
-            BlockHeader = Header,
-            BlockBody = alloy_consensus::BlockBody<R::Transaction>,
-            Block = alloy_consensus::Block<R::Transaction>,
-        >,
-    OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
-    N::SignedTx: Decodable2718 + OpConsensusTransaction,
-    R: OpReceiptBuilder<
-            Receipt: DepositReceipt,
-            Transaction: SignedTransaction + OpConsensusTransaction,
-        >,
-    Self: Send + Sync + Unpin + Clone + 'static,
-{
+impl ConfigureEngineEvm<OpExecutionData> for OpEvmConfig {
     fn evm_env_for_payload(
         &self,
         payload: &OpExecutionData,
@@ -364,27 +325,31 @@ where
         &self,
         payload: &'a OpExecutionData,
     ) -> Result<ExecutionCtxFor<'a, Self>, Self::Error> {
-        validate_post_exec_entry_count(payload.payload.transactions())
-            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
-        let transactions = payload
-            .payload
-            .transactions()
-            .iter()
-            .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
-            .collect::<Result<Vec<_>, _>>()
-            .inspect_err(|error| {
-                tracing::warn!(
-                    block_number = payload.payload.block_number(),
-                    %error,
-                    "payload rejected: transaction failed to decode"
-                );
+        let block_number = payload.payload.block_number();
+        let post_exec_mode = preflight_post_exec_payload(payload.payload.transactions(), block_number)
+            .map_err(|error| error.to_string())
+            .and_then(|()| {
+                payload
+                    .payload
+                    .transactions()
+                    .iter()
+                    .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| {
+                        tracing::warn!(block_number, %error, "payload rejected: transaction failed to decode");
+                        // Defensive: the engine's payload-to-block conversion normally reports
+                        // decoding failures first. Use Invalid to retain validation classification
+                        // here even for non-PostExec transactions; the reason identifies the source.
+                        format!("transaction envelope decoding failed: {error}")
+                    })
             })
-            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
-        let post_exec_mode = post_exec_mode_from_transactions(
-            transactions.iter(),
-            payload.payload.block_number(),
-            self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
-        )?;
+            .map_or_else(PostExecMode::Invalid, |transactions| {
+                post_exec_mode_from_transactions(
+                    transactions.iter(),
+                    block_number,
+                    self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
+                )
+            });
 
         Ok(OpBlockExecutionCtx {
             parent_hash: payload.payload.parent_hash(),
@@ -401,10 +366,13 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
-        validate_post_exec_entry_count(payload.payload.transactions())
-            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
+        // Background conversion can start before context_for_payload runs. Keep the raw
+        // entry-count guard here too, but defer errors to iterator items so the execution
+        // context can reject the block with PostExecMode::Invalid.
+        let preflight = validate_post_exec_entry_count(payload.payload.transactions());
         let transactions = payload.payload.transactions().clone();
-        let convert = |encoded: Bytes| {
+        let convert = move |encoded: Bytes| {
+            preflight.map_err(AnyError::new)?;
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
                 .map_err(AnyError::new)?;
             let signer = tx.try_recover().map_err(AnyError::new)?;
@@ -427,6 +395,7 @@ mod tests {
         map::{AddressMap, B256Map, HashMap},
     };
     use op_alloy_consensus::{SDMGasEntry, TxDeposit, build_post_exec_tx};
+    use op_alloy_rpc_types_engine::OpExecutionPayload;
     use op_revm::OpSpecId;
     use reth_chainspec::ChainSpec;
     use reth_evm::execute::ProviderError;
@@ -511,14 +480,13 @@ mod tests {
         })
     }
 
-    // Covers Interop-driven SDM activation for imported blocks: pre-Interop blocks reject 0x7d,
-    // Lagoon-active blocks enter Verify mode, and malformed payload anchors are rejected.
+    // Valid payloads enter Verify mode; parser failures become `Invalid` for the executor.
     #[test]
     fn context_for_block_applies_sdm_post_exec_mode() {
-        let disabled_err = test_evm_config()
+        let disabled_ctx = test_evm_config()
             .context_for_block(&block_with_post_exec_tx(7, 123, 7))
-            .expect_err("SDM disabled rejects 0x7d");
-        assert!(matches!(disabled_err, EIP1559ParamError::InvalidPostExecPayload));
+            .expect("infallible");
+        assert!(matches!(disabled_ctx.post_exec_mode, PostExecMode::Invalid(_)));
 
         let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
         let ctx = evm_config
@@ -530,10 +498,106 @@ mod tests {
         assert_eq!(payload.block_number, 7);
         assert_eq!(payload.gas_refund_entries, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
 
-        let mismatch_err = evm_config
-            .context_for_block(&block_with_post_exec_tx(7, 123, 8))
-            .expect_err("payload block number mismatch is invalid");
-        assert!(matches!(mismatch_err, EIP1559ParamError::InvalidPostExecPayload));
+        let mismatch_ctx =
+            evm_config.context_for_block(&block_with_post_exec_tx(7, 123, 8)).expect("infallible");
+        assert!(matches!(mismatch_ctx.post_exec_mode, PostExecMode::Invalid(_)));
+    }
+
+    #[test]
+    fn context_for_payload_defers_parse_failure() {
+        let block = block_with_post_exec_tx(7, 123, 8).into_block();
+        let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        let execution_data = OpExecutionData::new(payload, sidecar);
+        let context = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0))
+            .context_for_payload(&execution_data)
+            .expect("infallible");
+
+        assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+    }
+
+    #[test]
+    fn context_for_payload_defers_malformed_post_exec_bytes() {
+        let block = block_with_post_exec_tx(7, 123, 7).into_block();
+        let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
+
+        let unsupported_version = op_alloy_consensus::PostExecPayload {
+            version: op_alloy_consensus::POST_EXEC_PAYLOAD_VERSION + 1,
+            block_number: 7,
+            gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+        };
+        let mut encoded_version = vec![op_alloy_consensus::POST_EXEC_TX_TYPE_ID];
+        encoded_version.extend_from_slice(&unsupported_version.to_rlp_bytes());
+        for encoded in [bytes!("7dc0"), encoded_version.into()] {
+            let mut payload = payload.clone();
+            *payload.as_v1_mut().transactions.last_mut().expect("block includes PostExec") =
+                encoded;
+            let execution_data = OpExecutionData::new(payload, sidecar.clone());
+            let context = evm_config.context_for_payload(&execution_data).expect("infallible");
+            assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+            assert!(evm_config.tx_iterator_for_payload(&execution_data).is_ok());
+        }
+    }
+
+    #[test]
+    fn context_for_payload_defers_non_post_exec_decode_failure() {
+        let mut block = block_with_post_exec_tx(7, 123, 7).into_block();
+        block.body.transactions.pop();
+        let (mut payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        payload.as_v1_mut().transactions[0] = bytes!("02c0");
+        let execution_data = OpExecutionData::new(payload, sidecar);
+        let evm_config = test_evm_config();
+        assert!(!evm_config.is_sdm_active_at_timestamp(123));
+
+        let context = evm_config.context_for_payload(&execution_data).expect("infallible");
+        let PostExecMode::Invalid(reason) = context.post_exec_mode else {
+            panic!("expected Invalid mode for an undecodable non-PostExec transaction");
+        };
+        assert!(reason.starts_with("transaction envelope decoding failed: "));
+        assert!(evm_config.tx_iterator_for_payload(&execution_data).is_ok());
+    }
+
+    #[test]
+    fn tx_iterator_for_payload_preflights_post_exec_entries() {
+        use reth_evm::{ConvertTx, ExecutableTxTuple};
+
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
+        for entry_count in [1, 2, 1024] {
+            let mut block = block_with_post_exec_tx(7, 123, 7).into_block();
+            *block.body.transactions.last_mut().unwrap() = OpTransactionSigned::PostExec(
+                build_post_exec_tx(7, vec![SDMGasEntry { index: 0, gas_refund: 1 }; entry_count])
+                    .seal_slow(),
+            );
+            let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+            let execution_data = OpExecutionData::new(payload, sidecar);
+            let context = evm_config.context_for_payload(&execution_data).expect("infallible");
+            let iterator = evm_config
+                .tx_iterator_for_payload(&execution_data)
+                .expect("preflight failures are deferred to iterator items");
+            let (transactions, convert) = iterator.into_parts();
+
+            if entry_count == 1 {
+                assert!(matches!(context.post_exec_mode, PostExecMode::Verify(_)));
+                for encoded in transactions {
+                    assert!(convert.convert(encoded).is_ok());
+                }
+            } else {
+                assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+                // Preflight stops at the first excess entry, so the count is a lower bound.
+                let expected_reason = PostExecPayloadValidationError::TooManyGasRefundEntries {
+                    entry_count: 2,
+                    preceding_transaction_count: 1,
+                }
+                .to_string();
+                // Even the valid deposit must fail preflight: the background converter must
+                // not decode any envelopes from a payload with an oversized refund list.
+                for encoded in transactions {
+                    let error =
+                        convert.convert(encoded).err().expect("preflight rejects conversion");
+                    assert_eq!(error.to_string(), expected_reason);
+                }
+            }
+        }
     }
 
     #[test]

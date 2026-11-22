@@ -6,6 +6,7 @@ import { VmSafe } from "forge-std/Vm.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { MockSP1Verifier } from "test/dispute/zk/MockSP1Verifier.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
@@ -39,6 +40,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
@@ -150,8 +152,12 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy all L1 contracts and write the state diff to a file.
-    ///         Used to generate kontrol tests.
+    ///         Used to generate kontrol tests. The dev chain has no SP1 verifier, so it uses the
+    ///         accept-all MockSP1Verifier.
     function runWithStateDiff() public stateDiff {
+        vm.broadcast(msg.sender);
+        MockSP1Verifier sp1Verifier = new MockSP1Verifier();
+        cfg.setSP1Verifier(address(sp1Verifier));
         _run({ _needsSuperchain: true });
     }
 
@@ -254,11 +260,14 @@ contract Deploy is Deployer {
 
         DeployImplementations.Output memory dio = di.run(
             DeployImplementations.Input({
-                withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+                minWithdrawalDelaySeconds: cfg.minWithdrawalDelaySeconds(),
+                maxWithdrawalDelaySeconds: cfg.maxWithdrawalDelaySeconds(),
                 minProposalSizeBytes: cfg.preimageOracleMinProposalSize(),
                 challengePeriodSeconds: cfg.preimageOracleChallengePeriod(),
-                proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-                disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+                minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+                maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds(),
+                minDisputeGameFinalityDelaySeconds: cfg.minDisputeGameFinalityDelaySeconds(),
+                maxDisputeGameFinalityDelaySeconds: cfg.maxDisputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 devFeatureBitmap: cfg.devFeatureBitmap(),
                 faultGameV2MaxGameDepth: cfg.faultGameV2MaxGameDepth(),
@@ -280,9 +289,7 @@ contract Deploy is Deployer {
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
         artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameImpl));
-        if (address(dio.sp1PlonkAdapterSingleton) != address(0)) {
-            artifacts.save("SP1PlonkAdapter", address(dio.sp1PlonkAdapterSingleton));
-        }
+        artifacts.save("SP1PlonkAdapter", address(dio.sp1PlonkAdapterSingleton));
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
@@ -294,7 +301,10 @@ contract Deploy is Deployer {
             _contracts: impls,
             _superchainConfig: superchainConfigProxy,
             _opChainProxyAdminOwner: cfg.finalSystemOwner(),
-            _isProxy: false
+            _isProxy: false,
+            _minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+            _maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds(),
+            _bridgeHook: address(0)
         });
         ChainAssertions.checkETHLockboxImpl(
             IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
@@ -310,7 +320,9 @@ contract Deploy is Deployer {
         ChainAssertions.checkDisputeGameFactory(
             IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, permGameType
         );
-        ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
+        ChainAssertions.checkDelayedWETHImpl(
+            IDelayedWETH(payable(impls.DelayedWETH)), cfg.minWithdrawalDelaySeconds(), cfg.maxWithdrawalDelaySeconds()
+        );
         ChainAssertions.checkMIPS({
             _mips: IMIPS64(address(dio.mipsSingleton)), _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
@@ -322,7 +334,9 @@ contract Deploy is Deployer {
             IAnchorStateRegistry(impls.AnchorStateRegistry),
             false,
             GameType.wrap(0),
-            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+            cfg.minDisputeGameFinalityDelaySeconds(),
+            cfg.maxDisputeGameFinalityDelaySeconds()
         );
     }
 
@@ -443,7 +457,11 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 
@@ -509,7 +527,11 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 }

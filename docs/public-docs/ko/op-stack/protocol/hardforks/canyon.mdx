@@ -1,0 +1,44 @@
+---
+title: Canyon
+description: L1의 Shapella 업그레이드를 OP Stack에 도입한 Canyon 네트워크 업그레이드의 하드포크 레지스트리 항목입니다.
+diataxis: reference
+hardfork_name: canyon
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/canyon/overview.html
+hardfork_activation_mainnet: 1704992401
+hardfork_activation_sepolia: 1699981200
+hardfork_governance: https://gov.optimism.io/t/final-upgrade-proposal-2-canyon-network-upgrade/7088
+---
+
+import CanyonFacts from "/ko/snippets/generated/hardforks/canyon.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="이 업그레이드"
+  title="Canyon 명세"
+  href="https://specs.optimism.io/protocol/canyon/overview.html"
+  note="이 페이지는 활성화 데이터와 운영 관련 참고 정보를 기록하며, 명세의 내용을 다시 서술하지 않습니다."
+/>
+
+Canyon은 사소한 프로토콜 수정과 함께 Ethereum의 Shapella 업그레이드를 OP Stack에
+도입했습니다.
+
+<CanyonFacts />
+
+## 변경 사항
+
+[명세 개요](https://specs.optimism.io/protocol/canyon/overview.html)에 따른 변경 사항은 다음과 같습니다.
+
+*   L2에 Shapella EIP 적용: [EIP-3651](https://eips.ethereum.org/EIPS/eip-3651)
+    (warm COINBASE), [EIP-3855](https://eips.ethereum.org/EIPS/eip-3855)
+    (`PUSH0`), [EIP-3860](https://eips.ethereum.org/EIPS/eip-3860)(initcode
+    제한 및 측정), [EIP-4895](https://eips.ethereum.org/EIPS/eip-4895)
+    (withdrawals 연산, L2에서는 빈 배열로 설정),
+    [EIP-6049](https://eips.ethereum.org/EIPS/eip-6049)(`SELFDESTRUCT`
+    지원 중단 예고).
+*   EIP-1559 분모(denominator)를 수정했습니다.
+*   입금(디파짓) receipt 해시에 deposit nonce와 deposit nonce 버전을
+    추가했습니다.
+*   `create2Deployer` predeploy를
+    `0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2`에 배포했습니다.
+*   합의 계층: channel 순서 수정.

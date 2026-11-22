@@ -2,10 +2,9 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/setup/DisputeGameFactoryTestInit.sol";
 
 // Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import {
     BondDistributionMode,
     Claim,
@@ -103,7 +102,6 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
         // Get anchor state to calculate valid sequence numbers
         (, anchorL2SequenceNumber) = anchorStateRegistry.getAnchorRoot();
@@ -530,6 +528,75 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
 
         // The game was created while its game type was NOT respected.
         assertFalse(notRespectedGame.wasRespectedGameTypeWhenCreated());
+    }
+
+    /// @notice A respected child cannot use an unrespected parent, even after retirement.
+    function testFuzz_initialize_parentNotRespected_reverts(bool _retireGames, bool _resolveParent) public {
+        vm.startPrank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GameType.wrap(250));
+        if (_retireGames) anchorStateRegistry.updateRetirementTimestamp();
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1);
+
+        vm.startPrank(proposer);
+        vm.deal(proposer, 2 ether);
+        ZKDisputeGame unrespectedParent = _createZKGame(
+            type(uint32).max, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("unrespected-parent")
+        );
+        uint32 unrespectedParentIndex = uint32(disputeGameFactory.gameCount() - 1);
+        vm.stopPrank();
+        assertFalse(unrespectedParent.wasRespectedGameTypeWhenCreated());
+        assertFalse(anchorStateRegistry.isGameRetired(IDisputeGame(address(unrespectedParent))));
+
+        if (_resolveParent) {
+            (,,,, Timestamp deadline,) = unrespectedParent.claimData();
+            vm.warp(deadline.raw() + 1);
+            unrespectedParent.resolve();
+            assertEq(uint8(unrespectedParent.status()), uint8(GameStatus.DEFENDER_WINS));
+        }
+
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(gameType);
+
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
+            unrespectedParentIndex, uint64(childL2SequenceNumber + grandchildOffset2), keccak256("respected-child")
+        );
+        vm.prank(proposer);
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
+
+        vm.startPrank(proposer);
+        ZKDisputeGame anchorGame = _createZKGame(
+            type(uint32).max, uint64(childL2SequenceNumber + grandchildOffset2), keccak256("respected-from-anchor")
+        );
+        vm.stopPrank();
+        assertTrue(anchorGame.wasRespectedGameTypeWhenCreated());
+        (Hash anchorRoot, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
+        assertEq(anchorGame.startingRootHash().raw(), anchorRoot.raw());
+        assertEq(anchorGame.startingSequenceNumber(), anchorSeqNum);
+    }
+
+    /// @notice Unrespected children can continue an unrespected proposal chain.
+    function test_initialize_unrespectedParentAndChild_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GameType.wrap(250));
+
+        vm.startPrank(proposer);
+        vm.deal(proposer, 2 ether);
+        ZKDisputeGame unrespectedParent = _createZKGame(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("unrespected-parent")
+        );
+        uint32 unrespectedParentIndex = uint32(disputeGameFactory.gameCount() - 1);
+        ZKDisputeGame unrespectedChild = _createZKGame(
+            unrespectedParentIndex, uint64(childL2SequenceNumber + grandchildOffset2), keccak256("unrespected-child")
+        );
+        vm.stopPrank();
+
+        assertFalse(unrespectedParent.wasRespectedGameTypeWhenCreated());
+        assertFalse(unrespectedChild.wasRespectedGameTypeWhenCreated());
+        assertEq(unrespectedChild.parentIndex(), unrespectedParentIndex);
+        assertEq(unrespectedChild.startingRootHash().raw(), unrespectedParent.rootClaim().raw());
+        assertEq(unrespectedChild.startingSequenceNumber(), unrespectedParent.l2SequenceNumber());
     }
 
     function test_initialize_invalidCalldataSize_reverts() public {

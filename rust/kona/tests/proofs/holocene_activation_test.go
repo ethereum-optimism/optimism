@@ -29,9 +29,9 @@ func TestHoloceneActivation(gt *testing.T) {
 		// Build the L2 chain until the Holocene activation time,
 		// which for the Execution Engine is an L2 block timestamp
 		// https://specs.optimism.io/protocol/holocene/exec-engine.html?highlight=holocene#timestamp-activation
-		for env.Engine.L2Chain().CurrentBlock().Time < *env.Sequencer.RollupCfg.HoloceneTime {
-			b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-			require.Equal(t, "", string(b.Extra()), "extra data should be empty before Holocene activation")
+		for env.Engine.LatestHeader(t).Time < *env.Sequencer.RollupCfg.HoloceneTime {
+			b := env.Engine.HeaderByHash(t, env.Sequencer.L2Unsafe().Hash)
+			require.Equal(t, "", string(b.Extra), "extra data should be empty before Holocene activation")
 			env.Sequencer.ActL2StartBlock(t)
 			// Send an L2 tx
 			env.Alice.L2.ActResetTxOpts(t)
@@ -41,8 +41,8 @@ func TestHoloceneActivation(gt *testing.T) {
 			env.Sequencer.ActL2EndBlock(t)
 			t.Log("Unsafe block with timestamp %d", b.Time)
 		}
-		b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-		require.Len(t, b.Extra(), 9, "extra data should be 9 bytes after Holocene activation")
+		b := env.Engine.HeaderByHash(t, env.Sequencer.L2Unsafe().Hash)
+		require.Len(t, b.Extra, 9, "extra data should be 9 bytes after Holocene activation")
 
 		// Build up a local list of frames
 		orderedFrames := make([][]byte, 0, 1)

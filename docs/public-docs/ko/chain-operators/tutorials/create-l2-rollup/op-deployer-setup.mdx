@@ -1,0 +1,437 @@
+---
+title: op-deployer로 L1 컨트랙트 배포
+description: op-deployer를 설치하고, 환경을 준비하고, rollup을 위한 L1 스마트 컨트랙트를 배포합니다.
+diataxis: tutorial
+---
+
+나만의 L2 rollup testnet 만들기의 첫 번째 단계에 오신 것을 환영합니다! 이 섹션에서는 op-deployer 도구를 설치하고 rollup에 필요한 L1 스마트 컨트랙트를 배포합니다.
+
+<Info>
+  **5단계 중 1단계**: 이 튜토리얼은 단계별로 따라 하도록 설계되었습니다. 각 단계는 이전 단계를 기반으로 합니다.
+</Info>
+
+<Info>
+  **빠른 설정 제공**
+
+  op-deployer 배포를 포함한 완전한 자동 설정은 [`code/`](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/) 디렉터리를 확인하십시오. 자동 설정은 모든 컨트랙트 배포와 구성을 자동으로 처리합니다.
+</Info>
+
+## op-deployer 소개 {#about-op-deployer}
+
+`op-deployer`는 OP Stack 배포 과정을 단순화합니다. "**intent**"라는 선언적 구성 파일을 정의한 다음 명령을 실행하여 이를 적용합니다. `op-deployer`는 체인의 현재 상태를 intent와 비교하고 일치하도록 필요한 변경을 수행합니다.
+
+## 설치 {#installation}
+
+`op-deployer`를 설치하는 방법은 몇 가지가 있습니다.
+
+<Tabs>
+  <Tab title="바이너리 사용">
+    `op-deployer`를 설치하는 권장 방법은 모노레포의 [릴리스 페이지](https://github.com/ethereum-optimism/optimism/releases)에서 최신 릴리스를 다운로드하는 것입니다.
+
+    <Info>
+      **빠른 설정 제공**
+
+      자동 설치를 위해 [코드 디렉터리](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/)의 다운로드 스크립트를 사용할 수 있습니다. 이 스크립트는 시스템에 맞는 최신 버전을 자동으로 다운로드합니다.
+    </Info>
+
+    <Steps>
+    <Step title="올바른 바이너리 다운로드">
+      1.  [릴리스 페이지](https://github.com/ethereum-optimism/optimism/releases)로 이동합니다.
+      2.  `op-deployer`가 포함된 **최신** 릴리스를 찾습니다(`op-deployer/v*` 태그가 붙은 릴리스를 찾으십시오).
+      3.  **assets**에서 시스템에 맞는 바이너리를 다운로드합니다.
+
+      *   Linux: `op-deployer-linux-amd64`
+      *   macOS:
+          *   Apple Silicon(M1/M2): `op-deployer-darwin-arm64`
+          *   Intel 프로세서: `op-deployer-darwin-amd64`
+
+      <Info>
+        최신 기능과 버그 수정을 반영하려면 **항상 최신 버전을 다운로드하십시오**.
+      </Info>
+
+      <Info>
+        어떤 macOS 버전을 사용해야 할지 모르겠습니까?
+
+        *   터미널을 열고 `uname -m`을 실행합니다.
+        *   `arm64`가 표시되면 arm64 버전을 사용합니다.
+        *   `x86_64`가 표시되면 amd64 버전을 사용합니다.
+      </Info>
+      </Step>
+
+      <Step title="deployer 디렉터리 생성 및 바이너리 설치">
+
+      1.  rollup 디렉터리 구조를 생성하고 deployer 디렉터리로 이동합니다.
+
+      ```bash
+      # Create main rollup directory
+      mkdir rollup && cd rollup
+
+      # Create and enter the deployer directory
+      mkdir deployer && cd deployer
+      ```
+
+      이제 디렉터리 구조는 다음과 같습니다.
+      ```bash
+      rollup/
+      └── deployer/    # You are here
+      ```
+
+      2.  다운로드한 바이너리를 이동하고 이름을 변경합니다.
+
+      <Info>
+        다운로드한 파일은 일반적으로 다운로드 폴더에 있습니다.
+
+        *   macOS/Linux: `/Users/YOUR_USERNAME/Downloads`
+        *   Windows WSL: `/mnt/c/Users/YOUR_USERNAME/Downloads`
+      </Info>
+
+      ```bash
+      # Step 1: Extract the downloaded archive in the deployer directory
+      # Replace FILENAME with the actual downloaded file name (includes version and arch)
+      tar -xvzf /Users/USERNAME/Downloads/FILENAME.tar.gz
+
+      # Step 2: Make the binary executable
+      # Replace FILENAME with the extracted binary name
+      chmod +x FILENAME
+
+      # Step 3: Remove macOS quarantine attribute (fixes "can't be opened" warning)
+      sudo xattr -dr com.apple.quarantine FILENAME
+
+      # Step 4: Move the binary to your PATH
+      # For Intel Macs:
+      sudo mv FILENAME /usr/local/bin/op-deployer
+      # For Apple Silicon Macs:
+      sudo mv FILENAME /opt/homebrew/bin/op-deployer
+
+      # Step 5: Verify installation (should print version info)
+      op-deployer --version
+      ```
+
+      <Info>
+        **팁**: 수동 버전 관리를 피하려면 [코드 디렉터리](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/)의 자동 다운로드 스크립트를 사용하십시오. 플랫폼을 자동으로 감지하여 최신 버전을 다운로드합니다.
+      </Info>
+      </Step>
+    
+    </Steps>
+  </Tab>
+
+  <Tab title="소스에서 빌드">
+    소스에서 설치하려면 [Go](https://go.dev/doc/install), `just`, `git`이 필요합니다.
+    모두 설치한 후 다음을 실행합니다.
+
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git # you can skip this if you already have the repo
+    cd optimism/op-deployer
+    just build
+    cp ./bin/op-deployer /usr/local/bin/op-deployer # or any other directory in your $PATH
+
+    # Verify installation
+    op-deployer --version
+    ```
+  </Tab>
+</Tabs>
+
+## L1 네트워크 요구 사항 {#l1-network-requirements}
+
+L1 컨트랙트를 배포하기 전에 다음이 필요합니다.
+
+**L1 RPC URL**: 선택한 L1 네트워크의 Ethereum RPC 엔드포인트
+
+    ```bash
+    # Examples:
+    # Sepolia (recommended for testing)
+    L1_RPC_URL=https://sepolia.infura.io/v3/YOUR-PROJECT-ID
+    # or https://eth-sepolia.g.alchemy.com/v2/YOUR-API-KEY
+
+    # Local network
+    L1_RPC_URL=http://localhost:8545
+    ```
+
+    <Info>
+      테스트에는 Sepolia testnet 사용을 권장합니다. 다음에서 무료 RPC 접근 권한을 얻을 수 있습니다.
+
+      *   [Infura](https://infura.io)(계정 생성 후 API 키 발급)
+      *   [Alchemy](https://alchemy.com)(계정 생성 후 API 키 발급)
+      *   [Ankr](https://ankr.com)(계정 생성 후 API 키 발급)
+    </Info>
+
+## 배포 주소 생성 {#generate-deployment-addresses}
+
+rollup에는 여러 역할을 위한 여러 주소가 필요합니다. 먼저 주소를 생성합니다.
+
+<Steps>
+<Step title="주소 디렉터리 생성">
+
+  ```bash
+  # Create a address directory inside the deployer directory
+  mkdir -p address
+  cd address
+  ```
+
+  이제 디렉터리 구조는 다음과 같습니다.
+  ```bash
+  rollup/
+  └── deployer/
+      └── address/    # You are here
+  ```
+
+      </Step>
+
+      <Step title="각 역할의 주소 생성">
+
+  ```bash
+  # Generate 8 new wallet addresses
+  for role in admin base_Fee_Vault_Recipient l1_Fee_Vault_Recipient sequencer_Fee_Vault_Recipient system_config unsafe_block_signer batcher proposer ; do
+      wallet_output=$(cast wallet new)
+      echo "$wallet_output" | grep "Address:" | awk '{print $2}' > ${role}_address.txt
+      echo "Created wallet for $role"
+  done
+  ```
+
+  이 명령은 intent 파일에 사용할 여러 주소를 현재 디렉터리의 파일에 저장합니다. 나중에 확인하려면 `cat *_address.txt`를 사용하십시오.
+
+      </Step>
+    </Steps>
+
+<Info>
+  **중요**:
+
+  *   이 주소들을 저장해 두십시오. 체인을 운영하는 데 필요합니다.
+  *   테스트 목적으로는 어떤 주소든 사용할 수 있지만, 프로덕션에서는 적절한 키 관리 솔루션(HSM, 멀티시그 주소)을 사용하십시오.
+  
+</Info>
+
+## intent 파일 생성 및 구성 {#create-and-configure-intent-file}
+
+intent 파일은 체인의 구성을 정의합니다.
+
+<Steps>
+<Step title="intent 파일 초기화">
+
+  `deployer` 폴더 안에서 다음 명령을 실행합니다.
+
+  ```bash
+  #You can use a 2-7 digit random number for your `<YOUR_CHAIN_ID>` 
+  op-deployer init \
+    --l1-chain-id 11155111 \
+    --l2-chain-ids <YOUR_CHAIN_ID> \
+    --workdir .deployer \
+    --intent-type standard-overrides
+  ```
+
+
+  <Accordion title="intent 유형 이해하기">
+
+    `op-deployer`는 세 가지 intent 유형을 지원합니다.
+
+    *   `standard`: 기본 OP Stack 구성을 사용하며 사용자 지정을 최소화합니다.
+    *   `standard-overrides`: 권장됩니다. 기본값을 사용하되 특정 값을 재정의할 수 있습니다.
+    *   `custom`: 완전한 사용자 지정이 가능하며 모든 값을 수동으로 구성해야 합니다.
+
+    대부분의 사용자에게는 `standard-overrides`가 단순성과 유연성의 균형이 가장 좋습니다.
+  </Accordion>
+
+      </Step>
+
+      <Step title="intent 파일 업데이트">
+
+  생성한 주소로 `.deployer/intent.toml`을 편집합니다. `op-deployer init` 명령은 이 파일을 적절한 기본값으로 자동으로 채웁니다. 자동 생성된 컨트랙트 locator 값은 유지하면서 주소를 업데이트하십시오.
+
+  ```toml
+  configType = "standard-overrides"
+  l1ChainID = 11155111  # Sepolia
+  fundDevAccounts = false  # Set to false for production/testnet
+  useInterop = false
+  opcmAddress = "0x3bb6437aba031afbf9cb3538fa064161e2bf2d78"  # OPCM contract address on Sepolia
+
+  # Contract locators - REQUIRED fields, automatically populated by op-deployer init
+  # Keep these default values: op-deployer runs only the contracts release that it embeds
+  l1ContractsLocator = "embedded"
+  l2ContractsLocator = "embedded"
+
+  # Shared contract roles - only define if creating a standalone chain not part of the OP Stack ecosystem
+  # For standard OP Stack deployments, these are predefined and should not be set
+  # [superchainRoles]
+  #   proxyAdminOwner = "0x..."     # admin address
+  #   guardian = "0x..."            # admin address
+
+  [[chains]]
+    id = "0x000000000000000000000000000000000000000000000000000000000016de8d"
+    baseFeeVaultRecipient = "0x..."       # receives base fees
+    l1FeeVaultRecipient = "0x..."         # receives L1 data fees
+    sequencerFeeVaultRecipient = "0x..."  # receives priority fees (tips)
+    operatorFeeVaultRecipient = "0x..."   # receives operator fees
+    eip1559DenominatorCanyon = 250
+    eip1559Denominator = 50
+    eip1559Elasticity = 6
+    [chains.roles]
+      l1ProxyAdminOwner = "0x1eb2ffc903729a0f03966b917003800b145f56e2"
+      l2ProxyAdminOwner = "0x2fc3ffc903729a0f03966b917003800b145f67f3"
+      systemConfigOwner = "0x..."      # system_config address
+      unsafeBlockSigner = "0x..."      # unsafe_block_signer address
+      batcher = "0x..."               # batcher address
+      proposer = "0x..."              # proposer address
+      challenger = "0xfd1d2e729ae8eee2e146c033bf4400fe75284301"
+  ```
+
+  <Accordion title="구성 값 이해하기">
+
+    **전역 설정:**
+
+    *   `l1ChainID`: L1 네트워크 ID(Sepolia는 11155111)
+    *   `fundDevAccounts`: true이면 ETH가 있는 테스트 계정을 생성합니다(프로덕션에서는 false로 설정).
+    *   `useInterop`: 상호운용성(interoperability) 기능을 활성화합니다(표준 배포에서는 false).
+    *   `opcmAddress`: L1 네트워크의 OP Contracts Manager(OPCM) 컨트랙트 주소(지원되는 네트워크에서는 자동으로 채워짐)
+
+    **컨트랙트 Locator(필수):**
+
+    이 필드는 **필수**이며, `op-deployer init`이 사용 중인 `op-deployer` 버전과 호환되는 기본값으로 자동으로 채웁니다.
+    이 필드를 제거하면 "Application failed: L1ContractsLocator undefined" 오류가 발생합니다.
+    특별히 다른 컨트랙트 버전이 필요하지 않다면 자동 생성된 값을 유지하십시오.
+    버전 호환성에 대한 자세한 내용은 [op-deployer 릴리스 노트](https://github.com/ethereum-optimism/optimism/releases)를 참조하십시오.
+    
+
+    **공유 컨트랙트 역할(고급):**
+
+    표준 OP Stack 배포에서는 공유 컨트랙트 역할이 프로토콜에 의해 미리 정의되므로 이 항목은 주석 처리되어 있습니다. OP Stack 생태계에 속하지 않는 독립형 체인을 만드는 경우에만 주석을 해제하고 사용자 지정 역할을 정의하십시오.
+
+    **체인 구성:**
+
+    *   `id`: 체인의 고유 식별자
+    *   `*FeeVaultRecipient`: 프로토콜 수수료를 받는 주소(필수 — 하나라도 0 주소로 설정되면 배포가 실패합니다). 각 vault에 대한 자세한 내용은 [fee vault](/ko/op-stack/transactions/fee-vaults)를 참조하십시오.
+    *   `eip1559*`: 동적 gas 가격 계산을 위한 매개변수
+
+    **Fee Vault 선택적 재정의:**
+
+    각 vault는 배포 재정의(deploy overrides)를 통해 설정할 수 있는 선택적 매개변수도 지원합니다. 지정하지 않으면 다음 기본값이 적용됩니다.
+
+    | 매개변수 | 기본값 |
+    |-----------|---------|
+    | `*MinimumWithdrawalAmount` | 10 ETH |
+    | `*WithdrawalNetwork` | `local` (L2) |
+
+    **체인 역할:**
+
+    *   `l1ProxyAdminOwner`: L1 컨트랙트 구현을 업그레이드할 수 있습니다(일반적으로 superchain proxyAdminOwner와 동일).
+    *   `l2ProxyAdminOwner`: L2 컨트랙트 구현을 업그레이드할 수 있습니다.
+    *   `systemConfigOwner`: 시스템 구성 매개변수를 관리합니다.
+    *   `unsafeBlockSigner`: 사전 확인(pre-confirmation) 블록에 서명합니다(batcher와 동일해도 됨).
+    *   `batcher`: L2 트랜잭션 배치를 L1에 제출합니다.
+    *   `proposer`: 검증을 위해 L2 상태 루트를 L1에 제출합니다.
+    *   `challenger`: 분쟁 게임(dispute game)을 모니터링하고 유효한 상태를 방어합니다.
+  </Accordion>
+
+      </Step>
+    </Steps>
+
+<Info>
+  모든 `0x...`를 `addresses.txt` 파일의 실제 주소로 바꾸십시오.
+  프로덕션 또는 공개 testnet에서는 절대로 기본 테스트 니모닉 주소를 사용하지 마십시오!
+</Info>
+
+## 환경 파일 생성 {#create-environment-file}
+
+배포하기 전에 환경 변수를 저장할 `.env` 파일을 `deployer` 디렉터리에 생성합니다.
+
+```bash
+# Create .env file
+cat << 'EOF' > .env
+# Your L1 RPC URL (e.g., from Alchemy, Infura)
+L1_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
+
+# Private key for deployment.
+# Get this from your self-custody wallet, like Metamask.
+PRIVATE_KEY=WALLET_PRIVATE_KEY
+EOF
+```
+
+<Info>
+  `.env` 파일을 버전 관리 시스템에 커밋하지 마십시오. `.gitignore`에 추가하십시오.
+
+  ```bash
+  echo ".env" >> .gitignore
+  ```
+</Info>
+
+환경 변수를 로드합니다.
+
+```bash
+source .env
+```
+
+## L1 컨트랙트 배포 {#deploy-l1-contracts}
+
+intent 파일과 환경 변수가 구성되었으므로 이제 L1 컨트랙트를 배포합니다.
+
+```bash
+op-deployer apply \
+  --workdir .deployer \
+  --l1-rpc-url $L1_RPC_URL \
+  --private-key $PRIVATE_KEY
+```
+
+이 명령은 다음을 수행합니다.
+
+1.  필요한 모든 L1 컨트랙트를 배포합니다.
+2.  intent 파일에 따라 컨트랙트를 구성합니다.
+3.  배포 정보를 `.deployer/state.json`에 저장합니다.
+
+<Info>
+  배포에는 10-15초가 걸릴 수 있으며 여러 트랜잭션이 필요합니다.
+</Info>
+
+## 체인 구성 생성 {#generate-chain-configuration}
+
+배포가 성공하면 체인 구성 파일을 생성합니다.
+
+```bash
+# Generate genesis and rollup configs
+op-deployer inspect genesis --workdir .deployer <YOUR_CHAIN_ID> > .deployer/genesis.json
+op-deployer inspect rollup --workdir .deployer <YOUR_CHAIN_ID> > .deployer/rollup.json
+```
+
+## 다음 단계 {#what’s-next}
+
+훌륭합니다! 다음 작업을 성공적으로 완료했습니다.
+
+1.  `op-deployer`를 설치하고 `init` 및 `apply` 명령을 사용했습니다.
+2.  intent 파일을 생성하고 구성했습니다.
+3.  L1 스마트 컨트랙트를 배포했습니다.
+4.  체인 아티팩트를 생성했습니다.
+
+최종 디렉터리 구조는 다음과 같아야 합니다.
+```bash
+rollup/
+└── deployer/
+    ├── .deployer/           # Contains deployment state and configs
+    │   ├── genesis.json     # L2 genesis configuration
+    │   ├── intent.toml      # Your chain configuration
+    │   ├── rollup.json      # Rollup configuration
+    │   └── state.json       # Deployment state
+    ├── .env                 # Environment variables
+    └── address/             # Generated address pairs
+        ├── admin_address.txt
+        ├── base_Fee_Vault_Recipient_address.txt
+        ├── batcher_address.txt
+        ├── l1_Fee_Vault_Recipient_address.txt
+        ├── proposer_address.txt
+        ├── sequencer_Fee_Vault_Recipient_address.txt
+        ├── system_config_address.txt
+        └── unsafe_block_signer_address.txt
+
+```
+
+이제 sequencer node 설정으로 넘어갈 수 있습니다.
+
+<Card title="sequencer 실행 →" href="./op-reth-setup">
+  **다음**: rollup의 실행 레이어와 합의 레이어의 필수 구성 요소인 op-reth와 op-node를 설정합니다.
+</Card>
+
+***
+
+## 도움이 필요하신가요? {#need-help}
+
+*   **op-deployer 문서**: [op-deployer 개요](/ko/chain-operators/tools/op-deployer/overview)
+*   **op-deployer 저장소**: [GitHub](https://github.com/ethereum-optimism/optimism/tree/develop/op-deployer)
+*   **OPCM 문서**: [OP Contracts Manager](/ko/chain-operators/reference/opcm)
+*   **지원**: [Optimism 모노레포](https://github.com/ethereum-optimism/optimism/issues)에 이슈를 등록하십시오.

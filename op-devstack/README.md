@@ -42,7 +42,7 @@ Available components:
   - `L1ELNode`: L1 execution-layer node, like geth or reth.
   - `L1CLNode`: L1 consensus-layer node. A full beacon node or a mock consensus replacement for testing.
 - `L2Network`: a L2 chain configuration and registered L2 components
-  - `L2ELNode`: L2 execution-engine, like op-geth or op-reth
+  - `L2ELNode`: L2 execution-engine: op-reth, or the op-sync-tester mock
   - `L2CLNode`: op-node service, or equivalent
   - `L2Batcher`: op-batcher, or equivalent
   - `L2Proposer`: op-proposer, or equivalent
@@ -103,15 +103,17 @@ and returns a typed output that the test then may use.
 - `DEVNET_EXPECT_PRECONDITIONS_MET`: This can be set of force test failures when their pre-conditions are not met, which would otherwise result in them being skipped. This is helpful in particular for runs that do intend to run specific tests (as opposed to whatever is available). `op-acceptor` does set that variable, for example.
 - `DEVSTACK_L1_FORK=fusaka` selects the L1 fork active at genesis. Ethereum upgrade
   names (`pectra`, `fusaka`, `glamsterdam`) and geth execution-fork names
-  (`prague`, `osaka`, `amsterdam`) are accepted. BPO selectors are not accepted until the
-  bundled op-geth supports `engine_newPayloadV4` at those forks. Amsterdam inherits BPO4
-  blob parameters until upstream defaults are available. If unset, Prague remains the
-  devstack default.
+  (`prague`, `osaka`, `amsterdam`) are accepted. BPO selectors are not offered. BPO3 and later
+  would not work: go-ethereum's Engine API serves them only through its Amsterdam methods,
+  which the fake-PoS drivers call only once Amsterdam is active. Amsterdam inherits BPO4 blob
+  parameters, as upstream has no Amsterdam blob-schedule entry. If unset, devstack activates
+  `defaultL1Fork` (`sysgo/deployer.go`), which a test keeps at least at the newest execution
+  fork scheduled on mainnet. A batcher posting blobs needs Osaka: test batchers send cell
+  proofs, which an L1 before Osaka does not include.
 - `DEVSTACK_MONOREPO_ROOT`: Absolute path to a monorepo checkout. Used by out-of-tree acceptance suites (which depend on this module by git rev) so contract-artifact resolution can find `packages/contracts-bedrock` outside the cwd-relative walk. In-tree runs don't need it.
 
 ### Rust stack env vars:
-- `DEVSTACK_L2CL_KIND=kona-node` to select kona-node as default L2 CL node
-- `DEVSTACK_L2EL_KIND=op-reth` to select op-reth as default L2 EL node
+- `DEVSTACK_L2CL_KIND=kona-node` to select kona-node as default L2 CL node. Any value other than `op-node` or `kona-node` fails the test before a node starts. Some presets pin nodes to op-node whatever the variable says, such as the sequencer of a chain with interop at genesis, and the sequencer and deriving verifier of the two-verifiers preset. The supernode and interop presets start only op-node and op-supernode CLs, so under kona-node they skip the test
 - `RUST_BINARY_PATH_KONA_NODE=/home/USERHERE/projects/kona/target/debug/kona-node` to select the kona-node executable to run (skips the build; the path must exist)
 - `RUST_BINARY_PATH_OP_RETH=/home/USERHERE/projects/reth/target/release/op-reth` to select the op-reth executable to run (skips the build; the path must exist)
 

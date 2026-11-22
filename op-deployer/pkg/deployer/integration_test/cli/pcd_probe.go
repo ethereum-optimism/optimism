@@ -7,8 +7,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	txintentbindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -45,8 +45,8 @@ type pcdLiveChainExpectation struct {
 	portal                        common.Address
 	disputeGameFactory            common.Address
 	anchorStateRegistry           common.Address
-	respectedGameType             embedded.GameType
-	fallbackGameType              embedded.GameType
+	respectedGameType             opcm.GameType
+	fallbackGameType              opcm.GameType
 	respectedGameImplementation   common.Address
 	fallbackGameImplementation    common.Address
 	respectedGameAbsolutePrestate common.Hash
@@ -356,8 +356,8 @@ func (p pcdL1Probe) requireLiveGameConfiguration(
 	)
 	// SuperPermissionedDisputeGame has no absolutePrestate getter. Its upgrade config
 	// encodes only a proposer, and its factory arguments add only the AnchorStateRegistry.
-	// See dispute/SuperPermissionedDisputeGame.sol, upgrade/embedded/upgrade.go, and
-	// dispute/lib/LibGameArgs.sol in packages/contracts-bedrock/src.
+	// See dispute/SuperPermissionedDisputeGame.sol and dispute/lib/LibGameArgs.sol in
+	// packages/contracts-bedrock/src, and op-deployer/pkg/deployer/opcm/upgrade_input.go.
 	require.Lenf(
 		t,
 		fallbackArgs,

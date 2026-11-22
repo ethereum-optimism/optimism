@@ -14,7 +14,7 @@ import (
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
@@ -30,7 +30,6 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -39,6 +38,8 @@ type singleChainRuntimeWorld struct {
 	L2Network *L2Network
 	Migration *interopMigrationState
 	Interop   *SingleChainInteropSupport
+	// DependencySet is the dependency set op-deployer generated (state.InteropDepSet): the chain alone.
+	DependencySet *depset.StaticConfigDependencySet
 }
 
 type singleChainPrimaryRuntime struct {
@@ -46,13 +47,43 @@ type singleChainPrimaryRuntime struct {
 	CL L2CLNode
 }
 
+type singleChainPrimaryStartFunc func(
+	t devtest.T,
+	keys devkeys.Keys,
+	world singleChainRuntimeWorld,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	jwtPath string,
+	jwtSecret [32]byte,
+	cfg PresetConfig,
+	sequencerCLKind MixedL2CLKind,
+) singleChainPrimaryRuntime
+
 type singleChainRuntimeSpec struct {
 	BuildWorld      func(t devtest.T, keys devkeys.Keys, cfg PresetConfig, startL1 func(*L1Network) (*L1Geth, *L1CLNode)) singleChainRuntimeWorld
-	StartPrimary    func(t devtest.T, keys devkeys.Keys, world singleChainRuntimeWorld, l1EL *L1Geth, l1CL *L1CLNode, jwtPath string, jwtSecret [32]byte, cfg PresetConfig) singleChainPrimaryRuntime
+	SequencerCLKind MixedL2CLKind
+	StartPrimary    singleChainPrimaryStartFunc
+
 	StartBatcher    bool
-	StartProposer   bool
 	StartChallenger bool
-	TestSequencer   string
+	StartProposer   bool
+
+	TestSequencer string
+}
+
+// requireOpNodeSequencerCLKind fails unless the sequencer runs on op-node, which the single-chain
+// interop sequencer requires.
+func requireOpNodeSequencerCLKind(t devtest.T, sequencerCLKind MixedL2CLKind) {
+	t.Require().Equal(MixedL2CLOpNode, sequencerCLKind, "single-chain interop sequencer requires op-node")
+}
+
+// resolveSequencerCLKind returns the L2 CL kind the environment requests for the sequencer,
+// pinned to op-node when the chain runs interop at genesis.
+func resolveSequencerCLKind(t devtest.T, cfg PresetConfig) MixedL2CLKind {
+	if cfg.InteropAtGenesis {
+		return MixedL2CLOpNode
+	}
+	return ResolveMixedL2CLKind(t)
 }
 
 func newSingleChainNodeRuntime(name string, isSequencer bool, el L2ELNode, cl L2CLNode) *SingleChainNodeRuntime {
@@ -68,21 +99,18 @@ func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig
 	deployerOpts := cfg.DeployerOptions
 	if cfg.InteropAtGenesis {
 		deployerOpts = append([]DeployerOption{
-			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+			WithUseInterop(),
 		}, deployerOpts...)
 	}
-	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, cfg.InteropAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, deployerOpts...)
+	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, cfg.InteropAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, deployerOpts...)
 	world := singleChainRuntimeWorld{
-		L1Network: l1Net,
-		L2Network: l2Net,
-		Migration: migration,
+		L1Network:     l1Net,
+		L2Network:     l2Net,
+		Migration:     migration,
+		DependencySet: depSet,
 	}
 	if cfg.InteropAtGenesis {
-		world.Interop = &SingleChainInteropSupport{
-			Migration:     migration,
-			DependencySet: depSet,
-			FullConfigSet: fullCfgSet,
-		}
+		world.Interop = &SingleChainInteropSupport{Migration: migration}
 	}
 	return world
 }
@@ -96,6 +124,7 @@ func startDefaultSingleChainPrimary(
 	jwtPath string,
 	jwtSecret [32]byte,
 	cfg PresetConfig,
+	sequencerCLKind MixedL2CLKind,
 ) singleChainPrimaryRuntime {
 	safeDBPath := filepath.Join(t.TempDirWithPrefix("l2-safe-db-"+world.L2Network.ChainID().String()), "safe-head.db")
 	l2CLOptions := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
@@ -104,26 +133,26 @@ func startDefaultSingleChainPrimary(
 	l2CLOptions = append(l2CLOptions, cfg.GlobalL2CLOptions...)
 	// Env-resolved options come first so an explicit binary from the test overrides the env one.
 	sequencerELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerELOpts...)
 	if world.Interop != nil {
+		requireOpNodeSequencerCLKind(t, sequencerCLKind)
 		l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:           "sequencer",
 			IsSequencer:   true,
 			NoDiscovery:   true,
-			EnableReqResp: true,
-			DependencySet: world.Interop.DependencySet,
+			DependencySet: world.DependencySet,
 			L2CLOptions:   l2CLOptions,
 		})
 		return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
 	}
-	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLOptions)
+	l2CL := startL2CLForKey(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, sequencerCLKind, "sequencer", "sequencer", true, "", l2CLOptions)
 	return singleChainPrimaryRuntime{
 		EL: l2EL,
 		CL: l2CL,
 	}
 }
 
-// startStoppedSingleChainPrimary builds an op-node sequencer that is inactive
+// startStoppedSingleChainPrimary builds a sequencer CL that is inactive
 // from its first start. Conductor presets use this to ensure no node can create
 // an independent unsafe fork before the Raft cluster and p2p mesh are ready.
 func startStoppedSingleChainPrimary(
@@ -135,6 +164,7 @@ func startStoppedSingleChainPrimary(
 	jwtPath string,
 	jwtSecret [32]byte,
 	cfg PresetConfig,
+	sequencerCLKind MixedL2CLKind,
 ) singleChainPrimaryRuntime {
 	t.Require().Nil(world.Interop, "conductor primary does not support interop")
 	safeDBPath := filepath.Join(t.TempDirWithPrefix("l2-safe-db-"+world.L2Network.ChainID().String()), "safe-head.db")
@@ -144,15 +174,11 @@ func startStoppedSingleChainPrimary(
 	l2CLOptions = append(l2CLOptions, cfg.GlobalL2CLOptions...)
 	// Env-resolved options come first so an explicit binary from the test overrides the env one.
 	sequencerELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
-	l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-		Key:              "sequencer",
-		IsSequencer:      true,
-		NoDiscovery:      true,
-		EnableReqResp:    true,
-		L2CLOptions:      l2CLOptions,
-		SequencerStopped: true,
-	})
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerELOpts...)
+	l2CL := startStoppedSequencerCL(
+		t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret,
+		sequencerCLKind, "sequencer", l2CLOptions,
+	)
 	return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
 }
 
@@ -163,6 +189,10 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
 	jwtPath, jwtSecret := writeJWTSecret(t)
+
+	if cfg.AltDAStore != nil {
+		cfg = withAltDA(t, cfg)
+	}
 
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -177,7 +207,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 		return l1EL, l1CL
 	})
 
-	primary := spec.StartPrimary(t, keys, world, l1EL, l1CL, jwtPath, jwtSecret, cfg)
+	primary := spec.StartPrimary(t, keys, world, l1EL, l1CL, jwtPath, jwtSecret, cfg, spec.SequencerCLKind)
 	primaryNode := newSingleChainNodeRuntime("sequencer", true, primary.EL, primary.CL)
 
 	var l2Batcher *L2Batcher
@@ -190,12 +220,8 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	var l2Proposer *L2Proposer
 	if spec.StartProposer && !cfg.SkipHonestProposer {
 		if slices.Contains(cfg.AddedGameTypes, gameTypes.ZKDisputeGameType) {
-			dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-				world.L2Network.ChainID(): {},
-			})
-			require.NoError(err)
 			startZKProposer(t, keys, world.L2Network.ChainID(), world.L1Network, l1EL, l1CL,
-				dependencySet, primary.CL.UserRPC(), []*L2Network{world.L2Network}, []L2ELNode{primary.EL},
+				world.DependencySet, primary.CL.UserRPC(), []*L2Network{world.L2Network}, []L2ELNode{primary.EL},
 				world.L2Network.deployment.DisputeGameFactoryProxyAddr(),
 				ZKDisputeGameConfigForRuntime().AbsolutePrestate, os.Getenv(konaSP1ELFDirEnv),
 				WithZKProposalInterval(6*time.Second))
@@ -207,7 +233,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	var l2Challenger *L2Challenger
 	var zkChallengerSuperRootRPCProxy *StallableProxy
 	if spec.StartChallenger {
-		l2Challenger, zkChallengerSuperRootRPCProxy = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, cfg.AddedGameTypes)
+		l2Challenger, zkChallengerSuperRootRPCProxy = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, world.DependencySet, cfg.AddedGameTypes)
 	}
 
 	testSequencer := startTestSequencerForRPCs(t, keys, "test-sequencer", jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, world.L2Network.ChainID(), primary.EL.UserRPC(), primary.CL.UserRPC())
@@ -242,12 +268,18 @@ func NewMinimalRuntime(t devtest.T) *SingleChainRuntime {
 }
 
 func NewMinimalRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	return newMinimalRuntime(t, cfg, resolveSequencerCLKind(t, cfg))
+}
+
+func newMinimalRuntime(t devtest.T, cfg PresetConfig, sequencerCLKind MixedL2CLKind) *SingleChainRuntime {
 	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
 		BuildWorld:      newDefaultSingleChainWorld,
+		SequencerCLKind: sequencerCLKind,
 		StartPrimary:    startDefaultSingleChainPrimary,
+
 		StartBatcher:    true,
-		StartProposer:   true,
 		StartChallenger: true,
+		StartProposer:   true,
 	})
 }
 
@@ -257,12 +289,18 @@ func NewMinimalRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRunt
 // fault proofs. Skipping the challenger also avoids requiring cannon prestate
 // artifacts, which are expensive to build locally.
 func NewMinimalNoFaultProofsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	return newMinimalNoFaultProofsRuntime(t, cfg, resolveSequencerCLKind(t, cfg))
+}
+
+func newMinimalNoFaultProofsRuntime(t devtest.T, cfg PresetConfig, sequencerCLKind MixedL2CLKind) *SingleChainRuntime {
 	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
 		BuildWorld:      newDefaultSingleChainWorld,
+		SequencerCLKind: sequencerCLKind,
 		StartPrimary:    startDefaultSingleChainPrimary,
+
 		StartBatcher:    true,
-		StartProposer:   false,
 		StartChallenger: false,
+		StartProposer:   false,
 	})
 }
 
@@ -432,6 +470,7 @@ func startMinimalChallenger(
 	l1CL *L1CLNode,
 	l2EL L2ELNode,
 	l2CL L2CLNode,
+	dependencySet *depset.StaticConfigDependencySet,
 	addedGameTypes []gameTypes.GameType,
 ) (*L2Challenger, *StallableProxy) {
 	require := t.Require()
@@ -442,11 +481,7 @@ func startMinimalChallenger(
 	logger.Info("Challenger key acquired", "addr", crypto.PubkeyToAddress(challengerSecret.PublicKey))
 
 	rollupCfgs := []*rollup.Config{l2Net.rollupCfg}
-	l2Geneses := []*core.Genesis{l2Net.genesis}
-	dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-		l2Net.ChainID(): {},
-	})
-	require.NoError(err)
+	l2Geneses := []*opgenesis.Genesis{l2Net.genesis}
 
 	options := []sharedchallenger.Option{
 		sharedchallenger.WithFactoryAddress(l2Net.deployment.DisputeGameFactoryProxyAddr()),
@@ -466,7 +501,7 @@ func startMinimalChallenger(
 	var zkChallengerSuperRootRPCProxy *StallableProxy
 	switch {
 	case zkEnabled:
-		// The ZK game validates super roots from the op-node's superroot_atTimestamp endpoint;
+		// The ZK game validates super roots from the rollup node's superroot_atTimestamp endpoint;
 		// it needs no VM config or dependency set.
 		zkChallengerSuperRootRPCProxy = StartStallableProxy(t, "zk-challenger-super-root", l2CL.UserRPC())
 		options = append(options,

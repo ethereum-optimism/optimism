@@ -1,0 +1,36 @@
+---
+title: "OP Stack STF 이해하기"
+description: "Kona가 derivation 파이프라인과 실행 엔진을 결합하여 검증 가능한 OP Stack 상태 전이를 구성하는 방식과, kona-client가 기본적으로 단일 블록을 증명하는 이유를 설명합니다."
+diataxis: explanation
+---
+
+OP Stack 상태 전이는 두 가지 주요 구성 요소로 이루어집니다.
+
+- **[Derivation 파이프라인](https://specs.optimism.io/protocol/derivation.html)** (`kona-derive`)
+  - DA 계층으로부터 L2 체인 상태를 도출하는 역할을 합니다.
+- **[실행 엔진](https://specs.optimism.io/protocol/exec-engine.html#l2-execution-engine)** (`kona-executor`)
+  - 트랜잭션 실행과 상태 커밋먼트를 담당합니다.
+  - 도출된 L2 상태가 올바르게 적용되도록 보장합니다.
+
+상태 전이의 정확성을 증명하기 위해 Kona는 이 두 구성 요소를 다음과 같이 결합합니다.
+
+- L2 체인의 derivation과 실행을 동일한 프로세스에서 결합합니다.
+- STF를 완료하는 데 필요한 데이터를 여러 소스에서 가져오며, 그 과정에서 입력 커밋먼트를 검증 가능한 방식으로 역추적(unroll)합니다.
+
+`kona-client`는 이 프로세스의 구현체로, 단일 L2 블록을 검증 가능한 방식으로
+도출하고 실행할 수 있습니다.
+
+<Note>
+**왜 기본적으로 단일 블록만 처리할까요?**
+
+OP Stack에서는 결함 증명(fault proof)을 실행하기 전에, 의견이 엇갈리는 블록 -> 블록 상태 전이를 좁혀 나가는
+대화형 이분 탐색 게임(interactive bisection game)을 사용합니다. 이 때문에 기본 구현은 이분 탐색 게임의 참여자들이
+도달한 단일 블록만 도출하고 실행합니다.
+</Note>
+
+## STF가 실행되는 위치
+
+`kona-client`는 검증 가능 백엔드 위에서 이 상태 전이를 실행합니다. 이 섹션에서는 두 가지 방식을 다룹니다.
+
+- Kona가 기본으로 제공하는 [FPVM 백엔드](/ko/op-stack/fault-proofs/kona/proof/fpvm-backend)는 OP Stack의 Fault Proof VM에서 STF를 실행하며, PreimageOracle ABI를 통해 데이터를 가져옵니다.
+- [커스텀 백엔드](/ko/op-stack/fault-proofs/kona/proof/custom-backend)는 데이터 소스 trait을 교체하여 zkVM이나 TEE 같은 다른 검증 가능 환경에서 동일한 STF를 실행합니다.

@@ -1,14 +1,14 @@
 //! The Optimism RPC API using `jsonrpsee`
 
-use crate::{OutputResponse, SafeHeadResponse, health::HealthzResponse};
+use crate::{
+    OutputResponse, SafeHeadResponse, health::HealthzResponse,
+    superroot::SuperRootAtTimestampResponse,
+};
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::B256;
+use alloy_primitives::{B256, U64};
 use core::net::IpAddr;
 use ipnet::IpNet;
-use jsonrpsee::{
-    core::{RpcResult, SubscriptionResult},
-    proc_macros::rpc,
-};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use kona_genesis::RollupConfig;
 use kona_gossip::{PeerCount, PeerDump, PeerInfo, PeerStats};
 use kona_protocol::SyncStatus;
@@ -32,12 +32,9 @@ pub trait RollupNodeApi {
     async fn op_output_at_block(&self, block_number: BlockNumberOrTag)
     -> RpcResult<OutputResponse>;
 
-    /// Gets the safe head at an L1 block height.
+    /// Get the safe head at an L1 block.
     #[method(name = "safeHeadAtL1Block")]
-    async fn op_safe_head_at_l1_block(
-        &self,
-        block_number: BlockNumberOrTag,
-    ) -> RpcResult<SafeHeadResponse>;
+    async fn op_safe_head_at_l1_block(&self, block_number: U64) -> RpcResult<SafeHeadResponse>;
 
     /// Get the synchronization status.
     #[method(name = "syncStatus")]
@@ -50,6 +47,20 @@ pub trait RollupNodeApi {
     /// Get the software version.
     #[method(name = "version")]
     async fn op_version(&self) -> RpcResult<String>;
+}
+
+/// The super root API op-node serves for its single chain, the non-interop counterpart of
+/// op-supernode's.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "superroot"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "superroot"))]
+pub trait SuperRootApi {
+    /// Returns the super root at a timestamp, the output it is built from, and the L1 block that
+    /// first made that output safe.
+    #[method(name = "atTimestamp")]
+    async fn superroot_at_timestamp(
+        &self,
+        timestamp: U64,
+    ) -> RpcResult<SuperRootAtTimestampResponse>;
 }
 
 /// The opp2p namespace handles peer interactions.
@@ -76,20 +87,27 @@ pub trait OpP2PApi {
     #[method(name = "discoveryTable")]
     async fn opp2p_discovery_table(&self) -> RpcResult<Vec<String>>;
 
-    /// Blocks the given peer
+    /// Blocks the given peer: closes its connections, refuses its new ones in both directions, and
+    /// ignores its gossip until it is unblocked.
+    ///
+    /// This applies to protected and static peers too: a static peer isn't dialed again while it
+    /// is blocked. Unlike op-node, which leaves a blocked peer's open connections in place.
     #[method(name = "blockPeer")]
     async fn opp2p_block_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Unblocks the given peer
+    /// Unblocks the given peer, and lifts its ban if it is banned for its score. A static peer is
+    /// dialed again within a minute, or at once with `opp2p_connectPeer`.
     #[method(name = "unblockPeer")]
     async fn opp2p_unblock_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Lists blocked peers
+    /// Lists blocked peers. Peers banned for their score aren't listed, as in op-node.
     #[method(name = "listBlockedPeers")]
     async fn opp2p_list_blocked_peers(&self) -> RpcResult<Vec<String>>;
 
-    /// Blocks the given address
-    #[method(name = "blocAddr")]
+    /// Blocks the given IP address: closes the connections to and from it, whichever peer they
+    /// belong to, and refuses new ones in both directions until it is unblocked. Unlike op-node,
+    /// which leaves open connections in place.
+    #[method(name = "blockAddr")]
     async fn opp2p_block_addr(&self, ip: IpAddr) -> RpcResult<()>;
 
     /// Unblocks the given address
@@ -100,7 +118,9 @@ pub trait OpP2PApi {
     #[method(name = "listBlockedAddrs")]
     async fn opp2p_list_blocked_addrs(&self) -> RpcResult<Vec<IpAddr>>;
 
-    /// Blocks the given subnet
+    /// Blocks the given subnet: closes the connections to and from the IP addresses in it,
+    /// whichever peers they belong to, and refuses new ones in both directions until it is
+    /// unblocked. Unlike op-node, which leaves open connections in place.
     #[method(name = "blockSubnet")]
     async fn opp2p_block_subnet(&self, subnet: IpNet) -> RpcResult<()>;
 
@@ -120,45 +140,22 @@ pub trait OpP2PApi {
     #[method(name = "unprotectPeer")]
     async fn opp2p_unprotect_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Connects to the given peer
+    /// Connects to the peer at the given multiaddr, which must end in its `/p2p/<peer id>`, and
+    /// returns once the peer is connected.
+    ///
+    /// Respects blocks and bans: if the peer, its IP address or its subnet is blocked, or the peer
+    /// is banned for its score, it fails at once with the reason, and dials nothing. Unblock first
+    /// to connect such a peer; `opp2p_unblockPeer` lifts a ban too.
+    /// It also fails at once if the peer has reached its redial limit. A dial that fails, for
+    /// example because nothing listens at the address, returns the dial's error, and one that
+    /// doesn't finish within 30 seconds times out, as in op-node.
     #[method(name = "connectPeer")]
     async fn opp2p_connect_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Disconnects from the given peer
+    /// Disconnects from the given peer, and returns once its connections have closed. A static
+    /// peer is dialed again about a second later.
     #[method(name = "disconnectPeer")]
     async fn opp2p_disconnect_peer(&self, peer: String) -> RpcResult<()>;
-}
-
-/// Websockets API for the node.
-#[cfg_attr(not(feature = "client"), rpc(server, namespace = "ws"))]
-#[cfg_attr(feature = "client", rpc(server, client, namespace = "ws"))]
-#[async_trait]
-pub trait Ws {
-    /// Subscribes to the stream of finalized head updates.
-    #[subscription(name = "subscribe_finalized_head", item = kona_protocol::L2BlockInfo)]
-    async fn ws_finalized_head_updates(&self) -> SubscriptionResult;
-
-    /// Subscribes to the stream of safe head updates.
-    #[subscription(name = "subscribe_safe_head", item = kona_protocol::L2BlockInfo)]
-    async fn ws_safe_head_updates(&self) -> SubscriptionResult;
-
-    /// Subscribes to the stream of unsafe head updates.
-    #[subscription(name = "subscribe_unsafe_head", item = kona_protocol::L2BlockInfo)]
-    async fn ws_unsafe_head_updates(&self) -> SubscriptionResult;
-}
-
-/// Development RPC API for engine state introspection.
-#[cfg_attr(not(feature = "client"), rpc(server, namespace = "dev"))]
-#[cfg_attr(feature = "client", rpc(server, client, namespace = "dev"))]
-#[async_trait]
-pub trait DevEngineApi {
-    /// Subscribe to engine queue length updates.
-    #[subscription(name = "subscribe_engine_queue_size", item = usize)]
-    async fn dev_subscribe_engine_queue_length(&self) -> SubscriptionResult;
-
-    /// Get the current number of tasks in the engine queue.
-    #[method(name = "taskQueueLength")]
-    async fn dev_task_queue_length(&self) -> RpcResult<usize>;
 }
 
 /// The admin namespace for the consensus node.
@@ -166,7 +163,9 @@ pub trait DevEngineApi {
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "admin"))]
 #[async_trait]
 pub trait AdminApi {
-    /// Posts the unsafe payload.
+    /// Validates the payload's block hash and queues it for engine processing.
+    ///
+    /// Returns after queue admission, before execution. Submitted payloads are not gossiped.
     #[method(name = "postUnsafePayload")]
     async fn admin_post_unsafe_payload(&self, payload: OpExecutionPayloadEnvelope)
     -> RpcResult<()>;
@@ -175,9 +174,9 @@ pub trait AdminApi {
     #[method(name = "sequencerActive")]
     async fn admin_sequencer_active(&self) -> RpcResult<bool>;
 
-    /// Starts the sequencer.
+    /// Starts the sequencer at the expected unsafe head.
     #[method(name = "startSequencer")]
-    async fn admin_start_sequencer(&self) -> RpcResult<()>;
+    async fn admin_start_sequencer(&self, head: B256) -> RpcResult<()>;
 
     /// Stops the sequencer.
     #[method(name = "stopSequencer")]
@@ -195,7 +194,7 @@ pub trait AdminApi {
     #[method(name = "setRecoverMode")]
     async fn admin_set_recover_mode(&self, mode: bool) -> RpcResult<()>;
 
-    /// Overrides the leader in the conductor.
+    /// Locally bypasses conductor leadership checks and commits until the node restarts.
     #[method(name = "overrideLeader")]
     async fn admin_override_leader(&self) -> RpcResult<()>;
 

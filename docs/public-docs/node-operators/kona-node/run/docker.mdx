@@ -4,6 +4,8 @@ description: "Run kona-node with op-reth using Kona's pre-packaged docker-compos
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 <Info>
 This guide uses Kona's pre-packaged docker config.
 
@@ -95,12 +97,13 @@ By default, the recipe is configured for **OP Sepolia**. To sync a different OP 
 
 ### RPC Trust Configuration
 
-By default, `kona-node` trusts RPC providers (both L1 and L2). When using public or untrusted RPC endpoints, you should disable trust to enable block hash verification:
+<Unreleased component="kona-node" />
+
+By default, `kona-node` verifies L1 RPC responses (`KONA_NODE_L1_TRUST_RPC=false`), matching op-node. Verification requires the L1 RPC to serve `eth_getProof`. The L2 engine is the node's own execution client and is always trusted. For a public or untrusted L1 RPC endpoint, keep the default:
 
 ```bash
 # In cfg.env or as environment variables:
 KONA_NODE_L1_TRUST_RPC=false
-KONA_NODE_L2_TRUST_RPC=false
 ```
 
 Or modify the docker-compose.yaml command:
@@ -111,9 +114,8 @@ kona-node:
     --chain op-sepolia
     --l1-eth-rpc ${L1_PROVIDER_RPC}
     --l1-beacon ${L1_BEACON_API}
-    --l1-trust-rpc false  # Add this for untrusted L1 RPCs
+    --l1-trust-rpc=false  # The default for L1 RPCs
     --l2-engine-rpc ws://op-reth:8551
-    --l2-trust-rpc false  # Add this for untrusted L2 RPCs
 ```
 
 See [configure RPC trust](/node-operators/kona-node/run/rpc-trust) for more details on RPC trust settings.

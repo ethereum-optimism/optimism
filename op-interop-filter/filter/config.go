@@ -8,6 +8,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/flags"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -38,6 +39,7 @@ type Config struct {
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
 	FailsafeLogInterval         time.Duration // Interval for re-logging the active failsafe reason (default: 1m)
 	ReorgRecoveryEnabled        bool          // If true, automatically rewinds reorg-triggered failsafe to finalized
+	FailsafeEnabled             bool          // If true, enables the manual failsafe at start
 	Passthrough                 bool          // If true, all transactions pass through without filtering
 	LegacyCheckAccessListFormat bool          // If true, allows access list requests that omit executing chainID
 	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
@@ -74,6 +76,15 @@ func (c *Config) Check() error {
 	if c.MessageExpiryWindow == 0 {
 		result = errors.Join(result, errors.New("message-expiry-window must be positive"))
 	}
+	// The protocol window is at most 7 days (see the Expiry Window section of the interop
+	// specification), so the filter must not admit older messages.
+	if c.MessageExpiryWindow > depset.MessageExpiryTimeSecondsInterop {
+		result = errors.Join(result, fmt.Errorf("message-expiry-window %ds exceeds protocol window %ds",
+			c.MessageExpiryWindow, depset.MessageExpiryTimeSecondsInterop))
+	}
+	if expiryWindow := time.Duration(c.MessageExpiryWindow) * time.Second; c.BackfillDuration < expiryWindow {
+		result = errors.Join(result, backfillTooShortError(c.BackfillDuration, expiryWindow))
+	}
 	if c.PollInterval <= 0 {
 		result = errors.Join(result, errors.New("poll-interval must be positive"))
 	}
@@ -98,6 +109,13 @@ func (c *Config) Check() error {
 	return result
 }
 
+// backfillTooShortError reports a backfill that does not reach back to the oldest
+// initiating message a valid executing message can reference. Lookups of older
+// blocks fail, so the filter would reject valid transactions.
+func backfillTooShortError(backfill, expiryWindow time.Duration) error {
+	return fmt.Errorf("backfill-duration %s must be at least message-expiry-window %s", backfill, expiryWindow)
+}
+
 func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	backfillDuration := ctx.Duration(flags.BackfillDurationFlag.Name)
 	if backfillDuration <= 0 {
@@ -119,6 +137,13 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	messageExpiryWindow := ctx.Duration(flags.MessageExpiryWindowFlag.Name)
 	if messageExpiryWindow <= 0 {
 		return nil, fmt.Errorf("message-expiry-window must be positive, got %s", messageExpiryWindow)
+	}
+	// Check the duration before it is truncated to whole seconds below.
+	if maxWindow := time.Duration(depset.MessageExpiryTimeSecondsInterop) * time.Second; messageExpiryWindow > maxWindow {
+		return nil, fmt.Errorf("message-expiry-window %s exceeds protocol window %s", messageExpiryWindow, maxWindow)
+	}
+	if backfillDuration < messageExpiryWindow {
+		return nil, backfillTooShortError(backfillDuration, messageExpiryWindow)
 	}
 
 	pollInterval := ctx.Duration(flags.PollIntervalFlag.Name)
@@ -173,6 +198,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		ValidationInterval:          validationInterval,
 		FailsafeLogInterval:         failsafeLogInterval,
 		ReorgRecoveryEnabled:        ctx.Bool(flags.ReorgRecoveryEnabledFlag.Name),
+		FailsafeEnabled:             ctx.Bool(flags.FailsafeEnabledFlag.Name),
 		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
 		LegacyCheckAccessListFormat: ctx.Bool(flags.SupportLegacyCheckAccessListFormatFlag.Name),
 		RPCConcurrency:              rpcConcurrency,

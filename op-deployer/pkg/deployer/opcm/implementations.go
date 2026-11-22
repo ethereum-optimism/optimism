@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -13,22 +12,29 @@ import (
 // DeployImplementations.s.sol input struct exactly — script ABI matching is
 // checked at load time.
 type DeployImplementationsInput struct {
-	WithdrawalDelaySeconds          *big.Int
-	MinProposalSizeBytes            *big.Int
-	ChallengePeriodSeconds          *big.Int
-	ProofMaturityDelaySeconds       *big.Int
-	DisputeGameFinalityDelaySeconds *big.Int
-	MipsVersion                     *big.Int
-	DevFeatureBitmap                common.Hash
-	FaultGameV2MaxGameDepth         *big.Int
-	FaultGameV2SplitDepth           *big.Int
-	FaultGameV2ClockExtension       *big.Int
-	FaultGameV2MaxClockDuration     *big.Int
-	SuperchainConfigProxy           common.Address
-	SuperchainProxyAdmin            common.Address
-	L1ProxyAdminOwner               common.Address
-	Challenger                      common.Address
-	SP1Verifier                     common.Address `abi:"sp1Verifier"`
+	// For per-chain withdrawal delays, bounds are defined in the implementation and values are set in DeployOPChain.
+	MinWithdrawalDelaySeconds *big.Int
+	MaxWithdrawalDelaySeconds *big.Int
+	MinProposalSizeBytes      *big.Int
+	ChallengePeriodSeconds    *big.Int
+	// Bounds for the per-chain proof maturity and dispute game finality delays. The delays
+	// themselves are per-chain inputs to DeployOPChain; the implementations only carry the
+	// sanctioned range.
+	MinProofMaturityDelaySeconds       *big.Int
+	MaxProofMaturityDelaySeconds       *big.Int
+	MinDisputeGameFinalityDelaySeconds *big.Int
+	MaxDisputeGameFinalityDelaySeconds *big.Int
+	MipsVersion                        *big.Int
+	DevFeatureBitmap                   common.Hash
+	FaultGameV2MaxGameDepth            *big.Int
+	FaultGameV2SplitDepth              *big.Int
+	FaultGameV2ClockExtension          *big.Int
+	FaultGameV2MaxClockDuration        *big.Int
+	SuperchainConfigProxy              common.Address
+	SuperchainProxyAdmin               common.Address
+	L1ProxyAdminOwner                  common.Address
+	Challenger                         common.Address
+	SP1Verifier                        common.Address `abi:"sp1Verifier"`
 }
 
 // DeployImplementationsOutput must mirror DeployImplementations.s.sol's
@@ -61,13 +67,6 @@ type DeployImplementationsOutput struct {
 	SP1PlonkAdapterSingleton         common.Address `json:"sp1PlonkAdapterSingletonAddress" abi:"sp1PlonkAdapterSingleton"`
 }
 
-type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]
-
-// NewDeployImplementationsScript loads and validates the DeployImplementations script contract
-func NewDeployImplementationsScript(host *script.Host) (DeployImplementationsScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployImplementationsInput, DeployImplementationsOutput](host, "DeployImplementations.s.sol", "DeployImplementations")
-}
-
 func NewDeployImplementationsForgeCaller(client *forge.Client) forge.ScriptCaller[DeployImplementationsInput, DeployImplementationsOutput] {
 	return forge.NewScriptCaller(
 		client,
@@ -78,15 +77,9 @@ func NewDeployImplementationsForgeCaller(client *forge.Client) forge.ScriptCalle
 	)
 }
 
-// DeployImplementationsViaForge deploys implementation contracts using Forge
-func DeployImplementationsViaForge(env *ForgeEnv, input DeployImplementationsInput) (DeployImplementationsOutput, error) {
-	var output DeployImplementationsOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployImplementationsForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+// DeployImplementations deploys implementation contracts using Forge
+func DeployImplementations(env *ForgeEnv, input DeployImplementationsInput) (DeployImplementationsOutput, error) {
+	output, err := broadcastScript(env, NewDeployImplementationsForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy implementations with Forge: %w", err)
 	}
