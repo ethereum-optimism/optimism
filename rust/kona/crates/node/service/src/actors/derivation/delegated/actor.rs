@@ -55,8 +55,11 @@ where
     Delegate: SyncStatusSource,
     L1Provider: ChainProvider,
 {
-    /// The channel on which all inbound requests are received by the [`DelegateDerivationActor`].
+    /// The channel on which the [`DelegateDerivationActor`] receives requests from the L1
+    /// watcher.
     inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
+    /// The channel on which the [`DelegateDerivationActor`] receives requests from the engine.
+    engine_request_rx: mpsc::UnboundedReceiver<DerivationActorRequest>,
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
@@ -99,6 +102,7 @@ where
     pub fn new(
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
+        engine_request_rx: mpsc::UnboundedReceiver<DerivationActorRequest>,
         delegate: Delegate,
         l1_provider: L1Provider,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
@@ -108,6 +112,7 @@ where
         delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         Self {
             inbound_request_rx,
+            engine_request_rx,
             engine_client,
             delegate,
             l1_provider,
@@ -133,24 +138,22 @@ where
     type Error = DerivationError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        select! {
+        let (request, channel) = select! {
+            // The engine's requests come first.
             biased;
 
-            req = self.inbound_request_rx.recv() => {
-                let request = req.ok_or_else(|| {
-                    error!(
-                        target: "derivation",
-                        "DerivationActor inbound request receiver closed unexpectedly",
-                    );
-                    DerivationError::RequestReceiveFailed
-                })?;
-                self.handle_derivation_delegation_actor_request(request).await
-            }
+            req = self.engine_request_rx.recv() => (req, "engine"),
+            req = self.inbound_request_rx.recv() => (req, "inbound"),
             _ = self.delegated_derivation_ticker.tick(),
             if self.has_engine_sync_completed => {
-                self.fetch_and_apply_delegate_safe_head().await
+                return self.fetch_and_apply_delegate_safe_head().await;
             }
-        }
+        };
+        let request = request.ok_or_else(|| {
+            error!(target: "derivation", channel, "DerivationActor request channel closed unexpectedly");
+            DerivationError::RequestReceiveFailed
+        })?;
+        self.handle_derivation_delegation_actor_request(request).await
     }
 }
 

@@ -18,4 +18,4 @@ pub use kona_engine::{
 };
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

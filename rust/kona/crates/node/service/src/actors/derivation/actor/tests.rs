@@ -27,9 +27,11 @@ use tokio::sync::{mpsc, watch};
 #[tokio::test]
 async fn reset_adopts_safe_head_and_resumes_atomically(#[case] previous_head: u64) {
     let (request_tx, request_rx) = mpsc::channel(2);
+    let (_engine_request_tx, engine_request_rx) = mpsc::unbounded_channel();
     let mut actor = DerivationActor::new(
         MockDerivationEngineClient::new(),
         request_rx,
+        engine_request_rx,
         StubPipeline {
             rollup_config: Arc::new(RollupConfig::default()),
             origin: BlockInfo::default(),
@@ -194,9 +196,11 @@ async fn test_pipeline_reset_always_resets_engine(#[case] lagoon_time: Option<u6
 
     let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
     let (request_tx, request_rx) = mpsc::channel(1);
+    let (_engine_request_tx, engine_request_rx) = mpsc::unbounded_channel();
     let mut actor = DerivationActor::new(
         engine_client,
         request_rx,
+        engine_request_rx,
         StubPipeline {
             rollup_config: rollup_config.clone(),
             origin: BlockInfo::default(),
@@ -239,9 +243,11 @@ async fn test_pipeline_reset_always_resets_engine(#[case] lagoon_time: Option<u6
 async fn test_origin_is_published(#[case] step_result: StepResult) {
     let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
     let (request_tx, request_rx) = mpsc::channel(1);
+    let (_engine_request_tx, engine_request_rx) = mpsc::unbounded_channel();
     let mut actor = DerivationActor::new(
         MockDerivationEngineClient::new(),
         request_rx,
+        engine_request_rx,
         StubPipeline {
             rollup_config: Arc::new(RollupConfig::default()),
             origin: BlockInfo::default(),
@@ -285,9 +291,11 @@ async fn test_origin_is_published(#[case] step_result: StepResult) {
 async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] signal: Signal) {
     let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
     let (_request_tx, request_rx) = mpsc::channel(1);
+    let (_engine_request_tx, engine_request_rx) = mpsc::unbounded_channel();
     let mut actor = DerivationActor::new(
         MockDerivationEngineClient::new(),
         request_rx,
+        engine_request_rx,
         StubPipeline {
             rollup_config: Arc::new(RollupConfig::default()),
             origin: BlockInfo::default(),
@@ -310,9 +318,11 @@ async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] sig
 async fn critical_reset_failure_stops_actor_with_origin_unpublished() {
     let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
     let (request_tx, request_rx) = mpsc::channel(1);
+    let (_engine_request_tx, engine_request_rx) = mpsc::unbounded_channel();
     let mut actor = DerivationActor::new(
         MockDerivationEngineClient::new(),
         request_rx,
+        engine_request_rx,
         StubPipeline {
             rollup_config: Arc::new(RollupConfig::default()),
             origin: BlockInfo::default(),
@@ -356,9 +366,11 @@ async fn critical_reset_failure_stops_actor_with_origin_unpublished() {
 async fn failed_non_reset_signal_keeps_actor_running(#[case] signal: Signal) {
     let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
     let (request_tx, request_rx) = mpsc::channel(1);
+    let (_engine_request_tx, engine_request_rx) = mpsc::unbounded_channel();
     let mut actor = DerivationActor::new(
         MockDerivationEngineClient::new(),
         request_rx,
+        engine_request_rx,
         StubPipeline {
             rollup_config: Arc::new(RollupConfig::default()),
             origin: BlockInfo::default(),
@@ -501,6 +513,8 @@ struct RecordingActor {
     actor: DerivationActor<MockDerivationEngineClient, QueuedPipeline>,
     db: Arc<SafeDatabase>,
     request_tx: mpsc::Sender<DerivationActorRequest>,
+    /// The engine's channel to the actor. Dropping it stops the actor.
+    engine_request_tx: mpsc::UnboundedSender<DerivationActorRequest>,
     _dir: TempDir,
 }
 
@@ -517,15 +531,17 @@ impl RecordingActor {
             signal_error: None,
         };
         let (request_tx, request_rx) = mpsc::channel(1);
+        let (engine_request_tx, engine_request_rx) = mpsc::unbounded_channel();
         let actor = DerivationActor::new(
             engine_client,
             request_rx,
+            engine_request_rx,
             pipeline,
             Some(db.clone()),
             l1_block(0).id(),
             watch::channel(None).0,
         );
-        Self { actor, db, request_tx, _dir: dir }
+        Self { actor, db, request_tx, engine_request_tx, _dir: dir }
     }
 
     async fn handle(&mut self, request: DerivationActorRequest) {
@@ -794,6 +810,8 @@ async fn an_l1_head_update_does_not_finalize_while_attributes_await_confirmation
 }
 
 mod database;
+
+mod engine_channel;
 
 mod op_node_parity;
 

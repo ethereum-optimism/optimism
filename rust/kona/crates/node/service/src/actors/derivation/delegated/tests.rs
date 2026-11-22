@@ -1,5 +1,11 @@
 use super::{DelegateDerivationActor, SyncStatusSource, actor::DERIVATION_DELEGATE_POLL_INTERVAL};
-use crate::{DerivationActorRequest, EngineActorRequest, NodeActor, QueuedDerivationEngineClient};
+use crate::{
+    DerivationActorRequest, EngineActorRequest, NodeActor, QueuedDerivationEngineClient,
+    actors::{
+        derivation::DerivationError,
+        engine::tests::{EngineWithFullInbox, engine_with_full_inbox, until_other_tasks_park},
+    },
+};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use async_trait::async_trait;
@@ -38,7 +44,10 @@ struct Harness {
     actor:
         DelegateDerivationActor<QueuedDerivationEngineClient, ScriptedDelegate, TestChainProvider>,
     current_l1: watch::Receiver<Option<BlockInfo>>,
-    derivation_requests: mpsc::Sender<DerivationActorRequest>,
+    /// Keeps the L1 watcher's channel open; a closed one stops the actor.
+    _derivation_requests: mpsc::Sender<DerivationActorRequest>,
+    /// The engine's channel to the actor.
+    engine_derivation_requests: mpsc::UnboundedSender<DerivationActorRequest>,
     engine_requests: mpsc::Receiver<EngineActorRequest>,
     engine_state: watch::Sender<EngineState>,
 }
@@ -50,18 +59,27 @@ impl Harness {
             l1.insert_block(number, canonical_l1_block(number));
         }
         let (derivation_requests, derivation_request_rx) = mpsc::channel(8);
+        let (engine_derivation_requests, engine_derivation_request_rx) = mpsc::unbounded_channel();
         let (engine_request_tx, engine_requests) = mpsc::channel(8);
         let (current_l1_tx, current_l1) = watch::channel(None);
         let (engine_state, engine_state_rx) = watch::channel(EngineState::default());
         let actor = DelegateDerivationActor::new(
             QueuedDerivationEngineClient::new(engine_request_tx),
             derivation_request_rx,
+            engine_derivation_request_rx,
             ScriptedDelegate(Mutex::new(replies.into_iter().collect())),
             l1,
             current_l1_tx,
             engine_state_rx,
         );
-        Self { actor, current_l1, derivation_requests, engine_requests, engine_state }
+        Self {
+            actor,
+            current_l1,
+            _derivation_requests: derivation_requests,
+            engine_derivation_requests,
+            engine_requests,
+            engine_state,
+        }
     }
 
     async fn complete_engine_sync(&mut self) {
@@ -72,11 +90,10 @@ impl Harness {
     /// publishes before it reports the completion.
     async fn complete_engine_sync_with(&mut self, sync_state: EngineSyncState) {
         self.publish_engine_sync_state(sync_state);
-        self.derivation_requests
+        self.engine_derivation_requests
             .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(
                 sync_state.local_safe_head(),
             )))
-            .await
             .unwrap();
         self.actor.step().await.unwrap();
     }
@@ -460,4 +477,79 @@ async fn lagging_safe_head_is_forwarded_once_per_engine_view(
     harness.actor.step().await.unwrap();
 
     assert_eq!(harness.forwarded(), second_poll_forwards(&status));
+}
+
+/// The delegate is blocked sending a poll's safe head into the engine's full inbox, and the L1
+/// watcher has filled the delegate's inbox. The engine still sends the delegate its safe head and
+/// takes the next request from its inbox, so the delegate's sends get through and its step
+/// completes.
+#[tokio::test(start_paused = true)]
+async fn the_engine_serves_its_inbox_while_the_delegate_waits_on_it() {
+    let (engine_derivation_requests, engine_derivation_request_rx) = mpsc::unbounded_channel();
+    let EngineWithFullInbox { actor: mut engine, requests, l1: engine_l1, l2: engine_l2 } =
+        engine_with_full_inbox(engine_derivation_requests.clone()).await;
+    let mut l1 = TestChainProvider::default();
+    for number in [SAFE_ORIGIN, FINALIZED_ORIGIN, CURRENT_L1] {
+        l1.insert_block(number, canonical_l1_block(number));
+    }
+    let (l1_watcher, l1_watcher_rx) = mpsc::channel(1);
+    let (_engine_state, engine_state_rx) = watch::channel(EngineState::default());
+    let mut delegate = DelegateDerivationActor::new(
+        QueuedDerivationEngineClient::new(requests),
+        l1_watcher_rx,
+        engine_derivation_request_rx,
+        ScriptedDelegate(Mutex::new(VecDeque::from([Ok(delegate_status())]))),
+        l1,
+        watch::channel(None).0,
+        engine_state_rx,
+    );
+    // The first step reads the completed EL sync, which enables polling.
+    engine_derivation_requests
+        .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::default()))
+        .unwrap();
+    delegate.step().await.unwrap();
+
+    // The next step polls and blocks sending the safe head.
+    let delegate_step =
+        tokio::spawn(async move { delegate.step().await.map_err(|error| error.to_string()) });
+    until_other_tasks_park().await;
+    assert!(!delegate_step.is_finished(), "the engine inbox must be full");
+    l1_watcher
+        .try_send(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::new(canonical_l1_block(
+            CURRENT_L1 + 1,
+        ))))
+        .unwrap();
+
+    // Each engine step takes one request: the delegate's safe head, then its finalized block.
+    for _ in 0..2 {
+        time::timeout(DERIVATION_DELEGATE_POLL_INTERVAL, engine.step())
+            .await
+            .expect("the engine must not wait on derivation")
+            .unwrap();
+    }
+
+    time::timeout(DERIVATION_DELEGATE_POLL_INTERVAL, delegate_step)
+        .await
+        .expect("the engine took the delegate's requests")
+        .unwrap()
+        .unwrap();
+    engine_l1.assert_finished();
+    engine_l2.assert_finished();
+}
+
+/// A closed engine channel means the engine is gone, which stops the actor like a closed inbox,
+/// whether or not polling has started.
+#[rstest]
+#[case::before_engine_sync(false)]
+#[case::after_engine_sync(true)]
+#[tokio::test(start_paused = true)]
+async fn a_closed_engine_channel_stops_the_actor(#[case] engine_synced: bool) {
+    let mut harness = Harness::new([]);
+    if engine_synced {
+        harness.complete_engine_sync().await;
+    }
+
+    drop(harness.engine_derivation_requests);
+
+    assert!(matches!(harness.actor.step().await, Err(DerivationError::RequestReceiveFailed)));
 }

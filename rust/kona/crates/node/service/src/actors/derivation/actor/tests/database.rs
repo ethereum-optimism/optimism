@@ -32,11 +32,13 @@ fn actor_with_database_at_genesis(
     genesis: BlockNumHash,
 ) -> DerivationActor<MockDerivationEngineClient, StubPipeline> {
     let (_request_sender, request_receiver) = mpsc::channel(1);
+    let (_engine_request_sender, engine_request_receiver) = mpsc::unbounded_channel();
     let mut rollup_config = RollupConfig::default();
     rollup_config.genesis.l2 = genesis;
     DerivationActor::new(
         MockDerivationEngineClient::new(),
         request_receiver,
+        engine_request_receiver,
         StubPipeline {
             origin: BlockInfo::default(),
             signal_error: None,
