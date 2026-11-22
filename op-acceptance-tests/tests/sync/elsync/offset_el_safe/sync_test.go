@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -22,11 +22,9 @@ import (
 //     Stopping the batcher makes the gap permanent: derivation can never advance
 //     safe past the last batched block, eliminating timing flakes.
 //  4. Restart verifier, peer ELs, and wait for EL sync to complete.
-//  5. Assert safe/finalized are behind unsafe.
+//  5. Assert safe/finalized are set the configured offset behind the EL-sync tip.
 func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// TODO(#23828): remove once kona-node supports OffsetELSafe.
-	sysgo.SkipOnKonaNode(t, "kona-node does not support OffsetELSafe")
 	sys := newOffsetELSafeSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -37,6 +35,8 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 		sys.L2CL.AdvancedFn(safety.LocalSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(safety.LocalSafe, 1, 30))
 	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
+	// Batches up to this block are on L1, so the verifier can re-derive to it after EL sync.
+	batchedSafe := sys.L2CLB.HeadBlockRef(safety.LocalSafe).Number
 
 	// Stop verifier and wipe its EL to force a full EL sync on restart.
 	sys.L2ELB.Stop()
@@ -49,7 +49,12 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	sys.L2Batcher.Stop()
 
 	// Advance sequencer further while verifier is down (unsafe only, no batches).
-	sys.L2CL.Advanced(safety.LocalUnsafe, 3, 30)
+	// Going more than the offset past the last batched block keeps derivation from
+	// reaching the offset head, so the offset alone decides where safe lands.
+	offsetBlocks := nodeSync.DurationToBlocks(testOffset, sys.L2Chain.Escape().RollupConfig().BlockTime)
+	require.NotZero(offsetBlocks)
+	sys.L2CL.Advanced(safety.LocalUnsafe, offsetBlocks+3, 30)
+	sequencerUnsafe := sys.L2CL.HeadBlockRef(safety.LocalUnsafe).Number
 
 	sys.L2ELB.Start()
 	t.Require().Zero(sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number, "EL resync must start from genesis")
@@ -57,36 +62,40 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	sys.L2ELB.WaitForOnline()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
-	// Wait for the verifier CL to advance LocalSafe, which confirms:
-	//  - EL sync completed (blocks transferred via p2p)
-	//  - CL detected completion and sent the forkchoice update (setting safe/finalized)
-	//  - Derivation began processing old batched data
-	// Because the batcher is stopped, derivation can only reach the last batched
-	// block — the gap between safe and unsafe is permanent.
+	// Wait for absolute heights rather than for progress from whatever the heads are
+	// when the wait starts: a fast node can finish EL sync before then, and with the
+	// batcher stopped the heads would not move again.
+	//  - Unsafe reaching the sequencer's tip shows the verifier received the tip over gossip.
+	//  - LocalSafe reaching the pre-wipe safe head shows EL sync completed: until then
+	//    local-safe is at genesis. After completion, safe is the offset head, which is
+	//    above every batched block.
 	// A full EL sync after a wipe is slower than the initial sync, so allow the
 	// same budget as TestTruncateDatabaseOnELResync.
-	sys.L2CLB.Advanced(safety.LocalSafe, 1, 90)
+	sys.L2CLB.Reached(safety.LocalUnsafe, sequencerUnsafe, 90)
+	sys.L2CLB.Reached(safety.LocalSafe, batchedSafe, 90)
 
-	unsafeHead := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
-	safeHead := sys.L2ELB.SafeHead().BlockRef
-	finalizedHead := sys.L2ELB.FinalizedHead().BlockRef
+	// Read one CL snapshot: the CL can move a label before the matching forkchoice
+	// update reaches the EL, so separate EL label reads could be inconsistent.
+	status := sys.L2CLB.SyncStatus()
+	unsafeHead, safeHead, finalizedHead := status.UnsafeL2, status.SafeL2, status.FinalizedL2
 
 	logger.Info("Verifier heads after EL sync",
 		"unsafe", unsafeHead.Number,
 		"safe", safeHead.Number,
-		"finalized", finalizedHead.Number)
+		"finalized", finalizedHead.Number,
+		"sequencer_unsafe_before_restart", sequencerUnsafe,
+		"offset_blocks", offsetBlocks)
 
-	// Safe and finalized must be behind unsafe when offset is configured.
-	// The batcher is stopped, so derivation can never close the gap — these
-	// assertions are deterministic regardless of timing.
-	require.Greater(unsafeHead.Number, safeHead.Number,
-		"safe head should be behind unsafe head when OffsetELSafe is configured")
-	require.Greater(unsafeHead.Number, finalizedHead.Number,
-		"finalized head should be behind unsafe head when OffsetELSafe is configured")
-	require.GreaterOrEqual(safeHead.Number, finalizedHead.Number,
-		"safe head should be at or ahead of finalized head")
-
-	retraction := unsafeHead.Number - safeHead.Number
-	logger.Info("Observed retraction", "blocks", retraction)
-	require.Greater(retraction, uint64(0), "retraction must be nonzero")
+	// EL sync completes at a tip at or above sequencerUnsafe and at or below the
+	// current unsafe head, and safe/finalized land offsetBlocks behind it. The
+	// batcher is stopped and every batched block is below the offset head, so
+	// derivation moves neither label. Checking both sides fails if the offset is
+	// ignored, whether that leaves safe at the tip or applies the 12h default.
+	for _, head := range []eth.L2BlockRef{safeHead, finalizedHead} {
+		require.GreaterOrEqual(head.Number, sequencerUnsafe-offsetBlocks,
+			"head %d retracted by more than the %s offset", head.Number, testOffset)
+		require.GreaterOrEqual(unsafeHead.Number-head.Number, offsetBlocks,
+			"head %d retracted by less than the %s offset", head.Number, testOffset)
+	}
+	require.Equal(safeHead, finalizedHead, "EL sync sets safe and finalized to the same block")
 }
