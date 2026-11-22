@@ -3199,6 +3199,7 @@ workflows:
           matrix:
             parameters:
               # BRIDGE_HOOK is not supported with INTEROP or CUSTOM_GAS_TOKEN.
+              # `main` is also the only op-mainnet baseline upgrade run.
               features: &features_matrix
                 - main
                 - CUSTOM_GAS_TOKEN
@@ -3310,7 +3311,7 @@ workflows:
           test_profile: liteci
           matrix:
             parameters:
-              fork_op_chain: ["op", "ink", "unichain"]
+              fork_op_chain: ["ink", "unichain"]
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -3328,7 +3329,7 @@ workflows:
           test_profile: ci
           matrix:
             parameters:
-              fork_op_chain: ["op", "ink", "unichain"]
+              fork_op_chain: ["ink", "unichain"]
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -3377,7 +3378,6 @@ workflows:
             - contracts-bedrock-tests-upgrade op-mainnet INTEROP: terminal
             - contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK: terminal
             - contracts-bedrock-tests-upgrade op-mainnet OP_PRIVATE: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet: terminal
             - contracts-bedrock-tests-upgrade ink-mainnet: terminal
             - contracts-bedrock-tests-upgrade unichain-mainnet: terminal
             - contracts-bedrock-tests-l2-fork op-mainnet: terminal
