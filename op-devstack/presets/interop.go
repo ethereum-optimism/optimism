@@ -185,11 +185,10 @@ func NewSingleChainInteropNoSupernode(t devtest.T, opts ...Option) *SingleChainI
 }
 
 // NewSingleChainInteropNoSupernodeZKDispute creates a fresh SingleChainInterop target whose super
-// roots are served by the single op-node's superroot_atTimestamp endpoint (no op-supernode),
-// running an op-challenger that plays ZK dispute games against that op-node source. This exercises
-// the "op-node as super root RPC" path for the ZK game end-to-end.
+// roots are served by the single CL's superroot_atTimestamp endpoint (no op-supernode),
+// running an op-challenger that plays ZK dispute games against that CL source. This exercises
+// the "CL as super root RPC" path for the ZK game end-to-end.
 func NewSingleChainInteropNoSupernodeZKDispute(t devtest.T, opts ...Option) *SingleChainInterop {
-	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernodeZKDispute", opts, 0)
 	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig(t, presetCfg))
 }
