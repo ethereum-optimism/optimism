@@ -72,10 +72,11 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 	l1Config.WithPrefundedAccount(addrFor(devkeys.SystemConfigOwner), *millionEth)
 }
 
-// startL2CLForKey starts an L2 CL node of the given kind for the given key. The supernode and
-// interop runtimes don't use it, so their presets skip under kona-node (presets'
-// skipOpNodeOnlyPresetOnKonaNode); a runtime that passes it the kind DEVSTACK_L2CL_KIND selects
-// must not keep that skip in its presets, or the kona-node job skips its tests.
+// startL2CLForKey starts an L2 CL node of the given kind for the given key. depSet is the chain's
+// interop dependency set, from SingleChainInteropSupport.dependencySet. The supernode runtimes
+// don't use it, so their presets skip under kona-node (presets' skipOpNodeOnlyPresetOnKonaNode);
+// a runtime that passes it the kind DEVSTACK_L2CL_KIND selects must not keep that skip in its
+// presets, or the kona-node job skips its tests.
 func startL2CLForKey(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -89,12 +90,14 @@ func startL2CLForKey(
 	clKey, elKey string,
 	isSequencer bool,
 	followSource string,
+	depSet depset.DependencySet,
 	l2CLOpts []L2CLOption,
 ) L2CLNode {
 	switch clKind {
 	case MixedL2CLKona:
 		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, konaNodeStartConfig{
-			L2CLConfig: resolveKonaL2CLConfig(t, clKey, l2Net.ChainID(), isSequencer, followSource, l2CLOpts),
+			DependencySet: depSet,
+			L2CLConfig:    resolveKonaL2CLConfig(t, clKey, l2Net.ChainID(), isSequencer, followSource, l2CLOpts),
 		})
 	case MixedL2CLOpNode:
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
@@ -102,6 +105,7 @@ func startL2CLForKey(
 			IsSequencer:    isSequencer,
 			NoDiscovery:    true,
 			L2FollowSource: followSource,
+			DependencySet:  depSet,
 			L2CLOptions:    l2CLOpts,
 		})
 	default:
