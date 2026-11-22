@@ -23,9 +23,8 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	attempts := 70
 	target := uint64(3)
 
-	// L2CL is the sequencer and L2CLB the deriving verifier, both op-node by the preset.
-	// L2CLC follows L2CLB with derivation disabled and runs the CL kind DEVSTACK_L2CL_KIND selects.
-	// All verifiers must eventually advance unsafe, safe, finalized
+	// L2CL is the sequencer and L2CLB the deriving verifier. L2CLC follows L2CLB with derivation
+	// disabled. All verifiers must eventually advance unsafe, safe, finalized
 	checkMatchedAll := func(lvl safety.Level) {
 		dsl.CheckAll(t,
 			sys.L2CL.ReachedFn(lvl, target, attempts),

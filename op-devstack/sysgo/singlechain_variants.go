@@ -57,14 +57,12 @@ func NewSingleChainTwoVerifiersRuntime(t devtest.T) *SingleChainRuntime {
 // NewSingleChainTwoVerifiersRuntimeWithConfig adds two verifiers to a minimal runtime without
 // fault proofs: "b" derives from L1, and "c" follows "b" as its follow source.
 func NewSingleChainTwoVerifiersRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
-	// Only "c" takes the requested CL kind; the sequencer and "b" stay on op-node, so a kona-node
-	// run exercises kona's follow-source mode against an op-node upstream.
-	followKind := ResolveMixedL2CLKind(t)
-	t.Logger().Info("Starting two-verifier runtime", "b", MixedL2CLOpNode, "c", followKind, "sequencer", MixedL2CLOpNode)
-	runtime := addSingleChainVerifier(t, newMinimalNoFaultProofsRuntime(t, cfg, MixedL2CLOpNode), MixedL2CLOpNode, true, cfg)
+	clKind := ResolveMixedL2CLKind(t)
+	t.Logger().Info("Starting two-verifier runtime", "sequencer", clKind, "b", clKind, "c", clKind)
+	runtime := addSingleChainVerifier(t, newMinimalNoFaultProofsRuntime(t, cfg, clKind), clKind, true, cfg)
 	nodeB := runtime.Nodes["b"]
 	t.Require().NotNil(nodeB, "missing single-chain node b")
-	nodeC := addSingleChainNode(t, runtime, "c", followKind, false, nodeB.CL.UserRPC(), cfg.GlobalL2CLOptions...)
+	nodeC := addSingleChainNode(t, runtime, "c", clKind, false, nodeB.CL.UserRPC(), cfg.GlobalL2CLOptions...)
 
 	connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeC)
 	connectSingleChainNodes(t, nodeB.EL, nodeB.CL, nodeC)
