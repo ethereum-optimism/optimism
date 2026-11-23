@@ -298,6 +298,10 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			return nil, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.ParentHash, err)
 		}
 
+		if parent.Number+1 != n.Number {
+			return nil, fmt.Errorf("l2 parent %s of %s has a number that does not precede it", parent, n)
+		}
+
 		// Check the L1 origin relation
 		if parent.L1Origin != n.L1Origin {
 			// sanity check that the L1 origin block number is coherent

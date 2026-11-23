@@ -476,3 +476,43 @@ func TestL2HeadsForELSyncWithOffset(t *testing.T) {
 		})
 	}
 }
+
+// parentNumberL2 is an L2 chain whose block with the given hash reports a wrong number.
+type parentNumberL2 struct {
+	*testutils.FakeChainSource
+	hash   common.Hash
+	number uint64
+}
+
+func (c parentNumberL2) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error) {
+	ref, err := c.FakeChainSource.L2BlockRefByHash(ctx, hash)
+	if hash == c.hash {
+		ref.Number = c.number
+	}
+	return ref, err
+}
+
+// TestFindL2HeadsParentNumber checks that the walk back from the unsafe head stops at a parent
+// block whose number does not precede its child's.
+func TestFindL2HeadsParentNumber(t *testing.T) {
+	tc := syncStartTestCase{
+		L1:             "abcdef",
+		L2:             "ABCDEF",
+		NewL1:          "abcdef",
+		PreFinalizedL2: 'A',
+		PreSafeL2:      'A',
+		GenesisL1:      'a',
+		GenesisL2:      'A',
+		SeqWindowSize:  2,
+	}
+	chain, genesis := tc.generateFakeL2(t)
+	chain.SetL2Finalized(runeToHash(tc.PreFinalizedL2))
+	chain.SetL2Safe(runeToHash(tc.PreSafeL2))
+	cfg := &rollup.Config{Genesis: genesis, SeqWindowSize: tc.SeqWindowSize}
+	lgr := log.NewLogger(log.DiscardHandler())
+
+	// E is block 4, the parent of the unsafe head F.
+	l2 := parentNumberL2{FakeChainSource: chain, hash: runeToHash('E'), number: 5}
+	_, err := FindL2Heads(context.Background(), cfg, chain, l2, lgr, &Config{})
+	require.ErrorContains(t, err, "does not precede")
+}
