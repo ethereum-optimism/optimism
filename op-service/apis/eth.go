@@ -27,11 +27,12 @@ type EthBlockInfo interface {
 
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 
+	// InfoAndTxsByHash returns a block's info and all of its transactions as
+	// go-ethereum types. It fails on any L2 block after genesis, which starts
+	// with the L1-info deposit: read L2 bodies through EthL2BlockTxs.
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 
 	InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error)
-
-	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
 }
 
 type EthHeader interface {
@@ -40,8 +41,6 @@ type EthHeader interface {
 	HeaderByNumber(ctx context.Context, number uint64) (*types.Header, error)
 
 	HeaderByLabel(ctx context.Context, label eth.BlockLabel) (*types.Header, error)
-
-	HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error)
 }
 
 // EthL2BlockTxs partitions an L2 block's transactions by class: the OP Stack
@@ -59,8 +58,6 @@ type EthL2BlockTxs interface {
 
 	// InfoAndDepositsByHash returns a block's deposit (0x7E) transactions.
 	InfoAndDepositsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []*optypes.DepositTx, error)
-
-	InfoAndDepositsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, []*optypes.DepositTx, error)
 
 	// InfoAndFirstDepositByHash returns a block's first transaction decoded as
 	// a deposit — the L1-info deposit of an L2 block.
