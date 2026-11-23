@@ -49,7 +49,7 @@ rollup node는 체인 tip에 대한 뷰, 즉 unsafe, safe, finalized 블록 정�
 
 ### 동기화
 
-`kona-node`는 두 가지 주요 단계로 L2 체인을 동기화합니다.
+기본 모드(`--syncmode=execution-layer`)에서 `kona-node`는 두 가지 주요 단계로 L2 체인을 동기화합니다.
 
 1. **실행 계층(EL) 동기화:**
    시작 시 node의 engine task queue는 처음에 비어 있습니다.
@@ -71,11 +71,16 @@ rollup node는 체인 tip에 대한 뷰, 즉 unsafe, safe, finalized 블록 정�
    이 task는 검증 및 실행을 위해 payload를 실행 엔진에 제출합니다.
 
 <Note>
-- `kona-node`는 과거 체인 기록에 대한 히스토리 CL 동기화나 L1으로부터의
-  L2 블록 백필(backfill)을 지원하지 **않습니다**. L2 체인의 초기 동기화는
-  EL 클라이언트에 의존합니다.
-- EL이 완전히 동기화된 후에야 node는 L1으로부터 새로운 L2 블록을
+- 기본 모드에서 `kona-node`는 L2 체인의 초기 동기화를 EL 클라이언트에
+  의존하며, EL이 완전히 동기화된 후에야 L1으로부터 새로운 L2 블록을
   도출하고 따라가기 시작합니다.
+- `--syncmode=consensus-layer`에서는 validator가 시작 시 engine을
+  reset합니다. EL이 그 forkchoice 업데이트에 `VALID`로 응답하면 node는
+  gossip을 기다리지 않고 EL의 safe head부터 L1으로부터 도출하며, 그렇지
+  않으면 기본 동작으로 돌아갑니다. op-node와 달리 앞에 간격(gap)이 있는
+  gossip payload를 위한 queue가 없으므로, 그러한 payload는 여전히 EL
+  동기화를 시작합니다.
+  [동기화 모드](/ko/node-operators/kona-node/configuration#sync-mode)를 참조하십시오.
 </Note>
 
 ### 확장성

@@ -24,7 +24,7 @@ func TestSyncAfterInitialELSync(gt *testing.T) {
 	// but got current=2
 	// \tTest:      \tTestSyncAfterInitialELSync\n"
 
-	sysgo.SkipOnKonaNode(t, "not supported")
+	sysgo.SkipOnKonaNode(t, "kona-node has no unsafe-payload queue: a payload with a gap before it starts EL sync")
 	sys := newGapCLP2PSystem(t)
 	require := t.Require()
 

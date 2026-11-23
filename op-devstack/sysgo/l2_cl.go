@@ -14,11 +14,13 @@ type L2CLNode interface {
 }
 
 type L2CLConfig struct {
-	// SyncMode for op-node, if this is a sequencer. Kona accepts the recognized
-	// modes as compatibility inputs and uses its native adaptive EL sync behavior.
+	// SyncMode, if this is a sequencer. kona-node takes it as --syncmode, which starts a
+	// sequencer the same way in either mode.
 	SequencerSyncMode nodeSync.Mode
-	// SyncMode for op-node, if this is a verifier. As above, this does not select
-	// a native sync mode in Kona.
+	// SyncMode, if this is a verifier. kona-node takes it as --syncmode: in CL sync a verifier
+	// derives from L1 without waiting for an unsafe payload when its EL is already synced, but
+	// unlike op-node it has no unsafe-payload queue, so a gossiped payload with a gap still
+	// makes the EL sync.
 	VerifierSyncMode nodeSync.Mode
 	// VerifierL1Confs delays L1 input to derivation, independently of sequencing.
 	VerifierL1Confs uint64

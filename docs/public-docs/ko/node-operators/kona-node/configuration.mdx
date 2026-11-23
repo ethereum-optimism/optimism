@@ -28,6 +28,8 @@ import { Unreleased } from "/ko/snippets/unreleased.mdx"
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | L2 실행 클라이언트의 engine API 엔드포인트 URL | 예 | - |
 | `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | 실행 클라이언트용 16진수 인코딩 JWT 시크릿이 담긴 파일의 경로 | 아니요 | - |
 | `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | 사용자 지정 L2 rollup 구성 파일의 경로 | 아니요 | - |
+| `--syncmode <execution-layer/consensus-layer>` | `KONA_NODE_SYNCMODE` | validator가 동기화를 시작하는 방식. [동기화 모드](#sync-mode) 참조 | 아니요 | `execution-layer` |
+| `--syncmode.offset-el-safe <DURATION>` | `KONA_NODE_SYNCMODE_OFFSET_EL_SAFE` | finality가 없는 실행 계층에서 EL 동기화가 완료될 때 safe 및 finalized를 동기화된 tip보다 얼마나 뒤에 둘지. [동기화 모드](#sync-mode) 참조 | 아니요 | `12h` |
 
 ## 전역 인수 {#global-arguments}
 
@@ -248,6 +250,19 @@ RPC 서버는 한 번 시작됩니다. 예기치 않게 중지되면 노드는 �
 
 `kona-node`는 supervisor RPC 서버를 실행하지 않으므로 `--supervisor.*`
 플래그 그룹이 없습니다. `--interop.dependency-set`이 노드의 유일한 interop 플래그입니다.
+
+## 동기화 모드 {#sync-mode}
+
+<Unreleased component="kona-node" />
+
+`--syncmode`는 op-node와 같은 값을 받으며, validator가 시작하는 방식만 바꿉니다. sequencer는 어느 모드에서나 같은 방식으로 시작합니다.
+
+- `execution-layer`(기본값): gossip으로 받은 unsafe payload로 인해 실행 계층이 forkchoice 업데이트에 `VALID`로 응답하여 EL 동기화가 완료될 때까지 도출은 대기합니다. gossip을 받지 못하는 validator는 도출을 시작하지 않습니다.
+- `consensus-layer`: 시작 시 validator는 engine을 실행 계층의 현재 head로 reset합니다. 실행 계층이 그 forkchoice 업데이트에 `VALID`로 응답하면 validator는 unsafe payload를 기다리지 않고 L1으로부터 도출을 시작합니다. `SYNCING`으로 응답하면 validator는 경고를 기록하고 `execution-layer` 모드와 같이 unsafe payload를 기다립니다.
+
+`consensus-layer`는 op-node의 완전한 합의 계층 동기화가 아닙니다. 앞에 간격(gap)이 있는 gossip payload는 여전히 실행 계층의 동기화를 시작하게 하며, 도출이 간격을 채울 때까지 그러한 payload를 보관하는 queue는 없습니다.
+
+`--syncmode.offset-el-safe`는 genesis 이후의 finalized 블록이 없는 실행 계층에서 EL 동기화가 완료될 때 적용됩니다. `consensus-layer` validator의 시작 시 reset은 safe와 finalized를 실행 계층 자신의 레이블로 설정하므로, 이때에는 offset이 적용되지 않습니다. 어느 모드에서나 실행 계층의 체인이 safe 또는 finalized head 아래로 되감겼거나, genesis 이후 오랜 시간이 지났는데도 레이블이 여전히 genesis에 있을 때에는 reset도 offset을 사용합니다.
 
 ## RPC 신뢰 플래그 {#rpc-trust-flags}
 

@@ -46,8 +46,9 @@ func TestRestartKeepsUnderivedBlocksUnsafe(gt *testing.T) {
 			return s.FinalizedL2.Number > 0 && s.UnsafeL2.L1Origin.Number > s.SafeL2.L1Origin.Number+seqWindow
 		})
 
-		// Discovery is off, so peer the restarted CL with the sequencer again. kona-node completes
-		// EL sync from gossip before its first reset.
+		// Discovery is off, so peer the restarted CL with the sequencer again, which keeps its
+		// unsafe head following the sequencer. In the default CL sync mode, derivation resumes
+		// without gossip.
 		verifier.CL.ManagePeer(sys.Nodes[0].CL)
 		verifier.CL.Stop()
 		// The safe head the reset starts from.

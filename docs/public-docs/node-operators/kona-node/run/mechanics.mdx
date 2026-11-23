@@ -49,7 +49,7 @@ Additionally, an RPC server exposes essential methods, including the
 
 ### Syncing
 
-The `kona-node` syncs the L2 chain in two main phases:
+By default (`--syncmode=execution-layer`), the `kona-node` syncs the L2 chain in two main phases:
 
 1. **Execution Layer (EL) Sync:**
    When starting, the node initially has an empty engine task queue.
@@ -73,11 +73,17 @@ The `kona-node` syncs the L2 chain in two main phases:
    the payloads to the execution engine for validation and execution.
 
 <Note>
-- `kona-node` does **not** support historical CL sync or backfilling
-  L2 blocks from L1 for past chain history. It relies on the EL client
-  to perform the initial sync of the L2 chain.
-- Only after the EL is fully synced does the node begin deriving and
-  following new L2 blocks from L1.
+- In the default mode, `kona-node` relies on the EL client to perform
+  the initial sync of the L2 chain, and only after the EL is fully
+  synced does the node begin deriving and following new L2 blocks
+  from L1.
+- With `--syncmode=consensus-layer`, a validator resets its engine at
+  startup. If the EL answers that forkchoice update with `VALID`, the
+  node derives from L1 from the EL's safe head without waiting for
+  gossip, and otherwise falls back to the default behavior. Unlike
+  op-node, it has no queue for gossiped payloads with a gap before
+  them: such a payload still starts EL sync. See
+  [sync mode](/node-operators/kona-node/configuration#sync-mode).
 </Note>
 
 ### Extensibility

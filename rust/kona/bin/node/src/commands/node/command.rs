@@ -11,12 +11,15 @@ use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::JwtSecret;
 use anyhow::{Context as _, Result, bail};
 use backon::{ExponentialBuilder, Retryable};
-use clap::Parser;
+use clap::{
+    Parser,
+    builder::{PossibleValuesParser, TypedValueParser},
+};
 use kona_cli::{LogConfig, MetricsArgs};
 use kona_engine::DEFAULT_EL_SYNC_SAFE_OFFSET;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
+use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder, SyncMode};
 use kona_providers_alloy::AlloyChainProvider;
 use kona_registry::{DEPENDENCY_SETS, L1Config, scr_rollup_config_by_alloy_ident};
 use kona_safedb::{SafeDatabase, SafeDb};
@@ -147,12 +150,13 @@ pub struct NodeCommand {
     /// Reorgs are supported, but may be slow to recover from.
     #[arg(long = "verifier.l1-confs", env = "KONA_NODE_VERIFIER_L1_CONFS", default_value_t = 0)]
     pub verifier_l1_confs: u64,
-    /// After execution-layer sync, set the safe and finalized heads this far behind the synced tip
-    /// (converted to L2 blocks with ceiling division). Mirrors op-node's
-    /// `--syncmode.offset-el-safe`. kona-node has no consensus-layer sync mode, so this applies on
-    /// any start where the execution layer has no finalized block beyond genesis. Like op-node, a
-    /// reset also uses it when the execution layer's chain was rewound below its safe or finalized
-    /// head, or its labels are still at genesis long after genesis.
+    /// When execution-layer sync completes and the execution layer has no finalized block beyond
+    /// genesis, set the safe and finalized heads this far behind the synced tip (converted to L2
+    /// blocks with ceiling division). Mirrors op-node's `--syncmode.offset-el-safe`. A node whose
+    /// engine reset before EL sync completed, which a sequencer and a `--syncmode=consensus-layer`
+    /// validator do at startup, keeps the labels that reset recovered instead. Like op-node, a
+    /// reset also uses the offset when the execution layer's chain was rewound below its safe or
+    /// finalized head, or its labels are still at genesis long after genesis.
     #[arg(
         long = "syncmode.offset-el-safe",
         env = "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE",
@@ -160,6 +164,22 @@ pub struct NodeCommand {
         value_parser = humantime::parse_duration,
     )]
     pub el_sync_safe_offset: Duration,
+    /// How a validator starts syncing. With `execution-layer`, derivation waits until an unsafe
+    /// payload from gossip makes the execution layer answer a forkchoice update with VALID. With
+    /// `consensus-layer`, a validator resets its engine at startup and, if the execution layer
+    /// answers that forkchoice update with VALID, starts deriving from L1 without waiting for an
+    /// unsafe payload; otherwise it waits for an unsafe payload as with `execution-layer`. This is
+    /// not op-node's full consensus-layer sync: a gossiped payload with a gap before it still
+    /// makes the execution layer sync, and no queue holds such payloads until derivation fills the
+    /// gap. A sequencer starts the same way in either mode.
+    #[arg(
+        long = "syncmode",
+        env = "KONA_NODE_SYNCMODE",
+        default_value_t = SyncMode::ExecutionLayer,
+        value_parser = PossibleValuesParser::new(SyncMode::iter().map(<&'static str>::from))
+            .map(|mode| mode.parse::<SyncMode>().expect("a possible value is a sync mode")),
+    )]
+    pub sync_mode: SyncMode,
     /// P2P CLI arguments.
     #[command(flatten)]
     pub p2p_flags: P2PArgs,
@@ -183,6 +203,7 @@ impl Default for NodeCommand {
             safedb_path: None,
             verifier_l1_confs: 0,
             el_sync_safe_offset: DEFAULT_EL_SYNC_SAFE_OFFSET,
+            sync_mode: SyncMode::ExecutionLayer,
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
             rpc_flags: RpcArgs::default(),
@@ -380,6 +401,7 @@ impl NodeCommand {
         .with_safe_db(safe_db)
         .with_verifier_l1_confs(self.verifier_l1_confs)
         .with_el_sync_safe_offset(self.el_sync_safe_offset)
+        .with_sync_mode(self.sync_mode)
         .build()
         .start()
         .await

@@ -31,9 +31,7 @@ func resolveKonaL2CLConfig(t devtest.T, key string, chainID eth.ChainID, isSeque
 		}
 	}
 
-	// Kona handles Engine API SYNCING responses natively; it has no switch that
-	// selects op-node's CL-sync versus EL-sync behavior. Accept the recognized
-	// compatibility inputs without claiming to select either native mode.
+	// Like op-node, only the sync mode of the node's role applies.
 	syncMode := cfg.VerifierSyncMode
 	if isSequencer {
 		syncMode = cfg.SequencerSyncMode
@@ -71,14 +69,15 @@ func konaL2CLEnv(cfg *L2CLConfig, sequencerStopped bool) []string {
 		fmt.Sprintf("KONA_NODE_P2P_NO_DISCOVERY=%t", cfg.NoDiscovery),
 		fmt.Sprintf("KONA_NODE_VERIFIER_L1_CONFS=%d", cfg.VerifierL1Confs),
 	}
-	// kona-node has no CL-sync mode: it completes EL sync whenever its execution layer has no
-	// finality yet. Like op-node, apply the offset only to a node configured for EL sync. Any
-	// other node keeps kona-node's 12h default, which on a young devnet places safe and
-	// finalized at genesis instead of marking unsafe blocks final.
 	syncMode := cfg.VerifierSyncMode
 	if cfg.IsSequencer {
 		syncMode = cfg.SequencerSyncMode
 	}
+	// kona-node takes op-node's sync mode names.
+	extraEnv = append(extraEnv, "KONA_NODE_SYNCMODE="+syncMode.String())
+	// Like op-node, apply the offset only to a node configured for EL sync. Any other node
+	// keeps kona-node's 12h default, which on a young devnet places safe and finalized at
+	// genesis instead of marking unsafe blocks final.
 	if syncMode == nodeSync.ELSync {
 		extraEnv = append(extraEnv,
 			fmt.Sprintf("KONA_NODE_SYNCMODE_OFFSET_EL_SAFE=%dms", cfg.OffsetELSafe.Milliseconds()))

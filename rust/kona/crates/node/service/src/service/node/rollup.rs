@@ -5,7 +5,7 @@ use crate::{
     L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
     NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
     QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
-    RpcActor, SequencerActor, SequencerConfig, SignedPayload, SignerActor, SystemClock,
+    RpcActor, SequencerActor, SequencerConfig, SignedPayload, SignerActor, SyncMode, SystemClock,
     actors::{
         BlockStream, OriginPrefetcher, OriginPreparation, PreparedAttributesProvider,
         PreparedOriginProvider, QueuedUnsafePayloadGossipClient,
@@ -117,6 +117,8 @@ pub struct RollupNode {
     pub(crate) verifier_l1_confs: u64,
     /// How far behind the synced tip safe and finalized are placed when EL sync completes.
     pub(crate) el_sync_safe_offset: Duration,
+    /// How a validator starts syncing.
+    pub(crate) sync_mode: SyncMode,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -263,6 +265,11 @@ impl RollupNode {
             engine_request_rx,
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
+        let actor = if self.sync_mode.resets_engine_at_startup(self.mode()) {
+            actor.with_startup_reset()
+        } else {
+            actor
+        };
 
         (actor, engine_client.query_client(), engine_state_rx)
     }
