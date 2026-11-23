@@ -362,8 +362,7 @@ the resolved set at startup.
   it nothing only when its creator is owned or it is the registered anchor. It
   does not claim credit owed to another listed address.
 - **Foreign games' lifecycle**: op-challenger or the game's creator resolves and
-  closes foreign games. An owned game created on a foreign parent before this
-  policy cannot resolve until someone resolves that parent.
+  closes foreign games.
 
 Fast finality uses a narrower spend policy. It proves only unchallenged owned
 games created by the configured signer. Listed creators' games are defended and
@@ -379,14 +378,6 @@ finality delay after it; removing it earlier makes the chain built on those game
 foreign, and the proposer starts a new root from the anchor. A listed address is
 trusted like the signer, so never list a compromised key. Leaving the variable
 unset is the steady state.
-
-**Upgrading to this ownership policy**: earlier versions adopted valid foreign
-games as parents and defended them. This version no longer defends them, so if a
-foreign ancestor of an in-progress signer game is challenged and loses, the
-signer games built on it lose their bonds. Before upgrading, check that no
-in-progress signer game has an unresolved foreign ancestor. If one does, list
-that creator in `OP_ZK_PROPOSER_OWNED_CREATORS` until the anchor has moved past
-it.
 
 **Operational requirement**: rotated-out prestate artifacts must remain published
 under `OP_ZK_PROPOSER_PRESTATES_URL` for as long as owned games created under

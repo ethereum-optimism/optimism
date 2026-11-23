@@ -100,6 +100,58 @@ func TestProposerDoesNotDefendForeignValidGame(gt *testing.T) {
 		"the proposer must not prove a foreign game")
 }
 
+// TestProposerDefendsListedCreatorGame proves, resolves, and claims prover
+// credit on a challenged valid game from a creator listed in
+// OP_ZK_PROPOSER_OWNED_CREATORS, the key-rotation path.
+func TestProposerDefendsListedCreatorGame(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	// The honest challenger resolves games and claims credit on the
+	// proposer's behalf; disable it so every assertion below binds to the
+	// proposer.
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+		presets.WithZKProposerOption(sysgo.WithZKOwnedCreator(ownedCreatorKey)),
+	)
+	factory := sys.DisputeGameFactory()
+	proposerAddr := zkProposerAddress(t, sys)
+	weth := factory.DelayedWETH(factory.ZKGameImpl().Args.Weth)
+	creator := ownedCreator(t, sys)
+	challenger := sys.FunderL1.NewFundedEOA(eth.OneEther)
+
+	// The DSL derives a valid claim from the supernode. Use an off-grid
+	// timestamp to avoid a factory UUID collision with the proposer's game,
+	// which would have the same claim and extraData.
+	proposerGame := factory.WaitForZKGameAtIndex(0)
+	listedTimestamp := proposerGame.L2SequenceNumber() + 1
+	factory.WaitForSafeSuperRootAfter(listedTimestamp)
+	game := factory.StartZKGame(creator, proofs.WithL2SequenceNumber(listedTimestamp))
+	challengerBond := game.ChallengerBond()
+	challengedClaim := game.Challenge(challenger)
+	t.Require().Equal(challenger.Address(), challengedClaim.Challenger)
+
+	// The proposer proves the listed creator's game and its resolution task
+	// resolves it; the test never calls prove or resolve itself.
+	game.WaitForProposalStatus(proofs.ZKProposalChallengedAndValidProofProvided)
+	t.Require().Equal(proposerAddr, game.ClaimData().Prover)
+	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
+	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(presets.DefaultZKFinalityDelay/time.Second)+1)
+
+	// The proposer's claim task unlocks its prover credit - the challenger's
+	// bond - into DelayedWETH. Asserting the unlocked amount is race-free:
+	// the payout cannot run until L1 time advances past the WETH delay.
+	var withdrawal proofs.ZKWithdrawal
+	t.Require().Eventuallyf(func() bool {
+		withdrawal = weth.Withdrawal(game.Address, proposerAddr)
+		return withdrawal.Amount.Sign() > 0
+	}, 2*time.Minute, time.Second, "proposer did not unlock its prover credit")
+	t.Require().Equal(challengerBond, eth.WeiBig(withdrawal.Amount),
+		"prover credit must equal the challenger bond")
+
+	advanceL1To(&sys.SingleChainInterop, withdrawal.MaturesAt(weth.Delay()))
+	game.WaitForClaimedCredit(proposerAddr)
+}
+
 // TestProposerIgnoresInvalidChallengedGame pins the defense boundary on
 // validity: the proposer refuses to defend an invalid game even from a creator
 // it owns. A challenged proposal with a corrupted output root must never get a

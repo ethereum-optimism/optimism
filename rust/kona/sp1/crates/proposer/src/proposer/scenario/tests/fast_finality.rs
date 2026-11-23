@@ -111,6 +111,47 @@ async fn foreign_challenged_game_is_not_proven() {
     }
 }
 
+/// A creator listed in `OP_ZK_PROPOSER_OWNED_CREATORS`, such as an old signer after a key
+/// rotation, gets its challenged game defended and resolved once it wins, but fast finality
+/// spends only on the signer's own games.
+#[tokio::test]
+async fn listed_creator_game_is_defended_and_resolved_but_not_fast_finalized() {
+    let world = ScenarioWorld::new();
+    let mut unchallenged = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    unchallenged.creator = LISTED_CREATOR;
+    let mut challenged =
+        ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate()).challenged();
+    challenged.creator = LISTED_CREATOR;
+    let unchallenged_target = unchallenged.target();
+    let challenged_target = challenged.target();
+    world.add_game(unchallenged);
+    world.add_game(challenged);
+    world.set_horizons(2, 2);
+    let mut config = ff_config(3);
+    config.owned_creators = Some(vec![LISTED_CREATOR]);
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let proving = scenario.tick().await.unwrap();
+    let proofs = proving
+        .scheduled
+        .iter()
+        .filter_map(|scheduled| match scheduled.operation {
+            OperationSummary::ProveGame { address, purpose, .. } => Some((address, purpose)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(proofs, vec![(challenged_target.address, ProvingPurpose::Defense)]);
+    scenario.settle_scheduled(&proving).await.unwrap();
+    assert!(world.proof_record(&unchallenged_target, 1).is_none());
+
+    let resolution = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&resolution).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::Resolve(challenged_target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game: challenged_target.address }
+    );
+}
+
 #[tokio::test]
 async fn nearest_deadline_proof_holds_capacity_through_failure_and_retry_then_creation_resumes() {
     let world = ScenarioWorld::new();

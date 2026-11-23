@@ -9841,6 +9841,11 @@ mod tests {
         }
 
         #[test]
+        fn exactly_two_intervals_of_lag_catches_up() {
+            assert_eq!(next_proposal_timestamp(100, 6, 4, 112), Some(112));
+        }
+
+        #[test]
         fn interval_not_elapsed_skips() {
             assert_eq!(next_proposal_timestamp(100, 6, 4, 105), None);
             assert_eq!(next_proposal_timestamp(100, 6, 4, 100), None);
