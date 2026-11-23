@@ -56,7 +56,6 @@ const DERIVATION_DELEGATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 pub(in crate::service) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
-const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
 /// The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
 pub(super) fn merge_admin_module(
@@ -82,6 +81,8 @@ pub struct L1Config {
     /// The node's L1 client. Every component holds a clone, so all share its caches and trust
     /// setting.
     pub provider: AlloyChainProvider,
+    /// How often the L1 finalized block is polled.
+    pub epoch_poll_interval: Duration,
 }
 
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
@@ -347,7 +348,7 @@ impl RollupNode {
         let finalized_stream = BlockStream::new_as_stream(
             self.l1_config.provider.clone(),
             BlockLabel::Finalized,
-            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+            self.l1_config.epoch_poll_interval,
         );
 
         let chain = L1WatcherChain::new(
