@@ -10,7 +10,7 @@
 extern crate tracing;
 
 mod service;
-pub use service::{L1Config, L1ConfigBuilder, NodeMode, RollupNode, RollupNodeBuilder};
+pub use service::{L1Config, L1ConfigBuilder, NodeMode, RollupNode, RollupNodeBuilder, SyncMode};
 
 mod actors;
 pub use actors::{

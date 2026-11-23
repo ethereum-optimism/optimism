@@ -12,7 +12,7 @@ pub use builder::{L1ConfigBuilder, RollupNodeBuilder};
 mod middleware;
 
 mod mode;
-pub use mode::NodeMode;
+pub use mode::{NodeMode, SyncMode};
 
 mod node;
 pub use node::{L1Config, RollupNode};

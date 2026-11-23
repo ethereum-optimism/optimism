@@ -106,7 +106,8 @@ func TestSafeHeadRecordsMatchAfterKonaCLRestart(gt *testing.T) {
 	deriveTogether(t, sys, 3)
 
 	// Restart the CL only, so the EL keeps the chain and the CL resumes against existing data.
-	// kona-node only leaves EL sync once a gossiped block arrives, so it must be re-peered.
+	// In the default CL sync mode kona-node resumes deriving without gossip; re-peering keeps its
+	// unsafe head following the sequencer.
 	sys.Kona.ManagePeer(sys.OpNode)
 	sys.Kona.Stop()
 	sys.OpNode.Advanced(safety.LocalSafe, 3, 60)
@@ -122,8 +123,8 @@ func TestSafeHeadRecordsMatchAfterKonaCLAndELRestart(gt *testing.T) {
 	deriveTogether(t, sys, 3)
 
 	// Restart CL and EL together. The EL keeps its data dir, so the CL resumes from the EL's
-	// heads rather than from genesis. kona-node only leaves EL sync once a gossiped block
-	// arrives, so it must be re-peered.
+	// heads rather than from genesis. In the default CL sync mode kona-node resumes deriving
+	// without gossip; re-peering keeps its unsafe head following the sequencer.
 	sys.Kona.ManagePeer(sys.OpNode)
 	sys.Kona.Stop()
 	sys.KonaEL.Stop()

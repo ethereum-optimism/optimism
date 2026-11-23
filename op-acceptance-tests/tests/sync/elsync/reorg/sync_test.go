@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -19,15 +18,6 @@ import (
 //  4. CLP2P is restored, the verifier backfills and the unsafe gap is closed.
 func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with kona-node:
-	//
-	// assertions.go:387:             ERROR[03-30|22:17:00.549]
-	// assertions.go:387:             	Error Trace:	/op-devstack/dsl/l2_el.go:204
-	// assertions.go:387:             	            				/op-acceptance-tests/tests/sync/elsync/reorg/sync_test.go:78
-	// assertions.go:387:             	Error:      	Received unexpected error:
-	// assertions.go:387:             	            	operation failed permanently after 30 attempts: expected head to reorg 0xae5a516a6654d4ee6a2edfb9a8e2db12106991b1a29fbb3953dd5afb8a60914e:12, but got 0xae5a516a6654d4ee6a2edfb9a8e2db12106991b1a29fbb3953dd5afb8a60914e:12
-	// assertions.go:387:             	Test:       	TestUnsafeGapFillAfterSafeReorg
-	sysgo.SkipOnKonaNode(t, "not supported (timeout)")
 	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()

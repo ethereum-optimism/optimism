@@ -30,6 +30,7 @@ func TestKonaL2CLEnvSupportedOptions(t *testing.T) {
 			require.Equal(t, []string{
 				"KONA_NODE_P2P_NO_DISCOVERY=false",
 				"KONA_NODE_VERIFIER_L1_CONFS=0",
+				"KONA_NODE_SYNCMODE=consensus-layer",
 				"KONA_NODE_SAFEDB_PATH=/tmp/safe-head.db",
 			}, konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, isSequencer, "", opts), false))
 		})
@@ -42,13 +43,13 @@ func TestKonaL2CLEnvDiscovery(t *testing.T) {
 			t.Setenv("KONA_NODE_P2P_NO_DISCOVERY", ambient)
 			dt := devtest.SerialT(t)
 			chainID := eth.ChainIDFromUInt64(901)
-			require.Equal(t, []string{"KONA_NODE_P2P_NO_DISCOVERY=" + ambient, "KONA_NODE_VERIFIER_L1_CONFS=0"},
+			require.Equal(t, []string{"KONA_NODE_P2P_NO_DISCOVERY=" + ambient, "KONA_NODE_VERIFIER_L1_CONFS=0", "KONA_NODE_SYNCMODE=consensus-layer"},
 				konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, false, "", nil), false))
 			for _, noDiscovery := range []bool{false, true} {
 				opts := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 					cfg.NoDiscovery = noDiscovery
 				})}
-				require.Equal(t, []string{fmt.Sprintf("KONA_NODE_P2P_NO_DISCOVERY=%t", noDiscovery), "KONA_NODE_VERIFIER_L1_CONFS=0"},
+				require.Equal(t, []string{fmt.Sprintf("KONA_NODE_P2P_NO_DISCOVERY=%t", noDiscovery), "KONA_NODE_VERIFIER_L1_CONFS=0", "KONA_NODE_SYNCMODE=consensus-layer"},
 					konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, false, "", opts), false))
 			}
 		})
@@ -62,12 +63,14 @@ func TestKonaL2CLEnvFollowSource(t *testing.T) {
 	require.Equal(t, []string{
 		"KONA_NODE_P2P_NO_DISCOVERY=true",
 		"KONA_NODE_VERIFIER_L1_CONFS=0",
+		"KONA_NODE_SYNCMODE=consensus-layer",
 		"KONA_NODE_L2_FOLLOW_SOURCE=http://initial:8545",
 	}, konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, false, "http://initial:8545", nil), false))
 	// Apply callbacks in order, with the same initial follow source as op-node.
 	require.Equal(t, []string{
 		"KONA_NODE_P2P_NO_DISCOVERY=true",
 		"KONA_NODE_VERIFIER_L1_CONFS=0",
+		"KONA_NODE_SYNCMODE=consensus-layer",
 		"KONA_NODE_L2_FOLLOW_SOURCE=http://last:8545",
 	}, konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, false, "http://initial:8545", []L2CLOption{
 		L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, config *L2CLConfig) {
@@ -78,13 +81,22 @@ func TestKonaL2CLEnvFollowSource(t *testing.T) {
 	}), false))
 }
 
-func TestKonaL2CLEnvAcceptsSyncModeCompatibilityInputs(t *testing.T) {
+// kona-node takes the sync mode of the node's role under op-node's names. EL sync also adds its
+// safe offset, as it does for op-node.
+func TestKonaL2CLEnvPassesTheRolesSyncMode(t *testing.T) {
 	t.Setenv("KONA_NODE_P2P_NO_DISCOVERY", "true")
 	for _, isSequencer := range []bool{false, true} {
-		for _, mode := range nodeSync.Modes {
+		for _, tc := range []struct {
+			mode nodeSync.Mode
+			want []string
+		}{
+			{nodeSync.CLSync, []string{"KONA_NODE_SYNCMODE=consensus-layer"}},
+			{nodeSync.ELSync, []string{"KONA_NODE_SYNCMODE=execution-layer", "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE=0ms"}},
+		} {
+			mode, want := tc.mode, tc.want
 			t.Run(fmt.Sprintf("sequencer=%t/mode=%s", isSequencer, mode), func(t *testing.T) {
 				opts := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
-					// Only the effective role's sync mode matters, just like op-node.
+					// The other role's sync mode is invalid, so using it would fail resolution.
 					cfg.SequencerSyncMode, cfg.VerifierSyncMode = nodeSync.Mode(99), nodeSync.Mode(99)
 					if isSequencer {
 						cfg.SequencerSyncMode = mode
@@ -92,14 +104,7 @@ func TestKonaL2CLEnvAcceptsSyncModeCompatibilityInputs(t *testing.T) {
 						cfg.VerifierSyncMode = mode
 					}
 				})}
-				// Neither compatibility mode emits a flag pretending to select a
-				// native mode: Kona always drives EL sync through Engine API responses.
-				// EL sync only adds its safe offset, as it does for op-node.
-				want := []string{"KONA_NODE_P2P_NO_DISCOVERY=true", "KONA_NODE_VERIFIER_L1_CONFS=0"}
-				if mode == nodeSync.ELSync {
-					want = append(want, "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE=0ms")
-				}
-				require.Equal(t, want,
+				require.Equal(t, append([]string{"KONA_NODE_P2P_NO_DISCOVERY=true", "KONA_NODE_VERIFIER_L1_CONFS=0"}, want...),
 					konaL2CLEnv(resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), isSequencer, "", opts), false))
 			})
 		}
@@ -115,6 +120,7 @@ func TestKonaL2CLEnvConductor(t *testing.T) {
 	require.Equal(t, []string{
 		"KONA_NODE_P2P_NO_DISCOVERY=true",
 		"KONA_NODE_VERIFIER_L1_CONFS=0",
+		"KONA_NODE_SYNCMODE=consensus-layer",
 		"KONA_NODE_CONDUCTOR_RPC=http://conductor:8547",
 		"KONA_NODE_CONDUCTOR_RPC_TIMEOUT=7",
 	}, konaL2CLEnv(resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), true, "", opts), false))
@@ -171,8 +177,8 @@ func TestKonaL2CLEnvSequencerStopped(t *testing.T) {
 		name        string
 		stopped     bool
 	}{
-		{environment: []string{"KONA_NODE_P2P_NO_DISCOVERY=false", "KONA_NODE_VERIFIER_L1_CONFS=0"}, name: "running"},
-		{environment: []string{"KONA_NODE_P2P_NO_DISCOVERY=false", "KONA_NODE_VERIFIER_L1_CONFS=0", "KONA_NODE_SEQUENCER_STOPPED=true"}, name: "stopped", stopped: true},
+		{environment: []string{"KONA_NODE_P2P_NO_DISCOVERY=false", "KONA_NODE_VERIFIER_L1_CONFS=0", "KONA_NODE_SYNCMODE=consensus-layer"}, name: "running"},
+		{environment: []string{"KONA_NODE_P2P_NO_DISCOVERY=false", "KONA_NODE_VERIFIER_L1_CONFS=0", "KONA_NODE_SYNCMODE=consensus-layer", "KONA_NODE_SEQUENCER_STOPPED=true"}, name: "stopped", stopped: true},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			cfg := DefaultL2CLConfig()

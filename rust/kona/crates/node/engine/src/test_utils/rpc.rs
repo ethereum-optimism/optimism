@@ -242,6 +242,18 @@ pub fn expect_sync_start(
     block: &TestRpcBlock,
     forkchoice: ForkchoiceState,
 ) {
+    expect_sync_start_answered(l1, l2, block, forkchoice, PayloadStatusEnum::Valid);
+}
+
+/// Like [`expect_sync_start`], with the execution layer answering the forkchoice update with
+/// `status`.
+pub fn expect_sync_start_answered(
+    l1: &RpcMock,
+    l2: &RpcMock,
+    block: &TestRpcBlock,
+    forkchoice: ForkchoiceState,
+    status: PayloadStatusEnum,
+) {
     for label in ["finalized", "safe", "latest"] {
         l2.expect_params("eth_getBlockByNumber", serde_json::json!([label, true]), block);
     }
@@ -250,5 +262,5 @@ pub fn expect_sync_start(
     for number in ["latest", "0x0"] {
         l1.expect_params("eth_getBlockByNumber", serde_json::json!([number, false]), &l1_genesis);
     }
-    l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
+    l2.expect_forkchoice_updated(forkchoice, status);
 }

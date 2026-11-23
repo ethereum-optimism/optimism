@@ -322,6 +322,29 @@ async fn polls_wait_for_engine_sync_completion() {
     assert_eq!(*harness.current_l1.borrow(), None);
 }
 
+/// In consensus-layer sync mode the engine resets at startup, so a reset signal precedes the
+/// engine-sync completion. Polling starts on the completion as it does without the reset, and the
+/// first poll forwards the delegate's status.
+#[tokio::test(start_paused = true)]
+async fn startup_reset_before_engine_sync_completion_does_not_delay_polling() {
+    let mut harness = Harness::new([DelegateReply::Valid.sync_status()]);
+    let genesis = l2_block(0, SAFE_ORIGIN);
+    harness
+        .engine_derivation_requests
+        .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(
+            kona_derive::Signal::Reset(kona_derive::ResetSignal { l2_safe_head: genesis }),
+        )))
+        .unwrap();
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), Vec::new(), "a reset alone starts no polling");
+
+    harness.complete_engine_sync_with(engine_finalized_at(genesis)).await;
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_for(&delegate_status()));
+    assert_eq!(*harness.current_l1.borrow(), Some(delegate_status().current_l1));
+}
+
 /// A valid status forwards the safe head and then the hash-pinned finalized block, and publishes
 /// the delegate's `current_l1`. A failed fetch, or any L1 reference that is not canonical, skips
 /// the poll without forwarding or publishing anything and without stopping the actor.

@@ -1,6 +1,8 @@
 //! Contains the builder for the [`RollupNode`].
 
-use crate::{EngineConfig, NetworkConfig, RollupNode, SequencerConfig, service::node::L1Config};
+use crate::{
+    EngineConfig, NetworkConfig, RollupNode, SequencerConfig, SyncMode, service::node::L1Config,
+};
 use std::{sync::Arc, time::Duration};
 use url::Url;
 
@@ -58,6 +60,8 @@ pub struct RollupNodeBuilder {
     /// How far behind the unsafe head safe and finalized are placed when EL sync completes, or
     /// when a reset finds the execution layer's labels lost or its chain rewound below them.
     pub el_sync_safe_offset: Duration,
+    /// How a validator starts syncing.
+    pub sync_mode: SyncMode,
 }
 
 impl RollupNodeBuilder {
@@ -83,6 +87,7 @@ impl RollupNodeBuilder {
             safe_db: None,
             verifier_l1_confs: 0,
             el_sync_safe_offset: DEFAULT_EL_SYNC_SAFE_OFFSET,
+            sync_mode: SyncMode::ExecutionLayer,
         }
     }
 
@@ -109,6 +114,11 @@ impl RollupNodeBuilder {
     /// or when a reset finds the execution layer's labels lost or its chain rewound below them.
     pub fn with_el_sync_safe_offset(self, el_sync_safe_offset: Duration) -> Self {
         Self { el_sync_safe_offset, ..self }
+    }
+
+    /// Sets how a validator starts syncing. A sequencer starts the same way in either mode.
+    pub fn with_sync_mode(self, sync_mode: SyncMode) -> Self {
+        Self { sync_mode, ..self }
     }
 
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
@@ -170,6 +180,7 @@ impl RollupNodeBuilder {
             safe_db: self.safe_db,
             verifier_l1_confs: self.verifier_l1_confs,
             el_sync_safe_offset: self.el_sync_safe_offset,
+            sync_mode: self.sync_mode,
         }
     }
 }

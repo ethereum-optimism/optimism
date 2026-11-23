@@ -8,8 +8,9 @@ use kona_engine::{
     ConsolidateInput, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
     ResetRequest,
     test_utils::{
-        RpcMock, TestEngineStateBuilder, TestRpcBlock, expect_sync_start, test_block_info,
-        test_engine_client, test_l2_block, test_rpc_block,
+        RpcMock, TestEngineStateBuilder, TestRpcBlock, expect_sync_start,
+        expect_sync_start_answered, test_block_info, test_engine_client, test_l2_block,
+        test_rpc_block,
     },
 };
 use op_alloy_consensus::{OpBlock, OpTxEnvelope};
@@ -533,4 +534,219 @@ async fn reset_closes_the_reply_channels_of_queued_seal_and_canonicalize() {
     assert!(actor.engine.is_empty());
     assert!(seal_rx.recv().await.is_none());
     assert!(canonicalize_rx.recv().await.is_none());
+}
+
+/// A rollup config whose L2 genesis is the default block, with that block and its info.
+fn genesis_at_default_block() -> (Arc<RollupConfig>, TestRpcBlock, L2BlockInfo) {
+    let genesis_block = TestRpcBlock::default();
+    let mut config = RollupConfig::default();
+    config.genesis.l2.hash = genesis_block.header.inner.hash_slow();
+    config.genesis.l1.hash = alloy_consensus::Header::default().hash_slow();
+    let genesis = L2BlockInfo::from_block_and_genesis(
+        &genesis_block.clone().into_consensus(),
+        &config.genesis,
+    )
+    .unwrap();
+    (Arc::new(config), genesis_block, genesis)
+}
+
+/// An engine actor with no engine state yet, as at node startup, with its request sender and the
+/// receiver of its messages to derivation.
+fn starting_actor(
+    config: Arc<RollupConfig>,
+    client: EngineClient,
+) -> (
+    EngineActor<QueuedEngineDerivationClient>,
+    mpsc::Sender<EngineActorRequest>,
+    mpsc::UnboundedReceiver<DerivationActorRequest>,
+) {
+    let (requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, derivation_rx) = mpsc::unbounded_channel();
+    let (state_tx, _state_rx) = watch::channel(EngineState::default());
+    let actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(EngineState::default(), state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    (actor, requests, derivation_rx)
+}
+
+/// Takes the next message to derivation, which must be a reset signal, and returns its safe head.
+fn reset_signal_safe_head(
+    derivation_rx: &mut mpsc::UnboundedReceiver<DerivationActorRequest>,
+) -> L2BlockInfo {
+    let Ok(DerivationActorRequest::ProcessEngineSignalRequest(signal)) = derivation_rx.try_recv()
+    else {
+        panic!("expected a reset signal");
+    };
+    let kona_derive::Signal::Reset(reset) = *signal else {
+        panic!("expected a reset signal");
+    };
+    reset.l2_safe_head
+}
+
+/// Takes the next message to derivation, which must be the EL-sync completion, and returns its
+/// safe head.
+fn sync_completion_safe_head(
+    derivation_rx: &mut mpsc::UnboundedReceiver<DerivationActorRequest>,
+) -> L2BlockInfo {
+    let Ok(DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head)) =
+        derivation_rx.try_recv()
+    else {
+        panic!("expected the EL-sync completion");
+    };
+    *safe_head
+}
+
+/// In consensus-layer sync mode, a validator resets at startup with no request to prompt it. A
+/// `VALID` answer to the reset's forkchoice update completes EL sync, so derivation is reset to the
+/// recovered safe head and starts without waiting for an unsafe payload.
+#[tokio::test(start_paused = true)]
+async fn startup_reset_completes_el_sync_without_any_request() {
+    let (config, genesis_block, genesis) = genesis_at_default_block();
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let (actor, _requests, mut derivation_rx) = starting_actor(config, client);
+    let mut actor = actor.with_startup_reset();
+    expect_reset_to_genesis(&l1, &l2, &genesis_block, genesis);
+
+    // The step resets and then waits for a request that never comes.
+    assert!(time::timeout(Duration::from_secs(1), actor.step()).await.is_err());
+
+    assert!(!actor.reset_pending);
+    assert!(actor.el_sync_complete);
+    assert_eq!(reset_signal_safe_head(&mut derivation_rx), genesis);
+    assert_eq!(sync_completion_safe_head(&mut derivation_rx), genesis);
+    assert!(derivation_rx.try_recv().is_err());
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// When the execution layer answers the startup reset's forkchoice update with `SYNCING`, the
+/// reset completes without completing EL sync and is not retried, which would hold back queued
+/// work. The queued unsafe payload is then imported, and its `VALID` forkchoice update completes
+/// EL sync as it does without a startup reset.
+#[tokio::test(start_paused = true)]
+async fn startup_reset_answered_syncing_leaves_el_sync_to_unsafe_payloads() {
+    let (config, genesis_block, genesis) = genesis_at_default_block();
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let (actor, requests, mut derivation_rx) = starting_actor(config.clone(), client);
+    let mut actor = actor.with_startup_reset();
+    expect_sync_start_answered(
+        &l1,
+        &l2,
+        &genesis_block,
+        forkchoice(genesis, genesis, genesis),
+        PayloadStatusEnum::Syncing,
+    );
+    let unsafe_payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(
+        &test_l2_block(1, genesis.hash(), 0),
+    ));
+    let unsafe_head = L2BlockInfo::from_block_and_genesis(
+        &unsafe_payload.clone().try_into_block::<OpTxEnvelope>().unwrap(),
+        &config.genesis,
+    )
+    .unwrap();
+    requests
+        .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(unsafe_payload)))
+        .await
+        .unwrap();
+
+    // The reset runs first; the unsafe payload is queued behind it.
+    actor.step().await.unwrap();
+    assert!(!actor.reset_pending, "the startup reset must not be retried");
+    assert!(!actor.el_sync_complete);
+    assert_eq!(actor.engine.len(), 1, "the unsafe payload waits in the queue");
+    assert_eq!(reset_signal_safe_head(&mut derivation_rx), genesis);
+    assert!(derivation_rx.try_recv().is_err(), "EL sync is not complete yet");
+    l1.assert_finished();
+    l2.assert_finished();
+
+    l2.expect("engine_newPayloadV2", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+    l2.expect_forkchoice_updated(
+        forkchoice(unsafe_head, genesis, genesis),
+        PayloadStatusEnum::Valid,
+    );
+    assert!(time::timeout(Duration::from_secs(1), actor.step()).await.is_err());
+
+    assert!(actor.el_sync_complete);
+    assert!(actor.engine.is_empty());
+    assert_eq!(sync_completion_safe_head(&mut derivation_rx), genesis);
+    assert!(derivation_rx.try_recv().is_err(), "EL sync completes without another reset");
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// In execution-layer sync mode, a validator starts without a reset: it sends nothing to its
+/// execution layer or to derivation until a request arrives.
+#[tokio::test(start_paused = true)]
+async fn without_a_startup_reset_the_actor_waits_for_a_request() {
+    let (config, _genesis_block, _genesis) = genesis_at_default_block();
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let (mut actor, _requests, mut derivation_rx) = starting_actor(config, client);
+
+    assert!(time::timeout(Duration::from_secs(1), actor.step()).await.is_err());
+
+    assert!(!actor.reset_pending);
+    assert!(!actor.el_sync_complete);
+    assert!(derivation_rx.try_recv().is_err());
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// An execution layer that is unreachable when the startup reset runs fails it with a temporary
+/// error. The reset stays pending and holds back the unsafe payload queued behind it, then succeeds
+/// after backoff; its `VALID` answer completes EL sync, and the payload is imported afterwards.
+#[tokio::test(start_paused = true)]
+async fn startup_reset_retries_after_the_execution_layer_is_unreachable() {
+    let (config, genesis_block, genesis) = genesis_at_default_block();
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let (actor, requests, mut derivation_rx) = starting_actor(config.clone(), client);
+    let mut actor = actor.with_startup_reset();
+    l2.expect_error("eth_getBlockByNumber");
+    let unsafe_payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(
+        &test_l2_block(1, genesis.hash(), 0),
+    ));
+    let unsafe_head = L2BlockInfo::from_block_and_genesis(
+        &unsafe_payload.clone().try_into_block::<OpTxEnvelope>().unwrap(),
+        &config.genesis,
+    )
+    .unwrap();
+    requests
+        .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(unsafe_payload)))
+        .await
+        .unwrap();
+
+    actor.step().await.unwrap();
+    assert!(actor.reset_pending, "a failed reset is retained");
+    assert_eq!(actor.engine.len(), 1, "the unsafe payload waits behind the reset");
+    assert!(!actor.el_sync_complete);
+    assert!(derivation_rx.try_recv().is_err());
+    l2.assert_finished();
+
+    expect_reset_to_genesis(&l1, &l2, &genesis_block, genesis);
+    l2.expect("engine_newPayloadV2", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+    l2.expect_forkchoice_updated(
+        forkchoice(unsafe_head, genesis, genesis),
+        PayloadStatusEnum::Valid,
+    );
+    // The actor retries after backoff with no new request, then imports the payload.
+    let steps = async {
+        loop {
+            actor.step().await.unwrap();
+        }
+    };
+    assert!(time::timeout(Duration::from_secs(1), steps).await.is_err());
+
+    assert!(!actor.reset_pending);
+    assert!(actor.el_sync_complete);
+    assert!(actor.engine.is_empty());
+    assert_eq!(reset_signal_safe_head(&mut derivation_rx), genesis);
+    assert_eq!(sync_completion_safe_head(&mut derivation_rx), genesis);
+    assert!(derivation_rx.try_recv().is_err());
+    l1.assert_finished();
+    l2.assert_finished();
 }

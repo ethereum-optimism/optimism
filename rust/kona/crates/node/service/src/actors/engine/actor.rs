@@ -103,6 +103,22 @@ where
         }
     }
 
+    /// Starts the actor with a reset pending, for a validator in consensus-layer sync mode.
+    ///
+    /// A validator otherwise sends the execution layer no forkchoice update until an unsafe
+    /// payload arrives over gossip, so it never learns that EL sync is finished and derivation
+    /// never starts. The startup reset runs before any queued work, with the forkchoice state the
+    /// execution layer reports. If the execution layer answers that forkchoice update with
+    /// `VALID`, EL sync is complete and derivation starts from the reset's safe head. Otherwise
+    /// the reset still completes, and EL sync completes on the first `VALID` forkchoice update
+    /// that an unsafe payload brings, keeping the labels the reset recovered. A successful reset
+    /// is not retried while EL sync is unfinished: queued work is drained only once no reset is
+    /// pending, so a retained reset would hold back the unsafe payloads that drive EL sync. A
+    /// sequencer needs none of this: its sequencer actor requests a reset at startup.
+    pub fn with_startup_reset(self) -> Self {
+        Self { reset_pending: true, ..self }
+    }
+
     /// Logs a skipped task at `warn!` when its error differs from the last skip, and at `debug!`
     /// while the identical error repeats, so a target resubmitted on every poll warns once.
     fn log_skipped_task(&mut self, err: &EngineTaskErrors) {
@@ -136,6 +152,12 @@ where
                 self.retry_delay = Duration::from_millis(100);
                 if !self.el_sync_complete && self.engine.state().el_sync_finished {
                     self.mark_el_sync_complete_and_notify_derivation_actor()?;
+                } else if !self.el_sync_complete {
+                    warn!(
+                        target: "engine",
+                        "The execution layer is still syncing after the reset; derivation waits \
+                         for EL sync to finish"
+                    );
                 }
             }
             Err(EngineError::EngineReset(err)) if err.is_temporary() => {
@@ -151,8 +173,9 @@ where
     async fn reset(&mut self) -> Result<(), EngineError> {
         // Reset the engine. The first reset after EL sync finishes completes EL sync like
         // op-node's engine controller: if the execution layer has no finality yet, safe and
-        // finalized go the EL-sync offset behind the synced tip. A sequencer's initial reset runs
-        // before EL sync finishes, so it takes the regular path.
+        // finalized go the EL-sync offset behind the synced tip. The startup reset of a sequencer,
+        // or of a validator in consensus-layer sync mode, runs before EL sync finishes, so it takes
+        // the regular path.
         let l2_safe_head = if !self.el_sync_complete && self.engine.state().el_sync_finished {
             self.engine.reset_after_el_sync(self.client.clone(), self.rollup.clone()).await?
         } else {

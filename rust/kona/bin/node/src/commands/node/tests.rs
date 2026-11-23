@@ -3,7 +3,7 @@ use crate::flags::GlobalArgs;
 use anyhow::anyhow;
 use clap::Parser;
 use kona_genesis::{HardForkConfig, RollupConfig};
-use kona_node_service::NodeMode;
+use kona_node_service::{NodeMode, SyncMode};
 use kona_registry::{DEPENDENCY_SETS, ROLLUP_CONFIGS};
 
 #[derive(Debug)]
@@ -95,6 +95,40 @@ fn el_sync_safe_offset_has_the_expected_environment_variable() {
     let command = NodeCommand::command();
     let arg = command.get_arguments().find(|arg| arg.get_id() == "el_sync_safe_offset").unwrap();
     assert_eq!(arg.get_env().unwrap(), "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE");
+}
+
+/// The sync mode takes op-node's `--syncmode` values and defaults to `execution-layer`.
+#[rstest::rstest]
+#[case::default(None, SyncMode::ExecutionLayer)]
+#[case::execution_layer(Some("execution-layer"), SyncMode::ExecutionLayer)]
+#[case::consensus_layer(Some("consensus-layer"), SyncMode::ConsensusLayer)]
+fn sync_mode_parses_op_node_values(#[case] flag: Option<&str>, #[case] mode: SyncMode) {
+    let flag = flag.map(|value| ["--syncmode", value]);
+    let args = NodeCommand::parse_from(
+        std::iter::once("node")
+            .chain(default_flags().iter().copied())
+            .chain(flag.into_iter().flatten()),
+    );
+    assert_eq!(args.sync_mode, mode);
+}
+
+#[test]
+fn sync_mode_rejects_an_unknown_value() {
+    let err = NodeCommand::try_parse_from(
+        std::iter::once("node")
+            .chain(default_flags().iter().copied())
+            .chain(["--syncmode", "snap"]),
+    )
+    .unwrap_err();
+    assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+}
+
+#[test]
+fn sync_mode_has_the_expected_environment_variable() {
+    use clap::CommandFactory;
+    let command = NodeCommand::command();
+    let arg = command.get_arguments().find(|arg| arg.get_id() == "sync_mode").unwrap();
+    assert_eq!(arg.get_env().unwrap(), "KONA_NODE_SYNCMODE");
 }
 
 #[test]
