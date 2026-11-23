@@ -238,7 +238,7 @@ impl RollupNode {
     fn build_engine_actor(
         &self,
         engine_request_rx: mpsc::Receiver<EngineActorRequest>,
-        derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
+        engine_derivation_request_tx: mpsc::UnboundedSender<DerivationActorRequest>,
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
     ) -> (ConfiguredEngineActor, EngineQueryClient, watch::Receiver<EngineState>) {
         // Share engine state with RPC without routing reads through the actor.
@@ -257,7 +257,7 @@ impl RollupNode {
         let actor = EngineActor::new(
             engine_client.clone(),
             self.config.clone(),
-            QueuedEngineDerivationClient::new(derivation_actor_request_tx),
+            QueuedEngineDerivationClient::new(engine_derivation_request_tx),
             engine,
             unsafe_head_tx_opt,
             engine_request_rx,
@@ -273,6 +273,7 @@ impl RollupNode {
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
+        engine_derivation_request_rx: mpsc::UnboundedReceiver<DerivationActorRequest>,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
         engine_state_rx: watch::Receiver<EngineState>,
         l1_head: watch::Receiver<Option<BlockInfo>>,
@@ -283,6 +284,7 @@ impl RollupNode {
             Ok(ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
+                engine_derivation_request_rx,
                 derivation_delegate,
                 self.l1_config.provider.clone(),
                 derivation_origin_tx,
@@ -298,6 +300,7 @@ impl RollupNode {
                 DerivationActor::<_, OnlinePipeline>::new(
                     QueuedDerivationEngineClient { engine_actor_request_tx },
                     derivation_actor_request_rx,
+                    engine_derivation_request_rx,
                     pipeline,
                     self.safe_db.clone(),
                     l1_block_zero,
@@ -564,6 +567,15 @@ impl RollupNode {
         // actor request channels
         let (derivation_actor_request_tx, derivation_actor_request_rx) =
             mpsc::channel::<DerivationActorRequest>(1024);
+        // The engine's messages to derivation have their own channel, unbounded so that the
+        // engine never waits on derivation: derivation awaits sends into the engine's bounded
+        // inbox while handling a request, so if each waited on the other's full channel, neither
+        // would read again. The backlog stays bounded by the engine's own work: besides one
+        // EL-sync completion, it sends at most a safe head and a flush or reset signal for each
+        // request it takes from its bounded inbox, and resets requested while one is pending are
+        // sent as one. Derivation reads this channel first.
+        let (engine_derivation_request_tx, engine_derivation_request_rx) =
+            mpsc::unbounded_channel::<DerivationActorRequest>();
         let (engine_actor_request_tx, engine_actor_request_rx) =
             mpsc::channel::<EngineActorRequest>(1024);
         let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
@@ -590,7 +602,7 @@ impl RollupNode {
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let (engine_actor, l2_query_client, engine_state_rx) = self.build_engine_actor(
             engine_actor_request_rx,
-            derivation_actor_request_tx.clone(),
+            engine_derivation_request_tx,
             unsafe_head_tx,
         );
 
@@ -598,6 +610,7 @@ impl RollupNode {
             .build_derivation_actor(
                 engine_actor_request_tx.clone(),
                 derivation_actor_request_rx,
+                engine_derivation_request_rx,
                 derivation_origin_tx,
                 engine_state_rx.clone(),
                 l1_head_updates_rx.clone(),

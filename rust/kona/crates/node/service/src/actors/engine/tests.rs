@@ -56,7 +56,7 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
         el_sync_finished: true,
         ..Default::default()
     };
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
+    let (derivation_tx, mut derivation_rx) = mpsc::unbounded_channel();
     let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
     let (requests, request_rx) = mpsc::channel(8);
     let (state_tx, mut state_rx) = tokio::sync::watch::channel(state);
@@ -177,12 +177,8 @@ async fn admin_reset_recovers_and_completes_original_request(
     } else {
         l2.expect_error("eth_getBlockByNumber");
     }
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(1);
-    // Derivation waits for the reset reply and cannot drain its full queue until then.
-    derivation_tx
-        .send(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::default()))
-        .await
-        .unwrap();
+    // Derivation waits for the reset reply and reads nothing until then.
+    let (derivation_tx, mut derivation_rx) = mpsc::unbounded_channel();
     let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
     let (requests, request_rx) = mpsc::channel(8);
     let (state_tx, state_rx) = tokio::sync::watch::channel(EngineState::default());
@@ -238,10 +234,6 @@ async fn admin_reset_recovers_and_completes_original_request(
         assert_eq!(head.hash(), block.header.inner.hash_slow());
     }
     assert_eq!(unsafe_head_rx.borrow().hash(), block.header.inner.hash_slow());
-    assert!(matches!(
-        derivation_rx.recv().await.unwrap(),
-        DerivationActorRequest::ProcessL1HeadUpdateRequest(_)
-    ));
     let DerivationActorRequest::ProcessEngineSignalRequest(signal) =
         derivation_rx.recv().await.unwrap()
     else {
@@ -290,7 +282,7 @@ async fn el_sync_completion_places_safe_and_finalized_the_offset_behind_the_tip(
     };
     let (state_tx, state_rx) = tokio::sync::watch::channel(state);
     let (requests, request_rx) = mpsc::channel(1);
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(2);
+    let (derivation_tx, mut derivation_rx) = mpsc::unbounded_channel();
     let mut actor = EngineActor::new(
         Arc::new(client),
         config,
@@ -375,7 +367,7 @@ async fn derivation_is_handed_the_local_safe_head() {
         el_sync_finished: true,
         ..Default::default()
     };
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
+    let (derivation_tx, mut derivation_rx) = mpsc::unbounded_channel();
     let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
     let (requests, request_rx) = mpsc::channel(8);
     let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
@@ -408,4 +400,61 @@ async fn derivation_is_handed_the_local_safe_head() {
         panic!("expected the sync completion second");
     };
     assert_eq!(*sent, local_safe_head);
+}
+
+/// An engine actor for the regression tests of a deadlock between the engine and a derivation
+/// actor, in which each waits on a send into the other's full request channel.
+pub(crate) struct EngineWithFullInbox {
+    pub(crate) actor: EngineActor<QueuedEngineDerivationClient>,
+    /// The sender of the actor's inbox, which holds one request and is full.
+    pub(crate) requests: mpsc::Sender<EngineActorRequest>,
+    pub(crate) l1: kona_engine::test_utils::RpcMock,
+    pub(crate) l2: kona_engine::test_utils::RpcMock,
+}
+
+/// Builds an [`EngineWithFullInbox`] that sends to derivation on `derivation_tx`. Its EL sync is
+/// finished, so its first step sends derivation its local-safe head and the EL-sync completion.
+/// Its inbox holds a request to finalize its finalized head, which a drain completes without an
+/// Engine API call.
+pub(crate) async fn engine_with_full_inbox(
+    derivation_tx: mpsc::UnboundedSender<DerivationActorRequest>,
+) -> EngineWithFullInbox {
+    let local_safe_head = l2_block(30);
+    let finalized_head = l2_block(10);
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let state = EngineState {
+        sync_state: EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(l2_block(40)),
+            local_safe_head: Some(local_safe_head),
+            safe_head: Some(local_safe_head),
+            finalized_head: Some(finalized_head),
+        }),
+        el_sync_finished: true,
+        ..Default::default()
+    };
+    let (requests, request_rx) = mpsc::channel(1);
+    let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+    let actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    requests
+        .send(EngineActorRequest::ProcessFinalizedL2Block(Box::new(FinalizeBlockId::ByHash(
+            finalized_head.block_info.id(),
+        ))))
+        .await
+        .unwrap();
+    EngineWithFullInbox { actor, requests, l1, l2 }
+}
+
+/// Returns once every other task is parked: with the clock paused, tokio advances it to the
+/// sleep's deadline only when no task can make progress.
+pub(crate) async fn until_other_tasks_park() {
+    time::sleep(Duration::from_millis(1)).await;
 }

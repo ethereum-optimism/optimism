@@ -31,8 +31,10 @@ where
     DerivationEngineClient_: DerivationEngineClient,
     PipelineSignalReceiver: Pipeline + SignalReceiver,
 {
-    /// The channel on which all inbound requests are received by the [`DerivationActor`].
+    /// The channel on which the [`DerivationActor`] receives requests from the L1 watcher.
     inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
+    /// The channel on which the [`DerivationActor`] receives requests from the engine.
+    engine_request_rx: mpsc::UnboundedReceiver<DerivationActorRequest>,
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
@@ -108,6 +110,7 @@ where
     pub fn new(
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
+        engine_request_rx: mpsc::UnboundedReceiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
         safe_db: Option<Arc<dyn SafeDb>>,
         l1_block_zero: BlockNumHash,
@@ -117,6 +120,7 @@ where
             pipeline,
             derivation_origin_tx,
             inbound_request_rx,
+            engine_request_rx,
             engine_client,
             derivation_state_machine: DerivationStateMachine::default(),
             finalizer: L2Finalizer::default(),
@@ -560,22 +564,19 @@ where
                 None => std::future::pending().await,
             }
         };
-        tokio::select! {
+        let (request, channel) = tokio::select! {
             // Inbound requests win, so a busy queue can hold a due retry past `retry_at`.
-            // Requests are infrequent, so that delay is accepted.
+            // Requests are infrequent, so that delay is accepted. The engine's come first.
             biased;
-            request = self.inbound_request_rx.recv() => {
-                let request = request.ok_or_else(|| {
-                    error!(
-                        target: "derivation",
-                        "DerivationActor inbound request receiver closed unexpectedly",
-                    );
-                    DerivationError::RequestReceiveFailed
-                })?;
-                self.handle_derivation_actor_request(request).await
-            }
-            () = pending_reset_due => self.retry_pending_reset().await,
-        }
+            request = self.engine_request_rx.recv() => (request, "engine"),
+            request = self.inbound_request_rx.recv() => (request, "inbound"),
+            () = pending_reset_due => return self.retry_pending_reset().await,
+        };
+        let request = request.ok_or_else(|| {
+            error!(target: "derivation", channel, "DerivationActor request channel closed unexpectedly");
+            DerivationError::RequestReceiveFailed
+        })?;
+        self.handle_derivation_actor_request(request).await
     }
 }
 

@@ -26,7 +26,7 @@ async fn healthy_unsafe_imports_keep_engine_queue_bounded() {
     let state = TestEngineStateBuilder::new().with_unsafe_head(initial_head).build();
     let (state_tx, state_rx) = watch::channel(state);
     let (requests, request_rx) = mpsc::channel(40);
-    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::unbounded_channel();
     let mut actor = EngineActor::new(
         Arc::new(client),
         config,
@@ -103,7 +103,7 @@ async fn delegated_safe_head_is_sent_on_every_poll() {
     }
     let (state_tx, state_rx) = watch::channel(state);
     let (requests, request_rx) = mpsc::channel(8);
-    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::unbounded_channel();
     let mut actor = EngineActor::new(
         Arc::new(client),
         config,
@@ -159,7 +159,7 @@ async fn delegated_poll_during_el_sync_moves_safe_labels_and_skips_finalization(
     l2.expect_block_by_number(delegated_finalized_head.block_info.number, None);
     let (state_tx, state_rx) = watch::channel(state);
     let (requests, request_rx) = mpsc::channel(8);
-    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::unbounded_channel();
     let mut actor = EngineActor::new(
         Arc::new(client),
         config,
@@ -269,7 +269,7 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
 
     let (client, l1, l2) = test_engine_client(config.clone());
     let (requests, request_rx) = mpsc::channel(8);
-    let (derivation_tx, _derivation_rx) = mpsc::channel(32);
+    let (derivation_tx, _derivation_rx) = mpsc::unbounded_channel();
     let (state_tx, state_rx) = watch::channel(EngineState::default());
     let mut actor = EngineActor::new(
         Arc::new(client),
@@ -359,7 +359,7 @@ async fn skipped_finalization_keeps_the_actor_running_until_a_reset_forgets_it()
         .build();
     let (state_tx, _state_rx) = watch::channel(state);
     let (requests, request_rx) = mpsc::channel(8);
-    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::unbounded_channel();
     let mut actor = EngineActor::new(
         Arc::new(client),
         config,
@@ -401,7 +401,7 @@ async fn work_derived_before_the_latest_reset_is_dropped() {
     let state = TestEngineStateBuilder::new().with_unsafe_head(head).build();
     let (state_tx, _state_rx) = watch::channel(state);
     let (requests, request_rx) = mpsc::channel(2);
-    let (derivation_tx, _derivation_rx) = mpsc::channel(2);
+    let (derivation_tx, _derivation_rx) = mpsc::unbounded_channel();
     let mut actor = EngineActor::new(
         Arc::new(client),
         config,
@@ -446,7 +446,7 @@ async fn local_safe_head_is_reported_before_a_reset() {
     let state = TestEngineStateBuilder::new().with_unsafe_head(head).build();
     let (state_tx, _state_rx) = watch::channel(state);
     let (_requests, request_rx) = mpsc::channel(1);
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(2);
+    let (derivation_tx, mut derivation_rx) = mpsc::unbounded_channel();
     let mut actor = EngineActor::new(
         client.clone(),
         config.clone(),
@@ -491,7 +491,7 @@ async fn reset_closes_the_reply_channels_of_queued_seal_and_canonicalize() {
     let state = TestEngineStateBuilder::new().with_unsafe_head(head).build();
     let (state_tx, _state_rx) = watch::channel(state);
     let (requests, request_rx) = mpsc::channel(3);
-    let (derivation_tx, _derivation_rx) = mpsc::channel(1);
+    let (derivation_tx, _derivation_rx) = mpsc::unbounded_channel();
     let mut actor = EngineActor::new(
         Arc::new(client),
         config,

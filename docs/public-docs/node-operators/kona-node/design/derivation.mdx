@@ -21,7 +21,7 @@ The derivation subsystem in kona-node is built around the **DerivationActor**, w
 
 ### DerivationActor
 
-The `DerivationActor` is a [`NodeActor`][na] that runs as part of the node service. It receives requests from other actors over a single inbound channel and steps the derivation pipeline forward to produce new payload attributes.
+The `DerivationActor` is a [`NodeActor`][na] that runs as part of the node service. It receives requests from the L1 watcher over a bounded inbound channel, and from the engine over an unbounded channel so that the engine never waits on derivation. It reads the engine's channel first and steps the derivation pipeline forward to produce new payload attributes.
 
 ```rust
 pub struct DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>

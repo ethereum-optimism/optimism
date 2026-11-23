@@ -135,7 +135,7 @@ where
                 self.reset_pending = false;
                 self.retry_delay = Duration::from_millis(100);
                 if !self.el_sync_complete && self.engine.state().el_sync_finished {
-                    self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+                    self.mark_el_sync_complete_and_notify_derivation_actor()?;
                 }
             }
             Err(EngineError::EngineReset(err)) if err.is_temporary() => {
@@ -166,16 +166,15 @@ where
         // acknowledgement can release a queued start command.
         self.publish_unsafe_head();
 
-        // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
-        // Release those callers before awaiting delivery to that same queue. They transition
-        // to AwaitingSignal before consuming the queued reset signal below.
+        // Derivation may be awaiting this reply. It transitions to AwaitingSignal before
+        // consuming the reset signal sent below.
         for waiter in self.reset_waiters.drain(..) {
             let _ = waiter.try_send(Ok(()));
         }
 
         // Signal the derivation actor to reset.
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
-        match self.derivation_client.send_signal(signal).await {
+        match self.derivation_client.send_signal(signal) {
             Ok(_) => {
                 self.reset_epoch += 1;
                 info!(target: "engine", reset_epoch = self.reset_epoch, "Sent reset signal to derivation actor");
@@ -225,7 +224,7 @@ where
                         warn!(target: "engine", ?err, "Received reset request");
                         // Tasks that succeeded earlier in this drain may have moved the local-safe
                         // head. Report it before the reset, or derivation never records it.
-                        self.send_derivation_actor_safe_head_if_updated().await?;
+                        self.send_derivation_actor_safe_head_if_updated()?;
                         self.begin_reset();
                         return Ok(());
                     }
@@ -236,7 +235,7 @@ where
                         // "deposits-only" block. At the same time, the channel and any
                         // remaining buffered batches are flushed.
                         warn!(target: "engine", ?err, "Invalid payload, Flushing derivation pipeline.");
-                        match self.derivation_client.send_signal(Signal::FlushChannel).await {
+                        match self.derivation_client.send_signal(Signal::FlushChannel) {
                             Ok(_) => {
                                 debug!(target: "engine", "Sent flush signal to derivation actor")
                             }
@@ -250,7 +249,7 @@ where
                         trace!(target: "engine", ?err, "Temporary error draining engine tasks");
                         // Report a local-safe head that earlier tasks in this drain moved,
                         // rather than delaying it until the retry succeeds.
-                        self.send_derivation_actor_safe_head_if_updated().await?;
+                        self.send_derivation_actor_safe_head_if_updated()?;
                         self.defer_retry();
                         return Ok(());
                     }
@@ -259,32 +258,28 @@ where
             }
         }
 
-        self.send_derivation_actor_safe_head_if_updated().await?;
+        self.send_derivation_actor_safe_head_if_updated()?;
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
             if self.engine.state().sync_state.established_finalized_head().is_none() {
                 self.begin_reset();
             } else {
-                self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+                self.mark_el_sync_complete_and_notify_derivation_actor()?;
             }
         }
 
         Ok(())
     }
 
-    async fn mark_el_sync_complete_and_notify_derivation_actor(
-        &mut self,
-    ) -> Result<(), EngineError> {
+    fn mark_el_sync_complete_and_notify_derivation_actor(&mut self) -> Result<(), EngineError> {
         self.el_sync_complete = true;
 
         self.derivation_client
             .notify_sync_completed(self.engine.state().sync_state.local_safe_head())
-            .await
-            .map(|_| Ok(()))
             .map_err(|e| {
                 error!(target: "engine", ?e, "Failed to notify sync completed");
                 EngineError::ChannelClosed
-            })?
+            })
     }
 
     /// Whether derivation sent this work before handling the latest reset signal.
@@ -321,14 +316,14 @@ where
     /// Derivation continues from, and records, the head that L1 data made safe. That is the
     /// local-safe label; the safe label can lag it by cross-chain verification. Consolidating
     /// derived attributes always advances it, because they must extend it.
-    async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
+    fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
         let local_safe_head = self.engine.state().sync_state.local_safe_head();
         if local_safe_head == self.last_engine_safe_head_sent {
             info!(target: "engine", safe_head = ?local_safe_head, "Local-safe head unchanged");
             return Ok(());
         }
 
-        self.derivation_client.send_new_engine_safe_head(local_safe_head).await.map_err(|e| {
+        self.derivation_client.send_new_engine_safe_head(local_safe_head).map_err(|e| {
             error!(target: "engine", ?e, "Failed to send new engine safe head");
             EngineError::ChannelClosed
         })?;

@@ -21,7 +21,7 @@ kona-node의 derivation 하위 시스템은 **DerivationActor**를 중심으로 
 
 ### DerivationActor
 
-`DerivationActor`는 노드 서비스의 일부로 실행되는 [`NodeActor`][na]입니다. 단일 인바운드 채널을 통해 다른 actor로부터 요청을 받고, derivation 파이프라인을 한 단계씩 진행시켜 새로운 payload attributes를 생성합니다.
+`DerivationActor`는 노드 서비스의 일부로 실행되는 [`NodeActor`][na]입니다. L1 watcher로부터는 용량이 제한된 인바운드 채널로 요청을 받고, 엔진이 derivation을 기다리는 일이 없도록 엔진으로부터는 무제한 채널로 요청을 받습니다. 엔진 채널을 먼저 읽고, derivation 파이프라인을 한 단계씩 진행시켜 새로운 payload attributes를 생성합니다.
 
 ```rust
 pub struct DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
