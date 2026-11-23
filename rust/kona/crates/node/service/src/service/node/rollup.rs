@@ -57,20 +57,6 @@ pub(in crate::service) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 
-/// The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
-pub(super) fn merge_admin_module(
-    modules: &mut RpcModule<()>,
-    enable_admin: bool,
-    admin_rpc: AdminRpc,
-) -> Result<(), String> {
-    if enable_admin {
-        modules
-            .merge(admin_rpc.into_rpc())
-            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
-    }
-    Ok(())
-}
-
 /// The configuration for the L1 chain.
 #[derive(Debug, Clone)]
 pub struct L1Config {
@@ -473,7 +459,11 @@ impl RollupNode {
         modules
             .merge(p2p_rpc.into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
-        merge_admin_module(&mut modules, config.enable_admin(), admin_rpc)?;
+        // The admin API is always served: unless `--sequencer.start` is set, the sequencer boots
+        // stopped, and `admin_startSequencer` is the only way to start it.
+        modules
+            .merge(admin_rpc.into_rpc())
+            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
         modules
             .merge(
                 RollupRpc::new(

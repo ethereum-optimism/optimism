@@ -8,11 +8,16 @@ use url::Url;
 
 /// Configuration for the [`SequencerActor`].
 ///
+/// The sequencer boots stopped unless [`SequencerConfig::sequencer_start`] is set and no
+/// conductor is configured. A stopped sequencer is started with `admin_startSequencer`, which
+/// op-conductor, an operator or a test harness calls once the node is up.
+///
 /// [`SequencerActor`]: super::SequencerActor
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SequencerConfig {
-    /// Whether to start stopped even without a conductor. A conductor always starts stopped.
-    pub sequencer_stopped: bool,
+    /// Whether to boot the sequencer active, for a single sequencer with no standby. Ignored when
+    /// a conductor is configured: op-conductor starts the sequencer itself.
+    pub sequencer_start: bool,
     /// Whether or not the sequencer is in recovery mode.
     pub sequencer_recovery_mode: bool,
     /// The [`Url`] for the conductor RPC endpoint. If [`Some`], enables the conductor service.
@@ -24,16 +29,17 @@ pub struct SequencerConfig {
 }
 
 impl SequencerConfig {
-    /// Conductor-managed nodes must let the conductor reconcile its Raft head before starting.
+    /// Whether the sequencer boots active. A conductor-managed sequencer always boots stopped, so
+    /// the conductor can reconcile its Raft head before starting it.
     pub(crate) const fn initially_active(&self) -> bool {
-        !self.sequencer_stopped && self.conductor_rpc_url.is_none()
+        self.sequencer_start && self.conductor_rpc_url.is_none()
     }
 }
 
 impl Default for SequencerConfig {
     fn default() -> Self {
         Self {
-            sequencer_stopped: false,
+            sequencer_start: false,
             sequencer_recovery_mode: false,
             conductor_rpc_url: None,
             conductor_rpc_timeout: DEFAULT_CONDUCTOR_RPC_TIMEOUT,
@@ -47,13 +53,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn conductor_managed_sequencer_starts_stopped() {
+    fn sequencer_boots_active_only_when_started_without_conductor() {
         let mut config = SequencerConfig::default();
-        assert!(config.initially_active());
-        config.conductor_rpc_url = Some(Url::parse("http://localhost:8545").unwrap());
         assert!(!config.initially_active());
-        config.conductor_rpc_url = None;
-        config.sequencer_stopped = true;
+        config.sequencer_start = true;
+        assert!(config.initially_active());
+        config.conductor_rpc_url = Some(Url::parse("http://localhost:8547").unwrap());
         assert!(!config.initially_active());
     }
 }

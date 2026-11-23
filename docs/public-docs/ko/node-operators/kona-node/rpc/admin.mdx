@@ -5,6 +5,10 @@ diataxis: reference
 
 `admin` API는 Kona 합의 노드의 동작을 제어하고 모니터링하는 메서드를 제공합니다.
 
+<Warning>
+`admin` API는 항상 RPC 포트에서 인증 없이 제공됩니다. RPC는 기본적으로 `127.0.0.1`에 바인딩됩니다. `--rpc.addr`로 다른 주소에 바인딩하는 경우, 신뢰할 수 있는 호출자만 접근할 수 있도록 포트에 방화벽을 설정하십시오. `admin_postUnsafePayload`는 서명이 아니라 블록 해시만 확인합니다.
+</Warning>
+
 ## `admin_postUnsafePayload`
 
 unsafe payload를 네트워크에 게시합니다.
