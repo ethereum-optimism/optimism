@@ -18,6 +18,7 @@ contract ExecuteNUTBundle_Target {
     uint256[] public records;
     address public lastSender;
     uint256 public lastValue;
+    uint256 public lastGas;
 
     function record(uint256 _value) external {
         records.push(_value);
@@ -27,6 +28,10 @@ contract ExecuteNUTBundle_Target {
     function observePayable() external payable {
         lastSender = msg.sender;
         lastValue = msg.value;
+    }
+
+    function observeGas() external payable {
+        lastGas = gasleft();
     }
 
     function recordsLength() external view returns (uint256) {
@@ -186,6 +191,26 @@ contract ExecuteNUTBundle_Test is Test {
         assertEq(target.lastValue(), uint256(_value), "lastValue");
         assertEq(address(target).balance, uint256(_value), "target balance");
         assertEq(alice.balance, available - uint256(_value), "sender balance");
+    }
+
+    /// @notice Tests that a value-bearing wrapper's callee starts with no more than gasLimit minus
+    ///         intrinsic gas, as a deposit's top frame does.
+    function test_executeWrapper_valueNoStipend_succeeds() public {
+        bytes memory data = abi.encodeCall(ExecuteNUTBundle_Target.observeGas, ());
+        uint64 bodyGas = 50_000;
+        ExecuteNUTBundle.PostWrapperTxn memory wrapper = ExecuteNUTBundle.PostWrapperTxn({
+            from: alice,
+            to: TARGET,
+            data: data,
+            gasLimit: UpgradeUtils.computeIntrinsicGas(data) + bodyGas,
+            mint: 1,
+            value: 1,
+            intent: "Wrapper Stipend"
+        });
+
+        script.executeWrapper(wrapper);
+
+        assertLt(target.lastGas(), bodyGas, "callee gas exceeds deposit body gas");
     }
 
     /// @notice Tests that executeWrapper reverts with the wrapper intent when gasLimit is below
