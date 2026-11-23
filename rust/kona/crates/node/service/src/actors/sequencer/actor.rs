@@ -372,12 +372,23 @@ where
         Ok(())
     }
 
-    /// Handles a failed seal of the in-flight build job. A stale or expired job is dropped so that
-    /// the next tick rebuilds; any other failure is fatal.
+    /// Handles a failed seal of the in-flight build job, which the caller has already taken. A
+    /// stale or expired job, or one an engine reset dropped from the queue, is dropped so that a
+    /// later tick rebuilds; any other failure is fatal.
     fn handle_seal_error(&mut self, err: EngineClientError) -> Result<(), SequencerActorError> {
-        let EngineClientError::SealError(seal_err) = &err else {
-            error!(target: "sequencer", ?err, "Unexpected error sealing payload");
-            return Err(err.into());
+        let seal_err = match &err {
+            EngineClientError::SealError(seal_err) => seal_err,
+            // An engine reset clears the queue, closing the reply channel of a queued seal. So
+            // does the engine actor exiting; the next request then fails with `RequestError`.
+            EngineClientError::ResponseError(_) => {
+                warn!(target: "sequencer", %err, "Seal interrupted by engine recovery; rebuilding on the next tick");
+                self.build_ticker.reset_after(Duration::from_secs(1));
+                return Ok(());
+            }
+            _ => {
+                error!(target: "sequencer", ?err, "Unexpected error sealing payload");
+                return Err(err.into());
+            }
         };
         match seal_err {
             // The build is stale, or the EL may have expired or discarded its payload ID. Drop it
@@ -414,9 +425,24 @@ where
         err: EngineClientError,
         block: SealedBlock,
     ) -> Result<(), SequencerActorError> {
-        let EngineClientError::CanonicalizeError(canonicalize_err) = &err else {
-            error!(target: "sequencer", ?err, "Unexpected error canonicalizing payload");
-            return Err(err.into());
+        let canonicalize_err = match &err {
+            EngineClientError::CanonicalizeError(canonicalize_err) => canonicalize_err,
+            // An engine reset clears the queue, closing the reply channel of a queued
+            // canonicalization. So does the engine actor exiting; the next request then fails
+            // with `RequestError`. Retry the exact committed envelope after the reset; a changed
+            // parent fails closed below. An uncommitted block is rebuilt instead.
+            EngineClientError::ResponseError(_) => {
+                warn!(target: "sequencer", %err, "Canonicalization interrupted by engine recovery; retrying on the next tick");
+                if block.committed {
+                    self.in_flight = Some(InFlightBlock::Committed(block));
+                }
+                self.build_ticker.reset_after(Duration::from_secs(1));
+                return Ok(());
+            }
+            _ => {
+                error!(target: "sequencer", ?err, "Unexpected error canonicalizing payload");
+                return Err(err.into());
+            }
         };
         match canonicalize_err {
             // A committed block on another parent cannot be retried or safely replaced.

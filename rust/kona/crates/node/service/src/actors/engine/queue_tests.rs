@@ -2,7 +2,7 @@ use super::*;
 use crate::{DerivationActorRequest, QueuedEngineDerivationClient};
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{
-    ExecutionPayloadV1, ForkchoiceState, PayloadStatus, PayloadStatusEnum,
+    ExecutionPayloadV1, ForkchoiceState, PayloadId, PayloadStatus, PayloadStatusEnum,
 };
 use kona_engine::{
     ConsolidateInput, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
@@ -479,4 +479,58 @@ async fn local_safe_head_is_reported_before_a_reset() {
         panic!("expected the local-safe head before the reset");
     };
     assert_eq!(*sent, head);
+}
+
+/// A reset drops queued sequencer work. Each requester's reply channel closes rather than staying
+/// open, so the sequencer learns that its request was dropped instead of waiting forever.
+#[tokio::test(start_paused = true)]
+async fn reset_closes_the_reply_channels_of_queued_seal_and_canonicalize() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, _l1, _l2) = test_engine_client(config.clone());
+    let head = test_block_info(5);
+    let state = TestEngineStateBuilder::new().with_unsafe_head(head).build();
+    let (state_tx, _state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(3);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(1);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    // Hold the queue so the requests are queued, not run.
+    actor.retry_at = Instant::now() + Duration::from_secs(3600);
+    let (seal_tx, mut seal_rx) = mpsc::channel(1);
+    let (canonicalize_tx, mut canonicalize_rx) = mpsc::channel(1);
+    let payload = ExecutionPayloadV1::from_block_slow(&test_l2_block(6, head.hash(), 0));
+    for request in [
+        EngineActorRequest::Seal(Box::new(SealRequest {
+            payload_id: PayloadId::new([1; 8]),
+            attributes: kona_engine::test_utils::TestAttributesBuilder::new()
+                .with_parent(head)
+                .build(),
+            result_tx: seal_tx,
+        })),
+        EngineActorRequest::Canonicalize(Box::new(CanonicalizeRequest {
+            payload: OpExecutionPayloadEnvelope::V1(payload),
+            parent: head,
+            result_tx: canonicalize_tx,
+        })),
+    ] {
+        requests.send(request).await.unwrap();
+        actor.step().await.unwrap();
+    }
+    assert_eq!(actor.engine.len(), 2);
+
+    let (reset, _reset_result) = reset_request();
+    requests.send(reset).await.unwrap();
+    actor.step().await.unwrap();
+
+    assert!(actor.reset_pending);
+    assert!(actor.engine.is_empty());
+    assert!(seal_rx.recv().await.is_none());
+    assert!(canonicalize_rx.recv().await.is_none());
 }
