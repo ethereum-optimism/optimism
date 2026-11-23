@@ -329,6 +329,11 @@ func (rc *RaftConsensus) LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, e
 	return rc.unsafeTracker.UnsafeHead(), nil
 }
 
+// LocalUnsafePayload implements Consensus, it returns the latest unsafe payload applied to the local FSM.
+func (rc *RaftConsensus) LocalUnsafePayload() *eth.ExecutionPayloadEnvelope {
+	return rc.unsafeTracker.UnsafeHead()
+}
+
 // ClusterMembership implements Consensus, it returns the current cluster membership configuration.
 func (rc *RaftConsensus) ClusterMembership() (*ClusterMembership, error) {
 	var future raft.ConfigurationFuture
