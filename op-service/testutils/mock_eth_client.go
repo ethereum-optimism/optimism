@@ -68,15 +68,6 @@ func (m *MockEthClient) ExpectInfoAndTxsByNumber(number uint64, info eth.BlockIn
 	m.Mock.On("InfoAndTxsByNumber", number).Once().Return(info, transactions, err)
 }
 
-func (m *MockEthClient) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
-	out := m.Mock.Called(label)
-	return out.Get(0).(eth.BlockInfo), out.Get(1).(types.Transactions), out.Error(2)
-}
-
-func (m *MockEthClient) ExpectInfoAndTxsByLabel(label eth.BlockLabel, info eth.BlockInfo, transactions types.Transactions, err error) {
-	m.Mock.On("InfoAndTxsByLabel", label).Once().Return(info, transactions, err)
-}
-
 func (m *MockEthClient) InfoAndUserTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
 	out := m.Mock.Called(hash)
 	return out.Get(0).(eth.BlockInfo), out.Get(1).(types.Transactions), out.Error(2)
@@ -102,15 +93,6 @@ func (m *MockEthClient) InfoAndDepositsByHash(ctx context.Context, hash common.H
 
 func (m *MockEthClient) ExpectInfoAndDepositsByHash(hash common.Hash, info eth.BlockInfo, deposits []*optypes.DepositTx, err error) {
 	m.Mock.On("InfoAndDepositsByHash", hash).Once().Return(info, deposits, err)
-}
-
-func (m *MockEthClient) InfoAndDepositsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, []*optypes.DepositTx, error) {
-	out := m.Mock.Called(number)
-	return out.Get(0).(eth.BlockInfo), out.Get(1).([]*optypes.DepositTx), out.Error(2)
-}
-
-func (m *MockEthClient) ExpectInfoAndDepositsByNumber(number uint64, info eth.BlockInfo, deposits []*optypes.DepositTx, err error) {
-	m.Mock.On("InfoAndDepositsByNumber", number).Once().Return(info, deposits, err)
 }
 
 func (m *MockEthClient) InfoAndFirstDepositByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, *optypes.DepositTx, error) {
@@ -156,15 +138,6 @@ func (m *MockEthClient) HeaderByLabel(ctx context.Context, label eth.BlockLabel)
 
 func (m *MockEthClient) ExpectHeaderByLabel(label eth.BlockLabel, header *types.Header, err error) {
 	m.Mock.On("HeaderByLabel", label).Once().Return(header, err)
-}
-
-func (m *MockEthClient) HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error) {
-	out := m.Mock.Called(hash)
-	return out.Get(0).(*types.Header), out.Get(1).(types.Transactions), out.Error(2)
-}
-
-func (m *MockEthClient) ExpectHeaderAndTxsByHash(hash common.Hash, header *types.Header, transactions types.Transactions, err error) {
-	m.Mock.On("HeaderAndTxsByHash", hash).Once().Return(header, transactions, err)
 }
 
 func (m *MockEthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {

@@ -313,6 +313,7 @@ The validator behind `OPContractsManagerMigrationValidator` returns a comma-sepa
 | `MIG-SASR-RGT` | Shared `AnchorStateRegistry.respectedGameType()` is not a super game type. |
 | `MIG-SLOCKBOX-10` to `-30` | Shared lockbox version, proxy implementation pointer, or `ProxyAdmin` mismatch. |
 | `MIG-CHAIN-EMPTY` | The validator received an empty chain list. |
+| `MIG-CHAIN-SINGLE` | The validator received only one chain. An interop set needs at least two. |
 | `MIG-LOCKBOX-MISSING` | Chain A's portal does not point at the shared lockbox. |
 | `MIG-CHAIN-{i}-10` | Chain `i`'s portal does not reference the shared `AnchorStateRegistry`. |
 | `MIG-CHAIN-{i}-20` | Chain `i`'s per-chain factory still has `CANNON` registered. |

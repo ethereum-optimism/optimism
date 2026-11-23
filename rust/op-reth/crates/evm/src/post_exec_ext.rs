@@ -1,26 +1,25 @@
 use alloc::{sync::Arc, vec::Vec};
-use alloy_consensus::Header;
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, block::BlockExecutor};
 use alloy_op_evm::{
     OpBlockExecutor, PreRefundGasUsed,
-    block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
+    block::OpTxEnv,
     post_exec::{PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutorExt},
 };
 use core::fmt::Debug;
-use op_alloy_consensus::OpTransaction as OpConsensusTransaction;
 use op_revm::OpSpecId;
-use reth_chainspec::EthChainSpec;
 use reth_evm::{
     ConfigureEvm, Database,
     execute::{BasicBlockBuilder, BlockBuilder},
     precompiles::PrecompilesMap,
 };
-use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
+use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader};
 use revm::{context::BlockEnv, database::State};
 
-use crate::{OpBlockExecutorFactory, OpEvmConfig, OpEvmFactory, OpTx, PostExecMode};
+use crate::{
+    OpBlockExecutorFactory, OpEvmConfig, OpEvmFactory, OpRethReceiptBuilder, OpTx, PostExecMode,
+};
 
 /// Optimism-specific EVM helpers that expose post-exec-aware executors and builders.
 #[allow(clippy::type_complexity)]
@@ -68,27 +67,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
     >;
 }
 
-impl<ChainSpec, N, R> ConfigurePostExecEvm for OpEvmConfig<ChainSpec, N, R>
-where
-    ChainSpec: EthChainSpec<Header = Header> + OpHardforks + Send + Sync + Unpin + 'static,
-    N: NodePrimitives<
-            Receipt = R::Receipt,
-            SignedTx = R::Transaction,
-            BlockHeader = Header,
-            BlockBody = alloy_consensus::BlockBody<R::Transaction>,
-            Block = alloy_consensus::Block<R::Transaction>,
-        >,
-    OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
-    R: OpReceiptBuilder<
-            Receipt: DepositReceipt,
-            Transaction: SignedTransaction + OpConsensusTransaction,
-        > + Clone
-        + Send
-        + Sync
-        + Unpin
-        + 'static,
-    Self: Send + Sync + Unpin + Clone + 'static,
-{
+impl ConfigurePostExecEvm for OpEvmConfig {
     fn post_exec_executor_for_block<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -143,10 +122,10 @@ where
 
         Ok(BasicBlockBuilder::<
             'a,
-            OpBlockExecutorFactory<R, Arc<ChainSpec>, OpEvmFactory<OpTx>>,
+            OpBlockExecutorFactory<OpRethReceiptBuilder, Arc<OpChainSpec>, OpEvmFactory<OpTx>>,
             _,
             _,
-            N,
+            OpPrimitives,
         > {
             executor,
             transactions: Vec::new(),
@@ -157,29 +136,11 @@ where
     }
 }
 
-impl<ChainSpec, N, R, F> ConfigurePostExecEvm
-    for OpEvmConfig<ChainSpec, N, R, PostExecEvmFactoryAdapter<F>>
+impl<F> ConfigurePostExecEvm for OpEvmConfig<PostExecEvmFactoryAdapter<F>>
 where
-    ChainSpec: EthChainSpec<Header = Header> + OpHardforks + Send + Sync + Unpin + 'static,
-    N: NodePrimitives<
-            Receipt = R::Receipt,
-            SignedTx = R::Transaction,
-            BlockHeader = Header,
-            BlockBody = alloy_consensus::BlockBody<R::Transaction>,
-            Block = alloy_consensus::Block<R::Transaction>,
-        >,
-    OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
-    R: OpReceiptBuilder<
-            Receipt: DepositReceipt,
-            Transaction: SignedTransaction + OpConsensusTransaction,
-        > + Clone
-        + Send
-        + Sync
-        + Unpin
-        + 'static,
     F: PostExecEvmFactoryHooks<
-            Tx: FromRecoveredTx<R::Transaction>
-                    + FromTxWithEncoded<R::Transaction>
+            Tx: FromRecoveredTx<OpTransactionSigned>
+                    + FromTxWithEncoded<OpTransactionSigned>
                     + alloy_evm::TransactionEnvMut
                     + OpTxEnv,
             Precompiles = PrecompilesMap,
@@ -247,10 +208,14 @@ where
 
         Ok(BasicBlockBuilder::<
             'a,
-            OpBlockExecutorFactory<R, Arc<ChainSpec>, PostExecEvmFactoryAdapter<F>>,
+            OpBlockExecutorFactory<
+                OpRethReceiptBuilder,
+                Arc<OpChainSpec>,
+                PostExecEvmFactoryAdapter<F>,
+            >,
             _,
             _,
-            N,
+            OpPrimitives,
         > {
             executor,
             transactions: Vec::new(),

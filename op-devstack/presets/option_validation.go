@@ -40,6 +40,7 @@ const (
 	optionKindConductorFastHealthChecks
 	optionKindL2ToL2MessageExpiryPeriod
 	optionKindAltDA
+	optionKindFollowSourceCLKind
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -70,7 +71,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindZKProposer |
 	optionKindConductorFastHealthChecks |
 	optionKindL2ToL2MessageExpiryPeriod |
-	optionKindAltDA
+	optionKindAltDA |
+	optionKindFollowSourceCLKind
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -105,6 +107,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindConductorFastHealthChecks, label: "conductor fast health checks"},
 	{kind: optionKindL2ToL2MessageExpiryPeriod, label: "L2ToL2 message expiry period"},
 	{kind: optionKindAltDA, label: "alt-DA"},
+	{kind: optionKindFollowSourceCLKind, label: "follow-source CL kind"},
 }
 
 func (k optionKinds) String() string {
@@ -171,7 +174,8 @@ const singleChainTwoVerifiersPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindGlobalL2CL |
 	optionKindL1EL |
 	optionKindTimeTravel |
-	optionKindAfterBuild
+	optionKindAfterBuild |
+	optionKindFollowSourceCLKind
 
 // minimalNoFaultProofsPresetSupportedOptionKinds adds alt-DA, which only this preset supports (see WithAltDA).
 const minimalNoFaultProofsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |

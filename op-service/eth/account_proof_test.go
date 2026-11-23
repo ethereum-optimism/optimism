@@ -123,6 +123,12 @@ func TestAccountResult_Verify(t *testing.T) {
 	require.NotNil(t, result.Verify(goodRoot), "does not verify against bad proof")
 }
 
+func TestAccountResult_VerifyMissingBalance(t *testing.T) {
+	result := makeResult(t)
+	result.Balance = nil
+	require.ErrorContains(t, result.Verify(goodRoot), "missing balance")
+}
+
 func TestAccountResult_MarshalTruncated(t *testing.T) {
 	var result AccountResult
 	require.NoError(t, json.Unmarshal([]byte(invalidResultDataTruncated), &result))

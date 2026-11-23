@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -50,7 +51,7 @@ func (n *L2Network) L1CrossDomainMessengerAddr() common.Address {
 // succeed and to emit UndeliveredMessageExported for the message, and returns the receipt and this
 // chain's timestamp at the export.
 func (d *DepositEOA) ExportUndeliveredMessage(exporter common.Address, sourceMessenger common.Address,
-	m SentMessage, l1GasLimit uint32, opts ...func(*DepositTxOpts)) (*types.Receipt, uint64) {
+	m SentMessage, l1GasLimit uint32, opts ...func(*DepositTxOpts)) (*optypes.Receipt, uint64) {
 	call := bindings.NewBindings[bindings.UndeliveredMessageExporter](bindings.WithTest(d.l2.t)).
 		ExportUndeliveredMessage(sourceMessenger, m.Source, m.Nonce, m.Sender, m.Target, m.Message, l1GasLimit)
 	data, err := call.EncodeInput()

@@ -29,6 +29,7 @@ use std::{
     num::NonZeroUsize,
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
@@ -325,6 +326,7 @@ impl NodeCommand {
             provider: l1_provider.clone(),
             beacon: self.l1_rpc_args.l1_beacon.clone(),
             slot_duration_override: self.l1_rpc_args.l1_slot_duration_override,
+            epoch_poll_interval: Duration::from_secs(self.l1_rpc_args.l1_epoch_poll_interval),
         };
 
         // If metrics are enabled, initialize the global cli metrics.
@@ -520,7 +522,7 @@ impl NodeCommand {
 mod tests {
     use super::*;
     use kona_providers_alloy::BlockLabel;
-    use std::{net::TcpListener, time::Duration};
+    use std::net::TcpListener;
     use tokio::time::{self, Instant};
 
     #[tokio::test(start_paused = true)]

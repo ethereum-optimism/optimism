@@ -10,27 +10,26 @@ use alloy_primitives::Bloom;
 use reth_evm::execute::{BlockAssembler, BlockAssemblerInput};
 use reth_execution_errors::BlockExecutionError;
 use reth_execution_types::BlockExecutionResult;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::{calculate_receipt_root_optimism, isthmus};
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{Receipt, SignedTransaction};
+use reth_optimism_primitives::OpReceipt;
+use reth_primitives_traits::SignedTransaction;
 use revm::context::Block as _;
 
 /// Block builder for Optimism.
-#[derive(Debug)]
-pub struct OpBlockAssembler<ChainSpec> {
-    chain_spec: Arc<ChainSpec>,
+#[derive(Debug, Clone)]
+pub struct OpBlockAssembler {
+    chain_spec: Arc<OpChainSpec>,
 }
 
-impl<ChainSpec> OpBlockAssembler<ChainSpec> {
+impl OpBlockAssembler {
     /// Creates a new [`OpBlockAssembler`].
-    pub const fn new(chain_spec: Arc<ChainSpec>) -> Self {
+    pub const fn new(chain_spec: Arc<OpChainSpec>) -> Self {
         Self { chain_spec }
     }
-}
 
-impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
-    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-1
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2
     /// `reth_evm_ethereum::EthBlockAssembler::assemble_block`
     ///
     /// Copies upstream block assembly with OP receipt roots, withdrawals, and DA fields.
@@ -39,7 +38,7 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
         F: for<'a> BlockExecutorFactory<
                 ExecutionCtx<'a>: Into<OpBlockExecutionCtx>,
                 Transaction: SignedTransaction,
-                Receipt: Receipt + DepositReceipt,
+                Receipt = OpReceipt,
             >,
         H,
     >(
@@ -138,19 +137,12 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
     }
 }
 
-impl<ChainSpec> Clone for OpBlockAssembler<ChainSpec> {
-    fn clone(&self) -> Self {
-        Self { chain_spec: self.chain_spec.clone() }
-    }
-}
-
-impl<F, ChainSpec> BlockAssembler<F> for OpBlockAssembler<ChainSpec>
+impl<F> BlockAssembler<F> for OpBlockAssembler
 where
-    ChainSpec: OpHardforks,
     F: for<'a> BlockExecutorFactory<
             ExecutionCtx<'a> = OpBlockExecutionCtx,
             Transaction: SignedTransaction,
-            Receipt: Receipt + DepositReceipt,
+            Receipt = OpReceipt,
         >,
 {
     type Block = Block<F::Transaction>;

@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
@@ -214,7 +215,7 @@ func TestRelayedMessageCannotBeExportedAsUndelivered(gt *testing.T) {
 
 // exportAsDeposit forces B's export of the message, to A's L1CrossDomainMessenger, in through B's
 // portal, and returns the receipt and B's timestamp at the export.
-func exportAsDeposit(sys *presets.SimpleInterop, l1User *dsl.EOA, m dsl.SentMessage) (*types.Receipt, uint64) {
+func exportAsDeposit(sys *presets.SimpleInterop, l1User *dsl.EOA, m dsl.SentMessage) (*optypes.Receipt, uint64) {
 	return sys.FunderB.NewFundedEOA(eth.ZeroWei).ViaDepositTx(l1User, sys.L2ELB, sys.L2ChainB).
 		ExportUndeliveredMessage(predeploys.UndeliveredMessageExporterAddr, sys.L2ChainA.L1CrossDomainMessengerAddr(), m,
 			exportL1GasLimit, func(o *dsl.DepositTxOpts) { o.GasLimit = exportGasLimit })
@@ -222,7 +223,7 @@ func exportAsDeposit(sys *presets.SimpleInterop, l1User *dsl.EOA, m dsl.SentMess
 
 // finalizeExport proves and finalizes the withdrawal B's export made, against a game with the
 // shortened clock, and returns the deposit A's L1CrossDomainMessenger made into A in response.
-func finalizeExport(sys *presets.SimpleInterop, l1User *dsl.EOA, exportRcpt *types.Receipt) *types.Receipt {
+func finalizeExport(sys *presets.SimpleInterop, l1User *dsl.EOA, exportRcpt *optypes.Receipt) *optypes.Receipt {
 	withdrawal := sys.StandardBridge(sys.L2ChainB).WithdrawalFromReceipt(exportRcpt)
 	withdrawal.ProveAndFinalize(l1User, faultGameMaxClockDuration*time.Second)
 	return sys.L2ELA.WaitForDeposit(sys.L2ChainA.DepositContractAddr(), withdrawal.FinalizeReceipt())

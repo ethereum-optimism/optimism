@@ -53,7 +53,7 @@ func MustFindRepeatedSlotBlock(
 	sys *RethSystem,
 	minUserTxs int,
 	maxAttempts int,
-) (*sdmpkg.RPCBlock, []*types.Receipt, uint64) {
+) (*sdmpkg.RPCBlock, []*optypes.Receipt, uint64) {
 	l := t.Logger()
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -85,7 +85,7 @@ func MustFindRepeatedSlotBlock(
 			))
 		}
 
-		blockTxs := make(map[uint64][]*types.Receipt)
+		blockTxs := make(map[uint64][]*optypes.Receipt)
 		for i, ptx := range plannedTxs {
 			receipt, err := ptx.Included.Eval(t.Ctx())
 			t.Require().NoError(err, "attempt %d tx %d: failed to get receipt", attempt, i)
@@ -97,7 +97,7 @@ func MustFindRepeatedSlotBlock(
 		}
 
 		var targetBlockNum uint64
-		var targetIncluded []*types.Receipt
+		var targetIncluded []*optypes.Receipt
 		for blockNum, txs := range blockTxs {
 			if len(txs) > len(targetIncluded) {
 				targetBlockNum = blockNum

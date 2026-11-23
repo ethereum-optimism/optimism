@@ -18,7 +18,7 @@ use reth_evm::execute::{BlockBuilder, BlockBuilderOutcome, BlockExecutionError};
 use reth_node_api::NodeTypesWithDBAdapter;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::{
-    ConfigurePostExecEvm, OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder, PostExecMode,
+    ConfigurePostExecEvm, OpEvmConfig, OpNextBlockEnvAttributes, PostExecMode,
 };
 use reth_optimism_node::OpNode;
 use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
@@ -225,8 +225,7 @@ impl EphemeralChain {
         post_exec_mode: PostExecMode,
         txs: impl IntoIterator<Item = &'a OpTransactionSigned>,
     ) -> crate::Result<BuiltBlock> {
-        let evm_config: OpEvmConfig =
-            OpEvmConfig::new(self.chain_spec(), OpRethReceiptBuilder::default());
+        let evm_config = OpEvmConfig::optimism(self.chain_spec());
         let mut db = State::builder()
             .with_database(StateProviderDatabase::new(state.into_evm_state_provider()))
             .with_bundle_update()

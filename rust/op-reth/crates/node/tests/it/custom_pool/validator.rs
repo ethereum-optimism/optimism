@@ -5,20 +5,18 @@
 use super::{build_components_with_pool, funded_signers, node_test_setup, signed_transfer_raw};
 use alloy_consensus::Transaction as _;
 use alloy_primitives::B256;
-use op_alloy_network::Optimism;
 use reth_e2e_test_utils::{node::NodeTestContext, transaction::TransactionTestContext};
 use reth_node_api::FullNodeTypes;
 use reth_node_builder::{
     EngineNodeLauncher, NodeBuilder,
     components::{BasicPayloadServiceBuilder, ComponentsBuilder},
-    rpc::BasicEngineValidatorBuilder,
 };
 use reth_optimism_node::{
-    OpEngineApiBuilder, OpNode,
+    OpNode,
     args::RollupArgs,
     node::{
-        OpConsensusBuilder, OpEngineValidatorBuilder, OpExecutorBuilder, OpNetworkBuilder,
-        OpNodeTypes, OpPayloadBuilder, OpPoolBuilder, OpValidatorWrapper,
+        OpConsensusBuilder, OpExecutorBuilder, OpNetworkBuilder, OpNodeTypes, OpPayloadBuilder,
+        OpPoolBuilder, OpValidatorWrapper,
     },
     txpool::OpTransactionValidator,
     utils::optimism_payload_attributes,
@@ -139,19 +137,14 @@ async fn custom_validator_wrapper_rejects_filtered_txs() {
         .with_types::<OpNode>()
         .with_components(build_components_with_filter())
         // `OpNode::add_ons()` is pre-typed to the default-wrapper pool; the add-ons builder is
-        // generic over the node's components, so build it with the OP-default generics so it
-        // specializes to this node's pool.
-        .with_add_ons(
-            OpNode::new(Default::default()).add_ons_builder::<Optimism>().build::<
-                _,
-                OpEngineValidatorBuilder,
-                OpEngineApiBuilder<OpEngineValidatorBuilder>,
-                BasicEngineValidatorBuilder<OpEngineValidatorBuilder>,
-            >(),
-        )
+        // generic over the node's components, so it specializes to this node's pool.
+        .with_add_ons(OpNode::new(Default::default()).add_ons_builder().build())
         .launch_with_fn(|builder| {
-            let launcher =
-                EngineNodeLauncher::new(runtime.clone(), builder.config.datadir(), Default::default());
+            let launcher = EngineNodeLauncher::new(
+                runtime.clone(),
+                builder.config.datadir(),
+                Default::default(),
+            );
             builder.launch_with(launcher)
         })
         .await
@@ -206,17 +199,13 @@ async fn default_validator_admits_all_txs() {
         .with_database(db)
         .with_types::<OpNode>()
         .with_components(build_components_with_pool(OpPoolBuilder::default()))
-        .with_add_ons(
-            OpNode::new(Default::default()).add_ons_builder::<Optimism>().build::<
-                _,
-                OpEngineValidatorBuilder,
-                OpEngineApiBuilder<OpEngineValidatorBuilder>,
-                BasicEngineValidatorBuilder<OpEngineValidatorBuilder>,
-            >(),
-        )
+        .with_add_ons(OpNode::new(Default::default()).add_ons_builder().build())
         .launch_with_fn(|builder| {
-            let launcher =
-                EngineNodeLauncher::new(runtime.clone(), builder.config.datadir(), Default::default());
+            let launcher = EngineNodeLauncher::new(
+                runtime.clone(),
+                builder.config.datadir(),
+                Default::default(),
+            );
             builder.launch_with(launcher)
         })
         .await

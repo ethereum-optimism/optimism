@@ -132,6 +132,9 @@ func (s *EngineAPIClient) GetPayload(ctx context.Context, payloadInfo eth.Payloa
 		e.Warn("Failed to get payload", "payload_id", payloadInfo.ID, "err", err)
 		return nil, err
 	}
+	if result.ExecutionPayload == nil {
+		return nil, fmt.Errorf("%s returned no execution payload", method)
+	}
 	e.Trace("Received payload")
 	return &result, nil
 }

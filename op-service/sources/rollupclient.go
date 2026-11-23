@@ -27,14 +27,11 @@ func NewRollupClient(rpc client.RPC) *RollupClient {
 }
 
 func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
-	var output *eth.OutputResponse
-	err := r.rpc.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.Uint64(blockNum))
-	return output, err
+	return callNonNull[eth.OutputResponse](ctx, r.rpc, "optimism_outputAtBlock", hexutil.Uint64(blockNum))
 }
 
 func (r *RollupClient) SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (*eth.SafeHeadResponse, error) {
-	var output *eth.SafeHeadResponse
-	err := r.rpc.CallContext(ctx, &output, "optimism_safeHeadAtL1Block", hexutil.Uint64(blockNum))
+	output, err := callNonNull[eth.SafeHeadResponse](ctx, r.rpc, "optimism_safeHeadAtL1Block", hexutil.Uint64(blockNum))
 	if err != nil && strings.Contains(err.Error(), "not found") {
 		return nil, safedb.ErrNotFound
 	}
@@ -42,21 +39,19 @@ func (r *RollupClient) SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (
 }
 
 func (r *RollupClient) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	var output *eth.SyncStatus
-	err := r.rpc.CallContext(ctx, &output, "optimism_syncStatus")
-	return output, err
+	return callNonNull[eth.SyncStatus](ctx, r.rpc, "optimism_syncStatus")
 }
 
 func (r *RollupClient) RollupConfig(ctx context.Context) (*rollup.Config, error) {
-	var output *rollup.Config
-	err := r.rpc.CallContext(ctx, &output, "optimism_rollupConfig")
-	return output, err
+	return callNonNull[rollup.Config](ctx, r.rpc, "optimism_rollupConfig")
 }
 
 func (r *RollupClient) DependencySet(ctx context.Context) (depset.DependencySet, error) {
-	var output *depset.StaticConfigDependencySet
-	err := r.rpc.CallContext(ctx, &output, "optimism_dependencySet")
-	return output, err
+	output, err := callNonNull[depset.StaticConfigDependencySet](ctx, r.rpc, "optimism_dependencySet")
+	if err != nil {
+		return nil, err
+	}
+	return output, nil
 }
 
 func (r *RollupClient) Version(ctx context.Context) (string, error) {

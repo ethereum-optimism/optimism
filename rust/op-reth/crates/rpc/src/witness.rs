@@ -1,23 +1,22 @@
 //! Support for optimism specific witness RPCs.
 
-use alloy_consensus::{Block as AlloyBlock, BlockHeader};
+use alloy_consensus::{BlockHeader, Header};
 use alloy_eips::BlockId;
-use alloy_primitives::{B256, Sealed};
+use alloy_primitives::B256;
 use alloy_rpc_types_debug::ExecutionWitness;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, async_trait};
-use op_alloy_consensus::TxPostExec;
 use reth_chainspec::ChainSpecProvider;
-use reth_node_api::{BuildNextEnv, NodePrimitives};
-use reth_optimism_evm::ConfigurePostExecEvm;
-use reth_optimism_forks::OpHardforks;
-use reth_optimism_payload_builder::{OpAttributes, OpPayloadBuilder, OpPayloadPrimitives};
+use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_evm::{ConfigurePostExecEvm, OpNextBlockEnvAttributes};
+use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilder};
 use reth_optimism_post_exec_replay::{
     PostExecReplayBlock, PostExecReplayConfig, ReplayPostExecBlockOptions,
     ReplayPostExecBlockRequest, replay_block,
 };
+use reth_optimism_primitives::{OpBlock, OpPrimitives, OpTransactionSigned};
 use reth_optimism_txpool::OpPooledTx;
-use reth_primitives_traits::{RecoveredBlock, SealedHeader, TxTy};
+use reth_primitives_traits::{RecoveredBlock, SealedHeader};
 use reth_revm::database::StateProviderDatabase;
 use reth_rpc_server_types::{ToRpcResult, result::internal_rpc_err};
 
@@ -41,8 +40,7 @@ pub trait DebugExecutionWitnessApi<Attributes> {
     ) -> RpcResult<ExecutionWitness>;
 }
 use reth_storage_api::{
-    BlockReaderIdExt, NodePrimitivesProvider, StateProvider, StateProviderFactory,
-    TransactionVariant,
+    BlockReaderIdExt, StateProvider, StateProviderFactory, TransactionVariant,
     errors::{ProviderError, ProviderResult},
 };
 use reth_tasks::Runtime;
@@ -73,16 +71,16 @@ pub trait OpDebugPostExecApi {
 }
 
 /// An extension to the `debug_` namespace of the RPC API.
-pub struct OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs> {
-    inner: Arc<OpDebugWitnessApiInner<Pool, Provider, EvmConfig, Attrs>>,
+pub struct OpDebugWitnessApi<Pool, Provider, EvmConfig> {
+    inner: Arc<OpDebugWitnessApiInner<Pool, Provider, EvmConfig>>,
 }
 
-impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs> {
+impl<Pool, Provider, EvmConfig> OpDebugWitnessApi<Pool, Provider, EvmConfig> {
     /// Creates a new instance of the `OpDebugWitnessApi`.
     pub fn new(
         provider: Provider,
         task_spawner: Runtime,
-        builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
+        builder: OpPayloadBuilder<Pool, Provider, EvmConfig>,
         evm_config: EvmConfig,
     ) -> Self {
         let semaphore = Arc::new(Semaphore::new(3));
@@ -92,16 +90,12 @@ impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConf
     }
 }
 
-impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
+impl<Pool, Provider, EvmConfig> OpDebugWitnessApi<Pool, Provider, EvmConfig>
 where
-    Provider: NodePrimitivesProvider<Primitives: NodePrimitives<BlockHeader = Provider::Header>>
-        + BlockReaderIdExt,
+    Provider: BlockReaderIdExt<Header = Header>,
 {
     /// Fetches the parent header by hash.
-    fn parent_header(
-        &self,
-        parent_block_hash: B256,
-    ) -> ProviderResult<SealedHeader<Provider::Header>> {
+    fn parent_header(&self, parent_block_hash: B256) -> ProviderResult<SealedHeader> {
         self.inner
             .provider
             .sealed_header_by_hash(parent_block_hash)?
@@ -109,20 +103,14 @@ where
     }
 }
 
-impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
+impl<Pool, Provider, EvmConfig> OpDebugWitnessApi<Pool, Provider, EvmConfig>
 where
-    Provider: BlockReaderIdExt<
-            Block = AlloyBlock<
-                <Provider::Primitives as OpPayloadPrimitives>::_TX,
-                <Provider::Primitives as OpPayloadPrimitives>::_Header,
-            >,
-            Header = <Provider::Primitives as NodePrimitives>::BlockHeader,
-        > + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>,
+    Provider: BlockReaderIdExt<Block = OpBlock>,
 {
     fn replay_block_by_request(
         &self,
         request: ReplayPostExecBlockRequest,
-    ) -> ProviderResult<RecoveredBlock<Provider::Block>> {
+    ) -> ProviderResult<RecoveredBlock<OpBlock>> {
         let provider = &self.inner.provider;
         match request {
             ReplayPostExecBlockRequest::Hash(hash) => provider
@@ -143,29 +131,22 @@ where
 }
 
 #[async_trait]
-impl<Pool, Provider, EvmConfig, Attrs> DebugExecutionWitnessApiServer<Attrs::RpcPayloadAttributes>
-    for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
+impl<Pool, Provider, EvmConfig> DebugExecutionWitnessApiServer<OpPayloadAttributes>
+    for OpDebugWitnessApi<Pool, Provider, EvmConfig>
 where
-    Pool: TransactionPool<
-            Transaction: OpPooledTx<Consensus = <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::SignedTx>,
-        > + 'static,
-    Provider: BlockReaderIdExt<Header = <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::BlockHeader>
-        + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>
+    Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>> + 'static,
+    Provider: BlockReaderIdExt<Header = Header>
         + StateProviderFactory
-        + ChainSpecProvider<ChainSpec: OpHardforks>
+        + ChainSpecProvider<ChainSpec = OpChainSpec>
         + Clone
         + 'static,
-    <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::SignedTx: From<Sealed<TxPostExec>>,
-    EvmConfig: ConfigurePostExecEvm<
-            Primitives = <Provider as NodePrimitivesProvider>::Primitives,
-            NextBlockEnvCtx: BuildNextEnv<Attrs, Provider::Header, Provider::ChainSpec>,
-        > + 'static,
-    Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>, RpcPayloadAttributes: Send>,
+    EvmConfig: ConfigurePostExecEvm<Primitives = OpPrimitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>
+        + 'static,
 {
     async fn execute_payload(
         &self,
         parent_block_hash: B256,
-        attributes: Attrs::RpcPayloadAttributes,
+        attributes: OpPayloadAttributes,
     ) -> RpcResult<ExecutionWitness> {
         let _permit = self.inner.semaphore.acquire().await;
 
@@ -185,42 +166,18 @@ where
 }
 
 #[async_trait]
-impl<Pool, Provider, EvmConfig, Attrs> OpDebugPostExecApiServer
-    for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
+impl<Pool, Provider, EvmConfig> OpDebugPostExecApiServer
+    for OpDebugWitnessApi<Pool, Provider, EvmConfig>
 where
-    <Provider as NodePrimitivesProvider>::Primitives: OpPayloadPrimitives
-        + NodePrimitives<
-            Block = AlloyBlock<
-                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_TX,
-                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_Header,
-            >,
-            BlockBody = alloy_consensus::BlockBody<
-                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_TX,
-                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_Header,
-            >,
-            BlockHeader = <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_Header,
-            SignedTx = <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_TX,
-        >,
-    Pool: TransactionPool<
-            Transaction: OpPooledTx<Consensus = <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::SignedTx>,
-        > + 'static,
-    Provider: BlockReaderIdExt<
-            Block = AlloyBlock<
-                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_TX,
-                <<Provider as NodePrimitivesProvider>::Primitives as OpPayloadPrimitives>::_Header,
-            >,
-            Header = <<Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::BlockHeader,
-        > + NodePrimitivesProvider
+    Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>> + 'static,
+    Provider: BlockReaderIdExt<Block = OpBlock, Header = Header>
         + StateProviderFactory
-        + ChainSpecProvider<ChainSpec: OpHardforks>
+        + ChainSpecProvider<ChainSpec = OpChainSpec>
         + Clone
         + 'static,
-    EvmConfig: ConfigurePostExecEvm<
-            Primitives = <Provider as NodePrimitivesProvider>::Primitives,
-            NextBlockEnvCtx: BuildNextEnv<Attrs, Provider::Header, Provider::ChainSpec>,
-        > + Clone
+    EvmConfig: ConfigurePostExecEvm<Primitives = OpPrimitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>
+        + Clone
         + 'static,
-    Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>>,
 {
     async fn replay_post_exec_block(
         &self,
@@ -251,24 +208,20 @@ where
     }
 }
 
-impl<Pool, Provider, EvmConfig, Attrs> Clone
-    for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
-{
+impl<Pool, Provider, EvmConfig> Clone for OpDebugWitnessApi<Pool, Provider, EvmConfig> {
     fn clone(&self) -> Self {
         Self { inner: Arc::clone(&self.inner) }
     }
 }
-impl<Pool, Provider, EvmConfig, Attrs> Debug
-    for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
-{
+impl<Pool, Provider, EvmConfig> Debug for OpDebugWitnessApi<Pool, Provider, EvmConfig> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpDebugWitnessApi").finish_non_exhaustive()
     }
 }
 
-struct OpDebugWitnessApiInner<Pool, Provider, EvmConfig, Attrs> {
+struct OpDebugWitnessApiInner<Pool, Provider, EvmConfig> {
     provider: Provider,
-    builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
+    builder: OpPayloadBuilder<Pool, Provider, EvmConfig>,
     evm_config: EvmConfig,
     task_spawner: Runtime,
     semaphore: Arc<Semaphore>,

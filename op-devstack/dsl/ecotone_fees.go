@@ -19,7 +19,7 @@ type EcotoneFees struct {
 }
 
 type EcotoneFeesValidationResult struct {
-	TransactionReceipt *types.Receipt
+	TransactionReceipt *optypes.Receipt
 	L1Fee              *big.Int
 	L2Fee              *big.Int
 	BaseFee            *big.Int
@@ -54,8 +54,6 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	receipt, err := tx.Included.Eval(ef.ctx)
 	ef.require.NoError(err)
 	ef.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
-	opReceipt, err := client.TransactionReceipt(ef.ctx, receipt.TxHash)
-	ef.require.NoError(err)
 
 	// Get block info for base fee information
 	blockInfo, err := client.InfoByHash(ef.ctx, receipt.BlockHash)
@@ -89,8 +87,8 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 
 	// Then validate individual fee components
 	ef.validateFeeDistribution(l1Fee, baseFee, priorityFee, vaultIncreases)
-	ef.validateEcotoneFeatures(opReceipt, l1Fee)
-	ef.validateReceiptFees(opReceipt, l1Fee, baseFee, l2Fee, receiptBaseFee, receiptL2Fee)
+	ef.validateEcotoneFeatures(receipt, l1Fee)
+	ef.validateReceiptFees(receipt, l1Fee, baseFee, l2Fee, receiptBaseFee, receiptL2Fee)
 
 	return EcotoneFeesValidationResult{
 		TransactionReceipt: receipt,

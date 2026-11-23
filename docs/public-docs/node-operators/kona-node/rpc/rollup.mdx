@@ -5,6 +5,43 @@ diataxis: reference
 
 The `optimism` API provides methods for interacting with Kona's rollup state and configuration.
 
+## `optimism_dependencySet`
+
+Returns the interop dependency set the node runs with: the one given by `--interop.dependency-set` or `KONA_NODE_INTEROP_DEPENDENCY_SET`, or else the chain's dependency set in the superchain-registry.
+
+| Client | Method invocation                                    |
+| ------ | ---------------------------------------------------- |
+| RPC    | `{"method": "optimism_dependencySet", "params": []}` |
+
+### Returns
+
+The dependency set as JSON:
+
+- `dependencies`: An object keyed by chain ID, with an empty object for each chain.
+- `overrideMessageExpiryWindow`: The message expiry window override in seconds, or `null` without one.
+
+### Errors
+
+| Condition | Code | Message |
+| --- | --- | --- |
+| The node runs without a dependency set | `-32000` | `not found` |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_dependencySet","params":[]}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "dependencies": {
+      "901": {}
+    },
+    "overrideMessageExpiryWindow": null
+  }
+}
+```
+
 ## `optimism_outputAtBlock`
 
 Returns the output root at a specific block number, including the L2 block reference, withdrawal storage root, state root, and sync status.

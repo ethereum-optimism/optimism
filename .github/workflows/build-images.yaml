@@ -28,4 +28,4 @@ jobs:
       contents: read
       id-token: write
       attestations: write
-    uses: ethereum-optimism/factory/.github/workflows/build-images.yaml@c7a77b3b64a3f4798979060c830247a6b49f60ee
+    uses: ethereum-optimism/factory/.github/workflows/build-images.yaml@bfdda9fcda77c3a0edeee953c2d1c773ec16265e

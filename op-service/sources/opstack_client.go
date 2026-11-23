@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -30,9 +31,14 @@ func (r *OPStackClient) CancelBlock(ctx context.Context, id eth.PayloadInfo) err
 }
 
 func (r *OPStackClient) SealBlock(ctx context.Context, id eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
-	var result *eth.ExecutionPayloadEnvelope
-	err := r.rpc.CallContext(ctx, &result, "opstack_sealBlockV1", id)
-	return result, err
+	result, err := callNonNull[eth.ExecutionPayloadEnvelope](ctx, r.rpc, "opstack_sealBlockV1", id)
+	if err != nil {
+		return nil, err
+	}
+	if result.ExecutionPayload == nil {
+		return nil, errors.New("sealed envelope has no execution payload")
+	}
+	return result, nil
 }
 
 func (r *OPStackClient) CommitBlock(ctx context.Context, envelope *opsigner.SignedExecutionPayloadEnvelope) error {

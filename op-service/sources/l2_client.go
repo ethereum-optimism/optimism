@@ -2,16 +2,13 @@ package sources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -110,70 +107,6 @@ func (s *L2Client) RollupConfig() *rollup.Config {
 	return s.rollupCfg
 }
 
-// ErrOpTxInBody is returned when a whole-body decode meets a transaction of an OP Stack type
-// (0x7E deposit, 0x7D post-exec), which upstream go-ethereum cannot decode. Read L2 bodies via
-// InfoAndUserTxsBy*, InfoAndDepositsBy*, InfoAndFirstDepositBy* or PayloadBy*.
-var ErrOpTxInBody = errors.New("block holds a transaction of an OP Stack type")
-
-// HeaderAndTxsByHash shadows EthClient.HeaderAndTxsByHash, returning ErrOpTxInBody
-// if the block holds a transaction of an OP Stack type.
-func (s *L2Client) HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error) {
-	header, rawTxs, err := s.headerAndRawTxsByHash(ctx, hash)
-	if err != nil {
-		return nil, nil, err
-	}
-	txs, err := decodeWithoutOpTxs(rawTxs)
-	if err != nil {
-		return nil, nil, err
-	}
-	return header, txs, nil
-}
-
-// InfoAndTxsByHash shadows EthClient.InfoAndTxsByHash; see HeaderAndTxsByHash.
-func (s *L2Client) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	header, txs, err := s.HeaderAndTxsByHash(ctx, hash)
-	if err != nil {
-		return nil, nil, err
-	}
-	return eth.HeaderBlockInfoTrusted(hash, header), txs, nil
-}
-
-// InfoAndTxsByNumber shadows EthClient.InfoAndTxsByNumber; see HeaderAndTxsByHash.
-func (s *L2Client) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error) {
-	return s.infoAndTxsByID(ctx, numberID(number))
-}
-
-// InfoAndTxsByLabel shadows EthClient.InfoAndTxsByLabel; see HeaderAndTxsByHash.
-func (s *L2Client) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
-	return s.infoAndTxsByID(ctx, label)
-}
-
-// infoAndTxsByID reads a block by number or label, which can't hit the cache due to reorgs.
-func (s *L2Client) infoAndTxsByID(ctx context.Context, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
-	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", id)
-	if err != nil {
-		return nil, nil, err
-	}
-	txs, err := decodeWithoutOpTxs(rawTxs)
-	if err != nil {
-		return nil, nil, err
-	}
-	return eth.HeaderBlockInfo(header), txs, nil
-}
-
-// decodeWithoutOpTxs decodes txs into go-ethereum transactions, or returns ErrOpTxInBody if any
-// of them has an OP Stack transaction type. It checks the type bytes before decoding, where
-// go-ethereum would fail on such a transaction with its generic ErrTxTypeNotSupported.
-func decodeWithoutOpTxs(txs RawTransactions) (types.Transactions, error) {
-	for i, tx := range txs {
-		switch typ := tx.Type(); typ {
-		case optypes.DepositTxType, optypes.PostExecTxType:
-			return nil, fmt.Errorf("tx %d has type %#x: %w", i, typ, ErrOpTxInBody)
-		}
-	}
-	return txs.Geth()
-}
-
 // L2BlockRefByLabel returns the [eth.L2BlockRef] for the given block label.
 func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	envelope, err := s.PayloadByLabel(ctx, label)
@@ -267,7 +200,11 @@ func (s *L2Client) outputV0(ctx context.Context, block eth.BlockInfo) (*eth.Outp
 		s.log.Debug("Retrieving withdrawal root from block header")
 		// If Isthmus hard fork has activated, we can get the withdrawal root directly from the header
 		// instead of having to compute it from the contract storage trie.
-		messagePasserStorageRoot = eth.Bytes32(*block.WithdrawalsRoot())
+		withdrawalsRoot := block.WithdrawalsRoot()
+		if withdrawalsRoot == nil {
+			return nil, fmt.Errorf("isthmus block %s is missing withdrawals root", eth.ToBlockID(block))
+		}
+		messagePasserStorageRoot = eth.Bytes32(*withdrawalsRoot)
 
 	} else {
 		s.log.Debug("Bypassing block header, retrieving withdrawal root from state")

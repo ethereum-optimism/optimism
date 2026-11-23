@@ -60,9 +60,9 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 				SuperRoot: eth.Bytes32{0xdd},
 			},
 		}
-		rpc.On("CallContext", ctx, new(eth.SuperRootAtTimestampResponse),
+		rpc.On("CallContext", ctx, new(*eth.SuperRootAtTimestampResponse),
 			"superroot_atTimestamp", []any{hexutil.Uint64(timestamp)}).Run(func(args mock.Arguments) {
-			*args[1].(*eth.SuperRootAtTimestampResponse) = expected
+			*args[1].(**eth.SuperRootAtTimestampResponse) = &expected
 		}).Return([]error{nil})
 		result, err := client.SuperRootAtTimestamp(ctx, timestamp)
 		require.NoError(t, err)
@@ -102,9 +102,9 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 			},
 			Data: nil, // No super root found, so data is nil.
 		}
-		rpc.On("CallContext", ctx, new(eth.SuperRootAtTimestampResponse),
+		rpc.On("CallContext", ctx, new(*eth.SuperRootAtTimestampResponse),
 			"superroot_atTimestamp", []any{hexutil.Uint64(timestamp)}).Run(func(args mock.Arguments) {
-			*args[1].(*eth.SuperRootAtTimestampResponse) = expected
+			*args[1].(**eth.SuperRootAtTimestampResponse) = &expected
 		}).Return([]error{nil})
 		result, err := client.SuperRootAtTimestamp(ctx, timestamp)
 		require.NoError(t, err)
@@ -119,11 +119,31 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 
 		timestamp := uint64(245)
 
-		rpc.On("CallContext", ctx, new(eth.SuperRootAtTimestampResponse),
+		rpc.On("CallContext", ctx, new(*eth.SuperRootAtTimestampResponse),
 			"superroot_atTimestamp", []any{hexutil.Uint64(timestamp)}).Return([]error{errors.New("blah blah blah: not found")})
 		_, err := client.SuperRootAtTimestamp(ctx, timestamp)
 		require.NotErrorIs(t, err, ethereum.NotFound) // should not convert to not found even though it contains not found
 		require.NotNil(t, err)
+	})
+
+	t.Run("MissingOptimisticOutput", func(t *testing.T) {
+		ctx := context.Background()
+		rpc := new(mockRPC)
+		defer rpc.AssertExpectations(t)
+		client := NewSuperNodeClient(rpc)
+
+		chainA := eth.ChainIDFromUInt64(1)
+		rpc.On("CallContext", ctx, new(*eth.SuperRootAtTimestampResponse),
+			"superroot_atTimestamp", []any{hexutil.Uint64(245)}).Run(func(args mock.Arguments) {
+			*args[1].(**eth.SuperRootAtTimestampResponse) = &eth.SuperRootAtTimestampResponse{
+				ChainIDs: []eth.ChainID{chainA},
+				OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
+					chainA: {OutputRoot: eth.Bytes32{0xaa}},
+				},
+			}
+		}).Return([]error{nil})
+		_, err := client.SuperRootAtTimestamp(ctx, 245)
+		require.ErrorContains(t, err, "missing optimistic output for chain 1")
 	})
 }
 
@@ -159,9 +179,9 @@ func TestSuperNodeClient_SyncStatus(t *testing.T) {
 			LocalSafeTimestamp: 170,
 			FinalizedTimestamp: 100,
 		}
-		rpc.On("CallContext", ctx, new(eth.SuperNodeSyncStatusResponse),
+		rpc.On("CallContext", ctx, new(*eth.SuperNodeSyncStatusResponse),
 			"supernode_syncStatus", []any(nil)).Run(func(args mock.Arguments) {
-			*args[1].(*eth.SuperNodeSyncStatusResponse) = expected
+			*args[1].(**eth.SuperNodeSyncStatusResponse) = &expected
 		}).Return([]error{nil})
 
 		result, err := client.SyncStatus(ctx)
@@ -175,9 +195,31 @@ func TestSuperNodeClient_SyncStatus(t *testing.T) {
 		defer rpc.AssertExpectations(t)
 		client := NewSuperNodeClient(rpc)
 
-		rpc.On("CallContext", ctx, new(eth.SuperNodeSyncStatusResponse),
+		rpc.On("CallContext", ctx, new(*eth.SuperNodeSyncStatusResponse),
 			"supernode_syncStatus", []any(nil)).Return([]error{errors.New("boom")})
 		_, err := client.SyncStatus(ctx)
 		require.Error(t, err)
 	})
+}
+
+// TestSuperNodeClient_NullResult checks that a JSON null result is an error and not an empty
+// response, which callers would read as a supernode without data.
+func TestSuperNodeClient_NullResult(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		method string
+		call   func(c *SuperNodeClient) error
+	}{
+		{"superroot_atTimestamp", func(c *SuperNodeClient) error { _, err := c.SuperRootAtTimestamp(ctx, 1); return err }},
+		{"supernode_syncStatus", func(c *SuperNodeClient) error { _, err := c.SyncStatus(ctx); return err }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.method, func(t *testing.T) {
+			rpc := new(mockRPC)
+			defer rpc.AssertExpectations(t)
+			rpc.On("CallContext", ctx, mock.Anything, tc.method, mock.Anything).Return([]error{nil})
+
+			require.ErrorContains(t, tc.call(NewSuperNodeClient(rpc)), tc.method+" returned null")
+		})
+	}
 }

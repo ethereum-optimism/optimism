@@ -41,6 +41,8 @@ pub use rollup::RollupRpc;
 #[cfg(test)]
 mod test_utils;
 
+mod plain_error;
+
 mod safe_db_error;
 
 mod superroot;

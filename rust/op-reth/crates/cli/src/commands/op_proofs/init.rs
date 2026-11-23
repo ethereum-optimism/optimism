@@ -1,10 +1,11 @@
 //! Command that initializes the OP proofs storage with the current state of the chain.
 
+use crate::chainspec::OpChainSpecParser;
 use clap::Parser;
-use reth_chainspec::{ChainInfo, EthChainSpec};
-use reth_cli::chainspec::ChainSpecParser;
+use reth_chainspec::ChainInfo;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{
     ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
 };
@@ -21,9 +22,9 @@ use tracing::{debug, info};
 /// This command must be run before starting the node with proofs history enabled.
 /// It backfills the proofs storage with trie nodes from the current chain state.
 #[derive(Debug, Parser)]
-pub struct InitCommand<C: ChainSpecParser> {
+pub struct InitCommand {
     #[command(flatten)]
-    env: EnvironmentArgs<C>,
+    env: EnvironmentArgs<OpChainSpecParser>,
 
     /// Shared proofs-history storage flags (storage path + version).
     #[command(flatten)]
@@ -49,9 +50,9 @@ pub struct InitCommand<C: ChainSpecParser> {
     pub backfill_args: ProofsHistoryBackfillArgs,
 }
 
-impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> InitCommand<C> {
+impl InitCommand {
     /// Execute `proofs init` command
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -165,11 +166,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> InitCommand<C> {
 
         Ok(())
     }
-}
 
-impl<C: ChainSpecParser> InitCommand<C> {
     /// Returns the underlying chain being used to run this command
-    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         Some(&self.env.chain)
     }
 }

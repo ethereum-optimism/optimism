@@ -22,7 +22,6 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var emptyHash = common.Hash{}
@@ -634,7 +633,7 @@ func (el *L2ELNode) ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockI
 }
 
 // WaitForReceipt waits for a transaction receipt to be available, retrying until found or timeout.
-func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
+func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *optypes.Receipt {
 	var receipt *optypes.Receipt
 	err := retry.Do0(el.ctx, 30, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() error {
 		var err error
@@ -645,7 +644,7 @@ func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 		return nil
 	})
 	el.require.NoError(err, "failed to get receipt for tx %s", txHash.Hex())
-	return &receipt.Receipt
+	return receipt
 }
 
 // AccountProofAt returns addr's account and its state-trie proof at blockNum. op-reth serves

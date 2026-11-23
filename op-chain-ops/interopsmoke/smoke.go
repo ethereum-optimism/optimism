@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopbridge"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -108,19 +109,19 @@ type remoteUser struct {
 
 type initMessage struct {
 	Tx      *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 type execMessage struct {
 	Init    *initMessage
 	Tx      *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 // sentMessage is a message sent through the L2ToL2CrossDomainMessenger.
 type sentMessage struct {
 	Tx      *txintent.IntentTx[*txintent.SendTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 // relayedMessage is a relayMessage call on the L2ToL2CrossDomainMessenger. Its
@@ -128,7 +129,7 @@ type sentMessage struct {
 // themselves initiating messages.
 type relayedMessage struct {
 	Tx      *txintent.IntentTx[*txintent.RelayTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 type smokeEnv struct {
@@ -352,7 +353,7 @@ func (u *remoteUser) sendInvalidRelayMessage(ctx context.Context, msg *sentMessa
 }
 
 // execEntry sends an executing message for an already-known initiating message.
-func (u *remoteUser) execEntry(ctx context.Context, entry messages.Message) (*types.Receipt, error) {
+func (u *remoteUser) execEntry(ctx context.Context, entry messages.Message) (*optypes.Receipt, error) {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.plan())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,

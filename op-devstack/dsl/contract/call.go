@@ -6,13 +6,13 @@ import (
 	"math/big"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 const (
@@ -64,7 +64,7 @@ func ReadArray[T any](countCall bindings.TypedCall[*big.Int], elemCall func(i *b
 
 // Write makes a user to write a tx by using the planned contract bindings.
 // Each call is bounded by writeTimeout to prevent hangs under CI resource contention.
-func Write[O any](user *dsl.EOA, call bindings.TypedCall[O], opts ...txplan.Option) *types.Receipt {
+func Write[O any](user *dsl.EOA, call bindings.TypedCall[O], opts ...txplan.Option) *optypes.Receipt {
 	checkTestable(call)
 	ctx, cancel := context.WithTimeout(call.Test().Ctx(), writeTimeout)
 	defer cancel()
