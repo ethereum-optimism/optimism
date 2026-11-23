@@ -65,7 +65,7 @@ The proposer posts the init bond when it creates a game. A challenger posts the 
 *   A proposer who wins gets its bond back, plus the challenger's bond if the game was challenged.
 *   A challenger who wins gets both bonds.
 *   If someone other than the proposer proves a challenged game, the prover earns the challenger's bond and the proposer gets its own bond back. This rewards anyone who defends a valid proposal.
-*   If a game loses only because its parent lost, and nobody challenged it, no player gets its bond: the game credits it to `address(0)`, where it is effectively burned. The `DelayedWETH` owner can recover it with `hold()` and `recover()`.
+*   If a game loses only because its parent lost, and nobody challenged it, the game credits its bond to `address(0)`, so no player can claim it. The `ProxyAdmin` owner can recover it from `DelayedWETH` with `hold()` and `recover()`.
 
 Bonds are held in `DelayedWETH`, not in the game. After a game resolves and the finality delay has passed, anyone can close it, and the first bond claim closes it too. Closing decides whether bonds are paid normally or refunded: a game that the Guardian has blacklisted or retired refunds each party its own bond instead of paying the winner. Claiming is a two-step process: the first claim unlocks the funds in `DelayedWETH`, and a second claim after the `DelayedWETH` delay withdraws them.
 

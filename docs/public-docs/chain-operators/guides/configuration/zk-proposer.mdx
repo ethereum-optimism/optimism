@@ -100,7 +100,7 @@ With `OP_ZK_PROPOSER_PROOF_PROVIDER=local-cuda`, the proposer generates proofs o
 
 This mode runs only in the `op-zk-proposer-cuda` image, which is built for amd64 and includes the GPU prover server. The image is published as `us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer-cuda:vX.Y.Z`, from the same commit as the `op-zk-proposer` release `vX.Y.Z`. Set `OP_ZK_PROPOSER_CUDA_DEVICES` to the comma-separated IDs of the GPUs to use (default `0`), and set `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` to the number of GPUs. At its default of `1`, a game uses only one GPU.
 
-The prover keeps program memory in `/dev/shm`. The container default of 64 MiB fails every request, so give `/dev/shm` room for twice `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` (24 GiB by default) per GPU, and count it in the container's memory. For example, with one GPU:
+The prover keeps program memory in `/dev/shm`. The container default of 64 MiB fails every request, so give `/dev/shm` room for twice `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` (24 GiB by default) per GPU, and count it in the container's memory. The CUDA image also runs as user `10001`, so set the owner of the `/data` volume before the first run, as in [Start the proposer](#start-the-proposer). For example, with one GPU:
 
 ```bash
 docker run --gpus all --shm-size=48g --env-file proposer.env -v proposer-data:/data -p 7300:7300 \
@@ -186,7 +186,7 @@ With `OP_ZK_PROPOSER_FAST_FINALITY_MODE=true`, the proposer proves every game it
 
 This buys a full set of proofs for every game: range, consolidation, and aggregation proofs, plus any log-commitment proofs. At a one-hour interval, that is about 24 games a day.
 
-`OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` (default `1`) caps the games the proposer proves at once, and counts both fast-finality proofs and proofs that defend challenged games. While the count is at the cap, the proposer starts no new fast-finality proofs and creates no new games. At the default, one challenged game, or the fast-finality proof of the previous game, pauses new proposals until its proof finishes. To keep proposing while defending, set the cap above the number of games you expect to defend at once. Defense proofs still start up to `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` whatever the cap.
+`OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` (default `1`) limits when the proposer starts fast-finality proofs and creates games. It counts every proof in flight: fast-finality proofs and proofs that defend challenged games. While the count is at the limit, the proposer starts no new fast-finality proofs and creates no new games. At the default, one challenged game, or the fast-finality proof of the previous game, pauses new proposals until its proof finishes. To keep proposing while defending, set the limit above the number of games you expect to defend at once. Defense proofs still start up to `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` whatever the limit.
 
 Alert on `deadline_passed_total{window="fast_finality"}` to see games that were not proven in time. A missed fast-finality window does not lose the game.
 
