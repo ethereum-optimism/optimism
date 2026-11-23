@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // TestRollupClient_NullResult checks that a JSON null result, which leaves the decoded
@@ -33,6 +35,19 @@ func TestRollupClient_NullResult(t *testing.T) {
 			require.Nil(t, out)
 		})
 	}
+}
+
+func TestRollupClient_OutputAtBlockNullSyncStatus(t *testing.T) {
+	ctx := context.Background()
+	rpc := new(mockRPC)
+	defer rpc.AssertExpectations(t)
+	rpc.On("CallContext", ctx, mock.Anything, "optimism_outputAtBlock", mock.Anything).Run(func(args mock.Arguments) {
+		*args[1].(**eth.OutputResponse) = &eth.OutputResponse{}
+	}).Return([]error{nil})
+
+	out, err := NewRollupClient(rpc).OutputAtBlock(ctx, 1)
+	require.ErrorContains(t, err, "syncStatus")
+	require.Nil(t, out)
 }
 
 func TestFollowClient_NullSyncStatus(t *testing.T) {

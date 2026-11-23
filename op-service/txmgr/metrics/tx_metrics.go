@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -159,12 +158,17 @@ func (t *TxMetrics) RecordPendingTx(pending int64) {
 
 // TxConfirmed records lots of information about the confirmed transaction
 func (t *TxMetrics) TxConfirmed(receipt *types.Receipt) {
-	fee := float64(bigs.Uint64Strict(receipt.EffectiveGasPrice) * receipt.GasUsed / params.GWei)
 	t.confirmEvent.Record(receiptStatusString(receipt))
+	t.txType.Set(float64(receipt.Type))
+	// The effective gas price is an optional field of an RPC receipt.
+	if receipt.EffectiveGasPrice == nil {
+		return
+	}
+	price, _ := receipt.EffectiveGasPrice.Float64()
+	fee := price * float64(receipt.GasUsed) / params.GWei
 	t.txL1GasFee.Set(fee)
 	t.txFeesTotal.Add(fee)
 	t.txFeeHistogram.Observe(fee)
-	t.txType.Set(float64(receipt.Type))
 }
 
 func (t *TxMetrics) RecordGasBumpCount(times int) {
