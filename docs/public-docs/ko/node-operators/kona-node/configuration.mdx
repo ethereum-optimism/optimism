@@ -26,31 +26,29 @@ import { Unreleased } from "/ko/snippets/unreleased.mdx"
 | `--l1-trust-rpc=<true/false>` | `KONA_NODE_L1_TRUST_RPC` | 검증 없이 L1 RPC를 신뢰할지 여부 | 아니요 | `false` |
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | L1 beacon API의 URL | 예 | - |
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | L2 실행 클라이언트의 engine API 엔드포인트 URL | 예 | - |
-| `--l2-trust-rpc=<true/false>` | `KONA_NODE_L2_TRUST_RPC` | 검증 없이 L2 RPC를 신뢰할지 여부 | 아니요 | `true` |
 | `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | 실행 클라이언트용 16진수 인코딩 JWT 시크릿이 담긴 파일의 경로 | 아니요 | - |
 | `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | 사용자 지정 L2 rollup 구성 파일의 경로 | 아니요 | - |
-| `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | 런타임 구성을 다시 로드하는 폴링 간격 | 아니요 | `600` |
 
 ## 전역 인수 {#global-arguments}
 
 | 플래그 | 환경 변수 | 설명 | 필수 | 기본값 |
 |------|-----|-------------|----------|---------|
-| `--l2-chain-id <ID/NAME>` 또는 `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 체인 ID(숫자) 또는 체인 이름(문자열) | 아니요 | `10` (Optimism) |
+| `--chain <ID/NAME>` 또는 `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 체인 ID(숫자) 또는 체인 이름(문자열). 별칭: `--l2-chain-id` | 아니요 | `10` (Optimism) |
 
 ### 체인 ID 지원 {#chain-id-support}
 
-`--l2-chain-id` 플래그는 `alloy_chains` crate를 사용해 유연한 체인 식별을 지원합니다.
+`--chain` 플래그는 `alloy_chains` crate를 사용해 유연한 체인 식별을 지원합니다.
 
 **숫자 체인 ID:**
 ```bash
-kona-node --l2-chain-id 10 node [args...]        # Optimism mainnet
-kona-node --l2-chain-id 11155420 node [args...]  # OP Sepolia
+kona-node --chain 10 node [args...]        # Optimism mainnet
+kona-node --chain 11155420 node [args...]  # OP Sepolia
 ```
 
 **문자열 체인 이름:**
 ```bash
-kona-node --l2-chain-id optimism node [args...]
-kona-node --l2-chain-id optimism-sepolia node [args...]
+kona-node --chain optimism node [args...]
+kona-node --chain optimism-sepolia node [args...]
 ```
 
 **짧은 플래그와 환경 변수:**
@@ -262,8 +260,8 @@ RPC 서버는 한 번 시작됩니다. 예기치 않게 중지되면 노드는 �
 - P2P 스택이 시작됩니다. libp2p swarm은 블록 gossip을 수신하기 위해
   TCP `9222`에서 수신 대기합니다. `discv5` 탐색 서비스는
   UDP 포트 `9223`에서 실행됩니다. 피어 점수 산정이 활성화됩니다.
-- RPC 서버가 `0.0.0.0:9545`에서 노출됩니다. Websocket 연결은
-  기본적으로 비활성화되어 있습니다.
+- RPC 서버가 `0.0.0.0:9545`에서 노출됩니다. HTTP와 WebSocket
+  연결을 모두 허용합니다.
 - Prometheus 메트릭은 비활성화되어 있습니다.
   `--metrics.enabled` 플래그로 활성화할 수 있으며, 그러면 메트릭이 `0.0.0.0:9090`에서 제공되고,
   `--metrics.port` 및 `--metrics.addr` 플래그로 구성할 수 있습니다.

@@ -52,7 +52,14 @@ func l2BlockTxs(t *testing.T) RawTransactions {
 	setCode := types.MustSignNewTx(key, signer, &types.SetCodeTx{
 		ChainID: uint256.NewInt(10), Nonce: 3, GasTipCap: uint256.NewInt(1),
 		GasFeeCap: uint256.NewInt(5), Gas: 50000, To: to,
-		AuthList: []types.SetCodeAuthorization{{ChainID: *uint256.NewInt(10), Address: to, Nonce: 7, V: 1, R: *uint256.NewInt(2), S: *uint256.NewInt(3)}},
+		AuthList: []types.SetCodeAuthorization{
+			{ChainID: *uint256.NewInt(10), Address: to, Nonce: 7, V: 1, R: *uint256.NewInt(2), S: *uint256.NewInt(3)},
+			// EIP-7702 only bounds an authorization's yParity to a byte: one that
+			// recovers no signer is skipped at execution and the tx stays valid.
+			// Mainnet L1 block 26268195 holds one with yParity 28. A decoder that
+			// rejects it can never read a block holding such a tx.
+			{ChainID: *uint256.NewInt(10), Address: to, Nonce: 8, V: 28, R: *uint256.NewInt(2), S: *uint256.NewInt(3)},
+		},
 	})
 	postExec, err := (&optypes.PostExecTx{Data: []byte{0xc2, 0x80, 0x80}}).MarshalBinary()
 	require.NoError(t, err)
@@ -214,7 +221,7 @@ func TestRPCBlockNullTransactionRejected(t *testing.T) {
 
 // TestRawTransactionsGeth decodes the user txs of an L2 block, the only class
 // upstream go-ethereum decodes, and checks they match the block's UserTxs
-// partition.
+// partition, and that an OP Stack tx fails with ErrOpTxInBody.
 func TestRawTransactionsGeth(t *testing.T) {
 	txs := l2BlockTxs(t)
 	userRaw := txs[1 : len(txs)-1] // between the leading deposit and the trailing post-exec tx
@@ -232,4 +239,11 @@ func TestRawTransactionsGeth(t *testing.T) {
 
 	_, err = RawTransactions{{0xff}}.Geth()
 	require.Error(t, err)
+
+	_, err = txs.Geth()
+	require.ErrorIs(t, err, ErrOpTxInBody)
+	for _, opTx := range []RawTransaction{txs[0], txs[len(txs)-1]} {
+		_, err = RawTransactions{opTx}.Geth()
+		require.ErrorIs(t, err, ErrOpTxInBody, "tx type %#x", opTx.Type())
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum/go-ethereum/common"
@@ -75,7 +76,7 @@ func ExecuteIndexed(executor common.Address, events *plan.Lazy[*InteropOutput], 
 }
 
 // RelayIndexed returns a lambda to transform InteropOutput to a new RelayTrigger
-func RelayIndexed(executor common.Address, events *plan.Lazy[*InteropOutput], receipt *plan.Lazy[*types.Receipt], index int) func(ctx context.Context) (*RelayTrigger, error) {
+func RelayIndexed(executor common.Address, events *plan.Lazy[*InteropOutput], receipt *plan.Lazy[*optypes.Receipt], index int) func(ctx context.Context) (*RelayTrigger, error) {
 	return func(ctx context.Context) (*RelayTrigger, error) {
 		if x := len(events.Value().Entries); x <= index {
 			return nil, fmt.Errorf("invalid entry index: %d, only have %d events", index, x)

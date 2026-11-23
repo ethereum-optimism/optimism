@@ -77,6 +77,32 @@ func TestFjordL1CostSolidityParity(t *testing.T) {
 	require.Equal(t, big.NewInt(105484), c)
 }
 
+// TestL1CostFjordFromTxBytes prices transaction bytes from compression to fee, below and above the
+// minimum-size floor of the DA-size estimate. The expected fees were taken from the GasPriceOracle
+// predeploy: its getL1Fee, executed in an EVM with Fjord active and the L1 fee parameters of
+// gweiL1FeeParams, returns them for the same bytes. getL1Fee adds 68 bytes for a signature to the
+// FastLZ size of the bytes it is given, so the test does the same. contractCallTx is already
+// signed; here it only serves as realistic bytes above the floor.
+func TestL1CostFjordFromTxBytes(t *testing.T) {
+	testCases := []struct {
+		name       string
+		tx         []byte
+		wantDASize int64
+		wantFee    string
+	}{
+		{"empty tx below the floor", emptyTx, 100, "7701347450000"},
+		{"contract call tx above the floor", contractCallTx, 183, "14114213263530"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rcd := NewRollupCostData(tc.tx)
+			rcd.FastLzSize += 68
+			require.Equal(t, big.NewInt(tc.wantDASize), rcd.EstimatedDASize())
+			require.Equal(t, tc.wantFee, L1CostFjord(rcd, gweiL1FeeParams).String())
+		})
+	}
+}
+
 func TestEstimatedDASize(t *testing.T) {
 	// Below the regression minimum, the estimate clamps to MinTransactionSize (100).
 	small := RollupCostData{FastLzSize: 50}

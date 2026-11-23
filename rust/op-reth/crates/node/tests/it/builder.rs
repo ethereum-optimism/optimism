@@ -8,7 +8,6 @@ use alloy_op_evm::{
     },
 };
 use alloy_primitives::{Bytes, address};
-use core::marker::PhantomData;
 use op_revm::{OpHaltReason, OpSpecId, precompiles::OpPrecompiles};
 use reth_db::test_utils::create_test_rw_db;
 use reth_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
@@ -18,7 +17,7 @@ use reth_node_builder::{
     components::ExecutorBuilder,
 };
 use reth_optimism_chainspec::{OP_MAINNET, OP_SEPOLIA, OpChainSpec};
-use reth_optimism_evm::{OpBlockExecutorFactory, OpEvm, OpEvmFactory, OpRethReceiptBuilder, OpTx};
+use reth_optimism_evm::{OpBlockExecutorFactory, OpEvm, OpEvmFactory, OpTx};
 use reth_optimism_node::{OpEvmConfig, OpExecutorBuilder, OpNode, args::RollupArgs};
 use reth_optimism_primitives::OpPrimitives;
 use reth_provider::providers::BlockchainProvider;
@@ -182,26 +181,18 @@ fn test_setup_custom_precompiles() {
     where
         Node: FullNodeTypes<Types: NodeTypes<ChainSpec = OpChainSpec, Primitives = OpPrimitives>>,
     {
-        type EVM = OpEvmConfig<
-            OpChainSpec,
-            <Node::Types as NodeTypes>::Primitives,
-            OpRethReceiptBuilder,
-            PostExecEvmFactoryAdapter<UniEvmFactory>,
-        >;
+        type EVM = OpEvmConfig<PostExecEvmFactoryAdapter<UniEvmFactory>>;
 
         async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
-            let OpEvmConfig { executor_factory, block_assembler, _pd: _ } =
+            let OpEvmConfig { executor_factory, block_assembler } =
                 OpExecutorBuilder::default().build_evm(ctx).await?;
             let uni_executor_factory = OpBlockExecutorFactory::new(
                 *executor_factory.receipt_builder(),
                 ctx.chain_spec(),
                 PostExecEvmFactoryAdapter::new(UniEvmFactory),
             );
-            let uni_evm_config = OpEvmConfig {
-                executor_factory: uni_executor_factory,
-                block_assembler,
-                _pd: PhantomData,
-            };
+            let uni_evm_config =
+                OpEvmConfig { executor_factory: uni_executor_factory, block_assembler };
             Ok(uni_evm_config)
         }
     }

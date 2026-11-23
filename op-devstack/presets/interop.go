@@ -139,12 +139,14 @@ func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.Standar
 // NewSimpleInterop creates a fresh SimpleInterop target for the current
 // test using the super-root proofs system backed by op-supernode.
 func NewSimpleInterop(t devtest.T, opts ...Option) *SimpleInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInterop", opts, twoL2SupernodeProofsPresetSupportedOptionKinds)
 	return simpleInteropFromSupernodeProofsRuntime(t, sysgo.NewTwoL2SupernodeProofsRuntimeWithConfig(t, true, presetCfg))
 }
 
 // NewThreeChainInterop creates a three-chain supernode proofs system.
 func NewThreeChainInterop(t devtest.T, opts ...Option) *ThreeChainInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewThreeChainInterop", opts, twoL2SupernodeProofsPresetSupportedOptionKinds)
 	return threeChainInteropFromSupernodeProofsRuntime(t, sysgo.NewThreeL2SupernodeProofsRuntimeWithConfig(t, true, presetCfg))
 }
@@ -152,6 +154,7 @@ func NewThreeChainInterop(t devtest.T, opts ...Option) *ThreeChainInterop {
 // NewSingleChainInterop creates a fresh SingleChainInterop target for the
 // current test using the single-chain super-root proofs system backed by op-supernode.
 func NewSingleChainInterop(t devtest.T, opts ...Option) *SingleChainInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInterop", opts, supernodeProofsPresetSupportedOptionKinds)
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, true, presetCfg))
 }
@@ -159,6 +162,7 @@ func NewSingleChainInterop(t devtest.T, opts ...Option) *SingleChainInterop {
 // NewSimpleInteropIsthmusSuper creates a fresh SimpleInterop target for the current test
 // using the Isthmus super-root system backed by op-supernode.
 func NewSimpleInteropIsthmusSuper(t devtest.T, opts ...Option) *SimpleInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropIsthmusSuper", opts, twoL2SupernodeProofsPresetSupportedOptionKinds)
 	return simpleInteropFromSupernodeProofsRuntime(t, sysgo.NewTwoL2SupernodeProofsRuntimeWithConfig(t, false, presetCfg))
 }
@@ -166,6 +170,7 @@ func NewSimpleInteropIsthmusSuper(t devtest.T, opts ...Option) *SimpleInterop {
 // NewSingleChainInteropIsthmusSuper creates a fresh SingleChainInterop target for the
 // current test using the single-chain Isthmus super-root system backed by op-supernode.
 func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChainInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropIsthmusSuper", opts, supernodeProofsPresetSupportedOptionKinds)
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, false, presetCfg))
 }
@@ -175,6 +180,7 @@ func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChain
 // op-supernode). The op-challenger plays super-cannon-kona games against this op-node
 // source. This exercises the "op-node as super root RPC" path end-to-end.
 func NewSingleChainInteropNoSupernode(t devtest.T, opts ...Option) *SingleChainInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, singleChainInteropNoSupernodePresetSupportedOptionKinds)
 	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t, presetCfg))
 }
@@ -184,6 +190,7 @@ func NewSingleChainInteropNoSupernode(t devtest.T, opts ...Option) *SingleChainI
 // running an op-challenger that plays ZK dispute games against that op-node source. This exercises
 // the "op-node as super root RPC" path for the ZK game end-to-end.
 func NewSingleChainInteropNoSupernodeZKDispute(t devtest.T, opts ...Option) *SingleChainInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernodeZKDispute", opts, 0)
 	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig(t, presetCfg))
 }
@@ -194,6 +201,7 @@ func NewSingleChainInteropNoSupernodeZKDispute(t devtest.T, opts ...Option) *Sin
 // migration runs. This exercises the initial-deploy path for super-root
 // dispute games tracked by ethereum-optimism/optimism#18729.
 func NewSingleChainInteropSuperRootAtGenesis(t devtest.T, opts ...Option) *SingleChainInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropSuperRootAtGenesis", opts, supernodeProofsPresetSupportedOptionKinds)
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, presetCfg))
 }
@@ -239,6 +247,7 @@ type MinimalInteropNoSupernode struct {
 // NewMinimalInteropNoSupernode creates a fresh MinimalInteropNoSupernode target for the
 // current test.
 func NewMinimalInteropNoSupernode(t devtest.T, opts ...Option) *MinimalInteropNoSupernode {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	_, _ = collectSupportedPresetConfig(t, "NewMinimalInteropNoSupernode", opts, 0)
 	return &MinimalInteropNoSupernode{
 		Minimal: *minimalFromRuntime(t, sysgo.NewMinimalInteropNoSupernodeRuntime(t)),

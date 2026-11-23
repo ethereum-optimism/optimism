@@ -3,6 +3,7 @@ package dsl
 import (
 	"math/rand"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -36,7 +37,7 @@ type DepositTxOpts struct {
 
 // DepositTx sends a transaction to the given address with the given calldata
 // via OptimismPortal2 on L1. It waits for L2 derivation and returns the L2 receipt.
-func (d *DepositEOA) DepositTx(to common.Address, calldata []byte, opts ...func(*DepositTxOpts)) *ethtypes.Receipt {
+func (d *DepositEOA) DepositTx(to common.Address, calldata []byte, opts ...func(*DepositTxOpts)) *optypes.Receipt {
 	l2Receipt := d.sendDeposit(to, calldata, opts...)
 	d.l2.t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit tx failed on L2")
 	return l2Receipt
@@ -46,7 +47,7 @@ func (d *DepositEOA) DepositTx(to common.Address, calldata []byte, opts ...func(
 // OptimismPortal2 on L1 and requires that it reverts on L2 with exactly the given error
 // signature (e.g. "CrossL2Inbox_NoExecutingDeposits()"). It waits for L2 derivation and
 // returns the L2 receipt.
-func (d *DepositEOA) DepositTxExpectRevert(to common.Address, calldata []byte, errorSignature string, opts ...func(*DepositTxOpts)) *ethtypes.Receipt {
+func (d *DepositEOA) DepositTxExpectRevert(to common.Address, calldata []byte, errorSignature string, opts ...func(*DepositTxOpts)) *optypes.Receipt {
 	t := d.l2.t
 
 	l2Receipt := d.sendDeposit(to, calldata, opts...)
@@ -59,7 +60,7 @@ func (d *DepositEOA) DepositTxExpectRevert(to common.Address, calldata []byte, e
 
 // sendDeposit sends the deposit transaction on L1, waits for L2 derivation, and returns the
 // L2 receipt without asserting the L2 execution status.
-func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte, opts ...func(*DepositTxOpts)) *ethtypes.Receipt {
+func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte, opts ...func(*DepositTxOpts)) *optypes.Receipt {
 	t := d.l2.t
 	ctx := d.l2.ctx
 	var o DepositTxOpts
@@ -105,7 +106,7 @@ func (d *DepositEOA) SendInitMessage(trigger *txintent.InitTrigger) *InitMessage
 
 	l2BlockRef := d.l2EL.BlockRefByNumber(bigs.Uint64Strict(l2Receipt.BlockNumber))
 	var result txintent.InteropOutput
-	err = result.FromReceipt(d.l2.ctx, l2Receipt, l2BlockRef.BlockRef(), d.l2.ChainID())
+	err = result.FromReceipt(d.l2.ctx, &l2Receipt.Receipt, l2BlockRef.BlockRef(), d.l2.ChainID())
 	t.Require().NoError(err, "failed to build InteropOutput from L2 deposit receipt")
 
 	tx := &txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]{}

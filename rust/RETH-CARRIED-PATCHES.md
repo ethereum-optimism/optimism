@@ -18,6 +18,7 @@ change: add a row for each new pick, and drop a row once the pinned base contain
 | | paradigmxyz/reth#28403 | v2.11.0 | ethereum-optimism/reth#44 |
 | | paradigmxyz/reth#28423 | v2.11.0 | ethereum-optimism/reth#44 |
 | | paradigmxyz/reth#28431 | v2.11.0 | ethereum-optimism/reth#44 |
+| `--txpool.enforce-tracked-nonce` flag | paradigmxyz/reth#28526 | none yet (2026-11-20) | ethereum-optimism/reth#47 (`op-v2.7.0`) |
 
 Patches without a section are plain `-x` picks from upstream: cherry-pick them onto a new
 base that predates their first release.

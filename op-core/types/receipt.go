@@ -19,8 +19,8 @@ const CanyonDepositReceiptVersion = uint64(1)
 // wire, hence the custom JSON methods.
 //
 // DepositNonce and DepositReceiptVersion hold a deposit receipt's nonce and
-// version. A receipt wrapped with FromGethReceipt has neither set, so do not
-// derive a deposit receipt's consensus encoding from one.
+// version. A go-ethereum receipt carries neither, so FromGethReceipt rejects
+// deposit receipts.
 type Receipt struct {
 	types.Receipt
 	// DepositNonce was introduced in Regolith to store the actual nonce used by

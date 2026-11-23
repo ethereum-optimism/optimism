@@ -284,7 +284,8 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 				if tt.receipts == nil {
 					return nil, nil, errors.New("mock error")
 				}
-				return eth.HeaderBlockInfo(&ethtypes.Header{}), optypes.FromGethReceipts(tt.receipts), nil
+				receipts, err := optypes.FromGethReceipts(tt.receipts)
+				return eth.HeaderBlockInfo(&ethtypes.Header{}), receipts, err
 			}
 
 			// Update job status
@@ -395,7 +396,8 @@ func TestUpdaterValidityInvariants(t *testing.T) {
 
 			client.fetchReceiptsByNumber = func(ctx context.Context, number uint64) (eth.BlockInfo, optypes.Receipts, error) {
 				blk := eth.HeaderBlockInfo(&ethtypes.Header{Number: big.NewInt(100), Time: tt.blockTime})
-				return blk, optypes.FromGethReceipts(ethtypes.Receipts{{Logs: []*ethtypes.Log{validLog}}}), nil
+				receipts, err := optypes.FromGethReceipts(ethtypes.Receipts{{Logs: []*ethtypes.Log{validLog}}})
+				return blk, receipts, err
 			}
 
 			job := &Job{

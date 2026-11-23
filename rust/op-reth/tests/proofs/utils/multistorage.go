@@ -3,6 +3,7 @@ package utils
 import (
 	"math/big"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -17,7 +18,7 @@ type MultiStorage struct {
 	t devtest.T
 }
 
-func (c *MultiStorage) SetValues(user *dsl.EOA, a, b *big.Int) *types.Receipt {
+func (c *MultiStorage) SetValues(user *dsl.EOA, a, b *big.Int) *optypes.Receipt {
 	ctx := c.t.Ctx()
 	callData, err := c.parsedABI.Pack("setValues", a, b)
 	if err != nil {
@@ -37,7 +38,7 @@ func (c *MultiStorage) SetValues(user *dsl.EOA, a, b *big.Int) *types.Receipt {
 	return callRes
 }
 
-func DeployMultiStorage(t devtest.T, user *dsl.EOA) (*MultiStorage, *types.Receipt) {
+func DeployMultiStorage(t devtest.T, user *dsl.EOA) (*MultiStorage, *optypes.Receipt) {
 	parsedABI, bin := LoadArtifact(t, MultiStorageArtifact)
 	contractAddress, receipt := DeployContract(t, user, bin)
 	contract := NewContract(contractAddress, parsedABI)

@@ -1,15 +1,10 @@
 package genesis
 
 import (
-	"context"
-	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -61,26 +56,6 @@ var DevAccounts = []common.Address{
 	common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"),
 	// Deployer of create2 deterministic proxy https://github.com/Arachnid/deterministic-deployment-proxy
 	common.HexToAddress("0x3fab184622dc19b6109349b94811493bf2a45362"),
-}
-
-// GetBlockFromTag will resolve a Block given an rpc block tag
-func GetBlockFromTag(chain ethereum.ChainReader, tag *rpc.BlockNumberOrHash) (*types.Block, error) {
-	if hash, ok := tag.Hash(); ok {
-		block, err := chain.BlockByHash(context.Background(), hash)
-		if err != nil {
-			return nil, err
-		}
-		return block, nil
-	} else if num, ok := tag.Number(); ok {
-		blockNumber := new(big.Int).SetInt64(num.Int64())
-		block, err := chain.BlockByNumber(context.Background(), blockNumber)
-		if err != nil {
-			return nil, err
-		}
-		return block, nil
-	} else {
-		return nil, fmt.Errorf("invalid block tag: %v", tag)
-	}
 }
 
 func newHexBig(in uint64) *hexutil.Big {

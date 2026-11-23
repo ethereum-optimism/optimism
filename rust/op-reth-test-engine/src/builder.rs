@@ -116,12 +116,9 @@ impl InFlightPayload {
         let attributes = OpPayloadAttrs(attributes);
         validate_attributes(&chain.chain_spec(), version, parent, &attributes)?;
 
-        let builder_attrs = OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(
-            parent_hash,
-            attributes.0,
-            PAYLOAD_VERSION,
-        )
-        .map_err(|err| Error::InvalidPayloadAttributes(err.to_string()))?;
+        let builder_attrs =
+            OpPayloadBuilderAttributes::try_new(parent_hash, attributes.0, PAYLOAD_VERSION)
+                .map_err(|err| Error::InvalidPayloadAttributes(err.to_string()))?;
         let next_env = OpNextBlockEnvAttributes::build_next_env(
             &builder_attrs,
             parent,

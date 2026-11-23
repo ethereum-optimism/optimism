@@ -329,25 +329,6 @@ func (s *EthClient) headerAndRawTxsByHash(ctx context.Context, hash common.Hash)
 	return s.blockCall(ctx, "eth_getBlockByHash", hashID(hash))
 }
 
-// HeaderAndTxsByHash returns the *types.Header and transactions for the given
-// block hash.
-//
-// The transactions are decoded into go-ethereum types, which fails on the OP
-// Stack synthetic transactions of L2 blocks: for those use the class-partitioned
-// accessors (InfoAndUserTxsBy*, InfoAndDepositsBy*, InfoAndFirstDepositBy*)
-// instead.
-func (s *EthClient) HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error) {
-	header, rawTxs, err := s.headerAndRawTxsByHash(ctx, hash)
-	if err != nil {
-		return nil, nil, err
-	}
-	txs, err := rawTxs.Geth()
-	if err != nil {
-		return nil, nil, err
-	}
-	return header, txs, nil
-}
-
 func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
 	header, err := s.HeaderByHash(ctx, hash)
 	if err != nil {
@@ -372,21 +353,10 @@ func (s *EthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.
 	return eth.HeaderBlockInfo(header), nil
 }
 
-// InfoAndTxsByHash returns the block info and decoded go-ethereum
-// transactions. See HeaderAndTxsByHash for the L2 caveat — L2 block bodies
-// should be read via the class-partitioned accessors.
+// InfoAndTxsByHash returns the block info and all of the block's transactions;
+// see RawTransactions.Geth for L2 blocks.
 func (s *EthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	header, txs, err := s.HeaderAndTxsByHash(ctx, hash)
-	if err != nil {
-		return nil, nil, err
-	}
-	return eth.HeaderBlockInfoTrusted(hash, header), txs, nil
-}
-
-// InfoAndTxsByNumber is InfoAndTxsByHash by block number; same L2 caveat.
-func (s *EthClient) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error) {
-	// can't hit the cache when querying by number due to reorgs.
-	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", numberID(number))
+	header, rawTxs, err := s.headerAndRawTxsByHash(ctx, hash)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -394,13 +364,13 @@ func (s *EthClient) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.
 	if err != nil {
 		return nil, nil, err
 	}
-	return eth.HeaderBlockInfo(header), txs, nil
+	return eth.HeaderBlockInfoTrusted(hash, header), txs, nil
 }
 
-// InfoAndTxsByLabel is InfoAndTxsByHash by block label; same L2 caveat.
-func (s *EthClient) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
-	// can't hit the cache when querying the head due to reorgs / changes.
-	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", label)
+// InfoAndTxsByNumber is InfoAndTxsByHash by block number.
+func (s *EthClient) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error) {
+	// can't hit the cache when querying by number due to reorgs.
+	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", numberID(number))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -453,19 +423,6 @@ func (s *EthClient) InfoAndDepositsByHash(ctx context.Context, hash common.Hash)
 		return nil, nil, err
 	}
 	return eth.HeaderBlockInfoTrusted(hash, header), deposits, nil
-}
-
-// InfoAndDepositsByNumber is InfoAndDepositsByHash by block number.
-func (s *EthClient) InfoAndDepositsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, []*optypes.DepositTx, error) {
-	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", numberID(number))
-	if err != nil {
-		return nil, nil, err
-	}
-	deposits, err := rawTxs.Deposits()
-	if err != nil {
-		return nil, nil, err
-	}
-	return eth.HeaderBlockInfo(header), deposits, nil
 }
 
 // InfoAndFirstDepositByHash returns the block info and the block's first

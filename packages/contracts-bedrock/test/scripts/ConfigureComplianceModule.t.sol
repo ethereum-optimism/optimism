@@ -19,7 +19,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 
 /// @title ConfigureComplianceModule_TestInit
 /// @notice Shared setup: a module proxy whose admin is this contract, which acts as the temporary
-///         admin, and the test chain's Portal using it as its hook.
+///         admin.
 contract ConfigureComplianceModule_TestInit is CommonTest {
     ConfigureComplianceModule internal script;
 
@@ -42,12 +42,6 @@ contract ConfigureComplianceModule_TestInit is CommonTest {
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(this))))
             })
         );
-        _useAsBridgeHook(address(module));
-    }
-
-    /// @notice Makes the test chain's Portal report `_hook` as its bridge hook.
-    function _useAsBridgeHook(address _hook) internal {
-        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.bridgeHook, ()), abi.encode(_hook));
     }
 
     /// @notice Returns the module proxy's admin.
@@ -75,14 +69,12 @@ contract ConfigureComplianceModule_TestInit is CommonTest {
         input_.denylist[0] = denied;
     }
 
-    /// @notice Deploys the module with DeployComplianceModule, points the Portal at it and
-    ///         configures it.
+    /// @notice Deploys the module with DeployComplianceModule and configures it.
     function _deployAndConfigure()
         internal
         returns (ConfigureComplianceModule.Input memory input_, IVisionPolicyV1 policy_)
     {
         DeployComplianceModule.Output memory deployed = new DeployComplianceModule().run();
-        _useAsBridgeHook(address(deployed.module));
 
         input_ = _input();
         input_.module = deployed.module;
@@ -132,11 +124,16 @@ contract ConfigureComplianceModule_Run_Test is ConfigureComplianceModule_TestIni
         assertEq(address(input.module.portal()), address(optimismPortal2), "module portal");
     }
 
-    /// @notice Tests that a module the chain does not use as its hook is rejected.
-    function test_run_notBridgeHook_reverts() public {
-        _useAsBridgeHook(address(0));
-        vm.expectRevert("ConfigureComplianceModule: portal does not use the module as its bridge hook");
-        script.run(_input());
+    /// @notice Tests that the module can be configured while the chain has no hook, so an
+    ///         existing chain can configure it before the upgrade that sets it as the hook.
+    function test_run_noBridgeHook_succeeds() public {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0), "bridge hook");
+
+        (ConfigureComplianceModule.Input memory input, IVisionPolicyV1 policy) = _deployAndConfigure();
+
+        assertEq(_adminOf(input.module), custodyAdmin, "module admin");
+        assertEq(address(input.module.portal()), address(optimismPortal2), "module portal");
+        assertEq(address(input.module.policy()), address(policy), "module policy");
     }
 
     /// @notice Tests that only the module proxy's admin can configure the module.
