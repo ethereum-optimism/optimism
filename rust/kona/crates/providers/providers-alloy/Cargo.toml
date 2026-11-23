@@ -65,7 +65,7 @@ default = []
 metrics = [ "dep:metrics", "kona-derive/metrics", "kona-providers-local/metrics" ]
 
 [dev-dependencies]
-tokio.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "rt", "test-util", "time"] }
 alloy-rpc-client.workspace = true
 kona-protocol = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true

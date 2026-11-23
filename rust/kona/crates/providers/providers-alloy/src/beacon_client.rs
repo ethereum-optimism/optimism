@@ -10,7 +10,7 @@ use alloy_primitives::{B256, FixedBytes};
 use async_trait::async_trait;
 use c_kzg::Blob;
 use reqwest::{self, Client};
-use std::{boxed::Box, format, string::String, vec::Vec};
+use std::{boxed::Box, format, string::String, time::Duration, vec::Vec};
 use thiserror::Error;
 
 /// The config spec engine api method.
@@ -119,6 +119,21 @@ pub trait BeaconClient {
 
 const BLOB_SIZE: usize = 131072;
 
+/// Deadline for each beacon API request, from connecting to reading the whole response.
+const TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Size limit of a beacon API response, apart from the blobs it carries.
+const MAX_RESPONSE_LEN_WITHOUT_BLOBS: usize = 1 << 20;
+
+/// Upper bound on the JSON size of one blob: its hex string, with room for the quotes, a separator
+/// and whitespace.
+const MAX_JSON_BLOB_LEN: usize = 2 * BLOB_SIZE + 1024;
+
+/// Returns the size limit of a blobs response carrying `blobs` blobs.
+const fn max_blobs_response_len(blobs: usize) -> usize {
+    MAX_RESPONSE_LEN_WITHOUT_BLOBS + blobs * MAX_JSON_BLOB_LEN
+}
+
 /// A beacon API blob stored as a boxed value at the HTTP boundary.
 ///
 /// `alloy_rpc_types_beacon::sidecar::GetBlobsResponse` stores blobs inline in a `Vec<Blob>`.
@@ -146,6 +161,21 @@ fn blob_versioned_hash(blob: &FixedBytes<BLOB_SIZE>) -> Result<B256, BeaconClien
     Ok(kzg_to_versioned_hash(commitment.as_slice()))
 }
 
+/// Reads `response` as JSON, failing once the body exceeds `max_len` bytes.
+async fn read_json<T: serde::de::DeserializeOwned>(
+    mut response: reqwest::Response,
+    max_len: usize,
+) -> Result<T, BeaconClientError> {
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if body.len() + chunk.len() > max_len {
+            return Err(BeaconClientError::ResponseTooLarge(max_len));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(serde_json::from_slice(&body)?)
+}
+
 /// An error that can occur when interacting with the beacon client.
 #[derive(Error, Debug)]
 pub enum BeaconClientError {
@@ -161,6 +191,23 @@ pub enum BeaconClientError {
     /// Blob hash not found in beacon response.
     #[error("Blob hash not found in beacon response: {0}")]
     BlobNotFound(String),
+
+    /// The beacon node returned more blobs than requested.
+    #[error("Beacon node returned {returned} blobs, {requested} requested")]
+    TooManyBlobs {
+        /// The number of requested blobs.
+        requested: usize,
+        /// The number of returned blobs.
+        returned: usize,
+    },
+
+    /// The response body exceeds the size limit, given in bytes.
+    #[error("Response exceeds {0} bytes")]
+    ResponseTooLarge(usize),
+
+    /// The response body is not the expected JSON.
+    #[error("Invalid response: {0}")]
+    Json(#[from] serde_json::Error),
 
     /// KZG error.
     #[error("KZG error: {0}")]
@@ -207,7 +254,10 @@ impl OnlineBeaconClient {
         }
         Self {
             base,
-            inner: Client::builder().build().expect("Failed to create beacon client"),
+            inner: Client::builder()
+                .timeout(TIMEOUT)
+                .build()
+                .expect("Failed to create beacon client"),
             l1_slot_duration: None,
         }
     }
@@ -244,7 +294,14 @@ impl OnlineBeaconClient {
         }
 
         let response = response.error_for_status()?;
-        let bundle = response.json::<BoxedGetBlobsResponse>().await?;
+        let bundle: BoxedGetBlobsResponse =
+            read_json(response, max_blobs_response_len(blob_hashes.len())).await?;
+        if bundle.data.len() > blob_hashes.len() {
+            return Err(BeaconClientError::TooManyBlobs {
+                requested: blob_hashes.len(),
+                returned: bundle.data.len(),
+            });
+        }
 
         let mut returned_blobs = bundle
             .data
@@ -289,7 +346,7 @@ impl BeaconClient for OnlineBeaconClient {
 
         let result = async {
             let first = self.inner.get(format!("{}/{}", self.base, SPEC_METHOD)).send().await?;
-            first.json::<APIConfigResponse>().await
+            read_json(first, MAX_RESPONSE_LEN_WITHOUT_BLOBS).await
         }
         .await;
 
@@ -297,7 +354,7 @@ impl BeaconClient for OnlineBeaconClient {
             kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_ERRORS, "method" => "spec");
         }
 
-        Ok(result?)
+        result
     }
 
     async fn genesis_time(&self) -> Result<APIGenesisResponse, Self::Error> {
@@ -305,7 +362,7 @@ impl BeaconClient for OnlineBeaconClient {
 
         let result = async {
             let first = self.inner.get(format!("{}/{}", self.base, GENESIS_METHOD)).send().await?;
-            first.json::<APIGenesisResponse>().await
+            read_json(first, MAX_RESPONSE_LEN_WITHOUT_BLOBS).await
         }
         .await;
 
@@ -313,7 +370,7 @@ impl BeaconClient for OnlineBeaconClient {
             kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_ERRORS, "method" => "genesis");
         }
 
-        Ok(result?)
+        result
     }
 
     async fn filtered_beacon_blobs(
@@ -341,6 +398,7 @@ mod tests {
     use alloy_primitives::{FixedBytes, hex::FromHex};
     use httpmock::prelude::*;
     use serde_json::json;
+    use tokio::{net::TcpListener, sync::oneshot, time};
 
     const TEST_SLOT: u64 = 987654321;
     static TEST_BLOB_A: Blob = FixedBytes::repeat_byte(1);
@@ -427,13 +485,12 @@ mod tests {
     #[tokio::test]
     async fn test_filtered_beacon_blobs_matches_requested_order() {
         let blob_b = FixedBytes::repeat_byte(2);
-        let extra_blob = FixedBytes::repeat_byte(3);
         let blob_a_hash = B256::from_hex(TEST_BLOB_A_HASH_HEX).unwrap();
         let blob_b_hash = blob_versioned_hash(&blob_b).unwrap();
 
         let blobs = BlobResponseTest {
             requested_blob_hashes: vec![blob_a_hash, blob_b_hash],
-            response_data: vec![blob_b, extra_blob, TEST_BLOB_A],
+            response_data: vec![blob_b, TEST_BLOB_A],
         }
         .run()
         .await
@@ -509,6 +566,71 @@ mod tests {
         assert!(
             matches!(response, Err(BeaconClientError::SlotNotFound(s)) if s == slot),
             "expected SlotNotFound({slot}), got {response:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_filtered_beacon_blobs_rejects_more_blobs_than_requested() {
+        let blob_hash = B256::from_hex(TEST_BLOB_A_HASH_HEX).unwrap();
+        let response = BlobResponseTest {
+            requested_blob_hashes: vec![blob_hash],
+            response_data: vec![TEST_BLOB_A, FixedBytes::repeat_byte(2)],
+        }
+        .run()
+        .await;
+
+        assert!(
+            matches!(response, Err(BeaconClientError::TooManyBlobs { requested: 1, returned: 2 })),
+            "{:?}",
+            response.map(|blobs| blobs.len())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_filtered_beacon_blobs_limits_response_size() {
+        let blob_hash = B256::from_hex(TEST_BLOB_A_HASH_HEX).unwrap();
+        let mut padded_body = json!({ "data": [TEST_BLOB_A] }).to_string();
+        padded_body.push_str(&" ".repeat(max_blobs_response_len(1) + 1 - padded_body.len()));
+        let server = MockServer::start();
+        let blobs_mock = server.mock(|when, then| {
+            when.method(GET).path(format!("/eth/v1/beacon/blobs/{TEST_SLOT}"));
+            then.status(200).body(padded_body);
+        });
+
+        let client = OnlineBeaconClient::new_http(server.base_url());
+        let response = client.filtered_beacon_blobs(TEST_SLOT, &[blob_hash]).await;
+        blobs_mock.assert();
+
+        assert!(
+            matches!(response, Err(BeaconClientError::ResponseTooLarge(_))),
+            "{:?}",
+            response.map(|blobs| blobs.len())
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stalled_request_fails_at_the_deadline() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (accepted_tx, accepted) = oneshot::channel();
+        tokio::spawn(async move {
+            let (_stream, _) = listener.accept().await.unwrap();
+            accepted_tx.send(()).unwrap();
+            std::future::pending::<()>().await
+        });
+
+        let request = tokio::spawn(async move {
+            OnlineBeaconClient::new_http(base).genesis_time().await.map(|_| ())
+        });
+        accepted.await.unwrap();
+        // The connection is open, so only the request deadline is left to end the request.
+        time::pause();
+        let response =
+            time::timeout(TIMEOUT * 2, request).await.expect("request has no deadline").unwrap();
+
+        assert!(
+            matches!(&response, Err(BeaconClientError::Http(error)) if error.is_timeout()),
+            "{response:?}"
         );
     }
 
