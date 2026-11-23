@@ -689,6 +689,15 @@ struct InFlightCreation {
     parent_game_index: u32,
 }
 
+/// The game the creation guard waits for: its address, and the factory uuid inputs that find it
+/// on L1 if a reorg re-includes its create at another address. `address` is zero when unarmed.
+#[derive(Clone, Debug, Default)]
+struct CreationGuard {
+    address: Address,
+    root_claim: B256,
+    extra_data: Vec<u8>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ClaimPreflightDecision {
     Submit,
@@ -942,9 +951,9 @@ pub struct Proposer {
     /// Sequence number of the most recently created game. Used to prevent duplicate
     /// game creation when the pinned sync cache lags behind the chain tip.
     last_created_game_l2_sequence_number: Arc<AtomicU64>,
-    /// Address of the most recently created game. Used to precisely identify
-    /// the guarded game for `ChallengerWins` subtree removal.
-    last_created_game_address: Arc<tokio::sync::Mutex<Address>>,
+    /// The most recently created game. Used to precisely identify the guarded game for
+    /// `ChallengerWins` subtree removal, and to release the guard if a reorg removes it.
+    creation_guard: Arc<tokio::sync::Mutex<CreationGuard>>,
     /// Exact bytes of a create whose confirmation timed out and whose fate
     /// is unknown (see [`InFlightCreation`]).
     in_flight_creation: Arc<tokio::sync::Mutex<Option<InFlightCreation>>>,
@@ -1082,7 +1091,7 @@ impl Proposer {
             owned_creators: Arc::new(owned_creators),
             last_successful_sync: Arc::new(RwLock::new(None)),
             last_created_game_l2_sequence_number: Arc::new(AtomicU64::new(0)),
-            last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
+            creation_guard: Arc::new(tokio::sync::Mutex::new(CreationGuard::default())),
             in_flight_creation: Arc::new(tokio::sync::Mutex::new(None)),
             max_prove_duration: Arc::new(OnceCell::new()),
             max_challenge_duration: Arc::new(OnceCell::new()),
@@ -1736,14 +1745,14 @@ impl Proposer {
     }
 
     async fn reset_creation_guard(&self, expected: Option<Address>, reason: &'static str) {
-        let mut guarded_address = self.last_created_game_address.lock().await;
-        if *guarded_address == Address::ZERO ||
-            expected.is_some_and(|address| address != *guarded_address)
+        let mut guard = self.creation_guard.lock().await;
+        if guard.address == Address::ZERO ||
+            expected.is_some_and(|address| address != guard.address)
         {
             return;
         }
 
-        self.clear_creation_guard_locked(&mut guarded_address, reason);
+        self.clear_creation_guard_locked(&mut guard, reason);
     }
 
     async fn reset_creation_guard_for_removed_games(
@@ -1751,37 +1760,37 @@ impl Proposer {
         removed_addresses: &[Address],
         reason: &'static str,
     ) {
-        let mut guarded_address = self.last_created_game_address.lock().await;
-        if *guarded_address == Address::ZERO || !removed_addresses.contains(&*guarded_address) {
+        let mut guard = self.creation_guard.lock().await;
+        if guard.address == Address::ZERO || !removed_addresses.contains(&guard.address) {
             return;
         }
 
-        self.clear_creation_guard_locked(&mut guarded_address, reason);
+        self.clear_creation_guard_locked(&mut guard, reason);
     }
 
-    fn clear_creation_guard_locked(&self, guarded_address: &mut Address, reason: &'static str) {
-        let cleared_address = *guarded_address;
+    fn clear_creation_guard_locked(&self, guard: &mut CreationGuard, reason: &'static str) {
+        let cleared_address = guard.address;
         self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
-        *guarded_address = Address::ZERO;
+        *guard = CreationGuard::default();
         tracing::info!(?cleared_address, reason, "Reset creation guard");
     }
 
     fn clear_creation_guard_if_blocked(
         &self,
         state: &ProposerState,
-        guarded_address: &mut Address,
+        guard: &mut CreationGuard,
         reason: &'static str,
     ) {
-        if *guarded_address == Address::ZERO {
+        if guard.address == Address::ZERO {
             return;
         }
         let blocked = state
             .games
             .values()
-            .find(|game| game.address == *guarded_address)
+            .find(|game| game.address == guard.address)
             .is_some_and(|game| !state.ancestry_eligible(game));
         if blocked {
-            self.clear_creation_guard_locked(guarded_address, reason);
+            self.clear_creation_guard_locked(guard, reason);
         }
     }
 
@@ -1789,7 +1798,9 @@ impl Proposer {
         &self,
         sequence_number: u64,
         parent_game_index: u32,
-        game_address: Address,
+        address: Address,
+        root_claim: B256,
+        extra_data: Vec<u8>,
     ) {
         // Serialize with ancestry updates through the state lock. If the receipt
         // returns after its parent was invalidated or disallowed, re-arming this
@@ -1807,15 +1818,15 @@ impl Proposer {
             tracing::info!(
                 sequence_number,
                 parent_game_index,
-                ?game_address,
+                game_address = ?address,
                 "Not arming creation guard: parent became blocked while receipt was pending"
             );
             return;
         }
 
-        let mut guarded_address = self.last_created_game_address.lock().await;
+        let mut guard = self.creation_guard.lock().await;
         self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
-        *guarded_address = game_address;
+        *guard = CreationGuard { address, root_claim, extra_data };
     }
 
     async fn invalid_game_result(&self, index: U256, game_address: Address) -> GameFetchResult {
@@ -2120,10 +2131,10 @@ impl Proposer {
             }
         }
         {
-            let mut guarded_address = self.last_created_game_address.lock().await;
+            let mut guard = self.creation_guard.lock().await;
             self.clear_creation_guard_if_blocked(
                 &state,
-                &mut guarded_address,
+                &mut guard,
                 "tracked creation became ancestry-blocked",
             );
         }
@@ -3006,14 +3017,20 @@ impl Proposer {
                     sequence_number,
                     parent_game_index,
                 });
-                match self.create_game(super_root.super_root, extra_data).await {
+                match self.create_game(super_root.super_root, extra_data.clone()).await {
                     Ok(game_address) => {
                         *self.in_flight_creation.lock().await = None;
 
                         // Record the sequence number and address so creation planning skips a
                         // duplicate while the pinned cache has not caught up to this game.
-                        self.arm_creation_guard(sequence_number, parent_game_index, game_address)
-                            .await;
+                        self.arm_creation_guard(
+                            sequence_number,
+                            parent_game_index,
+                            game_address,
+                            super_root.super_root,
+                            extra_data,
+                        )
+                        .await;
                         ProposerGauge::GamesCreated.increment(1.0);
                         return Ok(());
                     }
@@ -3052,7 +3069,14 @@ impl Proposer {
                     game_address = ?existing_game,
                     "Adopting own existing game after create-tx uncertainty"
                 );
-                self.arm_creation_guard(sequence_number, parent_game_index, existing_game).await;
+                self.arm_creation_guard(
+                    sequence_number,
+                    parent_game_index,
+                    existing_game,
+                    super_root.super_root,
+                    extra_data,
+                )
+                .await;
                 return Ok(());
             }
             // Third-party collision, or a dead own game: advance the timestamp
@@ -3154,6 +3178,8 @@ impl Proposer {
                 record.sequence_number,
                 record.parent_game_index,
                 existing_game,
+                record.root_claim,
+                record.extra_data.clone(),
             )
             .await;
         } else {
@@ -3630,13 +3656,13 @@ impl Proposer {
                 if let Some(game) = state.games.get_mut(&game_index) {
                     game.disallowed = true;
                 }
-                let mut guarded_address = self.last_created_game_address.lock().await;
+                let mut guard = self.creation_guard.lock().await;
                 self.clear_creation_guard_if_blocked(
                     &state,
-                    &mut guarded_address,
+                    &mut guard,
                     "tracked creation became ancestry-blocked at latest",
                 );
-                drop(guarded_address);
+                drop(guard);
                 drop(state);
                 self.compute_canonical_head().await;
                 return Ok(ActionEligibility::Ineligible);
@@ -3921,7 +3947,10 @@ impl Proposer {
         // If we recently created a game at or beyond this sequence number, skip until the
         // cache catches up and advances canonical_head_sequence_number.
         let last_created = self.last_created_game_l2_sequence_number.load(Ordering::Relaxed);
-        if last_created > 0 && next_sequence_number <= last_created {
+        if last_created > 0 &&
+            next_sequence_number <= last_created &&
+            !self.release_creation_guard_if_dropped().await?
+        {
             tracing::debug!(
                 next_sequence_number,
                 last_created,
@@ -3931,6 +3960,49 @@ impl Proposer {
         }
 
         Ok((true, next_sequence_number, parent_game_index))
+    }
+
+    /// Releases the creation guard when its game is gone from L1: neither cached nor pending, no
+    /// transaction of ours left in the pool that could still land it (the rule
+    /// [`Self::resolve_in_flight_creation`] applies), and its uuid either free on the factory or
+    /// taken by another creator, whose copy the collision walk then steps past. A create reorged
+    /// out after its receipt otherwise holds every later plan at or below its timestamp until a
+    /// restart. A reorg that re-includes our create lands it at another address, since the
+    /// factory derives addresses from the parent block hash; the guard follows it there. Returns
+    /// whether it released.
+    async fn release_creation_guard_if_dropped(&self) -> Result<bool> {
+        let guard = self.creation_guard.lock().await.clone();
+        if guard.address == Address::ZERO {
+            return Ok(false);
+        }
+        let tracked = {
+            let state = self.state.read().await;
+            state.games.values().any(|game| game.address == guard.address) ||
+                state.pending_games.values().any(|game| game.address == guard.address)
+        };
+        if tracked {
+            return Ok(false);
+        }
+        // Pool first: a create that lands between the two reads then shows in the lookup.
+        let nonces = self.l1_view.nonce_state(self.proposer_address).await?;
+        if nonces.pending > nonces.latest {
+            return Ok(false);
+        }
+        let existing = self.l1_view.game_by_uuid(guard.root_claim, guard.extra_data).await?;
+        if existing == guard.address {
+            return Ok(false);
+        }
+        if existing != Address::ZERO &&
+            self.l1_view.game_creator(existing).await? == self.proposer_address
+        {
+            let mut current = self.creation_guard.lock().await;
+            if current.address == guard.address {
+                current.address = existing;
+            }
+            return Ok(false);
+        }
+        self.reset_creation_guard(Some(guard.address), "tracked creation is no longer on L1").await;
+        Ok(true)
     }
 
     /// Returns the highest timestamp currently proposable under the
@@ -5225,6 +5297,8 @@ mod tests {
         failing_lifecycle_game: Option<Address>,
         verifier_hash: B256,
         verifier_targets: StdMutex<Vec<Address>>,
+        nonce_state: NonceState,
+        game_creator: Address,
     }
 
     impl Default for RecordingL1View {
@@ -5303,6 +5377,8 @@ mod tests {
                 failing_lifecycle_game: None,
                 verifier_hash: expected_verifier_hash(),
                 verifier_targets: StdMutex::new(Vec::new()),
+                nonce_state: NonceState { pending: 0, latest: 0 },
+                game_creator: Address::ZERO,
             }
         }
     }
@@ -5527,13 +5603,14 @@ mod tests {
         }
 
         async fn game_creator(&self, _game: Address) -> anyhow::Result<Address> {
-            panic!("unexpected L1 call: game_creator")
+            self.record("game_creator");
+            Ok(self.game_creator)
         }
 
         async fn nonce_state(&self, _proposer: Address) -> anyhow::Result<NonceState> {
             self.record("nonce_state");
             self.fail_if_configured("nonce_state")?;
-            Ok(NonceState { pending: 0, latest: 0 })
+            Ok(self.nonce_state)
         }
 
         async fn respected_game_type(&self, _block: BlockId) -> anyhow::Result<u32> {
@@ -6278,7 +6355,7 @@ mod tests {
                 },
             );
             proposer.last_created_game_l2_sequence_number.store(123, AtomicOrdering::Relaxed);
-            *proposer.last_created_game_address.lock().await = cached_address;
+            proposer.creation_guard.lock().await.address = cached_address;
 
             proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
 
@@ -6295,7 +6372,7 @@ mod tests {
                 proposer.last_created_game_l2_sequence_number.load(AtomicOrdering::Relaxed),
                 0
             );
-            assert_eq!(*proposer.last_created_game_address.lock().await, Address::ZERO);
+            assert_eq!(proposer.creation_guard.lock().await.address, Address::ZERO);
             assert_eq!(*proof_engine.cleared.lock().unwrap(), vec![cached_address]);
         }
     }
@@ -6436,7 +6513,7 @@ mod tests {
             proposer.prestates.insert_for_tests(prestate, PrestatePrograms::stub(1)).await;
             if status == GameStatus::ChallengerWins {
                 proposer.last_created_game_l2_sequence_number.store(100, AtomicOrdering::Relaxed);
-                *proposer.last_created_game_address.lock().await = game.address;
+                proposer.creation_guard.lock().await.address = game.address;
             }
             {
                 let mut state = proposer.state.write().await;
@@ -6473,7 +6550,7 @@ mod tests {
                     proposer.last_created_game_l2_sequence_number.load(AtomicOrdering::Relaxed),
                     0
                 );
-                assert_eq!(*proposer.last_created_game_address.lock().await, Address::ZERO);
+                assert_eq!(proposer.creation_guard.lock().await.address, Address::ZERO);
             }
             let cached = state.games.get(&U256::ZERO).unwrap();
             assert_eq!(cached.status, status);
@@ -7355,7 +7432,7 @@ mod tests {
             proposer.l1_view = view.clone();
             let guarded_address = Address::left_padding_from(&[0x88]);
             proposer.last_created_game_l2_sequence_number.store(123, AtomicOrdering::Relaxed);
-            *proposer.last_created_game_address.lock().await = guarded_address;
+            proposer.creation_guard.lock().await.address = guarded_address;
 
             assert!(
                 proposer
@@ -7366,7 +7443,7 @@ mod tests {
                     .contains("registered anchor remained unavailable")
             );
             assert_eq!(view.calls().into_iter().filter(|call| *call == "game_type").count(), 1);
-            assert_eq!(*proposer.last_created_game_address.lock().await, guarded_address);
+            assert_eq!(proposer.creation_guard.lock().await.address, guarded_address);
             assert_eq!(
                 proposer.last_created_game_l2_sequence_number.load(AtomicOrdering::Relaxed),
                 123
@@ -8699,7 +8776,7 @@ mod tests {
             proposer
                 .last_created_game_l2_sequence_number
                 .store(child.l2_sequence_number, Ordering::Relaxed);
-            *proposer.last_created_game_address.lock().await = child.address;
+            proposer.creation_guard.lock().await.address = child.address;
 
             let result = Err(anyhow::Error::new(GameUnprovable("trusted mismatch".into())));
             proposer.handle_game_proving_result(root.index, root.address, result).await.unwrap();
@@ -8712,7 +8789,7 @@ mod tests {
             assert!(state.ancestry_eligible(&sibling));
             drop(state);
             assert_eq!(proposer.last_created_game_l2_sequence_number.load(Ordering::Relaxed), 0);
-            assert_eq!(*proposer.last_created_game_address.lock().await, Address::ZERO);
+            assert_eq!(proposer.creation_guard.lock().await.address, Address::ZERO);
             let cleared =
                 proof_engine.cleared.lock().unwrap().iter().copied().collect::<HashSet<_>>();
             assert_eq!(cleared, HashSet::from([root.address, child.address]));
@@ -9920,6 +9997,55 @@ mod tests {
                 s.select_canonical_head(&HashSet::from([TEST_SIGNER, listed])).map(|g| g.index),
                 Some(U256::from(7))
             );
+        }
+    }
+
+    mod creation_guard_release {
+        use super::{super::CreationGuard, *};
+
+        /// A guarded game missing from the cache keeps the guard while our transaction is still
+        /// in the pool or its uuid is ours on the factory, following a re-included create to its
+        /// new address, and releases it when the uuid is free or another creator holds it.
+        #[tokio::test]
+        async fn releases_only_when_the_game_is_off_l1_and_the_pool_is_empty() {
+            let guarded_address = Address::repeat_byte(0x88);
+            let relocated = Address::repeat_byte(0x99);
+            let guarded = CreationGuard {
+                address: guarded_address,
+                root_claim: B256::repeat_byte(0x01),
+                extra_data: vec![0x02],
+            };
+            let idle = NonceState { pending: 0, latest: 0 };
+            for (nonce_state, game_by_uuid, game_creator, released, address_after) in [
+                (
+                    NonceState { pending: 1, latest: 0 },
+                    Address::ZERO,
+                    TEST_SIGNER,
+                    false,
+                    guarded_address,
+                ),
+                (idle, guarded_address, TEST_SIGNER, false, guarded_address),
+                (idle, relocated, TEST_SIGNER, false, relocated),
+                (idle, relocated, Address::repeat_byte(0xbb), true, Address::ZERO),
+                (idle, Address::ZERO, TEST_SIGNER, true, Address::ZERO),
+            ] {
+                let mut proposer = test_proposer().await;
+                let view = Arc::new(RecordingL1View {
+                    nonce_state,
+                    game_by_uuid,
+                    game_creator,
+                    ..Default::default()
+                });
+                proposer.l1_view = view.clone();
+                proposer.last_created_game_l2_sequence_number.store(5, AtomicOrdering::Relaxed);
+                *proposer.creation_guard.lock().await = guarded.clone();
+
+                assert_eq!(proposer.release_creation_guard_if_dropped().await.unwrap(), released);
+                assert_eq!(proposer.creation_guard.lock().await.address, address_after);
+                if nonce_state.pending > nonce_state.latest {
+                    assert_eq!(view.calls(), vec!["nonce_state"]);
+                }
+            }
         }
     }
 

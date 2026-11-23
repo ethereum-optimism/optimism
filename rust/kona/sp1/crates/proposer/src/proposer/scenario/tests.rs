@@ -2880,6 +2880,39 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
     scenario.settle_scheduled(&caught_up).await.unwrap();
 }
 
+/// A create can be reorged out after the creation guard was armed and before the pinned sync
+/// caches its game. Every later plan stays at or below the guarded timestamp, so the guard
+/// releases once the game is gone from L1 and nothing of ours is left in the pool.
+#[tokio::test]
+async fn creation_guard_releases_when_its_game_is_reorged_out() {
+    let world = ScenarioWorld::new();
+    world.set_horizons(2, 2);
+    world.mine_block();
+    world.mine_block();
+    let create = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
+    world.script_action(create.clone(), 1, ActionOutcome::Timeout);
+    let mut config = scenario_config();
+    config.sync_l1_confirmations = 2;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let submitted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&submitted).await.unwrap();
+    scenario.include_transaction(&create, 1, InclusionDepth::LatestOnly).unwrap();
+    let adopted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&adopted).await.unwrap();
+
+    world.clear_factory();
+    for _ in 0..3 {
+        world.mine_block();
+    }
+    let released = scenario.tick().await.unwrap();
+    assert!(released.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 1, parent_game_index: u32::MAX }
+    )));
+    scenario.settle_scheduled(&released).await.unwrap();
+}
+
 #[tokio::test]
 async fn pending_trusted_mismatch_releases_the_address_matched_creation_guard() {
     let world = ScenarioWorld::new();
