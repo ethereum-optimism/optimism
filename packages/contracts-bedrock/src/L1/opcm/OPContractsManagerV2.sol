@@ -186,9 +186,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 10.0.1
+    /// @custom:semver 10.0.2
     function version() public pure returns (string memory) {
-        return "10.0.1";
+        return "10.0.2";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -295,7 +295,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         return _apply(cfg, cts, false);
     }
 
-    /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
+    /// @notice Migrates two or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
     /// @dev WARNING: This is a one-way operation. You cannot easily undo this operation without a
     ///      smart contract upgrade. Do not call this function unless you are 100% confident that

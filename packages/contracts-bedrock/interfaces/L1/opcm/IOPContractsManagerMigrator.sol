@@ -10,7 +10,7 @@ import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsMan
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
 interface IOPContractsManagerMigrator {
-    /// @notice Input for migrating one or more OP Stack chains to use the Super Root dispute games
+    /// @notice Input for migrating two or more OP Stack chains to use the Super Root dispute games
     ///         and shared dispute game contracts.
     struct MigrateInput {
         ISystemConfig[] chainSystemConfigs;
@@ -34,8 +34,9 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when attempting to migrate a chain whose portal has a bridge hook.
     error OPContractsManagerMigrator_BridgeHookNotSupported();
 
-    /// @notice Thrown when the chainSystemConfigs array is empty.
-    error OPContractsManagerMigrator_NoChains();
+    /// @notice Thrown when fewer than two chains are provided. An interop set needs at least two
+    ///         chains.
+    error OPContractsManagerMigrator_NotEnoughChains();
 
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
@@ -85,7 +86,7 @@ interface IOPContractsManagerMigrator {
     /// @notice Returns the address of the OPContractsManagerUtils contract.
     function opcmUtils() external view returns (IOPContractsManagerUtils);
 
-    /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
+    /// @notice Migrates two or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) external;

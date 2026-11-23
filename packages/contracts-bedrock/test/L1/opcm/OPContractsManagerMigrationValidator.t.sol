@@ -687,6 +687,14 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
         assertEq("MIG-CHAIN-EMPTY", _validateMigrationCustomChains(chains, true));
     }
 
+    /// @notice MIG-CHAIN-SINGLE: Only one chain in chainSystemConfigs. An interop set needs at
+    ///         least two chains.
+    function test_validate_chainSingle_succeeds() public view {
+        ISystemConfig[] memory chains = new ISystemConfig[](1);
+        chains[0] = chainContracts1.systemConfig;
+        assertEq("MIG-CHAIN-SINGLE", _validateMigrationCustomChains(chains, true));
+    }
+
     // NOTE: MIG-CHAIN-0-10 is tautological — shared ASR is discovered from portal[0],
     // so portal[0].anchorStateRegistry() always equals itself. Same pattern as MIG-SDGF-40.
 
