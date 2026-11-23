@@ -46,6 +46,10 @@ import (
 
 var ErrAlreadyClosed = errors.New("node is already closed")
 
+// l1ReceiptsPrefetchTimeout bounds a prefetch of L1 receipts. It is shorter than the block time
+// of Ethereum, so that a stuck prefetch has ended when the next L1 head arrives.
+const l1ReceiptsPrefetchTimeout = 10 * time.Second
+
 // L1Client is the interface that op-node uses to interact with L1.
 // This allows wrapped or mocked clients to be used
 type L1Client interface {
@@ -105,6 +109,7 @@ type OpNode struct {
 	l1SafeSub               ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 	l1FinalizedSub          ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 	l1ReceiptsPrefetchGroup gosync.WaitGroup
+	l1ReceiptsPrefetching   atomic.Bool // whether a prefetch of L1 receipts is running
 
 	eventSys   event.System
 	eventDrain driver.Drain
@@ -333,6 +338,27 @@ func initL1Source(ctx context.Context, cfg *config.Config, node *OpNode) (*sourc
 	return l1Source, nil
 }
 
+// prefetchL1Receipts fetches the receipts of the given L1 block in the background, so that the
+// sequencer finds them in the cache of the L1 source. The block is skipped while the fetch for
+// an earlier block is still running, which bounds the fetches that a burst of L1 heads starts.
+func (n *OpNode) prefetchL1Receipts(ctx context.Context, block eth.L1BlockRef) {
+	if !n.l1ReceiptsPrefetching.CompareAndSwap(false, true) {
+		return
+	}
+	n.l1ReceiptsPrefetchGroup.Add(1)
+	go func() {
+		defer n.l1ReceiptsPrefetchGroup.Done()
+		defer n.l1ReceiptsPrefetching.Store(false)
+		ctx, cancel := context.WithTimeout(ctx, l1ReceiptsPrefetchTimeout)
+		defer cancel()
+		if _, _, err := n.l1Source.FetchReceipts(ctx, block.Hash); err != nil {
+			n.log.Warn("Failed to prefetch L1 receipts", "hash", block.Hash, "err", err)
+		} else {
+			n.log.Debug("Successfully prefetched L1 receipts", "hash", block.Hash)
+		}
+	}()
+}
+
 func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, ethereum.Subscription, ethereum.Subscription, error) {
 	if node.l2Driver == nil {
 		return nil, nil, nil, errors.New("l2 driver must be initialized")
@@ -342,15 +368,7 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 			node.cfg.Tracer.OnNewL1Head(ctx, sig)
 		}
 		if cfg.Driver.SequencerEnabled {
-			node.l1ReceiptsPrefetchGroup.Add(1)
-			go func() {
-				defer node.l1ReceiptsPrefetchGroup.Done()
-				if _, _, err := node.l1Source.FetchReceipts(ctx, sig.Hash); err != nil {
-					node.log.Warn("Failed to prefetch L1 receipts", "hash", sig.Hash, "err", err)
-				} else {
-					node.log.Debug("Successfully prefetched L1 receipts", "hash", sig.Hash)
-				}
-			}()
+			node.prefetchL1Receipts(ctx, sig)
 		}
 		node.l2Driver.SyncDeriver.L1Tracker.OnL1Unsafe(sig)
 		node.l2Driver.StatusTracker.OnL1Unsafe(sig)
