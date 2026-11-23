@@ -16,8 +16,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum"
@@ -111,6 +114,42 @@ func (e *sealingEngine) GetPayload(context.Context, eth.PayloadInfo) (*eth.Execu
 func (e *sealingEngine) NewPayload(context.Context, *eth.ExecutionPayload, *common.Hash) (*eth.PayloadStatusV1, error) {
 	e.newPayloads++
 	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
+}
+
+type newPayloadStatusEngine struct {
+	testutils.MockEngine
+	status eth.ExecutePayloadStatus
+}
+
+func (e *newPayloadStatusEngine) NewPayload(context.Context, *eth.ExecutionPayload, *common.Hash) (*eth.PayloadStatusV1, error) {
+	return &eth.PayloadStatusV1{Status: e.status}, nil
+}
+
+// TestCommitBlockRequiresValidPayload checks that only a block the engine reports as valid
+// becomes the unsafe head.
+func TestCommitBlockRequiresValidPayload(t *testing.T) {
+	cases := map[eth.ExecutePayloadStatus]int{
+		eth.ExecutionInvalid:          apis.BuildErrCodeInvalidInput,
+		eth.ExecutionInvalidBlockHash: apis.BuildErrCodeInvalidInput,
+		eth.ExecutionSyncing:          apis.BuildErrCodeTemporary,
+		eth.ExecutionAccepted:         apis.BuildErrCodeTemporary,
+		"UNKNOWN":                     apis.BuildErrCodeTemporary,
+	}
+	for status, code := range cases {
+		t.Run(string(status), func(t *testing.T) {
+			cfg, parent, _, envelope := buildSimpleCfgAndPayload(t)
+			emitter := event.EmitterFunc(func(context.Context, event.Event) {})
+			engine := &newPayloadStatusEngine{status: status}
+			ec := NewEngineController(context.Background(), engine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, nil)
+			ec.SetUnsafeHead(parent)
+
+			err := ec.CommitBlock(context.Background(), &opsigner.SignedExecutionPayloadEnvelope{Envelope: envelope})
+			var rpcErr *jsonrpc.Error
+			require.ErrorAs(t, err, &rpcErr)
+			require.Equal(t, code, rpcErr.Code)
+			require.Equal(t, parent, ec.UnsafeL2Head())
+		})
+	}
 }
 
 // TestSealBuildRejectsStaleParent covers the direct-call guard: a block sealed
