@@ -499,7 +499,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, 
 	if isEcotoneActivated {
 		blobBaseFee, err := block.BlobBaseFee(l1ChainConfig)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("L1 source returned an invalid block %s: %w", eth.ToBlockID(block), err)
 		}
 		l1BlockInfo.BlobBaseFee = blobBaseFee
 
@@ -518,6 +518,10 @@ func L1InfoDeposit(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, 
 		if l1BlockInfo.BlobBaseFee == nil {
 			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
 			l1BlockInfo.BlobBaseFee = big.NewInt(1)
+		}
+		if bits := l1BlockInfo.BlobBaseFee.BitLen(); bits > 256 {
+			return nil, fmt.Errorf("L1 source returned an invalid block %s: its blob base fee of %d bits exceeds 256 bits",
+				eth.ToBlockID(block), bits)
 		}
 		scalars, err := sysCfg.EcotoneScalars()
 		if err != nil {
