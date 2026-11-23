@@ -507,6 +507,9 @@ pub enum AlloyChainProviderError {
         /// The root of the returned transactions.
         actual: B256,
     },
+    /// The RPC returned the block's transaction hashes instead of its transactions.
+    #[error("L1 RPC returned only the transaction hashes of block {0}")]
+    TransactionHashesOnly(B256),
     /// Block not found.
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
@@ -616,6 +619,11 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
             AlloyChainProviderError::RawReceiptDecode { .. } |
             AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock { .. }) => {
                 Self::Temporary(PipelineError::Provider(error.to_string()))
+            }
+            // A block without its transactions cannot answer a request for them, so it stops the
+            // node rather than read as a block without batches.
+            error @ AlloyChainProviderError::TransactionHashesOnly(_) => {
+                Self::Critical(PipelineError::Provider(error.to_string()))
             }
             AlloyChainProviderError::ReceiptMethodsFailed { raw, fallback } => {
                 let message = format!(
@@ -781,9 +789,13 @@ impl AlloyChainProvider {
             .get_block_by_hash(hash)
             .full()
             .await?
-            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?
-            .into_consensus()
-            .map_transactions(|t| t.inner.into_inner());
+            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
+        // A block without its transactions would read as a block without batches, whether or
+        // not the RPC is trusted.
+        if !block.transactions.is_full() {
+            return Err(AlloyChainProviderError::TransactionHashesOnly(hash));
+        }
+        let block = block.into_consensus().map_transactions(|t| t.inner.into_inner());
         if self.verify {
             verify_header(&block.header, hash)?;
             let actual = calculate_transaction_root(&block.body.transactions);
@@ -2027,6 +2039,29 @@ mod tests {
             false,
         );
         (server, provider, hash)
+    }
+
+    /// A block served with transaction hashes instead of transactions would read as a block
+    /// without batches. No transactions root check catches it with a trusted RPC.
+    #[tokio::test]
+    async fn trusted_transaction_hashes_are_critical() {
+        let hash = B256::repeat_byte(0xab);
+        let asserter = Asserter::new();
+        asserter.push_success(&Some(rpc_block(
+            hash,
+            vec![B256::repeat_byte(1)],
+            B256::repeat_byte(2),
+        )));
+        let provider = mocked_provider(asserter);
+
+        let error = provider.block_info_and_transactions_by_hash(hash).await.unwrap_err();
+
+        assert!(
+            matches!(error, AlloyChainProviderError::TransactionHashesOnly(error_hash) if error_hash == hash),
+            "{error}"
+        );
+        assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Critical(_)));
+        assert!(provider.shared.cache.transactions(hash).is_none());
     }
 
     #[tokio::test]
