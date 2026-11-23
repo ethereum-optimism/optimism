@@ -32,7 +32,7 @@ impl FinalizeTask {
     /// A pinned target the execution layer answers with null is not available yet, for example
     /// while it catches up: the task is skipped rather than held at the head of the queue ahead
     /// of the imports that let it catch up. A missing by-number target is below the safe head, so
-    /// the engine must already have it.
+    /// the engine must already have had it: it resets.
     const fn block_missing(&self) -> FinalizeTaskError {
         match self.block_id {
             FinalizeBlockId::ByHash(target) => FinalizeTaskError::NotYetAvailable { target },

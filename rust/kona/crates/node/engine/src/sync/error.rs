@@ -19,19 +19,25 @@ pub enum SyncStartError {
     /// An error occurred while converting a block to [`L2BlockInfo`].
     ///
     /// [`L2BlockInfo`]: kona_protocol::L2BlockInfo
-    #[error(transparent)]
+    #[error("L2 execution layer served an invalid L2 block: {0}")]
     FromBlock(#[from] FromBlockError),
-    /// A block could not be found.
-    #[error("Block not found: {0}")]
+    /// The L2 execution layer has no block for a lookup during the walk.
+    ///
+    /// An execution layer that restarted can have lost the newest blocks it had not yet written
+    /// to disk, so a block it served a moment ago can be missing; a later walk starts from its
+    /// new head.
+    #[error("L2 execution layer has no block {0}")]
     BlockNotFound(BlockId),
-    /// Invalid L1 genesis hash.
-    #[error("Invalid L1 genesis hash. Expected {0}, Got {1}")]
+    /// The L1 RPC's canonical block at the L1 genesis height is not the configured L1 genesis.
+    #[error("L1 RPC serves block {1} at the L1 genesis height, expected L1 genesis {0}")]
     InvalidL1GenesisHash(B256, B256),
     /// Invalid L2 genesis hash.
     #[error("Invalid L2 genesis hash. Expected {0}, Got {1}")]
     InvalidL2GenesisHash(B256, B256),
-    /// Finalized block mismatch
-    #[error("Finalized block mismatch. Expected {0}, Got {1}")]
+    /// The L2 execution layer's chain has another block at the finalized head's height.
+    #[error(
+        "L2 execution layer has block {1} at the finalized height, expected finalized block {0}"
+    )]
     MismatchedFinalizedBlock(B256, B256),
     /// The L1 RPC reported a head at or above a height, then served no block there.
     #[error("L1 block {number} is missing below the L1 head {l1_head}")]
@@ -42,7 +48,10 @@ pub enum SyncStartError {
         l1_head: u64,
     },
     /// The unsafe head would rewind across more L1 origins than a plausible L1 reorg.
-    #[error("Reorg too deep: unsafe head {previous_unsafe_head} would rewind to {unsafe_head}")]
+    #[error(
+        "Reorg deeper than a plausible L1 reorg: the L1 RPC's canonical chain would rewind the \
+         unsafe head from block {previous_unsafe_head} to {unsafe_head}"
+    )]
     TooDeepReorg {
         /// The L2 block the unsafe head would rewind to.
         unsafe_head: u64,

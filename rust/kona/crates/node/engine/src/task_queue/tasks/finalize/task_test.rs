@@ -1,6 +1,6 @@
 use crate::{
     EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTaskError,
-    EngineTaskErrorSeverity::{self, Critical, Skip, Temporary},
+    EngineTaskErrorSeverity::{self, Critical, Reset, Skip, Temporary},
     ExecutableEngineTask, FinalityViolation, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
     test_utils::{
         RpcMock, TestEngineStateBuilder, TestRpcBlock as RpcBlock, test_block_info,
@@ -311,7 +311,8 @@ async fn finalize_task_stops_on_block_at_unrequested_height(
 /// While the execution layer catches up, it answers null for a pinned target's height, and the
 /// target is skipped until its upstream resubmits it. An error response or a transport failure is a
 /// failed lookup and is retried for either kind of target. A by-number target is below the safe
-/// head, so the engine must have it: its absence stops the node.
+/// head, so the engine must have had it: an execution layer that restarted can have lost it, and
+/// the engine resets.
 #[rstest]
 #[case::pinned_null(pinned_target(), Unavailable::Null, is_not_yet_available, Skip)]
 #[case::pinned_error_response(
@@ -326,7 +327,7 @@ async fn finalize_task_stops_on_block_at_unrequested_height(
     is_transport_error,
     Temporary
 )]
-#[case::by_number_null(numbered_target(), Unavailable::Null, is_block_not_found, Critical)]
+#[case::by_number_null(numbered_target(), Unavailable::Null, is_block_not_found, Reset)]
 #[case::by_number_error_response(
     numbered_target(),
     Unavailable::ErrorResponse,

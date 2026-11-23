@@ -15,8 +15,11 @@ pub enum FinalizeTaskError {
     /// The target would move the finalized head backward, or onto another chain.
     #[error("Finalization target breaks finality: {0}")]
     BreaksFinality(#[from] FinalityViolation),
-    /// The block to finalize was not found.
-    #[error("The block to finalize was not found: Number {0}")]
+    /// The execution layer has no block at the height of a target below the safe head.
+    ///
+    /// An execution layer that restarted can have lost the newest blocks it had not yet written
+    /// to disk, so a reset rebuilds the engine state from the chain it has.
+    #[error("The execution layer has no block {0} to finalize, below the safe head")]
     BlockNotFound(u64),
     /// The block is not safe yet, and therefore cannot be finalized. A reset can lower the safe
     /// head below a target that was safe when it was requested, and a delegate can run ahead of
@@ -42,7 +45,7 @@ pub enum FinalizeTaskError {
     /// An error occurred while transforming the RPC block into [`L2BlockInfo`].
     ///
     /// [`L2BlockInfo`]: kona_protocol::L2BlockInfo
-    #[error(transparent)]
+    #[error("The execution layer's block to finalize is invalid: {0}")]
     FromBlock(#[from] FromBlockError),
     /// The pinned target is not the engine's canonical block at its height.
     #[error("Finalization target {target:?} is not canonical; the engine has {canonical:?}")]
@@ -70,7 +73,8 @@ impl EngineTaskError for FinalizeTaskError {
             Self::BreaksFinality(_) |
             Self::NotCanonical { .. } |
             Self::NotYetAvailable { .. } => EngineTaskErrorSeverity::Skip,
-            Self::BlockNotFound(_) | Self::BlockNumberMismatch { .. } | Self::FromBlock(_) => {
+            Self::BlockNotFound(_) => EngineTaskErrorSeverity::Reset,
+            Self::BlockNumberMismatch { .. } | Self::FromBlock(_) => {
                 EngineTaskErrorSeverity::Critical
             }
             Self::ForkchoiceUpdateFailed(inner) => inner.severity(),
