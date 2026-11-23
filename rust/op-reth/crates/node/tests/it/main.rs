@@ -4,6 +4,8 @@ mod crash_backtrace;
 
 mod builder;
 
+mod conditional_tx;
+
 mod custom_pool;
 
 mod pool_limits;
