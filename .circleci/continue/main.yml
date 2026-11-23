@@ -3195,7 +3195,6 @@ workflows:
           matrix:
             parameters:
               # BRIDGE_HOOK is not supported with INTEROP or CUSTOM_GAS_TOKEN.
-              # `main` is also the only op-mainnet baseline upgrade run.
               features: &features_matrix
                 - main
                 - CUSTOM_GAS_TOKEN
@@ -3307,6 +3306,7 @@ workflows:
           test_profile: liteci
           matrix:
             parameters:
+              # The features matrix covers the OP Mainnet baseline as `op-mainnet main`.
               fork_op_chain: ["ink", "unichain"]
           context:
             - circleci-repo-readonly-authenticated-github-token
