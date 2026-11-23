@@ -21,6 +21,9 @@ const (
 	// OPMainnetGenesisBlockNum is the Bedrock-migration block of OP Mainnet, which
 	// it treats as its genesis block.
 	OPMainnetGenesisBlockNum = 105235063
+	// WhitechainMainnetChainID is the chain ID of Whitechain Mainnet, whose genesis state was
+	// imported from its previous chain and is a stateHash stub in the registry.
+	WhitechainMainnetChainID = 1875
 )
 
 // OptimismConfig holds the OP-Stack-specific EIP-1559 parameters of a chain.
