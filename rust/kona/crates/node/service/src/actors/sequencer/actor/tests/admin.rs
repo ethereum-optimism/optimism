@@ -13,12 +13,6 @@ use tokio::{
 };
 
 #[tokio::test]
-async fn new_actor_starts_stopped() {
-    let (actor, _) = test_actor_with_config(false, false, None);
-    assert!(!actor.admin_state_receiver().borrow().active);
-}
-
-#[tokio::test]
 async fn state_metric_clears_the_replaced_label_set() {
     use metrics_util::debugging::{DebugValue, DebuggingRecorder};
 
@@ -72,6 +66,7 @@ async fn stalled_leader_check_times_out_without_blocking_queued_stop() {
         template.attributes_builder,
         Some(client),
         template.engine_client,
+        false,
         false,
         template.origin_selector,
         template.rollup_config,

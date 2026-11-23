@@ -427,6 +427,7 @@ impl RollupNode {
             self.create_attributes_builder(attributes_provider),
             conductor,
             sequencer_engine_client,
+            self.sequencer_config.initially_active(),
             self.sequencer_config.sequencer_recovery_mode,
             delayed_origin_selector,
             self.config.clone(),
@@ -457,8 +458,8 @@ impl RollupNode {
         modules
             .merge(p2p_rpc.into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
-        // The admin API is always served: the sequencer boots stopped, and `admin_startSequencer`
-        // is the only way to start it.
+        // The admin API is always served: unless `--sequencer.start` is set, the sequencer boots
+        // stopped, and `admin_startSequencer` is the only way to start it.
         modules
             .merge(admin_rpc.into_rpc())
             .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
