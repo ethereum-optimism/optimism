@@ -108,8 +108,7 @@ pub fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
 /// L1 and L2 blocks a second.
 ///
 /// Before it logs or returns a failure, it removes the request URL from it and cuts any response
-/// body it carries to [`MAX_ERROR_BODY_LEN`] bytes. It logs at most as much of a JSON-RPC error
-/// message.
+/// body it carries to 1 KiB. It logs at most 1 KiB of a JSON-RPC error message.
 #[derive(Debug, Clone, Copy)]
 pub struct Observe {
     /// The `client` label on the recorded metrics and logs.
