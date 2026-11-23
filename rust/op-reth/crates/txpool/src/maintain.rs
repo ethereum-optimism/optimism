@@ -164,9 +164,11 @@ where
     loop {
         let Some(event) = events.next().await else { break };
         if let CanonStateNotification::Commit { new } = event {
+            // The payload builder does not check conditions, so evict every tx whose max bounds the
+            // next block must break: its number is the tip's plus one, its timestamp at least that.
             let block_attr = BlockConditionalAttributes {
-                number: new.tip().number(),
-                timestamp: new.tip().timestamp(),
+                number: new.tip().number() + 1,
+                timestamp: new.tip().timestamp() + 1,
             };
             let mut to_remove = Vec::new();
             // Not `pooled_transactions()`: it hides the `Private`-origin txs that

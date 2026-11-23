@@ -92,9 +92,7 @@ fn reorg_event() -> CanonStateNotification<OpPrimitives> {
 
 /// A minimal commit notification with a single default block.
 fn commit_event() -> CanonStateNotification<OpPrimitives> {
-    let block: RecoveredBlock<OpBlock> = Default::default();
-    let chain = Arc::new(Chain::new([block], ExecutionOutcome::default(), BTreeMap::new()));
-    CanonStateNotification::Commit { new: chain }
+    commit_at(0, 0)
 }
 
 /// A commit notification whose new tip has the given number and timestamp.
@@ -296,20 +294,19 @@ async fn sweep_retains_tx_on_transient_failure() {
     );
 }
 
-/// A block commit evicts a conditional tx whose bounds the new tip (block 5 at timestamp 100) has
-/// passed, and keeps one whose condition still holds. `eth_sendRawTransactionConditional` adds
-/// conditional txs with `Private` origin, which `pooled_transactions()` hides, so the sweep must
-/// reach those too.
+/// A commit of block 5 at timestamp 100 evicts a conditional tx whose bounds the next block would
+/// break, and keeps one that the next block can still include, for `External` and `Private` origin
+/// alike.
 #[rstest]
-#[case::block_number_passed(
-    TransactionConditional { block_number_max: Some(4), ..Default::default() },
+#[case::block_number_max_at_tip(
+    TransactionConditional { block_number_max: Some(5), ..Default::default() },
     false
 )]
-#[case::timestamp_passed(
-    TransactionConditional { timestamp_max: Some(99), ..Default::default() },
+#[case::timestamp_max_at_tip(
+    TransactionConditional { timestamp_max: Some(100), ..Default::default() },
     false
 )]
-#[case::holds(
+#[case::max_at_next_block(
     TransactionConditional {
         block_number_max: Some(6),
         timestamp_max: Some(101),

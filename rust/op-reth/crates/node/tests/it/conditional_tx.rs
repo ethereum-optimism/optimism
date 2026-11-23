@@ -1,5 +1,5 @@
 //! `eth_sendRawTransactionConditional`: the method exists only on a node that enables it, rejects a
-//! condition that does not hold at the latest block or costs more than the limit, includes a
+//! condition that the next block cannot meet or that costs more than the limit, includes a
 //! transaction whose condition holds, and on a node with a sequencer endpoint forwards the
 //! transaction to the sequencer.
 
@@ -87,32 +87,31 @@ async fn method_not_found_when_disabled() -> eyre::Result<()> {
     Ok(())
 }
 
-/// A condition that does not hold at the latest block, or that costs more than the limit, is
-/// rejected for the reason it fails, and the transaction does not enter the pool.
+/// A condition that the next block cannot meet, or that costs more than the limit, is rejected for
+/// the reason it fails, and the transaction does not enter the pool.
 #[tokio::test]
 async fn invalid_condition_is_rejected() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let chain_spec = chain_spec()?;
     let mut node = launch_node(&chain_spec, conditional_enabled()).await?;
-    // Bounds below the latest block need a latest block above genesis.
     let latest = node.advance_block().await?.block().header().clone();
     let client = http_client(&node);
     let tx = transfer(chain_spec.chain_id()).await;
 
     let cases = [
         (
-            "block number max below the latest block",
+            "block number max at the latest block",
             TransactionConditional {
-                block_number_max: Some(latest.number() - 1),
+                block_number_max: Some(latest.number()),
                 ..Default::default()
             },
             "invalid conditional parameters",
         ),
         (
-            "timestamp max below the latest block",
+            "timestamp max at the latest block",
             TransactionConditional {
-                timestamp_max: Some(latest.timestamp() - 1),
+                timestamp_max: Some(latest.timestamp()),
                 ..Default::default()
             },
             "invalid conditional parameters",
@@ -159,6 +158,7 @@ async fn condition_that_holds_is_included() -> eyre::Result<()> {
 
     let chain_spec = chain_spec()?;
     let mut node = launch_node(&chain_spec, conditional_enabled()).await?;
+    let latest = node.advance_block().await?.block().header().clone();
     let tx = transfer(chain_spec.chain_id()).await;
     let condition = TransactionConditional {
         known_accounts: [
@@ -169,9 +169,11 @@ async fn condition_that_holds_is_included() -> eyre::Result<()> {
         .into_iter()
         .collect(),
         block_number_min: Some(0),
-        block_number_max: Some(1),
+        // The max bounds are the next block, which includes the transaction. The test node builds
+        // each block one second after its parent.
+        block_number_max: Some(latest.number() + 1),
         timestamp_min: Some(0),
-        timestamp_max: Some(u64::MAX),
+        timestamp_max: Some(latest.timestamp() + 1),
     };
 
     let hash = L2EthApiExtClient::send_raw_transaction_conditional(
