@@ -233,12 +233,13 @@ The [admin API](/node-operators/kona-node/rpc/admin) is always served on the RPC
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
+| `--sequencer.start` | `KONA_NODE_SEQUENCER_START` | Boot the sequencer active. Only for a single sequencer with no standby. Can't be combined with `--conductor.rpc`. | `false` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |
 | `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
 | `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
 
-The sequencer always starts stopped, after every restart. Start it with [`admin_startSequencer`](/node-operators/kona-node/rpc/admin#admin_startsequencer); with a conductor, op-conductor starts the leader.
+Unless `--sequencer.start` is set, the sequencer boots stopped, after every restart. Start it with [`admin_startSequencer`](/node-operators/kona-node/rpc/admin#admin_startsequencer); with a conductor, op-conductor starts the leader. See [starting the sequencer](/node-operators/kona-node/run/sequencer#starting-the-sequencer).
 
 ## Interop Arguments
 

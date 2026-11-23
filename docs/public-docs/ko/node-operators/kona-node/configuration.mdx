@@ -233,12 +233,13 @@ RPC 서버는 한 번 시작됩니다. 예기치 않게 중지되면 노드는 �
 
 | 플래그 | 환경 변수 | 설명 | 기본값 |
 |------|-----|-------------|---------|
+| `--sequencer.start` | `KONA_NODE_SEQUENCER_START` | sequencer를 활성 상태로 시작합니다. standby가 없는 단일 sequencer 전용입니다. `--conductor.rpc`와 함께 사용할 수 없습니다. | `false` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | sequencer의 L1 블록 확인(confirmation) 수 | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | 다음 L1 origin을 엄격하게 준비하고 빈 L2 블록을 생성 | `false` |
 | `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | 외부 conductor 서비스의 RPC 엔드포인트 URL입니다. 이 값을 지정하면 sequencer 모드에서 conductor 연동이 활성화되며, validator 모드에서는 효과가 없습니다. | - |
 | `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | conductor 서비스 RPC 타임아웃 | `1` |
 
-sequencer는 재시작할 때마다 항상 중지된 상태로 시작합니다. [`admin_startSequencer`](/ko/node-operators/kona-node/rpc/admin#admin_startsequencer)로 시작하십시오. conductor를 사용하는 경우 op-conductor가 leader를 시작합니다.
+`--sequencer.start`를 설정하지 않으면 sequencer는 재시작할 때마다 중지된 상태로 시작합니다. [`admin_startSequencer`](/ko/node-operators/kona-node/rpc/admin#admin_startsequencer)로 시작하십시오. conductor를 사용하는 경우 op-conductor가 leader를 시작합니다. [Sequencer 시작하기](/ko/node-operators/kona-node/run/sequencer#starting-the-sequencer)를 참조하십시오.
 
 ## Interop 인수 {#interop-arguments}
 

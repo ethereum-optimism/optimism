@@ -49,6 +49,7 @@ Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` 
 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
+| `--sequencer.start` | `KONA_NODE_SEQUENCER_START` | `false` | Boot the sequencer active. Only for a single sequencer with no standby. See [starting the sequencer](#starting-the-sequencer) |
 | `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | `false` | Force recovery mode operation |
 | `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor service RPC endpoint |
@@ -58,10 +59,11 @@ The full flag catalogue, including the standard node arguments shared with valid
 
 ## Starting the Sequencer
 
-The sequencer always starts stopped, including after a restart, and builds no blocks until it is started through the [admin API](/node-operators/kona-node/rpc/admin), which is always served on the RPC port:
+Unless `--sequencer.start` is set, the sequencer boots stopped, including after a restart, and builds no blocks until it is started through the [admin API](/node-operators/kona-node/rpc/admin), which is always served on the RPC port:
 
-- **With op-conductor**, the conductor starts the sequencer on the leader. Nothing else is needed.
-- **Without a conductor**, call `admin_startSequencer` with the current unsafe head after every start of the node:
+- **With op-conductor**, the conductor starts the sequencer on the leader. Nothing else is needed. `--sequencer.start` can't be combined with `--conductor.rpc`: the node fails at startup.
+- **A single sequencer with no standby** can set `--sequencer.start` (`KONA_NODE_SEQUENCER_START=true`). The sequencer then boots active after every start of the node, and builds on its unsafe head once that is known.
+- **A manual standby**, or any other sequencer that must stay stopped across restarts, sets neither. Start it by calling `admin_startSequencer` with the current unsafe head:
 
   ```bash
   HEAD=$(curl -s -X POST -H 'Content-Type: application/json' \
@@ -75,15 +77,21 @@ The sequencer always starts stopped, including after a restart, and builds no bl
   Retry if the call fails because the unsafe head moved, or because the node has not yet published its unsafe head after starting.
 
 <Warning>
+`--sequencer.start` is for a single sequencer only. A stop made through `admin_stopSequencer` doesn't survive a restart: with the flag set, the node boots active again. If you stopped it to start a standby, both sequencers are then active.
+</Warning>
+
+<Warning>
 The admin API has no authentication. The RPC binds `127.0.0.1` by default; if you bind another address with `--rpc.addr`, firewall the port so that only trusted callers reach it.
 </Warning>
 
 ## Example Configurations
 
 ### Basic Sequencer
+A single sequencer with no standby, which boots active:
 ```bash
 kona-node node \
   --mode=Sequencer \
+  --sequencer.start \
   --l1-eth-rpc=http://localhost:8545 \
   --l1-beacon=http://localhost:5052 \
   --l2-engine-rpc=http://localhost:8551 \

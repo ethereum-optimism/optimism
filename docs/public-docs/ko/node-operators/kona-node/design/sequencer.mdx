@@ -50,6 +50,8 @@ sequencer 동작은 `SequencerConfig` 구조체를 통해 구성됩니다.
 
 ```rust
 pub struct SequencerConfig {
+    /// Whether to boot the sequencer active. Ignored when a conductor is configured.
+    pub sequencer_start: bool,
     /// Whether or not the sequencer is in recovery mode.
     pub sequencer_recovery_mode: bool,
     /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
@@ -59,7 +61,7 @@ pub struct SequencerConfig {
 }
 ```
 
-sequencer는 항상 중지된 상태로 시작합니다. op-conductor가 leader에서 호출하는 `admin_startSequencer`로 시작하십시오. [Sequencer 시작하기](/ko/node-operators/kona-node/run/sequencer#starting-the-sequencer)를 참조하십시오.
+`sequencer_start`를 설정하지 않으면 sequencer는 중지된 상태로 시작합니다. op-conductor가 leader에서 호출하는 `admin_startSequencer`로 시작하십시오. conductor를 사용하는 경우 `sequencer_start`와 관계없이 sequencer는 항상 중지된 상태로 시작합니다. [Sequencer 시작하기](/ko/node-operators/kona-node/run/sequencer#starting-the-sequencer)를 참조하십시오.
 
 ## 프로그래밍 방식 구성
 
@@ -72,6 +74,7 @@ use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
+    sequencer_start: false,             // Boot stopped; the conductor starts the leader
     sequencer_recovery_mode: false,     // Normal operation mode
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()
@@ -100,6 +103,7 @@ RollupNodeBuilder::new(
 
 | 필드 | 설명 | 기본값 |
 |-------|-------------|---------|
+| `sequencer_start` | standby가 없는 단일 sequencer를 활성 상태로 시작합니다. conductor를 사용하면 무시됩니다 | `false` |
 | `sequencer_recovery_mode` | 따라잡기를 위한 복구 모드 활성화 | `false` |
 | `conductor_rpc_url` | 리더 선출을 위한 conductor 서비스 엔드포인트 | `None` |
 | `l1_conf_delay` | L1 origin 선택을 위한 확인(confirmation) 지연 | `0` |

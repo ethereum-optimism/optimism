@@ -52,6 +52,8 @@ Sequencer behavior is configured through the `SequencerConfig` struct:
 
 ```rust
 pub struct SequencerConfig {
+    /// Whether to boot the sequencer active. Ignored when a conductor is configured.
+    pub sequencer_start: bool,
     /// Whether or not the sequencer is in recovery mode.
     pub sequencer_recovery_mode: bool,
     /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
@@ -61,7 +63,7 @@ pub struct SequencerConfig {
 }
 ```
 
-The sequencer always starts stopped. Start it with `admin_startSequencer`, which op-conductor calls on the leader; see [starting the sequencer](/node-operators/kona-node/run/sequencer#starting-the-sequencer).
+Unless `sequencer_start` is set, the sequencer boots stopped. Start it with `admin_startSequencer`, which op-conductor calls on the leader. With a conductor, the sequencer always boots stopped, whatever `sequencer_start` says. See [starting the sequencer](/node-operators/kona-node/run/sequencer#starting-the-sequencer).
 
 ## Programmatic Configuration
 
@@ -76,6 +78,7 @@ use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
+    sequencer_start: false,             // Boot stopped; the conductor starts the leader
     sequencer_recovery_mode: false,     // Normal operation mode
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()
@@ -106,6 +109,7 @@ RollupNodeBuilder::new(
 
 | Field | Description | Default |
 |-------|-------------|---------|
+| `sequencer_start` | Boot the sequencer active, for a single sequencer with no standby. Ignored with a conductor | `false` |
 | `sequencer_recovery_mode` | Enable recovery mode for catch-up | `false` |
 | `conductor_rpc_url` | Conductor service endpoint for leader election | `None` |
 | `l1_conf_delay` | Confirmation delay for L1 origin selection | `0` |
