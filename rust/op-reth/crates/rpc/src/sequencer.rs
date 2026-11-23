@@ -6,9 +6,16 @@ use alloy_primitives::{B256, hex};
 use alloy_rpc_client::{BuiltInConnectionString, ClientBuilder, RpcClient as Client};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use alloy_transport_http::{Http, reqwest as alloy_reqwest};
-use std::{str::FromStr, sync::Arc, time::Instant};
+use std::{
+    str::FromStr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use thiserror::Error;
 use tracing::warn;
+
+/// Time a sequencer has to answer a request, connection setup included.
+const SEQUENCER_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Sequencer client error
 #[derive(Error, Debug)]
@@ -140,16 +147,18 @@ impl SequencerClient {
         method: &str,
         params: Params,
     ) -> Result<Resp, SequencerClientError> {
-        let resp =
-            self.client().request::<Params, Resp>(method.to_string(), params).await.inspect_err(
-                |err| {
-                    warn!(
-                        target: "rpc::sequencer",
-                        %err,
-                        "HTTP request to sequencer failed",
-                    );
-                },
-            )?;
+        let request = self.client().request::<Params, Resp>(method.to_string(), params);
+        let resp = tokio::time::timeout(SEQUENCER_REQUEST_TIMEOUT, request)
+            .await
+            .map_err(|_| SequencerClientError::Timeout(SEQUENCER_REQUEST_TIMEOUT))
+            .and_then(|resp| resp.map_err(SequencerClientError::from))
+            .inspect_err(|err| {
+                warn!(
+                    target: "rpc::sequencer",
+                    %err,
+                    "HTTP request to sequencer failed",
+                );
+            })?;
         Ok(resp)
     }
 
@@ -241,6 +250,24 @@ mod tests {
             body,
             r#"{"method":"eth_sendRawTransactionConditional","params":["0x61626364",{"knownAccounts":{}}],"id":1,"jsonrpc":"2.0"}"#
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_request_times_out_on_unresponsive_sequencer() {
+        // The kernel completes the handshake for a bound listener, but nothing ever reads the
+        // request or replies.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let client = SequencerClient::new(url).await.unwrap();
+
+        let result = tokio::time::timeout(
+            SEQUENCER_REQUEST_TIMEOUT * 2,
+            client.forward_raw_transaction(&[0x01]),
+        )
+        .await
+        .expect("forwarding to an unresponsive sequencer must not hang");
+
+        assert!(matches!(result, Err(SequencerClientError::Timeout(_))), "{result:?}");
     }
 
     #[tokio::test]
