@@ -2543,7 +2543,7 @@ func TestL1CanonicalityCheckErrorPropagates(t *testing.T) {
 	// Set up a failing L1 checker using a mock that returns errors for all lookups
 	h.interop.l1Checker = newL1ConsistencyChecker(&errorL1Source{
 		err: errors.New("L1 RPC unavailable"),
-	}, false)
+	})
 
 	// Call observeRound — should propagate the L1 checker error
 	_, err = h.interop.observeRound()

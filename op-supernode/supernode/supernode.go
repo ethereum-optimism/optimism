@@ -130,10 +130,6 @@ func New(ctx context.Context, log oplog.Logger, version string, commit string, r
 		if err != nil {
 			return nil, fmt.Errorf("failed to create interop activity: %w", err)
 		}
-		if cfg.InteropL1FinalizedCache {
-			interopActivity.EnableL1FinalizedCache()
-			log.Info("Interop L1 finalized-block cache enabled")
-		}
 		verifiedReader = interopActivity
 	}
 
