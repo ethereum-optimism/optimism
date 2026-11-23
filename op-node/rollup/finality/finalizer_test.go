@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -257,6 +258,44 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 		// C1 was included in finalized D, and should now be finalized, as check can succeed when revisited
 		fi.OnEvent(ctx, TryFinalizeEvent{})
+		require.Equal(t, refC1, ec.finalizedL2)
+	})
+
+	// A finality signal for a block that the L1 chain does not have is replaced by a later, lower signal.
+	t.Run("signal-moves-back", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelInfo)
+		l1F := &testutils.MockL1Source{}
+		defer l1F.AssertExpectations(t)
+		tooHigh := eth.L1BlockRef{Hash: common.Hash{0xff}, Number: refD.Number + 1000}
+		l1F.ExpectL1BlockRefByNumber(tooHigh.Number, eth.L1BlockRef{}, ethereum.NotFound)
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // to check finality signal
+		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // to check what was derived from (same in this case)
+
+		emitter := &testutils.MockEmitter{}
+		ec := new(fakeEngineController)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, nil, l1F, ec)
+		fi.AttachEmitter(emitter)
+
+		// now say C1 was included in D and became the new safe head
+		fi.OnEvent(ctx, engine.SafeDerivedEvent{Safe: refC1, Source: refD})
+		fi.OnEvent(ctx, derive.DeriverIdleEvent{Origin: refD})
+		emitter.AssertExpectations(t)
+
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnL1Finalized(tooHigh)
+		emitter.ExpectOnceType("L1TemporaryErrorEvent")
+		fi.OnEvent(ctx, TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
+		require.Zero(t, ec.finalizedL2)
+
+		emitter.ExpectOnce(TryFinalizeEvent{})
+		fi.OnL1Finalized(refD)
+		emitter.AssertExpectations(t)
+		require.Equal(t, refD, fi.FinalizedL1())
+
+		// C1 was included in finalized D, and should now be finalized
+		fi.OnEvent(ctx, TryFinalizeEvent{})
+		emitter.AssertExpectations(t)
 		require.Equal(t, refC1, ec.finalizedL2)
 	})
 
