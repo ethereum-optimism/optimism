@@ -110,11 +110,14 @@ func (c *l1ByNumberChecker) canonicalHash(ctx context.Context, num uint64) (comm
 			return hash, nil
 		}
 	}
+	// Check finality before fetching: a hash fetched while num was above
+	// finality must not be cached, even if finality passes num meanwhile.
+	final := c.canonical != nil && c.isFinalized(ctx, num)
 	ref, err := c.l1.L1BlockRefByNumber(ctx, num)
 	if err != nil {
 		return common.Hash{}, err
 	}
-	if c.canonical != nil && c.isFinalized(ctx, num) {
+	if final {
 		c.canonical.Add(num, ref.Hash)
 	}
 	return ref.Hash, nil

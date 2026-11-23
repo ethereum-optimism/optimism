@@ -116,10 +116,14 @@ type countingFinalizedL1Source struct {
 	finalized      uint64
 	byNumberCalls  int
 	finalizedCalls int
+	onByNumber     func() // runs inside each by-number lookup
 }
 
 func (m *countingFinalizedL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
 	m.byNumberCalls++
+	if m.onByNumber != nil {
+		m.onByNumber()
+	}
 	return m.mockL1Source.L1BlockRefByNumber(ctx, num)
 }
 
@@ -229,6 +233,26 @@ func TestL1ConsistencyChecker_FinalizedCache(t *testing.T) {
 		}
 		require.Equal(t, 3, src.byNumberCalls)
 		require.Equal(t, 0, src.finalizedCalls)
+	})
+
+	t.Run("hash fetched before finality is not cached", func(t *testing.T) {
+		now := time.Unix(1000, 0)
+		src := newSource(100)
+		c := newChecker(src, &now)
+		// Prime finality at 100, then let it advance past 105 while 105 is fetched.
+		_, err := c.SameL1Chain(ctx, []eth.BlockID{{Hash: hash(95), Number: 95}})
+		require.NoError(t, err)
+		head := eth.BlockID{Hash: hash(105), Number: 105}
+		src.onByNumber = func() {
+			src.finalized = 110
+			now = now.Add(finalizedRefreshInterval)
+		}
+		_, err = c.SameL1Chain(ctx, []eth.BlockID{head})
+		require.NoError(t, err)
+		src.onByNumber = nil
+		_, err = c.SameL1Chain(ctx, []eth.BlockID{head}) // must fetch again
+		require.NoError(t, err)
+		require.Equal(t, 3, src.byNumberCalls)
 	})
 
 	t.Run("lookup errors are not cached", func(t *testing.T) {
