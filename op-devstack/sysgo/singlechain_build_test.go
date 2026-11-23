@@ -27,7 +27,7 @@ func TestKonaOptionsRejectedBeforeStartup(t *testing.T) {
 				if stopped {
 					startStoppedSequencerCL(dt, nil, nil, network, nil, nil, nil, [32]byte{}, MixedL2CLKona, "node", opts)
 				} else {
-					startL2CLForKey(dt, nil, nil, network, nil, nil, nil, [32]byte{}, MixedL2CLKona, "node", "node", true, "", opts)
+					startL2CLForKey(dt, nil, nil, network, nil, nil, nil, [32]byte{}, MixedL2CLKona, "node", "node", true, "", nil, opts)
 				}
 			})
 			require.Contains(t, dt.failure, "unsupported L2CL option for kona-node")
@@ -47,7 +47,7 @@ func TestUnknownL2CLKindRejectedBeforeStartup(t *testing.T) {
 					if stopped {
 						startStoppedSequencerCL(dt, nil, nil, network, nil, nil, nil, [32]byte{}, kind, "node", nil)
 					} else {
-						startL2CLForKey(dt, nil, nil, network, nil, nil, nil, [32]byte{}, kind, "node", "node", true, "", nil)
+						startL2CLForKey(dt, nil, nil, network, nil, nil, nil, [32]byte{}, kind, "node", "node", true, "", nil, nil)
 					}
 				})
 				require.Contains(t, dt.failure, "unknown L2 CL kind")

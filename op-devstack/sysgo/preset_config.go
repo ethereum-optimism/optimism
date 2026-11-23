@@ -94,6 +94,10 @@ type PresetConfig struct {
 	// that keeps the inputs in this store. Only single-chain runtimes honor it, and they wire only the
 	// batcher and the sequencer node to the DA server.
 	AltDAStore altda.KVStore
+	// FollowSourceCLKind, if set, starts the two-verifiers runtime's sequencer and its deriving
+	// verifier "b" on this CL kind. The follow-source verifier "c" always takes the kind
+	// DEVSTACK_L2CL_KIND selects, as the other two do when this is unset.
+	FollowSourceCLKind MixedL2CLKind
 }
 
 func NewPresetConfig() PresetConfig {
