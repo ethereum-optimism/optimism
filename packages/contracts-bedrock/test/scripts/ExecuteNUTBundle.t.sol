@@ -213,6 +213,24 @@ contract ExecuteNUTBundle_Test is Test {
         assertLt(target.lastGas(), bodyGas, "callee gas exceeds deposit body gas");
     }
 
+    /// @notice Tests that executeWrapper reverts with the wrapper intent when a value-bearing
+    ///         wrapper's body gas is below the CALL stipend it must subtract.
+    function test_executeWrapper_valueBodyGasBelowStipend_reverts() public {
+        bytes memory data = abi.encodeCall(ExecuteNUTBundle_Target.observePayable, ());
+        ExecuteNUTBundle.PostWrapperTxn memory wrapper = ExecuteNUTBundle.PostWrapperTxn({
+            from: alice,
+            to: TARGET,
+            data: data,
+            gasLimit: UpgradeUtils.computeIntrinsicGas(data) + 2299,
+            mint: 1,
+            value: 1,
+            intent: "Wrapper Stipend"
+        });
+
+        vm.expectRevert("ExecuteNUTBundle: value wrapper body gas < stipend for Wrapper Stipend");
+        script.executeWrapper(wrapper);
+    }
+
     /// @notice Tests that executeWrapper reverts with the wrapper intent when gasLimit is below
     ///         intrinsic gas for the provided calldata.
     function test_executeWrapper_gasLimitBelowIntrinsic_reverts() public {
