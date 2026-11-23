@@ -12,6 +12,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -241,6 +242,23 @@ func TestClientPoolSeveral(t *testing.T) {
 		require.Equal(t, i%4, p.Get())
 		p.MoveToNext()
 	}
+}
+
+// TestClientPoolConcurrent detects unsynchronized rotation when run with the race detector.
+func TestClientPoolConcurrent(t *testing.T) {
+	p := NewClientPool(0, 1)
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 1000 {
+				_ = p.Get()
+				p.MoveToNext()
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func TestVerifyBlob(t *testing.T) {

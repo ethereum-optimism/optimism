@@ -11,6 +11,7 @@ import (
 	"path"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -132,16 +133,14 @@ func (cl *BeaconHTTPClient) BeaconBlobs(ctx context.Context, slot uint64, hashes
 	return blobsResp, nil
 }
 
+// ClientPool rotates through a fixed, non-empty list of clients. It is safe for concurrent use.
 type ClientPool[T any] struct {
 	clients []T
-	index   int
+	index   atomic.Uint64
 }
 
 func NewClientPool[T any](clients ...T) *ClientPool[T] {
-	return &ClientPool[T]{
-		clients: clients,
-		index:   0,
-	}
+	return &ClientPool[T]{clients: clients}
 }
 
 func (p *ClientPool[T]) Len() int {
@@ -149,14 +148,11 @@ func (p *ClientPool[T]) Len() int {
 }
 
 func (p *ClientPool[T]) Get() T {
-	return p.clients[p.index]
+	return p.clients[p.index.Load()%uint64(len(p.clients))]
 }
 
 func (p *ClientPool[T]) MoveToNext() {
-	p.index += 1
-	if p.index == len(p.clients) {
-		p.index = 0
-	}
+	p.index.Add(1)
 }
 
 // NewL1BeaconClient returns a client for making requests to an L1 consensus layer node.

@@ -97,6 +97,23 @@ func TestBasicRPCReceiptsFetcher_Reuse(t *testing.T) {
 	require.EqualValues(3, numCalls.Load())
 }
 
+func TestBasicRPCReceiptsFetcher_BoundsFailedCalls(t *testing.T) {
+	errUnavailable := errors.New("unavailable")
+	mrpc := &simpleMockRPC{
+		callFn:      func(context.Context, any, string, ...any) error { return errUnavailable },
+		batchCallFn: func(context.Context, []rpc.BatchElem) error { return errUnavailable },
+	}
+	rp := NewBasicRPCReceiptsFetcher(mrpc, 2)
+	rng := rand.New(rand.NewSource(123))
+	for range maxPendingReceiptsCalls + 10 {
+		block, receipts := randomRpcBlockAndReceipts(rng, 1)
+		bInfo, _, _ := block.Info(true, true)
+		_, err := rp.FetchReceipts(context.Background(), bInfo, receiptTxHashes(receipts))
+		require.Error(t, err)
+	}
+	require.Equal(t, maxPendingReceiptsCalls, rp.calls.Len())
+}
+
 func TestBasicRPCReceiptsFetcher_Concurrency(t *testing.T) {
 	require := require.New(t)
 	const numFetchers = 32
