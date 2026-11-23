@@ -48,6 +48,28 @@ func TestBlobBaseFee(t *testing.T) {
 					t.Fatal("BlobBaseFee did not return")
 				}
 			})
+			t.Run("blob fee exponent bound", func(t *testing.T) {
+				// A large update fraction keeps a large excess blob gas valid.
+				const fraction = 30_000_000
+				sched := *cfg.BlobScheduleConfig
+				sched.Cancun = &params.BlobConfig{Target: 3, Max: 6, UpdateFraction: fraction}
+				bigFraction := *cfg
+				bigFraction.BlobScheduleConfig = &sched
+
+				valid := uint64(1<<32 + 1)
+				fee, err := info(header(cancun, &valid)).BlobBaseFee(&bigFraction)
+				require.NoError(t, err)
+				require.NotNil(t, fee)
+
+				belowBound := uint64(178*fraction - 1)
+				fee, err = info(header(cancun, &belowBound)).BlobBaseFee(&bigFraction)
+				require.NoError(t, err)
+				require.NotNil(t, fee)
+
+				atBound := uint64(178 * fraction)
+				_, err = info(header(cancun, &atBound)).BlobBaseFee(&bigFraction)
+				require.Error(t, err)
+			})
 			t.Run("excess blob gas before blob fork", func(t *testing.T) {
 				_, err := info(header(cancun-1, &ebg)).BlobBaseFee(cfg)
 				require.Error(t, err)
