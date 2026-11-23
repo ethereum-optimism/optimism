@@ -155,6 +155,7 @@ op-node and kona must agree on each item in this section.
 | Blob base fee (`op-service/eth/block_info.go`) | L1 | Copied schedule | The fee uses `eip4844.CalcBlobFee` and the chain config. An old blob schedule gives a wrong fee. |
 | L1 cost formulas (`op-core/fees/fees.go`) | L1 | Copied schedule | The formulas use 4 and 16 gas for each calldata byte and ignore the L1 calldata floor. They must match `op-revm` and `GasPriceOracle`. |
 | Operator fee and DA footprint (`op-core/fees/fees.go`, `op-core/fees/dafootprint.go`) | L2 | Gas-scaled formula | The operator fee scales with gas used. The DA footprint competes with the block gas limit. |
+| RPC response size limits `DefaultMaxResponseSize` and `MaxReceiptsResponseSize` (`op-service/client/rpc.go`) | Both | Limit bound | A client cannot read a response above its limit. A block's receipts can reach about one byte of JSON per gas, because an empty `LOG0` costs 375 gas. `MaxReceiptsResponseSize` (1 GiB) covers L2 at the 500M `SystemConfig` maximum and L1 up to about 1G gas. A cheaper `LOG`, or a higher gas limit, lets anyone fill a block whose receipts op-node can no longer fetch, and derivation stops. `DefaultMaxResponseSize` (256 MiB) assumes clients that don't fetch receipts. |
 
 ## Deployment-only code
 

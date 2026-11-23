@@ -1,11 +1,15 @@
 package client_test
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/big"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -28,7 +32,7 @@ const (
 	// clients (wsDefaultReadLimit in its rpc package).
 	gethWebsocketLimit = 32 << 20
 	// responseSize is the size of the responses in TestResponseSizeParity: just above
-	// gethWebsocketLimit, the limit that op-service's dial removes.
+	// gethWebsocketLimit, which op-service's dial replaces with its own limit.
 	responseSize = gethWebsocketLimit + 1<<20
 
 	// testPrivateKey is the first well-known development account, for txmgr's signer.
@@ -147,9 +151,11 @@ var dialers = []struct {
 	}},
 }
 
-// TestResponseSizeParity checks that responses above geth's default websocket limit arrive
-// over websocket as they do over HTTP, however op-service dials the endpoint.
+// TestResponseSizeParity checks that, however op-service dials an endpoint, a response above
+// geth's default websocket limit arrives over websocket as it does over HTTP: op-service's own
+// limit, DefaultMaxResponseSize, applies to both.
 func TestResponseSizeParity(t *testing.T) {
+	require.Greater(t, client.DefaultMaxResponseSize, responseSize)
 	httpURL, wsURL := startServer(t)
 	transports := []struct{ name, url string }{{"http", httpURL}, {"ws", wsURL}}
 	for _, d := range dialers {
@@ -166,16 +172,59 @@ func TestResponseSizeParity(t *testing.T) {
 	}
 }
 
-// TestWebsocketLimitOverride checks a caller-supplied limit replaces the default and is enforced.
-func TestWebsocketLimitOverride(t *testing.T) {
-	_, wsURL := startServer(t)
+// TestResponseSizeLimit checks that client.WithMaxResponseSize sets the same limit over HTTP and
+// websocket, for eager and lazy dials.
+func TestResponseSizeLimit(t *testing.T) {
+	const limit = 1 << 20
+	httpURL, wsURL := startServer(t)
+	transports := []struct{ name, url, err string }{
+		{"http", httpURL, "response too large: exceeds 1048576 bytes"},
+		{"ws", wsURL, "read limit exceeded"},
+	}
+	for _, lazy := range []bool{false, true} {
+		for _, tr := range transports {
+			t.Run(fmt.Sprintf("%s lazy=%v", tr.name, lazy), func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				opts := []client.RPCOption{client.WithMaxResponseSize(limit)}
+				if lazy {
+					opts = append(opts, client.WithLazyDial())
+				}
+				cl, err := client.NewRPC(ctx, testlog.Logger(t, slog.LevelInfo), tr.url, opts...)
+				require.NoError(t, err)
+				t.Cleanup(cl.Close)
+				call := rpcCaller(cl)
+				// The JSON-RPC envelope around the result takes less than 1 KiB.
+				require.NoError(t, call(ctx, limit-1<<10))
+				require.ErrorContains(t, call(ctx, limit+1<<10), tr.err)
+			})
+		}
+	}
+}
+
+// TestResponseSizeLimitGzip checks that the HTTP limit counts the response after net/http
+// inflates it, not the bytes on the wire.
+func TestResponseSizeLimitGzip(t *testing.T) {
+	const limit = 1 << 20
+	var compressed bytes.Buffer
+	zw := gzip.NewWriter(&compressed)
+	_, err := fmt.Fprintf(zw, `{"jsonrpc":"2.0","id":1,"result":"0x%s"}`, strings.Repeat("00", limit))
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+	require.Less(t, compressed.Len(), limit/100)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Encoding", "gzip")
+		_, _ = w.Write(compressed.Bytes())
+	}))
+	t.Cleanup(srv.Close)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cl, err := client.NewRPC(ctx, testlog.Logger(t, slog.LevelInfo), wsURL,
-		client.WithGethRPCOptions(rpc.WithWebsocketMessageSizeLimit(1024)))
+	cl, err := client.NewRPC(ctx, testlog.Logger(t, slog.LevelInfo), srv.URL, client.WithMaxResponseSize(limit))
 	require.NoError(t, err)
 	t.Cleanup(cl.Close)
-	call := rpcCaller(cl)
-	require.NoError(t, call(ctx, 512))
-	require.ErrorContains(t, call(ctx, 2048), "read limit exceeded")
+	var res hexutil.Bytes
+	require.ErrorIs(t, cl.CallContext(ctx, &res, "eth_call"), client.ErrResponseTooLarge)
 }

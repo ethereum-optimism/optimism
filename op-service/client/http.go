@@ -13,6 +13,10 @@ import (
 
 const (
 	DefaultTimeoutSeconds = 30
+
+	// DefaultHTTPMaxResponseSize is the size limit for a successful BasicHTTPClient response. A
+	// beacon API blobs response takes about 262 KB per blob, so this fits over 200 blobs.
+	DefaultHTTPMaxResponseSize = 64 << 20
 )
 
 var _ HTTP = (*BasicHTTPClient)(nil)
@@ -25,15 +29,17 @@ type BasicHTTPClient struct {
 	endpoint string
 	header   http.Header // optional header to use in every request
 
-	log    log.Logger
-	client *http.Client
+	log             log.Logger
+	client          *http.Client
+	maxResponseSize int64
 }
 
 func NewBasicHTTPClient(endpoint string, log log.Logger, opts ...BasicHTTPClientOption) *BasicHTTPClient {
 	c := &BasicHTTPClient{
-		endpoint: endpoint,
-		log:      log,
-		client:   &http.Client{Timeout: DefaultTimeoutSeconds * time.Second},
+		endpoint:        endpoint,
+		log:             log,
+		client:          &http.Client{Timeout: DefaultTimeoutSeconds * time.Second},
+		maxResponseSize: DefaultHTTPMaxResponseSize,
 	}
 
 	for _, opt := range opts {
@@ -67,6 +73,9 @@ func WithTransport(t http.RoundTripper) BasicHTTPClientOption {
 
 var ErrNoEndpoint = errors.New("no endpoint is configured")
 
+// Get sends a GET request for path p. Reading the body of a successful (2xx) response fails with
+// ErrResponseTooLarge after DefaultHTTPMaxResponseSize bytes; the body of any other response is
+// cut off after 1 KiB.
 func (cl *BasicHTTPClient) Get(ctx context.Context, p string, query url.Values, headers http.Header) (*http.Response, error) {
 	if cl.endpoint == "" {
 		return nil, ErrNoEndpoint
@@ -85,7 +94,12 @@ func (cl *BasicHTTPClient) Get(ctx context.Context, p string, query url.Values, 
 		return nil, fmt.Errorf("%w: failed to construct request", err)
 	}
 	addHTTPHeaders(req.Header, cl.header, headers)
-	return cl.client.Do(req)
+	resp, err := cl.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	limitResponseBody(resp, cl.maxResponseSize)
+	return resp, nil
 }
 
 func addHTTPHeaders(header http.Header, hs ...http.Header) {

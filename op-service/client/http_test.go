@@ -2,10 +2,12 @@ package client
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -49,6 +51,42 @@ func TestBasicHTTPClient(t *testing.T) {
 	require.ElementsMatch(t, req.Header.Values("Foo"), mkhdr()["Foo"])
 	require.ElementsMatch(t, req.Header.Values("Fruits"), getheader["Fruits"])
 	require.ElementsMatch(t, req.Header.Values("Superchain"), []string{"op", "base"})
+}
+
+func TestBasicHTTPClientResponseLimit(t *testing.T) {
+	const limit = 1 << 10
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		size, err := strconv.Atoi(r.URL.Query().Get("size"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.URL.Path == "/fail" {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		_, _ = w.Write(make([]byte, size))
+	}))
+	defer ts.Close()
+	c := NewBasicHTTPClient(ts.URL, testlog.Logger(t, slog.LevelInfo))
+	c.maxResponseSize = limit
+
+	get := func(path string, size int) ([]byte, error) {
+		resp, err := c.Get(context.Background(), path, url.Values{"size": {strconv.Itoa(size)}}, nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		return io.ReadAll(resp.Body)
+	}
+
+	body, err := get("/ok", limit)
+	require.NoError(t, err)
+	require.Equal(t, limit, len(body))
+
+	_, err = get("/ok", limit+1)
+	require.ErrorIs(t, err, ErrResponseTooLarge)
+
+	body, err = get("/fail", 4*maxErrorBodySize)
+	require.NoError(t, err)
+	require.Equal(t, maxErrorBodySize, len(body))
 }
 
 func TestAddHTTPHeaders(t *testing.T) {

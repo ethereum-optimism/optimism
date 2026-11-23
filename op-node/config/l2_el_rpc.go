@@ -61,6 +61,8 @@ func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger,
 		client.WithDialAttempts(10),
 		client.WithCallTimeout(cfg.L2EngineCallTimeout),
 		client.WithRPCRecorder(metrics.NewRecorder("engine-api")),
+		// op-supernode's interop activity fetches L2 receipts through this client.
+		client.WithMaxResponseSize(client.MaxReceiptsResponseSize),
 	}
 	if cfg.LazyDial {
 		opts = append(opts, client.WithLazyDial())

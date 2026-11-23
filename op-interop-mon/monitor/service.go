@@ -217,7 +217,7 @@ func (ms *InteropMonitorService) initClients(ctx context.Context, l2Rpcs []strin
 
 // dial dials a new client and returns it
 func (ms *InteropMonitorService) dial(ctx context.Context, l2Rpc string) (*sources.EthClient, error) {
-	client, err := client.NewRPC(ctx, ms.Log, l2Rpc)
+	client, err := client.NewRPC(ctx, ms.Log, l2Rpc, client.WithMaxResponseSize(client.MaxReceiptsResponseSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}

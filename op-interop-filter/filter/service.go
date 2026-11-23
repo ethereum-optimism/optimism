@@ -165,7 +165,8 @@ func (s *Service) initMetricsServer(cfg *Config) error {
 func dialL2RPC(ctx context.Context, logger log.Logger, rpcURL string, retryInterval time.Duration) (client.RPC, eth.ChainID, error) {
 	rpcClient, err := client.NewRPC(ctx, logger, rpcURL,
 		client.WithDialAttempts(startAttempts),
-		client.WithFixedDialBackoff(retryInterval))
+		client.WithFixedDialBackoff(retryInterval),
+		client.WithMaxResponseSize(client.MaxReceiptsResponseSize))
 	if err != nil {
 		return nil, eth.ChainID{}, fmt.Errorf("failed to connect to %s: %w", rpcURL, err)
 	}
