@@ -433,8 +433,8 @@ mod tests {
         input: Bytes,
     }
 
-    /// The mint became a `U256`, and the deposits op-reth stored while it was a `u128` must still
-    /// decode: both encode the mint as its big-endian bytes without leading zeros.
+    /// Deposits stored with a `u128` mint still decode: both types encode the mint as its
+    /// big-endian bytes without leading zeros.
     #[test]
     fn deposit_compact_encoding_is_unchanged_for_u128_mints() {
         for mint in [0, 1, 10, u128::MAX] {
