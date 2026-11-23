@@ -1,9 +1,10 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{EngineConfig, NetworkConfig, RollupNode, SequencerConfig, service::node::L1Config};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use url::Url;
 
+use kona_engine::DEFAULT_EL_SYNC_SAFE_OFFSET;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_providers_alloy::{AlloyChainProvider, OnlineBeaconClient};
@@ -54,6 +55,8 @@ pub struct RollupNodeBuilder {
     pub safe_db: Option<Arc<dyn SafeDb>>,
     /// Number of L1 confirmations required before deriving L2 blocks.
     pub verifier_l1_confs: u64,
+    /// How far behind the synced tip safe and finalized are placed when EL sync completes.
+    pub el_sync_safe_offset: Duration,
 }
 
 impl RollupNodeBuilder {
@@ -78,6 +81,7 @@ impl RollupNodeBuilder {
             dependency_set: None,
             safe_db: None,
             verifier_l1_confs: 0,
+            el_sync_safe_offset: DEFAULT_EL_SYNC_SAFE_OFFSET,
         }
     }
 
@@ -98,6 +102,11 @@ impl RollupNodeBuilder {
     /// Sets the L1 confirmation depth for derivation in both node modes.
     pub fn with_verifier_l1_confs(self, verifier_l1_confs: u64) -> Self {
         Self { verifier_l1_confs, ..self }
+    }
+
+    /// Sets how far behind the synced tip safe and finalized are placed when EL sync completes.
+    pub fn with_el_sync_safe_offset(self, el_sync_safe_offset: Duration) -> Self {
+        Self { el_sync_safe_offset, ..self }
     }
 
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
@@ -158,6 +167,7 @@ impl RollupNodeBuilder {
             dependency_set: self.dependency_set,
             safe_db: self.safe_db,
             verifier_l1_confs: self.verifier_l1_confs,
+            el_sync_safe_offset: self.el_sync_safe_offset,
         }
     }
 }
