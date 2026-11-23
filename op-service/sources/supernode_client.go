@@ -20,8 +20,8 @@ func NewSuperNodeClient(rpc client.RPC) *SuperNodeClient {
 }
 
 func (c *SuperNodeClient) SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
-	var result eth.SuperRootAtTimestampResponse
-	if err := c.rpc.CallContext(ctx, &result, "superroot_atTimestamp", hexutil.Uint64(timestamp)); err != nil {
+	result, err := callNonNull[eth.SuperRootAtTimestampResponse](ctx, c.rpc, "superroot_atTimestamp", hexutil.Uint64(timestamp))
+	if err != nil {
 		return eth.SuperRootAtTimestampResponse{}, err
 	}
 	for chainID, optimistic := range result.OptimisticAtTimestamp {
@@ -29,12 +29,15 @@ func (c *SuperNodeClient) SuperRootAtTimestamp(ctx context.Context, timestamp ui
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("missing optimistic output for chain %s", chainID)
 		}
 	}
-	return result, nil
+	return *result, nil
 }
 
-func (c *SuperNodeClient) SyncStatus(ctx context.Context) (result eth.SuperNodeSyncStatusResponse, err error) {
-	err = c.rpc.CallContext(ctx, &result, "supernode_syncStatus")
-	return
+func (c *SuperNodeClient) SyncStatus(ctx context.Context) (eth.SuperNodeSyncStatusResponse, error) {
+	result, err := callNonNull[eth.SuperNodeSyncStatusResponse](ctx, c.rpc, "supernode_syncStatus")
+	if err != nil {
+		return eth.SuperNodeSyncStatusResponse{}, err
+	}
+	return *result, nil
 }
 
 func (cl *SuperNodeClient) Close() {
