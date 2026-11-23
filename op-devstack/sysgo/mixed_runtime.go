@@ -588,7 +588,7 @@ func startMixedKonaNode(
 	} else {
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
-	envVars = append(envVars, konaL2CLEnv(startCfg.L2CLConfig)...)
+	envVars = append(envVars, konaL2CLEnv(startCfg.L2CLConfig, startCfg.SequencerStopped)...)
 
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
@@ -605,9 +605,7 @@ func startMixedKonaNode(
 		execPath: execPath,
 		args:     []string{"node"},
 		env:      envVars,
-		// A conductor starts its leader's sequencer itself.
-		startSequencer: startCfg.L2CLConfig.IsSequencer && !startCfg.SequencerStopped && startCfg.L2CLConfig.ConductorRPC == "",
-		p:              t,
+		p:        t,
 	}
 	t.Logger().Info("Starting kona-node", "name", clKey, "chain", l2Net.ChainID(), "el", elKey)
 	k.Start()

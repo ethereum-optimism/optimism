@@ -1,19 +1,11 @@
 package sysgo
 
 import (
-	"context"
-	"errors"
 	"time"
-
-	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 type L2CLNode interface {
@@ -98,32 +90,4 @@ func (l L2CLOptionBundle) Apply(p devtest.T, target ComponentTarget, cfg *L2CLCo
 		p.Require().NotNil(opt, "cannot Apply nil L2CLOption")
 		opt.Apply(p, target, cfg)
 	}
-}
-
-// startSequencerAtUnsafeHead starts the sequencer of the rollup node behind
-// rollupClient at the node's current unsafe head, and returns the sync status
-// it started from. The RPC can be up before the node's initial engine reset
-// publishes a head, and derivation or gossip can move the head between the read
-// and the start call, so it reads a fresh head on every attempt. A start call
-// can time out while the node still applies it, so an attempt that fails while
-// the sequencer is active counts as started.
-func startSequencerAtUnsafeHead(ctx context.Context, logger log.Logger, rollupClient *sources.RollupClient) (*eth.SyncStatus, error) {
-	return retry.Do(ctx, 90, retry.Fixed(500*time.Millisecond), func() (*eth.SyncStatus, error) {
-		status, err := rollupClient.SyncStatus(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if status == nil || status.UnsafeL2.Hash == (common.Hash{}) {
-			logger.Info("Waiting for the sequencer to publish its unsafe head")
-			return nil, errors.New("sequencer has not published its unsafe head yet")
-		}
-		if err := rollupClient.StartSequencer(ctx, status.UnsafeL2.Hash); err != nil {
-			if active, activeErr := rollupClient.SequencerActive(ctx); activeErr == nil && active {
-				return status, nil
-			}
-			logger.Info("Waiting to start the sequencer at its current head", "err", err)
-			return nil, err
-		}
-		return status, nil
-	})
 }

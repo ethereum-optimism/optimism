@@ -8,9 +8,9 @@ import (
 )
 
 // TestSequencerResumesAfterRestart checks that the devstack sequencer builds
-// blocks again after its rollup node restarts. A kona-node sequencer always
-// boots stopped, so the harness must start it after every start of the node,
-// to match an op-node sequencer, which boots active.
+// blocks again after its rollup node restarts. A kona-node sequencer boots
+// stopped unless --sequencer.start is set, which the harness sets so that it
+// boots active after every start of the node, like an op-node sequencer.
 func TestSequencerResumesAfterRestart(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t)

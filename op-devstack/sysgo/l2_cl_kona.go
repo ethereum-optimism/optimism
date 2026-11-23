@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
@@ -26,10 +25,6 @@ type KonaNode struct {
 	args     []string
 	// Each entry is of the form "key=value".
 	env []string
-	// startSequencer starts the sequencer after every start of the node.
-	// kona-node always boots its sequencer stopped, unlike an op-node
-	// sequencer, which boots active unless configured to boot stopped.
-	startSequencer bool
 
 	p devtest.T
 
@@ -97,31 +92,6 @@ func (k *KonaNode) Start() {
 	}
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
-
-	if k.startSequencer {
-		k.activateSequencer()
-	}
-}
-
-// Callers must hold k.mu.
-func (k *KonaNode) activateSequencer() {
-	// Stop retrying as soon as the process dies, rather than after the full retry budget.
-	ctx, cancel := context.WithCancel(k.p.Ctx())
-	defer cancel()
-	go func() {
-		select {
-		case <-k.sub.Exited():
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-	logger := k.p.Logger().New("component", "kona-node", "name", k.name)
-	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, logger, k.userRPC)
-	k.p.Require().NoError(err, "dial kona-node rollup RPC")
-	defer rollupClient.Close()
-	status, err := startSequencerAtUnsafeHead(ctx, logger, rollupClient)
-	k.p.Require().NoError(err, "start kona-node sequencer")
-	logger.Info("Started kona-node sequencer", "unsafe", status.UnsafeL2.ID())
 }
 
 // Stop stops the kona node.

@@ -14,9 +14,9 @@ import (
 type konaNodeStartConfig struct {
 	DependencySet coredepset.DependencySet
 	L2CLConfig    *L2CLConfig
-	// SequencerStopped leaves a sequencer stopped after each start, for a
-	// conductor to start. kona-node always boots its sequencer stopped, so
-	// otherwise the harness starts it at the unsafe head, as op-node would boot.
+	// SequencerStopped boots a sequencer stopped, for the test or a conductor
+	// to start through admin_startSequencer. Otherwise the sequencer boots
+	// active, as an op-node sequencer does. See konaL2CLEnv.
 	SequencerStopped bool
 }
 
@@ -67,7 +67,11 @@ func resolveKonaL2CLConfig(t devtest.T, key string, chainID eth.ChainID, isSeque
 	return cfg
 }
 
-func konaL2CLEnv(cfg *L2CLConfig) []string {
+// konaL2CLEnv returns the kona-node environment for cfg. kona-node boots its
+// sequencer stopped unless KONA_NODE_SEQUENCER_START is set, so it is set for a
+// sequencer unless sequencerStopped is. It is never set with a conductor, which
+// starts the sequencer itself and with which kona-node rejects the flag.
+func konaL2CLEnv(cfg *L2CLConfig, sequencerStopped bool) []string {
 	extraEnv := []string{
 		fmt.Sprintf("KONA_NODE_P2P_NO_DISCOVERY=%t", cfg.NoDiscovery),
 		fmt.Sprintf("KONA_NODE_VERIFIER_L1_CONFS=%d", cfg.VerifierL1Confs),
@@ -83,6 +87,8 @@ func konaL2CLEnv(cfg *L2CLConfig) []string {
 			"KONA_NODE_CONDUCTOR_RPC="+cfg.ConductorRPC,
 			fmt.Sprintf("KONA_NODE_CONDUCTOR_RPC_TIMEOUT=%d", cfg.ConductorRPCTimeout/time.Second),
 		)
+	} else if cfg.IsSequencer && !sequencerStopped {
+		extraEnv = append(extraEnv, "KONA_NODE_SEQUENCER_START=true")
 	}
 	return extraEnv
 }
