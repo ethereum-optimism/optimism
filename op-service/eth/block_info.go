@@ -1,6 +1,7 @@
 package eth
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -20,9 +21,10 @@ type BlockInfo interface {
 	// MixDigest field, reused for randomness after The Merge (Bellatrix hardfork)
 	MixDigest() common.Hash
 	BaseFee() *big.Int
-	// BlobBaseFee returns the result of computing the blob fee from excessDataGas, or nil if the
-	// block isn't a Dencun (4844 capable) block
-	BlobBaseFee(chainConfig *params.ChainConfig) *big.Int
+	// BlobBaseFee returns the blob base fee computed from the excess blob gas, or nil if the block
+	// has no excess blob gas. It returns an error if the block has excess blob gas but chainConfig
+	// has no blob schedule active at the block time.
+	BlobBaseFee(chainConfig *params.ChainConfig) (*big.Int, error)
 	ExcessBlobGas() *uint64
 	ReceiptHash() common.Hash
 	GasUsed() uint64
@@ -57,12 +59,8 @@ func ToBlockID(b NumberAndHash) BlockID {
 // blockInfo is a conversion type of types.Block turning it into a BlockInfo
 type blockInfo struct{ *types.Block }
 
-func (b blockInfo) BlobBaseFee(chainConfig *params.ChainConfig) *big.Int {
-	ebg := b.ExcessBlobGas()
-	if ebg == nil {
-		return nil
-	}
-	return eip4844.CalcBlobFee(chainConfig, b.Block.Header())
+func (b blockInfo) BlobBaseFee(chainConfig *params.ChainConfig) (*big.Int, error) {
+	return HeaderBlobBaseFee(chainConfig, b.Block.Header())
 }
 
 func (b blockInfo) ParentBeaconRoot() *common.Hash {
@@ -120,11 +118,8 @@ func (h *headerBlockInfo) BaseFee() *big.Int {
 	return h.header.BaseFee
 }
 
-func (h *headerBlockInfo) BlobBaseFee(chainConfig *params.ChainConfig) *big.Int {
-	if h.header.ExcessBlobGas == nil {
-		return nil
-	}
-	return eip4844.CalcBlobFee(chainConfig, h.header)
+func (h *headerBlockInfo) BlobBaseFee(chainConfig *params.ChainConfig) (*big.Int, error) {
+	return HeaderBlobBaseFee(chainConfig, h.header)
 }
 
 func (h *headerBlockInfo) ExcessBlobGas() *uint64 {
@@ -165,6 +160,29 @@ func (h *headerBlockInfo) MarshalJSON() ([]byte, error) {
 
 func (h *headerBlockInfo) UnmarshalJSON(input []byte) error {
 	return h.header.UnmarshalJSON(input)
+}
+
+// maxExcessBlobGas is the largest excess blob gas HeaderBlobBaseFee accepts. The cost of computing
+// the blob fee grows with the square of the excess blob gas. At this bound, the blob fee is above
+// e^200 wei under every blob schedule go-ethereum defines, which no L1 block can reach.
+const maxExcessBlobGas = 1 << 32
+
+// HeaderBlobBaseFee returns the blob base fee of h computed from its excess blob gas, or nil if h
+// has no excess blob gas. It returns an error if h has excess blob gas but chainConfig has no blob
+// schedule active at the time of h, or if the excess blob gas is implausibly large.
+func HeaderBlobBaseFee(chainConfig *params.ChainConfig, h *types.Header) (*big.Int, error) {
+	if h.ExcessBlobGas == nil {
+		return nil, nil
+	}
+	// eip4844.CalcBlobFee panics if there is no blob schedule at the header time, and
+	// MaxBlobsPerBlock is 0 then.
+	if eip4844.MaxBlobsPerBlock(chainConfig, h.Time) == 0 {
+		return nil, fmt.Errorf("header %v has excess blob gas, but no blob schedule is active at its time %d", h.Number, h.Time)
+	}
+	if *h.ExcessBlobGas > maxExcessBlobGas {
+		return nil, fmt.Errorf("header %v has excess blob gas %d above maximum %d", h.Number, *h.ExcessBlobGas, maxExcessBlobGas)
+	}
+	return eip4844.CalcBlobFee(chainConfig, h), nil
 }
 
 // HeaderBlockInfo returns h as a BlockInfo implementation, with pre-cached blockhash.

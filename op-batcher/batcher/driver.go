@@ -1121,6 +1121,9 @@ func (l *BatchSubmitter) l1Tip(ctx context.Context) (*types.Header, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting latest L1 block: %w", err)
 	}
+	if err := eth.CheckHeader(head); err != nil {
+		return nil, fmt.Errorf("invalid latest L1 block: %w", err)
+	}
 	return head, nil
 }
 

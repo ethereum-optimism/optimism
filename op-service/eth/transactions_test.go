@@ -2,6 +2,7 @@ package eth
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 
@@ -124,4 +125,51 @@ func TestTransactions_checkRecentTxs(t *testing.T) {
 			l1Client.AssertExpectations(t)
 		})
 	}
+}
+
+func TestCheckRecentTxsShallowChain(t *testing.T) {
+	l1Client := new(MockL1Client)
+	ctx := context.Background()
+	l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(3)}, nil)
+	l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(3)).Return(uint64(1), nil)
+	l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(0)).Return(uint64(1), nil)
+
+	blockNum, found, err := CheckRecentTxs(ctx, l1Client, 5, common.Address{})
+	require.NoError(t, err)
+	require.False(t, found)
+	require.Zero(t, blockNum)
+	l1Client.AssertExpectations(t)
+}
+
+func TestCheckRecentTxsInvalidHeader(t *testing.T) {
+	for name, header := range map[string]*types.Header{
+		"nil number":       {},
+		"number above u64": {Number: new(big.Int).Lsh(big.NewInt(1), 64)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			l1Client := new(MockL1Client)
+			ctx := context.Background()
+			l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(header, nil)
+			l1Client.On("NonceAt", ctx, common.Address{}, mock.Anything).Return(uint64(1), nil).Maybe()
+
+			_, _, err := CheckRecentTxs(ctx, l1Client, 5, common.Address{})
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestCheckRecentTxsPersistentReorg(t *testing.T) {
+	l1Client := new(MockL1Client)
+	ctx := context.Background()
+	errExtraAttempt := errors.New("unexpected extra attempt")
+	l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(500)}, nil).Times(checkRecentTxsAttempts)
+	l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(nil, errExtraAttempt)
+	l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(500)).Return(uint64(6), nil)
+	l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(495)).Return(uint64(5), nil)
+	// Every attempt sees a nonce above the head's nonce in the middle of the range.
+	l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(497)).Return(uint64(7), nil)
+
+	_, _, err := CheckRecentTxs(ctx, l1Client, 5, common.Address{})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errExtraAttempt)
 }

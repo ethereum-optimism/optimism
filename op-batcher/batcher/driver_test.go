@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"net"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	txmgrmocks "github.com/ethereum-optimism/optimism/op-service/txmgr/mocks"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -577,4 +579,21 @@ func TestBatchSubmitter_SendTransactionInvariants(t *testing.T) {
 			require.ErrorIs(t, causes[0], err)
 		})
 	}
+}
+
+type fixedL1Client struct{ head *types.Header }
+
+func (c fixedL1Client) HeaderByNumber(context.Context, *big.Int) (*types.Header, error) {
+	return c.head, nil
+}
+
+func (c fixedL1Client) NonceAt(context.Context, common.Address, *big.Int) (uint64, error) {
+	return 0, nil
+}
+
+func TestBatchSubmitter_l1TipRejectsInvalidHeader(t *testing.T) {
+	bs, _ := setup(t, nil)
+	bs.L1Client = fixedL1Client{&types.Header{Number: new(big.Int).Lsh(big.NewInt(1), 64)}}
+	_, err := bs.l1Tip(context.Background())
+	require.Error(t, err)
 }

@@ -419,6 +419,9 @@ func WithAgainstLatestBlockEthClient(cl AgainstLatestBlockEthClient) Option {
 			if err != nil {
 				return nil, err
 			}
+			if err := eth.CheckHeader(header); err != nil {
+				return nil, err
+			}
 			return eth.HeaderBlockInfo(header), nil
 		})
 	}
@@ -478,7 +481,11 @@ func WithBlobs(blobs []*eth.Blob, config *params.ChainConfig) Option {
 		tx.Type.Set(types.BlobTxType)
 		tx.BlobFeeCap.DependOn(&tx.AgainstBlock)
 		tx.BlobFeeCap.Fn(func(_ context.Context) (*uint256.Int, error) {
-			return uint256.MustFromBig(tx.AgainstBlock.Value().BlobBaseFee(config)), nil
+			blobBaseFee, err := tx.AgainstBlock.Value().BlobBaseFee(config)
+			if err != nil {
+				return nil, err
+			}
+			return uint256.MustFromBig(blobBaseFee), nil
 		})
 		var blobHashes []common.Hash
 		tx.Sidecar.Fn(func(_ context.Context) (*types.BlobTxSidecar, error) {

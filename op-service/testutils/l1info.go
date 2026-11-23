@@ -67,8 +67,8 @@ func (l *MockBlockInfo) BaseFee() *big.Int {
 	return l.InfoBaseFee
 }
 
-func (l *MockBlockInfo) BlobBaseFee(chainConfig *params.ChainConfig) *big.Int {
-	return l.InfoBlobBaseFee
+func (l *MockBlockInfo) BlobBaseFee(chainConfig *params.ChainConfig) (*big.Int, error) {
+	return l.InfoBlobBaseFee, nil
 }
 
 func (l *MockBlockInfo) ExcessBlobGas() *uint64 {

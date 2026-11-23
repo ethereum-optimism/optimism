@@ -1,6 +1,7 @@
 package eth
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -21,6 +22,19 @@ func (id BlockID) String() string {
 // output during logging.
 func (id BlockID) TerminalString() string {
 	return fmt.Sprintf("%s:%d", id.Hash.TerminalString(), id.Number)
+}
+
+// CheckHeader returns an error if h is nil or its number is missing or does not fit a uint64.
+// go-ethereum decodes the number of a JSON-RPC header as an arbitrary 256-bit integer, and the
+// header conversions in this package require a uint64, so headers from an RPC need this check.
+func CheckHeader(h *types.Header) error {
+	if h == nil {
+		return errors.New("nil header")
+	}
+	if h.Number == nil || !h.Number.IsUint64() {
+		return fmt.Errorf("invalid header number %v", h.Number)
+	}
+	return nil
 }
 
 func ReceiptBlockID(r *types.Receipt) BlockID {
