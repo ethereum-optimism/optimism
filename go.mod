@@ -18,7 +18,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e
 	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20261104213739-7e1be4543c87
-	github.com/ethereum/go-ethereum v1.17.10
+	github.com/ethereum/go-ethereum v1.17.11-0.20261028021739-3dee18e7108c
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gofrs/flock v0.13.0
 	github.com/golang/snappy v1.0.1-0.20260716114414-9ae09f520e93
