@@ -125,7 +125,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.NoError(t, err)
 		requireInvalid(nil, 177*pragueFraction+pragueFraction/2, "exceeds 256 bits")
 		// Computing this fee would not complete.
-		requireInvalid(nil, math.MaxUint64, "above maximum")
+		requireInvalid(nil, math.MaxUint64, "too large for update fraction")
 
 		// Before the Pectra blob schedule fix, the fee follows the Cancun schedule.
 		pectraBlobScheduleTime := uint64(l1Time + 1)
@@ -133,7 +133,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, eth.CalcBlobFeeCancun(177*cancunFraction), l1Info.BlobBaseFee)
 		requireInvalid(&pectraBlobScheduleTime, 177*cancunFraction+cancunFraction/2, "exceeds 256 bits")
-		requireInvalid(&pectraBlobScheduleTime, math.MaxUint64, "above maximum")
+		requireInvalid(&pectraBlobScheduleTime, math.MaxUint64, "too large for update fraction")
 		_, err = deposit(nil, 177*cancunFraction+cancunFraction/2)
 		require.NoError(t, err, "the same excess blob gas is valid under the Prague schedule")
 	})
