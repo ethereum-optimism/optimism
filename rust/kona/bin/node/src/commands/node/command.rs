@@ -150,7 +150,9 @@ pub struct NodeCommand {
     /// After execution-layer sync, set the safe and finalized heads this far behind the synced tip
     /// (converted to L2 blocks with ceiling division). Mirrors op-node's
     /// `--syncmode.offset-el-safe`. kona-node has no consensus-layer sync mode, so this applies on
-    /// any start where the execution layer has no finalized block beyond genesis.
+    /// any start where the execution layer has no finalized block beyond genesis. Like op-node, a
+    /// reset also uses it when the execution layer's chain was rewound below its safe or finalized
+    /// head, or its labels are still at genesis long after genesis.
     #[arg(
         long = "syncmode.offset-el-safe",
         env = "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE",

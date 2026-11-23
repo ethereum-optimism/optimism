@@ -28,27 +28,11 @@ pub async fn find_el_sync_forkchoice(
 ) -> Result<L2ForkchoiceState, SyncStartError> {
     let current = L2ForkchoiceState::current(cfg, engine_client).await?;
     if current.finalized.block_info.hash != cfg.genesis.l2.hash {
-        return find_starting_forkchoice(cfg, engine_client).await;
+        return find_starting_forkchoice(cfg, engine_client, el_sync_safe_offset).await;
     }
 
     let tip = current.un_safe;
-    let target = offset_block_number(
-        el_sync_safe_offset,
-        cfg.block_time,
-        tip.block_info.number,
-        cfg.genesis.l2.number,
-    );
-    let offset_head = if target < tip.block_info.number {
-        let block = engine_client.get_l2_block(BlockId::number(target)).full().await?.ok_or(
-            SyncStartError::ElSyncOffsetBlockUnavailable {
-                number: target,
-                offset: el_sync_safe_offset,
-            },
-        )?;
-        L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &cfg.genesis)?
-    } else {
-        tip
-    };
+    let offset_head = find_offset_head(cfg, engine_client, tip, el_sync_safe_offset).await?;
     let safe = if current.safe.block_info.number > offset_head.block_info.number &&
         current.safe.block_info.number <= tip.block_info.number
     {
@@ -59,6 +43,27 @@ pub async fn find_el_sync_forkchoice(
     let forkchoice = L2ForkchoiceState { un_safe: tip, safe, finalized: offset_head };
     info!(target: "sync_start", ?el_sync_safe_offset, %forkchoice, "Adopting EL-synced forkchoice");
     Ok(forkchoice)
+}
+
+/// Returns the block `offset` behind `tip`, never below genesis, as op-node's
+/// `L2HeadsForELSyncWithOffset` places safe and finalized.
+pub(crate) async fn find_offset_head(
+    cfg: &RollupConfig,
+    engine_client: &EngineClient,
+    tip: L2BlockInfo,
+    offset: Duration,
+) -> Result<L2BlockInfo, SyncStartError> {
+    let target =
+        offset_block_number(offset, cfg.block_time, tip.block_info.number, cfg.genesis.l2.number);
+    if target == tip.block_info.number {
+        return Ok(tip);
+    }
+    let block = engine_client
+        .get_l2_block(BlockId::number(target))
+        .full()
+        .await?
+        .ok_or(SyncStartError::ElSyncOffsetBlockUnavailable { number: target, offset })?;
+    Ok(L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &cfg.genesis)?)
 }
 
 /// Port of op-node's `OffsetBlockNum`: the block number `ceil(offset / block_time)` blocks behind
