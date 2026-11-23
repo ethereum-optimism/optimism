@@ -875,9 +875,9 @@ mod test {
     #[rstest]
     #[case::fork_active(true, false)]
     #[case::fork_inactive(false, false)]
-    #[should_panic]
+    #[should_panic(expected = "assertion `left == right` failed")]
     #[case::fork_active_wrong_params(true, true)]
-    #[should_panic]
+    #[should_panic(expected = "assertion `left == right` failed")]
     #[case::fork_inactive_wrong_params(false, true)]
     fn test_try_new_ecotone_with_optional_prague_fee_fork(
         #[case] fork_active: bool,
