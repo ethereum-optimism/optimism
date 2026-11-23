@@ -72,6 +72,7 @@ func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo e
 
 	r, err := p.inner.FetchReceipts(ctx, blockInfo, txHashes)
 	if err != nil {
+		p.deleteFetchingLock(block.Hash)
 		return nil, err
 	}
 
