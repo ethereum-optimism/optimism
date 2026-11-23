@@ -514,5 +514,5 @@ func TestFindL2HeadsParentNumber(t *testing.T) {
 	// E is block 4, the parent of the unsafe head F.
 	l2 := parentNumberL2{FakeChainSource: chain, hash: runeToHash('E'), number: 5}
 	_, err := FindL2Heads(context.Background(), cfg, chain, l2, lgr, &Config{})
-	require.ErrorContains(t, err, "does not precede")
+	require.ErrorIs(t, err, InvalidL2BlockErr)
 }

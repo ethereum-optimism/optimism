@@ -54,6 +54,9 @@ var (
 	ReorgFinalizedErr = errors.New("cannot reorg finalized block")
 	WrongChainErr     = errors.New("wrong chain")
 	TooDeepReorgErr   = errors.New("reorg is too deep")
+	// InvalidL2BlockErr is returned by FindL2Heads for a block from the engine that cannot be
+	// part of the L2 chain it was requested for.
+	InvalidL2BlockErr = errors.New("engine returned an invalid L2 block")
 )
 
 const MaxReorgSeqWindows = 5
@@ -299,7 +302,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		}
 
 		if parent.Number+1 != n.Number {
-			return nil, fmt.Errorf("l2 parent %s of %s has a number that does not precede it", parent, n)
+			return nil, fmt.Errorf("%w: parent %s of %s has a number that does not precede it", InvalidL2BlockErr, parent, n)
 		}
 
 		// Check the L1 origin relation

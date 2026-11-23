@@ -116,6 +116,35 @@ func (e *sealingEngine) NewPayload(context.Context, *eth.ExecutionPayload, *comm
 	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
 }
 
+// TestResetStopsOnInvalidEngineBlock checks that the node stops when the engine returns a
+// parent block that cannot precede its child, instead of retrying the reset.
+func TestResetStopsOnInvalidEngineBlock(t *testing.T) {
+	l1Origin := eth.L1BlockRef{Hash: common.Hash{0xa1}, Number: 10}
+	finalized := eth.L2BlockRef{Hash: common.Hash{0x01}, Number: 1, L1Origin: l1Origin.ID()}
+	head := eth.L2BlockRef{Hash: common.Hash{0x03}, Number: 3, ParentHash: common.Hash{0x02}, L1Origin: l1Origin.ID(), SequenceNumber: 2}
+	// The parent of block 3 claims to be block 3 as well.
+	parent := eth.L2BlockRef{Hash: common.Hash{0x02}, Number: 3, ParentHash: common.Hash{0x01}, L1Origin: l1Origin.ID(), SequenceNumber: 1}
+
+	engine := &testutils.MockEngine{}
+	engine.ExpectL2BlockRefByLabel(eth.Finalized, finalized, nil)
+	engine.ExpectL2BlockRefByLabel(eth.Safe, finalized, nil)
+	engine.ExpectL2BlockRefByLabel(eth.Unsafe, head, nil)
+	engine.ExpectL2BlockRefByHash(head.ParentHash, parent, nil)
+	l1 := &testutils.MockL1Source{}
+	l1.ExpectL1BlockRefByNumber(l1Origin.Number, l1Origin, nil)
+
+	var emitted []event.Event
+	emitter := event.EmitterFunc(func(_ context.Context, ev event.Event) { emitted = append(emitted, ev) })
+	ec := NewEngineController(context.Background(), engine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, l1, emitter, nil)
+
+	ec.OnEvent(context.Background(), ResetEngineRequestEvent{})
+	engine.AssertExpectations(t)
+	l1.AssertExpectations(t)
+	require.Len(t, emitted, 1)
+	require.IsType(t, rollup.CriticalErrorEvent{}, emitted[0])
+	require.ErrorIs(t, emitted[0].(rollup.CriticalErrorEvent).Err, sync.InvalidL2BlockErr)
+}
+
 type newPayloadStatusEngine struct {
 	testutils.MockEngine
 	status eth.ExecutePayloadStatus
@@ -133,7 +162,7 @@ func TestCommitBlockRequiresValidPayload(t *testing.T) {
 		eth.ExecutionInvalidBlockHash: apis.BuildErrCodeInvalidInput,
 		eth.ExecutionSyncing:          apis.BuildErrCodeTemporary,
 		eth.ExecutionAccepted:         apis.BuildErrCodeTemporary,
-		"UNKNOWN":                     apis.BuildErrCodeTemporary,
+		"UNKNOWN":                     apis.BuildErrCodeOther,
 	}
 	for status, code := range cases {
 		t.Run(string(status), func(t *testing.T) {

@@ -134,10 +134,15 @@ func (e *EngineController) CommitBlock(ctx context.Context, signed *opsigner.Sig
 			Code:    apis.BuildErrCodeInvalidInput,
 			Message: eth.NewPayloadErr(envelope.ExecutionPayload, status).Error(),
 		}
-	default:
-		// The engine did not validate the block, so it cannot become the unsafe head.
+	case eth.ExecutionSyncing, eth.ExecutionAccepted:
+		// The engine did not validate the block yet, so it cannot become the unsafe head.
 		return &jsonrpc.Error{
 			Code:    apis.BuildErrCodeTemporary,
+			Message: eth.NewPayloadErr(envelope.ExecutionPayload, status).Error(),
+		}
+	default:
+		return &jsonrpc.Error{
+			Code:    apis.BuildErrCodeOther,
 			Message: eth.NewPayloadErr(envelope.ExecutionPayload, status).Error(),
 		}
 	}
