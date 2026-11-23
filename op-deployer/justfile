@@ -1,8 +1,12 @@
 import '../justfiles/go.just'
 
-build: build-contracts copy-contract-artifacts build-go
+build: build-superchain-go build-contracts copy-contract-artifacts build-go
 
-test args='./...': build-contracts copy-contract-artifacts
+# The Go build embeds op-core/superchain/bundle/superchain-configs.zip, which is gitignored.
+build-superchain-go:
+  just ../build-superchain-go
+
+test args='./...': build-superchain-go build-contracts copy-contract-artifacts
     go test -v {{args}}
 
 build-contracts:
