@@ -1,6 +1,6 @@
 ---
 title: Release Workflows
-description: Learn how to backport fixes onto earlier OP Deployer versions and add support for new contract versions.
+description: Learn how to publish OP Deployer releases, cut test releases, backport fixes onto earlier versions, and add support for new contract versions.
 diataxis: how-to
 ---
 
@@ -51,6 +51,28 @@ git push origin fixes/deployer-v0.2.0
 2. merge the pr
 3. push a new tag for op-deployer/v0.2.1 on backports/op-deployer/v0.2.0 branch and publish its draft release
 ```
+
+## Cut a Test Release
+
+To get a test build of OP Deployer before a proposal branch exists, tag a `develop` commit as
+`op-deployer/v<next minor>-dev-test.<N>`. Start `N` at 1 and increment it for each new test build of that minor
+version:
+
+```shell
+git checkout develop
+git pull origin develop
+git tag -a op-deployer/v0.9.0-dev-test.1 -m "op-deployer/v0.9.0-dev-test.1"
+git push origin op-deployer/v0.9.0-dev-test.1
+```
+
+The tag triggers the same workflows as a regular release, and `release-op-deployer` marks the draft as a pre-release.
+Wait for them to finish, then [publish the draft](#publish-a-release).
+
+To test a feature, cut from that feature's branch rather than `develop` and tag it as
+`op-deployer/v<next minor>-<feature label>-test.<N>`. For example, the `op-deployer/v0.8.0-pcd-test.N` tags were cut from the `chore/pcd-deployer-release*` branches.
+
+A test release has no superchain-registry entry, so its users select the OPCM themselves. See
+[Release Without a Registry Entry](#release-without-a-registry-entry).
 
 ## Add Support for a New Contract Version
 
@@ -103,7 +125,8 @@ branch. Once it merges, cherry-pick the OP Deployer changes to `develop`.
 ### Step 5: Tag the Release
 
 The OP Deployer minor version tracks the contracts major version: contracts `vX.0.0` pairs with `op-deployer/v0.X.0`.
-Tag the head of the proposal branch and push the tag:
+Check that CI is green on the head of the proposal branch, in particular the CircleCI `contracts-bedrock-build` job. Then tag
+that commit and push the tag:
 
 ```shell
 git tag -a op-deployer/v0.X.0-rc.n -m "op-deployer/v0.X.0-rc.n"
