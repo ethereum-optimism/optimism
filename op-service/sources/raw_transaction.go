@@ -140,15 +140,13 @@ func (txs RawTransactions) Hashes() []common.Hash {
 	return out
 }
 
-// ErrOpTxInBody is returned when a whole-body decode meets a transaction of an OP Stack type
-// (0x7E deposit, 0x7D post-exec), which upstream go-ethereum cannot decode. Read L2 bodies via
-// InfoAndUserTxsBy*, InfoAndDepositsByHash, InfoAndFirstDepositBy* or PayloadBy*.
+// ErrOpTxInBody is returned by Geth for an OP Stack tx (0x7E deposit, 0x7D post-exec), which
+// upstream go-ethereum cannot decode.
 var ErrOpTxInBody = errors.New("block holds a transaction of an OP Stack type")
 
-// Geth decodes all transactions into go-ethereum types.Transactions. It returns ErrOpTxInBody if
-// any of them has an OP Stack type, checking the type byte before go-ethereum would fail on it with
-// its generic ErrTxTypeNotSupported. Every L2 block after genesis starts with the L1-info deposit,
-// so read L2 bodies with the class-partitioned accessors.
+// Geth decodes all transactions into go-ethereum types, failing with ErrOpTxInBody on an OP Stack
+// tx. Every L2 block after genesis starts with the L1-info deposit, so read L2 bodies with
+// InfoAndUserTxsBy*, InfoAndDepositsByHash, InfoAndFirstDepositBy* or PayloadBy*.
 func (txs RawTransactions) Geth() (types.Transactions, error) {
 	out := make(types.Transactions, len(txs))
 	for i, raw := range txs {

@@ -100,8 +100,8 @@ The `op-service/sources` clients speak raw JSON-RPC and are the OP-aware client;
 - `HeaderBy*` — headers decode fine from any chain.
 
 There is no accessor for a decoded `0x7D` tx (`PayloadBy*` keeps its raw bytes): a test that
-counts the txs of a Lagoon block must allow for one. `InfoAndTxsBy*` decode a whole body and are
-for L1: every `sources` client rejects a block holding an OP tx there with `ErrOpTxInBody`.
+counts the txs of a Lagoon block must allow for one. `InfoAndTxsBy*` are for L1: on a block
+holding an OP tx they return `ErrOpTxInBody`.
 
 Callers that correlate txs and receipts by index must account for the excluded OP txs:
 `optypes.Receipts.UserReceipts()` pairs index-for-index with `InfoAndUserTxs`.

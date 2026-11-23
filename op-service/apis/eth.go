@@ -27,9 +27,8 @@ type EthBlockInfo interface {
 
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 
-	// InfoAndTxsByHash returns a block's info and all of its transactions as
-	// go-ethereum types. It fails on any L2 block after genesis, which starts
-	// with the L1-info deposit: read L2 bodies through EthL2BlockTxs.
+	// InfoAndTxsByHash returns a block's info and all of its transactions. It
+	// fails on an L2 block: read L2 bodies through EthL2BlockTxs.
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 
 	InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error)

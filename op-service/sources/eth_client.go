@@ -353,11 +353,8 @@ func (s *EthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.
 	return eth.HeaderBlockInfo(header), nil
 }
 
-// InfoAndTxsByHash returns the block info and all of the block's transactions
-// decoded as go-ethereum types. It returns ErrOpTxInBody for any L2 block after
-// genesis, which starts with the L1-info deposit: read L2 bodies with the
-// class-partitioned accessors (InfoAndUserTxsBy*, InfoAndDepositsByHash,
-// InfoAndFirstDepositBy*).
+// InfoAndTxsByHash returns the block info and all of the block's transactions;
+// see RawTransactions.Geth for L2 blocks.
 func (s *EthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
 	header, rawTxs, err := s.headerAndRawTxsByHash(ctx, hash)
 	if err != nil {

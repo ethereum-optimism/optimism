@@ -214,7 +214,7 @@ func TestRPCBlockNullTransactionRejected(t *testing.T) {
 
 // TestRawTransactionsGeth decodes the user txs of an L2 block, the only class
 // upstream go-ethereum decodes, and checks they match the block's UserTxs
-// partition. A list holding an OP Stack transaction fails with ErrOpTxInBody.
+// partition, and that an OP Stack tx fails with ErrOpTxInBody.
 func TestRawTransactionsGeth(t *testing.T) {
 	txs := l2BlockTxs(t)
 	userRaw := txs[1 : len(txs)-1] // between the leading deposit and the trailing post-exec tx

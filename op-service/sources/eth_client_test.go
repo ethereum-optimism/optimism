@@ -276,8 +276,7 @@ func testRPCBlock(txs RawTransactions) *RPCBlock {
 	return block
 }
 
-// newEthClientServing returns an EthClient whose RPC answers one block call, made with method and
-// block argument arg, with block. The test fails if that call is not made.
+// newEthClientServing returns an EthClient whose RPC serves block to exactly one method(arg) call.
 func newEthClientServing(t *testing.T, block *RPCBlock, method string, arg any) *EthClient {
 	m := new(mockRPC)
 	m.On("CallContext", mock.Anything, new(*RPCBlock), method, []any{arg, true}).Run(func(args mock.Arguments) {
@@ -289,11 +288,8 @@ func newEthClientServing(t *testing.T, block *RPCBlock, method string, arg any) 
 	return s
 }
 
-// TestEthClientInfoAndTxsRejectsOpTxs pins that the accessors decoding a whole block body reject a
-// block holding an OP Stack transaction with ErrOpTxInBody on a plain EthClient, the client tools
-// dial at L2 endpoints: a Lagoon-shaped L2 block (L1-info deposit, user txs, trailing post-exec
-// tx) and blocks holding only one of the two OP Stack transaction types. The user-tx accessor
-// serves the Lagoon-shaped block.
+// TestEthClientInfoAndTxsRejectsOpTxs checks that a plain EthClient's whole-body accessors reject
+// a block holding either OP Stack tx type with ErrOpTxInBody, while InfoAndUserTxsByHash serves it.
 func TestEthClientInfoAndTxsRejectsOpTxs(t *testing.T) {
 	ctx := t.Context()
 	txs := l2BlockTxs(t)
