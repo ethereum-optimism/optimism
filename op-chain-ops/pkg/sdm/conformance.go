@@ -74,19 +74,22 @@ func ValidatePostExecConformance(ctx context.Context, rpcClient Caller, blockNum
 // tracedGasCaveat names the defect a traced gas mismatch points to (protocol-team#485).
 const tracedGasCaveat = "RPC replay omits the SDM refund settlement"
 
-type callFrameGas struct {
+// callFrame is the top-level callTracer frame; Error is set when execution reverted.
+type callFrame struct {
 	GasUsed hexutil.Uint64 `json:"gasUsed"`
+	Error   string         `json:"error,omitempty"`
 }
 
 // blockTraceResult is one debug_traceBlockByHash row; Error is a failure to trace that
 // transaction, not an execution revert.
 type blockTraceResult struct {
-	Result callFrameGas `json:"result"`
-	Error  string       `json:"error,omitempty"`
+	TxHash common.Hash `json:"txHash"`
+	Result callFrame   `json:"result"`
+	Error  string      `json:"error,omitempty"`
 }
 
 // validateTracedGas requires every row of the block trace, and the trace of the last
-// refunded transaction, to report receipt gasUsed. Both replay the block's earlier
+// refunded transaction, to report receipt gasUsed and status. Both replay the block's earlier
 // transactions, so they agree with receipts only if replay applies the refund settlement.
 func validateTracedGas(ctx context.Context, rpcClient Caller, validation *ValidationResult, receipts map[common.Hash]*RPCReceipt) error {
 	callTracer := map[string]any{"tracer": "callTracer", "tracerConfig": map[string]any{"onlyTopCall": true}}
@@ -98,23 +101,36 @@ func validateTracedGas(ctx context.Context, rpcClient Caller, validation *Valida
 		return fmt.Errorf("debug_traceBlockByHash returned %d traces, want %d", len(blockTraces), len(validation.Block.Transactions))
 	}
 	for i, tx := range validation.Block.Transactions {
-		if blockTraces[i].Error != "" {
-			return fmt.Errorf("debug_traceBlockByHash transaction %d: %s", i, blockTraces[i].Error)
+		row := blockTraces[i]
+		if row.Error != "" {
+			return fmt.Errorf("debug_traceBlockByHash transaction %d: %s", i, row.Error)
 		}
-		got, want := uint64(blockTraces[i].Result.GasUsed), uint64(receipts[tx.Hash].GasUsed)
-		if got != want {
-			return fmt.Errorf("debug_traceBlockByHash transaction %d gasUsed %d, want receipt gasUsed %d (%s)", i, got, want, tracedGasCaveat)
+		if row.TxHash != tx.Hash {
+			return fmt.Errorf("debug_traceBlockByHash transaction %d hash %s, want %s", i, row.TxHash, tx.Hash)
+		}
+		if err := matchReceipt(row.Result, receipts[tx.Hash]); err != nil {
+			return fmt.Errorf("debug_traceBlockByHash transaction %d %w", i, err)
 		}
 	}
 
 	entries := validation.Payload.GasRefundEntries
 	tx := validation.Block.Transactions[entries[len(entries)-1].Index]
-	var frame callFrameGas
+	var frame callFrame
 	if err := rpcClient.CallContext(ctx, &frame, "debug_traceTransaction", tx.Hash, callTracer); err != nil {
 		return fmt.Errorf("debug_traceTransaction(%s): %w", tx.Hash, err)
 	}
-	if got, want := uint64(frame.GasUsed), uint64(receipts[tx.Hash].GasUsed); got != want {
-		return fmt.Errorf("debug_traceTransaction %s gasUsed %d, want receipt gasUsed %d (%s)", tx.Hash, got, want, tracedGasCaveat)
+	if err := matchReceipt(frame, receipts[tx.Hash]); err != nil {
+		return fmt.Errorf("debug_traceTransaction %s %w", tx.Hash, err)
+	}
+	return nil
+}
+
+func matchReceipt(frame callFrame, receipt *RPCReceipt) error {
+	if got, want := uint64(frame.GasUsed), uint64(receipt.GasUsed); got != want {
+		return fmt.Errorf("gasUsed %d, want receipt gasUsed %d (%s)", got, want, tracedGasCaveat)
+	}
+	if reverted, failed := frame.Error != "", uint64(receipt.Status) == types.ReceiptStatusFailed; reverted != failed {
+		return fmt.Errorf("trace error %q, want receipt status %d (%s)", frame.Error, receipt.Status, tracedGasCaveat)
 	}
 	return nil
 }

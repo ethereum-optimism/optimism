@@ -23,19 +23,30 @@ type conformanceRPC struct {
 	rawTx    hexutil.Bytes
 	receipts map[common.Hash]*RPCReceipt
 	replay   *ReplaySDMBlock
-	// Traces report receipt gasUsed unless overridden here, as on a node with settled replay.
+	// Traces report receipt gasUsed and status unless overridden here, as on a node with
+	// settled replay.
 	blockTraceGas  map[common.Hash]uint64
 	blockTraceErr  map[common.Hash]string
+	blockTraceHash map[int]common.Hash
 	txTraceGas     map[common.Hash]uint64
+	traceRevert    map[common.Hash]string
 	dropBlockTrace bool
 	traceRPCErr    map[string]error
 }
 
-func (f *conformanceRPC) tracedGas(hash common.Hash, overrides map[common.Hash]uint64) callFrameGas {
-	if gas, ok := overrides[hash]; ok {
-		return callFrameGas{GasUsed: hexutil.Uint64(gas)}
+func (f *conformanceRPC) tracedFrame(hash common.Hash, gasOverrides map[common.Hash]uint64) callFrame {
+	receipt := f.receipts[hash]
+	frame := callFrame{GasUsed: receipt.GasUsed}
+	if gas, ok := gasOverrides[hash]; ok {
+		frame.GasUsed = hexutil.Uint64(gas)
 	}
-	return callFrameGas{GasUsed: f.receipts[hash].GasUsed}
+	if uint64(receipt.Status) == types.ReceiptStatusFailed {
+		frame.Error = "execution reverted"
+	}
+	if revert, ok := f.traceRevert[hash]; ok {
+		frame.Error = revert
+	}
+	return frame
 }
 
 func (f *conformanceRPC) CallContext(_ context.Context, result any, method string, args ...any) error {
@@ -63,8 +74,12 @@ func (f *conformanceRPC) CallContext(_ context.Context, result any, method strin
 			return fmt.Errorf("traced block %v, want %s", args[0], f.block.Hash)
 		}
 		traces := make([]blockTraceResult, 0, len(f.block.Transactions))
-		for _, tx := range f.block.Transactions {
-			traces = append(traces, blockTraceResult{Result: f.tracedGas(tx.Hash, f.blockTraceGas), Error: f.blockTraceErr[tx.Hash]})
+		for i, tx := range f.block.Transactions {
+			txHash := tx.Hash
+			if hash, ok := f.blockTraceHash[i]; ok {
+				txHash = hash
+			}
+			traces = append(traces, blockTraceResult{TxHash: txHash, Result: f.tracedFrame(tx.Hash, f.blockTraceGas), Error: f.blockTraceErr[tx.Hash]})
 		}
 		if f.dropBlockTrace {
 			traces = traces[:len(traces)-1]
@@ -78,7 +93,7 @@ func (f *conformanceRPC) CallContext(_ context.Context, result any, method strin
 		if !ok {
 			return fmt.Errorf("trace argument is %T", args[0])
 		}
-		value = f.tracedGas(hash, f.txTraceGas)
+		value = f.tracedFrame(hash, f.txTraceGas)
 	default:
 		return fmt.Errorf("unexpected method %s", method)
 	}
@@ -139,8 +154,9 @@ func conformanceFixture(t *testing.T) *conformanceRPC {
 		receipt.OperatorFeeConstant = bigPtr(0)
 		receipt.DAFootprintGasScalar = bigPtr(400)
 	}
-	depositReceipt := &RPCReceipt{Type: optypes.DepositTxType, TxHash: depositHash, BlockHash: blockHash, TransactionIndex: 0, GasUsed: 100, BlobGasUsed: uint64Ptr(99)}
-	userReceipt := &RPCReceipt{Type: types.DynamicFeeTxType, TxHash: userHash, BlockHash: blockHash, TransactionIndex: 1, GasUsed: 93, BlobGasUsed: uint64Ptr(123), OPGasRefund: uint64Ptr(7), L1Fee: bigPtr(3), L1GasUsed: bigPtr(4)}
+	success := hexutil.Uint64(types.ReceiptStatusSuccessful)
+	depositReceipt := &RPCReceipt{Type: optypes.DepositTxType, TxHash: depositHash, BlockHash: blockHash, TransactionIndex: 0, Status: success, GasUsed: 100, BlobGasUsed: uint64Ptr(99)}
+	userReceipt := &RPCReceipt{Type: types.DynamicFeeTxType, TxHash: userHash, BlockHash: blockHash, TransactionIndex: 1, Status: success, GasUsed: 93, BlobGasUsed: uint64Ptr(123), OPGasRefund: uint64Ptr(7), L1Fee: bigPtr(3), L1GasUsed: bigPtr(4)}
 	postReceipt := &RPCReceipt{Type: optypes.PostExecTxType, TxHash: postHash, BlockHash: blockHash, TransactionIndex: 2, Status: hexutil.Uint64(types.ReceiptStatusSuccessful), GasUsed: 0, EffectiveGasPrice: bigPtr(0), BlobGasUsed: uint64Ptr(0), L1Fee: bigPtr(0), L1GasUsed: bigPtr(0)}
 	blockFields(userReceipt)
 	blockFields(postReceipt)
@@ -274,6 +290,15 @@ func TestValidatePostExecConformanceFailures(t *testing.T) {
 		}, want: "debug_traceBlockByHash transaction 1: insufficient funds"},
 		{name: "block trace count", mutate: func(f *conformanceRPC) { f.dropBlockTrace = true }, want: "returned 2 traces, want 3"},
 		{name: "transaction trace pre-refund gas", mutate: func(f *conformanceRPC) { f.txTraceGas = map[common.Hash]uint64{f.block.Transactions[1].Hash: 100} }, want: "gasUsed 100, want receipt gasUsed 93 (" + tracedGasCaveat + ")"},
+		{name: "block trace row hash", mutate: func(f *conformanceRPC) { f.blockTraceHash = map[int]common.Hash{1: common.HexToHash("0xdead")} }, want: "debug_traceBlockByHash transaction 1 hash"},
+		{name: "trace reverts where receipt succeeded", mutate: func(f *conformanceRPC) {
+			f.traceRevert = map[common.Hash]string{f.block.Transactions[1].Hash: "insufficient funds for gas * price + value"}
+		}, want: "debug_traceBlockByHash transaction 1 trace error \"insufficient funds for gas * price + value\", want receipt status 1"},
+		{name: "trace succeeds where receipt failed", mutate: func(f *conformanceRPC) {
+			userHash := f.block.Transactions[1].Hash
+			userReceipt(f).Status = hexutil.Uint64(types.ReceiptStatusFailed)
+			f.traceRevert = map[common.Hash]string{userHash: ""}
+		}, want: "trace error \"\", want receipt status 0"},
 		{name: "post-exec block trace gas", mutate: func(f *conformanceRPC) { f.blockTraceGas = map[common.Hash]uint64{f.block.Transactions[2].Hash: 1} }, want: "debug_traceBlockByHash transaction 2 gasUsed 1, want receipt gasUsed 0"},
 		{name: "block trace rpc error", mutate: func(f *conformanceRPC) {
 			f.traceRPCErr = map[string]error{"debug_traceBlockByHash": errors.New("method not found")}
