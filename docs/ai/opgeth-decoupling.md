@@ -94,14 +94,14 @@ The `op-service/sources` clients speak raw JSON-RPC and are the OP-aware client;
 
 - `InfoAndUserTxsBy*` — header and the standard Ethereum txs (OP txs excluded), as
   `types.Transactions`.
-- `InfoAndDepositsBy*` — deposits as `optypes.DepositTx`.
+- `InfoAndDepositsByHash` — deposits as `optypes.DepositTx`.
 - `InfoAndFirstDepositBy*` — header and the L1-info deposit only.
 - `PayloadBy*` — the block as an execution payload, every tx as raw bytes.
 - `HeaderBy*` — headers decode fine from any chain.
 
 There is no accessor for a decoded `0x7D` tx (`PayloadBy*` keeps its raw bytes): a test that
-counts the txs of a Lagoon block must allow for one. `InfoAndTxsBy*` and `HeaderAndTxsByHash`
-are for L1: `sources.L2Client` rejects an L2 block holding an OP tx there with `ErrOpTxInBody`.
+counts the txs of a Lagoon block must allow for one. `InfoAndTxsBy*` are for L1: on a block
+holding an OP tx they return `ErrOpTxInBody`.
 
 Callers that correlate txs and receipts by index must account for the excluded OP txs:
 `optypes.Receipts.UserReceipts()` pairs index-for-index with `InfoAndUserTxs`.
