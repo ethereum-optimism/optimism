@@ -158,6 +158,7 @@ impl Harness {
                 number,
                 timestamp: number * 12,
                 parent_hash: blocks.last().map(Header::hash_slow).unwrap_or_default(),
+                base_fee_per_gas: Some(7),
                 ..Default::default()
             });
         }

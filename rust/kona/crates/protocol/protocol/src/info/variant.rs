@@ -52,6 +52,8 @@ impl L1BlockInfoTx {
         l1_header: &Header,
         l2_block_time: u64,
     ) -> Result<Self, BlockInfoError> {
+        let base_fee = l1_header.base_fee_per_gas.ok_or(BlockInfoError::MissingL1BaseFee)?;
+
         // In the first block of Ecotone, the L1Block contract has not been upgraded yet due to the
         // upgrade transactions being placed after the L1 info transaction. Because of this,
         // for the first block of Ecotone, we send a Bedrock style L1 block info transaction
@@ -61,7 +63,7 @@ impl L1BlockInfoTx {
             return Ok(Self::Bedrock(L1BlockInfoBedrock::new(
                 l1_header.number,
                 l1_header.timestamp,
-                l1_header.base_fee_per_gas.unwrap_or(0),
+                base_fee,
                 l1_header.hash_slow(),
                 sequence_number,
                 system_config.batcher_address,
@@ -121,7 +123,6 @@ impl L1BlockInfoTx {
 
         let blob_base_fee = l1_header.blob_fee(blob_fee_config).unwrap_or(1);
         let block_hash = l1_header.hash_slow();
-        let base_fee = l1_header.base_fee_per_gas.unwrap_or(0);
 
         if rollup_config.is_jovian_active(l2_block_time) &&
             !rollup_config.is_first_jovian_block(l2_block_time)
@@ -724,7 +725,7 @@ mod test {
         let l1_config = L1Config::sepolia();
         let system_config = SystemConfig::default();
         let sequence_number = 0;
-        let l1_header = Header::default();
+        let l1_header = Header { base_fee_per_gas: Some(7), ..Default::default() };
         let l2_block_time = 0;
 
         let l1_info = L1BlockInfoTx::try_new(
@@ -743,7 +744,7 @@ mod test {
 
         assert_eq!(l1_info.number(), l1_header.number);
         assert_eq!(l1_info.time(), l1_header.timestamp);
-        assert_eq!(l1_info.base_fee(), { l1_header.base_fee_per_gas.unwrap_or(0) });
+        assert_eq!(Some(l1_info.base_fee()), l1_header.base_fee_per_gas);
         assert_eq!(l1_info.block_hash(), l1_header.hash_slow());
         assert_eq!(l1_info.sequence_number(), sequence_number);
         assert_eq!(l1_info.batcher_address(), system_config.batcher_address);
@@ -760,7 +761,7 @@ mod test {
         let l1_config = L1Config::sepolia();
         let system_config = SystemConfig::default();
         let sequence_number = 0;
-        let l1_header = Header::default();
+        let l1_header = Header { base_fee_per_gas: Some(7), ..Default::default() };
         let l2_block_time = 0xFF;
 
         let l1_info = L1BlockInfoTx::try_new(
@@ -779,7 +780,7 @@ mod test {
 
         assert_eq!(l1_info.number(), l1_header.number);
         assert_eq!(l1_info.time(), l1_header.timestamp);
-        assert_eq!(l1_info.base_fee(), { l1_header.base_fee_per_gas.unwrap_or(0) });
+        assert_eq!(Some(l1_info.base_fee()), l1_header.base_fee_per_gas);
         assert_eq!(l1_info.block_hash(), l1_header.hash_slow());
         assert_eq!(l1_info.sequence_number(), sequence_number);
         assert_eq!(l1_info.batcher_address(), system_config.batcher_address);
@@ -832,7 +833,7 @@ mod test {
             &L1Config::sepolia(),
             &system_config,
             0,
-            &Header::default(),
+            &Header { base_fee_per_gas: Some(7), ..Default::default() },
             0xFF,
         )
         .unwrap();
@@ -860,7 +861,7 @@ mod test {
             &L1Config::sepolia(),
             &system_config,
             0,
-            &Header::default(),
+            &Header { base_fee_per_gas: Some(7), ..Default::default() },
             l2_block_time,
         )
         .unwrap();
@@ -897,6 +898,7 @@ mod test {
         let sequence_number = 0;
         let l1_header = Header {
             timestamp: if fork_active { 2 } else { 1 },
+            base_fee_per_gas: Some(7),
             excess_blob_gas: Some(0x5080000),
             blob_gas_used: Some(0x100000),
             requests_hash: Some(B256::ZERO),
@@ -920,7 +922,7 @@ mod test {
 
         assert_eq!(l1_info.number(), l1_header.number);
         assert_eq!(l1_info.time(), l1_header.timestamp);
-        assert_eq!(l1_info.base_fee(), { l1_header.base_fee_per_gas.unwrap_or(0) });
+        assert_eq!(Some(l1_info.base_fee()), l1_header.base_fee_per_gas);
         assert_eq!(l1_info.block_hash(), l1_header.hash_slow());
         assert_eq!(l1_info.sequence_number(), sequence_number);
         assert_eq!(l1_info.batcher_address(), system_config.batcher_address);
@@ -1009,7 +1011,7 @@ mod test {
             L1BlockInfoTx::Isthmus(L1BlockInfoIsthmus::new(
                 l1_header.number,
                 l1_header.timestamp,
-                l1_header.base_fee_per_gas.unwrap_or(0),
+                l1_header.base_fee_per_gas.unwrap(),
                 l1_header.hash_slow(),
                 sequence_number,
                 system_config.batcher_address,
@@ -1076,7 +1078,7 @@ mod test {
             L1BlockInfoTx::Isthmus(L1BlockInfoIsthmus::new(
                 l1_header.number,
                 l1_header.timestamp,
-                l1_header.base_fee_per_gas.unwrap_or(0),
+                l1_header.base_fee_per_gas.unwrap(),
                 l1_header.hash_slow(),
                 sequence_number,
                 system_config.batcher_address,
@@ -1087,6 +1089,25 @@ mod test {
                 system_config.operator_fee_constant.unwrap_or_default(),
             ))
         );
+    }
+
+    #[rstest]
+    #[case::bedrock(HardForkConfig::default())]
+    #[case::ecotone(HardForkConfig { ecotone_time: Some(1), ..Default::default() })]
+    fn test_try_new_missing_l1_base_fee(#[case] hardforks: HardForkConfig) {
+        let rollup_config = RollupConfig { hardforks, ..Default::default() };
+        let l1_header = Header { base_fee_per_gas: None, ..Default::default() };
+
+        let err = L1BlockInfoTx::try_new(
+            &rollup_config,
+            &L1Config::sepolia(),
+            &SystemConfig::default(),
+            0,
+            &l1_header,
+            0xFF,
+        )
+        .unwrap_err();
+        assert_eq!(err, BlockInfoError::MissingL1BaseFee);
     }
 
     #[test]

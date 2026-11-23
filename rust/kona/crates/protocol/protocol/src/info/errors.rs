@@ -21,6 +21,9 @@ pub enum BlockInfoError {
     /// Failed to parse the Operator Fee Constant.
     #[error("Failed to parse the Operator fee constant parameter")]
     OperatorFeeConstant,
+    /// The L1 header has no base fee.
+    #[error("The L1 header has no base fee")]
+    MissingL1BaseFee,
 }
 
 /// An error decoding an L1 block info transaction.
