@@ -162,10 +162,10 @@ func (h *headerBlockInfo) UnmarshalJSON(input []byte) error {
 	return h.header.UnmarshalJSON(input)
 }
 
-// maxExcessBlobGas is the largest excess blob gas HeaderBlobBaseFee accepts. The cost of computing
-// the blob fee grows with the square of the excess blob gas. At this bound, the blob fee is above
-// e^200 wei under every blob schedule go-ethereum defines, which no L1 block can reach.
-const maxExcessBlobGas = 1 << 32
+// maxBlobFeeExponent bounds excessBlobGas / updateFraction, the exponent of the blob fee
+// e^(excessBlobGas/updateFraction) wei. Computing the fee takes time quadratic in the exponent, and
+// from 178 on the fee no longer fits 256 bits (2^256 = e^177.45), so no L1 block can reach it.
+const maxBlobFeeExponent = 178
 
 // HeaderBlobBaseFee returns the blob base fee of h computed from its excess blob gas, or nil if h
 // has no excess blob gas. It returns an error if h has excess blob gas but chainConfig has no blob
@@ -179,8 +179,12 @@ func HeaderBlobBaseFee(chainConfig *params.ChainConfig, h *types.Header) (*big.I
 	if eip4844.MaxBlobsPerBlock(chainConfig, h.Time) == 0 {
 		return nil, fmt.Errorf("header %v has excess blob gas, but no blob schedule is active at its time %d", h.Number, h.Time)
 	}
-	if *h.ExcessBlobGas > maxExcessBlobGas {
-		return nil, fmt.Errorf("header %v has excess blob gas %d above maximum %d", h.Number, *h.ExcessBlobGas, maxExcessBlobGas)
+	bc := chainConfig.BlobConfig(chainConfig.LatestFork(h.Time))
+	if bc == nil || bc.UpdateFraction == 0 {
+		return nil, fmt.Errorf("no blob fee update fraction configured at time %d", h.Time)
+	}
+	if *h.ExcessBlobGas/bc.UpdateFraction >= maxBlobFeeExponent {
+		return nil, fmt.Errorf("header %v has excess blob gas %d, too large for update fraction %d", h.Number, *h.ExcessBlobGas, bc.UpdateFraction)
 	}
 	return eip4844.CalcBlobFee(chainConfig, h), nil
 }
