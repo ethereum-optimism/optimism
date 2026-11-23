@@ -1,0 +1,147 @@
+[
+  {
+    "name": "op-mainnet-110000000-bedrock",
+    "source": "OP Mainnet L2 block 110000000, transaction 0",
+    "variant": "bedrock",
+    "l1Info": {
+      "number": 18208983,
+      "time": 1695598703,
+      "baseFee": "0x18a7792d8",
+      "blockHash": "0xc680467168fae514a7ae2518352f860437e9e462d6c6dac6f31ff4ed5cb64f41",
+      "sequenceNumber": 2,
+      "batcherAddr": "0x6887246668a3b87f54deb3b94ba47a6f63f32985",
+      "l1FeeOverhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "l1FeeScalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    },
+    "calldata": "0x015d8eb9000000000000000000000000000000000000000000000000000000000115d8d7000000000000000000000000000000000000000000000000000000006510c86f000000000000000000000000000000000000000000000000000000018a7792d8c680467168fae514a7ae2518352f860437e9e462d6c6dac6f31ff4ed5cb64f4100000000000000000000000000000000000000000000000000000000000000020000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f3298500000000000000000000000000000000000000000000000000000000000000bc00000000000000000000000000000000000000000000000000000000000a6fe0",
+    "sourceHash": "0xfe13f0c588374af6ec6a0fef933a26d1dee4c964086a4ad79c5af01c50ed0df3",
+    "txHash": "0x9997017283ab31948d6dd38bf50f765c1b9bd266615f042637dd99f85efbf6c0"
+  },
+  {
+    "name": "op-mainnet-118000000-ecotone",
+    "source": "OP Mainnet L2 block 118000000, transaction 0",
+    "variant": "ecotone",
+    "l1Info": {
+      "number": 19530115,
+      "time": 1711598699,
+      "baseFee": "0x5d480dab9",
+      "blockHash": "0x333a4107a0e71e893437bd134771bf2643d9e93c22b6e9c36e4846da59ecd1e6",
+      "sequenceNumber": 1,
+      "batcherAddr": "0x6887246668a3b87f54deb3b94ba47a6f63f32985",
+      "blobBaseFee": "0x19ac964ba",
+      "baseFeeScalar": 1368,
+      "blobBaseFeeScalar": 810949
+    },
+    "calldata": "0x440a5e2000000558000c5fc50000000000000001000000006604ec6b00000000012a018300000000000000000000000000000000000000000000000000000005d480dab9000000000000000000000000000000000000000000000000000000019ac964ba333a4107a0e71e893437bd134771bf2643d9e93c22b6e9c36e4846da59ecd1e60000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f32985",
+    "sourceHash": "0x53081c8e689c565cb190279344127f3236c4b1deb4d0c81b6e0302b24eff8638",
+    "txHash": "0xd8db48022c2d06be87e1b51c2d30162bbf48e12de049c09109f8331d090a5209"
+  },
+  {
+    "name": "op-mainnet-136000000-isthmus",
+    "source": "OP Mainnet L2 block 136000000, transaction 0",
+    "variant": "isthmus",
+    "l1Info": {
+      "number": 22512136,
+      "time": 1747598639,
+      "baseFee": "0x127f235e2",
+      "blockHash": "0x0783c9357afd85f226912e05de7c6d628de748f750c72b6b471f48dfa1510560",
+      "sequenceNumber": 4,
+      "batcherAddr": "0x6887246668a3b87f54deb3b94ba47a6f63f32985",
+      "blobBaseFee": "0x1",
+      "baseFeeScalar": 5227,
+      "blobBaseFeeScalar": 1014213,
+      "operatorFeeScalar": 0,
+      "operatorFeeConstant": 0
+    },
+    "calldata": "0x098999be0000146b000f79c5000000000000000400000000682a3d2f00000000015782080000000000000000000000000000000000000000000000000000000127f235e200000000000000000000000000000000000000000000000000000000000000010783c9357afd85f226912e05de7c6d628de748f750c72b6b471f48dfa15105600000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f32985000000000000000000000000",
+    "sourceHash": "0x733a70f5f1514d70397a14eb8fdc913f1ab4390f32b9421ae94230cd76caec19",
+    "txHash": "0xdbf456e53d560fda2d2a838adad47aa46d0ea5a13301d4a06bf427cb9d8f3c48"
+  },
+  {
+    "name": "op-mainnet-145000000-jovian",
+    "source": "OP Mainnet L2 block 145000000, transaction 0",
+    "variant": "jovian",
+    "l1Info": {
+      "number": 24001186,
+      "time": 1765598699,
+      "baseFee": "0x21b27c0",
+      "blockHash": "0x066a98080e3f023bb98400c4678647c222a48ee147e8e78ff358f092a8b43e92",
+      "sequenceNumber": 2,
+      "batcherAddr": "0x6887246668a3b87f54deb3b94ba47a6f63f32985",
+      "blobBaseFee": "0x245205",
+      "baseFeeScalar": 5227,
+      "blobBaseFeeScalar": 1014213,
+      "operatorFeeScalar": 0,
+      "operatorFeeConstant": 0,
+      "daFootprintGasScalar": 400
+    },
+    "calldata": "0x3db6be2b0000146b000f79c5000000000000000200000000693ce5eb00000000016e3aa200000000000000000000000000000000000000000000000000000000021b27c00000000000000000000000000000000000000000000000000000000000245205066a98080e3f023bb98400c4678647c222a48ee147e8e78ff358f092a8b43e920000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f329850000000000000000000000000190",
+    "sourceHash": "0x22f66c1dd1c02e7a59731c910ee7fa91e44051fec8fe0878a4aa8d5e3c4e73d8",
+    "txHash": "0xd952d06dda574e39cbbf6f7251767ff181735c4f17c20f21275125d3d69a60a5"
+  },
+  {
+    "name": "base-mainnet-61000000-jovian",
+    "source": "Base Mainnet L2 block 61000000, transaction 0",
+    "variant": "jovian",
+    "l1Info": {
+      "number": 26473955,
+      "time": 1795390199,
+      "baseFee": "0x6ea5e84",
+      "blockHash": "0x11af7c57c33f6c800bd0483922d9f46b149a89a0863f58bd7624cde091d71d1f",
+      "sequenceNumber": 18,
+      "batcherAddr": "0x5050f69a9786f081509234f1a7f4684b5e5b76c9",
+      "blobBaseFee": "0x5ffdaf",
+      "baseFeeScalar": 2269,
+      "blobBaseFeeScalar": 1055762,
+      "operatorFeeScalar": 0,
+      "operatorFeeConstant": 0,
+      "daFootprintGasScalar": 148
+    },
+    "calldata": "0x3db6be2b000008dd00101c120000000000000012000000006b037af7000000000193f5e30000000000000000000000000000000000000000000000000000000006ea5e8400000000000000000000000000000000000000000000000000000000005ffdaf11af7c57c33f6c800bd0483922d9f46b149a89a0863f58bd7624cde091d71d1f0000000000000000000000005050f69a9786f081509234f1a7f4684b5e5b76c90000000000000000000000000094",
+    "sourceHash": "0x4ab813f0731733ae07a4c85d5948528eb566181f5d1dbb2a3840a4ded173e9de",
+    "txHash": "0x7e9fa311be03a08fed72b9febe145cc8cf02cbc8ad109fa589b576b2b8680125"
+  },
+  {
+    "name": "synthetic-isthmus-operator-fee",
+    "source": "synthetic: no live chain sets an operator fee",
+    "variant": "isthmus",
+    "l1Info": {
+      "number": 19655712,
+      "time": 1713121139,
+      "baseFee": "0x26e9f1099",
+      "blockHash": "0x1c4c84c50740386c7dc081efddd644405f04cde73e30a2e381737acce9f5add3",
+      "sequenceNumber": 5,
+      "batcherAddr": "0x6887246668a3b87f54deb3b94ba47a6f63f32985",
+      "blobBaseFee": "0x1",
+      "baseFeeScalar": 1368,
+      "blobBaseFeeScalar": 810949,
+      "operatorFeeScalar": 43981,
+      "operatorFeeConstant": 56506
+    },
+    "calldata": "0x098999be00000558000c5fc5000000000000000500000000661c277300000000012bec20000000000000000000000000000000000000000000000000000000026e9f109900000000000000000000000000000000000000000000000000000000000000011c4c84c50740386c7dc081efddd644405f04cde73e30a2e381737acce9f5add30000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f329850000abcd000000000000dcba",
+    "sourceHash": "0xc19f8afc169e8aa4afe3bbf53a67ca9367922eb15fd86631ffa8422696f250d5",
+    "txHash": "0x79e29f8b4956568b73cae93baa0aedf10e29700497bfa222275837a42d993e7e"
+  },
+  {
+    "name": "synthetic-jovian-max-fields",
+    "source": "synthetic: every field at or near the maximum the Rust types hold",
+    "variant": "jovian",
+    "l1Info": {
+      "number": 18364758544493064720,
+      "time": 18364758544493064721,
+      "baseFee": "0xffffffffffffffff",
+      "blockHash": "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe",
+      "sequenceNumber": 18364758544493064722,
+      "batcherAddr": "0xfffffffffffffffffffffffffffffffffffffffd",
+      "blobBaseFee": "0xffffffffffffffffffffffffffffffff",
+      "baseFeeScalar": 4275878552,
+      "blobBaseFeeScalar": 4275878551,
+      "operatorFeeScalar": 4275878550,
+      "operatorFeeConstant": 18364758544493064723,
+      "daFootprintGasScalar": 65244
+    },
+    "calldata": "0x3db6be2bfedcba98fedcba97fedcba9876543212fedcba9876543211fedcba9876543210000000000000000000000000000000000000000000000000ffffffffffffffff00000000000000000000000000000000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe000000000000000000000000fffffffffffffffffffffffffffffffffffffffdfedcba96fedcba9876543213fedc",
+    "sourceHash": "0x0810583e74dce3e5da18148137e71576999612d3e1b5540080d65a521adceb61",
+    "txHash": "0x1c89b841a9a76e567f91a61104a8365260eb8107e1526ab057e53da8011fbeea"
+  }
+]
