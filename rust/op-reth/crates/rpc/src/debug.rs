@@ -251,35 +251,45 @@ where
                     .await?
                     .ok_or(EthApiError::HeaderNotFound(block_id))?;
 
+                let (tx, rx) = oneshot::channel();
                 let this = self.inner.clone();
-                let block_number = block.header().number();
+                self.inner.task_spawner.spawn_blocking_task(async move {
+                    let result = async {
+                        let block_number = block.header().number();
 
-                let state_provider = this
-                    .state_provider_factory
-                    .state_provider(BlockId::Hash(block.parent_hash().into()))
-                    .await
-                    .map_err(EthApiError::from)?;
-                let db = StateProviderDatabase::new((&state_provider).into_evm_state_provider());
-                let block_executor = this.eth_api.evm_config().executor(db);
+                        let state_provider = this
+                            .state_provider_factory
+                            .state_provider(BlockId::Hash(block.parent_hash().into()))
+                            .await?;
+                        let db =
+                            StateProviderDatabase::new((&state_provider).into_evm_state_provider());
+                        let block_executor = this.eth_api.evm_config().executor(db);
 
-                let mut witness = None;
-                let _ = block_executor
-                    .execute_with_state_closure(&block, |statedb: &State<_>| {
-                        witness =
-                            Some(ExecutionWitnessRecord::new(statedb).into_execution_witness(
-                                &state_provider,
-                                &this.provider,
-                                block_number,
-                                Default::default(),
-                            ));
-                    })
-                    .map_err(EthApiError::from)?;
+                        let mut witness = None;
+                        let _ = block_executor.execute_with_state_closure(
+                            &block,
+                            |statedb: &State<_>| {
+                                witness = Some(
+                                    ExecutionWitnessRecord::new(statedb).into_execution_witness(
+                                        &state_provider,
+                                        &this.provider,
+                                        block_number,
+                                        Default::default(),
+                                    ),
+                                );
+                            },
+                        )?;
 
-                let exec_witness = witness
-                    .expect("state closure is called after successful execution")
-                    .map_err(EthApiError::from)?;
+                        Ok::<_, EthApiError>(
+                            witness.expect("state closure is called after successful execution")?,
+                        )
+                    };
 
-                Ok(exec_witness)
+                    let _ = tx.send(result.await);
+                });
+
+                let witness = rx.await.map_err(|err| internal_rpc_err(err.to_string()))??;
+                Ok(witness)
             })
             .await
     }
