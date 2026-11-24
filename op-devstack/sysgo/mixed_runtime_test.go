@@ -75,6 +75,7 @@ func TestResolveMixedL2CLKind(t *testing.T) {
 		{env: "", want: MixedL2CLOpNode},
 		{env: "op-node", want: MixedL2CLOpNode},
 		{env: "kona-node", want: MixedL2CLKona},
+		{env: "op-reth", want: MixedL2CLOpReth},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			t.Setenv("DEVSTACK_L2CL_KIND", tc.env)
