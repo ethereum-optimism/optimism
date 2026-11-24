@@ -105,7 +105,7 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
     ///         hook was set.
     function test_finalizeWithdrawal_hookOrBridgeTarget_reverts() external {
         Types.WithdrawalTransaction memory toHook = _holdWithdrawalCall(1, address(module));
-        Types.WithdrawalTransaction memory toBridge = _holdERC20Call(2);
+        Types.WithdrawalTransaction memory toBridge = _holdERC20Call(2, address(L1Token), address(L2Token));
         Types.OutputRootProof memory noProof;
 
         vm.expectRevert(IOptimismPortal2.OptimismPortal_BadTarget.selector);
@@ -134,7 +134,7 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
         _depositERC20(alice, bob, AMOUNT);
 
         Types.WithdrawalTransaction memory toHook = _holdWithdrawalCall(1, address(module));
-        Types.WithdrawalTransaction memory toBridge = _holdERC20Call(2);
+        Types.WithdrawalTransaction memory toBridge = _holdERC20Call(2, address(L1Token), address(L2Token));
         bytes32 hookHash = _prove(toHook);
         bytes32 bridgeHash = _prove(toBridge);
         _warpToFinalizable(bridgeHash);
@@ -148,6 +148,27 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
 
         assertEq(module.items(_heldByCall()).heldAt, 0, "hold recorded");
         _assertTokenCustody({ _escrowed: AMOUNT, _held: 0 });
+    }
+
+    /// @notice Tests that once the hook is removed, a withdrawal that asks the L1StandardBridge to
+    ///         hold a mintable token transfer fails.
+    function test_finalizeWithdrawal_formerHookMintableToken_succeeds() external {
+        vm.prank(optimismPortal2.proxyAdminOwner());
+        optimismPortal2.removeHook();
+        address mintable =
+            l1OptimismMintableERC20Factory.createOptimismMintableERC20(address(NativeL2Token), "L1", "L1");
+
+        Types.WithdrawalTransaction memory toBridge = _holdERC20Call(1, mintable, address(NativeL2Token));
+        bytes32 bridgeHash = _prove(toBridge);
+        _warpToFinalizable(bridgeHash);
+
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalFinalized(bridgeHash, false);
+        optimismPortal2.finalizeWithdrawalTransaction(toBridge);
+
+        assertEq(
+            uint8(l1StandardBridge.heldTokenKinds(bytes32(0))), uint8(BridgeHookTypes.TokenKind.None), "hold recorded"
+        );
     }
 
     /// @notice Tests that once the hook is replaced, a withdrawal that the new hook lets through
@@ -320,19 +341,24 @@ contract ComplianceLifecycle_Integration_Test is ComplianceIntegration_TestInit 
         tx_.data = abi.encodeCall(IBridgeHook.holdWithdrawal, (item));
     }
 
-    /// @notice Builds a withdrawal from alice that asks the L1StandardBridge to move escrowed
-    ///         tokens to the hook.
-    function _holdERC20Call(uint256 _nonce) internal view returns (Types.WithdrawalTransaction memory tx_) {
+    /// @notice Builds a withdrawal from alice that asks the L1StandardBridge to hold a transfer of
+    ///         the token pair. The bridge moves escrowed tokens to the hook, but no mintable ones.
+    function _holdERC20Call(
+        uint256 _nonce,
+        address _l1Token,
+        address _l2Token
+    )
+        internal
+        view
+        returns (Types.WithdrawalTransaction memory tx_)
+    {
         tx_ = _withdrawal(_nonce, alice, address(l1StandardBridge), 0);
         tx_.data = abi.encodeCall(
             IL1StandardBridge.holdERC20,
             (
                 bytes32(0),
                 BridgeHookTypes.Direction.Withdrawal,
-                abi.encodeCall(
-                    IStandardBridge.finalizeBridgeERC20,
-                    (address(L1Token), address(L2Token), alice, alice, AMOUNT, hex"")
-                )
+                abi.encodeCall(IStandardBridge.finalizeBridgeERC20, (_l1Token, _l2Token, alice, alice, AMOUNT, hex""))
             )
         );
     }
