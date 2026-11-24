@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-node/config"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -192,7 +191,7 @@ func setupHAInfra(t *testing.T, ctx context.Context) (*e2esys.System, map[string
 		nodePRC := sys.RollupNodes[cfg.name].UserRPC().RPC()
 		engineRPC := sys.EthInstances[cfg.name].UserRPC().RPC()
 
-		conduc, err := setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, cfg.paused, *sys.RollupConfig)
+		conduc, err := setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, cfg.paused)
 		require.NoError(t, err, "failed to set up conductor %s", cfg.name)
 		out[cfg.name] = conduc
 		// Signal that the conductor RPC endpoint is ready
@@ -206,7 +205,6 @@ func setupConductor(
 	t *testing.T,
 	serverID, dir, nodeRPC, engineRPC string,
 	bootstrap bool, paused bool,
-	rollupCfg rollup.Config,
 ) (*conductor, error) {
 	cfg := con.Config{
 		ConsensusAddr:           localhost,
@@ -233,7 +231,6 @@ func setupConductor(
 			UnsafeInterval: 30,
 			SafeInterval:   30,
 		},
-		RollupCfg:      rollupCfg,
 		RPCEnableProxy: true,
 		LogConfig: logcli.CLIConfig{
 			Level: log.LevelDebug,

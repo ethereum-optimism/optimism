@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -19,9 +18,6 @@ import (
 func TestCommitAndRead(t *testing.T) {
 	log := testlog.Logger(t, log.LevelInfo)
 	now := uint64(time.Now().Unix())
-	rollupCfg := &rollup.Config{
-		CanyonTime: &now,
-	}
 	storageDir := "/tmp/sequencerA"
 	if err := os.RemoveAll(storageDir); err != nil {
 		t.Fatal(err)
@@ -33,7 +29,6 @@ func TestCommitAndRead(t *testing.T) {
 		AdvertisedAddr:     "",          // use local address that the server binds to
 		StorageDir:         storageDir,
 		Bootstrap:          true,
-		RollupCfg:          rollupCfg,
 		SnapshotInterval:   120 * time.Second,
 		SnapshotThreshold:  10240,
 		TrailingLogs:       8192,

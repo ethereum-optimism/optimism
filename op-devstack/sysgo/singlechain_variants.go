@@ -413,7 +413,6 @@ func startConductorNode(
 		ExecutionRPC:            l2EL.UserRPC(),
 		Paused:                  paused,
 		HealthCheck:             healthCheck,
-		RollupCfg:               *l2Net.rollupCfg,
 		RPCEnableProxy:          true,
 		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelInfo,

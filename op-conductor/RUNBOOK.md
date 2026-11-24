@@ -26,12 +26,17 @@ OP_CONDUCTOR_CONSENSUS_PORT=<consensus-port> # for example 50050
 OP_CONDUCTOR_PAUSED=true # set to true to start conductor in paused state
 OP_CONDUCTOR_NODE_RPC=<node-rpc-endpoint> # for example, http://op-node:8545
 OP_CONDUCTOR_EXECUTION_RPC=<execution-rpc-endpoint> # for example, http://op-reth:8545
-OP_CONDUCTOR_NETWORK=<network-name> # for example, op-mainnet, etc, should be same as OP_NODE_NETWORK
+OP_CONDUCTOR_EXECUTION_HEADER_CACHE_SIZE=1000 # optional, defaults to 1,000 headers
 OP_CONDUCTOR_HEALTHCHECK_INTERVAL=<healthcheck-interval> # in seconds
 OP_CONDUCTOR_HEALTHCHECK_UNSAFE_INTERVAL=<unsafe-interval> # Interval allowed between unsafe head and now measured in seconds
 OP_CONDUCTOR_HEALTHCHECK_MIN_PEER_COUNT=<min-peer-count> # minimum number of peers required to be considered healthy
 OP_CONDUCTOR_RAFT_BOOTSTRAP=true/false # set to true if you want to bootstrap the raft cluster
 ```
+
+The legacy `--network`, `--rollup.config`, and `--override.*` flags and their
+environment variables are deprecated. Conductor logs a warning when they are set
+and ignores their values. Configure the chain and fork activations on the paired
+op-node.
 
 ### How to bootstrap a sequencer cluster from scratch
 
