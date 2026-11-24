@@ -1,0 +1,73 @@
+---
+title: ZK 증명 설명
+description: 제안은 이의가 제기되지 않는 한 유효하게 유지되고, 이의가 제기된 제안은 영지식 증명으로 증명해야 하는 낙관적 ZK 증명으로 OP Stack이 출금을 보호하는 방식을 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<NormativeSpec
+  what="ZK 분쟁 게임"
+  title="ZK 분쟁 게임 명세"
+  href="https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html"
+  note="이 페이지는 개념 설명 문서이며, 명세 내용을 다시 서술하지 않습니다."
+/>
+
+<ZkProofsStatus />
+
+ZK 증명(ZK proof)은 OP Stack 체인이 Ethereum에 자신의 상태를 증명하는 방법으로, 이를 통해 사용자는 제3자를 신뢰하지 않고도 출금할 수 있습니다. 누구나 L1에 체인 상태를 제안할 수 있고, 누구나 제안에 이의를 제기할 수 있습니다. 이의가 제기된 제안은 기한 내에 영지식 증명(zero-knowledge proof)으로 정확성이 증명되어야 하며, 그렇지 않으면 실패합니다.
+
+이 시스템은 낙관적(optimistic)입니다. 누군가 이의를 제기하지 않는 한 제안은 올바른 것으로 간주되며, 아무도 이의를 제기하지 않은 제안에는 증명이 필요하지 않습니다. 증명은 이의 제기가 발생했을 때만 필요하므로, 증명 비용은 모든 제안마다가 아니라 드물게 발생하는 분쟁 상황에서만 지불됩니다.
+
+## 제안 {#proposals}
+
+제안은 특정 시점의 체인 상태에 대한 주장(claim)으로, L1의 `DisputeGameFactory` 컨트랙트에 제출됩니다. 각 제안은 새로운 [ZK 분쟁 게임(dispute game)](/ko/op-stack/zk-proofs/zk-dispute-game)을 생성하며, proposer는 제안과 함께 bond를 예치합니다.
+
+모든 제안은 **super root**입니다. super root는 특정 타임스탬프에서 해당 체인의 interop set에 속한 모든 체인의 output root에 커밋하는 단일 해시입니다. interop set에 속하지 않은 체인은 체인 하나로 구성된 set으로 취급되므로, 두 경우 모두 동일한 게임과 동일한 증명 시스템을 사용합니다.
+
+각 제안은 이전 제안을 기반으로 합니다. 게임은 부모 게임을 지정하며, 그 주장은 체인이 부모의 super root에서 자신의 super root로 이동했다는 것입니다. 일련의 게임 중 첫 번째 게임은 `AnchorStateRegistry`에 기록된 앵커 상태(anchor state)를 기반으로 합니다. 따라서 증명은 체인의 전체 기록이 아니라 두 제안 사이의 블록만 다루면 됩니다.
+
+제안은 무허가(permissionless) 방식입니다. 체인 운영자는 제안이 정기적으로 반영되도록 [`op-zk-proposer`](/ko/op-stack/components/op-zk-proposer)를 실행하지만, 어떤 계정이든 bond를 지불하면 게임을 생성할 수 있습니다.
+
+## 이의 제기 {#challenges}
+
+제안이 잘못되었다고 판단하는 사람은 누구나 challenger bond를 예치하여 이의를 제기할 수 있습니다. 게임에는 한 번만, 그리고 이의 제기 기간(challenge window) 동안에만 이의를 제기할 수 있습니다.
+
+이의 제기 기간이 끝나기 전에 아무도 이의를 제기하지 않으면 제안이 승리합니다. 이의가 제기되면 게임은 증명 기간(prove window)에 들어가며, 이 기간이 끝나기 전에 누군가가 제안이 올바르다는 유효한 ZK 증명을 제출해야 합니다. 유효한 증명이 제출되면 proposer가 게임에서 승리합니다. 기한까지 증명이 없으면 challenger가 승리하여 proposer의 bond를 가져갑니다.
+
+이러한 결과는 부모 게임이 승리했다는 것을 전제로 합니다. 부모 게임이 패배했다면 유효한 증명이 있더라도 해당 게임도 패배합니다. 자세한 내용은 [해결에서 출금까지](#from-resolution-to-withdrawal)를 참고하십시오.
+
+이의 제기는 단일 트랜잭션입니다. 양측이 주고받는 과정이 없으며, challenger는 비교 대상이 되는 올바른 super root 외에는 아무것도 계산할 필요가 없습니다. 운영자는 [`op-challenger`](/ko/op-stack/components/op-challenger)를 실행하여 모든 제안을 자신의 node와 대조하고 유효하지 않은 제안에 이의를 제기합니다.
+
+## 증명 {#proofs}
+
+ZK 증명은 어떤 프로그램이 특정 입력에 대해 올바르게 실행되었음을 보여 주는 짧은 암호학적 증명입니다. OP Stack의 경우, 이 프로그램은 부모의 super root에서 시작하여 L1 데이터로부터 각 체인을 다시 도출(derive)하고 블록을 실행한 뒤, 그 결과가 제안된 super root와 일치하는지 확인합니다. L1 컨트랙트는 아무것도 다시 실행하지 않고 한 번의 호출로 증명을 검증합니다.
+
+증명은 Succinct의 [SP1 zkVM](https://github.com/succinctlabs/sp1)을 사용하여 offchain에서 생성됩니다. 이 zkVM은 OP Stack 상태 전이를 구현하는 것과 동일한 [Kona](/ko/op-stack/components/kona-client) 코드로 빌드된 프로그램을 실행합니다. proposer는 [Succinct Prover Network](https://docs.succinct.xyz/)에서 증명을 구매하거나 자체 GPU로 직접 생성합니다. 증명이 만들어지는 방식은 [ZK 증명 시스템](/ko/op-stack/zk-proofs/proof-system)을 참고하십시오.
+
+증명 역시 무허가 방식입니다. 누구나 어떤 게임에 대해서든 증명을 제출할 수 있으며, 증명은 이를 제출하는 주소에 바인딩되므로 다른 사람이 복사해 사용할 수 없습니다. 실제로는 체인 운영자의 proposer가 이의가 제기된 게임을 증명합니다.
+
+## 빠른 최종성 {#fast-finality}
+
+아무도 이의를 제기하지 않은 미증명 게임은 해결되기 전에 이의 제기 기간 전체가 끝날 때까지 기다려야 합니다. proposer는 그럼에도 게임이 생성되는 즉시 자신의 게임을 증명하도록 선택할 수 있습니다. 증명된 게임은 즉시 종료되고 부모 게임이 해결되는 즉시 해결되므로, 결과를 훨씬 빨리 얻을 수 있습니다. 이는 증명 비용을 지불하는 대신 지연 시간을 줄이는 방식입니다.
+
+게임이 일찍 해결되더라도 출금은 여전히 아래에 설명된 보호용 지연 기간을 거쳐야 합니다.
+
+## 해결에서 출금까지 {#from-resolution-to-withdrawal}
+
+게임이 종료되면 누구나 이를 해결(resolve)할 수 있습니다. 게임은 순서대로 해결되며, 부모 게임이 해결되기 전에는 게임을 해결할 수 없습니다. 부모 게임이 패배하면 그 위에 구축된 모든 게임도 패배하며, 누구나 해당 게임들이 종료되기를 기다리지 않고 즉시 해결할 수 있습니다.
+
+해결된 게임은 즉시 신뢰되지 않습니다.
+
+*   `AnchorStateRegistry`는 해결 후 최종성 지연(finality delay) 기간을 기다린 뒤에야 결과를 최종으로 취급합니다. 이 기간 동안 [Guardian](/ko/op-stack/protocol/privileged-roles#guardian)은 잘못 해결된 게임을 블랙리스트에 등록할 수 있습니다.
+*   `OptimismPortal`은 사용자가 출금을 증명한 시점과 최종 확정하는 시점 사이에 증명 성숙 지연(proof maturity delay) 기간을 둡니다.
+*   bond는 `DelayedWETH`를 통해 지급되며, 이 컨트랙트는 게임이 잘못 해결된 경우 자금을 회수할 수 있도록 자체 지연 기간을 추가합니다.
+
+이러한 안전장치가 함께 작동하는 방식은 [ZK 증명 보안](/ko/op-stack/zk-proofs/security)을 참고하십시오.
+
+## 다음 단계 {#next-steps}
+
+*   게임의 수명 주기, 기한, bond에 대해서는 [ZK 분쟁 게임](/ko/op-stack/zk-proofs/zk-dispute-game)을 읽어 보십시오.
+*   증명이 생성되고 검증되는 방식에 대해서는 [ZK 증명 시스템](/ko/op-stack/zk-proofs/proof-system)을 읽어 보십시오.
+*   관련 컨트랙트와 서비스에 대해서는 [ZK 증명 시스템 컴포넌트](/ko/op-stack/zk-proofs/components)를 읽어 보십시오.

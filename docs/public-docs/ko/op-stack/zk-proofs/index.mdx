@@ -1,0 +1,49 @@
+---
+title: ZK 증명
+description: 설명 문서부터 게임, 증명 프로그램, 운영자용 실습 가이드, 규범적 명세까지 OP Stack ZK 증명 시스템을 한곳에서 학습합니다.
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: 2026-11-13
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+ZK 증명(ZK proof)은 OP Stack 체인이 신뢰할 수 있는 제3자 없이 출금을 보호하는 방법입니다. 누구나 Ethereum에 체인 상태를 제안할 수 있고, 누구나 잘못되었다고 판단되는 제안에 이의를 제기할 수 있습니다. 이의가 제기된 제안은 기한 내에 누군가가 영지식 증명(zero-knowledge proof)으로 이를 증명해야만 유효하게 유지되며, 이 증명은 Ethereum에서 단 한 번의 호출로 검증됩니다.
+
+이 페이지는 이 주제에 대한 권장 읽기 순서를 안내합니다. 먼저 설명 문서로 개념 모델을 익힌 다음, 게임과 증명 시스템에 관한 페이지를 읽으며 각 요소가 어떻게 맞물리는지 확인하십시오. 체인을 운영한다면 운영자 가이드를 활용하고, 깊이 있는 내용이 필요하다면 명세를 참고하십시오.
+
+## 여기서 시작하십시오 {#start-here}
+
+*   [ZK 증명 설명](/ko/op-stack/zk-proofs/explainer): 제안, 이의 제기, 증명, 빠른 최종성(fast finality), 그리고 해결된 게임에서 출금까지 이어지는 과정을 다룹니다.
+
+## 더 깊이 알아보기 {#go-deeper}
+
+*   [ZK 분쟁 게임](/ko/op-stack/zk-proofs/zk-dispute-game): 게임의 수명 주기, 부모 게임, bond, 체인별 구성을 다룹니다.
+*   [ZK 증명 시스템](/ko/op-stack/zk-proofs/proof-system): 증명이 무엇을 입증하는지, 증명을 생성하는 SP1 프로그램, absolute prestate, 검증자(verifier)를 다룹니다.
+*   [ZK 증명 시스템 컴포넌트](/ko/op-stack/zk-proofs/components): L1 컨트랙트와 offchain 서비스, 그리고 각각의 운영 주체를 다룹니다.
+*   [ZK 증명 보안](/ko/op-stack/zk-proofs/security): 건전성(soundness), 완전성(completeness), Guardian의 안전장치, 신뢰 가정을 다룹니다.
+*   [ZK 증명 레퍼런스](/ko/op-stack/zk-proofs/reference): 게임 유형, 함수, 파라미터, 상태를 다룹니다.
+
+## 직접 해 보기 {#get-hands-on}
+
+*   [op-zk-proposer 구성하기](/ko/chain-operators/guides/configuration/zk-proposer): 게임을 제안하고, 증명하고, 해결하는 서비스를 실행하고 증명용 계정에 자금을 충전합니다.
+*   [ZK 분쟁 게임을 위한 op-challenger 구성하기](/ko/chain-operators/guides/configuration/zk-challenger): ZK 게임을 위한 정직한 challenger를 실행합니다.
+*   [ZK absolute prestate 검증하기](/ko/chain-operators/tutorials/zk-prestate): 릴리스의 prestate를 찾아 다시 빌드하고, 커스텀 체인용 prestate를 빌드합니다.
+*   [ZK 증명으로 마이그레이션하기](/ko/chain-operators/tutorials/migrate-to-zk-proofs): 체인의 인정되는(respected) 게임 유형을 ZK 분쟁 게임으로 전환합니다.
+*   [체인 모니터링](/ko/chain-operators/tools/chain-monitoring#dispute-mon): `op-dispute-mon`을 실행하여 모든 게임을 추적합니다.
+
+## 규범적 명세 {#the-normative-spec}
+
+*   [ZK 분쟁 게임](https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html?utm_source=op-docs&utm_medium=docs): 게임 컨트랙트와 그 구성, 가정, 불변 조건(invariant)을 다룹니다.
+*   [게임 메커니즘](https://specs.optimism.io/fault-proof/stage-one/zk/game-mechanics.html?utm_source=op-docs&utm_medium=docs): 생성, 이의 제기, 증명, 해결, bond 분배를 다룹니다.
+*   [`IZKVerifier` 인터페이스](https://specs.optimism.io/fault-proof/stage-one/zk/zk-interface.html?utm_source=op-docs&utm_medium=docs): 게임이 검증자를 호출하는 방식을 다룹니다.
+*   [ZK 증명 시스템](https://specs.optimism.io/fault-proof/zk-proof-system.html?utm_source=op-docs&utm_medium=docs): 증명 프로그램의 입력, 출력, absolute prestate를 다룹니다.
+*   [ZK 분쟁 게임 마이그레이션](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs): ZK 분쟁 게임으로 업그레이드하는 지원 경로를 다룹니다.
+*   [정직한 행위자](https://specs.optimism.io/fault-proof/stage-one/zk/honest-actors.html?utm_source=op-docs&utm_medium=docs): 정직한 proposer, prover, challenger가 언제 행동하는지 다룹니다.
+
+## 감사 및 보안 {#audits-and-security}
+
+*   [ZK 증명 보안](/ko/op-stack/zk-proofs/security): 보안 모델과 그 안전장치를 다룹니다.
+*   [감사 보고서](/ko/op-stack/security/audit-reports): OP Stack 보안 검토 목록입니다.
