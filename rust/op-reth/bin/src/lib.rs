@@ -33,7 +33,7 @@ pub use overrides::{OpRethArgs, OpRethOverrides};
 
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_chainspec::{is_superchain_chain_id, superchain_block_time};
-use reth_optimism_node::{OpNode, args::RollupArgs};
+use reth_optimism_node::{OpLaunchHooks, OpNode, args::RollupArgs, launch_node};
 use std::{borrow::Cow, fmt};
 use tracing::warn;
 
@@ -111,15 +111,21 @@ where
         }
     }
 
-    let OpRethOverrides { version, run_node } = overrides;
+    let OpRethOverrides { version, node_mapper } = overrides;
     // Install the build metadata before clap reads it during parsing.
     try_init_version_metadata(version.unwrap_or_else(op_reth_version))
         .map_err(|_| eyre::eyre!("build info is already embedded. This is a bug."))?;
 
     reth_optimism_cli::Cli::<OpRethArgs<Ext>>::parse_with_denied_args().run(
-        async move |builder, OpRethArgs { rollup, ext }| {
+        async move |mut builder, OpRethArgs { rollup, ext }| {
             let node = op_node(builder.config().chain.chain.id(), rollup)?;
-            run_node(builder, ext, node).await
+            if let Some(mapper) = node_mapper {
+                let (node, hooks) = mapper(builder.config_mut(), ext, node).await?;
+                node.launch(builder, hooks).await
+            } else {
+                // Keep the stock launch compiled in reth-optimism-node.
+                launch_node(builder, node, OpLaunchHooks::default()).await
+            }
         },
     )
 }

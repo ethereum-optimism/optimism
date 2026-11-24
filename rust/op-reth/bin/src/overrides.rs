@@ -6,7 +6,7 @@ use reth_db::DatabaseEnv;
 use reth_node_builder::{NodeBuilder, WithLaunchContext};
 use reth_node_core::{node_config::NodeConfig, version::RethCliVersionConsts};
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_node::{LaunchOpNode, OpLaunchHooks, OpNode, args::RollupArgs, launch_node};
+use reth_optimism_node::{LaunchOpNode, OpLaunchHooks, OpNode, args::RollupArgs};
 use std::{fmt, ops::AsyncFnOnce};
 
 /// The arguments of the `node` command: op-reth's own, then those of the binary that embeds it.
@@ -20,14 +20,37 @@ pub struct OpRethArgs<Ext: clap::Args = NoArgs> {
     pub ext: Ext,
 }
 
-/// Runs the node selected by the overrides with op-reth's launcher.
-type RunNode<Ext> = Box<
-    dyn FnOnce(
-        WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+/// Maps the configured node and returns it with its launch hooks.
+type NodeMapper<Ext> = Box<
+    dyn for<'a> FnOnce(
+        &'a mut NodeConfig<OpChainSpec>,
         Ext,
         OpNode,
-    ) -> LocalBoxFuture<'static, eyre::Result<()>>,
+    )
+        -> LocalBoxFuture<'a, eyre::Result<(Box<dyn MappedOpNode>, OpLaunchHooks)>>,
 >;
+
+/// Holds a mapped OP node without exposing its builder types on `OpRethOverrides`.
+pub(crate) trait MappedOpNode {
+    fn launch(
+        self: Box<Self>,
+        builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+        hooks: OpLaunchHooks,
+    ) -> LocalBoxFuture<'static, eyre::Result<()>>;
+}
+
+impl<Pool, Payload> MappedOpNode for OpNode<Pool, Payload>
+where
+    Self: LaunchOpNode + 'static,
+{
+    fn launch(
+        self: Box<Self>,
+        builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+        hooks: OpLaunchHooks,
+    ) -> LocalBoxFuture<'static, eyre::Result<()>> {
+        LaunchOpNode::launch(*self, builder, hooks).boxed_local()
+    }
+}
 
 /// Startup overrides that [`main_with`](crate::main_with) applies.
 ///
@@ -35,7 +58,7 @@ type RunNode<Ext> = Box<
 pub struct OpRethOverrides<Ext = NoArgs> {
     /// The build metadata to report instead of op-reth's.
     pub(crate) version: Option<RethCliVersionConsts>,
-    pub(crate) run_node: RunNode<Ext>,
+    pub(crate) node_mapper: Option<NodeMapper<Ext>>,
 }
 
 impl Default for OpRethOverrides {
@@ -47,13 +70,7 @@ impl Default for OpRethOverrides {
 impl OpRethOverrides {
     /// Creates overrides that run op-reth itself.
     pub fn new() -> Self {
-        Self {
-            version: None,
-            // The concrete entry point keeps the stock launch compiled in reth-optimism-node.
-            run_node: Box::new(|builder, _, node| {
-                launch_node(builder, node, OpLaunchHooks::default()).boxed_local()
-            }),
-        }
+        Self { version: None, node_mapper: None }
     }
 }
 
@@ -98,13 +115,14 @@ impl<Ext> OpRethOverrides<Ext> {
     {
         OpRethOverrides {
             version: self.version,
-            run_node: Box::new(move |mut builder, args, node| {
+            node_mapper: Some(Box::new(move |config, args, node| {
                 async move {
-                    let (node, hooks) = mapper(builder.config_mut(), args, node).await?;
-                    node.launch(builder, hooks).await
+                    let (node, hooks) = mapper(config, args, node).await?;
+                    let node: Box<dyn MappedOpNode> = Box::new(node);
+                    Ok((node, hooks))
                 }
                 .boxed_local()
-            }),
+            })),
         }
     }
 }

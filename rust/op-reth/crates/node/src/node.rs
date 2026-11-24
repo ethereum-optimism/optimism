@@ -223,21 +223,6 @@ impl OpNode {
         Self { args, builder_config, pool, payload }
     }
 
-    /// Configure data availability throttling for the stock payload service and RPC.
-    pub fn with_da_config(mut self, da_config: OpDAConfig) -> Self {
-        self.payload.builder_config_mut().da_config = da_config.clone();
-        self.builder_config.da_config = da_config;
-        self
-    }
-
-    /// Use the same operator gas limit in the stock pool, payload service and RPC.
-    pub fn with_gas_limit_config(mut self, gas_limit_config: OpGasLimitConfig) -> Self {
-        self.pool.gas_limit_config = gas_limit_config.clone();
-        self.payload.builder_config_mut().gas_limit_config = gas_limit_config.clone();
-        self.builder_config.gas_limit_config = gas_limit_config;
-        self
-    }
-
     /// Instantiates the [`ProviderFactoryBuilder`] for an opstack node.
     ///
     /// # Open a Providerfactory in read-only mode from a datadir
@@ -2053,27 +2038,32 @@ mod tests {
     }
 
     #[test]
-    fn builder_config_matches_stock_components() {
-        let mut node = OpNode::new(RollupArgs {
+    fn builder_config_updates_reach_existing_components() {
+        let node = OpNode::new(RollupArgs {
             max_uncompressed_block_size: Some(7_340_032),
             operator_sdm_opt_in: true,
             ..Default::default()
-        })
-        .with_da_config(OpDAConfig::new(100, 200))
-        .with_gas_limit_config(OpGasLimitConfig::new(30_000_000));
-        node.pool.interop_failsafe.set(true);
+        });
+        let pool = node.standard_pool_builder::<OpPooledTransaction>();
+        let payload = node.payload_builder();
         let add_ons = node.add_ons_builder();
         let cfg = node.builder_config();
 
+        cfg.da_config.set_max_da_size(100, 200);
+        cfg.gas_limit_config.set_gas_limit(30_000_000);
+        cfg.interop_failsafe.set(true);
+        assert_eq!(pool.gas_limit_config.gas_limit(), Some(30_000_000));
+        assert_eq!(payload.builder_config.gas_limit_config.gas_limit(), Some(30_000_000));
+        assert_eq!(payload.builder_config.da_config.max_da_block_size(), Some(200));
+        assert!(pool.interop_failsafe.enabled());
+
         add_ons.gas_limit_config.unwrap().set_gas_limit(29_000_000);
         assert_eq!(node.pool.gas_limit_config.gas_limit(), Some(29_000_000));
-        assert_eq!(
-            node.payload.builder_config_mut().gas_limit_config.gas_limit(),
-            Some(29_000_000)
-        );
+        assert_eq!(pool.gas_limit_config.gas_limit(), Some(29_000_000));
+        assert_eq!(payload.builder_config.gas_limit_config.gas_limit(), Some(29_000_000));
 
         add_ons.da_config.unwrap().set_max_block_size(300);
-        assert_eq!(node.payload.builder_config_mut().da_config.max_da_block_size(), Some(300));
+        assert_eq!(payload.builder_config.da_config.max_da_block_size(), Some(300));
 
         assert_eq!(cfg.max_uncompressed_block_size, Some(7_340_032));
         assert_eq!(cfg.da_config.max_da_tx_size(), Some(100));
