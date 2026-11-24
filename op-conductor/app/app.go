@@ -77,7 +77,7 @@ func Lifecycle(cfg Config) cliapp.LifecycleAction {
 		logCfg := logcli.ReadCLIConfig(ctx)
 		logger := logcli.NewLogger(logcli.AppOut(ctx), logCfg)
 		logcli.SetGlobalLogHandler(logger.Handler())
-		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, logger)
+		opservice.ValidateEnvVars(flags.EnvVarPrefix, ctx.App.Flags, logger)
 
 		conductorCfg, err := conductor.NewConfig(ctx, logger)
 		if err != nil {
