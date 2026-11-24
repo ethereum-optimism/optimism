@@ -22,6 +22,12 @@ func TestInteropSingleChainFaultProofsWithSDM(gt *testing.T) {
 	sfp.RunSingleChainSuperFaultProofSDMSmokeTest(t, sys)
 }
 
+func TestInteropSingleChainFaultProofsLagoonBLSLimits(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSingleChainInterop(t)
+	sfp.RunSingleChainSuperFaultProofLagoonBLSLimitsTest(t, sys, proofRunners()...)
+}
+
 func proofRunners() []sfp.ProofRunner {
 	runners := []sfp.ProofRunner{sfp.NewKonaProofRunner()}
 	if os.Getenv("RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR") != "" || os.Getenv("RUST_JIT_BUILD") != "" {
