@@ -99,3 +99,30 @@ async fn debug_tracers_report_settled_gas_and_balances() -> eyre::Result<()> {
     }
     Ok(())
 }
+
+/// Block-level prestate diffs replay every transaction in sequence, so each one ends on the
+/// balances `debug_accountAt` replays at its index, fee vaults included.
+#[tokio::test]
+async fn block_prestate_diffs_report_settled_balances() -> eyre::Result<()> {
+    reth_tracing::init_test_tracing();
+    let fixture = SettledBlock::sequence().await?;
+
+    let diffs = fixture.block_prestate_diffs().await?;
+    assert_eq!(diffs.len(), POST_EXEC_INDEX + 1, "debug_traceBlockByHash prestate trace count");
+    for (index, diff) in diffs.iter().enumerate().take(POST_EXEC_INDEX) {
+        assert!(
+            diff.post.get(&fixture.sender).is_some_and(|account| account.balance.is_some()),
+            "block prestate diff of transaction {index} lacks the sender's balance: {diff:?}",
+        );
+        for (address, account) in &diff.post {
+            if let Some(balance) = account.balance {
+                assert_eq!(
+                    balance,
+                    fixture.replayed_balance(index, *address).await?,
+                    "block prestate diff balance of {address} after transaction {index}",
+                );
+            }
+        }
+    }
+    Ok(())
+}
