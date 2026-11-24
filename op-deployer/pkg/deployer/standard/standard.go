@@ -64,7 +64,7 @@ const (
 	ContractsV700Tag        = "op-contracts/v7.0.0-rc.4"
 	ContractsV800Tag        = "op-contracts/v8.0.0"
 	ContractsV900Tag        = "op-contracts/v9.0.0"
-	ContractsV1000Tag       = "op-contracts/v10.0.0-rc.2"
+	ContractsV1000Tag       = "op-contracts/v10.0.0"
 	CurrentTag              = ContractsV1000Tag
 )
 
