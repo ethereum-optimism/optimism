@@ -1,0 +1,187 @@
+---
+title: op-zk-proposer 구성
+description: ZK 증명을 사용하는 OP Stack 체인에서 op-zk-proposer를 실행하는 방법을 노드 의존성과 서명자부터 prover network 자금 충전, 시작 시 검사, 모니터링까지 안내합니다.
+diataxis: how-to
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+이 가이드는 `DisputeGameFactory`에 ZK 분쟁 게임(dispute game)(game type `10`)이 등록된 체인에서 [`op-zk-proposer`](/ko/op-stack/components/op-zk-proposer)를 설정하는 방법을 설명합니다. proposer는 정해진 간격마다 체인의 super root에 대한 게임을 생성하고, 이의 제기된(challenged) 게임을 증명하며, 게임을 resolve하고 bond를 청구합니다.
+
+기존 체인을 ZK 증명으로 전환하는 경우 [ZK 증명으로 마이그레이션하기](/ko/chain-operators/tutorials/migrate-to-zk-proofs)를 따르십시오. 이 문서에서 proposer를 시작할 시점을 안내합니다. proposer가 시스템에서 어떤 역할을 하는지는 [ZK 증명 시스템 구성 요소](/ko/op-stack/zk-proofs/components)를 참조하십시오.
+
+## 시작하기 전에 {#before-you-start}
+
+다음이 필요합니다.
+
+*   **체인의 `DisputeGameFactory` 주소**. 체인이 [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)에 등록되어 있다면 네트워크 이름을 사용할 수도 있습니다.
+*   `superroot_atTimestamp`를 제공하는 **super root 소스**. interop set의 경우 [`op-supernode`](/ko/node-operators/guides/configuration/supernode)를, 단독 체인의 경우 safe head 데이터베이스(`--safedb.path`)가 활성화된 체인의 `op-node`를 사용합니다. 이중화를 위해 여러 개를 구성할 수 있습니다.
+*   JSON-RPC 배치 요청을 지원하는 **L1 실행 node**와, proposer가 증명하는 범위의 blob sidecar를 제공하는 **L1 beacon node**.
+*   super root에 포함된 **각 체인의 L2 실행 node**. 각 node는 서로 다른 체인을 제공해야 합니다.
+*   개인 키 또는 op-signer와 같은 Web3Signer 호환 원격 서명자 형태의 **L1 트랜잭션 서명자**. init bond와 gas를 감당할 만큼 충분한 ETH가 있어야 합니다. 각 게임은 resolve되고 bond가 청구될 때까지 init bond 하나를 잠그므로, 잔액은 진행 중인 모든 게임을 감당할 수 있어야 합니다.
+*   로컬 GPU로 증명하지 않는 경우 PROVE 잔액이 있는 **Succinct Prover Network 계정**. 증명 비용은 이 계정에서 지불되며, 이 계정은 L1 서명자와 별개입니다. [Prover network 계정 자금 충전](#fund-the-prover-network-account)을 참조하십시오.
+*   체인의 게임이 사용하는 모든 prestate에 대해 prestate의 프로그램 파일인 `<vkey>.agg.bin.gz`, `<vkey>.range.bin.gz`, `<vkey>.log.bin.gz`를 제공하는 **URL**. [ZK absolute prestate 검증하기](/ko/chain-operators/tutorials/zk-prestate)를 참조하십시오.
+
+<Note>
+  이 가이드는 Succinct Prover Network를 사용합니다. proposer는 로컬 NVIDIA GPU에서 증명을 생성할 수도 있습니다. [로컬 GPU로 증명하기](#prove-on-local-gpus)를 참조하십시오.
+</Note>
+
+## 메모리 및 디스크 계획 {#plan-memory-and-disk}
+
+proposer는 증명을 요청하기 전에 각 증명이 읽는 데이터를 수집합니다. 각 요청의 인코딩된 입력은 요청이 업로드될 때까지 메모리에 보관되므로, 동시에 증명하는 청크마다 `OP_ZK_PROPOSER_MAX_STDIN_BYTES`(기본값 1.5 GiB)의 약 두 배에 해당하는 메모리를 계획해야 합니다. proposer는 최대 `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS`개의 게임(기본값 `8`)을 동시에 증명하며, 각 게임에 대해 최대 `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS`개의 청크(기본값 `1`)를 동시에 증명합니다. 기본값을 사용하면 8개 청크, 즉 약 24 GiB가 필요합니다. fast finality를 활성화하면 최대 `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT`개의 게임이 추가됩니다.
+
+수집한 데이터를 메모리 대신 디스크에 보관하려면 `OP_ZK_PROPOSER_DATA_DIR`을 설정하십시오. 인코딩된 요청 입력은 계속 메모리에 남습니다. 이 디렉터리는 재시작 후에도 유지될 필요는 없지만, proposer가 시작할 때 디렉터리에 남아 있는 수집 데이터를 삭제하므로 하나의 proposer 프로세스만 사용해야 합니다. 공격을 받는 상황에서는 하나의 증명에 평소보다 훨씬 많은 데이터가 필요할 수 있으므로, 볼륨 사용량에 대한 알림을 설정하십시오.
+
+## Proposer 구성 {#configure-the-proposer}
+
+proposer는 모두 `OP_ZK_PROPOSER_` 접두사가 붙은 환경 변수로 구성합니다. superchain-registry에 등록된 체인의 최소 구성은 다음과 같습니다.
+
+```bash
+# Chain and nodes
+OP_ZK_PROPOSER_NETWORK=<network name, for example op-sepolia>
+OP_ZK_PROPOSER_L1_RPC=<L1 execution RPC>
+OP_ZK_PROPOSER_L1_BEACON_RPC=<L1 beacon RPC>
+OP_ZK_PROPOSER_SUPERROOT_RPCS=<super root RPC>[,<another super root RPC>]
+OP_ZK_PROPOSER_L2_RPCS=<L2 execution RPC for each chain, comma-separated>
+
+# Proving
+OP_ZK_PROPOSER_PROOF_PROVIDER=network
+OP_ZK_PROPOSER_PRESTATES_URL=<URL of the directory holding the prestate program files>
+OP_ZK_PROPOSER_NETWORK_PRIVATE_KEY=<prover network requester key>
+
+# L1 transactions
+OP_ZK_PROPOSER_PRIVATE_KEY=<L1 signer key>
+
+# Operations
+OP_ZK_PROPOSER_DATA_DIR=/data
+OP_ZK_PROPOSER_METRICS_PORT=7300
+OP_ZK_PROPOSER_LOG_FORMAT=json
+```
+
+superchain-registry에 등록되지 않은 체인의 경우 `OP_ZK_PROPOSER_NETWORK`를 `OP_ZK_PROPOSER_FACTORY_ADDRESS`로 바꾸고, `OP_ZK_PROPOSER_ROLLUP_CONFIG_PATHS`, `OP_ZK_PROPOSER_L1_CONFIG_PATH`, `OP_ZK_PROPOSER_DEPENDENCY_SET_PATH`를 체인의 구성 파일로 설정하십시오. 또한 체인에는 동일한 구성으로 빌드한 prestate가 필요합니다. [커스텀 체인용 prestate 빌드하기](/ko/chain-operators/tutorials/zk-prestate#build-a-prestate-for-a-custom-chain)를 참조하십시오.
+
+프로덕션 환경에서는 키를 환경 변수에 두지 마십시오.
+
+*   L1 서명자에는 `OP_ZK_PROPOSER_SIGNER_URL`과 `OP_ZK_PROPOSER_SIGNER_ADDRESS`를 사용하십시오. mTLS를 사용하려면 `OP_ZK_PROPOSER_SIGNER_TLS_CA`, `OP_ZK_PROPOSER_SIGNER_TLS_CERT`, `OP_ZK_PROPOSER_SIGNER_TLS_KEY`도 설정하십시오.
+*   prover network requester에는 `OP_ZK_PROPOSER_SPN_SIGNER_URL`과 `OP_ZK_PROPOSER_SPN_SIGNER_ADDRESS`를 사용하십시오. 이 서명자는 HTTPS URL과 mTLS를 요구하므로 `OP_ZK_PROPOSER_SPN_SIGNER_TLS_CA`, `OP_ZK_PROPOSER_SPN_SIGNER_TLS_CERT`, `OP_ZK_PROPOSER_SPN_SIGNER_TLS_KEY`도 설정해야 합니다.
+
+가장 자주 변경하게 되는 설정은 다음과 같습니다.
+
+*   `OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS`: 제안(proposal) 사이의 간격(초)입니다(기본값 `3600`). 간격이 길수록 게임과 bond의 수는 줄어들지만, 이의 제기된 게임마다 증명해야 할 블록은 늘어납니다.
+*   `OP_ZK_PROPOSER_PROPOSAL_SAFETY`: `finalized`(기본값) 또는 `safe` L2 상태를 제안합니다. 나중에 변경되는 상태를 제안하면 그 제안은 무효가 되어 bond를 잃으므로, 변경할 이유가 없다면 기본값을 유지하십시오.
+*   `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT`: 이의 제기된 게임의 범위를 나누는 청크 수입니다(기본값 `16`, 최대 `128`). 청크가 많을수록 각 증명 요청은 작아지지만 요청 수는 늘어납니다.
+*   `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS`: 동시에 증명하는 이의 제기된 게임의 수입니다(기본값 `8`).
+
+모든 옵션과 기본값은 [전체 환경 변수 목록](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#environment)을 참조하십시오.
+
+## Prover network 계정 자금 충전 {#fund-the-prover-network-account}
+
+`OP_ZK_PROPOSER_PROOF_PROVIDER=network`를 사용하면 proposer는 prover network requester의 PROVE 잔액으로 증명 비용을 지불합니다. proposer가 실행되면 `op_zk_proposer_spn_requester_info` 메트릭의 `address` 레이블에서 requester의 주소를 확인할 수 있습니다.
+
+requester가 prover network 요청에만 서명할 수 있는 원격 서명자의 키인 경우, 스스로 입금(디파짓)할 수 없습니다. 이 경우 모노레포의 `spn-wallet` 도구를 사용해 다른 계정에서 자금을 충전하십시오.
+
+```bash
+cd rust
+# Transfer PROVE that the funder already holds on the prover network:
+PRIVATE_KEY=<funder key> cargo run -p spn-wallet -- fund --to <requester> --amount 100 --max-fee 1 --broadcast
+# Check the requester's balance history:
+cargo run -p spn-wallet -- history <requester>
+```
+
+`--broadcast` 없이 실행하면 `spn-wallet`은 전송할 내용만 출력하고 아무것도 서명하지 않습니다. PROVE는 Sepolia에 정산하는 체인이라도 항상 Ethereum mainnet에 있습니다. L1에서 입금하는 방법과 KMS 키로 서명하는 방법은 [`spn-wallet` 문서](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#funding-the-spn-requester)를 참조하십시오.
+
+잔액은 여러 게임을 동시에 방어하는 비용보다 충분히 높게 유지하십시오. 잔액이 소진되어 증명하지 못한 이의 제기된 게임은 bond를 잃습니다.
+
+## 로컬 GPU로 증명하기 {#prove-on-local-gpus}
+
+`OP_ZK_PROPOSER_PROOF_PROVIDER=local-cuda`를 사용하면 proposer는 Succinct Prover Network에서 증명을 구매하는 대신 로컬 NVIDIA GPU에서 증명을 생성합니다. prover network 계정이 필요하지 않으므로 prover network 장애 시 백업으로 사용할 수 있습니다. prestate 및 verifier 검사는 `network` 모드와 동일합니다.
+
+이 모드는 GPU prover 서버가 포함된 amd64용 `op-zk-proposer-cuda` 이미지에서만 실행됩니다. 이 이미지는 `op-zk-proposer` 릴리스 `vX.Y.Z`와 동일한 커밋에서 `us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer-cuda:vX.Y.Z`로 게시됩니다. 사용할 GPU의 ID를 쉼표로 구분하여 `OP_ZK_PROPOSER_CUDA_DEVICES`에 설정하십시오(기본값 `0`). 메모리 설정과 proposer가 각 요청을 실행하는 방식은 SP1 통합 README의 [Local CUDA proving](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#local-cuda-proving)을 참조하십시오.
+
+이 모드에서 proposer는 `prove_balance`와 `spn_requester_info`를 내보내지 않습니다.
+
+## Proposer 시작 {#start-the-proposer}
+
+구성을 적용하여 컨테이너 이미지를 실행합니다. 이미지는 사용자 `10001`로 실행되므로, 이 사용자가 `/data`에 마운트된 디렉터리에 쓸 수 있어야 합니다. 새로운 named volume의 경우 처음 실행하기 전에 소유자를 한 번 설정하십시오.
+
+```bash
+docker run --rm -v proposer-data:/data busybox chown 10001:10001 /data
+
+docker run --env-file proposer.env -v proposer-data:/data -p 7300:7300 \
+  us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer:vX.Y.Z
+```
+
+각 `op-zk-proposer/vX.Y.Z` 릴리스 태그는 이미지 태그 `vX.Y.Z`를 게시합니다. 체인의 prestate가 기반으로 하는 `kona-sp1-program` 릴리스를 지원하는 릴리스를 사용하십시오. 두 릴리스는 일반적으로 동일한 커밋에 태그됩니다.
+
+로그에서 `op-zk-proposer started`를 확인하십시오. proposer는 제안하기 전에 다음 검사를 수행합니다.
+
+*   **앵커 상태(Anchor state).** 시작 시 `AnchorStateRegistry`의 앵커 상태가 앵커의 타임스탬프에 대해 super root 소스가 보고하는 super root와 일치할 때까지 대기합니다. 일치하지 않으면 오류를 기록하고 계속 재시도하며, 일치하면 재시작 없이 계속 진행합니다.
+*   **Prestate.** 특정 prestate로 게임을 생성하기 전에 해당 prestate의 프로그램 파일을 로드하고, 그 verification key가 prestate와 일치하는지 확인합니다.
+*   **Verifier.** 매 생성 주기마다 게임에 등록된 verifier가 자신의 SP1 SDK의 PLONK 회로에서 생성된 증명을 수락하는지 확인합니다. 수락하지 않으면 예상 verifier 해시와 실제 verifier 해시를 포함한 오류를 기록하고 게임 생성을 일시 중지합니다. verifier가 일치하는 게임은 계속 방어합니다.
+
+## Proposer 검증 {#verify-the-proposer}
+
+한 번의 제안 간격 내에 게임이 생성되었는지 확인합니다.
+
+```bash
+COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC)
+read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+echo "gameType=$GAME_TYPE gameProxy=$GAME_PROXY"
+# Expect: gameType=10
+
+cast call $GAME_PROXY 'rootClaim()(bytes32)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'parentIndex()(uint32)' --rpc-url $L1_RPC
+```
+
+root claim이 해당 타임스탬프에서 super root 소스의 값과 일치하는지 확인합니다.
+
+```bash
+cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber>)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+# Expect: equals rootClaim
+```
+
+## Proposer 모니터링 {#monitor-the-proposer}
+
+proposer는 `op_zk_proposer_` 접두사가 붙은 Prometheus 메트릭을 내보냅니다. 최소한 다음 항목에 대해 알림을 설정하십시오.
+
+| 메트릭 | 알림 조건 |
+| --- | --- |
+| `defense_deadline_remaining_seconds` | 게임을 증명하고, 트랜잭션을 반영하고, 대응하는 데 필요한 시간보다 작아질 때. 이 값은 proposer가 방어해야 하는 게임 중 가장 가까운 기한까지 남은 시간입니다. |
+| `deadline_passed_total{window="defense"}` | 증가할 때. 이의 제기된 게임이 증명 없이 기한에 도달한 것입니다. |
+| `game_unprovable` | 증가할 때. proposer가 게임을 증명할 수 없는 상태입니다. |
+| `prove_balance` | `network` 모드에서 여러 게임을 방어하는 비용보다 낮아질 때. |
+| `signer_balance_eth` | 진행 중일 것으로 예상되는 게임의 bond와 gas 비용보다 낮아질 때. |
+| `signer_pending_nonce`에서 `signer_nonce`를 뺀 값 | 차이가 줄어들지 않을 때. 트랜잭션이 멈춰 있다는 의미입니다. |
+
+Prometheus가 proposer를 scrape하지 못하는 경우에도 알림을 설정하십시오. `game_proving_error`, `span_bisections`와 같은 진단용 메트릭은 [전체 메트릭 목록](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#operator-alarms)을 참조하십시오.
+
+proposer와 독립적으로 체인의 모든 게임을 감시하기 위해 [`op-dispute-mon`](/ko/chain-operators/tools/chain-monitoring#dispute-mon)도 함께 실행하십시오.
+
+## 실패한 증명 요청 재시도 {#retry-failed-proof-requests}
+
+일부 증명 요청은 proposer가 스스로 재시도하지 않는 방식으로 실패합니다. 예를 들어 prover network가 요청을 실행할 수 없다고 보고하는 경우입니다. proposer는 이러한 요청을 terminal 상태로 표시합니다. 재시작하면 모든 증명 진행 상황을 잃게 되므로, 재시작하지 않고 이를 재시도하려면 프로세스에 `SIGUSR1`을 보내십시오.
+
+```bash
+pgrep -fl op-zk-proposer
+kill -USR1 <pid>
+```
+
+`Processed terminal proof retry` 로그 줄에 재설정된 게임 목록이 표시됩니다.
+
+## Fast finality 활성화 {#enable-fast-finality}
+
+`OP_ZK_PROPOSER_FAST_FINALITY_MODE=true`를 설정하면 proposer는 이의 제기된 게임만이 아니라 자신의 서명자가 생성한 모든 게임을 생성 즉시 증명합니다. 증명된 게임은 challenge window가 끝나기를 기다리지 않고 부모 게임이 resolve되는 즉시 resolve됩니다. [Fast finality](/ko/op-stack/zk-proofs/explainer#fast-finality)를 참조하십시오.
+
+이 모드에서는 모든 게임에 대해 range, consolidation, aggregation 증명과 log-commitment 증명 전체를 구매하게 됩니다. 1시간 간격이라면 하루에 약 24개의 게임에 해당합니다. `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT`(기본값 `1`)는 진행 중인 증명 작업의 수를 제한하며, 이 한도에 도달하면 proposer는 게임 생성을 일시 중지합니다. 제때 증명되지 않은 게임을 확인하려면 `deadline_passed_total{window="fast_finality"}`에 대한 알림을 설정하십시오. fast finality window를 놓치더라도 게임에서 지는 것은 아닙니다.
+
+## 이전 prestate 유지 {#keep-old-prestates-available}
+
+proposer는 prestate 프로그램 파일을 로드할 수 있는 게임만 방어하고, resolve하고, 청구할 수 있습니다. 체인의 prestate를 변경할 때는 이전 prestate로 생성된 게임이 아직 활성 상태일 수 있는 동안 이전 파일을 `OP_ZK_PROPOSER_PRESTATES_URL`에 계속 유지하십시오. `op_zk_proposer_unknown_prestate_challenged`가 증가하면 알림을 받도록 설정하십시오. 이는 proposer가 게임의 prestate를 로드하거나 검증할 수 없어 이의 제기된 게임을 건너뛰었음을 의미합니다.
+
+## 다음 단계 {#next-steps}
+
+*   [ZK 분쟁 게임용 op-challenger](/ko/chain-operators/guides/configuration/zk-challenger)를 설정하십시오.
+*   제때 증명하는 것이 왜 중요한지는 [ZK 증명 보안](/ko/op-stack/zk-proofs/security#completeness)을 참조하십시오.

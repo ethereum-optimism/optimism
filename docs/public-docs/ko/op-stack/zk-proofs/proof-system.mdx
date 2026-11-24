@@ -1,0 +1,86 @@
+---
+title: ZK 증명 시스템
+description: OP Stack 제안에 대한 ZK 증명이 무엇을 증명하는지, SP1 프로그램으로 증명이 어떻게 생성되는지, absolute prestate가 프로그램 버전을 어떻게 고정하는지 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<NormativeSpec
+  what="ZK 증명 프로그램과 그 verifier"
+  title="ZK 증명 시스템 명세"
+  href="https://specs.optimism.io/fault-proof/zk-proof-system.html"
+  note="이 페이지는 OP Stack 구현이 증명을 생성하는 방식을 설명하며, 명세 내용을 다시 서술하지 않습니다."
+/>
+
+<ZkProofsStatus />
+
+ZK 분쟁 게임(dispute game)은 해당 제안이 올바르다는 증명으로 승리합니다. 이 페이지에서는 그 증명이 무엇을 말하는지, 어떻게 생성되는지, 그리고 L1 컨트랙트가 어떤 프로그램이 증명을 생성했는지 어떻게 아는지 설명합니다.
+
+## 증명이 증명하는 내용 {#what-a-proof-attests-to}
+
+[ZK 분쟁 게임](/ko/op-stack/zk-proofs/zk-dispute-game)은 `prove()`가 호출될 때 자신의 상태로부터 증명의 public value를 구성합니다.
+
+*   게임 생성 블록 직전 L1 블록의 해시
+*   시작 super root(부모 게임의 claim 또는 앵커 상태)
+*   제안된 super root
+*   제안의 타임스탬프
+*   증명을 제출하는 주소
+
+이 값들에 대해 검증되는 증명은 다음을 의미합니다. 시작 super root에서 출발하여 해당 L1 블록까지의 L1 데이터로부터 super root에 포함된 모든 체인을 도출하면, 해당 타임스탬프에서 정확히 제안된 super root가 생성됩니다.
+
+prover는 L1 블록, blob, L2 상태 등 프로그램이 읽는 데이터를 private input으로 제공합니다. 프로그램은 이 모든 데이터를 public value와 대조하여 검사합니다. 예를 들어 L1 블록을 해싱하여 L1 블록 해시까지 거슬러 연결합니다. public value와 연결할 수 없는 private input은 절대 신뢰하지 않습니다.
+
+prover의 주소는 public value에 포함되므로, 증명은 해당 증명이 생성된 대상 계정이 제출할 때만 유효합니다. 누구도 mempool에서 증명을 가져와 자신의 것으로 제출할 수 없습니다.
+
+## 프로그램 {#the-programs}
+
+증명은 [SP1 zkVM](https://github.com/succinctlabs/sp1) 내부에서 실행되는 프로그램이 생성합니다. 이 프로그램들은 OP Stack 상태 전이의 Rust 구현인 [Kona](/ko/op-stack/components/kona-client)를 기반으로 빌드되므로, 이들이 증명하는 도출 및 실행 규칙은 Kona가 구현한 규칙과 같습니다. 하나의 증명은 세 가지 프로그램으로 구성됩니다.
+
+*   **`super-range`**는 두 가지 모드로 실행됩니다. range 모드에서는 일정 범위의 타임스탬프에 걸쳐 하나 이상의 체인의 블록을 도출하고 실행합니다. consolidation 모드에서는 같은 범위에 대해 모든 체인의 크로스체인 메시지를 검사하고, 메시지가 유효하지 않은 블록을 교체한 뒤, 그 결과로 나오는 super root를 계산합니다.
+*   **`log-commitment`**는 블록 receipt에 포함된 로그에 대한 commitment를 생성합니다. 크로스체인 메시지가 이전 블록을 참조할 때, consolidation은 해당 블록의 모든 receipt를 불러오는 대신 이 commitment와 대조하여 메시지를 검사할 수 있습니다.
+*   **`super-aggregation`**은 zkVM 내부에서 range 증명과 consolidation 증명을 검증하고, 이들이 함께 게임의 모든 타임스탬프에서 모든 체인을 순서대로 다루는지 확인한 뒤, 게임이 기대하는 public value를 commit합니다.
+
+최종 aggregation 증명은 PLONK 증명으로 감싸집니다. PLONK 증명은 크기가 작고 L1에서 저렴하게 검증할 수 있습니다.
+
+interop set에 속하지 않은 체인은 체인 하나로 이루어진 set을 가지며, 동일한 프로그램을 실행합니다. 이 경우 consolidation에서 검사할 크로스체인 메시지가 없습니다.
+
+## 증명 생성 과정 {#how-a-proof-is-built}
+
+prover(실제로는 [`op-zk-proposer`](/ko/op-stack/components/op-zk-proposer))는 다음 단계로 게임을 방어합니다.
+
+1.  게임의 span, 즉 시작 super root부터 제안된 super root까지의 타임스탬프를 읽습니다.
+2.  각 증명 요청이 prover의 한도를 넘지 않도록 span을 여러 chunk로 나눕니다. 각 chunk에는 range 증명 하나와 consolidation 증명 하나가 할당됩니다.
+3.  각 chunk에 대해 witness를 수집합니다. witness는 프로그램이 읽을 모든 L1 및 L2 데이터로, L1 및 L2 node로부터 미리 수집합니다. 프로그램은 이 witness에서만 데이터를 읽습니다.
+4.  range 증명, consolidation에 필요한 log-commitment 증명, 그리고 해당 log-commitment 증명을 검증하는 consolidation 증명을 요청합니다. 그런 다음 range 증명과 consolidation 증명에 대한 aggregation 증명을 요청합니다. 증명은 Succinct Prover Network에서 구매하거나 로컬 GPU에서 생성합니다.
+5.  `prove()`로 aggregation 증명을 게임에 제출합니다.
+
+chunk가 너무 커서 증명할 수 없으면 proposer는 이를 다시 나눕니다. 먼저 타임스탬프 단위로 나누고, 단일 타임스탬프인 경우에는 체인 단위로 나눕니다. 단일 타임스탬프의 consolidation은 항상 모든 체인을 다루므로 더 이상 나눌 수 없습니다.
+
+## Absolute prestate {#absolute-prestate}
+
+각 게임에는 `absolutePrestate`가 설정됩니다. 이는 해당 게임의 증명이 반드시 생성되어야 하는 ZK 프로그램을 식별하는 32바이트 값입니다. SP1의 경우 이는 `super-aggregation` 프로그램의 verification key입니다. 게임은 모든 증명과 함께 이 값을 verifier에 전달하므로, 다른 프로그램이 생성한 증명은 검증에 실패합니다.
+
+`super-aggregation` 프로그램에는 `super-range` 프로그램의 verification key가 포함되어 있고, `super-range`에는 `log-commitment`의 key가 포함되어 있습니다. 따라서 하나의 `absolutePrestate`가 세 프로그램을 모두 고정합니다.
+
+verification key는 프로그램의 컴파일된 바이너리에서 도출됩니다. 이로부터 두 가지 결과가 따릅니다.
+
+*   **새로운 빌드 커밋마다 새로운 prestate가 생깁니다.** 프로그램에는 빌드된 커밋이 포함되므로, 코드가 변경되지 않았더라도 다른 커밋에서 빌드하면 key가 달라집니다. 최종 릴리스는 마지막 release candidate와 같은 커밋에 태그되므로 두 릴리스는 같은 prestate를 공유합니다. 체인의 ZK 프로그램을 업데이트한다는 것은 해당 체인의 `absolutePrestate`를 업데이트한다는 의미입니다.
+*   **체인 구성은 프로그램의 일부입니다.** 프로그램은 rollup config와 dependency set 같은 체인 구성을 프로그램 안에 컴파일된 레지스트리에서만 읽습니다. 알지 못하는 체인은 거부합니다. 구성이 [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)에 없는 체인은 자체 prestate를 가진 별도의 빌드가 필요합니다.
+
+프로그램은 재현 가능하게(reproducibly) 빌드되므로, 누구나 태그된 소스에서 다시 빌드하여 verification key를 확인할 수 있습니다. [ZK absolute prestate 검증하기](/ko/chain-operators/tutorials/zk-prestate)를 참고하십시오.
+
+## Verifier {#verifier}
+
+게임은 특정 증명 시스템에 의존하지 않습니다. 게임은 범용 `IZKVerifier` 인터페이스를 통해 verifier 컨트랙트를 호출합니다. 이 인터페이스는 프로그램 식별자, public value, 증명을 입력받으며 증명이 유효하지 않으면 revert합니다.
+
+SP1의 경우 verifier는 `SP1PlonkAdapter`입니다. 이는 Succinct의 감사를 마친 [SP1 PLONK verifier](https://github.com/succinctlabs/sp1-contracts)를 호출하여 `IZKVerifier`를 구현하는 작은 컨트랙트입니다. SP1 SDK로 생성된 증명은 동일한 PLONK 회로에 대한 verifier에서만 검증되므로, proposer는 증명에 비용을 쓰기 전에 각 게임의 verifier가 자신의 SDK와 일치하는지 확인합니다.
+
+verifier와 `absolutePrestate`는 체인별로 설정되며, 게임 구현을 다시 배포하지 않고도 변경할 수 있습니다. 이미 진행 중인 게임은 생성될 때의 verifier와 prestate를 그대로 유지합니다.
+
+## 다음 단계 {#next-steps}
+
+*   유효한 제안을 제때 증명하지 못하면 어떤 일이 발생하는지 알아보려면 [ZK 증명 보안](/ko/op-stack/zk-proofs/security)을 읽어 보십시오.
+*   증명을 생성하는 서비스에 대해서는 [ZK 증명 시스템 구성 요소](/ko/op-stack/zk-proofs/components)를 읽어 보십시오.
+*   프로그램의 구현 세부 사항은 [SP1 integration README](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md)를 읽어 보십시오.
