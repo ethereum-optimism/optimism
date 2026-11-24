@@ -410,12 +410,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-node.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-node-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-node/**",
         "apko/op-node.yaml",
+        "apko/op-node-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
