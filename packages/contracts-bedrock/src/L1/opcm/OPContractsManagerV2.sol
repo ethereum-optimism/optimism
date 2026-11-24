@@ -186,9 +186,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 10.0.2
+    /// @custom:semver 10.0.3
     function version() public pure returns (string memory) {
-        return "10.0.2";
+        return "10.0.3";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -778,6 +778,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             if (!_isInitialDeployment && _systemConfig.isFeatureEnabled(Features.INTEROP)) {
                 revert OPContractsManagerV2_BridgeHookNotSupported();
             }
+
+            // WARNING: Do not set a bridge hook on a chain that carries migrated pre-Bedrock
+            // withdrawals, such as OP Mainnet: already-relayed legacy withdrawals can be held
+            // and never complete. See https://github.com/ethereum-optimism/optimism/issues/24397
 
             // Any IBridgeHook is accepted, but it must already be deployed.
             if (address(_cfg.bridgeHook).code.length == 0) {
