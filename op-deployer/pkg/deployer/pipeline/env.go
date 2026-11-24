@@ -6,8 +6,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/BurntSushi/toml"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
@@ -19,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -69,19 +66,12 @@ func NoopStateWriter() StateWriter {
 // ReadIntent reads the workdir's intent.toml. Unknown keys are ignored except under
 // l1DevGenesisParams.blobSchedule, where dropping a fork's entry would silently reprice its blobs.
 func ReadIntent(workdir string) (*state.Intent, error) {
-	intentPath := path.Join(workdir, "intent.toml")
-	f, err := ioutil.OpenDecompressed(intentPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read intent file: %w", err)
-	}
-	defer f.Close()
-	var intent state.Intent
-	md, err := toml.NewDecoder(f).Decode(&intent)
+	intent, undecoded, err := jsonutil.LoadTOMLWithUndecoded[state.Intent](path.Join(workdir, "intent.toml"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read intent file: %w", err)
 	}
 	var unknown []string
-	for _, key := range md.Undecoded() {
+	for _, key := range undecoded {
 		// Compare per key part with EqualFold, as the decoder matches key parts to fields.
 		if len(key) > 2 && strings.EqualFold(key[0], "l1DevGenesisParams") && strings.EqualFold(key[1], "blobSchedule") {
 			unknown = append(unknown, key.String())
@@ -90,7 +80,7 @@ func ReadIntent(workdir string) (*state.Intent, error) {
 	if len(unknown) > 0 {
 		return nil, fmt.Errorf("failed to read intent file: unknown blob schedule keys: %s", strings.Join(unknown, ", "))
 	}
-	return &intent, nil
+	return intent, nil
 }
 
 func ReadState(workdir string) (*state.State, error) {
