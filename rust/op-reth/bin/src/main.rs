@@ -1,9 +1,10 @@
 #![allow(missing_docs, rustdoc::missing_crate_level_docs)]
 
+use op_reth::rollup_consensus::RollupConsensusArgs;
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_chainspec::{is_superchain_chain_id, superchain_block_time};
 use reth_optimism_cli::Cli;
-use reth_optimism_node::{OpNode, args::RollupArgs, launch_node};
+use reth_optimism_node::{OpNode, args::RollupArgs, launch_node_with_consensus};
 use tracing::{info, warn};
 
 use std::borrow::Cow;
@@ -14,6 +15,14 @@ static ALLOC: reth_cli_util::allocator::Allocator = reth_cli_util::allocator::ne
 #[cfg(all(feature = "jemalloc-prof", unix))]
 #[unsafe(export_name = "_rjem_malloc_conf")]
 static MALLOC_CONF: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0";
+
+#[derive(Debug, clap::Args)]
+struct LaunchArgs {
+    #[command(flatten)]
+    rollup: RollupArgs,
+    #[command(flatten)]
+    consensus: RollupConsensusArgs,
+}
 
 fn main() {
     reth_cli_util::sigsegv_handler::install();
@@ -51,20 +60,25 @@ fn main() {
         eprintln!("Error: build info is already embedded. This is a bug.")
     }
 
-    if let Err(err) =
-        Cli::<RollupArgs>::parse_with_denied_args().run(async move |builder, mut args| {
+    if let Err(err) = Cli::<LaunchArgs>::parse_with_denied_args().run(
+        async move |builder, LaunchArgs { mut rollup, consensus }| {
             let chain_id = builder.config().chain.chain.id();
-            if args.testing_sdm_fixed_policy.is_some() {
+            if rollup.testing_sdm_fixed_policy.is_some() {
                 validate_testing_sdm_fixed_policy(chain_id)?;
             }
             // Looks up the resolved chain ID, like the SDM check, so a custom genesis of a
             // registry chain gets the registry's block time too.
-            args.block_time = args.block_time.or_else(|| superchain_block_time(chain_id));
+            rollup.block_time = rollup.block_time.or_else(|| superchain_block_time(chain_id));
 
-            info!(target: "reth::cli", "Launching node");
-            launch_node(builder, OpNode::new(args)).await
-        })
-    {
+            info!(target: "reth::cli", rollup_consensus = consensus.enabled(), "Launching node");
+            let consensus = consensus.enabled().then(|| {
+                let chain = builder.config().chain.chain;
+                let metrics = builder.config().metrics.prometheus.is_some();
+                Box::pin(consensus.run(chain, metrics)) as _
+            });
+            launch_node_with_consensus(builder, OpNode::new(rollup), consensus).await
+        },
+    ) {
         eprintln!("Error: {err:?}");
         std::process::exit(1);
     }
@@ -91,18 +105,30 @@ mod tests {
     use reth_optimism_cli::commands::Commands;
     use std::io::Write;
 
+    #[test]
+    fn embedded_consensus_preserves_help() {
+        use clap::CommandFactory;
+        fn help<T: clap::Args + std::fmt::Debug>() -> String {
+            let mut cmd = Cli::<T>::command_with_denied_args_hidden();
+            cmd.build();
+            cmd.find_subcommand_mut("node").unwrap().render_long_help().to_string()
+        }
+        Cli::<LaunchArgs>::command().debug_assert();
+        assert_eq!(help::<LaunchArgs>(), help::<RollupArgs>());
+    }
+
     const TARGET: &str = "0x0000000000000000000000000000000000000001";
     const POLICY_ARGS: [&[&str]; 2] =
         [&["--testing.sdm-fixed-policy"], &["--testing.sdm-fixed-policy", TARGET]];
 
     fn validate_cli(chain: &str, policy_args: &[&str]) -> eyre::Result<()> {
-        let cli = Cli::<RollupArgs>::try_parse_args_from(
+        let cli = Cli::<LaunchArgs>::try_parse_with_denied_args_from(
             ["op-reth", "node", "--chain", chain].into_iter().chain(policy_args.iter().copied()),
         )?;
         let Commands::Node(node) = cli.command else {
             panic!("expected node command");
         };
-        if node.ext.testing_sdm_fixed_policy.is_some() {
+        if node.ext.rollup.testing_sdm_fixed_policy.is_some() {
             validate_testing_sdm_fixed_policy(node.chain.chain.id())?;
         }
         Ok(())

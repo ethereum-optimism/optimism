@@ -118,7 +118,7 @@ func isDevtestT(expr ast.Expr) bool {
 	return ok && pkg.Name == "devtest" && sel.Sel.Name == "T"
 }
 
-func TestSkipOpNodeOnlyPresetOnKonaNodeSkipsOnlyKonaNode(t *testing.T) {
+func TestSkipOpNodeOnlyPresetOnKonaNodeSkipsKonaKinds(t *testing.T) {
 	for _, tc := range []struct {
 		kind     sysgo.MixedL2CLKind
 		wantSkip bool
@@ -126,6 +126,7 @@ func TestSkipOpNodeOnlyPresetOnKonaNodeSkipsOnlyKonaNode(t *testing.T) {
 		{"", false},
 		{sysgo.MixedL2CLOpNode, false},
 		{sysgo.MixedL2CLKona, true},
+		{sysgo.MixedL2CLOpReth, true},
 	} {
 		t.Setenv("DEVSTACK_L2CL_KIND", string(tc.kind))
 		require.Equalf(t, tc.wantSkip, runSkipped(t, "kind="+string(tc.kind), skipOpNodeOnlyPresetOnKonaNode),
