@@ -31,10 +31,6 @@ const forkActivationBlock = 3
 // forkActivationProbeGas is the default gas limit of a probe transaction.
 const forkActivationProbeGas = uint64(2_000_000)
 
-// beaconRootsBufferLength is HISTORY_BUFFER_LENGTH, the length of the ring buffer of the EIP-4788
-// beacon roots contract.
-const beaconRootsBufferLength = 8191
-
 // statusProbe is a transaction whose receipt status a fork flips.
 type statusProbe struct {
 	name string
@@ -99,8 +95,8 @@ var blsMalformedInputs = []statusProbe{
 // TestForkActivationEVMRules activates a fork after genesis, as live chains activated it, and
 // checks the EVM rules that the fork switches on. It runs the same probes in a block before the
 // activation block and in a block after it, and in the activation block too when that block may
-// carry user transactions. For Canyon, Ecotone and Isthmus it also checks header fields and state
-// that the fork changes. It then proves the three blocks with the fault-proof program.
+// carry user transactions. Where a case has checkBlocks, it also checks header fields or state that
+// the fork changes. It then proves the three blocks with the fault-proof program.
 // TestPrecompiles activates each precompile's fork at genesis, so it cannot catch an engine that
 // picks its opcodes or precompiles from the genesis fork instead of from each block's timestamp.
 func TestForkActivationEVMRules(gt *testing.T) {
@@ -164,16 +160,16 @@ func TestForkActivationEVMRules(gt *testing.T) {
 			statusProbes: []statusProbe{
 				{name: "CLZ", data: karsttest.CLZBytecode, succeedsFromFork: true},
 				// EIP-7823 limits each MODEXP length to 1024 bytes.
-				{name: "modexpOversizedModulus", to: ptr(karsttest.ModExpPrecompile), data: karsttest.NewEIP7823OversizedModExpInput(), gas: karsttest.EIP7823OversizedGasLimit},
+				{name: "modexpOversizedModulus", to: &karsttest.ModExpPrecompile, data: karsttest.NewEIP7823OversizedModExpInput(), gas: karsttest.EIP7823OversizedGasLimit},
 				// EIP-7883 raises the minimum MODEXP cost from 200 to 500 gas, and EIP-7951 raises the
 				// P256VERIFY cost from 3450 to 6900 gas. Each gas limit covers the cost before Karst
 				// but not the cost from Karst on, so the call runs out of gas from Karst on.
-				{name: "modexpMinimumCost", to: ptr(karsttest.ModExpPrecompile), gas: karsttest.EIP7883BoundaryGas},
-				{name: "p256VerifyCost", to: ptr(karsttest.P256VerifyPrecompile), gas: karsttest.EIP7951BoundaryGas},
+				{name: "modexpMinimumCost", to: &karsttest.ModExpPrecompile, gas: karsttest.EIP7883BoundaryGas},
+				{name: "p256VerifyCost", to: &karsttest.P256VerifyPrecompile, gas: karsttest.EIP7951BoundaryGas},
 				// Karst lowers the bn256 pairing input limit from 81,984 to 57,600 bytes. kona runs
 				// this precompile through its own accelerated code, with its own copy of the limit.
 				// Zero bytes encode the points at infinity, which pair successfully.
-				{name: "bn256PairingOverKarstLimit", to: ptr(karsttest.Bn256PairPrecompile), data: make([]byte, karsttest.KarstBn256PairMaxInputSize+karsttest.Bn256PairElementLen), gas: karsttest.KarstBn256PairProbeGasLimit},
+				{name: "bn256PairingOverKarstLimit", to: &karsttest.Bn256PairPrecompile, data: make([]byte, karsttest.KarstBn256PairMaxInputSize+karsttest.Bn256PairElementLen), gas: karsttest.KarstBn256PairProbeGasLimit},
 			},
 		},
 	} {
@@ -341,8 +337,8 @@ func checkCanyonBlocks(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, b
 		require.Equal(t, types.EmptyWithdrawalsHash, *withdrawalsHash, "block %d must have empty withdrawals", block.Number)
 	}
 
-	require.Empty(t, codeAt(t, env, predeploys.Create2DeployerAddr, blocks.before), "the create2 deployer must not exist before Canyon")
-	require.Equal(t, create2DeployerCodeHash, crypto.Keccak256Hash(codeAt(t, env, predeploys.Create2DeployerAddr, blocks.activation)), "Canyon must force-deploy the create2 deployer")
+	require.Empty(t, env.CodeAt(t, predeploys.Create2DeployerAddr, blocks.before), "the create2 deployer must not exist before Canyon")
+	require.Equal(t, create2DeployerCodeHash, crypto.Keccak256Hash(env.CodeAt(t, predeploys.Create2DeployerAddr, blocks.activation)), "Canyon must force-deploy the create2 deployer")
 }
 
 // checkEcotoneBlocks checks that from Ecotone on each block carries the parent beacon block root of
@@ -365,10 +361,10 @@ func checkEcotoneBlocks(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, 
 	// The system call at the start of each block stores the block's parent beacon block root under
 	// the block's timestamp. In the activation block it finds no code, because the upgrade deposit
 	// deploys the contract later in that block, so the first root is the next block's.
-	require.Equal(t, predeploys.EIP4788ContractCodeHash, crypto.Keccak256Hash(codeAt(t, env, predeploys.EIP4788ContractAddr, blocks.activation)), "the activation block must deploy the EIP-4788 contract")
+	require.Equal(t, predeploys.EIP4788ContractCodeHash, crypto.Keccak256Hash(env.CodeAt(t, predeploys.EIP4788ContractAddr, blocks.activation)), "the activation block must deploy the EIP-4788 contract")
 	beaconRoot := func(timestamp uint64, at eth.L2BlockRef) (storedTimestamp, root common.Hash) {
-		slot := timestamp % beaconRootsBufferLength
-		return storageAt(t, env, predeploys.EIP4788ContractAddr, slot, at), storageAt(t, env, predeploys.EIP4788ContractAddr, slot+beaconRootsBufferLength, at)
+		slot := timestamp % predeploys.EIP4788HistoryBufferLength
+		return env.StorageAt(t, predeploys.EIP4788ContractAddr, uint64ToHash(slot), at), env.StorageAt(t, predeploys.EIP4788ContractAddr, uint64ToHash(slot+predeploys.EIP4788HistoryBufferLength), at)
 	}
 	for _, at := range []eth.L2BlockRef{blocks.activation, blocks.after} {
 		storedTimestamp, root := beaconRoot(blocks.activation.Time, at)
@@ -376,19 +372,19 @@ func checkEcotoneBlocks(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, 
 		require.Equal(t, common.Hash{}, root, "state of block %d: no beacon root must be stored for the activation block", at.Number)
 	}
 	storedTimestamp, root := beaconRoot(blocks.after.Time, blocks.after)
-	require.Equal(t, common.BigToHash(new(big.Int).SetUint64(blocks.after.Time)), storedTimestamp, "block %d must store its timestamp", blocks.after.Number)
+	require.Equal(t, uint64ToHash(blocks.after.Time), storedTimestamp, "block %d must store its timestamp", blocks.after.Number)
 	require.Equal(t, *env.Engine.HeaderByHash(t, blocks.after.Hash).ParentBeaconRoot, root, "block %d must store its parent beacon block root", blocks.after.Number)
 }
 
 // checkIsthmusBlocks checks that the EIP-2935 contract stores block hashes from the block after the
 // activation block on.
 func checkIsthmusBlocks(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, blocks forkActivationBlocks) {
-	// The system call at the start of each block stores the parent block's hash under the parent's
-	// number. In the activation block it finds no code, because the upgrade deposit deploys the
-	// contract later in that block, so the first hash is the activation block's own.
-	require.Equal(t, predeploys.EIP2935ContractCodeHash, crypto.Keccak256Hash(codeAt(t, env, predeploys.EIP2935ContractAddr, blocks.activation)), "the activation block must deploy the EIP-2935 contract")
+	// As in checkEcotoneBlocks, the system call finds no code in the activation block. It stores the
+	// parent block's hash under the parent's number, so the first hash stored is the activation
+	// block's own.
+	require.Equal(t, predeploys.EIP2935ContractCodeHash, crypto.Keccak256Hash(env.CodeAt(t, predeploys.EIP2935ContractAddr, blocks.activation)), "the activation block must deploy the EIP-2935 contract")
 	blockHash := func(number uint64, at eth.L2BlockRef) common.Hash {
-		return storageAt(t, env, predeploys.EIP2935ContractAddr, number%params.HistoryServeWindow, at)
+		return env.StorageAt(t, predeploys.EIP2935ContractAddr, uint64ToHash(number%params.HistoryServeWindow), at)
 	}
 	for _, at := range []eth.L2BlockRef{blocks.activation, blocks.after} {
 		require.Equal(t, common.Hash{}, blockHash(blocks.activation.Number-1, at), "state of block %d: no hash must be stored for the parent of the activation block", at.Number)
@@ -405,18 +401,9 @@ func emptyAccounts(addrs ...common.Address) types.GenesisAlloc {
 	return alloc
 }
 
-// codeAt returns the code of addr in the state after block.
-func codeAt(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, addr common.Address, block eth.L2BlockRef) []byte {
-	code, err := env.Engine.EthClient().CodeAt(t.Ctx(), addr, new(big.Int).SetUint64(block.Number))
-	require.NoError(t, err)
-	return code
-}
-
-// storageAt returns the storage slot of addr in the state after block.
-func storageAt(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, addr common.Address, slot uint64, block eth.L2BlockRef) common.Hash {
-	value, err := env.Engine.EthClient().StorageAt(t.Ctx(), addr, common.BigToHash(new(big.Int).SetUint64(slot)), new(big.Int).SetUint64(block.Number))
-	require.NoError(t, err)
-	return common.BytesToHash(value)
+// uint64ToHash returns v as a 32-byte word, the form of a storage slot or value.
+func uint64ToHash(v uint64) common.Hash {
+	return common.BigToHash(new(big.Int).SetUint64(v))
 }
 
 // precompileFixture returns the fixture of PrecompileTestFixtures called name.
