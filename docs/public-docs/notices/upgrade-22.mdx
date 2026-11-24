@@ -139,6 +139,7 @@ Ink and Soneium withdrawals are not affected.
 Update an integration if it does any of the following:
 
 * **Proves or finalizes withdrawals from OP Mainnet or Unichain.** After the migration, read the dispute game factory from `OptimismPortal2.disputeGameFactory()` rather than a stored address, and prove against super-root games on the shared factory, using `rootClaimByChainId(uint256)` to get the chain's output root. Prompt users with unfinalized proofs from before the migration to prove again.
+* **Uses `viem/op-stack` for withdrawals.** Upgrade to [`viem@2.58.4`](https://github.com/wevm/viem/releases/tag/viem%402.58.4) or later before the migration on your network. It reads the dispute game factory from the portal, treats the ZK dispute game (game type `10`) as a super-root game, and formats the `opGasRefund` receipt field. Earlier versions keep looking for games on the old per-chain factory, so `waitToProve` never resolves after the migration. viem does not yet type transaction type `0x7D`.
 * **Parses blocks, transactions, or receipts.** Handle transaction type `0x7D` as the last transaction of a block, and the `opGasRefund` receipt field. See [What changes at Lagoon](/op-stack/features/sdm#what-changes-at-lagoon) for the transaction's shape.
 * **Calls the BLS12-381 precompiles** with inputs above the new limits.
 * **Sends interop messages or ETH between OP Mainnet and Unichain.** Handle expiry with `expiredMessages(messageHash)` or the `MessageExpired` event, and refund expired ETH sends with `SuperchainETHBridge.refundETH`.
