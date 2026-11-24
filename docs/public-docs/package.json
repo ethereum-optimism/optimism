@@ -20,6 +20,7 @@
     "ts-morph": "^21.0.0",
     "typescript": "^5.0.0"
   },
+  "trustedDependencies": [],
   "overrides": {
     "minimatch": ">=9.0.7",
     "ws": ">=8.21.0",
