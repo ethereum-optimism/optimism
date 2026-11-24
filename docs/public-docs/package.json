@@ -23,7 +23,7 @@
   "trustedDependencies": [],
   "overrides": {
     "minimatch": ">=9.0.7",
-    "ws": ">=8.21.0",
-    "sharp": "0.35.5"
+    "sharp": "0.35.5",
+    "ws": ">=8.21.0"
   }
 }
