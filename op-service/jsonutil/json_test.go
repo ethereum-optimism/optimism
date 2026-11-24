@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/BurntSushi/toml"
+
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/stretchr/testify/require"
 )
@@ -220,5 +222,40 @@ other = true
 `), &c, allow)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "other")
+	})
+}
+
+func TestLoadTOMLWithUndecoded(t *testing.T) {
+	type inner struct {
+		A int `toml:"a"`
+	}
+	type cfg struct {
+		Name  string `toml:"name"`
+		Inner inner  `toml:"inner"`
+	}
+
+	load := func(t *testing.T, content string) (*cfg, []toml.Key, error) {
+		path := filepath.Join(t.TempDir(), "cfg.toml")
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+		return LoadTOMLWithUndecoded[cfg](path)
+	}
+
+	t.Run("no undecoded keys", func(t *testing.T) {
+		c, undecoded, err := load(t, "name = \"x\"\n[inner]\na = 1\n")
+		require.NoError(t, err)
+		require.Equal(t, &cfg{Name: "x", Inner: inner{A: 1}}, c)
+		require.Empty(t, undecoded)
+	})
+
+	t.Run("undecoded keys are returned as key parts", func(t *testing.T) {
+		c, undecoded, err := load(t, "name = \"x\"\nextra = true\n[INNER]\na = 1\n\"b.c\" = 2\n")
+		require.NoError(t, err)
+		require.Equal(t, &cfg{Name: "x", Inner: inner{A: 1}}, c)
+		require.Equal(t, []toml.Key{{"extra"}, {"INNER", "b.c"}}, undecoded)
+	})
+
+	t.Run("decode error", func(t *testing.T) {
+		_, _, err := load(t, "name = 1\n")
+		require.ErrorContains(t, err, "failed to decode TOML")
 	})
 }
