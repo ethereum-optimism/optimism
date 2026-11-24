@@ -161,13 +161,14 @@ On **OP Mainnet**, **Unichain**, **OP Sepolia**, and **Unichain Sepolia**, also 
 
 Upgrade your sequencer and other nodes to the Lagoon releases listed in [Node operators](#node-operators), and these chain-operator components:
 
-{/* TODO: fill versions once the U22 releases are cut. The op-challenger release must include the ZK bond-claiming fix (optimism#24331, open as of 2026-11-23); without it, op-challenger never sends the second claimCredit and its ZK bonds are never withdrawn from DelayedWETH. The op-dispute-mon release must include the fix for false "credit withdrawn early" alerts on ZK bonds. */}
+{/* TODO: fill versions once the U22 releases are cut. The op-challenger release must include the ZK bond-claiming fix (optimism#24331, open as of 2026-11-23); without it, op-challenger never sends the second claimCredit and its ZK bonds are never withdrawn from DelayedWETH. The op-dispute-mon release must include the fix for false "credit withdrawn early" alerts on ZK bonds. Add the op-proposer release tagged for U22. */}
 
 | Component | Version | Who needs it | Action |
 | --- | --- | --- | --- |
 | `op-batcher` | To be published | Every chain that activates Lagoon | Upgrade before activation so it can encode `0x7D` transactions in batches. |
 | `op-challenger` | To be published | Permissionless chains that activate Lagoon, and challengers on OP Mainnet and Unichain | Upgrade before activation for the Lagoon prestate. On OP Mainnet and Unichain, this release is required before the [ZK switch](#zk-proofs-on-op-mainnet-and-unichain) so the challenger can claim ZK bonds; add the `zk` game type at the switch. |
 | `op-dispute-mon` | To be published | Anyone monitoring dispute games on OP Mainnet and Unichain | Required before the ZK switch. No configuration change is needed on the shared factory: it finds ZK games there. |
+| `op-proposer` | To be published | Chain operators of OP Mainnet and Unichain | From the migration until the ZK switch, run one shared `op-proposer` for both chains on the shared factory, with game type `9` and the op-supernode's root endpoint. See [Cut Over to a Single Shared op-proposer](/chain-operators/tutorials/merge-shared-dispute-game#cut-over-to-a-single-shared-op-proposer). |
 | `op-zk-proposer` | To be published | Chain operators of OP Mainnet and Unichain | Runs the ZK proposer from the ZK switch. See [Configure op-zk-proposer](/chain-operators/guides/configuration/zk-proposer). |
 
 * To issue SDM rebates after activation, follow the [SDM operator guide](/chain-operators/guides/features/sequencer-defined-metering).
