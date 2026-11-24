@@ -210,13 +210,14 @@ abstract contract ComplianceIntegration_TestInit is OptimismPortal2_TestInit {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Deposits ETH straight into the Portal. A sender without code deposits as an EOA.
-    ///         A sender with code deposits as a contract, so the Portal aliases it.
+    ///         A sender with code deposits as a contract, so the Portal aliases it. The L2 call
+    ///         carries half of the minted value.
     function _depositETH(address _from, address _to, uint256 _value) internal {
         vm.getRecordedLogs();
         vm.deal(_from, _from.balance + _value);
         if (_from.code.length == 0) vm.prank(_from, _from);
         else vm.prank(_from);
-        optimismPortal2.depositTransaction{ value: _value }(_to, _value, DEPOSIT_GAS_LIMIT, false, hex"");
+        optimismPortal2.depositTransaction{ value: _value }(_to, _value / 2, DEPOSIT_GAS_LIMIT, false, hex"");
     }
 
     /// @notice Deposits ETH through the L1StandardBridge.
