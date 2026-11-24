@@ -339,40 +339,42 @@ anchor validation is not repeated after startup.
 
 ### Ownership (which games it defends)
 
-A game is owned when its creator is owned and its `absolutePrestate()` artifacts
-load from `OP_ZK_PROPOSER_PRESTATES_URL`. Owned creators are the signer, always,
-plus any addresses listed in `OP_ZK_PROPOSER_OWNED_CREATORS`. The proposer logs
-the resolved set at startup.
+A game is owned when its creator is owned or it is an adopted copy (see
+**Copies of our games** below). Owned creators are the signer, always, plus any
+addresses listed in `OP_ZK_PROPOSER_OWNED_CREATORS`. The proposer logs the
+resolved set at startup. Proving an owned game, for defense or fast finality,
+also needs its `absolutePrestate()` artifacts to load from
+`OP_ZK_PROPOSER_PRESTATES_URL`.
 
 - **Head and creation**: the proposer builds only on the registered anchor or on
   a game whose every link down to the anchor (which may be foreign), a root, or
-  an owned game that won has an owned creator, whatever its prestate. A parent
-  missing from the cache before any of those disqualifies the chain. With no
-  such game, it creates a root from the anchor.
+  an owned game that won is owned, whatever its prestate. A parent missing from
+  the cache before any of those disqualifies the chain. With no such game, it
+  creates a root from the anchor.
 - **Validation**: only games from owned creators are checked against the
   supernode. Other games are cached as records, without validation, so anchor
-  tracking keeps working when a foreign game becomes the anchor. They are never a
-  parent, a proof target, or a resolution target. A resolved record in normal
-  mode stays while it is ahead of the anchor; behind it, it leaves once the signer
-  holds no credit in it. A lost record, or one in refund mode, leaves unless it
-  has a cached child.
+  tracking keeps working when a foreign game becomes the anchor. Apart from
+  adopted copies, they are never a parent, a proof target, or a resolution
+  target. A resolved record in normal mode stays while it is ahead of the anchor;
+  behind it, it leaves once the signer holds no credit in it. A lost record, or
+  one in refund mode, leaves unless it has a cached child.
 - **Defense and resolution**: owned games only. The proposer resolves a listed
   creator's game when it wins, and a signer game on any outcome. A challenged
-  game from an owned creator with an unknown or poisoned prestate is skipped,
-  with the `op_zk_proposer_unknown_prestate_challenged` gauge as the alarm. The
-  defense deadline checks cover games from owned creators, whatever their
-  prestate.
+  owned game with an unknown or poisoned prestate is skipped, with the
+  `op_zk_proposer_unknown_prestate_challenged` gauge as the alarm. The defense
+  deadline checks cover owned games, whatever their prestate.
 - **Claims**: credit-driven for the signer on every cached game, including
   foreign games the signer proved. The proposer closes a finalized game that owes
-  it nothing only when its creator is owned or it is the registered anchor. It
-  does not claim credit owed to another listed address.
+  it nothing only when it is owned or it is the registered anchor. It does not
+  claim credit owed to another listed address.
 - **Foreign games' lifecycle**: op-challenger or the game's creator resolves and
   closes foreign games. The proposer sends no close-only call for them, but
   claiming the signer's credit on one closes it.
 
-Fast finality uses a narrower spend policy. It proves only unchallenged owned
-games created by the configured signer. Listed creators' games are defended and
-resolved when they win, but not fast-finalized.
+Fast finality uses a narrower spend policy. It proves only unchallenged games
+created by the configured signer, and adopted copies that stand in for them.
+Listed creators' games are defended and resolved when they win, but not
+fast-finalized.
 
 **Key rotation**: set `OP_ZK_PROPOSER_OWNED_CREATORS=<old signer>` in the same
 deploy that rotates the signer key, and keep the old prestate artifacts published
@@ -390,13 +392,19 @@ under `OP_ZK_PROPOSER_PRESTATES_URL` for as long as owned games created under
 them can be live, or the proposer loses the ability to defend and resolve those
 games.
 
-**Front-run collisions (accepted risk)**: a game's UUID does not include its
-creator, so a third party can create the proposer's exact game first. The
-proposer does not adopt or defend a foreign game: it moves the timestamp forward
-one second and retries, so stopping creation takes a copy of every attempt,
-about one per loop iteration, each with its own bond. The bonds come back: an
-unchallenged copy refunds its creator, and a copy the attacker challenges itself
-pays the attacker both bonds. Blacklisting a copy does not free its UUID.
+**Copies of our games**: a game's UUID does not include its creator, so a third
+party can create the proposer's exact next game first, from public data. When a
+create collides with such a copy, the proposer adopts it: the same UUID means the
+same parent, timestamp, and claim, so the copy is the game it planned. It builds
+on the copy, defends it, resolves and closes it, and in fast finality mode proves
+it. A non-root copy spans what the planned game would; a root copy starts from
+the anchor registered when it was created, which can be older than the current
+one. After a restart, the proposer finds adopted copies again through its own
+games that name them as parents. The UUID does not fix everything that lets a
+copy carry the chain, so creation moves one second forward instead of adopting a
+copy that lost, that is challenged past its prove deadline, that was created
+while ZK games were not respected, or whose L1 head predates the L1 data its
+claim needs (created from unsafe L2 data, it can never be proven).
 
 ### Proof providers
 
@@ -831,7 +839,8 @@ whose prestate artifacts are available; in local-cuda mode the cost is GPU time,
 a baseline of 24 aggregation proofs per day; the default
 `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT=1` serializes them. An unchallenged game created by
 another address is not proven, even when that address is listed in
-`OP_ZK_PROPOSER_OWNED_CREATORS` or the game uses a known prestate. Enabling the
+`OP_ZK_PROPOSER_OWNED_CREATORS` or the game uses a known prestate, unless it is an adopted
+copy of a signer game. Enabling the
 mode on a chain with an existing unchallenged backlog proves the signer-created
 owned backlog.
 
