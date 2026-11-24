@@ -26,10 +26,10 @@ import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 
 /// @title OPContractsManagerMigrator
 /// @notice OPContractsManagerMigrator is a contract that provides the migration functionality for
-///         migrating one or more OP Stack chains to use the Super Root dispute games and shared
+///         migrating two or more OP Stack chains to use the Super Root dispute games and shared
 ///         dispute game contracts.
 contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
-    /// @notice Input for migrating one or more OP Stack chains to use the Super Root dispute games
+    /// @notice Input for migrating two or more OP Stack chains to use the Super Root dispute games
     ///         and shared dispute game contracts.
     struct MigrateInput {
         ISystemConfig[] chainSystemConfigs;
@@ -53,8 +53,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when attempting to migrate a chain whose portal has a bridge hook.
     error OPContractsManagerMigrator_BridgeHookNotSupported();
 
-    /// @notice Thrown when the chainSystemConfigs array is empty.
-    error OPContractsManagerMigrator_NoChains();
+    /// @notice Thrown when fewer than two chains are provided. An interop set needs at least two
+    ///         chains.
+    error OPContractsManagerMigrator_NotEnoughChains();
 
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
@@ -108,7 +109,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
-    /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
+    /// @notice Migrates two or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
     /// @dev WARNING: This is a one-way operation. You cannot easily undo this operation without a
     ///      smart contract upgrade. Do not call this function unless you are 100% confident that
@@ -135,9 +136,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      portal to the shared dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
-        // Check that at least one chain is being migrated.
-        if (_input.chainSystemConfigs.length == 0) {
-            revert OPContractsManagerMigrator_NoChains();
+        // Check that at least two chains are being migrated. An interop set needs two or more.
+        if (_input.chainSystemConfigs.length < 2) {
+            revert OPContractsManagerMigrator_NotEnoughChains();
         }
 
         // Check that the starting respected game type is a valid super game type.

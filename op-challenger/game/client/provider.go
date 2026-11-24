@@ -73,7 +73,7 @@ func (c *Provider) L2HeaderSource() (*ethclient.Client, error) {
 		return nil, fmt.Errorf("incorrect number of L2 RPCs configured, expected 1 but got %d", len(c.cfg.L2Rpcs))
 	}
 
-	l2Client, err := ethclient.DialContext(c.ctx, c.cfg.L2Rpcs[0])
+	l2Client, err := dial.DialEthClientWithTimeout(c.ctx, dial.DefaultDialTimeout, c.logger, c.cfg.L2Rpcs[0])
 	if err != nil {
 		return nil, fmt.Errorf("dial l2 client %v: %w", c.cfg.L2Rpcs[0], err)
 	}

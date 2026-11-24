@@ -170,9 +170,6 @@ func (j *Job) Open(ctx context.Context) error {
 			j.logger.Error("failed to finish building L1 block", "err", err)
 			return err
 		}
-		if isAmsterdam {
-			geth.EnsureAmsterdamBlockAccessList(envelope.ExecutionPayload)
-		}
 
 		j.b.envelopes[envelope.ExecutionPayload.ParentHash] = envelope
 	} else {
@@ -183,7 +180,7 @@ func (j *Job) Open(ctx context.Context) error {
 		// modify gas limit so that we get a different block
 		envelope.ExecutionPayload.GasLimit = envelope.ExecutionPayload.GasLimit + 100
 
-		block, err := engine.ExecutableDataToBlockNoHash(*envelope.ExecutionPayload, make([]common.Hash, 0), &j.parentBeaconBlockRoot, make([][]byte, 0), j.b.config)
+		block, err := engine.ExecutableDataToBlockNoHash(*envelope.ExecutionPayload, make([]common.Hash, 0), &j.parentBeaconBlockRoot, make([][]byte, 0))
 		if err != nil {
 			j.logger.Error("failed to convert executable data to block", "err", err)
 			return err

@@ -47,14 +47,14 @@ func (s *SuperDisputeSystem) NodeEndpoint(name string) endpoint.RPC {
 		return s.sys.L1().UserRPC()
 	}
 	network, node := splitName(name)
-	return s.sys.L2GethEndpoint(network, node)
+	return s.sys.L2ELEndpoint(network, node)
 }
 
 func (s *SuperDisputeSystem) L2NodeEndpoints() []endpoint.RPC {
 	networks := s.sys.L2IDs()
 	endpoints := make([]endpoint.RPC, len(networks))
 	for i, network := range networks {
-		endpoints[i] = s.sys.L2GethEndpoint(network, "sequencer")
+		endpoints[i] = s.sys.L2ELEndpoint(network, "sequencer")
 	}
 	return endpoints
 }
@@ -68,7 +68,7 @@ func (s *SuperDisputeSystem) NodeClient(name string) *ethclient.Client {
 		return s.sys.L1GethClient()
 	}
 	network, node := splitName(name)
-	return s.sys.L2GethClient(network, node)
+	return s.sys.L2ELClient(network, node)
 }
 
 func (s *SuperDisputeSystem) RollupEndpoint(name string) endpoint.RPC {

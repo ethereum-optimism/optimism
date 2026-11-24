@@ -37,11 +37,10 @@ func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
 //
 // The payload is invalidated with a transaction that cannot be decoded: a single 0xff byte, an
 // RLP list header with no body. The Engine API lists INVALID as the response when transactions
-// contains zero-length or invalid entries, and both op-geth and op-reth decode the transactions
-// before they look for the parent block, so they answer INVALID rather than SYNCING. A
-// zero-length transaction is the case the spec names, but go-ethereum and alloy compute
-// different transaction roots for an empty entry, so kona-node's admin API rejects it with a
-// bad block hash.
+// contains zero-length or invalid entries, and op-reth decodes the transactions before it looks
+// for the parent block, so it answers INVALID rather than SYNCING. A zero-length transaction is
+// the case the spec names, but go-ethereum and alloy compute different transaction roots for an
+// empty entry, so kona-node's admin API rejects it with a bad block hash.
 func TestCLUnsafeKeptOnInvalidPayloadDuringELSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := newGapCLP2PSystem(t)

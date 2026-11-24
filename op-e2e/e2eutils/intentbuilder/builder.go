@@ -100,8 +100,8 @@ type L2FeesConfigurator interface {
 
 type L2HardforkConfigurator interface {
 	WithForkAtGenesis(fork opforks.Name)
-	// WithForkAtOffset configures fork to activate at offset. A nil offset
-	// deactivates fork and every subsequent fork, so calls are order-sensitive.
+	// WithForkAtOffset activates fork at offset and deactivates every later fork; a nil
+	// offset deactivates fork too. Calls are order-sensitive.
 	WithForkAtOffset(fork opforks.Name, offset *uint64)
 	WithKeepKarstUpgradeGas()
 }
@@ -536,23 +536,18 @@ func (c *l2Configurator) WithKeepKarstUpgradeGas() {
 
 func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 	require.True(c.t, opforks.IsValid(fork))
-	key, ok := genesis.ForkOffsetKey(fork)
-	require.True(c.t, ok, "fork %q has no deploy-config time offset", fork)
-
-	// The typing is important, or op-deployer merge-JSON tricks will fail.
-	//
-	// A nil offset writes an explicit null override rather than removing the key.
-	// Op-deployer merges user overrides over its defaults, so an omitted key
-	// inherits the default schedule.
-	c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
-
-	// If we are deactivating a fork, then we need to also deactivate all subsequent forks.
-	if offset == nil {
-		for _, opFork := range opforks.From(fork) {
-			key, ok := genesis.ForkOffsetKey(opFork)
-			require.True(c.t, ok, "fork %q has no deploy-config time offset", opFork)
-			c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(nil)
+	overrides := c.builder.intent.Chains[c.chainIndex].DeployOverrides
+	for i, f := range opforks.From(fork) {
+		key, ok := genesis.ForkOffsetKey(f)
+		require.True(c.t, ok, "fork %q has no deploy-config time offset", f)
+		var v *uint64
+		if i == 0 {
+			v = offset
 		}
+		// A typed nil, not an omitted key: op-deployer merges overrides over its default
+		// schedule, so an omitted later fork could activate before this one. The typing is
+		// important, or op-deployer merge-JSON tricks will fail.
+		overrides[key] = (*hexutil.Uint64)(v)
 	}
 }
 

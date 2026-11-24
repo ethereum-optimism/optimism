@@ -88,15 +88,13 @@ func WithForkAtL1Offset(fork forks.Fork, offset uint64) DeployerOption {
 func defaultL1BlobSchedule() *params.BlobScheduleConfig {
 	return &params.BlobScheduleConfig{
 		Cancun: params.DefaultCancunBlobConfig,
-		Osaka:  params.DefaultOsakaBlobConfig,
 		Prague: params.DefaultPragueBlobConfig,
 		BPO1:   params.DefaultBPO1BlobConfig,
 		BPO2:   params.DefaultBPO2BlobConfig,
 		BPO3:   params.DefaultBPO3BlobConfig,
 		BPO4:   params.DefaultBPO4BlobConfig,
 		// Upstream defaults are not available yet, so keep the latest parameters.
-		BPO5:      params.DefaultBPO4BlobConfig,
-		Amsterdam: params.DefaultBPO4BlobConfig,
+		BPO5: params.DefaultBPO4BlobConfig,
 	}
 }
 
@@ -105,7 +103,8 @@ func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuild
 }
 
 // parseL1Fork accepts both Ethereum upgrade names and their geth execution-layer names.
-// BPO selectors are intentionally excluded while the bundled op-geth rejects newPayloadV4 for them.
+// It offers no BPO selectors. BPO3 and later would not work: go-ethereum's Engine API serves them
+// only through its Amsterdam methods, which the fake-PoS drivers call only once Amsterdam is active.
 func parseL1Fork(value string) (forks.Fork, error) {
 	fork, ok := map[string]forks.Fork{
 		"pectra":      forks.Prague,
@@ -121,6 +120,9 @@ func parseL1Fork(value string) (forks.Fork, error) {
 	return 0, fmt.Errorf("unsupported L1 fork %q", value)
 }
 
+// WithKarstAtOffset activates Karst at the offset (a nil offset deactivates it) and deactivates
+// every later fork. It overrides any earlier option that activates a later fork, including
+// PresetConfig.InteropAtGenesis.
 func WithKarstAtOffset(offset *uint64) DeployerOption {
 	return func(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {

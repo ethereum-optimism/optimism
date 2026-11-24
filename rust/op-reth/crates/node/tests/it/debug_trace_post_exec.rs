@@ -135,7 +135,7 @@ fn raw_sdm_block(
         source_hash: B256::with_last_byte(1),
         from: signer,
         to: TxKind::Call(Address::repeat_byte(0x99)),
-        mint: 1_000_000_000_000_000_000,
+        mint: U256::from(1_000_000_000_000_000_000u64),
         value: U256::ZERO,
         gas_limit: 21_000,
         is_system_transaction: false,

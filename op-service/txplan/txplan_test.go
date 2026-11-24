@@ -5,7 +5,10 @@ import (
 	"math/big"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -97,4 +100,41 @@ func TestWithReaderDoesNotUseDefaultFeeCaps(t *testing.T) {
 	require.Equal(t, []byte{0x0a}, reader.msg.Data)
 	require.Equal(t, accessList, reader.msg.AccessList)
 	require.Equal(t, rpc.BlockNumber(7), reader.blockNumber)
+}
+
+type stubReceiptGetter map[common.Hash]*optypes.Receipt
+
+func (s stubReceiptGetter) TransactionReceipt(_ context.Context, txHash common.Hash) (*optypes.Receipt, error) {
+	if r, ok := s[txHash]; ok {
+		return r, nil
+	}
+	return nil, ethereum.NotFound
+}
+
+// TestIncludedKeepsOPReceiptFields checks that Included is the receipt the ReceiptGetter returns,
+// so a caller can read the L1 and operator fees without fetching the receipt again.
+func TestIncludedKeepsOPReceiptFields(t *testing.T) {
+	tx := types.NewTx(&types.DynamicFeeTx{Nonce: 1})
+	want := &optypes.Receipt{
+		Receipt:             types.Receipt{TxHash: tx.Hash(), Status: types.ReceiptStatusSuccessful},
+		L1Fee:               big.NewInt(1234),
+		OperatorFeeScalar:   ptr.New(uint64(5)),
+		OperatorFeeConstant: ptr.New(uint64(6)),
+	}
+	cl := stubReceiptGetter{tx.Hash(): want}
+
+	for name, opt := range map[string]Option{
+		"WithAssumedInclusion": WithAssumedInclusion(cl),
+		"WithRetryInclusion":   WithRetryInclusion(cl, 1, &retry.FixedStrategy{}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ptx := NewPlannedTx(opt)
+			ptx.Signed.Set(tx)
+			ptx.Submitted.Set(struct{}{})
+
+			got, err := ptx.Included.Eval(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, want, got)
+		})
+	}
 }

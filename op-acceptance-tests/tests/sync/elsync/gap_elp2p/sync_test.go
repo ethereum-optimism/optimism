@@ -53,10 +53,6 @@ func TestELP2PFCUUnavailableHash(gt *testing.T) {
 	unsafeHashInvalid := common.MaxHash // must be non-existent invalid hash
 	// We retry FCU using the invalid hash
 	// The ELP2P enabled L2EL will ask other peers but fail to fetch the block with the invalid hash
-	// Example logs from L2EL(geth)
-	//  "Fetching the unknown forkchoice head from network"  hash=0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-	//  "Fetching batch of headers"
-	//  "Could not retrieve unknown head from peers"
 	sys.L2ELB.ForkchoiceUpdateRaw(unsafeHashInvalid, genesis.Hash, genesis.Hash, nil).Retry(attempts).ResultAllSyncing()
 
 	sys.L2ELB.UnsafeHead().NumEqualTo(targetNum)
@@ -217,10 +213,8 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	require.True(ok)
 	// L2CLB will relay the payload to the L2ELB using the engine_newPayload
 	// L2ELB will return INVALID because payload is invalid, due to wrong stateRoot
-	// ex) op-geth will call InsertBlockWithoutSetHead() to execute the payload while engine_newPayload
 	// Post invalid payload with the fault that can be only checked at the EL side
 	sys.L2CLB.PostUnsafePayload(payload)
-	// ex) op-geth error msg: "ignoring bad block: invalid merkle root"
 	sys.L2CLB.NotAdvanced(safety.LocalUnsafe, attempts)
 	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
 	// EL did not advance
@@ -241,7 +235,6 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	require.True(ok)
 	// Post invalid payload with the fault that can be only checked at the EL side
 	sys.L2CLB.PostUnsafePayload(payload2)
-	// ex) op-geth error msg: "ignoring bad block: links to previously rejected block"
 	sys.L2CLB.NotAdvanced(safety.LocalUnsafe, attempts)
 	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
 	// EL did not advance

@@ -3,6 +3,7 @@ package utils
 import (
 	"math/big"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -23,7 +24,7 @@ type TokenVault struct {
 	t devtest.T
 }
 
-func (c *TokenVault) Deposit(user *dsl.EOA, amount eth.ETH) *types.Receipt {
+func (c *TokenVault) Deposit(user *dsl.EOA, amount eth.ETH) *optypes.Receipt {
 	depositCalldata, err := c.Contract.parsedABI.Pack("deposit")
 	if err != nil {
 		require.NoError(c.t, err, "failed to pack deposit calldata")
@@ -41,7 +42,7 @@ func (c *TokenVault) Deposit(user *dsl.EOA, amount eth.ETH) *types.Receipt {
 	return depRes
 }
 
-func (c *TokenVault) Approve(user *dsl.EOA, spender common.Address, amount *big.Int) *types.Receipt {
+func (c *TokenVault) Approve(user *dsl.EOA, spender common.Address, amount *big.Int) *optypes.Receipt {
 	approveCalldata, err := c.Contract.parsedABI.Pack("approve", spender, amount)
 	if err != nil {
 		require.NoError(c.t, err, "failed to pack approve calldata")
@@ -59,7 +60,7 @@ func (c *TokenVault) Approve(user *dsl.EOA, spender common.Address, amount *big.
 	return approveRes
 }
 
-func (c *TokenVault) DeactivateAllowance(user *dsl.EOA, spender common.Address) *types.Receipt {
+func (c *TokenVault) DeactivateAllowance(user *dsl.EOA, spender common.Address) *optypes.Receipt {
 	deactCalldata, err := c.Contract.parsedABI.Pack("deactivateAllowance", spender)
 	if err != nil {
 		require.NoError(c.t, err, "failed to pack deactivateAllowance calldata")
@@ -98,7 +99,7 @@ func (c *TokenVault) GetDepositorSlot(index uint64) common.Hash {
 	return common.BigToHash(elem)
 }
 
-func DeployTokenVault(t devtest.T, user *dsl.EOA) (*TokenVault, *types.Receipt) {
+func DeployTokenVault(t devtest.T, user *dsl.EOA) (*TokenVault, *optypes.Receipt) {
 	parsedABI, bin := LoadArtifact(t, TokenVaultArtifact)
 	contractAddress, receipt := DeployContract(t, user, bin)
 	contract := NewContract(contractAddress, parsedABI)

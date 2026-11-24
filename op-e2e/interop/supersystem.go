@@ -66,8 +66,8 @@ type SuperSystem interface {
 	DependencySet() *depset.StaticConfigDependencySet
 
 	// L2 client specific
-	L2GethEndpoint(id string, name string) endpoint.RPC
-	L2GethClient(network string, node string) *ethclient.Client
+	L2ELEndpoint(id string, name string) endpoint.RPC
+	L2ELClient(network string, node string) *ethclient.Client
 	L2RollupEndpoint(network string, node string) endpoint.RPC
 	L2RollupClient(network string, node string) *sources.RollupClient
 

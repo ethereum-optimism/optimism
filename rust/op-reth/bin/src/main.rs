@@ -2,7 +2,7 @@
 
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_chainspec::{is_superchain_chain_id, superchain_block_time};
-use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
+use reth_optimism_cli::Cli;
 use reth_optimism_node::{OpNode, args::RollupArgs, launch_node};
 use tracing::{info, warn};
 
@@ -51,8 +51,8 @@ fn main() {
         eprintln!("Error: build info is already embedded. This is a bug.")
     }
 
-    if let Err(err) = Cli::<OpChainSpecParser, RollupArgs>::parse_with_denied_args().run(
-        async move |builder, mut args| {
+    if let Err(err) =
+        Cli::<RollupArgs>::parse_with_denied_args().run(async move |builder, mut args| {
             let chain_id = builder.config().chain.chain.id();
             if args.testing_sdm_fixed_policy.is_some() {
                 validate_testing_sdm_fixed_policy(chain_id)?;
@@ -63,8 +63,8 @@ fn main() {
 
             info!(target: "reth::cli", "Launching node");
             launch_node(builder, OpNode::new(args)).await
-        },
-    ) {
+        })
+    {
         eprintln!("Error: {err:?}");
         std::process::exit(1);
     }
@@ -96,7 +96,7 @@ mod tests {
         [&["--testing.sdm-fixed-policy"], &["--testing.sdm-fixed-policy", TARGET]];
 
     fn validate_cli(chain: &str, policy_args: &[&str]) -> eyre::Result<()> {
-        let cli = Cli::<OpChainSpecParser, RollupArgs>::try_parse_args_from(
+        let cli = Cli::<RollupArgs>::try_parse_args_from(
             ["op-reth", "node", "--chain", chain].into_iter().chain(policy_args.iter().copied()),
         )?;
         let Commands::Node(node) = cli.command else {

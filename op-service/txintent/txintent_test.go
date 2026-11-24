@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -71,7 +72,7 @@ func TestTxIntent(t *testing.T) {
 	randomBlockRef := testutils.RandomBlockRef(rng)
 	randomReceipt.BlockHash = randomBlockRef.Hash
 
-	tx.PlannedTx.Included.Set(randomReceipt)
+	tx.PlannedTx.Included.Set(&optypes.Receipt{Receipt: *randomReceipt})
 	tx.PlannedTx.IncludedBlock.Set(randomBlockRef)
 	tx.PlannedTx.ChainID.Set(eth.ChainIDFromUInt64(1))
 
@@ -139,7 +140,7 @@ func TestTxIntentMultiCall(t *testing.T) {
 	randomBlockRef := testutils.RandomBlockRef(rng)
 	randomReceipt.BlockHash = randomBlockRef.Hash
 
-	tx.PlannedTx.Included.Set(randomReceipt)
+	tx.PlannedTx.Included.Set(&optypes.Receipt{Receipt: *randomReceipt})
 	tx.PlannedTx.IncludedBlock.Set(randomBlockRef)
 	tx.PlannedTx.ChainID.Set(chainID)
 

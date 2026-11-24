@@ -180,8 +180,8 @@ impl<T: TransactionTrait + Encodable2718> alloy_network_primitives::TransactionR
 #[serde(rename_all = "camelCase")]
 pub struct OpTransactionFields {
     /// The ETH value to mint on L2
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "alloy_serde::quantity::opt")]
-    pub mint: Option<u128>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mint: Option<U256>,
     /// Hash that uniquely identifies the source of the deposit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_hash: Option<B256>,

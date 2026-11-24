@@ -50,7 +50,7 @@ protoc = "35.1"
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
-"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.17.7"
+"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.17.10"
 
 # Python dependencies
 "pipx:slither-analyzer" = "0.10.2"

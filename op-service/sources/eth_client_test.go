@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"math/big"
 	"math/rand"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -256,4 +258,78 @@ func TestReceiptValidation(t *testing.T) {
 
 	_, _, err := ethcl.FetchReceipts(ctx, block.Hash)
 	require.ErrorContains(err, "unexpected nil block number")
+}
+
+// testRPCBlock returns a verifiable RPC block with the given raw transactions.
+func testRPCBlock(txs RawTransactions) *RPCBlock {
+	block := &RPCBlock{
+		RPCHeader: RPCHeader{
+			UncleHash: types.EmptyUncleHash,
+			Number:    123,
+			Time:      1_700_000_000,
+			BaseFee:   (*hexutil.Big)(big.NewInt(7)),
+			TxHash:    types.DeriveSha(txs, trie.NewStackTrie(nil)),
+		},
+		Transactions: txs,
+	}
+	block.Hash = block.computeBlockHash()
+	return block
+}
+
+// newEthClientServing returns an EthClient whose RPC serves block to exactly one method(arg) call.
+func newEthClientServing(t *testing.T, block *RPCBlock, method string, arg any) *EthClient {
+	m := new(mockRPC)
+	m.On("CallContext", mock.Anything, new(*RPCBlock), method, []any{arg, true}).Run(func(args mock.Arguments) {
+		*args[1].(**RPCBlock) = block
+	}).Return([]error{nil}).Once()
+	t.Cleanup(func() { m.AssertExpectations(t) })
+	s, err := NewEthClient(m, nil, nil, DefaultEthClientConfig(10))
+	require.NoError(t, err)
+	return s
+}
+
+// TestEthClientInfoAndTxsRejectsOpTxs checks that a plain EthClient's whole-body accessors reject
+// a block holding either OP Stack tx type with ErrOpTxInBody, while InfoAndUserTxsByHash serves it.
+func TestEthClientInfoAndTxsRejectsOpTxs(t *testing.T) {
+	ctx := t.Context()
+	txs := l2BlockTxs(t)
+	deposit, user, postExec := txs[0], txs[1:len(txs)-1], txs[len(txs)-1]
+	lagoon := testRPCBlock(txs)
+
+	for _, rc := range []struct {
+		name  string
+		block *RPCBlock
+	}{
+		{"lagoon block", lagoon},
+		{"deposit only", testRPCBlock(append(RawTransactions{deposit}, user...))},
+		{"post-exec only", testRPCBlock(append(slices.Clone(user), postExec))},
+	} {
+		block := rc.block
+		t.Run(rc.name+"/InfoAndTxsByHash", func(t *testing.T) {
+			s := newEthClientServing(t, block, "eth_getBlockByHash", block.Hash)
+			_, _, err := s.InfoAndTxsByHash(ctx, block.Hash)
+			require.ErrorIs(t, err, ErrOpTxInBody)
+		})
+		t.Run(rc.name+"/InfoAndTxsByNumber", func(t *testing.T) {
+			s := newEthClientServing(t, block, "eth_getBlockByNumber", hexutil.EncodeUint64(uint64(block.Number)))
+			_, _, err := s.InfoAndTxsByNumber(ctx, uint64(block.Number))
+			require.ErrorIs(t, err, ErrOpTxInBody)
+		})
+	}
+
+	t.Run("InfoAndUserTxsByHash", func(t *testing.T) {
+		s := newEthClientServing(t, lagoon, "eth_getBlockByHash", lagoon.Hash)
+		info, userTxs, err := s.InfoAndUserTxsByHash(ctx, lagoon.Hash)
+		require.NoError(t, err)
+		require.Equal(t, lagoon.Hash, info.Hash())
+		require.Equal(t, user.Hashes(), mustRawTransactions(userTxs).Hashes())
+	})
+
+	t.Run("decodes a body without OP Stack txs", func(t *testing.T) {
+		userOnly := testRPCBlock(user)
+		s := newEthClientServing(t, userOnly, "eth_getBlockByHash", userOnly.Hash)
+		_, decoded, err := s.InfoAndTxsByHash(ctx, userOnly.Hash)
+		require.NoError(t, err)
+		require.Equal(t, user.Hashes(), mustRawTransactions(decoded).Hashes())
+	})
 }

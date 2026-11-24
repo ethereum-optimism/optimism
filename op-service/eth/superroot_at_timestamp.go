@@ -1,6 +1,9 @@
 package eth
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
 
 // OutputWithRequiredL1 is the OutputV0 pre-image, its hash, and its source L1 block
 type OutputWithRequiredL1 struct {
@@ -37,16 +40,15 @@ func (d *SuperRootResponseData) UnmarshalJSON(input []byte) error {
 	d.VerifiedRequiredL1 = dec.VerifiedRequiredL1
 	d.SuperRoot = dec.SuperRoot
 
-	// Unmarshal the Super field - currently only SuperV1 is supported
-	if len(dec.Super) > 0 {
-		var superV1 SuperV1
-		if err := json.Unmarshal(dec.Super, &superV1); err != nil {
-			return err
-		}
-		d.Super = &superV1
-	} else {
-		d.Super = nil
+	if len(dec.Super) == 0 || string(dec.Super) == "null" {
+		return errors.New("super root data is missing super")
 	}
+	// Unmarshal the Super field - currently only SuperV1 is supported
+	var superV1 SuperV1
+	if err := json.Unmarshal(dec.Super, &superV1); err != nil {
+		return err
+	}
+	d.Super = &superV1
 	return nil
 }
 

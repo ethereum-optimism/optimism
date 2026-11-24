@@ -13,6 +13,12 @@ import (
 
 const defaultConnectTimeout = 5 * time.Second
 
+// TestDialHasNoWebsocketMessageSizeLimit checks that defaultWebsocketMessageSizeLimit stays 0, no
+// limit. A response size test can't catch a large limit.
+func TestDialHasNoWebsocketMessageSizeLimit(t *testing.T) {
+	require.Zero(t, defaultWebsocketMessageSizeLimit, "op-service clients must not limit websocket message size")
+}
+
 func TestIsURLAvailableLocal(t *testing.T) {
 	listener, err := net.Listen("tcp4", ":0")
 	require.NoError(t, err)

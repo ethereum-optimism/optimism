@@ -142,7 +142,7 @@ func depositTxTestCases() []depositTxTestCase {
 
 // TestBedrockSystemDepositHashGoldenVector pins the cross-client hash of a pre-Regolith
 // L1-info deposit captured from op-geth. The system flag is part of the canonical encoding,
-// so both the flag and this hash must stay aligned with op-alloy after op-geth is removed.
+// so both the flag and this hash must stay aligned with op-alloy.
 func TestBedrockSystemDepositHashGoldenVector(t *testing.T) {
 	to := common.HexToAddress("0x4200000000000000000000000000000000000015")
 	tx := &optypes.DepositTx{
@@ -209,21 +209,4 @@ func TestTxTypeByteChecks(t *testing.T) {
 	require.False(t, optypes.IsPostExecTxBytes(deposit))
 	require.False(t, optypes.IsPostExecTxBytes(dynamicFee))
 	require.False(t, optypes.IsPostExecTxBytes(nil))
-}
-
-// TestIsDepositTx decodes a deposit into a go-ethereum transaction, which only op-geth
-// can do, so it goes with IsDepositTx at the cutover.
-func TestIsDepositTx(t *testing.T) {
-	deposit := new(gethtypes.Transaction)
-	require.NoError(t, deposit.UnmarshalBinary(depositTxTestCases()[0].binary))
-	require.True(t, optypes.IsDepositTx(deposit))
-
-	legacy := gethtypes.NewTx(&gethtypes.LegacyTx{
-		Nonce:    1,
-		GasPrice: big.NewInt(1),
-		Gas:      21000,
-		To:       &common.Address{},
-		Value:    big.NewInt(0),
-	})
-	require.False(t, optypes.IsDepositTx(legacy))
 }

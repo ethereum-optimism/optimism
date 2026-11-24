@@ -1,7 +1,7 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{EngineConfig, NetworkConfig, RollupNode, SequencerConfig, service::node::L1Config};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use url::Url;
 
 use kona_genesis::{L1ChainConfig, RollupConfig};
@@ -26,6 +26,8 @@ pub struct L1ConfigBuilder {
     /// The duration in seconds of an L1 slot. This can be used to hardcode a fixed slot
     /// duration if the l1-beacon's slot configuration is not available.
     pub slot_duration_override: Option<u64>,
+    /// How often the L1 finalized block is polled.
+    pub epoch_poll_interval: Duration,
 }
 
 /// The [`RollupNodeBuilder`] is used to construct a [`RollupNode`] service.
@@ -131,6 +133,7 @@ impl RollupNodeBuilder {
             chain_config: Arc::new(self.l1_config_builder.chain_config),
             beacon_client: l1_beacon,
             provider: self.l1_config_builder.provider,
+            epoch_poll_interval: self.l1_config_builder.epoch_poll_interval,
         };
 
         let rollup_config = Arc::new(self.config);

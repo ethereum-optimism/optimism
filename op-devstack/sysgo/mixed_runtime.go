@@ -70,14 +70,20 @@ func devstackL2CLKind() MixedL2CLKind {
 }
 
 // ResolveMixedL2CLKind returns the L2 CL kind requested via DEVSTACK_L2CL_KIND,
-// defaulting to op-node when the variable is unset. Tests that build explicit
-// MixedSingleChainNodeSpec lists use this so they honor the same env-driven CL
-// selection as the higher-level single-chain presets (see startL2CLForKey).
-func ResolveMixedL2CLKind() MixedL2CLKind {
-	if kind := devstackL2CLKind(); kind != "" {
+// defaulting to op-node when the variable is unset, and fails the test on any other
+// value before a node starts. Tests that build explicit MixedSingleChainNodeSpec lists
+// use this so they honor the same env-driven CL selection as the higher-level
+// single-chain presets.
+func ResolveMixedL2CLKind(t devtest.T) MixedL2CLKind {
+	switch kind := devstackL2CLKind(); kind {
+	case "":
+		return MixedL2CLOpNode
+	case MixedL2CLOpNode, MixedL2CLKona:
 		return kind
+	default:
+		t.Require().FailNowf("unsupported L2 CL kind", "DEVSTACK_L2CL_KIND=%q, want %q or %q", kind, MixedL2CLOpNode, MixedL2CLKona)
+		return "" // unreachable
 	}
-	return MixedL2CLOpNode
 }
 
 const (
@@ -548,11 +554,12 @@ func startMixedKonaNode(
 		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
+		// Poll L1 finality as often as op-node's devstack node does (L1EpochPollInterval). With
+		// kona's 384s default, finality would barely move in a test, and two kona nodes that poll
+		// out of phase would hold finalized L1 blocks up to an interval apart.
+		"KONA_NODE_L1_EPOCH_POLL_INTERVAL=2", // seconds
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
-		// kona only registers when admin is enabled. op-node's devstack node enables it too.
-		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
 		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
 		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),

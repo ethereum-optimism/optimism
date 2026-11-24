@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	_ "net/http/pprof"
 	"sync"
@@ -18,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -1020,7 +1020,7 @@ type TxSender[T any] interface {
 // sendTx uses the txmgr queue to send the given transaction candidate after setting its
 // gaslimit. It will block if the txmgr queue has reached its MaxPendingTransactions limit.
 func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.TxCandidate, queue TxSender[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
-	gasLimit, err := maxFloorDataGas(candidate.TxData)
+	gasLimit, err := maxFloorDataGas(l.Txmgr.From(), candidate.To, candidate.TxData)
 	if err != nil {
 		// We log instead of returning an error here because the txmgr will do its own gas estimation.
 		l.Log.Warn("Failed to calculate batch transaction gas limit", "err", err)
@@ -1031,37 +1031,27 @@ func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.T
 	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.asBlob}, *candidate, receiptsCh)
 }
 
+// These mirror what core.FloorDataGas charges under Amsterdam for a transaction whose recipient
+// is not its sender.
 const (
 	amsterdamTxBaseGas               = uint64(12_000 + 3_000) // EIP-2780: TX_BASE_COST + COLD_ACCOUNT_ACCESS
 	amsterdamCalldataFloorGasPerByte = uint64(4 * 16)         // EIP-7976: 4 floor tokens per byte at 16 gas per token
 )
 
-// maxFloorDataGas returns a gas limit valid under both the pre-Amsterdam EIP-7623 rules and
-// Amsterdam's EIP-2780/EIP-7976 rules. The pre-Amsterdam floor also exceeds Amsterdam's regular
-// intrinsic gas whenever it exceeds the Amsterdam floor, so the larger floor is sufficient.
-func maxFloorDataGas(data []byte) (uint64, error) {
-	preAmsterdam, err := core.FloorDataGas(data)
+// maxFloorDataGas returns a gas limit for a transaction from the sender to the recipient that
+// carries data and no value, valid under both the pre-Amsterdam EIP-7623 rules and Amsterdam's
+// EIP-2780/EIP-7976 rules. The pre-Amsterdam floor also exceeds Amsterdam's regular intrinsic
+// gas whenever it exceeds the Amsterdam floor, so the larger floor is sufficient.
+func maxFloorDataGas(from common.Address, to *common.Address, data []byte) (uint64, error) {
+	preAmsterdam, err := core.FloorDataGas(params.Rules{}, from, to, nil, data, nil)
 	if err != nil {
 		return 0, err
 	}
-	amsterdam, err := amsterdamFloorDataGas(data)
+	amsterdam, err := core.FloorDataGas(params.Rules{IsAmsterdam: true}, from, to, nil, data, nil)
 	if err != nil {
 		return 0, err
 	}
 	return max(preAmsterdam, amsterdam), nil
-}
-
-// NOTE: we can probably replace this function with core.FloorDataGas once our geth dependency
-// includes the Amsterdam calculation.
-func amsterdamFloorDataGas(data []byte) (uint64, error) {
-	return addGas(amsterdamTxBaseGas, uint64(len(data)), amsterdamCalldataFloorGasPerByte)
-}
-
-func addGas(base, count, cost uint64) (uint64, error) {
-	if count > (math.MaxUint64-base)/cost {
-		return 0, core.ErrGasUintOverflow
-	}
-	return base + count*cost, nil
 }
 
 func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error) {

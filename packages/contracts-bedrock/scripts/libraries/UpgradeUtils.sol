@@ -54,7 +54,7 @@ library UpgradeUtils {
     /// @notice Computes the recommended gas limit for a transaction.
     /// @dev Recommended gas limit = 1.5x max(intrinsic + body, EIP-7623 floor). The EIP-7623
     ///      floor dominates when execution is cheap relative to calldata,
-    ///      since op-geth charges the floor as gasUsed.
+    ///      since the execution client charges the floor as gasUsed.
     /// @param _intrinsicGas The intrinsic gas cost.
     /// @param _bodyGasUsed The body gas used.
     /// @param _floorGas The EIP-7623 floor gas.
@@ -76,7 +76,7 @@ library UpgradeUtils {
     /// @notice Computes the EIP-7623 floor gas for a transaction.
     /// @dev Replicates op-geth's FloorDataGas (core/state_transition.go) active on Prague/Isthmus+:
     ///      floor = 21_000 + 10 * tokens, where tokens = zero_bytes + 4 * non_zero_bytes.
-    ///      op-geth applies this twice: pre-execution it rejects the tx (ErrFloorDataGas) when
+    ///      The execution client applies this twice: pre-execution it rejects the tx when
     ///      gasLimit < floor; post-execution it sets receipt.gasUsed = max(execution_gas, floor).
     /// @param _data The transaction calldata.
     /// @return gas_ The EIP-7623 floor gas (includes the 21_000 base).

@@ -106,7 +106,7 @@ func TestReceiptBinaryRoundTrip(t *testing.T) {
 	}
 }
 
-// TestReceiptRLPRoundTrip pins, op-geth-independently, that rlp round-trips
+// TestReceiptRLPRoundTrip pins that rlp round-trips
 // through the wrapper's own codec — including a deposit receipt whose
 // authoritative fields live only on the wrapper.
 func TestReceiptRLPRoundTrip(t *testing.T) {
@@ -160,9 +160,33 @@ func TestReceiptsGeth(t *testing.T) {
 	require.EqualValues(t, 123, rs[0].CumulativeGasUsed)
 }
 
+func TestFromGethReceipt(t *testing.T) {
+	for _, typ := range []uint8{gethtypes.LegacyTxType, gethtypes.DynamicFeeTxType, optypes.PostExecTxType} {
+		src := &gethtypes.Receipt{Type: typ, TxHash: common.Hash{typ}}
+		r, err := optypes.FromGethReceipt(src)
+		require.NoError(t, err, "type %#x", typ)
+		require.Equal(t, *src, r.Receipt)
+	}
+
+	rs, err := optypes.FromGethReceipts(gethtypes.Receipts{
+		{Type: gethtypes.LegacyTxType},
+		{Type: optypes.PostExecTxType},
+	})
+	require.NoError(t, err)
+	require.Len(t, rs, 2)
+
+	_, err = optypes.FromGethReceipt(&gethtypes.Receipt{Type: optypes.DepositTxType})
+	require.ErrorContains(t, err, "deposit receipt")
+	_, err = optypes.FromGethReceipts(gethtypes.Receipts{
+		{Type: gethtypes.LegacyTxType},
+		{Type: optypes.DepositTxType},
+	})
+	require.ErrorContains(t, err, "deposit receipt")
+}
+
 func TestReceiptsUserReceipts(t *testing.T) {
 	mk := func(typ uint8) *optypes.Receipt {
-		return optypes.FromGethReceipt(&gethtypes.Receipt{Type: typ, TxHash: common.Hash{typ}})
+		return &optypes.Receipt{Receipt: gethtypes.Receipt{Type: typ, TxHash: common.Hash{typ}}}
 	}
 	rs := optypes.Receipts{
 		mk(optypes.DepositTxType),

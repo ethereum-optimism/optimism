@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/loadtest"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-karst/karsttest"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -232,8 +232,8 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 // (427 pairs × 192) to 57,600 bytes (300 pairs × 192). The input is all
 // zeros: per EIP-197, (0,0) decodes as the G1/G2 point at infinity, so
 // pairing 300 (or 301) identity pairs yields 1. (The same curve is variously
-// called bn128, bn254, or bn256 across the codebase; op-geth's Go bindings
-// use bn256, so this test follows that convention.)
+// called bn128, bn254, or bn256 across the codebase; go-ethereum's Go package
+// is bn256, so this test follows that convention.)
 func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
@@ -403,7 +403,7 @@ func spamL1Txs(sys *presets.Minimal) {
 func runSpam(t devtest.T, eoas []*dsl.SyncEOA, blockTime time.Duration, to common.Address) {
 	eoasRR := loadtest.NewRoundRobin(eoas)
 	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
-		// Max tx size in op-geth and op-reth mempools is 128 kB per tx.
+		// Max tx size in the op-reth mempool is 128 kB per tx.
 		// We leave an 8 kB buffer for tx data outside the calldata.
 		const calldataSize = 120 * 1024
 		_, err := eoasRR.Get().Include(t,

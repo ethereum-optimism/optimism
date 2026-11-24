@@ -9,7 +9,7 @@ use alloy_primitives::{B256, U64};
 use core::net::IpAddr;
 use ipnet::IpNet;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use kona_genesis::RollupConfig;
+use kona_genesis::{DependencySet, RollupConfig};
 use kona_gossip::{PeerCount, PeerDump, PeerInfo, PeerStats};
 use kona_protocol::SyncStatus;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -43,6 +43,10 @@ pub trait RollupNodeApi {
     /// Get the rollup configuration parameters.
     #[method(name = "rollupConfig")]
     async fn op_rollup_config(&self) -> RpcResult<RollupConfig>;
+
+    /// Get the interop dependency set the node runs with. A node without one answers not found.
+    #[method(name = "dependencySet")]
+    async fn op_dependency_set(&self) -> RpcResult<DependencySet>;
 
     /// Get the software version.
     #[method(name = "version")]

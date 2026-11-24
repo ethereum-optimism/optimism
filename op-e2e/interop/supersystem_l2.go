@@ -39,7 +39,7 @@ type l2Node struct {
 	name         string
 	l2EL         services.EthInstance
 	rollupClient *sources.RollupClient
-	gethClient   *ethclient.Client
+	elClient     *ethclient.Client
 }
 
 type l2Net struct {
@@ -52,15 +52,15 @@ type l2Net struct {
 	nodes   map[string]*l2Node
 }
 
-func (s *interopE2ESystem) L2GethEndpoint(id string, name string) endpoint.RPC {
+func (s *interopE2ESystem) L2ELEndpoint(id string, name string) endpoint.RPC {
 	net := s.l2s[id]
 	return net.nodes[name].l2EL.UserRPC()
 }
-func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Client {
+func (s *interopE2ESystem) L2ELClient(id string, name string) *ethclient.Client {
 	net := s.l2s[id]
 	node := net.nodes[name]
-	if node.gethClient != nil {
-		return node.gethClient
+	if node.elClient != nil {
+		return node.elClient
 	}
 	ethClient := node.l2EL
 	rpcEndpoint := ethClient.UserRPC()
@@ -73,9 +73,9 @@ func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Clien
 			require.NoError(s.t, err, "failed to dial eth node instance %s", id)
 			return cl
 		})
-	node.gethClient = ethclient.NewClient(rpcCl)
-	s.t.Cleanup(node.gethClient.Close)
-	return node.gethClient
+	node.elClient = ethclient.NewClient(rpcCl)
+	s.t.Cleanup(node.elClient.Close)
+	return node.elClient
 }
 
 // L2RollupEndpoint returns the chain's CL RPC endpoint, served by the supernode at

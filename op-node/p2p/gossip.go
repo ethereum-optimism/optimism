@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -112,6 +113,23 @@ var msgBufPool = sync.Pool{New: func() any {
 	return &x
 }}
 
+// minimalSnappyPreamble returns frame with its snappy length preamble encoded in the fewest bytes.
+// Nodes on the network accept a length preamble of up to ten bytes, any uvarint that
+// encoding/binary.Uvarint reads with a value of at most 0xffffffff, while the snappy decoder
+// accepts at most five; a frame must get the same verdict and message ID from every node.
+// frame is returned unchanged when its preamble takes at most five bytes, is not such a uvarint
+// or encodes a larger value, which leaves the verdict to the decoder. frame itself is never
+// modified, because gossipsub forwards its bytes.
+func minimalSnappyPreamble(frame []byte) []byte {
+	v, n := binary.Uvarint(frame)
+	if n <= binary.MaxVarintLen32 || v > math.MaxUint32 {
+		return frame
+	}
+	out := make([]byte, 0, binary.MaxVarintLen32+len(frame)-n)
+	out = binary.AppendUvarint(out, v)
+	return append(out, frame[n:]...)
+}
+
 // BuildMsgIdFn builds a generic message ID function for gossipsub that can handle compressed payloads,
 // mirroring the eth2 p2p gossip spec.
 func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
@@ -121,11 +139,12 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 		// If it's a valid compressed snappy data, then hash the uncompressed contents.
 		// The validator can throw away the message later when recognized as invalid,
 		// and the unique hash helps detect duplicates.
-		dLen, err := snappy.DecodedLen(pmsg.Data)
+		frame := minimalSnappyPreamble(pmsg.Data)
+		dLen, err := snappy.DecodedLen(frame)
 		if err == nil && dLen <= maxGossipSize {
 			res := msgBufPool.Get().(*[]byte)
 			defer msgBufPool.Put(res)
-			if data, err = snappy.Decode((*res)[:cap(*res)], pmsg.Data); err == nil {
+			if data, err = snappy.Decode((*res)[:cap(*res)], frame); err == nil {
 				if cap(data) > cap(*res) {
 					// if we ended up growing the slice capacity, fine, keep the larger one.
 					*res = data[:cap(data)]
@@ -292,7 +311,8 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 	return func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
 		// [REJECT] if the compression is not valid
-		outLen, err := snappy.DecodedLen(message.Data)
+		frame := minimalSnappyPreamble(message.Data)
+		outLen, err := snappy.DecodedLen(frame)
 		if err != nil {
 			log.Warn("invalid snappy compression length data", "err", err, "peer", id)
 			return pubsub.ValidationReject
@@ -308,7 +328,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 		res := msgBufPool.Get().(*[]byte)
 		defer msgBufPool.Put(res)
-		data, err := snappy.Decode((*res)[:cap(*res)], message.Data)
+		data, err := snappy.Decode((*res)[:cap(*res)], frame)
 		if err != nil {
 			log.Warn("invalid snappy compression", "err", err, "peer", id)
 			return pubsub.ValidationReject

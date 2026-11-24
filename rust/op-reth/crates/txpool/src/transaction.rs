@@ -2,7 +2,10 @@ use crate::{
     conditional::MaybeConditionalTransaction, estimated_da_size::DataAvailabilitySized,
     interop::MaybeInteropTransaction,
 };
-use alloy_consensus::{BlobTransactionValidationError, Typed2718, transaction::Recovered};
+use alloy_consensus::{
+    BlobTransactionValidationError, Typed2718,
+    transaction::{Recovered, TxHashRef},
+};
 use alloy_eips::{
     eip2718::{Encodable2718, WithEncoded},
     eip2930::AccessList,
@@ -14,7 +17,7 @@ use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use c_kzg::KzgSettings;
 use core::fmt::Debug;
 use reth_optimism_primitives::OpTransactionSigned;
-use reth_primitives_traits::{InMemorySize, SignedTransaction};
+use reth_primitives_traits::InMemorySize;
 use reth_transaction_pool::{
     EthBlobTransactionSidecar, EthPoolTransaction, EthPooledTransaction, PoolTransaction,
 };
@@ -35,16 +38,11 @@ pub(crate) const NO_INTEROP_TX: u64 = 0;
 /// For payload building this lazily tracks values that are required during payload building:
 ///  - Estimated compressed size of this transaction
 #[derive(Debug, Clone, derive_more::Deref)]
-pub struct OpPooledTransaction<
-    Cons = OpTransactionSigned,
-    Pooled = op_alloy_consensus::OpPooledTransaction,
-> {
+pub struct OpPooledTransaction {
     #[deref]
-    inner: EthPooledTransaction<Cons>,
+    inner: EthPooledTransaction<OpTransactionSigned>,
     /// The estimated size of this transaction, lazily computed.
     estimated_tx_compressed_size: OnceLock<u64>,
-    /// The pooled transaction type.
-    _pd: core::marker::PhantomData<Pooled>,
 
     /// Optional conditional attached to this transaction.
     conditional: Option<Box<TransactionConditional>>,
@@ -60,9 +58,9 @@ pub struct OpPooledTransaction<
     op_cost: U256,
 }
 
-impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
+impl OpPooledTransaction {
     /// Create new instance of [Self].
-    pub fn new(transaction: Recovered<Cons>, encoded_length: usize) -> Self {
+    pub fn new(transaction: Recovered<OpTransactionSigned>, encoded_length: usize) -> Self {
         let inner = EthPooledTransaction::new(transaction, encoded_length);
         let op_cost = inner.cost;
         Self {
@@ -71,7 +69,6 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
             estimated_tx_compressed_size: Default::default(),
             conditional: None,
             interop: Arc::new(AtomicU64::new(NO_INTEROP_TX)),
-            _pd: core::marker::PhantomData,
             encoded_2718: Default::default(),
         }
     }
@@ -98,7 +95,7 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
     }
 }
 
-impl<Cons, Pooled> MaybeConditionalTransaction for OpPooledTransaction<Cons, Pooled> {
+impl MaybeConditionalTransaction for OpPooledTransaction {
     fn set_conditional(&mut self, conditional: TransactionConditional) {
         self.conditional = Some(Box::new(conditional))
     }
@@ -108,7 +105,7 @@ impl<Cons, Pooled> MaybeConditionalTransaction for OpPooledTransaction<Cons, Poo
     }
 }
 
-impl<Cons, Pooled> MaybeInteropTransaction for OpPooledTransaction<Cons, Pooled> {
+impl MaybeInteropTransaction for OpPooledTransaction {
     fn set_interop_deadline(&self, deadline: u64) {
         self.interop.store(deadline, Ordering::Relaxed);
     }
@@ -122,20 +119,17 @@ impl<Cons, Pooled> MaybeInteropTransaction for OpPooledTransaction<Cons, Pooled>
     }
 }
 
-impl<Cons: SignedTransaction, Pooled> DataAvailabilitySized for OpPooledTransaction<Cons, Pooled> {
+impl DataAvailabilitySized for OpPooledTransaction {
     fn estimated_da_size(&self) -> u64 {
         self.estimated_compressed_size()
     }
 }
 
-impl<Cons, Pooled> PoolTransaction for OpPooledTransaction<Cons, Pooled>
-where
-    Cons: SignedTransaction + From<Pooled>,
-    Pooled: SignedTransaction + TryFrom<Cons, Error: core::error::Error>,
-{
-    type TryFromConsensusError = <Pooled as TryFrom<Cons>>::Error;
-    type Consensus = Cons;
-    type Pooled = Pooled;
+impl PoolTransaction for OpPooledTransaction {
+    type TryFromConsensusError =
+        <op_alloy_consensus::OpPooledTransaction as TryFrom<OpTransactionSigned>>::Error;
+    type Consensus = OpTransactionSigned;
+    type Pooled = op_alloy_consensus::OpPooledTransaction;
 
     fn clone_into_consensus(&self) -> Recovered<Self::Consensus> {
         self.inner.transaction().clone()
@@ -160,7 +154,7 @@ where
     }
 
     fn hash(&self) -> &TxHash {
-        self.inner.transaction.tx_hash()
+        TxHashRef::tx_hash(self.inner.transaction.inner())
     }
 
     fn sender(&self) -> Address {
@@ -180,23 +174,19 @@ where
     }
 }
 
-impl<Cons: Typed2718, Pooled> Typed2718 for OpPooledTransaction<Cons, Pooled> {
+impl Typed2718 for OpPooledTransaction {
     fn ty(&self) -> u8 {
         self.inner.ty()
     }
 }
 
-impl<Cons: InMemorySize, Pooled> InMemorySize for OpPooledTransaction<Cons, Pooled> {
+impl InMemorySize for OpPooledTransaction {
     fn size(&self) -> usize {
         self.inner.size()
     }
 }
 
-impl<Cons, Pooled> alloy_consensus::Transaction for OpPooledTransaction<Cons, Pooled>
-where
-    Cons: alloy_consensus::Transaction,
-    Pooled: Debug + Send + Sync + 'static,
-{
+impl alloy_consensus::Transaction for OpPooledTransaction {
     fn chain_id(&self) -> Option<u64> {
         self.inner.chain_id()
     }
@@ -266,12 +256,7 @@ where
     }
 }
 
-impl<Cons, Pooled> EthPoolTransaction for OpPooledTransaction<Cons, Pooled>
-where
-    Cons: SignedTransaction + From<Pooled>,
-    Pooled: SignedTransaction + TryFrom<Cons>,
-    <Pooled as TryFrom<Cons>>::Error: core::error::Error,
-{
+impl EthPoolTransaction for OpPooledTransaction {
     fn take_blob(&mut self) -> EthBlobTransactionSidecar {
         EthBlobTransactionSidecar::None
     }
@@ -315,12 +300,7 @@ pub trait OpPooledTx:
     fn set_op_fee_reservation(&mut self, fee: U256);
 }
 
-impl<Cons, Pooled> OpPooledTx for OpPooledTransaction<Cons, Pooled>
-where
-    Cons: SignedTransaction + From<Pooled>,
-    Pooled: SignedTransaction + TryFrom<Cons>,
-    <Pooled as TryFrom<Cons>>::Error: core::error::Error,
-{
+impl OpPooledTx for OpPooledTransaction {
     fn encoded_2718(&self) -> Cow<'_, Bytes> {
         Cow::Borrowed(self.encoded_2718())
     }
@@ -363,7 +343,7 @@ mod tests {
             source_hash: Default::default(),
             from: signer,
             to: TxKind::Create,
-            mint: 0,
+            mint: U256::ZERO,
             value: U256::ZERO,
             gas_limit: 0,
             is_system_transaction: false,

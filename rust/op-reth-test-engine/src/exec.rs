@@ -17,13 +17,11 @@ use reth_chain_state::ExecutedBlock;
 use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator};
 use reth_evm::execute::{BasicBlockExecutor, BlockExecutionError, Executor};
 use reth_execution_types::BlockExecutionOutput;
-use reth_optimism_chainspec::{OpChainSpec, OpHardforks};
+use reth_optimism_chainspec::OpHardforks;
 use reth_optimism_consensus::{OpBeaconConsensus, OpConsensusError, isthmus};
-use reth_optimism_evm::{OpEvmConfig, OpRethReceiptBuilder};
+use reth_optimism_evm::OpEvmConfig;
 use reth_optimism_payload_builder::OpExecutionPayloadValidator;
-use reth_optimism_primitives::{
-    L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned,
-};
+use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpBlock, OpPrimitives, OpReceipt};
 use reth_primitives_traits::{SealedBlock, SealedHeader};
 use reth_revm::database::StateProviderDatabase;
 use reth_storage_api::{HashedPostStateProvider, StateProvider as _, StateRootProvider};
@@ -65,7 +63,7 @@ pub(crate) fn import_payload(
     let validator = OpExecutionPayloadValidator::new(chain_spec.clone());
 
     // Structural validation + payload -> block. No execution happens here.
-    let sealed = match validator.ensure_well_formed_payload::<OpTransactionSigned>(payload) {
+    let sealed = match validator.ensure_well_formed_payload(payload) {
         Ok(block) => block,
         Err(err) => return Ok(ImportOutcome::Invalid(invalid(None, err.to_string()))),
     };
@@ -98,8 +96,7 @@ pub(crate) fn import_payload(
         }
     };
 
-    let evm_config: OpEvmConfig =
-        OpEvmConfig::new(chain_spec.clone(), OpRethReceiptBuilder::default());
+    let evm_config = OpEvmConfig::optimism(chain_spec.clone());
     let executor = BasicBlockExecutor::new(
         evm_config,
         StateProviderDatabase::new((&state).into_evm_state_provider()),
@@ -169,7 +166,7 @@ pub(crate) fn import_payload(
 /// The consensus checks that need no execution: the header on its own (including its
 /// Holocene/Jovian `extraData` encoding) and against `parent`, and the body against the header.
 fn validate_pre_execution(
-    consensus: &OpBeaconConsensus<OpChainSpec>,
+    consensus: &OpBeaconConsensus,
     block: &SealedBlock<OpBlock>,
     parent: &SealedHeader,
 ) -> Result<(), ConsensusError> {
@@ -192,7 +189,7 @@ mod tests {
     use alloy_rpc_types_engine::ForkchoiceState;
     use op_alloy_consensus::{OpTxEnvelope, encode_holocene_extra_data};
     use reth_optimism_evm::PostExecMode;
-    use reth_optimism_primitives::{OpBlock, OpReceipt};
+    use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
     use reth_storage_api::StateProvider;
 
     use crate::{

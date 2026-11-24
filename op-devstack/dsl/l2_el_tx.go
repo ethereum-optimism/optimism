@@ -7,12 +7,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // WaitForDeposit waits until the deposit an L1 transaction made through this chain's portal has
 // executed on this chain, and returns its L2 receipt without asserting its status.
-func (el *L2ELNode) WaitForDeposit(portal common.Address, l1Receipt *types.Receipt) *types.Receipt {
+func (el *L2ELNode) WaitForDeposit(portal common.Address, l1Receipt *optypes.Receipt) *optypes.Receipt {
 	var deposit *optypes.DepositTx
 	for _, l := range l1Receipt.Logs {
 		if l.Address != portal {

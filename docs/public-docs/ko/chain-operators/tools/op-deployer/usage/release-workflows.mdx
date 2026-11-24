@@ -75,6 +75,9 @@ OP Deployer 릴리스는 같은 커밋에서 만들어집니다.
 
 ### 3단계: 새 릴리스로 SR 업데이트 {#step-3-update-the-sr-with-the-new-release}
 
+테스트 릴리스나 표준 릴리스가 되어서는 안 되는 변형 릴리스는 이 단계와 4단계를 건너뛸 수 있습니다.
+[레지스트리 항목 없이 릴리스](#release-without-a-registry-entry)를 참조하십시오.
+
 OPCM 배포에서 얻은 주소와 함께 superchain-registry의 [표준 버전](https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard)에
 새 RC를 추가합니다.
 
@@ -111,3 +114,21 @@ git push origin op-deployer/v0.X.0-rc.n
 트리거합니다. `release-op-deployer` 워크플로는 바이너리를 draft GitHub 릴리스에 첨부하고, release candidate를
 pre-release로 표시합니다. 두 워크플로가 모두 완료될 때까지 기다린 다음, 릴리스 노트를 추가하고
 [draft를 게시](#publish-a-release)합니다. `#proj-op-deployer`와 `#solutions`에 릴리스를 공지합니다.
+
+### 레지스트리 항목 없이 릴리스 {#release-without-a-registry-entry}
+
+테스트 릴리스나 표준 릴리스가 되어서는 안 되는 변형 릴리스는 배포 주소를 superchain-registry에 추가하지 않고,
+`CurrentTag`(4단계 참조)도 변경하지 않은 채로 둘 수 있습니다. 이 경우 사용자는 intent에서 `opcmAddress`를 설정하여
+새 OPCM을 선택합니다.
+
+```toml
+opcmAddress = "0x..."
+```
+
+이를 위해서는 `custom` 또는 `standard-overrides` intent 유형이 필요합니다. `standard` intent는 레지스트리가
+`CurrentTag`에 대해 등록한 OPCM만 허용합니다. `op-deployer init`은 `standard` 및 `standard-overrides` intent에
+해당 주소를 기록하므로, 이를 교체하지 않는 체인은 레지스트리의 릴리스를 그대로 사용합니다. `opcmAddress`를 설정하는
+intent는 `superchainRoles`를 설정하지 않은 상태로 두어야 합니다.
+
+레지스트리에 해당 릴리스가 등록되어 있지 않으므로, 릴리스 노트에는 각 L1 네트워크의 OPCM 주소를 명시하고 사용자에게
+`opcmAddress`를 설정하도록 안내해야 합니다. release candidate와 정식 릴리스는 3단계와 4단계를 거칩니다.

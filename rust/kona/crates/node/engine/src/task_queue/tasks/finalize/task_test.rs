@@ -1,7 +1,7 @@
 use crate::{
     EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTaskError,
     EngineTaskErrorSeverity::{self, Critical, Skip, Temporary},
-    ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
+    ExecutableEngineTask, FinalityViolation, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
     test_utils::{
         RpcMock, TestEngineStateBuilder, TestRpcBlock as RpcBlock, test_block_info,
         test_engine_client, test_l2_block, test_rpc_block,
@@ -103,11 +103,20 @@ async fn finalize(
 }
 
 const fn is_behind(err: &FinalizeTaskError) -> bool {
-    matches!(err, FinalizeTaskError::BehindFinalizedHead { finalized: FINALIZED, target: STALE })
+    matches!(
+        err,
+        FinalizeTaskError::BreaksFinality(FinalityViolation::BehindFinalizedHead {
+            finalized: BlockNumHash { number: FINALIZED, .. },
+            target: STALE,
+        })
+    )
 }
 
 const fn is_conflict(err: &FinalizeTaskError) -> bool {
-    matches!(err, FinalizeTaskError::ConflictsWithFinalizedHead { .. })
+    matches!(
+        err,
+        FinalizeTaskError::BreaksFinality(FinalityViolation::ConflictsWithFinalizedHead { .. })
+    )
 }
 
 const fn is_not_canonical(err: &FinalizeTaskError) -> bool {

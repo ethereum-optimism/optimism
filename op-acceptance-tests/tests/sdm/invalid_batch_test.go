@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
-	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -66,7 +65,7 @@ func TestSDMInvalidPostExecIsReplacedWithDepositsOnly(gt *testing.T) {
 }
 
 // overRefundPostExec raises the probe tx's refund one gas above the gas it used before the refund.
-func overRefundPostExec(t devtest.T, probe *gethtypes.Receipt, txs []eth.Data) []eth.Data {
+func overRefundPostExec(t devtest.T, probe *optypes.Receipt, txs []eth.Data) []eth.Data {
 	last := len(txs) - 1
 	postExecTx, err := optypes.UnmarshalPostExecTx(txs[last])
 	t.Require().NoError(err, "the probe block must end with a 0x7D")

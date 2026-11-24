@@ -124,10 +124,6 @@ func VerifyOpReth(t devtest.T, l2EL *dsl.L2ELNode) string {
 			"Ensure the op-reth binary is available.",
 		clientVersion,
 	)
-	t.Require().False(
-		strings.Contains(lower, "geth"),
-		"FATAL: Detected op-geth (%q) but this test requires op-reth.", clientVersion,
-	)
 
 	return clientVersion
 }

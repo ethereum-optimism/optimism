@@ -29,6 +29,7 @@ use std::{
     num::NonZeroUsize,
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
@@ -83,7 +84,9 @@ pub(super) enum JwtValidationError {
 ///           --l1-beacon http://localhost:5052 \
 ///           --l2-engine-rpc http://localhost:8551
 ///
-/// # Run as sequencer with custom JWT secret
+/// # Run as sequencer with custom JWT secret. The sequencer boots stopped and builds no
+/// # blocks until it is started with the `admin_startSequencer` RPC, unless
+/// # `--sequencer.start` is set.
 /// kona node --mode sequencer \
 ///           --l1-eth-rpc http://localhost:8545 \
 ///           --l1-beacon http://localhost:5052 \
@@ -301,6 +304,7 @@ impl NodeCommand {
 
     /// Run the Node subcommand.
     pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
+        let sequencer_config = self.sequencer_flags.config()?;
         let cfg = self.get_l2_config(args)?;
         if cfg.is_alt_da_enabled() {
             bail!("kona-node does not support alt-DA chains");
@@ -325,6 +329,7 @@ impl NodeCommand {
             provider: l1_provider.clone(),
             beacon: self.l1_rpc_args.l1_beacon.clone(),
             slot_duration_override: self.l1_rpc_args.l1_slot_duration_override,
+            epoch_poll_interval: Duration::from_secs(self.l1_rpc_args.l1_epoch_poll_interval),
         };
 
         // If metrics are enabled, initialize the global cli metrics.
@@ -358,7 +363,7 @@ impl NodeCommand {
             p2p_config,
             rpc_config,
         )
-        .with_sequencer_config(self.sequencer_flags.config())
+        .with_sequencer_config(sequencer_config)
         .with_derivation_delegate_url(derivation_delegate_url)
         .with_dependency_set(dependency_set)
         .with_safe_db(safe_db)
@@ -520,7 +525,7 @@ impl NodeCommand {
 mod tests {
     use super::*;
     use kona_providers_alloy::BlockLabel;
-    use std::{net::TcpListener, time::Duration};
+    use std::net::TcpListener;
     use tokio::time::{self, Instant};
 
     #[tokio::test(start_paused = true)]

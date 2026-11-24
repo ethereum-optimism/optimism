@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/loadtest"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -23,7 +24,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func SpamCalldata(t devtest.T, l2BlockTime time.Duration, el *dsl.L2ELNode, wallet *dsl.HDWallet, funder *dsl.FunderEOA) {
@@ -101,7 +101,7 @@ func (env *daFootprintEnv) getSystemConfigOwner(t devtest.T) *dsl.EOA {
 	return dsl.NewKey(t, priv).User(env.l1Client)
 }
 
-func (env *daFootprintEnv) setDAFootprintGasScalarViaSystemConfig(t devtest.T, scalar uint16) *types.Receipt {
+func (env *daFootprintEnv) setDAFootprintGasScalarViaSystemConfig(t devtest.T, scalar uint16) *optypes.Receipt {
 	owner := env.getSystemConfigOwner(t)
 	rec, err := contractio.Write(env.systemConfig.SetDAFootprintGasScalar(scalar), t.Ctx(), owner.Plan())
 	t.Require().NoError(err, "SetDAFootprintGasScalar transaction failed")

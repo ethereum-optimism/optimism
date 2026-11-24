@@ -66,3 +66,31 @@ func TestResolveMixedL2ELOptsReadsEnv(t *testing.T) {
 	require.Equal(t, []string{"--extra.bind=127.0.0.1:0"}, cfg.ExtraArgs)
 	require.True(t, cfg.DisableProofsHistory)
 }
+
+func TestResolveMixedL2CLKind(t *testing.T) {
+	for _, tc := range []struct {
+		env  string
+		want MixedL2CLKind
+	}{
+		{env: "", want: MixedL2CLOpNode},
+		{env: "op-node", want: MixedL2CLOpNode},
+		{env: "kona-node", want: MixedL2CLKona},
+	} {
+		t.Run(tc.env, func(t *testing.T) {
+			t.Setenv("DEVSTACK_L2CL_KIND", tc.env)
+			require.Equal(t, tc.want, ResolveMixedL2CLKind(devtest.SerialT(t)))
+		})
+	}
+}
+
+// An unknown kind fails at resolution, before any preset starts a node of that kind.
+func TestResolveMixedL2CLKindRejectsUnknownKind(t *testing.T) {
+	for _, kind := range []string{"kona", "Kona-Node", "op-geth"} {
+		t.Run(kind, func(t *testing.T) {
+			t.Setenv("DEVSTACK_L2CL_KIND", kind)
+			dt := &rejectedKonaOptionTest{T: devtest.SerialT(t)}
+			require.PanicsWithValue(t, "Kona option rejected", func() { ResolveMixedL2CLKind(dt) })
+			require.Contains(t, dt.failure, "DEVSTACK_L2CL_KIND")
+		})
+	}
+}

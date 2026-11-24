@@ -8,6 +8,7 @@ import (
 
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -163,7 +164,7 @@ func (g *FaultDisputeGame) Credit(recipient common.Address) eth.ETH {
 
 // ClaimCredit claims recipient's credit, which takes two calls once the game is finalized: the first
 // unlocks the credit in DelayedWETH, and the second, after the DelayedWETH delay, pays it out.
-func (g *FaultDisputeGame) ClaimCredit(eoa *dsl.EOA, recipient common.Address) *types.Receipt {
+func (g *FaultDisputeGame) ClaimCredit(eoa *dsl.EOA, recipient common.Address) *optypes.Receipt {
 	g.t.Logf("Claiming credit of %v in game %v with actor %v", recipient, g.Address, eoa.Address())
 	receipt := contract.Write(eoa, g.game.ClaimCredit(recipient), txplan.WithGasRatio(2))
 	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)

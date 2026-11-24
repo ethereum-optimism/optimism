@@ -477,8 +477,7 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	}
 	bs.Log.Info("Stopping batcher")
 
-	// close the TxManager first, so that new work is denied, in-flight work is cancelled as early as possible
-	// (transactions which are expected to be confirmed are still waited for)
+	// Close the TxManager first, so that it denies new work and cancels in-flight work as early as possible.
 	// TxManager.Close() also stops the blob tip oracle if it's running.
 	if bs.TxManager != nil {
 		bs.TxManager.Close()

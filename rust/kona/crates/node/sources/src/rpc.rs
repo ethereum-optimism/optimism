@@ -287,6 +287,10 @@ mod tests {
     use alloy_primitives::U64;
     use alloy_provider::Provider;
     use alloy_rpc_client::RpcClient;
+    use jsonrpsee::{
+        RpcModule,
+        server::{Server, ServerConfig, ServerHandle},
+    };
     use metrics_exporter_prometheus::PrometheusBuilder;
     use rstest::rstest;
     use serde_json::value::RawValue;
@@ -664,5 +668,32 @@ mod tests {
             r#"{REQUEST_DURATION}_count{{client="{label}",method="eth_blockNumber",outcome="transport_error",error="timeout"}} 1"#
         );
         assert!(rendered.contains(&timeout), "missing {timeout} in:\n{rendered}");
+    }
+
+    /// Size in bytes of the response in [`large_responses_arrive_whole`]: just above 64 MiB,
+    /// tungstenite's default websocket message limit, which kona-host's websocket connections
+    /// remove.
+    const LARGE_RESPONSE: usize = 65 << 20;
+
+    /// Serves `test_large` over HTTP, answering with `size / 2` zero bytes, which hex encodes to
+    /// `size` bytes. Returns the URL, and the handle that keeps the server running.
+    async fn large_response_endpoint(size: usize) -> (Url, ServerHandle) {
+        let config = ServerConfig::builder().max_response_body_size(u32::MAX).build();
+        let server = Server::builder().set_config(config).build("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", server.local_addr().unwrap()).parse().unwrap();
+        let result: Arc<str> = format!("0x{}", "00".repeat(size / 2)).into();
+        let mut module = RpcModule::new(());
+        module.register_method("test_large", move |_, _, _| result.to_string()).unwrap();
+        (url, server.start(module))
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn large_responses_arrive_whole(#[values(CLIENTS[0], CLIENTS[1])] client: (&str, Build)) {
+        let (_, build) = client;
+        let (url, _server) = large_response_endpoint(LARGE_RESPONSE).await;
+        let client = build(url);
+        let result: Bytes = client.request("test_large", ()).await.unwrap();
+        assert_eq!(result.len(), LARGE_RESPONSE / 2);
     }
 }

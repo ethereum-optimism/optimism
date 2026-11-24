@@ -56,21 +56,6 @@ const DERIVATION_DELEGATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 pub(in crate::service) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
-const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
-
-/// The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
-pub(super) fn merge_admin_module(
-    modules: &mut RpcModule<()>,
-    enable_admin: bool,
-    admin_rpc: AdminRpc,
-) -> Result<(), String> {
-    if enable_admin {
-        modules
-            .merge(admin_rpc.into_rpc())
-            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
-    }
-    Ok(())
-}
 
 /// The configuration for the L1 chain.
 #[derive(Debug, Clone)]
@@ -82,6 +67,8 @@ pub struct L1Config {
     /// The node's L1 client. Every component holds a clone, so all share its caches and trust
     /// setting.
     pub provider: AlloyChainProvider,
+    /// How often the L1 finalized block is polled.
+    pub epoch_poll_interval: Duration,
 }
 
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
@@ -347,7 +334,7 @@ impl RollupNode {
         let finalized_stream = BlockStream::new_as_stream(
             self.l1_config.provider.clone(),
             BlockLabel::Finalized,
-            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+            self.l1_config.epoch_poll_interval,
         );
 
         let chain = L1WatcherChain::new(
@@ -472,12 +459,17 @@ impl RollupNode {
         modules
             .merge(p2p_rpc.into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
-        merge_admin_module(&mut modules, config.enable_admin(), admin_rpc)?;
+        // The admin API is always served: unless `--sequencer.start` is set, the sequencer boots
+        // stopped, and `admin_startSequencer` is the only way to start it.
+        modules
+            .merge(admin_rpc.into_rpc())
+            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
         modules
             .merge(
                 RollupRpc::new(
                     self.version.clone(),
                     self.config.clone(),
+                    self.dependency_set.clone(),
                     engine_state_rx.clone(),
                     l2_query_client.clone(),
                     l1_watcher_queries_tx.clone(),

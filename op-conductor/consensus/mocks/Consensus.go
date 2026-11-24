@@ -512,6 +512,52 @@ func (_c *Consensus_LeaderWithID_Call) RunAndReturn(run func() *consensus.Server
 	return _c
 }
 
+// LocalUnsafePayload provides a mock function for the type Consensus
+func (_mock *Consensus) LocalUnsafePayload() *eth.ExecutionPayloadEnvelope {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for LocalUnsafePayload")
+	}
+
+	var r0 *eth.ExecutionPayloadEnvelope
+	if returnFunc, ok := ret.Get(0).(func() *eth.ExecutionPayloadEnvelope); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*eth.ExecutionPayloadEnvelope)
+		}
+	}
+	return r0
+}
+
+// Consensus_LocalUnsafePayload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LocalUnsafePayload'
+type Consensus_LocalUnsafePayload_Call struct {
+	*mock.Call
+}
+
+// LocalUnsafePayload is a helper method to define mock.On call
+func (_e *Consensus_Expecter) LocalUnsafePayload() *Consensus_LocalUnsafePayload_Call {
+	return &Consensus_LocalUnsafePayload_Call{Call: _e.mock.On("LocalUnsafePayload")}
+}
+
+func (_c *Consensus_LocalUnsafePayload_Call) Run(run func()) *Consensus_LocalUnsafePayload_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Consensus_LocalUnsafePayload_Call) Return(executionPayloadEnvelope *eth.ExecutionPayloadEnvelope) *Consensus_LocalUnsafePayload_Call {
+	_c.Call.Return(executionPayloadEnvelope)
+	return _c
+}
+
+func (_c *Consensus_LocalUnsafePayload_Call) RunAndReturn(run func() *eth.ExecutionPayloadEnvelope) *Consensus_LocalUnsafePayload_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RemoveServer provides a mock function for the type Consensus
 func (_mock *Consensus) RemoveServer(id string, version uint64) error {
 	ret := _mock.Called(id, version)

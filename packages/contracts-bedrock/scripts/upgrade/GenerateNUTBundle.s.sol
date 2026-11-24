@@ -174,7 +174,7 @@ contract GenerateNUTBundle is Script {
             require(_output.txns[i].data.length > 0, "GenerateNUTBundle: invalid transaction data");
             require(bytes(_output.txns[i].intent).length > 0, "GenerateNUTBundle: invalid transaction intent");
             require(_output.txns[i].to != address(0), "GenerateNUTBundle: invalid transaction to");
-            // Lower bound: EIP-7623 calldata floor (op-geth rejects with ErrFloorDataGas below this).
+            // Lower bound: EIP-7623 calldata floor (the execution client rejects a tx below this).
             // Upper bound: EIP-7825 per-tx gas cap (2 ** 24). The floor dominates `> 0`, so the
             // floor is the only lower bound we need here, assuming every NUT is a CALL, which is
             // guaranteed by the `to != address(0)` check above.

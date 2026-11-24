@@ -384,7 +384,7 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 		require.NoError(t, err, "Failed to get sync status")
 
 		// Wait for any client to advance its unsafe head past the safe chain. We know this head will remain unsafe since the batcher is stopped.
-		l2Client := sys.L2GethClient(sys.L2IDs()[0], "sequencer")
+		l2Client := sys.L2ELClient(sys.L2IDs()[0], "sequencer")
 		require.NoError(t, wait.ForNextBlock(ctx, l2Client))
 		head, err := l2Client.HeaderByNumber(ctx, nil)
 		require.NoError(t, err, "Failed to get head block")
@@ -437,7 +437,7 @@ func TestSuperInalidateUnsafeProposal_SecondChainIsUnsafe(t *testing.T) {
 		require.NoError(t, sys.Batcher(bChain).Stop(ctx))
 
 		// Wait for client B to advance its unsafe head past the safe chain B. We know this head will remain unsafe since batcher B is stopped.
-		bL2Client := sys.L2GethClient(bChain, "sequencer")
+		bL2Client := sys.L2ELClient(bChain, "sequencer")
 		targetBlock, err := bL2Client.HeaderByNumber(ctx, nil)
 		require.NoError(t, err, "Failed to get latest block")
 		targetTimestamp := targetBlock.Time

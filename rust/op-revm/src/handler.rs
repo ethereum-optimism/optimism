@@ -142,7 +142,7 @@ where
             // Mind value should be added first before subtracting the effective balance spending.
             let mut new_balance = caller
                 .balance()
-                .saturating_add(U256::from(tx.mint().unwrap_or_default()))
+                .saturating_add(tx.mint().unwrap_or_default())
                 .saturating_sub(effective_balance_spending);
 
             if cfg.is_balance_check_disabled() {
@@ -524,10 +524,12 @@ where
         journal.checkpoint_revert(JournalCheckpoint::default());
 
         // Increment sender nonce and account balance for the mint amount. Deposits always persist
-        // the mint amount, even if the transaction fails.
+        // the mint amount, even if the transaction fails. The balance saturates at `U256::MAX`,
+        // as in `validate_against_state_and_deduct_caller`.
         let mut acc = journal.load_account_mut(caller)?;
         acc.bump_nonce();
-        acc.incr_balance(U256::from(mint.unwrap_or_default()));
+        let balance = acc.balance().saturating_add(mint.unwrap_or_default());
+        acc.set_balance(balance);
 
         drop(acc); // Drop acc to avoid borrow checker issues.
 
@@ -855,13 +857,16 @@ mod tests {
         assert_eq!(gas.refunded(), 0);
     }
 
-    #[test]
-    fn test_commit_mint_value() {
+    /// A mint that overflows the balance saturates at `U256::MAX`.
+    #[rstest]
+    #[case::no_overflow(U256::from(1000), U256::from(1010))]
+    #[case::overflow(U256::MAX - U256::from(1), U256::MAX)]
+    fn test_commit_mint_value(#[case] start_balance: U256, #[case] expected_balance: U256) {
         let caller = Address::ZERO;
         let mut db = InMemoryDB::default();
         db.insert_account_info(
             caller,
-            AccountInfo { balance: U256::from(1000), ..Default::default() },
+            AccountInfo { balance: start_balance, ..Default::default() },
         );
 
         let mut ctx = Context::op()
@@ -875,7 +880,7 @@ mod tests {
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::REGOLITH));
         ctx.modify_tx(|tx| {
             tx.deposit.source_hash = B256::from([1u8; 32]);
-            tx.deposit.mint = Some(10);
+            tx.deposit.mint = Some(U256::from(10));
         });
 
         let mut evm = ctx.build_op();
@@ -888,7 +893,7 @@ mod tests {
 
         // Check the account balance is updated.
         let account = evm.ctx().journal_mut().load_account(caller).unwrap();
-        assert_eq!(account.info.balance, U256::from(1010));
+        assert_eq!(account.info.balance, expected_balance);
     }
 
     #[test]

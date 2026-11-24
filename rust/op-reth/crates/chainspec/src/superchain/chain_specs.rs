@@ -3,8 +3,6 @@ use crate::create_superchain_specs;
 
 create_superchain_specs!(
     ("bob", "mainnet"),
-    ("boba", "mainnet"),
-    ("celo", "mainnet"),
     ("cyber", "mainnet"),
     ("ethernity", "mainnet"),
     ("fraxtal", "mainnet"),
@@ -26,7 +24,6 @@ create_superchain_specs!(
     ("unichain", "mainnet"),
     ("worldchain", "mainnet"),
     ("zora", "mainnet"),
-    ("boba", "sepolia"),
     ("camp", "sepolia"),
     ("celo-sep", "sepolia"),
     ("cyber", "sepolia"),
@@ -52,4 +49,6 @@ create_superchain_specs!(
     ("sepolia-devnet-4", "sepolia-devnet-4-5"),
     ("sepolia-devnet-5", "sepolia-devnet-4-5"),
     ("sepolia-devnet-6", "sepolia-devnet-6"),
+    ("op-int-0", "sepolia-devnets"),
+    ("uni-int-0", "sepolia-devnets"),
 );

@@ -26,31 +26,29 @@ import { Unreleased } from "/ko/snippets/unreleased.mdx"
 | `--l1-trust-rpc=<true/false>` | `KONA_NODE_L1_TRUST_RPC` | 검증 없이 L1 RPC를 신뢰할지 여부 | 아니요 | `false` |
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | L1 beacon API의 URL | 예 | - |
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | L2 실행 클라이언트의 engine API 엔드포인트 URL | 예 | - |
-| `--l2-trust-rpc=<true/false>` | `KONA_NODE_L2_TRUST_RPC` | 검증 없이 L2 RPC를 신뢰할지 여부 | 아니요 | `true` |
 | `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | 실행 클라이언트용 16진수 인코딩 JWT 시크릿이 담긴 파일의 경로 | 아니요 | - |
 | `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | 사용자 지정 L2 rollup 구성 파일의 경로 | 아니요 | - |
-| `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | 런타임 구성을 다시 로드하는 폴링 간격 | 아니요 | `600` |
 
 ## 전역 인수 {#global-arguments}
 
 | 플래그 | 환경 변수 | 설명 | 필수 | 기본값 |
 |------|-----|-------------|----------|---------|
-| `--l2-chain-id <ID/NAME>` 또는 `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 체인 ID(숫자) 또는 체인 이름(문자열) | 아니요 | `10` (Optimism) |
+| `--chain <ID/NAME>` 또는 `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 체인 ID(숫자) 또는 체인 이름(문자열). 별칭: `--l2-chain-id` | 아니요 | `10` (Optimism) |
 
 ### 체인 ID 지원 {#chain-id-support}
 
-`--l2-chain-id` 플래그는 `alloy_chains` crate를 사용해 유연한 체인 식별을 지원합니다.
+`--chain` 플래그는 `alloy_chains` crate를 사용해 유연한 체인 식별을 지원합니다.
 
 **숫자 체인 ID:**
 ```bash
-kona-node --l2-chain-id 10 node [args...]        # Optimism mainnet
-kona-node --l2-chain-id 11155420 node [args...]  # OP Sepolia
+kona-node --chain 10 node [args...]        # Optimism mainnet
+kona-node --chain 11155420 node [args...]  # OP Sepolia
 ```
 
 **문자열 체인 이름:**
 ```bash
-kona-node --l2-chain-id optimism node [args...]
-kona-node --l2-chain-id optimism-sepolia node [args...]
+kona-node --chain optimism node [args...]
+kona-node --chain optimism-sepolia node [args...]
 ```
 
 **짧은 플래그와 환경 변수:**
@@ -89,7 +87,8 @@ export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
 | `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | 피어 탐색 간격 | `5` |
 | `--p2p.discovery.ip-votes <N>` | `KONA_NODE_P2P_DISCOVERY_IP_VOTES` | 노드가 외부 주소를 알리기 전에 같은 주소를 보고해야 하는 피어 수로, 최소 `2`입니다. `--p2p.advertise.ip`를 사용하면 무시됩니다. 투표 수가 적을수록 더 적은 피어가 주소를 결정하므로, 공개 네트워크에서는 기본값을 유지하십시오. op-node에는 이러한 플래그가 없으며 임계값이 `10`으로 고정되어 있습니다. [알리는 주소](#advertised-address)를 참고하십시오 | `10` |
 | `--p2p.discovery.private` | `KONA_NODE_P2P_DISCOVERY_PRIVATE` | devnet에서처럼, 탐색이 다른 노드의 레코드와 bootnode에 있는 loopback 및 LAN 주소 등 공개되지 않은 주소를 사용하도록 허용합니다. [탐색된 주소](#discovered-addresses)를 참조하십시오 | `false` |
-| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | bootstore를 저장할 디렉터리 | - |
+| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | 피어의 레코드를 저장하여 노드가 재시작 후에도 해당 피어에 다시 연결할 수 있도록 하는 bootstore 파일입니다. 파일이 없으면 노드가 파일과 해당 디렉터리를 생성하며, 생성할 수 없으면 시작하지 않습니다. 파일을 읽을 수 없거나 파일이 레코드의 JSON 목록이 아닌 경우에도 노드는 시작하지 않습니다. 이 경우 파일을 수정하거나 삭제하십시오 | `~/.kona/<chain_id>/bootstore.json` |
+| `--p2p.no-bootstore` | `KONA_NODE_P2P_NO_BOOTSTORE` | bootstore를 비활성화합니다. 노드는 피어의 레코드를 저장하지 않으며, 저장된 레코드도 읽지 않습니다 | `false` |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | 피어 재연결(redial) 임계값 | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | 피어 연결 시도 주기 | `60` |
 | `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | bootnode ENR 또는 enode URL 목록입니다. 공개되지 않은 주소에 있는 bootnode에는 `--p2p.discovery.private`가 필요합니다. [탐색된 주소](#discovered-addresses)를 참조하십시오 | - |
@@ -225,26 +224,28 @@ RPC 서버는 한 번 시작됩니다. 예기치 않게 중지되면 노드는 �
 | 플래그 | 환경 변수 | 설명 | 기본값 |
 |------|-----|-------------|---------|
 | `--rpc.disabled` | `KONA_NODE_RPC_DISABLED` | RPC 서버 비활성화 | `false` |
-| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC 수신 주소 | `0.0.0.0` |
+| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC 수신 주소 | `127.0.0.1` |
 | `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC 수신 포트 | `9545` |
-| `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | admin API 활성화 | `false` |
-| `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | admin 상태를 영구 저장할 파일 경로 | - |
+
+[admin API](/ko/node-operators/kona-node/rpc/admin)는 항상 RPC 포트에서 인증 없이 제공됩니다. admin API는 sequencer를 시작하고 중지할 수 있으며 unsafe 블록을 주입할 수 있습니다. `admin_postUnsafePayload`는 서명이 아니라 블록 해시만 확인합니다. Docker 컨테이너에서 포트를 게시하기 위한 `--rpc.addr 0.0.0.0`처럼 loopback이 아닌 주소에 바인딩하면 admin API가 노출되므로, 신뢰할 수 있는 호출자만 접근할 수 있도록 포트에 방화벽을 설정하십시오.
 
 ## Sequencer 인수 {#sequencer-arguments}
 
 | 플래그 | 환경 변수 | 설명 | 기본값 |
 |------|-----|-------------|---------|
-| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | sequencer를 중지된 상태로 시작 | `false` |
+| `--sequencer.start` | `KONA_NODE_SEQUENCER_START` | sequencer를 활성 상태로 시작합니다. standby가 없는 단일 sequencer 전용입니다. `--conductor.rpc`와 함께 사용할 수 없습니다. | `false` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | sequencer의 L1 블록 확인(confirmation) 수 | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | 다음 L1 origin을 엄격하게 준비하고 빈 L2 블록을 생성 | `false` |
 | `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | 외부 conductor 서비스의 RPC 엔드포인트 URL입니다. 이 값을 지정하면 sequencer 모드에서 conductor 연동이 활성화되며, validator 모드에서는 효과가 없습니다. | - |
 | `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | conductor 서비스 RPC 타임아웃 | `1` |
 
+`--sequencer.start`를 설정하지 않으면 sequencer는 재시작할 때마다 중지된 상태로 시작합니다. [`admin_startSequencer`](/ko/node-operators/kona-node/rpc/admin#admin_startsequencer)로 시작하십시오. conductor를 사용하는 경우 op-conductor가 leader를 시작합니다. [Sequencer 시작하기](/ko/node-operators/kona-node/run/sequencer#starting-the-sequencer)를 참조하십시오.
+
 ## Interop 인수 {#interop-arguments}
 
 | 플래그 | 환경 변수 | 설명 | 기본값 |
 |------|-----|-------------|---------|
-| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | 이 체인의 interop dependency set을 기술하는 JSON 파일의 경로입니다. rollup 구성에 Lagoon 하드포크가 예정되어 있으면 필수입니다. | - |
+| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | 이 체인의 interop dependency set을 기술하는 JSON 파일의 경로입니다. 설정하지 않으면 노드는 superchain-registry에 있는 해당 체인의 dependency set을 사용합니다. registry에 포함되지 않은 체인의 rollup 구성에 Lagoon 하드포크가 예정되어 있으면 필수입니다. | - |
 | `--safedb.path <PATH>` | `KONA_NODE_SAFEDB_PATH` | safe head 데이터베이스의 디렉터리입니다. 이 데이터베이스는 각 L1 블록 시점에 도달한 L2 safe head를 기록하며 `optimism_safeHeadAtL1Block`과 `superroot_atTimestamp`의 기반이 됩니다. op-challenger, op-proposer, op-dispute-mon에 필요합니다. 설정하지 않으면 아무것도 기록되지 않습니다. | - |
 
 `kona-node`는 supervisor RPC 서버를 실행하지 않으므로 `--supervisor.*`
@@ -261,8 +262,8 @@ RPC 서버는 한 번 시작됩니다. 예기치 않게 중지되면 노드는 �
 - P2P 스택이 시작됩니다. libp2p swarm은 블록 gossip을 수신하기 위해
   TCP `9222`에서 수신 대기합니다. `discv5` 탐색 서비스는
   UDP 포트 `9223`에서 실행됩니다. 피어 점수 산정이 활성화됩니다.
-- RPC 서버가 `0.0.0.0:9545`에서 노출됩니다. Websocket 연결은
-  기본적으로 비활성화되어 있습니다.
+- admin API를 포함한 RPC 서버가 `127.0.0.1:9545`에서 노출됩니다. HTTP와 WebSocket
+  연결을 모두 허용합니다.
 - Prometheus 메트릭은 비활성화되어 있습니다.
   `--metrics.enabled` 플래그로 활성화할 수 있으며, 그러면 메트릭이 `0.0.0.0:9090`에서 제공되고,
   `--metrics.port` 및 `--metrics.addr` 플래그로 구성할 수 있습니다.

@@ -40,7 +40,7 @@ use reth_primitives_traits::{NodePrimitives, SealedHeader};
 use reth_rpc::eth::core::EthApiInner;
 use reth_rpc_eth_api::{
     EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcLog, RpcNodeCore,
-    RpcNodeCoreExt, RpcTypes,
+    RpcNodeCoreExt,
     helpers::{
         EthApiSpec, EthFees, EthState, EthSubscriptions, LoadFee, LoadPendingBlock, LoadState,
         SpawnBlocking, Trace, bal::GetBlockAccessList, pending_block::BuildPendingEnv,
@@ -57,7 +57,6 @@ use reth_tasks::{
 };
 use std::{
     fmt::{self, Formatter},
-    marker::PhantomData,
     sync::Arc,
     time::Duration,
 };
@@ -151,7 +150,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     }
 
     /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
-    pub const fn builder() -> OpEthApiBuilder<Rpc> {
+    pub const fn builder() -> OpEthApiBuilder {
         OpEthApiBuilder::new()
     }
 
@@ -500,8 +499,8 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApiInner<N, Rpc> {
 }
 
 /// Converter for OP RPC types.
-pub type OpRpcConvert<N, NetworkT> = RpcConverter<
-    NetworkT,
+pub type OpRpcConvert<N> = RpcConverter<
+    Optimism,
     <N as FullNodeComponents>::Evm,
     OpReceiptConverter<<N as FullNodeTypes>::Provider>,
     (),
@@ -513,7 +512,7 @@ pub type OpRpcConvert<N, NetworkT> = RpcConverter<
 
 /// Builds [`OpEthApi`] for Optimism.
 #[derive(Debug)]
-pub struct OpEthApiBuilder<NetworkT = Optimism> {
+pub struct OpEthApiBuilder {
     /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
     /// network.
     sequencer_url: Option<String>,
@@ -537,26 +536,15 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// Seconds between two blocks, which dates the pending block. Without one, the pending block
     /// builder uses the chain's alloy-chains hint.
     block_time: Option<u64>,
-    /// Marker for network types.
-    _nt: PhantomData<NetworkT>,
 }
 
-impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
+impl Default for OpEthApiBuilder {
     fn default() -> Self {
-        Self {
-            sequencer_url: None,
-            sequencer_headers: Vec::new(),
-            min_suggested_priority_fee: 1_000_000,
-            flashblocks_url: None,
-            flashblock_consensus: false,
-            retain_forwarded_txs: false,
-            block_time: None,
-            _nt: PhantomData,
-        }
+        Self::new()
     }
 }
 
-impl<NetworkT> OpEthApiBuilder<NetworkT> {
+impl OpEthApiBuilder {
     /// Creates a [`OpEthApiBuilder`] instance from core components.
     pub const fn new() -> Self {
         Self {
@@ -567,7 +555,6 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
             flashblock_consensus: false,
             retain_forwarded_txs: false,
             block_time: None,
-            _nt: PhantomData,
         }
     }
 
@@ -615,7 +602,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
     }
 }
 
-impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
+impl<N> EthApiBuilder<N> for OpEthApiBuilder
 where
     N: FullNodeComponents<
             Evm: ConfigurePostExecEvm<
@@ -633,13 +620,11 @@ where
                 >,
             >,
         >,
-    NetworkT: RpcTypes,
-    OpRpcConvert<N, NetworkT>: RpcConvert<Network = NetworkT>,
+    OpRpcConvert<N>: RpcConvert<Network = Optimism>,
     <<N::Types as NodeTypes>::Primitives as NodePrimitives>::Receipt: FlashblockCachedReceipt,
-    OpEthApi<N, OpRpcConvert<N, NetworkT>>:
-        FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
+    OpEthApi<N, OpRpcConvert<N>>: FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
 {
-    type EthApi = OpEthApi<N, OpRpcConvert<N, NetworkT>>;
+    type EthApi = OpEthApi<N, OpRpcConvert<N>>;
 
     async fn build_eth_api(self, ctx: EthApiCtx<'_, N>) -> eyre::Result<Self::EthApi> {
         let Self {

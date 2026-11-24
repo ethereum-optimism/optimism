@@ -108,19 +108,6 @@ func testPostExecTx() *optypes.PostExecTx {
 	return &optypes.PostExecTx{Data: data}
 }
 
-// testPostExecGethTx decodes the canonical post-exec encoding into a go-ethereum
-// transaction, to pin op-geth's view of a post-exec tx against the span batch
-// fields derived from the encoding itself. Only op-geth decodes the 0x7D class;
-// upstream go-ethereum rejects it, which is why nothing but this reference decodes
-// post-exec txs into go-ethereum transactions.
-func testPostExecGethTx(t *testing.T) *types.Transaction {
-	raw, err := testPostExecTx().MarshalBinary()
-	require.NoError(t, err)
-	tx := new(types.Transaction)
-	require.NoError(t, tx.UnmarshalBinary(raw))
-	return tx
-}
-
 func TestSpanBatchTxPostExecConvert(t *testing.T) {
 	raw, err := testPostExecTx().MarshalBinary()
 	require.NoError(t, err)

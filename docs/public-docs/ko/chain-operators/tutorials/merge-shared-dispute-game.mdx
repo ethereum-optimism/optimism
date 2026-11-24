@@ -313,6 +313,7 @@ validator는 결과가 기대값과 일치한다는 것만 증명합니다. 각 
 | `MIG-SASR-RGT` | 공유 `AnchorStateRegistry.respectedGameType()`이 super game type이 아닙니다. |
 | `MIG-SLOCKBOX-10` ~ `-30` | 공유 lockbox의 버전, proxy 구현 포인터 또는 `ProxyAdmin`이 일치하지 않습니다. |
 | `MIG-CHAIN-EMPTY` | validator가 빈 체인 목록을 받았습니다. |
+| `MIG-CHAIN-SINGLE` | validator가 체인을 하나만 받았습니다. interop set에는 최소 두 개의 체인이 필요합니다. |
 | `MIG-LOCKBOX-MISSING` | chain A의 portal이 공유 lockbox를 가리키지 않습니다. |
 | `MIG-CHAIN-{i}-10` | 체인 `i`의 portal이 공유 `AnchorStateRegistry`를 참조하지 않습니다. |
 | `MIG-CHAIN-{i}-20` | 체인 `i`의 체인별 factory에 여전히 `CANNON`이 등록되어 있습니다. |

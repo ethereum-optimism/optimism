@@ -248,7 +248,9 @@ func TestEthClient_FetchReceipts(t *testing.T) {
 				out[i].err = new(methodNotFoundError)
 			}
 			// last request fetches receipts
-			out[len(out)-1].result = optypes.FromGethReceipts(receipts)
+			result, err := optypes.FromGethReceipts(receipts)
+			require.NoError(t, err)
+			out[len(out)-1].result = result
 			return block, out
 		}
 	}
@@ -452,7 +454,8 @@ func TestVerifyReceipts(t *testing.T) {
 				TransactionIndex:  3,
 			},
 		}
-		receipts := optypes.FromGethReceipts(gethReceipts)
+		receipts, err := optypes.FromGethReceipts(gethReceipts)
+		require.NoError(t, err)
 		receiptsHash := types.DeriveSha(receipts, trie.NewStackTrie(nil))
 		return block, receiptsHash, txHashes, receipts
 	}
@@ -582,6 +585,13 @@ func TestVerifyReceipts(t *testing.T) {
 		receipts[2].Logs[0].Removed = true
 		err := validateReceipts(block, receiptHash, txHashes, receipts)
 		require.ErrorContains(t, err, "must never be removed due to reorg")
+	})
+
+	t.Run("NilLog", func(t *testing.T) {
+		block, receiptHash, txHashes, receipts := validData()
+		receipts[2].Logs[0] = nil
+		err := validateReceipts(block, receiptHash, txHashes, receipts)
+		require.ErrorContains(t, err, "log 0 of tx 2 is nil")
 	})
 }
 

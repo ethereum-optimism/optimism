@@ -128,7 +128,8 @@ fn read_file(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::superchain::Superchain;
+    use crate::{generated_chain_value_parser, superchain::Superchain};
+    use alloy_primitives::B256;
     use reth_optimism_primitives::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
     use tar_no_std::TarArchiveRef;
 
@@ -226,5 +227,39 @@ mod tests {
                 chain.environment()
             );
         }
+    }
+
+    #[test]
+    fn test_generated_specs_match_registry_genesis_hash() {
+        // Every generated `--chain <name>` spec must seal the genesis header the registry names.
+        // OP Mainnet is the exception: the registry's L2 genesis is its Bedrock transition block,
+        // while the spec pins the chain's block-0 hash (see `OP_MAINNET_GENESIS_HASH`).
+        let archive = TarArchiveRef::new(SUPER_CHAIN_CONFIGS_TAR_BYTES).unwrap();
+        let mut mismatches = Vec::new();
+        for &chain in Superchain::ALL {
+            let (name, env) = (chain.name(), chain.environment());
+            if (name, env) == ("op", "mainnet") {
+                continue;
+            }
+            // The CLI key, as `key_for!` builds it.
+            let key = if env == "mainnet" { name.to_string() } else { format!("{name}-{env}") };
+            let spec = generated_chain_value_parser(&key).unwrap();
+            let config: serde_json::Value = serde_json::from_slice(
+                &read_file(&archive, &format!("configs/{env}/{name}.json")).unwrap(),
+            )
+            .unwrap();
+            let expected: B256 = config["genesis"]["l2"]["hash"].as_str().unwrap().parse().unwrap();
+            if spec.genesis_hash() != expected {
+                mismatches.push(format!(
+                    "{env}/{name}: spec {} registry {expected}",
+                    spec.genesis_hash()
+                ));
+            }
+        }
+        assert!(
+            mismatches.is_empty(),
+            "generated specs with a wrong genesis hash:\n{}",
+            mismatches.join("\n")
+        );
     }
 }

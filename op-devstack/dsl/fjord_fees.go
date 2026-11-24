@@ -25,7 +25,7 @@ type FjordFees struct {
 }
 
 type FjordFeesValidationResult struct {
-	TransactionReceipt  *types.Receipt
+	TransactionReceipt  *optypes.Receipt
 	L1Fee               *big.Int
 	L2Fee               *big.Int
 	BaseFee             *big.Int
@@ -59,8 +59,6 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 	receipt, err := tx.Included.Eval(ff.ctx)
 	ff.require.NoError(err)
 	ff.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
-	opReceipt, err := client.TransactionReceipt(ff.ctx, receipt.TxHash)
-	ff.require.NoError(err)
 
 	endBalance := from.GetBalance()
 	vaultsAfter := ff.getVaultBalances(client)
@@ -69,8 +67,8 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 	coinbaseDiff := new(big.Int).Sub(coinbaseEndBalance, coinbaseStartBalance)
 
 	l1Fee := big.NewInt(0)
-	if opReceipt.L1Fee != nil {
-		l1Fee = opReceipt.L1Fee
+	if receipt.L1Fee != nil {
+		l1Fee = receipt.L1Fee
 	}
 
 	block, err := client.InfoByHash(ff.ctx, receipt.BlockHash)
@@ -93,7 +91,7 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 	walletBalanceDiff := new(big.Int).Sub(startBalance.ToBig(), endBalance.ToBig())
 	walletBalanceDiff.Sub(walletBalanceDiff, amount)
 
-	fastLzSize, estimatedBrotliSize := ff.validateFjordFeatures(opReceipt, l1Fee)
+	fastLzSize, estimatedBrotliSize := ff.validateFjordFeatures(receipt, l1Fee)
 	ff.validateFeeDistribution(l1Fee, baseFee, priorityFee, operatorFee, vaultIncreases)
 	ff.validateTotalBalance(walletBalanceDiff, totalFee, vaultIncreases)
 
@@ -269,7 +267,7 @@ func (ff *FjordFees) validateVaultIncreaseFees(
 }
 
 // FindSignedTransactionFromReceipt finds the signed transaction from a receipt and block
-func FindSignedTransactionFromReceipt(ctx context.Context, client apis.EthL2BlockTxs, receipt *types.Receipt) (*types.Transaction, error) {
+func FindSignedTransactionFromReceipt(ctx context.Context, client apis.EthL2BlockTxs, receipt *optypes.Receipt) (*types.Transaction, error) {
 	_, txs, err := client.InfoAndUserTxsByHash(ctx, receipt.BlockHash)
 	if err != nil {
 		return nil, err

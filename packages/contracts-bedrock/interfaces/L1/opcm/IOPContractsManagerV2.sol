@@ -136,7 +136,7 @@ interface IOPContractsManagerV2 {
     /// @notice Upgrades contracts on an existing OP Chain per the provided input.
     function upgrade(UpgradeInput memory _inp) external returns (ChainContracts memory);
 
-    /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
+    /// @notice Migrates two or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
     function migrate(IOPContractsManagerMigrator.MigrateInput calldata _input) external;
 

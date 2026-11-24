@@ -149,9 +149,9 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	require.Equal(t, predeploys.EIP4788ContractCode, code)
 	// Test that the beacon-block-root has been set
 	checkBeaconBlockRoot := func(timestamp uint64, expectedHash common.Hash, expectedTime uint64, msg string) {
-		historyBufferLength := uint64(8191)
-		rootIdx := common.BigToHash(new(big.Int).SetUint64((timestamp % historyBufferLength) + historyBufferLength))
-		timeIdx := common.BigToHash(new(big.Int).SetUint64(timestamp % historyBufferLength))
+		timeSlot := timestamp % predeploys.EIP4788HistoryBufferLength
+		rootIdx := common.BigToHash(new(big.Int).SetUint64(timeSlot + predeploys.EIP4788HistoryBufferLength))
+		timeIdx := common.BigToHash(new(big.Int).SetUint64(timeSlot))
 
 		rootValue, err := ethCl.StorageAt(context.Background(), predeploys.EIP4788ContractAddr, rootIdx, nil)
 		require.NoError(t, err)

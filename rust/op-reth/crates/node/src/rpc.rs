@@ -7,7 +7,6 @@
 //!
 //! ```rust,no_run
 //! use alloy_rpc_types_eth::BlockId;
-//! use op_alloy_network::Optimism;
 //! use reth_db::test_utils::create_test_rw_db_with_path;
 //! use reth_node_builder::{
 //!     ConsensusEngineHandle, LaunchContext, NodeConfig, RethFullAdapter,
@@ -78,7 +77,7 @@
 //!         sender_recovery_cache: node.sender_recovery_cache().cloned(),
 //!         engine_handle: ConsensusEngineHandle::new(tx),
 //!     };
-//!     let eth_api = OpEthApiBuilder::<Optimism>::default().build_eth_api(ctx).await.unwrap();
+//!     let eth_api = OpEthApiBuilder::default().build_eth_api(ctx).await.unwrap();
 //!
 //!     // build `trace` namespace API
 //!     let trace_api = TraceApi::new(eth_api, BlockingTaskGuard::new(10), EthConfig::default());
@@ -90,48 +89,28 @@
 
 pub use reth_optimism_rpc::{OpEngineApi, OpEthApi, OpEthApiBuilder};
 
-use crate::OP_NAME_CLIENT;
+use crate::{OP_NAME_CLIENT, OpNodeTypes, engine::OpEngineValidator};
 use alloy_rpc_types_engine::ClientVersionV1;
-use reth_chainspec::EthereumHardforks;
-use reth_node_api::{
-    AddOnsContext, EngineApiValidator, EngineTypes, FullNodeComponents, NodeTypes,
-};
-use reth_node_builder::rpc::{EngineApiBuilder, PayloadValidatorBuilder};
+use reth_node_api::{AddOnsContext, FullNodeComponents};
+use reth_node_builder::rpc::EngineApiBuilder;
 use reth_node_core::version::{CLIENT_CODE, version_metadata};
-use reth_optimism_payload_builder::OpExecData;
 use reth_optimism_rpc::engine::OP_ENGINE_CAPABILITIES;
 use reth_payload_builder::PayloadStore;
 use reth_rpc_engine_api::{EngineApi, EngineCapabilities};
 
 /// Builder for basic [`OpEngineApi`] implementation.
 #[derive(Debug, Default, Clone)]
-pub struct OpEngineApiBuilder<EV> {
-    engine_validator_builder: EV,
-}
+#[non_exhaustive]
+pub struct OpEngineApiBuilder;
 
-impl<N, EV> EngineApiBuilder<N> for OpEngineApiBuilder<EV>
+impl<N> EngineApiBuilder<N> for OpEngineApiBuilder
 where
-    N: FullNodeComponents<
-        Types: NodeTypes<
-            ChainSpec: EthereumHardforks,
-            Payload: EngineTypes<ExecutionData = OpExecData>,
-        >,
-    >,
-    EV: PayloadValidatorBuilder<N>,
-    EV::Validator: EngineApiValidator<<N::Types as NodeTypes>::Payload>,
+    N: FullNodeComponents<Types: OpNodeTypes>,
 {
-    type EngineApi = OpEngineApi<
-        N::Provider,
-        <N::Types as NodeTypes>::Payload,
-        N::Pool,
-        EV::Validator,
-        <N::Types as NodeTypes>::ChainSpec,
-    >;
+    type EngineApi = OpEngineApi<N::Provider, N::Pool, OpEngineValidator>;
 
     async fn build_engine_api(self, ctx: &AddOnsContext<'_, N>) -> eyre::Result<Self::EngineApi> {
-        let Self { engine_validator_builder } = self;
-
-        let engine_validator = engine_validator_builder.build(ctx).await?;
+        let engine_validator = OpEngineValidator::new(ctx.config.chain.clone());
         let client = ClientVersionV1 {
             code: CLIENT_CODE,
             name: OP_NAME_CLIENT.to_string(),

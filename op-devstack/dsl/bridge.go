@@ -158,7 +158,7 @@ func (b *StandardBridge) UsesSuperRoots() bool {
 
 type Deposit struct {
 	bridge    *StandardBridge
-	l1Receipt *types.Receipt
+	l1Receipt *optypes.Receipt
 }
 
 func (d Deposit) GasCost() eth.ETH {
@@ -209,10 +209,10 @@ func (b *StandardBridge) InitiateWithdrawal(amount eth.ETH, from *EOA) *Withdraw
 // finalized like one initiated by InitiateWithdrawal. Use it for withdrawals initiated by a
 // contract call (e.g. an L2CrossDomainMessenger.sendMessage) rather than by a plain transfer to
 // the message passer.
-func (b *StandardBridge) WithdrawalFromReceipt(rcpt *types.Receipt) *Withdrawal {
+func (b *StandardBridge) WithdrawalFromReceipt(rcpt *optypes.Receipt) *Withdrawal {
 	b.require.NotNil(rcpt, "withdrawal receipt must not be nil")
 	b.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "withdrawal-initiating transaction failed")
-	ev, err := withdrawals.ParseMessagePassed(rcpt)
+	ev, err := withdrawals.ParseMessagePassed(&rcpt.Receipt)
 	b.require.NoError(err, "receipt does not contain a MessagePassed event")
 	b.log.Info("Adopted withdrawal", "tx", rcpt.TxHash, "nonce", ev.Nonce, "target", ev.Target)
 	return &Withdrawal{
@@ -277,7 +277,7 @@ func (b *StandardBridge) CreateL2Token(l1TokenAddr common.Address, name string, 
 }
 
 // extractL2TokenFromLogs extracts the L2 token address from OptimismMintableERC20Created event
-func (b *StandardBridge) extractL2TokenFromLogs(receipt *types.Receipt) common.Address {
+func (b *StandardBridge) extractL2TokenFromLogs(receipt *optypes.Receipt) common.Address {
 	// Look for the OptimismMintableERC20Created event
 	for _, log := range receipt.Logs {
 		if log.Address == predeploys.OptimismMintableERC20FactoryAddr && len(log.Topics) > 2 {
@@ -292,11 +292,11 @@ func (b *StandardBridge) extractL2TokenFromLogs(receipt *types.Receipt) common.A
 type Withdrawal struct {
 	commonImpl
 	bridge      *StandardBridge
-	initReceipt *types.Receipt
+	initReceipt *optypes.Receipt
 
 	proveParams     ProvenWithdrawalParameters
-	proveReceipt    *types.Receipt
-	finalizeReceipt *types.Receipt
+	proveReceipt    *optypes.Receipt
+	finalizeReceipt *optypes.Receipt
 }
 
 func (w *Withdrawal) InitiateGasCost() eth.ETH {
@@ -442,7 +442,7 @@ func (b *StandardBridge) faultProofProveParams(withdrawal *Withdrawal) (withdraw
 	return params, nil
 }
 
-func (b *StandardBridge) ProveWithFaultProofParams(user *EOA, params withdrawals.ProvenWithdrawalParameters) *types.Receipt {
+func (b *StandardBridge) ProveWithFaultProofParams(user *EOA, params withdrawals.ProvenWithdrawalParameters) *optypes.Receipt {
 	gameInfo, err := contractio.Read(b.disputeGameFactory.GameAtIndex(params.L2OutputIndex), b.ctx)
 	b.require.NoErrorf(err, "failed to read dispute game %v", params.L2OutputIndex)
 	b.require.Eventuallyf(func() bool {
@@ -465,7 +465,7 @@ func (b *StandardBridge) ProveWithFaultProofParams(user *EOA, params withdrawals
 		LatestBlockhash:          params.OutputRootProof.LatestBlockhash,
 	}
 	call := b.l1Portal.ProveWithdrawalTransaction(tx, params.L2OutputIndex, proof, params.WithdrawalProof)
-	var receipt *types.Receipt
+	var receipt *optypes.Receipt
 	b.require.Eventually(func() bool {
 		receipt, err = contractio.Write(call, b.ctx, user.Plan())
 		if err != nil {
@@ -542,7 +542,7 @@ func (w *Withdrawal) Finalize(user *EOA) {
 
 	// Finalize withdrawal
 	w.log.Info("FinalizeWithdrawal: finalizing withdrawal...")
-	var finalizeReceipt *types.Receipt
+	var finalizeReceipt *optypes.Receipt
 	var err error
 	// Retry as the air gap delay needs to have expired at the head block timestamp for estimateGas to work
 	w.require.Eventually(func() bool {
@@ -556,7 +556,7 @@ func (w *Withdrawal) Finalize(user *EOA) {
 }
 
 // FinalizeReceipt returns the receipt of the transaction that finalized the withdrawal.
-func (w *Withdrawal) FinalizeReceipt() *types.Receipt {
+func (w *Withdrawal) FinalizeReceipt() *optypes.Receipt {
 	w.require.NotNil(w.finalizeReceipt, "Must have finalized withdrawal first")
 	return w.finalizeReceipt
 }
@@ -618,19 +618,18 @@ func (w *Withdrawal) ProveAndFinalize(user *EOA, maxGameClock time.Duration) {
 }
 
 // l1GasCost returns the fee paid for an L1 transaction, whose receipt carries no OP fee fields.
-func (b *StandardBridge) l1GasCost(rcpt *types.Receipt) eth.ETH {
-	return gasCost(optypes.FromGethReceipt(rcpt), b.rollupCfg, nil)
+func (b *StandardBridge) l1GasCost(rcpt *optypes.Receipt) eth.ETH {
+	return gasCost(rcpt, b.rollupCfg, nil)
 }
 
-// l2GasCost re-fetches rcpt from L2, as only an OP receipt carries the L1 and operator fees.
-func (b *StandardBridge) l2GasCost(rcpt *types.Receipt) eth.ETH {
-	opRcpt, err := b.l2Client.TransactionReceipt(b.ctx, rcpt.TxHash)
-	b.require.NoError(err, "failed to fetch receipt %s", rcpt.TxHash)
+// l2GasCost returns the fee paid for an L2 transaction, including the L1 and operator fees that
+// its receipt carries.
+func (b *StandardBridge) l2GasCost(rcpt *optypes.Receipt) eth.ETH {
 	var blockTimestamp *uint64
-	if hasOperatorFee(opRcpt) {
-		blockTimestamp = b.receiptTimestamp(opRcpt)
+	if hasOperatorFee(rcpt) {
+		blockTimestamp = b.receiptTimestamp(rcpt)
 	}
-	return gasCost(opRcpt, b.rollupCfg, blockTimestamp)
+	return gasCost(rcpt, b.rollupCfg, blockTimestamp)
 }
 
 func hasOperatorFee(rcpt *optypes.Receipt) bool {
