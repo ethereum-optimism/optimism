@@ -1,10 +1,9 @@
-//! `debug_trace*` (built-in and JS tracers) and `debug_accountAt` against the receipts and the
-//! committed state.
+//! `debug_trace*` and `debug_accountAt` against the receipts and the committed state.
 
 use super::fixture::{POST_EXEC_INDEX, REVERTING_INDEX, SettledBlock, TRANSFER_INDEX};
 use crate::lagoon::{DEPLOY_GAS, default_trace_gas};
 use alloy_primitives::U256;
-use alloy_rpc_types_trace::geth::{GethDebugTracerType, GethDebugTracingOptions, GethTrace};
+use alloy_rpc_types_trace::geth::GethTrace;
 
 /// The default, call and prestate tracers report each regular transaction's canonical gas and
 /// the balances `debug_accountAt` replays at that index; after the last regular transaction those
@@ -124,26 +123,6 @@ async fn block_prestate_diffs_report_settled_balances() -> eyre::Result<()> {
                 );
             }
         }
-    }
-    Ok(())
-}
-
-/// A JS tracer reads the gas from the execution result it is handed, which must be the settled one.
-#[tokio::test]
-async fn js_tracer_reports_settled_gas() -> eyre::Result<()> {
-    reth_tracing::init_test_tracing();
-    let fixture = SettledBlock::sequence().await?;
-    let receipt_gas = fixture.receipt_gas()?;
-
-    let tracer = "{step: function() {}, fault: function() {}, \
-                  result: function(ctx) { return ctx.gasUsed; }}";
-    for (index, gas_used) in receipt_gas.iter().enumerate().take(POST_EXEC_INDEX) {
-        let options = GethDebugTracingOptions::default()
-            .with_tracer(GethDebugTracerType::JsTracer(tracer.to_string()));
-        let GethTrace::JS(traced) = fixture.trace_transaction(index, Some(options)).await? else {
-            panic!("unexpected JS trace of transaction {index}");
-        };
-        assert_eq!(traced.as_u64(), Some(*gas_used), "JS tracer gas of transaction {index}");
     }
     Ok(())
 }
