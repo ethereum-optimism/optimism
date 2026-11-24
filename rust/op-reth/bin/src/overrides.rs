@@ -7,7 +7,7 @@ use reth_node_builder::{NodeBuilder, WithLaunchContext};
 use reth_node_core::{node_config::NodeConfig, version::RethCliVersionConsts};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::{LaunchOpNode, OpLaunchHooks, OpNode, args::RollupArgs, launch_node};
-use std::fmt;
+use std::{fmt, ops::AsyncFnOnce};
 
 /// The arguments of the `node` command: op-reth's own, then those of the binary that embeds it.
 #[derive(Debug, Clone, clap::Args)]
@@ -20,31 +20,22 @@ pub struct OpRethArgs<Ext: clap::Args = NoArgs> {
     pub ext: Ext,
 }
 
-/// Changes the node before launch. See [`OpRethOverrides::customize`].
-type Customize<Ext, Node> = Box<
-    dyn for<'a> FnOnce(
-        &'a mut NodeConfig<OpChainSpec>,
+/// Runs the node selected by the overrides with op-reth's launcher.
+type RunNode<Ext> = Box<
+    dyn FnOnce(
+        WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
         Ext,
         OpNode,
-    ) -> LocalBoxFuture<'a, eyre::Result<(Node, OpLaunchHooks)>>,
+    ) -> LocalBoxFuture<'static, eyre::Result<()>>,
 >;
-
-/// Launches the node `customize` returned, then waits for it to exit.
-type Launch<Node> = fn(
-    WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
-    Node,
-    OpLaunchHooks,
-) -> LocalBoxFuture<'static, eyre::Result<()>>;
 
 /// Startup overrides that [`main_with`](crate::main_with) applies.
 ///
-/// The default overrides run op-reth itself. `Ext` holds the extra `node` arguments, and `Node`
-/// is the [`OpNode`] that launches with its configured pool and payload service builders.
-pub struct OpRethOverrides<Ext = NoArgs, Node = OpNode> {
+/// The default overrides run op-reth itself. `Ext` holds the extra `node` arguments.
+pub struct OpRethOverrides<Ext = NoArgs> {
     /// The build metadata to report instead of op-reth's.
     pub(crate) version: Option<RethCliVersionConsts>,
-    pub(crate) customize: Customize<Ext, Node>,
-    pub(crate) launch: Launch<Node>,
+    pub(crate) run_node: RunNode<Ext>,
 }
 
 impl Default for OpRethOverrides {
@@ -58,17 +49,15 @@ impl OpRethOverrides {
     pub fn new() -> Self {
         Self {
             version: None,
-            customize: Box::new(|_, _, node| {
-                async move { Ok((node, OpLaunchHooks::default())) }.boxed_local()
+            // The concrete entry point keeps the stock launch compiled in reth-optimism-node.
+            run_node: Box::new(|builder, _, node| {
+                launch_node(builder, node, OpLaunchHooks::default()).boxed_local()
             }),
-            // `launch_node` is not generic, so op-reth's own launch is compiled in
-            // `reth-optimism-node` rather than here.
-            launch: |builder, node, hooks| launch_node(builder, node, hooks).boxed_local(),
         }
     }
 }
 
-impl<Ext, Node> OpRethOverrides<Ext, Node> {
+impl<Ext> OpRethOverrides<Ext> {
     /// Reports `version` wherever the client identity is observable: `--version`, the
     /// `--identity` default, `web3_clientVersion`, the devp2p identity and metrics.
     pub fn with_version(mut self, version: RethCliVersionConsts) -> Self {
@@ -76,35 +65,51 @@ impl<Ext, Node> OpRethOverrides<Ext, Node> {
         self
     }
 
-    /// Adds the arguments `NewExt` to the `node` command and runs `customize` before the node
-    /// launches, replacing any earlier `customize`.
+    /// Adds `NewExt` to the `node` command and installs an async mapper that runs before launch.
     ///
-    /// `customize` gets the node's config, the parsed `NewExt` and the [`OpNode`] op-reth built
-    /// from its own arguments. It returns the node to launch, which [`OpNode::with_pool`] and
-    /// [`OpNode::with_payload`] can derive, and the [`OpLaunchHooks`] to launch it with.
+    /// The mapper receives the mutable node config, the parsed extra arguments, and the [`OpNode`]
+    /// built from op-reth's own arguments. It returns the configured [`OpNode`] and its
+    /// [`OpLaunchHooks`] for op-reth to launch.
+    /// Use [`OpNode::with_pool`] or [`OpNode::with_payload`] to change the node's builder types.
+    /// Calling this again replaces the previous mapper.
     ///
-    /// The node launches through [`LaunchOpNode`], so the launch is compiled in the crate that
-    /// calls this.
-    pub fn customize<NewExt, NewNode, F>(self, customize: F) -> OpRethOverrides<NewExt, NewNode>
+    /// ```no_run
+    /// use op_reth::{OpRethOverrides, main_with, node::OpLaunchHooks};
+    /// use reth_cli_commands::node::NoArgs;
+    /// use reth_node_builder::components::BasicPayloadServiceBuilder;
+    ///
+    /// let overrides: OpRethOverrides = OpRethOverrides::new().map_node(async |_, _: NoArgs, node| {
+    ///     let payload = BasicPayloadServiceBuilder::new(node.payload_builder());
+    ///     Ok((node.with_payload(payload), OpLaunchHooks::default()))
+    /// });
+    /// main_with(overrides)?;
+    /// # Ok::<(), eyre::Report>(())
+    /// ```
+    pub fn map_node<NewExt, Pool, Payload, F>(self, mapper: F) -> OpRethOverrides<NewExt>
     where
-        F: for<'a> FnOnce(
+        F: for<'a> AsyncFnOnce(
                 &'a mut NodeConfig<OpChainSpec>,
                 NewExt,
                 OpNode,
-            )
-                -> LocalBoxFuture<'a, eyre::Result<(NewNode, OpLaunchHooks)>>
+            ) -> eyre::Result<(OpNode<Pool, Payload>, OpLaunchHooks)>
             + 'static,
-        NewNode: LaunchOpNode + 'static,
+        NewExt: 'static,
+        OpNode<Pool, Payload>: LaunchOpNode + 'static,
     {
         OpRethOverrides {
             version: self.version,
-            customize: Box::new(customize),
-            launch: |builder, node, hooks| node.launch(builder, hooks).boxed_local(),
+            run_node: Box::new(move |mut builder, args, node| {
+                async move {
+                    let (node, hooks) = mapper(builder.config_mut(), args, node).await?;
+                    node.launch(builder, hooks).await
+                }
+                .boxed_local()
+            }),
         }
     }
 }
 
-impl<Ext, Node> fmt::Debug for OpRethOverrides<Ext, Node> {
+impl<Ext> fmt::Debug for OpRethOverrides<Ext> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OpRethOverrides").field("version", &self.version).finish_non_exhaustive()
     }

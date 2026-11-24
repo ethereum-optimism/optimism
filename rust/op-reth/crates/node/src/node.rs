@@ -513,6 +513,7 @@ where
         builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
         hooks: OpLaunchHooks,
     ) -> eyre::Result<()> {
+        info!(target: "reth::cli", "Launching node");
         let args = &self.args;
         // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
         // callers that build a `NodeConfig` without that CLI.

@@ -35,7 +35,7 @@ use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_chainspec::{is_superchain_chain_id, superchain_block_time};
 use reth_optimism_node::{OpNode, args::RollupArgs};
 use std::{borrow::Cow, fmt};
-use tracing::{info, warn};
+use tracing::warn;
 
 /// Re-exported from `reth_optimism_cli`.
 pub mod cli {
@@ -94,11 +94,11 @@ pub fn main() -> eyre::Result<()> {
 ///
 /// Parses the command line, with the extra arguments `Ext`, and runs the selected command. The
 /// `node` command applies op-reth's checks and defaults to its arguments, builds an [`OpNode`],
-/// and hands it to [`OpRethOverrides::customize`] before launching it.
+/// and hands it to [`OpRethOverrides::map_node`] before launching it.
 ///
 /// The global allocator is the embedding binary's: op-reth declares jemalloc in its own `main.rs`,
 /// not here.
-pub fn main_with<Ext, Node>(overrides: OpRethOverrides<Ext, Node>) -> eyre::Result<()>
+pub fn main_with<Ext>(overrides: OpRethOverrides<Ext>) -> eyre::Result<()>
 where
     Ext: clap::Args + fmt::Debug + 'static,
 {
@@ -111,17 +111,15 @@ where
         }
     }
 
-    let OpRethOverrides { version, customize, launch } = overrides;
+    let OpRethOverrides { version, run_node } = overrides;
     // Install the build metadata before clap reads it during parsing.
     try_init_version_metadata(version.unwrap_or_else(op_reth_version))
         .map_err(|_| eyre::eyre!("build info is already embedded. This is a bug."))?;
 
     reth_optimism_cli::Cli::<OpRethArgs<Ext>>::parse_with_denied_args().run(
-        async move |mut builder, OpRethArgs { rollup, ext }| {
+        async move |builder, OpRethArgs { rollup, ext }| {
             let node = op_node(builder.config().chain.chain.id(), rollup)?;
-            let (node, hooks) = customize(builder.config_mut(), ext, node).await?;
-            info!(target: "reth::cli", "Launching node");
-            launch(builder, node, hooks).await
+            run_node(builder, ext, node).await
         },
     )
 }
