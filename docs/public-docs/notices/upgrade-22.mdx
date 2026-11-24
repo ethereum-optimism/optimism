@@ -127,6 +127,8 @@ See [Configure op-challenger for ZK dispute games](/chain-operators/guides/confi
 
 If you have a withdrawal from **OP Mainnet** or **Unichain** (or OP Sepolia or Unichain Sepolia) that is proven but not finalized when the migration executes, prove it again after the migration and wait the proof maturity delay again before finalizing.
 The delay counts from the new proof, not the original one.
+You can prove it again once the shared `DisputeGameFactory` has a game that covers it.
+The first game on the shared factory must propose a later timestamp than the migration's starting anchor, so there can be a short gap after the migration while the new proposer starts.
 
 A withdrawal finalized before the migration is not affected.
 Withdrawals started after the migration are not affected.
@@ -159,13 +161,13 @@ On **OP Mainnet**, **Unichain**, **OP Sepolia**, and **Unichain Sepolia**, also 
 
 Upgrade your sequencer and other nodes to the Lagoon releases listed in [Node operators](#node-operators), and these chain-operator components:
 
-{/* TODO: fill versions once the Lagoon releases are cut. op-challenger v1.12.0 and op-dispute-mon v1.6.6 already contain ZK game support; confirm with the feature team whether new releases are still required for the ZK switch. */}
+{/* TODO: fill versions once the U22 releases are cut. The op-challenger release must include the ZK bond-claiming fix (optimism#24331, open as of 2026-11-23); without it, op-challenger never sends the second claimCredit and its ZK bonds are never withdrawn from DelayedWETH. The op-dispute-mon release must include the fix for false "credit withdrawn early" alerts on ZK bonds. */}
 
 | Component | Version | Who needs it | Action |
 | --- | --- | --- | --- |
 | `op-batcher` | To be published | Every chain that activates Lagoon | Upgrade before activation so it can encode `0x7D` transactions in batches. |
-| `op-challenger` | To be published | Permissionless chains that activate Lagoon, and challengers on OP Mainnet and Unichain | Upgrade before activation for the Lagoon prestate. On OP Mainnet and Unichain, add the `zk` game type at the [ZK switch](#zk-proofs-on-op-mainnet-and-unichain). |
-| `op-dispute-mon` | To be published | Anyone monitoring dispute games on OP Mainnet and Unichain | Upgrade before the ZK switch. No configuration change is needed: it finds ZK games on the same `DisputeGameFactory`. |
+| `op-challenger` | To be published | Permissionless chains that activate Lagoon, and challengers on OP Mainnet and Unichain | Upgrade before activation for the Lagoon prestate. On OP Mainnet and Unichain, this release is required before the [ZK switch](#zk-proofs-on-op-mainnet-and-unichain) so the challenger can claim ZK bonds; add the `zk` game type at the switch. |
+| `op-dispute-mon` | To be published | Anyone monitoring dispute games on OP Mainnet and Unichain | Required before the ZK switch. No configuration change is needed on the shared factory: it finds ZK games there. |
 | `op-zk-proposer` | To be published | Chain operators of OP Mainnet and Unichain | Runs the ZK proposer from the ZK switch. See [Configure op-zk-proposer](/chain-operators/guides/configuration/zk-proposer). |
 
 * To issue SDM rebates after activation, follow the [SDM operator guide](/chain-operators/guides/features/sequencer-defined-metering).
@@ -176,7 +178,13 @@ Upgrade your sequencer and other nodes to the Lagoon releases listed in [Node op
 Lagoon changes the fault proof program, so every permissionless chain that activates Lagoon needs a new absolute prestate built from a Lagoon `kona-client` release.
 The hardfork does not change the respected game type. `OP_PROPOSER_GAME_TYPE` stays `9` (`SUPER_CANNON_KONA`) on a permissionless chain.
 
-* **OP Mainnet and Unichain** move to the shared `DisputeGameFactory` at the migration. Optimism sets the interop prestate onchain as part of the governed upgrade. Point third-party `op-challenger` and `op-dispute-mon` instances at the shared factory (`--game-factory-address`) and at a super-root source that derives both chains after the migration. Read the shared factory address from `OptimismPortal2.disputeGameFactory()` once the migration has executed.
+* **OP Mainnet and Unichain** move to the shared `DisputeGameFactory` at the migration. Optimism sets the interop prestate onchain as part of the governed upgrade. Third-party `op-challenger` and `op-dispute-mon` operators run two sets of instances after the migration:
+  * **Keep one of each per chain on that chain's old factory.** The migration clears the old factories' game implementations, so no new games are created there, but games already in flight still resolve and pay bonds through the old `AnchorStateRegistry` and `DelayedWETH`. Set `--game-factory-address` to the old factory, and point `--superroot-rpc` at a per-chain source: the chain's op-node, or the op-supernode's `/<chainID>` path. Do not use the op-supernode's root endpoint for these instances, because it returns a super root for both chains. Retire them once their games are resolved and bonds claimed; see [Drain Pre-Migration Games and Reclaim Bonds](/chain-operators/tutorials/merge-shared-dispute-game#drain-pre-migration-games-and-reclaim-bonds) and [Tear Down After the Drain](/chain-operators/tutorials/merge-shared-dispute-game#tear-down-after-the-drain).
+  * **Add one of each on the shared factory.** Read its address from `OptimismPortal2.disputeGameFactory()` once the migration has executed, set `--game-factory-address` to it, and point `--superroot-rpc` at the op-supernode's root endpoint, which derives both chains.
+
+  <Warning>
+    An `op-challenger` or `op-dispute-mon` configured with `--network` and no `--game-factory-address` reads the factory address from the superchain-registry compiled into the binary. Once a release ships with the registry updated to the shared factory, it moves there without any configuration change, and the old factory's in-flight games are no longer watched. Set `--game-factory-address` explicitly on every old-factory instance.
+  </Warning>
 * **Other permissionless chains in the superchain registry** use the standard prestate for the Lagoon `kona-client` release. Update `op-challenger` and confirm it can fetch the new prestate.
 * **Permissionless chains outside the superchain registry** that adopt Lagoon need a custom prestate. Build it, host it for `op-challenger`, and set it onchain in your OPCM upgrade by following the steps below.
 
