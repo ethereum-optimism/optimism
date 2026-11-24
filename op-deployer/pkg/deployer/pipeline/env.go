@@ -4,7 +4,11 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"reflect"
+	"slices"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
@@ -20,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type Env struct {
@@ -70,17 +75,57 @@ func ReadIntent(workdir string) (*state.Intent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read intent file: %w", err)
 	}
+	if err := checkBlobScheduleKeys(undecoded); err != nil {
+		return nil, fmt.Errorf("failed to read intent file: %w", err)
+	}
+	return intent, nil
+}
+
+// checkBlobScheduleKeys returns an error that names each unknown key under
+// l1DevGenesisParams.blobSchedule, if there are any.
+func checkBlobScheduleKeys(undecoded []toml.Key) error {
+	schedule := reflect.TypeFor[params.BlobScheduleConfig]()
 	var unknown []string
 	for _, key := range undecoded {
 		// Compare per key part with EqualFold, as the decoder matches key parts to fields.
-		if len(key) > 2 && strings.EqualFold(key[0], "l1DevGenesisParams") && strings.EqualFold(key[1], "blobSchedule") {
-			unknown = append(unknown, key.String())
+		if len(key) <= 2 || !strings.EqualFold(key[0], "l1DevGenesisParams") || !strings.EqualFold(key[1], "blobSchedule") {
+			continue
+		}
+		// Every key below an unknown table is undecoded too, and the table itself is not listed
+		// when it is only implied by a dotted key. Report the first key part that names no field.
+		t := schedule
+		for i := 2; i < len(key) && t.Kind() == reflect.Struct; i++ {
+			field, ok := t.FieldByNameFunc(func(name string) bool { return strings.EqualFold(name, key[i]) })
+			if !ok {
+				key = key[:i+1]
+				break
+			}
+			t = field.Type
+			if t.Kind() == reflect.Pointer {
+				t = t.Elem()
+			}
+		}
+		name := key.String()
+		// The two unknown keys an intent is likely to hold: a fork entry and a blob config field.
+		switch last := key[len(key)-1]; {
+		case len(key) == 3 && strings.EqualFold(last, "osaka"):
+			name += " (Osaka has no entry of its own and uses prague)"
+		case len(key) == 4 && strings.EqualFold(last, "baseFeeUpdateFraction"):
+			name += " (the TOML key is updateFraction)"
+		}
+		if !slices.Contains(unknown, name) {
+			unknown = append(unknown, name)
 		}
 	}
-	if len(unknown) > 0 {
-		return nil, fmt.Errorf("failed to read intent file: unknown blob schedule keys: %s", strings.Join(unknown, ", "))
+	if len(unknown) == 0 {
+		return nil
 	}
-	return intent, nil
+	entries := make([]string, schedule.NumField())
+	for i := range entries {
+		entries[i] = strings.ToLower(schedule.Field(i).Name)
+	}
+	return fmt.Errorf("unknown blob schedule keys: %s; valid entries are %s, each with target, max and updateFraction",
+		strings.Join(unknown, ", "), strings.Join(entries, ", "))
 }
 
 func ReadState(workdir string) (*state.State, error) {
